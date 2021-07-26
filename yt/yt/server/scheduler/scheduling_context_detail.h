@@ -15,7 +15,8 @@ class TSchedulingContextBase
 public:
     DEFINE_BYVAL_RO_PROPERTY(int, NodeShardId);
 
-    DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsageDiscount);
+    DEFINE_BYREF_RW_PROPERTY(TJobResources, UnconditionalResourceUsageDiscount);
+    DEFINE_BYVAL_RO_PROPERTY(TJobResources, MaxConditionalUsageDiscount);
     DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsage);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TDiskResources, DiskResources);
@@ -37,7 +38,9 @@ public:
 
     virtual const TExecNodeDescriptor& GetNodeDescriptor() const override;
 
-    virtual bool CanStartJob(const TJobResourcesWithQuota& jobResourcesWithQuota) const override;
+    virtual bool CanStartJobForOperation(
+        const TJobResourcesWithQuota& jobResourcesWithQuota,
+        TOperationId operationId) const override;
     virtual bool CanStartMoreJobs() const override;
     virtual bool CanSchedule(const TSchedulingTagFilter& filter) const override;
     virtual bool ShouldAbortJobsSinceResourcesOvercommit() const override;
@@ -52,8 +55,12 @@ public:
 
     virtual void PreemptJob(const TJobPtr& job, TDuration interruptTimeout) override;
 
-    virtual TJobResources GetNodeFreeResourcesWithoutDiscount() override;
-    virtual TJobResources GetNodeFreeResourcesWithDiscount() override;
+    virtual void ResetUsageDiscounts() override;
+    virtual void SetConditionalDiscountForOperation(TOperationId operationId, const TJobResources& discount) override;
+    virtual TJobResources GetConditionalDiscountForOperation(TOperationId operationId) const override;
+    virtual TJobResources GetNodeFreeResourcesWithoutDiscount() const override;
+    virtual TJobResources GetNodeFreeResourcesWithDiscount() const override;
+    virtual TJobResources GetNodeFreeResourcesWithDiscountForOperation(TOperationId operationId) const override;
 
     virtual ESchedulingSegment GetSchedulingSegment() const override;
 
@@ -66,7 +73,12 @@ private:
 
     std::vector<TDiskQuota> DiskRequests_;
 
-    bool CanSatisfyResourceRequest(const TJobResources& jobResources) const;
+    // TODO(eshcherbin): Should we optimize and use tree index instead of operation ID here?
+    THashMap<TOperationId, TJobResources> ConditionalUsageDiscountMap_;
+
+    bool CanSatisfyResourceRequest(
+        const TJobResources& jobResources,
+        const TJobResources& conditionalDiscount) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

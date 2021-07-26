@@ -1016,6 +1016,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
+            "watchers_update_period": 100,
             "fair_share_update_period": 100,
             "event_log": {
                 "flush_period": 300,
@@ -1044,7 +1045,13 @@ class TestSchedulerPreemption(YTEnvSetup):
                 "reporting_period": 10,
                 "min_repeat_delay": 10,
                 "max_repeat_delay": 10,
-            }
+            },
+            "job_controller": {
+                "resource_limits": {
+                    "cpu": 1,
+                    "user_slots": 2,
+                },
+            },
         },
     }
 
@@ -1058,7 +1065,7 @@ class TestSchedulerPreemption(YTEnvSetup):
     def setup_method(self, method):
         super(TestSchedulerPreemption, self).setup_method(method)
         set("//sys/pool_trees/default/@config/preemption_satisfaction_threshold", 0.99)
-        set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.7)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.8)
         set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 1000)
         set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 0)
         set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
@@ -1209,7 +1216,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         get_operation_min_share_ratio = lambda op: op.get_runtime_progress("scheduling_info_per_pool_tree/default/min_share_ratio", 0.0)
 
-        min_share_settings = [{"cpu": 3}, {"cpu": 1, "user_slots": 3}]
+        min_share_settings = [{"cpu": 3}, {"cpu": 1, "user_slots": 6}]
 
         for min_share_spec in min_share_settings:
             reset_events_on_fs()
@@ -1499,6 +1506,57 @@ class TestSchedulerPreemption(YTEnvSetup):
         preemption_reason = job["error"]["attributes"]["preemption_reason"]
         assert preemption_reason.startswith("Preempted to start job") and \
                preemption_reason.endswith("of operation {}".format(op2.id))
+
+    @authors("eshcherbin")
+    def test_conditional_preemption(self):
+        set("//sys/scheduler/config/min_spare_job_resources_on_node", {"cpu": 0.5, "user_slots": 1})
+
+        set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 1)
+        set("//sys/pool_trees/default/@config/enable_conditional_preemption", False)
+        wait(lambda: not get(scheduler_orchid_default_pool_tree_config_path() + "/enable_conditional_preemption"))
+
+        create_pool("blocking_pool", attributes={"strong_guarantee_resources": {"cpu": 1}})
+        create_pool("guaranteed_pool", attributes={"strong_guarantee_resources": {"cpu": 2}})
+
+        for i in range(3):
+            run_sleeping_vanilla(
+                spec={"pool": "blocking_pool"},
+                task_patch={"cpu_limit": 0.5},
+            )
+        wait(lambda: get(scheduler_orchid_pool_path("blocking_pool") + "/resource_usage/cpu") == 1.5)
+
+        donor_op = run_sleeping_vanilla(
+            job_count=4,
+            spec={"pool": "guaranteed_pool"},
+            task_patch={"cpu_limit": 0.5},
+        )
+        wait(lambda: get(scheduler_orchid_operation_path(donor_op.id) + "/resource_usage/cpu", default=0) == 1.5)
+        wait(lambda: get(scheduler_orchid_operation_path(donor_op.id) + "/starvation_status", default=None) != "non_starving")
+        wait(lambda: get(scheduler_orchid_pool_path("guaranteed_pool") + "/starvation_status") != "non_starving")
+
+        time.sleep(1.5)
+        assert get(scheduler_orchid_operation_path(donor_op.id) + "/starvation_status") != "non_starving"
+        assert get(scheduler_orchid_pool_path("guaranteed_pool") + "/starvation_status") != "non_starving"
+
+        starving_op = run_sleeping_vanilla(
+            job_count=2,
+            spec={"pool": "guaranteed_pool"},
+            task_patch={"cpu_limit": 0.5},
+        )
+
+        wait(lambda: get(scheduler_orchid_operation_path(donor_op.id) + "/starvation_status", default=None) == "non_starving")
+        wait(lambda: get(scheduler_orchid_operation_path(starving_op.id) + "/starvation_status", default=None) != "non_starving")
+        wait(lambda: get(scheduler_orchid_pool_path("guaranteed_pool") + "/starvation_status") != "non_starving")
+
+        time.sleep(3.0)
+        assert get(scheduler_orchid_operation_path(donor_op.id) + "/starvation_status") == "non_starving"
+        assert get(scheduler_orchid_operation_path(starving_op.id) + "/starvation_status", default=None) != "non_starving"
+        assert get(scheduler_orchid_pool_path("guaranteed_pool") + "/starvation_status") != "non_starving"
+
+        set("//sys/pool_trees/default/@config/enable_conditional_preemption", True)
+        wait(lambda: get(scheduler_orchid_operation_path(starving_op.id) + "/resource_usage/cpu") == 0.5, iter=20)
+        wait(lambda: get(scheduler_orchid_operation_path(donor_op.id) + "/resource_usage/cpu") == 1.0)
+        wait(lambda: get(scheduler_orchid_pool_path("blocking_pool") + "/resource_usage/cpu") == 1.5)
 
 
 class TestSchedulingBugOfOperationWithGracefulPreemption(YTEnvSetup):

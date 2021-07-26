@@ -37,6 +37,8 @@ using NFairShare::ToJobResources;
 
 static const TString InvalidCustomProfilingTag("invalid");
 
+static const TNonOwningJobSet EmptyJobSet;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TScheduleJobsProfilingCounters::TScheduleJobsProfilingCounters(
@@ -118,17 +120,26 @@ void TScheduleJobsContext::PrepareForScheduling(const TSchedulerRootElementPtr& 
     }
 }
 
-TJobResources TScheduleJobsContext::GetUsageDiscountFor(const TSchedulerElement* element) const
+void TScheduleJobsContext::PrepareConditionalUsageDiscounts(const TSchedulerRootElementPtr& rootElement, bool isAggressive)
+{
+    CurrentConditionalDiscount_ = {};
+
+    rootElement->PrepareConditionalUsageDiscounts(this, isAggressive);
+}
+
+const TNonOwningJobSet& TScheduleJobsContext::GetConditionallyPreemptableJobsInPool(const TSchedulerCompositeElement* element) const
+{
+    auto it = ConditionallyPreemptableJobSetMap_.find(element->GetTreeIndex());
+    return it != ConditionallyPreemptableJobSetMap_.end() ? it->second : EmptyJobSet;
+}
+
+TJobResources TScheduleJobsContext::GetLocalUnconditionalUsageDiscountFor(const TSchedulerElement* element) const
 {
     int index = element->GetTreeIndex();
     YT_VERIFY(index != UnassignedTreeIndex);
 
-    auto usageDiscountIt = UsageDiscountMap_.find(index);
-    if (usageDiscountIt == UsageDiscountMap_.end()) {
-        return TJobResources();
-    } else {
-        return usageDiscountIt->second;
-    }
+    auto it = LocalUnconditionalUsageDiscountMap_.find(index);
+    return it != LocalUnconditionalUsageDiscountMap_.end() ? it->second : TJobResources{};
 }
 
 TScheduleJobsContext::TStageState::TStageState(TScheduleJobsStage* schedulingStage, const TString& name)
@@ -306,6 +317,7 @@ void TSchedulerElement::UpdatePreemptionAttributes()
 
         YT_VERIFY(IsAggressiveStarvationEnabled().has_value());
         EffectiveAggressiveStarvationEnabled_ = *IsAggressiveStarvationEnabled();
+
     }
 }
 
@@ -539,7 +551,7 @@ TJobResources TSchedulerElement::GetLocalAvailableResourceLimits(const TSchedule
         return ComputeAvailableResources(
             ResourceLimits_,
             ResourceTreeElement_->GetResourceUsageWithPrecommit(),
-            context.GetUsageDiscountFor(this));
+            context.GetLocalUnconditionalUsageDiscountFor(this));
     }
     return TJobResources::Infinite();
 }
@@ -769,6 +781,34 @@ void TSchedulerElement::InitAccumulatedResourceVolume(TResourceVolume resourceVo
 bool TSchedulerElement::AreDetailedLogsEnabled() const
 {
     return false;
+}
+
+bool TSchedulerElement::IsEligibleForPreemptiveScheduling(bool isAggressive) const
+{
+    return isAggressive
+        ? LowestAggressivelyStarvingAncestor_ != nullptr
+        : LowestStarvingAncestor_ != nullptr;
+}
+
+void TSchedulerElement::UpdateStarvationAttributes(TInstant now, bool enablePoolStarvation)
+{
+    YT_VERIFY(Mutable_);
+
+    if (enablePoolStarvation || IsOperation()) {
+        CheckForStarvation(now);
+    }
+
+    if (Parent_) {
+        LowestStarvingAncestor_ = GetStarvationStatus() != EStarvationStatus::NonStarving
+            ? this
+            : Parent_->GetLowestStarvingAncestor();
+        LowestAggressivelyStarvingAncestor_ = GetStarvationStatus() == EStarvationStatus::AggressivelyStarving
+            ? this
+            : Parent_->GetLowestAggressivelyStarvingAncestor();
+    } else { // Root case
+        LowestStarvingAncestor_ = nullptr;
+        LowestAggressivelyStarvingAncestor_ = nullptr;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1035,29 +1075,8 @@ void TSchedulerCompositeElement::PrescheduleJob(
         return;
     }
 
-    auto starvationStatus = PersistentAttributes_.StarvationStatus;
-    if (starvationStatus == EStarvationStatus::AggressivelyStarving) {
-        context->SetHasAggressivelyStarvingElements(true);
-    }
-
-    auto operationCriterionForChildren = operationCriterion;
-    {
-        // If pool is starving, any child will do.
-        bool satisfiedByPoolAggressiveStarvation =
-            starvationStatus == EStarvationStatus::AggressivelyStarving &&
-            operationCriterion == EPrescheduleJobOperationCriterion::AggressivelyStarvingOnly;
-        bool satisfiedByPoolStarvation =
-            starvationStatus != EStarvationStatus::NonStarving &&
-            operationCriterion == EPrescheduleJobOperationCriterion::StarvingOnly;
-        bool satisfiedByPool = satisfiedByPoolAggressiveStarvation || satisfiedByPoolStarvation;
-
-        if (satisfiedByPool) {
-            operationCriterionForChildren = EPrescheduleJobOperationCriterion::All;
-        }
-    }
-
     for (const auto& child : SchedulableChildren_) {
-        child->PrescheduleJob(context, operationCriterionForChildren);
+        child->PrescheduleJob(context, operationCriterion);
     }
 
     UpdateDynamicAttributes(&context->DynamicAttributesList(), context->ChildHeapMap());
@@ -1087,6 +1106,22 @@ bool TSchedulerCompositeElement::HasAggressivelyStarvingElements(TScheduleJobsCo
     }
 
     return false;
+}
+
+void TSchedulerCompositeElement::PrepareConditionalUsageDiscounts(TScheduleJobsContext* context, bool isAggressive) const
+{
+    TJobResources deltaConditionalDiscount;
+    for (auto* job : context->GetConditionallyPreemptableJobsInPool(this)) {
+        deltaConditionalDiscount += job->ResourceUsage();
+    }
+
+    context->CurrentConditionalDiscount() += deltaConditionalDiscount;
+
+    for (const auto& child : SchedulableChildren_) {
+        child->PrepareConditionalUsageDiscounts(context, isAggressive);
+    }
+
+    context->CurrentConditionalDiscount() -= deltaConditionalDiscount;
 }
 
 TFairShareScheduleJobResult TSchedulerCompositeElement::ScheduleJob(TScheduleJobsContext* context, bool ignorePacking)
@@ -1388,6 +1423,17 @@ void TSchedulerCompositeElement::UpdateChild(TScheduleJobsContext* context, TSch
     if (it != context->ChildHeapMap().end()) {
         auto& childHeap = it->second;
         childHeap.Update(child);
+    }
+}
+
+void TSchedulerCompositeElement::UpdateStarvationAttributes(TInstant now, bool enablePoolStarvation)
+{
+    YT_VERIFY(Mutable_);
+
+    TSchedulerElement::UpdateStarvationAttributes(now, enablePoolStarvation);
+
+    for (const auto& child : EnabledChildren_) {
+        child->UpdateStarvationAttributes(now, enablePoolStarvation);
     }
 }
 
@@ -2214,14 +2260,6 @@ TInstant TSchedulerOperationElementSharedState::GetLastScheduleJobSuccessTime() 
     return LastScheduleJobSuccessTime_;
 }
 
-void TSchedulerOperationElement::OnMinNeededResourcesUnsatisfied(
-    const TScheduleJobsContext& context,
-    const TJobResources& availableResources,
-    const TJobResources& minNeededResources)
-{
-    OperationElementSharedState_->OnMinNeededResourcesUnsatisfied(context, availableResources, minNeededResources);
-}
-
 TEnumIndexedVector<EJobResourceType, int> TSchedulerOperationElement::GetMinNeededResourcesUnsatisfiedCount() const
 {
     return OperationElementSharedState_->GetMinNeededResourcesUnsatisfiedCount();
@@ -2354,7 +2392,9 @@ std::optional<EDeactivationReason> TSchedulerOperationElement::TryStartScheduleJ
     Controller_->IncreaseScheduleJobCallsSinceLastUpdate(context.SchedulingContext()->GetNodeShardId());
 
     *precommittedResourcesOutput = minNeededResources;
-    *availableResourcesOutput = Min(availableResourceLimits, context.SchedulingContext()->GetNodeFreeResourcesWithDiscount());
+    *availableResourcesOutput = Min(
+        availableResourceLimits,
+        context.SchedulingContext()->GetNodeFreeResourcesWithDiscountForOperation(OperationId_));
     return std::nullopt;
 }
 
@@ -2521,7 +2561,7 @@ void TSchedulerOperationElement::UpdatePreemptionAttributes()
 bool TSchedulerOperationElement::HasJobsSatisfyingResourceLimits(const TScheduleJobsContext& context) const
 {
     for (const auto& jobResources : DetailedMinNeededJobResources_) {
-        if (context.SchedulingContext()->CanStartJob(jobResources)) {
+        if (context.SchedulingContext()->CanStartJobForOperation(jobResources, OperationId_)) {
             return true;
         }
     }
@@ -2623,17 +2663,17 @@ void TSchedulerOperationElement::PrescheduleJob(
         return;
     }
 
-    if (operationCriterion == EPrescheduleJobOperationCriterion::AggressivelyStarvingOnly &&
-        PersistentAttributes_.StarvationStatus != EStarvationStatus::AggressivelyStarving)
+    if (operationCriterion == EPrescheduleJobOperationCriterion::EligibleForAggressivelyPreemptiveSchedulingOnly &&
+        !IsEligibleForPreemptiveScheduling(/*isAggressive*/ true))
     {
-        onOperationDeactivated(EDeactivationReason::IsNotAggressivelyStarving);
+        onOperationDeactivated(EDeactivationReason::IsNotEligibleForAggressivelyPreemptiveScheduling);
         return;
     }
 
-    if (operationCriterion == EPrescheduleJobOperationCriterion::StarvingOnly &&
-        PersistentAttributes_.StarvationStatus == EStarvationStatus::NonStarving)
+    if (operationCriterion == EPrescheduleJobOperationCriterion::EligibleForPreemptiveSchedulingOnly &&
+        !IsEligibleForPreemptiveScheduling(/*isAggressive*/ false))
     {
-        onOperationDeactivated(EDeactivationReason::IsNotStarving);
+        onOperationDeactivated(EDeactivationReason::IsNotEligibleForPreemptiveScheduling);
         return;
     }
 
@@ -2762,11 +2802,16 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
     YT_VERIFY(IsActive(context->DynamicAttributesList()));
 
     YT_ELEMENT_LOG_DETAILED(this,
-        "Trying to schedule job (SatisfactionRatio: %v, NodeId: %v, NodeResourceUsage: %v, Discount: %v, StageName: %v)",
+        "Trying to schedule job "
+        "(SatisfactionRatio: %v, NodeId: %v, NodeResourceUsage: %v, "
+        "UsageDiscount: {Total: %v, Unconditional: %v, Conditional: %v}, StageName: %v)",
         context->DynamicAttributesFor(this).SatisfactionRatio,
         context->SchedulingContext()->GetNodeDescriptor().Id,
         FormatResourceUsage(context->SchedulingContext()->ResourceUsage(), context->SchedulingContext()->ResourceLimits()),
-        FormatResources(context->SchedulingContext()->ResourceUsageDiscount()),
+        FormatResources(context->SchedulingContext()->UnconditionalResourceUsageDiscount() +
+            context->SchedulingContext()->GetConditionalDiscountForOperation(OperationId_)),
+        FormatResources(context->SchedulingContext()->UnconditionalResourceUsageDiscount()),
+        FormatResources(context->SchedulingContext()->GetConditionalDiscountForOperation(OperationId_)),
         context->StageState()->Name);
 
     auto deactivateOperationElement = [&] (EDeactivationReason reason) {
@@ -2792,11 +2837,14 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
     if (!HasJobsSatisfyingResourceLimits(*context)) {
         YT_ELEMENT_LOG_DETAILED(this,
             "No pending jobs can satisfy available resources on node ("
-            "FreeResources: %v, DiscountResources: %v, "
+            "FreeResources: %v, DiscountResources: {Total: %v, Unconditional: %v, Conditional: %v}, "
             "MinNeededResources: %v, DetailedMinNeededResources: %v, "
             "Address: %v)",
             FormatResources(context->SchedulingContext()->GetNodeFreeResourcesWithoutDiscount()),
-            FormatResources(context->SchedulingContext()->ResourceUsageDiscount()),
+            FormatResources(context->SchedulingContext()->UnconditionalResourceUsageDiscount() +
+                context->SchedulingContext()->GetConditionalDiscountForOperation(OperationId_)),
+            FormatResources(context->SchedulingContext()->UnconditionalResourceUsageDiscount()),
+            FormatResources(context->SchedulingContext()->GetConditionalDiscountForOperation(OperationId_)),
             FormatResources(AggregatedMinNeededJobResources_),
             MakeFormattableView(
                 DetailedMinNeededJobResources_,
@@ -2806,9 +2854,9 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
                 }),
             context->SchedulingContext()->GetNodeDescriptor().Address);
 
-        OnMinNeededResourcesUnsatisfied(
+        OperationElementSharedState_->OnMinNeededResourcesUnsatisfied(
             *context,
-            context->SchedulingContext()->GetNodeFreeResourcesWithDiscount(),
+            context->SchedulingContext()->GetNodeFreeResourcesWithDiscountForOperation(OperationId_),
             AggregatedMinNeededJobResources_);
         deactivateOperationElement(EDeactivationReason::MinNeededResourcesUnsatisfied);
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
@@ -3000,13 +3048,13 @@ void TSchedulerOperationElement::CheckForStarvation(TInstant now)
         now);
 }
 
-bool TSchedulerOperationElement::IsPreemptionAllowed(
+const TSchedulerElement* TSchedulerOperationElement::FindPreemptionBlockingAncestor(
     bool isAggressivePreemption,
     const TDynamicAttributesList& dynamicAttributesList,
     const TFairShareStrategyTreeConfigPtr& config) const
 {
     if (Spec_->PreemptionMode == EPreemptionMode::Graceful) {
-        return false;
+        return this;
     }
 
     int maxUnpreemptableJobCount = config->MaxUnpreemptableRunningJobCount;
@@ -3017,21 +3065,23 @@ bool TSchedulerOperationElement::IsPreemptionAllowed(
     int jobCount = GetRunningJobCount();
     if (jobCount <= maxUnpreemptableJobCount) {
         OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceLowJobCount);
-        return false;
+        return this;
     }
 
-    // TODO(eshcherbin): Rethink this check, perhaps we don't need to perform it at every ancestor (see: YT-13670)
     const TSchedulerElement* element = this;
     while (element && !element->IsRoot()) {
+        // NB(eshcherbin): A bit strange that we check for starvation here and then for satisfaction later.
+        // Maybe just satisfaction is enough?
         if (config->PreemptionCheckStarvation && element->GetStarvationStatus() != EStarvationStatus::NonStarving) {
-            OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceStarvingParentOrSelf);
-            return false;
+            OperationElementSharedState_->UpdatePreemptionStatusStatistics(element == this
+                ? EOperationPreemptionStatus::ForbiddenSinceStarving
+                : EOperationPreemptionStatus::AllowedConditionally);
+            return element;
         }
 
         bool aggressivePreemptionAllowed =
             isAggressivePreemption &&
-            element->GetEffectiveAggressivePreemptionAllowed() &&
-            GetEffectiveAggressivePreemptionAllowed();
+            element->GetEffectiveAggressivePreemptionAllowed();
         auto threshold = aggressivePreemptionAllowed
             ? config->AggressivePreemptionSatisfactionThreshold
             : config->PreemptionSatisfactionThreshold;
@@ -3044,15 +3094,17 @@ bool TSchedulerOperationElement::IsPreemptionAllowed(
             localSatisfactionRatio = element->ComputeLocalSatisfactionRatio(element->GetCurrentResourceUsage(dynamicAttributesList));
         }
         if (config->PreemptionCheckSatisfaction && localSatisfactionRatio < threshold + RatioComparisonPrecision) {
-            OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceUnsatisfiedParentOrSelf);
-            return false;
+            OperationElementSharedState_->UpdatePreemptionStatusStatistics(element == this
+                ? EOperationPreemptionStatus::ForbiddenSinceUnsatisfied
+                : EOperationPreemptionStatus::AllowedConditionally);
+            return element;
         }
 
         element = element->GetParent();
     }
 
-    OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::Allowed);
-    return true;
+    OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::AllowedUnconditionally);
+    return {};
 }
 
 void TSchedulerOperationElement::SetJobResourceUsage(TJobId jobId, const TJobResources& resources)
@@ -3481,6 +3533,15 @@ bool TSchedulerOperationElement::IsSchedulingSegmentCompatibleWithNode(EScheduli
     return *SchedulingSegment() == nodeSegment;
 }
 
+void TSchedulerOperationElement::PrepareConditionalUsageDiscounts(TScheduleJobsContext* context, bool isAggressive) const
+{
+    if (!IsEligibleForPreemptiveScheduling(isAggressive)) {
+        return;
+    }
+
+    context->SchedulingContext()->SetConditionalDiscountForOperation(OperationId_, context->CurrentConditionalDiscount());
+}
+
 void TSchedulerOperationElement::CollectOperationSchedulingSegmentContexts(
     THashMap<TOperationId, TOperationSchedulingSegmentContext>* operationContexts) const
 {
@@ -3634,9 +3695,7 @@ std::optional<bool> TSchedulerRootElement::IsAggressiveStarvationEnabled() const
 }
 
 void TSchedulerRootElement::CheckForStarvation(TInstant /*now*/)
-{
-    YT_ABORT();
-}
+{ }
 
 int TSchedulerRootElement::GetMaxRunningOperationCount() const
 {

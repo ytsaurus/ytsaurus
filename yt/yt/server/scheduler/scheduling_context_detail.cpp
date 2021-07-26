@@ -49,25 +49,31 @@ const TExecNodeDescriptor& TSchedulingContextBase::GetNodeDescriptor() const
     return NodeDescriptor_;
 }
 
-bool TSchedulingContextBase::CanSatisfyResourceRequest(const TJobResources& jobResources) const
+bool TSchedulingContextBase::CanSatisfyResourceRequest(
+    const TJobResources& jobResources,
+    const TJobResources& conditionalDiscount) const
 {
     return Dominates(
         ResourceLimits_,
-        ResourceUsage_ + jobResources - ResourceUsageDiscount_);
+        ResourceUsage_ + jobResources - (UnconditionalResourceUsageDiscount_ + conditionalDiscount));
 }
 
-bool TSchedulingContextBase::CanStartJob(const TJobResourcesWithQuota& jobResourcesWithQuota) const
+bool TSchedulingContextBase::CanStartJobForOperation(
+    const TJobResourcesWithQuota& jobResourcesWithQuota,
+    TOperationId operationId) const
 {
     std::vector<NScheduler::TDiskQuota> diskRequests(DiskRequests_);
     diskRequests.push_back(jobResourcesWithQuota.GetDiskQuota());
     return
-        CanSatisfyResourceRequest(jobResourcesWithQuota.ToJobResources()) &&
+        CanSatisfyResourceRequest(
+            jobResourcesWithQuota.ToJobResources(),
+            GetConditionalDiscountForOperation(operationId)) &&
         CanSatisfyDiskQuotaRequests(DiskResources_, diskRequests);
 }
 
 bool TSchedulingContextBase::CanStartMoreJobs() const
 {
-    if (!CanSatisfyResourceRequest(MinSpareJobResources_)) {
+    if (!CanSatisfyResourceRequest(MinSpareJobResources_, MaxConditionalUsageDiscount_)) {
         return false;
     }
 
@@ -124,19 +130,44 @@ void TSchedulingContextBase::PreemptJob(const TJobPtr& job, TDuration interruptT
     PreemptedJobs_.push_back({job, interruptTimeout});
 }
 
-TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithoutDiscount()
+TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithoutDiscount() const
 {
     return ResourceLimits_ - ResourceUsage_;
 }
 
-TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithDiscount()
+TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithDiscount() const
 {
-    return ResourceLimits_ - ResourceUsage_ + ResourceUsageDiscount_;
+    return ResourceLimits_ - ResourceUsage_ + UnconditionalResourceUsageDiscount_;
+}
+
+TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithDiscountForOperation(TOperationId operationId) const
+{
+    return ResourceLimits_ - ResourceUsage_ + UnconditionalResourceUsageDiscount_ + GetConditionalDiscountForOperation(operationId);
 }
 
 ESchedulingSegment TSchedulingContextBase::GetSchedulingSegment() const
 {
     return Node_->GetSchedulingSegment();
+}
+
+void TSchedulingContextBase::ResetUsageDiscounts()
+{
+    UnconditionalResourceUsageDiscount_ = {};
+    ConditionalUsageDiscountMap_.clear();
+    MaxConditionalUsageDiscount_ = {};
+}
+
+void TSchedulingContextBase::SetConditionalDiscountForOperation(TOperationId operationId, const TJobResources& discount)
+{
+    YT_VERIFY(ConditionalUsageDiscountMap_.emplace(operationId, discount).second);
+
+    MaxConditionalUsageDiscount_ = Max(MaxConditionalUsageDiscount_, discount);
+}
+
+TJobResources TSchedulingContextBase::GetConditionalDiscountForOperation(TOperationId operationId) const
+{
+    auto it = ConditionalUsageDiscountMap_.find(operationId);
+    return it != ConditionalUsageDiscountMap_.end() ? it->second : TJobResources{};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

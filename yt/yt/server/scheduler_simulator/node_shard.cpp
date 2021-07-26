@@ -232,12 +232,13 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
         Events_->InsertNodeShardEvent(ShardId_, nextHeartbeat);
     }
 
-    const auto statistics = context->GetSchedulingStatistics();
+    const auto& statistics = context->GetSchedulingStatistics();
     YT_LOG_DEBUG(
         "Heartbeat finished "
         "(VirtualTimestamp: %v, NodeId: %v, NodeAddress: %v, "
         "StartedJobs: %v, PreemptedJobs: %v, "
-        "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
+        "JobsScheduledDuringPreemption: %v, UnconditionallyPreemptableJobCount: %v, UnconditionalDiscount: %v, "
+        "TotalConditionalJobCount: %v, MaxConditionalJobCountPerPool: %v, MaxConditionalDiscount: %v, "
         "ControllerScheduleJobCount: %v, NonPreemptiveScheduleJobAttempts: %v, "
         "AggressivelyPreemptiveScheduleJobAttempts: %v, PreemptiveScheduleJobAttempts: %v, "
         "HasAggressivelyStarvingElements: %v)",
@@ -247,8 +248,11 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
         context->StartedJobs().size(),
         context->PreemptedJobs().size(),
         statistics.ScheduledDuringPreemption,
-        statistics.PreemptableJobCount,
-        FormatResources(statistics.ResourceUsageDiscount),
+        statistics.UnconditionallyPreemptableJobCount,
+        FormatResources(statistics.UnconditionalResourceUsageDiscount),
+        statistics.TotalConditionallyPreemptableJobCount,
+        statistics.MaxConditionallyPreemptableJobCountInPool,
+        FormatResources(statistics.MaxConditionalResourceUsageDiscount),
         statistics.ControllerScheduleJobCount,
         statistics.NonPreemptiveScheduleJobAttempts,
         statistics.AggressivelyPreemptiveScheduleJobAttempts,

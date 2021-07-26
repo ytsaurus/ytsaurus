@@ -28,12 +28,15 @@ struct TScheduleJobsStatistics
     int NonPreemptiveScheduleJobAttempts = 0;
     int PackingFallbackScheduleJobAttempts = 0;
     int ScheduledDuringPreemption = 0;
-    int PreemptableJobCount = 0;
+    int UnconditionallyPreemptableJobCount = 0;
+    int TotalConditionallyPreemptableJobCount = 0;
+    int MaxConditionallyPreemptableJobCountInPool = 0;
     bool ScheduleWithPreemption = false;
     bool HasAggressivelyStarvingElements = false;
     TJobResources ResourceLimits;
     TJobResources ResourceUsage;
-    TJobResources ResourceUsageDiscount;
+    TJobResources UnconditionalResourceUsageDiscount;
+    TJobResources MaxConditionalResourceUsageDiscount;
 };
 
 void Serialize(const TScheduleJobsStatistics& event, NYson::IYsonConsumer* consumer);
@@ -46,6 +49,8 @@ struct TPreemptedJob
     TDuration InterruptTimeout; 
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct ISchedulingContext
     : public virtual TRefCounted
 {
@@ -57,16 +62,21 @@ struct ISchedulingContext
     virtual TJobResources& ResourceUsage() = 0;
     virtual const NNodeTrackerClient::NProto::TDiskResources& DiskResources() const = 0;
     //! Used during preemption to allow second-chance scheduling.
-    virtual TJobResources& ResourceUsageDiscount() = 0;
-    virtual TJobResources GetNodeFreeResourcesWithoutDiscount() = 0;
-    virtual TJobResources GetNodeFreeResourcesWithDiscount() = 0;
+    virtual void ResetUsageDiscounts() = 0;
+    virtual TJobResources& UnconditionalResourceUsageDiscount() = 0;
+    virtual void SetConditionalDiscountForOperation(TOperationId operationId, const TJobResources& discount) = 0;
+    virtual TJobResources GetConditionalDiscountForOperation(TOperationId operationId) const = 0;
+    virtual TJobResources GetMaxConditionalUsageDiscount() const = 0;
+    virtual TJobResources GetNodeFreeResourcesWithoutDiscount() const = 0;
+    virtual TJobResources GetNodeFreeResourcesWithDiscount() const = 0;
+    virtual TJobResources GetNodeFreeResourcesWithDiscountForOperation(TOperationId operationId) const = 0;
 
     virtual const std::vector<TJobPtr>& StartedJobs() const = 0;
     virtual const std::vector<TJobPtr>& RunningJobs() const = 0;
     virtual const std::vector<TPreemptedJob>& PreemptedJobs() const = 0;
 
     //! Returns |true| if node has enough resources to start job with given limits.
-    virtual bool CanStartJob(const TJobResourcesWithQuota& jobResources) const = 0;
+    virtual bool CanStartJobForOperation(const TJobResourcesWithQuota& jobResources, TOperationId operationId) const = 0;
     //! Returns |true| if any more new jobs can be scheduled at this node.
     virtual bool CanStartMoreJobs() const = 0;
     //! Returns |true| if the node can handle jobs demanding a certain #tag.
