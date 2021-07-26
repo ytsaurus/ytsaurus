@@ -203,11 +203,12 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
 
                 YTreeNode node = YTreeTextSerializer.deserialize(response.getResponseBodyAsStream());
                 List<HostPort> curProxies = node
-                        .asMap()
+                        .mapNode()
                         .getOrThrow("proxies")
-                        .asList()
+                        .asList().stream()
                         .map(YTreeNode::stringValue)
-                        .map(HostPort::parse);
+                        .map(HostPort::parse)
+                        .collect(Collectors.toList());
 
                 processProxies(new HashSet<>(curProxies));
             } catch (Throwable e) {
@@ -334,7 +335,7 @@ class HttpProxyGetter implements ProxyGetter {
 
             YTreeNode node = YTreeTextSerializer.deserialize(response.getResponseBodyAsStream());
             return node
-                    .asMap()
+                    .mapNode()
                     .getOrThrow("proxies")
                     .asList()
                     .stream()

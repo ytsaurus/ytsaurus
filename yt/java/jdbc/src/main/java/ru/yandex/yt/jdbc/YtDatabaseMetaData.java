@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -21,8 +22,6 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import ru.yandex.bolts.collection.MapF;
-import ru.yandex.bolts.collection.Option;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
@@ -83,24 +82,24 @@ class YtDatabaseMetaData extends AbstractWrapper implements DatabaseMetaData {
         }
     }
 
-    private String getName(MapF<String, YTreeNode> column) {
-        return column.getOrThrow("name").stringValue();
+    private String getName(Map<String, YTreeNode> column) {
+        return column.get("name").stringValue();
     }
 
-    private int getSqlType(MapF<String, YTreeNode> column) {
-        return YtTypes.ytTypeToSqlType(column.getOrThrow("type").stringValue());
+    private int getSqlType(Map<String, YTreeNode> column) {
+        return YtTypes.ytTypeToSqlType(column.get("type").stringValue());
     }
 
-    private boolean isPrimaryKey(MapF<String, YTreeNode> column) {
-        final Option<YTreeNode> required = column.getO("required");
-        return required.isPresent() && required.get().boolValue();
+    private boolean isPrimaryKey(Map<String, YTreeNode> column) {
+        final YTreeNode required = column.get("required");
+        return required != null && required.boolValue();
     }
 
     private CompletableFuture<List<YTreeMapNode>> primaryColumns(String table, RowFill rowFill) {
         return columns(table, this::isPrimaryKey, rowFill);
     }
 
-    private CompletableFuture<List<YTreeMapNode>> columns(String table, Predicate<MapF<String, YTreeNode>> filter,
+    private CompletableFuture<List<YTreeMapNode>> columns(String table, Predicate<Map<String, YTreeNode>> filter,
                                                           RowFill rowFill) {
         return client.getNode(table + "/@schema").thenApply(node -> {
             final Optional<YTreeNode> uniqueKeys = node.getAttribute("unique_keys");
@@ -110,7 +109,7 @@ class YtDatabaseMetaData extends AbstractWrapper implements DatabaseMetaData {
             return list(result -> {
                 int rownum = 0;
                 for (YTreeNode columnNode : node.listNode()) {
-                    final MapF<String, YTreeNode> column = columnNode.asMap();
+                    final Map<String, YTreeNode> column = columnNode.asMap();
                     if (filter.test(column)) {
                         result.beginMap();
                         rowFill.fill(column, result, rownum++);
@@ -847,12 +846,12 @@ class YtDatabaseMetaData extends AbstractWrapper implements DatabaseMetaData {
             return emptyResultSet();
         }
 
-        final Predicate<MapF<String, YTreeNode>> filter;
+        final Predicate<Map<String, YTreeNode>> filter;
         if (isMatchedAny(columnNamePattern)) {
             filter = column -> true;
         } else {
             filter = column -> {
-                final String name = column.getOrThrow("name").stringValue();
+                final String name = column.get("name").stringValue();
                 return columnNamePattern.equals(name);
             };
         }
@@ -1215,7 +1214,7 @@ class YtDatabaseMetaData extends AbstractWrapper implements DatabaseMetaData {
     //
 
     interface RowFill {
-        void fill(MapF<String, YTreeNode> column, YTreeBuilder result, int rownum);
+        void fill(Map<String, YTreeNode> column, YTreeBuilder result, int rownum);
     }
 
 }

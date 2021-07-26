@@ -51,7 +51,7 @@ public class UnmountWaitTest extends YtClientTestBase {
         List<YTreeNode> tablets = yt.getNode(path + "/@tablets").join().asList();
         boolean allTabletsReady = true;
         for (YTreeNode tablet : tablets) {
-            if (!tablet.asMap().getOrThrow("state").stringValue().equals("unmounted")) {
+            if (!tablet.mapNode().getOrThrow("state").stringValue().equals("unmounted")) {
                 allTabletsReady = false;
                 break;
             }
