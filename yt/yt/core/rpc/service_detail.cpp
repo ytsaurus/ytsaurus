@@ -563,13 +563,8 @@ private:
             GetTotalMessageAttachmentSize(RequestMessage_));
 
         if (RequestHeader_->has_start_time()) {
-            // Decode timing information.
             auto retryStart = FromProto<TInstant>(RequestHeader_->start_time());
             auto now = NProfiling::GetInstant();
-
-            // Make sanity adjustments to account for possible clock skew.
-            retryStart = std::min(retryStart, now);
-
             PerformanceCounters_->RemoteWaitTimeCounter.Record(now - retryStart);
         }
 
