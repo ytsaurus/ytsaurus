@@ -64,6 +64,8 @@ private:
     void DoSync()
     {
         try {
+            NTracing::TNullTraceContextGuard nullTraceContext;
+
             auto connection = Connection_.Lock();
             if (!connection) {
                 return;

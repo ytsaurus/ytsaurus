@@ -325,6 +325,8 @@ message TSchedulerJobSpecExt
     optional string tree_id = 27;
 
     optional string authenticated_user = 29 [default = "unknown"];
+
+    optional bool is_traced = 30 [default = false];
 }
 
 message TSchedulerJobResultExt

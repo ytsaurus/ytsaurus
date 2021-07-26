@@ -145,53 +145,51 @@ void TSimpleJobBase::Initialize()
 
 TJobResult TSimpleJobBase::Run()
 {
-    YT_PROFILE_TIMING("/job_proxy/job_time") {
-        YT_LOG_INFO("Initializing");
+    YT_LOG_INFO("Initializing");
 
-        Host_->OnPrepared();
+    Host_->OnPrepared();
 
-        const auto& jobSpec = Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt();
-        if (jobSpec.has_input_query_spec()) {
-            RunQuery(
-                jobSpec.input_query_spec(),
-                BIND(&TSimpleJobBase::DoInitializeReader, MakeStrong(this)),
-                BIND(&TSimpleJobBase::DoInitializeWriter, MakeStrong(this)),
-                SandboxDirectoryNames[ESandboxKind::Udf]);
-        } else {
-            InitializeReader();
-            InitializeWriter();
+    const auto& jobSpec = Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt();
+    if (jobSpec.has_input_query_spec()) {
+        RunQuery(
+            jobSpec.input_query_spec(),
+            BIND(&TSimpleJobBase::DoInitializeReader, MakeStrong(this)),
+            BIND(&TSimpleJobBase::DoInitializeWriter, MakeStrong(this)),
+            SandboxDirectoryNames[ESandboxKind::Udf]);
+    } else {
+        InitializeReader();
+        InitializeWriter();
 
-            YT_LOG_INFO("Reading and writing");
+        YT_LOG_INFO("Reading and writing");
 
-            TPipeReaderToWriterOptions options;
-            options.BufferRowCount = Host_->GetJobSpecHelper()->GetJobIOConfig()->BufferRowCount;
-            options.PipeDelay = Host_->GetJobSpecHelper()->GetJobIOConfig()->Testing->PipeDelay;
-            options.ValidateValues = true;
-            PipeReaderToWriter(
-                Reader_,
-                Writer_,
-                options);
+        TPipeReaderToWriterOptions options;
+        options.BufferRowCount = Host_->GetJobSpecHelper()->GetJobIOConfig()->BufferRowCount;
+        options.PipeDelay = Host_->GetJobSpecHelper()->GetJobIOConfig()->Testing->PipeDelay;
+        options.ValidateValues = true;
+        PipeReaderToWriter(
+            Reader_,
+            Writer_,
+            options);
+    }
+
+    YT_LOG_INFO("Finalizing");
+    {
+        TJobResult result;
+        ToProto(result.mutable_error(), TError());
+
+        // ToDo(psushin): return written chunks only if required.
+        auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+        for (const auto& chunkSpec : Writer_->GetWrittenChunkSpecs()) {
+            auto* resultChunkSpec = schedulerResultExt->add_output_chunk_specs();
+            *resultChunkSpec = chunkSpec;
+            FilterProtoExtensions(resultChunkSpec->mutable_chunk_meta()->mutable_extensions(), GetSchedulerChunkMetaExtensionTagsFilter());
         }
 
-        YT_LOG_INFO("Finalizing");
-        {
-            TJobResult result;
-            ToProto(result.mutable_error(), TError());
-
-            // ToDo(psushin): return written chunks only if required.
-            auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-            for (const auto& chunkSpec : Writer_->GetWrittenChunkSpecs()) {
-                auto* resultChunkSpec = schedulerResultExt->add_output_chunk_specs();
-                *resultChunkSpec = chunkSpec;
-                FilterProtoExtensions(resultChunkSpec->mutable_chunk_meta()->mutable_extensions(), GetSchedulerChunkMetaExtensionTagsFilter());
-            }
-
-            if (ShouldSendBoundaryKeys()) {
-                *schedulerResultExt->add_output_boundary_keys() = GetWrittenChunksBoundaryKeys(Writer_);
-            }
-
-            return result;
+        if (ShouldSendBoundaryKeys()) {
+            *schedulerResultExt->add_output_boundary_keys() = GetWrittenChunksBoundaryKeys(Writer_);
         }
+
+        return result;
     }
 }
 

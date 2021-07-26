@@ -54,6 +54,8 @@ TJaegerTracerConfig::TJaegerTracerConfig()
     // 10K nodes x 128 KB / 15s == 85mb/s
     RegisterParameter("flush_period", FlushPeriod)
         .Default(TDuration::Seconds(15));
+    RegisterParameter("stop_timeout", StopTimeout)
+        .Default(TDuration::Seconds(15));
     RegisterParameter("rpc_timeout", RpcTimeout)
         .Default(TDuration::Seconds(15));
     RegisterParameter("queue_stall_timeout", QueueStallTimeout)
@@ -236,6 +238,10 @@ void TJaegerTracer::NotifyEmptyQueue()
 
 void TJaegerTracer::Stop()
 {
+    Flusher_->ScheduleOutOfBand();
+
+    Y_UNUSED(WaitFor(WaitFlush().WithTimeout(Config_.Load()->StopTimeout)));
+
     Flusher_->Stop();
     Flusher_.Reset();
     ActionQueue_->Shutdown();
@@ -364,6 +370,7 @@ void TJaegerTracer::Flush()
 
         if (!config->IsEnabled()) {
             dropFullQueue();
+            NotifyEmptyQueue();
             return;
         }
 

@@ -48,6 +48,8 @@ public:
 
     TDuration FlushPeriod;
 
+    TDuration StopTimeout;
+
     TDuration RpcTimeout;
 
     TDuration QueueStallTimeout;

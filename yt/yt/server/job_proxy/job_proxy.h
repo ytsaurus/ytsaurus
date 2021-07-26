@@ -83,6 +83,8 @@ private:
 
     TCpuMonitorPtr CpuMonitor_;
 
+    NTracing::TTraceContextPtr RootSpan_;
+
     // Job proxy memory reserve (= memory limit after multiplication by
     // job proxy memory reserve factor) by the scheduler.
     i64 JobProxyMemoryReserve_ = 0;

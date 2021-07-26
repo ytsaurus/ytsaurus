@@ -146,31 +146,29 @@ public:
         std::vector<TFuture<void>> chunkCopyResults;
         std::vector<TChunkId> outputChunkIds;
 
-        YT_PROFILE_TIMING("/job_proxy/remote_copy_time") {
-            for (const auto& dataSliceDescriptor : DataSliceDescriptors_) {
-                for (const auto& inputChunkSpec : dataSliceDescriptor.ChunkSpecs) {
-                    auto outputSessionId = CreateOutputChunk(inputChunkSpec);
+        for (const auto& dataSliceDescriptor : DataSliceDescriptors_) {
+            for (const auto& inputChunkSpec : dataSliceDescriptor.ChunkSpecs) {
+                auto outputSessionId = CreateOutputChunk(inputChunkSpec);
 
-                    auto result = BIND(&TRemoteCopyJob::CopyChunk, MakeStrong(this))
-                        .AsyncVia(GetRemoteCopyInvoker())
-                        .Run(inputChunkSpec, outputSessionId);
+                auto result = BIND(&TRemoteCopyJob::CopyChunk, MakeStrong(this))
+                    .AsyncVia(GetRemoteCopyInvoker())
+                    .Run(inputChunkSpec, outputSessionId);
 
-                    chunkCopyResults.push_back(result);
-                    outputChunkIds.push_back(outputSessionId.ChunkId);
-                }
+                chunkCopyResults.push_back(result);
+                outputChunkIds.push_back(outputSessionId.ChunkId);
             }
-
-            WaitFor(AllSucceeded(chunkCopyResults))
-                .ThrowOnError();
-
-            {
-                auto finalizeResult = WaitFor(AllSucceeded(ChunkFinalizationResults_));
-                THROW_ERROR_EXCEPTION_IF_FAILED(finalizeResult, "Error finalizing chunk");
-            }
-
-            YT_LOG_INFO("Attaching chunks to output chunk list (ChunkListId: %v)", OutputChunkListId_);
-            AttachChunksToChunkList(outputChunkIds);
         }
+
+        WaitFor(AllSucceeded(chunkCopyResults))
+            .ThrowOnError();
+
+        {
+            auto finalizeResult = WaitFor(AllSucceeded(ChunkFinalizationResults_));
+            THROW_ERROR_EXCEPTION_IF_FAILED(finalizeResult, "Error finalizing chunk");
+        }
+
+        YT_LOG_INFO("Attaching chunks to output chunk list (ChunkListId: %v)", OutputChunkListId_);
+        AttachChunksToChunkList(outputChunkIds);
     }
 
     virtual TJobResult Run() override

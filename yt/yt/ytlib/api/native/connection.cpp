@@ -586,6 +586,8 @@ IConnectionPtr CreateConnection(
     TConnectionConfigPtr config,
     TConnectionOptions options)
 {
+    NTracing::TNullTraceContextGuard nullTraceContext;
+
     auto connection = New<TConnection>(std::move(config), std::move(options));
     connection->Initialize();
     return connection;

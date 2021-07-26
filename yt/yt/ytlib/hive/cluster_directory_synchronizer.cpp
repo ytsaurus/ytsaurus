@@ -102,6 +102,8 @@ private:
     void DoSync()
     {
         try {
+            NTracing::TNullTraceContextGuard nullTraceContext;
+
             auto connection = DirectoryConnection_.Lock();
             if (!connection) {
                 THROW_ERROR_EXCEPTION("Directory connection is not available");
