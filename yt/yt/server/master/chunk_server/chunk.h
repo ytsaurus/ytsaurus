@@ -134,13 +134,11 @@ public:
     using TCachedReplicas = THashSet<TNodePtrWithIndexes>;
     const TCachedReplicas& CachedReplicas() const;
 
-    using TStoredReplicas = TNodePtrWithIndexesList;
-    const TStoredReplicas& StoredReplicas() const;
+    TRange<TNodePtrWithIndexes> StoredReplicas() const;
 
-    using TLastSeenReplicas = std::array<TNodeId, LastSeenReplicaCount>;
     //! For non-erasure chunks, contains a FIFO queue of seen replicas; its tail position is kept in #CurrentLastSeenReplicaIndex_.
     //! For erasure chunks, this array is directly addressed by replica indexes; at most one replica is kept per part.
-    const TLastSeenReplicas& LastSeenReplicas() const;
+    TRange<TNodeId> LastSeenReplicas() const;
 
     void AddReplica(TNodePtrWithIndexes replica, const TMedium* medium, bool approved);
     void RemoveReplica(TNodePtrWithIndexes replica, const TMedium* medium, bool approved);
@@ -342,34 +340,81 @@ private:
     //! Per-cell data, indexed by cell index; cf. TMulticellManager::GetRegisteredMasterCellIndex.
     std::unique_ptr<TChunkExportDataList> ExportDataList_;
 
-    struct TReplicasData
+    struct TReplicasDataBase
         : public TPoolAllocator::TObjectBase
     {
         //! This set is usually empty. Keeping a holder is very space efficient.
         std::unique_ptr<TCachedReplicas> CachedReplicas;
 
-        //! Just all the stored replicas.
-        TStoredReplicas StoredReplicas;
         //! Number of approved replicas among stored.
         int ApprovedReplicaCount = 0;
 
-        //! Null entries are InvalidNodeId.
-        TLastSeenReplicas LastSeenReplicas;
         //! Indicates the position in LastSeenReplicas to be written next.
         int CurrentLastSeenReplicaIndex = 0;
+
+        virtual ~TReplicasDataBase() = default;
+
+        virtual void Initialize() = 0;
+
+        virtual TRange<TNodePtrWithIndexes> GetStoredReplicas() const = 0;
+        virtual TMutableRange<TNodePtrWithIndexes> MutableStoredReplicas() = 0;
+        virtual void AddStoredReplica(TNodePtrWithIndexes replica) = 0;
+        virtual void RemoveStoredReplica(int replicaIndex) = 0;
+
+        //! Null entries are InvalidNodeId.
+        virtual TRange<TNodeId> GetLastSeenReplicas() const = 0;
+        virtual TMutableRange<TNodeId> MutableLastSeenReplicas() = 0;
+
+        virtual void Load(NCellMaster::TLoadContext& context, bool isErasure) = 0;
+        virtual void Save(NCellMaster::TSaveContext& context) const = 0;
     };
+
+    template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
+    struct TReplicasData
+        : public TReplicasDataBase
+    {
+        TCompactVector<TNodePtrWithIndexes, TypicalStoredReplicaCount> StoredReplicas;
+
+        std::array<TNodeId, LastSeenReplicaCount> LastSeenReplicas;
+
+        virtual void Initialize() override;
+
+        virtual TRange<TNodeId> GetLastSeenReplicas() const override;
+        virtual TMutableRange<TNodeId> MutableLastSeenReplicas() override;
+
+        //! Null entries are InvalidNodeId.
+        virtual TRange<TNodePtrWithIndexes> GetStoredReplicas() const override;
+        virtual TMutableRange<TNodePtrWithIndexes> MutableStoredReplicas() override;
+        virtual void AddStoredReplica(TNodePtrWithIndexes replica) override;
+        virtual void RemoveStoredReplica(int replicaIndex) override;
+
+        virtual void Load(NCellMaster::TLoadContext& context, bool isErasure) override;
+        virtual void Save(NCellMaster::TSaveContext& context) const override;
+    };
+
+    constexpr static int RegularChunkTypicalReplicaCount = 5;
+    constexpr static int RegularChunkLastSeenReplicaCount = 5;
+    using TRegularChunkReplicasData = TReplicasData<RegularChunkTypicalReplicaCount, RegularChunkLastSeenReplicaCount>;
+
+    constexpr static int ErasureChunkTypicalReplicaCount = 24;
+    constexpr static int ErasureChunkLastSeenReplicaCount = 16;
+    static_assert(ErasureChunkLastSeenReplicaCount >= ::NErasure::MaxTotalPartCount, "ErasureChunkLastSeenReplicaCount < NErasure::MaxTotalPartCount");
+    using TErasureChunkReplicasData = TReplicasData<ErasureChunkTypicalReplicaCount, ErasureChunkLastSeenReplicaCount>;
+
+    // COMPAT(gritukan)
+    constexpr static int OldLastSeenReplicaCount = 16;
 
     //! This additional indirection helps to save up some space since
     //! no replicas are being maintained for foreign chunks.
     //! It also separates relatively mutable data from static one,
     //! which helps to avoid excessive CoW during snapshot construction.
-    std::unique_ptr<TReplicasData> ReplicasData_;
+    std::unique_ptr<TReplicasDataBase> ReplicasData_;
 
     TChunkRequisition ComputeAggregatedRequisition(const TChunkRequisitionRegistry* registry);
     TChunkDynamicData::TMediumToRepairQueueIterator* SelectRepairQueueIteratorMap(EChunkRepairQueue queue) const;
 
-    const TReplicasData& ReplicasData() const;
-    TReplicasData* MutableReplicasData();
+    const TReplicasDataBase& ReplicasData() const;
+    TReplicasDataBase* MutableReplicasData();
 
     void UpdateAggregatedRequisitionIndex(
         TChunkRequisitionRegistry* registry,
@@ -378,7 +423,9 @@ private:
     void MaybeResetObsoleteEpochData(NObjectServer::TEpoch epoch);
 
     static const TCachedReplicas EmptyCachedReplicas;
-    static const TReplicasData EmptyReplicasData;
+
+    using TEmptyChunkReplicasData = TReplicasData<0, 0>;
+    static const TEmptyChunkReplicasData EmptyChunkReplicasData;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

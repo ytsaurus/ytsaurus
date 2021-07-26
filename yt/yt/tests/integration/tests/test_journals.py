@@ -96,7 +96,7 @@ class TestJournals(YTEnvSetup):
 
     def _get_chunk_replica_length(self, chunk_id):
         result = []
-        for replica in get("#{}/@last_seen_replicas".format(chunk_id)):
+        for replica in get("#{}/@stored_replicas".format(chunk_id)):
             orchid = get("//sys/cluster_nodes/{}/orchid/stored_chunks/{}".format(replica, chunk_id))
             result.append(orchid["flushed_row_count"])
         return result
