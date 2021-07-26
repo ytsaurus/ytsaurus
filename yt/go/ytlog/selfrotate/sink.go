@@ -18,6 +18,13 @@ func New(options Options) (*Writer, error) {
 		return nil, err
 	}
 
+	if dir, _ := filepath.Split(options.Name); dir == "" {
+		// The dirname should be non-empty in order for the rotation to work properly.
+		// To ensure that, we prepend the name with "./". Note that we cannot use
+		// filepath.Join here since it cleans the resulting path effectively removing the dot.
+		options.Name = "." + string(filepath.Separator) + options.Name
+	}
+
 	w := &Writer{
 		options: options,
 		stop:    make(chan struct{}),
