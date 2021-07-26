@@ -100,6 +100,11 @@ public:
         return {};
     }
 
+    virtual TFuture<void> GetReadyFuture() const override
+    {
+        return VoidFuture;
+    }
+
     virtual TFuture<void> Send(TSharedRefArray message, const NBus::TSendOptions& /* options */) override
     {
         if (message.Size() > 2) {

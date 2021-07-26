@@ -279,6 +279,8 @@ void TTcpConnection::Open()
         YT_LOG_TRACE("Retrying event processing for Open (PendingControl: %v)", previousPendingControl);
         Poller_->Retry(this);
     }
+
+    ReadyPromise_.TrySet(TError());
 }
 
 void TTcpConnection::ResolveAddress()
@@ -378,6 +380,8 @@ void TTcpConnection::Abort(const TError& error)
 
     // OnShutdown() will be called after draining events from thread pools.
     Poller_->Unregister(this);
+
+    ReadyPromise_.TrySet(error);
 }
 
 void TTcpConnection::InitBuffers()
@@ -469,6 +473,11 @@ const TNetworkAddress& TTcpConnection::GetEndpointAddress() const
 TTcpDispatcherStatistics TTcpConnection::GetStatistics() const
 {
     return Counters_->ToStatistics();
+}
+
+TFuture<void> TTcpConnection::GetReadyFuture() const
+{
+    return ReadyPromise_.ToFuture();
 }
 
 TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& options)

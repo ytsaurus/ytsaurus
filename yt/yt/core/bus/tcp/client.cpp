@@ -75,6 +75,12 @@ public:
         return Connection_->GetStatistics();
     }
 
+    virtual TFuture<void> GetReadyFuture() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        return Connection_->GetReadyFuture();
+    }
+
     virtual TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
