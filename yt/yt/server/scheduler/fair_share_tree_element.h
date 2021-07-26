@@ -46,8 +46,8 @@ static constexpr double InfiniteSatisfactionRatio = 1e+9;
 
 DEFINE_ENUM(EPrescheduleJobOperationCriterion,
     (All)
-    (AggressivelyStarvingOnly)
-    (StarvingOnly)
+    (EligibleForAggressivelyPreemptiveSchedulingOnly)
+    (EligibleForPreemptiveSchedulingOnly)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,6 +101,8 @@ using TDynamicAttributesList = std::vector<TDynamicAttributes>;
 
 using TChildHeapMap = THashMap<int, TChildHeap>;
 using TJobResourcesMap = THashMap<int, TJobResources>;
+using TNonOwningJobSet = THashSet<TJob*>;
+using TJobSetMap = THashMap<int, TNonOwningJobSet>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -203,7 +205,11 @@ private:
     DEFINE_BYREF_RW_PROPERTY(TDynamicAttributesList, DynamicAttributesList);
 
     DEFINE_BYREF_RW_PROPERTY(TChildHeapMap, ChildHeapMap);
-    DEFINE_BYREF_RW_PROPERTY(TJobResourcesMap, UsageDiscountMap);
+    //! Populated only for pools.
+    DEFINE_BYREF_RW_PROPERTY(TJobResourcesMap, LocalUnconditionalUsageDiscountMap);
+    DEFINE_BYREF_RW_PROPERTY(TJobSetMap, ConditionallyPreemptableJobSetMap);
+
+    DEFINE_BYREF_RW_PROPERTY(TJobResources, CurrentConditionalDiscount);
 
     DEFINE_BYREF_RO_PROPERTY(ISchedulingContextPtr, SchedulingContext);
 
@@ -228,7 +234,9 @@ public:
     TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element);
     const TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element) const;
 
-    TJobResources GetUsageDiscountFor(const TSchedulerElement* element) const;
+    void PrepareConditionalUsageDiscounts(const TSchedulerRootElementPtr& rootElement, bool isAggressive);
+    const TNonOwningJobSet& GetConditionallyPreemptableJobsInPool(const TSchedulerCompositeElement* element) const;
+    TJobResources GetLocalUnconditionalUsageDiscountFor(const TSchedulerElement* element) const;
 
     void StartStage(TScheduleJobsStage* schedulingStage, const TString& stageName);
 
@@ -269,6 +277,9 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(bool, EffectiveAggressiveStarvationEnabled, false)
     DEFINE_BYVAL_RO_PROPERTY(bool, EffectiveAggressivePreemptionAllowed, true);
+
+    DEFINE_BYVAL_RO_PROPERTY(TSchedulerElement*, LowestStarvingAncestor, nullptr);
+    DEFINE_BYVAL_RO_PROPERTY(TSchedulerElement*, LowestAggressivelyStarvingAncestor, nullptr);
 
 protected:
     TSchedulerElementFixedState(
@@ -357,7 +368,7 @@ public:
     bool IsStrictlyDominatesNonBlocked(const TResourceVector& lhs, const TResourceVector& rhs) const;
 
     //! Trunk node interface.
-    // Used for manipulattions with SchedulingTagFilterIndex.
+    // Used for manipulations with SchedulingTagFilterIndex.
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const;
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config);
 
@@ -388,7 +399,7 @@ public:
     TInstant GetStartTime() const;
 
     //! Post fair share update methods.
-    virtual void CheckForStarvation(TInstant now) = 0;
+    virtual void UpdateStarvationAttributes(TInstant now, bool enablePoolStarvation);
     virtual void MarkImmutable();
 
     //! Schedule jobs interface.
@@ -405,6 +416,7 @@ public:
     virtual std::optional<bool> IsAggressiveStarvationEnabled() const = 0;
     virtual std::optional<bool> IsAggressivePreemptionAllowed() const = 0;
     virtual bool HasAggressivelyStarvingElements(TScheduleJobsContext* context) const = 0;
+    bool IsEligibleForPreemptiveScheduling(bool isAggressive) const;
 
     virtual const TJobResources& CalculateCurrentResourceUsage(TScheduleJobsContext* context) = 0;
 
@@ -412,6 +424,8 @@ public:
 
     bool IsActive(const TDynamicAttributesList& dynamicAttributesList) const;
     bool AreResourceLimitsViolated() const;
+
+    virtual void PrepareConditionalUsageDiscounts(TScheduleJobsContext* context, bool isAggressive) const = 0;
 
     //! Other methods based on tree snapshot.
     virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* meteringMap) const;
@@ -449,6 +463,7 @@ protected:
 
     //! Post update methods.
     virtual void SetStarvationStatus(EStarvationStatus starvationStatus);
+    virtual void CheckForStarvation(TInstant now) = 0;
 
     ESchedulableStatus GetStatusImpl(double defaultTolerance, bool atUpdate) const;
     void CheckForStarvationImpl(
@@ -592,6 +607,7 @@ public:
     virtual bool HasHigherPriorityInFifoMode(const NFairShare::TElement* lhs, const NFairShare::TElement* rhs) const override final;
 
     //! Post fair share update methods.
+    virtual void UpdateStarvationAttributes(TInstant now, bool enablePoolStarvation) override;
     virtual void MarkImmutable() override;
 
     //! Schedule jobs related methods.
@@ -608,6 +624,8 @@ public:
     virtual const TJobResources& CalculateCurrentResourceUsage(TScheduleJobsContext* context) override final;
 
     virtual bool HasAggressivelyStarvingElements(TScheduleJobsContext* context) const override;
+
+    virtual void PrepareConditionalUsageDiscounts(TScheduleJobsContext* context, bool isAggressive) const override;
 
     //! Other methods.
     virtual THashSet<TString> GetAllowedProfilingTags() const = 0;
@@ -771,8 +789,6 @@ public:
     virtual TIntegralResourcesState& IntegralResourcesState() override;
 
     //! Post fair share update methods.
-    virtual void CheckForStarvation(TInstant now) override;
-
     virtual std::optional<double> GetSpecifiedFairShareStarvationTolerance() const override;
     virtual std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const override;
 
@@ -793,6 +809,7 @@ protected:
 
     //! Post fair share update methods.
     virtual void SetStarvationStatus(EStarvationStatus starvationStatus) override;
+    virtual void CheckForStarvation(TInstant now) override;
 
     virtual void BuildElementMapping(TFairSharePostUpdateContext* context) override;
 
@@ -857,9 +874,10 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EOperationPreemptionStatus,
-    (Allowed)
-    (ForbiddenSinceStarvingParentOrSelf)
-    (ForbiddenSinceUnsatisfiedParentOrSelf)
+    (AllowedUnconditionally)
+    (AllowedConditionally)
+    (ForbiddenSinceStarving)
+    (ForbiddenSinceUnsatisfied)
     (ForbiddenSinceLowJobCount)
 );
 
@@ -1110,9 +1128,6 @@ public:
     virtual TResourceVector GetBestAllocationShare() const override;
 
     //! Post fair share update methods.
-    virtual void SetStarvationStatus(EStarvationStatus starvationStatus) override;
-    virtual void CheckForStarvation(TInstant now) override;
-
     TInstant GetLastNonStarvingTime() const;
 
     virtual void PublishFairShareAndUpdatePreemptionSettings() override;
@@ -1141,7 +1156,7 @@ public:
     virtual std::optional<bool> IsAggressivePreemptionAllowed() const override;
     virtual bool HasAggressivelyStarvingElements(TScheduleJobsContext* context) const override;
 
-    bool IsPreemptionAllowed(
+    const TSchedulerElement* FindPreemptionBlockingAncestor(
         bool isAggressivePreemption,
         const TDynamicAttributesList& dynamicAttributesList,
         const TFairShareStrategyTreeConfigPtr& config) const;
@@ -1150,17 +1165,22 @@ public:
 
     bool IsSchedulingSegmentCompatibleWithNode(ESchedulingSegment nodeSegment, const TDataCenter& nodeDataCenter) const;
 
-    // Other methods.
+    virtual void PrepareConditionalUsageDiscounts(TScheduleJobsContext* context, bool isAggressive) const override;
+
+    //! Other methods.
     std::optional<TString> GetCustomProfilingTag() const;
 
-    // Used in orchid.
+    //! Used in orchid.
     TJobResourcesWithQuotaList GetDetailedMinNeededJobResources() const;
 
 protected:
-    // Pre update methods.
+    //! Pre update methods.
     virtual void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const override;
 
-    // Post update methods.
+    //! Post update methods.
+    virtual void SetStarvationStatus(EStarvationStatus starvationStatus) override;
+    virtual void CheckForStarvation(TInstant now) override;
+
     virtual bool IsSchedulable() const override;
     virtual void BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) override;
 
@@ -1227,11 +1247,6 @@ private:
     bool HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const;
 
     void OnOperationDeactivated(TScheduleJobsContext* context, EDeactivationReason reason);
-
-    void OnMinNeededResourcesUnsatisfied(
-        const TScheduleJobsContext& context,
-        const TJobResources& availableResources,
-        const TJobResources& minNeededResources);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerOperationElement)
@@ -1294,12 +1309,10 @@ public:
     virtual double GetSpecifiedBurstRatio() const override;
     virtual double GetSpecifiedResourceFlowRatio() const override;
 
-    //! Post share update methods.
+    //! Post update methods.
     void PostUpdate(
         TFairSharePostUpdateContext* postUpdateContext,
         TManageTreeSchedulingSegmentsContext* manageSegmentsContext);
-
-    virtual void CheckForStarvation(TInstant now) override;
 
     virtual std::optional<double> GetSpecifiedFairShareStarvationTolerance() const override;
     virtual std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const override;
@@ -1317,6 +1330,10 @@ public:
 
     TResourceDistributionInfo GetResourceDistributionInfo() const;
     void BuildResourceDistributionInfo(NYTree::TFluentMap fluent) const;
+
+protected:
+    //! Post update methods.
+    virtual void CheckForStarvation(TInstant now) override;
 
 private:
     // Pre fair share update methods.

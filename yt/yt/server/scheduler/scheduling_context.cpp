@@ -38,13 +38,13 @@ public:
 void Serialize(const TScheduleJobsStatistics& statistics, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginMap()
-        .Item("preemptable_job_count").Value(statistics.PreemptableJobCount)
+        .Item("unconditionally_preemptable_job_count").Value(statistics.UnconditionallyPreemptableJobCount)
         .Item("controller_schedule_job_count").Value(statistics.ControllerScheduleJobCount)
         .Item("non_preemptive_schedule_job_attempts").Value(statistics.NonPreemptiveScheduleJobAttempts)
         .Item("aggressively_preemptive_schedule_job_attempts").Value(statistics.AggressivelyPreemptiveScheduleJobAttempts)
         .Item("preemptive_schedule_job_attempts").Value(statistics.PreemptiveScheduleJobAttempts)
         .Item("has_aggressively_starving_elements").Value(statistics.HasAggressivelyStarvingElements)
-        .Item("resource_usage_discount").Value(statistics.ResourceUsageDiscount)
+        .Item("unconditional_resource_usage_discount").Value(statistics.UnconditionalResourceUsageDiscount)
         .Item("resource_usage").Value(statistics.ResourceUsage)
         .Item("resource_limits").Value(statistics.ResourceLimits)
     .EndMap();

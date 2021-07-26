@@ -628,11 +628,14 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         // NB: some jobs maybe considered aborted after processing scheduled jobs.
         SubmitJobsToStrategy();
 
+        // TODO(eshcherbin): Possible to shorten this message by writing preemptable info
+        // only when preemptive scheduling has been attempted.
         context->SetResponseInfo(
             "NodeId: %v, NodeAddress: %v, IsThrottling: %v, "
             "SchedulingSegment: %v, "
             "StartedJobs: {All: %v, ByPreemption: %v}, PreemptedJobs: %v, "
-            "PreemptableInfo: {Count: %v, Resources: %v}, "
+            "PreemptableInfo: {UnconditionalJobCount: %v, UnconditionalDiscount: %v, "
+            "TotalConditionalJobCount: %v, MaxConditionalJobCountPerPool: %v, MaxConditionalDiscount: %v}, "
             "ScheduleJobAttempts: {NP: %v, AP: %v, P: %v, C: %v}, "
             "HasAggressivelyStarvingElements: %v",
             nodeId,
@@ -642,8 +645,11 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             schedulingContext->StartedJobs().size(),
             statistics.ScheduledDuringPreemption,
             schedulingContext->PreemptedJobs().size(),
-            statistics.PreemptableJobCount,
-            FormatResources(statistics.ResourceUsageDiscount),
+            statistics.UnconditionallyPreemptableJobCount,
+            FormatResources(statistics.UnconditionalResourceUsageDiscount),
+            statistics.TotalConditionallyPreemptableJobCount,
+            statistics.MaxConditionallyPreemptableJobCountInPool,
+            FormatResources(statistics.MaxConditionalResourceUsageDiscount),
             statistics.NonPreemptiveScheduleJobAttempts,
             statistics.AggressivelyPreemptiveScheduleJobAttempts,
             statistics.PreemptiveScheduleJobAttempts,

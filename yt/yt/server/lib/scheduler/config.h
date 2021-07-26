@@ -36,8 +36,8 @@ namespace NYT::NScheduler {
 DEFINE_ENUM(EDeactivationReason,
     (IsNotAlive)
     (UnmatchedSchedulingTag)
-    (IsNotAggressivelyStarving)
-    (IsNotStarving)
+    (IsNotEligibleForAggressivelyPreemptiveScheduling)
+    (IsNotEligibleForPreemptiveScheduling)
     (ScheduleJobFailed)
     (NoBestLeafDescendant)
     (MinNeededResourcesUnsatisfied)
@@ -284,6 +284,8 @@ public:
     THashMap<TString, NYTree::INodePtr> PoolConfigPresets;
 
     bool TruncateFifoPoolUnsatisfiedChildFairShare;
+
+    bool EnableConditionalPreemption;
 
     TFairShareStrategyTreeConfig();
 };
