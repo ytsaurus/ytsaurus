@@ -26,11 +26,12 @@ public:
     //! Additionaly, request is sampled with probability P(user).
     THashMap<TString, double> UserSampleRate;
 
+    //! Additionally, sample first N requests for each user in the window.
+    ui64 MinPerUserSamples;
+    TDuration MinPerUserSamplesPeriod;
+
     //! Clear sampled from from incoming user request.
     THashMap<TString, bool> ClearSampledFlag;
-
-    //! Clear debug from from incoming user request.
-    THashMap<TString, bool> ClearDebugFlag;
 
     TSamplerConfig()
     {
@@ -40,8 +41,11 @@ public:
             .Default();
         RegisterParameter("clear_sampled_flag", ClearSampledFlag)
             .Default();
-        RegisterParameter("clear_debug_flag", ClearDebugFlag)
-            .Default();
+
+        RegisterParameter("min_per_user_samples", MinPerUserSamples)
+            .Default(0);
+        RegisterParameter("min_per_user_samples_period", MinPerUserSamplesPeriod)
+            .Default(TDuration::Minutes(1));
     }
 };
 
@@ -57,12 +61,26 @@ public:
     explicit TSampler(
         const TSamplerConfigPtr& config);
 
-    bool IsTraceSampled(const TString& user);
+    void SampleTraceContext(const TString& user, const TTraceContextPtr& traceContext);
 
     void UpdateConfig(const TSamplerConfigPtr& config);
 
 private:
     TAtomicObject<TSamplerConfigPtr> Config_;
+
+    struct TUserState final
+    {
+        std::atomic<ui64> Sampled = {0};
+        std::atomic<NProfiling::TCpuInstant> LastReset = {0};
+
+        bool TrySampleByMinCount(ui64 minCount, NProfiling::TCpuDuration period);
+
+        NProfiling::TCounter TracesSampledByUser;
+        NProfiling::TCounter TracesSampledByProbability;
+    };
+
+    NConcurrency::TSyncMap<TString, TIntrusivePtr<TUserState>> Users_;
+    NProfiling::TCounter TracesSampled_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
