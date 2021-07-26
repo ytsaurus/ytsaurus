@@ -699,15 +699,13 @@ void TContext::SetupOutputParameters()
 
 void TContext::SetupTracing()
 {
-    if (auto trace = NTracing::GetCurrentTraceContext()) {
+    if (auto traceContext = NTracing::GetCurrentTraceContext()) {
         if (Api_->GetConfig()->ForceTracing) {
-            trace->SetSampled();
+            traceContext->SetSampled();
         }
 
         auto sampler = Api_->GetCoordinator()->GetTraceSampler();
-        if (sampler->IsTraceSampled(DriverRequest_.AuthenticatedUser)) {
-            trace->SetSampled();
-        }
+        sampler->SampleTraceContext(DriverRequest_.AuthenticatedUser, traceContext);
     }
 }
 

@@ -171,9 +171,7 @@ public:
                     traceContext->SetSampled(enableTracing == "1");
                 } else {
                     auto* sampler = Bootstrap_->GetCoordinator()->GetTraceSampler();
-                    if (sampler->IsTraceSampled(User_)) {
-                        traceContext->SetSampled();
-                    }
+                    sampler->SampleTraceContext(User_, traceContext);
                 }
             }
 
