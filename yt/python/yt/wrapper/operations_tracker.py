@@ -219,6 +219,14 @@ class OperationsTrackerBase(object):
         inner_errors = self._tracking_thread.errors
         self._tracking_thread.errors = []
 
+        for operation in self.operations.values():
+            # Run finalization actions.
+            try:
+                operation.wait(check_result=False, print_progress=False)
+            except Exception as exc:
+                # COMPAT(levysotsky): Some users are not ready for and exception here. Cf. YT-15187
+                logger.error("Failed to finalize operation %s: %s", operation.id, repr(exc))
+
         if not keep_finished:
             self.operations.clear()
 
