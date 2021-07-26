@@ -151,9 +151,7 @@ private:
             }
 
             auto* chunk = child->AsChunk();
-            const auto& miscExt = chunk->MiscExt();
-            YT_VERIFY(miscExt.has_row_count());
-            auto childRowCount = miscExt.row_count();
+            auto childRowCount = chunk->GetRowCount();
             if (childRowCount <= remainingRowCount) {
                 remainingRowCount -= childRowCount;
             } else {
@@ -162,7 +160,7 @@ private:
                     child->GetId(),
                     childRowCount,
                     remainingRowCount);
-                chunk->MiscExt().set_row_count(remainingRowCount);
+                chunk->SetRowCount(remainingRowCount);
                 remainingRowCount = 0;
             }
 

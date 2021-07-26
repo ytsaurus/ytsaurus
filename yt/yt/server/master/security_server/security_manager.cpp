@@ -2529,7 +2529,7 @@ private:
     template <class T>
     void ComputeChunkResourceDelta(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta, T&& doCharge)
     {
-        auto chunkDiskSpace = chunk->ChunkInfo().disk_space();
+        auto chunkDiskSpace = chunk->GetDiskSpace();
         auto erasureCodec = chunk->GetErasureCodec();
 
         const TAccount* lastAccount = nullptr;

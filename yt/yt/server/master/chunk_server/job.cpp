@@ -261,7 +261,7 @@ void TMergeJob::FillJobSpec(NCellMaster::TBootstrap* bootstrap, TJobSpec* jobSpe
         builder.Add(replicas);
 
         protoChunk->set_erasure_codec(ToProto<int>(chunk->GetErasureCodec()));
-        protoChunk->set_row_count(chunk->MiscExt().row_count());
+        protoChunk->set_row_count(chunk->GetRowCount());
     }
 
     builder.Add(TargetReplicas_);

@@ -75,7 +75,8 @@ private:
         TBase::ListSystemAttributes(descriptors);
 
         const auto* chunk = GetThisImpl();
-        const auto& miscExt = chunk->MiscExt();
+
+        auto miscExt = chunk->ChunkMeta()->FindExtension<TMiscExt>();
 
         bool hasBoundaryKeysExt = chunk->ChunkMeta()->HasExtension<TBoundaryKeysExt>();
         bool hasHunkChunkMiscExt = chunk->ChunkMeta()->HasExtension<THunkChunkMiscExt>();
@@ -126,35 +127,35 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TableChunkFormat)
             .SetPresent(chunk->IsConfirmed() && chunk->GetChunkType() == EChunkType::Table));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MetaSize)
-            .SetPresent(chunk->IsConfirmed() && miscExt.has_meta_size()));
+            .SetPresent(miscExt && miscExt->has_meta_size()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CompressedDataSize)
-            .SetPresent(chunk->IsConfirmed() && miscExt.has_compressed_data_size()));
+            .SetPresent(miscExt && miscExt->has_compressed_data_size()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UncompressedDataSize)
-            .SetPresent(chunk->IsConfirmed() && miscExt.has_uncompressed_data_size()));
+            .SetPresent(miscExt && miscExt->has_uncompressed_data_size()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DataWeight)
-            .SetPresent(chunk->IsConfirmed() && miscExt.has_data_weight()));
+            .SetPresent(miscExt && miscExt->has_data_weight()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CompressionCodec)
-            .SetPresent(chunk->IsConfirmed() && miscExt.has_compression_codec()));
+            .SetPresent(miscExt && miscExt->has_compression_codec()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RowCount)
-            .SetPresent(chunk->IsConfirmed() && miscExt.has_row_count()));
+            .SetPresent(miscExt && miscExt->has_row_count()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::FirstOverlayedRowIndex)
-            .SetPresent(chunk->IsConfirmed() && miscExt.has_first_overlayed_row_index()));
+            .SetPresent(miscExt && miscExt->has_first_overlayed_row_index()));
         descriptors->push_back(EInternedAttributeKey::Overlayed);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MaxBlockSize)
-            .SetPresent(chunk->IsConfirmed() && miscExt.has_max_block_size()));
+            .SetPresent(miscExt && miscExt->has_max_block_size()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QuorumInfo)
             .SetPresent(chunk->IsJournal())
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Sealed)
             .SetPresent(chunk->IsJournal()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ValueCount)
-            .SetPresent(chunk->IsConfirmed() && miscExt.has_value_count()));
+            .SetPresent(miscExt && miscExt->has_value_count()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Sorted)
-            .SetPresent(chunk->IsConfirmed() && miscExt.has_sorted()));
+            .SetPresent(miscExt && miscExt->has_sorted()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MinTimestamp)
-            .SetPresent(chunk->IsConfirmed() && miscExt.has_min_timestamp()));
+            .SetPresent(miscExt && miscExt->has_min_timestamp()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MaxTimestamp)
-            .SetPresent(chunk->IsConfirmed() && miscExt.has_max_timestamp()));
+            .SetPresent(miscExt && miscExt->has_max_timestamp()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StagingTransactionId)
             .SetPresent(chunk->IsStaged()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StagingAccount)
@@ -175,7 +176,7 @@ private:
             .SetPresent(chunk->IsConfirmed()));
         descriptors->push_back(EInternedAttributeKey::ScanFlags);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CreationTime)
-            .SetPresent(chunk->IsConfirmed() && miscExt.has_creation_time()));
+            .SetPresent(miscExt && miscExt->has_creation_time()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Jobs)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PartLossTime)
@@ -184,7 +185,7 @@ private:
             .SetPresent(chunk->IsConfirmed())
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SharedToSkynet)
-            .SetPresent(chunk->IsConfirmed() && miscExt.has_shared_to_skynet()));
+            .SetPresent(miscExt && miscExt->has_shared_to_skynet()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkCount)
             .SetPresent(hasHunkChunkMiscExt));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TotalHunkLength)
@@ -205,7 +206,7 @@ private:
         auto isForeign = chunk->IsForeign();
         auto isConfirmed = chunk->IsConfirmed();
 
-        const auto& miscExt = chunk->MiscExt();
+        auto miscExt = chunk->ChunkMeta()->FindExtension<TMiscExt>();
 
         auto serializePhysicalReplica = [&] (TFluentList fluent, TNodePtrWithIndexes replica) {
             auto* medium = chunkManager->GetMediumByIndex(replica.GetMediumIndex());
@@ -504,7 +505,7 @@ private:
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(chunk->ChunkInfo().disk_space());
+                    .Value(chunk->GetDiskSpace());
                 return true;
 
             case EInternedAttributeKey::ChunkType: {
@@ -535,59 +536,59 @@ private:
             }
 
             case EInternedAttributeKey::MetaSize:
-                if (!isConfirmed || !miscExt.has_meta_size()) {
+                if (!miscExt || !miscExt->has_meta_size()) {
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(miscExt.meta_size());
+                    .Value(miscExt->meta_size());
                 return true;
 
             case EInternedAttributeKey::CompressedDataSize:
-                if (!isConfirmed || !miscExt.has_compressed_data_size()) {
+                if (!miscExt || !miscExt->has_compressed_data_size()) {
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(miscExt.compressed_data_size());
+                    .Value(miscExt->compressed_data_size());
                 return true;
 
             case EInternedAttributeKey::UncompressedDataSize:
-                if (!isConfirmed || !miscExt.has_uncompressed_data_size()) {
+                if (!miscExt || !miscExt->has_uncompressed_data_size()) {
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(miscExt.uncompressed_data_size());
+                    .Value(miscExt->uncompressed_data_size());
                 return true;
 
             case EInternedAttributeKey::DataWeight:
-                if (!isConfirmed || !miscExt.has_data_weight()) {
+                if (!miscExt || !miscExt->has_data_weight()) {
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(miscExt.data_weight());
+                    .Value(miscExt->data_weight());
                 return true;
 
             case EInternedAttributeKey::CompressionCodec:
-                if (!isConfirmed || !miscExt.has_compression_codec()) {
+                if (!miscExt || !miscExt->has_compression_codec()) {
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(NCompression::ECodec(miscExt.compression_codec()));
+                    .Value(NCompression::ECodec(miscExt->compression_codec()));
                 return true;
 
             case EInternedAttributeKey::RowCount:
-                if (!isConfirmed || !miscExt.has_row_count()) {
+                if (!miscExt || !miscExt->has_row_count()) {
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(miscExt.row_count());
+                    .Value(miscExt->row_count());
                 return true;
 
             case EInternedAttributeKey::FirstOverlayedRowIndex:
-                if (!isConfirmed || !miscExt.has_first_overlayed_row_index()) {
+                if (!miscExt || !miscExt->has_first_overlayed_row_index()) {
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(miscExt.first_overlayed_row_index());
+                    .Value(miscExt->first_overlayed_row_index());
                 return true;
 
             case EInternedAttributeKey::Overlayed:
@@ -596,43 +597,43 @@ private:
                 return true;
 
             case EInternedAttributeKey::ValueCount:
-                if (!isConfirmed || !miscExt.has_value_count()) {
+                if (!miscExt || !miscExt->has_value_count()) {
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(miscExt.value_count());
+                    .Value(miscExt->value_count());
                 return true;
 
             case EInternedAttributeKey::Sorted:
-                if (!isConfirmed || !miscExt.has_sorted()) {
+                if (!miscExt || !miscExt->has_sorted()) {
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(miscExt.sorted());
+                    .Value(miscExt->sorted());
                 return true;
 
             case EInternedAttributeKey::MinTimestamp:
-                if (!isConfirmed || !miscExt.has_min_timestamp()) {
+                if (!miscExt || !miscExt->has_min_timestamp()) {
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(miscExt.min_timestamp());
+                    .Value(miscExt->min_timestamp());
                 return true;
 
             case EInternedAttributeKey::MaxTimestamp:
-                if (!isConfirmed || !miscExt.has_max_timestamp()) {
+                if (!miscExt || !miscExt->has_max_timestamp()) {
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(miscExt.max_timestamp());
+                    .Value(miscExt->max_timestamp());
                 return true;
 
             case EInternedAttributeKey::MaxBlockSize:
-                if (!isConfirmed || !miscExt.has_max_block_size()) {
+                if (!miscExt || !miscExt->has_max_block_size()) {
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(miscExt.max_block_size());
+                    .Value(miscExt->max_block_size());
                 return true;
 
             case EInternedAttributeKey::ReadQuorum:
@@ -660,19 +661,19 @@ private:
                 return true;
 
             case EInternedAttributeKey::Eden:
-                if (!isConfirmed) {
+                if (!miscExt) {
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(miscExt.eden());
+                    .Value(miscExt->eden());
                 return true;
 
             case EInternedAttributeKey::CreationTime:
-                if (!isConfirmed || !miscExt.has_creation_time()) {
+                if (!miscExt || !miscExt->has_creation_time()) {
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(TInstant::MicroSeconds(miscExt.creation_time()));
+                    .Value(TInstant::MicroSeconds(miscExt->creation_time()));
                 return true;
 
             case EInternedAttributeKey::StagingTransactionId:
@@ -780,26 +781,26 @@ private:
             }
 
             case EInternedAttributeKey::SharedToSkynet: {
-                if (!isConfirmed || !miscExt.has_shared_to_skynet()) {
+                if (!miscExt || !miscExt->has_shared_to_skynet()) {
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(miscExt.shared_to_skynet());
+                    .Value(miscExt->shared_to_skynet());
                 return true;
             }
 
             case EInternedAttributeKey::HunkCount:
-                if (auto miscExt = chunk->ChunkMeta()->FindExtension<THunkChunkMiscExt>()) {
+                if (auto hunkChunkmiscExt = chunk->ChunkMeta()->FindExtension<THunkChunkMiscExt>()) {
                     BuildYsonFluently(consumer)
-                        .Value(miscExt->hunk_count());
+                        .Value(hunkChunkmiscExt->hunk_count());
                     return true;
                 }
                 break;
 
             case EInternedAttributeKey::TotalHunkLength:
-                if (auto miscExt = chunk->ChunkMeta()->FindExtension<THunkChunkMiscExt>()) {
+                if (auto hunkChunkmiscExt = chunk->ChunkMeta()->FindExtension<THunkChunkMiscExt>()) {
                     BuildYsonFluently(consumer)
-                        .Value(miscExt->total_hunk_length());
+                        .Value(hunkChunkmiscExt->total_hunk_length());
                     return true;
                 }
                 break;

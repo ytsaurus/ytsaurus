@@ -53,15 +53,15 @@ TChunkTreeStatistics TChunk::GetStatistics() const
 {
     TChunkTreeStatistics result;
     if (IsSealed()) {
-        result.RowCount = MiscExt_.row_count();
-        result.LogicalRowCount = MiscExt_.row_count();
-        result.UncompressedDataSize = MiscExt_.uncompressed_data_size();
-        result.CompressedDataSize = MiscExt_.compressed_data_size();
-        result.DataWeight = MiscExt_.has_data_weight() ? MiscExt_.data_weight() : -1;
+        result.RowCount = GetRowCount();
+        result.LogicalRowCount = GetRowCount();
+        result.UncompressedDataSize = GetUncompressedDataSize();
+        result.CompressedDataSize = GetCompressedDataSize();
+        result.DataWeight = GetDataWeight();
         if (IsErasure()) {
-            result.ErasureDiskSpace = ChunkInfo_.disk_space();
+            result.ErasureDiskSpace = GetDiskSpace();
         } else {
-            result.RegularDiskSpace = ChunkInfo_.disk_space();
+            result.RegularDiskSpace = GetDiskSpace();
         }
         result.ChunkCount = 1;
         result.LogicalChunkCount = 1;
@@ -72,7 +72,7 @@ TChunkTreeStatistics TChunk::GetStatistics() const
 
 i64 TChunk::GetPartDiskSpace() const
 {
-    auto result = ChunkInfo_.disk_space();
+    auto result = GetDiskSpace();
     auto codecId = GetErasureCodec();
     if (codecId != NErasure::ECodec::None) {
         auto* codec = NErasure::GetCodec(codecId);
@@ -119,13 +119,13 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     TChunkTree::Save(context);
 
     using NYT::Save;
-    Save(context, ChunkInfo_);
     Save(context, ChunkMeta_);
     Save(context, AggregatedRequisitionIndex_);
     Save(context, LocalRequisitionIndex_);
-    Save(context, ReadQuorum_);
-    Save(context, WriteQuorum_);
+    Save(context, GetReadQuorum());
+    Save(context, GetWriteQuorum());
     Save(context, LogReplicaLagLimit_);
+    Save(context, GetDiskSpace());
     Save(context, GetErasureCodec());
     Save(context, GetMovable());
     Save(context, GetOverlayed());
@@ -160,7 +160,13 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     TChunkTree::Load(context);
 
     using NYT::Load;
-    Load(context, ChunkInfo_);
+    // COMPAT(gritukan)
+    if (context.GetVersion() < EMasterReign::DropProtosFromChunk) {
+        TChunkInfo chunkInfo;
+        Load(context, chunkInfo);
+        SetDiskSpace(chunkInfo.disk_space());
+    }
+
     Load(context, ChunkMeta_);
 
     Load(context, AggregatedRequisitionIndex_);
@@ -174,6 +180,11 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     } else {
         SetReplicaLagLimit(MaxReplicaLagLimit);
     }
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= EMasterReign::DropProtosFromChunk) {
+        SetDiskSpace(Load<i64>(context));
+    }
+
     SetErasureCodec(Load<NErasure::ECodec>(context));
     SetMovable(Load<bool>(context));
     // COMPAT(babenko)
@@ -208,7 +219,8 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     }
 
     if (IsConfirmed()) {
-        MiscExt_ = ChunkMeta_->GetExtension<TMiscExt>();
+        auto miscExt = ChunkMeta_->GetExtension<TMiscExt>();
+        OnMiscExtUpdated(miscExt);
     }
 }
 
@@ -359,9 +371,12 @@ void TChunk::Confirm(
     Y_UNUSED(CheckedEnumCast<EChunkType>(chunkMeta.type()));
     Y_UNUSED(CheckedEnumCast<EChunkFormat>(chunkMeta.format()));
 
-    ChunkInfo_ = chunkInfo;
     ChunkMeta_ = FromProto<TImmutableChunkMetaPtr>(chunkMeta);
-    MiscExt_ = ChunkMeta_->GetExtension<TMiscExt>();
+
+    SetDiskSpace(chunkInfo.disk_space());
+
+    auto miscExt = ChunkMeta_->GetExtension<TMiscExt>();
+    OnMiscExtUpdated(miscExt);
 
     YT_VERIFY(IsConfirmed());
 }
@@ -441,48 +456,47 @@ bool TChunk::IsSealed() const
         return true;
     }
 
-    return MiscExt_.sealed();
+    return Flags_.Sealed;
+}
+
+void TChunk::SetSealed(bool value)
+{
+    Flags_.Sealed = value;
 }
 
 i64 TChunk::GetPhysicalSealedRowCount() const
 {
-    YT_VERIFY(MiscExt_.sealed());
-    if (MiscExt_.has_physical_row_count()) {
-        return MiscExt_.physical_row_count();
-    } else {
-        // COMPAT(gritukan): Old journals do not have physical row count.
-        return GetPhysicalChunkRowCount(MiscExt_.row_count(), GetOverlayed());
-    }
+    YT_VERIFY(Flags_.Sealed);
+    return PhysicalRowCount_;
 }
 
 void TChunk::Seal(const TChunkSealInfo& info)
 {
     YT_VERIFY(IsConfirmed() && !IsSealed());
-    YT_VERIFY(!MiscExt_.sealed());
-    YT_VERIFY(MiscExt_.row_count() == 0);
-    YT_VERIFY(MiscExt_.uncompressed_data_size() == 0);
-    YT_VERIFY(MiscExt_.compressed_data_size() == 0);
-    YT_VERIFY(MiscExt_.physical_row_count() == 0);
-    YT_VERIFY(ChunkInfo_.disk_space() == 0);
+    YT_VERIFY(!Flags_.Sealed);
+    YT_VERIFY(GetRowCount() == 0);
+    YT_VERIFY(GetUncompressedDataSize() == 0);
+    YT_VERIFY(GetCompressedDataSize() == 0);
+    YT_VERIFY(GetPhysicalRowCount() == 0);
+    YT_VERIFY(GetDiskSpace() == 0);
 
-    MiscExt_.set_sealed(true);
+    auto miscExt = ChunkMeta_->GetExtension<TMiscExt>();
+    miscExt.set_sealed(true);
     if (info.has_first_overlayed_row_index()) {
-        MiscExt_.set_first_overlayed_row_index(info.first_overlayed_row_index());
+        miscExt.set_first_overlayed_row_index(info.first_overlayed_row_index());
     }
-    MiscExt_.set_row_count(info.row_count());
-    MiscExt_.set_uncompressed_data_size(info.uncompressed_data_size());
-    MiscExt_.set_compressed_data_size(info.compressed_data_size());
-    // COMPAT(gritukan)
-    if (info.has_physical_row_count()) {
-        MiscExt_.set_physical_row_count(info.physical_row_count());
-    }
-
+    miscExt.set_row_count(info.row_count());
+    miscExt.set_uncompressed_data_size(info.uncompressed_data_size());
+    miscExt.set_compressed_data_size(info.compressed_data_size());
+    miscExt.set_physical_row_count(info.physical_row_count());
     NChunkClient::NProto::TChunkMeta protoMeta;
     ToProto(&protoMeta, ChunkMeta_);
-    SetProtoExtension(protoMeta.mutable_extensions(), MiscExt_);
+    SetProtoExtension(protoMeta.mutable_extensions(), miscExt);
     ChunkMeta_ = FromProto<TImmutableChunkMetaPtr>(protoMeta);
 
-    ChunkInfo_.set_disk_space(info.uncompressed_data_size());  // an approximation
+    OnMiscExtUpdated(miscExt);
+
+    SetDiskSpace(info.uncompressed_data_size()); // an approximation
 }
 
 int TChunk::GetMaxReplicasPerRack(
@@ -601,6 +615,26 @@ EChunkType TChunk::GetChunkType() const
 EChunkFormat TChunk::GetChunkFormat() const
 {
     return ChunkMeta_->GetFormat();
+}
+
+void TChunk::OnMiscExtUpdated(const TMiscExt& miscExt)
+{
+    SetRowCount(miscExt.row_count());
+    // COMPAT(gritukan)
+    if (IsJournal() && IsSealed()) {
+        YT_VERIFY(miscExt.has_physical_row_count());
+    }
+    SetPhysicalRowCount(miscExt.physical_row_count());
+    SetCompressedDataSize(miscExt.compressed_data_size());
+    SetUncompressedDataSize(miscExt.uncompressed_data_size());
+    SetDataWeight(miscExt.data_weight());
+    auto firstOverlayedRowIndex = miscExt.has_first_overlayed_row_index()
+        ? std::make_optional(miscExt.first_overlayed_row_index())
+        : std::nullopt;
+    SetFirstOverlayedRowIndex(firstOverlayedRowIndex);
+    SetMaxBlockSize(miscExt.max_block_size());
+    SetCompressionCodec(FromProto<NCompression::ECodec>(miscExt.compression_codec()));
+    SetSealed(miscExt.sealed());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
