@@ -236,8 +236,10 @@ private:
         try {
             const auto url = MakeRequestUrl(Format("/1/secrets/%v/tokens/", request.SecretId), false);
             const auto headers = New<THeaders>();
+            const auto vaultTicket = TvmService_->GetServiceTicket(Config_->VaultServiceId);
             headers->Add("Content-Type", "application/json");
             headers->Add("X-Ya-User-Ticket", request.UserTicket);
+            headers->Add("X-Ya-Service-Ticket", vaultTicket);
             const auto body = MakeGetDelegationTokenRequestBody(request);
 
             const auto responseBody = HttpPost(url, body, headers);
