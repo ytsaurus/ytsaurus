@@ -1361,6 +1361,9 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
     }
     schedulerJobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto<i64>(TaskHost_->GetSpec()->JobProxyRefCountedTrackerLogPeriod));
     schedulerJobSpecExt->set_abort_job_if_account_limit_exceeded(TaskHost_->GetSpec()->SuspendOperationIfAccountLimitExceeded);
+    if (TaskHost_->GetSpec()->ForceJobProxyTracing) {
+        schedulerJobSpecExt->set_is_traced(true);
+    }
 
     std::optional<TDuration> waitingJobTimeout;
     if (TaskHost_->GetSpec()->WaitingJobTimeout && scheduleJobSpec.has_waiting_job_timeout()) {

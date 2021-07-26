@@ -1073,7 +1073,6 @@ def get_at(config, path, default_value=None):
         config = config[part]
     return config
 
-
 def init_singletons(config, fqdn, name, process_tags={}):
     set_at(config, "address_resolver/localhost_fqdn", fqdn)
     set_at(config, "solomon_exporter/grid_step", 1000)
@@ -1086,6 +1085,15 @@ def init_singletons(config, fqdn, name, process_tags={}):
             "enable_pid_tag": True,
             "process_tags": process_tags,
         })
+
+        if name == "node":
+            set_at(config, "exec_agent/job_proxy_jaeger", {
+                "service_name": "job_proxy",
+                "flush_period": 100,
+                "collector_channel_config": {"address": os.environ["JAEGER_COLLECTOR"]},
+                "enable_pid_tag": True,
+                "process_tags": process_tags,
+            })
 
 
 def _get_hydra_manager_config():

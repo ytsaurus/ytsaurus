@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/job_proxy/config.h>
+
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
@@ -252,6 +254,8 @@ public:
     
     TGpuManagerDynamicConfigPtr GpuManager;
 
+    NJobProxy::TJobProxyDynamicConfigPtr JobProxy;
+
     TJobControllerDynamicConfig()
     {
         RegisterParameter("get_job_specs_timeout", GetJobSpecsTimeout)
@@ -279,6 +283,9 @@ public:
             .DefaultNew();
         
         RegisterParameter("disable_job_proxy_profiling", DisableJobProxyProfiling)
+            .Default();
+        
+        RegisterParameter("job_proxy", JobProxy)
             .Default();
     }
 };

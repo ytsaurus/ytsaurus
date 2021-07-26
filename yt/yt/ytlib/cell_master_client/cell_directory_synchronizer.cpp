@@ -155,6 +155,7 @@ private:
         TError error;
         auto period = Config_->SyncPeriod;
         try {
+            NTracing::TNullTraceContextGuard nullTraceContext;
             DoSync();
         } catch (const std::exception& ex) {
             error = ex;

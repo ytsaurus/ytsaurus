@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
+#include <yt/yt/server/job_proxy/public.h>
+
 #include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
 
 #include <yt/yt/core/yson/consumer.h>
@@ -71,6 +73,9 @@ public:
 
     //! Checks dynamic config to see if job proxy profiling is disabled.
     bool IsJobProxyProfilingDisabled() const;
+
+    //! Returns dynamic config of job proxy.
+    NJobProxy::TJobProxyDynamicConfigPtr GetJobProxyDynamicConfig() const;
 
     //! Set resource limits overrides.
     void SetResourceLimitsOverrides(const NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides& resourceLimits);

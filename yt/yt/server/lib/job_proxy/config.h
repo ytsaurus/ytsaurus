@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 
+#include <yt/yt/library/tracing/jaeger/tracer.h>
+
 #include <yt/yt/core/bus/tcp/config.h>
 
 #include <yt/yt/core/net/address.h>
@@ -301,6 +303,23 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobProxyConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobProxyDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    NTracing::TJaegerTracerDynamicConfigPtr Jaeger;
+
+    TJobProxyDynamicConfig()
+    {
+        RegisterParameter("jaeger", Jaeger)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobProxyDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

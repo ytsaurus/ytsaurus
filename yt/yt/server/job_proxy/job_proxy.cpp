@@ -47,6 +47,8 @@
 
 #include <yt/yt/core/logging/log_manager.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 #include <yt/yt/core/profiling/profile_manager.h>
 
 #include <yt/yt/core/misc/fs.h>
@@ -94,6 +96,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NContainers;
 using namespace NProfiling;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -471,6 +474,10 @@ void TJobProxy::Run()
     EnsureStderrResult(&result);
 
     ReportResult(result, statistics, startTime, finishTime);
+
+    if (auto tracer = GetGlobalTracer()) {
+        tracer->Stop();
+    }
 }
 
 IJobPtr TJobProxy::CreateBuiltinJob()
@@ -545,6 +552,12 @@ TJobResult TJobProxy::DoRun()
 {
     IJobPtr job;
 
+    RootSpan_ = TTraceContext::NewRoot("Job");
+    RootSpan_->SetRecorded();
+    RootSpan_->AddTag("yt.job_id", ToString(JobId_));
+
+    TTraceContextGuard guard(RootSpan_);
+
     try {
         SolomonExporter_ = New<TSolomonExporter>(
             Config_->SolomonExporter,
@@ -606,6 +619,9 @@ TJobResult TJobProxy::DoRun()
         }
 
         const auto& schedulerJobSpecExt = GetJobSpecHelper()->GetSchedulerJobSpecExt();
+        if (schedulerJobSpecExt.is_traced()) {
+            RootSpan_->SetSampled();
+        }
 
         if (schedulerJobSpecExt.has_yt_alloc_min_large_unreclaimable_bytes()) {
             NYTAlloc::SetMinLargeUnreclaimableBytes(schedulerJobSpecExt.yt_alloc_min_large_unreclaimable_bytes());

@@ -18,6 +18,8 @@
 
 #include <yt/yt/server/node/tablet_node/slot_manager.h>
 
+#include <yt/yt/server/lib/job_proxy/public.h>
+
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 
 #include <yt/yt/server/lib/job_agent/gpu_helpers.h>
@@ -138,6 +140,7 @@ public:
         std::vector<NJobTrackerClient::NProto::TJobStartInfo> jobStartInfos);
 
     bool IsJobProxyProfilingDisabled() const;
+    NJobProxy::TJobProxyDynamicConfigPtr GetJobProxyDynamicConfig() const;
 
 private:
     friend class TJobController::TJobHeartbeatProcessorBase;
@@ -1319,6 +1322,14 @@ bool TJobController::TImpl::IsJobProxyProfilingDisabled() const
     return config ? config->DisableJobProxyProfiling.value_or(Config_->DisableJobProxyProfiling) : Config_->DisableJobProxyProfiling;
 }
 
+NJobProxy::TJobProxyDynamicConfigPtr TJobController::TImpl::GetJobProxyDynamicConfig() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto config = DynamicConfig_.Load();
+    return config ? config->JobProxy : New<NJobProxy::TJobProxyDynamicConfig>();
+}
+
 TFuture<void> TJobController::TImpl::RequestJobSpecsAndStartJobs(std::vector<NJobTrackerClient::NProto::TJobStartInfo> jobStartInfos)
 {
     THashMap<TAddressWithNetwork, std::vector<NJobTrackerClient::NProto::TJobStartInfo>> groupedStartInfos;
@@ -1817,6 +1828,11 @@ IYPathServicePtr TJobController::GetOrchidService()
 bool TJobController::IsJobProxyProfilingDisabled() const
 {
     return Impl_->IsJobProxyProfilingDisabled();
+}
+
+NJobProxy::TJobProxyDynamicConfigPtr TJobController::GetJobProxyDynamicConfig() const
+{
+    return Impl_->GetJobProxyDynamicConfig();
 }
 
 DELEGATE_SIGNAL(TJobController, void(), ResourcesUpdated, *Impl_)

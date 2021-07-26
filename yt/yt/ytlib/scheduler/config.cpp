@@ -598,6 +598,8 @@ TOperationSpecBase::TOperationSpecBase()
         .Default();
     RegisterParameter("profiling_probability", ProfilingProbability)
         .Default();
+    RegisterParameter("force_job_proxy_tracing", ForceJobProxyTracing)
+        .Default(false);
 
     RegisterPostprocessor([&] {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&

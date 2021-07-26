@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup
 
-from yt_commands import authors, sync_create_cells
+from yt_commands import authors, sync_create_cells, map, create, write_table
 
 import yt.wrapper
 
@@ -51,6 +51,7 @@ class TestTracing(YTEnvSetup):
     @authors("prime")
     def test_tracing_http_scheduler(self):
         yw = yt.wrapper.YtClient(proxy=self.Env.get_proxy_address())
+        yw.create("map_node", "//home/prime", force=True, recursive=True)
 
         yw.create("table", "//tmp/t")
         yw.create("table", "//tmp/out")
@@ -97,3 +98,13 @@ class TestTracing(YTEnvSetup):
         yw.select_rows("sum(value) from [//tmp/d] group by 1")
 
         yw.select_rows("sum(value) from [//tmp/d] group by key")
+
+    @authors("prime")
+    def test_job_proxy_tracing(self):
+        create("table", "//tmp/t")
+        create("table", "//tmp/out")
+        write_table("//tmp/t", [{"foo": "bar"}])
+
+        map(command="sleep 5; cat", in_="//tmp/t", out="//tmp/out", format="yson", spec={
+            "force_job_proxy_tracing": True,
+        })

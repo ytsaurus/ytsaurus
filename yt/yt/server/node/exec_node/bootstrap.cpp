@@ -103,7 +103,7 @@ public:
                 TOperationId operationId,
                 const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
                 NJobTrackerClient::NProto::TJobSpec&& jobSpec) ->
-                IJobPtr
+                NJobAgent::IJobPtr
             {
                 return CreateUserJob(
                     jobId,

@@ -844,6 +844,9 @@ public:
     //! Probability of enabling single profiler inside of the job.
     std::optional<double> ProfilingProbability;
 
+    //! Enable job proxy tracing for all jobs.
+    bool ForceJobProxyTracing;
+
     TOperationSpecBase();
 
 private:
