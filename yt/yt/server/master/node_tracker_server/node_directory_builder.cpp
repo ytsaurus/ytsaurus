@@ -31,11 +31,16 @@ void TNodeDirectoryBuilder::Add(TNodePtrWithIndexes node)
     Add(node.GetPtr());
 }
 
-void TNodeDirectoryBuilder::Add(const TNodePtrWithIndexesList& nodes)
+void TNodeDirectoryBuilder::Add(TRange<TNodePtrWithIndexes> nodes)
 {
     for (auto node : nodes) {
         Add(node);
     }
+}
+
+void TNodeDirectoryBuilder::Add(const TNodePtrWithIndexesList& nodes)
+{
+    Add(MakeRange(nodes));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -165,6 +165,7 @@ DEFINE_ENUM(EMasterReign,
     ((PersistentCellStatistics)                                     (1639))  // ifsmirnov
     ((LimitObjectSubtreeSize)                                       (1640))  // cookiedoth
     ((PeriodicCompactionMode)                                       (1641))  // ifsmirnov
+    ((SpecializedReplicasData)                                      (1642))  // gritukan
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1700))  // ignat
 );

@@ -21,6 +21,7 @@ public:
 
     void Add(const TNode* node);
     void Add(NChunkServer::TNodePtrWithIndexes node);
+    void Add(TRange<NChunkServer::TNodePtrWithIndexes> nodes);
     void Add(const NChunkServer::TNodePtrWithIndexesList& nodes);
 
 private:

@@ -19,28 +19,36 @@ inline const TChunk::TCachedReplicas& TChunk::CachedReplicas() const
     return data.CachedReplicas ? *data.CachedReplicas : EmptyCachedReplicas;
 }
 
-inline const TChunk::TStoredReplicas& TChunk::StoredReplicas() const
+inline TRange<TNodePtrWithIndexes> TChunk::StoredReplicas() const
 {
     const auto& data = ReplicasData();
-    return data.StoredReplicas;
+    return data.GetStoredReplicas();
 }
 
-inline const TChunk::TLastSeenReplicas& TChunk::LastSeenReplicas() const
+inline TRange<TNodeId> TChunk::LastSeenReplicas() const
 {
     const auto& data = ReplicasData();
-    return data.LastSeenReplicas;
+    return data.GetLastSeenReplicas();
 }
 
-inline const TChunk::TReplicasData& TChunk::ReplicasData() const
+inline const TChunk::TReplicasDataBase& TChunk::ReplicasData() const
 {
-    return ReplicasData_ ? *ReplicasData_ : EmptyReplicasData;
+    if (ReplicasData_) {
+        return *ReplicasData_;
+    }
+
+    return EmptyChunkReplicasData;
 }
 
-inline TChunk::TReplicasData* TChunk::MutableReplicasData()
+inline TChunk::TReplicasDataBase* TChunk::MutableReplicasData()
 {
     if (!ReplicasData_) {
-        ReplicasData_ = TPoolAllocator::New<TReplicasData>();
-        std::fill(ReplicasData_->LastSeenReplicas.begin(), ReplicasData_->LastSeenReplicas.end(), InvalidNodeId);
+        if (IsErasure()) {
+            ReplicasData_ = TPoolAllocator::New<TErasureChunkReplicasData>();
+        } else {
+            ReplicasData_ = TPoolAllocator::New<TRegularChunkReplicasData>();
+        }
+        ReplicasData_->Initialize();
     }
     return ReplicasData_.get();
 }

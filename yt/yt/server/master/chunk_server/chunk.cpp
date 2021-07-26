@@ -36,7 +36,7 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 const TChunk::TCachedReplicas TChunk::EmptyCachedReplicas;
-const TChunk::TReplicasData TChunk::EmptyReplicasData = {};
+const TChunk::TEmptyChunkReplicasData TChunk::EmptyChunkReplicasData = {};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -143,13 +143,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     Save(context, ExpirationTime_);
     if (ReplicasData_) {
         Save(context, true);
-        // NB: RemoveReplica calls do not commute and their order is not
-        // deterministic (i.e. when unregistering a node we traverse certain hashtables).
-        TVectorSerializer<TDefaultSerializer, TSortedTag>::Save(context, ReplicasData_->StoredReplicas);
-        Save(context, ReplicasData_->CachedReplicas);
-        Save(context, ReplicasData_->LastSeenReplicas);
-        Save(context, ReplicasData_->CurrentLastSeenReplicaIndex);
-        Save(context, ReplicasData_->ApprovedReplicaCount);
+        Save(context, *ReplicasData_);
     } else {
         Save(context, false);
     }
@@ -196,14 +190,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
 
     if (Load<bool>(context)) {
         auto* data = MutableReplicasData();
-        Load(context, data->StoredReplicas);
-        Load(context, data->CachedReplicas);
-        Load(context, data->LastSeenReplicas);
-        Load(context, data->CurrentLastSeenReplicaIndex);
-        // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= EMasterReign::AllyReplicas) {
-            Load(context, data->ApprovedReplicaCount);
-        }
+        data->Load(context, IsErasure());
     }
 
     Load(context, ExportCounter_);
@@ -265,7 +252,7 @@ void TChunk::AddReplica(TNodePtrWithIndexes replica, const TMedium* medium, bool
         YT_VERIFY(cachedReplicas->insert(replica).second);
     } else {
         if (IsJournal()) {
-            for (auto& existingReplica : data->StoredReplicas) {
+            for (auto& existingReplica : data->MutableStoredReplicas()) {
                 if (existingReplica.ToGenericState() == replica.ToGenericState()) {
                     existingReplica = replica;
                     return;
@@ -277,13 +264,15 @@ void TChunk::AddReplica(TNodePtrWithIndexes replica, const TMedium* medium, bool
             ++data->ApprovedReplicaCount;
         }
 
-        data->StoredReplicas.push_back(replica);
+        data->AddStoredReplica(replica);
         if (!medium->GetTransient()) {
+            auto lastSeenReplicas = data->MutableLastSeenReplicas();
+            auto nodeId = replica.GetPtr()->GetId();
             if (IsErasure()) {
-                data->LastSeenReplicas[replica.GetReplicaIndex()] = replica.GetPtr()->GetId();
+                lastSeenReplicas[replica.GetReplicaIndex()] = nodeId;
             } else {
-                data->LastSeenReplicas[data->CurrentLastSeenReplicaIndex] = replica.GetPtr()->GetId();
-                data->CurrentLastSeenReplicaIndex = (data->CurrentLastSeenReplicaIndex + 1) % LastSeenReplicaCount;
+                lastSeenReplicas[data->CurrentLastSeenReplicaIndex] = nodeId;
+                data->CurrentLastSeenReplicaIndex = (data->CurrentLastSeenReplicaIndex + 1) % lastSeenReplicas.size();
             }
         }
     }
@@ -307,11 +296,11 @@ void TChunk::RemoveReplica(TNodePtrWithIndexes replica, const TMedium* medium, b
         }
 
         auto doRemove = [&] (auto converter) {
-            auto& storedReplicas = data->StoredReplicas;
-            for (auto& existingReplica : storedReplicas) {
+            auto storedReplicas = data->GetStoredReplicas();
+            for (int replicaIndex = 0; replicaIndex < std::ssize(storedReplicas); ++replicaIndex) {
+                auto existingReplica = storedReplicas[replicaIndex];
                 if (converter(existingReplica) == converter(replica)) {
-                    std::swap(existingReplica, storedReplicas.back());
-                    storedReplicas.pop_back();
+                    data->RemoveStoredReplica(replicaIndex);
                     return;
                 }
             }
@@ -343,7 +332,7 @@ void TChunk::ApproveReplica(TNodePtrWithIndexes replica)
 
     if (IsJournal()) {
         auto genericReplica = replica.ToGenericState();
-        for (auto& existingReplica : data->StoredReplicas) {
+        for (auto& existingReplica : data->MutableStoredReplicas()) {
             if (existingReplica.ToGenericState() == genericReplica) {
                 existingReplica = replica;
                 return;
@@ -409,7 +398,7 @@ bool TChunk::IsAvailable() const
         return false;
     }
 
-    const auto& storedReplicas = ReplicasData_->StoredReplicas;
+    const auto& storedReplicas = ReplicasData_->GetStoredReplicas();
     switch (GetType()) {
         case EObjectType::Chunk:
             return !storedReplicas.empty();
@@ -589,11 +578,19 @@ void TChunk::Unexport(
 
 i64 TChunk::GetMasterMemoryUsage() const
 {
-    return
+    auto memoryUsage =
         sizeof(TChunk) +
         sizeof(TChunkDynamicData) +
-        (ReplicasData_ ? sizeof(TReplicasData) : 0) +
         ChunkMeta_->GetTotalByteSize();
+    if (ReplicasData_) {
+        if (IsErasure()) {
+            memoryUsage += sizeof(TErasureChunkReplicasData);
+        } else {
+            memoryUsage += sizeof(TRegularChunkReplicasData);
+        }
+    }
+
+    return memoryUsage;
 }
 
 EChunkType TChunk::GetChunkType() const
@@ -604,6 +601,101 @@ EChunkType TChunk::GetChunkType() const
 EChunkFormat TChunk::GetChunkFormat() const
 {
     return ChunkMeta_->GetFormat();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Initialize()
+{
+    std::fill(LastSeenReplicas.begin(), LastSeenReplicas.end(), InvalidNodeId);
+}
+
+template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
+TRange<TNodePtrWithIndexes> TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::GetStoredReplicas() const
+{
+    return MakeRange(StoredReplicas);
+}
+
+template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
+TMutableRange<TNodePtrWithIndexes> TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::MutableStoredReplicas()
+{
+    return MakeMutableRange(StoredReplicas);
+}
+
+template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::AddStoredReplica(TNodePtrWithIndexes replica)
+{
+    StoredReplicas.push_back(replica);
+}
+
+template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::RemoveStoredReplica(int replicaIndex)
+{
+    std::swap(StoredReplicas[replicaIndex], StoredReplicas.back());
+    StoredReplicas.pop_back();
+}
+
+template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
+TRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::GetLastSeenReplicas() const
+{
+    return MakeRange(LastSeenReplicas);
+}
+
+template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
+TMutableRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::MutableLastSeenReplicas()
+{
+    return MakeMutableRange(LastSeenReplicas);
+}
+
+template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Load(TLoadContext& context, bool isErasure)
+{
+    using NYT::Load;
+
+    Load(context, StoredReplicas);
+    Load(context, CachedReplicas);
+    // COMPAT(gritukan)
+    if (context.GetVersion() < EMasterReign::SpecializedReplicasData) {
+        std::array<TNodeId, OldLastSeenReplicaCount> lastSeenReplicas;
+        Load(context, lastSeenReplicas);
+        int currentLastSeenReplicaIndex;
+        Load(context, currentLastSeenReplicaIndex);
+        if (isErasure) {
+            YT_VERIFY(LastSeenReplicaCount == OldLastSeenReplicaCount);
+            for (int index = 0; index < static_cast<int>(LastSeenReplicaCount); ++index) {
+                LastSeenReplicas[index] = lastSeenReplicas[index];
+            }
+        } else {
+            YT_VERIFY(LastSeenReplicaCount <= OldLastSeenReplicaCount);
+            for (int index = 0; index < static_cast<int>(LastSeenReplicaCount); ++index) {
+                currentLastSeenReplicaIndex = (currentLastSeenReplicaIndex + OldLastSeenReplicaCount - 1) % OldLastSeenReplicaCount;
+                LastSeenReplicas[LastSeenReplicaCount - index - 1] = lastSeenReplicas[currentLastSeenReplicaIndex];
+            }
+        }
+        CurrentLastSeenReplicaIndex = 0;
+    } else {
+        Load(context, LastSeenReplicas);
+        Load(context, CurrentLastSeenReplicaIndex);
+    }
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::AllyReplicas) {
+        Load(context, ApprovedReplicaCount);
+    }
+}
+
+template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Save(TSaveContext& context) const
+{
+    using NYT::Save;
+
+    // NB: RemoveReplica calls do not commute and their order is not
+    // deterministic (i.e. when unregistering a node we traverse certain hashtables).
+    TVectorSerializer<TDefaultSerializer, TSortedTag>::Save(context, StoredReplicas);
+    Save(context, CachedReplicas);
+    Save(context, LastSeenReplicas);
+    Save(context, CurrentLastSeenReplicaIndex);
+    Save(context, ApprovedReplicaCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

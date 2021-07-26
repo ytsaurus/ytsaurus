@@ -1,6 +1,7 @@
 #pragma once
 
 #include "assert.h"
+#include "compact_vector.h"
 #include "hash.h"
 
 #include <vector>
@@ -86,6 +87,13 @@ public:
     //! avoid instantiating SmallVectorTemplateBase<T> whenever we
     //! copy-construct a TRange.
     TRange(const SmallVectorImpl<T>& elements)
+        : Data_(elements.data())
+        , Length_(elements.size())
+    { }
+
+    //! Constructs a TRange from a TCompactVector.
+    template <size_t N>
+    TRange(const TCompactVector<T, N>& elements)
         : Data_(elements.data())
         , Length_(elements.size())
     { }
@@ -248,6 +256,13 @@ TRange<T> MakeRange(const SmallVectorImpl<T>& elements)
     return elements;
 }
 
+//! Constructs a TRange from a TCompactVector.
+template <class T, size_t N>
+TRange<T> MakeRange(const TCompactVector<T, N>& elements)
+{
+    return elements;
+}
+
 //! "Copy-constructor".
 template <class T>
 TRange<T> MakeRange(TRange<T> range)
@@ -336,6 +351,12 @@ public:
 
     //! Constructs a TMutableRange from a SmallVector.
     TMutableRange(SmallVectorImpl<T>& elements)
+        : TRange<T>(elements)
+    { }
+
+    //! Constructs a TMutableRange from a TCompactVector.
+    template <size_t N>
+    TMutableRange(TCompactVector<T, N>& elements)
         : TRange<T>(elements)
     { }
 
@@ -448,6 +469,13 @@ TMutableRange<T> MakeMutableRange(T* begin, T* end)
 //! Constructs a TMutableRange from a SmallVector.
 template <class T>
 TMutableRange<T> MakeMutableRange(SmallVectorImpl<T>& elements)
+{
+    return elements;
+}
+
+//! Constructs a TMutableRange from a TCompactVector.
+template <class T, size_t N>
+TMutableRange<T> MakeMutableRange(TCompactVector<T, N>& elements)
 {
     return elements;
 }
