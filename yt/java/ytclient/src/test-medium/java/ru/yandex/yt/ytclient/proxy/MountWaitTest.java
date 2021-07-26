@@ -61,7 +61,7 @@ public class MountWaitTest extends YtClientTestBase {
         var tablets = yt.getNode(path + "/@tablets").join().asList();
         boolean allTabletsReady = true;
         for (YTreeNode tablet : tablets) {
-            if (!tablet.asMap().getOrThrow("state").stringValue().equals("mounted")) {
+            if (!tablet.mapNode().getOrThrow("state").stringValue().equals("mounted")) {
                 allTabletsReady = false;
                 break;
             }
