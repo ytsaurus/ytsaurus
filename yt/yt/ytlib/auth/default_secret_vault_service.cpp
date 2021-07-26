@@ -294,14 +294,23 @@ private:
             .BeginMap()
                 .Item("tokenized_requests").DoListFor(subrequests,
                     [&] (auto fluent, const auto& subrequest) {
-                        fluent
-                            .Item().BeginMap()
-                                .Item("service_ticket").Value(vaultTicket)
-                                .Item("token").Value(subrequest.DelegationToken)
-                                .Item("signature").Value(subrequest.Signature)
-                                .Item("secret_uuid").Value(subrequest.SecretId)
-                                .Item("secret_version").Value(subrequest.SecretVersion)
-                            .EndMap();
+                        auto map = fluent.Item().BeginMap();
+                        if (!vaultTicket.empty()) {
+                            map.Item("service_ticket").Value(vaultTicket);
+                        }
+                        if (!subrequest.DelegationToken.empty()) {
+                            map.Item("token").Value(subrequest.DelegationToken);
+                        }
+                        if (!subrequest.Signature.empty()) {
+                            map.Item("signature").Value(subrequest.Signature);
+                        }
+                        if (!subrequest.SecretId.empty()) {
+                            map.Item("secret_uuid").Value(subrequest.SecretId);
+                        }
+                        if (!subrequest.SecretVersion.empty()) {
+                            map.Item("secret_version").Value(subrequest.SecretVersion);
+                        }
+                        map.EndMap();
                     })
             .EndMap();
         jsonWriter->Flush();
