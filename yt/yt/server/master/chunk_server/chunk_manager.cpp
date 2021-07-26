@@ -763,7 +763,8 @@ public:
         securityManager->UpdateResourceUsage(chunk, requisition, delta);
     }
 
-    void UpdateResourceUsage(const TChunk* chunk, i64 delta, const TChunkRequisition* forcedRequisition = nullptr) {
+    void UpdateResourceUsage(const TChunk* chunk, i64 delta, const TChunkRequisition* forcedRequisition = nullptr)
+    {
         if (chunk->IsStaged()) {
             UpdateTransactionResourceUsage(chunk, delta);
         }
