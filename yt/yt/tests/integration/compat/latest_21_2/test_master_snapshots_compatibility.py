@@ -3,7 +3,7 @@ from yt_commands import authors, print_debug, build_master_snapshots
 
 
 from original_tests.yt.yt.tests.integration.tests.test_master_snapshots \
-    import MASTER_SNAPSHOT_CHECKER_LIST, check_master_memory, check_proxy_roles
+    import MASTER_SNAPSHOT_CHECKER_LIST
 
 import os
 import pytest
@@ -26,10 +26,6 @@ class TestMasterSnapshotsCompatibility(YTEnvSetup):
     def test(self):
         CHECKER_LIST = [
         ] + MASTER_SNAPSHOT_CHECKER_LIST
-
-        # Remove tests that are not supported in 20.3 masters.
-        CHECKER_LIST.remove(check_master_memory)
-        CHECKER_LIST.remove(check_proxy_roles)
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]
         for s in checker_state_list:
