@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .conftest import authors
-from .helpers import TEST_DIR, check_rows_equality, get_tests_sandbox, dumps_yt_config
+from .helpers import TEST_DIR, check_rows_equality, get_tests_sandbox, dumps_yt_config, set_config_option
 
 from yt.wrapper.spec_builders import MapSpecBuilder
 
@@ -159,6 +159,20 @@ class TestOperationsTracker(object):
             assert op.get_state() == "aborted"
         finally:
             logger.LOGGER.setLevel(old_level)
+
+    @authors("levysotsky")
+    def test_operations_tracker_with_envelope_transaction(self):
+        input_table = TEST_DIR + "/input"
+        output_table = TEST_DIR + "/output"
+        yt.write_table(input_table, [{"x": 1, "y": 1}])
+
+        with set_config_option("detached", False):
+            with yt.Transaction():
+                with yt.OperationsTracker() as tracker:
+                    op = yt.run_map("cat", input_table, output_table, sync=False)
+                    tracker.add(op)
+
+        assert list(yt.read_table(output_table)) == [{"x": 1, "y": 1}]
 
     @authors("renadeen")
     def test_pool_tracker_multiple_instances(self):
@@ -323,5 +337,3 @@ class TestOperationsTracker(object):
 
         finally:
             logger.LOGGER.setLevel(old_level)
-
-
