@@ -213,6 +213,11 @@ private:
             return PeerAddress_;
         }
 
+        virtual TFuture<void> GetReadyFuture() const override
+        {
+            return VoidFuture;
+        }
+
         virtual TFuture<void> Send(TSharedRefArray message, const NBus::TSendOptions& /*options*/) override
         {
             if (auto handler = Handler_.Lock()) {

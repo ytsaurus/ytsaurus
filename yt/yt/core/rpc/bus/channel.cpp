@@ -323,9 +323,6 @@ private:
                 options,
                 std::move(responseHandler));
 
-            auto& header = request->Header();
-            header.set_start_time(ToProto<i64>(TInstant::Now()));
-
             {
                 // NB: Requests without timeout are rare but may occur.
                 // For these requests we still need to register a timeout cookie with TDelayedExecutor
@@ -338,34 +335,33 @@ private:
                 requestControl->SetTimeoutCookie(std::move(timeoutCookie));
             }
 
-            if (options.Timeout) {
-                header.set_timeout(ToProto<i64>(*options.Timeout));
-            } else {
-                header.clear_timeout();
-            }
+            if (auto readyFuture = GetBusReadyFuture()) {
+                YT_LOG_DEBUG("Waiting for bus to become ready (RequestId: %v, Method: %v.%v)",
+                    requestControl->GetRequestId(),
+                    requestControl->GetService(),
+                    requestControl->GetMethod());
 
-            if (request->IsHeavy()) {
-                BIND(&IClientRequest::Serialize, request)
-                    .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())
-                    .Run()
-                    .Subscribe(BIND(
-                        &TSession::OnRequestSerialized,
-                        MakeStrong(this),
-                        requestControl,
-                        options));
+                readyFuture.Subscribe(BIND(
+                    [
+                        =,
+                        this_ = MakeStrong(this),
+                        request = std::move(request)
+                    ] (const TError& /*error*/) {
+                        if (!BusReady_.exchange(true)) {
+                            YT_LOG_DEBUG("Bus has become ready (Endpoint: %v)",
+                                Bus_->GetEndpointDescription());
+                        }
+                        DoSendRequest(
+                            std::move(request),
+                            requestControl,
+                            options);
+                    })
+                    .Via(TDispatcher::Get()->GetHeavyInvoker()));
             } else {
-                try {
-                    auto requestMessage = request->Serialize();
-                    OnRequestSerialized(
-                        requestControl,
-                        options,
-                        std::move(requestMessage));
-                } catch (const std::exception& ex) {
-                    OnRequestSerialized(
-                        requestControl,
-                        options,
-                        TError(ex));
-                }
+                DoSendRequest(
+                    std::move(request),
+                    requestControl,
+                    options);
             }
 
             return requestControl;
@@ -670,6 +666,7 @@ private:
         const TTosLevel TosLevel_;
 
         IBusPtr Bus_;
+        std::atomic<bool> BusReady_ = false;
 
         struct TBucket
         {
@@ -685,6 +682,60 @@ private:
 
         std::atomic<bool> TerminationFlag_ = false;
         TAtomicObject<TError> TerminationError_;
+
+
+        TFuture<void> GetBusReadyFuture()
+        {
+            if (Y_LIKELY(BusReady_.load(std::memory_order_relaxed))) {
+                return {};
+            }
+
+            auto future = Bus_->GetReadyFuture();
+            if (future.IsSet()) {
+                BusReady_.store(true);
+                return {};
+            }
+
+            return future;
+        }
+
+        void DoSendRequest(
+            IClientRequestPtr request,
+            TClientRequestControlPtr requestControl,
+            const TSendOptions& options)
+        {
+            auto& header = request->Header();
+            header.set_start_time(ToProto<i64>(TInstant::Now()));
+            if (options.Timeout) {
+                header.set_timeout(ToProto<i64>(*options.Timeout));
+            } else {
+                header.clear_timeout();
+            }
+
+            if (request->IsHeavy()) {
+                BIND(&IClientRequest::Serialize, request)
+                    .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())
+                    .Run()
+                    .Subscribe(BIND(
+                        &TSession::OnRequestSerialized,
+                        MakeStrong(this),
+                        std::move(requestControl),
+                        options));
+            } else {
+                try {
+                    auto requestMessage = request->Serialize();
+                    OnRequestSerialized(
+                        std::move(requestControl),
+                        options,
+                        std::move(requestMessage));
+                } catch (const std::exception& ex) {
+                    OnRequestSerialized(
+                        std::move(requestControl),
+                        options,
+                        TError(ex));
+                }
+            }
+        }
 
 
         TBucket* GetBucketForRequest(TRequestId requestId)

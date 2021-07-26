@@ -182,6 +182,11 @@ private:
             return NNet::NullNetworkAddress;
         }
 
+        virtual TFuture<void> GetReadyFuture() const override
+        {
+            return VoidFuture;
+        }
+
         virtual TFuture<void> Send(TSharedRefArray message, const NBus::TSendOptions& /*options*/) override
         {
             NProto::TResponseHeader header;

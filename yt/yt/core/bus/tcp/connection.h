@@ -81,6 +81,7 @@ public:
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
     virtual const NNet::TNetworkAddress& GetEndpointAddress() const override;
     virtual TTcpDispatcherStatistics GetStatistics() const override;
+    virtual TFuture<void> GetReadyFuture() const override;
     virtual TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) override;
     virtual void SetTosLevel(TTosLevel tosLevel) override;
     virtual void Terminate(const TError& error) override;
@@ -165,6 +166,8 @@ private:
 
     const NLogging::TLogger Logger;
     const TString LoggingTag_;
+
+    const TPromise<void> ReadyPromise_ = NewPromise<void>();
 
     TString NetworkName_;
     TTcpDispatcherCountersPtr Counters_;
