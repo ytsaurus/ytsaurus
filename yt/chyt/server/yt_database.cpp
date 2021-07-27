@@ -80,7 +80,8 @@ public:
         {
         public:
             TTableIterator(std::vector<String> paths)
-                : Paths_(std::move(paths))
+                : DB::IDatabaseTablesIterator("YT")
+                , Paths_(std::move(paths))
             { }
 
             virtual bool isValid() const override
