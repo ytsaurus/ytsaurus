@@ -163,12 +163,18 @@ inline bool TChunk::HasJobs() const
 
 inline void TChunk::AddJob(TJobPtr job)
 {
-    GetDynamicData()->Jobs.insert(std::move(job));
+    GetDynamicData()->Jobs.emplace_back(std::move(job));
 }
 
 inline void TChunk::RemoveJob(const TJobPtr& job)
 {
-    GetDynamicData()->Jobs.erase(job);
+    auto& jobs = GetDynamicData()->Jobs;
+    auto jobIt = std::find(jobs.begin(), jobs.end(), job);
+    // TODO(gritukan): Is it possible that job is not in job set?
+    if (jobIt != jobs.end()) {
+        jobs.erase(jobIt);
+        jobs.shrink_to_small();
+    }
 }
 
 inline void TChunk::RefUsedRequisitions(TChunkRequisitionRegistry* registry) const
