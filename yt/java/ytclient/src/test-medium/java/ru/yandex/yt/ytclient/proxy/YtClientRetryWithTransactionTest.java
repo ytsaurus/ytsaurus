@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.proxy;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -166,7 +167,6 @@ public class YtClientRetryWithTransactionTest extends YtClientTestBase {
                         .build());
     }
 
-    @lombok.Data
     @YTreeObject
     static class KeyValue {
         @YTreeKeyField
@@ -177,6 +177,31 @@ public class YtClientRetryWithTransactionTest extends YtClientTestBase {
         public KeyValue(String key, int value) {
             this.key = key;
             this.value = value;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            KeyValue keyValue = (KeyValue) o;
+            return value == keyValue.value && Objects.equals(key, keyValue.key);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(key, value);
+        }
+
+        @Override
+        public String toString() {
+            return "KeyValue{" +
+                    "key='" + key + '\'' +
+                    ", value=" + value +
+                    '}';
         }
     }
 

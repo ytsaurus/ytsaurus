@@ -5,10 +5,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import javax.annotation.Nullable;
 
-import lombok.Data;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -165,7 +165,6 @@ public class YtClientDynamicTableTest extends YtClientTestBase {
 
     }
 
-    @Data
     @YTreeObject
     static class KeyValue {
         int key;
@@ -174,6 +173,31 @@ public class YtClientDynamicTableTest extends YtClientTestBase {
         public KeyValue(int key, @Nullable String value) {
             this.key = key;
             this.value = value;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            KeyValue keyValue = (KeyValue) o;
+            return key == keyValue.key && Objects.equals(value, keyValue.value);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(key, value);
+        }
+
+        @Override
+        public String toString() {
+            return "KeyValue{" +
+                    "key=" + key +
+                    ", value='" + value + '\'' +
+                    '}';
         }
     }
 }
