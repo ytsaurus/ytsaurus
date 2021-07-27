@@ -600,6 +600,8 @@ TOperationSpecBase::TOperationSpecBase()
         .Default();
     RegisterParameter("force_job_proxy_tracing", ForceJobProxyTracing)
         .Default(false);
+    RegisterParameter("suspend_on_job_failure", SuspendOnJobFailure)
+        .Default(false);
 
     RegisterPostprocessor([&] {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&

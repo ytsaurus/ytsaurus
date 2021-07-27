@@ -847,6 +847,9 @@ public:
     //! Enable job proxy tracing for all jobs.
     bool ForceJobProxyTracing;
 
+    //! If true, operation is suspended when job failed.
+    bool SuspendOnJobFailure;
+
     TOperationSpecBase();
 
 private:

@@ -2816,6 +2816,10 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         }
     }
 
+    if (Spec_->SuspendOnJobFailure) {
+        Host->OnOperationSuspended(TError("Job failed with error") << error);
+    }
+
     UpdateTask(joblet->Task);
     LogProgress();
 

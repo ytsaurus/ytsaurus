@@ -950,6 +950,14 @@ class TestSchedulerCommon(YTEnvSetup):
         wait_for_fresh_config()
         assert get_controller_throttling_schedule_job_fail_count() == 0
 
+    @authors("alexkolodezny")
+    def test_suspention_on_job_failure(self):
+        op = run_test_vanilla(
+            "exit 1",
+            spec={"suspend_on_job_failure": True}
+        )
+        wait(lambda: get(op.get_path() + "/@suspended"))
+
 
 class TestSchedulerCommonMulticell(TestSchedulerCommon):
     NUM_TEST_PARTITIONS = 6
