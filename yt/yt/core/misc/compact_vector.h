@@ -142,6 +142,8 @@ public:
     iterator insert(const_iterator pos, TIterator first, TIterator last);
     iterator insert(const_iterator pos, std::initializer_list<T> list);
 
+    void shrink_to_small();
+
 private:
     template <class OtherT, size_t OtherN>
     friend class TCompactVector;

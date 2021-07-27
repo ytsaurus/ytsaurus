@@ -676,6 +676,26 @@ auto TCompactVector<T, N>::insert(const_iterator pos, std::initializer_list<T> l
 }
 
 template <class T, size_t N>
+void TCompactVector<T, N>::shrink_to_small()
+{
+    if (Y_LIKELY(IsInline())) {
+        return;
+    }
+
+    auto size = this->size();
+    if (size > N) {
+        return;
+    }
+
+    auto* storage = OnHeapMeta_.Storage;
+    UninitializedMove(storage->Elements, storage->End, &InlineElements_[0]);
+    Destroy(storage->Elements, storage->End);
+    ::free(storage);
+
+    InlineMeta_.SizePlusOne = size + 1;
+}
+
+template <class T, size_t N>
 bool TCompactVector<T, N>::IsInline() const
 {
     return InlineMeta_.SizePlusOne != 0;
