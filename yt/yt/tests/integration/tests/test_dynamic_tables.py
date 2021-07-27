@@ -2642,6 +2642,24 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//tmp/t/@replication_factor", 10)
         _validate(disk_space * 10, "test_medium")
 
+    @authors("ifsmirnov")
+    def test_copy_static_table_with_dynamic_table_attributes(self):
+        attributes = {
+            "atomicity": "full",
+            "commit_ordering": "weak",
+            "in_memory_mode": "uncompressed",
+            "enable_dynamic_store_read": True,
+            "profiling_mode": "tag",
+            "profiling_tag": "some_tag",
+        }
+        create("table", "//tmp/t", attributes=attributes)
+
+        copy("//tmp/t", "//tmp/p")
+
+        copy_attributes = get("//tmp/p/@")
+        for k, v in attributes.iteritems():
+            assert copy_attributes[k] == v
+
 
 ##################################################################
 

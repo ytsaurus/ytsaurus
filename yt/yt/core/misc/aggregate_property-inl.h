@@ -53,22 +53,22 @@ public: \
     } \
     Y_FORCE_INLINE void Account##name(decltype(holder##_->name.Get()) val) \
     { \
-        INITIALIZE_EXTRA_PROPERTY_HOLDER(holder, name); \
+        INITIALIZE_EXTRA_PROPERTY_HOLDER(holder); \
         holder##_->name.Account(val); \
     } \
     Y_FORCE_INLINE void Discount##name(decltype(holder##_->name.Get()) val) \
     { \
-        INITIALIZE_EXTRA_PROPERTY_HOLDER(holder, name); \
+        INITIALIZE_EXTRA_PROPERTY_HOLDER(holder); \
         holder##_->name.Discount(val); \
     } \
     Y_FORCE_INLINE void Account##name##Delta(decltype(holder##_->name.Get()) val) \
     { \
-        INITIALIZE_EXTRA_PROPERTY_HOLDER(holder, name); \
+        INITIALIZE_EXTRA_PROPERTY_HOLDER(holder); \
         holder##_->name.AccountDelta(val); \
     } \
     Y_FORCE_INLINE void Reset##name() \
     { \
-        INITIALIZE_EXTRA_PROPERTY_HOLDER(holder, name); \
+        INITIALIZE_EXTRA_PROPERTY_HOLDER(holder); \
         holder##_->name.Reset(); \
     } \
 

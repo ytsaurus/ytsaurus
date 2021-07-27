@@ -135,6 +135,52 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     }
 }
 
+#define FOR_EACH_COPYABLE_ATTRIBUTE(XX) \
+    XX(Dynamic) \
+    XX(Atomicity) \
+    XX(CommitOrdering) \
+    XX(InMemoryMode) \
+    XX(UpstreamReplicaId) \
+    XX(LastCommitTimestamp) \
+    XX(EnableDynamicStoreRead) \
+    XX(ProfilingMode) \
+    XX(ProfilingTag) \
+    XX(EnableDetailedProfiling) \
+
+
+void TTableNode::TDynamicTableAttributes::CopyFrom(const TDynamicTableAttributes* other)
+{
+    #define XX(attr) attr = other->attr;
+    FOR_EACH_COPYABLE_ATTRIBUTE(XX)
+    #undef XX
+
+    TabletBalancerConfig = CloneYsonSerializable(other->TabletBalancerConfig);
+}
+
+void TTableNode::TDynamicTableAttributes::BeginCopy(TBeginCopyContext* context) const
+{
+    using NYT::Save;
+
+    #define XX(attr) Save(*context, attr);
+    FOR_EACH_COPYABLE_ATTRIBUTE(XX)
+    #undef XX
+
+    Save(*context, ConvertToYsonString(TabletBalancerConfig));
+}
+
+void TTableNode::TDynamicTableAttributes::EndCopy(TEndCopyContext* context)
+{
+    using NYT::Load;
+
+    #define XX(attr) Load(*context, attr);
+    FOR_EACH_COPYABLE_ATTRIBUTE(XX)
+    #undef XX
+
+    TabletBalancerConfig = ConvertTo<TTabletBalancerConfigPtr>(Load<TYsonString>(*context));
+}
+
+#undef FOR_EACH_COPYABLE_ATTRIBUTE
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableNode::TTableNode(TVersionedNodeId id)

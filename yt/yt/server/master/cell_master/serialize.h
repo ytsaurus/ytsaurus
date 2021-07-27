@@ -167,6 +167,7 @@ DEFINE_ENUM(EMasterReign,
     ((PeriodicCompactionMode)                                       (1641))  // ifsmirnov
     ((SpecializedReplicasData)                                      (1642))  // gritukan
     ((DropProtosFromChunk)                                          (1643))  // gritukan
+    ((CopyDynamicTableAttributes)                                   (1644))  // ifsmirnov
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1700))  // ignat
 );
