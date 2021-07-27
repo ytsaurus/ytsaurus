@@ -81,6 +81,10 @@ class YtResponseError(yt.common.YtResponseError):
             self.__class__ = YtOperationProgressOutdated
         elif self.is_resolve_error():
             self.__class__ = YtResolveError
+        elif self.is_row_is_blocked():
+            self.__class__ = YtRowIsBlocked
+        elif self.is_blocked_row_wait_timeout():
+            self.__class__ = YtBlockedRowWaitTimeout
         else:
             pass
 
@@ -237,4 +241,12 @@ class YtOperationProgressOutdated(YtHttpResponseError):
 
 class YtResolveError(YtHttpResponseError):
     """Cypress node not found"""
+    pass
+
+class YtRowIsBlocked(YtHttpResponseError):
+    """Row is blocked"""
+    pass
+
+class YtBlockedRowWaitTimeout(YtHttpResponseError):
+    """Timed out waiting on blocked row"""
     pass

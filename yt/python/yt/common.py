@@ -309,6 +309,15 @@ class YtResponseError(YtError):
         # COMPAT: remove old version
         return self.find_matching_error(predicate=pred_new) or self.find_matching_error(predicate=pred_old)
 
+    def is_row_is_blocked(self):
+        """Row is blocked"""
+        return self.contains_code(1712)
+
+    def is_blocked_row_wait_timeout(self):
+        """Timed out waiting on blocked row"""
+        return self.contains_code(1713)
+
+
 class PrettyPrintableDict(dict):
     pass
 
