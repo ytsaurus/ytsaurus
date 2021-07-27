@@ -30,6 +30,7 @@ TOperation::TOperation(const NProto::TOperationDescriptor& descriptor)
     , UserTransactionId_(FromProto<NTransactionClient::TTransactionId>(descriptor.user_transaction_id()))
     , PoolTreeControllerSettingsMap_(FromProto<TPoolTreeControllerSettingsMap>(descriptor.pool_tree_controller_settings_map()))
     , ControllerEpoch_(descriptor.controller_epoch())
+    , ExperimentAssignments_(ConvertTo<std::vector<TExperimentAssignmentPtr>>(TYsonString(descriptor.experiment_assignments())))
 { }
 
 const IOperationControllerPtr& TOperation::GetControllerOrThrow() const

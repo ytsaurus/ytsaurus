@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/scheduler/experiments.h>
 #include <yt/yt/server/lib/scheduler/scheduling_tag.h>
 #include <yt/yt/server/lib/scheduler/structs.h>
 
@@ -39,6 +40,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(std::vector<NTransactionClient::TTransactionId>, WatchTransactionIds);
     DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);
     DEFINE_BYVAL_RW_PROPERTY(IOperationControllerHostPtr, Host);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<NScheduler::TExperimentAssignmentPtr>, ExperimentAssignments);
 
 public:
     explicit TOperation(const NProto::TOperationDescriptor& descriptor);

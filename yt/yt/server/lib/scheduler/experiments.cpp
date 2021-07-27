@@ -22,11 +22,6 @@ TExperimentEffectConfig::TExperimentEffectConfig()
     RegisterParameter("scheduler_spec_patch", SchedulerSpecPatch)
         .Default();
 
-    RegisterParameter("controller_spec_template_patch", ControllerSpecTemplatePatch)
-        .Default();
-    RegisterParameter("controller_spec_patch", ControllerSpecPatch)
-        .Default();
-
     RegisterParameter("controller_user_job_spec_template_patch", ControllerUserJobSpecTemplatePatch)
         .Default();
     RegisterParameter("controller_user_job_spec_patch", ControllerUserJobSpecPatch)

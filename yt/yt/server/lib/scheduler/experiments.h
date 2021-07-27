@@ -21,11 +21,6 @@ struct TExperimentEffectConfig
     //! Spec patch applied in scheduler.
     NYTree::INodePtr SchedulerSpecPatch;
 
-    //! Spec template patch applied in controller agent before controller instantiation.
-    NYTree::INodePtr ControllerSpecTemplatePatch;
-    //! Spec patch applied in controller agent before controller instantiation.
-    NYTree::INodePtr ControllerSpecPatch;
-
     //! User job spec template patch applied for all user jobs in spec in controller agent before controller instantiation.
     NYTree::INodePtr ControllerUserJobSpecTemplatePatch;
     //! User job spec patch applied for all user jobs in spec in controller agent before controller instantiation.

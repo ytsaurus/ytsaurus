@@ -4,6 +4,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     get, exists,
+    reduce, map_reduce, sort, erase, remote_copy, get_driver, vanilla,
     write_table, map, merge, get_operation, list_operations, sync_create_cells, raises_yt_error)
 
 import yt.environment.init_operation_archive as init_operation_archive
@@ -365,3 +366,214 @@ class TestSchedulerExperimentsArchivation(YTEnvSetup):
             attributes=["experiment_assignments", "experiment_assignment_names", "spec"])
 
         assert cypress_info == archive_info
+
+
+class TestUserJobAndJobIOExperiments(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "experiments": {
+                "exp_a1": {
+                    "fraction": 0.4,
+                    "ticket": "ytexp-1",
+                    "ab_treatment_group": {
+                        "fraction": 0.5,
+                        "controller_user_job_spec_template_patch": {
+                            "foo_spec_template": "patched",
+                        },
+                        "controller_user_job_spec_patch": {
+                            "foo_spec": "patched",
+                        },
+                        "controller_job_io_template_patch": {
+                            "bar_spec_template": "patched",
+                        },
+                        "controller_job_io_patch": {
+                            "bar_spec": "patched",
+                        }
+                    },
+                },
+                "exp_b1": {
+                    "fraction": 0.4,
+                    "ticket": "ytexp-2",
+                    "ab_treatment_group": {
+                        "fraction": 0.5,
+                        "controller_user_job_spec_template_patch": {
+                            "bar_spec": "patched",
+                        },
+                        "controller_user_job_spec_patch": {
+                            "foo_spec": "patched",
+                        },
+                        "controller_job_io_template_patch": {
+                            "bar_spec": "patched",
+                        },
+                        "controller_job_io_patch": {
+                            "foo_spec": "patched",
+                        }
+                    },
+                },
+            },
+        },
+    }
+
+    NUM_REMOTE_CLUSTERS = 1
+
+    NUM_MASTERS_REMOTE_0 = 1
+    NUM_SCHEDULERS_REMOTE_0 = 0
+
+    REMOTE_CLUSTER_NAME = "remote_0"
+
+    @classmethod
+    def setup_class(cls):
+        super(TestUserJobAndJobIOExperiments, cls).setup_class()
+        cls.remote_driver = get_driver(cluster=cls.REMOTE_CLUSTER_NAME)
+
+    @authors("alexkolodezny")
+    def test_user_job_and_job_io_patches(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"key": 1}])
+        create("table", "//tmp/t_out")
+
+        def check_user_job(user_job):
+            assert user_job["foo_spec_template"] == "patched"
+            assert user_job["foo_spec"] == "patched"
+
+        def check_job_io(job_io):
+            assert job_io["bar_spec_template"] == "patched"
+            assert job_io["bar_spec"] == "patched"
+
+        op = map(in_=["//tmp/t_in"],
+                 out=["//tmp/t_out"],
+                 command="cat",
+                 spec={"experiment_overrides": ["exp_a1.treatment"]})
+        spec = get_operation(op.id, attributes=["full_spec"])["full_spec"]
+        check_user_job(spec["mapper"])
+        check_job_io(spec["job_io"])
+        check_job_io(spec["auto_merge"]["job_io"])
+
+        op = sort(in_="//tmp/t_in",
+                  out="//tmp/t_in",
+                  sort_by="key",
+                  spec={"experiment_overrides": ["exp_a1.treatment"]})
+        spec = get_operation(op.id, attributes=["full_spec"])["full_spec"]
+        check_job_io(spec["partition_job_io"])
+        check_job_io(spec["sort_job_io"])
+        check_job_io(spec["merge_job_io"])
+        check_job_io(spec["auto_merge"]["job_io"])
+
+        op = reduce(in_=["//tmp/t_in"],
+                    out=["//tmp/t_out"],
+                    command="cat",
+                    reduce_by="key",
+                    spec={"experiment_overrides": ["exp_a1.treatment"]})
+        spec = get_operation(op.id, attributes=["full_spec"])["full_spec"]
+        check_user_job(spec["reducer"])
+        check_job_io(spec["job_io"])
+        check_job_io(spec["auto_merge"]["job_io"])
+
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            sort_by="key",
+            reduce_by="key",
+            mapper_command="cat",
+            reducer_command="cat",
+            reduce_combiner_command="cat",
+            spec={"experiment_overrides": ["exp_a1.treatment"]})
+
+        spec = get_operation(op.id, attributes=["full_spec"])["full_spec"]
+        check_user_job(spec["reducer"])
+        check_user_job(spec["mapper"])
+        check_user_job(spec["reduce_combiner"])
+        check_job_io(spec["sort_job_io"])
+        check_job_io(spec["map_job_io"])
+        check_job_io(spec["reduce_job_io"])
+        check_job_io(spec["auto_merge"]["job_io"])
+
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            sort_by="key",
+            reduce_by="key",
+            reducer_command="cat",
+            spec={"experiment_overrides": ["exp_a1.treatment"]})
+
+        spec = get_operation(op.id, attributes=["full_spec"])["full_spec"]
+        assert "mapper" not in spec
+        assert "reduce_combiner" not in spec
+        check_user_job(spec["reducer"])
+        check_job_io(spec["sort_job_io"])
+        check_job_io(spec["map_job_io"])
+        check_job_io(spec["reduce_job_io"])
+        check_job_io(spec["auto_merge"]["job_io"])
+
+        op = merge(in_="//tmp/t_in",
+                   out="//tmp/t_out",
+                   spec={"experiment_overrides": ["exp_a1.treatment"]})
+        spec = get_operation(op.id, attributes=["full_spec"])["full_spec"]
+        check_job_io(spec["job_io"])
+        check_job_io(spec["auto_merge"]["job_io"])
+
+        create("table", "//tmp/t_in", driver=self.remote_driver)
+
+        op = remote_copy(in_="//tmp/t_in",
+                         out="//tmp/t_out",
+                         spec={"cluster_name": self.REMOTE_CLUSTER_NAME,
+                               "experiment_overrides": ["exp_a1.treatment"]})
+        spec = get_operation(op.id, attributes=["full_spec"])["full_spec"]
+        check_job_io(spec["job_io"])
+        check_job_io(spec["auto_merge"]["job_io"])
+
+        op = erase("//tmp/t_in",
+                   spec={"experiment_overrides": ["exp_a1.treatment"]})
+        spec = get_operation(op.id, attributes=["full_spec"])["full_spec"]
+        check_job_io(spec["job_io"])
+        check_job_io(spec["auto_merge"]["job_io"])
+
+        op = vanilla(
+            spec={
+                "experiment_overrides": ["exp_a1.treatment"],
+                "tasks": {
+                    "task_a": {
+                        "job_count": 1,
+                        "command": "true",
+                    },
+                    "task_b": {
+                        "job_count": 1,
+                        "command": "true",
+                    },
+                }})
+
+        spec = get_operation(op.id, attributes=["full_spec"])["full_spec"]
+        check_job_io(spec["auto_merge"]["job_io"])
+        check_user_job(spec["tasks"]["task_a"])
+        check_user_job(spec["tasks"]["task_b"])
+        check_job_io(spec["tasks"]["task_a"]["job_io"])
+        check_job_io(spec["tasks"]["task_b"]["job_io"])
+
+    @authors("alexkolodezny")
+    def test_patches_and_template_patches(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"key": 1}])
+
+        op = map(
+            in_=["//tmp/t_in"],
+            out=[],
+            command="exit 0",
+            spec={
+                "experiment_overrides": ["exp_b1.treatment"],
+                "mapper": {
+                    "foo_spec": "original",
+                    "bar_spec": "original",
+                },
+                "job_io": {
+                    "foo_spec": "original",
+                    "bar_spec": "original",
+                }})
+        spec = get_operation(op.id, attributes=["full_spec"])["full_spec"]
+        assert spec["mapper"]["foo_spec"] == "patched"
+        assert spec["mapper"]["bar_spec"] == "original"
+        assert spec["job_io"]["foo_spec"] == "patched"
+        assert spec["job_io"]["bar_spec"] == "original"
