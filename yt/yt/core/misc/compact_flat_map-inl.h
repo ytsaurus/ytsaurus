@@ -140,12 +140,18 @@ template <class K, class V, unsigned N>
 void TCompactFlatMap<K, V, N>::erase(iterator pos)
 {
     Storage_.erase(pos);
+
+    // Try to keep the storage inline. This is why erase doesn't return an iterator.
+    Storage_.shrink_to_small();
 }
 
 template <class K, class V, unsigned N>
 void TCompactFlatMap<K, V, N>::erase(iterator b, iterator e)
 {
     Storage_.erase(b, e);
+
+    // Try to keep the storage inline. This is why erase doesn't return an iterator.
+    Storage_.shrink_to_small();
 }
 
 template <class K, class V, unsigned N>

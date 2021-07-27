@@ -19,7 +19,7 @@
 #include <yt/yt/library/erasure/impl/public.h>
 
 #include <yt/yt/core/misc/public.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <map>
 #include <array>
@@ -90,7 +90,7 @@ template <class T>
 class TPtrWithIndexes;
 
 using TNodePtrWithIndexes = TPtrWithIndexes<NNodeTrackerServer::TNode>;
-using TNodePtrWithIndexesList = SmallVector<TNodePtrWithIndexes, TypicalReplicaCount>;
+using TNodePtrWithIndexesList = TCompactVector<TNodePtrWithIndexes, TypicalReplicaCount>;
 
 using TChunkPtrWithIndexes = TPtrWithIndexes<TChunk>;
 using TChunkPtrWithIndex = NChunkServer::TPtrWithIndex<TChunk>;

@@ -131,7 +131,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     Save(context, GetOverlayed());
     {
         // COMPAT(shakurov)
-        SmallVector<TChunkTree*, TypicalChunkParentCount> parents;
+        TCompactVector<TChunkTree*, TypicalChunkParentCount> parents;
         for (auto [chunkTree, refCount] : Parents_) {
             for (auto i = 0; i < refCount; ++i) {
                 parents.push_back(chunkTree);
@@ -192,7 +192,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         SetOverlayed(Load<bool>(context));
     }
 
-    auto parents = Load<SmallVector<TChunkTree*, TypicalChunkParentCount>>(context);
+    auto parents = Load<TCompactVector<TChunkTree*, TypicalChunkParentCount>>(context);
     for (auto* parent : parents) {
         ++Parents_[parent];
     }
@@ -668,6 +668,7 @@ void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Rem
 {
     std::swap(StoredReplicas[replicaIndex], StoredReplicas.back());
     StoredReplicas.pop_back();
+    StoredReplicas.shrink_to_small();
 }
 
 template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>

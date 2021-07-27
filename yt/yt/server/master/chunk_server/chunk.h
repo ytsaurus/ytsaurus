@@ -22,9 +22,8 @@
 #include <yt/yt/core/misc/format.h>
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/ref_tracked.h>
-#include <yt/yt/core/misc/small_flat_map.h>
-#include <yt/yt/core/misc/small_vector.h>
-#include <yt/yt/core/misc/small_set.h>
+#include <yt/yt/core/misc/compact_flat_map.h>
+#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/intrusive_linked_list.h>
 
 namespace NYT::NChunkServer {
@@ -46,9 +45,9 @@ using TChunkExportDataList = std::array<TChunkExportData, NObjectClient::MaxSeco
 struct TChunkDynamicData
     : public NObjectServer::TObjectDynamicData
 {
-    using TMediumToRepairQueueIterator = TSmallFlatMap<int, TChunkRepairQueueIterator, 2>;
+    using TMediumToRepairQueueIterator = TCompactFlatMap<int, TChunkRepairQueueIterator, 2>;
 
-    using TJobSet = SmallSet<TJobPtr, 1>;
+    using TJobSet = TCompactVector<TJobPtr, 1>;
 
     //! The time since this chunk needs repairing.
     NProfiling::TCpuInstant EpochPartLossTime = {};
@@ -89,7 +88,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TImmutableChunkMetaPtr, ChunkMeta);
 
     // This map is typically small, e.g. has the size of 1.
-    using TParents = TSmallFlatMap<TChunkTree*, int, TypicalChunkParentCount>;
+    using TParents = TCompactFlatMap<TChunkTree*, int, TypicalChunkParentCount>;
     DEFINE_BYREF_RO_PROPERTY(TParents, Parents);
 
     // Limits the lifetime of staged chunks. Useful for cleaning up abandoned staged chunks.

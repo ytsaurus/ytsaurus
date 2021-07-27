@@ -361,6 +361,22 @@ void ToProto(
     NDetail::ToProtoArrayImpl(serializedArray, originalArray);
 }
 
+template <class TSerialized, class TOriginal, size_t Size>
+void ToProto(
+    ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
+    const TCompactVector<TOriginal, Size>& originalArray)
+{
+    NDetail::ToProtoArrayImpl(serializedArray, originalArray);
+}
+
+template <class TSerialized, class TOriginal, size_t Size>
+void ToProto(
+    ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
+    const TCompactVector<TOriginal, Size>& originalArray)
+{
+    NDetail::ToProtoArrayImpl(serializedArray, originalArray);
+}
+
 template <class TSerialized, class TOriginal>
 void ToProto(
     ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
