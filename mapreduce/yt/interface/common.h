@@ -132,7 +132,13 @@ public: \
     { \
         name##s_.push_back(value); \
         return static_cast<TSelf&>(*this);\
+    } \
+    TSelf& name##s(TVector<type> values) \
+    { \
+        name##s_ = std::move(values); \
+        return static_cast<TSelf&>(*this);\
     }
+    
 
 #define FLUENT_VECTOR_FIELD_ENCAPSULATED(type, name) \
 private: \
