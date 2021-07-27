@@ -1,10 +1,11 @@
 from test_dynamic_tables import DynamicTablesBase
 
 from yt_commands import (
-    authors, wait, create, get, set, copy, move,
+    authors, wait, create, ls, get, set, copy, move,
     remove, exists,
     create_account, create_tablet_cell_bundle, insert_rows, alter_table, write_table, mount_table, reshard_table, remount_table, reshard_table_automatic, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_reshard_table, sync_flush_table, sync_compact_table,
+    build_snapshot,
     multicell_sleep, raises_yt_error, get_driver)
 
 import yt_error_codes
@@ -12,6 +13,9 @@ import yt_error_codes
 from yt.common import YtError
 
 import pytest
+from flaky import flaky
+
+import time
 
 ##################################################################
 
@@ -26,6 +30,12 @@ class DynamicTablesResourceLimitsBase(DynamicTablesBase):
                     "expire_after_access_time": 0,
                 },
             },
+            "hydra_manager": {
+                "close_changelogs": False,
+            }
+        },
+        "master_cache_service": {
+            "capacity": 0
         }
     }
 
@@ -471,6 +481,30 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
         wait(lambda: get("//tmp/t/@preload_state") == "complete")
+
+    @authors("lukyan")
+    @flaky(max_runs=5)
+    @pytest.mark.parametrize("resource", ["chunk_count", "disk_space_per_medium/default"])
+    def test_changelog_resource_limits(self, resource):
+        create_account("test_account")
+        create_tablet_cell_bundle("custom", attributes={"options": {
+            "changelog_account": "test_account",
+            "snapshot_account": "test_account"
+            }})
+
+        id = sync_create_cells(1, tablet_cell_bundle="custom")[0]
+        set("//sys/accounts/test_account/@resource_limits/" + resource, 0)
+
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="custom")
+        sync_mount_table("//tmp/t")
+
+        changelogs = ls("//sys/tablet_cells/{0}/changelogs".format(id))
+
+        with pytest.raises(YtError):
+            build_snapshot(cell_id=id)
+
+        time.sleep(10)
+        assert sorted(changelogs) == sorted(ls("//sys/tablet_cells/{0}/changelogs".format(id)))
 
 
 class TestDynamicTablesResourceLimitsMulticell(TestDynamicTablesResourceLimits):
