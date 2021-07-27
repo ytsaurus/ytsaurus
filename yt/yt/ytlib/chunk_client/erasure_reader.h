@@ -21,4 +21,11 @@ IChunkReaderPtr CreateAdaptiveRepairingErasureReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IChunkReaderPtr CreateAdaptiveRepairingErasureReaderThrottlingAdapter(
+    const IChunkReaderPtr& underlyingReader,
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient
