@@ -315,16 +315,9 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     clonedTrunkNode->SetOptimizeFor(sourceNode->GetOptimizeFor());
 
     if (trunkSourceNode->HasCustomDynamicTableAttributes()) {
-        clonedTrunkNode->SetDynamic(trunkSourceNode->IsDynamic());
-        clonedTrunkNode->SetAtomicity(trunkSourceNode->GetAtomicity());
-        clonedTrunkNode->SetCommitOrdering(trunkSourceNode->GetCommitOrdering());
-        clonedTrunkNode->SetInMemoryMode(trunkSourceNode->GetInMemoryMode());
-        clonedTrunkNode->SetUpstreamReplicaId(trunkSourceNode->GetUpstreamReplicaId());
-        clonedTrunkNode->SetLastCommitTimestamp(trunkSourceNode->GetLastCommitTimestamp());
-        clonedTrunkNode->MutableTabletBalancerConfig() = CloneYsonSerializable(trunkSourceNode->TabletBalancerConfig());
-        clonedTrunkNode->SetEnableDynamicStoreRead(trunkSourceNode->GetEnableDynamicStoreRead());
-        clonedTrunkNode->SetProfilingMode(trunkSourceNode->GetProfilingMode());
-        clonedTrunkNode->SetProfilingTag(trunkSourceNode->GetProfilingTag());
+        clonedTrunkNode->InitializeCustomDynamicTableAttributes();
+        clonedTrunkNode->GetCustomDynamicTableAttributes()->CopyFrom(
+            trunkSourceNode->GetCustomDynamicTableAttributes());
     }
 }
 
@@ -354,16 +347,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
 
     Save(*context, trunkNode->HasCustomDynamicTableAttributes());
     if (trunkNode->HasCustomDynamicTableAttributes()) {
-        Save(*context, trunkNode->IsDynamic());
-        Save(*context, trunkNode->GetAtomicity());
-        Save(*context, trunkNode->GetCommitOrdering());
-        Save(*context, trunkNode->GetInMemoryMode());
-        Save(*context, trunkNode->GetUpstreamReplicaId());
-        Save(*context, trunkNode->GetLastCommitTimestamp());
-        Save(*context, ConvertToYsonString(trunkNode->TabletBalancerConfig()));
-        Save(*context, trunkNode->GetEnableDynamicStoreRead());
-        Save(*context, trunkNode->GetProfilingMode());
-        Save(*context, trunkNode->GetProfilingTag());
+        trunkNode->GetCustomDynamicTableAttributes()->BeginCopy(context);
     }
 }
 
@@ -395,16 +379,8 @@ void TTableNodeTypeHandlerBase<TImpl>::DoEndCopy(
     node->SetOptimizeFor(Load<EOptimizeFor>(*context));
 
     if (Load<bool>(*context)) {
-        node->SetDynamic(Load<bool>(*context));
-        node->SetAtomicity(Load<NTransactionClient::EAtomicity>(*context));
-        node->SetCommitOrdering(Load<NTransactionClient::ECommitOrdering>(*context));
-        node->SetInMemoryMode(Load<NTabletClient::EInMemoryMode>(*context));
-        node->SetUpstreamReplicaId(Load<TTableReplicaId>(*context));
-        node->SetLastCommitTimestamp(Load<TTimestamp>(*context));
-        node->MutableTabletBalancerConfig() = ConvertTo<TTabletBalancerConfigPtr>(Load<TYsonString>(*context));
-        node->SetEnableDynamicStoreRead(Load<std::optional<bool>>(*context));
-        node->SetProfilingMode(Load<std::optional<NTabletNode::EDynamicTableProfilingMode>>(*context));
-        node->SetProfilingTag(Load<std::optional<TString>>(*context));
+        node->InitializeCustomDynamicTableAttributes();
+        node->GetCustomDynamicTableAttributes()->EndCopy(context);
     }
 }
 

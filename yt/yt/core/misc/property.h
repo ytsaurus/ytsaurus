@@ -214,6 +214,12 @@ public: \
 //! Extra properties should be used for lazy memory allocation for properties that
 //! hold default values for the majority of objects.
 
+//! Initializes extra property holder if it is not initialized.
+#define INITIALIZE_EXTRA_PROPERTY_HOLDER(holder) \
+    if (!holder##_) { \
+        holder##_.reset(new decltype(holder##_)::element_type()); \
+    }
+
 //! Declares an extra property holder. Holder contains extra properties values.
 //! Holder is not created until some property is set with a non-default value.
 //! If there is no holder property getter returns default value.
@@ -223,6 +229,18 @@ public: \
     { \
         return static_cast<bool>(holder##_); \
     } \
+    Y_FORCE_INLINE const type* GetCustom##holder() const \
+    { \
+        return holder##_.get(); \
+    } \
+    Y_FORCE_INLINE type* GetCustom##holder() \
+    { \
+        return holder##_.get(); \
+    } \
+    Y_FORCE_INLINE void InitializeCustom##holder() \
+    { \
+        INITIALIZE_EXTRA_PROPERTY_HOLDER(holder) \
+    } \
 private: \
     std::unique_ptr<type> holder##_; \
     static const type Default##holder##_;
@@ -230,12 +248,6 @@ private: \
 //! Defines a storage for extra properties default values.
 #define DEFINE_EXTRA_PROPERTY_HOLDER(class, type, holder) \
     const type class::Default##holder##_;
-
-//! Initializes extra property holder if it is not initialized.
-#define INITIALIZE_EXTRA_PROPERTY_HOLDER(holder, name) \
-    if (!holder##_) { \
-        holder##_.reset(new decltype(holder##_)::element_type()); \
-    }
 
 //! Defines a public read-write extra property that is passed by value.
 #define DEFINE_BYVAL_RW_EXTRA_PROPERTY(holder, name) \
@@ -253,7 +265,7 @@ public: \
             if (val == Default##holder##_.name) { \
                 return; \
             } \
-            INITIALIZE_EXTRA_PROPERTY_HOLDER(holder, name); \
+            INITIALIZE_EXTRA_PROPERTY_HOLDER(holder); \
         } \
         holder##_->name = val; \
     }
@@ -270,7 +282,7 @@ public: \
     } \
     Y_FORCE_INLINE decltype(holder##_->name)& Mutable##name() \
     { \
-        INITIALIZE_EXTRA_PROPERTY_HOLDER(holder, name); \
+        INITIALIZE_EXTRA_PROPERTY_HOLDER(holder); \
         return holder##_->name; \
     }
 

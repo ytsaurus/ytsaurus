@@ -54,7 +54,6 @@ private:
         NTransactionClient::ECommitOrdering CommitOrdering = NTransactionClient::ECommitOrdering::Weak;
         NTabletClient::EInMemoryMode InMemoryMode = NTabletClient::EInMemoryMode::None;
         NTabletClient::TTableReplicaId UpstreamReplicaId;
-        NTabletServer::TTabletCellBundle* TabletCellBundle = nullptr;
         NTransactionClient::TTimestamp LastCommitTimestamp = NTransactionClient::NullTimestamp;
         TTabletStateIndexedVector TabletCountByState;
         TTabletStateIndexedVector TabletCountByExpectedState;
@@ -86,6 +85,10 @@ private:
         TDynamicTableAttributes();
         void Save(NCellMaster::TSaveContext& context) const;
         void Load(NCellMaster::TLoadContext& context);
+
+        void CopyFrom(const TDynamicTableAttributes* other);
+        void BeginCopy(NCypressServer::TBeginCopyContext* context) const;
+        void EndCopy(NCypressServer::TEndCopyContext* context);
     };
 
 public:
