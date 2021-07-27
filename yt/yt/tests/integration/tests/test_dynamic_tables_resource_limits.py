@@ -13,7 +13,6 @@ import yt_error_codes
 from yt.common import YtError
 
 import pytest
-from flaky import flaky
 
 import time
 
@@ -483,7 +482,6 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
         wait(lambda: get("//tmp/t/@preload_state") == "complete")
 
     @authors("lukyan")
-    @flaky(max_runs=5)
     @pytest.mark.parametrize("resource", ["chunk_count", "disk_space_per_medium/default"])
     def test_changelog_resource_limits(self, resource):
         create_account("test_account")
