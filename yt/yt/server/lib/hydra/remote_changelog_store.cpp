@@ -58,6 +58,7 @@ public:
         TRemoteChangelogStoreOptionsPtr options,
         const TYPath& remotePath,
         IClientPtr client,
+        NSecurityServer::IResourceLimitsManagerPtr resourceLimitsManager,
         ITransactionPtr prerequisiteTransaction,
         std::optional<TVersion> reachableVersion,
         const TJournalWriterPerformanceCounters& counters)
@@ -65,6 +66,7 @@ public:
         , Options_(options)
         , Path_(remotePath)
         , Client_(client)
+        , ResourceLimitsManager_(std::move(resourceLimitsManager))
         , PrerequisiteTransaction_(std::move(prerequisiteTransaction))
         , ReachableVersion_(reachableVersion)
         , Counters_(counters)
@@ -107,6 +109,7 @@ private:
     const TRemoteChangelogStoreOptionsPtr Options_;
     const TYPath Path_;
     const IClientPtr Client_;
+    const NSecurityServer::IResourceLimitsManagerPtr ResourceLimitsManager_;
     const ITransactionPtr PrerequisiteTransaction_;
     const std::optional<TVersion> ReachableVersion_;
     const TJournalWriterPerformanceCounters Counters_;
@@ -124,6 +127,10 @@ private:
             if (!PrerequisiteTransaction_) {
                 THROW_ERROR_EXCEPTION("Changelog store is read-only");
             }
+
+            ResourceLimitsManager_->ValidateResourceLimits(
+                Options_->ChangelogAccount,
+                Options_->ChangelogPrimaryMedium);
 
             {
                 TCreateNodeOptions options;
@@ -351,7 +358,7 @@ public:
         , Options_(options)
         , Path_(remotePath)
         , MasterClient_(client)
-        , ResourceLimitsManager_(resourceLimitsManager)
+        , ResourceLimitsManager_(std::move(resourceLimitsManager))
         , PrerequisiteTransactionId_(prerequisiteTransactionId)
         , Counters_(counters)
         , Logger(HydraLogger.WithTag("Path: %v", Path_))
@@ -387,15 +394,12 @@ private:
                 reachableVersion = ComputeReachableVersion();
             }
 
-            ResourceLimitsManager_->ValidateResourceLimits(
-                Options_->ChangelogAccount,
-                Options_->ChangelogPrimaryMedium);
-
             return New<TRemoteChangelogStore>(
                 Config_,
                 Options_,
                 Path_,
                 MasterClient_,
+                ResourceLimitsManager_,
                 prerequisiteTransaction,
                 reachableVersion,
                 Counters_);
@@ -486,7 +490,7 @@ IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
         options,
         path,
         client,
-        resourceLimitsManager,
+        std::move(resourceLimitsManager),
         prerequisiteTransactionId,
         counters);
 }
