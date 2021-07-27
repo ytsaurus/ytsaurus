@@ -156,6 +156,12 @@ IChunkReaderPtr CreateRemoteReader(
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
     NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
 
+IChunkReaderPtr CreateRemoteReaderThrottlingAdapter(
+    TChunkId chunkId,
+    const IChunkReaderPtr& underlyingReader,
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TUserObject

@@ -124,6 +124,19 @@ TOrderedChunkStorePtr IStore::AsOrderedChunk()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IChunkStore::TReaders::operator bool() const
+{
+    return static_cast<bool>(ChunkReader);
+}
+
+void IChunkStore::TReaders::Reset()
+{
+    ChunkReader.Reset();
+    LookupReader.Reset();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TStoreIdFormatter::operator()(TStringBuilderBase* builder, const IStorePtr& store) const
 {
     FormatValue(builder, store->GetId(), TStringBuf());

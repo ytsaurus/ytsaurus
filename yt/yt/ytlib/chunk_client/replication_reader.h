@@ -31,10 +31,17 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     const TChunkReplicaList& seedReplicas,
     IBlockCachePtr blockCache,
     IClientChunkMetaCachePtr chunkMetaCache,
-    TTrafficMeterPtr trafficMeter = nullptr,
-    NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory = nullptr,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
+    TTrafficMeterPtr trafficMeter,
+    NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory,
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler);
+
+////////////////////////////////////////////////////////////////////////////////
+
+IChunkReaderAllowingRepairPtr CreateReplicationReaderThrottlingAdapter(
+    const IChunkReaderPtr& underlyingReader,
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

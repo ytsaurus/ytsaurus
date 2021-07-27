@@ -647,15 +647,19 @@ IChunkStorePtr TChunkStoreBase::AsChunk()
     return this;
 }
 
-IChunkStore::TReaders TChunkStoreBase::GetReaders(std::optional<EWorkloadCategory> workloadCategory)
+IChunkStore::TReaders TChunkStoreBase::GetReaders(
+    std::optional<EWorkloadCategory> workloadCategory)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto hasValidCachedRemoteReader = [&] {
-        if (!CachedChunkReader_) {
+    auto hasValidCachedRemoteReaderAdapter = [&] {
+        if (!CachedReaders_) {
             return false;
         }
         if (CachedReadersLocal_) {
+            return false;
+        }
+        if (!CachedRemoteReaderAdapters_.contains(workloadCategory)) {
             return false;
         }
         return true;
@@ -665,7 +669,7 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(std::optional<EWorkloadCategor
         if (!ReaderConfig_->PreferLocalReplicas) {
             return false;
         }
-        if (!CachedChunkReader_) {
+        if (!CachedReaders_) {
             return false;
         }
         if (!CachedReadersLocal_) {
@@ -680,11 +684,14 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(std::optional<EWorkloadCategor
 
     auto setCachedReaders = [&] (bool local, IChunkReaderPtr chunkReader) {
         CachedReadersLocal_ = local;
-        CachedChunkReader_ = std::move(chunkReader);
-        CachedLookupReader_ = dynamic_cast<ILookupReader*>(CachedChunkReader_.Get());
+
+        CachedReaders_.ChunkReader = std::move(chunkReader);
+        CachedReaders_.LookupReader = dynamic_cast<ILookupReader*>(CachedReaders_.ChunkReader.Get());
     };
 
     auto createLocalReaders = [&] (const IChunkPtr& chunk) {
+        CachedRemoteReaderAdapters_.clear();
+
         CachedWeakChunk_ = chunk;
         setCachedReaders(
             true,
@@ -694,6 +701,7 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(std::optional<EWorkloadCategor
                 ChunkBlockManager_,
                 DoGetBlockCache(),
                 /*blockkMetaCache*/ nullptr));
+
         YT_LOG_DEBUG("Local chunk reader created and cached");
     };
 
@@ -707,10 +715,7 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(std::optional<EWorkloadCategor
             ? Bootstrap_->GetHintManager()
             : nullptr;
 
-        auto bandwidthThrottler = workloadCategory
-            ? Bootstrap_->GetInThrottler(*workloadCategory)
-            : GetUnlimitedThrottler();
-
+        // NB: Bandwidth throttler will be set in createRemoteReaderAdapter.
         setCachedReaders(
             false,
             CreateRemoteReader(
@@ -725,9 +730,28 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(std::optional<EWorkloadCategor
                 /*chunkMetaCache*/ nullptr,
                 /*trafficMeter*/ nullptr,
                 std::move(nodeStatusDirectory),
-                bandwidthThrottler,
+                /*bandwidthThrottler*/ GetUnlimitedThrottler(),
                 /*rpsThrottler*/ GetUnlimitedThrottler()));
+
         YT_LOG_DEBUG("Remote chunk reader created and cached");
+    };
+
+    auto createRemoteReaderAdapter = [&] {
+        auto bandwidthThrottler = workloadCategory
+            ? Bootstrap_->GetInThrottler(*workloadCategory)
+            : GetUnlimitedThrottler();
+
+        TReaders readers;
+        readers.ChunkReader = CreateRemoteReaderThrottlingAdapter(
+            ChunkId_,
+            CachedReaders_.ChunkReader,
+            std::move(bandwidthThrottler),
+            /*rpsThrottler*/ GetUnlimitedThrottler());
+        readers.LookupReader = dynamic_cast<ILookupReader*>(readers.ChunkReader.Get());
+
+        CachedRemoteReaderAdapters_.emplace(
+            workloadCategory,
+            std::move(readers));
     };
 
     auto now = NProfiling::GetCpuInstant();
@@ -740,8 +764,7 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(std::optional<EWorkloadCategor
 
         if (CachedReadersLocal_) {
             CachedReadersLocal_ = false;
-            CachedChunkReader_.Reset();
-            CachedLookupReader_.Reset();
+            CachedReaders_.Reset();
             CachedWeakChunk_.Reset();
             YT_LOG_DEBUG("Cached local chunk reader is no longer valid");
         }
@@ -754,22 +777,26 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(std::optional<EWorkloadCategor
             }
         }
 
-        if (!CachedChunkReader_) {
+        if (!CachedReaders_) {
             createRemoteReaders();
+        }
+        if (!CachedRemoteReaderAdapters_.contains(workloadCategory)) {
+            createRemoteReaderAdapter();
         }
     };
 
     auto makeResult = [&] {
-        return TReaders{
-            CachedChunkReader_,
-            CachedLookupReader_
-        };
+        if (CachedReadersLocal_) {
+            return CachedReaders_;
+        } else {
+            return GetOrCrash(CachedRemoteReaderAdapters_, workloadCategory);
+        }
     };
 
     // Fast lane.
     {
         auto guard = ReaderGuard(ReaderLock_);
-        if (now < ChunkReaderEvictionDeadline_ && (hasValidCachedLocalReader() || hasValidCachedRemoteReader())) {
+        if (now < ChunkReaderEvictionDeadline_ && (hasValidCachedLocalReader() || hasValidCachedRemoteReaderAdapter())) {
             return makeResult();
         }
     }
@@ -874,7 +901,8 @@ void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
 
         ChunkState_.Reset();
         PreloadedBlockCache_.Reset();
-        CachedChunkReader_.Reset();
+        CachedReaders_.Reset();
+        CachedRemoteReaderAdapters_.clear();
         CachedReadersLocal_ = false;
         CachedWeakChunk_.Reset();
 
@@ -935,8 +963,8 @@ TChunkReplicaList TChunkStoreBase::GetReplicas(NNodeTrackerClient::TNodeId local
 {
     auto guard = ReaderGuard(ReaderLock_);
 
-    if (CachedChunkReader_ && !CachedReadersLocal_) {
-        auto* remoteReader = dynamic_cast<IRemoteChunkReader*>(CachedChunkReader_.Get());
+    if (CachedReaders_ && !CachedReadersLocal_) {
+        auto* remoteReader = dynamic_cast<IRemoteChunkReader*>(CachedReaders_.ChunkReader.Get());
         if (remoteReader) {
             auto remoteReplicas = remoteReader->GetReplicas();
             if (!remoteReplicas.empty()) {

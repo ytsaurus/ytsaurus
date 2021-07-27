@@ -158,6 +158,10 @@ struct IChunkStore
     {
         NChunkClient::IChunkReaderPtr ChunkReader;
         NTableClient::ILookupReaderPtr LookupReader;
+
+        explicit operator bool() const;
+
+        void Reset();
     };
 
     virtual TReaders GetReaders(std::optional<EWorkloadCategory> workloadCategory) = 0;

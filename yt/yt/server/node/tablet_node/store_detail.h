@@ -268,8 +268,8 @@ protected:
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, ReaderLock_);
     NProfiling::TCpuInstant ChunkReaderEvictionDeadline_ = 0;
-    NChunkClient::IChunkReaderPtr CachedChunkReader_;
-    NTableClient::ILookupReaderPtr CachedLookupReader_;
+    TReaders CachedReaders_;
+    THashMap<std::optional<EWorkloadCategory>, TReaders> CachedRemoteReaderAdapters_;
     bool CachedReadersLocal_ = false;
     TWeakPtr<NDataNode::IChunk> CachedWeakChunk_;
 

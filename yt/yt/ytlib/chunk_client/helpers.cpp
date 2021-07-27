@@ -753,6 +753,25 @@ IChunkReaderPtr CreateRemoteReader(
     }
 }
 
+IChunkReaderPtr CreateRemoteReaderThrottlingAdapter(
+    TChunkId chunkId,
+    const IChunkReaderPtr& underlyingReader,
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
+{
+    if (IsErasureChunkId(chunkId)) {
+        return CreateAdaptiveRepairingErasureReaderThrottlingAdapter(
+            underlyingReader,
+            std::move(bandwidthThrottler),
+            std::move(rpsThrottler));
+    } else {
+        return CreateReplicationReaderThrottlingAdapter(
+            underlyingReader,
+            std::move(bandwidthThrottler),
+            std::move(rpsThrottler));
+    }
+}
+
 void LocateChunks(
     const NNative::IClientPtr& client,
     int maxChunksPerLocateRequest,

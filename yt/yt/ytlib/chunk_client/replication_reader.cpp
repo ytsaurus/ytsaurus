@@ -63,6 +63,7 @@
 #include <cmath>
 
 namespace NYT::NChunkClient {
+namespace {
 
 using namespace NConcurrency;
 using namespace NHydra;
@@ -142,6 +143,12 @@ struct TPeerQueueEntry
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TSessionBase;
+class TReadBlockSetSession;
+class TReadBlockRangeSession;
+class TGetMetaSession;
+class TLookupRowsSession;
 
 DECLARE_REFCOUNTED_CLASS(TReplicationReader)
 
@@ -273,11 +280,11 @@ public:
     }
 
 private:
-    class TSessionBase;
-    class TReadBlockSetSession;
-    class TReadBlockRangeSession;
-    class TGetMetaSession;
-    class TLookupRowsSession;
+    friend class TSessionBase;
+    friend class TReadBlockSetSession;
+    friend class TReadBlockRangeSession;
+    friend class TGetMetaSession;
+    friend class TLookupRowsSession;
 
     const TReplicationReaderConfigPtr Config_;
     const TRemoteReaderOptionsPtr Options_;
@@ -406,7 +413,7 @@ DEFINE_REFCOUNTED_TYPE(TReplicationReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicationReader::TSessionBase
+class TSessionBase
     : public TRefCounted
 {
 protected:
@@ -460,6 +467,9 @@ protected:
     //! List of the networks to use from descriptor.
     const TNetworkPreferenceList Networks_;
 
+    const IThroughputThrottlerPtr BandwidthThrottler_;
+    const IThroughputThrottlerPtr RpsThrottler_;
+
     NLogging::TLogger Logger;
 
     //! Zero based retry index (less than |ReaderConfig_->RetryCount|).
@@ -500,7 +510,9 @@ protected:
 
     TSessionBase(
         TReplicationReader* reader,
-        const TClientChunkReadOptions& options)
+        const TClientChunkReadOptions& options,
+        IThroughputThrottlerPtr bandwidthThrottler,
+        IThroughputThrottlerPtr rpsThrottler)
         : Reader_(reader)
         , ReaderConfig_(reader->Config_)
         , ReaderOptions_(reader->Options_)
@@ -512,6 +524,8 @@ protected:
             : options.WorkloadDescriptor)
         , NodeDirectory_(reader->NodeDirectory_)
         , Networks_(reader->Networks_)
+        , BandwidthThrottler_(std::move(bandwidthThrottler))
+        , RpsThrottler_(std::move(rpsThrottler))
         , Logger(ChunkClientLogger.WithTag("SessionId: %v, ReadSessionId: %v, ChunkId: %v",
             TGuid::Create(),
             options.ReadSessionId,
@@ -1423,7 +1437,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicationReader::TReadBlockSetSession
+class TReadBlockSetSession
     : public TSessionBase
 {
 public:
@@ -1431,8 +1445,14 @@ public:
         TReplicationReader* reader,
         const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
-        std::optional<i64> estimatedSize)
-        : TSessionBase(reader, options)
+        std::optional<i64> estimatedSize,
+        IThroughputThrottlerPtr bandwidthThrottler,
+        IThroughputThrottlerPtr rpsThrottler)
+        : TSessionBase(
+            reader,
+            options,
+            std::move(bandwidthThrottler),
+            std::move(rpsThrottler))
         , BlockIndexes_(blockIndexes)
         , EstimatedSize_(estimatedSize)
     {
@@ -1692,7 +1712,7 @@ private:
 
         // One extra request for actually getting blocks.
         // Hedging requests are disregarded.
-        if (!SyncThrottle(reader->RpsThrottler_, 1 + candidates.size())) {
+        if (!SyncThrottle(RpsThrottler_, 1 + candidates.size())) {
             cancelAll(TError("Failed to apply throttling in reader"));
             return false;
         }
@@ -1719,7 +1739,7 @@ private:
             // Still it protects us from bursty incoming traffic on the host.
             // If estimated size was not given, we fallback to post-throttling on actual received size.
             BytesThrottled_ = *EstimatedSize_;
-            if (!SyncThrottle(reader->BandwidthThrottler_, *EstimatedSize_)) {
+            if (!SyncThrottle(BandwidthThrottler_, *EstimatedSize_)) {
                 cancelAll(TError("Failed to apply throttling in reader"));
                 return false;
             }
@@ -1851,7 +1871,7 @@ private:
         if (!IsAddressLocal(respondedPeer.AddressWithNetwork.Address) && TotalBytesReceived_ > BytesThrottled_) {
             auto delta = TotalBytesReceived_ - BytesThrottled_;
             BytesThrottled_ = TotalBytesReceived_;
-            if (!SyncThrottle(reader->BandwidthThrottler_, delta)) {
+            if (!SyncThrottle(BandwidthThrottler_, delta)) {
                 cancelAll(TError("Failed to apply throttling in reader"));
                 return false;
             }
@@ -1936,13 +1956,19 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
         return MakeFuture<std::vector<TBlock>>({});
     }
 
-    auto session = New<TReadBlockSetSession>(this, options, blockIndexes, estimatedSize);
+    auto session = New<TReadBlockSetSession>(
+        this,
+        options,
+        blockIndexes,
+        estimatedSize,
+        BandwidthThrottler_,
+        RpsThrottler_);
     return session->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicationReader::TReadBlockRangeSession
+class TReadBlockRangeSession
     : public TSessionBase
 {
 public:
@@ -1951,8 +1977,14 @@ public:
         const TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        const std::optional<i64> estimatedSize)
-        : TSessionBase(reader, options)
+        const std::optional<i64> estimatedSize,
+        IThroughputThrottlerPtr bandwidthThrottler,
+        IThroughputThrottlerPtr rpsThrottler)
+        : TSessionBase(
+            reader,
+            options,
+            std::move(bandwidthThrottler),
+            std::move(rpsThrottler))
         , FirstBlockIndex_(firstBlockIndex)
         , BlockCount_(blockCount)
         , EstimatedSize_(estimatedSize)
@@ -2048,7 +2080,7 @@ private:
             // Still it protects us from bursty incoming traffic on the host.
             // If estimated size was not given, we fallback to post-throttling on actual received size.
             BytesThrottled_ = *EstimatedSize_;
-            if (!SyncThrottle(reader->BandwidthThrottler_, *EstimatedSize_)) {
+            if (!SyncThrottle(BandwidthThrottler_, *EstimatedSize_)) {
                 return;
             }
         }
@@ -2135,7 +2167,7 @@ private:
         if (!IsAddressLocal(peerAddressWithNetwork.Address) && TotalBytesReceived_ > BytesThrottled_) {
             auto delta = TotalBytesReceived_ - BytesThrottled_;
             BytesThrottled_ = TotalBytesReceived_;
-            if (!SyncThrottle(reader->BandwidthThrottler_, delta)) {
+            if (!SyncThrottle(BandwidthThrottler_, delta)) {
                 return;
             }
         }
@@ -2189,13 +2221,20 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
         return MakeFuture<std::vector<TBlock>>({});
     }
 
-    auto session = New<TReadBlockRangeSession>(this, options, firstBlockIndex, blockCount, estimatedSize);
+    auto session = New<TReadBlockRangeSession>(
+        this,
+        options,
+        firstBlockIndex,
+        blockCount,
+        estimatedSize,
+        BandwidthThrottler_,
+        RpsThrottler_);
     return session->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicationReader::TGetMetaSession
+class TGetMetaSession
     : public TSessionBase
 {
 public:
@@ -2204,7 +2243,11 @@ public:
         const TClientChunkReadOptions& options,
         const std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags)
-        : TSessionBase(reader, options)
+        : TSessionBase(
+            reader,
+            options,
+            reader->BandwidthThrottler_,
+            reader->RpsThrottler_)
         , PartitionTag_(partitionTag)
         , ExtensionTags_(extensionTags)
     { }
@@ -2360,7 +2403,11 @@ TFuture<TRefCountedChunkMetaPtr> TReplicationReader::FetchMeta(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto session = New<TGetMetaSession>(this, options, partitionTag, extensionTags);
+    auto session = New<TGetMetaSession>(
+        this,
+        options,
+        partitionTag,
+        extensionTags);
     return session->Run();
 }
 
@@ -2383,7 +2430,7 @@ TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicationReader::TLookupRowsSession
+class TLookupRowsSession
     : public TSessionBase
 {
 public:
@@ -2401,8 +2448,14 @@ public:
         bool produceAllVersions,
         TTimestamp chunkTimestamp,
         bool enablePeerProbing,
-        bool enableRejectsIfThrottling)
-        : TSessionBase(reader, options)
+        bool enableRejectsIfThrottling,
+        IThroughputThrottlerPtr bandwidthThrottler,
+        IThroughputThrottlerPtr rpsThrottler)
+        : TSessionBase(
+            reader,
+            options,
+            std::move(bandwidthThrottler),
+            std::move(rpsThrottler))
         , LookupKeys_(std::move(lookupKeys))
         , TableId_(tableId)
         , Revision_(revision)
@@ -2582,7 +2635,7 @@ private:
             auto delta = BytesToThrottle_;
             BytesToThrottle_ = 0;
             BytesThrottled_ += delta;
-            AsyncThrottle(reader->BandwidthThrottler_, delta, BIND(&TLookupRowsSession::OnPassCompleted, MakeStrong(this)));
+            AsyncThrottle(BandwidthThrottler_, delta, BIND(&TLookupRowsSession::OnPassCompleted, MakeStrong(this)));
             return;
         }
 
@@ -2637,10 +2690,10 @@ private:
             // Still it protects us from bursty incoming traffic on the host.
             // If estimated size was not given, we fallback to post-throttling on actual received size.
             std::swap(BytesThrottled_, BytesToThrottle_);
-            if (!reader->BandwidthThrottler_->IsOverdraft()) {
-                reader->BandwidthThrottler_->Acquire(BytesThrottled_);
+            if (!BandwidthThrottler_->IsOverdraft()) {
+                BandwidthThrottler_->Acquire(BytesThrottled_);
             } else {
-                AsyncThrottle(reader->BandwidthThrottler_, BytesThrottled_, BIND(&TLookupRowsSession::RequestRows, MakeStrong(this)));
+                AsyncThrottle(BandwidthThrottler_, BytesThrottled_, BIND(&TLookupRowsSession::RequestRows, MakeStrong(this)));
                 return;
             }
         }
@@ -2823,7 +2876,7 @@ private:
 
         if (!IsAddressLocal(peerAddressWithNetwork.Address) && BytesToThrottle_) {
             BytesThrottled_ += BytesToThrottle_;
-            reader->BandwidthThrottler_->Acquire(BytesToThrottle_);
+            BandwidthThrottler_->Acquire(BytesToThrottle_);
             BytesToThrottle_ = 0;
         }
 
@@ -2890,9 +2943,154 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
         produceAllVersions,
         chunkTimestamp,
         enablePeerProbing,
-        enableRejectsIfThrottling);
+        enableRejectsIfThrottling,
+        BandwidthThrottler_,
+        RpsThrottler_);
     return session->Run();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TReplicationReaderWithOverridenThrottlers)
+
+class TReplicationReaderWithOverridenThrottlers
+    : public IChunkReaderAllowingRepair
+    , public ILookupReader
+    , public IRemoteChunkReader
+{
+public:
+    TReplicationReaderWithOverridenThrottlers(
+        TReplicationReaderPtr underlyingReader,
+        IThroughputThrottlerPtr bandwidthThrottler,
+        IThroughputThrottlerPtr rpsThrottler)
+        : UnderlyingReader_(std::move(underlyingReader))
+        , BandwidthThrottler_(std::move(bandwidthThrottler))
+        , RpsThrottler_(std::move(rpsThrottler))
+    { }
+
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
+        const TClientChunkReadOptions& options,
+        const std::vector<int>& blockIndexes,
+        std::optional<i64> estimatedSize) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (blockIndexes.empty()) {
+            return MakeFuture<std::vector<TBlock>>({});
+        }
+
+        auto session = New<TReadBlockSetSession>(
+            UnderlyingReader_.Get(),
+            options,
+            blockIndexes,
+            estimatedSize,
+            BandwidthThrottler_,
+            RpsThrottler_);
+        return session->Run();
+    }
+
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
+        const TClientChunkReadOptions& options,
+        int firstBlockIndex,
+        int blockCount,
+        std::optional<i64> estimatedSize) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        YT_VERIFY(blockCount >= 0);
+
+        if (blockCount == 0) {
+            return MakeFuture<std::vector<TBlock>>({});
+        }
+
+        auto session = New<TReadBlockRangeSession>(
+            UnderlyingReader_.Get(),
+            options,
+            firstBlockIndex,
+            blockCount,
+            estimatedSize,
+            BandwidthThrottler_,
+            RpsThrottler_);
+        return session->Run();
+    }
+
+    virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
+        const TClientChunkReadOptions& options,
+        std::optional<int> partitionTag,
+        const std::optional<std::vector<int>>& extensionTags) override
+    {
+        // NB: No network throttling is applied within GetMeta request.
+        return UnderlyingReader_->GetMeta(options, partitionTag, extensionTags);
+    }
+
+    virtual TFuture<TSharedRef> LookupRows(
+        const TClientChunkReadOptions& options,
+        TSharedRange<TLegacyKey> lookupKeys,
+        TObjectId tableId,
+        TRevision revision,
+        TTableSchemaPtr tableSchema,
+        std::optional<i64> estimatedSize,
+        const TColumnFilter& columnFilter,
+        TTimestamp timestamp,
+        NCompression::ECodec codecId,
+        bool produceAllVersions,
+        TTimestamp chunkTimestamp,
+        bool enablePeerProbing,
+        bool enableRejectsIfThrottling) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto session = New<TLookupRowsSession>(
+            UnderlyingReader_.Get(),
+            options,
+            std::move(lookupKeys),
+            tableId,
+            revision,
+            std::move(tableSchema),
+            estimatedSize,
+            columnFilter,
+            timestamp,
+            codecId,
+            produceAllVersions,
+            chunkTimestamp,
+            enablePeerProbing,
+            enableRejectsIfThrottling,
+            BandwidthThrottler_,
+            RpsThrottler_);
+        return session->Run();
+    }
+
+    virtual TChunkId GetChunkId() const override
+    {
+        return UnderlyingReader_->GetChunkId();
+    }
+
+    virtual TInstant GetLastFailureTime() const override
+    {
+        return UnderlyingReader_->GetLastFailureTime();
+    }
+
+    virtual void SetSlownessChecker(TCallback<TError(i64, TDuration)> slownessChecker) override
+    {
+        UnderlyingReader_->SetSlownessChecker(std::move(slownessChecker));
+    }
+
+    virtual TChunkReplicaList GetReplicas() const override
+    {
+        return UnderlyingReader_->GetReplicas();
+    }
+
+private:
+    const TReplicationReaderPtr UnderlyingReader_;
+
+    const IThroughputThrottlerPtr BandwidthThrottler_;
+    const IThroughputThrottlerPtr RpsThrottler_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TReplicationReaderWithOverridenThrottlers)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2930,6 +3128,22 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
         std::move(chunkMetaCache),
         std::move(trafficMeter),
         std::move(nodeStatusDirectory),
+        std::move(bandwidthThrottler),
+        std::move(rpsThrottler));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IChunkReaderAllowingRepairPtr CreateReplicationReaderThrottlingAdapter(
+    const IChunkReaderPtr& underlyingReader,
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
+{
+    auto* underlyingReplicationReader = dynamic_cast<TReplicationReader*>(underlyingReader.Get());
+    YT_VERIFY(underlyingReplicationReader);
+
+    return New<TReplicationReaderWithOverridenThrottlers>(
+        underlyingReplicationReader,
         std::move(bandwidthThrottler),
         std::move(rpsThrottler));
 }

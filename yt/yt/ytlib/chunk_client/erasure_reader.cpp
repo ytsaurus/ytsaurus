@@ -6,6 +6,7 @@
 #include "dispatcher.h"
 #include "chunk_reader_options.h"
 #include "chunk_reader_statistics.h"
+#include "replication_reader.h"
 
 #include <yt/yt/client/misc/workload.h>
 
@@ -30,6 +31,8 @@ using namespace NChunkClient::NProto;
 using namespace NErasureHelpers;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TAdaptiveRepairingErasureReader)
 
 class TAdaptiveRepairingErasureReader
     : public TErasureChunkReaderBase
@@ -66,6 +69,8 @@ public:
     TError CheckPartReaderIsSlow(int partIndex, i64 bytesReceived, TDuration timePassed);
 
 private:
+    friend class TErasureReaderWithOverridenThrottlers;
+
     void MaybeUnbanReaders();
 
     TRefCountedChunkMetaPtr DoGetMeta(
@@ -86,6 +91,8 @@ private:
     TPeriodicExecutorPtr ExpirationTimesExecutor_;
 };
 
+DEFINE_REFCOUNTED_TYPE(TAdaptiveRepairingErasureReader)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAdaptiveRepairingErasureReaderSession
@@ -96,7 +103,7 @@ public:
         ICodec* codec,
         const TErasureReaderConfigPtr config,
         const TLogger& logger,
-        const std::vector<IChunkReaderAllowingRepairPtr>& readers,
+        std::vector<IChunkReaderAllowingRepairPtr> readers,
         const TClientChunkReadOptions& options,
         const TErasurePlacementExt& placementExt,
         const std::vector<int>& blockIndexes,
@@ -106,7 +113,7 @@ public:
         , Config_(config)
         , Reader_(reader)
         , Logger(logger ? logger : ChunkClientLogger)
-        , Readers_(readers)
+        , Readers_(std::move(readers))
         , ChunkReadOptions_(options)
         , PlacementExt_(placementExt)
         , BlockIndexes_(blockIndexes)
@@ -288,7 +295,7 @@ TFuture<std::vector<TBlock>> TAdaptiveRepairingErasureReader::ReadBlocks(
 {
     // We don't use estimatedSize here, because during repair actual use of bandwidth is much higher that the size of blocks;
     return PreparePlacementMeta(options).Apply(
-        BIND([=, this_ = MakeStrong(this)] () {
+        BIND([=, this_ = MakeStrong(this)] {
             auto session = New<TAdaptiveRepairingErasureReaderSession>(
                 Codec_,
                 Config_,
@@ -449,6 +456,101 @@ IChunkReaderPtr CreateAdaptiveRepairingErasureReader(
         config,
         partReaders,
         logger);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TErasureReaderWithOverridenThrottlers)
+
+class TErasureReaderWithOverridenThrottlers
+    : public IChunkReader
+{
+public:
+    TErasureReaderWithOverridenThrottlers(
+        TAdaptiveRepairingErasureReaderPtr underlyingReader,
+        const IThroughputThrottlerPtr& bandwidthThrottler,
+        const IThroughputThrottlerPtr& rpsThrottler)
+        : UnderlyingReader_(std::move(underlyingReader))
+    {
+        ReaderAdapters_.reserve(UnderlyingReader_->Readers_.size());
+        for (int i = 0; i < std::ssize(UnderlyingReader_->Readers_); ++i) {
+            ReaderAdapters_.push_back(CreateReplicationReaderThrottlingAdapter(
+                UnderlyingReader_->Readers_[i],
+                bandwidthThrottler,
+                rpsThrottler));
+        }
+    }
+
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
+        const TClientChunkReadOptions& options,
+        const std::vector<int>& blockIndexes,
+        std::optional<i64> estimatedSize) override
+    {
+        return UnderlyingReader_->PreparePlacementMeta(options).Apply(
+            BIND([=, underlyingReader = UnderlyingReader_, readerAdapters = ReaderAdapters_] {
+                auto session = New<TAdaptiveRepairingErasureReaderSession>(
+                    underlyingReader->Codec_,
+                    underlyingReader->Config_,
+                    underlyingReader->Logger,
+                    std::move(readerAdapters),
+                    options,
+                    underlyingReader->PlacementExt_,
+                    blockIndexes,
+                    estimatedSize,
+                    underlyingReader);
+                return session->Run();
+            }));
+    }
+
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
+        const TClientChunkReadOptions& /*options*/,
+        int /*firstBlockIndex*/,
+        int /*blockCount*/,
+        std::optional<i64> /*estimatedSize*/) override
+    {
+        YT_ABORT();
+    }
+
+    virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
+        const TClientChunkReadOptions& options,
+        std::optional<int> partitionTag,
+        const std::optional<std::vector<int>>& extensionTags) override
+    {
+        return UnderlyingReader_->GetMeta(options, partitionTag, extensionTags);
+    }
+
+    virtual TChunkId GetChunkId() const override
+    {
+        return UnderlyingReader_->GetChunkId();
+    }
+
+    virtual TInstant GetLastFailureTime() const override
+    {
+        return UnderlyingReader_->GetLastFailureTime();
+    }
+
+private:
+    const TAdaptiveRepairingErasureReaderPtr UnderlyingReader_;
+
+    std::vector<IChunkReaderAllowingRepairPtr> ReaderAdapters_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TErasureReaderWithOverridenThrottlers)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IChunkReaderPtr CreateAdaptiveRepairingErasureReaderThrottlingAdapter(
+    const IChunkReaderPtr& underlyingReader,
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
+{
+    auto* underylingErasureReader = dynamic_cast<TAdaptiveRepairingErasureReader*>(underlyingReader.Get());
+    YT_VERIFY(underylingErasureReader);
+
+    return New<TErasureReaderWithOverridenThrottlers>(
+        underylingErasureReader,
+        std::move(bandwidthThrottler),
+        std::move(rpsThrottler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

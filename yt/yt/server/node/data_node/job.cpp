@@ -839,7 +839,8 @@ private:
             /*chunkMetaCache*/ nullptr,
             /*trafficMeter*/ nullptr,
             /*nodeStatusDirectory*/ nullptr,
-            Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::RepairIn));
+            Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::RepairIn),
+            /*rpsThrottler*/ GetUnlimitedThrottler());
 
         return reader;
     }
@@ -1224,9 +1225,10 @@ private:
                 Bootstrap_->GetNodeId(),
                 Bootstrap_->GetBlockCache(),
                 /*chunkMetaCache*/ nullptr,
-                /*trafficMeter*/ nullptr,
-                /*nodeStatusDirectory*/ nullptr,
-                Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::MergeIn));
+                /*trafficMeter*/ nullptr ,
+                /*nodeStatusDirectory*/ nullptr ,
+                Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::MergeIn),
+                /*rpsThrottler*/ GetUnlimitedThrottler());
 
             auto chunkMeta = GetChunkMeta(remoteReader);
             auto chunkState = New<TChunkState>(
