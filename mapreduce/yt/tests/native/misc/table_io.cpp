@@ -280,22 +280,24 @@ Y_UNIT_TEST_SUITE(TableIo)
         }
 
         TRichYPath path(workingDir + "/table");
-        path.AddRange(TReadRange()
-            .LowerLimit(TReadLimit().RowIndex(10))
-            .UpperLimit(TReadLimit().RowIndex(20)));
-        path.AddRange(TReadRange()
-            .LowerLimit(TReadLimit().Key(1030))
-            .UpperLimit(TReadLimit().Key(1040)));
-        path.AddRange(TReadRange()
-            .LowerLimit(TReadLimit().RowIndex(50))
-            .UpperLimit(TReadLimit().RowIndex(60)));
-        path.AddRange(TReadRange()
-            .LowerLimit(TReadLimit().Key(1070))
-            .UpperLimit(TReadLimit().Key(1080)));
-        path.AddRange(TReadRange()
-            .Exact(TReadLimit().RowIndex(90)));
-        path.AddRange(TReadRange()
-            .Exact(TReadLimit().Key(1095)));
+        path.Ranges({
+            TReadRange()
+                .LowerLimit(TReadLimit().RowIndex(10))
+                .UpperLimit(TReadLimit().RowIndex(20)),
+            TReadRange()
+                .LowerLimit(TReadLimit().Key(1030))
+                .UpperLimit(TReadLimit().Key(1040)),
+            TReadRange()
+                .LowerLimit(TReadLimit().RowIndex(50))
+                .UpperLimit(TReadLimit().RowIndex(60)),
+            TReadRange()
+                .LowerLimit(TReadLimit().Key(1070))
+                .UpperLimit(TReadLimit().Key(1080)),
+            TReadRange()
+                .Exact(TReadLimit().RowIndex(90)),
+            TReadRange()
+                .Exact(TReadLimit().Key(1095)),
+        });
 
         TVector<i64> actualKeys;
         TVector<i64> actualRowIndices;
