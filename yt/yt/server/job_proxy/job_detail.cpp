@@ -229,6 +229,7 @@ TStatistics TSimpleJobBase::GetStatistics() const
         result.AddSample("/data/input", Reader_->GetDataStatistics());
         DumpCodecStatistics(Reader_->GetDecompressionStatistics(), "/codec/cpu/decode", &result);
         DumpChunkReaderStatistics(&result, "/chunk_reader_statistics", ChunkReadOptions_.ChunkReaderStatistics);
+        DumpTimingStatistics(&result, "/chunk_reader_statistics", Reader_->GetTimingStatistics());
     }
 
     if (Writer_) {

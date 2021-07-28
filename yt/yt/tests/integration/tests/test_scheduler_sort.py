@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, create, get, set, copy, remove, exists,
-    create_account, create_user,
+    create_account, create_user, get_statistics,
     make_ace, start_transaction, commit_transaction, insert_rows, read_table, write_table, sort, erase, get_operation,
     sync_create_cells, sync_mount_table, sync_unmount_table, get_singular_chunk_id, create_dynamic_table)
 
@@ -2250,6 +2250,29 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         assert normalize_schema(output_schema) == normalize_schema(get("//tmp/out/@schema"))
         assert read_table("//tmp/out") == expected
+
+    @authors("alexkolodezny")
+    def test_chunk_reader_timing_statistics(self):
+        if self.Env.get_component_version("ytserver-job-proxy").abi < (21, 3):
+            pytest.skip()
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t_in", [{"x": i, "y": "A" * 10000} for i in range(100)])
+
+        op = sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by="x")
+
+        statistics = get(op.get_path() + "/@progress/job_statistics")
+        wait_time = get_statistics(
+            statistics,
+            "chunk_reader_statistics.wait_time.$.completed.simple_sort.sum",
+        )
+        idle_time = get_statistics(
+            statistics,
+            "chunk_reader_statistics.idle_time.$.completed.simple_sort.sum",
+        )
+        assert wait_time > 0
+        assert idle_time > 0
+
 
 ##################################################################
 

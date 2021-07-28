@@ -1184,6 +1184,10 @@ private:
             DumpCodecStatistics(*codecStatistics, "/codec/cpu/decode", &statistics);
         }
 
+        if (const auto& timingStatistics = UserJobReadController_->GetTimingStatistics()) {
+            DumpTimingStatistics(&statistics, "/chunk_reader_statistics", *timingStatistics);
+        }
+
         DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics", ChunkReadOptions_.ChunkReaderStatistics);
 
         auto writers = UserJobWriteController_->GetWriters();
