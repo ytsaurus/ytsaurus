@@ -3,6 +3,7 @@ package ru.yandex.spark.launcher
 import io.circe.generic.auto._
 import io.circe.parser._
 import org.slf4j.{Logger, LoggerFactory}
+import ru.yandex.spark.launcher.HistoryServerLauncher.log
 import ru.yandex.spark.launcher.Service.{BasicService, MasterService}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
@@ -168,5 +169,11 @@ trait SparkLauncher {
 
   def withOptionService[T, S <: Service](service: Option[S])(f: Option[S] => T): T = {
     try f(service) finally service.foreach(_.stop())
+  }
+
+  def waitForMaster(timeout: Duration, ds: DiscoveryService): Address = {
+    log.info("Waiting for master http address")
+    ds.waitAddress(timeout)
+      .getOrElse(throw new IllegalStateException(s"Empty discovery path or master is not running for $timeout"))
   }
 }

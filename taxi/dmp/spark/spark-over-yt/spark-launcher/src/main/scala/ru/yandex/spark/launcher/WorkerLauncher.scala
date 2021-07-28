@@ -21,9 +21,7 @@ object WorkerLauncher extends App with VanillaLauncher with SparkLauncher with B
 
   withOptionService(byopConfig.map(startByop)) { byop =>
     withDiscovery(ytConfig, discoveryPath) { discoveryService =>
-      log.info("Waiting for master http address")
-      val masterAddress = discoveryService.waitAddress(waitMasterTimeout)
-        .getOrElse(throw new IllegalStateException(s"Empty discovery path $discoveryPath, master is not started"))
+      val masterAddress = waitForMaster(waitMasterTimeout, discoveryService)
 
       log.info(s"Starting worker for master $masterAddress")
       withService(startWorker(masterAddress, cores, memory)) { worker =>
