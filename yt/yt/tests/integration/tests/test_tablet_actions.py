@@ -10,7 +10,7 @@ from yt_commands import (
     unfreeze_table, reshard_table, wait_for_tablet_state, sync_create_cells, sync_mount_table,
     sync_unmount_table, sync_freeze_table, sync_reshard_table,
     sync_flush_table, sync_compact_table, sync_remove_tablet_cells,
-    sync_reshard_table_automatic, sync_balance_tablet_cells, is_multicell)
+    sync_reshard_table_automatic, sync_balance_tablet_cells, is_multicell, raises_yt_error)
 
 from yt.common import YtError
 
@@ -478,6 +478,73 @@ class TestTabletActions(TabletActionsBase):
         expected_tablet_ids = get("#{}/@tablet_ids".format(action_id))
         actual_tablet_ids = [t["tablet_id"] for t in get("//tmp/t/@tablets")]
         assert expected_tablet_ids == actual_tablet_ids
+
+    @authors("ifsmirnov")
+    def test_reshard_action_with_cell_ids(self):
+        sync_create_cells(1)
+        set(
+            "//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer",
+            False
+        )
+        cells = sync_create_cells(3)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        action = create(
+            "tablet_action",
+            "",
+            attributes={
+                "kind": "reshard",
+                "keep_finished": True,
+                "tablet_ids": [get("//tmp/t/@tablets/0/tablet_id")],
+                "pivot_keys": [[], [0], [1], [2], [3], [4]],
+                "cell_ids": cells + cells,
+            },
+        )
+        wait(lambda: get("#{0}/@state".format(action)) == "completed")
+        assert [t["cell_id"] for t in get("//tmp/t/@tablets")] == cells + cells
+        assert [t["tablet_id"] for t in get("//tmp/t/@tablets")] == \
+            get("#{0}/@tablet_ids".format(action))
+
+    @authors("ifsmirnov")
+    def test_reshard_action_with_cell_ids_less_tablets_than_cells(self):
+        sync_create_cells(1)
+        set(
+            "//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer",
+            False
+        )
+        cells = sync_create_cells(3)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        with raises_yt_error():
+            create(
+                "tablet_action",
+                "",
+                attributes={
+                    "kind": "reshard",
+                    "keep_finished": True,
+                    "tablet_ids": [get("//tmp/t/@tablets/0/tablet_id")],
+                    "tablet_count": 5,
+                    "cell_ids": cells,
+                },
+            )
+
+        action = create(
+            "tablet_action",
+            "",
+            attributes={
+                "kind": "reshard",
+                "keep_finished": True,
+                "tablet_ids": [get("//tmp/t/@tablets/0/tablet_id")],
+                "tablet_count": 3,
+                "cell_ids": cells,
+            },
+        )
+        wait(lambda: get("#{0}/@state".format(action)) == "completed")
+        assert get("//tmp/t/@tablet_count") == 1
+        assert get("//tmp/t/@tablets/0/cell_id") == cells[0]
+        assert [get("//tmp/t/@tablets/0/tablet_id")] == \
+            get("#{0}/@tablet_ids".format(action))
 
 
 ##################################################################
