@@ -1,12 +1,14 @@
 package mapreduce
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"math"
 	"strconv"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/google/tink/go/keyset"
 	"golang.org/x/xerrors"
 
 	"a.yandex-team.ru/library/go/maxprocs"
@@ -42,6 +44,11 @@ func (p *prepare) uploadJobState(userScript *spec.UserScript, state *jobState) p
 				return backoff.Permanent(err)
 			}
 
+			ct, err := p.mr.aead.Encrypt(b.Bytes(), nil)
+			if err != nil {
+				return backoff.Permanent(err)
+			}
+
 			id := guid.New().String()
 			tmpPath := ypath.Path("//tmp/go_job_state").Child(id[:2]).Child(id)
 
@@ -55,7 +62,7 @@ func (p *prepare) uploadJobState(userScript *spec.UserScript, state *jobState) p
 				return err
 			}
 
-			if _, err = w.Write(b.Bytes()); err != nil {
+			if _, err = w.Write(ct); err != nil {
 				return err
 			}
 
@@ -131,6 +138,17 @@ func (p *prepare) prepare(opts []OperationOption) error {
 		}
 		p.spec.PatchUserBinary(p.mr.binaryPath)
 	}
+
+	if p.spec.SecureVault == nil {
+		p.spec.SecureVault = map[string]string{}
+	}
+
+	var jobStateKey bytes.Buffer
+	if err := p.mr.jobStateKey.Write(keyset.NewJSONWriter(&jobStateKey), &plaintextAEAD{}); err != nil {
+		return err
+	}
+	p.spec.SecureVault["job_state_key"] = jobStateKey.String()
+
 	if len(p.spec.ACL) == 0 || len(p.mr.defaultACL) != 0 {
 		p.spec.ACL = p.mr.defaultACL
 	}

@@ -8,6 +8,9 @@ import (
 	"sync"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/google/tink/go/aead"
+	"github.com/google/tink/go/keyset"
+	"github.com/google/tink/go/tink"
 
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/mapreduce/spec"
@@ -63,6 +66,16 @@ func New(yc yt.Client, options ...Option) Client {
 		}
 	}
 
+	var err error
+	mr.jobStateKey, err = keyset.NewHandle(aead.AES128CTRHMACSHA256KeyTemplate())
+	if err != nil {
+		panic(err)
+	}
+	mr.aead, err = aead.New(mr.jobStateKey)
+	if err != nil {
+		panic(err)
+	}
+
 	return mr
 }
 
@@ -74,6 +87,9 @@ type client struct {
 	ctx        context.Context
 	config     *Config
 	defaultACL []yt.ACE
+
+	jobStateKey *keyset.Handle
+	aead        tink.AEAD
 
 	binaryPath ypath.Path
 }
