@@ -37,7 +37,7 @@ public:
             Queue_,
             CallbackEventCount_,
             threadName,
-            GetThreadTags(threadName)))
+            threadName))
     { }
 
     ~TImpl()

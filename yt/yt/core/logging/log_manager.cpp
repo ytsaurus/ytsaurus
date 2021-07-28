@@ -630,7 +630,7 @@ private:
             : TSchedulerThread(
                 owner->EventCount_,
                 "Logging",
-                NConcurrency::GetThreadTags("Logging"))
+                "Logging")
             , Owner_(owner)
         { }
 

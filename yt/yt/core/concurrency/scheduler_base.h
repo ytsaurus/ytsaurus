@@ -34,10 +34,12 @@ public:
 
 protected:
     const std::shared_ptr<TEventCount> CallbackEventCount_;
+    const TString ThreadGroupName_;
     const TString ThreadName_;
 
     TSchedulerThreadBase(
         std::shared_ptr<TEventCount> callbackEventCount,
+        const TString& threadGroupName,
         const TString& threadName);
 
     virtual void OnStart();

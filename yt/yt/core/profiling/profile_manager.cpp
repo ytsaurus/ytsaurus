@@ -394,7 +394,7 @@ private:
             : TSchedulerThread(
                 owner->EventCount_,
                 "Profiling",
-                NProfiling::GetThreadTags("Profiling"))
+                "Profiling")
             , Owner(owner)
         { }
 

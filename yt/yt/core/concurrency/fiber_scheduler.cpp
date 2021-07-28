@@ -80,19 +80,12 @@ thread_local TFiberContext* FiberContext = nullptr;
 
 TFiberScheduler::TFiberScheduler(
     std::shared_ptr<TEventCount> callbackEventCount,
+    const TString& threadGroupName,
     const TString& threadName)
     : TSchedulerThreadBase(
         callbackEventCount,
+        threadGroupName,
         threadName)
-{ }
-
-TFiberScheduler::TFiberScheduler(
-    std::shared_ptr<TEventCount> callbackEventCount,
-    const TString& threadName,
-    const NProfiling::TTagSet& /*tags*/)
-    : TFiberScheduler(
-        std::move(callbackEventCount),
-        std::move(threadName))
 { }
 
 void TFiberScheduler::CancelWait()
@@ -121,7 +114,7 @@ bool TFiberScheduler::OnLoop(TEventCount::TCookie* cookie)
     TFiberContext fiberContext;
 
     fiberContext.WaitingFibersCounter = New<TRefCountedGauge>(
-        NProfiling::TRegistry{"/action_queue"}.WithTag("thread", ThreadName_));
+        NProfiling::TRegistry{"/action_queue"}.WithTag("thread", ThreadGroupName_));
 
     CurrentThread = this;
     FiberContext = &fiberContext;
