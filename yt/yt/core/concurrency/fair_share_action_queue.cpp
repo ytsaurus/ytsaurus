@@ -36,6 +36,7 @@ public:
 
         QueueIndexToBucketIndex_.resize(queueNames.size(), -1);
         QueueIndexToBucketQueueIndex_.resize(queueNames.size(), -1);
+        BucketNames_.reserve(queueNames.size());
 
         std::vector<TBucketDescription> bucketDescriptions;
         THashSet<TString> createdQueues;
@@ -52,6 +53,7 @@ public:
                 QueueIndexToBucketQueueIndex_[queueIndex] = bucketQueueIndex;
                 bucketDescription.QueueTagSets.push_back(GetQueueTags(threadName, queueName));
             }
+            BucketNames_.push_back(bucketName);
         }
 
         // Create separate buckets for queues with no bucket specified.
@@ -67,9 +69,11 @@ public:
             QueueIndexToBucketIndex_[queueIndex] = nextBucketIndex++;
             QueueIndexToBucketQueueIndex_[queueIndex] = 0;
             YT_VERIFY(createdQueues.emplace(queueName).second);
+            BucketNames_.push_back(queueName);
         }
 
         YT_VERIFY(createdQueues.size() == queueNames.size());
+        YT_VERIFY(BucketNames_.size() == bucketDescriptions.size());
 
         for (int queueIndex = 0; queueIndex < std::ssize(queueNames); ++queueIndex) {
             YT_VERIFY(QueueIndexToBucketIndex_[queueIndex] != -1);
@@ -111,6 +115,21 @@ public:
             QueueIndexToBucketQueueIndex_[index]);
     }
 
+    virtual void Reconfigure(const THashMap<TString, double>& newBucketWeights) override
+    {
+        std::vector<double> weights(BucketNames_.size());
+        for (int bucketIndex = 0; bucketIndex < std::ssize(BucketNames_); ++bucketIndex) {
+            const auto& bucketName = BucketNames_[bucketIndex];
+            if (auto it = newBucketWeights.find(bucketName); it != newBucketWeights.end()) {
+                weights[bucketIndex] = it->second;
+            } else {
+                weights[bucketIndex] = 1.0;
+            }
+        }
+
+        Queue_->Reconfigure(std::move(weights));
+    }
+
 private:
     TFairShareInvokerQueuePtr Queue_;
     TFairShareQueueSchedulerThreadPtr Thread_;
@@ -119,6 +138,8 @@ private:
 
     std::vector<int> QueueIndexToBucketIndex_;
     std::vector<int> QueueIndexToBucketQueueIndex_;
+
+    std::vector<TString> BucketNames_;
 
     mutable std::atomic<bool> StartFlag_ = false;
     std::atomic<bool> ShutdownFlag_ = false;

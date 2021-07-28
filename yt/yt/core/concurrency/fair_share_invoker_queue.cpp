@@ -13,6 +13,7 @@ using namespace NYTree;
 TFairShareInvokerQueue::TFairShareInvokerQueue(
     std::shared_ptr<TEventCount> callbackEventCount,
     const std::vector<TBucketDescription>& bucketDescriptions)
+    : Weights_(bucketDescriptions.size(), 1.0)
 {
     Buckets_.reserve(bucketDescriptions.size());
     for (const auto& bucketDescription : bucketDescriptions) {
@@ -75,6 +76,16 @@ TClosure TFairShareInvokerQueue::BeginExecute(TEnqueuedAction* action)
 {
     YT_VERIFY(!CurrentBucket_);
 
+    // Reconfigure queue if required.
+    if (NeedToReconfigure_) {
+        auto guard = Guard(WeightsLock_);
+        YT_ASSERT(Weights_.size() == Buckets_.size());
+        for (int bucketIndex = 0; bucketIndex < std::ssize(Weights_); ++bucketIndex) {
+            Buckets_[bucketIndex].InversedWeight = std::ceil(UnitWeight * Weights_[bucketIndex]);
+        }
+        NeedToReconfigure_ = false;
+    }
+
     // Check if any callback is ready at all.
     CurrentBucket_ = GetStarvingBucket();
     if (!CurrentBucket_) {
@@ -102,6 +113,14 @@ void TFairShareInvokerQueue::EndExecute(TEnqueuedAction* action)
     CurrentBucket_ = nullptr;
 }
 
+void TFairShareInvokerQueue::Reconfigure(std::vector<double> weights)
+{
+    auto guard = Guard(WeightsLock_);
+    Weights_ = std::move(weights);
+
+    NeedToReconfigure_ = true;
+}
+
 TFairShareInvokerQueue::TBucket* TFairShareInvokerQueue::GetStarvingBucket()
 {
     // Compute min excess over non-empty queues.
@@ -111,8 +130,9 @@ TFairShareInvokerQueue::TBucket* TFairShareInvokerQueue::GetStarvingBucket()
         const auto& queue = bucket.Queue;
         YT_ASSERT(queue);
         if (!queue->IsEmpty()) {
-            if (bucket.ExcessTime < minExcessTime) {
-                minExcessTime = bucket.ExcessTime;
+            auto weightedExcessTime = bucket.ExcessTime * bucket.InversedWeight;
+            if (weightedExcessTime < minExcessTime) {
+                minExcessTime = weightedExcessTime;
                 minBucket = &bucket;
             }
         }

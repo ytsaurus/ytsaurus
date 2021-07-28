@@ -48,6 +48,8 @@ public:
     //! Throws TLeaderFallbackException at followers.
     void RequireLeader() const;
 
+    void Reconfigure(const TDynamicCellMasterConfigPtr& newConfig);
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
