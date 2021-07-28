@@ -220,6 +220,11 @@ public:
         }
     }
 
+    void Reconfigure(const TDynamicCellMasterConfigPtr& newConfig)
+    {
+        AutomatonQueue_->Reconfigure(newConfig->AutomatonThreadBucketWeights);
+    }
+
 private:
     const TCellMasterConfigPtr Config_;
     TBootstrap* const Bootstrap_;
@@ -335,6 +340,11 @@ IInvokerPtr THydraFacade::GetTransactionTrackerInvoker() const
 void THydraFacade::RequireLeader() const
 {
     Impl_->RequireLeader();
+}
+
+void THydraFacade::Reconfigure(const TDynamicCellMasterConfigPtr& newConfig)
+{
+    Impl_->Reconfigure(newConfig);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

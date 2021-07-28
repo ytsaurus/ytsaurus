@@ -168,6 +168,7 @@ DEFINE_ENUM(EMasterReign,
     ((SpecializedReplicasData)                                      (1642))  // gritukan
     ((DropProtosFromChunk)                                          (1643))  // gritukan
     ((CopyDynamicTableAttributes)                                   (1644))  // ifsmirnov
+    ((AutomatonThreadBucketWeights)                                 (1645))  // gritukan
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1700))  // ignat
 );

@@ -310,6 +310,8 @@ public:
 
     TDuration AlertUpdatePeriod;
 
+    THashMap<TString, double> AutomatonThreadBucketWeights;
+
     TDynamicCellMasterConfig()
     {
         RegisterParameter("mutation_time_commit_period", MutationTimeCommitPeriod)
@@ -317,6 +319,9 @@ public:
 
         RegisterParameter("alert_update_period", AlertUpdatePeriod)
             .Default(TDuration::Seconds(30));
+
+        RegisterParameter("automaton_thread_bucket_weights", AutomatonThreadBucketWeights)
+            .Default();
     }
 };
 

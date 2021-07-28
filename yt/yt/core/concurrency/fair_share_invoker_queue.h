@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "spinlock.h"
 
 #include <yt/yt/core/misc/shutdownable.h>
 
@@ -42,15 +43,27 @@ public:
     TClosure BeginExecute(TEnqueuedAction* action);
     void EndExecute(TEnqueuedAction* action);
 
+    void Reconfigure(std::vector<double> weights);
+
 private:
+    constexpr static i64 UnitWeight = 1000;
+
     struct TBucket
     {
         TMpscInvokerQueuePtr Queue;
         std::vector<IInvokerPtr> Invokers;
         NProfiling::TCpuDuration ExcessTime = 0;
+
+        // ceil(UnitWeight / weight).
+        int64_t InversedWeight = UnitWeight;
     };
 
     std::vector<TBucket> Buckets_;
+
+    std::atomic<bool> NeedToReconfigure_ = false;
+
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, WeightsLock_);
+    std::vector<double> Weights_;
 
     TBucket* CurrentBucket_ = nullptr;
 

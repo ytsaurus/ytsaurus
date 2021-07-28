@@ -1028,6 +1028,8 @@ void TBootstrap::OnDynamicConfigChanged(const TDynamicClusterConfigPtr& /*oldCon
 {
     const auto& config = ConfigManager_->GetConfig();
     ReconfigureSingletons(Config_, config->CellMaster);
+
+    HydraFacade_->Reconfigure(config->CellMaster);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

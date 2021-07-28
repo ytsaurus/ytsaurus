@@ -16,6 +16,8 @@ struct IFairShareActionQueue
     , public IShutdownable
 {
     virtual const IInvokerPtr& GetInvoker(int index) const = 0;
+
+    virtual void Reconfigure(const THashMap<TString, double>& newBucketWeights) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IFairShareActionQueue)
@@ -35,6 +37,8 @@ struct IEnumIndexedFairShareActionQueue
     , public IShutdownable
 {
     virtual const IInvokerPtr& GetInvoker(EQueue queue) const = 0;
+
+    virtual void Reconfigure(const THashMap<TString, double>& newBucketWeights) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

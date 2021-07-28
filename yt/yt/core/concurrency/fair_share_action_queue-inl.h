@@ -31,6 +31,11 @@ public:
         return Queue_->GetInvoker(static_cast<int>(queue));
     }
 
+    virtual void Reconfigure(const THashMap<TString, double>& newBucketWeights) override
+    {
+        Queue_->Reconfigure(newBucketWeights);
+    }
+
 private:
     const IFairShareActionQueuePtr Queue_;
 };
