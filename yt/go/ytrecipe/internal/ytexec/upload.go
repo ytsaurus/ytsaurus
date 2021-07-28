@@ -1,8 +1,10 @@
 package ytexec
 
 import (
+	"bytes"
 	"context"
 	"io"
+	"io/ioutil"
 	"os"
 
 	"golang.org/x/sync/errgroup"
@@ -65,7 +67,11 @@ func (e *Exec) uploadFS(ctx context.Context, fs *jobfs.FS) error {
 
 	var eg errgroup.Group
 
-	uploadBlob := func(md5 jobfs.MD5, open func() (io.ReadCloser, error), commitPath func(path ypath.Path)) {
+	uploadBlob := func(
+		md5 jobfs.MD5,
+		open func() (io.ReadCloser, error),
+		commitPath func(path ypath.Path),
+	) {
 		basicUploadFile := func(to ypath.Path) error {
 			filePath := to.Child(md5.String()[:2]).Child(md5.String())
 			tmpPath := to.Child(guid.New().String())
@@ -126,33 +132,60 @@ func (e *Exec) uploadFS(ctx context.Context, fs *jobfs.FS) error {
 		f := f
 
 		e.l.Debug("uploading file", log.String("path", f.LocalPath[0].Path), log.String("md5", md5Hash.String()))
-		uploadBlob(md5Hash,
-			func() (io.ReadCloser, error) {
-				return os.Open(f.LocalPath[0].Path)
-			},
-			func(path ypath.Path) {
-				f.CypressPath = path
+
+		if f.Size <= jobfs.InlineBlobThreshold {
+			eg.Go(func() error {
+				blob, err := ioutil.ReadFile(f.LocalPath[0].Path)
+				if err != nil {
+					return err
+				}
+
+				f.InlineBlob = blob
+				f.Inlined = true
+				return nil
 			})
+		} else {
+			uploadBlob(md5Hash,
+				func() (io.ReadCloser, error) {
+					return os.Open(f.LocalPath[0].Path)
+				},
+				func(path ypath.Path) {
+					f.CypressPath = path
+				})
+		}
 	}
 
 	for md5Hash, dir := range fs.TarDirs {
 		dir := dir
 
 		e.l.Debug("uploading dir", log.Strings("paths", dir.LocalPath), log.String("md5", md5Hash.String()))
-		uploadBlob(md5Hash,
-			func() (io.ReadCloser, error) {
-				pr, pw := io.Pipe()
+		if dir.Size <= jobfs.InlineBlobThreshold {
+			eg.Go(func() error {
+				var blob bytes.Buffer
+				if err := tarstream.Send(dir.LocalPath[0], &blob); err != nil {
+					return err
+				}
 
-				go func() {
-					err := tarstream.Send(dir.LocalPath[0], pw)
-					_ = pw.CloseWithError(err)
-				}()
-
-				return pr, nil
-			},
-			func(path ypath.Path) {
-				dir.CypressPath = path
+				dir.InlineBlob = blob.Bytes()
+				dir.Inlined = true
+				return nil
 			})
+		} else {
+			uploadBlob(md5Hash,
+				func() (io.ReadCloser, error) {
+					pr, pw := io.Pipe()
+
+					go func() {
+						err := tarstream.Send(dir.LocalPath[0], pw)
+						_ = pw.CloseWithError(err)
+					}()
+
+					return pr, nil
+				},
+				func(path ypath.Path) {
+					dir.CypressPath = path
+				})
+		}
 	}
 
 	return eg.Wait()
