@@ -169,6 +169,7 @@ DEFINE_ENUM(EMasterReign,
     ((DropProtosFromChunk)                                          (1643))  // gritukan
     ((CopyDynamicTableAttributes)                                   (1644))  // ifsmirnov
     ((AutomatonThreadBucketWeights)                                 (1645))  // gritukan
+    ((CellIdsInReshardTabletActions)                                (1646))  // ifsmirnov
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1700))  // ignat
 );

@@ -87,6 +87,7 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/numeric_helpers.h>
 #include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/tls_cache.h>
 
@@ -684,28 +685,43 @@ public:
 
         switch (kind) {
             case ETabletActionKind::Move:
-                if (cells.size() != 0 && cells.size() != tablets.size()) {
+                if (!cells.empty() && cells.size() != tablets.size()) {
                     THROW_ERROR_EXCEPTION("Number of destination cells and tablets mismatch: %v tablets, %v cells",
                         cells.size());
                 }
-                if (pivotKeys.size() != 0) {
+                if (!pivotKeys.empty()) {
                     THROW_ERROR_EXCEPTION("Invalid number of pivot keys: expected 0, actual %v",
                         pivotKeys.size());
                 }
-                if (!!tabletCount) {
+                if (tabletCount) {
                     THROW_ERROR_EXCEPTION("Invalid number of tablets: expected std::nullopt, actual %v",
                         *tabletCount);
                 }
                 break;
 
             case ETabletActionKind::Reshard:
-                if (cells.size() != 0 && cells.size() != pivotKeys.size()) {
-                    THROW_ERROR_EXCEPTION("Number of destination cells and pivot keys mismatch: pivot keys %v, cells %",
-                        cells.size());
-                }
-                if (pivotKeys.size() == 0 && (!tabletCount || *tabletCount < 1)) {
+                if (pivotKeys.empty() && (!tabletCount || *tabletCount < 1)) {
                     THROW_ERROR_EXCEPTION("Invalid number of new tablets: expected pivot keys or tablet count greater than 1");
                 }
+
+                if (!cells.empty()) {
+                    if (pivotKeys.empty()) {
+                        if (ssize(cells) != *tabletCount) {
+                            THROW_ERROR_EXCEPTION("Number of destination cells and tablet count mismatch: "
+                                "tablet count %v, cells %v",
+                                *tabletCount,
+                                cells.size());
+                        }
+                    } else {
+                        if (ssize(cells) != ssize(pivotKeys)) {
+                            THROW_ERROR_EXCEPTION("Number of destination cells and pivot keys mismatch: pivot keys %v, cells %",
+                                pivotKeys.size(),
+                                cells.size());
+
+                        }
+                    }
+                }
+
                 for (int index = 1; index < std::ssize(tablets); ++index) {
                     const auto& cur = tablets[index];
                     const auto& prev = tablets[index - 1];
@@ -2644,7 +2660,7 @@ private:
 
         std::sort(entries.begin(), entries.end());
 
-        i64 desired = totalSize / newTabletCount;
+        i64 desired = DivCeil<i64>(totalSize, newTabletCount);
         std::vector<TLegacyOwningKey> pivotKeys{table->Tablets()[firstTabletIndex]->GetPivotKey()};
         TLegacyOwningKey lastKey;
         i64 current = 0;
@@ -2655,6 +2671,9 @@ private:
                     current = 0;
                     pivotKeys.push_back(entry.MinKey);
                     lastKey = entry.MaxKey;
+                    if (ssize(pivotKeys) == newTabletCount) {
+                        break;
+                    }
                 }
             } else if (entry.MaxKey > lastKey) {
                 lastKey = entry.MaxKey;
@@ -2995,6 +3014,7 @@ private:
                         nullptr,
                         action->Tablets());
                 } else {
+                    YT_VERIFY(action->TabletCells().size() >= action->Tablets().size());
                     for (int index = 0; index < std::ssize(action->Tablets()); ++index) {
                         assignment.emplace_back(
                             action->Tablets()[index],
