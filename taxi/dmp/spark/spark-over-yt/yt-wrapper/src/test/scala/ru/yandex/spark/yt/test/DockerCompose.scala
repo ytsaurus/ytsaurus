@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory
 
 import java.io.InputStreamReader
 import scala.collection.JavaConverters._
+import scala.concurrent.duration.{FiniteDuration, _}
 import scala.concurrent.{Await, Future}
 import scala.language.postfixOps
 
@@ -18,6 +19,7 @@ trait DockerCompose extends DockerKit {
 
   private val docker = new Docker(DefaultDockerClientConfig.createDefaultConfigBuilder().build())
   override implicit val dockerFactory: DockerFactory = new DockerJavaExecutorFactory(docker)
+  override val StartContainersTimeout: FiniteDuration = 5 minutes
 
   protected def networkName: String
 
@@ -32,6 +34,7 @@ trait DockerCompose extends DockerKit {
   protected val reuseDocker: Boolean = readConfig("reuseDocker").flatMap(_.asBoolean).getOrElse(false)
 
   private def runningContainers: Seq[Container] = docker.client.listContainersCmd().exec().asScala
+
   private def runningNetworks: Seq[Network] = docker.client.listNetworksCmd().exec().asScala
 
   private def readConfig: JsonObject = {
