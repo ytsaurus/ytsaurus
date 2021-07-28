@@ -2,11 +2,13 @@ package jobfs
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,6 +24,8 @@ import (
 
 const (
 	bufferSize = 4 * (1 << 20)
+
+	InlineBlobThreshold = 4 * (1 << 20)
 )
 
 type MD5 [md5.Size]byte
@@ -79,6 +83,10 @@ func (h MD5) String() string {
 type TarDir struct {
 	CypressPath ypath.Path
 	LocalPath   []string
+
+	Size       int64
+	InlineBlob []byte
+	Inlined    bool
 }
 
 type FilePath struct {
@@ -89,6 +97,10 @@ type FilePath struct {
 type File struct {
 	CypressPath ypath.Path
 	LocalPath   []FilePath
+
+	Size       int64
+	InlineBlob []byte
+	Inlined    bool
 }
 
 // FS describes local file system that should be efficiently transferred to and from YT.
@@ -145,7 +157,11 @@ func (fs *FS) AddHashedTarDir(ref PathRef) error {
 	if d, ok := fs.TarDirs[ref.MD5]; ok {
 		d.LocalPath = append(d.LocalPath, ref.Path)
 	} else {
-		fs.TarDirs[ref.MD5] = &TarDir{LocalPath: []string{ref.Path}}
+		fs.TarDirs[ref.MD5] = &TarDir{
+			LocalPath: []string{ref.Path},
+
+			Size: size,
+		}
 	}
 
 	return nil
@@ -190,7 +206,11 @@ func (fs *FS) AddHashedFile(ref PathRef) error {
 	if f, ok := fs.Files[ref.MD5]; ok {
 		f.LocalPath = append(f.LocalPath, localPath)
 	} else {
-		fs.Files[ref.MD5] = &File{LocalPath: []FilePath{localPath}}
+		fs.Files[ref.MD5] = &File{
+			LocalPath: []FilePath{localPath},
+
+			Size: st.Size(),
+		}
 	}
 	return nil
 }
@@ -318,11 +338,15 @@ func (fs *FS) AttachFiles(us *spec.UserScript) {
 	}
 
 	for h, f := range fs.Files {
-		attachFile(h, f.CypressPath)
+		if !f.Inlined {
+			attachFile(h, f.CypressPath)
+		}
 	}
 
 	for h, d := range fs.TarDirs {
-		attachFile(h, d.CypressPath)
+		if !d.Inlined {
+			attachFile(h, d.CypressPath)
+		}
 	}
 }
 
@@ -445,9 +469,15 @@ func (fs *FS) Recreate(l log.Structured) (err error) {
 				l.Debug("started copying file",
 					log.String("path", p.Path))
 
-				last := i == len(f.LocalPath)-1
-				if fileSize, err = copyFile(filepath.Join(BlobDir, md5Hash.String()), p.Path, last); err != nil {
-					return err
+				if f.Inlined {
+					if err := ioutil.WriteFile(p.Path, f.InlineBlob, 0666); err != nil {
+						return err
+					}
+				} else {
+					last := i == len(f.LocalPath)-1
+					if fileSize, err = copyFile(filepath.Join(BlobDir, md5Hash.String()), p.Path, last); err != nil {
+						return err
+					}
 				}
 
 				if p.Executable {
@@ -471,37 +501,50 @@ func (fs *FS) Recreate(l log.Structured) (err error) {
 
 		eg.Go(func() error {
 			for i, p := range tar.LocalPath {
-				last := i == len(tar.LocalPath)-1
+				if tar.Inlined {
+					l.Debug("started unpacking directory",
+						log.String("path", p))
 
-				tarFile, err := os.OpenFile(filepath.Join(BlobDir, md5Hash.String()), os.O_RDWR, 0)
-				if err != nil {
-					return err
-				}
-				defer tarFile.Close()
+					if err := tarstream.Receive(p, bytes.NewBuffer(tar.InlineBlob)); err != nil {
+						return err
+					}
 
-				l.Debug("started unpacking directory",
-					log.String("path", p))
-
-				var r io.Reader
-				if last {
-					r = &punchholeReader{f: tarFile}
+					l.Debug("finished unpacking directory",
+						log.String("path", p),
+						log.Int("size", len(tar.InlineBlob)))
 				} else {
-					r = tarFile
-				}
+					last := i == len(tar.LocalPath)-1
 
-				br := bufio.NewReaderSize(r, bufferSize)
-				if err := tarstream.Receive(p, br); err != nil {
-					return err
-				}
+					tarFile, err := os.OpenFile(filepath.Join(BlobDir, md5Hash.String()), os.O_RDWR, 0)
+					if err != nil {
+						return err
+					}
+					defer tarFile.Close()
 
-				stat, err := tarFile.Stat()
-				if err != nil {
-					return err
-				}
+					l.Debug("started unpacking directory",
+						log.String("path", p))
 
-				l.Debug("finished unpacking directory",
-					log.String("path", p),
-					log.Int64("size", stat.Size()))
+					var r io.Reader
+					if last {
+						r = &punchholeReader{f: tarFile}
+					} else {
+						r = tarFile
+					}
+
+					br := bufio.NewReaderSize(r, bufferSize)
+					if err := tarstream.Receive(p, br); err != nil {
+						return err
+					}
+
+					stat, err := tarFile.Stat()
+					if err != nil {
+						return err
+					}
+
+					l.Debug("finished unpacking directory",
+						log.String("path", p),
+						log.Int64("size", stat.Size()))
+				}
 			}
 
 			return nil
