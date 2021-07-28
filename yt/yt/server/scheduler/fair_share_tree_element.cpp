@@ -3729,7 +3729,8 @@ THashSet<TString> TSchedulerRootElement::GetAllowedProfilingTags() const
 
 bool TSchedulerRootElement::ShouldTruncateUnsatisfiedChildFairShareInFifoPool() const
 {
-    return false;
+    // NB(eshcherbin): Not proud of this.
+    return TreeConfig_->TruncateFifoPoolUnsatisfiedChildFairShare;
 }
 
 bool TSchedulerRootElement::IsInferringChildrenWeightsFromHistoricUsageEnabled() const

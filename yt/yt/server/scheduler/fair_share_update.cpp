@@ -713,7 +713,7 @@ TResourceVector TCompositeElement::DoUpdateFairShare(double suggestion, TFairSha
     bool usedShareNearSuggestedShare =
         TResourceVector::Near(usedFairShare, suggestedFairShare, 1e-4 * MaxComponent(usedFairShare));
     YT_LOG_WARNING_UNLESS(
-        usedShareNearSuggestedShare && suggestedShareNearlyDominatesUsedShare,
+        usedShareNearSuggestedShare && suggestedShareNearlyDominatesUsedShare || ShouldTruncateUnsatisfiedChildFairShareInFifoPool(),
         "Fair share significantly differs from predicted in pool ("
         "Mode: %v, "
         "Suggestion: %.20v, "
