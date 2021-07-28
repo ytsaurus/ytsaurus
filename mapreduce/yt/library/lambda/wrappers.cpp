@@ -2,8 +2,8 @@
 
 namespace NYT::NDetail {
 
-TKeyColumns GetReduceByFields(const TKeyColumns& reduceFields) {
-    TKeyColumns dst;
+TSortColumns GetReduceByFields(const TSortColumns& reduceFields) {
+    TSortColumns dst;
     for (auto& name : reduceFields.Parts_) {
         if (name == SortBySep)
             break;
@@ -12,8 +12,8 @@ TKeyColumns GetReduceByFields(const TKeyColumns& reduceFields) {
     return dst;
 }
 
-TKeyColumns GetSortByFields(const TKeyColumns& reduceFields) {
-    TKeyColumns dst;
+TSortColumns GetSortByFields(const TSortColumns& reduceFields) {
+    TSortColumns dst;
     for (auto& name : reduceFields.Parts_) {
         if (name == SortBySep)
             continue;

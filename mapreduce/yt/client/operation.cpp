@@ -240,37 +240,37 @@ ENodeReaderFormat GetNodeReaderFormat(const TSpec& spec, bool allowSkiff)
     }
 }
 
-static void KeyColumnsToNames(const TKeyColumns& keyColumns, THashSet<TString>* result)
+static void SortColumnsToNames(const TSortColumns& sortColumns, THashSet<TString>* result)
 {
-    auto names = keyColumns.GetNames();
+    auto names = sortColumns.GetNames();
     result->insert(names.begin(), names.end());
 }
 
-static THashSet<TString> KeyColumnsToNames(const TKeyColumns& keyColumns)
+static THashSet<TString> SortColumnsToNames(const TSortColumns& sortColumns)
 {
     THashSet<TString> columnNames;
-    KeyColumnsToNames(keyColumns, &columnNames);
+    SortColumnsToNames(sortColumns, &columnNames);
     return columnNames;
 }
 
 THashSet<TString> GetColumnsUsedInOperation(const TJoinReduceOperationSpec& spec)
 {
-    return KeyColumnsToNames(spec.JoinBy_);
+    return SortColumnsToNames(spec.JoinBy_);
 }
 
 THashSet<TString> GetColumnsUsedInOperation(const TReduceOperationSpec& spec) {
-    auto result = KeyColumnsToNames(spec.SortBy_);
-    KeyColumnsToNames(spec.ReduceBy_, &result);
+    auto result = SortColumnsToNames(spec.SortBy_);
+    SortColumnsToNames(spec.ReduceBy_, &result);
     if (spec.JoinBy_) {
-        KeyColumnsToNames(*spec.JoinBy_, &result);
+        SortColumnsToNames(*spec.JoinBy_, &result);
     }
     return result;
 }
 
 THashSet<TString> GetColumnsUsedInOperation(const TMapReduceOperationSpec& spec)
 {
-    auto result = KeyColumnsToNames(spec.SortBy_);
-    KeyColumnsToNames(spec.ReduceBy_, &result);
+    auto result = SortColumnsToNames(spec.SortBy_);
+    SortColumnsToNames(spec.ReduceBy_, &result);
     return result;
 }
 
@@ -1800,8 +1800,8 @@ TOperationId DoExecuteMapReduce(
         CreateOutputTables(preparer, allOutputs);
     }
 
-    TKeyColumns sortBy = spec.SortBy_;
-    TKeyColumns reduceBy = spec.ReduceBy_;
+    TSortColumns sortBy = spec.SortBy_;
+    TSortColumns reduceBy = spec.ReduceBy_;
 
     if (sortBy.Parts_.empty()) {
         sortBy = reduceBy;

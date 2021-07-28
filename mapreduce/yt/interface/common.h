@@ -296,29 +296,29 @@ enum EErasureCodecAttr : i8
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TKeyColumn
+class TSortColumn
 {
 public:
-    using TSelf = TKeyColumn;
+    using TSelf = TSortColumn;
 
     FLUENT_FIELD_DEFAULT_ENCAPSULATED(TString, Name, "");
     FLUENT_FIELD_DEFAULT_ENCAPSULATED(ESortOrder, SortOrder, ESortOrder::SO_ASCENDING);
 
     // Intentionally implicit constructors.
-    TKeyColumn(TStringBuf name = "", ESortOrder sortOrder = ESortOrder::SO_ASCENDING);
-    TKeyColumn(const TString& name, ESortOrder sortOrder = ESortOrder::SO_ASCENDING);
-    TKeyColumn(const char* name, ESortOrder sortOrder = ESortOrder::SO_ASCENDING);
+    TSortColumn(TStringBuf name = "", ESortOrder sortOrder = ESortOrder::SO_ASCENDING);
+    TSortColumn(const TString& name, ESortOrder sortOrder = ESortOrder::SO_ASCENDING);
+    TSortColumn(const char* name, ESortOrder sortOrder = ESortOrder::SO_ASCENDING);
 
-    const TKeyColumn& EnsureAscending() const;
+    const TSortColumn& EnsureAscending() const;
     TNode ToNode() const;
 
-    bool operator == (const TKeyColumn& rhs) const;
-    bool operator != (const TKeyColumn& rhs) const;
+    bool operator == (const TSortColumn& rhs) const;
+    bool operator != (const TSortColumn& rhs) const;
 
     // The following methods are for backward compatibility
-    TKeyColumn& operator = (TStringBuf name);
-    TKeyColumn& operator = (const TString& name);
-    TKeyColumn& operator = (const char* name);
+    TSortColumn& operator = (TStringBuf name);
+    TSortColumn& operator = (const TString& name);
+    TSortColumn& operator = (const char* name);
 
     bool operator == (const TStringBuf rhsName) const;
     bool operator != (const TStringBuf rhsName) const;
@@ -335,20 +335,20 @@ public:
     Y_SAVELOAD_DEFINE(Name_, SortOrder_);
 };
 
-class TKeyColumns
-    : public TOneOrMany<TKeyColumn, TKeyColumns>
+class TSortColumns
+    : public TOneOrMany<TSortColumn, TSortColumns>
 {
 public:
-    using TOneOrMany<TKeyColumn, TKeyColumns>::TOneOrMany;
+    using TOneOrMany<TSortColumn, TSortColumns>::TOneOrMany;
 
-    TKeyColumns();
-    TKeyColumns(const TVector<TString>& names);
-    TKeyColumns(const TColumnNames& names);
+    TSortColumns();
+    TSortColumns(const TVector<TString>& names);
+    TSortColumns(const TColumnNames& names);
 
     // Intentionally implicit conversion.
     operator TColumnNames() const;
 
-    const TKeyColumns& EnsureAscending() const;
+    const TSortColumns& EnsureAscending() const;
     TVector<TString> GetNames() const;
 };
 
@@ -449,8 +449,8 @@ public:
     TTableSchema& AddColumn(const TString& name, const NTi::TTypePtr& type, ESortOrder sortOrder) &;
     TTableSchema AddColumn(const TString& name, const NTi::TTypePtr& type, ESortOrder sortOrder) &&;
 
-    TTableSchema& SortBy(const TKeyColumns& columns) &;
-    TTableSchema SortBy(const TKeyColumns& columns) &&;
+    TTableSchema& SortBy(const TSortColumns& columns) &;
+    TTableSchema SortBy(const TSortColumns& columns) &&;
 
     TNode ToNode() const;
 
@@ -462,12 +462,12 @@ bool operator!=(const TTableSchema& lhs, const TTableSchema& rhs);
 
 TTableSchema CreateTableSchema(
     const ::google::protobuf::Descriptor& messageDescriptor,
-    const TKeyColumns& keyColumns = TKeyColumns(),
+    const TSortColumns& sortColumns = TSortColumns(),
     bool keepFieldsWithoutExtension = true);
 
 template <class TProtoType, typename = std::enable_if_t<std::is_base_of_v<::google::protobuf::Message, TProtoType>>>
 inline TTableSchema CreateTableSchema(
-    const TKeyColumns& keyColumns = TKeyColumns(),
+    const TSortColumns& sortColumns = TSortColumns(),
     bool keepFieldsWithoutExtension = true)
 {
     static_assert(
@@ -476,7 +476,7 @@ inline TTableSchema CreateTableSchema(
 
     return CreateTableSchema(
         *TProtoType::descriptor(),
-        keyColumns,
+        sortColumns,
         keepFieldsWithoutExtension);
 }
 
@@ -554,7 +554,7 @@ struct TRichYPath
 
     FLUENT_FIELD_OPTION(bool, Append);
     FLUENT_FIELD_OPTION(bool, PartiallySorted);
-    FLUENT_FIELD(TKeyColumns, SortedBy);
+    FLUENT_FIELD(TSortColumns, SortedBy);
 
     FLUENT_VECTOR_FIELD(TReadRange, Range);
 
@@ -611,7 +611,7 @@ struct TRichYPath
 };
 
 template <typename TProtoType>
-TRichYPath WithSchema(const TRichYPath& path, const TKeyColumns& sortBy = TKeyColumns())
+TRichYPath WithSchema(const TRichYPath& path, const TSortColumns& sortBy = TSortColumns())
 {
     auto schemedPath = path;
     if (!schemedPath.Schema_) {
@@ -621,7 +621,7 @@ TRichYPath WithSchema(const TRichYPath& path, const TKeyColumns& sortBy = TKeyCo
 }
 
 template <typename TRowType>
-TRichYPath MaybeWithSchema(const TRichYPath& path, const TKeyColumns& sortBy = TKeyColumns())
+TRichYPath MaybeWithSchema(const TRichYPath& path, const TSortColumns& sortBy = TSortColumns())
 {
     if constexpr (std::is_base_of_v<::google::protobuf::Message, TRowType>) {
         return WithSchema<TRowType>(path, sortBy);

@@ -29,26 +29,26 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(const TKeyColumn& keyColumn, IYsonConsumer* consumer)
+void Serialize(const TSortColumn& sortColumn, IYsonConsumer* consumer)
 {
-    if (keyColumn.SortOrder() == ESortOrder::SO_ASCENDING) {
-        Serialize(keyColumn.Name(), consumer);
+    if (sortColumn.SortOrder() == ESortOrder::SO_ASCENDING) {
+        Serialize(sortColumn.Name(), consumer);
     } else {
         BuildYsonFluently(consumer).BeginMap()
-            .Item("name").Value(keyColumn.Name())
-            .Item("sort_order").Value(::ToString(keyColumn.SortOrder()))
+            .Item("name").Value(sortColumn.Name())
+            .Item("sort_order").Value(::ToString(sortColumn.SortOrder()))
         .EndMap();
     }
 }
 
-void Deserialize(TKeyColumn& keyColumn, const TNode& node)
+void Deserialize(TSortColumn& sortColumn, const TNode& node)
 {
     if (node.IsString()) {
-        keyColumn = TKeyColumn(node.AsString());
+        sortColumn = TSortColumn(node.AsString());
     } else if (node.IsMap()) {
         const auto& name = node["name"].AsString();
         const auto& sortOrderString = node["sort_order"].AsString();
-        keyColumn = TKeyColumn(name, ::FromString<ESortOrder>(sortOrderString));
+        sortColumn = TSortColumn(name, ::FromString<ESortOrder>(sortOrderString));
     } else {
         ythrow yexception() << "Expected sort column to be string or map, got " << node.GetType();
     }
@@ -76,14 +76,14 @@ void Deserialize(TKey& key, const TNode& node)
     DeserializeOneOrMany(key, node);
 }
 
-void Serialize(const TKeyColumns& keyColumns, IYsonConsumer* consumer)
+void Serialize(const TSortColumns& sortColumns, IYsonConsumer* consumer)
 {
-    SerializeOneOrMany(keyColumns, consumer);
+    SerializeOneOrMany(sortColumns, consumer);
 }
 
-void Deserialize(TKeyColumns& keyColumns, const TNode& node)
+void Deserialize(TSortColumns& sortColumns, const TNode& node)
 {
-    DeserializeOneOrMany(keyColumns, node);
+    DeserializeOneOrMany(sortColumns, node);
 }
 
 void Serialize(const TColumnNames& columnNames, IYsonConsumer* consumer)

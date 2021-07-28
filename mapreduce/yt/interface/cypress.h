@@ -47,7 +47,7 @@ public:
     ///
     /// @tparam TRowType type of C++ representation of the row to be stored in the table.
     /// @param path Path in Cypress to the new table.
-    /// @param keyColumns List of columns to mark as sorted in schema.
+    /// @param sortColumns List of columns to mark as sorted in schema.
     /// @param options Optional parameters.
     ///
     /// @return Id of the created node.
@@ -56,7 +56,7 @@ public:
     template <typename TRowType>
     TNodeId CreateTable(
         const TYPath& path,
-        const TKeyColumns& keyColumns = TKeyColumns(),
+        const TSortColumns& sortColumns = TSortColumns(),
         const TCreateOptions& options = TCreateOptions());
 
     ///
@@ -216,7 +216,7 @@ public:
 template <typename TRowType>
 TNodeId ICypressClient::CreateTable(
     const TYPath& path,
-    const TKeyColumns& keyColumns,
+    const TSortColumns& sortColumns,
     const TCreateOptions& options)
 {
     static_assert(
@@ -231,7 +231,7 @@ TNodeId ICypressClient::CreateTable(
     if (!actualOptions.Attributes_->HasKey("schema")) {
         actualOptions.Attributes_->AsMap().emplace(
             "schema",
-            CreateTableSchema<TRowType>(keyColumns).ToNode());
+            CreateTableSchema<TRowType>(sortColumns).ToNode());
     }
 
     return Create(path, ENodeType::NT_TABLE, actualOptions);

@@ -154,13 +154,13 @@ namespace NYT {
     // key column values
     using TKey = TOneOrMany<TNode>;
 
-    class TKeyColumn;
+    class TSortColumn;
 
     // column names
     using TColumnNames = TOneOrMany<TString>;
 
     // key column descriptors.
-    class TKeyColumns;
+    class TSortColumns;
 
     enum EValueType : int;
 

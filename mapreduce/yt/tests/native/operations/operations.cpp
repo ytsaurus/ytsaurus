@@ -2479,7 +2479,7 @@ Y_UNIT_TEST_SUITE(Operations)
                         .LowerLimit(TReadLimit().RowIndex(3))
                         .UpperLimit(TReadLimit().RowIndex(8))))
                 .AddOutput<TNode>(outputTable)
-                .SortBy(TKeyColumns().Add("foo")),
+                .SortBy(TSortColumns().Add("foo")),
             new TMapperThatNumbersRows,
             new TIdReducer);
 
@@ -3134,13 +3134,13 @@ Y_UNIT_TEST_SUITE(Operations)
         auto client = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
         TString inputTable = workingDir + "/table";
-        auto sortBy = TKeyColumns("key1", (TKeyColumn("key2", ESortOrder::SO_DESCENDING)), "key3");
+        auto sortBy = TSortColumns("key1", (TSortColumn("key2", ESortOrder::SO_DESCENDING)), "key3");
 
         auto getSortedBy = [&](const TString& table) {
-            TKeyColumns columns;
+            TSortColumns columns;
             auto schema = client->Get(table + "/@schema");
             for (const auto& column : schema.AsList()) {
-                columns.Add(TKeyColumn(column["name"].AsString(), ::FromString<ESortOrder>(column["sort_order"].AsString())));
+                columns.Add(TSortColumn(column["name"].AsString(), ::FromString<ESortOrder>(column["sort_order"].AsString())));
             }
             return columns;
         };
@@ -3173,10 +3173,10 @@ Y_UNIT_TEST_SUITE(Operations)
         auto client = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
         TString inputTable = workingDir + "/table";
-        auto initialSortedBy = TKeyColumns().Add("key1").Add("key2").Add("key3");
+        auto initialSortedBy = TSortColumns().Add("key1").Add("key2").Add("key3");
 
         auto getSortedBy = [&](const TString& table) {
-            TKeyColumns columns;
+            TSortColumns columns;
             auto sortedBy = client->Get(table + "/@sorted_by");
             for (const auto& node : sortedBy.AsList()) {
                 columns.Add(node.AsString());
@@ -3200,7 +3200,7 @@ Y_UNIT_TEST_SUITE(Operations)
         }
 
         {
-            auto prefixColumns = TKeyColumns().Add("key1").Add("key2");
+            auto prefixColumns = TSortColumns().Add("key1").Add("key2");
             TString outputTable = workingDir + "/output";
             auto operation = LazySort(
                 client,
@@ -3219,7 +3219,7 @@ Y_UNIT_TEST_SUITE(Operations)
                 2 * client->Get(inputTable + "/@row_count").AsInt64());
         }
         {
-            auto nonPrefixColumns = TKeyColumns().Add("key2").Add("key3");
+            auto nonPrefixColumns = TSortColumns().Add("key2").Add("key3");
             TString outputTable = workingDir + "/output";
             auto operation = LazySort(
                 client,

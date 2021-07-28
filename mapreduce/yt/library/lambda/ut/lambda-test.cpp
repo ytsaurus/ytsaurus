@@ -393,8 +393,8 @@ Y_UNIT_TEST_SUITE(Lambda) {
             "//table1", "//table2", { "foo", SortBySep, "bar" });
         auto mrSpec = NYT::NDetail::PrepareMRSpec<TNode, TNode>(
             "//table1", "//table2", { "foo", SortBySep, "bar" });
-        TKeyColumns expectedReduceBy{ "foo" };
-        TKeyColumns expectedSortBy{ "foo", "bar" };
+        TSortColumns expectedReduceBy{ "foo" };
+        TSortColumns expectedSortBy{ "foo", "bar" };
         UNIT_ASSERT_VALUES_EQUAL(reduceSpec.ReduceBy_.Parts_, expectedReduceBy.Parts_);
         UNIT_ASSERT_VALUES_EQUAL(reduceSpec.SortBy_.Parts_, expectedSortBy.Parts_);
         UNIT_ASSERT_VALUES_EQUAL(mrSpec.ReduceBy_.Parts_, expectedReduceBy.Parts_);

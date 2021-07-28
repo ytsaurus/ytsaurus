@@ -101,7 +101,7 @@ namespace NTesting {
 
         MOCK_METHOD0(GetParentClient, IClientPtr());
 
-        MOCK_METHOD4(CreateTable, TNodeId(const TYPath&, const ::google::protobuf::Descriptor&, const TKeyColumns&, const TCreateOptions&));
+        MOCK_METHOD4(CreateTable, TNodeId(const TYPath&, const ::google::protobuf::Descriptor&, const TSortColumns&, const TCreateOptions&));
     };
 
     class TTransactionMock : public ITransaction {

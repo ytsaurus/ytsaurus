@@ -25,7 +25,7 @@ template <class MsgFrom, class MsgTo,
         bool ToProto = std::is_base_of<NProtoBuf::Message, MsgTo>::value>
 class TFieldCopier {
 public:
-    TFieldCopier(const TKeyColumns& columns) {
+    TFieldCopier(const TSortColumns& columns) {
         for (auto& keyColumn : columns.Parts_) {
             auto descFrom = DescriptorByColumn<MsgFrom>(keyColumn.EnsureAscending().Name());
             auto descTo = DescriptorByColumn<MsgTo>(keyColumn.EnsureAscending().Name());
@@ -89,7 +89,7 @@ private:
 template <class MsgFrom, class MsgTo>
 class TFieldCopier<MsgFrom, MsgTo, false, false> {
 public:
-    TFieldCopier(const TKeyColumns& columns) : Columns_(columns) {}
+    TFieldCopier(const TSortColumns& columns) : Columns_(columns) {}
 
     void operator()(const MsgFrom& from, MsgTo& to) const {
         for (auto& keyColumn : Columns_.Parts_) {
@@ -99,7 +99,7 @@ public:
 
 private:
     // TODO(levysotsky): Replace with TColumnNames.
-    TKeyColumns Columns_;
+    TSortColumns Columns_;
 };
 
 /**
@@ -108,7 +108,7 @@ private:
 template <class MsgFrom, class MsgTo>
 class TFieldCopier<MsgFrom, MsgTo, false, true> {
 public:
-    TFieldCopier(const TKeyColumns& columns) {
+    TFieldCopier(const TSortColumns& columns) {
         for (auto& keyColumn : columns.Parts_) {
             const auto& columnName = keyColumn.EnsureAscending().Name();
             auto descTo = DescriptorByColumn<MsgTo>(columnName);
@@ -177,7 +177,7 @@ private:
 template <class MsgFrom, class MsgTo>
 class TFieldCopier<MsgFrom, MsgTo, true, false> {
 public:
-    TFieldCopier(const TKeyColumns& columns) {
+    TFieldCopier(const TSortColumns& columns) {
         for (auto& keyColumn : columns.Parts_) {
             const auto& columnName = keyColumn.EnsureAscending().Name();
             auto descFrom = DescriptorByColumn<MsgFrom>(columnName);
@@ -237,7 +237,7 @@ private:
 /* NOTE: we can restrict MsgTo in above class to TNode and uncomment this:
     template <class MsgFrom, class MsgTo>
     class TFieldCopier<MsgFrom, MsgTo, true, false> {
-        TFieldCopier(const TKeyColumns&) = delete; // not implemented yet
+        TFieldCopier(const TSortColumns&) = delete; // not implemented yet
     };
 */
 

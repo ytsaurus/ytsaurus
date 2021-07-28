@@ -218,7 +218,7 @@ void TBlobTable::ResetSorting()
 
 NYT::IOperationPtr TBlobTable::SortAsync()
 {
-    TKeyColumns keyColumns;
+    TSortColumns keyColumns;
     for (const auto& columnSchema : Schema_.BlobIdColumns_) {
         keyColumns.Parts_.push_back(columnSchema.Name());
     }
