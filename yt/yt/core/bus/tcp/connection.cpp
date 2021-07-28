@@ -188,6 +188,9 @@ void TTcpConnection::Start()
             State_ = EState::Opening;
             SetupNetwork(NetworkName_);
             Open();
+
+            guard.Release();
+            ReadyPromise_.TrySet();
             break;
         }
 
@@ -279,8 +282,6 @@ void TTcpConnection::Open()
         YT_LOG_TRACE("Retrying event processing for Open (PendingControl: %v)", previousPendingControl);
         Poller_->Retry(this);
     }
-
-    ReadyPromise_.TrySet(TError());
 }
 
 void TTcpConnection::ResolveAddress()
@@ -452,6 +453,9 @@ void TTcpConnection::OnDialerFinished(const TErrorOr<SOCKET>& socketOrError)
         }
 
         Open();
+
+        guard.Release();
+        ReadyPromise_.TrySet();
     }
 }
 
