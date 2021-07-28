@@ -91,7 +91,7 @@ void AdditiveReduce(
     const IClientBasePtr& client,
     const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
-    const TKeyColumns& reduceFields,
+    const TSortColumns& reduceFields,
     void (*reducer)(const R&, R&),
     bool (*finalizer)(const R&, W&))
 {
@@ -108,7 +108,7 @@ void AdditiveReduce(
     const IClientBasePtr& client,
     const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
-    const TKeyColumns& reduceFields,
+    const TSortColumns& reduceFields,
     void (*reducer)(const T&, T&))
 {
     AdditiveReduce<T, T>(client, from, to, reduceFields, reducer, nullptr);
@@ -120,7 +120,7 @@ void Reduce(
     const IClientBasePtr& client,
     const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
-    const TKeyColumns& reduceFields,
+    const TSortColumns& reduceFields,
     void (*reducer)(const R&, TReducerData&),
     bool (*finalizer)(const TReducerData&, W&))
 {
@@ -137,7 +137,7 @@ void Reduce(
     const IClientBasePtr& client,
     const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
-    const TKeyColumns& reduceFields,
+    const TSortColumns& reduceFields,
     void (*reducer)(const R&, W&))
 {
     Reduce<R, W, W>(client, from, to, reduceFields, reducer, nullptr);
@@ -148,7 +148,7 @@ void AdditiveMapReduce(
     const IClientBasePtr& client,
     const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
-    const TKeyColumns& reduceFields,
+    const TSortColumns& reduceFields,
     bool (*mapper)(const R&, TCombined&),
     void (*reducer)(const TCombined&, TCombined&),
     bool (*finalizer)(const TCombined&, W&))
@@ -168,7 +168,7 @@ void AdditiveMapReduce(
     const IClientBasePtr& client,
     const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
-    const TKeyColumns& reduceFields,
+    const TSortColumns& reduceFields,
     bool (*mapper)(const R&, W&),
     void (*reducer)(const W&, W&))
 {
@@ -180,7 +180,7 @@ void AdditiveMapReduceSorted(
     const IClientBasePtr& client,
     const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
-    const TKeyColumns& reduceFields,
+    const TSortColumns& reduceFields,
     bool (*mapper)(const R&, TCombined&),
     void (*reducer)(const TCombined&, TCombined&),
     bool (*finalizer)(const TCombined&, W&))
@@ -201,7 +201,7 @@ void AdditiveMapReduceSorted(
     const IClientBasePtr& client,
     const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
-    const TKeyColumns& reduceFields,
+    const TSortColumns& reduceFields,
     bool (*mapper)(const R&, W&),
     void (*reducer)(const W&, W&))
 {
@@ -213,7 +213,7 @@ void MapReduce(
     const IClientBasePtr& client,
     const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
-    const TKeyColumns& reduceFields,
+    const TSortColumns& reduceFields,
     bool (*mapper)(const R&, TMapped&),
     void (*reducer)(const TMapped&, TReducerData&),
     bool (*finalizer)(const TReducerData&, W&))
@@ -232,7 +232,7 @@ void MapReduce(
     const IClientBasePtr& client,
     const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
-    const TKeyColumns& reduceFields,
+    const TSortColumns& reduceFields,
     bool (*mapper)(const R&, TMapped&),
     void (*reducer)(const TMapped&, W&))
 {
@@ -244,7 +244,7 @@ void MapReduceSorted(
     const IClientBasePtr& client,
     const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
-    const TKeyColumns& reduceFields,
+    const TSortColumns& reduceFields,
     bool (*mapper)(const R&, TMapped&),
     void (*reducer)(const TMapped&, TReducerData&),
     bool (*finalizer)(const TReducerData&, W&))
@@ -265,7 +265,7 @@ void MapReduceSorted(
     const IClientBasePtr& client,
     const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
-    const TKeyColumns& reduceFields,
+    const TSortColumns& reduceFields,
     bool (*mapper)(const R&, TMapped&),
     void (*reducer)(const TMapped&, W&))
 {
@@ -278,7 +278,7 @@ void MapReduceCombined(
     const IClientBasePtr& client,
     const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
-    const TKeyColumns& reduceFields,
+    const TSortColumns& reduceFields,
     bool (*mapper)(const R&, TMapped&),
     void (*combiner)(const TMapped&, TCombined&),
     void (*reducer)(const TCombined&, TCombined&),
@@ -300,7 +300,7 @@ void MapReduceCombined(
     const IClientBasePtr& client,
     const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
-    const TKeyColumns& reduceFields,
+    const TSortColumns& reduceFields,
     bool (*mapper)(const R&, TMapped&),
     void (*combiner)(const TMapped&, W&),
     void (*reducer)(const W&, W&))
@@ -313,7 +313,7 @@ void MapReduceCombinedSorted(
     const IClientBasePtr& client,
     const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
-    const TKeyColumns& reduceFields,
+    const TSortColumns& reduceFields,
     bool (*mapper)(const R&, TMapped&),
     void (*combiner)(const TMapped&, TCombined&),
     void (*reducer)(const TCombined&, TCombined&),
@@ -335,7 +335,7 @@ void MapReduceCombinedSorted(
     const IClientBasePtr& client,
     const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
-    const TKeyColumns& reduceFields,
+    const TSortColumns& reduceFields,
     bool (*mapper)(const R&, TMapped&),
     void (*combiner)(const TMapped&, W&),
     void (*reducer)(const W&, W&))

@@ -44,14 +44,14 @@ struct IYsonConsumer;
 void Serialize(const TKey& key, IYsonConsumer* consumer);
 void Deserialize(TKey& key, const TNode& node);
 
-void Serialize(const TKeyColumns& keyColumns, IYsonConsumer* consumer);
-void Deserialize(TKeyColumns& keyColumns, const TNode& node);
+void Serialize(const TSortColumns& sortColumns, IYsonConsumer* consumer);
+void Deserialize(TSortColumns& sortColumns, const TNode& node);
 
 void Serialize(const TColumnNames& columnNames, IYsonConsumer* consumer);
 void Deserialize(TColumnNames& columnNames, const TNode& node);
 
-void Serialize(const TKeyColumn& keyColumn, IYsonConsumer* consumer);
-void Deserialize(TKeyColumn& keyColumn, const TNode& node);
+void Serialize(const TSortColumn& sortColumn, IYsonConsumer* consumer);
+void Deserialize(TSortColumn& sortColumn, const TNode& node);
 
 void Serialize(const TKeyBound& keyBound, IYsonConsumer* consumer);
 void Deserialize(TKeyBound& keyBound, const TNode& node);

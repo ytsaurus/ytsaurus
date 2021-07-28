@@ -8,9 +8,9 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool IsPrefix(const TVector<TKeyColumn>& columns, const TNode::TListType& nodeList) {
+static bool IsPrefix(const TVector<TSortColumn>& columns, const TNode::TListType& nodeList) {
     auto mismatch = Mismatch(columns.begin(), columns.end(), nodeList.begin(), nodeList.end(),
-        [](const TKeyColumn& column, const TNode& node) {
+        [](const TSortColumn& column, const TNode& node) {
             return column == node.AsString();
         });
     return mismatch.first == columns.end(); // No mismatch happened

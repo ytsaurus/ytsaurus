@@ -398,7 +398,7 @@ void JoinReducerProto()
             .AddInput<TJoinInputRight>(inputRight)
             .AddOutput<TJoinOutputSum>(outputSum)
             .AddOutput<TJoinOutputProduct>(outputProduct)
-            .JoinBy(TKeyColumns("key")),
+            .JoinBy(TSortColumns("key")),
         new TJoinReducerProto);
 
     {

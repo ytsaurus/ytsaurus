@@ -500,7 +500,7 @@ IOperationPtr IOperationClient::Reduce(
     ::TIntrusivePtr<IReducerBase> reducer,
     const TOneOrMany<TStructuredTablePath>& input,
     const TOneOrMany<TStructuredTablePath>& output,
-    const TKeyColumns& reduceBy,
+    const TSortColumns& reduceBy,
     const TReduceOperationSpec& spec,
     const TOperationOptions& options)
 {
@@ -573,7 +573,7 @@ IOperationPtr IOperationClient::MapReduce(
     ::TIntrusivePtr<IReducerBase> reducer,
     const TOneOrMany<TStructuredTablePath>& input,
     const TOneOrMany<TStructuredTablePath>& output,
-    const TKeyColumns& reduceBy,
+    const TSortColumns& reduceBy,
     TMapReduceOperationSpec spec,
     const TOperationOptions& options)
 {
@@ -600,7 +600,7 @@ IOperationPtr IOperationClient::MapReduce(
     ::TIntrusivePtr<IReducerBase> reducer,
     const TOneOrMany<TStructuredTablePath>& input,
     const TOneOrMany<TStructuredTablePath>& output,
-    const TKeyColumns& reduceBy,
+    const TSortColumns& reduceBy,
     TMapReduceOperationSpec spec,
     const TOperationOptions& options)
 {
@@ -624,7 +624,7 @@ IOperationPtr IOperationClient::MapReduce(
 IOperationPtr IOperationClient::Sort(
     const TOneOrMany<TRichYPath>& input,
     const TRichYPath& output,
-    const TKeyColumns& sortBy,
+    const TSortColumns& sortBy,
     const TSortOperationSpec& spec,
     const TOperationOptions& options)
 {

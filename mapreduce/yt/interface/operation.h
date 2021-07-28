@@ -819,17 +819,17 @@ struct TReduceOperationSpecBase
 
     ///
     /// @brief Columns to sort rows by (must include `ReduceBy` as prefix).
-    FLUENT_FIELD(TKeyColumns, SortBy);
+    FLUENT_FIELD(TSortColumns, SortBy);
 
     ///
     /// @brief Columns to group rows by.
-    FLUENT_FIELD(TKeyColumns, ReduceBy);
+    FLUENT_FIELD(TSortColumns, ReduceBy);
 
     ///
     /// @brief Columns to join foreign tables by (must be prefix of `ReduceBy`).
     ///
     /// @see https://yt.yandex-team.ru/docs/description/mr/reduce#foreign_tables
-    FLUENT_FIELD_OPTION(TKeyColumns, JoinBy);
+    FLUENT_FIELD_OPTION(TSortColumns, JoinBy);
 
     ///
     /// @brief Guarantee to feed all rows with same `ReduceBy` columns to a single job (`true` by default).
@@ -892,7 +892,7 @@ struct TJoinReduceOperationSpecBase
     /// @brief Columns to join foreign tables by (must be prefix of `ReduceBy`).
     ///
     /// @see https://yt.yandex-team.ru/docs/description/mr/reduce#foreign_tables
-    FLUENT_FIELD(TKeyColumns, JoinBy);
+    FLUENT_FIELD(TSortColumns, JoinBy);
 
     ///
     /// @brief Recommended number of jobs to run.
@@ -960,11 +960,11 @@ struct TMapReduceOperationSpecBase
 
     ///
     /// @brief Columns to sort rows by (must include `ReduceBy` as prefix).
-    FLUENT_FIELD(TKeyColumns, SortBy);
+    FLUENT_FIELD(TSortColumns, SortBy);
 
     ///
     /// @brief Columns to group rows by.
-    FLUENT_FIELD(TKeyColumns, ReduceBy);
+    FLUENT_FIELD(TSortColumns, ReduceBy);
 
     ///
     /// @brief Recommended number of map jobs to run.
@@ -1072,7 +1072,7 @@ struct TSortOperationSpec
 
     ///
     /// @brief Columns to sort table by.
-    FLUENT_FIELD(TKeyColumns, SortBy);
+    FLUENT_FIELD(TSortColumns, SortBy);
 
     ///
     /// @brief Recommended number of intermediate data partitions.
@@ -1136,7 +1136,7 @@ struct TMergeOperationSpec
 
     ///
     /// @brief Columns by which to merge (for @ref NYT::EMergeMode::MM_SORTED).
-    FLUENT_FIELD(TKeyColumns, MergeBy);
+    FLUENT_FIELD(TSortColumns, MergeBy);
 
     ///
     /// @brief Merge mode.
@@ -2955,7 +2955,7 @@ struct IOperationClient
         ::TIntrusivePtr<IReducerBase> reducer,
         const TOneOrMany<TStructuredTablePath>& input,
         const TOneOrMany<TStructuredTablePath>& output,
-        const TKeyColumns& reduceBy,
+        const TSortColumns& reduceBy,
         const TReduceOperationSpec& spec = TReduceOperationSpec(),
         const TOperationOptions& options = TOperationOptions());
 
@@ -3047,7 +3047,7 @@ struct IOperationClient
         ::TIntrusivePtr<IReducerBase> reducer,
         const TOneOrMany<TStructuredTablePath>& input,
         const TOneOrMany<TStructuredTablePath>& output,
-        const TKeyColumns& reduceBy,
+        const TSortColumns& reduceBy,
         TMapReduceOperationSpec spec = TMapReduceOperationSpec(),
         const TOperationOptions& options = TOperationOptions());
 
@@ -3070,7 +3070,7 @@ struct IOperationClient
         ::TIntrusivePtr<IReducerBase> reducer,
         const TOneOrMany<TStructuredTablePath>& input,
         const TOneOrMany<TStructuredTablePath>& output,
-        const TKeyColumns& reduceBy,
+        const TSortColumns& reduceBy,
         TMapReduceOperationSpec spec = TMapReduceOperationSpec(),
         const TOperationOptions& options = TOperationOptions());
 
@@ -3115,7 +3115,7 @@ struct IOperationClient
     IOperationPtr Sort(
         const TOneOrMany<TRichYPath>& input,
         const TRichYPath& output,
-        const TKeyColumns& sortBy,
+        const TSortColumns& sortBy,
         const TSortOperationSpec& spec = TSortOperationSpec(),
         const TOperationOptions& options = TOperationOptions());
 

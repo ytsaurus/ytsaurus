@@ -87,9 +87,9 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Simple)
             .AddColumn(TColumnSchema().Name("Data").Type(ToTypeV3(EValueType::VT_STRING, false))));
     }
 
-    Y_UNIT_TEST(KeyColumns)
+    Y_UNIT_TEST(SortColumns)
     {
-        const TKeyColumns keys = {"key", "subkey"};
+        const TSortColumns keys = {"key", "subkey"};
 
         const auto schema = CreateTableSchema<NUnitTesting::TAliased>(keys);
 
@@ -105,9 +105,9 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Simple)
             .AddColumn(TColumnSchema().Name("Data").Type(ToTypeV3(EValueType::VT_STRING, false))));
     }
 
-    Y_UNIT_TEST(KeyColumnsReordered)
+    Y_UNIT_TEST(SortColumnsReordered)
     {
-        const TKeyColumns keys = {"subkey"};
+        const TSortColumns keys = {"subkey"};
 
         const auto schema = CreateTableSchema<NUnitTesting::TAliased>(keys);
 
@@ -120,7 +120,7 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Simple)
             .AddColumn(TColumnSchema().Name("Data").Type(ToTypeV3(EValueType::VT_STRING, false))));
     }
 
-    Y_UNIT_TEST(KeyColumnsInvalid)
+    Y_UNIT_TEST(SortColumnsInvalid)
     {
         UNIT_ASSERT_EXCEPTION(CreateTableSchema<NUnitTesting::TAliased>({"subkey", "subkey"}), yexception);
         UNIT_ASSERT_EXCEPTION(CreateTableSchema<NUnitTesting::TAliased>({"key", "junk"}), yexception);

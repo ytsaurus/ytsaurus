@@ -39,30 +39,30 @@ T SaveLoad(const T& obj)
 
 Y_UNIT_TEST_SUITE(Common)
 {
-    Y_UNIT_TEST(KeyColumnsLegacy)
+    Y_UNIT_TEST(SortColumnsLegacy)
     {
-        TKeyColumns keys1("a", "b");
-        UNIT_ASSERT((keys1.Parts_ == TKeyColumns{"a", "b"}));
+        TSortColumns keys1("a", "b");
+        UNIT_ASSERT((keys1.Parts_ == TSortColumns{"a", "b"}));
 
         keys1.Add("c", "d");
-        UNIT_ASSERT((keys1.Parts_ == TKeyColumns{"a", "b", "c", "d"}));
+        UNIT_ASSERT((keys1.Parts_ == TSortColumns{"a", "b", "c", "d"}));
 
-        auto keys2 = TKeyColumns(keys1).Add("e", "f");
-        UNIT_ASSERT((keys1.Parts_ == TKeyColumns{"a", "b", "c", "d"}));
-        UNIT_ASSERT((keys2.Parts_ == TKeyColumns{"a", "b", "c", "d", "e", "f"}));
+        auto keys2 = TSortColumns(keys1).Add("e", "f");
+        UNIT_ASSERT((keys1.Parts_ == TSortColumns{"a", "b", "c", "d"}));
+        UNIT_ASSERT((keys2.Parts_ == TSortColumns{"a", "b", "c", "d", "e", "f"}));
 
-        auto keys3 = TKeyColumns(keys1).Add("e").Add("f").Add("g");
-        UNIT_ASSERT((keys1.Parts_ == TKeyColumns{"a", "b", "c", "d"}));
-        UNIT_ASSERT((keys3.Parts_ == TKeyColumns{"a", "b", "c", "d", "e", "f", "g"}));
+        auto keys3 = TSortColumns(keys1).Add("e").Add("f").Add("g");
+        UNIT_ASSERT((keys1.Parts_ == TSortColumns{"a", "b", "c", "d"}));
+        UNIT_ASSERT((keys3.Parts_ == TSortColumns{"a", "b", "c", "d", "e", "f", "g"}));
     }
 
-    Y_UNIT_TEST(KeyColumn)
+    Y_UNIT_TEST(SortColumn)
     {
-        auto ascending = TKeyColumn("a");
+        auto ascending = TSortColumn("a");
         UNIT_ASSERT_VALUES_EQUAL(ascending.Name(), "a");
         UNIT_ASSERT_VALUES_EQUAL(ascending.SortOrder(), ESortOrder::SO_ASCENDING);
-        UNIT_ASSERT_VALUES_EQUAL(ascending, TKeyColumn("a", ESortOrder::SO_ASCENDING));
-        UNIT_ASSERT_VALUES_UNEQUAL(ascending, TKeyColumn("a", ESortOrder::SO_DESCENDING));
+        UNIT_ASSERT_VALUES_EQUAL(ascending, TSortColumn("a", ESortOrder::SO_ASCENDING));
+        UNIT_ASSERT_VALUES_UNEQUAL(ascending, TSortColumn("a", ESortOrder::SO_DESCENDING));
 
         UNIT_ASSERT_NO_EXCEPTION(ascending.EnsureAscending());
         UNIT_ASSERT_VALUES_EQUAL(static_cast<TString>(ascending), "a");
@@ -72,8 +72,8 @@ Y_UNIT_TEST_SUITE(Common)
         UNIT_ASSERT_NO_EXCEPTION(another = "another");
         UNIT_ASSERT_VALUES_EQUAL(another.Name(), "another");
         UNIT_ASSERT_VALUES_EQUAL(another.SortOrder(), ESortOrder::SO_ASCENDING);
-        UNIT_ASSERT_VALUES_EQUAL(another, TKeyColumn("another", ESortOrder::SO_ASCENDING));
-        UNIT_ASSERT_VALUES_UNEQUAL(another, TKeyColumn("another", ESortOrder::SO_DESCENDING));
+        UNIT_ASSERT_VALUES_EQUAL(another, TSortColumn("another", ESortOrder::SO_ASCENDING));
+        UNIT_ASSERT_VALUES_UNEQUAL(another, TSortColumn("another", ESortOrder::SO_DESCENDING));
 
         auto ascendingNode = BuildYsonNodeFluently().Value(ascending);
         UNIT_ASSERT_VALUES_EQUAL(ascendingNode, TNode("a"));
@@ -81,11 +81,11 @@ Y_UNIT_TEST_SUITE(Common)
         UNIT_ASSERT_VALUES_EQUAL(SaveLoad(ascending), ascending);
         UNIT_ASSERT_VALUES_UNEQUAL(SaveToString(ascending), SaveToString(TString("a")));
 
-        auto descending = TKeyColumn("a", ESortOrder::SO_DESCENDING);
+        auto descending = TSortColumn("a", ESortOrder::SO_DESCENDING);
         UNIT_ASSERT_VALUES_EQUAL(descending.Name(), "a");
         UNIT_ASSERT_VALUES_EQUAL(descending.SortOrder(), ESortOrder::SO_DESCENDING);
-        UNIT_ASSERT_VALUES_EQUAL(descending, TKeyColumn("a", ESortOrder::SO_DESCENDING));
-        UNIT_ASSERT_VALUES_UNEQUAL(descending, TKeyColumn("a", ESortOrder::SO_ASCENDING));
+        UNIT_ASSERT_VALUES_EQUAL(descending, TSortColumn("a", ESortOrder::SO_DESCENDING));
+        UNIT_ASSERT_VALUES_UNEQUAL(descending, TSortColumn("a", ESortOrder::SO_ASCENDING));
 
         UNIT_ASSERT_EXCEPTION(descending.EnsureAscending(), yexception);
         UNIT_ASSERT_EXCEPTION(static_cast<TString>(descending), yexception);
@@ -98,22 +98,22 @@ Y_UNIT_TEST_SUITE(Common)
         UNIT_ASSERT_VALUES_EQUAL(SaveLoad(descending), descending);
         UNIT_ASSERT_VALUES_UNEQUAL(SaveToString(descending), SaveToString("a"));
 
-        UNIT_ASSERT_VALUES_EQUAL(::ToString(TKeyColumn("blah")), "blah");
-        UNIT_ASSERT_VALUES_EQUAL(::ToString(TKeyColumn("blah", ESortOrder::SO_DESCENDING)), "{\"name\"=\"blah\";\"sort_order\"=\"descending\"}");
+        UNIT_ASSERT_VALUES_EQUAL(::ToString(TSortColumn("blah")), "blah");
+        UNIT_ASSERT_VALUES_EQUAL(::ToString(TSortColumn("blah", ESortOrder::SO_DESCENDING)), "{\"name\"=\"blah\";\"sort_order\"=\"descending\"}");
     }
 
-    Y_UNIT_TEST(KeyColumns)
+    Y_UNIT_TEST(SortColumns)
     {
-        TKeyColumns ascending("a", "b");
-        UNIT_ASSERT(ascending.Parts_ == (TKeyColumns{"a", "b"}));
+        TSortColumns ascending("a", "b");
+        UNIT_ASSERT(ascending.Parts_ == (TSortColumns{"a", "b"}));
         UNIT_ASSERT_NO_EXCEPTION(ascending.EnsureAscending());
         UNIT_ASSERT_VALUES_EQUAL(static_cast<TColumnNames>(ascending).Parts_, (TVector<TString>{"a", "b"}));
         UNIT_ASSERT_VALUES_EQUAL(ascending.GetNames(), (TVector<TString>{"a", "b"}));
 
         auto mixed = ascending;
-        mixed.Add(TKeyColumn("c", ESortOrder::SO_DESCENDING), "d");
-        UNIT_ASSERT((mixed.Parts_ != TVector<TKeyColumn>{"a", "b", "c", "d"}));
-        UNIT_ASSERT((mixed.Parts_ == TVector<TKeyColumn>{"a", "b", TKeyColumn("c", ESortOrder::SO_DESCENDING), "d"}));
+        mixed.Add(TSortColumn("c", ESortOrder::SO_DESCENDING), "d");
+        UNIT_ASSERT((mixed.Parts_ != TVector<TSortColumn>{"a", "b", "c", "d"}));
+        UNIT_ASSERT((mixed.Parts_ == TVector<TSortColumn>{"a", "b", TSortColumn("c", ESortOrder::SO_DESCENDING), "d"}));
         UNIT_ASSERT_VALUES_EQUAL(mixed.GetNames(), (TVector<TString>{"a", "b", "c", "d"}));
         UNIT_ASSERT_EXCEPTION(mixed.EnsureAscending(), yexception);
         UNIT_ASSERT_EXCEPTION(static_cast<TColumnNames>(mixed), yexception);

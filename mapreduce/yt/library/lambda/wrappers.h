@@ -41,8 +41,8 @@ protected:
 template <template<class Rd, class Wr> class Op, class R, class W, class F>
 class TByColumnAwareLambdaOpBase : public TLambdaOpBase<Op, R, W, F> {
 public:
-    TByColumnAwareLambdaOpBase() : FieldCopier(TKeyColumns()) { }
-    TByColumnAwareLambdaOpBase(F func, const TKeyColumns& reduceColumns)
+    TByColumnAwareLambdaOpBase() : FieldCopier(TSortColumns()) { }
+    TByColumnAwareLambdaOpBase(F func, const TSortColumns& reduceColumns)
         : TLambdaOpBase<Op, R, W, F>(func)
         , ReduceColumns(reduceColumns)
         , FieldCopier(reduceColumns)
@@ -61,15 +61,15 @@ public:
     }
 
 protected:
-    TKeyColumns ReduceColumns;
+    TSortColumns ReduceColumns;
     TFieldCopier<R, W> FieldCopier;
 };
 
 // fields before first SortBySep
-TKeyColumns GetReduceByFields(const TKeyColumns& reduceFields);
+TSortColumns GetReduceByFields(const TSortColumns& reduceFields);
 
 // (all) SortBySep field(s) removed
-TKeyColumns GetSortByFields(const TKeyColumns& reduceFields);
+TSortColumns GetSortByFields(const TSortColumns& reduceFields);
 
 template<class R, class W>
 TMapOperationSpec PrepareMapSpec(
@@ -89,7 +89,7 @@ template<class R, class W>
 TMapReduceOperationSpec PrepareMRSpec(
     const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
-    const TKeyColumns& reduceFields)
+    const TSortColumns& reduceFields)
 {
     // SortBySep element separates ReduceBy fields from the rest of SortBy fields
     bool hasDelim = std::find(reduceFields.Parts_.begin(), reduceFields.Parts_.end(), SortBySep) != reduceFields.Parts_.end();
@@ -112,11 +112,11 @@ template<class R, class W>
 TReduceOperationSpec PrepareReduceSpec(
     const TOneOrMany<TRichYPath>& from,
     const TRichYPath& to,
-    const TKeyColumns& reduceFields)
+    const TSortColumns& reduceFields)
 {
     // SortBySep element separates ReduceBy fields from the rest of SortBy fields
     bool hasDelim = std::find(reduceFields.Parts_.begin(), reduceFields.Parts_.end(), SortBySep) != reduceFields.Parts_.end();
-    TKeyColumns reduceByFields = hasDelim ? GetReduceByFields(reduceFields) : reduceFields;
+    TSortColumns reduceByFields = hasDelim ? GetReduceByFields(reduceFields) : reduceFields;
 
     auto spec = TReduceOperationSpec()
         .template AddOutput<W>(MaybeWithSchema<W>(to, reduceByFields))
@@ -145,7 +145,7 @@ bool RegisterReducerStatic() {
 }
 
 template<class Reducer, class TReduce, class TFinalize>
-TIntrusivePtr<IReducerBase> ChooseReducer(TReduce reducer, TFinalize finalizer, const TKeyColumns& reduceColumns) {
+TIntrusivePtr<IReducerBase> ChooseReducer(TReduce reducer, TFinalize finalizer, const TSortColumns& reduceColumns) {
     if (!reducer)
         return nullptr; // let main API generate an exception
 
@@ -281,7 +281,7 @@ public:
     using TBase = NDetail::TByColumnAwareLambdaOpBase<IReducer, R, W, F>;
 
     TLambdaReducer() { }
-    TLambdaReducer(F func, const TKeyColumns& reduceColumns)
+    TLambdaReducer(F func, const TSortColumns& reduceColumns)
         : TBase(func, reduceColumns)
     {
         (void)Registrator; // make sure this static member is not optimized out
@@ -329,7 +329,7 @@ public:
     using TBase = NDetail::TByColumnAwareLambdaOpBase<IReducer, R, W, std::pair<TReduce, TFinalize>>;
 
     TLambdaBufReducer() { }
-    TLambdaBufReducer(TReduce reducer, TFinalize finalizer, const TKeyColumns& reduceColumns)
+    TLambdaBufReducer(TReduce reducer, TFinalize finalizer, const TSortColumns& reduceColumns)
         : TBase({reducer, finalizer}, reduceColumns)
     {
         (void)Registrator; // make sure this static member is not optimized out
@@ -351,7 +351,7 @@ public:
         }
     }
 
-    static TIntrusivePtr<IReducerBase> SameWithoutFinalizer(TReduce reducer, const TKeyColumns& reduceColumns) {
+    static TIntrusivePtr<IReducerBase> SameWithoutFinalizer(TReduce reducer, const TSortColumns& reduceColumns) {
         if constexpr(std::is_same<TBuf, W>::value) {
             return new TLambdaReducer<R, W>(reducer, reduceColumns);
         }
@@ -386,7 +386,7 @@ public:
     using TBase = NDetail::TByColumnAwareLambdaOpBase<IReducer, R, W, std::pair<TReduce, TFinalize>>;
 
     TAdditiveLambdaBufReducer() { }
-    TAdditiveLambdaBufReducer(TReduce reducer, TFinalize finalizer, const TKeyColumns& reduceColumns)
+    TAdditiveLambdaBufReducer(TReduce reducer, TFinalize finalizer, const TSortColumns& reduceColumns)
         : TBase({reducer, finalizer}, reduceColumns)
     {
         (void)Registrator; // make sure this static member is not optimized out
@@ -409,7 +409,7 @@ public:
         }
     }
 
-    static TIntrusivePtr<IReducerBase> SameWithoutFinalizer(TReduce reducer, const TKeyColumns&) {
+    static TIntrusivePtr<IReducerBase> SameWithoutFinalizer(TReduce reducer, const TSortColumns&) {
         if constexpr(std::is_same<R, W>::value) {
             return new TAdditiveReducer<W>(reducer);
         }
