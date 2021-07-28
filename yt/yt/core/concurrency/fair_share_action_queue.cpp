@@ -81,7 +81,7 @@ public:
         }
 
         Queue_ = New<TFairShareInvokerQueue>(CallbackEventCount_, std::move(bucketDescriptions));
-        Thread_ = New<TFairShareQueueSchedulerThread>(Queue_, CallbackEventCount_, threadName);
+        Thread_ = New<TFairShareQueueSchedulerThread>(Queue_, CallbackEventCount_, threadName, threadName);
     }
 
     ~TFairShareActionQueue()

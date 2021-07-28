@@ -107,7 +107,7 @@ public:
             Queue_,
             CallbackEventCount_,
             ThreadName_,
-            GetThreadTags("Finalizer")))
+            ThreadName_))
         , OwningPid_(getpid())
     { }
 

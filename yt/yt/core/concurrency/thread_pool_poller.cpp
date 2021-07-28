@@ -313,8 +313,8 @@ private:
             int index)
             : TSchedulerThread(
                 std::move(callbackEventCount),
-                Format("%v:%v", poller->ThreadNamePrefix_, index),
-                GetThreadTags("Poller"))
+                poller->ThreadNamePrefix_,
+                Format("%v:%v", poller->ThreadNamePrefix_, index))
             , Poller_(poller)
             , ExecuteCallback_(BIND([this] {
                 HandleEvents();

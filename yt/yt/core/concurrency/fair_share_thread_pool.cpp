@@ -443,13 +443,13 @@ public:
     TFairShareThread(
         TFairShareQueuePtr queue,
         std::shared_ptr<TEventCount> callbackEventCount,
+        const TString& threadGroupName,
         const TString& threadName,
-        const TTagSet& tags,
         int index)
         : TSchedulerThread(
             std::move(callbackEventCount),
-            threadName,
-            tags)
+            threadGroupName,
+            threadName)
         , Queue_(std::move(queue))
         , Index_(index)
     { }
@@ -542,8 +542,8 @@ private:
         return New<TFairShareThread>(
             Queue_,
             CallbackEventCount_,
+            ThreadNamePrefix_,
             MakeThreadName(index),
-            GetThreadTags(ThreadNamePrefix_),
             index);
     }
 };

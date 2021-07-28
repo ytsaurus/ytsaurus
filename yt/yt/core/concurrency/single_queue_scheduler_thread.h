@@ -16,8 +16,8 @@ public:
     TSingleQueueSchedulerThread(
         TInvokerQueuePtr<TQueueImpl> queue,
         std::shared_ptr<TEventCount> callbackEventCount,
-        const TString& threadName,
-        const NProfiling::TTagSet& tags);
+        const TString& threadGroupName,
+        const TString& threadName);
 
 protected:
     const TInvokerQueuePtr<TQueueImpl> Queue_;

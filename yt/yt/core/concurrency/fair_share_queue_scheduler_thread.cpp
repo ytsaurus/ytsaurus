@@ -9,11 +9,12 @@ namespace NYT::NConcurrency {
 TFairShareQueueSchedulerThread::TFairShareQueueSchedulerThread(
     TFairShareInvokerQueuePtr queue,
     std::shared_ptr<TEventCount> callbackEventCount,
+    const TString& threadGroupName,
     const TString& threadName)
     : TSchedulerThread(
         std::move(callbackEventCount),
-        threadName,
-        NProfiling::TTagSet{}.WithTag(std::pair<TString, TString>("thread", threadName)))
+        threadGroupName,
+        threadName)
     , Queue_(std::move(queue))
 { }
 

@@ -9,12 +9,12 @@ template <class TQueueImpl>
 TSingleQueueSchedulerThread<TQueueImpl>::TSingleQueueSchedulerThread(
     TInvokerQueuePtr<TQueueImpl> queue,
     std::shared_ptr<TEventCount> callbackEventCount,
-    const TString& threadName,
-    const NProfiling::TTagSet& tagIds)
+    const TString& threadGroupName,
+    const TString& threadName)
     : TSchedulerThread(
         std::move(callbackEventCount),
-        threadName,
-        tagIds)
+        threadGroupName,
+        threadName)
     , Queue_(std::move(queue))
 { }
 

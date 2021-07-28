@@ -69,8 +69,8 @@ private:
         return New<TMpmcSingleQueueSchedulerThread>(
             Queue_,
             CallbackEventCount_,
-            MakeThreadName(index),
-            GetThreadTags(ThreadNamePrefix_));
+            ThreadNamePrefix_,
+            MakeThreadName(index));
     }
 };
 

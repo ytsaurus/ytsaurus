@@ -15,6 +15,7 @@ public:
     TFairShareQueueSchedulerThread(
         TFairShareInvokerQueuePtr queue,
         std::shared_ptr<TEventCount> callbackEventCount,
+        const TString& threadGroupName,
         const TString& threadName);
 
 protected:
