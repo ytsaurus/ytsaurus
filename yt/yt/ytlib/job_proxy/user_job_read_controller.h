@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
+#include <yt/yt/ytlib/table_client/timing_statistics.h>
+
 #include <yt/yt/client/formats/public.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
@@ -33,6 +35,7 @@ struct IUserJobReadController
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const = 0;
     virtual std::optional<NChunkClient::NProto::TDataStatistics> GetDataStatistics() const = 0;
     virtual std::optional<NChunkClient::TCodecStatistics> GetDecompressionStatistics() const = 0;
+    virtual std::optional<NTableClient::TTimingStatistics> GetTimingStatistics() const = 0;
     virtual void InterruptReader() = 0;
     virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor() const = 0;
 };

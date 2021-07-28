@@ -123,6 +123,14 @@ public:
         return Reader_->GetDecompressionStatistics();
     }
 
+    virtual std::optional<TTimingStatistics> GetTimingStatistics() const override
+    {
+        if (!Initialized_) {
+            return std::nullopt;
+        }
+        return Reader_->GetTimingStatistics();
+    }
+
     virtual void InterruptReader() override
     {
         if (!Initialized_) {
@@ -299,6 +307,11 @@ public:
     }
 
     std::optional<TCodecStatistics> GetDecompressionStatistics() const override
+    {
+        return std::nullopt;
+    }
+
+    std::optional<TTimingStatistics> GetTimingStatistics() const override
     {
         return std::nullopt;
     }

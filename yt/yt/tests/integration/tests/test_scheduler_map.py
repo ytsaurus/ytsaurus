@@ -1669,6 +1669,27 @@ done
             "chunk_reader_statistics.data_bytes_read_from_cache.$.completed.map.sum")
         assert read_from_cache == 99 * read_from_disk
 
+    @authors("alexkolodezny")
+    def test_chunk_reader_timing_statistics(self):
+        if self.Env.get_component_version("ytserver-job-proxy").abi < (21, 3):
+            pytest.skip()
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t_in", [{"x": i, "y": "A" * 10000} for i in range(100)])
+
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="sleep 1",
+        )
+        statistics = get(op.get_path() + "/@progress/job_statistics")
+        idle_time = get_statistics(
+            statistics,
+            "chunk_reader_statistics.idle_time.$.completed.map.sum",
+        )
+        assert idle_time > 1000
+
+
 ##################################################################
 
 

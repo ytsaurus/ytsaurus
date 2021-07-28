@@ -6,6 +6,7 @@ namespace NYT::NChunkClient {
 
 using namespace NProfiling;
 using namespace NYPath;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,6 +61,16 @@ void DumpChunkReaderStatistics(
     jobStatisitcs->AddSample(path + "/data_bytes_transmitted", chunkReaderStatisticsPtr->DataBytesTransmitted);
     jobStatisitcs->AddSample(path + "/data_bytes_read_from_cache", chunkReaderStatisticsPtr->DataBytesReadFromCache);
     jobStatisitcs->AddSample(path + "/meta_bytes_read_from_disk", chunkReaderStatisticsPtr->MetaBytesReadFromDisk);
+}
+
+void DumpTimingStatistics(
+    TStatistics* jobStatistics,
+    const TString& path,
+    const TTimingStatistics& timingStatistics)
+{
+    jobStatistics->AddSample(path + "/wait_time", timingStatistics.WaitTime);
+    jobStatistics->AddSample(path + "/read_time", timingStatistics.ReadTime);
+    jobStatistics->AddSample(path + "/idle_time", timingStatistics.IdleTime);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

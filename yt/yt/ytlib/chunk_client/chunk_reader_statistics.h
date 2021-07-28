@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/job_tracker_client/public.h>
 
+#include <yt/yt/ytlib/table_client/timing_statistics.h>
+
 #include <yt/yt/core/profiling/profiler.h>
 
 namespace NYT::NChunkClient {
@@ -45,6 +47,11 @@ void DumpChunkReaderStatistics(
     TStatistics* jobStatisitcs,
     const TString& path,
     const TChunkReaderStatisticsPtr& chunkReaderStatisticsPtr);
+
+void DumpTimingStatistics(
+    TStatistics* jobStatistics,
+    const TString& path,
+    const NTableClient::TTimingStatistics& timingStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
