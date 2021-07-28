@@ -4,6 +4,7 @@ import com.twitter.scalding.Args
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.wrapper.Utils.parseDuration
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
+import ru.yandex.spark.yt.wrapper.discovery.DiscoveryService
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -12,18 +13,26 @@ object HistoryServerLauncher extends App with VanillaLauncher with SparkLauncher
   val log = LoggerFactory.getLogger(getClass)
 
   val launcherArgs = HistoryServerLauncherArgs(args)
+
   import launcherArgs._
 
   prepareProfiler()
 
   withDiscovery(ytConfig, discoveryPath) { discoveryService =>
-    log.info("Waiting for master http address")
-    discoveryService.waitAddress(waitMasterTimeout)
+    val masterAddress = waitForMaster(waitMasterTimeout, discoveryService)
 
     withService(startHistoryServer(logPath, memory, discoveryService)) { historyServer =>
       discoveryService.registerSHS(historyServer.address)
-      checkPeriodically(historyServer.isAlive(3))
-      log.error("Spark History Server is not alive")
+
+      def isAlive: Boolean = {
+        val isMasterAlive = DiscoveryService.isAlive(masterAddress.hostAndPort, 3)
+        val isShsAlive = historyServer.isAlive(3)
+
+        isMasterAlive && isShsAlive
+      }
+
+      checkPeriodically(isAlive)
+      log.error("Shutdown SHS")
     }
   }
 }
