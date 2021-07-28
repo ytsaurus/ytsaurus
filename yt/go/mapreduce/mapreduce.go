@@ -125,9 +125,11 @@ func (mr *client) Track(opID yt.OperationID) (Operation, error) {
 
 func (mr *client) WithTx(tx yt.Tx) Client {
 	return &client{
-		ctx:    mr.ctx,
-		yc:     mr.yc,
-		tx:     tx,
-		config: mr.config,
+		ctx:         mr.ctx,
+		yc:          mr.yc,
+		tx:          tx,
+		config:      mr.config,
+		jobStateKey: mr.jobStateKey,
+		aead:        mr.aead,
 	}
 }

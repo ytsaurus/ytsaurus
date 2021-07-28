@@ -1,6 +1,7 @@
 package mapreduce
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"os"
@@ -46,13 +47,13 @@ func JobMain() int {
 		return 5
 	}
 
-	stateFile, err := os.Open("job-state")
+	stateBlob, err := readJobState(&ctx)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
 		return 6
 	}
 
-	state, err := decodeJob(stateFile)
+	state, err := decodeJob(bytes.NewBuffer(stateBlob))
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
 		return 7
