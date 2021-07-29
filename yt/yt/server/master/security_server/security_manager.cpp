@@ -2026,7 +2026,7 @@ public:
 
         if (IsSafeMode()) {
             error = TError(
-                NSecurityClient::EErrorCode::AuthorizationError,
+                NSecurityClient::EErrorCode::SafeModeEnabled,
                 "Access denied for user %Qv: cluster is in safe mode; "
                 "check for announces at https://infra.yandex-team.ru before reporting any issues",
                 user->GetName());
