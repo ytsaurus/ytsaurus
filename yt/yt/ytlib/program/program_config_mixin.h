@@ -11,16 +11,18 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr char DefaultArgumentName[] = "config";
-
-template <class TConfig, const char* ArgumentName = DefaultArgumentName>
+template <class TConfig, class TDynamicConfig = void>
 class TProgramConfigMixin
 {
 protected:
-    explicit TProgramConfigMixin(NLastGetopt::TOpts& opts, bool required = true)
+    explicit TProgramConfigMixin(
+        NLastGetopt::TOpts& opts,
+        bool required = true,
+        const TString& argumentName = "config")
+        : ArgumentName_(argumentName)
     {
         auto opt = opts
-            .AddLongOption(TString(ArgumentName), Format("path to %v file", ArgumentName))
+            .AddLongOption(TString(argumentName), Format("path to %v file", argumentName))
             .StoreMappedResult(&ConfigPath_, &CheckPathExistsArgMapper)
             .RequiredArgument("FILE");
         if (required) {
@@ -30,14 +32,24 @@ protected:
         }
         opts
             .AddLongOption(
-                Format("%v-template", ArgumentName),
-                Format("print %v template and exit", ArgumentName))
+                Format("%v-template", argumentName),
+                Format("print %v template and exit", argumentName))
             .SetFlag(&ConfigTemplate_);
         opts
             .AddLongOption(
-                Format("%v-actual", ArgumentName),
-                Format("print actual %v and exit", ArgumentName))
+                Format("%v-actual", argumentName),
+                Format("print actual %v and exit", argumentName))
             .SetFlag(&ConfigActual_);
+
+        if constexpr (std::is_same_v<TDynamicConfig, void>) {
+            return;
+        }
+
+        opts
+            .AddLongOption(
+                Format("dynamic-%v-template", argumentName),
+                Format("print dynamic %v template and exit", argumentName))
+            .SetFlag(&DynamicConfigTemplate_);
     }
 
     TIntrusivePtr<TConfig> GetConfig(bool returnNullIfNotSupplied = false)
@@ -66,7 +78,7 @@ protected:
 
     bool HandleConfigOptions()
     {
-        auto print = [] (const TIntrusivePtr<TConfig>& config) {
+        auto print = [] (const auto& config) {
             using namespace NYson;
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
             config->Save(&writer);
@@ -80,6 +92,13 @@ protected:
             print(GetConfig());
             return true;
         }
+
+        if constexpr (!std::is_same_v<TDynamicConfig, void>) {
+            if (DynamicConfigTemplate_) {
+                print(New<TDynamicConfig>());
+                return true;
+            }
+        }
         return false;
     }
 
@@ -89,7 +108,7 @@ private:
         using namespace NYTree;
 
         if (!ConfigPath_){
-            THROW_ERROR_EXCEPTION("Missing --%v option", ArgumentName);
+            THROW_ERROR_EXCEPTION("Missing --%v option", ArgumentName_);
         }
 
         try {
@@ -97,7 +116,7 @@ private:
             ConfigNode_ = ConvertToNode(&stream);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing %v file %v",
-                ArgumentName,
+                ArgumentName_,
                 ConfigPath_)
                 << ex;
         }
@@ -115,15 +134,18 @@ private:
             Config_->Load(ConfigNode_);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error loading %v file %v",
-                ArgumentName,
+                ArgumentName_,
                 ConfigPath_)
                 << ex;
         }
     }
 
+    const TString ArgumentName_;
+
     TString ConfigPath_;
     bool ConfigTemplate_;
     bool ConfigActual_;
+    bool DynamicConfigTemplate_ = false;
 
     TIntrusivePtr<TConfig> Config_;
     NYTree::INodePtr ConfigNode_;
