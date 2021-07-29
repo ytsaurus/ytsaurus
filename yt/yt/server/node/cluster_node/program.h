@@ -27,7 +27,7 @@ class TClusterNodeProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
     , public TProgramToolMixin
-    , public TProgramConfigMixin<NClusterNode::TClusterNodeConfig>
+    , public TProgramConfigMixin<NClusterNode::TClusterNodeConfig, NClusterNode::TClusterNodeDynamicConfig>
 {
 public:
     TClusterNodeProgram()
