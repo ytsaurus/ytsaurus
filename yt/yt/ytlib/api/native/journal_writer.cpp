@@ -261,6 +261,7 @@ private:
 
         NErasure::ECodec ErasureCodec_ = NErasure::ECodec::None;
         int ReplicationFactor_ = -1;
+        int ReplicaCount_ = -1;
         int ReadQuorum_ = -1;
         int WriteQuorum_ = -1;
         TString Account_;
@@ -553,15 +554,19 @@ private:
                 auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
                 ErasureCodec_ = attributes->Get<NErasure::ECodec>("erasure_codec");
                 ReplicationFactor_ = attributes->Get<int>("replication_factor");
+                ReplicaCount_ = ErasureCodec_ == NErasure::ECodec::None
+                    ? ReplicationFactor_
+                    : NErasure::GetCodec(ErasureCodec_)->GetTotalPartCount();
                 ReadQuorum_ = attributes->Get<int>("read_quorum");
                 WriteQuorum_ = attributes->Get<int>("write_quorum");
                 Account_ = attributes->Get<TString>("account");
                 PrimaryMedium_ = attributes->Get<TString>("primary_medium");
 
-                YT_LOG_DEBUG("Extended journal attributes received (ErasureCodec: %v, ReplicationFactor: %v, WriteQuorum: %v, "
-                    "Account: %v, PrimaryMedium: %v)",
+                YT_LOG_DEBUG("Extended journal attributes received (ErasureCodec: %v, ReplicationFactor: %v, ReplicaCount: %v, "
+                    "WriteQuorum: %v, Account: %v, PrimaryMedium: %v)",
                     ErasureCodec_,
                     ReplicationFactor_,
+                    ReplicaCount_,
                     WriteQuorum_,
                     Account_,
                     PrimaryMedium_);
@@ -692,18 +697,14 @@ private:
 
             auto chunkId = session->Id.ChunkId;
 
-            int replicaCount = ErasureCodec_ == NErasure::ECodec::None
-                ? ReplicationFactor_
-                : NErasure::GetCodec(ErasureCodec_)->GetTotalPartCount();
-
             TChunkReplicaWithMediumList replicas;
             try {
                 TEventTimerGuard timingGuard(Counters_.AllocateWriteTargetsTimer);
                 replicas = AllocateWriteTargets(
                     Client_,
                     session->Id,
-                    replicaCount,
-                    replicaCount,
+                    ReplicaCount_,
+                    ReplicaCount_,
                     std::nullopt,
                     Config_->PreferLocalHost,
                     GetBannedNodes(),
@@ -714,9 +715,9 @@ private:
                 return nullptr;
             }
 
-            YT_VERIFY(std::ssize(replicas) == replicaCount);
+            YT_VERIFY(std::ssize(replicas) == ReplicaCount_);
             if (ErasureCodec_ != NErasure::ECodec::None) {
-                for (int index = 0; index < replicaCount; ++index) {
+                for (int index = 0; index < ReplicaCount_; ++index) {
                     replicas[index] = TChunkReplicaWithMedium(replicas[index].GetNodeId(), index, replicas[index].GetMediumIndex());
                 }
             }
@@ -1533,7 +1534,7 @@ private:
             bool flushAllReplicas = false;
             while (!ReplicationFactorUnflushedBatches_.empty()) {
                 auto batch = ReplicationFactorUnflushedBatches_.front();
-                if (batch->FlushedReplicas < ReplicationFactor_) {
+                if (batch->FlushedReplicas < ReplicaCount_) {
                     break;
                 }
 
