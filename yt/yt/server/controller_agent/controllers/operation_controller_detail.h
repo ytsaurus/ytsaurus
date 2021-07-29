@@ -674,6 +674,9 @@ protected:
 
     i64 GetPartSize(EOutputTableType tableType);
 
+    void FlushFeatures();
+    void FinalizeFeatures();
+
     // Revival.
     void ReinstallLivePreview();
 
@@ -1329,6 +1332,19 @@ private:
         TThis* Controller_;
         int OutputTableIndex_ = -1;
     };
+
+    class TControllerFeatures
+    {
+    public:
+        void AddSingularFeature(TStringBuf name, double value);
+        void AddCountedFeature(TStringBuf name, double value);
+        THashMap<TString, double> FlushFeatures();
+
+    private:
+        THashMap<TString, double> Features_;
+    };
+
+    TControllerFeatures controllerFeatures_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

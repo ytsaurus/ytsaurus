@@ -1922,9 +1922,35 @@ i64 TOperationControllerBase::GetPartSize(EOutputTableType tableType)
     YT_ABORT();
 }
 
+void TOperationControllerBase::FlushFeatures()
+{
+    if (!DebugTransaction) {
+        return;
+    }
+    const auto& client = Host->GetClient();
+    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+
+    auto path = GetOperationPath(OperationId) + "/@controller_features";
+    auto req = TYPathProxy::Set(path);
+    SetTransactionId(req, DebugTransaction->GetId());
+    req->set_value(ConvertToYsonString(controllerFeatures_.FlushFeatures()).ToString());
+
+    WaitFor(proxy.Execute(req))
+        .ThrowOnError();
+}
+
+void TOperationControllerBase::FinalizeFeatures()
+{
+    controllerFeatures_.AddSingularFeature("wall_time", (TInstant::Now() - StartTime).MilliSeconds());
+    controllerFeatures_.AddSingularFeature("peak_controller_memory_usage", PeakMemoryUsage_);
+}
+
 void TOperationControllerBase::SafeCommit()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+
+    FinalizeFeatures();
 
     SleepInCommitStage(EDelayInsideOperationCommitStage::Start);
 
@@ -1942,6 +1968,7 @@ void TOperationControllerBase::SafeCommit()
     SleepInCommitStage(EDelayInsideOperationCommitStage::Stage5);
 
     CustomCommit();
+    FlushFeatures();
 
     LockOutputDynamicTables();
     CommitOutputCompletionTransaction();
@@ -3448,27 +3475,29 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
             tables.push_back(CoreTable_);
         }
 
-        if (!tables.empty()) {
-            try {
-                StartDebugCompletionTransaction();
+        try {
+            StartDebugCompletionTransaction();
+            if (!tables.empty()) {
                 BeginUploadOutputTables(tables);
                 AttachOutputChunks(tables);
                 EndUploadOutputTables(tables);
-                CommitDebugCompletionTransaction();
-
-                if (DebugTransaction) {
-                    WaitFor(DebugTransaction->Commit())
-                        .ThrowOnError();
-                    debugTransactionCommitted = true;
-                }
-            } catch (const std::exception& ex) {
-                // Bad luck we can't commit transaction.
-                // Such a pity can happen for example if somebody aborted our transaction manually.
-                YT_LOG_ERROR(ex, "Failed to commit debug transaction");
-                // Intentionally do not wait for abort.
-                // Transaction object may be in incorrect state, we need to abort using only transaction id.
-                AttachTransaction(DebugTransaction->GetId(), Client)->Abort();
             }
+            FinalizeFeatures();
+            FlushFeatures();
+            CommitDebugCompletionTransaction();
+
+            if (DebugTransaction) {
+                WaitFor(DebugTransaction->Commit())
+                    .ThrowOnError();
+                debugTransactionCommitted = true;
+            }
+        } catch (const std::exception& ex) {
+            // Bad luck we can't commit transaction.
+            // Such a pity can happen for example if somebody aborted our transaction manually.
+            YT_LOG_ERROR(ex, "Failed to commit debug transaction");
+            // Intentionally do not wait for abort.
+            // Transaction object may be in incorrect state, we need to abort using only transaction id.
+            AttachTransaction(DebugTransaction->GetId(), Client)->Abort();
         }
     }
 
@@ -9508,6 +9537,28 @@ void TOperationControllerBase::TSink::Persist(const TPersistenceContext& context
 }
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOperationControllerBase::TSink);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TOperationControllerBase::TControllerFeatures::AddSingularFeature(TStringBuf name, double value)
+{
+    Features_[name] += value;
+}
+
+void TOperationControllerBase::TControllerFeatures::AddCountedFeature(TStringBuf name, double value)
+{
+    TString sumFeature{name};
+    sumFeature += ".sum";
+    Features_[sumFeature] += value;
+    TString countFeature{name};
+    countFeature += ".count";
+    Features_[countFeature] += 1;
+}
+
+THashMap<TString, double> TOperationControllerBase::TControllerFeatures::FlushFeatures()
+{
+    return std::move(Features_);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

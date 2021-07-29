@@ -577,3 +577,41 @@ class TestUserJobAndJobIOExperiments(YTEnvSetup):
         assert spec["mapper"]["bar_spec"] == "original"
         assert spec["job_io"]["foo_spec"] == "patched"
         assert spec["job_io"]["bar_spec"] == "original"
+
+
+class TestControllerFeatures(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
+
+    @authors("alexkolodezny")
+    def test_controller_features(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"key": 1}])
+
+        op = map(
+            in_=["//tmp/t_in"],
+            out=[],
+            command="sleep 1",
+        )
+
+        features = get(op.get_path() + "/@controller_features")
+        assert features["peak_controller_memory_usage"] > 0
+        assert features["wall_time"] > 1000
+
+        op = map(
+            in_=["//tmp/t_in"],
+            out=[],
+            command="sleep 1 && exit 1",
+            spec={
+                "max_failed_job_count": 0,
+            },
+            track=False,
+        )
+
+        with raises_yt_error("Process exited with code 1"):
+            op.track()
+
+        features = get(op.get_path() + "/@controller_features")
+        assert features["wall_time"] > 1000
+        assert features["peak_controller_memory_usage"] > 0
