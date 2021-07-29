@@ -677,7 +677,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             }
         )
 
-        wait(lambda: op.get_job_count("completed") >= 100)
+        wait(lambda: op.get_job_count("completed") >= 100, None, 300)
         op.suspend()
 
         if (exists(op.get_path())):
