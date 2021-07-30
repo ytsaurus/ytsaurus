@@ -107,6 +107,8 @@ TReadOnlyMasterCommandBase<
 {
     this->RegisterParameter("read_from", this->Options.ReadFrom)
         .Optional();
+    this->RegisterParameter("disable_per_user_cache", this->Options.DisablePerUserCache)
+        .Optional();
     this->RegisterParameter("expire_after_successful_update_time", this->Options.ExpireAfterSuccessfulUpdateTime)
         .Optional();
     this->RegisterParameter("expire_after_failed_update_time", this->Options.ExpireAfterFailedUpdateTime)

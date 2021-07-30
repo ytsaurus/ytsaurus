@@ -689,6 +689,7 @@ message TMasterReadOptions
     optional uint64 expire_after_successful_update_time = 2; // TDuration
     optional uint64 expire_after_failed_update_time = 3; // TDuration
     optional int32 cache_sticky_group_size = 4;
+    optional bool disable_per_user_cache = 5;
 }
 
 // 103

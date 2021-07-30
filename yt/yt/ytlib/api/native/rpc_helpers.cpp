@@ -45,6 +45,7 @@ void SetCachingHeader(
     }
 
     auto* cachingHeaderExt = request->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
+    cachingHeaderExt->set_disable_per_user_cache(options.DisablePerUserCache);
     cachingHeaderExt->set_expire_after_successful_update_time(ToProto<i64>(options.ExpireAfterSuccessfulUpdateTime));
     cachingHeaderExt->set_expire_after_failed_update_time(ToProto<i64>(options.ExpireAfterFailedUpdateTime));
     if (refreshRevision != NHydra::NullRevision) {

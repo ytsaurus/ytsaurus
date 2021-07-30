@@ -122,10 +122,10 @@ private:
             YT_LOG_DEBUG("Started synchronizing cluster directory");
 
             TMasterReadOptions options{
-                EMasterChannelKind::Cache,
-                Config_->ExpireAfterSuccessfulUpdateTime,
-                Config_->ExpireAfterFailedUpdateTime,
-                1
+                .ReadFrom = EMasterChannelKind::Cache,
+                .ExpireAfterSuccessfulUpdateTime = Config_->ExpireAfterSuccessfulUpdateTime,
+                .ExpireAfterFailedUpdateTime = Config_->ExpireAfterFailedUpdateTime,
+                .CacheStickyGroupSize = 1
             };
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();

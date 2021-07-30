@@ -270,10 +270,10 @@ private:
     void UpdateProxies()
     {
         TMasterReadOptions options{
-            EMasterChannelKind::LocalCache,
-            Config_->ProxyUpdatePeriod,
-            Config_->ProxyUpdatePeriod,
-            1
+            .ReadFrom = EMasterChannelKind::LocalCache,
+            .ExpireAfterSuccessfulUpdateTime = Config_->ProxyUpdatePeriod,
+            .ExpireAfterFailedUpdateTime = Config_->ProxyUpdatePeriod,
+            .CacheStickyGroupSize = 1
         };
 
         auto connection = Bootstrap_->GetNativeConnection();
