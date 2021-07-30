@@ -185,8 +185,10 @@ bool TChunkFileWriter::WriteBlocks(const std::vector<TBlock>& blocks)
 TFuture<void> TChunkFileWriter::GetReadyEvent()
 {
     auto state = State_.load();
-    YT_VERIFY(state == EState::WritingBlocks || state == EState::Ready);
-
+    YT_VERIFY(
+        state == EState::WritingBlocks ||
+        state == EState::Ready ||
+        state == EState::Failed);
     return ReadyEvent_;
 }
 
