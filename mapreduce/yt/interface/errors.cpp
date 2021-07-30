@@ -73,7 +73,7 @@ static void SerializeError(const TYtError& error, IYsonConsumer* consumer)
     consumer->OnEndMap();
 }
 
-static TString DumpJobInfoForException(const TVector<TFailedJobInfo>& failedJobInfoList)
+static TString DumpJobInfoForException(const TOperationId& operationId, const TVector<TFailedJobInfo>& failedJobInfoList)
 {
     TStringBuilder output;
     // Exceptions have limit to contain 65508 bytes of text, so we also limit stderr text
@@ -86,6 +86,7 @@ static TString DumpJobInfoForException(const TVector<TFailedJobInfo>& failedJobI
         }
         TStringStream nextChunk;
         nextChunk << '\n';
+        nextChunk << "OperationId: " << GetGuidAsString(operationId) << " JobId: " << GetGuidAsString(failedJobInfo.JobId) << '\n';
         nextChunk << "Error: " << failedJobInfo.Error.FullDescription() << '\n';
         if (!failedJobInfo.Stderr.empty()) {
             nextChunk << "Stderr: " << Endl;
@@ -409,7 +410,7 @@ TOperationFailedError::TOperationFailedError(
 {
     *this << Error_.FullDescription();
     if (!FailedJobInfo_.empty()) {
-        *this << DumpJobInfoForException(FailedJobInfo_);
+        *this << DumpJobInfoForException(OperationId_, FailedJobInfo_);
     }
 }
 
