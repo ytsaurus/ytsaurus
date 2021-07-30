@@ -28,7 +28,7 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
-    DEFINE_BYVAL_RW_PROPERTY(int, SubtreeSize);
+    DEFINE_BYVAL_RW_PROPERTY(int, SubtreeSize, 1);
 
 public:
     explicit TNonversionedMapObjectBase(TObjectId id, bool isRoot = false);
