@@ -221,6 +221,9 @@ namespace NYT {
     template <class T, class = void>
     class TTableRangesReader;
 
+    template <typename T>
+    using TTableRangesReaderPtr = ::TIntrusivePtr<TTableRangesReader<T>>;
+
     template <class T>
     using TTableReaderPtr = ::TIntrusivePtr<TTableReader<T>>;
 
