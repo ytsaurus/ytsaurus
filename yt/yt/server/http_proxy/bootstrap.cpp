@@ -190,6 +190,8 @@ void TBootstrap::OnDynamicConfigChanged(
     ReconfigureSingletons(Config_, newConfig);
 
     DynamicConfig_.Store(newConfig);
+
+    Coordinator_->GetTraceSampler()->UpdateConfig(newConfig->Tracing);
 }
 
 void TBootstrap::HandleRequest(

@@ -170,8 +170,7 @@ public:
                     auto enableTracing = CgiParameters_.Get("chyt.enable_tracing");
                     traceContext->SetSampled(enableTracing == "1");
                 } else {
-                    auto* sampler = Bootstrap_->GetCoordinator()->GetTraceSampler();
-                    sampler->SampleTraceContext(User_, traceContext);
+                    Bootstrap_->GetCoordinator()->GetTraceSampler()->SampleTraceContext(User_, traceContext);
                 }
             }
 

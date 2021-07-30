@@ -13,21 +13,21 @@ TEST(Sampler, PerUser)
     config->MinPerUserSamples = 1;
     config->MinPerUserSamplesPeriod = TDuration::MilliSeconds(100);
 
-    TSampler sampler(config);
+    auto sampler = New<TSampler>(config);
 
     auto traceContext = TTraceContext::NewRoot("Test");
 
-    sampler.SampleTraceContext("prime", traceContext);
+    sampler->SampleTraceContext("prime", traceContext);
     ASSERT_TRUE(traceContext->IsSampled());
 
     traceContext->SetSampled(false);
 
-    sampler.SampleTraceContext("prime", traceContext);
+    sampler->SampleTraceContext("prime", traceContext);
     ASSERT_FALSE(traceContext->IsSampled());
 
     Sleep(TDuration::MilliSeconds(400));
 
-    sampler.SampleTraceContext("prime", traceContext);
+    sampler->SampleTraceContext("prime", traceContext);
     ASSERT_TRUE(traceContext->IsSampled());
 }
 

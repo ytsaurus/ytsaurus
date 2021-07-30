@@ -75,7 +75,7 @@ public:
     TProxyEntryPtr GetSelf();
 
     const TCoordinatorConfigPtr& GetConfig() const;
-    NTracing::TSampler* GetTraceSampler();
+    NTracing::TSamplerPtr GetTraceSampler();
 
     bool IsDead(const TProxyEntryPtr& proxy, TInstant at) const;
 
@@ -84,6 +84,7 @@ public:
 
 private:
     const TCoordinatorConfigPtr Config_;
+    const NTracing::TSamplerPtr Sampler_;
     TBootstrap* const Bootstrap_;
     const NApi::IClientPtr Client_;
     const NConcurrency::TPeriodicExecutorPtr UpdateStateExecutor_;
@@ -95,7 +96,6 @@ private:
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
     TProxyEntryPtr Self_;
-    NTracing::TSampler Sampler_;
     std::vector<TProxyEntryPtr> Proxies_;
 
     TInstant StatisticsUpdatedAt_;

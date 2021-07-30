@@ -34,7 +34,7 @@ struct IProxyCoordinator
     virtual bool GetOperableState() const = 0;
     virtual void ValidateOperable() const = 0;
 
-    virtual NTracing::TSampler* GetTraceSampler() = 0;
+    virtual const NTracing::TSamplerPtr& GetTraceSampler() = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(const std::optional<TString>& newRole), OnProxyRoleChanged);
 };
