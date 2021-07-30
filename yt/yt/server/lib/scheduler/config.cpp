@@ -90,6 +90,9 @@ TFairShareStrategySchedulingSegmentsConfig::TFairShareStrategySchedulingSegments
     RegisterParameter("data_centers", DataCenters)
         .Default();
 
+    RegisterParameter("data_center_assignment_heuristic", DataCenterAssignmentHeuristic)
+        .Default(ESchedulingSegmentDataCenterAssignmentHeuristic::MaxRemainingCapacity);
+
     RegisterPostprocessor([&] {
         for (const auto& dataCenter : DataCenters) {
             ValidateDataCenterName(dataCenter);

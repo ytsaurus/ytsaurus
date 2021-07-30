@@ -62,6 +62,7 @@ private:
         TManageNodeSchedulingSegmentsContext* context,
         const TString& treeId,
         const TSegmentToResourceAmount& currentResourceAmountPerSegment,
+        const THashMap<TDataCenter, double> totalResourceAmountPerDataCenter,
         NProfiling::ISensorWriter* sensorWriter) const;
 
     void RebalanceSegmentsInTree(

@@ -3970,6 +3970,9 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
     def _get_fair_share_ratio(self, op, tree="default"):
         return get(scheduler_orchid_operation_path(op, tree) + "/fair_share_ratio", default=0.0)
 
+    def _get_data_center(self, op, tree="default"):
+        return get(scheduler_orchid_operation_path(op.id, tree) + "/scheduling_segment_data_center", default=None)
+
     @classmethod
     def setup_class(cls):
         if is_asan_build():
@@ -4035,9 +4038,8 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
 
-        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment_data_center", default=None)
-                     in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
-        dc = get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment_data_center")
+        wait(lambda: self._get_data_center(op) in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
+        dc = self._get_data_center(op)
 
         wait(lambda: len(op.get_running_jobs()) == 5)
         jobs = op.get_running_jobs()
@@ -4064,7 +4066,7 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             ops.append(op)
             wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
 
-        dcs = [get(scheduler_orchid_operation_path(op_.id) + "/scheduling_segment_data_center") for op_ in ops]
+        dcs = [self._get_data_center(op_) for op_ in ops]
         assert dcs[0] != dcs[1]
         for i in range(2, 10):
             assert dcs[i] == dcs[i - 2]
@@ -4086,7 +4088,7 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 0.4))
-        big_dc = get(scheduler_orchid_operation_path(big_op.id) + "/scheduling_segment_data_center")
+        big_dc = self._get_data_center(big_op)
 
         for i in range(4):
             op = run_sleeping_vanilla(
@@ -4094,7 +4096,7 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
                 task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
             )
             wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
-            wait(lambda: big_dc != get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment_data_center"))
+            wait(lambda: big_dc != self._get_data_center(op))
 
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.2))
 
@@ -4106,14 +4108,14 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 0.4))
-        big_dc = get(scheduler_orchid_operation_path(big_op.id) + "/scheduling_segment_data_center")
+        big_dc = self._get_data_center(big_op)
 
         op = run_sleeping_vanilla(
             spec={"pool": "large_gpu", "scheduling_segment_data_centers": [big_dc]},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
-        wait(lambda: big_dc == get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment_data_center"))
+        wait(lambda: big_dc == self._get_data_center(op))
 
     @authors("eshcherbin")
     def test_data_center_reconsideration(self):
@@ -4123,7 +4125,7 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 0.5))
-        big_dc = get(scheduler_orchid_operation_path(big_op.id) + "/scheduling_segment_data_center")
+        big_dc = self._get_data_center(big_op)
 
         node_to_disappear = None
         for node in ls("//sys/cluster_nodes"):
@@ -4139,7 +4141,7 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
 
         set("//sys/pool_trees/default/@config/scheduling_segments/data_center_reconsideration_timeout", 5000)
         wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 5. / 9.))
-        wait(lambda: big_dc != get(scheduler_orchid_operation_path(big_op.id) + "/scheduling_segment_data_center"))
+        wait(lambda: big_dc != self._get_data_center(big_op))
         wait(lambda: big_op.get_job_count("aborted") >= 5)
 
     @authors("eshcherbin")
@@ -4160,7 +4162,7 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 0.3))
-        big_dc = get(scheduler_orchid_operation_path(big_op.id) + "/scheduling_segment_data_center")
+        big_dc = self._get_data_center(big_op)
 
         opportunistic_op = run_sleeping_vanilla(
             job_count=2,
@@ -4177,7 +4179,7 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.2))
-        wait(lambda: big_dc != get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment_data_center"))
+        wait(lambda: big_dc != self._get_data_center(op))
 
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.5))
 
@@ -4205,7 +4207,7 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             pass
 
         for op, dc in zip(ops, dcs):
-            wait(lambda: dc == get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment_data_center", default=None))
+            wait(lambda: dc == self._get_data_center(op))
 
     @authors("eshcherbin")
     def test_profiling(self):
@@ -4213,6 +4215,10 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout") == 1000000000)
 
         profiler = Profiler.at_scheduler()
+
+        for dc in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS:
+            wait(lambda: profiler.gauge("scheduler/segments/data_center_capacity", fixed_tags={"data_center": dc}).get() ==
+                         8 * (TestSchedulingSegmentsMultiDataCenter.NUM_NODES / 2))
 
         fair_resource_amount_default_sensor = profiler.gauge("scheduler/segments/fair_resource_amount", fixed_tags={"segment": "default"})
         current_resource_amount_default_sensor = profiler.gauge("scheduler/segments/current_resource_amount", fixed_tags={"segment": "default"})
@@ -4243,9 +4249,8 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_fair_share_ratio(op1.id), 0.1))
-        wait(lambda: get(scheduler_orchid_operation_path(op1.id) + "/scheduling_segment_data_center")
-                     in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
-        op1_dc = get(scheduler_orchid_operation_path(op1.id) + "/scheduling_segment_data_center")
+        wait(lambda: self._get_data_center(op1) in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
+        op1_dc = self._get_data_center(op1)
 
         time.sleep(3.0)
 
@@ -4267,9 +4272,8 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_fair_share_ratio(op2.id), 0.2))
-        wait(lambda: get(scheduler_orchid_operation_path(op2.id) + "/scheduling_segment_data_center")
-                     in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
-        op2_dc = get(scheduler_orchid_operation_path(op2.id) + "/scheduling_segment_data_center")
+        wait(lambda: self._get_data_center(op2) in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
+        op2_dc = self._get_data_center(op2)
         assert op1_dc != op2_dc
 
         wait(lambda: fair_resource_amount_default_sensor.get() == 56)
@@ -4308,9 +4312,8 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.5))
-        wait(lambda: get(scheduler_orchid_operation_path(blocking_op.id) + "/scheduling_segment_data_center")
-                     in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
-        dc = get(scheduler_orchid_operation_path(blocking_op.id) + "/scheduling_segment_data_center")
+        wait(lambda: self._get_data_center(blocking_op) in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
+        dc = self._get_data_center(blocking_op)
         other_dc = [dz for dz in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS if dz != dc][0]
 
         op1 = run_sleeping_vanilla(
@@ -4342,6 +4345,42 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
         time.sleep(1.0)
         op4.wait_for_state("running")
         wait(lambda: are_almost_equal(self._get_usage_ratio(op4.id), 0.0))
+
+    @authors("eshcherbin")
+    def test_min_remaining_feasible_capacity_assignment_heuristic(self):
+        set("//sys/pool_trees/default/@config/scheduling_segments/data_center_assignment_heuristic", "min_remaining_feasible_capacity")
+        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/data_center_assignment_heuristic") ==
+                     "min_remaining_feasible_capacity")
+
+        op1 = run_sleeping_vanilla(
+            job_count=1,
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: self._get_data_center(op1) in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
+
+        op2 = run_sleeping_vanilla(
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: self._get_data_center(op2) in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
+
+        op3 = run_sleeping_vanilla(
+            job_count=4,
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: self._get_data_center(op3) in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
+
+        op4 = run_sleeping_vanilla(
+            job_count=3,
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: self._get_data_center(op4) in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
+
+        assert self._get_data_center(op1) == self._get_data_center(op2) == self._get_data_center(op4)
+        assert self._get_data_center(op1) != self._get_data_center(op3)
 
 
 ##################################################################
