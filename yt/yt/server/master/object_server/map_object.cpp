@@ -13,7 +13,6 @@ template <class TSelf>
 TNonversionedMapObjectBase<TSelf>::TNonversionedMapObjectBase(TObjectId id, bool isRoot)
     : TNonversionedObjectBase(id)
     , Acd_(this)
-    , SubtreeSize_(1)
     , IsRoot_(isRoot)
 { }
 
