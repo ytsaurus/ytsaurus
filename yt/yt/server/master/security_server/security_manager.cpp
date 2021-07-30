@@ -2818,7 +2818,7 @@ private:
 
         // COMPAT(savrus) COMPAT(shakurov)
         ValidateAccountResourceUsage_ = true;
-        RecomputeAccountResourceUsage_ = false;
+        RecomputeAccountResourceUsage_ = context.GetVersion() < EMasterReign::YT_15179;
 
         // COMPAT(aleksandra-zh)
         MustInitializeChunkHostMasterMemoryLimits_ = context.GetVersion() < EMasterReign::InitializeAccountChunkHostMasterMemory;
@@ -2933,11 +2933,12 @@ private:
             }
         }
 
+        RecomputeAccountResourceUsage();
+
         RecomputeAccountMasterMemoryUsage();
         RecomputeSubtreeSize(RootAccount_, /*validateMatch*/ true);
     }
 
-    // COMPAT(shakurov): currently unused but may become useful
     void RecomputeAccountResourceUsage()
     {
         if (!ValidateAccountResourceUsage_ && !RecomputeAccountResourceUsage_) {
@@ -2954,7 +2955,9 @@ private:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
 
-        // Recompute everything except chunk count and disk space.
+        // Recompute everything except:
+        //   - chunk count and disk space as they're recomputed below on chunk-by-chunk basis;
+        //   - master memory usage as it's always recomputed after loading.
         for (auto [nodeId, node] : cypressManager->Nodes()) {
             // NB: zombie nodes are still accounted.
             if (node->IsDestroyed()) {
@@ -2966,7 +2969,12 @@ private:
             }
 
             auto* account = node->GetAccount();
+
             auto usage = node->GetDeltaResourceUsage();
+            auto tabletResourceUsage = node->GetTabletResourceUsage();
+            usage.SetTabletCount(tabletResourceUsage.TabletCount);
+            usage.SetTabletStaticMemory(tabletResourceUsage.TabletStaticMemory);
+            usage.DetailedMasterMemory() = TDetailedMasterMemory();
             usage.SetChunkCount(0);
             usage.ClearDiskSpace();
 
@@ -3011,7 +3019,11 @@ private:
             const TClusterResources& accountUsage,
             const TClusterResources& expectedUsage)
         {
-            if (accountUsage == expectedUsage) {
+            auto accountUsageCopy = accountUsage;
+            // Ignore master memory as it's always recomputed anyway.
+            accountUsageCopy.DetailedMasterMemory() = TDetailedMasterMemory();
+
+            if (accountUsageCopy == expectedUsage) {
                 return true;
             }
             if (account != SysAccount_) {
@@ -3019,7 +3031,6 @@ private:
             }
 
             // Root node requires special handling (unless resource usage have previously been recomputed).
-            auto accountUsageCopy = accountUsage;
             accountUsageCopy.SetNodeCount(accountUsageCopy.GetNodeCount() + 1);
             return accountUsageCopy == expectedUsage;
         };

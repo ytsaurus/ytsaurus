@@ -96,7 +96,8 @@ protected:
         TCypressNode* originatingNode,
         TCypressNode* branchedNode);
     void MergeCoreEpilogue(
-        TCypressNode* originatingNode);
+        TCypressNode* originatingNode,
+        TCypressNode* branchedNode);
 
     TCypressNode* CloneCorePrologue(
         ICypressNodeFactory* factory,
@@ -249,8 +250,7 @@ public:
         DoMerge(typedOriginatingNode, typedBranchedNode);
         DoLogMerge(typedOriginatingNode, typedBranchedNode);
 
-        // Update only originating node, because ResetAccount is called for branched node.
-        MergeCoreEpilogue(typedOriginatingNode);
+        MergeCoreEpilogue(typedOriginatingNode, typedBranchedNode);
     }
 
     virtual TCypressNode* Clone(
@@ -365,28 +365,11 @@ protected:
             lockRequest.Timestamp);
     }
 
-    virtual void DoMerge(
-        TImpl* originatingNode,
-        TImpl* branchedNode)
+    virtual void DoMerge(TImpl* /*originatingNode*/, TImpl* /*branchedNode*/)
     {
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ResetAccount(branchedNode);
-
-        auto oldExpirationTime = originatingNode->TryGetExpirationTime();
-        originatingNode->MergeExpirationTime(branchedNode);
-        auto newExpirationTime = originatingNode->TryGetExpirationTime();
-        if (originatingNode->IsTrunk() && newExpirationTime != oldExpirationTime) {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            cypressManager->SetExpirationTime(originatingNode, newExpirationTime);
-        }
-
-        auto oldExpirationTimeout = originatingNode->TryGetExpirationTimeout();
-        originatingNode->MergeExpirationTimeout(branchedNode);
-        auto newExpirationTimeout = originatingNode->TryGetExpirationTimeout();
-        if (originatingNode->IsTrunk() && newExpirationTimeout != oldExpirationTimeout) {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            cypressManager->SetExpirationTimeout(originatingNode, newExpirationTimeout);
-        }
+        // NB: some subclasses (namely, the journal type handler) don't
+        // chain-call base class method. So it's probably not a good idea to put
+        // any code here. (Hint: put it in MergeCore{Pro,Epi}logue instead.)
     }
 
     virtual void DoLogMerge(

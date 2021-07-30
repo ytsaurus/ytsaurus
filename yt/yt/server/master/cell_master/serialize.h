@@ -170,6 +170,7 @@ DEFINE_ENUM(EMasterReign,
     ((CopyDynamicTableAttributes)                                   (1644))  // ifsmirnov
     ((AutomatonThreadBucketWeights)                                 (1645))  // gritukan
     ((CellIdsInReshardTabletActions)                                (1646))  // ifsmirnov
+    ((YT_15179)                                                     (1647))  // shakurov
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1700))  // ignat
 );
