@@ -88,10 +88,11 @@ class SparkSubmissionClient(object):
     def __init__(self, gateway, proxy, discovery_path, spyt_version, user, token):
         self._jclient = gateway.jvm.ru.yandex.spark.yt.submit.SubmissionClient(proxy, discovery_path,
                                                                                spyt_version, user, token)
+        self.gateway = gateway
 
     def new_launcher(self):
         jlauncher = self._jclient.newLauncher()
-        return SparkLauncher(jlauncher)
+        return SparkLauncher(jlauncher, self.gateway)
 
     def submit(self, launcher):
         return self._jclient.submit(launcher._jlauncher)
@@ -147,8 +148,9 @@ class SparkLauncher(object):
         instance = super(SparkLauncher, cls).__new__(cls)
         return instance
 
-    def __init__(self, jlauncher):
+    def __init__(self, jlauncher, gateway):
         self._jlauncher = jlauncher
+        self._jutils = gateway.jvm.ru.yandex.spark.yt.submit.InProcessLauncherPythonUtils
 
     def set_app_resource(self, resource):
         self._jlauncher.setAppResource(resource)
@@ -178,7 +180,8 @@ class SparkLauncher(object):
         return self
 
     def add_app_args(self, *args):
-        self._jlauncher.addAppArgs(args)
+        for arg in args:
+            self._jutils.addAppArg(self._jlauncher, arg)
         return self
 
     def add_jar(self, jar):
