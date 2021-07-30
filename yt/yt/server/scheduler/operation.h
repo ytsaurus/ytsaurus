@@ -123,8 +123,8 @@ struct IOperationStrategyHost
     virtual TInstant GetStartTime() const = 0;
 
     virtual std::optional<int> FindSlotIndex(const TString& treeId) const = 0;
-    virtual int GetSlotIndex(const TString& treeId) const = 0;
     virtual void SetSlotIndex(const TString& treeId, int index) = 0;
+    virtual void ReleaseSlotIndex(const TString& treeId) = 0;
 
     virtual TString GetAuthenticatedUser() const = 0;
 
@@ -334,9 +334,9 @@ public:
         const THashMap<TString, TString>& attributes = {});
 
     //! Slot index machinery.
-    std::optional<int> FindSlotIndex(const TString& treeId) const override;
-    int GetSlotIndex(const TString& treeId) const override;
-    void SetSlotIndex(const TString& treeId, int value) override;
+    virtual std::optional<int> FindSlotIndex(const TString& treeId) const override;
+    virtual void SetSlotIndex(const TString& treeId, int value) override;
+    virtual void ReleaseSlotIndex(const TString& treeId) override;
     const THashMap<TString, int>& GetSlotIndices() const;
 
     TOperationRuntimeParametersPtr GetRuntimeParameters() const override;

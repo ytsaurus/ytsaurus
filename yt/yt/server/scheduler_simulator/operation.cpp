@@ -53,20 +53,18 @@ TString TOperation::GetAuthenticatedUser() const
 
 void TOperation::SetSlotIndex(const TString& treeId, int value)
 {
-    TreeIdToSlotIndex_.emplace(treeId, value);
+    TreeIdToSlotIndex_[treeId] = value;
+}
+
+void TOperation::ReleaseSlotIndex(const TString& treeId)
+{
+    YT_VERIFY(TreeIdToSlotIndex_.erase(treeId) == 1);
 }
 
 std::optional<int> TOperation::FindSlotIndex(const TString& treeId) const
 {
     auto it = TreeIdToSlotIndex_.find(treeId);
     return it != TreeIdToSlotIndex_.end() ? std::make_optional(it->second) : std::nullopt;
-}
-
-int TOperation::GetSlotIndex(const TString& treeId) const
-{
-    auto slotIndex = FindSlotIndex(treeId);
-    YT_VERIFY(slotIndex);
-    return *slotIndex;
 }
 
 NScheduler::IOperationControllerStrategyHostPtr TOperation::GetControllerStrategyHost() const

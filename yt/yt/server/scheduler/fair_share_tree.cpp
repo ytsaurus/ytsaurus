@@ -346,12 +346,11 @@ public:
         auto oldParent = element->GetMutableParent();
         auto newParent = GetOrCreatePool(newPool, state->GetHost()->GetAuthenticatedUser());
 
-        int slotIndex = AllocateOperationSlotIndex(state, newParent->GetId());
-        state->GetHost()->SetSlotIndex(TreeId_, slotIndex);
-
-        element->ChangeParent(newParent.Get(), slotIndex);
-
         OnOperationRemovedFromPool(state, element, oldParent);
+
+        int newSlotIndex = AllocateOperationSlotIndex(state, newParent->GetId());
+        element->ChangeParent(newParent.Get(), newSlotIndex);
+        state->GetHost()->SetSlotIndex(TreeId_, newSlotIndex);
 
         YT_VERIFY(OnOperationAddedToPool(state, element));
 
@@ -1865,9 +1864,7 @@ private:
 
     int AllocateOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName)
     {
-        auto currentSlotIndex = state->GetHost()->FindSlotIndex(TreeId_);
-
-        if (currentSlotIndex) {
+        if (auto currentSlotIndex = state->GetHost()->FindSlotIndex(TreeId_)) {
             // Revive case
             if (TryAllocatePoolSlotIndex(poolName, *currentSlotIndex)) {
                 YT_LOG_DEBUG("Operation slot index reused (OperationId: %v, Pool: %v, SlotIndex: %v)",
@@ -1905,6 +1902,7 @@ private:
     {
         auto slotIndex = state->GetHost()->FindSlotIndex(TreeId_);
         YT_VERIFY(slotIndex);
+        state->GetHost()->ReleaseSlotIndex(TreeId_);
 
         auto it = PoolToSpareSlotIndices_.find(poolName);
         if (it == PoolToSpareSlotIndices_.end()) {

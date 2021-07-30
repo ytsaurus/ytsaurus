@@ -331,12 +331,10 @@ public:
         return 0;
     }
 
-    virtual int GetSlotIndex(const TString& /*treeId*/) const override
-    {
-        return 0;
-    }
+    virtual void SetSlotIndex(const TString& /*treeId*/, int /*slotIndex*/) override
+    { }
 
-    virtual void SetSlotIndex(const TString& /* treeId */, int /* slotIndex */) override
+    virtual void ReleaseSlotIndex(const TString& /*treeId*/) override
     { }
 
     virtual TString GetAuthenticatedUser() const override
