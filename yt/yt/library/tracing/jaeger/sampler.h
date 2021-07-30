@@ -54,6 +54,7 @@ DEFINE_REFCOUNTED_TYPE(TSamplerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSampler
+    : public TRefCounted
 {
 public:
     TSampler();
@@ -82,6 +83,8 @@ private:
     NConcurrency::TSyncMap<TString, TIntrusivePtr<TUserState>> Users_;
     NProfiling::TCounter TracesSampled_;
 };
+
+DEFINE_REFCOUNTED_TYPE(TSampler)
 
 ////////////////////////////////////////////////////////////////////////////////
 

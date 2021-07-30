@@ -99,6 +99,7 @@ TCoordinator::TCoordinator(
     const TProxyConfigPtr& config,
     TBootstrap* bootstrap)
     : Config_(config->Coordinator)
+    , Sampler_(New<TSampler>())
     , Bootstrap_(bootstrap)
     , Client_(bootstrap->GetRootClient())
     , UpdateStateExecutor_(New<TPeriodicExecutor>(
@@ -216,9 +217,9 @@ const TCoordinatorConfigPtr& TCoordinator::GetConfig() const
     return Config_;
 }
 
-TSampler* TCoordinator::GetTraceSampler()
+TSamplerPtr TCoordinator::GetTraceSampler()
 {
-    return &Sampler_;
+    return Sampler_;
 }
 
 std::vector<TProxyEntryPtr> TCoordinator::ListCypressProxies()

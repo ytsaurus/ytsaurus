@@ -49,13 +49,14 @@ public:
     virtual bool GetOperableState() const override;
     virtual void ValidateOperable() const override;
 
-    virtual TSampler* GetTraceSampler() override;
+    virtual const TSamplerPtr& GetTraceSampler() override;
 
 public:
     DEFINE_SIGNAL(void(const std::optional<TString>&), OnProxyRoleChanged);
 
 private:
     TBootstrap* Bootstrap_;
+    const NTracing::TSamplerPtr Sampler_;
 
     std::atomic<bool> Banned_ = false;
     std::atomic<bool> Available_ = false;
@@ -64,7 +65,6 @@ private:
 
     TAtomicObject<std::optional<TString>> ProxyRole_;
 
-    NTracing::TSampler Sampler_;
 
     void BuildOrchid(IYsonConsumer* consumer);
 
@@ -75,6 +75,7 @@ private:
 
 TProxyCoordinator::TProxyCoordinator(TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
+    , Sampler_(New<TSampler>())
 { }
 
 void TProxyCoordinator::Initialize()
@@ -140,16 +141,16 @@ void TProxyCoordinator::ValidateOperable() const
     }
 }
 
-TSampler* TProxyCoordinator::GetTraceSampler()
+const TSamplerPtr& TProxyCoordinator::GetTraceSampler()
 {
-    return &Sampler_;
+    return Sampler_;
 }
 
 void TProxyCoordinator::OnDynamicConfigChanged(
     const TProxyDynamicConfigPtr& /*oldConfig*/,
     const TProxyDynamicConfigPtr& newConfig)
 {
-    Sampler_.UpdateConfig(newConfig->Tracing);
+    Sampler_->UpdateConfig(newConfig->Tracing);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

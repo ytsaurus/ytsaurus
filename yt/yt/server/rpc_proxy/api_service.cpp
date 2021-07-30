@@ -510,8 +510,7 @@ private:
         }
 
         const auto& identity = context->GetAuthenticationIdentity();
-        auto* sampler = Coordinator_->GetTraceSampler();
-        sampler->SampleTraceContext(identity.User, traceContext);
+        Coordinator_->GetTraceSampler()->SampleTraceContext(identity.User, traceContext);
 
         if (traceContext->IsRecorded()) {
             traceContext->AddTag("user", identity.User);
