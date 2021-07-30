@@ -152,6 +152,8 @@ public:
 
     THashSet<TString> DataCenters;
 
+    ESchedulingSegmentDataCenterAssignmentHeuristic DataCenterAssignmentHeuristic;
+
     TFairShareStrategySchedulingSegmentsConfig();
 };
 

@@ -140,6 +140,11 @@ DEFINE_ENUM(ESegmentedSchedulingMode,
     (LargeGpu)
 );
 
+DEFINE_ENUM(ESchedulingSegmentDataCenterAssignmentHeuristic,
+    (MaxRemainingCapacity)
+    (MinRemainingFeasibleCapacity)
+);
+
 static constexpr int MaxNodeShardCount = 32;
 
 ////////////////////////////////////////////////////////////////////////////////

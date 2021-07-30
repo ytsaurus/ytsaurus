@@ -58,7 +58,12 @@ void TNodeSchedulingSegmentManager::ManageNodeSegments(TManageNodeSchedulingSegm
                 ResetTree(context, treeId);
             }
 
-            LogAndProfileSegmentsInTree(context, treeId, /* currentResourceAmountPerSegment */ {}, &sensorBuffer);
+            LogAndProfileSegmentsInTree(
+                context,
+                treeId,
+                /*currentResourceAmountPerSegment*/ {},
+                /*totalResourceAmountPerDataCenter*/ {},
+                &sensorBuffer);
 
             continue;
         }
@@ -67,6 +72,7 @@ void TNodeSchedulingSegmentManager::ManageNodeSegments(TManageNodeSchedulingSegm
         YT_VERIFY(strategyTreeState.KeyResource == keyResource);
 
         TSegmentToResourceAmount currentResourceAmountPerSegment;
+        THashMap<TDataCenter, double> totalResourceAmountPerDataCenter;
         for (auto nodeId : context->NodeIdsPerTree[treeId]) {
             const auto& node = GetOrCrash(*context->ExecNodeDescriptors, nodeId);
             auto resourceAmountOnNode = GetNodeResourceLimit(node, keyResource);
@@ -74,9 +80,15 @@ void TNodeSchedulingSegmentManager::ManageNodeSegments(TManageNodeSchedulingSegm
                 ? currentResourceAmountPerSegment.At(node.SchedulingSegment).MutableAt(node.DataCenter)
                 : currentResourceAmountPerSegment.At(node.SchedulingSegment).Mutable();
             currentResourceAmount += resourceAmountOnNode;
+            totalResourceAmountPerDataCenter[node.DataCenter] += resourceAmountOnNode;
         }
 
-        LogAndProfileSegmentsInTree(context, treeId, currentResourceAmountPerSegment, &sensorBuffer);
+        LogAndProfileSegmentsInTree(
+            context,
+            treeId,
+            currentResourceAmountPerSegment,
+            totalResourceAmountPerDataCenter,
+            &sensorBuffer);
 
         auto [isSegmentUnsatisfied, hasUnsatisfiedSegment] = FindUnsatisfiedSegmentsInTree(context, treeId, currentResourceAmountPerSegment);
 
@@ -178,6 +190,7 @@ void TNodeSchedulingSegmentManager::LogAndProfileSegmentsInTree(
     TManageNodeSchedulingSegmentsContext* context,
     const TString& treeId,
     const TSegmentToResourceAmount& currentResourceAmountPerSegment,
+    const THashMap<TDataCenter, double> totalResourceAmountPerDataCenter,
     ISensorWriter* sensorWriter) const
 {
     const auto& strategyTreeState = context->StrategySegmentsState.TreeStates[treeId];
@@ -186,14 +199,15 @@ void TNodeSchedulingSegmentManager::LogAndProfileSegmentsInTree(
     if (segmentedSchedulingEnabled) {
         YT_LOG_DEBUG(
             "Scheduling segments state in tree "
-            "(TreeId: %v, Mode: %v, DataCenters: %v, KeyResource: %v, FairSharePerSegment: %v, TotalKeyResourceAmount: %v, "
-            "FairResourceAmountPerSegment: %v, CurrentResourceAmountPerSegment: %v)",
+            "(TreeId: %v, Mode: %v, DataCenters: %v, KeyResource: %v, FairSharePerSegment: %v, TotalResourceAmount: %v, "
+            "TotalResourceAmountPerDataCenter: %v, FairResourceAmountPerSegment: %v, CurrentResourceAmountPerSegment: %v)",
             treeId,
             strategyTreeState.Mode,
             strategyTreeState.DataCenters,
             GetSegmentBalancingKeyResource(strategyTreeState.Mode),
             strategyTreeState.FairSharePerSegment,
             strategyTreeState.TotalKeyResourceAmount,
+            totalResourceAmountPerDataCenter,
             strategyTreeState.FairResourceAmountPerSegment,
             currentResourceAmountPerSegment);
     } else {
@@ -230,6 +244,14 @@ void TNodeSchedulingSegmentManager::LogAndProfileSegmentsInTree(
             sensorWriter->AddGauge("/fair_resource_amount", 0.0);
             sensorWriter->AddGauge("/current_resource_amount", 0.0);
         }
+    }
+
+    for (const auto& dataCenter : strategyTreeState.DataCenters) {
+        auto it = totalResourceAmountPerDataCenter.find(dataCenter);
+        auto dataCenterCapacity = it != totalResourceAmountPerDataCenter.end() ? it->second : 0.0;
+
+        TWithTagGuard guard(sensorWriter, TTag{"data_center", ToString(dataCenter)});
+        sensorWriter->AddGauge("/data_center_capacity", dataCenterCapacity);
     }
 }
 
@@ -699,9 +721,31 @@ void TStrategySchedulingSegmentManager::AssignOperationsToDataCentersInTree(
 
     for (const auto& [operationId, operation] : operationsToAssignToDataCenter) {
         const auto& segment = operation->Segment;
+        auto operationDemand = GetResource(operation->ResourceDemand, keyResource);
+
+        std::function<bool(double, double)> isDataCenterBetter;
+        double initialBestRemainingCapacity;
+        switch (treeConfig->SchedulingSegments->DataCenterAssignmentHeuristic) {
+            case ESchedulingSegmentDataCenterAssignmentHeuristic::MaxRemainingCapacity:
+                isDataCenterBetter = [] (double remainingCapacity, double bestRemainingCapacity) {
+                    return bestRemainingCapacity < remainingCapacity;
+                };
+                initialBestRemainingCapacity = std::numeric_limits<double>::lowest();
+                break;
+
+            case ESchedulingSegmentDataCenterAssignmentHeuristic::MinRemainingFeasibleCapacity:
+                isDataCenterBetter = [operationDemand] (double remainingCapacity, double bestRemainingCapacity) {
+                    return remainingCapacity >= operationDemand && bestRemainingCapacity > remainingCapacity;
+                };
+                initialBestRemainingCapacity = std::numeric_limits<double>::max();
+                break;
+
+            default:
+                YT_ABORT();
+        }
 
         TDataCenter bestDataCenter;
-        auto bestDataCenterRemainingCapacity = std::numeric_limits<double>::lowest();
+        auto bestRemainingCapacity = initialBestRemainingCapacity;
         for (const auto& [dataCenter, remainingCapacity] : remainingCapacityPerDataCenter) {
             YT_VERIFY(dataCenter);
 
@@ -711,19 +755,24 @@ void TStrategySchedulingSegmentManager::AssignOperationsToDataCentersInTree(
                 }
             }
 
-            if (bestDataCenterRemainingCapacity < remainingCapacity) {
+            if (isDataCenterBetter(remainingCapacity, bestRemainingCapacity)) {
                 bestDataCenter = dataCenter;
-                bestDataCenterRemainingCapacity = remainingCapacity;
+                bestRemainingCapacity = remainingCapacity;
             }
         }
 
         if (!bestDataCenter) {
             YT_LOG_INFO(
-                "No available data center matches operation's specified scheduling segment data centers "
-                "(AvailableDataCenters: %v, SpecifiedDataCenters: %v, OperationId: %v)",
+                "Failed to find a suitable data center for operation "
+                "(AvailableDataCenters: %v, SpecifiedDataCenters: %v, OperationDemand: %v, "
+                "RemainingCapacityPerDataCenter: %v, TotalCapacityPerDataCenter: %v, OperationId: %v)",
                 state.DataCenters,
                 operation->SpecifiedDataCenters,
+                operationDemand,
+                remainingCapacityPerDataCenter,
+                totalCapacityPerDataCenter,
                 operationId);
+
             continue;
         }
 
@@ -732,7 +781,6 @@ void TStrategySchedulingSegmentManager::AssignOperationsToDataCentersInTree(
         operation->DataCenter = bestDataCenter;
         state.FairSharePerSegment.At(*segment).MutableAt(operation->DataCenter) += operationFairShare;
 
-        auto operationDemand = GetResource(operation->ResourceDemand, keyResource);
         state.FairResourceAmountPerSegment.At(*segment).MutableAt(operation->DataCenter) += operationDemand;
         remainingCapacityPerDataCenter[operation->DataCenter] -= operationDemand;
 
