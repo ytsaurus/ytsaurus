@@ -601,9 +601,11 @@ private:
                     "Mutating requests cannot be cached");
             }
 
+            const auto& cachingRequestHeaderExt = requestHeader.GetExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
+
             TObjectServiceCacheKey key(
                 Bootstrap_->GetCellTag(),
-                RpcContext_->GetAuthenticationIdentity().User,
+                cachingRequestHeaderExt.disable_per_user_cache() ? TString() : RpcContext_->GetAuthenticationIdentity().User,
                 subrequest.YPathExt->target_path(),
                 requestHeader.service(),
                 requestHeader.method(),
@@ -614,7 +616,6 @@ private:
                 subrequestIndex,
                 key);
 
-            const auto& cachingRequestHeaderExt = requestHeader.GetExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
             auto refreshRevision = cachingRequestHeaderExt.refresh_revision();
             auto cookie = Owner_->Cache_->BeginLookup(
                 RequestId_,

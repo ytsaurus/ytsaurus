@@ -155,10 +155,10 @@ bool TPermissionCache::CanCacheError(const TError& error) noexcept
 NApi::TMasterReadOptions TPermissionCache::GetMasterReadOptions()
 {
     return NApi::TMasterReadOptions{
-        Config_->ReadFrom,
-        Config_->ExpireAfterSuccessfulUpdateTime,
-        Config_->ExpireAfterFailedUpdateTime,
-        1
+        .ReadFrom = Config_->ReadFrom,
+        .ExpireAfterSuccessfulUpdateTime = Config_->ExpireAfterSuccessfulUpdateTime,
+        .ExpireAfterFailedUpdateTime = Config_->ExpireAfterFailedUpdateTime,
+        .CacheStickyGroupSize = 1
     };
 }
 

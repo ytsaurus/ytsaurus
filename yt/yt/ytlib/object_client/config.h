@@ -40,10 +40,10 @@ public:
     NApi::TMasterReadOptions GetMasterReadOptions()
     {
         return NApi::TMasterReadOptions{
-            ReadFrom,
-            MasterCacheExpireAfterSuccessfulUpdateTime,
-            MasterCacheExpireAfterFailedUpdateTime,
-            MasterCacheStickyGroupSize,
+            .ReadFrom = ReadFrom,
+            .ExpireAfterSuccessfulUpdateTime = MasterCacheExpireAfterSuccessfulUpdateTime,
+            .ExpireAfterFailedUpdateTime = MasterCacheExpireAfterFailedUpdateTime,
+            .CacheStickyGroupSize = MasterCacheStickyGroupSize
         };
     }
 };

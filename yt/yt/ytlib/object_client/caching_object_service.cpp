@@ -222,17 +222,18 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
 
         const auto& ypathExt = subrequestHeader.GetExtension(TYPathHeaderExt::ypath_header_ext);
 
-        TObjectServiceCacheKey key(
-            CellTagFromId(CellId_),
-            context->GetAuthenticationIdentity().User,
-            ypathExt.target_path(),
-            subrequestHeader.service(),
-            subrequestHeader.method(),
-            subrequestMessage[1]);
-
         if (subrequestHeader.HasExtension(TCachingHeaderExt::caching_header_ext)) {
             const auto& cachingRequestHeaderExt = subrequestHeader.GetExtension(TCachingHeaderExt::caching_header_ext);
+
             auto refreshRevision = cachingRequestHeaderExt.refresh_revision();
+
+            TObjectServiceCacheKey key(
+                CellTagFromId(CellId_),
+                cachingRequestHeaderExt.disable_per_user_cache() ? TString() : context->GetAuthenticationIdentity().User,
+                ypathExt.target_path(),
+                subrequestHeader.service(),
+                subrequestHeader.method(),
+                subrequestMessage[1]);
 
             if (ypathExt.mutating()) {
                 THROW_ERROR_EXCEPTION("Cannot cache responses for mutating requests");
@@ -287,6 +288,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                     balancingHeaderExt->set_sticky_group_size(1);
 
                     auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
+                    cachingHeaderExt->set_disable_per_user_cache(cachingRequestHeaderExt.disable_per_user_cache());
                     cachingHeaderExt->set_expire_after_successful_update_time(ToProto<i64>(expireAfterSuccessfulUpdateTime - nodeExpireAfterSuccessfulUpdateTime));
                     cachingHeaderExt->set_expire_after_failed_update_time(ToProto<i64>(expireAfterFailedUpdateTime - nodeExpireAfterFailedUpdateTime));
                     cachingHeaderExt->set_refresh_revision(refreshRevision);
@@ -328,10 +330,9 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                     }));
             }
         } else {
-            YT_LOG_DEBUG("Subrequest does not support caching, bypassing cache (RequestId: %v, SubrequestIndex: %v, Key: %v)",
+            YT_LOG_DEBUG("Subrequest does not support caching, bypassing cache (RequestId: %v, SubrequestIndex: %v)",
                 requestId,
-                subrequestIndex,
-                key);
+                subrequestIndex);
 
             if (!masterRequest) {
                 masterRequest = New<TMasterRequest>(MasterChannel_, context, Logger);

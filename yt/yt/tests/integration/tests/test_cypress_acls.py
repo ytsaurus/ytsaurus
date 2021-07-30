@@ -263,6 +263,7 @@ class CheckPermissionBase(YTEnvSetup):
 class TestCypressAcls(CheckPermissionBase):
     NUM_TEST_PARTITIONS = 2
     NUM_SCHEDULERS = 1
+    USE_MASTER_CACHE = True
 
     @authors("babenko", "ignat")
     def test_empty_names_fail(self):
@@ -1078,7 +1079,7 @@ class TestCypressAcls(CheckPermissionBase):
         assert get("//tmp/m/@acl/0/inheritance_mode") == "object_and_descendants"
 
     @authors("babenko")
-    def test_read_from_cache(self):
+    def test_read_from_per_user_cache(self):
         create_user("u")
         set("//tmp/a", "b")
         set("//tmp/a/@acl/end", make_ace("deny", "u", "read"))
@@ -1086,6 +1087,16 @@ class TestCypressAcls(CheckPermissionBase):
             get("//tmp/a", authenticated_user="u")
         with pytest.raises(YtError):
             get("//tmp/a", authenticated_user="u", read_from="cache")
+
+    @authors("babenko")
+    def test_read_from_global_cache(self):
+        create_user("u")
+        set("//tmp/a", "b")
+        set("//tmp/a/@acl/end", make_ace("deny", "u", "read"))
+        assert get("//tmp/a", read_from="cache", disable_per_user_cache=True) == "b"
+        with pytest.raises(YtError):
+            get("//tmp/a", authenticated_user="u")
+        assert get("//tmp/a", authenticated_user="u", read_from="cache", disable_per_user_cache=True) == "b"
 
     @authors("babenko")
     def test_no_owner_auth(self):

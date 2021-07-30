@@ -43,6 +43,7 @@ message TCachingHeaderExt
     required int32 expire_after_failed_update_time = 2;
     optional int64 refresh_revision = 3;
     optional bool disable_second_level_cache = 4;
+    optional bool disable_per_user_cache = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

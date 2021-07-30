@@ -130,6 +130,7 @@ struct TMutatingOptions
 struct TMasterReadOptions
 {
     EMasterChannelKind ReadFrom = EMasterChannelKind::Follower;
+    bool DisablePerUserCache = false;
     TDuration ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(15);
     TDuration ExpireAfterFailedUpdateTime = TDuration::Seconds(15);
     std::optional<int> CacheStickyGroupSize;
@@ -1689,7 +1690,7 @@ struct IClient
     virtual TFuture<TString> WriteOperationControllerCoreDump(
         NJobTrackerClient::TOperationId operationId,
         const TWriteOperationControllerCoreDumpOptions& options = {}) = 0;
-    
+
     virtual TFuture<void> RepairExecNode(
         const TString& address,
         const TRepairExecNodeOptions& options = {}) = 0;
