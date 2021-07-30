@@ -386,6 +386,24 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCorePrologue(
     // Perform cleanup by resetting the parent link of the branched node.
     branchedNode->SetParent(nullptr);
 
+    // Merge expiration time.
+    auto oldExpirationTime = originatingNode->TryGetExpirationTime();
+    originatingNode->MergeExpirationTime(branchedNode);
+    auto newExpirationTime = originatingNode->TryGetExpirationTime();
+    if (originatingNode->IsTrunk() && newExpirationTime != oldExpirationTime) {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        cypressManager->SetExpirationTime(originatingNode, newExpirationTime);
+    }
+
+    // Merge expiration timeout.
+    auto oldExpirationTimeout = originatingNode->TryGetExpirationTimeout();
+    originatingNode->MergeExpirationTimeout(branchedNode);
+    auto newExpirationTimeout = originatingNode->TryGetExpirationTimeout();
+    if (originatingNode->IsTrunk() && newExpirationTimeout != oldExpirationTimeout) {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        cypressManager->SetExpirationTimeout(originatingNode, newExpirationTimeout);
+    }
+
     // Merge modification time.
     const auto* mutationContext = NHydra::GetCurrentMutationContext();
     originatingNode->SetModificationTime(std::max(originatingNode->GetModificationTime(), branchedNode->GetModificationTime()));
@@ -407,9 +425,13 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCorePrologue(
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::MergeCoreEpilogue(
-    TCypressNode* originatingNode)
+    TCypressNode* originatingNode,
+    TCypressNode* branchedNode)
 {
     const auto& securityManager = Bootstrap_->GetSecurityManager();
+
+    securityManager->ResetAccount(branchedNode);
+
     securityManager->UpdateMasterMemoryUsage(originatingNode);
 }
 
