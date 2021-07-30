@@ -2113,7 +2113,10 @@ IAttributeDictionaryPtr TObjectManager::TImpl::GetReplicatedAttributes(
     // Check system attributes.
     std::vector<ISystemAttributeProvider::TAttributeDescriptor> descriptors;
     proxy->ListBuiltinAttributes(&descriptors);
+    THashSet<TString> systemAttributeKeys;
     for (const auto& descriptor : descriptors) {
+        systemAttributeKeys.insert(descriptor.InternedKey.Unintern());
+
         if (!descriptor.Replicated) {
             continue;
         }
@@ -2129,13 +2132,21 @@ IAttributeDictionaryPtr TObjectManager::TImpl::GetReplicatedAttributes(
         }
     }
 
-    // Check custom attributes.
-    const auto* customAttributes = object->GetAttributes();
-    if (customAttributes) {
-        for (const auto& [key, value] : object->GetAttributes()->Attributes()) {
-            replicateKey(key, value);
+    // Custom attributes aren't supposed to be replicated when replicating object creation.
+    if (!mandatory) {
+        // Check custom attributes.
+        if (const auto* customAttributes = object->GetAttributes()) {
+            for (const auto& [key, value] : object->GetAttributes()->Attributes()) {
+                // Never replicate custom attributes overlaid by system ones.
+                if (systemAttributeKeys.contains(key)) {
+                    continue;
+                }
+
+                replicateKey(key, value);
+            }
         }
     }
+
     return attributes;
 }
 
