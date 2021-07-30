@@ -30,8 +30,8 @@ public:
     virtual TString GetAuthenticatedUser() const override;
 
     virtual std::optional<int> FindSlotIndex(const TString& treeId) const override;
-    virtual int GetSlotIndex(const TString& treeId) const override;
-    virtual void SetSlotIndex(const TString&  treeId, int index) override;
+    virtual void SetSlotIndex(const TString& treeId, int index) override;
+    virtual void ReleaseSlotIndex(const TString& treeId) override;
 
     virtual NScheduler::IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
 

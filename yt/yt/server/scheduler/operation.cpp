@@ -339,23 +339,18 @@ void TOperation::SetStateAndEnqueueEvent(
 
 void TOperation::SetSlotIndex(const TString& treeId, int value)
 {
-    auto result = TreeIdToSlotIndex_.emplace(treeId, value);
-    if (!result.second) {
-        result.first->second = value;
-    }
+    TreeIdToSlotIndex_[treeId] = value;
+}
+
+void TOperation::ReleaseSlotIndex(const TString& treeId)
+{
+    YT_VERIFY(TreeIdToSlotIndex_.erase(treeId) == 1);
 }
 
 std::optional<int> TOperation::FindSlotIndex(const TString& treeId) const
 {
     auto it = TreeIdToSlotIndex_.find(treeId);
     return it != TreeIdToSlotIndex_.end() ? std::make_optional(it->second) : std::nullopt;
-}
-
-int TOperation::GetSlotIndex(const TString& treeId) const
-{
-    auto slotIndex = FindSlotIndex(treeId);
-    YT_VERIFY(slotIndex);
-    return *slotIndex;
 }
 
 const THashMap<TString, int>& TOperation::GetSlotIndices() const

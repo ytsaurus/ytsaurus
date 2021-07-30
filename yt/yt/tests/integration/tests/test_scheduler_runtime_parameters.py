@@ -269,6 +269,44 @@ class TestRuntimeParameters(YTEnvSetup):
         error = YtResponseError(response.error())
         assert error.contains_text("Max running operation count of pool \"busy\" violated")
 
+    @authors("eshcherbin")
+    def test_change_pool_slot_index_conflict(self):
+        # YT-15199
+
+        create_pool("first")
+        create_pool("second")
+
+        first_ops = []
+        second_ops = []
+        for _ in range(2):
+            first_ops.append(run_sleeping_vanilla(spec={"pool": "first"}))
+        for _ in range(5):
+            second_ops.append(run_sleeping_vanilla(spec={"pool": "second"}))
+        second_ops[-1].wait_for_state("running")
+
+        def get_slot_index(op):
+            return op.get_runtime_progress("scheduling_info_per_pool_tree/default/slot_index")
+
+        op1 = run_sleeping_vanilla(spec={"pool": "first"})
+        op1.wait_for_state("running")
+        wait(lambda: get_slot_index(op1) == 2)
+
+        op2 = run_sleeping_vanilla(spec={"pool": "first"})
+        op2.wait_for_state("running")
+        wait(lambda: get_slot_index(op2) == 3)
+
+        update_op_parameters(op1.id, parameters={"pool": "second"})
+        wait(lambda: get_slot_index(op1) == 5)
+
+        update_op_parameters(op2.id, parameters={"pool": "second"})
+        wait(lambda: get_slot_index(op2) == 6)
+
+        update_op_parameters(op2.id, parameters={"pool": "first"})
+        wait(lambda: get_slot_index(op2) in [2, 3])
+
+        update_op_parameters(op1.id, parameters={"pool": "first"})
+        wait(lambda: get_slot_index(op1) in [2, 3] and get_slot_index(op1) != get_slot_index(op2))
+
     @authors("renadeen")
     def test_no_pool_validation_on_change_weight(self):
         create_pool("test_pool")
