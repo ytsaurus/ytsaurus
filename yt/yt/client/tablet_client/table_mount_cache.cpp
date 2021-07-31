@@ -77,7 +77,7 @@ TTabletInfoPtr TTableMountInfo::GetTabletForRow(TVersionedRow row) const
     return GetTabletForRow(MakeRange(row.BeginKeys(), row.EndKeys()));
 }
 
-TTabletInfoPtr TTableMountInfo::GetRandomMountedTablet() const
+int TTableMountInfo::GetRandomMountedTabletIndex() const
 {
     ValidateDynamic();
 
@@ -88,8 +88,12 @@ TTabletInfoPtr TTableMountInfo::GetRandomMountedTablet() const
             Path);
     }
 
-    size_t index = RandomNumber(MountedTablets.size());
-    return MountedTablets[index];
+    return RandomNumber(MountedTablets.size());
+}
+
+TTabletInfoPtr TTableMountInfo::GetRandomMountedTablet() const
+{
+    return MountedTablets[GetRandomMountedTabletIndex()];
 }
 
 void TTableMountInfo::ValidateDynamic() const
