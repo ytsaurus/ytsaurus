@@ -17,6 +17,7 @@ from yt.environment.helpers import assert_items_equal
 
 import pytest
 
+from copy import deepcopy
 import time
 
 ##################################################################
@@ -406,6 +407,11 @@ MASTER_SNAPSHOT_CHECKER_LIST = [
     check_scheduler_pool_subtree_size_recalculation,
     check_removed_account,  # keep this item last as it's sensitive to timings
 ]
+
+MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST = deepcopy(MASTER_SNAPSHOT_CHECKER_LIST)
+
+# Master memory is a volatile currency, so we do not run compat tests for it.
+MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST.remove(check_master_memory)
 
 MASTER_SNAPSHOT_21_2_CHECKER_LIST = [
     check_account_resource_usage_lease,

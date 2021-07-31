@@ -3,7 +3,7 @@ from yt_commands import authors, print_debug, build_master_snapshots
 
 
 from original_tests.yt.yt.tests.integration.tests.test_master_snapshots \
-    import MASTER_SNAPSHOT_CHECKER_LIST
+    import MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
 import os
 import pytest
@@ -25,7 +25,7 @@ class TestMasterSnapshotsCompatibility(YTEnvSetup):
     @authors("gritukan")
     def test(self):
         CHECKER_LIST = [
-        ] + MASTER_SNAPSHOT_CHECKER_LIST
+        ] + MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]
         for s in checker_state_list:
