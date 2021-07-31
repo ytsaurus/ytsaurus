@@ -114,6 +114,7 @@ struct TTableMountInfo
     TTabletInfoPtr GetTabletForRow(TRange<NTableClient::TUnversionedValue> row) const;
     TTabletInfoPtr GetTabletForRow(NTableClient::TUnversionedRow row) const;
     TTabletInfoPtr GetTabletForRow(NTableClient::TVersionedRow row) const;
+    int GetRandomMountedTabletIndex() const;
     TTabletInfoPtr GetRandomMountedTablet() const;
 
     void ValidateDynamic() const;
