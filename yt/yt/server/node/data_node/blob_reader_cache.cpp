@@ -94,7 +94,7 @@ public:
     explicit TBlobReaderCache(IBootstrapBase* bootstrap)
         : TSyncSlruCacheBase(
             bootstrap->GetConfig()->DataNode->BlobReaderCache,
-            DataNodeProfiler.WithPrefix("/block_reader_cache"))
+            DataNodeProfiler.WithPrefix("/blob_reader_cache"))
         , Bootstrap_(bootstrap)
         , Config_(Bootstrap_->GetConfig()->DataNode)
     { }
