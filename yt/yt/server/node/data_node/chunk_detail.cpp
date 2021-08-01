@@ -241,6 +241,7 @@ void TChunkBase::TrySweepReader()
         return;
     }
 
+    ReaderSweepLatch_.store(0);
     ReleaseReader(guard);
 }
 
