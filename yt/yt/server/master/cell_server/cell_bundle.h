@@ -69,6 +69,7 @@ public:
 
     using TAreaMap = THashMap<TString, TArea*>;
     DEFINE_BYREF_RW_PROPERTY(TAreaMap, Areas);
+    DEFINE_BYVAL_RW_PROPERTY(TArea*, DefaultArea);
 
     DEFINE_BYREF_RW_PROPERTY(TCellBundleProfilingCounters, ProfilingCounters);
 

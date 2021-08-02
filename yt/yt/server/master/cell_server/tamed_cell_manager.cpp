@@ -252,6 +252,14 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(cellBundle->Cells().empty());
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto areas = cellBundle->Areas();
+        for (const auto& [_, area] : areas) {
+            // NB: It is forbidden to remove bundle with active areas. This branch is possible only when bundle creation failed.
+            YT_VERIFY(area == cellBundle->GetDefaultArea());
+            objectManager->UnrefObject(area);
+        }
         YT_VERIFY(cellBundle->Areas().empty());
 
         // Remove tablet cell bundle from maps.
@@ -378,6 +386,9 @@ public:
         auto* area = AreaMap_.Insert(id, std::move(areaHolder));
 
         YT_VERIFY(cellBundle->Areas().emplace(name, area).second);
+        if (name == DefaultAreaName) {
+            cellBundle->SetDefaultArea(area);
+        }
 
         // Make the fake reference.
         YT_VERIFY(area->RefObject() == 1);
@@ -394,6 +405,9 @@ public:
         AreaDestroyed_.Fire(area);
 
         auto* cellBundle = area->GetCellBundle();
+        if (cellBundle->GetDefaultArea() == area) {
+            cellBundle->SetDefaultArea(nullptr);
+        }
         area->SetCellBundle(nullptr);
         YT_VERIFY(cellBundle->Areas().erase(area->GetName()) == 1);
     }
@@ -920,7 +934,7 @@ public:
             return;
         }
 
-        if (area->GetName() == DefaultAreaName) {
+        if (area->GetCellBundle()->GetDefaultArea() == area) {
             // NB: Restrict default area name change to avoid attribute replication problems.
             THROW_ERROR_EXCEPTION("Cannot change default area name");
         }
@@ -1083,6 +1097,10 @@ private:
             }
 
             YT_VERIFY(area->GetCellBundle()->Areas().emplace(area->GetName(), area).second);
+            if (area->GetName() == DefaultAreaName) {
+                YT_VERIFY(area->GetCellBundle()->GetDefaultArea() == nullptr);
+                area->GetCellBundle()->SetDefaultArea(area);
+            }
         }
 
         // COMPAT(savrus)
