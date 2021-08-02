@@ -465,9 +465,9 @@ public:
             YT_VERIFY(readRowCount == writtenRowCount);
 
             return TEdenPartitioningResult{
-                std::move(partitionWriters),
-                HunkChunkPayloadWriter_,
-                readRowCount
+                .PartitionStoreWriters = std::move(partitionWriters),
+                .HunkWriter = HunkChunkPayloadWriter_,
+                .RowCount = readRowCount
             };
         });
     }
@@ -527,9 +527,9 @@ public:
             CloseWriter(writer);
 
             return TPartitionCompactionResult{
-                writer,
-                HunkChunkPayloadWriter_,
-                rowCount
+                .StoreWriter = writer,
+                .HunkWriter = HunkChunkPayloadWriter_,
+                .RowCount = rowCount
             };
         });
     }
@@ -1359,6 +1359,9 @@ private:
         auto readerProfiler = New<TReaderProfiler>();
         auto writerProfiler = New<TWriterProfiler>();
 
+        chunkReadOptions.HunkChunkReaderStatistics = CreateHunkChunkReaderStatistics(
+            tabletSnapshot->PhysicalSchema);
+
         bool failed = false;
 
         try {
@@ -1506,8 +1509,12 @@ private:
         for (const auto& [writer, _] : partitioningResult.PartitionStoreWriters) {
             writerProfiler->Update(writer);
         }
-        // TODO(babenko): update with hunk writer
-        readerProfiler->Update(reader, chunkReadOptions.ChunkReaderStatistics);
+        writerProfiler->Update(partitioningResult.HunkWriter);
+ 
+        readerProfiler->Update(
+            reader,
+            chunkReadOptions.ChunkReaderStatistics,
+            chunkReadOptions.HunkChunkReaderStatistics);
 
         writerProfiler->Profile(tabletSnapshot, EChunkWriteProfilingMethod::Partitioning, failed);
         readerProfiler->Profile(tabletSnapshot, EChunkReadProfilingMethod::Partitioning, failed);
@@ -1683,6 +1690,9 @@ private:
         auto writerProfiler = New<TWriterProfiler>();
         auto readerProfiler = New<TReaderProfiler>();
 
+        chunkReadOptions.HunkChunkReaderStatistics = CreateHunkChunkReaderStatistics(
+            tabletSnapshot->PhysicalSchema);
+
         bool failed = false;
 
         try {
@@ -1825,8 +1835,12 @@ private:
         }
 
         writerProfiler->Update(compactionResult.StoreWriter);
-        // TODO(babenko): update with hunk writer
-        readerProfiler->Update(reader, chunkReadOptions.ChunkReaderStatistics);
+        writerProfiler->Update(compactionResult.HunkWriter);
+ 
+        readerProfiler->Update(
+            reader,
+            chunkReadOptions.ChunkReaderStatistics,
+            chunkReadOptions.HunkChunkReaderStatistics);
 
         writerProfiler->Profile(tabletSnapshot, EChunkWriteProfilingMethod::Compaction, failed);
         readerProfiler->Profile(tabletSnapshot, EChunkReadProfilingMethod::Compaction, failed);

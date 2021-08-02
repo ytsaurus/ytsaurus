@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/client/table_client/versioned_row.h>
 
@@ -34,6 +35,60 @@ void Serialize(const THunkChunkRef& ref, NYson::IYsonConsumer* consumer);
 
 void FormatValue(TStringBuilderBase* builder, const THunkChunkRef& ref, TStringBuf spec);
 TString ToString(const THunkChunkRef& ref);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IHunkChunkReaderStatistics
+    : public TRefCounted
+{
+    virtual const NChunkClient::TChunkReaderStatisticsPtr& GetChunkReaderStatistics() const = 0;
+
+    virtual i64& DataWeight() = 0;
+    virtual i64& SkippedDataWeight() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IHunkChunkReaderStatistics)
+
+IHunkChunkReaderStatisticsPtr CreateHunkChunkReaderStatistics(
+    const TTableSchemaPtr& schema);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class THunkChunkReaderCounters
+{
+public:
+    THunkChunkReaderCounters() = default;
+
+    explicit THunkChunkReaderCounters(
+        const NProfiling::TProfiler& profiler);
+
+    void Increment(const IHunkChunkReaderStatisticsPtr& statistics);
+
+private:
+    NProfiling::TCounter DataWeight_;
+    NProfiling::TCounter SkippedDataWeight_;
+
+    NChunkClient::TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters_;
+};
+
+class THunkChunkWriterCounters
+{
+public:
+    THunkChunkWriterCounters() = default;
+
+    THunkChunkWriterCounters(
+        const NProfiling::TProfiler& profiler,
+        const TTableSchemaPtr& schema);
+
+    void Increment(
+        const NChunkClient::NProto::TDataStatistics& dataStatistics,
+        const NChunkClient::TCodecStatistics& codecStatistics,
+        int replicationFactor);
+
+private:
+    bool HasHunkColumns_ = false;
+    NChunkClient::TChunkWriterCounters ChunkWriterCounters_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -216,6 +271,9 @@ struct IHunkChunkPayloadWriter
 
     //! Returns the chunk id. The chunk must be already open, see #GetOpenFuture.
     virtual NChunkClient::TChunkId GetChunkId() const = 0;
+
+    //! Returns the chunk data statistics.
+    virtual const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IHunkChunkPayloadWriter)

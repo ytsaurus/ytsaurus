@@ -3369,6 +3369,7 @@ private:
                 req.set_mount_revision(tablet->GetMountRevision());
                 ToProto(req.mutable_table_id(), table->GetId());
 
+                ToProto(req.mutable_schema_id(), table->GetSchema()->GetId());
                 ToProto(req.mutable_schema(), *table->GetSchema()->AsTableSchema());
 
                 if (table->IsPhysicallySorted()) {

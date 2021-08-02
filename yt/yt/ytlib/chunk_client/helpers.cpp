@@ -1003,4 +1003,28 @@ void ValidateChunkFeatures(TChunkId chunkId, ui64 chunkFeatures, ui64 supportedC
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkWriterCounters::TChunkWriterCounters(const NProfiling::TProfiler& profiler)
+    : DiskSpace(profiler.Counter("/disk_space"))
+    , DataWeight(profiler.Counter("/data_weight"))
+    , CompressionCpuTime(profiler.TimeCounter("/compression_cpu_time"))
+{ }
+ 
+void TChunkWriterCounters::Increment(
+    const NProto::TDataStatistics& dataStatistics,
+    const TCodecStatistics& codecStatistics,
+    int replicationFactor)
+{
+    auto diskSpace = CalculateDiskSpaceUsage(
+        replicationFactor,
+        dataStatistics.regular_disk_space(),
+        dataStatistics.erasure_disk_space());
+    auto compressionCpuTime = codecStatistics.GetTotalDuration();
+    
+    DiskSpace.Increment(diskSpace);
+    DataWeight.Increment(dataStatistics.data_weight());
+    CompressionCpuTime.Add(compressionCpuTime);
+}
+ 
+////////////////////////////////////////////////////////////////////////////////
+ 
 } // namespace NYT::NChunkClient

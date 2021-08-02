@@ -169,6 +169,7 @@ protected:
             NullObjectId,
             "ut",
             this,
+            /*schemaId*/ NullObjectId,
             schema,
             sorted ? MinKey() : TLegacyOwningKey(),
             sorted ? MaxKey() : TLegacyOwningKey(),

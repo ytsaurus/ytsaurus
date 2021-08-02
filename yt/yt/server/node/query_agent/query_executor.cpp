@@ -273,6 +273,18 @@ public:
         return GetOrCrash(Map_, tabletId);
     }
 
+    IHunkChunkReaderStatisticsPtr CreateHunkChunkReaderStatistics()
+    {
+        if (MultipleTables_ || Map_.empty()) {
+            return nullptr;
+        }
+ 
+        // Any tablet snapshot would suffice.
+        auto tabletSnapshot = Map_.begin()->second;
+        return NTableClient::CreateHunkChunkReaderStatistics(
+            tabletSnapshot->PhysicalSchema);
+    }
+
 private:
     const ITabletSnapshotStorePtr SnapshotStore_;
     const NLogging::TLogger Logger;
@@ -302,8 +314,8 @@ public:
         IUnversionedRowsetWriterPtr writer,
         IMemoryChunkProviderPtr memoryChunkProvider,
         IInvokerPtr invoker,
-        const TClientChunkReadOptions& chunkReadOptions,
-        const TQueryOptions& queryOptions)
+        TClientChunkReadOptions chunkReadOptions,
+        TQueryOptions queryOptions)
         : Config_(std::move(config))
         , FunctionImplCache_(std::move(functionImplCache))
         , Bootstrap_(bootstrap)
@@ -319,10 +331,10 @@ public:
         , MemoryChunkProvider_(std::move(memoryChunkProvider))
         , Invoker_(std::move(invoker))
         , QueryOptions_(std::move(queryOptions))
-        , ChunkReadOptions_(chunkReadOptions)
         , Logger(MakeQueryLogger(Query_))
-        , TabletSnapshots_(Bootstrap_->GetTabletSnapshotStore(), Logger)
         , Identity_(NRpc::GetCurrentAuthenticationIdentity())
+        , TabletSnapshots_(Bootstrap_->GetTabletSnapshotStore(), Logger)
+        , ChunkReadOptions_(std::move(chunkReadOptions))
     { }
 
     TQueryStatistics Execute(TServiceProfilerGuard& profilerGuard)
@@ -366,13 +378,14 @@ private:
 
     const IInvokerPtr Invoker_;
     const TQueryOptions QueryOptions_;
-    const TClientChunkReadOptions ChunkReadOptions_;
 
     const NLogging::TLogger Logger;
 
-    TTabletSnapshotCache TabletSnapshots_;
-
     const NRpc::TAuthenticationIdentity Identity_;
+
+    TTabletSnapshotCache TabletSnapshots_;
+ 
+    TClientChunkReadOptions ChunkReadOptions_;
 
     typedef std::function<ISchemafulUnversionedReaderPtr()> TSubreaderCreator;
 
@@ -656,6 +669,8 @@ private:
 
     TQueryStatistics DoExecute()
     {
+        ChunkReadOptions_.HunkChunkReaderStatistics = TabletSnapshots_.CreateHunkChunkReaderStatistics();
+
         auto statistics = DoExecuteImpl();
 
         auto counters = TabletSnapshots_.GetTableProfiler()->GetSelectCpuCounters(GetProfilingUser(Identity_));
@@ -667,6 +682,7 @@ private:
 
         counters->CpuTime.Add(cpuTime);
         counters->ChunkReaderStatisticsCounters.Increment(ChunkReadOptions_.ChunkReaderStatistics);
+        counters->HunkChunkReaderCounters.Increment(ChunkReadOptions_.HunkChunkReaderStatistics);
 
         return statistics;
     }
@@ -1070,8 +1086,8 @@ TQueryStatistics ExecuteSubquery(
     IUnversionedRowsetWriterPtr writer,
     IMemoryChunkProviderPtr memoryChunkProvider,
     IInvokerPtr invoker,
-    const TClientChunkReadOptions& chunkReadOptions,
-    const TQueryOptions& queryOptions,
+    TClientChunkReadOptions chunkReadOptions,
+    TQueryOptions queryOptions,
     TServiceProfilerGuard& profilerGuard)
 {
     ValidateReadTimestamp(queryOptions.Timestamp);
@@ -1087,8 +1103,8 @@ TQueryStatistics ExecuteSubquery(
         std::move(writer),
         std::move(memoryChunkProvider),
         invoker,
-        chunkReadOptions,
-        queryOptions);
+        std::move(chunkReadOptions),
+        std::move(queryOptions));
 
     return execution->Execute(profilerGuard);
 }

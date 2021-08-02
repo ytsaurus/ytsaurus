@@ -945,6 +945,7 @@ private:
         auto mountRevision = request->mount_revision();
         auto tableId = FromProto<TObjectId>(request->table_id());
         const auto& path = request->path();
+        auto schemaId = FromProto<TObjectId>(request->schema_id());
         auto schema = FromProto<TTableSchemaPtr>(request->schema());
         auto pivotKey = request->has_pivot_key() ? FromProto<TLegacyOwningKey>(request->pivot_key()) : TLegacyOwningKey();
         auto nextPivotKey = request->has_next_pivot_key() ? FromProto<TLegacyOwningKey>(request->next_pivot_key()) : TLegacyOwningKey();
@@ -966,6 +967,7 @@ private:
             tableId,
             path,
             &TabletContext_,
+            schemaId,
             schema,
             pivotKey,
             nextPivotKey,
@@ -1000,7 +1002,7 @@ private:
 
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet mounted (%v, MountRevision: %llx, Keys: %v .. %v, "
             "StoreCount: %v, HunkChunkCount: %v, PartitionCount: %v, TotalRowCount: %v, TrimmedRowCount: %v, Atomicity: %v, "
-            "CommitOrdering: %v, Frozen: %v, UpstreamReplicaId: %v, RetainedTimestamp: %v)",
+            "CommitOrdering: %v, Frozen: %v, UpstreamReplicaId: %v, RetainedTimestamp: %v, SchemaId: %v)",
             tablet->GetLoggingTag(),
             mountRevision,
             pivotKey,
@@ -1014,7 +1016,8 @@ private:
             tablet->GetCommitOrdering(),
             freeze,
             upstreamReplicaId,
-            retainedTimestamp);
+            retainedTimestamp,
+            schemaId);
 
         for (const auto& descriptor : request->replicas()) {
             AddTableReplica(tablet, descriptor);
