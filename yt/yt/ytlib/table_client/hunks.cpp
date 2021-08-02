@@ -35,6 +35,8 @@ using namespace NYTree;
 using NYT::ToProto;
 using NYT::FromProto;
 
+using NChunkClient::NProto::TDataStatistics;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TableClientLogger;
@@ -325,6 +327,89 @@ void GlobalizeHunkValues(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class THunkChunkReaderStatistics
+    : public IHunkChunkReaderStatistics
+{
+public:
+    virtual const TChunkReaderStatisticsPtr& GetChunkReaderStatistics() const override
+    {
+        return ChunkReaderStatistics_;
+    }
+ 
+    virtual i64& DataWeight() override
+    {
+        return DataWeight_;
+    }
+
+    virtual i64& SkippedDataWeight() override
+    {
+        return SkippedDataWeight_;
+    }
+
+private:
+    const TChunkReaderStatisticsPtr ChunkReaderStatistics_ = New<TChunkReaderStatistics>();
+
+    i64 DataWeight_ = 0;
+    i64 SkippedDataWeight_ = 0;
+};
+ 
+IHunkChunkReaderStatisticsPtr CreateHunkChunkReaderStatistics(
+    const TTableSchemaPtr& schema)
+{
+    if (!schema->HasHunkColumns()) {
+        return nullptr;
+    }
+ 
+    return New<THunkChunkReaderStatistics>();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+THunkChunkReaderCounters::THunkChunkReaderCounters(
+    const NProfiling::TProfiler& profiler)
+    : DataWeight_(profiler.Counter("/data_weight"))
+    , SkippedDataWeight_(profiler.Counter("/skipped_data_weight"))
+    , ChunkReaderStatisticsCounters_(profiler.WithPrefix("/chunk_reader_statistics"))
+{ }
+
+void THunkChunkReaderCounters::Increment(const IHunkChunkReaderStatisticsPtr& statistics)
+{
+    if (!statistics) {
+        return;
+    }
+
+    DataWeight_.Increment(statistics->DataWeight());
+    SkippedDataWeight_.Increment(statistics->SkippedDataWeight());
+
+    ChunkReaderStatisticsCounters_.Increment(statistics->GetChunkReaderStatistics());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+THunkChunkWriterCounters::THunkChunkWriterCounters(
+    const NProfiling::TProfiler& profiler,
+    const TTableSchemaPtr& schema)
+    : HasHunkColumns_(schema->HasHunkColumns())
+    , ChunkWriterCounters_(profiler)
+{ }
+
+void THunkChunkWriterCounters::Increment(
+    const NChunkClient::NProto::TDataStatistics& dataStatistics,
+    const TCodecStatistics& codecStatistics,
+    int replicationFactor)
+{
+    if (!HasHunkColumns_) {
+        return;
+    }
+
+    ChunkWriterCounters_.Increment(
+        dataStatistics,
+        codecStatistics,
+        replicationFactor);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class THunkEncodingVersionedWriter
     : public IVersionedChunkWriter
 {
@@ -501,7 +586,7 @@ public:
         return Underlying_->GetChunkId();
     }
 
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    virtual TDataStatistics GetDataStatistics() const override
     {
         return Underlying_->GetDataStatistics();
     }
@@ -590,6 +675,7 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
         value->Flags &= ~EValueFlags::Hunk;
     };
 
+    i64 dataWeight = 0;
     std::vector<IChunkFragmentReader::TChunkFragmentRequest> requests;
     std::vector<TUnversionedValue*> requestedValues;
     for (auto* value : values) {
@@ -608,7 +694,14 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                     .Length = globalRefHunkValue.Length
                 });
                 requestedValues.push_back(value);
+                dataWeight += globalRefHunkValue.Length;
             });
+    }
+
+    if (options.HunkChunkReaderStatistics) {
+        // NB: Chunk fragment reader does not update any hunk chunk reader statistics.
+        options.ChunkReaderStatistics = options.HunkChunkReaderStatistics->GetChunkReaderStatistics();
+        options.HunkChunkReaderStatistics->DataWeight() += dataWeight;
     }
 
     return chunkFragmentReader
@@ -730,15 +823,13 @@ public:
             Options_.ReadSessionId))
     { }
 
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    virtual TDataStatistics GetDataStatistics() const override
     {
-        // TODO(babenko): hunk statistics
         return Underlying_->GetDataStatistics();
     }
 
     virtual TCodecStatistics GetDecompressionStatistics() const override
     {
-        // TODO(babenko): hunk statistics
         return Underlying_->GetDecompressionStatistics();
     }
 
@@ -969,7 +1060,8 @@ public:
 
     virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        return this->DoRead(
+        i64 skippedDataWeight = 0;
+        auto batch = this->DoRead(
             options,
             TVersionedRowVisitor(),
             [&] (const TUnversionedValue& value) {
@@ -988,10 +1080,17 @@ public:
                         {
                             return globalRefHunkValue.Length;
                         } else {
+                            skippedDataWeight += globalRefHunkValue.Length;
                             return {};
                         }
                     });
             });
+
+        if (Options_.HunkChunkReaderStatistics) {
+            Options_.HunkChunkReaderStatistics->SkippedDataWeight() += skippedDataWeight;
+        }
+
+        return batch;
     }
 
 private:
@@ -1059,9 +1158,12 @@ ISchemalessUnversionedReaderPtr CreateHunkDecodingSchemalessReader(
     TTableSchemaPtr schema,
     TClientChunkReadOptions options)
 {
+    YT_VERIFY(!options.HunkChunkReaderStatistics);
+
     if (!schema || !schema->HasHunkColumns()) {
         return underlying;
     }
+
     return New<THunkDecodingSchemalessUnversionedReader>(
         std::move(config),
         std::move(underlying),
@@ -1123,9 +1225,12 @@ ISchemalessChunkReaderPtr CreateHunkDecodingSchemalessChunkReader(
     TTableSchemaPtr schema,
     TClientChunkReadOptions options)
 {
+    YT_VERIFY(!options.HunkChunkReaderStatistics);
+
     if (!schema || !schema->HasHunkColumns()) {
         return underlying;
     }
+
     return New<THunkDecodingSchemalessChunkReader>(
         std::move(config),
         std::move(underlying),
@@ -1234,6 +1339,11 @@ public:
     virtual TChunkId GetChunkId() const override
     {
         return Underlying_->GetChunkId();
+    }
+
+    virtual const TDataStatistics& GetDataStatistics() const override
+    {
+        return Underlying_->GetDataStatistics();
     }
 
 private:

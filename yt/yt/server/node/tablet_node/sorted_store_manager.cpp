@@ -736,8 +736,9 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             tabletSnapshot->PhysicalSchema,
             hunkChunkPayloadWriter);
 
-        auto updateProfilerGuard = Finally([&] () {
+        auto updateProfilerGuard = Finally([&] {
             writerProfiler->Update(storeWriter);
+            writerProfiler->Update(hunkChunkPayloadWriter);
         });
 
         TVersionedRowMerger onFlushRowMerger(
@@ -956,10 +957,11 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             return TStoreFlushResult();
         }
 
-        WaitFor(storeWriter->Close())
-            .ThrowOnError();
-
-        WaitFor(hunkChunkPayloadWriter->Close())
+        std::vector<TFuture<void>> closeFutures {
+            storeWriter->Close(),
+            hunkChunkPayloadWriter->Close()
+        };
+        WaitFor(AllSucceeded(std::move(closeFutures)))
             .ThrowOnError();
 
         std::vector<TChunkInfo> chunkInfos;

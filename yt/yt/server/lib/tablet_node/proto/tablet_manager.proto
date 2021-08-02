@@ -73,6 +73,7 @@ message TReqMountTablet
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid table_id = 9;
     required NYT.NTableClient.NProto.TTableSchemaExt schema = 2;
+    optional NYT.NProto.TGuid schema_id = 26;
     repeated TAddStoreDescriptor stores = 4;
     repeated TAddHunkChunkDescriptor hunk_chunks = 24;
     optional bytes pivot_key = 5;

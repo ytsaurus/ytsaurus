@@ -275,6 +275,7 @@ public:
         counters->CacheOutdated.Increment(CacheOutdated_);
         counters->CacheMisses.Increment(CacheMisses_);
         counters->CacheInserts.Increment(CacheInserts_);
+
         counters->RowCount.Increment(FoundRowCount_);
         counters->MissingKeyCount.Increment(LookupKeys_.size() - FoundRowCount_);
         counters->DataWeight.Increment(FoundDataWeight_);
@@ -286,8 +287,9 @@ public:
 
         counters->ChunkReaderStatisticsCounters.Increment(ChunkReadOptions_.ChunkReaderStatistics);
 
-        const auto& mountConfig = TabletSnapshot_->Settings.MountConfig;
-        if (mountConfig->EnableDetailedProfiling) {
+        counters->HunkChunkReaderCounters.Increment(ChunkReadOptions_.HunkChunkReaderStatistics);
+
+        if (TabletSnapshot_->Settings.MountConfig->EnableDetailedProfiling) {
             counters->LookupDuration.Record(wallTime);
         }
     }
@@ -637,7 +639,7 @@ private:
             }
 
             YT_LOG_DEBUG("Starting parallel lookups "
-                "(PartitionCount: %v, MaxPartitionCount: %v, ReadSessionId: %v, partitionSessionInfos: %v)",
+                "(PartitionCount: %v, MaxPartitionCount: %v, ReadSessionId: %v, PartitionSessionInfos: %v)",
                 partitionSessionInfos.size(),
                 *mountConfig->MaxParallelPartitionLookups,
                 ChunkReadOptions_.ReadSessionId,
@@ -728,6 +730,9 @@ void DoLookupRows(
         chunkReadOptions.ChunkReaderStatistics = New<NChunkClient::TChunkReaderStatistics>();
     }
 
+    const auto& schema = tabletSnapshot->PhysicalSchema;
+    chunkReadOptions.HunkChunkReaderStatistics = CreateHunkChunkReaderStatistics(schema);
+
     TLookupSession session(
         tabletSnapshot,
         timestamp,
@@ -753,7 +758,6 @@ void DoLookupRows(
         return std::make_pair(static_cast<bool>(mergedRow), GetDataWeight(mergedRow));
     };
 
-    const auto& schema = tabletSnapshot->PhysicalSchema;
     if (schema->HasHunkColumns()) {
         std::vector<TRow> rows;
         rows.reserve(lookupKeys.Size());

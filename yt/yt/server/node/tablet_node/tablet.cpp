@@ -413,6 +413,7 @@ TTablet::TTablet(
     TObjectId tableId,
     const TYPath& path,
     ITabletContext* context,
+    TObjectId schemaId,
     TTableSchemaPtr schema,
     TLegacyOwningKey pivotKey,
     TLegacyOwningKey nextPivotKey,
@@ -424,6 +425,7 @@ TTablet::TTablet(
     , MountRevision_(mountRevision)
     , TableId_(tableId)
     , TablePath_(path)
+    , SchemaId_(schemaId)
     , TableSchema_(std::move(schema))
     , PivotKey_(std::move(pivotKey))
     , NextPivotKey_(std::move(nextPivotKey))
@@ -550,6 +552,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, *LockManager_);
     Save(context, DynamicStoreIdPool_);
     Save(context, DynamicStoreIdRequested_);
+    Save(context, SchemaId_);
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -663,6 +666,11 @@ void TTablet::Load(TLoadContext& context)
     if (context.GetVersion() >= ETabletReign::DynamicStoreRead) {
         Load(context, DynamicStoreIdPool_);
         Load(context, DynamicStoreIdRequested_);
+    }
+
+    // COMPAT(akozhikhov)
+    if (context.GetVersion() >= ETabletReign::SchemaIdUponMount) {
+        Load(context, SchemaId_);
     }
 
     UpdateOverlappingStoreCount();
@@ -1462,7 +1470,9 @@ void TTablet::FillProfilerTags()
         Settings_.MountConfig->ProfilingTag,
         // TODO(babenko): hunks profiling
         Settings_.StoreWriterOptions->Account,
-        Settings_.StoreWriterOptions->MediumName);
+        Settings_.StoreWriterOptions->MediumName,
+        SchemaId_,
+        PhysicalSchema_);
     TabletCounters_ = TableProfiler_->GetTabletCounters();
 }
 

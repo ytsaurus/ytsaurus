@@ -5,6 +5,7 @@
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
+#include <yt/yt/ytlib/table_client/hunks.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
@@ -26,38 +27,26 @@ struct TLookupCounters
 {
     TLookupCounters() = default;
 
-    explicit TLookupCounters(const NProfiling::TProfiler& profiler)
-        : CacheHits(profiler.Counter("/lookup/cache_hits"))
-        , CacheOutdated(profiler.Counter("/lookup/cache_outdated"))
-        , CacheMisses(profiler.Counter("/lookup/cache_misses"))
-        , CacheInserts(profiler.Counter("/lookup/cache_inserts"))
-        , RowCount(profiler.Counter("/lookup/row_count"))
-        , MissingKeyCount(profiler.Counter("/lookup/missing_key_count"))
-        , DataWeight(profiler.Counter("/lookup/data_weight"))
-        , UnmergedRowCount(profiler.Counter("/lookup/unmerged_row_count"))
-        , UnmergedDataWeight(profiler.Counter("/lookup/unmerged_data_weight"))
-        , CpuTime(profiler.TimeCounter("/lookup/cpu_time"))
-        , DecompressionCpuTime(profiler.TimeCounter("/lookup/decompression_cpu_time"))
-        , ChunkReaderStatisticsCounters(profiler.WithPrefix("/lookup/chunk_reader_statistics"))
-        , LookupDuration(profiler.Histogram(
-            "/lookup/duration",
-            TDuration::MicroSeconds(1),
-            TDuration::Seconds(10)))
-    { }
+    explicit TLookupCounters(const NProfiling::TProfiler& profiler);
 
     NProfiling::TCounter CacheHits;
     NProfiling::TCounter CacheOutdated;
     NProfiling::TCounter CacheMisses;
     NProfiling::TCounter CacheInserts;
+
     NProfiling::TCounter RowCount;
     NProfiling::TCounter MissingKeyCount;
     NProfiling::TCounter DataWeight;
     NProfiling::TCounter UnmergedRowCount;
     NProfiling::TCounter UnmergedDataWeight;
+
     NProfiling::TTimeCounter CpuTime;
     NProfiling::TTimeCounter DecompressionCpuTime;
-    NChunkClient::TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
     NYT::NProfiling::TEventTimer LookupDuration;
+
+    NChunkClient::TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
+
+    NTableClient::THunkChunkReaderCounters HunkChunkReaderCounters;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,30 +55,18 @@ struct TSelectCpuCounters
 {
     TSelectCpuCounters() = default;
 
-    explicit TSelectCpuCounters(const NProfiling::TProfiler& profiler)
-        : CpuTime(profiler.TimeCounter("/select/cpu_time"))
-        , ChunkReaderStatisticsCounters(profiler.WithPrefix("/select/chunk_reader_statistics"))
-    { }
+    explicit TSelectCpuCounters(const NProfiling::TProfiler& profiler);
 
     NProfiling::TTimeCounter CpuTime;
     NChunkClient::TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
+    NTableClient::THunkChunkReaderCounters HunkChunkReaderCounters;
 };
 
 struct TSelectReadCounters
 {
     TSelectReadCounters() = default;
 
-    explicit TSelectReadCounters(const NProfiling::TProfiler& profiler)
-        : RowCount(profiler.Counter("/select/row_count"))
-        , DataWeight(profiler.Counter("/select/data_weight"))
-        , UnmergedRowCount(profiler.Counter("/select/unmerged_row_count"))
-        , UnmergedDataWeight(profiler.Counter("/select/unmerged_data_weight"))
-        , DecompressionCpuTime(profiler.TimeCounter("/select/decompression_cpu_time"))
-        , SelectDuration(profiler.Histogram(
-            "/select/duration",
-            TDuration::MicroSeconds(1),
-            TDuration::Seconds(10)))
-    { }
+    explicit TSelectReadCounters(const NProfiling::TProfiler& profiler);
 
     NProfiling::TCounter RowCount;
     NProfiling::TCounter DataWeight;
@@ -105,10 +82,7 @@ struct TWriteCounters
 {
     TWriteCounters() = default;
 
-    explicit TWriteCounters(const NProfiling::TProfiler& profiler)
-        : RowCount(profiler.Counter("/write/row_count"))
-        , DataWeight(profiler.Counter("/write/data_weight"))
-    { }
+    explicit TWriteCounters(const NProfiling::TProfiler& profiler);
 
     NProfiling::TCounter RowCount;
     NProfiling::TCounter DataWeight;
@@ -120,10 +94,7 @@ struct TCommitCounters
 {
     TCommitCounters() = default;
 
-    explicit TCommitCounters(const NProfiling::TProfiler& profiler)
-        : RowCount(profiler.Counter("/commit/row_count"))
-        , DataWeight(profiler.Counter("/commit/data_weight"))
-    { }
+    explicit TCommitCounters(const NProfiling::TProfiler& profiler);
 
     NProfiling::TCounter RowCount;
     NProfiling::TCounter DataWeight;
@@ -135,14 +106,7 @@ struct TRemoteDynamicStoreReadCounters
 {
     TRemoteDynamicStoreReadCounters() = default;
 
-    explicit TRemoteDynamicStoreReadCounters(const NProfiling::TProfiler& profiler)
-        : RowCount(profiler.Counter("/dynamic_store_read/row_count"))
-        , DataWeight(profiler.Counter("/dynamic_store_read/data_weight"))
-        , CpuTime(profiler.TimeCounter("/dynamic_store_read/cpu_time"))
-        , SessionRowCount(profiler.Summary("/dynamic_store_read/session_row_count"))
-        , SessionDataWeight(profiler.Summary("/dynamic_store_read/session_data_weight"))
-        , SessionWallTime(profiler.Timer("/dynamic_store_read/session_wall_time"))
-    { }
+    explicit TRemoteDynamicStoreReadCounters(const NProfiling::TProfiler& profiler);
 
     NProfiling::TCounter RowCount;
     NProfiling::TCounter DataWeight;
@@ -164,17 +128,13 @@ struct TChunkReadCounters
 {
     TChunkReadCounters() = default;
 
-    explicit TChunkReadCounters(const NProfiling::TProfiler& profiler)
-        : CompressedDataSize(profiler.Counter("/chunk_reader/compressed_data_size"))
-        , UnmergedDataWeight(profiler.Counter("/chunk_reader/unmerged_data_weight"))
-        , DecompressionCpuTime(profiler.TimeCounter("/chunk_reader/decompression_cpu_time"))
-        , ChunkReaderStatisticsCounters(profiler.WithPrefix("/chunk_reader_statistics"))
-    { }
+    explicit TChunkReadCounters(const NProfiling::TProfiler& profiler);
 
     NProfiling::TCounter CompressedDataSize;
     NProfiling::TCounter UnmergedDataWeight;
     NProfiling::TTimeCounter DecompressionCpuTime;
     NChunkClient::TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
+    NTableClient::THunkChunkReaderCounters HunkChunkReaderCounters;
 };
 
 DEFINE_ENUM(EChunkWriteProfilingMethod,
@@ -187,15 +147,12 @@ struct TChunkWriteCounters
 {
     TChunkWriteCounters() = default;
 
-    explicit TChunkWriteCounters(const NProfiling::TProfiler& profiler)
-        : DiskSpace(profiler.Counter("/chunk_writer/disk_space"))
-        , DataWeight(profiler.Counter("/chunk_writer/data_weight"))
-        , CompressionCpuTime(profiler.TimeCounter("/chunk_writer/compression_cpu_time"))
-    { }
+    TChunkWriteCounters(
+        const NProfiling::TProfiler& profiler,
+        const NTableClient::TTableSchemaPtr& schema);
 
-    NProfiling::TCounter DiskSpace;
-    NProfiling::TCounter DataWeight;
-    NProfiling::TTimeCounter CompressionCpuTime;
+    NChunkClient::TChunkWriterCounters ChunkWriterCounters;
+    NTableClient::THunkChunkWriterCounters HunkChunkWriterCounters;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -204,10 +161,7 @@ struct TTabletCounters
 {
     TTabletCounters() = default;
 
-    explicit TTabletCounters(const NProfiling::TProfiler& profiler)
-        : OverlappingStoreCount(profiler.GaugeSummary("/tablet/overlapping_store_count"))
-        , EdenStoreCount(profiler.GaugeSummary("/tablet/eden_store_count"))
-    { }
+    explicit TTabletCounters(const NProfiling::TProfiler& profiler);
 
     NProfiling::TGauge OverlappingStoreCount;
     NProfiling::TGauge EdenStoreCount;
@@ -219,20 +173,7 @@ struct TReplicaCounters
 {
     TReplicaCounters() = default;
 
-    explicit TReplicaCounters(const NProfiling::TProfiler& profiler)
-        : LagRowCount(profiler.WithDense().Gauge("/replica/lag_row_count"))
-        , LagTime(profiler.WithDense().TimeGaugeSummary("/replica/lag_time"))
-        , ReplicationThrottleTime(profiler.Timer("/replica/replication_throttle_time"))
-        , ReplicationTransactionStartTime(profiler.Timer("/replica/replication_transaction_start_time"))
-        , ReplicationTransactionCommitTime(profiler.Timer("/replica/replication_transaction_commit_time"))
-        , ReplicationRowsReadTime(profiler.Timer("/replica/replication_rows_read_time"))
-        , ReplicationRowsWriteTime(profiler.Timer("/replica/replication_rows_write_time"))
-        , ReplicationBatchRowCount(profiler.Summary("/replica/replication_batch_row_count"))
-        , ReplicationBatchDataWeight(profiler.Summary("/replica/replication_batch_data_weight"))
-        , ReplicationRowCount(profiler.WithDense().Counter("/replica/replication_row_count"))
-        , ReplicationDataWeight(profiler.WithDense().Counter("/replica/replication_data_weight"))
-        , ReplicationErrorCount(profiler.WithDense().Counter("/replica/replication_error_count"))
-    { }
+    explicit TReplicaCounters(const NProfiling::TProfiler& profiler);
 
     NProfiling::TGauge LagRowCount;
     NProfiling::TTimeGauge LagTime;
@@ -251,18 +192,11 @@ struct TReplicaCounters
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TQueryServiceCounters
 {
     TQueryServiceCounters() = default;
 
-    explicit TQueryServiceCounters(const NProfiling::TProfiler& profiler)
-        : Execute(profiler.WithPrefix("/execute"))
-        , Multiread(profiler.WithPrefix("/multiread"))
-    { }
+    explicit TQueryServiceCounters(const NProfiling::TProfiler& profiler);
 
     TMethodCounters Execute;
     TMethodCounters Multiread;
@@ -276,7 +210,9 @@ TTableProfilerPtr CreateTableProfiler(
     const TString& tablePath,
     const TString& tableTag,
     const TString& account,
-    const TString& medium);
+    const TString& medium,
+    NObjectClient::TObjectId schemaId,
+    const NTableClient::TTableSchemaPtr& schema);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -304,7 +240,8 @@ public:
 
     TTableProfiler(
         const NProfiling::TProfiler& profiler,
-        const NProfiling::TProfiler& diskProfiler);
+        const NProfiling::TProfiler& diskProfiler,
+        NTableClient::TTableSchemaPtr schema);
 
     static TTableProfilerPtr GetDisabled();
 
@@ -326,8 +263,9 @@ public:
     NProfiling::TCounter* GetThrottlerCounter(ETabletDistributedThrottlerKind kind);
 
 private:
-    bool Disabled_ = true;
-    const NProfiling::TProfiler Profiler_{};
+    const bool Disabled_ = true;
+    const NProfiling::TProfiler Profiler_ = {};
+    const NTableClient::TTableSchemaPtr Schema_;
 
     template <class TCounter>
     struct TUserTaggedCounter
@@ -338,6 +276,11 @@ private:
             bool disabled,
             const std::optional<TString>& userTag,
             const NProfiling::TProfiler& profiler);
+        TCounter* Get(
+            bool disabled,
+            const std::optional<TString>& userTag,
+            const NProfiling::TProfiler& profiler,
+            const NTableClient::TTableSchemaPtr& schema);
     };
 
     TUserTaggedCounter<TLookupCounters> LookupCounters_;
@@ -371,10 +314,13 @@ public:
 
     void Update(const NChunkClient::IMultiChunkWriterPtr& writer);
     void Update(const NChunkClient::IChunkWriterBasePtr& writer);
+    void Update(const NTableClient::IHunkChunkPayloadWriterPtr& hunkChunkWriter);
 
 private:
     NChunkClient::NProto::TDataStatistics DataStatistics_;
     NChunkClient::TCodecStatistics CodecStatistics_;
+
+    NChunkClient::NProto::TDataStatistics HunkChunkDataStatistics_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TWriterProfiler)
@@ -394,7 +340,9 @@ public:
 
     void Update(
         const NTableClient::IVersionedReaderPtr& reader,
-        const NChunkClient::TChunkReaderStatisticsPtr& chunkReaderStatistics);
+        const NChunkClient::TChunkReaderStatisticsPtr& chunkReaderStatistics,
+        const NTableClient::IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics);
+
     void SetCompressedDataSize(i64 compressedDataSize);
     void SetCodecStatistics(const NChunkClient::TCodecStatistics& codecStatistics);
     void SetChunkReaderStatistics(const NChunkClient::TChunkReaderStatisticsPtr& chunkReaderStatistics);
@@ -402,7 +350,9 @@ public:
 private:
     NChunkClient::NProto::TDataStatistics DataStatistics_;
     NChunkClient::TCodecStatistics CodecStatistics_;
+
     NChunkClient::TChunkReaderStatisticsPtr ChunkReaderStatistics_;
+    NTableClient::IHunkChunkReaderStatisticsPtr HunkChunkReaderStatistics_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TReaderProfiler)

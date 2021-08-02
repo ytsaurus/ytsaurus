@@ -108,6 +108,10 @@ DECLARE_REFCOUNTED_CLASS(TTableColumnarStatisticsCacheConfig)
 DECLARE_REFCOUNTED_CLASS(THunkChunkPayloadWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TBatchHunkReaderConfig)
 
+DECLARE_REFCOUNTED_STRUCT(IHunkChunkReaderStatistics)
+class THunkChunkReaderCounters;
+class THunkChunkWriterCounters;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

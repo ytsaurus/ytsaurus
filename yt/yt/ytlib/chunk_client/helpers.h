@@ -286,6 +286,24 @@ void ValidateChunkFeatures(
 
 ///////////////////////////////////////////////////////////////////////////////
 
+struct TChunkWriterCounters
+{
+    TChunkWriterCounters() = default;
+ 
+    explicit TChunkWriterCounters(const NProfiling::TProfiler& profiler);
+ 
+    void Increment(
+        const NProto::TDataStatistics& dataStatistics,
+        const TCodecStatistics& codecStatistics,
+        int replicationFactor);
+ 
+    NProfiling::TCounter DiskSpace;
+    NProfiling::TCounter DataWeight;
+    NProfiling::TTimeCounter CompressionCpuTime;
+};
+ 
+///////////////////////////////////////////////////////////////////////////////
+ 
 } // namespace NYT::NChunkClient
 
 #define HELPERS_INL_H_

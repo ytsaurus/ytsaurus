@@ -354,6 +354,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NObjectClient::TObjectId, TableId);
     DEFINE_BYVAL_RO_PROPERTY(NYPath::TYPath, TablePath);
 
+    DEFINE_BYVAL_RO_PROPERTY(NObjectClient::TObjectId, SchemaId);
     DEFINE_BYVAL_RO_PROPERTY(NTableClient::TTableSchemaPtr, TableSchema);
     DEFINE_BYVAL_RO_PROPERTY(NTableClient::TTableSchemaPtr, PhysicalSchema);
 
@@ -422,6 +423,7 @@ public:
         NObjectClient::TObjectId tableId,
         const NYPath::TYPath& path,
         ITabletContext* context,
+        NObjectClient::TObjectId schemaId,
         NTableClient::TTableSchemaPtr schema,
         TLegacyOwningKey pivotKey,
         TLegacyOwningKey nextPivotKey,

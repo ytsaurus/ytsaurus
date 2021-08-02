@@ -141,7 +141,11 @@ public:
 
     virtual const NProto::TDataStatistics& GetDataStatistics() const override
     {
-        YT_VERIFY(Closed_);
+        if (!Closed_) {
+            static const NProto::TDataStatistics EmptyDataStatistics;
+            return EmptyDataStatistics;
+        }
+
         return DataStatistics_;
     }
 
@@ -185,8 +189,8 @@ private:
 
     IChunkWriterPtr UnderlyingWriter_;
 
-    std::atomic<bool> Initialized_ = {false};
-    std::atomic<bool> Closed_ = {false};
+    std::atomic<bool> Initialized_ = false;
+    std::atomic<bool> Closed_ = false;
     TSessionId SessionId_;
     TFuture<void> OpenFuture_;
 
