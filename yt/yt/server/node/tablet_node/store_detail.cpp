@@ -809,6 +809,21 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(
     }
 }
 
+void TChunkStoreBase::InvalidateCachedReaders()
+{
+    auto guard = WriterGuard(ReaderLock_);
+
+    DoInvalidateCachedReaders();
+}
+
+void TChunkStoreBase::DoInvalidateCachedReaders()
+{
+    CachedReaders_.Reset();
+    CachedRemoteReaderAdapters_.clear();
+    CachedReadersLocal_ = false;
+    CachedWeakChunk_.Reset();
+}
+
 TCachedVersionedChunkMetaPtr TChunkStoreBase::GetCachedVersionedChunkMeta(
     const IChunkReaderPtr& chunkReader,
     const TClientChunkReadOptions& chunkReadOptions)
@@ -901,10 +916,7 @@ void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
 
         ChunkState_.Reset();
         PreloadedBlockCache_.Reset();
-        CachedReaders_.Reset();
-        CachedRemoteReaderAdapters_.clear();
-        CachedReadersLocal_ = false;
-        CachedWeakChunk_.Reset();
+        DoInvalidateCachedReaders();
 
         if (PreloadFuture_) {
             PreloadFuture_.Cancel(TError("Preload canceled due to in-memory mode change"));

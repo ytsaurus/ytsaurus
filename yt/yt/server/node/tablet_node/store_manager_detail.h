@@ -118,6 +118,8 @@ protected:
 
     void CheckForUnlockedStore(IDynamicStore* store);
 
+    void InvalidateCachedChunkReaders();
+
     void UpdateInMemoryMode();
 
     bool TryPreloadStoreFromInterceptedData(

@@ -469,6 +469,8 @@ void TStoreManagerBase::Remount(const TTableSettings& settings)
 {
     Tablet_->SetSettings(settings);
 
+    InvalidateCachedChunkReaders();
+
     UpdateInMemoryMode();
 
     if (IsLeader()) {
@@ -684,6 +686,15 @@ void TStoreManagerBase::CheckForUnlockedStore(IDynamicStore* store)
     YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Store unlocked and will be dropped (StoreId: %v)",
         store->GetId());
     YT_VERIFY(LockedStores_.erase(store) == 1);
+}
+
+void TStoreManagerBase::InvalidateCachedChunkReaders()
+{
+    for (const auto& [storeId, store] : Tablet_->StoreIdMap()) {
+        if (store->IsChunk()) {
+            store->AsChunk()->InvalidateCachedReaders();
+        }
+    }
 }
 
 void TStoreManagerBase::UpdateInMemoryMode()

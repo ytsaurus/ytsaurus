@@ -229,6 +229,7 @@ public:
     virtual IChunkStorePtr AsChunk() override;
 
     virtual TReaders GetReaders(std::optional<EWorkloadCategory> workloadCategory) override;
+    virtual void InvalidateCachedReaders() override;
 
     virtual NTabletClient::EInMemoryMode GetInMemoryMode() const override;
     virtual void SetInMemoryMode(NTabletClient::EInMemoryMode mode) override;
@@ -304,6 +305,8 @@ private:
     NChunkClient::IBlockCachePtr DoGetBlockCache();
 
     bool IsLocalChunkValid(const NDataNode::IChunkPtr& chunk) const;
+
+    void DoInvalidateCachedReaders();
 
     friend TPreloadedBlockCache;
 };

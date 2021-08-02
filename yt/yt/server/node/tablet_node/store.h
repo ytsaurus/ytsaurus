@@ -165,6 +165,7 @@ struct IChunkStore
     };
 
     virtual TReaders GetReaders(std::optional<EWorkloadCategory> workloadCategory) = 0;
+    virtual void InvalidateCachedReaders() = 0;
 
     virtual NTabletClient::EInMemoryMode GetInMemoryMode() const = 0;
     virtual void SetInMemoryMode(NTabletClient::EInMemoryMode mode) = 0;
