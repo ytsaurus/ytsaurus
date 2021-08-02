@@ -1,6 +1,6 @@
 import __builtin__
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, is_asan_build
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     get, exists,
@@ -596,7 +596,8 @@ class TestControllerFeatures(YTEnvSetup):
         )
 
         features = get(op.get_path() + "/@controller_features")
-        assert features["peak_controller_memory_usage"] > 0
+        if not is_asan_build():
+            assert features["peak_controller_memory_usage"] > 0
         assert features["wall_time"] > 1000
 
         op = map(
@@ -613,5 +614,6 @@ class TestControllerFeatures(YTEnvSetup):
             op.track()
 
         features = get(op.get_path() + "/@controller_features")
+        if not is_asan_build():
+            assert features["peak_controller_memory_usage"] > 0
         assert features["wall_time"] > 1000
-        assert features["peak_controller_memory_usage"] > 0
