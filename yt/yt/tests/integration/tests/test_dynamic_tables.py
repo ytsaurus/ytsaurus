@@ -12,7 +12,7 @@ from yt_commands import (
     exists, create_account, create_user, make_ace, make_batch_request,
     create_tablet_cell_bundle, remove_tablet_cell_bundle,
     create_area, remove_area, create_tablet_cell, remove_tablet_cell,
-    execute_batch, start_transaction, abort_transaction,
+    execute_batch, execute_command, start_transaction, abort_transaction,
     commit_transaction, lock, insert_rows, select_rows, lookup_rows,
     trim_rows, alter_table, read_table,
     write_table, mount_table, unmount_table,
@@ -22,7 +22,7 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_unfreeze_table, sync_reshard_table, sync_flush_table, sync_compact_table,
     sync_remove_tablet_cells, set_node_decommissioned, create_dynamic_table, build_snapshot, get_driver,
-    AsyncLastCommittedTimestamp, create_medium)
+    AsyncLastCommittedTimestamp, create_medium, raises_yt_error)
 
 from yt_helpers import Profiler
 from yt_type_helpers import make_schema, optional_type
@@ -1046,6 +1046,18 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         time.sleep(0.5)
         wait_for_cells([cell_id])
         assert lookup_rows("//tmp/t", [{"key": 1}]) == [{"key": 1, "value": "2"}]
+
+    @authors("savrus")
+    def test_bundle_creation_fails(self):
+        with raises_yt_error("Missing required parameter /slug"):
+            execute_command("create", {
+                "type": "tablet_cell_bundle",
+                "attributes": {
+                    "name": "test_bundle",
+                    "abc": {},
+                    "options": {"changelog_account": "sys", "snapshot_account": "sys"},
+                },
+            })
 
     @authors("babenko")
     def test_validate_dynamic_attr(self):
