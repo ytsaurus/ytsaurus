@@ -140,7 +140,7 @@ class TTwoLevelFairShareQueue
 {
 public:
     TTwoLevelFairShareQueue(
-        std::shared_ptr<TEventCount> callbackEventCount,
+        TIntrusivePtr<TEventCount> callbackEventCount,
         const TString& threadNamePrefix)
         : CallbackEventCount_(std::move(callbackEventCount))
         , ThreadNamePrefix_(threadNamePrefix)
@@ -419,7 +419,7 @@ private:
         THashMap<TFairShareThreadPoolTag, TBucket*> TagToBucket;
     };
 
-    const std::shared_ptr<TEventCount> CallbackEventCount_;
+    const TIntrusivePtr<TEventCount> CallbackEventCount_;
     const TString ThreadNamePrefix_;
 
     TProfiler Profiler_;
@@ -563,7 +563,7 @@ class TFairShareThread
 public:
     TFairShareThread(
         TTwoLevelFairShareQueuePtr queue,
-        std::shared_ptr<TEventCount> callbackEventCount,
+        TIntrusivePtr<TEventCount> callbackEventCount,
         const TString& threadGroupName,
         const TString& threadName,
         int index)
@@ -637,7 +637,7 @@ public:
     }
 
 private:
-    const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
+    const TIntrusivePtr<TEventCount> CallbackEventCount_ = New<TEventCount>();
     const TTwoLevelFairShareQueuePtr Queue_;
 
 

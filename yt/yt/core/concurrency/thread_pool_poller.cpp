@@ -308,7 +308,7 @@ private:
     {
     public:
         TThread(
-            std::shared_ptr<TEventCount> callbackEventCount,
+            TIntrusivePtr<TEventCount> callbackEventCount,
             TThreadPoolPoller* poller,
             int index)
             : TSchedulerThread(
@@ -506,7 +506,7 @@ private:
     public:
         explicit TInvoker(TThreadPoolPoller* owner)
             : PollerImpl_(owner->PollerImpl_)
-            , CallbackEventCount_(std::make_shared<TEventCount>())
+            , CallbackEventCount_(New<TEventCount>())
         { }
 
         void Start()
@@ -519,7 +519,7 @@ private:
             ShutdownStarted_.store(true);
         }
 
-        const std::shared_ptr<TEventCount>& GetCallbackEventCount() const
+        const TIntrusivePtr<TEventCount>& GetCallbackEventCount() const
         {
             return CallbackEventCount_;
         }
@@ -579,7 +579,7 @@ private:
 
     private:
         const std::shared_ptr<TPollerImpl> PollerImpl_;
-        const std::shared_ptr<TEventCount> CallbackEventCount_;
+        const TIntrusivePtr<TEventCount> CallbackEventCount_;
 
         std::atomic<bool> ShutdownStarted_ = false;
         TLockFreeQueue<TClosure> Callbacks_;

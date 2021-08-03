@@ -45,7 +45,7 @@ public:
     }
 
 private:
-    const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
+    const TIntrusivePtr<TEventCount> CallbackEventCount_ = New<TEventCount>();
     const TMpmcInvokerQueuePtr Queue_;
     const IInvokerPtr Invoker_;
 

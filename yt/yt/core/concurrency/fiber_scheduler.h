@@ -12,7 +12,7 @@ class TFiberScheduler
 {
 public:
     TFiberScheduler(
-        std::shared_ptr<TEventCount> callbackEventCount,
+        TIntrusivePtr<TEventCount> callbackEventCount,
         const TString& threadGroupName,
         const TString& threadName);
 

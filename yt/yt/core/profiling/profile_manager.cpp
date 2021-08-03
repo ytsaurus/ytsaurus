@@ -412,7 +412,7 @@ private:
         }
     };
 
-    const std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
+    const TIntrusivePtr<TEventCount> EventCount_ = New<TEventCount>();
     std::atomic<bool> WasStarted_;
     std::atomic<bool> WasShutdown_;
     TMpscInvokerQueuePtr EventQueue_;

@@ -38,7 +38,7 @@ void CheckedAction(std::atomic<ui64>* atomicEpoch, ui64 mask, TAction&& action)
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerThreadBase::TSchedulerThreadBase(
-    std::shared_ptr<TEventCount> callbackEventCount,
+    TIntrusivePtr<TEventCount> callbackEventCount,
     const TString& threadGroupName,
     const TString& threadName)
     : CallbackEventCount_(std::move(callbackEventCount))

@@ -11,7 +11,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFairShareInvokerQueue::TFairShareInvokerQueue(
-    std::shared_ptr<TEventCount> callbackEventCount,
+    TIntrusivePtr<TEventCount> callbackEventCount,
     const std::vector<TBucketDescription>& bucketDescriptions)
     : Weights_(bucketDescriptions.size(), 1.0)
 {
