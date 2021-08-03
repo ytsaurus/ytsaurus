@@ -297,6 +297,7 @@ protected:
     TJobResources ResourceDemand_;
     TJobResources ResourceUsageAtUpdate_;
     TJobResources ResourceLimits_;
+    TJobResources SchedulingTagFilterResourceLimits_;
 
     // These attributes are calculated during fair share update and further used in schedule jobs.
     NFairShare::TSchedulableAttributes Attributes_;
@@ -377,8 +378,9 @@ public:
     // in a thread-unsafe manner.
     virtual void PreUpdateBottomUp(NFairShare::TFairShareUpdateContext* context);
 
-    TJobResources ComputeTotalResourcesOnSuitableNodes() const;
+    TJobResources GetSchedulingTagFilterResourceLimits() const;
     TJobResources GetTotalResourceLimits() const;
+    TJobResources GetMaxShareResourceLimits() const;
     virtual TJobResources GetSpecifiedResourceLimits() const = 0;
 
     virtual void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const = 0;
@@ -459,6 +461,7 @@ protected:
     TString GetLoggingAttributesString() const;
 
     //! Pre update methods.
+    TJobResources ComputeSchedulingTagFilterResourceLimits() const;
     TJobResources ComputeResourceLimits() const;
 
     //! Post update methods.

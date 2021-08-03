@@ -272,8 +272,9 @@ void TSchedulerElement::PreUpdateBottomUp(NFairShare::TFairShareUpdateContext* c
 {
     YT_VERIFY(Mutable_);
 
+    // NB: The order of computation should be: TotalResourceLimits_, SchedulingTagFilterResourceLimits_, ResourceLimits_. 
     TotalResourceLimits_ = context->TotalResourceLimits;
-    // NB: ResourceLimits must be computed after TotalResourceLimits.
+    SchedulingTagFilterResourceLimits_ = ComputeSchedulingTagFilterResourceLimits();
     ResourceLimits_ = ComputeResourceLimits();
     HasSpecifiedResourceLimits_ = GetSpecifiedResourceLimits() != TJobResources::Infinite();
 
@@ -733,15 +734,18 @@ void TSchedulerElement::SetOperationAlert(
 
 TJobResources TSchedulerElement::ComputeResourceLimits() const
 {
-    return Min(GetSpecifiedResourceLimits(), ComputeTotalResourcesOnSuitableNodes());
+    return Min(Min(
+        GetSpecifiedResourceLimits(),
+        GetSchedulingTagFilterResourceLimits()),
+        GetMaxShareResourceLimits());
 }
 
-TJobResources TSchedulerElement::ComputeTotalResourcesOnSuitableNodes() const
+TJobResources TSchedulerElement::ComputeSchedulingTagFilterResourceLimits() const
 {
     // Shortcut: if the scheduling tag filter is empty then we just use the resource limits for
     // the tree's nodes filter, which were computed earlier in PreUpdateBottomUp.
     if (GetSchedulingTagFilter() == EmptySchedulingTagFilter) {
-        return TotalResourceLimits_ * GetMaxShare();
+        return TotalResourceLimits_;
     }
 
     auto connectionTime = InstantToCpuInstant(Host_->GetConnectionTime());
@@ -750,13 +754,23 @@ TJobResources TSchedulerElement::ComputeTotalResourcesOnSuitableNodes() const
         // Return infinity during the cluster startup.
         return TJobResources::Infinite();
     } else {
-        return GetHost()->GetResourceLimits(TreeConfig_->NodesFilter & GetSchedulingTagFilter()) * GetMaxShare();
+        return GetHost()->GetResourceLimits(TreeConfig_->NodesFilter & GetSchedulingTagFilter());
     }
+}
+
+TJobResources TSchedulerElement::GetSchedulingTagFilterResourceLimits() const
+{
+    return SchedulingTagFilterResourceLimits_;
 }
 
 TJobResources TSchedulerElement::GetTotalResourceLimits() const
 {
     return TotalResourceLimits_;
+}
+
+TJobResources TSchedulerElement::GetMaxShareResourceLimits() const
+{
+    return GetTotalResourceLimits() * GetMaxShare();
 }
 
 void TSchedulerElement::BuildResourceMetering(const std::optional<TMeteringKey>& /*key*/, TMeteringMap* /*statistics*/) const

@@ -999,7 +999,7 @@ private:
         {
             Tree_->GetProfiler()->ApplyJobMetricsDelta(TreeSnapshotImpl_, jobMetricsPerOperation);
         }
-        
+
         virtual const TFairShareStrategyTreeConfigPtr& GetConfig() const override
         {
             return TreeSnapshotImpl_->TreeConfig();
@@ -2526,6 +2526,7 @@ private:
 
             .Item("resource_limits").Value(element->GetResourceLimits())
             .Item("limits_share").Value(attributes.LimitsShare)
+            .Item("scheduling_tag_filter_resource_limits").Value(element->GetSchedulingTagFilterResourceLimits())
 
             // COMPAT(ignat): remove it after UI and other tools migration.
             .Item("min_share").Value(attributes.StrongGuaranteeShare)
