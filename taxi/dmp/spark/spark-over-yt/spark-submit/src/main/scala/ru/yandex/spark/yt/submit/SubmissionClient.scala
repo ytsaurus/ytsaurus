@@ -35,7 +35,7 @@ class SubmissionClient(proxy: String,
       val cv = discoveryService.clusterVersion
         .getOrElse(throw new IllegalArgumentException(s"Cluster version is not found, check discovery path $discoveryPath"))
 
-      (a, cv, discoveryService.eventLogPath)
+      (a, cv, discoveryService.eventLogPath(discoveryPath))
     } finally {
       ytClient.close()
     }
@@ -65,7 +65,7 @@ class SubmissionClient(proxy: String,
     launcher.setConf("spark.yt.version", spytVersion)
     launcher.setConf("spark.yt.jars", s"yt:/${spytJarPath(spytVersion)}")
     launcher.setConf("spark.yt.pyFiles", s"yt:/${spytPythonPath(spytVersion)}")
-    launcher.setConf("spark.eventLog.dir", "yt:/" + eventLogPath)
+    launcher.setConf("spark.eventLog.dir", "ytEventLog:/" + eventLogPath)
     launcher.setConf("spark.rest.client.submissionIdFile", submissionIdFile.getAbsolutePath)
     launcher.setConf("spark.rest.client.submissionErrorFile", submissionErrorFile.getAbsolutePath)
 

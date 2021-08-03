@@ -28,7 +28,9 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient
 
   private def masterWrapperPath: String = s"$discoveryPath/master_wrapper"
 
-  def eventLogPath: String = s"$discoveryPath/event_log"
+  def eventLogPath(discoveryBasePath: String): String = {
+    s"$discoveryBasePath/logs/event_log_table"
+  }
 
   override def register(operationId: String,
                         address: Address,
