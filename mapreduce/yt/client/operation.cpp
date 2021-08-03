@@ -799,21 +799,26 @@ private:
         LOG_INFO("Uploading file (FileName: %s; PreparationId: %s)",
             itemToUpload.GetDescription().c_str(),
             OperationPreparer_.GetPreparationId().c_str());
-        Y_DEFER {
-            LOG_INFO("Complete uploading file (FileName: %s; PreparationId: %s)",
-                itemToUpload.GetDescription().c_str(),
-                OperationPreparer_.GetPreparationId().c_str());
-        };
+
+        TString result;
         switch (Options_.FileCacheMode_) {
             case TOperationOptions::EFileCacheMode::ApiCommandBased:
                 Y_ENSURE_EX(Options_.FileStorageTransactionId_.IsEmpty(), TApiUsageError() <<
                     "Default cache mode (API command-based) doesn't allow non-default 'FileStorageTransactionId_'");
-                return UploadToCacheUsingApi(itemToUpload);
+                result = UploadToCacheUsingApi(itemToUpload);
+                break;
             case TOperationOptions::EFileCacheMode::CachelessRandomPathUpload:
-                return UploadToRandomPath(itemToUpload);
+                result = UploadToRandomPath(itemToUpload);
+                break;
             default:
                 Y_FAIL("Unknown file cache mode: %d", static_cast<int>(Options_.FileCacheMode_));
         }
+
+        LOG_INFO("Complete uploading file (FileName: %s; PreparationId: %s)",
+            itemToUpload.GetDescription().c_str(),
+            OperationPreparer_.GetPreparationId().c_str());
+
+        return result;
     }
 
     void UseFileInCypress(const TRichYPath& file)
