@@ -1307,7 +1307,7 @@ private:
     }
 
 private:
-    const std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
+    const TIntrusivePtr<TEventCount> EventCount_ = New<TEventCount>();
     const TMpscInvokerQueuePtr EventQueue_;
 
     const TIntrusivePtr<TThread> LoggingThread_;

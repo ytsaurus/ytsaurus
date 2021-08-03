@@ -186,8 +186,8 @@ public:
     }
 
 private:
-    const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
-    const std::shared_ptr<TEventCount> ShutdownEventCount_ = std::make_shared<TEventCount>();
+    const TIntrusivePtr<TEventCount> CallbackEventCount_ = New<TEventCount>();
+    const TIntrusivePtr<TEventCount> ShutdownEventCount_ = New<TEventCount>();
 
     const bool Debug_;
     YT_DECLARE_SPINLOCK(TAdaptiveLock, InvokerLock_);

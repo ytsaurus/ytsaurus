@@ -67,7 +67,7 @@ namespace NYT::NConcurrency {
  * data structure (push into a lock-free queue, etc) and returning true on
  * success and false on failure.
  */
-class TEventCount
+class TEventCount final
 {
 public:
     TEventCount() = default;
@@ -103,7 +103,7 @@ private:
 
     //! Lower 32 bits: number of waiters.
     //! Upper 32 bits: epoch
-    std::atomic<ui64> Value_ = {0};
+    std::atomic<ui64> Value_ = 0;
 
     static constexpr ui64 AddWaiter  = static_cast<ui64>(1);
     static constexpr ui64 SubWaiter  = static_cast<ui64>(-1);
@@ -122,7 +122,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A single-shot non-resettable event implemented on top of TEventCount.
-class TEvent
+class TEvent final
 {
 public:
     TEvent() = default;
@@ -136,7 +136,7 @@ public:
     bool Wait(std::optional<TInstant> deadline = std::nullopt);
 
 private:
-    std::atomic<bool> Set_ = {false};
+    std::atomic<bool> Set_ = false;
     TEventCount EventCount_;
 };
 

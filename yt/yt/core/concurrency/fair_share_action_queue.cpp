@@ -134,7 +134,7 @@ private:
     TFairShareInvokerQueuePtr Queue_;
     TFairShareQueueSchedulerThreadPtr Thread_;
 
-    const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
+    const TIntrusivePtr<TEventCount> CallbackEventCount_ = New<TEventCount>();
 
     std::vector<int> QueueIndexToBucketIndex_;
     std::vector<int> QueueIndexToBucketQueueIndex_;

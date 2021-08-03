@@ -79,7 +79,7 @@ thread_local TFiberContext* FiberContext = nullptr;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFiberScheduler::TFiberScheduler(
-    std::shared_ptr<TEventCount> callbackEventCount,
+    TIntrusivePtr<TEventCount> callbackEventCount,
     const TString& threadGroupName,
     const TString& threadName)
     : TSchedulerThreadBase(

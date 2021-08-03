@@ -59,11 +59,11 @@ class TInvokerQueue
 {
 public:
     TInvokerQueue(
-        std::shared_ptr<TEventCount> callbackEventCount,
+        TIntrusivePtr<TEventCount> callbackEventCount,
         const NProfiling::TTagSet& counterTagSet);
 
     TInvokerQueue(
-        std::shared_ptr<TEventCount> callbackEventCount,
+        TIntrusivePtr<TEventCount> callbackEventCount,
         const std::vector<NProfiling::TTagSet>& counterTagSets,
         const NProfiling::TTagSet& cumulativeCounterTagSet);
 
@@ -91,7 +91,7 @@ public:
     IInvokerPtr GetProfilingTagSettingInvoker(int profilingTag);
 
 private:
-    const std::shared_ptr<TEventCount> CallbackEventCount_;
+    const TIntrusivePtr<TEventCount> CallbackEventCount_;
 
     TQueueImpl QueueImpl_;
 
