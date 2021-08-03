@@ -156,7 +156,7 @@ public:
         // Should be created after throttlers.
         AllyReplicaManager_ = CreateAllyReplicaManager(this);
 
-        StorageLookupThreadPool_ = CreateFairShareThreadPool(
+        StorageLookupThreadPool_ = New<TThreadPool>(
             GetConfig()->DataNode->StorageLookupThreadCount,
             "StorageLookup");
         MasterJobThreadPool_ = New<TThreadPool>(
@@ -297,9 +297,9 @@ public:
         return JournalDispatcher_;
     }
 
-    virtual IInvokerPtr GetStorageLookupInvoker() const override
+    virtual const IInvokerPtr& GetStorageLookupInvoker() const override
     {
-        return StorageLookupThreadPool_->GetInvoker("default");
+        return StorageLookupThreadPool_->GetInvoker();
     }
 
     virtual const IInvokerPtr& GetMasterJobInvoker() const override
@@ -341,7 +341,7 @@ private:
 
     IJournalDispatcherPtr JournalDispatcher_;
 
-    IFairShareThreadPoolPtr StorageLookupThreadPool_;
+    TThreadPoolPtr StorageLookupThreadPool_;
     TThreadPoolPtr MasterJobThreadPool_;
 
     TBlockPeerTablePtr BlockPeerTable_;
