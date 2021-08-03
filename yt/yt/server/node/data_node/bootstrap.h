@@ -39,7 +39,7 @@ struct IBootstrap
     virtual const IJournalDispatcherPtr& GetJournalDispatcher() const = 0;
 
     // Invokers.
-    virtual IInvokerPtr GetStorageLookupInvoker() const = 0;
+    virtual const IInvokerPtr& GetStorageLookupInvoker() const = 0;
     virtual const IInvokerPtr& GetMasterJobInvoker() const = 0;
 
     // P2P stuff.
