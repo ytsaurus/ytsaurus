@@ -398,7 +398,15 @@ class TArtifactCacheReaderConfig
     : public virtual NChunkClient::TBlockFetcherConfig
     , public virtual NTableClient::TTableReaderConfig
     , public virtual NApi::TFileReaderConfig
-{ };
+{
+public:
+    TArtifactCacheReaderConfig()
+    {
+        RegisterPreprocessor([this] {
+            WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemArtifactCacheDownload);
+        });
+    }
+};
 
 DEFINE_REFCOUNTED_TYPE(TArtifactCacheReaderConfig)
 
