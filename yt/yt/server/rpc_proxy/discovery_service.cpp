@@ -102,8 +102,6 @@ public:
             BIND(&TDiscoveryService::OnPeriodicEvent, MakeWeak(this), &TDiscoveryService::UpdateProxies),
             TPeriodicExecutorOptions::WithJitter(Config_->ProxyUpdatePeriod)))
     {
-        Initialize();
-
         if (Bootstrap_->GetConfig()->GrpcServer) {
             const auto& addresses = Bootstrap_->GetConfig()->GrpcServer->Addresses;
             YT_VERIFY(addresses.size() == 1);
@@ -113,6 +111,8 @@ public:
 
             GrpcProxyPath_ = GrpcProxiesPath + "/" + BuildServiceAddress(GetLocalHostName(), port);
         }
+
+        Initialize();
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DiscoverProxies));
     }
@@ -330,7 +330,7 @@ private:
             if (role) {
                 NProfiling::TSolomonRegistry::Get()->SetDynamicTags({NProfiling::TTag{"proxy_role", *role}});
             } else {
-                NProfiling::TSolomonRegistry::Get()->SetDynamicTags({});
+                NProfiling::TSolomonRegistry::Get()->SetDynamicTags({NProfiling::TTag{"proxy_role", DefaultProxyRole}});
             }
         }
         {
