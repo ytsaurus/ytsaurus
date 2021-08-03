@@ -125,8 +125,9 @@ type Spec struct {
 	CombineChunks  bool     `yson:"combine_chunks,omitempty"`
 	ForceTransform bool     `yson:"force_transform,omitempty"`
 
-	JobCount       int   `yson:"job_count,omitempty"`
-	DataSizePerJob int64 `yson:"data_size_per_job,omitempty"`
+	JobCount              int   `yson:"job_count,omitempty"`
+	DataSizePerJob        int64 `yson:"data_size_per_job,omitempty"`
+	UseColumnarStatistics *bool `yson:"use_columnar_statistics,omitempty"`
 
 	TimeLimit         yson.Duration `yson:"time_limit,omitempty"`
 	MaxFailedJobCount int           `yson:"max_failed_job_count,omitempty"`
