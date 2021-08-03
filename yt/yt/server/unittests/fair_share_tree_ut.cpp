@@ -30,9 +30,9 @@ class TSchedulerStrategyHostMock
     , public TEventLogHostBase
 {
 public:
-    explicit TSchedulerStrategyHostMock(TJobResourcesWithQuotaList nodeResourceLimitsList)
+    explicit TSchedulerStrategyHostMock(std::vector<TExecNodePtr> execNodes)
         : NodeShardInvokers_({GetCurrentInvoker()})
-        , NodeResourceLimitsList_(std::move(nodeResourceLimitsList))
+        , ExecNodes_(std::move(execNodes))
         , MediumDirectory_(New<NChunkClient::TMediumDirectory>())
     {
         NChunkClient::NProto::TMediumDirectory protoDirectory;
@@ -44,7 +44,7 @@ public:
     }
 
     TSchedulerStrategyHostMock()
-        : TSchedulerStrategyHostMock(TJobResourcesWithQuotaList{})
+        : TSchedulerStrategyHostMock(std::vector<TExecNodePtr>())
     { }
 
     virtual IInvokerPtr GetControlInvoker(EControlQueue /*queue*/) const override
@@ -84,15 +84,13 @@ public:
 
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const override
     {
-        if (!filter.IsEmpty()) {
-            return {};
+        TJobResources result;
+        for (const auto& execNode : ExecNodes_) {
+            if (execNode->CanSchedule(filter)) {
+                result += execNode->GetResourceLimits();
+            }
         }
-
-        TJobResources totalResources;
-        for (const auto& resources : NodeResourceLimitsList_) {
-            totalResources += resources.ToJobResources();
-        }
-        return totalResources;
+        return result;
     }
 
     virtual TJobResources GetResourceUsage(const TSchedulingTagFilter& /*filter*/) const override
@@ -119,12 +117,13 @@ public:
     virtual void FlushOperationNode(TOperationId /*operationId*/) override
     { }
 
-    virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& /*filter*/) const override
+    virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const override
     {
         TMemoryDistribution result;
-        for (const auto& resources : NodeResourceLimitsList_) {
-            ++result[resources.GetMemory()];
-        }
+        for (const auto& execNode : ExecNodes_) 
+            if (execNode->CanSchedule(filter)) {
+                ++result[execNode->GetResourceLimits().GetMemory()];
+            }
         return result;
     }
 
@@ -222,7 +221,7 @@ public:
 
 private:
     std::vector<IInvokerPtr> NodeShardInvokers_;
-    TJobResourcesWithQuotaList NodeResourceLimitsList_;
+    std::vector<TExecNodePtr> ExecNodes_;
     NChunkClient::TMediumDirectoryPtr MediumDirectory_;
 };
 
@@ -436,6 +435,7 @@ protected:
         TScheduleJobsProfilingCounters(NProfiling::TProfiler{"/test_scheduling_stage"}));
 
     int SlotIndex_ = 0;
+    NNodeTrackerClient::TNodeId ExecNodeId_ = 0;
 
     TDiskQuota CreateDiskQuota(i64 diskSpace)
     {
@@ -541,17 +541,38 @@ protected:
         return {operationElement, operationHost};
     }
 
-    TExecNodePtr CreateTestExecNode(NNodeTrackerClient::TNodeId id, const TJobResourcesWithQuota& nodeResources)
+    TExecNodePtr CreateTestExecNode(const TJobResourcesWithQuota& nodeResources, TBooleanFormulaTags tags = {})
     {
         NNodeTrackerClient::NProto::TDiskResources diskResources;
         diskResources.mutable_disk_location_resources()->Add();
         diskResources.mutable_disk_location_resources(0)->set_limit(nodeResources.GetDiskQuota().DiskSpacePerMedium[NChunkClient::DefaultSlotsMediumIndex]);
 
-        auto execNode = New<TExecNode>(id, NNodeTrackerClient::TNodeDescriptor(), ENodeState::Online);
+        auto execNode = New<TExecNode>(ExecNodeId_++, NNodeTrackerClient::TNodeDescriptor(), ENodeState::Online);
         execNode->SetResourceLimits(nodeResources.ToJobResources());
         execNode->SetDiskResources(diskResources);
 
+        execNode->Tags() = std::move(tags);
+
         return execNode;
+    }
+
+    std::vector<TExecNodePtr> CreateTestExecNodeList(int count, const TJobResourcesWithQuota& nodeResources)
+    {
+        std::vector<TExecNodePtr> execNodes;
+        for (int i = 0; i < count; i++) {
+            execNodes.push_back(CreateTestExecNode(nodeResources));
+        }
+        return execNodes;
+    }
+
+    TIntrusivePtr<TSchedulerStrategyHostMock> CreateHostWith10NodesAnd10Cpu()
+    {
+        TJobResourcesWithQuota nodeResources;
+        nodeResources.SetUserSlots(10);
+        nodeResources.SetCpu(10);
+        nodeResources.SetMemory(100_MB);
+
+        return New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(10, nodeResources));
     }
 
     TJobPtr CreateTestJob(
@@ -642,16 +663,6 @@ protected:
 };
 
 
-TIntrusivePtr<TSchedulerStrategyHostMock> CreateHostWith10NodesAnd10Cpu()
-{
-    TJobResourcesWithQuota nodeResources;
-    nodeResources.SetUserSlots(10);
-    nodeResources.SetCpu(10);
-    nodeResources.SetMemory(100_MB);
-
-    return New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(10, nodeResources));
-}
-
 void ResetFairShareFunctionsRecursively(TSchedulerCompositeElement* compositeElement)
 {
     compositeElement->ResetFairShareFunctions();
@@ -690,7 +701,7 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     jobResources.SetCpu(1);
     jobResources.SetMemory(10);
 
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(10, nodeResources));
+    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(10, nodeResources));
 
     auto rootElement = CreateTestRootElement(host.Get());
 
@@ -824,7 +835,7 @@ TEST_F(TFairShareTreeTest, TestResourceLimits)
 
     auto totalLimitsShare = TResourceVector::FromJobResources(nodeResources.ToJobResources(), nodeResources.ToJobResources());
 
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(1, nodeResources));
+    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
 
     auto rootElement = CreateTestRootElement(host.Get());
 
@@ -886,6 +897,103 @@ TEST_F(TFairShareTreeTest, TestResourceLimits)
     }
 }
 
+TEST_F(TFairShareTreeTest, TestSchedulingTagFilterResourceLimits)
+{
+    TJobResourcesWithQuota nodeResources1;
+    nodeResources1.SetUserSlots(2);
+    nodeResources1.SetCpu(3);
+    nodeResources1.SetMemory(10);
+
+    TJobResourcesWithQuota nodeResources2;
+    nodeResources2.SetUserSlots(10);
+    nodeResources2.SetCpu(10);
+    nodeResources2.SetMemory(100);
+
+    TJobResourcesWithQuota nodeResources3;
+    nodeResources3.SetUserSlots(20);
+    nodeResources3.SetCpu(30);
+    nodeResources3.SetMemory(500);
+
+    TJobResourcesWithQuota nodeResources134;
+    nodeResources134.SetUserSlots(100);
+    nodeResources134.SetCpu(50);
+    nodeResources134.SetMemory(1000);
+
+    TJobResourcesWithQuotaList nodeResourceLimitsList = {nodeResources1, nodeResources2, nodeResources3, nodeResources134};
+
+    TBooleanFormulaTags tags1(THashSet<TString>({"tag_1"}));
+    TBooleanFormulaTags tags2(THashSet<TString>({"tag_2"}));
+    TBooleanFormulaTags tags3(THashSet<TString>({"tag_3"}));
+    TBooleanFormulaTags tags134(THashSet<TString>({"tag_1", "tag_3", "tag_4"}));
+    std::vector<TBooleanFormulaTags> tagList = {tags1, tags2, tags3, tags134};
+
+    std::vector<TExecNodePtr> execNodes(4);
+    for (int i = 0; i < std::ssize(execNodes); ++i) {
+        execNodes[i] = CreateTestExecNode(nodeResourceLimitsList[i], tagList[i]);
+    }
+
+    auto host = New<TSchedulerStrategyHostMock>(execNodes);
+
+    auto rootElement = CreateTestRootElement(host.Get());
+
+    auto configA = New<TPoolConfig>();
+    auto poolA = CreateTestPool(host.Get(), "PoolA", configA);
+    poolA->AttachParent(rootElement.Get());
+
+    auto configB = New<TPoolConfig>();
+    configB->SchedulingTagFilter = MakeBooleanFormula("tag_1");
+    auto poolB = CreateTestPool(host.Get(), "PoolB", configB);
+    poolB->AttachParent(rootElement.Get());
+
+    auto configC = New<TPoolConfig>();
+    configC->SchedulingTagFilter = MakeBooleanFormula("tag_3") & poolB->GetConfig()->SchedulingTagFilter;
+    auto poolC = CreateTestPool(host.Get(), "PoolC", configC);
+    poolC->AttachParent(poolB.Get());
+
+    auto configD = New<TPoolConfig>();
+    configD->SchedulingTagFilter = MakeBooleanFormula("tag_3");
+    auto poolD = CreateTestPool(host.Get(), "PoolD", configD);
+    poolD->AttachParent(poolB.Get());
+
+    auto configE = New<TPoolConfig>();
+    configE->SchedulingTagFilter = MakeBooleanFormula("tag_2 | (tag_1 & tag_4)");
+    auto poolE = CreateTestPool(host.Get(), "PoolE", configE);
+    poolE->AttachParent(rootElement.Get());
+
+    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
+    operationOptions->Weight = 1.0;
+
+    TJobResourcesWithQuota jobResources;
+    jobResources.SetUserSlots(1);
+    jobResources.SetCpu(1);
+    jobResources.SetMemory(10);
+
+    auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, jobResources));
+    auto specX = New<TStrategyOperationSpec>();
+    specX->SchedulingTagFilter = MakeBooleanFormula("tag_1 | tag_2 | tag_5");
+    auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), rootElement.Get(), operationOptions, specX);
+
+    auto operationY = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(5, jobResources));
+    auto operationElementY = CreateTestOperationElement(host.Get(), operationX.Get(), poolD.Get(), operationOptions);
+
+    {
+        DoFairShareUpdate(host.Get(), rootElement);
+
+        EXPECT_EQ(nodeResources1 + nodeResources2 + nodeResources3 + nodeResources134,
+            poolA->GetSchedulingTagFilterResourceLimits());
+        EXPECT_EQ(nodeResources1 + nodeResources134, poolB->GetSchedulingTagFilterResourceLimits());
+        EXPECT_EQ(nodeResources134.ToJobResources(), poolC->GetSchedulingTagFilterResourceLimits());
+        EXPECT_EQ(nodeResources3 + nodeResources134, poolD->GetSchedulingTagFilterResourceLimits());
+        EXPECT_EQ(nodeResources2 + nodeResources134, poolE->GetSchedulingTagFilterResourceLimits());
+
+        EXPECT_EQ(nodeResources1 + nodeResources2 + nodeResources134,
+            operationElementX->GetSchedulingTagFilterResourceLimits());
+        EXPECT_EQ(nodeResources1 + nodeResources2 + nodeResources3 + nodeResources134,
+            operationElementY->GetSchedulingTagFilterResourceLimits());
+    }    
+}
+
+
 TEST_F(TFairShareTreeTest, TestFractionalResourceLimits)
 {
     TJobResourcesWithQuota nodeResources;
@@ -895,7 +1003,7 @@ TEST_F(TFairShareTreeTest, TestFractionalResourceLimits)
 
     auto totalLimitsShare = TResourceVector::FromJobResources(nodeResources.ToJobResources(), nodeResources.ToJobResources());
 
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(1, nodeResources));
+    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
 
     auto rootElement = CreateTestRootElement(host.Get());
 
@@ -942,7 +1050,7 @@ TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
 
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(10, nodeResources));
+    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(10, nodeResources));
 
     auto rootElement = CreateTestRootElement(host.Get());
 
@@ -996,7 +1104,10 @@ TEST_F(TFairShareTreeTest, TestBestAllocationShare)
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
 
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList({nodeResourcesA, nodeResourcesA, nodeResourcesB}));
+    auto execNodes = CreateTestExecNodeList(2, nodeResourcesA);
+    execNodes.push_back(CreateTestExecNode(nodeResourcesB));
+
+    auto host = New<TSchedulerStrategyHostMock>(execNodes);
 
     auto rootElement = CreateTestRootElement(host.Get());
 
@@ -1061,10 +1172,10 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
 
     std::vector<TExecNodePtr> execNodes(3);
     for (int i = 0; i < std::ssize(execNodes); ++i) {
-        execNodes[i] = CreateTestExecNode(static_cast<NNodeTrackerClient::TNodeId>(i), nodeResources);
+        execNodes[i] = CreateTestExecNode(nodeResources);
     }
 
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(execNodes.size(), nodeResources));
+    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(execNodes.size(), nodeResources));
 
     auto rootElement = CreateTestRootElement(host.Get());
 
@@ -1126,7 +1237,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareEmptyTree)
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(1000);
 
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(nodeCount, nodeResources));
+    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(nodeCount, nodeResources));
 
     // Create a tree with 2 pools
     auto rootElement = CreateTestRootElement(host.Get());
@@ -1152,7 +1263,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareOneLargeOperation)
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(1000);
 
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(nodeCount, nodeResources));
+    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(nodeCount, nodeResources));
 
     // Create a tree with 2 pools
     auto rootElement = CreateTestRootElement(host.Get());
@@ -1192,7 +1303,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareOneSmallOperation)
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(1000);
 
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(nodeCount, nodeResources));
+    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(nodeCount, nodeResources));
 
     // Create a tree with 2 pools
     auto rootElement = CreateTestRootElement(host.Get());
@@ -1232,7 +1343,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareTwoComplementaryOperations)
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(1000);
 
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(nodeCount, nodeResources));
+    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(nodeCount, nodeResources));
 
     // Create a tree with 2 pools
     auto rootElement = CreateTestRootElement(host.Get());
@@ -1286,7 +1397,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareComplexCase)
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(1000);
 
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(nodeCount, nodeResources));
+    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(nodeCount, nodeResources));
 
     // Create a tree with 2 pools
     auto rootElement = CreateTestRootElement(host.Get());
@@ -1361,7 +1472,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareNonContinuousFairShare)
     nodeResources.SetMemory(100_GB);
     nodeResources.SetNetwork(100);
 
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(nodeCount, nodeResources));
+    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(nodeCount, nodeResources));
 
     // Create a tree with 2 pools
     auto rootElement = CreateTestRootElement(host.Get());
@@ -1423,7 +1534,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareNonContinuousFairShareFunctionIsLe
     nodeResources.SetMemory(100_GB);
     nodeResources.SetNetwork(100);
 
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(nodeCount, nodeResources));
+    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(nodeCount, nodeResources));
 
     // Create a tree with 2 pools.
     auto rootElement = CreateTestRootElement(host.Get());
@@ -1495,7 +1606,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareImpreciseComposition)
     nodeResources.SetCpu(3);
     nodeResources.SetMemory(8316576848);
 
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(1, nodeResources));
+    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
 
     auto rootElement = CreateTestRootElement(host.Get());
 
@@ -1543,9 +1654,9 @@ TEST_F(TFairShareTreeTest, TruncateUnsatisfiedChildFairShareInFifoPools)
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(100);
 
-    auto execNode = CreateTestExecNode(static_cast<NNodeTrackerClient::TNodeId>(0), nodeResources);
+    auto execNode = CreateTestExecNode(nodeResources);
 
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(1, nodeResources));
+    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
 
     auto poolConfig = New<TPoolConfig>();
     poolConfig->TruncateFifoPoolUnsatisfiedChildFairShare = true;
@@ -1601,9 +1712,9 @@ TEST_F(TFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandRatio)
     nodeResources.SetMemory(100);
     nodeResources.SetDiskQuota(CreateDiskQuota(100));
 
-    auto execNode = CreateTestExecNode(static_cast<NNodeTrackerClient::TNodeId>(0), nodeResources);
+    auto execNode = CreateTestExecNode(nodeResources);
 
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(1, nodeResources));
+    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
 
     auto rootElement = CreateTestRootElement(host.Get());
 
@@ -1662,9 +1773,9 @@ TEST_F(TFairShareTreeTest, TestConditionalPreemption)
     nodeResources.SetUserSlots(30);
     nodeResources.SetCpu(30);
     nodeResources.SetMemory(300_MB);
-    auto execNode = CreateTestExecNode(static_cast<NNodeTrackerClient::TNodeId>(0), nodeResources);
+    auto execNode = CreateTestExecNode(nodeResources);
 
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(1, nodeResources));
+    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
     auto rootElement = CreateTestRootElement(host.Get());
     auto blockingPool = CreateTestPool(host.Get(), "blocking", CreateSimplePoolConfig(/*strongGuaranteeCpu*/ 10.0));
     auto guaranteedPool = CreateTestPool(host.Get(), "guaranteed", CreateSimplePoolConfig(/*strongGuaranteeCpu*/ 20.0));
@@ -2394,9 +2505,9 @@ TEST_F(TFairShareTreeTest, ChildHeap)
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(100);
     nodeResources.SetDiskQuota(CreateDiskQuota(100));
-    auto execNode = CreateTestExecNode(static_cast<NNodeTrackerClient::TNodeId>(0), nodeResources);
+    auto execNode = CreateTestExecNode(nodeResources);
 
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(1, nodeResources));
+    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
 
     // Root element.
     auto rootElement = CreateTestRootElement(host.Get());
@@ -2505,7 +2616,7 @@ TEST_F(TFairShareTreeTest, ChildHeap)
 
 TEST_F(TFairShareTreeTest, TestAccumulatedResourceVolumeRatioBeforeFairShareUpdate)
 {
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(0, TJobResourcesWithQuota()));
+    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(0, TJobResourcesWithQuota()));
     auto rootElement = CreateTestRootElement(host.Get());
 
     auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 100));
