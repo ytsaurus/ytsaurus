@@ -63,7 +63,6 @@ static const THashSet<EDataNodeThrottlerKind> DataNodeCompatThrottlers = {
     EDataNodeThrottlerKind::ReadRpsOut,
     // Exec Node throttlers.
     EDataNodeThrottlerKind::ArtifactCacheIn,
-    EDataNodeThrottlerKind::ArtifactCacheOut,
     EDataNodeThrottlerKind::JobIn,
     EDataNodeThrottlerKind::JobOut,
 };
