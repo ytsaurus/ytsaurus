@@ -3793,10 +3793,17 @@ private:
 
         auto* newRootChunkList = chunkManager->CreateChunkList(oldRootChunkList->GetKind());
 
+
         // Initialize new tablet chunk lists.
         if (table->IsPhysicallySorted()) {
             // This excludes hunk chunks.
             std::vector<TChunkTree*> chunksOrViews;
+
+            // Chunk views that were created to fit chunks into old tablet range
+            // and may later become useless after MergeChunkViewRanges.
+            // We ref them after creation and unref at the end so they are
+            // properly destroyed.
+            std::vector<TChunkView*> temporarilyReferencedChunkViews;
 
             const auto& tabletChunkTrees = table->GetChunkList()->Children();
 
@@ -3840,7 +3847,10 @@ private:
                             if (upperPivot < readRange.UpperLimit().GetLegacyKey()) {
                                 newReadRange.UpperLimit().SetLegacyKey(upperPivot);
                             }
+
                             auto* newChunkView = chunkManager->CreateChunkView(chunkView, newReadRange);
+                            objectManager->RefObject(newChunkView);
+                            temporarilyReferencedChunkViews.push_back(newChunkView);
 
                             chunkTree = newChunkView;
                         }
@@ -3973,6 +3983,13 @@ private:
                     auto* tabletChunkList = newTabletChunkLists[relativeIndex]->AsChunkList();
                     auto* hunkChunkList = chunkManager->GetOrCreateHunkChunkList(tabletChunkList);
                     chunkManager->AttachToChunkList(hunkChunkList, newTabletHunkChunks[relativeIndex]);
+                }
+            }
+
+            for (auto* chunkView : temporarilyReferencedChunkViews) {
+                if (objectManager->UnrefObject(chunkView) == 0) {
+                    YT_LOG_DEBUG("Temporarily referenced chunk view dropped during reshard (ChunkViewId: %v)",
+                        chunkView->GetId());
                 }
             }
         } else {

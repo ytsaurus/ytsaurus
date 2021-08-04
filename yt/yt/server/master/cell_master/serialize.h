@@ -98,6 +98,7 @@ DEFINE_ENUM(EMasterReign,
     ((UpdateMountedWithEnabledDsrAttributeByTabletActions)          (1464))  // ifsmirnov
     ((ProperRowCountInJournalChunkTree)                             (1465))  // gritukan
     ((EvenBetterRowCountInJournalChunkTree)                         (1466))  // gritukan
+    ((DropDanglingChunkViews20_3)                                   (1467))  // ifsmirnov
     // 21.1 starts here.
     ((SlotLocationStatisticsInNodeNode)                             (1500))  // gritukan
     ((EnableDescendingSortOrder)                                    (1501))  // max42
@@ -174,6 +175,7 @@ DEFINE_ENUM(EMasterReign,
     ((SchemaIdUponMount)                                            (1648))  // akozhikhov
     ((MulticellStatisticsForAllyReplicas)                           (1649))  // ifsmirnov
     ((RecomputeApprovedReplicaCount)                                (1650))  // ifsmirnov
+    ((DropDanglingChunkViews)                                       (1651))  // ifsmirnov
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1700))  // ignat
 );

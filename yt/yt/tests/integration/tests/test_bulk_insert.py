@@ -24,6 +24,8 @@ import pytest
 from time import sleep
 from copy import deepcopy
 
+import __builtin__
+
 ##################################################################
 
 
@@ -722,12 +724,19 @@ class TestBulkInsert(DynamicTablesBase):
         assert lookup_rows("//tmp/t_output", keys) == rows
 
         lookup_result = lookup_rows("//tmp/t_output", keys, versioned=True)
+        chunk_ids = __builtin__.set(get("//tmp/t_output/@chunk_ids"))
+        assert len(chunk_ids) == 1
 
         sync_unmount_table("//tmp/t_output")
-        sync_reshard_table("//tmp/t_output", pivot_keys_before)
+        sync_reshard_table("//tmp/t_output", pivot_keys_after)
         sync_mount_table("//tmp/t_output")
 
         assert lookup_result == lookup_rows("//tmp/t_output", keys, versioned=True)
+        assert chunk_ids == __builtin__.set(get("//tmp/t_output/@chunk_ids"))
+        chunk_id = list(chunk_ids)[0]
+
+        remove("//tmp/t_output")
+        wait(lambda: not exists("#" + chunk_id))
 
     def test_chunk_views_with_distinct_tx_do_not_merge(self):
         sync_create_cells(1)
