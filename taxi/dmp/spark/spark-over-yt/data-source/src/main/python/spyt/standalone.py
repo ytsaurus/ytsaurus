@@ -273,6 +273,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     environment["JAVA_HOME"] = "$HOME/tmpfs/jdk11"
     environment["SPARK_HOME"] = "$HOME/{}/spark".format(spark_home)
     environment["SPARK_CLUSTER_VERSION"] = config["cluster_version"]
+    environment["SPARK_YT_CLUSTER_CONF_PATH"] = str(spark_discovery.conf())
     environment["SPARK_YT_BYOP_PORT"] = "27002"
     environment["SPARK_LOCAL_DIRS"] = "./tmpfs"
 
