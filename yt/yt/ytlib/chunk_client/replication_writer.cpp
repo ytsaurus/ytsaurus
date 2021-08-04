@@ -1069,11 +1069,6 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
             throttleFuture = VoidFuture;
         }
 
-        YT_LOG_DEBUG("Putting blocks (Blocks: %v-%v, Address: %v)",
-            FirstBlockIndex_,
-            GetEndBlockIndex(),
-            node->Descriptor.GetDefaultAddress());
-
         putBlocksFutures.push_back(throttleFuture.Apply(BIND([req] {
             return req->Invoke();
         })));
