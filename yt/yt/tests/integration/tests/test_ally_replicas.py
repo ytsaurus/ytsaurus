@@ -190,9 +190,3 @@ class TestAllyReplicas(YTEnvSetup):
 
 class TestAllyReplicasMulticell(TestAllyReplicas):
     NUM_SECONDARY_MASTER_CELLS = 2
-
-    @authors("ifsmirnov")
-    def test_ally_replicas_disabled(self):
-        # XXX(ifsmirnov): "safe_online_node_count" does not work with multicell since
-        # node tracker does not provide online node count at secondary cells.
-        pass

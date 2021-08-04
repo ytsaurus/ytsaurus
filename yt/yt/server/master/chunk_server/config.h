@@ -312,6 +312,9 @@ public:
     //! Override of |SafeOnlineNodeCount| for replica announcements and endorsements.
     std::optional<int> SafeOnlineNodeCount;
 
+    //! Override of |SafeLostChunkCount| for replica announcements and endorsements.
+    std::optional<int> SafeLostChunkCount;
+
     TDynamicAllyReplicaManagerConfig()
     {
         RegisterParameter("enable_ally_replica_announcement", EnableAllyReplicaAnnouncement)
@@ -324,6 +327,10 @@ public:
             .Default(TDuration::Seconds(60));
 
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
+            .GreaterThanOrEqual(0)
+            .Default();
+
+        RegisterParameter("safe_lost_chunk_count", SafeLostChunkCount)
             .GreaterThanOrEqual(0)
             .Default();
     }

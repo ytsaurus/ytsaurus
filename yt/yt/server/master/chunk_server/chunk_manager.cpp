@@ -33,6 +33,8 @@
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/config.h>
 
+#include <yt/yt/server/master/cell_master/proto/multicell_manager.pb.h>
+
 #include <yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
@@ -2006,7 +2008,7 @@ private:
     ICompositeJobControllerPtr JobController_;
 
 
-    const TDynamicChunkManagerConfigPtr& GetDynamicConfig()
+    const TDynamicChunkManagerConfigPtr& GetDynamicConfig() const
     {
         return Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
     }
@@ -2314,6 +2316,29 @@ private:
         node->ReplicaEndorsements().clear();
     }
 
+    bool IsClusterStableEnoughForImmediateReplicaAnnounces() const
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& statistics = multicellManager->GetClusterStatistics();
+
+        const auto& globalConfig = GetDynamicConfig();
+        const auto& specificConfig = globalConfig->AllyReplicaManager;
+
+        int safeOnlineNodeCount = specificConfig->SafeOnlineNodeCount.value_or(
+            globalConfig->SafeOnlineNodeCount);
+        if (statistics.online_node_count() < safeOnlineNodeCount) {
+            return false;
+        }
+
+        int safeLostChunkCount = specificConfig->SafeLostChunkCount.value_or(
+            globalConfig->SafeLostChunkCount);
+        if (statistics.lost_vital_chunk_count() > safeLostChunkCount) {
+            return false;
+        }
+
+        return true;
+    }
+
     template <class TResponse>
     void SetAnnounceReplicaRequests(
         TResponse* response,
@@ -2325,17 +2350,8 @@ private:
             return;
         }
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        int safeOnlineNodeCount = dynamicConfig->SafeOnlineNodeCount.value_or(
-            GetDynamicConfig()->SafeOnlineNodeCount);
-        bool enoughOnlineNodes = nodeTracker->GetOnlineNodeCount() >=
-            safeOnlineNodeCount;
-        // Other criteria may apper later.
-        bool clusterIsStableEnough = enoughOnlineNodes;
-
-        if (multicellManager->IsPrimaryMaster()) {
+        bool clusterIsStableEnough = IsClusterStableEnoughForImmediateReplicaAnnounces();
+        if (Bootstrap_->IsPrimaryMaster()) {
             response->set_enable_lazy_replica_announcements(clusterIsStableEnough);
         }
 

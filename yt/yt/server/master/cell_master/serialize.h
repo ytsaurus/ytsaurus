@@ -172,6 +172,7 @@ DEFINE_ENUM(EMasterReign,
     ((CellIdsInReshardTabletActions)                                (1646))  // ifsmirnov
     ((YT_15179)                                                     (1647))  // shakurov
     ((SchemaIdUponMount)                                            (1648))  // akozhikhov
+    ((MulticellStatisticsForAllyReplicas)                           (1649))  // ifsmirnov
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1700))  // ignat
 );
