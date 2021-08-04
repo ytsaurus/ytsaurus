@@ -236,7 +236,7 @@ def _build_spark_conf(num_executors=None,
     else:
         client = client or create_yt_client_spark_conf(yt_proxy, spark_conf)
         spark_cluster_version = os.getenv("SPARK_CLUSTER_VERSION")
-        spark_cluster_conf_path = os.getenv("SPARK_YT_CLUSTER_CONFPATH")
+        spark_cluster_conf_path = os.getenv("SPARK_YT_CLUSTER_CONF_PATH")
 
     _set_none_safe(spark_conf, "spark.app.name", app_name)
     _configure_resources(spark_conf, local_conf,
