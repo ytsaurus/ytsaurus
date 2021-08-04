@@ -152,7 +152,7 @@ private:
     i64 Size_ = 0;
 
     void PutGroup(const TReplicationWriterPtr& writer);
-    void SendGroup(const TReplicationWriterPtr& writer, const TNodePtr& srcNode);
+    void SendGroup(const TReplicationWriterPtr& writer, const std::vector<TNodePtr>& srcNodes);
 
     void Process();
 };
@@ -189,6 +189,7 @@ public:
         , WindowSlots_(New<TAsyncSemaphore>(config->SendWindowSize))
         , UploadReplicationFactor_(Config_->UploadReplicationFactor)
         , MinUploadReplicationFactor_(std::min(Config_->UploadReplicationFactor, Config_->MinUploadReplicationFactor))
+        , DirectUploadNodeCount_(Config_->GetDirectUploadNodeCount())
         , UncancelableStateError_(StateError_.ToFuture().ToUncancelable())
         , BlockReorderer_(config)
     {
@@ -338,6 +339,7 @@ private:
 
     const int UploadReplicationFactor_;
     const int MinUploadReplicationFactor_;
+    const int DirectUploadNodeCount_;
 
     const TPromise<void> StateError_ = NewPromise<void>();
     const TPromise<void> ClosePromise_ = NewPromise<void>();
@@ -1015,7 +1017,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
 {
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
-    std::optional<int> selectedIndex;
+    std::vector<TNodePtr> selectedNodes;
     for (int index = 0; index < std::ssize(writer->Nodes_); ++index) {
         const auto& node = writer->Nodes_[index];
 
@@ -1023,89 +1025,108 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
             continue;
         }
 
-        if (!selectedIndex) {
-            selectedIndex = index;
-        }
-
-        if (IsAddressLocal(node->Descriptor.GetDefaultAddress())) {
+        if (std::ssize(selectedNodes) < writer->DirectUploadNodeCount_) {
+            selectedNodes.push_back(node);
+        } else if (IsAddressLocal(node->Descriptor.GetDefaultAddress())) {
             // If we are on the same host - this is always the best candidate.
-            selectedIndex = index;
-            break;
+            selectedNodes[0] = node;
         }
     }
 
-    YT_VERIFY(selectedIndex);
-    const auto& node = writer->Nodes_[*selectedIndex];
+    YT_VERIFY(!selectedNodes.empty());
 
-    TDataNodeServiceProxy proxy(node->Channel);
-    auto req = proxy.PutBlocks();
-    req->SetMultiplexingBand(EMultiplexingBand::Heavy);
-    req->SetTimeout(writer->Config_->NodeRpcTimeout);
-    ToProto(req->mutable_session_id(), writer->SessionId_);
-    req->set_first_block_index(FirstBlockIndex_);
-    req->set_populate_cache(writer->Config_->PopulateCache);
+    std::vector<TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr>> putBlocksFutures;
+    for (const auto& node : selectedNodes) {
+        TDataNodeServiceProxy proxy(node->Channel);
+        auto req = proxy.PutBlocks();
+        req->SetMultiplexingBand(EMultiplexingBand::Heavy);
+        req->SetTimeout(writer->Config_->NodeRpcTimeout);
+        ToProto(req->mutable_session_id(), writer->SessionId_);
+        req->set_first_block_index(FirstBlockIndex_);
+        req->set_populate_cache(writer->Config_->PopulateCache);
 
-    SetRpcAttachedBlocks(req, Blocks_);
+        SetRpcAttachedBlocks(req, Blocks_);
 
-    YT_LOG_DEBUG("Ready to put blocks (Blocks: %v-%v, Address: %v, Size: %v)",
-        GetStartBlockIndex(),
-        GetEndBlockIndex(),
-        node->Descriptor.GetDefaultAddress(),
-        Size_);
-
-    if (!IsAddressLocal(node->Descriptor.GetDefaultAddress())) {
-        auto throttleResult = WaitFor(writer->Throttler_->Throttle(Size_));
-        if (!throttleResult.IsOK() && !writer->StateError_.IsSet()) {
-            auto error = TError(
-                NChunkClient::EErrorCode::BandwidthThrottlingFailed,
-                "Failed to throttle bandwidth in writer")
-                << throttleResult;
-            YT_LOG_WARNING(error, "Chunk writer failed");
-            writer->CancelWriter();
-            writer->StateError_.TrySet(error);
-            return;
-        }
-    }
-
-    YT_LOG_DEBUG("Putting blocks (Blocks: %v-%v, Address: %v)",
-        FirstBlockIndex_,
-        GetEndBlockIndex(),
-        node->Descriptor.GetDefaultAddress());
-
-    auto rspOrError = WaitFor(req->Invoke());
-    if (rspOrError.IsOK()) {
-        if (rspOrError.Value()->close_demanded()) {
-            YT_LOG_DEBUG("Close demanded by node (NodeAddress: %v)", node->Descriptor.GetDefaultAddress());
-            writer->DemandClose();
-        }
-        SentTo_[node->Index] = true;
-
-        writer->AccountTraffic(Size_, node->Descriptor);
-
-        YT_LOG_DEBUG("Blocks are put (Blocks: %v-%v, Address: %v)",
+        YT_LOG_DEBUG("Ready to put blocks (Blocks: %v-%v, Address: %v, Size: %v)",
             GetStartBlockIndex(),
             GetEndBlockIndex(),
+            node->Descriptor.GetDefaultAddress(),
+            Size_);
+
+        TFuture<void> throttleFuture;
+        if (!IsAddressLocal(node->Descriptor.GetDefaultAddress())) {
+            throttleFuture = writer->Throttler_->Throttle(Size_).Apply(BIND([] (const TError& error) {
+                if (!error.IsOK()) {
+                    return TError(
+                        NChunkClient::EErrorCode::BandwidthThrottlingFailed,
+                        "Failed to throttle bandwidth in writer")
+                        << error;
+                } else {
+                    return TError{};
+                }
+            }));
+        } else {
+            throttleFuture = VoidFuture;
+        }
+
+        YT_LOG_DEBUG("Putting blocks (Blocks: %v-%v, Address: %v)",
+            FirstBlockIndex_,
+            GetEndBlockIndex(),
             node->Descriptor.GetDefaultAddress());
-    } else {
-        writer->OnNodeFailed(node, rspOrError);
+
+        putBlocksFutures.push_back(throttleFuture.Apply(BIND([req] {
+            return req->Invoke();
+        })));
+    }
+
+    for (int i = 0; i < std::ssize(selectedNodes); i++) {
+        const auto& node = selectedNodes[i];
+        auto rspOrError = WaitFor(putBlocksFutures[i]);
+
+        if (rspOrError.IsOK()) {
+            if (rspOrError.Value()->close_demanded()) {
+                YT_LOG_DEBUG("Close demanded by node (NodeAddress: %v)", node->Descriptor.GetDefaultAddress());
+                writer->DemandClose();
+            }
+            SentTo_[node->Index] = true;
+
+            writer->AccountTraffic(Size_, node->Descriptor);
+
+            YT_LOG_DEBUG("Blocks are put (Blocks: %v-%v, Address: %v)",
+                GetStartBlockIndex(),
+                GetEndBlockIndex(),
+                node->Descriptor.GetDefaultAddress());
+        } else {
+            if (rspOrError.FindMatching(NChunkClient::EErrorCode::BandwidthThrottlingFailed) && !writer->StateError_.IsSet()) {
+                YT_LOG_WARNING(rspOrError, "Chunk writer failed");
+                writer->CancelWriter();
+                writer->StateError_.TrySet(rspOrError);
+            } else {
+                writer->OnNodeFailed(node, rspOrError);
+            }
+        }
     }
 
     ScheduleProcess();
 }
 
-void TGroup::SendGroup(const TReplicationWriterPtr& writer, const TNodePtr& srcNode)
+void TGroup::SendGroup(const TReplicationWriterPtr& writer, const std::vector<TNodePtr>& srcNodes)
 {
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
-    TNodePtr dstNode;
+    std::vector<TNodePtr> dstNodes;
     for (int index = 0; index < std::ssize(SentTo_); ++index) {
         const auto& node = writer->Nodes_[index];
         if (node->IsAlive() && !SentTo_[index]) {
-            dstNode = node;
+            dstNodes.push_back(node);
         }
     }
 
-    if (dstNode) {
+    std::vector<TFuture<TDataNodeServiceProxy::TRspSendBlocksPtr>> sendBlocksFutures;
+    for (int i = 0; i < std::ssize(dstNodes); i++) {
+        const auto& dstNode = dstNodes[i];
+        const auto& srcNode = srcNodes[i % srcNodes.size()];
+
         YT_LOG_DEBUG("Sending blocks (Blocks: %v-%v, SrcAddress: %v, DstAddress: %v)",
             GetStartBlockIndex(),
             GetEndBlockIndex(),
@@ -1121,7 +1142,14 @@ void TGroup::SendGroup(const TReplicationWriterPtr& writer, const TNodePtr& srcN
         req->set_block_count(Blocks_.size());
         ToProto(req->mutable_target_descriptor(), dstNode->Descriptor);
 
-        auto rspOrError = WaitFor(req->Invoke());
+        sendBlocksFutures.push_back(req->Invoke());
+    }
+
+    for (int i = 0; i < std::ssize(sendBlocksFutures); i++) {
+        const auto& dstNode = dstNodes[i];
+        const auto& srcNode = srcNodes[i % srcNodes.size()];
+
+        auto rspOrError = WaitFor(sendBlocksFutures[i]);
         if (rspOrError.IsOK()) {
             if (rspOrError.Value()->close_demanded()) {
                 YT_LOG_DEBUG("Close demanded by node (NodeAddress: %v)", dstNode->Descriptor.GetDefaultAddress());
@@ -1200,13 +1228,13 @@ void TGroup::Process()
         FirstBlockIndex_,
         GetEndBlockIndex());
 
-    TNodePtr nodeWithBlocks;
+    std::vector<TNodePtr> nodesWithBlocks;
     bool emptyNodeFound = false;
     for (int nodeIndex = 0; nodeIndex < std::ssize(SentTo_); ++nodeIndex) {
         const auto& node = writer->Nodes_[nodeIndex];
         if (node->IsAlive()) {
             if (SentTo_[nodeIndex]) {
-                nodeWithBlocks = node;
+                nodesWithBlocks.push_back(node);
             } else {
                 emptyNodeFound = true;
             }
@@ -1215,10 +1243,10 @@ void TGroup::Process()
 
     if (!emptyNodeFound) {
         writer->ShiftWindow();
-    } else if (!nodeWithBlocks) {
+    } else if (nodesWithBlocks.empty()) {
         PutGroup(writer);
     } else {
-        SendGroup(writer, nodeWithBlocks);
+        SendGroup(writer, nodesWithBlocks);
     }
 }
 
