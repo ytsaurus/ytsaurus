@@ -786,6 +786,9 @@ public:
     //! Cf. TTcpDispatcherStatistics::PendingOutBytes
     i64 NetOutThrottlingLimit;
 
+    //! Extra limit for net queue size, that is checked after blocks are read from disk.
+    i64 NetOutThrottlingExtraLimit;
+
     TDuration NetOutThrottleDuration;
 
     //! Write requests are throttled when the number of bytes queued for write exceeds this limit.
@@ -945,6 +948,9 @@ public:
             .Default(TDuration::Seconds(40));
 
         RegisterParameter("net_out_throttling_limit", NetOutThrottlingLimit)
+            .GreaterThan(0)
+            .Default(512_MB);
+        RegisterParameter("net_out_throttling_extra_limit", NetOutThrottlingExtraLimit)
             .GreaterThan(0)
             .Default(512_MB);
         RegisterParameter("net_out_throttle_duration", NetOutThrottleDuration)
@@ -1152,6 +1158,11 @@ public:
             }
         }
         return capacity;
+    }
+
+    i64 GetNetOutThrottlingHardLimit() const
+    {
+        return NetOutThrottlingLimit + NetOutThrottlingExtraLimit;
     }
 };
 
