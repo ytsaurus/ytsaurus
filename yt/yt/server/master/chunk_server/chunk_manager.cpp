@@ -1946,6 +1946,9 @@ private:
     // COMPAT(shakurov)
     bool NeedFixTrunkNodeInvalidDeltaStatistics_ = false;
 
+    // COMPAT(ifsmirnov)
+    bool NeedRecomputeApprovedReplicaCount_ = false;
+
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TBufferedProducerPtr BufferedProducer_;
@@ -3227,6 +3230,9 @@ private:
 
         // COMPAT(shakurov)
         NeedFixTrunkNodeInvalidDeltaStatistics_ = context.GetVersion() < EMasterReign::FixTrunkNodeInvalidDeltaStatistics;
+
+        // COMPAT(ifsmirnov)
+        NeedRecomputeApprovedReplicaCount_ = context.GetVersion() < EMasterReign::RecomputeApprovedReplicaCount;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -3322,6 +3328,27 @@ private:
 
             if (fixedTableCount != 0) {
                 YT_LOG_ALERT("Fixed invalid delta statistics for %v tables", fixedTableCount);
+            }
+        }
+
+        if (NeedRecomputeApprovedReplicaCount_) {
+            YT_LOG_INFO("Recomputing approved replica count for chunks");
+
+            for (auto [chunkId, chunk] : ChunkMap_) {
+                if (IsObjectAlive(chunk) && chunk->IsBlob()) {
+                    chunk->SetApprovedReplicaCount(std::ssize(chunk->GetReplicas()));
+                }
+            }
+
+            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+            for (auto [nodeId, node] : nodeTracker->Nodes()) {
+                for (auto [replica, instant] : node->UnapprovedReplicas()) {
+                    auto* chunk = replica.GetPtr();
+                    if (IsObjectAlive(chunk) && chunk->IsBlob()) {
+                        chunk->SetApprovedReplicaCount(
+                            chunk->GetApprovedReplicaCount() - 1);
+                    }
+                }
             }
         }
 
