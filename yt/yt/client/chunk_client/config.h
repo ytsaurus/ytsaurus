@@ -246,6 +246,9 @@ public:
     //! If ChunkMetaCache is nullptr or partition tag is specified, this option has no effect.
     bool EnableChunkMetaCache;
 
+    //! If |true| reader will retain a set of peers that will be banned for every session. 
+    bool BanPeersPermanently;
+
     TReplicationReaderConfig()
     {
         RegisterParameter("block_rpc_timeout", BlockRpcTimeout)
@@ -324,6 +327,8 @@ public:
         RegisterParameter("prolonged_discard_seeds_delay", ProlongedDiscardSeedsDelay)
             .Default(TDuration::Minutes(1));
         RegisterParameter("enable_chunk_meta_cache", EnableChunkMetaCache)
+            .Default(true);
+        RegisterParameter("ban_peers_permanently", BanPeersPermanently)
             .Default(true);
 
         RegisterPostprocessor([&] {

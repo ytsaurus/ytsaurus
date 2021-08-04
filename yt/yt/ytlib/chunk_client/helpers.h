@@ -304,6 +304,27 @@ struct TChunkWriterCounters
  
 ///////////////////////////////////////////////////////////////////////////////
  
+struct TAllyReplicasInfo
+{
+    NChunkClient::TChunkReplicaWithMediumList Replicas;
+    NHydra::TRevision Revision = NHydra::NullRevision;
+
+    Y_FORCE_INLINE explicit operator bool() const;
+
+    static TAllyReplicasInfo FromChunkReplicas(
+        const TChunkReplicaList& chunkReplicas,
+        NHydra::TRevision revision = NHydra::NullRevision);
+};
+
+void ToProto(
+    NProto::TAllyReplicasInfo* protoAllyReplicas,
+    const TAllyReplicasInfo& allyReplicas);
+void FromProto(
+    TAllyReplicasInfo* allyReplicas,
+    const NProto::TAllyReplicasInfo& protoAllyReplicas);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient
 
 #define HELPERS_INL_H_

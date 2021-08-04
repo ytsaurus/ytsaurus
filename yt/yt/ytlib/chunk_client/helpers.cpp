@@ -1,11 +1,16 @@
 #include "helpers.h"
 #include "private.h"
+#include "chunk_meta_extensions.h"
+#include "chunk_service_proxy.h"
+#include "chunk_spec.h"
 #include "config.h"
-#include "input_chunk_slice.h"
-#include "input_chunk.h"
-#include "replication_reader.h"
-#include "erasure_reader.h"
 #include "data_slice_descriptor.h"
+#include "erasure_reader.h"
+#include "input_chunk.h"
+#include "input_chunk_slice.h"
+#include "replication_reader.h"
+
+#include <yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -14,8 +19,6 @@
 #include <yt/yt/ytlib/api/native/tablet_helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
-#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
@@ -1026,5 +1029,37 @@ void TChunkWriterCounters::Increment(
 }
  
 ////////////////////////////////////////////////////////////////////////////////
- 
+
+TAllyReplicasInfo TAllyReplicasInfo::FromChunkReplicas(
+    const TChunkReplicaList& chunkReplicas,
+    NHydra::TRevision revision)
+{
+    TAllyReplicasInfo result;
+    result.Replicas.reserve(chunkReplicas.size());
+    for (auto replica : chunkReplicas) {
+        result.Replicas.emplace_back(replica);
+    }
+    result.Revision = revision;
+
+    return result;
+}
+
+void ToProto(
+    NProto::TAllyReplicasInfo* protoAllyReplicas,
+    const TAllyReplicasInfo& allyReplicas)
+{
+    ToProto(protoAllyReplicas->mutable_replicas(), allyReplicas.Replicas);
+    protoAllyReplicas->set_revision(allyReplicas.Revision);
+}
+
+void FromProto(
+    TAllyReplicasInfo* allyReplicas,
+    const NProto::TAllyReplicasInfo& protoAllyReplicas)
+{
+    FromProto(&allyReplicas->Replicas, protoAllyReplicas.replicas());
+    allyReplicas->Revision = protoAllyReplicas.revision();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient

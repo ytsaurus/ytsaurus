@@ -1,7 +1,5 @@
 #include "public.h"
 
-#include <yt/yt/server/lib/hydra/public.h>
-
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
@@ -19,15 +17,6 @@ struct TChunkReplicaAnnouncement
     NChunkClient::TChunkReplicaWithMediumList Replicas;
     NHydra::TRevision Revision;
 };
-
-/*
-void ToProto(
-    NChunkClient::NProto::TChunkReplicaAnnouncement* protoAnnouncement,
-    const TChunkReplicaAnnouncement& announcement);
-void FromProto(
-    TChunkReplicaAnnouncement* announcement,
-    const NChunkClient::NProto::TChunkReplicaAnnouncement& protoAnnouncement);
-    */
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,7 +49,7 @@ struct IAllyReplicaManager
 
     virtual void SetEnableLazyAnnouncements(bool enable) = 0;
 
-    virtual NChunkClient::TChunkReplicaWithMediumList GetAllyReplicas(TChunkId chunkId) const = 0;
+    virtual NChunkClient::TAllyReplicasInfo GetAllyReplicas(TChunkId chunkId) const = 0;
 
     virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
 

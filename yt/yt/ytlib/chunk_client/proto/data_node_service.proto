@@ -15,10 +15,16 @@ import "yt_proto/yt/client/table_chunk_format/proto/wire_protocol.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TAllyReplicasInfo
+{
+    repeated uint64 replicas = 1;
+    required uint64 revision = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TPeerDescriptor
 {
-    // AllBlocksIndex means that the whole chunk is likely to be present
-    // at these nodes.
     required int32 block_index = 1;
     repeated int32 node_ids = 3;
 
@@ -148,10 +154,12 @@ message TRspProbeChunkSet
     message TSubresponse
     {
         required bool has_complete_chunk = 1;
-        repeated int32 peer_node_ids = 2;
+        optional TAllyReplicasInfo ally_replicas = 5;
 
         required bool disk_throttling = 3;
         required int64 disk_queue_size = 4;
+
+        reserved 2;
     }
 
     required bool net_throttling = 1;
@@ -172,6 +180,7 @@ message TReqProbeBlockSet
 message TRspProbeBlockSet
 {
     repeated TPeerDescriptor peer_descriptors = 1;
+    optional TAllyReplicasInfo ally_replicas = 7;
     required bool has_complete_chunk = 2;
     required bool net_throttling = 3;
     required int64 net_queue_size = 4;
@@ -200,6 +209,7 @@ message TReqGetBlockSet
 message TRspGetBlockSet
 {
     repeated TPeerDescriptor peer_descriptors = 1;
+    optional TAllyReplicasInfo ally_replicas = 11;
     required bool has_complete_chunk = 3;
     required bool net_throttling = 5;
     required int64 net_queue_size = 6;
@@ -267,7 +277,9 @@ message TRspGetChunkFragmentSet
     message TSubresponse
     {
         required bool has_complete_chunk = 1;
-        repeated TPeerDescriptor peer_descriptors = 3;
+        optional TAllyReplicasInfo ally_replicas = 4;
+
+        reserved 2, 3;
     }
 
     repeated TSubresponse subresponses = 1;

@@ -30,6 +30,7 @@ message TRspLocateChunks
 
     required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
     repeated TSubresponse subresponses = 2;
+    optional uint64 revision = 3; // TRevision [default = NullRevision]
 }
 
 ////////////////////////////////////////////////////////////////////////////////

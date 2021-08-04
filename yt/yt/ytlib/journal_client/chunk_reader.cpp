@@ -5,9 +5,10 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
-#include <yt/yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_replica_locator.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/replication_reader.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -42,7 +43,7 @@ std::vector<IChunkReaderPtr> CreatePartReaders(
     const IClientPtr& client,
     const TNodeDirectoryPtr& nodeDirectory,
     TChunkId chunkId,
-    TChunkReplicaList replicas,
+    TChunkReplicaWithMediumList replicas,
     IBlockCachePtr blockCache,
     IClientChunkMetaCachePtr chunkMetaCache,
     TTrafficMeterPtr trafficMeter,
@@ -200,7 +201,7 @@ public:
 
         int RetryIndex_ = 0;
         std::vector<TError> InnerErrors_;
-        TFuture<TChunkReplicaList> ChunkReplicasFuture_;
+        TFuture<TAllyReplicasInfo> ReplicasFuture_;
 
         void DoRetry()
         {
@@ -209,12 +210,12 @@ public:
                 RetryIndex_,
                 Reader_->Config_->RetryCount);
 
-            ChunkReplicasFuture_ = Reader_->ChunkReplicaLocator_->GetReplicas();
-            ChunkReplicasFuture_.Subscribe(BIND(&TReadBlocksSession::OnGotReplicas, MakeStrong(this))
+            ReplicasFuture_ = Reader_->ChunkReplicaLocator_->GetReplicasFuture();
+            ReplicasFuture_.Subscribe(BIND(&TReadBlocksSession::OnGotReplicas, MakeStrong(this))
                 .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
         }
 
-        void OnGotReplicas(const TErrorOr<TChunkReplicaList>& replicasOrError)
+        void OnGotReplicas(const TErrorOr<TAllyReplicasInfo>& replicasOrError)
         {
             if (!replicasOrError.IsOK()) {
                 OnSessionFailed(TError("Error fetching blocks for chunk %v: cannot obtain chunk replicas",
@@ -231,7 +232,7 @@ public:
                     Reader_->Client_,
                     Reader_->NodeDirectory_,
                     DecodeChunkId(Reader_->ChunkId_).Id,
-                    replicas,
+                    replicas.Replicas,
                     Reader_->BlockCache_,
                     Reader_->ChunkMetaCache_,
                     Reader_->TrafficMeter_,
@@ -278,7 +279,7 @@ public:
             }
 
             if (error.FindMatching(NChunkClient::EErrorCode::NoSuchChunk)) {
-                Reader_->ChunkReplicaLocator_->DiscardReplicas(ChunkReplicasFuture_);
+                Reader_->ChunkReplicaLocator_->DiscardReplicas(ReplicasFuture_);
             }
 
             DoRetry();

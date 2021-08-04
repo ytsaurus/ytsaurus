@@ -136,7 +136,7 @@ std::tuple<TCachedTableSchemaPtr, bool> TLookupSession::FindTableSchema(
     const TTableSchemaCachePtr& tableSchemaCache)
 {
     auto tableId = FromProto<TObjectId>(schemaData.table_id());
-    auto revision = FromProto<TRevision>(schemaData.revision());
+    auto revision = schemaData.revision();
     i64 schemaSize = schemaData.has_schema_size() ? schemaData.schema_size() : 1_MB;
 
     auto tableSchemaWrapper = tableSchemaCache->GetOrCreate(TSchemaCacheKey{tableId, revision}, schemaSize);

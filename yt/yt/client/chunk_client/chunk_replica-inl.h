@@ -30,12 +30,23 @@ Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium(
     NNodeTrackerClient::TNodeId nodeId,
     int replicaIndex,
     int mediumIndex)
-    : Value(static_cast<ui64>(nodeId) | (static_cast<ui64>(replicaIndex) << 24) | (static_cast<ui64>(mediumIndex) << 29))
+    : Value(
+        static_cast<ui64>(nodeId) |
+        (static_cast<ui64>(replicaIndex) << 24) |
+        (static_cast<ui64>(mediumIndex) << 29))
 {
     YT_ASSERT(nodeId >= 0 && nodeId <= static_cast<int>(NNodeTrackerClient::MaxNodeId));
     YT_ASSERT(replicaIndex >= 0 && replicaIndex < ChunkReplicaIndexBound);
     YT_ASSERT(mediumIndex >= 0 && mediumIndex < MediumIndexBound);
 }
+
+Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium(
+    TChunkReplica replica)
+    : TChunkReplicaWithMedium(
+        replica.GetNodeId(),
+        replica.GetReplicaIndex(),
+        GenericMediumIndex)
+{ }
 
 Y_FORCE_INLINE NNodeTrackerClient::TNodeId TChunkReplicaWithMedium::GetNodeId() const
 {

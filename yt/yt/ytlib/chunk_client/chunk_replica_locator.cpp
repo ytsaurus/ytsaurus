@@ -1,5 +1,6 @@
 #include "chunk_replica_locator.h"
 #include "dispatcher.h"
+#include "helpers.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -24,7 +25,7 @@ TChunkReplicaLocator::TChunkReplicaLocator(
     TNodeDirectoryPtr nodeDirectory,
     TChunkId chunkId,
     TDuration expirationTime,
-    TChunkReplicaList initialReplicas,
+    const TChunkReplicaList& initialReplicas,
     NLogging::TLogger logger)
     : NodeDirectory_(std::move(nodeDirectory))
     , ChunkId_(chunkId)
@@ -35,18 +36,18 @@ TChunkReplicaLocator::TChunkReplicaLocator(
     , Logger(std::move(logger))
 {
     if (!initialReplicas.empty()) {
-        ReplicasPromise_ = MakePromise(initialReplicas);
+        ReplicasPromise_ = MakePromise(TAllyReplicasInfo::FromChunkReplicas(initialReplicas));
     }
 }
 
-TFuture<TChunkReplicaList> TChunkReplicaLocator::GetReplicas()
+TFuture<TAllyReplicasInfo> TChunkReplicaLocator::GetReplicasFuture()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(Lock_);
 
     if (!ReplicasPromise_) {
-        ReplicasPromise_ = NewPromise<TChunkReplicaList>();
+        ReplicasPromise_ = NewPromise<TAllyReplicasInfo>();
 
         auto locateChunkCallback = BIND(&TChunkReplicaLocator::LocateChunk, MakeStrong(this))
             .Via(TDispatcher::Get()->GetReaderInvoker());
@@ -82,7 +83,7 @@ void TChunkReplicaLocator::OnChunkLocated(const TChunkServiceProxy::TErrorOrRspL
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TPromise<TChunkReplicaList> promise;
+    TPromise<TAllyReplicasInfo> promise;
     {
         auto guard = Guard(Lock_);
         Timestamp_ = TInstant::Now();
@@ -106,16 +107,20 @@ void TChunkReplicaLocator::OnChunkLocated(const TChunkServiceProxy::TErrorOrRspL
     }
 
     NodeDirectory_->MergeFrom(rsp->node_directory());
-    auto replicas = FromProto<TChunkReplicaList>(subresponse.replicas());
 
-    YT_LOG_DEBUG("Chunk located (Replicas: %v)",
-        MakeFormattableView(replicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
+    auto replicas = TAllyReplicasInfo::FromChunkReplicas(
+        FromProto<TChunkReplicaList>(subresponse.replicas()),
+        rsp->revision());
+
+    YT_LOG_DEBUG("Chunk located (Revision: %llx, Replicas: %v)",
+        replicas.Revision,
+        MakeFormattableView(replicas.Replicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
 
     ReplicasLocated_.Fire(replicas);
     promise.Set(replicas);
 }
 
-void TChunkReplicaLocator::DiscardReplicas(const TFuture<TChunkReplicaList>& future)
+void TChunkReplicaLocator::DiscardReplicas(const TFuture<TAllyReplicasInfo>& future)
 {
     YT_VERIFY(future.IsSet());
     const auto& replicasOrError = future.Get();
@@ -125,10 +130,36 @@ void TChunkReplicaLocator::DiscardReplicas(const TFuture<TChunkReplicaList>& fut
         ReplicasPromise_.Reset();
         if (replicasOrError.IsOK()) {
             const auto& replicas = replicasOrError.Value();
-            YT_LOG_DEBUG("Chunk replicas discarded (Replicas: %v)",
-                MakeFormattableView(replicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
+            YT_LOG_DEBUG("Chunk replicas discarded (Revision: %llx, Replicas: %v)",
+                replicas.Revision,
+                MakeFormattableView(replicas.Replicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
         }
     }
+}
+
+TFuture<TAllyReplicasInfo> TChunkReplicaLocator::MaybeResetReplicas(
+    const TAllyReplicasInfo& candidateReplicas,
+    const TFuture<TAllyReplicasInfo>& future)
+{
+    YT_VERIFY(future.IsSet());
+    YT_VERIFY(candidateReplicas);
+
+    auto guard = Guard(Lock_);
+
+    if (ReplicasPromise_.ToFuture() == future) {
+        auto oldRevision = future.Get().IsOK()
+            ? future.Get().Value().Revision
+            : NHydra::NullRevision;
+        YT_LOG_DEBUG("Chunk replicas reset (Revision: %llx -> %llx, NewReplicas: %v)",
+            oldRevision,
+            candidateReplicas.Revision,
+            MakeFormattableView(candidateReplicas.Replicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
+
+        ReplicasPromise_ = MakePromise(candidateReplicas);
+        return ReplicasPromise_.ToFuture();
+    }
+
+    return future;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

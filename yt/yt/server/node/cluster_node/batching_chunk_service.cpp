@@ -341,6 +341,7 @@ private:
         {
             UnbatchSubresponses(batchResponse->subresponses(), response->mutable_subresponses(), state.Indexes);
             BuildResponseNodeDirectory(batchResponse, response);
+            response->set_revision(batchResponse->revision());
         }
 
         virtual int GetCost(const TRequestPtr& request) const override

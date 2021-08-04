@@ -117,8 +117,9 @@ private:
         leaderRequest->SetTimeout(context->GetTimeout());
         NRpc::SetCurrentAuthenticationIdentity(leaderRequest);
 
-        const auto& hydraFacade = Bootstrap_->GetHydraFacade();
-        bool follower = hydraFacade->GetHydraManager()->IsFollower();
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        bool follower = hydraManager->IsFollower();
+        auto revision = hydraManager->GetAutomatonVersion().ToRevision();
 
         for (const auto& protoChunkId : request->subrequests()) {
             auto chunkId = FromProto<TChunkId>(protoChunkId);
@@ -148,6 +149,8 @@ private:
                 ToProto(leaderRequest->add_subrequests(), chunkId);
             }
         }
+
+        response->set_revision(revision);
 
         if (leaderRequest->subrequests_size() > 0) {
             YT_LOG_DEBUG("Touching chunks at leader (Count: %v)",

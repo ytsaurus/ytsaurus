@@ -37,6 +37,7 @@ class TDataSourceDirectoryExt;
 
 class TReqGetChunkMeta;
 
+class TAllyReplicasInfo;
 class TChunkReplicaAnnouncement;
 class TChunkReplicaAnnouncementRequest;
 
@@ -49,8 +50,6 @@ class TChunkReplicaAnnouncementRequest;
 constexpr int MaxMasterChunkMetaExtensions = 6;
 
 struct TBlock;
-
-constexpr int AllBlocksIndex = -1;
 
 using TMediumId = NObjectClient::TObjectId;
 
@@ -76,6 +75,8 @@ struct TBlockId;
 
 using TConsistentReplicaPlacementHash = ui64;
 constexpr TConsistentReplicaPlacementHash NullConsistentReplicaPlacementHash = 0;
+
+struct TAllyReplicasInfo;
 
 DEFINE_BIT_ENUM(EBlockType,
     ((None)              (0x0000))
@@ -128,6 +129,7 @@ DEFINE_BIT_ENUM(EChunkFeatures,
 );
 
 DEFINE_ENUM(EChunkClientFeature,
+    // COMPAT(akozhikhov).
     ((AllBlocksIndex)           (0))
 );
 

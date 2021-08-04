@@ -315,10 +315,8 @@ private:
 
     TCallback<TError(i64, TDuration)> SlownessChecker_;
 
-    std::atomic<TInstant> DiscardDelayTime_ = TInstant();
 
-
-    void DiscardSeeds(const TFuture<TChunkReplicaList>& future, bool applyProlongedDelay = false)
+    void DiscardSeeds(const TFuture<TAllyReplicasInfo>& future)
     {
         if (!Options_->AllowFetchingSeedsFromMaster) {
             // We're not allowed to ask master for seeds.
@@ -326,39 +324,31 @@ private:
             return;
         }
 
-        if (applyProlongedDelay) {
-            auto now = TInstant::Now();
-            auto discardDelayTime = DiscardDelayTime_.load();
-            if (discardDelayTime >= now) {
-                return;
-            }
-            auto nextDiscardDelayTime = now + Config_->ProlongedDiscardSeedsDelay;
-            if (!DiscardDelayTime_.compare_exchange_strong(discardDelayTime, nextDiscardDelayTime)) {
-                return;
-            }
-        }
-
         ChunkReplicaLocator_->DiscardReplicas(future);
     }
 
-    void OnChunkReplicasLocated(const TChunkReplicaList& seedReplicas)
+    void OnChunkReplicasLocated(const TAllyReplicasInfo& seedReplicas)
     {
         auto guard = Guard(PeersSpinLock_);
-        for (auto replica : seedReplicas) {
+        for (auto replica : seedReplicas.Replicas) {
             const auto* nodeDescriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
             if (!nodeDescriptor) {
                 YT_LOG_WARNING("Skipping replica with unresolved node id (NodeId: %v)", replica.GetNodeId());
                 continue;
             }
-            auto address = nodeDescriptor->FindAddress(Networks_);
-            if (address) {
+            if (auto address = nodeDescriptor->FindAddress(Networks_)) {
                 BannedForeverPeers_.erase(*address);
             }
         }
     }
 
-    void UpdateLastSeenReplicas(const TChunkReplicaList& lastSeenReplicas)
+    void UpdateLastSeenReplicas(const TChunkReplicaWithMediumList& replicas)
     {
+        TChunkReplicaList lastSeenReplicas;
+        lastSeenReplicas.reserve(replicas.size());
+        for (auto replica : replicas) {
+            lastSeenReplicas.push_back(replica);
+        }
         LastSeenReplicas_.Store(lastSeenReplicas);
     }
 
@@ -391,6 +381,10 @@ private:
 
     bool IsPeerBannedForever(const TString& peerAddress) const
     {
+        if (!Config_->BanPeersPermanently) {
+            return false;
+        }
+
         auto guard = Guard(PeersSpinLock_);
         return BannedForeverPeers_.contains(peerAddress);
     }
@@ -424,6 +418,7 @@ protected:
         i64 NetQueueSize;
         i64 DiskQueueSize;
         ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TPeerDescriptor> PeerDescriptors;
+        TAllyReplicasInfo AllyReplicas;
     };
 
     using TErrorOrPeerProbeResult = TErrorOr<TPeerProbeResult>;
@@ -436,7 +431,8 @@ protected:
             .DiskThrottling = rsp->disk_throttling(),
             .NetQueueSize = rsp->net_queue_size(),
             .DiskQueueSize = rsp->disk_queue_size(),
-            .PeerDescriptors = rsp->peer_descriptors()
+            .PeerDescriptors = rsp->peer_descriptors(),
+            .AllyReplicas = FromProto<TAllyReplicasInfo>(rsp->ally_replicas())
         };
     }
 
@@ -479,7 +475,7 @@ protected:
     int PassIndex_ = 0;
 
     //! Seed replicas for the current retry.
-    TChunkReplicaList SeedReplicas_;
+    TAllyReplicasInfo SeedReplicas_;
 
     //! Set of peer addresses banned for the current retry.
     THashSet<TString> BannedPeers_;
@@ -809,7 +805,7 @@ protected:
 
         RetryStartTime_ = TInstant::Now();
 
-        SeedsFuture_ = reader->ChunkReplicaLocator_->GetReplicas();
+        SeedsFuture_ = reader->ChunkReplicaLocator_->GetReplicasFuture();
         SeedsFuture_.Subscribe(
             BIND(&TSessionBase::OnGotSeeds, MakeStrong(this))
                 .Via(SessionInvoker_));
@@ -834,6 +830,26 @@ protected:
             BIND(&TSessionBase::NextRetry, MakeStrong(this))
                 .Via(SessionInvoker_),
             GetBackoffDuration(RetryIndex_));
+    }
+
+    void MaybeUpdateSeeds(const TAllyReplicasInfo& allyReplicas)
+    {
+        auto reader = Reader_.Lock();
+        if (!reader) {
+            return;
+        }
+
+        if (!allyReplicas ||
+            SeedReplicas_.Revision >= allyReplicas.Revision)
+        {
+            return;
+        }
+
+        SeedsFuture_ = reader->ChunkReplicaLocator_->MaybeResetReplicas(
+            allyReplicas,
+            SeedsFuture_);
+        YT_VERIFY(SeedsFuture_.IsSet() && SeedsFuture_.Get().IsOK());
+        SeedReplicas_ = SeedsFuture_.Get().Value();
     }
 
     void DiscardSeeds()
@@ -871,14 +887,16 @@ protected:
         ResetPeerQueue();
         Peers_.clear();
 
+        const auto& seedReplicas = SeedReplicas_.Replicas;
+
         std::vector<const TNodeDescriptor*> peerDescriptors;
         std::vector<TNodeId> nodeIds;
         std::vector<TString> peerAddresses;
-        peerDescriptors.reserve(SeedReplicas_.size());
-        nodeIds.reserve(SeedReplicas_.size());
-        peerAddresses.reserve(SeedReplicas_.size());
+        peerDescriptors.reserve(seedReplicas.size());
+        nodeIds.reserve(seedReplicas.size());
+        peerAddresses.reserve(seedReplicas.size());
 
-        for (auto replica : SeedReplicas_) {
+        for (auto replica : seedReplicas) {
             const auto* descriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
             if (!descriptor) {
                 RegisterError(TError(
@@ -897,11 +915,11 @@ protected:
                     descriptor->GetDefaultAddress()));
                 OnSessionFailed(/* fatal */ true);
                 return false;
-            } else {
-                peerDescriptors.push_back(descriptor);
-                nodeIds.push_back(replica.GetNodeId());
-                peerAddresses.push_back(*address);
             }
+
+            peerDescriptors.push_back(descriptor);
+            nodeIds.push_back(replica.GetNodeId());
+            peerAddresses.push_back(*address);
         }
 
         auto nodeSuspicionMarkTimes = NodeStatusDirectory_
@@ -1037,7 +1055,8 @@ private:
     //! Errors collected by the session.
     std::vector<TError> InnerErrors_;
 
-    TFuture<TChunkReplicaList> SeedsFuture_;
+    TFuture<TAllyReplicasInfo> SeedsFuture_;
+
 
     int ComparePeerLocality(const TPeer& lhs, const TPeer& rhs) const
     {
@@ -1117,7 +1136,7 @@ private:
         });
     }
 
-    void OnGotSeeds(const TErrorOr<TChunkReplicaList>& result)
+    void OnGotSeeds(const TErrorOr<TAllyReplicasInfo>& result)
     {
         auto reader = Reader_.Lock();
         if (!reader) {
@@ -1135,8 +1154,8 @@ private:
         }
 
         SeedReplicas_ = result.Value();
-        reader->UpdateLastSeenReplicas(SeedReplicas_);
-        if (SeedReplicas_.empty()) {
+        reader->UpdateLastSeenReplicas(SeedReplicas_.Replicas);
+        if (!SeedReplicas_) {
             RegisterError(TError("Chunk is lost"));
             if (ReaderConfig_->FailOnNoSeeds) {
                 DiscardSeeds();
@@ -1182,6 +1201,7 @@ private:
         TPeer peer,
         const TErrorOr<TRspPtr>& rspOrError)
     {
+        // TODO(akozhikhov): We probably should not ignore HasCompleteChunk field.
         if (rspOrError.IsOK()) {
             return {
                 std::move(peer),
@@ -1199,7 +1219,7 @@ private:
     std::pair<TPeer, TErrorOrPeerProbeResult> ParseSuspiciousPeerAndProbeResponse(
         TPeer peer,
         const TErrorOr<TRspPtr>& rspOrError,
-        const TFuture<TChunkReplicaList>& currentSeedsFuture,
+        const TFuture<TAllyReplicasInfo>& allyReplicasFuture,
         int totalPeerCount)
     {
         VERIFY_INVOKER_AFFINITY(SessionInvoker_);
@@ -1225,13 +1245,10 @@ private:
             if (*peer.NodeSuspicionMarkTime + *ReaderConfig_->SuspiciousNodeGracePeriod < now) {
                 if (auto reader = Reader_.Lock()) {
                     // NB(akozhikhov): In order not to call DiscardSeeds too often, we implement additional delay.
-                    // TODO(akozhikhov, ifsmirnov): Drop prolonged delay logic when DRT will come.
                     YT_LOG_WARNING("Discarding seeds due to node being suspicious (NodeAddress: %v, SuspicionTime: %v)",
                         peer.AddressWithNetwork,
                         now - *peer.NodeSuspicionMarkTime);
-                    reader->DiscardSeeds(
-                        currentSeedsFuture,
-                        /* applyProlongedDelay */ true);
+                    reader->DiscardSeeds(allyReplicasFuture);
                 }
             }
         }
@@ -1251,7 +1268,6 @@ private:
         proxy.SetDefaultTimeout(ReaderConfig_->ProbeRpcTimeout);
 
         auto req = proxy.ProbeBlockSet();
-        req->DeclareClientFeature(EChunkClientFeature::AllBlocksIndex);
         req->SetHeavy(true);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
@@ -1260,13 +1276,13 @@ private:
 
         if (peer.NodeSuspicionMarkTime) {
             return req->Invoke().Apply(BIND(
-                [=, this_ = MakeStrong(this), currentSeedsFuture = SeedsFuture_, totalPeerCount = Peers_.size()]
+                [=, this_ = MakeStrong(this), seedsFuture = SeedsFuture_, totalPeerCount = std::ssize(Peers_)]
                 (const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError)
                 {
                     return ParseSuspiciousPeerAndProbeResponse(
                         std::move(peer),
                         rspOrError,
-                        currentSeedsFuture,
+                        seedsFuture,
                         totalPeerCount);
                 })
                 .AsyncVia(SessionInvoker_));
@@ -1565,27 +1581,26 @@ private:
                         *suggestedAddress,
                         *maybeSuggestedDescriptor,
                         EPeerType::Peer,
-                        /* nodeSuspicionMarkTime */ std::nullopt))
+                        /*nodeSuspicionMarkTime*/ std::nullopt))
                     {
                         addedNewPeers = true;
                     }
-                    if (blockIndex == AllBlocksIndex) {
-                        auto blockIndexes = GetUnfetchedBlockIndexes();
-                        PeerBlocksMap_[*suggestedAddress] = THashSet<int>(blockIndexes.begin(), blockIndexes.end());
-                        YT_LOG_DEBUG("Chunk peer descriptor received (SuggestedAddress: %v)",
-                            *suggestedAddress);
-                    } else {
-                        PeerBlocksMap_[*suggestedAddress].insert(blockIndex);
-                        YT_LOG_DEBUG("Block peer descriptor received (Block: %v, SuggestedAddress: %v)",
-                            blockIndex,
-                            *suggestedAddress);
-                    }
+
+                    PeerBlocksMap_[*suggestedAddress].insert(blockIndex);
+                    YT_LOG_DEBUG("Block peer descriptor received (Block: %v, SuggestedAddress: %v)",
+                        blockIndex,
+                        *suggestedAddress);
                 } else {
                     YT_LOG_WARNING("Peer suggestion ignored, required network is missing (SuggestedAddress: %v, Networks: )",
                         maybeSuggestedDescriptor->GetDefaultAddress(),
                         Networks_);
                 }
             }
+        }
+
+        if (probeResult.AllyReplicas) {
+            // NB: New peers (if any) will be requested upon next pass.
+            MaybeUpdateSeeds(probeResult.AllyReplicas);
         }
 
         return addedNewPeers;
@@ -1749,7 +1764,6 @@ private:
         proxy.SetDefaultTimeout(ReaderConfig_->BlockRpcTimeout);
 
         auto req = proxy.GetBlockSet();
-        req->DeclareClientFeature(EChunkClientFeature::AllBlocksIndex);
         req->SetHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
         ToProto(req->mutable_chunk_id(), ChunkId_);
@@ -2909,6 +2923,16 @@ private:
             auto throttlingRate = ThrottlingRateByPeer_.find(candidate.AddressWithNetwork);
             return throttlingRate != ThrottlingRateByPeer_.end() ? throttlingRate->second : 0.;
         });
+    }
+
+    bool UpdatePeerBlockMap(const TPeerProbeResult& probeResult) override
+    {
+        if (probeResult.AllyReplicas) {
+            // NB: New peers (if any) will be requested upon next pass.
+            MaybeUpdateSeeds(probeResult.AllyReplicas);
+        }
+
+        return false;
     }
 };
 

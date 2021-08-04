@@ -110,13 +110,6 @@ TCachedPeerListPtr TBlockPeerTable::FindPeerList(const TBlockId& blockId)
     return it == BlockIdToPeerList_.end() ? nullptr : it->second;
 }
 
-TCachedPeerListPtr TBlockPeerTable::FindPeerList(TChunkId chunkId)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return FindPeerList(TBlockId(chunkId, AllBlocksIndex));
-}
-
 TCachedPeerListPtr TBlockPeerTable::GetOrCreatePeerList(const TBlockId& blockId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -135,13 +128,6 @@ TCachedPeerListPtr TBlockPeerTable::GetOrCreatePeerList(const TBlockId& blockId)
         }
         return it->second;
     }
-}
-
-TCachedPeerListPtr TBlockPeerTable::GetOrCreatePeerList(TChunkId chunkId)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return GetOrCreatePeerList(TBlockId(chunkId, AllBlocksIndex));
 }
 
 void TBlockPeerTable::OnSweep()

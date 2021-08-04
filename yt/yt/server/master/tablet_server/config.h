@@ -572,6 +572,7 @@ public:
 
         RegisterPreprocessor([&] {
             StoreChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);
+            StoreChunkReader->BanPeersPermanently = false;
 
             StoreChunkWriter->BlockSize = 256_KB;
             StoreChunkWriter->SampleRate = 0.0005;
