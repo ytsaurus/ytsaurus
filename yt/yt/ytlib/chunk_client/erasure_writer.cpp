@@ -384,6 +384,11 @@ bool TErasureWriter::WriteBlock(const TBlock& block)
     Blocks_.push_back(block);
     AccumulatedSize_ += block.Size();
 
+    if (Config_->ErasureStoreOriginalBlockChecksums) {
+        Blocks_.back().Checksum = block.GetOrComputeChecksum();
+        BlockChecksums_.push_back(block.Checksum);
+    }
+
     if (Config_->ErasureStripeSize &&
         AccumulatedSize_ >= *Config_->ErasureStripeSize * Codec_->GetDataPartCount())
     {
@@ -523,6 +528,10 @@ void TErasureWriter::FillChunkMeta(const TDeferredChunkMetaPtr& chunkMeta)
 
     placementExt.set_parity_block_size(ErasureWindowSize_);
     placementExt.set_parity_part_count(Codec_->GetParityPartCount());
+
+    if (Config_->ErasureStoreOriginalBlockChecksums) {
+        NYT::ToProto(placementExt.mutable_block_checksums(), BlockChecksums_);
+    }
 
     chunkMeta->BlockIndexMapping() = BlockReorderer_.BlockIndexMapping();
     SetProtoExtension(chunkMeta->mutable_extensions(), placementExt);
