@@ -465,6 +465,8 @@ public:
 
     int MinUploadReplicationFactor;
 
+    std::optional<int> DirectUploadNodeCount;
+
     bool PreferLocalHost;
 
     bool BanFailedNodes;
@@ -534,11 +536,31 @@ public:
             NodeChannel->RetryAttempts = 100;
         });
 
+        RegisterPostprocessor([&] {
+            if (!DirectUploadNodeCount) {
+                return;
+            }
+
+            if (*DirectUploadNodeCount < 1) {
+                THROW_ERROR_EXCEPTION("\"direct_upload_node_count\" cannot be less that 1");
+            }
+        });
+
         RegisterPostprocessor([&] () {
             if (SendWindowSize < GroupSize) {
                 THROW_ERROR_EXCEPTION("\"send_window_size\" cannot be less than \"group_size\"");
             }
         });
+    }
+
+    int GetDirectUploadNodeCount()
+    {
+        auto replicationFactor = std::min(MinUploadReplicationFactor, UploadReplicationFactor);
+        if (DirectUploadNodeCount) {
+            return std::min(*DirectUploadNodeCount, replicationFactor);
+        }
+
+        return std::max(static_cast<int>(std::sqrt(replicationFactor)), 1);
     }
 };
 
