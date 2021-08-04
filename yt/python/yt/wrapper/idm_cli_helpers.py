@@ -141,7 +141,7 @@ class ObjectIdmSnapshot(object):
 
         roles = idm_client.get_acl(**object_id)
 
-        if "path" in object_id:
+        if "path" in object_id or "pool" in object_id or "account" in object_id:
             self.disable_responsible_inheritance = bool(responsibles.get("disable_inheritance", False))
             self.inherit_acl = roles.get("acl", {}).get("inherit_acl", False)
         else:
