@@ -5,9 +5,12 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
+#include <yt/yt/library/tracing/batch_trace.h>
+
 namespace NYT::NTransactionClient {
 
 using namespace NConcurrency;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +38,9 @@ public:
             PendingRequests_.back().Promise = NewPromise<TTimestamp>();
             result = PendingRequests_.back().Promise.ToFuture().ToUncancelable();
 
+            BatchTrace_.Join();
+
+            TNullTraceContextGuard nullTraceContextGuard;
             MaybeScheduleSendGenerateRequest(guard);
         }
         return result;
@@ -61,6 +67,7 @@ public:
     bool GenerateInProgress_ = false;
     bool FlushScheduled_ = false;
     std::vector<TRequest> PendingRequests_;
+    TBatchTrace BatchTrace_;
 
     TInstant LastRequestTime_;
 
@@ -100,7 +107,11 @@ public:
         std::vector<TRequest> requests;
         requests.swap(PendingRequests_);
 
+        auto [traceContext, sampled] = BatchTrace_.StartSpan("BatchingTimestampProvider:SendGenerateRequest");
+
         guard.Release();
+
+        TTraceContextGuard traceContextGuard(traceContext);
 
         int count = 0;
         for (const auto& request : requests) {
