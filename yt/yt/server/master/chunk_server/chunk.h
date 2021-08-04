@@ -160,6 +160,9 @@ public:
     void ApproveReplica(TNodePtrWithIndexes replica);
     int GetApprovedReplicaCount() const;
 
+    // COMPAT(ifsmirnov)
+    void SetApprovedReplicaCount(int count);
+
     void Confirm(
         const NChunkClient::NProto::TChunkInfo& chunkInfo,
         const NChunkClient::NProto::TChunkMeta& chunkMeta);

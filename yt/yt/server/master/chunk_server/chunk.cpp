@@ -359,6 +359,11 @@ int TChunk::GetApprovedReplicaCount() const
     return ReplicasData().ApprovedReplicaCount;
 }
 
+void TChunk::SetApprovedReplicaCount(int count)
+{
+    MutableReplicasData()->ApprovedReplicaCount = count;
+}
+
 void TChunk::Confirm(
     const TChunkInfo& chunkInfo,
     const TChunkMeta& chunkMeta)
