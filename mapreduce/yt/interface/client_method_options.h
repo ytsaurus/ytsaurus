@@ -1,5 +1,10 @@
 #pragma once
 
+///
+/// @file mapreduce/yt/interface/client_method_options.h
+///
+/// Header containing options for @ref NYT::IClient methods.
+
 #include "common.h"
 #include "format.h"
 #include "retry_policy.h"
@@ -7,6 +12,8 @@
 #include <util/datetime/base.h>
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
 
 /// Type of the cypress node.
 enum ENodeType : int
@@ -44,7 +51,9 @@ enum class EComplexTypeMode : int
 /// @see https://yt.yandex-team.ru/docs/api/commands.html#create
 struct TCreateOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TCreateOptions;
+    /// @endcond
 
     /// Create missing parent directories if required.
     FLUENT_FIELD_DEFAULT(bool, Recursive, false);
@@ -72,7 +81,9 @@ struct TCreateOptions
 /// @see https://yt.yandex-team.ru/docs/api/commands.html#remove
 struct TRemoveOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TRemoveOptions;
+    /// @endcond
 
     ///
     /// @brief Remove whole tree when removing composite cypress node (e.g. `map_node`).
@@ -87,7 +98,9 @@ struct TRemoveOptions
 template <typename TDerived>
 struct TMasterReadOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TDerived;
+    /// @endcond
 
     /// @brief Where to read from.
     FLUENT_FIELD_OPTION(EMasterReadKind, ReadFrom);
@@ -122,7 +135,9 @@ struct TGetOptions
 /// @see https://yt.yandex-team.ru/docs/api/commands.html#set
 struct TSetOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TSetOptions;
+    /// @endcond
 
     /// Create missing parent directories if required.
     FLUENT_FIELD_DEFAULT(bool, Recursive, false);
@@ -145,7 +160,9 @@ struct TMultisetAttributesOptions
 struct TListOptions
     : public TMasterReadOptions<TListOptions>
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TListOptions;
+    /// @endcond
 
     /// Attributes that should be fetched for each node.
     FLUENT_FIELD_OPTION(TAttributeFilter, AttributeFilter);
@@ -160,7 +177,9 @@ struct TListOptions
 /// @see https://yt.yandex-team.ru/docs/api/commands.html#copy
 struct TCopyOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TCopyOptions;
+    /// @endcond
 
     /// Create missing directories in destination path if required.
     FLUENT_FIELD_DEFAULT(bool, Recursive, false);
@@ -181,7 +200,9 @@ struct TCopyOptions
 /// @see https://yt.yandex-team.ru/docs/api/commands.html#move
 struct TMoveOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TMoveOptions;
+    /// @endcond
 
     /// Create missing directories in destination path if required.
     FLUENT_FIELD_DEFAULT(bool, Recursive, false);
@@ -202,7 +223,9 @@ struct TMoveOptions
 /// @see https://yt.yandex-team.ru/docs/api/commands.html#link
 struct TLinkOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TLinkOptions;
+    /// @endcond
 
     FLUENT_FIELD_DEFAULT(bool, Recursive, false);
     FLUENT_FIELD_DEFAULT(bool, IgnoreExisting, false);
@@ -216,21 +239,28 @@ struct TLinkOptions
 /// @see https://yt.yandex-team.ru/docs/api/commands.html#concatenate
 struct TConcatenateOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TConcatenateOptions;
+    /// @endcond
 
     /// Whether we should append to destination or rewrite it.
     FLUENT_FIELD_OPTION(bool, Append);
 };
 
-/// https://yt.yandex-team.ru/docs/api/commands.html#read_blob_table
+///
+/// @brief Options for @ref NYT::IIOClient::CreateBlobTableReader
+///
+/// @see https://yt.yandex-team.ru/docs/api/commands.html#read_blob_table
 struct TBlobTableReaderOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TBlobTableReaderOptions;
+    /// @endcond
 
-    /// Name of the part index column. By default it is part_index.
+    /// Name of the part index column. By default it is "part_index".
     FLUENT_FIELD_OPTION(TString, PartIndexColumnName);
 
-    /// Name of the `part index' column. By default it is part_index.
+    /// Name of the data column. By default it is "data".
     FLUENT_FIELD_OPTION(TString, DataColumnName);
 
     ///
@@ -244,47 +274,68 @@ struct TBlobTableReaderOptions
     FLUENT_FIELD_DEFAULT(i64, Offset, 0);
 };
 
-// https://yt.yandex-team.ru/docs/description/mr/scheduler_and_pools.html#resursy
+///
+/// @brief Resource limits for operation (or pool)
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/scheduler/scheduler_and_pools#resursy
+/// @see NYT::TUpdateOperationParametersOptions
 struct TResourceLimits
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TResourceLimits;
+    /// @endcond
 
-    // Number of slots for user jobs.
+    /// Number of slots for user jobs.
     FLUENT_FIELD_OPTION(i64, UserSlots);
 
-    // Number of cpu cores.
+    /// Number of cpu cores.
     FLUENT_FIELD_OPTION(double, Cpu);
 
-    // Network usage in some units.
+    /// Network usage. Doesn't have precise physical unit.
     FLUENT_FIELD_OPTION(i64, Network);
 
-    // Memory in bytes.
+    /// Memory in bytes.
     FLUENT_FIELD_OPTION(i64, Memory);
 };
 
+///
+/// @brief Scheduling options for single pool tree.
+///
+/// @see NYT::TUpdateOperationParametersOptions
 struct TSchedulingOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TSchedulingOptions;
+    /// @endcond
 
-    // Pool to switch operation to.
-    // NOTE: switching is currently disabled on the server (will induce an exception).
+    ///
+    /// @brief Pool to switch operation to.
+    ///
+    /// @note Switching is currently disabled on the server (will induce an exception).
     FLUENT_FIELD_OPTION(TString, Pool);
 
-    // Operation weight.
+    /// @brief Operation weight.
     FLUENT_FIELD_OPTION(double, Weight);
 
-    // Operation resource limits.
+    /// @brief Operation resource limits.
     FLUENT_FIELD_OPTION(TResourceLimits, ResourceLimits);
 };
 
+///
+/// @brief Collection of scheduling options for multiple pool trees.
+///
+/// @see NYT::TUpdateOperationParametersOptions
 struct TSchedulingOptionsPerPoolTree
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TSchedulingOptionsPerPoolTree;
+    /// @endcond
 
     TSchedulingOptionsPerPoolTree(const THashMap<TString, TSchedulingOptions>& options = {})
         : Options_(options)
     { }
 
+    /// @breif Add scheduling options for pool tree.
     TSelf& Add(TStringBuf poolTreeName, const TSchedulingOptions& schedulingOptions)
     {
         Y_ENSURE(Options_.emplace(poolTreeName, schedulingOptions).second);
@@ -294,165 +345,244 @@ struct TSchedulingOptionsPerPoolTree
     THashMap<TString, TSchedulingOptions> Options_;
 };
 
-// https://yt.yandex-team.ru/docs/api/commands.html#suspend_op
+///
+/// @brief Options for @ref NYT::IOperation::SuspendOperation
+///
+/// @ref https://yt.yandex-team.ru/docs/api/commands.html#suspend_op
 struct TSuspendOperationOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TSuspendOperationOptions;
+    /// @endcond
 
+    ///
+    /// @brief Whether to abort already running jobs.
+    ///
+    /// By default running jobs are not aborted.
     FLUENT_FIELD_OPTION(bool, AbortRunningJobs);
 };
 
-// https://yt.yandex-team.ru/docs/api/commands.html#resume_op
+///
+/// @brief Options for @ref NYT::IOperation::ResumeOperation
+///
+/// @note They are empty for now but options might appear in the future.
+///
+/// @ref https://yt.yandex-team.ru/docs/api/commands.html#resume_op
 struct TResumeOperationOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TResumeOperationOptions;
+    /// @endcond
 };
 
-// https://yt.yandex-team.ru/docs/api/commands.html#update_op_parameters
+///
+/// @brief Options for @ref NYT::IOperation::UpdateParameters
+///
+/// @ref https://yt.yandex-team.ru/docs/api/commands.html#update_op_parameters
 struct TUpdateOperationParametersOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TUpdateOperationParametersOptions;
+    /// @endcond
 
-    // New owners of the operation.
+    /// @brief New owners of the operation.
     FLUENT_VECTOR_FIELD(TString, Owner);
 
-    // Pool to switch operation to (for all pool trees it is running in).
+    /// Pool to switch operation to (for all pool trees it is running in).
     FLUENT_FIELD_OPTION(TString, Pool);
 
-    // New operation weight (for all pool trees it is running in).
+    /// New operation weight (for all pool trees it is running in).
     FLUENT_FIELD_OPTION(double, Weight);
 
-    // Scheduling options for each pool tree the operation is running in.
+    /// Scheduling options for each pool tree the operation is running in.
     FLUENT_FIELD_OPTION(TSchedulingOptionsPerPoolTree, SchedulingOptionsPerPoolTree);
 };
 
+///
+/// @brief Base class for many options related to IO.
+///
+/// @ref NYT::TFileWriterOptions
+/// @ref NYT::TFileReaderOptions
+/// @ref NYT::TTableReaderOptions
+/// @ref NYT::TTableWriterOptions
 template <class TDerived>
 struct TIOOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TDerived;
+    /// @endcond
 
     FLUENT_FIELD_OPTION(TNode, Config);
 
-    // If `CreateTransaction` is set to `false`
-    // reader/writer doesn't create internal transaction and doesn't lock table.
-    // This option is overriden (effectively `false`) for writers by `SingleHttpRequest`.
-    //
-    // WARNING: if `CreateTransaction` is `false`, read/write might become non-atomic.
-    // Change ONLY if you are sure what you are doing!
+    ///
+    /// @brief Whether to create internal client transaction for reading / writing table.
+    ///
+    /// This is advanced option.
+    ///
+    /// If `CreateTransaction` is set to `false`  reader/writer doesn't create internal transaction
+    /// and doesn't lock table. This option is overriden (effectively `false`) for writers by
+    /// @ref NYT::TWriterOptions::SingleHttpRequest
+    ///
+    /// WARNING: if `CreateTransaction` is `false`, read/write might become non-atomic.
+    /// Change ONLY if you are sure what you are doing!
     FLUENT_FIELD_DEFAULT(bool, CreateTransaction, true);
 };
 
+/// @brief Options for reading file from YT.
 struct TFileReaderOptions
     : public TIOOptions<TFileReaderOptions>
 {
+    /// @brief Offset to start reading from.
+    ///
+    /// By default reading is started from the beginning of the file.
     FLUENT_FIELD_OPTION(i64, Offset);
+
+    /// @brief Maximum length to read.
+    ///
+    /// By default file is read until the end.
     FLUENT_FIELD_OPTION(i64, Length);
 };
 
+/// @brief Options that control how server side of YT stores data.
 struct TWriterOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TWriterOptions;
+    /// @endcond
 
+    ///
+    /// @brief Whether to wait all replicas to be written.
+    ///
     /// When set to true upload will be considered successful as soon as
-    /// MinUploadReplicationFactor number of replicas are created.
+    /// @ref NYT::TWriterOptions::MinUploadReplicationFactor number of replicas are created.
     FLUENT_FIELD_OPTION(bool, EnableEarlyFinish);
 
     /// Number of replicas to be created.
     FLUENT_FIELD_OPTION(ui64, UploadReplicationFactor);
 
+    ///
     /// Min number of created replicas needed to consider upload successful.
+    ///
+    /// @see NYT::TWriterOptions::EnableEarlyFinish
     FLUENT_FIELD_OPTION(ui64, MinUploadReplicationFactor);
-    
+
     ///
     /// @brief Desired size of a chunk.
     ///
     /// @see @ref NYT::TWriterOptions::RetryBlockSize
     FLUENT_FIELD_OPTION(ui64, DesiredChunkSize);
-    
+
     ///
     /// @brief Size of data block accumulated in memory to provide retries.
     ///
     /// Data is accumulated in memory buffer so in case error occurs data could be resended.
-    /// 
+    ///
     /// If `RetryBlockSize` is not set buffer size is set to `DesiredChunkSize`.
     /// If niether `RetryBlockSize` nor `DesiredChunkSize` is set size of buffer is 64MB.
     ///
-    /// NOTE: written chunks cannot be greater than size of this memory buffer.
+    /// @note Written chunks cannot be larger than size of this memory buffer.
     ///
     /// Since DesiredChunkSize is compared against data already compressed with compression codec
     /// it makes sense to set `RetryBlockSize = DesiredChunkSize / ExpectedCompressionRatio`
-    /// 
+    ///
     /// @see @ref NYT::TWriterOptions::DesiredChunkSize
     /// @see @ref NYT::TWriterOptions::SingleHttpRequest
     FLUENT_FIELD_OPTION(size_t, RetryBlockSize);
 };
 
+///
+/// @brief Options for writing file
+///
+/// @see NYT::IIOClient::CreateFileWriter
 struct TFileWriterOptions
     : public TIOOptions<TFileWriterOptions>
 {
-    // Compute MD5 sum of written file. If `ComputeMD5 == true` and we are appending to an existing file
-    // the `md5` attribute must be set (i.e. it was previously written only with `ComputeMD5 == true`).
+    ///
+    /// @brief Whether to compute MD5 sum of written file.
+    ///
+    /// If ComputeMD5 is set to `true` and we are appending to an existing file
+    /// the `md5` attribute must be set (i.e. it was previously written only with `ComputeMD5 == true`).
     FLUENT_FIELD_OPTION(bool, ComputeMD5);
 
+    ///
+    /// @breif Options to control how YT server side writes data.
+    ///
+    /// @see NYT::TWriterOptions
     FLUENT_FIELD_OPTION(TWriterOptions, WriterOptions);
 };
 
+/// Options that control how C++ objects represent table rows when reading or writing a table.
 class TFormatHints
 {
 public:
+    /// @cond Doxygen_Suppress
     using TSelf = TFormatHints;
+    /// @endcond
 
-    // When set to true TNode doesn't contain null column values.
-    //
-    // Only meaningful for TNode representation.
-    //
-    // Useful for sparse tables which have many columns in schema
-    // but only few columns are set in any row.
+    ///
+    /// @brief Whether to skip null values.
+    ///
+    /// When set to true TNode doesn't contain null column values
+    /// (e.g. corresponding keys will be missing instead of containing null value).
+    ///
+    /// Only meaningful for TNode representation.
+    ///
+    /// Useful for sparse tables which have many columns in schema
+    /// but only few columns are set in any row.
     FLUENT_FIELD_DEFAULT(bool, SkipNullValuesForTNode, false);
 
-    // Enable type conversions when writing data to static tables
-    // or inserting/looking up/deleting data from dynamic tables.
-    //
-    // Convert string to numeric and boolean types (e.g. "42u" -> 42u, "false" -> %false).
+    ///
+    /// @brief Whether to convert string to numeric and boolean types (e.g. "42u" -> 42u, "false" -> %false)
+    /// when writing to schemaful table.
     FLUENT_FIELD_OPTION(bool, EnableStringToAllConversion);
 
-    // Convert numeric and boolean types to string (e.g., 3.14 -> "3.14", %true -> "true").
+    ///
+    /// @brief Whether to convert numeric and boolean types to string (e.g., 3.14 -> "3.14", %true -> "true")
+    /// when writing to schemaful table.
     FLUENT_FIELD_OPTION(bool, EnableAllToStringConversion);
 
-    // Convert uint64 <-> int64. On overflow the corresponding error with be raised.
-    // NOTE: this options is enabled by default.
+    ///
+    /// @brief Whether to convert uint64 <-> int64 when writting to schemaful table.
+    ///
+    /// On overflow the corresponding error with be raised.
+    ///
+    /// This options is enabled by default.
     FLUENT_FIELD_OPTION(bool, EnableIntegralTypeConversion);
 
-    // Convert uint64 and int64 to double (e.g. 42 -> 42.0).
+    /// Whether to convert uint64 and int64 to double (e.g. 42 -> 42.0) when writing to schemaful table.
     FLUENT_FIELD_OPTION(bool, EnableIntegralToDoubleConversion);
 
-    // Shortcut for enabling all type conversions.
+    /// Shortcut for enabling all type conversions.
     FLUENT_FIELD_OPTION(bool, EnableTypeConversion);
 
     ///
-    /// Controls how complex types are represented in TNode or yson-strings.
+    /// @brief Controls how complex types are represented in TNode or yson-strings.
     ///
     /// @see https://yt.yandex-team.ru/docs/description/storage/data_types#yson
     FLUENT_FIELD_OPTION(EComplexTypeMode, ComplexTypeMode);
 
+    ///
     /// @brief Apply the patch to the fields.
     ///
     /// Non-default and non-empty values replace the default and empty ones.
     void Merge(const TFormatHints& patch);
 };
 
+/// Options for @ref NYT::IClient::CreateTableReader
 struct TTableReaderOptions
     : public TIOOptions<TTableReaderOptions>
 {
+    /// @deprecated Size of internal client buffer.
     FLUENT_FIELD_DEFAULT(size_t, SizeLimit, 4 << 20);
 
-    // Allows to fine tune format that is used for reading tables.
-    //
-    // Has no effect when used with raw-reader.
+    ///
+    /// @brief Allows to fine tune format that is used for reading tables.
+    ///
+    /// Has no effect when used with raw-reader.
     FLUENT_FIELD_OPTION(TFormatHints, FormatHints);
 };
 
-
+/// Options for @ref NYT::IClient::CreateTableWriter
 struct TTableWriterOptions
     : public TIOOptions<TTableWriterOptions>
 {
@@ -462,7 +592,7 @@ struct TTableWriterOptions
     /// If set to true no retry is made but we also make less requests to master.
     /// If set to false writer can make up to `TConfig::RetryCount` attempts to send each block of data.
     ///
-    /// NOTE: writers' methods might throw strange exceptions that might look like network error
+    /// @note Writers' methods might throw strange exceptions that might look like network error
     /// when `SingleHttpRequest == true` and YT node encounters an error
     /// (due to limitations of HTTP protocol YT node have no chance to report error
     /// before it reads the whole input so it just drops the connection).
@@ -488,32 +618,57 @@ struct TTableWriterOptions
     FLUENT_FIELD_OPTION(TWriterOptions, WriterOptions);
 };
 
-// https://yt.yandex-team.ru/docs/api/commands.html#start_tx
+///
+/// @brief Options for @ref NYT::IClient::StartTransaction
+///
+/// @ref https://yt.yandex-team.ru/docs/api/commands.html#start_tx
 struct TStartTransactionOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TStartTransactionOptions;
+    /// @endcond
 
     FLUENT_FIELD_DEFAULT(bool, PingAncestors, false);
+
+    ///
+    /// @brief How long transaction lives after last ping.
+    ///
+    /// If server doesn't receive any pings for transaction for this time
+    /// transaction will be aborted. By default timeout is 15 seconds.
     FLUENT_FIELD_OPTION(TDuration, Timeout);
+
+    ///
+    /// @brief Moment in the future when transaction is aborted.
     FLUENT_FIELD_OPTION(TInstant, Deadline);
 
-    // When set to true library creates a thread that pings transaction.
-    // When set to false library doesn't ping transaction and it's user responsibility to ping it.
+    ///
+    /// @brief Whether to ping created transaction automatically.
+    ///
+    /// When set to true library creates a thread that pings transaction.
+    /// When set to false library doesn't ping transaction and it's user responsibility to ping it.
     FLUENT_FIELD_DEFAULT(bool, AutoPingable, true);
 
-    // Set the title attribute of transaction. If title was not specified
-    // nither using `Title` option nor using `Attributes` option
-    // wrapper will generate default title for transaction.
-    // Such default title includes machine name, pid, user name and some other useful info.
+    ///
+    /// @brief Set the title attribute of transaction.
+    ///
+    /// If title was not specified
+    /// nither using this option nor using @ref NYT::TStartTransactionOptions::Attributes option
+    /// library will generate default title for transaction.
+    /// Such default title includes machine name, pid, user name and some other useful info.
     FLUENT_FIELD_OPTION(TString, Title);
 
-    // Set custom transaction attributes, NOTE: `Title` option overrides `title` attribute.
+    ///
+    /// @brief Set custom transaction attributes
+    ///
+    /// @note @ref NYT::TStartTransactionOptions::Title option overrides `"title"` attribute.
     FLUENT_FIELD_OPTION(TNode, Attributes);
 };
 
 struct TAttachTransactionOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TAttachTransactionOptions;
+    /// @endcond
 
     ///
     /// @brief Ping transaction automatically.
@@ -542,7 +697,9 @@ enum ELockMode : int
 // https://yt.yandex-team.ru/docs/api/commands.html#lock
 struct TLockOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TLockOptions;
+    /// @endcond
 
     // If `Waitable' is set to true Lock method will create
     // waitable lock, that will be taken once other transactions
@@ -559,13 +716,17 @@ struct TLockOptions
 // https://yt.yandex-team.ru/docs/api/commands.html#unlock
 struct TUnlockOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TUnlockOptions;
+    /// @endcond
 };
 
 template <class TDerived>
 struct TTabletOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TDerived;
+    /// @endcond
 
     FLUENT_FIELD_OPTION(i64, FirstTabletIndex);
     FLUENT_FIELD_OPTION(i64, LastTabletIndex);
@@ -602,7 +763,9 @@ struct TUnfreezeTableOptions
 
 struct TAlterTableOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TAlterTableOptions;
+    /// @endcond
 
     // Change table schema.
     FLUENT_FIELD_OPTION(TTableSchema, Schema);
@@ -617,7 +780,9 @@ struct TAlterTableOptions
 
 struct TLookupRowsOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TLookupRowsOptions;
+    /// @endcond
 
     FLUENT_FIELD_OPTION(TDuration, Timeout);
     FLUENT_FIELD_OPTION(TColumnNames, Columns);
@@ -627,7 +792,9 @@ struct TLookupRowsOptions
 
 struct TSelectRowsOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TSelectRowsOptions;
+    /// @endcond
 
     FLUENT_FIELD_OPTION(TDuration, Timeout);
     FLUENT_FIELD_OPTION(i64, InputRowLimit);
@@ -640,7 +807,9 @@ struct TSelectRowsOptions
 
 struct TCreateClientOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TCreateClientOptions;
+    /// @endcond
 
     FLUENT_FIELD(TString, Token);
     FLUENT_FIELD(TString, TokenPath);
@@ -652,7 +821,9 @@ struct TCreateClientOptions
 
 struct TExecuteBatchOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TExecuteBatchOptions;
+    /// @endcond
 
     // How many requests will be executed in parallel on the cluster.
     // This parameter could be used to avoid RequestLimitExceeded errors.
@@ -685,7 +856,9 @@ enum class ETableReplicaMode
 template <typename TDerived>
 struct TTabletTransactionOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TDerived;
+    /// @endcond
 
     FLUENT_FIELD_OPTION(EAtomicity, Atomicity);
     FLUENT_FIELD_OPTION(EDurability, Durability);
@@ -727,7 +900,9 @@ struct TTrimRowsOptions
 // https://yt.yandex-team.ru/docs/description/dynamic_tables/replicated_dynamic_tables
 struct TAlterTableReplicaOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TAlterTableReplicaOptions;
+    /// @endcond
 
     // Enable replica if `Enabled' is set to true.
     // Disable replica if `Enabled' is set to false.
@@ -741,12 +916,16 @@ struct TAlterTableReplicaOptions
 
 struct TGetFileFromCacheOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TGetFileFromCacheOptions;
+    /// @endcond
 };
 
 struct TPutFileToCacheOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TPutFileToCacheOptions;
+    /// @endcond
 };
 
 enum class EPermission : int
@@ -785,7 +964,9 @@ enum class ESecurityAction : int
 // https://yt.yandex-team.ru/docs/api/commands.html#check_permission
 struct TCheckPermissionOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TCheckPermissionOptions;
+    /// @endcond
 
     // Columns to check permission to (for tables only).
     FLUENT_VECTOR_FIELD(TString, Column);
@@ -794,19 +975,25 @@ struct TCheckPermissionOptions
 /// Options for @ref NYT::IClient::GetTableColumnarStatistics
 struct TGetTableColumnarStatisticsOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TGetTableColumnarStatisticsOptions;
+    /// @endcond
 };
 
 /// Options for @ref NYT::IClient::GetTabletInfos
 struct TGetTabletInfosOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TGetTabletInfosOptions;
+    /// @endcond
 };
 
 /// Options for @ref NYT::IClient::SkyShareTable
 struct TSkyShareTableOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TSkyShareTableOptions;
+    /// @endcond
 
     ///
     /// @brief Key columns that are used to group files in a table into torrents.
@@ -818,5 +1005,7 @@ struct TSkyShareTableOptions
     /// @brief Allow skynet manager to return fastbone links to skynet. See YT-11437
     FLUENT_FIELD_OPTION(bool, EnableFastbone)
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

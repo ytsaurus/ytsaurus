@@ -157,12 +157,16 @@ struct TJobBinaryCypressPath
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
+/// @cond Doxygen_Suppress
 namespace NDetail {
     extern i64 OutputTableCount;
 } // namespace NDetail
+/// @endcond
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
 /// @brief Auto merge mode.
 ///
 /// @see https://yt.yandex-team.ru/docs/description/mr/automerge
@@ -177,19 +181,23 @@ enum class EAutoMergeMode
     /// Mode that tries to optimize usage of chunk quota for intermediate chunks, operation might run slower.
     Economy    /* "economy" */,
 
+    ///
     /// @breif Manual configuration of automerge parameters.
     ///
     /// @ref TAutoMergeSpec
     Manual     /* "manual" */,
 };
 
+///
 /// @brief Options for auto merge operation stage.
 ///
 /// @see https://yt.yandex-team.ru/docs/description/mr/automerge
 class TAutoMergeSpec
 {
 public:
+    /// @cond Doxygen_Suppress
     using TSelf = TAutoMergeSpec;
+    /// @endcond
 
     /// Mode of the auto merge.
     FLUENT_FIELD_OPTION(EAutoMergeMode, Mode);
@@ -215,7 +223,9 @@ template <class TDerived>
 class TWithAutoMergeSpec
 {
 public:
+    /// @cond Doxygen_Suppress
     using TSelf = TDerived;
+    /// @endcond
 
     /// @brief Options for auto merge operation stage.
     ///
@@ -228,7 +238,9 @@ template <class TDerived>
 class TUserJobInputFormatHintsBase
 {
 public:
+    /// @cond Doxygen_Suppress
     using TSelf = TDerived;
+    /// @endcond
 
     /// @brief Fine tune input format of the job.
     FLUENT_FIELD_OPTION(TFormatHints, InputFormatHints);
@@ -239,7 +251,9 @@ template <class TDerived>
 class TUserJobOutputFormatHintsBase
 {
 public:
+    /// @cond Doxygen_Suppress
     using TSelf = TDerived;
+    /// @endcond
 
     /// @brief Fine tune output format of the job.
     FLUENT_FIELD_OPTION(TFormatHints, OutputFormatHints);
@@ -252,7 +266,9 @@ class TUserJobFormatHintsBase
     , public TUserJobOutputFormatHintsBase<TDerived>
 {
 public:
+    /// @cond Doxygen_Suppress
     using TSelf = TDerived;
+    /// @endcond
 };
 
 /// User job format hints.
@@ -265,7 +281,9 @@ template <class TDerived>
 class TRawOperationIoTableSpec
 {
 public:
+    /// @cond Doxygen_Suppress
     using TSelf = TDerived;
+    /// @endcond
 
     /// Add input table path to input path list.
     TDerived& AddInput(const TRichYPath& path);
@@ -295,7 +313,9 @@ template <class TDerived>
 struct TSimpleRawOperationIoSpec
     : public TRawOperationIoTableSpec<TDerived>
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TDerived;
+    /// @endcond
 
     /// @brief Describes format for both input and output.
     ///
@@ -315,7 +335,9 @@ class TRawMapReduceOperationIoSpec
     : public TRawOperationIoTableSpec<TDerived>
 {
 public:
+    /// @cond Doxygen_Suppress
     using TSelf = TDerived;
+    /// @endcond
 
     /// @brief Describes format for both input and output of mapper.
     ///
@@ -450,7 +472,9 @@ template <class TDerived>
 struct TOperationIOSpec
     : public TOperationIOSpecBase
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TDerived;
+    /// @endcond
 
     template <class T>
     TDerived& AddInput(const TRichYPath& path);
@@ -483,7 +507,9 @@ struct TOperationIOSpec
 template <class TDerived>
 struct TOperationSpecBase
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TDerived;
+    /// @endcond
 
     ///
     /// @brief Limit on operation execution time.
@@ -501,7 +527,9 @@ template <class TDerived>
 struct TUserOperationSpecBase
     : TOperationSpecBase<TDerived>
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TDerived;
+    /// @endcond
 
     /// How many jobs can fail before operation is failed.
     FLUENT_FIELD_OPTION(ui64, MaxFailedJobCount);
@@ -594,7 +622,9 @@ private:
 
 struct TAddLocalFileOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TAddLocalFileOptions;
+    /// @endcond
 
     ///
     /// @brief Path by which job will see the uploaded file.
@@ -616,7 +646,9 @@ struct TAddLocalFileOptions
 /// @see https://yt.yandex-team.ru/docs/description/mr/operations_options#user_script_options
 struct TUserJobSpec
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TUserJobSpec;
+    /// @endcond
 
     ///
     /// @brief Specify a local file to upload to Cypress and prepare for use in job.
@@ -751,7 +783,9 @@ struct TMapOperationSpecBase
     : public TUserOperationSpecBase<TDerived>
     , public TWithAutoMergeSpec<TDerived>
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TDerived;
+    /// @endcond
 
     ///
     /// @brief Spec of mapper job.
@@ -811,7 +845,9 @@ struct TReduceOperationSpecBase
     : public TUserOperationSpecBase<TDerived>
     , public TWithAutoMergeSpec<TDerived>
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TDerived;
+    /// @endcond
 
     ///
     /// @brief Spec of reduce job.
@@ -882,7 +918,9 @@ template <typename TDerived>
 struct TJoinReduceOperationSpecBase
     : public TUserOperationSpecBase<TDerived>
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TDerived;
+    /// @endcond
 
     ///
     /// @brief Spec of reduce job.
@@ -944,7 +982,9 @@ template <typename TDerived>
 struct TMapReduceOperationSpecBase
     : public TUserOperationSpecBase<TDerived>
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TDerived;
+    /// @endcond
 
     ///
     /// @brief Spec of map job.
@@ -1016,7 +1056,9 @@ struct TMapReduceOperationSpec
     , public TOperationIOSpec<TMapReduceOperationSpec>
     , public TIntermediateTablesHintSpec<TMapReduceOperationSpec>
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TMapReduceOperationSpec;
+    /// @endcond
 
     ///
     /// @brief Format hints for mapper.
@@ -1060,7 +1102,9 @@ enum class ESchemaInferenceMode : int
 struct TSortOperationSpec
     : TOperationSpecBase<TSortOperationSpec>
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TSortOperationSpec;
+    /// @endcond
 
     ///
     /// @brief Paths to input tables.
@@ -1124,7 +1168,9 @@ enum EMergeMode : int
 struct TMergeOperationSpec
     : TOperationSpecBase<TMergeOperationSpec>
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TMergeOperationSpec;
+    /// @endcond
 
     ///
     /// @brief Paths to input tables.
@@ -1178,7 +1224,9 @@ struct TMergeOperationSpec
 struct TEraseOperationSpec
     : TOperationSpecBase<TEraseOperationSpec>
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TEraseOperationSpec;
+    /// @endcond
 
     ///
     /// @brief Which table (or row range) to erase.
@@ -1202,7 +1250,9 @@ struct TEraseOperationSpec
 struct TRemoteCopyOperationSpec
     : TOperationSpecBase<TRemoteCopyOperationSpec>
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TRemoteCopyOperationSpec;
+    /// @endcond
 
     ///
     /// @brief Source cluster name.
@@ -1253,7 +1303,9 @@ struct TVanillaTask
     : public TOperationOutputSpecBase
     , public TUserJobOutputFormatHintsBase<TVanillaTask>
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TVanillaTask;
+    /// @endcond
 
     ///
     /// @brief Add output table path and specify the task output type (i.e. TMyProtoMessage).
@@ -1296,7 +1348,9 @@ struct TVanillaTask
 struct TVanillaOperationSpec
     : TUserOperationSpecBase<TVanillaOperationSpec>
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TVanillaOperationSpec;
+    /// @endcond
 
     ///
     /// @brief Description of tasks to run in this operation.
@@ -1309,7 +1363,9 @@ struct TVanillaOperationSpec
 /// @brief Options for @ref NYT::IOperationClient::Map and other operation start commands.
 struct TOperationOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TOperationOptions;
+    /// @endcond
 
     ///
     /// @brief Additional field to put to operation spec.
@@ -2082,7 +2138,9 @@ enum class EOperationAttribute : int
 /// @brief Class describing which attributes to request in @ref NYT::IClient::GetOperation or @ref NYT::IClient::ListOperations.
 struct TOperationAttributeFilter
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TOperationAttributeFilter;
+    /// @endcond
 
     TVector<EOperationAttribute> Attributes_;
 
@@ -2099,7 +2157,9 @@ struct TOperationAttributeFilter
 /// @brief Options for @ref NYT::IClient::GetOperation call.
 struct TGetOperationOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TGetOperationOptions;
+    /// @endcond
 
     ///
     /// @brief What attributes to request (if omitted, the default set of attributes will be requested).
@@ -2268,7 +2328,9 @@ enum class ECursorDirection
 /// @see https://yt.yandex-team.ru/docs/api/commands.html#list_operations
 struct TListOperationsOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TListOperationsOptions;
+    /// @endcond
 
     ///
     /// @name Time range specification
@@ -2538,7 +2600,9 @@ enum class EJobSortDirection : int
 /// @see https://yt.yandex-team.ru/docs/api/commands.html#list_jobs
 struct TListJobsOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TListJobsOptions;
+    /// @endcond
 
     ///
     /// @name Filters
@@ -2711,28 +2775,36 @@ struct TListJobsResult
 /// @brief Options for @ref NYT::IClient::GetJob.
 struct TGetJobOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TGetJobOptions;
+    /// @endcond
 };
 
 ///
 /// @brief Options for @ref NYT::IClient::GetJobInput.
 struct TGetJobInputOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TGetJobInputOptions;
+    /// @endcond
 };
 
 ///
 /// @brief Options for @ref NYT::IClient::GetJobFailContext.
 struct TGetJobFailContextOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TGetJobFailContextOptions;
+    /// @endcond
 };
 
 ///
 /// @brief Options for @ref NYT::IClient::GetJobStderr.
 struct TGetJobStderrOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TGetJobStderrOptions;
+    /// @endcond
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -2741,7 +2813,9 @@ struct TGetJobStderrOptions
 /// @brief Options for @ref NYT::IOperation::GetFailedJobInfo.
 struct TGetFailedJobInfoOptions
 {
+    /// @cond Doxygen_Suppress
     using TSelf = TGetFailedJobInfoOptions;
+    /// @endcond
 
     ///
     /// @brief How many jobs to download. Which jobs will be chosen is undefined.

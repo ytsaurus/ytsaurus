@@ -117,13 +117,13 @@ public:
     bool HasCustomStatistics(TStringBuf name) const;
 
     ///
-    /// @brief Get custom statistics (those the user can write in job with @ref NYT:WriteCustomStatistics).
+    /// @brief Get custom statistics (those the user can write in job with @ref NYT::WriteCustomStatistics).
     ///
     /// @param name Slash separated custom statistics name.
     TJobStatisticsEntry<i64> GetCustomStatistics(TStringBuf name) const;
 
     ///
-    /// @brief Get custom statistics (those the user can write in job with @ref NYT:WriteCustomStatistics).
+    /// @brief Get custom statistics (those the user can write in job with @ref NYT::WriteCustomStatistics).
     ///
     /// @param name Slash separated custom statistics name.
     template <typename T>
