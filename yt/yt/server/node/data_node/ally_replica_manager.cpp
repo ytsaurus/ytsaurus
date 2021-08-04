@@ -12,6 +12,7 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/heartbeat.pb.h>
 #include <yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h>
@@ -126,10 +127,10 @@ public:
             }
 
             {
-                auto& bucket = ChunkStates_.GetBucketForKey(chunkId);
+                auto& bucket = AllyReplicasInfos_.GetBucketForKey(chunkId);
                 auto bucketGuard = Guard(bucket.GetMutex());
 
-                auto [it, inserted] = bucket.GetMap().emplace(chunkId, TChunkState{});
+                auto [it, inserted] = bucket.GetMap().emplace(chunkId, TAllyReplicasInfo{});
                 auto knownRevision = inserted
                     ? NullRevision
                     : it->second.Revision;
@@ -241,10 +242,10 @@ public:
                 continue;
             }
 
-            auto& bucket = ChunkStates_.GetBucketForKey(announcement.ChunkId);
+            auto& bucket = AllyReplicasInfos_.GetBucketForKey(announcement.ChunkId);
             auto bucketGuard = Guard(bucket.GetMutex());
 
-            auto [it, inserted] = bucket.GetMap().emplace(announcement.ChunkId, TChunkState{});
+            auto [it, inserted] = bucket.GetMap().emplace(announcement.ChunkId, TAllyReplicasInfo{});
             auto knownRevision = inserted
                 ? NullRevision
                 : it->second.Revision;
@@ -303,7 +304,7 @@ public:
         EnableLazyAnnouncements_ = enable;
     }
 
-    virtual TChunkReplicaWithMediumList GetAllyReplicas(TChunkId chunkId) const override
+    virtual TAllyReplicasInfo GetAllyReplicas(TChunkId chunkId) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -312,8 +313,8 @@ public:
             return {};
         }
 
-        if (auto chunkState = FindChunkState(chunkId)) {
-            return chunkState->Replicas;
+        if (auto allyReplicas = FindAllyReplicas(chunkId)) {
+            return *allyReplicas;
         }
 
         return {};
@@ -339,10 +340,10 @@ public:
         }
 
         const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
-        auto chunkState = FindChunkState(chunkId).value_or(TChunkState{});
+        auto allyReplicas = FindAllyReplicas(chunkId).value_or(TAllyReplicasInfo{});
 
         fluent
-            .Item("ally_replicas").DoListFor(chunkState.Replicas, [&] (TFluentList fluent, TChunkReplicaWithMedium replica) {
+            .Item("ally_replicas").DoListFor(allyReplicas.Replicas, [&] (TFluentList fluent, TChunkReplicaWithMedium replica) {
                 auto* descriptor = nodeDirectory->FindDescriptor(replica.GetNodeId());
                 fluent
                     .Item()
@@ -351,20 +352,14 @@ public:
                         .EndAttributes()
                     .Value(descriptor ? descriptor->GetDefaultAddress() : "<unknown>");
             })
-            .Item("ally_replica_update_revision").Value(chunkState.Revision);
+            .Item("ally_replica_update_revision").Value(allyReplicas.Revision);
     }
 
 private:
     IBootstrap* const Bootstrap_;
     const IThroughputThrottlerPtr Throttler_;
 
-    struct TChunkState
-    {
-        TChunkReplicaWithMediumList Replicas;
-        TRevision Revision = NullRevision;
-    };
-
-    TConcurrentHashMap<TChunkId, TChunkState, 32, TAdaptiveLock> ChunkStates_;
+    TConcurrentHashMap<TChunkId, TAllyReplicasInfo, 32, TAdaptiveLock> AllyReplicasInfos_;
 
     struct TNodeState
     {
@@ -428,12 +423,12 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-    std::optional<TChunkState> FindChunkState(TChunkId chunkId) const
+    std::optional<TAllyReplicasInfo> FindAllyReplicas(TChunkId chunkId) const
     {
-        TChunkState result;
-        return ChunkStates_.Get(chunkId, result)
+        TAllyReplicasInfo result;
+        return AllyReplicasInfos_.Get(chunkId, result)
             ? result
-            : std::make_optional<TChunkState>();
+            : std::make_optional<TAllyReplicasInfo>();
     }
 
     TNodeState* GetOrCreateNodeState(TNodeId nodeId)
@@ -483,8 +478,8 @@ private:
 
     bool IsOutdated(const TChunkReplicaAnnouncement& announcement) const
     {
-        auto chunkState = FindChunkState(announcement.ChunkId);
-        return chunkState && chunkState->Revision > announcement.Revision;
+        auto allyReplicas = FindAllyReplicas(announcement.ChunkId);
+        return allyReplicas && allyReplicas->Revision > announcement.Revision;
     }
 
     void PromoteLazyAndDelayedAnnouncements(TNodeId nodeId, TNodeState* nodeState)
@@ -558,7 +553,7 @@ private:
 
         // Chunks.
         int allyAwareChunkCount = 0;
-        for (const auto& bucket : ChunkStates_.Buckets) {
+        for (const auto& bucket : AllyReplicasInfos_.Buckets) {
             auto guard = Guard(bucket.GetMutex());
             allyAwareChunkCount += bucket.GetMap().size();
         }
@@ -701,7 +696,7 @@ private:
             return;
         }
 
-        auto& bucket = ChunkStates_.GetBucketForKey(chunkId);
+        auto& bucket = AllyReplicasInfos_.GetBucketForKey(chunkId);
         auto guard = Guard(bucket.GetMutex());
         bucket.GetMap().erase(chunkId);
     }

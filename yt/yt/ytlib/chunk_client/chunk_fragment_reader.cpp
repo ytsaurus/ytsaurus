@@ -7,6 +7,7 @@
 #include "config.h"
 #include "data_node_service_proxy.h"
 #include "dispatcher.h"
+#include "helpers.h"
 
 #include <yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h>
 
@@ -243,14 +244,14 @@ protected:
     NProfiling::TWallTimer Timer_;
 
 
-    std::vector<TFuture<TChunkReplicaList>> InitializeAndGetChunkReplicaListFutures(int chunkCount)
+    std::vector<TFuture<TAllyReplicasInfo>> InitializeAndGetAllyReplicas(int chunkCount)
     {
         VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-        ChunkReplicaListFutures_.clear();
+        AllyReplicasInfoFutures_.clear();
         ChunkIdToReplicaLocationInfo_.clear();
 
-        ChunkReplicaListFutures_.reserve(chunkCount);
+        AllyReplicasInfoFutures_.reserve(chunkCount);
         ChunkIdToReplicaLocationInfo_.reserve(chunkCount);
 
         std::vector<TChunkId> chunkIds;
@@ -263,7 +264,7 @@ protected:
         YT_VERIFY(locators.size() == chunkIds.size());
         for (int i = 0; i < std::ssize(locators); ++i) {
             auto&& locator = locators[i];
-            ChunkReplicaListFutures_.push_back(locator->GetReplicas());
+            AllyReplicasInfoFutures_.push_back(locator->GetReplicasFuture());
             YT_VERIFY(ChunkIdToReplicaLocationInfo_.emplace(
                 chunkIds[i],
                 TChunkReplicaLocationInfo{
@@ -273,7 +274,35 @@ protected:
                 .second);
         }
 
-        return ChunkReplicaListFutures_;
+        return AllyReplicasInfoFutures_;
+    }
+
+    template <typename TResponse>
+    void TryUpdateChunkReplicas(
+        TChunkId chunkId,
+        const TResponse& response)
+    {
+        auto it = ChunkIdToReplicaLocationInfo_.find(chunkId);
+        if (it == ChunkIdToReplicaLocationInfo_.end()) {
+            return;
+        }
+
+        const auto& protoAllyReplicas = response.ally_replicas();
+        if (protoAllyReplicas.replicas_size() == 0) {
+            return;
+        }
+
+        const auto& allyReplicasInfoFuture = AllyReplicasInfoFutures_[it->second.FutureIndex];
+        YT_VERIFY(allyReplicasInfoFuture.IsSet() && allyReplicasInfoFuture.Get().IsOK());
+
+        if (allyReplicasInfoFuture.Get().Value().Revision >= protoAllyReplicas.revision()) {
+            return;
+        }
+
+        // NB: New peers (if any) will be requested upon next iteration.
+        it->second.Locator->MaybeResetReplicas(
+            FromProto<TAllyReplicasInfo>(protoAllyReplicas),
+            AllyReplicasInfoFutures_[it->second.FutureIndex]);
     }
 
     void TryDiscardChunkReplicas(TChunkId chunkId) const
@@ -284,11 +313,11 @@ protected:
         }
 
         it->second.Locator->DiscardReplicas(
-            ChunkReplicaListFutures_[it->second.FutureIndex]);
+            AllyReplicasInfoFutures_[it->second.FutureIndex]);
     }
 
     std::tuple<std::vector<TPeerProbingInfo>, std::vector<TNodeId>> GetProbingInfos(
-        const std::vector<TChunkReplicaList>& chunkReplicaLists)
+        const std::vector<TAllyReplicasInfo>& allyReplicasInfos)
     {
         VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
@@ -296,16 +325,16 @@ protected:
         std::vector<TPeerProbingInfo> probingInfos;
         THashMap<TNodeId, int> nodeIdToPeerIndex;
 
-        for (int chunkIndex = 0; chunkIndex < std::ssize(chunkReplicaLists); ++chunkIndex) {
+        for (int chunkIndex = 0; chunkIndex < std::ssize(allyReplicasInfos); ++chunkIndex) {
             auto chunkId = GetPendingChunkId(chunkIndex);
 
-            const auto& chunkReplicaList = chunkReplicaLists[chunkIndex];
-            if (chunkReplicaList.empty()) {
+            const auto& allyReplicas = allyReplicasInfos[chunkIndex];
+            if (!allyReplicas) {
                 // NB: This branch is possible within periodic updates.
                 continue;
             }
 
-            for (auto chunkReplica : chunkReplicaList) {
+            for (auto chunkReplica : allyReplicas.Replicas) {
                 auto nodeId = chunkReplica.GetNodeId();
                 auto [it, emplaced] = nodeIdToPeerIndex.try_emplace(nodeId);
                 if (emplaced) {
@@ -387,7 +416,7 @@ private:
         int FutureIndex;
     };
 
-    std::vector<TFuture<TChunkReplicaList>> ChunkReplicaListFutures_;
+    std::vector<TFuture<TAllyReplicasInfo>> AllyReplicasInfoFutures_;
     THashMap<TChunkId, TChunkReplicaLocationInfo> ChunkIdToReplicaLocationInfo_;
 };
 
@@ -547,7 +576,7 @@ private:
             PendingChunkFragmentSetInfos_.size(),
             Iteration_);
 
-        auto futures = InitializeAndGetChunkReplicaListFutures(PendingChunkFragmentSetInfos_.size());
+        auto futures = InitializeAndGetAllyReplicas(std::ssize(PendingChunkFragmentSetInfos_));
 
         auto future = AllSet(std::move(futures));
         if (auto result = future.TryGetUnique()) {
@@ -562,29 +591,29 @@ private:
     }
 
     void ProbePeers(
-        TErrorOr<std::vector<TErrorOr<TChunkReplicaList>>> resultOrError)
+        TErrorOr<std::vector<TErrorOr<TAllyReplicasInfo>>> resultOrError)
     {
         VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
         YT_VERIFY(resultOrError.IsOK());
-        auto chunkReplicaListOrErrors = std::move(resultOrError.Value());
+        auto allyReplicasInfoOrErrors = std::move(resultOrError.Value());
 
-        YT_VERIFY(PendingChunkFragmentSetInfos_.size() == chunkReplicaListOrErrors.size());
+        YT_VERIFY(PendingChunkFragmentSetInfos_.size() == allyReplicasInfoOrErrors.size());
 
         NProfiling::TWallTimer probePeersTimer;
 
-        std::vector<TChunkReplicaList> chunkReplicaLists;
-        chunkReplicaLists.reserve(PendingChunkFragmentSetInfos_.size());
+        std::vector<TAllyReplicasInfo> allyReplicasInfos;
+        allyReplicasInfos.reserve(PendingChunkFragmentSetInfos_.size());
 
         bool locateFailed = false;
         for (int i = 0; i < std::ssize(PendingChunkFragmentSetInfos_); ++i) {
-            auto& chunkReplicaListOrError = chunkReplicaListOrErrors[i];
-            if (!chunkReplicaListOrError.IsOK()) {
+            auto& allyReplicasInfoOrError = allyReplicasInfoOrErrors[i];
+            if (!allyReplicasInfoOrError.IsOK()) {
                 auto error = TError(
                     NChunkClient::EErrorCode::MasterCommunicationFailed,
                     "Error requesting seeds from master for chunk %v",
                     PendingChunkFragmentSetInfos_[i].ChunkId)
-                    << chunkReplicaListOrError;
+                    << allyReplicasInfoOrError;
                 ProcessError(std::move(error));
                 locateFailed = true;
 
@@ -595,8 +624,8 @@ private:
                 continue;
             }
 
-            auto chunkReplicaList = std::move(chunkReplicaListOrError.Value());
-            if (chunkReplicaList.empty()) {
+            auto allyReplicas = std::move(allyReplicasInfoOrError.Value());
+            if (!allyReplicas) {
                 ProcessError(TError(
                     "Chunk %v is lost",
                     PendingChunkFragmentSetInfos_[i].ChunkId));
@@ -607,7 +636,7 @@ private:
                 continue;
             }
 
-            chunkReplicaLists.push_back(std::move(chunkReplicaList));
+            allyReplicasInfos.push_back(std::move(allyReplicas));
         }
 
         if (locateFailed) {
@@ -617,7 +646,7 @@ private:
 
         std::vector<TNodeId> nodeIds;
         std::vector<TPeerProbingInfo> peerProbingInfos;
-        std::tie(peerProbingInfos, nodeIds) = GetProbingInfos(chunkReplicaLists);
+        std::tie(peerProbingInfos, nodeIds) = GetProbingInfos(allyReplicasInfos);
 
         std::vector<TFuture<TProbeChunkSetResult>> peerProbingFutures;
         peerProbingFutures.reserve(nodeIds.size());
@@ -628,8 +657,8 @@ private:
         // If the same happens due to peer being suspicious, we ignore suspiciousness and treat all nodes as normal. 
         int failedNodeCount = 0;
         int suspiciousNodeCount = 0;
-        std::vector<int> chunkFailedCounters(chunkReplicaLists.size());
-        std::vector<int> chunkSuspiciousCounters(chunkReplicaLists.size());
+        std::vector<int> chunkFailedCounters(allyReplicasInfos.size());
+        std::vector<int> chunkSuspiciousCounters(allyReplicasInfos.size());
         auto onFailedNode = [&] (const TPeerProbingInfo& probingInfo) {
             ++failedNodeCount;
             for (auto chunkIndex : probingInfo.ChunkIndexes) {
@@ -680,7 +709,7 @@ private:
 
         bool fatalError = false;
         for (int i = 0; i < std::ssize(chunkFailedCounters); ++i) {
-            auto chunkReplicaCount = std::ssize(chunkReplicaLists[i]);
+            auto chunkReplicaCount = std::ssize(allyReplicasInfos[i].Replicas);
             YT_VERIFY(chunkFailedCounters[i] + chunkSuspiciousCounters[i] <= chunkReplicaCount);
 
             if (chunkFailedCounters[i] == chunkReplicaCount) {
@@ -789,12 +818,12 @@ private:
                 auto chunkIndex = probingInfo.ChunkIndexes[resultIndex];
                 const auto& subresponse = probingResult->subresponses(resultIndex);
 
-                if (!subresponse.has_complete_chunk()) {
-                    // TODO(akozhikhov): consider suggested peer descriptors.
-                    auto chunkId = probingInfo.ChunkIds[resultIndex];
-                    YT_VERIFY(chunkId == PendingChunkFragmentSetInfos_[chunkIndex].ChunkId);
-                    TryDiscardChunkReplicas(chunkId);
+                auto chunkId = probingInfo.ChunkIds[resultIndex];
+                YT_VERIFY(chunkId == PendingChunkFragmentSetInfos_[chunkIndex].ChunkId);
 
+                TryUpdateChunkReplicas(chunkId, subresponse);
+
+                if (!subresponse.has_complete_chunk()) {
                     ProcessError(TError(
                         "Peer %v does not contain chunk %v",
                         probingInfo.PeerInfoOrError.Value().Address,
@@ -981,10 +1010,10 @@ private:
                 auto&& chunkFragmentSetInfo = chunkFragmentSetInfos[i];
 
                 const auto& subresponse = response->subresponses(i);
-                if (!subresponse.has_complete_chunk()) {
-                    // TODO(akozhikhov): Consider suggested peers.
-                    TryDiscardChunkReplicas(chunkFragmentSetInfo.ChunkId);
 
+                TryUpdateChunkReplicas(chunkFragmentSetInfo.ChunkId, subresponse);
+
+                if (!subresponse.has_complete_chunk()) {
                     auto error = TError("Peer %v does not contain chunk %v",
                         peerInfo.Address,
                         chunkFragmentSetInfo.ChunkId);
@@ -1204,7 +1233,7 @@ public:
             return;
         }
 
-        auto futures = InitializeAndGetChunkReplicaListFutures(ChunkIds_.size());
+        auto futures = InitializeAndGetAllyReplicas(std::ssize(ChunkIds_));
 
         AllSet(std::move(futures)).Subscribe(BIND(
             &TPeriodicUpdateSession::OnReplicasLocated,
@@ -1214,7 +1243,7 @@ public:
 
 private:
     std::vector<TChunkId> ChunkIds_;
-    std::vector<TChunkReplicaList> ChunkReplicaLists_;
+    std::vector<TAllyReplicasInfo> AllyReplicasInfos_;
 
     std::vector<TChunkId> ObsoleteChunkIds_;
     std::vector<TChunkId> MissingChunkIds_;
@@ -1256,30 +1285,30 @@ private:
     }
 
     void OnReplicasLocated(
-        TErrorOr<std::vector<TErrorOr<TChunkReplicaList>>> resultOrError)
+        TErrorOr<std::vector<TErrorOr<TAllyReplicasInfo>>> resultOrError)
     {
         VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
         YT_VERIFY(resultOrError.IsOK());
-        auto chunkReplicaListOrErrors = std::move(resultOrError.Value());
+        auto allyReplicasInfosOrErrors = std::move(resultOrError.Value());
 
-        YT_VERIFY(ChunkIds_.size() == chunkReplicaListOrErrors.size());
+        YT_VERIFY(ChunkIds_.size() == allyReplicasInfosOrErrors.size());
 
-        ChunkReplicaLists_.reserve(ChunkIds_.size());
+        AllyReplicasInfos_.reserve(ChunkIds_.size());
 
         for (int i = 0; i < std::ssize(ChunkIds_); ++i) {
-            auto& chunkReplicaListOrError = chunkReplicaListOrErrors[i];
-            if (!chunkReplicaListOrError.IsOK()) {
-                if (chunkReplicaListOrError.GetCode() == EErrorCode::NoSuchChunk) {
+            auto& allyReplicasInfosOrError = allyReplicasInfosOrErrors[i];
+            if (!allyReplicasInfosOrError.IsOK()) {
+                if (allyReplicasInfosOrError.GetCode() == EErrorCode::NoSuchChunk) {
                     NonexistentChunkIds_.push_back(ChunkIds_[i]);
                 }
                 TryDiscardChunkReplicas(ChunkIds_[i]);
-                ChunkReplicaLists_.emplace_back();
+                AllyReplicasInfos_.emplace_back();
                 continue;
             }
 
-            ChunkReplicaLists_.push_back(std::move(chunkReplicaListOrError.Value()));
-            if (ChunkReplicaLists_.back().empty()) {
+            AllyReplicasInfos_.push_back(std::move(allyReplicasInfosOrError.Value()));
+            if (!AllyReplicasInfos_.back()) {
                 MissingChunkIds_.push_back(ChunkIds_[i]);
                 TryDiscardChunkReplicas(ChunkIds_[i]);
             }
@@ -1287,7 +1316,7 @@ private:
 
         std::vector<TNodeId> nodeIds;
         std::vector<TPeerProbingInfo> probingInfos;
-        std::tie(probingInfos, nodeIds) = GetProbingInfos(ChunkReplicaLists_);
+        std::tie(probingInfos, nodeIds) = GetProbingInfos(AllyReplicasInfos_);
 
         std::vector<TFuture<TProbeChunkSetResult>> probingFutures;
         probingFutures.reserve(probingInfos.size());
@@ -1387,15 +1416,15 @@ private:
                 auto chunkIndex = probingInfo.ChunkIndexes[resultIndex];
                 const auto& subresponse = probingResult->subresponses(resultIndex);
 
+                auto chunkId = probingInfo.ChunkIds[resultIndex];
+                YT_VERIFY(chunkId == ChunkIds_[chunkIndex]);
+
+                TryUpdateChunkReplicas(chunkId, subresponse);
+
                 if (!subresponse.has_complete_chunk()) {
-                    auto chunkId = probingInfo.ChunkIds[resultIndex];
-                    YT_VERIFY(chunkId == ChunkIds_[chunkIndex]);
                     YT_LOG_ERROR("Chunk is missing from node (ChunkId: %v, Address: %v)",
                         chunkId,
                         peerInfoOrError.Value().Address);
-
-                    // TODO(akozhikhov): Consider suggested peer descriptors.
-                    TryDiscardChunkReplicas(chunkId);
                     continue;
                 }
 

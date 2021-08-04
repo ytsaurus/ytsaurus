@@ -22,6 +22,8 @@ public:
         NNodeTrackerClient::TNodeId nodeId,
         int replicaIndex,
         int mediumIndex);
+    // NB: Will be assigned to generic medium.
+    explicit TChunkReplicaWithMedium(TChunkReplica replica);
 
     NNodeTrackerClient::TNodeId GetNodeId() const;
     int GetReplicaIndex() const;
@@ -69,7 +71,6 @@ private:
 
     friend void ToProto(ui32* value, TChunkReplica replica);
     friend void FromProto(TChunkReplica* replica, ui32 value);
-
 };
 
 void FormatValue(TStringBuilderBase* builder, TChunkReplica replica, TStringBuf spec);
@@ -173,7 +174,6 @@ public:
 
 private:
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

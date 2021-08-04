@@ -416,6 +416,7 @@ private:
         const auto* request = &context->Request();
         auto* response = &context->Response();
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
+
         const auto& blockPeerTable = Bootstrap_->GetBlockPeerTable();
         for (int blockIndex : request->block_indexes()) {
             auto blockId = TBlockId(chunkId, blockIndex);
@@ -439,17 +440,14 @@ private:
                 peerList->AddPeer(requesterNodeId, requesterExpirationTime);
             }
         }
-        if (context->IsClientFeatureSupported(EChunkClientFeature::AllBlocksIndex)) {
-            if (auto peerList = blockPeerTable->FindPeerList(chunkId)) {
-                if (auto peers = peerList->GetPeers(); !peers.empty()) {
-                    auto* peerDescriptor = response->add_peer_descriptors();
-                    peerDescriptor->set_block_index(AllBlocksIndex);
-                    ToProto(peerDescriptor->mutable_node_ids(), peers);
-                    YT_LOG_DEBUG("Chunk peers suggested (ChunkId: %v, PeerCount: %v)",
-                        chunkId,
-                        peers.size());
-                }
-            }
+
+        const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
+
+        if (auto allyReplicas = allyReplicaManager->GetAllyReplicas(chunkId)) {
+            ToProto(response->mutable_ally_replicas(), allyReplicas);
+            YT_LOG_DEBUG("Ally replicas suggested (ChunkId: %v, Replicas: %v)",
+                chunkId,
+                allyReplicas.Replicas);
         }
     }
 
@@ -490,14 +488,9 @@ private:
             bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
             subresponse->set_disk_throttling(diskThrottling);
 
-            const auto& blockPeerTable = Bootstrap_->GetBlockPeerTable();
-            if (auto peerList = blockPeerTable->FindPeerList(chunkId)) {
-                if (auto peers = peerList->GetPeers(); !peers.empty()) {
-                    ToProto(subresponse->mutable_peer_node_ids(), peers);
-                    YT_LOG_DEBUG("Chunk peers suggested (ChunkId: %v, PeerCount: %v)",
-                        chunkId,
-                        peers.size());
-                }
+            const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
+            if (auto allyReplicas = allyReplicaManager->GetAllyReplicas(chunkId)) {
+                ToProto(subresponse->mutable_ally_replicas(), allyReplicas);
             }
         }
 
@@ -880,7 +873,6 @@ private:
         prepareReaderFutures.reserve(request->subrequests_size());
 
         const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
-        const auto& blockPeerTable = Bootstrap_->GetBlockPeerTable();
         {
             for (const auto& subrequest : request->subrequests()) {
                 auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
@@ -888,14 +880,9 @@ private:
 
                 auto* subresponse = response->add_subresponses();
 
-                if (auto peerList = blockPeerTable->FindPeerList(chunkId)) {
-                    if (auto peers = peerList->GetPeers(); !peers.empty()) {
-                        auto* peerDescriptor = subresponse->add_peer_descriptors();
-                        peerDescriptor->set_block_index(AllBlocksIndex);
-                        for (auto peer : peers) {
-                            peerDescriptor->add_node_ids(peer);
-                        }
-                    }
+                const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
+                if (auto allyReplicas = allyReplicaManager->GetAllyReplicas(chunkId)) {
+                    ToProto(subresponse->mutable_ally_replicas(), allyReplicas);
                 }
 
                 bool chunkAvailable = false;

@@ -26,13 +26,17 @@ public:
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         TChunkId chunkId,
         TDuration expirationTime,
-        TChunkReplicaList initialReplicas,
+        const TChunkReplicaList& initialReplicas,
         NLogging::TLogger logger);
 
-    TFuture<TChunkReplicaList> GetReplicas();
-    void DiscardReplicas(const TFuture<TChunkReplicaList>& future);
+    TFuture<TAllyReplicasInfo> GetReplicasFuture();
+    void DiscardReplicas(const TFuture<TAllyReplicasInfo>& future);
 
-    DEFINE_SIGNAL(void(const TChunkReplicaList& replicas), ReplicasLocated);
+    TFuture<TAllyReplicasInfo> MaybeResetReplicas(
+        const TAllyReplicasInfo& candidateReplicas,
+        const TFuture<TAllyReplicasInfo>& future);
+
+    DEFINE_SIGNAL(void(const TAllyReplicasInfo& replicas), ReplicasLocated);
 
 private:
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
@@ -43,7 +47,7 @@ private:
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
     TInstant Timestamp_;
-    TPromise<TChunkReplicaList> ReplicasPromise_;
+    TPromise<TAllyReplicasInfo> ReplicasPromise_;
 
     void LocateChunk();
     void OnChunkLocated(const TChunkServiceProxy::TErrorOrRspLocateChunksPtr& rspOrError);

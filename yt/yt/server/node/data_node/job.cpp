@@ -573,14 +573,7 @@ private:
             replicas,
             replicasExpirationDeadline);
 
-        if (!replicas.empty()) {
-            const auto& blockPeerTable = Bootstrap_->GetBlockPeerTable();
-            auto peerList = blockPeerTable->GetOrCreatePeerList(chunkId);
-            for (auto replica : replicas) {
-                auto nodeId = replica.GetNodeId();
-                peerList->AddPeer(nodeId, replicasExpirationDeadline);
-            }
-        }
+        // TODO(ifsmirnov, akozhikhov): Consider DRT here.
 
         auto chunk = GetLocalChunkOrThrow(chunkId, mediumIndex);
         const auto& chunkStore = Bootstrap_->GetChunkStore();

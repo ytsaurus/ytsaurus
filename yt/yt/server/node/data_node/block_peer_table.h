@@ -84,15 +84,9 @@ public:
     //! Retrieves peer list for a given #blockId; returns null if none is known.
     TCachedPeerListPtr FindPeerList(const TBlockId& blockId);
 
-    //! Same as above, but retrieves the peer list for a given #chunkId.
-    TCachedPeerListPtr FindPeerList(TChunkId chunkId);
-
     //! Retrieves peer list for a given #blockId.
     //! Always ensures an entry for #blockId is created (if not already exists).
     TCachedPeerListPtr GetOrCreatePeerList(const TBlockId& blockId);
-
-    //! Same as above, but retrieves the peer list for a given #chunkId.
-    TCachedPeerListPtr GetOrCreatePeerList(TChunkId chunkId);
 
 private:
     const TBlockPeerTableConfigPtr Config_;
