@@ -19,6 +19,7 @@ from yt.wrapper.spec_builders import (
     VanillaSpecBuilder)
 import yt.wrapper.cli_impl as cli_impl
 import yt.wrapper.job_tool as yt_job_tool
+import yt.wrapper.run_compression_benchmarks as yt_run_compression_benchmarks
 import yt.wrapper.completers as completers
 import yt.wrapper.idm_cli_helpers as idm
 import yt.json_wrapper as json
@@ -1528,6 +1529,22 @@ def add_job_tool_parser(add_parser):
                         pythonic_help=yt_job_tool.DESCRIPTION)
     yt_job_tool.create_job_tool_parser(parser)
 
+def run_compression_benchmarks(**kwargs):
+    yt_run_compression_benchmarks.run_compression_benchmarks(**kwargs)
+
+def add_compression_benchmark_parser(add_parser):
+    parser = add_parser(
+        "run-compression-benchmarks",
+        function=run_compression_benchmarks,
+        pythonic_help=yt_run_compression_benchmarks.DESCRIPTION
+    )
+    add_ypath_argument(parser, "table", hybrid=True)
+    parser.add_argument("--all-codecs", action="store_true", help="benchmark every level of codecs with levels")
+    parser.add_argument("--sample-size", type=int, default=10**9, help="approximate table's sample fragment size in bytes")
+    parser.add_argument("--format", default="json", choices=["json", "csv"], help="output format")
+    parser.add_argument("--max-operations", type=int, default=10, help="max count of parallel operations")
+    parser.add_argument("--time-limit-sec", type=int, default=100, help="time limit for one operation in seconds")
+
 def sky_share(**kwargs):
     print(yt.sky_share(**kwargs))
 
@@ -1954,6 +1971,8 @@ def main():
     add_transform_parser(add_parser)
 
     add_job_tool_parser(add_parser)
+
+    add_compression_benchmark_parser(add_parser)
 
     add_sky_share_parser(add_parser)
 
