@@ -1948,6 +1948,7 @@ private:
 
     // COMPAT(ifsmirnov)
     bool NeedRecomputeApprovedReplicaCount_ = false;
+    bool NeedPokeChunkViewsWithZeroRefCounter_ = false;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
@@ -3233,6 +3234,9 @@ private:
 
         // COMPAT(ifsmirnov)
         NeedRecomputeApprovedReplicaCount_ = context.GetVersion() < EMasterReign::RecomputeApprovedReplicaCount;
+        NeedPokeChunkViewsWithZeroRefCounter_ = context.GetVersion() < EMasterReign::DropDanglingChunkViews20_3 ||
+            (context.GetVersion() >= EMasterReign::SlotLocationStatisticsInNodeNode &&
+                context.GetVersion() < EMasterReign::DropDanglingChunkViews);
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -3240,6 +3244,7 @@ private:
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
         NeedFixTrunkNodeInvalidDeltaStatistics_ = false;
+        NeedPokeChunkViewsWithZeroRefCounter_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -3349,6 +3354,24 @@ private:
                             chunk->GetApprovedReplicaCount() - 1);
                     }
                 }
+            }
+        }
+
+        if (NeedPokeChunkViewsWithZeroRefCounter_) {
+            auto pokeCount = 0;
+
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            for (auto [id, chunkView] : ChunkViewMap_) {
+                if (chunkView->GetObjectRefCounter() == 0) {
+                    ++pokeCount;
+                    objectManager->RefObject(chunkView);
+                    objectManager->UnrefObject(chunkView);
+                }
+            }
+
+            if (pokeCount != 0) {
+                YT_LOG_INFO("Poked chunk views with zero ref counter (Count: %v)",
+                    pokeCount);
             }
         }
 
