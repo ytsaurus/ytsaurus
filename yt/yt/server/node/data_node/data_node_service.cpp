@@ -619,13 +619,21 @@ private:
         }
 
         const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
-        i64 netThrottlerQueueSize = netThrottler->GetQueueTotalCount();
-        i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
-        i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
-        response->set_net_queue_size(netQueueSize);
 
-        bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
-        response->set_net_throttling(netThrottling);
+        i64 netThrottlerQueueSize, netOutQueueSize;
+        auto checkNetThrottling = [&] (i64 limit) {
+            netThrottlerQueueSize = netThrottler->GetQueueTotalCount();
+            netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
+            i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
+            response->set_net_queue_size(netQueueSize);
+
+            bool netThrottling = netQueueSize > limit;
+            response->set_net_throttling(netThrottling);
+
+            return netThrottling;
+        };
+
+        auto netThrottling = checkNetThrottling(Config_->NetOutThrottlingLimit);
         if (netThrottling) {
             IncrementReadThrottlingCounter(context);
         }
@@ -668,7 +676,13 @@ private:
                         block.Size());
                 }
             }
-            SetRpcAttachedBlocks(response, blocks);
+
+            if (!checkNetThrottling(Config_->GetNetOutThrottlingHardLimit())) {
+                SetRpcAttachedBlocks(response, blocks);                
+            } else if (!netThrottling) {
+                netThrottling = true;
+                IncrementReadThrottlingCounter(context);
+            }
         }
 
         ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
@@ -748,13 +762,21 @@ private:
         }
 
         const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
-        i64 netThrottlerQueueSize = netThrottler->GetQueueTotalCount();
-        i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
-        i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
-        response->set_net_queue_size(netQueueSize);
 
-        bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
-        response->set_net_throttling(netThrottling);
+        i64 netThrottlerQueueSize, netOutQueueSize;
+        auto checkNetThrottling = [&] (i64 limit) {
+            netThrottlerQueueSize = netThrottler->GetQueueTotalCount();
+            netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
+            i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
+            response->set_net_queue_size(netQueueSize);
+
+            bool netThrottling = netQueueSize > limit;
+            response->set_net_throttling(netThrottling);
+
+            return netThrottling;
+        };
+
+        bool netThrottling = checkNetThrottling(Config_->NetOutThrottlingLimit);
         if (netThrottling) {
             IncrementReadThrottlingCounter(context);
         }
@@ -781,7 +803,12 @@ private:
 
         auto blocks = WaitFor(asyncBlocks)
             .ValueOrThrow();
-        SetRpcAttachedBlocks(response, blocks);
+        if (!checkNetThrottling(Config_->GetNetOutThrottlingHardLimit())) {
+            SetRpcAttachedBlocks(response, blocks);
+        } else if (!netThrottling) {
+            netThrottling = true;
+            IncrementReadThrottlingCounter(context);
+        }
 
         ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
 
