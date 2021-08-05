@@ -125,7 +125,7 @@ void LoadFromNode(
             } else {
                 T value;
                 LoadFromNode(value, node, path, EMergeStrategy::Overwrite, keepUnrecognizedRecursively);
-                parameter = value;
+                parameter = std::move(value);
             }
             break;
         }
@@ -366,8 +366,8 @@ void TYsonSerializableLite::TParameter<T>::SafeLoad(NYTree::INodePtr node, const
         try {
             NDetail::LoadFromNode(Parameter, node, path, mergeStrategy.value_or(MergeStrategy), KeepUnrecognizedRecursively);
             validate();
-        } catch (std::exception ex) {
-            Parameter = oldValue;
+        } catch (const std::exception&) {
+            Parameter = std::move(oldValue);
             throw;
         }
     }
