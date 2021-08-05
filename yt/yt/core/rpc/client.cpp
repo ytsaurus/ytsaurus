@@ -37,7 +37,7 @@ TClientContext::TClientContext(
     const TString& service,
     const TString& method,
     TFeatureIdFormatter featureIdFormatter,
-    bool heavy,
+    bool responseIsHeavy,
     EMemoryZone memoryZone,
     TAttachmentsOutputStreamPtr requestAttachmentsStream,
     TAttachmentsInputStreamPtr responseAttachmentsStream,
@@ -47,7 +47,7 @@ TClientContext::TClientContext(
     , Service_(service)
     , Method_(method)
     , FeatureIdFormatter_(featureIdFormatter)
-    , Heavy_(heavy)
+    , ResponseHeavy_(responseIsHeavy)
     , MemoryZone_(memoryZone)
     , RequestAttachmentsStream_(std::move(requestAttachmentsStream))
     , ResponseAttachmentsStream_(std::move(responseAttachmentsStream))
@@ -78,7 +78,8 @@ TClientRequest::TClientRequest(const TClientRequest& other)
     : Attachments_(other.Attachments_)
     , Timeout_(other.Timeout_)
     , AcknowledgementTimeout_(other.AcknowledgementTimeout_)
-    , Heavy_(other.Heavy_)
+    , RequestHeavy_(other.RequestHeavy_)
+    , ResponseHeavy_(other.ResponseHeavy_)
     , RequestCodec_(other.RequestCodec_)
     , ResponseCodec_(other.ResponseCodec_)
     , GenerateAttachmentChecksums_(other.GenerateAttachmentChecksums_)
@@ -117,13 +118,15 @@ TSharedRefArray TClientRequest::Serialize()
 
 IClientRequestControlPtr TClientRequest::Send(IClientResponseHandlerPtr responseHandler)
 {
-    TSendOptions options;
-    options.Timeout = Timeout_;
-    options.AcknowledgementTimeout = AcknowledgementTimeout_;
-    options.GenerateAttachmentChecksums = GenerateAttachmentChecksums_;
-    options.MemoryZone = MemoryZone_;
-    options.MultiplexingBand = MultiplexingBand_;
-    options.SendDelay = SendDelay_;
+    TSendOptions options{
+        .Timeout = Timeout_,
+        .AcknowledgementTimeout = AcknowledgementTimeout_,
+        .GenerateAttachmentChecksums = GenerateAttachmentChecksums_,
+        .RequestHeavy = RequestHeavy_,
+        .MemoryZone = MemoryZone_,
+        .MultiplexingBand = MultiplexingBand_,
+        .SendDelay = SendDelay_
+    };
     auto control = Channel_->Send(
         this,
         std::move(responseHandler),
@@ -181,11 +184,6 @@ NConcurrency::IAsyncZeroCopyInputStreamPtr TClientRequest::GetResponseAttachment
         THROW_ERROR_EXCEPTION(NRpc::EErrorCode::StreamingNotSupported, "Streaming is not supported");
     }
     return ResponseAttachmentsStream_;
-}
-
-bool TClientRequest::IsHeavy() const
-{
-    return Heavy_;
 }
 
 TRequestId TClientRequest::GetRequestId() const
@@ -333,7 +331,7 @@ TClientContextPtr TClientRequest::CreateClientContext()
         GetService(),
         GetMethod(),
         FeatureIdFormatter_,
-        Heavy_,
+        ResponseHeavy_,
         MemoryZone_,
         RequestAttachmentsStream_,
         ResponseAttachmentsStream_,
@@ -409,13 +407,6 @@ void TClientRequest::OnResponseStreamingFeedbackAcked(const TError& error)
             GetRequestId());
         ResponseAttachmentsStream_->Abort(error);
     }
-}
-
-const IInvokerPtr& TClientRequest::GetInvoker() const
-{
-    return GetHeavy()
-        ? TDispatcher::Get()->GetHeavyInvoker()
-        : TDispatcher::Get()->GetLightInvoker();
 }
 
 void TClientRequest::TraceRequest(const NTracing::TTraceContextPtr& traceContext)
@@ -529,7 +520,7 @@ void TClientResponse::DoHandleError(const TError& error)
 
     Finish(error);
 
-    if (!ClientContext_->GetHeavy() && timer.GetElapsedTime() > LightInvokerDurationWarningThreshold) {
+    if (!ClientContext_->GetResponseHeavy() && timer.GetElapsedTime() > LightInvokerDurationWarningThreshold) {
         YT_LOG_DEBUG("Handling light request error took too long (RequestId: %v, Duration: %v)",
             ClientContext_->GetRequestId(),
             timer.GetElapsedTime());
@@ -563,7 +554,7 @@ void TClientResponse::TraceResponse()
 
 const IInvokerPtr& TClientResponse::GetInvoker()
 {
-    return ClientContext_->GetHeavy()
+    return ClientContext_->GetResponseHeavy()
         ? TDispatcher::Get()->GetHeavyInvoker()
         : TDispatcher::Get()->GetLightInvoker();
 }
@@ -642,7 +633,7 @@ void TClientResponse::DoHandleResponse(TSharedRefArray message)
         Finish(ex);
     }
 
-    if (!ClientContext_->GetHeavy() && timer.GetElapsedTime() > LightInvokerDurationWarningThreshold) {
+    if (!ClientContext_->GetResponseHeavy() && timer.GetElapsedTime() > LightInvokerDurationWarningThreshold) {
         YT_LOG_DEBUG("Handling light response took too long (RequestId: %v, Duration: %v)",
             ClientContext_->GetRequestId(),
             timer.GetElapsedTime());

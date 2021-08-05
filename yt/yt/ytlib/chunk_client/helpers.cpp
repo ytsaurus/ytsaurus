@@ -805,8 +805,9 @@ void LocateChunks(
                 static_cast<int>(chunkSpecs.size()));
 
             auto req = proxy.LocateChunks();
-            req->SetHeavy(true);
-            req->set_address_type(static_cast<int>(addressType));
+            req->SetRequestHeavy(true);
+            req->SetResponseHeavy(true);
+            req->set_address_type(ToProto<int>(addressType));
             for (int index = beginIndex; index < endIndex; ++index) {
                 *req->add_subrequests() = chunkSpecs[index]->chunk_id();
             }
@@ -1011,7 +1012,7 @@ TChunkWriterCounters::TChunkWriterCounters(const NProfiling::TProfiler& profiler
     , DataWeight(profiler.Counter("/data_weight"))
     , CompressionCpuTime(profiler.TimeCounter("/compression_cpu_time"))
 { }
- 
+
 void TChunkWriterCounters::Increment(
     const NProto::TDataStatistics& dataStatistics,
     const TCodecStatistics& codecStatistics,
@@ -1022,12 +1023,12 @@ void TChunkWriterCounters::Increment(
         dataStatistics.regular_disk_space(),
         dataStatistics.erasure_disk_space());
     auto compressionCpuTime = codecStatistics.GetTotalDuration();
-    
+
     DiskSpace.Increment(diskSpace);
     DataWeight.Increment(dataStatistics.data_weight());
     CompressionCpuTime.Add(compressionCpuTime);
 }
- 
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TAllyReplicasInfo TAllyReplicasInfo::FromChunkReplicas(

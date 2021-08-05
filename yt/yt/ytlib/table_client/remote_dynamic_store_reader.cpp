@@ -930,7 +930,7 @@ protected:
         req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
         // Redundant for ordered tables but not much enough to move it out of the base class.
         req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
-        req->SetHeavy(true);
+        req->SetResponseHeavy(true);
         return req->Invoke().Apply(
             BIND(&TRetryingRemoteDynamicStoreReaderBase::OnLocateResponse, MakeStrong(this))
                 .AsyncVia(GetCurrentInvoker()));

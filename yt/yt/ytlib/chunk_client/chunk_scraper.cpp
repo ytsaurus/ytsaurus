@@ -139,7 +139,8 @@ private:
 
         auto startIndex = NextChunkIndex_;
         auto req = Proxy_.LocateChunks();
-        req->SetHeavy(true);
+        req->SetRequestHeavy(true);
+        req->SetResponseHeavy(true);
 
         constexpr int maxSampleChunkCount = 5;
         SmallVector<TChunkId, maxSampleChunkCount> sampleChunkIds;

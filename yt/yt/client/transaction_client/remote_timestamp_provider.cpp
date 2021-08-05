@@ -78,7 +78,7 @@ private:
     virtual TFuture<TTimestamp> DoGenerateTimestamps(int count) override
     {
         auto req = Proxy_.GenerateTimestamps();
-        req->SetHeavy(true);
+        req->SetResponseHeavy(true);
         req->set_count(count);
         return req->Invoke().Apply(BIND([] (const TTimestampServiceProxy::TRspGenerateTimestampsPtr& rsp) {
             return static_cast<TTimestamp>(rsp->timestamp());

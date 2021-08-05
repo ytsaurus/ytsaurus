@@ -372,11 +372,9 @@ protected:
         proxy.SetDefaultTimeout(Config_->ProbeChunkSetRpcTimeout);
 
         auto req = proxy.ProbeChunkSet();
-        req->SetHeavy(true);
+        req->SetResponseHeavy(true);
         ToProto(req->mutable_workload_descriptor(), Options_.WorkloadDescriptor);
-
         ToProto(req->mutable_chunk_ids(), probingInfo.ChunkIds);
-
         req->SetAcknowledgementTimeout(std::nullopt);
 
         return req->Invoke();
@@ -654,7 +652,7 @@ private:
         auto suspicionMarkTimes = Reader_->NodeStatusDirectory_->RetrieveSuspicionMarkTimes(nodeIds);
 
         // NB: If a chunk is not assigned to any peer due to failure or ban, session is stopped with fatal error.
-        // If the same happens due to peer being suspicious, we ignore suspiciousness and treat all nodes as normal. 
+        // If the same happens due to peer being suspicious, we ignore suspiciousness and treat all nodes as normal.
         int failedNodeCount = 0;
         int suspiciousNodeCount = 0;
         std::vector<int> chunkFailedCounters(allyReplicasInfos.size());
@@ -906,9 +904,8 @@ private:
             proxy.SetDefaultTimeout(Config_->GetChunkFragmentSetRpcTimeout);
 
             auto req = proxy.GetChunkFragmentSet();
-            req->SetHeavy(true);
+            req->SetResponseHeavy(true);
             req->SetMultiplexingBand(EMultiplexingBand::Heavy);
-
             ToProto(req->mutable_read_session_id(), Options_.ReadSessionId);
             ToProto(req->mutable_workload_descriptor(), Options_.WorkloadDescriptor);
 

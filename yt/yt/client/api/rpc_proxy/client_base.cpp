@@ -706,7 +706,7 @@ TFuture<IUnversionedRowsetPtr> TClientBase::LookupRows(
     auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.LookupRows();
-    req->SetHeavy(true);
+    req->SetResponseHeavy(true);
     req->SetTimeout(options.Timeout);
 
     req->set_path(path);
@@ -796,9 +796,9 @@ TFuture<std::vector<IUnversionedRowsetPtr>> TClientBase::MultiLookup(
     }
 
     auto proxy = CreateApiServiceProxy();
-    auto req = proxy.MultiLookup();
 
-    req->SetHeavy(true);
+    auto req = proxy.MultiLookup();
+    req->SetResponseHeavy(true);
     req->SetTimeout(options.Timeout);
     req->SetMultiplexingBand(options.MultiplexingBand);
 
@@ -871,7 +871,7 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
     auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.SelectRows();
-    req->SetHeavy(true);
+    req->SetResponseHeavy(true);
     req->set_query(query);
 
     FillRequestBySelectRowsOptionsBase(options, req);

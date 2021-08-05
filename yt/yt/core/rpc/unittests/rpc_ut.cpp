@@ -535,7 +535,7 @@ TYPED_TEST(TNotGrpcTest, StreamingEcho)
     for (bool delayed : {false, true}) {
         auto req = proxy.StreamingEcho();
         req->set_delayed(delayed);
-        req->SetHeavy(true);
+        req->SetResponseHeavy(true);
         auto asyncInvokeResult = req->Invoke();
 
         std::vector<TSharedRef> receivedAttachments;
@@ -738,7 +738,8 @@ TYPED_TEST(TNotGrpcTest, LaggyStreamingRequest)
     proxy.DefaultClientAttachmentsStreamingParameters().WriteTimeout = TDuration::MilliSeconds(500);
 
     auto req = proxy.StreamingEcho();
-    req->SetHeavy(true);
+    req->SetRequestHeavy(true);
+    req->SetResponseHeavy(true);
     req->SetSendDelay(TDuration::MilliSeconds(250));
     req->SetTimeout(TDuration::Seconds(2));
     auto invokeResult = req->Invoke();
@@ -769,7 +770,8 @@ TYPED_TEST(TNotGrpcTest, VeryLaggyStreamingRequest)
     auto start = Now();
 
     auto req = proxy.StreamingEcho();
-    req->SetHeavy(true);
+    req->SetRequestHeavy(true);
+    req->SetResponseHeavy(true);
     req->SetSendDelay(TDuration::MilliSeconds(500));
     auto invokeResult = req->Invoke();
 

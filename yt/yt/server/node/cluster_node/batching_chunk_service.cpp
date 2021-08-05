@@ -322,7 +322,8 @@ private:
         virtual TChunkServiceProxy::TReqLocateChunksPtr CreateBatchRequest() override
         {
             auto req = FollowerProxy_.LocateChunks();
-            req->SetHeavy(true);
+            req->SetRequestHeavy(true);
+            req->SetResponseHeavy(true);
             return req;
         }
 
@@ -378,7 +379,8 @@ private:
         virtual TChunkServiceProxy::TReqLocateDynamicStoresPtr CreateBatchRequest() override
         {
             auto req = FollowerProxy_.LocateDynamicStores();
-            req->SetHeavy(true);
+            req->SetRequestHeavy(true);
+            req->SetResponseHeavy(true);
             return req;
         }
 

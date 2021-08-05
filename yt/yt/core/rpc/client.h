@@ -53,8 +53,6 @@ struct IClientRequest
     virtual NConcurrency::IAsyncZeroCopyOutputStreamPtr GetRequestAttachmentsStream() const = 0;
     virtual NConcurrency::IAsyncZeroCopyInputStreamPtr GetResponseAttachmentsStream() const = 0;
 
-    virtual bool IsHeavy() const = 0;
-
     virtual TRequestId GetRequestId() const = 0;
     virtual TRealmId GetRealmId() const = 0;
     virtual const TString& GetService() const = 0;
@@ -104,7 +102,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TString, Service);
     DEFINE_BYVAL_RO_PROPERTY(TString, Method);
     DEFINE_BYVAL_RO_PROPERTY(TFeatureIdFormatter, FeatureIdFormatter);
-    DEFINE_BYVAL_RO_PROPERTY(bool, Heavy);
+    DEFINE_BYVAL_RO_PROPERTY(bool, ResponseHeavy);
     DEFINE_BYVAL_RO_PROPERTY(NYTAlloc::EMemoryZone, MemoryZone);
     DEFINE_BYVAL_RO_PROPERTY(TAttachmentsOutputStreamPtr, RequestAttachmentsStream);
     DEFINE_BYVAL_RO_PROPERTY(TAttachmentsInputStreamPtr, ResponseAttachmentsStream);
@@ -135,7 +133,11 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, AcknowledgementTimeout);
-    DEFINE_BYVAL_RW_PROPERTY(bool, Heavy, false);
+    //! If |true| then the request will be serialized in RPC heavy thread pool.
+    DEFINE_BYVAL_RW_PROPERTY(bool, RequestHeavy);
+    //! If |true| then the reponse will be deserialized and the response handler will
+    //! be invoked in RPC heavy thread pool.
+    DEFINE_BYVAL_RW_PROPERTY(bool, ResponseHeavy);
     DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, RequestCodec, NCompression::ECodec::None);
     DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, ResponseCodec, NCompression::ECodec::None);
     DEFINE_BYVAL_RW_PROPERTY(bool, EnableLegacyRpcCodecs, true);
@@ -161,8 +163,6 @@ public:
 
     virtual NConcurrency::IAsyncZeroCopyOutputStreamPtr GetRequestAttachmentsStream() const override;
     virtual NConcurrency::IAsyncZeroCopyInputStreamPtr GetResponseAttachmentsStream() const override;
-
-    virtual bool IsHeavy() const override;
 
     virtual TRequestId GetRequestId() const override;
     virtual TRealmId GetRealmId() const override;
@@ -245,8 +245,6 @@ private:
     void OnRequestStreamingPayloadAcked(int sequenceNumber, const TError& error);
     void OnResponseAttachmentsStreamRead();
     void OnResponseStreamingFeedbackAcked(const TError& error);
-
-    const IInvokerPtr& GetInvoker() const;
 
     void TraceRequest(const NTracing::TTraceContextPtr& traceContext);
 

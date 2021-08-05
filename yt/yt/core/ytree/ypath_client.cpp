@@ -56,11 +56,6 @@ TYPathRequest::TYPathRequest(
     ypathExt->set_target_path(std::move(path));
 }
 
-bool TYPathRequest::IsHeavy() const
-{
-    return false;
-}
-
 TRequestId TYPathRequest::GetRequestId() const
 {
     return NullRequestId;

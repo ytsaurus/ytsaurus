@@ -79,6 +79,7 @@ struct TSendOptions
     std::optional<TDuration> Timeout;
     std::optional<TDuration> AcknowledgementTimeout;
     bool GenerateAttachmentChecksums = true;
+    bool RequestHeavy = false;
     NYTAlloc::EMemoryZone MemoryZone = NYTAlloc::EMemoryZone::Normal;
     EMultiplexingBand MultiplexingBand = EMultiplexingBand::Default;
     // For testing purposes only.
