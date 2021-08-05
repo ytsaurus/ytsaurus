@@ -322,6 +322,9 @@ public:
     TDuration ProbeChunkSetRpcTimeout;
     TDuration GetChunkFragmentSetRpcTimeout;
 
+    //! Channel multiplexing parallelism for GetChunkFragmentSet.
+    int GetChunkFragmentSetMultiplexingParallelism;
+
     //! Limit on retry count.
     int MaxRetryCount;
     //! Time between retries.
@@ -358,6 +361,10 @@ public:
             .Default(TDuration::Seconds(5));
         RegisterParameter("get_chunk_fragment_set_rpc_timeout", GetChunkFragmentSetRpcTimeout)
             .Default(TDuration::Seconds(15));
+
+        RegisterParameter("get_chunk_fragment_multiplexing_parallelism", GetChunkFragmentSetMultiplexingParallelism)
+            .GreaterThan(0)
+            .Default(1);
 
         RegisterParameter("max_retry_count", MaxRetryCount)
             .GreaterThanOrEqual(1)

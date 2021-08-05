@@ -906,6 +906,7 @@ private:
             auto req = proxy.GetChunkFragmentSet();
             req->SetResponseHeavy(true);
             req->SetMultiplexingBand(EMultiplexingBand::Heavy);
+            req->SetMultiplexingParallelism(Config_->GetChunkFragmentSetMultiplexingParallelism);
             ToProto(req->mutable_read_session_id(), Options_.ReadSessionId);
             ToProto(req->mutable_workload_descriptor(), Options_.WorkloadDescriptor);
 

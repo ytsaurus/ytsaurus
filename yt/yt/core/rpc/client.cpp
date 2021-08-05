@@ -125,6 +125,7 @@ IClientRequestControlPtr TClientRequest::Send(IClientResponseHandlerPtr response
         .RequestHeavy = RequestHeavy_,
         .MemoryZone = MemoryZone_,
         .MultiplexingBand = MultiplexingBand_,
+        .MultiplexingParallelism = MultiplexingParallelism_,
         .SendDelay = SendDelay_
     };
     auto control = Channel_->Send(
@@ -285,6 +286,16 @@ void TClientRequest::SetMultiplexingBand(EMultiplexingBand band)
 {
     MultiplexingBand_ = band;
     Header_.set_tos_level(TDispatcher::Get()->GetTosLevelForBand(band, Channel_->GetNetworkId()));
+}
+
+int TClientRequest::GetMultiplexingParallelism() const
+{
+    return MultiplexingParallelism_;
+}
+
+void TClientRequest::SetMultiplexingParallelism(int parallelism)
+{
+    MultiplexingParallelism_ = parallelism;
 }
 
 size_t TClientRequest::ComputeHash() const

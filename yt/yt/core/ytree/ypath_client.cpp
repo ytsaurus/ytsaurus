@@ -140,16 +140,6 @@ size_t TYPathRequest::GetHash() const
     return 0;
 }
 
-EMultiplexingBand TYPathRequest::GetMultiplexingBand() const
-{
-    return EMultiplexingBand::Default;
-}
-
-void TYPathRequest::SetMultiplexingBand(EMultiplexingBand /*band*/)
-{
-    YT_ABORT();
-}
-
 const NRpc::NProto::TRequestHeader& TYPathRequest::Header() const
 {
     return Header_;

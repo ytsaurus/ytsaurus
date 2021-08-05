@@ -84,7 +84,7 @@ public:
         TSessionPtr session;
 
         try {
-            session = GetOrCreateSession(options.MultiplexingBand);
+            session = GetOrCreateSession(options);
         } catch (const std::exception& ex) {
             responseHandler->HandleError(TError(ex));
             return nullptr;
@@ -111,10 +111,10 @@ public:
         for (auto& bucket : Buckets_) {
             auto guard = WriterGuard(bucket.Lock);
 
-            if (bucket.Session) {
-                sessions.push_back(bucket.Session);
-                bucket.Session.Reset();
+            for (auto&& session : bucket.Sessions) {
+                sessions.push_back(std::move(session));
             }
+            bucket.Sessions.clear();
 
             bucket.Terminated = true;
         }
@@ -151,7 +151,8 @@ private:
     struct TBandBucket
     {
         YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, Lock);
-        TSessionPtr Session;
+        std::atomic<size_t> CurrentSessionIndex = 0;
+        std::vector<TSessionPtr> Sessions;
         bool Terminated = false;
     };
 
@@ -160,29 +161,28 @@ private:
     std::atomic<bool> TerminationFlag_ = false;
     TAtomicObject<TError> TerminationError_;
 
-    TSessionPtr GetOrCreateSession(EMultiplexingBand band)
+    TSessionPtr GetOrCreateSession(const TSendOptions& options)
     {
-        auto& bucket = Buckets_[band];
+        auto& bucket = Buckets_[options.MultiplexingBand];
+        auto index = options.MultiplexingParallelism <= 1 ? 0 : bucket.CurrentSessionIndex++ % options.MultiplexingParallelism;
 
         // Fast path.
         {
             auto guard = ReaderGuard(bucket.Lock);
-
-            if (bucket.Session) {
-                return bucket.Session;
+            if (bucket.Sessions.size() > index) {
+                return bucket.Sessions[index];
             }
         }
 
-        IBusPtr bus;
-        TSessionPtr session;
+        std::vector<std::pair<IBusPtr, TSessionPtr>> results;
 
         // Slow path.
         {
             auto networkId = TDispatcher::Get()->GetNetworkId(Client_->GetNetworkName());
             auto guard = WriterGuard(bucket.Lock);
 
-            if (bucket.Session) {
-                return bucket.Session;
+            if (bucket.Sessions.size() > index) {
+                return bucket.Sessions[index];
             }
 
             if (bucket.Terminated) {
@@ -191,23 +191,26 @@ private:
                     << TerminationError_.Load();
             }
 
-            session = New<TSession>(band, networkId);
-
-            auto messageHandler = New<TMessageHandler>(session);
-            bus = Client_->CreateBus(messageHandler);
-
-            session->Initialize(bus);
-
-            bucket.Session = session;
+            bucket.Sessions.reserve(options.MultiplexingParallelism);
+            while (bucket.Sessions.size() <= index) {
+                auto session = New<TSession>(options.MultiplexingBand, networkId);
+                auto messageHandler = New<TMessageHandler>(session);
+                auto bus = Client_->CreateBus(messageHandler);
+                session->Initialize(bus);
+                bucket.Sessions.push_back(session);
+                results.emplace_back(std::move(bus), std::move(session));
+            }
         }
 
-        bus->SubscribeTerminated(BIND(
-            &TBusChannel::OnBusTerminated,
-            MakeWeak(this),
-            MakeWeak(session),
-            band));
+        for (const auto& [bus, session] : results) {
+            bus->SubscribeTerminated(BIND(
+                &TBusChannel::OnBusTerminated,
+                MakeWeak(this),
+                MakeWeak(session),
+                options.MultiplexingBand));
+        }
 
-        return session;
+        return results.back().second;
     }
 
     void OnBusTerminated(const TWeakPtr<TSession>& session, EMultiplexingBand band, const TError& error)
@@ -222,8 +225,12 @@ private:
         {
             auto guard = WriterGuard(bucket.Lock);
 
-            if (bucket.Session == session_) {
-                bucket.Session.Reset();
+            for (size_t index = 0; index < bucket.Sessions.size(); ++index) {
+                if (bucket.Sessions[index] == session_) {
+                    std::swap(bucket.Sessions[index], bucket.Sessions.back());
+                    bucket.Sessions.pop_back();
+                    break;
+                }
             }
         }
 

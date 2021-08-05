@@ -75,9 +75,6 @@ struct IClientRequest
     virtual TMutationId GetMutationId() const = 0;
     virtual void SetMutationId(TMutationId id) = 0;
 
-    virtual EMultiplexingBand GetMultiplexingBand() const = 0;
-    virtual void SetMultiplexingBand(EMultiplexingBand band) = 0;
-
     virtual bool IsLegacyRpcCodecsEnabled() = 0;
 
     virtual size_t GetHash() const = 0;
@@ -191,10 +188,13 @@ public:
 
     virtual size_t GetHash() const override;
 
-    virtual EMultiplexingBand GetMultiplexingBand() const override;
-    virtual void SetMultiplexingBand(EMultiplexingBand band) override;
-
     virtual bool IsLegacyRpcCodecsEnabled() override;
+
+    EMultiplexingBand GetMultiplexingBand() const;
+    void SetMultiplexingBand(EMultiplexingBand band);
+
+    int GetMultiplexingParallelism() const;
+    void SetMultiplexingParallelism(int parallelism);
 
 protected:
     const IChannelPtr Channel_;
@@ -229,6 +229,7 @@ private:
     mutable std::atomic<size_t> Hash_ = UnknownHash;
 
     EMultiplexingBand MultiplexingBand_ = EMultiplexingBand::Default;
+    int MultiplexingParallelism_ = 1;
 
     TStreamingParameters ClientAttachmentsStreamingParameters_;
     TStreamingParameters ServerAttachmentsStreamingParameters_;
