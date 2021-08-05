@@ -16,12 +16,13 @@ TSingleQueueSchedulerThread<TQueueImpl>::TSingleQueueSchedulerThread(
         threadGroupName,
         threadName)
     , Queue_(std::move(queue))
+    , Token_(Queue_->MakeConsumerToken())
 { }
 
 template <class TQueueImpl>
 TClosure TSingleQueueSchedulerThread<TQueueImpl>::BeginExecute()
 {
-    return Queue_->BeginExecute(&CurrentAction_);
+    return Queue_->BeginExecute(&CurrentAction_, &Token_);
 }
 
 template <class TQueueImpl>

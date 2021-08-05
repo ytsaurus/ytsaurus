@@ -21,6 +21,7 @@ public:
 
 protected:
     const TInvokerQueuePtr<TQueueImpl> Queue_;
+    typename TQueueImpl::TConsumerToken Token_;
 
     TEnqueuedAction CurrentAction_;
 

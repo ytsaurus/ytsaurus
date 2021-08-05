@@ -19,9 +19,18 @@ Y_FORCE_INLINE void TMpmcQueueImpl::Enqueue(TEnqueuedAction action)
     Queue_.enqueue(std::move(action));
 }
 
-Y_FORCE_INLINE bool TMpmcQueueImpl::TryDequeue(TEnqueuedAction* action)
+Y_FORCE_INLINE bool TMpmcQueueImpl::TryDequeue(TEnqueuedAction* action, TConsumerToken* token)
 {
-    return Queue_.try_dequeue(*action);
+    if (token) {
+        return Queue_.try_dequeue(*token, *action);
+    } else {
+        return Queue_.try_dequeue(*action);
+    }
+}
+
+TMpmcQueueImpl::TConsumerToken TMpmcQueueImpl::MakeConsumerToken()
+{
+    return TConsumerToken(Queue_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,9 +40,14 @@ Y_FORCE_INLINE void TMpscQueueImpl::Enqueue(TEnqueuedAction action)
     Queue_.Enqueue(std::move(action));
 }
 
-Y_FORCE_INLINE bool TMpscQueueImpl::TryDequeue(TEnqueuedAction* action)
+Y_FORCE_INLINE bool TMpscQueueImpl::TryDequeue(TEnqueuedAction* action, TConsumerToken* /* token */)
 {
     return Queue_.Dequeue(action);
+}
+
+TMpscQueueImpl::TConsumerToken TMpscQueueImpl::MakeConsumerToken()
+{
+    return {};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,12 +210,12 @@ void TInvokerQueue<TQueueImpl>::Drain()
 }
 
 template <class TQueueImpl>
-TClosure TInvokerQueue<TQueueImpl>::BeginExecute(TEnqueuedAction* action)
+TClosure TInvokerQueue<TQueueImpl>::BeginExecute(TEnqueuedAction* action, typename TQueueImpl::TConsumerToken* token)
 {
     YT_ASSERT(action && action->Finished);
 
     auto tscp = TTscp::Get();
-    if (!QueueImpl_.TryDequeue(action)) {
+    if (!QueueImpl_.TryDequeue(action, token)) {
         return {};
     }
 
@@ -253,6 +267,12 @@ void TInvokerQueue<TQueueImpl>::EndExecute(TEnqueuedAction* action)
     };
     updateCounters(Counters_[action->ProfilingTag]);
     updateCounters(CumulativeCounters_);
+}
+
+template <class TQueueImpl>
+typename TQueueImpl::TConsumerToken TInvokerQueue<TQueueImpl>::MakeConsumerToken()
+{
+    return QueueImpl_.MakeConsumerToken();
 }
 
 template <class TQueueImpl>

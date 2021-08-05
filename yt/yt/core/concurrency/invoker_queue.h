@@ -31,8 +31,12 @@ struct TEnqueuedAction
 class TMpmcQueueImpl
 {
 public:
+    using TConsumerToken = moodycamel::ConsumerToken;
+
     void Enqueue(TEnqueuedAction action);
-    bool TryDequeue(TEnqueuedAction* action);
+    bool TryDequeue(TEnqueuedAction *action, TConsumerToken* token = nullptr);
+
+    TConsumerToken MakeConsumerToken();
 
 private:
     moodycamel::ConcurrentQueue<TEnqueuedAction> Queue_;
@@ -43,8 +47,12 @@ private:
 class TMpscQueueImpl
 {
 public:
+    using TConsumerToken = std::monostate;
+
     void Enqueue(TEnqueuedAction action);
-    bool TryDequeue(TEnqueuedAction* action);
+    bool TryDequeue(TEnqueuedAction* action, TConsumerToken* token = nullptr);
+
+    TConsumerToken MakeConsumerToken();
 
 private:
     TLockFreeQueue<TEnqueuedAction> Queue_;
@@ -81,8 +89,10 @@ public:
 
     void Drain();
 
-    TClosure BeginExecute(TEnqueuedAction* action);
+    TClosure BeginExecute(TEnqueuedAction* action, typename TQueueImpl::TConsumerToken* token = nullptr);
     void EndExecute(TEnqueuedAction* action);
+
+    typename TQueueImpl::TConsumerToken MakeConsumerToken();
 
     int GetSize() const;
     bool IsEmpty() const;
