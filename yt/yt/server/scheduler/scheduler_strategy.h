@@ -88,6 +88,8 @@ struct ISchedulerStrategyHost
     virtual int GetDefaultAbcId() const = 0;
 
     virtual void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState) = 0;
+
+    virtual const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -272,8 +274,6 @@ struct ISchedulerStrategy
 
     //! Called periodically to build resource guarantees and usages statistics.
     virtual void OnBuildResourceMetering() = 0;
-
-    virtual void SetDefaultUserPools(THashMap<TString, TString> pools) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulerStrategy)
