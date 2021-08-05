@@ -712,7 +712,7 @@ private:
                 header.clear_timeout();
             }
 
-            if (request->IsHeavy()) {
+            if (options.RequestHeavy) {
                 BIND(&IClientRequest::Serialize, request)
                     .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())
                     .Run()

@@ -1268,7 +1268,7 @@ private:
         proxy.SetDefaultTimeout(ReaderConfig_->ProbeRpcTimeout);
 
         auto req = proxy.ProbeBlockSet();
-        req->SetHeavy(true);
+        req->SetResponseHeavy(true);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
         ToProto(req->mutable_block_indexes(), blockIndexes);
@@ -1764,7 +1764,7 @@ private:
         proxy.SetDefaultTimeout(ReaderConfig_->BlockRpcTimeout);
 
         auto req = proxy.GetBlockSet();
-        req->SetHeavy(true);
+        req->SetResponseHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         ToProto(req->mutable_block_indexes(), blockIndexes);
@@ -2103,7 +2103,7 @@ private:
         proxy.SetDefaultTimeout(ReaderConfig_->BlockRpcTimeout);
 
         auto req = proxy.GetBlockRange();
-        req->SetHeavy(true);
+        req->SetResponseHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         req->set_first_block_index(FirstBlockIndex_);
@@ -2334,7 +2334,7 @@ private:
         proxy.SetDefaultTimeout(ReaderConfig_->MetaRpcTimeout);
 
         auto req = proxy.GetChunkMeta();
-        req->SetHeavy(true);
+        req->SetResponseHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
         req->set_enable_throttling(true);
         ToProto(req->mutable_chunk_id(), ChunkId_);
@@ -2732,11 +2732,10 @@ private:
         proxy.SetDefaultTimeout(ReaderConfig_->LookupRpcTimeout);
 
         auto req = proxy.LookupRows();
-        req->SetHeavy(true);
+        req->SetResponseHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
-
         ToProto(req->mutable_read_session_id(), ReadSessionId_);
         req->set_timestamp(Timestamp_);
         req->set_compression_codec(static_cast<int>(CodecId_));

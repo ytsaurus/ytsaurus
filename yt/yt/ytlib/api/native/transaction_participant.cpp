@@ -102,7 +102,7 @@ public:
         return SendRequest<TTransactionParticipantServiceProxy::TReqAbortTransaction>(
             [=] (TTransactionParticipantServiceProxy* proxy) {
                 auto req = proxy->AbortTransaction();
-                req->SetHeavy(true);
+                req->SetResponseHeavy(true);
                 PrepareRequest(req);
                 NRpc::SetAuthenticationIdentity(req, identity);
                 ToProto(req->mutable_transaction_id(), transactionId);

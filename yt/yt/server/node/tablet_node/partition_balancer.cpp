@@ -567,7 +567,8 @@ private:
             TChunkServiceProxy proxy(channel);
 
             auto req = proxy.LocateChunks();
-            req->SetHeavy(true);
+            req->SetRequestHeavy(true);
+            req->SetResponseHeavy(true);
 
             THashMap<TChunkId, TSortedChunkStorePtr> storeMap;
 

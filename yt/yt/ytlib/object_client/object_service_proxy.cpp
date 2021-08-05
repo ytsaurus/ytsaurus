@@ -48,7 +48,7 @@ TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(
     , StickyGroupSizeCache_(std::move(stickyGroupSizeCache))
     , SubbatchSize_(subbatchSize)
 {
-    SetHeavy(true);
+    SetResponseHeavy(true);
 }
 
 TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(

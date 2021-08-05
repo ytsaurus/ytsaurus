@@ -182,7 +182,8 @@ private:
 
         auto createRequest = [&] {
             req = proxy.GetChunkSlices();
-            req->SetHeavy(true);
+            req->SetRequestHeavy(true);
+            req->SetResponseHeavy(true);
             req->SetMultiplexingBand(EMultiplexingBand::Heavy);
             // TODO(babenko): make configurable
             ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::UserBatch));

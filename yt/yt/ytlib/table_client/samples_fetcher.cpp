@@ -105,7 +105,8 @@ TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
     auto req = proxy.GetTableSamples();
-    req->SetHeavy(true);
+    req->SetRequestHeavy(true);
+    req->SetResponseHeavy(true);
     req->SetMultiplexingBand(EMultiplexingBand::Heavy);
     ToProto(req->mutable_key_columns(), KeyColumns_);
     req->set_max_sample_size(MaxSampleSize_);

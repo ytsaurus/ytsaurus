@@ -1279,7 +1279,8 @@ private:
 
         auto request = preparedRequest.RpcRequest = SchedulerProxy_.Heartbeat();
         request->SetTimeout(Config_->SchedulerHeartbeatRpcTimeout);
-        request->SetHeavy(true);
+        request->SetRequestHeavy(true);
+        request->SetResponseHeavy(true);
         request->set_agent_id(Bootstrap_->GetAgentId());
         ToProto(request->mutable_incarnation_id(), IncarnationId_);
 
