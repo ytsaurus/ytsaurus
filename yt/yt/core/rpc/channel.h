@@ -82,6 +82,7 @@ struct TSendOptions
     bool RequestHeavy = false;
     NYTAlloc::EMemoryZone MemoryZone = NYTAlloc::EMemoryZone::Normal;
     EMultiplexingBand MultiplexingBand = EMultiplexingBand::Default;
+    int MultiplexingParallelism = 1;
     // For testing purposes only.
     std::optional<TDuration> SendDelay;
 };
