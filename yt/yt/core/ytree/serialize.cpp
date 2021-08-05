@@ -105,7 +105,7 @@ void Serialize(bool value, IYsonConsumer* consumer)
 // char
 void Serialize(char value, IYsonConsumer* consumer)
 {
-    consumer->OnStringScalar(TString(value));
+    consumer->OnStringScalar(TStringBuf(&value, 1));
 }
 
 // TDuration
