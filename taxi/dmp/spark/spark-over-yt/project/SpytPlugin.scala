@@ -185,10 +185,10 @@ object SpytPlugin extends AutoPlugin {
             setReleaseClusterVersion,
             setYtProxies,
             releaseStepTask(spytPublishCluster),
-            commitReleaseClusterVersion,
-            setNextClusterVersion,
-            commitNextClusterVersion,
-            pushChanges
+            maybeCommitReleaseClusterVersion,
+            maybeSetNextClusterVersion,
+            maybeCommitNextClusterVersion,
+            maybePushChanges
           )
         case ReleaseComponent.Client =>
           Seq[ReleaseStep](
@@ -200,11 +200,11 @@ object SpytPlugin extends AutoPlugin {
             releaseStepTask(spytUpdatePythonVersion),
             setYtProxies,
             releaseStepTask(spytPublishClient),
-            commitReleaseClientVersion,
-            setNextClientVersion,
+            maybeCommitReleaseClientVersion,
+            maybeSetNextClientVersion,
             releaseStepTask(spytUpdatePythonVersion),
-            commitNextClientVersion,
-            pushChanges
+            maybeCommitNextClientVersion,
+            maybePushChanges
           )
         case ReleaseComponent.All =>
           Seq[ReleaseStep](
@@ -220,8 +220,8 @@ object SpytPlugin extends AutoPlugin {
             setRebuildSpark,
             releaseStepTask(spytPublishAll),
             commitReleaseAllVersion,
-            setNextClusterVersion,
-            setNextClientVersion,
+            maybeSetNextClusterVersion,
+            maybeSetNextClientVersion,
             releaseStepTask(spytUpdatePythonVersion),
             commitNextAllVersion,
             pushChanges
