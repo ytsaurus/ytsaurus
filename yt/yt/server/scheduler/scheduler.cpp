@@ -1936,6 +1936,9 @@ private:
 
     TNodeSchedulingSegmentManager NodeSchedulingSegmentManager_;
 
+    using TUserToDefaultParentPoolMap = THashMap<TString, TString>;
+    TUserToDefaultParentPoolMap DefaultParentPoolPerUser_;
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     void DoAttachJobContext(
@@ -2648,8 +2651,7 @@ private:
         }
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting mapping from user to default pool");
 
-        auto userToDefaultPool = ConvertTo<THashMap<TString, TString>>(TYsonString(rspOrError.Value()->value()));
-        Strategy_->SetDefaultUserPools(std::move(userToDefaultPool));
+        DefaultParentPoolPerUser_ = ConvertTo<THashMap<TString, TString>>(TYsonString(rspOrError.Value()->value()));
     }
 
     void UpdateExecNodeDescriptors()
@@ -4281,6 +4283,11 @@ private:
         }
 
         YT_LOG_DEBUG("Finished managing node scheduling segments");
+    }
+
+    virtual const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override
+    {
+        return DefaultParentPoolPerUser_;
     }
 
     class TOperationsService

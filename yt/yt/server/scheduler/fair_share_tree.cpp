@@ -547,9 +547,9 @@ public:
         }
     }
 
-    virtual TPoolName CreatePoolName(const std::optional<TString>& poolFromSpec, const TString& user, const TString& defaultPool) const override
+    virtual TPoolName CreatePoolName(const std::optional<TString>& poolFromSpec, const TString& user) const override
     {
-        auto poolName = poolFromSpec.value_or(defaultPool);
+        auto poolName = poolFromSpec.value_or(user);
 
         auto pool = FindPool(poolName);
         if (pool && pool->GetConfig()->CreateEphemeralSubpools) {
@@ -659,7 +659,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        ValidateOperationCountLimit(poolName);
+        ValidateOperationCountLimit(poolName, operation->GetAuthenticatedUser());
         ValidateEphemeralPoolLimit(operation, poolName);
     }
 
@@ -1834,7 +1834,7 @@ private:
         if (poolName.GetParentPool()) {
             parent = GetPool(*poolName.GetParentPool()).Get();
         } else {
-            parent = GetDefaultParentPool().Get();
+            parent = GetDefaultParentPoolForUser(userName).Get();
             pool->SetEphemeralInDefaultParentPool();
             UserToEphemeralPoolsInDefaultPool_[userName].insert(poolName.GetPool());
         }
@@ -2126,10 +2126,26 @@ private:
 
     TSchedulerCompositeElementPtr GetDefaultParentPool() const
     {
-        auto defaultPool = FindPool(Config_->DefaultParentPool);
+        return CheckAndGetDefaultParentPool(Config_->DefaultParentPool);
+    }
+
+    TSchedulerCompositeElementPtr GetDefaultParentPoolForUser(const TString& userName) const
+    {
+        const auto& defaultUserPools = StrategyHost_->GetUserDefaultParentPoolMap();
+        auto it = defaultUserPools.find(userName);
+        auto defaultParentPoolName = it != defaultUserPools.end()
+            ? it->second
+            : Config_->DefaultParentPool;
+
+        return CheckAndGetDefaultParentPool(defaultParentPoolName);
+    }
+
+    TSchedulerCompositeElementPtr CheckAndGetDefaultParentPool(const TString& parentPoolName) const
+    {
+        auto defaultPool = FindPool(parentPoolName);
         if (!defaultPool) {
-            if (Config_->DefaultParentPool != RootPoolName) {
-                auto error = TError("Default parent pool %Qv in tree %Qv is not registered", Config_->DefaultParentPool, TreeId_);
+            if (parentPoolName != RootPoolName) {
+                auto error = TError("Default parent pool %Qv in tree %Qv is not registered", parentPoolName, TreeId_);
                 StrategyHost_->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
             }
             return RootElement_;
@@ -2138,14 +2154,14 @@ private:
         return defaultPool;
     }
 
-    TSchedulerCompositeElementPtr GetPoolOrParent(const TPoolName& poolName) const
+    TSchedulerCompositeElementPtr GetPoolOrParent(const TPoolName& poolName, const TString& userName) const
     {
         TSchedulerCompositeElementPtr pool = FindPool(poolName.GetPool());
         if (pool) {
             return pool;
         }
         if (!poolName.GetParentPool()) {
-            return GetDefaultParentPool();
+            return GetDefaultParentPoolForUser(userName);
         }
         pool = FindPool(*poolName.GetParentPool());
         if (!pool) {
@@ -2171,7 +2187,7 @@ private:
         auto operationElement = GetOperationElement(operationId);
 
         std::vector<const TSchedulerCompositeElement*> poolsToValidate;
-        const auto* pool = GetPoolOrParent(newPoolName).Get();
+        const auto* pool = GetPoolOrParent(newPoolName, operationElement->GetUserName()).Get();
         while (pool) {
             poolsToValidate.push_back(pool);
             pool = pool->GetParent();
@@ -2198,9 +2214,9 @@ private:
         return poolsToValidate;
     }
 
-    void ValidateOperationCountLimit(const TPoolName& poolName) const
+    void ValidateOperationCountLimit(const TPoolName& poolName, const TString& userName) const
     {
-        auto poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(GetPoolOrParent(poolName));
+        auto poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(GetPoolOrParent(poolName, userName));
         if (poolWithViolatedLimit) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::TooManyOperations,
@@ -2244,7 +2260,7 @@ private:
         }
 
         if (!pool) {
-            pool = GetPoolOrParent(poolName);
+            pool = GetPoolOrParent(poolName, operation->GetAuthenticatedUser());
         }
 
         StrategyHost_->ValidatePoolPermission(GetPoolPath(pool), operation->GetAuthenticatedUser(), EPermission::Use);

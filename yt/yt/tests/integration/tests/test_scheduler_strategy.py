@@ -2426,7 +2426,7 @@ class TestEphemeralPools(YTEnvSetup):
             op.track()
 
     @authors("renadeen")
-    def test_default_user_pool(self):
+    def test_ephemeral_pool_is_created_in_default_user_pool(self):
         create_user("u")
         create_pool("default_for_u")
 
@@ -2435,20 +2435,21 @@ class TestEphemeralPools(YTEnvSetup):
 
         op = run_sleeping_vanilla(authenticated_user="u")
 
-        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/pool", default="") == "default_for_u")
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/pool", default="") == "u")
+        wait(lambda: get(scheduler_orchid_pool_path("u") + "/parent", default="") == "default_for_u")
 
     @authors("renadeen")
-    def test_default_user_pool_is_hub_for_ephemeral(self):
+    def test_nonexistent_pools_are_created_in_default_user_pool(self):
         create_user("u")
-        create_pool("default_for_u", attributes={"create_ephemeral_subpools": True})
+        create_pool("default_for_u")
 
         create("document", "//sys/scheduler/user_to_default_pool", attributes={"value": {"u": "default_for_u"}})
         time.sleep(0.2)
 
-        op = run_sleeping_vanilla(authenticated_user="u")
+        op = run_sleeping_vanilla(spec={"pool": "nonexistent"}, authenticated_user="u")
 
-        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/pool", default="") == "default_for_u$u")
-        wait(lambda: get(scheduler_orchid_pool_path("default_for_u$u") + "/parent", default="") == "default_for_u")
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/pool", default="") == "nonexistent")
+        wait(lambda: get(scheduler_orchid_pool_path("nonexistent") + "/parent", default="") == "default_for_u")
 
     @authors("renadeen")
     def test_ephemeral_flag(self):
