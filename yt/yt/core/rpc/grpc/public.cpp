@@ -4,6 +4,12 @@ namespace NYT::NRpc::NGrpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
+const char* const TracingTraceIdMetadataKey = "yt-tracing-trace-id";
+const char* const TracingSpanIdMetadataKey = "yt-tracing-span-id";
+const char* const TracingSampledMetadataKey = "yt-tracing-sampled";
+const char* const TracingDebugMetadataKey = "yt-tracing-debug";
+
 const char* const RequestIdMetadataKey = "yt-request-id";
 const char* const UserMetadataKey = "yt-user";
 const char* const UserTagMetadataKey = "yt-user-tag";
