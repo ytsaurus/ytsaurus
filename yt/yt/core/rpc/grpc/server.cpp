@@ -332,6 +332,7 @@ private:
         std::optional<TString> UserAgent_;
         std::optional<NGrpc::NProto::TSslCredentialsExt> SslCredentialsExt_;
         std::optional<NRpc::NProto::TCredentialsExt> RpcCredentialsExt_;
+        std::optional<NTracing::NProto::TTracingExt> TraceContext_;
         TString ServiceName_;
         TString MethodName_;
         std::optional<TDuration> Timeout_;
@@ -384,6 +385,7 @@ private:
             }
 
             ParseRequestId();
+            ParseTraceContext();
             ParseUser();
             ParseUserTag();
             ParseUserAgent();
@@ -460,6 +462,47 @@ private:
                 return true;
             } else {
                 return false;
+            }
+        }
+
+        void ParseTraceContext()
+        {
+            const auto traceIdString = CallMetadata_.Find(TracingTraceIdMetadataKey);
+            const auto spanIdString = CallMetadata_.Find(TracingSpanIdMetadataKey);
+            const auto sampledString = CallMetadata_.Find(TracingSampledMetadataKey);
+            const auto debugString = CallMetadata_.Find(TracingDebugMetadataKey);
+
+            if (!traceIdString &&
+                !spanIdString &&
+                !sampledString &&
+                !debugString)
+            {
+                return;
+            }
+
+            TraceContext_.emplace();
+
+            if (traceIdString) {
+                const auto traceId = TGuid::FromString(traceIdString);
+                ToProto(TraceContext_->mutable_trace_id(), traceId);
+            }
+            if (spanIdString) {
+                const auto spanId = FromString<NTracing::TSpanId>(spanIdString);
+                decltype(TraceContext_->span_id()) spanProto{};
+                ToProto(&spanProto, spanId);
+                TraceContext_->set_span_id(spanProto);
+            }
+            if (sampledString) {
+                const auto sampled = FromString<bool>(sampledString);
+                decltype(TraceContext_->sampled()) sampledProto{};
+                ToProto(&sampledProto, sampled);
+                TraceContext_->set_sampled(sampledProto);
+            }
+            if (debugString) {
+                const auto debug = FromString<bool>(debugString);
+                decltype(TraceContext_->debug()) debugProto{};
+                ToProto(&debugProto, debug);
+                TraceContext_->set_debug(debugProto);
             }
         }
 
@@ -715,6 +758,9 @@ private:
             }
             if (UserAgent_) {
                 header->set_user_agent(*UserAgent_);
+            }
+            if (TraceContext_) {
+                *header->MutableExtension(NRpc::NProto::TRequestHeader::tracing_ext) = std::move(*TraceContext_);
             }
             header->set_service(ServiceName_);
             header->set_method(MethodName_);
