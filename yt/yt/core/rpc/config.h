@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/misc/enum.h>
 
+#include <vector>
+
 namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,12 +22,43 @@ DEFINE_ENUM(ERequestTracingMode,
     (Force)
 );
 
+////////////////////////////////////////////////////////////////////////////////
+
+class THistogramExponentialBounds
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration Min;
+    TDuration Max;
+
+    THistogramExponentialBounds();
+};
+
+DEFINE_REFCOUNTED_TYPE(THistogramExponentialBounds)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class THistogramConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::optional<THistogramExponentialBoundsPtr> ExponentialBounds;
+    std::optional<std::vector<TDuration>> CustomBounds;
+
+    THistogramConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(THistogramConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Common options shared between all services in one server.
 class TServiceCommonConfig
     : public NYTree::TYsonSerializable
 {
 public:
     bool EnablePerUserProfiling;
+    THistogramConfigPtr HistogramTimerProfiling;
     ERequestTracingMode TracingMode;
 
     TServiceCommonConfig();
@@ -54,6 +87,7 @@ class TServiceConfig
 public:
     std::optional<bool> EnablePerUserProfiling;
     std::optional<ERequestTracingMode> TracingMode;
+    THistogramConfigPtr HistogramTimerProfiling;
     THashMap<TString, TMethodConfigPtr> Methods;
     std::optional<int> AuthenticationQueueSizeLimit;
     std::optional<TDuration> PendingPayloadsTimeout;

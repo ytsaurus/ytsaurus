@@ -179,22 +179,39 @@ auto TServiceBase::TMethodDescriptor::SetPooled(bool value) const -> TMethodDesc
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServiceBase::TMethodPerformanceCounters::TMethodPerformanceCounters(const NProfiling::TProfiler& profiler)
+TServiceBase::TMethodPerformanceCounters::TMethodPerformanceCounters(
+    const NProfiling::TProfiler& profiler,
+    const THistogramConfigPtr& histogramConfig)
     : RequestCounter(profiler.Counter("/request_count"))
     , CanceledRequestCounter(profiler.Counter("/canceled_request_count"))
     , FailedRequestCounter(profiler.Counter("/failed_request_count"))
     , TimedOutRequestCounter(profiler.Counter("/timed_out_request_count"))
-    , ExecutionTimeCounter(profiler.Timer("/request_time/execution"))
-    , RemoteWaitTimeCounter(profiler.Timer("/request_time/remote_wait"))
-    , LocalWaitTimeCounter(profiler.Timer("/request_time/local_wait"))
-    , TotalTimeCounter(profiler.Timer("/request_time/total"))
     , HandlerFiberTimeCounter(profiler.TimeCounter("/request_time/handler_fiber"))
     , TraceContextTimeCounter(profiler.TimeCounter("/request_time/trace_context"))
     , RequestMessageBodySizeCounter(profiler.Counter("/request_message_body_bytes"))
     , RequestMessageAttachmentSizeCounter(profiler.Counter("/request_message_attachment_bytes"))
     , ResponseMessageBodySizeCounter(profiler.Counter("/response_message_body_bytes"))
     , ResponseMessageAttachmentSizeCounter(profiler.Counter("/response_message_attachment_bytes"))
-{ }
+{   
+    if (histogramConfig && histogramConfig->CustomBounds) {
+        const auto &customBounds = *histogramConfig->CustomBounds;
+        ExecutionTimeCounter = profiler.Histogram("/request_time_histogram/execution", customBounds);
+        RemoteWaitTimeCounter = profiler.Histogram("/request_time_histogram/remote_wait", customBounds);
+        LocalWaitTimeCounter = profiler.Histogram("/request_time_histogram/local_wait", customBounds);
+        TotalTimeCounter = profiler.Histogram("/request_time_histogram/total", customBounds);
+    } else if (histogramConfig && histogramConfig->ExponentialBounds) {
+        const auto &exponentialBounds = *histogramConfig->ExponentialBounds;
+        ExecutionTimeCounter = profiler.Histogram("/request_time_histogram/execution", exponentialBounds->Min, exponentialBounds->Max);
+        RemoteWaitTimeCounter = profiler.Histogram("/request_time_histogram/remote_wait", exponentialBounds->Min, exponentialBounds->Max);
+        LocalWaitTimeCounter = profiler.Histogram("/request_time_histogram/local_wait", exponentialBounds->Min, exponentialBounds->Max);
+        TotalTimeCounter = profiler.Histogram("/request_time_histogram/total", exponentialBounds->Min, exponentialBounds->Max);
+    } else {
+        ExecutionTimeCounter = profiler.Timer("/request_time/execution");
+        RemoteWaitTimeCounter = profiler.Timer("/request_time/remote_wait");
+        LocalWaitTimeCounter = profiler.Timer("/request_time/local_wait");
+        TotalTimeCounter = profiler.Timer("/request_time/total");
+    }
+}
 
 TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     TServiceId serviceId,
@@ -1892,7 +1909,11 @@ TServiceBase::TMethodPerformanceCountersPtr TServiceBase::CreateMethodPerformanc
     if (runtimeInfo->Descriptor.RequestQueueProvider) {
         profiler = profiler.WithTag("queue", requestQueue->GetName());
     }
-    return New<TMethodPerformanceCounters>(profiler);
+    const auto config = [&]{
+        const auto guard = Guard(HistogramConfigLock_);
+        return HistogramTimerProfiling;
+    }();
+    return New<TMethodPerformanceCounters>(profiler, config);
 }
 
 TServiceBase::TMethodPerformanceCounters* TServiceBase::GetMethodPerformanceCounters(
@@ -2009,6 +2030,19 @@ void TServiceBase::DoConfigure(
         EnablePerUserProfiling_.store(config->EnablePerUserProfiling.value_or(configDefaults->EnablePerUserProfiling));
         AuthenticationQueueSizeLimit_.store(config->AuthenticationQueueSizeLimit.value_or(DefaultAuthenticationQueueSizeLimit));
         PendingPayloadsTimeout_.store(config->PendingPayloadsTimeout.value_or(DefaultPendingPayloadsTimeout));
+        
+        {
+            THistogramConfigPtr finalConfig = nullptr;
+            if (config->HistogramTimerProfiling) {
+                finalConfig = config->HistogramTimerProfiling;
+            } else if (configDefaults->HistogramTimerProfiling) {
+                 finalConfig = configDefaults->HistogramTimerProfiling;
+            }
+            if (finalConfig) {
+                const auto guard = Guard(HistogramConfigLock_);
+                HistogramTimerProfiling = finalConfig;
+            }
+        }
 
         for (const auto& [methodName, runtimeInfo] : MethodMap_) {
             auto methodIt = config->Methods.find(methodName);

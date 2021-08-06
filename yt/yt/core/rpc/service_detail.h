@@ -538,7 +538,7 @@ protected:
     struct TMethodPerformanceCounters
         : public TRefCounted
     {
-        explicit TMethodPerformanceCounters(const NProfiling::TProfiler& profiler);
+        TMethodPerformanceCounters(const NProfiling::TProfiler& profiler, const THistogramConfigPtr& histogramConfig);
 
         //! Counts the number of method calls.
         NProfiling::TCounter RequestCounter;
@@ -814,6 +814,9 @@ private:
     std::atomic<int> AuthenticationQueueSizeLimit_ = DefaultAuthenticationQueueSizeLimit;
 
     std::atomic<bool> EnablePerUserProfiling_ = false;
+
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, HistogramConfigLock_);
+    THistogramConfigPtr HistogramTimerProfiling{};
 
     struct TAcceptedRequest
     {

@@ -8,10 +8,28 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THistogramExponentialBounds::THistogramExponentialBounds()
+{
+    RegisterParameter("min", Min).Default(TDuration::Zero());
+    RegisterParameter("max", Max).Default(TDuration::Seconds(2));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+THistogramConfig::THistogramConfig()
+{
+    RegisterParameter("exponential_bounds", ExponentialBounds).Optional();
+    RegisterParameter("custom_bounds", CustomBounds).Optional();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TServiceCommonConfig::TServiceCommonConfig()
 {
     RegisterParameter("enable_per_user_profiling", EnablePerUserProfiling)
         .Default(false);
+    RegisterParameter("histogram_timer_profiling", HistogramTimerProfiling)
+        .Default(nullptr);
     RegisterParameter("tracing_mode", TracingMode)
         .Default(ERequestTracingMode::Enable);
 }
@@ -30,6 +48,8 @@ TServiceConfig::TServiceConfig()
 {
     RegisterParameter("enable_per_user_profiling", EnablePerUserProfiling)
         .Optional();
+    RegisterParameter("histogram_config", HistogramTimerProfiling)
+        .Default(nullptr);
     RegisterParameter("tracing_mode", TracingMode)
         .Optional();
     RegisterParameter("methods", Methods)
