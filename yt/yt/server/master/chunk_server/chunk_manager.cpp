@@ -1970,6 +1970,8 @@ private:
     i64 EndorsementsConfirmed_ = 0;
     i64 EndorsementCount_ = 0;
 
+    i64 DestroyedReplicaCount_ = 0;
+
     TChunkPlacementPtr ChunkPlacement_;
     TChunkReplicatorPtr ChunkReplicator_;
     IChunkSealerPtr ChunkSealer_;
@@ -2082,7 +2084,9 @@ private:
                 chunk->GetId(),
                 nodeWithIndexes.GetReplicaIndex(),
                 nodeWithIndexes.GetMediumIndex());
-            node->AddDestroyedReplica(chunkIdWithIndexes);
+            if (node->AddDestroyedReplica(chunkIdWithIndexes)) {
+                ++DestroyedReplicaCount_;
+            }
 
             if (!ChunkReplicator_) {
                 return;
@@ -2249,7 +2253,9 @@ private:
 
         DiscardEndorsements(node);
 
+        DestroyedReplicaCount_ -= ssize(node->DestroyedReplicas());
         node->ClearReplicas();
+
 
         if (ChunkPlacement_) {
             ChunkPlacement_->OnNodeDisposed(node);
@@ -3302,6 +3308,8 @@ private:
                 chunk->SetNodeWithEndorsement(node);
             }
             EndorsementCount_ += ssize(node->ReplicaEndorsements());
+
+            DestroyedReplicaCount_ += ssize(node->DestroyedReplicas());
         }
 
         InitBuiltins();
@@ -3415,6 +3423,8 @@ private:
         EndorsementsAdded_ = 0;
         EndorsementsConfirmed_ = 0;
         EndorsementCount_ = 0;
+
+        DestroyedReplicaCount_ = 0;
 
         DefaultStoreMedium_ = nullptr;
         DefaultCacheMedium_ = nullptr;
@@ -3978,6 +3988,9 @@ private:
             }
 
             auto isUnknown = node->AddDestroyedReplica(chunkIdWithIndexes);
+            if (isUnknown) {
+                ++DestroyedReplicaCount_;
+            }
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                 "%v removal scheduled (NodeId: %v, Address: %v, ChunkId: %v)",
                 isUnknown ? "Unknown chunk added," : "Destroyed chunk",
@@ -4032,6 +4045,9 @@ private:
         // NB: Chunk could already be a zombie but we still need to remove the replica.
         if (!chunk) {
             auto isDestroyed = node->RemoveDestroyedReplica(chunkIdWithIndexes);
+            if (isDestroyed) {
+                --DestroyedReplicaCount_;
+            }
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                 "%v chunk replica removed (ChunkId: %v, Address: %v, NodeId: %v)",
                 isDestroyed ? "Destroyed" : "Unknown",
@@ -4203,6 +4219,8 @@ private:
         buffer.AddGauge("/endorsement_count", EndorsementCount_);
         buffer.AddCounter("/endorsements_added", EndorsementsAdded_);
         buffer.AddCounter("/endorsements_confirmed", EndorsementsConfirmed_);
+
+        buffer.AddGauge("/destroyed_replica_count", DestroyedReplicaCount_);
 
         buffer.AddGauge("/lost_chunk_count", LostChunks().size());
         buffer.AddGauge("/lost_vital_chunk_count", LostVitalChunks().size());
