@@ -173,9 +173,6 @@ public:
     TDuration FairShareAggressiveStarvationTimeout;
     double FairShareStarvationTolerance;
 
-    TDuration FairShareStarvationTimeoutLimit;
-    double FairShareStarvationToleranceLimit;
-
     bool EnableAggressiveStarvation;
 
     //! Any operation with less than this number of running jobs cannot be preempted.
