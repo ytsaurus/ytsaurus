@@ -21,9 +21,240 @@ import (
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yt/ythttp"
 	"a.yandex-team.ru/yt/go/yt/ytrpc"
-	"a.yandex-team.ru/yt/go/ytlog"
 	"a.yandex-team.ru/yt/go/yttest"
 )
+
+func TestGenerateTimestamp(t *testing.T) {
+	suite := NewSuite(t)
+
+	RunClientTests(t, []ClientTest{
+		{"GenerateTimestamp", suite.TestGenerateTimestamp},
+	})
+}
+
+func (s *Suite) TestGenerateTimestamp(t *testing.T, yc yt.Client) {
+	ts, err := yc.GenerateTimestamp(s.Ctx, nil)
+	require.NoError(t, err)
+	require.NotZero(t, ts)
+}
+
+func TestTabletClient(t *testing.T) {
+	suite := NewSuite(t)
+
+	RunClientTests(t, []ClientTest{
+		{"TabletTx", suite.TestTabletTx},
+		{"TabletTxDuration", suite.TestTabletTxDuration},
+		{"ExecTabletTx", suite.TestExecTabletTx},
+		{"LookupColumnFilter", suite.TestLookupColumnFilter},
+		{"ReadTimestamp", suite.TestReadTimestamp},
+	})
+}
+
+func (s *Suite) TestTabletTx(t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	testTable := tmpPath().Child("table")
+	require.NoError(t, migrate.Create(s.Ctx, yc, testTable, schema.MustInfer(&testRow{})))
+	require.NoError(t, migrate.MountAndWait(s.Ctx, yc, testTable))
+
+	keys := []interface{}{
+		&testKey{"bar"},
+		&testKey{"foo"},
+		&testKey{"baz"},
+	}
+
+	rows := []interface{}{
+		&testRow{"bar", "2"},
+		&testRow{"foo", "1"},
+	}
+
+	tx, err := yc.BeginTabletTx(s.Ctx, nil)
+	require.NoError(t, err)
+
+	err = tx.InsertRows(s.Ctx, testTable, rows, nil)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	r, err := yc.LookupRows(s.Ctx, testTable, keys, nil)
+	require.NoError(t, err)
+
+	checkResult := func(r yt.TableReader, keepMissingRows bool) {
+		var row testRow
+
+		require.True(t, r.Next())
+		require.NoError(t, r.Scan(&row))
+		assert.Equal(t, rows[0], &row)
+
+		require.True(t, r.Next())
+		require.NoError(t, r.Scan(&row))
+		assert.Equal(t, rows[1], &row)
+
+		if keepMissingRows {
+			require.True(t, r.Next())
+			out := &testRow{}
+			require.NoError(t, r.Scan(&out))
+			assert.Nil(t, out)
+		}
+
+		require.False(t, r.Next())
+		require.NoError(t, r.Err())
+	}
+
+	checkResult(r, false)
+
+	r, err = yc.LookupRows(s.Ctx, testTable, keys, &yt.LookupRowsOptions{KeepMissingRows: true})
+	require.NoError(t, err)
+	checkResult(r, true)
+
+	r, err = yc.SelectRows(s.Ctx, fmt.Sprintf("* from [%s]", testTable), nil)
+	require.NoError(t, err)
+	checkResult(r, false)
+
+	tx, err = yc.BeginTabletTx(s.Ctx, nil)
+	require.NoError(t, err)
+
+	err = tx.DeleteRows(s.Ctx, testTable, keys, nil)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	r, err = yc.LookupRows(s.Ctx, testTable, keys, nil)
+	require.NoError(t, err)
+
+	require.False(t, r.Next())
+	require.NoError(t, r.Err())
+}
+
+func (s *Suite) TestTabletTxDuration(t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	testTable := tmpPath().Child("table")
+	require.NoError(t, migrate.Create(s.Ctx, yc, testTable, schema.MustInfer(&testRow{})))
+	require.NoError(t, migrate.MountAndWait(s.Ctx, yc, testTable))
+
+	rows := []interface{}{
+		&testRow{"bar", "2"},
+		&testRow{"foo", "1"},
+	}
+
+	tx, err := yc.BeginTabletTx(s.Ctx, nil)
+	require.NoError(t, err)
+
+	time.Sleep(time.Second * 20)
+
+	require.NoError(t, tx.InsertRows(s.Ctx, testTable, rows, nil))
+	require.NoError(t, tx.Commit())
+}
+
+func (s *Suite) TestExecTabletTx(t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	testTable := tmpPath().Child("table")
+	require.NoError(t, migrate.Create(s.Ctx, yc, testTable, schema.MustInfer(&testRow{})))
+	require.NoError(t, migrate.MountAndWait(s.Ctx, yc, testTable))
+
+	rows := []interface{}{&testRow{"foo", "1"}}
+	keys := []interface{}{&testKey{"foo"}}
+
+	err := yt.ExecTabletTx(s.Ctx, yc, func(ctx context.Context, tx yt.TabletTx) error {
+		return tx.InsertRows(s.Ctx, testTable, rows, nil)
+	}, nil)
+	require.NoError(t, err)
+
+	r, err := yc.LookupRows(s.Ctx, testTable, keys, nil)
+	require.NoError(t, err)
+
+	var res testRow
+	require.True(t, r.Next())
+	require.NoError(t, r.Scan(&res))
+	assert.Equal(t, rows[0], &res)
+
+	require.False(t, r.Next())
+	require.NoError(t, r.Err())
+
+	var mu sync.Mutex
+	mu.Lock()
+}
+
+func (s *Suite) TestLookupColumnFilter(t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	testTable := tmpPath().Child("table")
+	schema := schema.MustInfer(&testRowWithTwoColumns{})
+	require.NoError(t, migrate.Create(s.Ctx, yc, testTable, schema))
+	require.NoError(t, migrate.MountAndWait(s.Ctx, yc, testTable))
+
+	rows := []interface{}{&testRowWithTwoColumns{"foo", "1", "2"}}
+	keys := []interface{}{&testKey{"foo"}}
+
+	require.NoError(t, yc.InsertRows(s.Ctx, testTable, rows, nil))
+
+	readRow := func(r yt.TableReader) (row testRowWithTwoColumns) {
+		defer r.Close()
+
+		require.True(t, r.Next())
+		require.NoError(t, r.Scan(&row))
+
+		require.False(t, r.Next())
+		require.NoError(t, r.Err())
+		return
+	}
+
+	r, err := yc.LookupRows(s.Ctx, testTable, keys, nil)
+	require.NoError(t, err)
+	require.Equal(t, readRow(r), testRowWithTwoColumns{"foo", "1", "2"})
+
+	r, err = yc.LookupRows(s.Ctx, testTable, keys, &yt.LookupRowsOptions{
+		Columns: []string{"table_key", "value0"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, readRow(r), testRowWithTwoColumns{Key: "foo", Value0: "1"})
+}
+
+func (s *Suite) TestReadTimestamp(t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	testTable := tmpPath().Child("table")
+	require.NoError(t, migrate.Create(s.Ctx, yc, testTable, schema.MustInfer(&testRow{})))
+	require.NoError(t, migrate.MountAndWait(s.Ctx, yc, testTable))
+
+	rows := []interface{}{&testRow{"foo", "1"}}
+	keys := []interface{}{&testKey{"foo"}}
+
+	require.NoError(t, yc.InsertRows(s.Ctx, testTable, rows, nil))
+
+	ts, err := yc.GenerateTimestamp(s.Ctx, nil)
+	_ = ts
+	require.NoError(t, err)
+
+	require.NoError(t, yc.DeleteRows(s.Ctx, testTable, keys, nil))
+
+	checkReader := func(r yt.TableReader) {
+		require.True(t, r.Next())
+
+		var row testRow
+		require.NoError(t, r.Scan(&row))
+		require.Equal(t, &row, rows[0])
+
+		require.False(t, r.Next())
+		require.NoError(t, r.Err())
+	}
+
+	r, err := yc.LookupRows(s.Ctx, testTable, keys, &yt.LookupRowsOptions{Timestamp: &ts})
+	require.NoError(t, err)
+	defer r.Close()
+	checkReader(r)
+
+	r, err = yc.SelectRows(s.Ctx, fmt.Sprintf("* from [%s]", testTable), &yt.SelectRowsOptions{
+		Timestamp: &ts,
+	})
+	require.NoError(t, err)
+	defer r.Close()
+	checkReader(r)
+}
 
 type testKey struct {
 	Key string `yson:"table_key"`
@@ -40,237 +271,7 @@ type testRowWithTwoColumns struct {
 	Value1 string `yson:"value1"`
 }
 
-func TestTabletClient(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*3)
-	defer cancel()
-
-	for _, tc := range []struct {
-		name       string
-		makeClient func() (yt.Client, error)
-	}{
-		{name: "http", makeClient: func() (yt.Client, error) {
-			return ythttp.NewClient(&yt.Config{Proxy: os.Getenv("YT_PROXY"), Logger: ytlog.Must()})
-		}},
-		{name: "rpc", makeClient: func() (yt.Client, error) {
-			return ytrpc.NewClient(&yt.Config{Proxy: os.Getenv("YT_PROXY"), Logger: ytlog.Must()})
-		}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			client, err := tc.makeClient()
-			require.NoError(t, err)
-
-			t.Run("Tx", func(t *testing.T) {
-				t.Parallel()
-
-				testTable := tmpPath().Child("table")
-				require.NoError(t, migrate.Create(ctx, client, testTable, schema.MustInfer(&testRow{})))
-				require.NoError(t, migrate.MountAndWait(ctx, client, testTable))
-
-				keys := []interface{}{
-					&testKey{"bar"},
-					&testKey{"foo"},
-					&testKey{"baz"},
-				}
-
-				rows := []interface{}{
-					&testRow{"bar", "2"},
-					&testRow{"foo", "1"},
-				}
-
-				tx, err := client.BeginTabletTx(ctx, nil)
-				require.NoError(t, err)
-
-				err = tx.InsertRows(ctx, testTable, rows, nil)
-				require.NoError(t, err)
-
-				err = tx.Commit()
-				require.NoError(t, err)
-
-				r, err := client.LookupRows(ctx, testTable, keys, nil)
-				require.NoError(t, err)
-
-				checkResult := func(r yt.TableReader, keepMissingRows bool) {
-					var row testRow
-
-					require.True(t, r.Next())
-					require.NoError(t, r.Scan(&row))
-					assert.Equal(t, rows[0], &row)
-
-					require.True(t, r.Next())
-					require.NoError(t, r.Scan(&row))
-					assert.Equal(t, rows[1], &row)
-
-					if keepMissingRows {
-						require.True(t, r.Next())
-						out := &testRow{}
-						require.NoError(t, r.Scan(&out))
-						assert.Nil(t, out)
-					}
-
-					require.False(t, r.Next())
-					require.NoError(t, r.Err())
-				}
-
-				checkResult(r, false)
-
-				r, err = client.LookupRows(ctx, testTable, keys, &yt.LookupRowsOptions{KeepMissingRows: true})
-				require.NoError(t, err)
-				checkResult(r, true)
-
-				r, err = client.SelectRows(ctx, fmt.Sprintf("* from [%s]", testTable), nil)
-				require.NoError(t, err)
-				checkResult(r, false)
-
-				tx, err = client.BeginTabletTx(ctx, nil)
-				require.NoError(t, err)
-
-				err = tx.DeleteRows(ctx, testTable, keys, nil)
-				require.NoError(t, err)
-
-				err = tx.Commit()
-				require.NoError(t, err)
-
-				r, err = client.LookupRows(ctx, testTable, keys, nil)
-				require.NoError(t, err)
-
-				require.False(t, r.Next())
-				require.NoError(t, r.Err())
-			})
-
-			t.Run("TxDuration", func(t *testing.T) {
-				t.Parallel()
-
-				testTable := tmpPath().Child("table")
-				require.NoError(t, migrate.Create(ctx, client, testTable, schema.MustInfer(&testRow{})))
-				require.NoError(t, migrate.MountAndWait(ctx, client, testTable))
-
-				rows := []interface{}{
-					&testRow{"bar", "2"},
-					&testRow{"foo", "1"},
-				}
-
-				tx, err := client.BeginTabletTx(ctx, nil)
-				require.NoError(t, err)
-
-				time.Sleep(time.Second * 20)
-
-				require.NoError(t, tx.InsertRows(ctx, testTable, rows, nil))
-				require.NoError(t, tx.Commit())
-			})
-
-			t.Run("ExecTabletTx", func(t *testing.T) {
-				t.Parallel()
-
-				testTable := tmpPath().Child("table")
-				require.NoError(t, migrate.Create(ctx, client, testTable, schema.MustInfer(&testRow{})))
-				require.NoError(t, migrate.MountAndWait(ctx, client, testTable))
-
-				rows := []interface{}{&testRow{"foo", "1"}}
-				keys := []interface{}{&testKey{"foo"}}
-
-				err := yt.ExecTabletTx(ctx, client, func(ctx context.Context, tx yt.TabletTx) error {
-					return tx.InsertRows(ctx, testTable, rows, nil)
-				}, nil)
-				require.NoError(t, err)
-
-				r, err := client.LookupRows(ctx, testTable, keys, nil)
-				require.NoError(t, err)
-
-				var res testRow
-				require.True(t, r.Next())
-				require.NoError(t, r.Scan(&res))
-				assert.Equal(t, rows[0], &res)
-
-				require.False(t, r.Next())
-				require.NoError(t, r.Err())
-
-				var mu sync.Mutex
-				mu.Lock()
-			})
-
-			t.Run("LookupColumnFilter", func(t *testing.T) {
-				t.Parallel()
-
-				testTable := tmpPath().Child("table")
-				schema := schema.MustInfer(&testRowWithTwoColumns{})
-				require.NoError(t, migrate.Create(ctx, client, testTable, schema))
-				require.NoError(t, migrate.MountAndWait(ctx, client, testTable))
-
-				rows := []interface{}{&testRowWithTwoColumns{"foo", "1", "2"}}
-				keys := []interface{}{&testKey{"foo"}}
-
-				require.NoError(t, client.InsertRows(ctx, testTable, rows, nil))
-
-				readRow := func(r yt.TableReader) (row testRowWithTwoColumns) {
-					defer r.Close()
-
-					require.True(t, r.Next())
-					require.NoError(t, r.Scan(&row))
-
-					require.False(t, r.Next())
-					require.NoError(t, r.Err())
-					return
-				}
-
-				r, err := client.LookupRows(ctx, testTable, keys, nil)
-				require.NoError(t, err)
-				require.Equal(t, readRow(r), testRowWithTwoColumns{"foo", "1", "2"})
-
-				r, err = client.LookupRows(ctx, testTable, keys, &yt.LookupRowsOptions{
-					Columns: []string{"table_key", "value0"},
-				})
-				require.NoError(t, err)
-				require.Equal(t, readRow(r), testRowWithTwoColumns{Key: "foo", Value0: "1"})
-			})
-
-			t.Run("ReadTimestamp", func(t *testing.T) {
-				t.Parallel()
-
-				testTable := tmpPath().Child("table")
-				require.NoError(t, migrate.Create(ctx, client, testTable, schema.MustInfer(&testRow{})))
-				require.NoError(t, migrate.MountAndWait(ctx, client, testTable))
-
-				rows := []interface{}{&testRow{"foo", "1"}}
-				keys := []interface{}{&testKey{"foo"}}
-
-				require.NoError(t, client.InsertRows(ctx, testTable, rows, nil))
-
-				ts, err := client.GenerateTimestamp(ctx, nil)
-				_ = ts
-				require.NoError(t, err)
-
-				require.NoError(t, client.DeleteRows(ctx, testTable, keys, nil))
-
-				checkReader := func(r yt.TableReader) {
-					require.True(t, r.Next())
-
-					var row testRow
-					require.NoError(t, r.Scan(&row))
-					require.Equal(t, &row, rows[0])
-
-					require.False(t, r.Next())
-					require.NoError(t, r.Err())
-				}
-
-				r, err := client.LookupRows(ctx, testTable, keys, &yt.LookupRowsOptions{Timestamp: &ts})
-				require.NoError(t, err)
-				defer r.Close()
-				checkReader(r)
-
-				r, err = client.SelectRows(ctx, fmt.Sprintf("* from [%s]", testTable), &yt.SelectRowsOptions{
-					Timestamp: &ts,
-				})
-				require.NoError(t, err)
-				defer r.Close()
-				checkReader(r)
-			})
-		})
-	}
-}
-
-func TestAbortCommittedTx(t *testing.T) {
+func TestAbortCommittedTabletTx(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
@@ -315,34 +316,6 @@ func TestAbortCommittedTx(t *testing.T) {
 			require.Error(t, err)
 
 			require.Empty(t, recorded.All())
-		})
-	}
-}
-
-func TestGenerateTimestamp(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
-	defer cancel()
-
-	for _, tc := range []struct {
-		name       string
-		makeClient func() (yt.Client, error)
-	}{
-		{name: "http", makeClient: func() (yt.Client, error) {
-			return ythttp.NewClient(&yt.Config{Proxy: os.Getenv("YT_PROXY"), Logger: ytlog.Must()})
-		}},
-		{name: "rpc", makeClient: func() (yt.Client, error) {
-			return ytrpc.NewClient(&yt.Config{Proxy: os.Getenv("YT_PROXY"), Logger: ytlog.Must()})
-		}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			client, err := tc.makeClient()
-			require.NoError(t, err)
-
-			ts, err := client.GenerateTimestamp(ctx, nil)
-			require.NoError(t, err)
-			require.NotZero(t, ts)
 		})
 	}
 }
