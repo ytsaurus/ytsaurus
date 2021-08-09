@@ -23,11 +23,19 @@ type Config struct {
 	//
 	// If Proxy is not set, value of YT_PROXY environment variable is used instead.
 	//
-	// May be equal to cluster name. E.g. hahn or markov.
+	// Might be equal to cluster name. E.g. hahn or markov.
 	//
-	// May be equal to hostname with optional port. E.g. localhost:12345 or sas5-1547-proxy-hahn.sas.yp-c.yandex.net.
+	// Might be equal to hostname with optional port. E.g. localhost:12345 or sas5-1547-proxy-hahn.sas.yp-c.yandex.net.
 	// In that case, provided host is used for all requests and proxy discovery is disabled.
 	Proxy string
+
+	// RPCProxy configures addres of YT RPC proxy.
+	//
+	// Might be equal to cluster name. E.g. hahn or markov.
+	//
+	// Might be equal to hostname with optional port. E.g. localhost:12345.
+	// In that case, provided host is used for all requests and proxy discovery is disabled.
+	RPCProxy string
 
 	// ProxyRole configures desired proxy role used by the client.
 	//

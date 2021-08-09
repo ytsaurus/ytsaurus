@@ -292,3 +292,9 @@ func TestDecoder_UnmarshalRow(t *testing.T) {
 		})
 	}
 }
+
+func TestDecoder_nilRow(t *testing.T) {
+	d := NewDecoder(nil)
+	var out interface{}
+	require.NoError(t, d.UnmarshalRow(nil, &out))
+}

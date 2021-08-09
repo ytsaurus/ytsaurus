@@ -82,3 +82,45 @@ func convertNameTable(t wire.NameTable) ([]*rpc_proxy.TRowsetDescriptor_TNameTab
 	}
 	return nameTable, nil
 }
+
+func decodeFromWire(attachments [][]byte) ([]wire.Row, error) {
+	var ret []wire.Row
+
+	rows, err := wire.UnmarshalRowset(mergeAttachments(attachments))
+	if err != nil {
+		return nil, xerrors.Errorf("unable to deserialize attachments: %w", err)
+	}
+	ret = append(ret, rows...)
+
+	return ret, nil
+}
+
+func mergeAttachments(attachments [][]byte) []byte {
+	var merged []byte
+	for _, a := range attachments {
+		merged = append(merged, a...)
+	}
+	return merged
+}
+
+func makeNameTable(d *rpc_proxy.TRowsetDescriptor) (wire.NameTable, error) {
+	table := make(wire.NameTable, 0, len(d.NameTableEntries))
+
+	for _, e := range d.NameTableEntries {
+		if e.Name == nil {
+			return nil, xerrors.Errorf("unexpected name table entry with nil name: %+v", e)
+		}
+
+		if e.Type == nil {
+			return nil, xerrors.Errorf("unexpected name table entry with nil name: %+v", e)
+		}
+
+		entry := wire.NameTableEntry{
+			Name: *e.Name,
+		}
+
+		table = append(table, entry)
+	}
+
+	return table, nil
+}

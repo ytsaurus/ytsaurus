@@ -10,7 +10,7 @@ import (
 	"a.yandex-team.ru/yt/go/yttest"
 )
 
-func TestCypressClient_listRPCProxies(t *testing.T) {
+func TestClient_listRPCProxies(t *testing.T) {
 	_ = yttest.New(t)
 
 	t.Run("empty", func(t *testing.T) {

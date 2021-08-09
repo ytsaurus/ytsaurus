@@ -7,6 +7,8 @@ import (
 
 	"a.yandex-team.ru/library/go/ptr"
 	"a.yandex-team.ru/yt/go/compression"
+	"a.yandex-team.ru/yt/go/guid"
+	"a.yandex-team.ru/yt/go/proto/core/misc"
 	"a.yandex-team.ru/yt/go/proto/core/rpc"
 )
 
@@ -153,6 +155,17 @@ func WithAttachmentStrings(attachments ...string) *sendOption {
 	}
 }
 
+func WithResponseAttachments(attachments *[][]byte) *sendOption {
+	return &sendOption{
+		Before: func(req *clientReq) {},
+		After: func(req *clientReq) {
+			for i := 0; i < len(req.rspAttachments); i++ {
+				*attachments = append(*attachments, req.rspAttachments[i])
+			}
+		},
+	}
+}
+
 func WithRequestCodec(codecID compression.CodecID) *sendOption {
 	return &sendOption{
 		Before: func(req *clientReq) {
@@ -166,6 +179,16 @@ func WithResponseCodec(codecID compression.CodecID) *sendOption {
 	return &sendOption{
 		Before: func(req *clientReq) {
 			req.reqHeader.ResponseCodec = ptr.Int32(int32(codecID))
+		},
+		After: func(req *clientReq) {},
+	}
+}
+
+func WithRequestID(id guid.GUID) *sendOption {
+	return &sendOption{
+		Before: func(req *clientReq) {
+			req.id = id
+			req.reqHeader.RequestId = misc.NewProtoFromGUID(id)
 		},
 		After: func(req *clientReq) {},
 	}
