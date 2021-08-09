@@ -215,11 +215,6 @@ public:
         TObject* object,
         TCellTag cellTag);
 
-    //! Posts a creation request to secondary masters.
-    void ReplicateObjectCreationToSecondaryMasters(
-        TObject* object,
-        const TCellTagList& cellTags);
-
     //! Posts an attribute update request to the secondary master.
     void ReplicateObjectAttributesToSecondaryMaster(
         TObject* object,

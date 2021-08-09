@@ -250,6 +250,24 @@ class TestMasterCellAddition(YTEnvSetup):
         remove_area(custom_area_id)
         set("//sys/tablet_cell_bundles/default/@node_tag_filter", "")
 
+    def check_builtin_object_attributes(self):
+        master_memory = 10**9 + 123
+        set("//sys/accounts/sys/@resource_limits/master_memory/total", master_memory)
+        set("//sys/accounts/sys/@foo", "bar")
+
+        yield
+
+        assert get("//sys/accounts/sys/@resource_limits/master_memory/total") == master_memory
+        assert get("//sys/accounts/sys/@foo") == "bar"
+        assert_true_for_secondary_cells(
+            self.Env,
+            lambda driver: get("//sys/accounts/sys/@resource_limits/master_memory/total", driver=driver) == master_memory,
+        )
+        assert_true_for_secondary_cells(
+            self.Env,
+            lambda driver: get("//sys/accounts/sys/@foo", driver=driver) == "bar",
+        )
+
     @authors("shakurov")
     def test_add_new_cell(self):
         CHECKER_LIST = [
@@ -258,6 +276,7 @@ class TestMasterCellAddition(YTEnvSetup):
             self.check_sys_masters_node,
             self.check_transactions,
             self.check_areas,
+            self.check_builtin_object_attributes,
         ]
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]

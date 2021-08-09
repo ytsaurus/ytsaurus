@@ -230,10 +230,6 @@ public:
         TObject* object,
         TCellTag cellTag);
 
-    void ReplicateObjectCreationToSecondaryMasters(
-        TObject* object,
-        const TCellTagList& cellTags);
-
     void ReplicateObjectAttributesToSecondaryMaster(
         TObject* object,
         TCellTag cellTag);
@@ -330,11 +326,17 @@ private:
 
     IAttributeDictionaryPtr GetReplicatedAttributes(
         TObject* object,
+        bool mandatory,
+        bool writableOnly);
+
+    void DoReplicateObjectAttributesToSecondaryMaster(
+        TObject* object,
+        TCellTag cellTag,
         bool mandatory);
+
     void OnReplicateValuesToSecondaryMaster(TCellTag cellTag);
 
     void InitSchemas();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1602,39 +1604,27 @@ void TObjectManager::TImpl::ReplicateObjectCreationToSecondaryMaster(
     TObject* object,
     TCellTag cellTag)
 {
-    ReplicateObjectCreationToSecondaryMasters(object, {cellTag});
-}
-
-void TObjectManager::TImpl::ReplicateObjectCreationToSecondaryMasters(
-    TObject* object,
-    const TCellTagList& cellTags)
-{
-    if (cellTags.empty()) {
-        return;
-    }
-
-    if (object->IsBuiltin()) {
-        return;
-    }
-
-    NProto::TReqCreateForeignObject request;
-    ToProto(request.mutable_object_id(), object->GetId());
-    request.set_type(static_cast<int>(object->GetType()));
-    ToProto(request.mutable_object_attributes(), *GetReplicatedAttributes(object, true));
-
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    multicellManager->PostToMasters(request, cellTags);
+    if (object->IsBuiltin()) {
+        // Builtin objects are already created at secondary masters,
+        // so we just replicate mandatory attributes here.
+        DoReplicateObjectAttributesToSecondaryMaster(object, cellTag, /*mandatory*/ true);
+    } else {
+        NProto::TReqCreateForeignObject request;
+        ToProto(request.mutable_object_id(), object->GetId());
+        request.set_type(static_cast<int>(object->GetType()));
+        auto replicatedAttributes = GetReplicatedAttributes(object, /*mandatory*/ true, /*writableOnly*/ false);
+        ToProto(request.mutable_object_attributes(), *replicatedAttributes);
+
+        multicellManager->PostToMaster(request, cellTag);
+    }
 }
 
 void TObjectManager::TImpl::ReplicateObjectAttributesToSecondaryMaster(
     TObject* object,
     TCellTag cellTag)
 {
-    auto req = TYPathProxy::Set(FromObjectId(object->GetId()) + "/@");
-    req->set_value(ConvertToYsonString(GetReplicatedAttributes(object, false)->ToMap()).ToString());
-
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    multicellManager->PostToMaster(req, cellTag);
+    DoReplicateObjectAttributesToSecondaryMaster(object, cellTag, /*mandatory*/ false);
 }
 
 TString TObjectManager::TImpl::MakeCodicilData(const TAuthenticationIdentity& identity)
@@ -2097,7 +2087,8 @@ void TObjectManager::TImpl::OnProfiling()
 
 IAttributeDictionaryPtr TObjectManager::TImpl::GetReplicatedAttributes(
     TObject* object,
-    bool mandatory)
+    bool mandatory,
+    bool writableOnly)
 {
     YT_VERIFY(!IsVersionedType(object->GetType()));
 
@@ -2127,6 +2118,10 @@ IAttributeDictionaryPtr TObjectManager::TImpl::GetReplicatedAttributes(
             continue;
         }
 
+        if (!descriptor.Writable && writableOnly) {
+            continue;
+        }
+
         auto value = proxy->FindBuiltinAttribute(descriptor.InternedKey);
         if (value) {
             const auto& key = descriptor.InternedKey.Unintern();
@@ -2150,6 +2145,19 @@ IAttributeDictionaryPtr TObjectManager::TImpl::GetReplicatedAttributes(
     }
 
     return attributes;
+}
+
+void TObjectManager::TImpl::DoReplicateObjectAttributesToSecondaryMaster(
+    TObject* object,
+    TCellTag cellTag,
+    bool mandatory)
+{
+    auto request = TYPathProxy::Set(FromObjectId(object->GetId()) + "/@");
+    auto replicatedAttributes = GetReplicatedAttributes(object, mandatory, /*writableOnly*/ true);
+    request->set_value(ConvertToYsonString(replicatedAttributes->ToMap()).ToString());
+
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    multicellManager->PostToMaster(request, cellTag);
 }
 
 void TObjectManager::TImpl::OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
@@ -2387,11 +2395,6 @@ TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
 void TObjectManager::ReplicateObjectCreationToSecondaryMaster(TObject* object, TCellTag cellTag)
 {
     Impl_->ReplicateObjectCreationToSecondaryMaster(object, cellTag);
-}
-
-void TObjectManager::ReplicateObjectCreationToSecondaryMasters(TObject* object, const TCellTagList& cellTags)
-{
-    Impl_->ReplicateObjectCreationToSecondaryMasters(object, cellTags);
 }
 
 void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(TObject* object, TCellTag cellTag)
