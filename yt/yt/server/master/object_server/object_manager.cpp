@@ -1284,9 +1284,9 @@ TObject* TObjectManager::TImpl::CreateObject(
     }
 
     IAttributeDictionaryPtr attributeHolder;
-    if (auto* attributeSet = schema->GetAttributes()) {
+    if (schema && schema->GetAttributes()) {
         attributeHolder = CreateEphemeralAttributes();
-        for (const auto& [key, value] : attributeSet->Attributes()) {
+        for (const auto& [key, value] : schema->GetAttributes()->Attributes()) {
             attributeHolder->SetYson(key, value);
         }
         if (attributes) {
