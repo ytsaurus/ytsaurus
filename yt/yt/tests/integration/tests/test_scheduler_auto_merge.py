@@ -337,25 +337,26 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         assert content[:1] == init_content
         assert normalize_schema(get("//tmp/t_out/@schema")) == schema_out
 
-    @authors("max42")
+    @authors("max42", "psushin")
     @pytest.mark.timeout(60)
     def test_teleport_large_chunks(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out1")
         create("table", "//tmp/t_out2")
-        for i in range(10):
+        for i in range(15):
             write_table("<append=%true>//tmp/t_in", [{"a": i}])
 
         # For even lines output a long random string, for odd lines output a single character.
         op = map(
             in_="//tmp/t_in",
             out=["//tmp/t_out1", "//tmp/t_out2"],
-            command="read x; if [[ $(($x % 2)) == 0 ]]; then head -c 1000000 /dev/urandom | base64 -w 0; echo -ne '\n'; else echo $x; fi >&4",
+            # First 8 jobs produce teleportable output, to ensure that teleports are handled correctly and operation doesn't get stuck.
+            command="read x; if (($YT_JOB_INDEX < 8)); then head -c 1000000 /dev/urandom | base64 -w 0; echo -ne '\n'; else echo $x; fi >&4",
             spec={
                 "auto_merge": {
                     "mode": "manual",
-                    "max_intermediate_chunk_count": 50,
-                    "chunk_count_per_merge_job": 50,
+                    "max_intermediate_chunk_count": 5,
+                    "chunk_count_per_merge_job": 5,
                     "chunk_size_threshold": 100 * 1024,
                 },
                 "data_size_per_job": 1,
@@ -363,26 +364,27 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             },
         )
         assert get("//tmp/t_out1/@chunk_count") == 0
-        assert get("//tmp/t_out2/@chunk_count") == 6
+        assert get("//tmp/t_out2/@chunk_count") == 10
         chunk_ids = get("//tmp/t_out2/@chunk_ids")
         row_counts = []
         for chunk_id in chunk_ids:
             row_counts.append(get("#{0}/@row_count".format(chunk_id)))
         row_counts = sorted(row_counts)
-        assert row_counts == [1, 1, 1, 1, 1, 5]
+        assert row_counts == [1] * 8 + [2, 5]
 
         data_flow = get(op.get_path() + "/@progress/data_flow")
-        directions = {}
-        for direction in data_flow:
-            directions[(direction["source_name"], direction["target_name"])] = direction
+        directions = {
+            (direction["source_name"], direction["target_name"]) : direction
+            for direction in data_flow
+        }
 
         assert len(directions) == 3
         assert directions[("input", "map")]["job_data_statistics"]["chunk_count"] == 0
-        assert directions[("input", "map")]["teleport_data_statistics"]["chunk_count"] == 10
-        assert directions[("map", "auto_merge")]["job_data_statistics"]["chunk_count"] == 10
+        assert directions[("input", "map")]["teleport_data_statistics"]["chunk_count"] == 15
+        assert directions[("map", "auto_merge")]["job_data_statistics"]["chunk_count"] == 15
         assert directions[("map", "auto_merge")]["teleport_data_statistics"]["chunk_count"] == 0
-        assert directions[("auto_merge", "output")]["job_data_statistics"]["chunk_count"] == 1
-        assert directions[("auto_merge", "output")]["teleport_data_statistics"]["chunk_count"] == 5
+        assert directions[("auto_merge", "output")]["job_data_statistics"]["chunk_count"] == 2
+        assert directions[("auto_merge", "output")]["teleport_data_statistics"]["chunk_count"] == 8
 
     @authors("max42")
     @pytest.mark.timeout(60)
