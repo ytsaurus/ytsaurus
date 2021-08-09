@@ -33,8 +33,7 @@ DEFINE_ENUM(ETabletReign,
     ((Hunks2)                             (100202)) // babenko
     ((PersistChunkTimestamp)              (100203)) // ifsmirnov
     ((SchemaIdUponMount)                  (100204)) // akozhikhov
-    // 21.3 starts here.
-    ((VersionedWriteToOrderedTablet)      (100300)) // gritukan
+    ((VersionedWriteToOrderedTablet)      (100205)) // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////
