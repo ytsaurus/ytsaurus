@@ -207,6 +207,10 @@ func (d *WireDecoder) decodeAny(row Row, v interface{}) (err error) {
 		return &UnsupportedTypeError{}
 	}
 
+	if row == nil {
+		return nil
+	}
+
 	switch vv := v.(type) {
 	case *interface{}:
 		err = d.decodeRowGeneric(row, vv)

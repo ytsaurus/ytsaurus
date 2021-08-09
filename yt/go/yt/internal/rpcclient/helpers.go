@@ -34,6 +34,13 @@ func convertTxID(txID yt.TxID) *misc.TGuid {
 	return convertGUID(guid.GUID(txID))
 }
 
+func getTxID(opts *yt.TransactionOptions) *misc.TGuid {
+	if opts == nil {
+		return nil
+	}
+	return convertTxID(opts.TransactionID)
+}
+
 func convertGUID(g guid.GUID) *misc.TGuid {
 	first, second := g.Halves()
 	return &misc.TGuid{
@@ -820,9 +827,23 @@ func convertTableReplicaMode(mode *yt.TableReplicaMode) (*rpc_proxy.ETableReplic
 	return &ret, nil
 }
 
+func convertTimestamp(ts *yt.Timestamp) *uint64 {
+	if ts == nil {
+		return nil
+	}
+	return ptr.Uint64(uint64(*ts))
+}
+
 func intPtrToInt32Ptr(i *int) *int32 {
 	if i == nil {
 		return nil
 	}
 	return ptr.Int32(int32(*i))
+}
+
+func intPtrToUint64Ptr(i *int) *uint64 {
+	if i == nil {
+		return nil
+	}
+	return ptr.Uint64(uint64(*i))
 }
