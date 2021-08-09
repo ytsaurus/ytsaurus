@@ -339,6 +339,7 @@ void TAutoMergeTask::OnChunkTeleported(TInputChunkPtr teleportChunk, std::any ta
     TaskHost_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ 0, GetTableIndex(poolIndex));
 
     --CurrentChunkCounts_[poolIndex];
+    TaskHost_->GetAutoMergeDirector()->AccountMergeInputChunks(-1);
 }
 
 void TAutoMergeTask::SetStreamDescriptors(TJobletPtr joblet) const
