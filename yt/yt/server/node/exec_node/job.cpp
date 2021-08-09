@@ -2077,6 +2077,7 @@ private:
             resultError.FindMatching(NNet::EErrorCode::ResolveTimedOut) ||
             resultError.FindMatching(NExecNode::EErrorCode::JobProxyPreparationTimeout) ||
             resultError.FindMatching(NExecNode::EErrorCode::JobPreparationTimeout) ||
+            resultError.FindMatching(NExecNode::EErrorCode::GpuCheckCommandFailed) ||
             resultError.FindMatching(NExecNode::EErrorCode::GpuLayerNotFetched))
         {
             return EAbortReason::Other;
@@ -2130,7 +2131,6 @@ private:
             error.FindMatching(NTableClient::EErrorCode::FormatCannotRepresentRow) ||
             error.FindMatching(EErrorCode::SetupCommandFailed) ||
             error.FindMatching(EErrorCode::GpuJobWithoutLayers) ||
-            error.FindMatching(EErrorCode::GpuCheckCommandFailed) ||
             error.FindMatching(EErrorCode::GpuCheckCommandIncorrect) ||
             error.FindMatching(EErrorCode::TmpfsOverflow);
     }
