@@ -137,13 +137,6 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
         .InRange(0.0, 1.0)
         .Default(0.8);
 
-    RegisterParameter("fair_share_starvation_timeout_limit", FairShareStarvationTimeoutLimit)
-        .Alias("fair_share_preemption_timeout_limit")
-        .Default(TDuration::Seconds(30));
-    RegisterParameter("fair_share_starvation_tolerance_limit", FairShareStarvationToleranceLimit)
-        .InRange(0.0, 1.0)
-        .Default(0.8);
-
     RegisterParameter("enable_aggressive_starvation", EnableAggressiveStarvation)
         .Default(false);
 

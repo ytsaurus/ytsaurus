@@ -76,9 +76,6 @@ NYTree::INodePtr CreatePoolTreesConfig()
     physicalTreeConfig->FairShareStarvationTimeout = TDuration::Seconds(30);
     physicalTreeConfig->FairShareStarvationTolerance = 0.8;
 
-    physicalTreeConfig->FairShareStarvationTimeoutLimit = TDuration::Seconds(30);
-    physicalTreeConfig->FairShareStarvationToleranceLimit = 0.8;
-
     physicalTreeConfig->PreemptionSatisfactionThreshold = 1.0;
     physicalTreeConfig->AggressivePreemptionSatisfactionThreshold = 0.5;
 
