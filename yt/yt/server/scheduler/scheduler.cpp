@@ -1557,6 +1557,7 @@ public:
                 if (it == NodeIdToDescriptor_.end()) {
                     YT_LOG_WARNING("Node is not registered at scheduler (Address: %v)", nodeAddress);
                 } else {
+                    YT_VERIFY(NodeAddresses_.erase(nodeAddress) == 1);
                     NodeIdToDescriptor_.erase(it);
                     YT_LOG_INFO("Node unregistered from scheduler (Address: %v)", nodeAddress);
                 }
@@ -1645,10 +1646,16 @@ public:
 
         auto it = NodeIdToDescriptor_.find(nodeId);
         if (it == NodeIdToDescriptor_.end()) {
+            if (NodeAddresses_.find(nodeAddress) != NodeAddresses_.end()) {
+                THROW_ERROR_EXCEPTION("Duplicate node address found (Address: %v, NewNodeId: %v)",
+                    nodeAddress,
+                    nodeId);
+            }
             YT_VERIFY(NodeIdToDescriptor_.emplace(
                 nodeId,
                 TExecNodeSchedulerDescriptor{tags, nodeAddress, treeId, New<TCancelableContext>()}
             ).second);
+            YT_VERIFY(NodeAddresses_.insert(nodeAddress).second);
             YT_LOG_INFO("Node is registered at scheduler (NodeId: %v, Address: %v, Tags: %v, TreeId: %v)",
                 nodeId,
                 nodeAddress,
@@ -1909,6 +1916,7 @@ private:
     };
 
     THashMap<TNodeId, TExecNodeSchedulerDescriptor> NodeIdToDescriptor_;
+    THashSet<TString> NodeAddresses_;
     THashSet<TNodeId> NodeIdsWithoutTree_;
 
     // Special map to support node consistency between node shards YT-11381.
@@ -2183,6 +2191,7 @@ private:
     void DoCleanup()
     {
         NodeIdToDescriptor_.clear();
+        NodeAddresses_.clear();
 
         TotalResourceLimitsProfiler_.Reset();
         TotalResourceUsageProfiler_.Reset();
