@@ -1367,6 +1367,19 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert sorted(clique.make_query_and_validate_row_count(query, exact=(1 * rows_per_table))) == \
                    [{"key": 1, "$table_index": 1, "subkey": i} for i in range(0, rows_per_table)]
 
+    @authors("dakovalkov")
+    def test_user_agent_black_list(self):
+        patch = {
+            "yt": {
+                "user_agent_black_list": ["banned_user_agent"],
+            },
+        }
+        with Clique(1, config_patch=patch) as clique:
+            assert clique.make_query("select 1 as a") == [{"a": 1}]
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("select 1 as a", headers={"User-Agent": "banned_user_agent"})
+
 
 class TestClickHouseNoCache(ClickHouseTestBase):
     def setup(self):

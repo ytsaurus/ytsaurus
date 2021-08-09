@@ -328,6 +328,7 @@ class Clique(object):
             only_rows=True,
             full_response=False,
             timeout=None,
+            headers=None,
     ):
         host = instance.attributes["host"]
         port = instance.attributes["http_port"]
@@ -339,6 +340,14 @@ class Clique(object):
         print_debug("Querying {0}:{1} with the following data:\n> {2}".format(host, port, query))
         print_debug("Query id: {}".format(query_id))
 
+        if headers is None:
+            headers = {}
+
+        headers["X-ClickHouse-User"] = user
+        headers["X-Yt-Trace-Id"] = query_id
+        headers["X-Yt-Span-Id"] = "0"
+        headers["X-Yt-Sampled"] = str(int(self.is_tracing))
+
         try:
             return self.make_request(
                 "http://{}:{}/query".format(host, port),
@@ -348,12 +357,7 @@ class Clique(object):
                 verbose=verbose,
                 only_rows=only_rows,
                 full_response=full_response,
-                headers={
-                    "X-ClickHouse-User": user,
-                    "X-Yt-Trace-Id": query_id,
-                    "X-Yt-Span-Id": "0",
-                    "X-Yt-Sampled": str(int(self.is_tracing)),
-                },
+                headers=headers,
                 timeout=timeout,
             )
         except requests.ConnectionError as err:
@@ -421,6 +425,7 @@ class Clique(object):
             only_rows=True,
             full_response=False,
             timeout=None,
+            headers=None,
     ):
         instances = self.get_active_instances()
         assert len(instances) > 0
@@ -435,6 +440,7 @@ class Clique(object):
             only_rows=only_rows,
             full_response=full_response,
             timeout=timeout,
+            headers=headers,
         )
 
     def make_async_query(self, *args, **kwargs):
