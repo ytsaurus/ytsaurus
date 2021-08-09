@@ -1254,7 +1254,6 @@ class TestGpuCheck(YTEnvSetup):
         assert len(alerts) == 1
         assert "GPU check command failed" in str(alerts[0])
 
-        wait(lambda: op.get_state() == "failed")
+        time.sleep(2.0)
 
-        resource_limits_path = "//sys/cluster_nodes/{}/@resource_limits".format(node)
-        assert get(resource_limits_path)["user_slots"] > 0
+        assert op.get_state() == "running"
