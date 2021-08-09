@@ -96,6 +96,15 @@ public:
             return;
         }
 
+        auto userAgent = request.get("User-Agent", "");
+        const auto& userAgentBlackList = Host_->GetConfig()->UserAgentBlackList;
+
+        if (userAgentBlackList.contains(userAgent)) {
+            response.setStatusAndReason(DB::HTTPResponse::HTTP_FORBIDDEN);
+            (*response.send()) << "User Agent '" << userAgent << "' is banned in clique config" << std::endl;
+            return;
+        }
+
         const auto& Logger = ClickHouseYtLogger;
 
         YT_LOG_DEBUG("Registering new user (UserName: %v)", userName);

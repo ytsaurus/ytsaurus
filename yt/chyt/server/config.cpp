@@ -282,6 +282,9 @@ TYtConfig::TYtConfig()
     RegisterParameter("client_cache", ClientCache)
         .DefaultNew();
 
+    RegisterParameter("user_agent_black_list", UserAgentBlackList)
+        .Default();
+
     RegisterParameter("validate_operation_access", ValidateOperationAccess)
         .Default();
     RegisterParameter("operation_acl_update_period", OperationAclUpdatePeriod)

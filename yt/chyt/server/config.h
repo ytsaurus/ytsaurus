@@ -331,6 +331,8 @@ public:
 
     TSlruCacheConfigPtr ClientCache;
 
+    THashSet<TString> UserAgentBlackList;
+
     // COMPAT(max42): deprecate these.
     std::optional<bool> ValidateOperationAccess;
     std::optional<TDuration> OperationAclUpdatePeriod;
