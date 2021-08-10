@@ -231,14 +231,18 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)
 {
-    auto config = ConvertTo<TYamredDsvFormatConfigPtr>(&attributes);
-    return CreateSchemalessWriterForYamredDsv(
-        config,
-        nameTable,
-        output,
-        enableContextSaving,
-        controlAttributesConfig,
-        keyColumnCount);
+    try {
+        auto config = ConvertTo<TYamredDsvFormatConfigPtr>(&attributes);
+        return CreateSchemalessWriterForYamredDsv(
+            config,
+            nameTable,
+            output,
+            enableContextSaving,
+            controlAttributesConfig,
+            keyColumnCount);
+    } catch (const TErrorException& ex) {
+        THROW_ERROR_EXCEPTION(EErrorCode::InvalidFormat, "Failed to parse config for YAMRed DSV format") << ex;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

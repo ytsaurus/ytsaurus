@@ -6,6 +6,10 @@ namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EErrorCode,
+    ((InvalidFormat) (2800))
+)
+
 DEFINE_ENUM(EComplexTypeMode,
     (Positional)
     (Named)

@@ -192,14 +192,18 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)
 {
-    auto config = ConvertTo<TYamrFormatConfigPtr>(&attributes);
-    return CreateSchemalessWriterForYamr(
-        config,
-        nameTable,
-        output,
-        enableContextSaving,
-        controlAttributesConfig,
-        keyColumnCount);
+    try {
+        auto config = ConvertTo<TYamrFormatConfigPtr>(&attributes);
+        return CreateSchemalessWriterForYamr(
+            config,
+            nameTable,
+            output,
+            enableContextSaving,
+            controlAttributesConfig,
+            keyColumnCount);
+    } catch (const TErrorException& exc) {
+        THROW_ERROR_EXCEPTION(EErrorCode::InvalidFormat, "Failed to parse config for YAMR format") << exc;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
