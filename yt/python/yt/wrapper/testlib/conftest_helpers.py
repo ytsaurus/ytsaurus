@@ -251,18 +251,8 @@ def yt_env_with_rpc(request, test_environment_with_rpc):
 
 @pytest.fixture(scope="function")
 def test_dynamic_library(request, yt_env_with_increased_memory):
-    if not which("g++"):
-        raise RuntimeError("g++ not found")
-    libs_dir = os.path.join(yt_env_with_increased_memory.env.path, "yt_test_dynamic_library")
-    makedirp(libs_dir)
-
-    get_number_lib = get_test_file_path("getnumber.cpp")
-    subprocess.check_call(["g++", get_number_lib, "-shared", "-fPIC", "-o", os.path.join(libs_dir, "libgetnumber.so")])
-
-    dependant_lib = get_test_file_path("yt_test_lib.cpp")
+    libs_dir = os.path.abspath("yt_test_modules")
     dependant_lib_output = os.path.join(libs_dir, "yt_test_dynamic_library.so")
-    subprocess.check_call(["g++", dependant_lib, "-shared", "-o", dependant_lib_output,
-                           "-L", libs_dir, "-l", "getnumber", "-fPIC"])
 
     # Adding this pseudo-module to sys.modules and ensuring it will be collected with
     # its dependency (libgetnumber.so)

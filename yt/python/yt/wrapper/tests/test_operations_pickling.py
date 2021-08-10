@@ -100,11 +100,10 @@ class TestOperationsPickling(object):
             yt.run_map(mapper_no_test_module, table, table)
         check_rows_equality(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
 
-    # YT-14218: g++ not found error
     @authors("ignat")
     @pytest.mark.usefixtures("test_dynamic_library")
     @add_failed_operation_stderrs_to_error_message
-    def DISABLED_test_modules_compatibility_filter(self, test_dynamic_library):
+    def test_modules_compatibility_filter(self, test_dynamic_library):
         libs_dir, so_file = test_dynamic_library
         def check_platforms_are_different(rec):
             assert "_shared" in os.environ["LD_LIBRARY_PATH"]
@@ -182,11 +181,10 @@ if __name__ == "__main__":
         op.wait()
         assert list(yt.read_table(TEST_DIR + "/other_table")) == [{"x": "hello"}]
 
-    # YT-14218: g++ not found error
     @authors("ignat")
     @pytest.mark.usefixtures("test_dynamic_library")
     @add_failed_operation_stderrs_to_error_message
-    def DISABLED_test_enable_dynamic_libraries_collection(self, test_dynamic_library):
+    def test_enable_dynamic_libraries_collection(self, test_dynamic_library):
         libs_dir, so_file = test_dynamic_library
         def mapper(rec):
             assert "_shared" in os.environ["LD_LIBRARY_PATH"]
