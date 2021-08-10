@@ -61,6 +61,9 @@ TFuture<void> TChunkReaderBase::DoOpen(
     const TMiscExt& miscExt)
 {
     if (blockSequence.empty()) {
+        // NB(psushin): typically memory manager is finalized by block fetcher.
+        // When block fetcher is not created, we should do it explicitly.
+        MemoryManager_->Finalize();
         return VoidFuture;
     }
 
