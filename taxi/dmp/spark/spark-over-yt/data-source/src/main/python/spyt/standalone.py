@@ -8,7 +8,7 @@ from yt.wrapper.common import update_inplace, update
 from yt.wrapper.cypress_commands import exists
 from yt.wrapper.acl_commands import check_permission
 from yt.wrapper.http_helpers import get_token, get_user_name, get_proxy_url
-from yt.wrapper.operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state
+from yt.wrapper.operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state, abort_operation
 from yt.wrapper.run_operation_commands import run_operation
 from yt.wrapper.spec_builders import VanillaSpecBuilder
 
@@ -366,7 +366,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                         history_server_memory_limit=SparkDefaultArguments.SPARK_HISTORY_SERVER_MEMORY_LIMIT,
                         history_server_cpu_limit=SparkDefaultArguments.SPARK_HISTORY_SERVER_CPU_LIMIT,
                         history_server_memory_overhead=SparkDefaultArguments.SPARK_HISTORY_SERVER_MEMORY_OVERHEAD,
-                        network_project=None, tvm_id=None, tvm_secret=None,
+                        network_project=None, abort_existing=False, tvm_id=None, tvm_secret=None,
                         advanced_event_log=False,
                         params=None, spark_cluster_version=None,
                         enablers=None,
@@ -390,6 +390,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     total memory for SHS job is history_server_memory_limit + history_server_memory_overhead
     :param spark_cluster_version: Spark cluster version
     :param network_project: YT network project
+    :param abort_existing: abort existing running operation
     :param advanced_event_log: advanced log format for history server (requires dynamic tables write permission)
     :param tvm_id: TVM id for network project
     :param tvm_secret: TVM secret for network project
@@ -399,6 +400,11 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     :return:
     """
     spark_discovery = SparkDiscovery(discovery_path=discovery_path)
+
+    if abort_existing:
+        current_operation_id = SparkDiscovery.getOption(spark_discovery.operation(), client=client)
+        if current_operation_id is not None:
+            abort_operation(current_operation_id, client=client)
 
     ytserver_proxy_path = latest_ytserver_proxy_path(spark_cluster_version, client=client)
     global_conf = read_global_conf(client=client)

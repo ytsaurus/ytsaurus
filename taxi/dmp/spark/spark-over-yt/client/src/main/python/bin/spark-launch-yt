@@ -41,6 +41,7 @@ def main():
     parser.add_argument("--dynamic-config-path", required=False, default="//sys/spark/conf/releases/spark-launch-conf")
     parser.add_argument("--params", required=False, action=ParseStructuredArgument, dest="params",
                         default=SparkDefaultArguments.get_params())
+    parser.add_argument('--abort-existing', required=False, action='store_true', default=False)
     parser.add_argument("--spark-cluster-version", required=False)
 
     default_enablers = SpytEnablers()
@@ -85,6 +86,7 @@ def main():
                         network_project=args.network_project,
                         tvm_id=spark_utils.default_tvm_id(),
                         tvm_secret=spark_utils.default_tvm_secret(),
+                        abort_existing=args.abort_existing,
                         advanced_event_log=args.advanced_event_log,
                         params=args.params,
                         spark_cluster_version=args.spark_cluster_version,
