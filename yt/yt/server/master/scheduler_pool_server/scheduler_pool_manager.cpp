@@ -223,6 +223,7 @@ public:
             case EInternedAttributeKey::CreateEphemeralSubpools:
             case EInternedAttributeKey::EphemeralSubpoolConfig:
             case EInternedAttributeKey::Abc:
+            case EInternedAttributeKey::IntegralGuarantees:
                 return true;
             default:
                 return false;
