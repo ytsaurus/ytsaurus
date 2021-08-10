@@ -388,7 +388,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
         client,
         nodeDirectory,
         userObject,
-        path.GetNewRanges(schema->ToComparator()),
+        path.GetNewRanges(schema->ToComparator(), schema->GetKeyColumnTypes()),
         // XXX(babenko): YT-11825
         dynamic && !schema->IsSorted() ? -1 : chunkCount,
         config->MaxChunksPerFetch,

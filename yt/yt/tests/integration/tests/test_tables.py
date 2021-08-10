@@ -702,7 +702,7 @@ class TestTables(YTEnvSetup):
         # limits of different types
         assert read_table("//tmp/table[#0:c]") == [v1, v2, v3, v4]
 
-    @authors("panin", "ignat", "gritukan")
+    @authors("panin", "ignat", "gritukan", "gepardo")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_row_key_selector_descending(self, optimize_for):
         skip_if_no_descending(self.Env)
@@ -729,7 +729,9 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/table[(a, 9) : (a, 0)]") == []
         assert read_table("//tmp/table[a : b]") == []
         assert read_table("//tmp/table[(a, 9) : (c, 10)]") == []
-        assert read_table("//tmp/table[(a, 10, 16) : (a, 0)]") == []
+
+        # type conversion: double <-> int
+        assert read_table("//tmp/table[(a, 10, 16) : (a, 0)]") == [v2]
 
         # some typical cases
         assert read_table("//tmp/table[:b]") == [v5]
@@ -2892,3 +2894,50 @@ class TestTablesRpcProxy(TestTables):
     DRIVER_BACKEND = "rpc"
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
+
+
+##################################################################
+
+
+class TestYPathTypeConversion(TestTables):
+    @authors("gepardo")
+    def test_type_conversion(self):
+        create(
+            "table",
+            "//tmp/input",
+            attributes={
+                "schema": make_schema(
+                    [
+                        {"name": "foo", "type": "double", "sort_order": "ascending"},
+                        {"name": "bar", "type": "string"},
+                    ]
+                )
+            },
+        )
+        write_table("//tmp/input", [
+            {"foo": 41.0, "bar": "val0"},
+            {"foo": 41.5, "bar": "val1"},
+            {"foo": 42.0, "bar": "val2"},
+            {"foo": 42.5, "bar": "val3"},
+            {"foo": 43.0, "bar": "val4"}
+        ])
+        assert read_table("//tmp/input[42]") == [{"foo": 42.0, "bar": "val2"}]
+
+        create(
+            "table",
+            "//tmp/input2",
+            attributes={
+                "schema": make_schema(
+                    [
+                        {"name": "foo", "type": "uint64", "sort_order": "ascending"},
+                        {"name": "bar", "type": "string"},
+                    ]
+                )
+            },
+        )
+        write_table("//tmp/input2", [
+            {"foo": 44, "bar": "val0"},
+            {"foo": 45, "bar": "val1"},
+            {"foo": 46, "bar": "val2"}
+        ])
+        assert read_table("//tmp/input2[45]") == [{"foo": 45, "bar": "val1"}]

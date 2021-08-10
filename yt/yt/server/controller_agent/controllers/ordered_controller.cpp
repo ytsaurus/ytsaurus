@@ -944,7 +944,7 @@ private:
     virtual void CustomPrepare() override
     {
         auto& path = InputTables_[0]->Path;
-        auto ranges = path.GetNewRanges(InputTables_[0]->Comparator);
+        auto ranges = path.GetNewRanges(InputTables_[0]->Comparator, InputTables_[0]->Schema->GetKeyColumnTypes());
         if (ranges.size() > 1) {
             THROW_ERROR_EXCEPTION("Erase operation does not support tables with multiple ranges");
         }

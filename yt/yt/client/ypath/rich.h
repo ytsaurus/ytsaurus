@@ -11,6 +11,7 @@
 #include <yt/yt/library/erasure/public.h>
 
 #include <yt/yt/client/table_client/column_sort_schema.h>
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 
@@ -78,7 +79,8 @@ public:
     //! In case when at least one column is non-ascending, some requirements are even stronger,
     //! refer to the implementation for details.
     std::vector<NChunkClient::TReadRange> GetNewRanges(
-        const NTableClient::TComparator& comparator = NTableClient::TComparator()) const;
+        const NTableClient::TComparator& comparator = NTableClient::TComparator(),
+        const NTableClient::TKeyColumnTypes& conversionTypeHints = {}) const;
 
     void SetRanges(const std::vector<NChunkClient::TReadRange>& ranges);
     bool HasNontrivialRanges() const;

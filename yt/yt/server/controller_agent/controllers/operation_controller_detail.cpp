@@ -5292,7 +5292,7 @@ void TOperationControllerBase::FetchInputTables()
     // We fetch columnar statistics only for the tables that have column selectors specified.
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables_.size()); ++tableIndex) {
         auto& table = InputTables_[tableIndex];
-        auto ranges = table->Path.GetNewRanges(table->Comparator);
+        auto ranges = table->Path.GetNewRanges(table->Comparator, table->Schema->GetKeyColumnTypes());
         int originalRangeCount = ranges.size();
 
         // XXX(max42): does this ever happen?
@@ -6140,7 +6140,7 @@ void TOperationControllerBase::FetchUserFiles()
 
             std::vector<TReadRange> readRanges;
             if (file.Type == EObjectType::Table) {
-                readRanges = file.Path.GetNewRanges(file.Schema->ToComparator());
+                readRanges = file.Path.GetNewRanges(file.Schema->ToComparator(), file.Schema->GetKeyColumnTypes());
             } else if (file.Type == EObjectType::File) {
                 readRanges = {TReadRange()};
             } else {

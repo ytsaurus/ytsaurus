@@ -131,6 +131,10 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TKeyColumnTypes = SmallVector<EValueType, 16>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTableSchema final
 {
 public:
@@ -267,6 +271,8 @@ public:
 
     TComparator ToComparator() const;
 
+    TKeyColumnTypes GetKeyColumnTypes() const;
+
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
 
@@ -383,12 +389,6 @@ constexpr bool operator < (ESchemaCompatibility lhs, ESchemaCompatibility rhs);
 constexpr bool operator <= (ESchemaCompatibility lhs, ESchemaCompatibility rhs);
 constexpr bool operator > (ESchemaCompatibility lhs, ESchemaCompatibility rhs);
 constexpr bool operator >= (ESchemaCompatibility lhs, ESchemaCompatibility rhs);
-
-////////////////////////////////////////////////////////////////////////////////
-
-using TKeyColumnTypes = SmallVector<EValueType, 16>;
-
-TKeyColumnTypes GetKeyColumnTypes(NTableClient::TTableSchemaPtr schema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

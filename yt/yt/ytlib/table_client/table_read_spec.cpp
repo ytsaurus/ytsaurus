@@ -98,7 +98,11 @@ TTableReadSpec FetchRegularTableReadSpec(
     {
         if (fetchFromTablets) {
             YT_LOG_INFO("Fetching table chunks from tablets");
-            chunkSpecs = FetchTabletStores(options.Client, *userObject, options.RichPath.GetNewRanges(schema->ToComparator()), logger);
+            chunkSpecs = FetchTabletStores(
+                options.Client,
+                *userObject,
+                options.RichPath.GetNewRanges(schema->ToComparator(), schema->GetKeyColumnTypes()),
+                logger);
         } else {
             YT_LOG_INFO("Fetching table chunks (ChunkCount: %v)",
                 chunkCount);
@@ -107,7 +111,7 @@ TTableReadSpec FetchRegularTableReadSpec(
                 options.Client,
                 options.Client->GetNativeConnection()->GetNodeDirectory(),
                 *userObject,
-                options.RichPath.GetNewRanges(schema->ToComparator()),
+                options.RichPath.GetNewRanges(schema->ToComparator(), schema->GetKeyColumnTypes()),
                 // XXX(babenko): YT-11825
                 dynamic && !schema->IsSorted() ? -1 : chunkCount,
                 options.FetchChunkSpecConfig->MaxChunksPerFetch,

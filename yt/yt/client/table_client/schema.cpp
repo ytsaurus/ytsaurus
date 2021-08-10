@@ -1061,6 +1061,15 @@ i64 TTableSchema::GetMemoryUsage() const
     return usage;
 }
 
+TKeyColumnTypes TTableSchema::GetKeyColumnTypes() const
+{
+    TKeyColumnTypes result(KeyColumnCount_);
+    for (int index = 0; index < KeyColumnCount_; ++index) {
+        result[index] = Columns_[index].GetPhysicalType();
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void FormatValue(TStringBuilderBase* builder, const TTableSchema& schema, TStringBuf /*spec*/)
@@ -1742,17 +1751,6 @@ void FromProto(NTableClient::TColumnFilter* columnFilter, const TColumnFilter& p
 }
 
 } // namespace NProto
-
-////////////////////////////////////////////////////////////////////////////////
-
-TKeyColumnTypes GetKeyColumnTypes(NTableClient::TTableSchemaPtr schema)
-{
-    TKeyColumnTypes keyColumnTypes;
-    for (int i = 0; i < schema->GetKeyColumnCount(); ++i) {
-        keyColumnTypes.push_back(schema->Columns()[i].GetPhysicalType());
-    }
-    return keyColumnTypes;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
