@@ -18,10 +18,17 @@ public:
     //! data available.
     i64 ReplicaDataSizeReadThreshold;
 
+    //! When fetching replica metas, journal reader will wait for this period of time
+    //! before starting slow path in hope to run fast path.
+    TDuration SlowPathDelay;
+
     TChunkReaderConfig()
     {
         RegisterParameter("replica_data_size_read_threshold", ReplicaDataSizeReadThreshold)
             .Default(1_MB);
+
+        RegisterParameter("slow_path_delay", SlowPathDelay)
+            .Default(TDuration::Seconds(5));
     }
 };
 
