@@ -108,6 +108,8 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (TableManager)
     (ChunkMerger)
     (ChaosManager)
+    (ChaosService)
+    (AlienCellSynchronizer)
 );
 
 DEFINE_ENUM(EAutomatonThreadBucket,

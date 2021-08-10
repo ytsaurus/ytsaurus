@@ -225,6 +225,20 @@ public:
         return *result;
     }
 
+    std::optional<TString> FindPeerAddress(TCellId cellId, TPeerId peerId)
+    {
+        auto it = RegisteredCellMap_.find(cellId);
+        if (!it) {
+            return {};
+        }
+
+        const auto& peers = it->second.Descriptor.Peers;
+        if (peerId >= std::ssize(peers)) {
+            return {};
+        }
+        return peers[peerId].FindAddress(Networks_);
+    }
+
     TSynchronizationResult Synchronize(const std::vector<TCellInfo>& knownCells)
     {
         auto guard = ReaderGuard(SpinLock_);
@@ -432,6 +446,11 @@ std::optional<TCellDescriptor> TCellDirectory::FindDescriptor(TCellId cellId)
 TCellDescriptor TCellDirectory::GetDescriptorOrThrow(TCellId cellId)
 {
     return Impl_->GetDescriptorOrThrow(cellId);
+}
+
+std::optional<TString> TCellDirectory::FindPeerAddress(TCellId cellId, TPeerId peerId)
+{
+    return Impl_->FindPeerAddress(cellId, peerId);
 }
 
 std::vector<TCellInfo> TCellDirectory::GetRegisteredCells()

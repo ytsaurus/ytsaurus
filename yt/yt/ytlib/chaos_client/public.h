@@ -1,13 +1,13 @@
 #pragma once
 
-#include <yt/yt/server/lib/hive/public.h>
-
-namespace NYT::NHiveServer {
+namespace NYT::NChaosClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(IClusterDirectorySynchronizer)
+struct TAlienCellDescriptorLite;
+struct TAlienPeerDescriptor;
+struct TAlienCellDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHiveServer
+} // namespace NYT::NChaosClient

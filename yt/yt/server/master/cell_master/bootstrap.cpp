@@ -9,6 +9,7 @@
 #include "multicell_manager.h"
 
 #include <yt/yt/server/master/chaos_server/chaos_manager.h>
+#include <yt/yt/server/master/chaos_server/chaos_service.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/chunk_service.h>
@@ -109,6 +110,7 @@
 #include <yt/yt/ytlib/election/cell_manager.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
@@ -523,28 +525,9 @@ TCellTagList TBootstrap::GetKnownParticipantCellTags() const
 
 NNative::IConnectionPtr TBootstrap::CreateClusterConnection() const
 {
-    auto cloneMasterConfig = [] (const auto& cellConfig) {
-        auto result = New<NNative::TMasterConnectionConfig>();
-        result->CellId = cellConfig->CellId;
-        result->Addresses.emplace();
-        for (const auto& peer : cellConfig->Peers) {
-            if (peer.Address) {
-                result->Addresses->push_back(*peer.Address);
-            }
-        }
-        return result;
-    };
-
-    auto config = New<NNative::TConnectionConfig>();
-    config->Networks = Config_->Networks;
-    config->PrimaryMaster = cloneMasterConfig(Config_->PrimaryMaster);
-    config->SecondaryMasters.reserve(Config_->SecondaryMasters.size());
-    for (const auto& secondaryMaster : Config_->SecondaryMasters) {
-        config->SecondaryMasters.push_back(cloneMasterConfig(secondaryMaster));
-    }
-    config->TimestampProvider = Config_->TimestampProvider;
-
-    return NNative::CreateConnection(config);
+    auto connection = NNative::CreateConnection(Config_->ClusterConnection);
+    connection->GetClusterDirectorySynchronizer()->Start();
+    return connection;
 }
 
 class TDiskSpaceProfiler
@@ -861,6 +844,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_));
     RpcServer_->RegisterService(CreateTransactionService(this)); // master hydra service
     RpcServer_->RegisterService(CreateCypressService(this)); // master hydra service
+    RpcServer_->RegisterService(CreateMasterChaosService(this)); // master chaos service
 
     CypressManager_->RegisterHandler(CreateSysNodeTypeHandler(this));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ChunkMap));

@@ -754,7 +754,7 @@ private:
 
     const NHiveServer::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizerConfig_ =
         New<NHiveServer::TClusterDirectorySynchronizerConfig>();
-    NHiveServer::TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
+    NHiveServer::IClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(CheckerThread);
@@ -1126,7 +1126,7 @@ private:
             if (ClusterDirectorySynchronizer_) {
                 ClusterDirectorySynchronizer_->Stop();
             }
-            ClusterDirectorySynchronizer_ = New<NHiveServer::TClusterDirectorySynchronizer>(
+            ClusterDirectorySynchronizer_ = CreateClusterDirectorySynchronizer(
                 dynamicConfig->ClusterDirectorySynchronizer,
                 Bootstrap_,
                 ClusterDirectory_);

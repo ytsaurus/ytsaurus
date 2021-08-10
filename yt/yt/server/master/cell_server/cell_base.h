@@ -106,6 +106,7 @@ public:
     virtual void Load(NCellMaster::TLoadContext& context);
 
     virtual NHiveClient::TCellDescriptor GetDescriptor() const = 0;
+    virtual int GetDescriptorConfigVersion() const;
 
     virtual bool IsAlienPeer(int peerId) const;
 

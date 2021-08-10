@@ -142,6 +142,10 @@ IConnectionPtr CreateConnection(
 ////////////////////////////////////////////////////////////////////////////////
 
 IConnectionPtr FindRemoteConnection(
+    const IConnectionPtr& connection,
+    const TString& clusterName);
+
+IConnectionPtr FindRemoteConnection(
     const NApi::NNative::IConnectionPtr& connection,
     NObjectClient::TCellTag cellTag);
 

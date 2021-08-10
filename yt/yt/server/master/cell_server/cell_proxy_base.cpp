@@ -150,6 +150,12 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
                             .Item().BeginMap()
                                 .Item("state").Value(EPeerState::None)
                             .EndMap();
+                    } else if (cell->IsAlienPeer(std::distance(cell->Peers().data(), &peer))) {
+                        fluent
+                            .Item().BeginMap()
+                                .Item("address").Value(peer.Descriptor.GetDefaultAddress())
+                                .Item("alien").Value(true)
+                            .EndMap();
                     } else {
                         const auto* transaction = peer.PrerequisiteTransaction;
                         const auto* slot = peer.Node ? peer.Node->GetCellSlot(cell) : nullptr;

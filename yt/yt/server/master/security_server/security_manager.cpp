@@ -467,6 +467,7 @@ public:
         TabletCellChangeloggerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffec);
         TabletCellSnapshotterUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffeb);
         TableMountInformerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffea);
+        AlienCellSynchronizerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffe9);
 
         EveryoneGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xffffffffffffffff);
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
@@ -2464,6 +2465,9 @@ private:
     TUserId TableMountInformerUserId_;
     TUser* TableMountInformerUser_ = nullptr;
 
+    TUserId AlienCellSynchronizerUserId_;
+    TUser* AlienCellSynchronizerUser_ = nullptr;
+
     NHydra::TEntityMap<TGroup> GroupMap_;
     THashMap<TString, TGroup*> GroupNameMap_;
 
@@ -2619,7 +2623,8 @@ private:
             id == OperationsClientUserId_ ||
             id == TabletCellChangeloggerUserId_ ||
             id == TabletCellSnapshotterUserId_ ||
-            id == TableMountInformerUserId_)
+            id == TableMountInformerUserId_ ||
+            id == AlienCellSynchronizerUserId_)
         {
             return SuperusersGroup_;
         } else {
@@ -3157,6 +3162,7 @@ private:
         TabletCellChangeloggerUser_ = nullptr;
         TabletCellSnapshotterUser_ = nullptr;
         TableMountInformerUser_ = nullptr;
+        AlienCellSynchronizerUser_ = nullptr;
         ReplicatorUser_ = nullptr;
         OwnerUser_ = nullptr;
         FileCacheUser_ = nullptr;
@@ -3321,6 +3327,9 @@ private:
             TableMountInformerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
             TableMountInformerUser_->SetRequestQueueSizeLimit(1000000);
         }
+
+        // alien cell synchronizer
+        EnsureBuiltinUserInitialized(AlienCellSynchronizerUser_, AlienCellSynchronizerUserId_, AlienCellSynchronizerUserName);
 
         // Accounts
         // root, infinite resources, not meant to be used

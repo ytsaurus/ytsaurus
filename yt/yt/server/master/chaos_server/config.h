@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/hive/config.h>
+
 #include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NChaosServer {
@@ -39,12 +41,37 @@ DEFINE_REFCOUNTED_TYPE(TChaosHydraConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAlienCellSynchronizerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool Enable;
+    TDuration SyncPeriod;
+
+    TAlienCellSynchronizerConfig()
+    {
+        RegisterParameter("sync_period", SyncPeriod)
+            .Default(TDuration::Minutes(1));
+        RegisterParameter("enable", Enable)
+            .Default(false);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TAlienCellSynchronizerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDynamicChaosManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    TAlienCellSynchronizerConfigPtr AlienCellSynchronizer;
+
     TDynamicChaosManagerConfig()
-    { }
+    {
+        RegisterParameter("alien_cell_synchronizer", AlienCellSynchronizer)
+            .DefaultNew();
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicChaosManagerConfig)

@@ -22,11 +22,11 @@ using namespace NRpc;
 TCellManager::TCellManager(
     TCellConfigPtr config,
     IChannelFactoryPtr channelFactory,
-    IAlienCellPeerChannelFactoryPtr foreignChannelFactory,
+    IAlienCellPeerChannelFactoryPtr alienChannelFactory,
     TPeerId selfId)
     : Config_(std::move(config))
     , ChannelFactory_(std::move(channelFactory))
-    , AlienCellPeerChannelFactory_(std::move(foreignChannelFactory))
+    , AlienCellPeerChannelFactory_(std::move(alienChannelFactory))
     , SelfId_(selfId)
     , VotingPeerCount_(Config_->CountVotingPeers())
     , QuorumPeerCount_(VotingPeerCount_ / 2 + 1)

@@ -69,6 +69,7 @@ TCellMasterConfig::TCellMasterConfig()
         .Default(false);
     RegisterParameter("enable_networking", EnableNetworking)
         .Default(true);
+    RegisterParameter("cluster_connection", ClusterConnection);
 
     RegisterPostprocessor([&] () {
         if (SecondaryMasters.size() > MaxSecondaryMasterCells) {
@@ -107,6 +108,8 @@ TDynamicClusterConfig::TDynamicClusterConfig()
     RegisterParameter("cell_manager", CellManager)
         .DefaultNew();
     RegisterParameter("tablet_manager", TabletManager)
+        .DefaultNew();
+    RegisterParameter("chaos_manager", ChaosManager)
         .DefaultNew();
     RegisterParameter("node_tracker", NodeTracker)
         .DefaultNew();

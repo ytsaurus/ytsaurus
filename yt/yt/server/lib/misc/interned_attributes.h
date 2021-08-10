@@ -21,6 +21,7 @@
     XX(AlertCount, alert_count) \
     XX(Alerts, alerts) \
     XX(Aliases, aliases) \
+    XX(AlienConfigVersions, alien_config_versions) \
     XX(AllowChildrenLimitOvercommit, allow_children_limit_overcommit) \
     XX(AllowedProfilingTags, allowed_profiling_tags) \
     XX(AllowAggressivePreemption, allow_aggressive_preemption) \
@@ -96,6 +97,7 @@
     XX(Decommissioned, decommissioned) \
     XX(DecommissionedNodeCount, decommissioned_node_count) \
     XX(DependentTransactionIds, dependent_transaction_ids) \
+    XX(DescriptorConfigVersion, descriptor_config_version) \
     XX(Depth, depth) \
     XX(DesiredTabletCount, desired_tablet_count) \
     XX(DesiredTabletSize, desired_tablet_size) \

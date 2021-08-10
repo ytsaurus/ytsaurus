@@ -110,6 +110,7 @@ class TestUsers(YTEnvSetup):
                 "tablet_cell_changelogger",
                 "tablet_cell_snapshotter",
                 "table_mount_informer",
+                "alien_cell_synchronizer",
             ],
         )
 

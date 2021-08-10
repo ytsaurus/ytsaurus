@@ -19,10 +19,8 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/compact_flat_map.h>
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/ref_tracked.h>
-#include <yt/yt/core/misc/small_vector.h>
 
 #include <yt/yt/core/yson/public.h>
 
@@ -36,6 +34,9 @@ class TChaosCell
 public:
     DECLARE_BYVAL_RO_PROPERTY(TChaosCellBundle*, ChaosCellBundle);
 
+    using TAlienClusterToConfigVersionMap = TCompactFlatMap<int, int, TypicalAlienPeerCount>;
+    DEFINE_BYREF_RO_PROPERTY(TAlienClusterToConfigVersionMap, AlienConfigVersions);
+
 public:
     using TCellBase::TCellBase;
 
@@ -43,8 +44,17 @@ public:
     virtual void Load(NCellMaster::TLoadContext& context) override;
 
     virtual NHiveClient::TCellDescriptor GetDescriptor() const override;
+    virtual int GetDescriptorConfigVersion() const override;
 
-    virtual bool IsAlienPeer(int peerId) const override;
+    virtual bool IsAlienPeer(TPeerId peerId) const override;
+
+    void UpdateAlienPeer(TPeerId peerId, const NNodeTrackerClient::TNodeDescriptor& descriptor);
+
+    int GetAlienConfigVersion(int alienClusterIndex) const;
+    void SetAlienConfigVersion(int alienClusterIndex, int version);
+
+private:
+    int CumulativeAlienConfigVersion_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

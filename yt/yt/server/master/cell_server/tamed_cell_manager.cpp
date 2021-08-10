@@ -134,6 +134,7 @@ public:
     DEFINE_SIGNAL(void(TArea* area), AreaCreated);
     DEFINE_SIGNAL(void(TArea* area), AreaDestroyed);
     DEFINE_SIGNAL(void(TArea* area), AreaNodeTagFilterChanged);
+    DEFINE_SIGNAL(void(TCellBase* cell), CellCreated);
     DEFINE_SIGNAL(void(TCellBase* cell), CellDecommissionStarted);
     DEFINE_SIGNAL(void(), CellPeersAssigned);
     DEFINE_SIGNAL(void(), AfterSnapshotLoaded);
@@ -287,8 +288,13 @@ public:
             THROW_ERROR_EXCEPTION("Cannot change peer independency since bundle has %v cell(s)",
                 cellBundle->Cells().size());
         }
-        if (!newOptions->IndependentPeers && cellBundle->GetType() == EObjectType::ChaosCellBundle) {
-            THROW_ERROR_EXCEPTION("Chaos cells must always have independent peers");
+        if (cellBundle->GetType() == EObjectType::ChaosCellBundle) {
+            if (!newOptions->IndependentPeers) {
+                THROW_ERROR_EXCEPTION("Chaos cells must always have independent peers");
+            }
+            if (newOptions->PeerCount != currentOptions->PeerCount) {
+                THROW_ERROR_EXCEPTION("Cannot change peer count for chaos cell bundle");
+            }
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -550,6 +556,8 @@ public:
                     << ex;
         }
 
+        CellCreated_.Fire(cell);
+
         return cell;
     }
 
@@ -564,7 +572,11 @@ public:
             hiveManager->RemoveMailbox(mailbox);
         }
 
-        for (const auto& peer : cell->Peers()) {
+        for (TPeerId peerId = 0; peerId < static_cast<TPeerId>(cell->Peers().size()); ++peerId) {
+            const auto& peer = cell->Peers()[peerId];
+            if (cell->IsAlienPeer(peerId)) {
+                continue;
+            }
             if (peer.Node) {
                 peer.Node->DetachTabletCell(cell);
             }
@@ -1140,6 +1152,9 @@ private:
             YT_VERIFY(CellsPerTypeMap_[cell->GetCellarType()].insert(cell).second);
 
             for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+                if (cell->IsAlienPeer(peerId)) {
+                    continue;
+                }
                 const auto& peer = cell->Peers()[peerId];
                 if (!peer.Descriptor.IsNull()) {
                     AddToAddressToCellMap(peer.Descriptor, cell, peerId);
@@ -1474,10 +1489,10 @@ private:
             auto* protoInfo = response->add_slots_to_configure();
 
             auto cellDescriptor = cell->GetDescriptor();
-
             const auto& prerequisiteTransactionId = cell->GetPrerequisiteTransaction(peerId)->GetId();
 
             protoInfo->set_peer_id(peerId);
+            protoInfo->set_config_version(cell->GetConfigVersion());
             ToProto(protoInfo->mutable_cell_descriptor(), cellDescriptor);
             ToProto(protoInfo->mutable_prerequisite_transaction_id(), prerequisiteTransactionId);
             protoInfo->set_abandon_leader_lease_during_recovery(GetDynamicConfig()->AbandonLeaderLeaseDuringRecovery);
@@ -1488,7 +1503,7 @@ private:
                 node->GetDefaultAddress(),
                 cellId,
                 peerId,
-                cellDescriptor.ConfigVersion,
+                cell->GetConfigVersion(),
                 prerequisiteTransactionId,
                 protoInfo->abandon_leader_lease_during_recovery());
         };
@@ -1657,6 +1672,12 @@ private:
                 cellInfo.ConfigVersion);
 
             if (cellInfo.ConfigVersion != cell->GetConfigVersion()) {
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Occupant should be reconfigured "
+                    "(CellId: %v, PeerId: %v, ExpectedConfingVersion: %v, ActualConfigVersion: %v)",
+                    cell->GetId(),
+                    slot.PeerId,
+                    cell->GetConfigVersion(),
+                    cellInfo.ConfigVersion);
                 requestConfigureSlot(cell);
             }
 
@@ -1909,8 +1930,11 @@ private:
 
         auto config = cell->GetConfig();
         config->Addresses.clear();
-        for (const auto& peer : cell->Peers()) {
-            if (peer.Descriptor.IsNull()) {
+        for (TPeerId peerId = 0; peerId < static_cast<TPeerId>(cell->Peers().size()); ++peerId) {
+            const auto& peer = cell->Peers()[peerId];
+            if (cell->IsAlienPeer(peerId)) {
+                config->Addresses.push_back(std::nullopt);
+            } else if (peer.Descriptor.IsNull()) {
                 config->Addresses.push_back(std::nullopt);
             } else {
                 config->Addresses.push_back(peer.Descriptor.GetAddressOrThrow(Bootstrap_->GetConfig()->Networks));

@@ -176,6 +176,7 @@ DEFINE_ENUM(EMasterReign,
     ((MulticellStatisticsForAllyReplicas)                           (1649))  // ifsmirnov
     ((RecomputeApprovedReplicaCount)                                (1650))  // ifsmirnov
     ((DropDanglingChunkViews)                                       (1651))  // ifsmirnov
+    ((SyncAlienCells)                                               (1652))  // savrus
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1700))  // ignat
 );

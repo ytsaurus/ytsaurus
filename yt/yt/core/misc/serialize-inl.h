@@ -5,6 +5,7 @@
 #include "serialize.h"
 #endif
 
+#include "compact_flat_map.h"
 #include "compact_vector.h"
 
 #include <optional>
@@ -1112,6 +1113,12 @@ struct TSorterSelector<SmallDenseMap<K, V, N, Ts...>, C, TSortedTag>
     typedef TCollectionSorter<SmallDenseMap<K, V, N, Ts...>, TKeySorterComparer<C>> TSorter;
 };
 
+template <class K, class V, unsigned N, class C>
+struct TSorterSelector<TCompactFlatMap<K, V, N>, C, TSortedTag>
+{
+    typedef TCollectionSorter<TCompactFlatMap<K, V, N>, TKeySorterComparer<C>> TSorter;
+};
+
 template <class C, class... T>
 struct TSorterSelector<std::unordered_multimap<T...>, C, TSortedTag>
 {
@@ -1870,6 +1877,12 @@ struct TSerializerTraits<THashMap<K, V, Q, A>, C, void>
 
 template <class K, class V, unsigned I, class E, class B, class C>
 struct TSerializerTraits<SmallDenseMap<K, V, I, E, B>, C, void>
+{
+    typedef TMapSerializer<> TSerializer;
+};
+
+template <class K, class V, unsigned N, class C>
+struct TSerializerTraits<TCompactFlatMap<K, V, N>, C, void>
 {
     typedef TMapSerializer<> TSerializer;
 };
