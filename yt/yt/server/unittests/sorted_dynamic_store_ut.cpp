@@ -357,7 +357,7 @@ public:
 
 
         StaticComparer_ = TStaticComparer(*schema);
-        LlvmComparer_ = TSortedDynamicRowKeyComparer::Create(GetKeyColumnTypes(schema));
+        LlvmComparer_ = TSortedDynamicRowKeyComparer::Create(schema->GetKeyColumnTypes());
     }
 
     TSortedDynamicRow BuildDynamicRow(

@@ -161,7 +161,7 @@ std::tuple<TCachedTableSchemaPtr, bool> TLookupSession::FindTableSchema(
     }
 
     auto tableSchema = FromProto<TTableSchemaPtr>(schemaData.schema());
-    auto rowKeyComparer = TSortedDynamicRowKeyComparer::Create(GetKeyColumnTypes(tableSchema));
+    auto rowKeyComparer = TSortedDynamicRowKeyComparer::Create(tableSchema->GetKeyColumnTypes());
 
     auto cachedTableSchema = New<TCachedTableSchema>(std::move(tableSchema), std::move(rowKeyComparer));
     tableSchemaWrapper->SetValue(cachedTableSchema);

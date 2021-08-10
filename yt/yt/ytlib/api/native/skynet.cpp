@@ -118,7 +118,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
         client,
         skynetShareLocations->NodeDirectory,
         userObject,
-        richPath.GetNewRanges(schema->ToComparator()),
+        richPath.GetNewRanges(schema->ToComparator(), schema->GetKeyColumnTypes()),
         // XXX(babenko): YT-11825
         dynamic && !schema->IsSorted() ? -1 : chunkCount,
         options.Config->MaxChunksPerFetch,

@@ -704,6 +704,84 @@ TEST_F(TYPathTest, NewReadRanges)
     }
 }
 
+TEST_F(TYPathTest, RangesTypeHintsInt64)
+{
+    // Verify that int64 key in YPath can be implicitly converted to uint64 and double.
+
+    TComparator comparator({ESortOrder::Ascending, ESortOrder::Ascending});
+
+    auto makeMixedRow = [&] (uint64_t first, double second) {
+        std::vector<TUnversionedValue> unversionedValues;
+        unversionedValues.emplace_back(MakeUnversionedUint64Value(first));
+        unversionedValues.emplace_back(MakeUnversionedDoubleValue(second));
+        return MakeRow(std::move(unversionedValues));
+    };
+
+    std::vector<TReadRange> ranges(2);
+    // [(42, 43)]
+    ranges[0].LowerLimit().KeyBound() = TOwningKeyBound::FromRow() >= makeMixedRow(42u, 43.0);
+    ranges[0].UpperLimit().KeyBound() = TOwningKeyBound::FromRow() <= makeMixedRow(42u, 43.0);
+    // [(39, 45)]
+    ranges[1].LowerLimit().KeyBound() = TOwningKeyBound::FromRow() >= makeMixedRow(39u, 45.0);
+    ranges[1].UpperLimit().KeyBound() = TOwningKeyBound::FromRow() <= makeMixedRow(39u, 45.0);
+
+    std::vector<TReadRange> smallRanges{ranges[0]};
+
+    auto ypath = TRichYPath::Parse(
+        "<ranges=["
+        "{exact={key=[42;43];}};"
+        "{exact={key=[39;45];}};"
+        "]>//tmp/t");
+
+    EXPECT_EQ(
+        ranges,
+        ypath.GetNewRanges(comparator, {NTableClient::EValueType::Uint64, NTableClient::EValueType::Double}));
+
+    auto smallYpath = TRichYPath::Parse("//tmp/t[(42, 43)]");
+    EXPECT_EQ(
+        smallRanges,
+        smallYpath.GetNewRanges(comparator, {NTableClient::EValueType::Uint64, NTableClient::EValueType::Double}));
+}
+
+TEST_F(TYPathTest, RangesTypeHintsUint64)
+{
+    // Verify that uint64 key in YPath can be implicitly converted to int64 and double.
+
+    TComparator comparator({ESortOrder::Ascending, ESortOrder::Ascending});
+
+    auto makeMixedRow = [&] (int64_t first, double second) {
+        std::vector<TUnversionedValue> unversionedValues;
+        unversionedValues.emplace_back(MakeUnversionedInt64Value(first));
+        unversionedValues.emplace_back(MakeUnversionedDoubleValue(second));
+        return MakeRow(std::move(unversionedValues));
+    };
+
+    std::vector<TReadRange> ranges(2);
+    // [(42, 43)]
+    ranges[0].LowerLimit().KeyBound() = TOwningKeyBound::FromRow() >= makeMixedRow(42, 43.0);
+    ranges[0].UpperLimit().KeyBound() = TOwningKeyBound::FromRow() <= makeMixedRow(42, 43.0);
+    // [(39, 45)]
+    ranges[1].LowerLimit().KeyBound() = TOwningKeyBound::FromRow() >= makeMixedRow(39, 45.0);
+    ranges[1].UpperLimit().KeyBound() = TOwningKeyBound::FromRow() <= makeMixedRow(39, 45.0);
+
+    std::vector<TReadRange> smallRanges{ranges[0]};
+
+    auto ypath = TRichYPath::Parse(
+        "<ranges=["
+        "{exact={key=[42u;43u];}};"
+        "{exact={key=[39u;45u];}};"
+        "]>//tmp/t");
+
+    EXPECT_EQ(
+        ranges,
+        ypath.GetNewRanges(comparator, {NTableClient::EValueType::Int64, NTableClient::EValueType::Double}));
+
+    auto smallYpath = TRichYPath::Parse("//tmp/t[(42u, 43u)]");
+    EXPECT_EQ(
+        smallRanges,
+        smallYpath.GetNewRanges(comparator, {NTableClient::EValueType::Int64, NTableClient::EValueType::Double}));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRichYPathToStringTest

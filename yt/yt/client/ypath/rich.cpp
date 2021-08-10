@@ -237,10 +237,52 @@ std::vector<NChunkClient::TLegacyReadRange> TRichYPath::GetRanges() const
     }
 }
 
+TUnversionedValue TryConvertValue(const TUnversionedValue& from, EValueType dstType)
+{
+    if (from.Type != NTableClient::EValueType::Int64 && from.Type != NTableClient::EValueType::Uint64) {
+        return from;
+    }
+
+    auto convert = [&] (auto srcValue, bool isSigned) {
+        const ui64 maxInt64 = std::numeric_limits<i64>::max();
+        switch (dstType) {
+            case EValueType::Uint64:
+                if (isSigned && srcValue < 0) {
+                    // Casting from negative int64 to uint64 doesn't seem to be a valid thing expected by user,
+                    // so we just return without conversion.
+                    return from;
+                }
+                return MakeUnversionedUint64Value(static_cast<ui64>(srcValue));
+            case EValueType::Int64:
+                if (!isSigned && static_cast<ui64>(srcValue) > maxInt64) {
+                    // The unsigned value is too large to fit into int64. We also don't perform the conversion.
+                    return from;
+                }
+                return MakeUnversionedInt64Value(static_cast<i64>(srcValue));
+            case EValueType::Double:
+                return MakeUnversionedDoubleValue(static_cast<double>(srcValue));
+            default:
+                return from;
+        }
+        YT_ABORT();
+    };
+
+    switch (from.Type) {
+        case NTableClient::EValueType::Int64:
+            return convert(from.Data.Int64, true);
+        case NTableClient::EValueType::Uint64:
+            return convert(from.Data.Uint64, false);
+        default:
+            return from;
+    }
+    YT_ABORT();
+}
+
 //! Return read range corresponding to given map node.
 NChunkClient::TReadRange RangeNodeToReadRange(
     const NTableClient::TComparator& comparator,
-    const IMapNodePtr& rangeNode)
+    const IMapNodePtr& rangeNode,
+    const NTableClient::TKeyColumnTypes& conversionTypeHints)
 {
     auto lowerLimitNode = rangeNode->FindChild("lower_limit");
     auto upperLimitNode = rangeNode->FindChild("upper_limit");
@@ -275,6 +317,19 @@ NChunkClient::TReadRange RangeNodeToReadRange(
             // Before deserializing, we may need to transform legacy key into key bound.
             auto owningKey = ConvertTo<TUnversionedOwningRow>(keyNode);
             TOwningKeyBound keyBound;
+
+            // Perform type conversion, if required.
+            if (!conversionTypeHints.empty()) {
+                TUnversionedOwningRowBuilder newOwningKey;
+                const int typedKeyCount = std::min(owningKey.GetCount(), static_cast<int>(conversionTypeHints.size()));
+                for (int i = 0; i < typedKeyCount; ++i) {
+                    newOwningKey.AddValue(TryConvertValue(owningKey[i], conversionTypeHints[i]));
+                }
+                for (int i = typedKeyCount; i < owningKey.GetCount(); ++i) {
+                    newOwningKey.AddValue(owningKey[i]);
+                }
+                owningKey = newOwningKey.FinishRow();
+            }
 
             bool containsSentinels = std::find_if(
                 owningKey.begin(),
@@ -382,7 +437,8 @@ NChunkClient::TReadRange RangeNodeToReadRange(
 }
 
 std::vector<NChunkClient::TReadRange> TRichYPath::GetNewRanges(
-    const NTableClient::TComparator& comparator) const
+    const NTableClient::TComparator& comparator,
+    const NTableClient::TKeyColumnTypes& conversionTypeHints) const
 {
     // TODO(max42): YT-14242. Top-level "lower_limit" and "upper_limit" are processed for compatibility.
     // But we should deprecate this one day.
@@ -415,7 +471,7 @@ std::vector<NChunkClient::TReadRange> TRichYPath::GetNewRanges(
         // For the sake of unchanged range node in error message.
         auto rangeNodeCopy = ConvertToNode(rangeNode);
         try {
-            readRanges.emplace_back(RangeNodeToReadRange(comparator, rangeNode));
+            readRanges.emplace_back(RangeNodeToReadRange(comparator, rangeNode, conversionTypeHints));
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
                 NYPath::EErrorCode::InvalidReadRange, "Invalid read range")

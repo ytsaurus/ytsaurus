@@ -1410,7 +1410,7 @@ void TTablet::Initialize()
     PhysicalSchemaData_ = TWireProtocolReader::GetSchemaData(*PhysicalSchema_);
     KeysSchemaData_ = TWireProtocolReader::GetSchemaData(*PhysicalSchema_->ToKeys());
 
-    RowKeyComparer_ = Context_->GetRowComparerProvider()->Get(GetKeyColumnTypes(PhysicalSchema_));
+    RowKeyComparer_ = Context_->GetRowComparerProvider()->Get(PhysicalSchema_->GetKeyColumnTypes());
 
     auto groupToIndex = GetLocksMapping(
         *PhysicalSchema_,
