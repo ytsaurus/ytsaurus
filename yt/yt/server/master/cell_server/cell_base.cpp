@@ -267,6 +267,11 @@ void TCellBase::SetPrerequisiteTransaction(std::optional<int> peerId, NTransacti
     }
 }
 
+int TCellBase::GetDescriptorConfigVersion() const
+{
+    return ConfigVersion_;
+}
+
 bool TCellBase::IsAlienPeer(int /*peerId*/) const
 {
     return false;

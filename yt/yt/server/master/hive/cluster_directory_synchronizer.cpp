@@ -23,6 +23,8 @@
 #include <yt/yt/server/master/object_server/object_manager.h>
 #include <yt/yt/server/master/object_server/object_proxy.h>
 
+#include <yt/yt/core/misc/atomic_object.h>
+
 namespace NYT::NHiveServer {
 
 using namespace NConcurrency;
@@ -36,39 +38,39 @@ static const auto& Logger = HiveServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClusterDirectorySynchronizer::TImpl
-    : public TRefCounted
+class TClusterDirectorySynchronizer
+    : public IClusterDirectorySynchronizer
 {
 public:
-    TImpl(
+    TClusterDirectorySynchronizer(
         TClusterDirectorySynchronizerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap,
-        const NHiveClient::TClusterDirectoryPtr& clusterDirectory)
+        NHiveClient::TClusterDirectoryPtr clusterDirectory)
         : Bootstrap_(bootstrap)
         , SyncExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::ClusterDirectorySynchronizer),
-            BIND(&TImpl::OnSync, MakeWeak(this)),
+            BIND(&TClusterDirectorySynchronizer::OnSync, MakeWeak(this)),
             config->SyncPeriod))
         , ObjectManager_(Bootstrap_->GetObjectManager())
         , MulticellManager_(Bootstrap_->GetMulticellManager())
         , CellTag_(MulticellManager_->GetPrimaryCellTag())
-        , ClusterDirectory_(clusterDirectory)
-        , Config_(config)
+        , ClusterDirectory_(std::move(clusterDirectory))
+        , Config_(std::move(config))
     { }
 
-    void Start()
+    virtual void Start() override
     {
         auto guard = Guard(SpinLock_);
         DoStart();
     }
 
-    void Stop()
+    virtual void Stop() override
     {
         auto guard = Guard(SpinLock_);
         DoStop();
     }
 
-    TFuture<void> Sync(bool force)
+    virtual TFuture<void> Sync(bool force) override
     {
         auto guard = Guard(SpinLock_);
         if (Stopped_) {
@@ -76,6 +78,12 @@ public:
         }
         DoStart(force);
         return SyncPromise_.ToFuture();
+    }
+
+    virtual void Reconfigure(const TClusterDirectorySynchronizerConfigPtr& config) override
+    {
+        Config_.Store(config);
+        SyncExecutor_->SetPeriod(config->SyncPeriod);
     }
 
     DEFINE_SIGNAL(void(const TError&), Synchronized);
@@ -87,7 +95,7 @@ private:
     const NCellMaster::TMulticellManagerPtr MulticellManager_;
     const NObjectClient::TCellTag CellTag_;
     const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
-    const TClusterDirectorySynchronizerConfigPtr Config_;
+    TAtomicObject<TClusterDirectorySynchronizerConfigPtr> Config_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     bool Started_ = false;
@@ -123,8 +131,8 @@ private:
 
             TMasterReadOptions options{
                 .ReadFrom = EMasterChannelKind::Cache,
-                .ExpireAfterSuccessfulUpdateTime = Config_->ExpireAfterSuccessfulUpdateTime,
-                .ExpireAfterFailedUpdateTime = Config_->ExpireAfterFailedUpdateTime,
+                .ExpireAfterSuccessfulUpdateTime = Config_.Load()->ExpireAfterSuccessfulUpdateTime,
+                .ExpireAfterFailedUpdateTime = Config_.Load()->ExpireAfterFailedUpdateTime,
                 .CacheStickyGroupSize = 1
             };
 
@@ -186,32 +194,13 @@ private:
     }
 };
 
-TClusterDirectorySynchronizer::TClusterDirectorySynchronizer(
-    const TClusterDirectorySynchronizerConfigPtr& config,
+IClusterDirectorySynchronizerPtr CreateClusterDirectorySynchronizer(
+    TClusterDirectorySynchronizerConfigPtr config,
     NCellMaster::TBootstrap* bootstrap,
-    const NHiveClient::TClusterDirectoryPtr& clusterDirectory)
-    : Impl_(New<TImpl>(config, bootstrap, clusterDirectory))
-{ }
-
-TClusterDirectorySynchronizer::~TClusterDirectorySynchronizer()
-{ }
-
-void TClusterDirectorySynchronizer::Start()
+    NHiveClient::TClusterDirectoryPtr clusterDirectory)
 {
-    Impl_->Start();
+    return New<TClusterDirectorySynchronizer>(std::move(config), bootstrap, std::move(clusterDirectory));
 }
-
-void TClusterDirectorySynchronizer::Stop()
-{
-    Impl_->Stop();
-}
-
-TFuture<void> TClusterDirectorySynchronizer::Sync(bool force)
-{
-    return Impl_->Sync(force);
-}
-
-DELEGATE_SIGNAL(TClusterDirectorySynchronizer, void(const TError&), Synchronized, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -48,7 +48,12 @@ void AddCellarInfoToHeartbeatRequest(
         auto* protoSlotInfo = request->add_cell_slots();
 
         if (occupant) {
-            ToProto(protoSlotInfo->mutable_cell_info(), occupant->GetCellDescriptor().ToInfo());
+            TCellInfo cellInfo {
+                .CellId = occupant->GetCellId(),
+                .ConfigVersion = occupant->GetConfigVersion()
+            };
+
+            ToProto(protoSlotInfo->mutable_cell_info(), cellInfo);
             protoSlotInfo->set_peer_state(ToProto<int>(occupant->GetControlState()));
             protoSlotInfo->set_peer_id(occupant->GetPeerId());
             protoSlotInfo->set_dynamic_config_version(occupant->GetDynamicConfigVersion());

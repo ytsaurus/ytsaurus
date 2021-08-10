@@ -30,6 +30,8 @@ public:
     // NB: can't make this pair<const K, V> as TCompactVector requires its type
     // parameter to be copy-assignable.
     using value_type = std::pair<K, V>;
+    using key_type = K;
+    using mapped_type = V;
 
 private:
     using TStorage = TCompactVector<value_type, N>;
@@ -83,6 +85,9 @@ public:
 
     template <class TInputIterator>
     void insert(TInputIterator begin, TInputIterator end);
+
+    template <class... TArgs>
+    std::pair<iterator, bool> emplace(TArgs&&... args);
 
     V& operator[](const K& k);
 

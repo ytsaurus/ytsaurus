@@ -42,24 +42,27 @@
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
+#include <yt/yt/ytlib/chaos_client/chaos_master_service_proxy.h>
+
 #include <library/cpp/int128/int128.h>
 
 namespace NYT::NApi::NNative {
 
+using namespace NChaosClient;
+using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NHiveClient;
+using namespace NNodeTrackerClient;
+using namespace NObjectClient;
+using namespace NProfiling;
+using namespace NQueryClient;
+using namespace NRpc;
+using namespace NTableClient;
+using namespace NTabletClient;
+using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
-using namespace NRpc;
-using namespace NObjectClient;
-using namespace NTransactionClient;
-using namespace NTableClient;
-using namespace NTabletClient;
-using namespace NQueryClient;
-using namespace NNodeTrackerClient;
-using namespace NHiveClient;
-using namespace NChunkClient;
-using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1602,6 +1605,22 @@ std::vector<TTabletActionId> TClient::DoBalanceTabletCells(
     }
 
     return tabletActions;
+}
+
+std::vector<TAlienCellDescriptor> TClient::DoSyncAlienCells(
+    const std::vector<TAlienCellDescriptorLite>& alienCellDescriptors,
+    const TSyncAlienCellOptions& options)
+{
+    auto channel = GetMasterChannelOrThrow(options.ReadFrom, PrimaryMasterCellTag); 
+    auto proxy = TChaosMasterServiceProxy(channel);
+    auto req = proxy.SyncAlienCells();
+    
+    ToProto(req->mutable_cell_descriptors(), alienCellDescriptors);
+
+    auto res = WaitFor(req->Invoke())
+        .ValueOrThrow();
+
+    return FromProto<std::vector<TAlienCellDescriptor>>(res->cell_descriptors());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

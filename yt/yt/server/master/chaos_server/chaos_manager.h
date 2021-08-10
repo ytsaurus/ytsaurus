@@ -14,6 +14,8 @@ struct IChaosManager
     : public virtual TRefCounted
 {
     virtual void Initialize() = 0;
+    virtual const TAlienClusterRegistryPtr& GetAlienClusterRegistry() const = 0;
+    virtual TChaosCell* FindChaosCell(TChaosCellId cellId) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChaosManager)

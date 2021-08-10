@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/api/client.h>
 
+#include <yt/yt/ytlib/chaos_client/public.h>
+
 #include <yt/yt/ytlib/query_client/public.h>
 
 namespace NYT::NApi::NNative {
@@ -19,6 +21,11 @@ struct IClientBase
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TSyncAlienCellOptions
+    : public TTimeoutOptions
+    , public TMasterReadOptions
+{ };
 
 struct IClient
     : public IClientBase
@@ -41,6 +48,10 @@ struct IClient
     virtual ITransactionPtr AttachNativeTransaction(
         NTransactionClient::TTransactionId transactionId,
         const TTransactionAttachOptions& options = TTransactionAttachOptions()) = 0;
+
+    virtual TFuture<std::vector<NChaosClient::TAlienCellDescriptor>> SyncAlienCells(
+        const std::vector<NChaosClient::TAlienCellDescriptorLite>& alienCellDescriptors,
+        const TSyncAlienCellOptions& options = {}) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)

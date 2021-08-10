@@ -1,0 +1,18 @@
+package NYT.NChaosClient.NProto;
+
+import "yt/ytlib/chaos_client/proto/alien_cell.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSyncAlienCells
+{
+    repeated TAlienCellDescriptorLite cell_descriptors = 1;
+}
+
+message TRspSyncAlienCells
+{
+    repeated TAlienCellDescriptor cell_descriptors = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

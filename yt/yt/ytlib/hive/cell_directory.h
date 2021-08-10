@@ -116,6 +116,8 @@ public:
     //! Returns the descriptor for a given cell id (throws if the cell is not known).
     TCellDescriptor GetDescriptorOrThrow(TCellId cellId);
 
+    //! Returns peer address for a given cell (null if cell is not known or peer has no address).
+    std::optional<TString> FindPeerAddress(TCellId cellId, NElection::TPeerId peerId);
 
     //! Returns the list of all registered cells, their versions, and configurations.
     std::vector<TCellInfo> GetRegisteredCells();

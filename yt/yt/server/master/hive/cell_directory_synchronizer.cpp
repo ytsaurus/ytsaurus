@@ -96,7 +96,7 @@ private:
                 }
 
                 auto it = idToVersion.find(cell->GetId());
-                if (it == idToVersion.end() || it->second < cell->GetConfigVersion()) {
+                if (it == idToVersion.end() || it->second < cell->GetDescriptorConfigVersion()) {
                     CellDirectory_->ReconfigureCell(cell->GetDescriptor());
                 }
                 if (it != idToVersion.end()) {

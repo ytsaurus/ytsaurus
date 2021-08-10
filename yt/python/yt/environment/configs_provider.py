@@ -231,6 +231,14 @@ def _build_master_configs(yt_config,
     connection_configs["primary_cell_tag"] = cell_tags[0]
     connection_configs["secondary_cell_tags"] = cell_tags[1:]
 
+    cluster_connection_config = \
+        _build_cluster_connection_config(
+            yt_config,
+            connection_configs,
+            clock_connection_configs,
+            timestamp_provider_addresses=[],
+            master_cache_addresses=[])
+
     configs = {}
     for cell_index in xrange(yt_config.secondary_cell_count + 1):
         cell_configs = []
@@ -276,6 +284,8 @@ def _build_master_configs(yt_config,
                                               yt_config,
                                               log_errors_to_stderr=True,
                                               has_structured_logs=True)
+
+            config["cluster_connection"] = cluster_connection_config
 
             cell_configs.append(config)
 

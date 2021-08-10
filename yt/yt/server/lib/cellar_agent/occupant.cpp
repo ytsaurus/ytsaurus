@@ -188,6 +188,13 @@ public:
         return CellDescriptor_;
     }
 
+    virtual int GetConfigVersion() const override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return ConfigVersion_;
+    }
+
     virtual const IDistributedHydraManagerPtr GetHydraManager() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -261,6 +268,11 @@ public:
         auto client = Bootstrap_->GetMasterClient();
 
         CellDescriptor_ = FromProto<TCellDescriptor>(configureInfo.cell_descriptor());
+
+        // COMPAT(savrus)
+        ConfigVersion_ = configureInfo.has_config_version()
+            ? configureInfo.config_version()
+            : CellDescriptor_.ConfigVersion;
 
         if (configureInfo.has_peer_id()) {
             TPeerId peerId = configureInfo.peer_id();
@@ -344,20 +356,18 @@ public:
             TJournalWriterPerformanceCounters{changelogProfiler});
         ChangelogStoreFactoryThunk_->SetUnderlying(changelogStoreFactory);
 
+        if (independent) {
+            connection->GetCellDirectory()->ReconfigureCell(CellDescriptor_);
+        }
+
+        const auto& channelFactory = connection->GetChannelFactory();
+        auto alienChannelFactory = CreateAlienCellPeerChannelFactory(connection->GetCellDirectory());
+
         auto cellConfig = CellDescriptor_.ToConfig(Bootstrap_->GetLocalNetworks());
-
-        auto channelFactory = Bootstrap_
-            ->GetMasterClient()
-            ->GetNativeConnection()
-            ->GetChannelFactory();
-        auto foreignChannelFactory = CreateAlienCellPeerChannelFactory(
-            connection->GetClusterDirectory(),
-            connection->GetClusterDirectorySynchronizer());
-
         CellManager_ = New<TCellManager>(
             cellConfig,
             channelFactory,
-            foreignChannelFactory,
+            alienChannelFactory,
             PeerId_);
 
         if (auto slotHydraManager = GetHydraManager()) {
@@ -414,10 +424,9 @@ public:
 
             ElectionManagerThunk_->SetUnderlying(ElectionManager_);
 
-            auto masterConnection = Bootstrap_->GetMasterClient()->GetNativeConnection();
             HiveManager_ = New<THiveManager>(
                 Config_->HiveManager,
-                masterConnection->GetCellDirectory(),
+                connection->GetCellDirectory(),
                 GetCellId(),
                 Occupier_->GetOccupierAutomatonInvoker(),
                 hydraManager,
@@ -425,7 +434,6 @@ public:
 
             Occupier_->Configure(hydraManager);
 
-            auto connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
             std::vector<ITransactionParticipantProviderPtr> providers;
 
             // NB: Should not start synchronizer while validating snapshot.
@@ -571,6 +579,7 @@ private:
 
     TPeerId PeerId_;
     TCellDescriptor CellDescriptor_;
+    int ConfigVersion_ = 0;
 
     const TString CellBundleName_;
 
@@ -646,13 +655,6 @@ private:
             BuildYsonFluently(consumer)
                 .Entity();
         }
-    }
-
-    int GetConfigVersion() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return CellDescriptor_.ConfigVersion;
     }
 
     TTransactionId GetPrerequisiteTransactionId() const

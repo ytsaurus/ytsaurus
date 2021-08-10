@@ -642,6 +642,18 @@ std::optional<int> TStickyGroupSizeCache::GetAdvisedStickyGroupSize(const TKey& 
 
 IConnectionPtr FindRemoteConnection(
     const IConnectionPtr& connection,
+    const TString& clusterName)
+{
+    auto remoteConnection = connection->GetClusterDirectory()->FindConnection(clusterName);
+    if (!remoteConnection) {
+        return nullptr;
+    }
+
+    return dynamic_cast<NNative::IConnection*>(remoteConnection.Get());
+}
+
+IConnectionPtr FindRemoteConnection(
+    const IConnectionPtr& connection,
     TCellTag cellTag)
 {
     if (cellTag == connection->GetPrimaryMasterCellTag()) {

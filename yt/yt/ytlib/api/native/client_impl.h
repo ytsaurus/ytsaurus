@@ -3,6 +3,8 @@
 #include "client.h"
 #include "private.h"
 
+#include <yt/yt/ytlib/chaos_client/alien_cell.h>
+
 #include <yt/yt/ytlib/tablet_client/public.h>
 
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
@@ -472,6 +474,11 @@ public:
         const TString& address,
         const TRepairExecNodeOptions& options),
         (address, options))
+
+    IMPLEMENT_METHOD(std::vector<NChaosClient::TAlienCellDescriptor>, SyncAlienCells, (
+        const std::vector<NChaosClient::TAlienCellDescriptorLite>& alienCellDescriptors,
+        const TSyncAlienCellOptions& options),
+        (alienCellDescriptors, options))
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
 
@@ -1137,7 +1144,9 @@ private:
         const TGetClusterMetaOptions& options);
     void DoCheckClusterLiveness(
         const TCheckClusterLivenessOptions& options);
-
+    std::vector<NChaosClient::TAlienCellDescriptor> DoSyncAlienCells(
+        const std::vector<NChaosClient::TAlienCellDescriptorLite>& alienCellDescriptors,
+        const TSyncAlienCellOptions& options);
 
     // Administration.
     int DoBuildSnapshot(

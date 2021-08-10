@@ -33,6 +33,7 @@ message TConfigureCellSlotInfo
     // TODO(gritukan): Remove it when dynamic node config will be ready.
     optional bool abandon_leader_lease_during_recovery = 4;
     optional bytes options = 5; // NTabletClient::TTabletCellOptions
+    optional int32 config_version = 6;
 }
 
 message TUpdateCellSlotInfo

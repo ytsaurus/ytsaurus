@@ -20,7 +20,7 @@ public:
     TCellManager(
         TCellConfigPtr config,
         NRpc::IChannelFactoryPtr channelFactory,
-        IAlienCellPeerChannelFactoryPtr foreignChannelFactory,
+        IAlienCellPeerChannelFactoryPtr alienChannelFactory,
         TPeerId selfId);
 
     TCellId GetCellId() const;

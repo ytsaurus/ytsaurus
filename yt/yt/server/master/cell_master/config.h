@@ -14,6 +14,8 @@
 
 #include <yt/yt/server/master/cell_server/config.h>
 
+#include <yt/yt/server/master/chaos_server/config.h>
+
 #include <yt/yt/server/master/node_tracker_server/config.h>
 
 #include <yt/yt/server/master/object_server/config.h>
@@ -30,7 +32,7 @@
 
 #include <yt/yt/server/lib/timestamp_server/config.h>
 
-#include <yt/yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/election/config.h>
 
@@ -39,6 +41,8 @@
 #include <yt/yt/ytlib/transaction_client/config.h>
 
 #include <yt/yt/ytlib/program/config.h>
+
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
 
@@ -295,6 +299,8 @@ public:
 
     bool EnableNetworking;
 
+    NApi::NNative::TConnectionConfigPtr ClusterConnection;
+
     TCellMasterConfig();
 };
 
@@ -339,6 +345,7 @@ public:
     NChunkServer::TDynamicChunkManagerConfigPtr ChunkManager;
     NCellServer::TDynamicCellManagerConfigPtr CellManager;
     NTabletServer::TDynamicTabletManagerConfigPtr TabletManager;
+    NChaosServer::TDynamicChaosManagerConfigPtr ChaosManager;
     NNodeTrackerServer::TDynamicNodeTrackerConfigPtr NodeTracker;
     NObjectServer::TDynamicObjectManagerConfigPtr ObjectManager;
     NSecurityServer::TDynamicSecurityManagerConfigPtr SecurityManager;

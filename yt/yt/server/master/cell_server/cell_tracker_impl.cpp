@@ -373,14 +373,14 @@ void TCellTrackerImpl::SchedulePeerAssignment(TCellBase* cell, ICellBalancer* ba
     int assignCount = 0;
 
     // Try to assign missing peers.
-    for (TPeerId id = 0; id < static_cast<int>(cell->Peers().size()); ++id) {
-        if (cell->IsAlienPeer(id)) {
+    for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+        if (cell->IsAlienPeer(peerId)) {
             continue;
         }
 
-        if (peers[id].Descriptor.IsNull()) {
+        if (peers[peerId].Descriptor.IsNull()) {
             ++assignCount;
-            balancer->AssignPeer(cell, id);
+            balancer->AssignPeer(cell, peerId);
         }
     }
 
@@ -400,6 +400,10 @@ void TCellTrackerImpl::SchedulePeerRevocation(
     }
 
     for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+        if (cell->IsAlienPeer(peerId)) {
+            continue;
+        }
+
         const auto& peer = cell->Peers()[peerId];
         if (peer.Descriptor.IsNull()) {
             continue;
@@ -545,7 +549,11 @@ bool TCellTrackerImpl::IsDecommissioned(
 
 TPeerId TCellTrackerImpl::FindGoodFollower(const TCellBase* cell)
 {
-    for (TPeerId peerId = 0; peerId < static_cast<TPeerId>(cell->Peers().size()); ++peerId) {
+    for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+        if (cell->IsAlienPeer(peerId)) {
+            continue;
+        }
+
         const auto& peer = cell->Peers()[peerId];
         if (!CheckIfNodeCanHostCells(peer.Node)) {
             continue;
@@ -568,10 +576,14 @@ TPeerId TCellTrackerImpl::FindGoodFollower(const TCellBase* cell)
 
 TPeerId TCellTrackerImpl::FindGoodPeer(const TCellBase* cell)
 {
-    for (TPeerId id = 0; id < static_cast<TPeerId>(cell->Peers().size()); ++id) {
-        const auto& peer = cell->Peers()[id];
+    for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+        if (cell->IsAlienPeer(peerId)) {
+            continue;
+        }
+
+        const auto& peer = cell->Peers()[peerId];
         if (CheckIfNodeCanHostCells(peer.Node)) {
-            return id;
+            return peerId;
         }
     }
     return InvalidPeerId;

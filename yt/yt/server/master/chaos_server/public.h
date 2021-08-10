@@ -19,17 +19,23 @@ using NHydra::EPeerState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(IChaosManager)
+DECLARE_REFCOUNTED_CLASS(TAlienCellSynchronizerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChaosManagerConfig)
 
 DECLARE_REFCOUNTED_CLASS(TChaosPeerConfig)
 DECLARE_REFCOUNTED_CLASS(TChaosHydraConfig)
+
+DECLARE_REFCOUNTED_STRUCT(IChaosManager)
+DECLARE_REFCOUNTED_STRUCT(IAlienCellSynchronizer)
+DECLARE_REFCOUNTED_CLASS(TAlienClusterRegistry)
 
 using TChaosCellBundleId = NCellServer::TCellBundleId;
 using TChaosCellId = NCellServer::TTamedCellId;
 
 DECLARE_ENTITY_TYPE(TChaosCellBundle, TChaosCellBundleId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TChaosCell, TChaosCellId, NObjectClient::TDirectObjectIdHash)
+
+constexpr int TypicalAlienPeerCount = 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 

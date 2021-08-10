@@ -1,0 +1,34 @@
+package NYT.NChaosServer.NProto;
+
+import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TAlienCellDescriptorLite
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    required int32 config_version = 2;
+}
+
+message TAlienPeerDescriptor
+{
+    required int32 peer_id = 1;
+    required NNodeTrackerClient.NProto.TNodeDescriptor node_descriptor = 2;
+}
+
+message TAlienCellDescriptor
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    required int32 config_version = 2;
+    repeated TAlienPeerDescriptor alien_peers = 3;
+}
+
+message TAlienCellConstellation
+{
+    required int32 alien_cluster_index = 1;
+    repeated TAlienCellDescriptor alien_cells = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
