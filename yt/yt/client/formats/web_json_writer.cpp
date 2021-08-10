@@ -747,11 +747,15 @@ ISchemalessFormatWriterPtr CreateWriterForWebJson(
     const std::vector<TTableSchemaPtr>& schemas,
     IAsyncOutputStreamPtr output)
 {
-    return CreateWriterForWebJson(
-        ConvertTo<TWebJsonFormatConfigPtr>(&attributes),
-        std::move(nameTable),
-        schemas,
-        std::move(output));
+    try {
+        return CreateWriterForWebJson(
+            ConvertTo<TWebJsonFormatConfigPtr>(&attributes),
+            std::move(nameTable),
+            schemas,
+            std::move(output));
+    } catch (const TErrorException& ex) {
+        THROW_ERROR_EXCEPTION(EErrorCode::InvalidFormat, "Failed to parse config for web JSON format") << ex;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

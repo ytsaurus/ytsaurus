@@ -343,14 +343,18 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)
 {
-    auto config = ConvertTo<TSchemafulDsvFormatConfigPtr>(&attributes);
-    return CreateSchemalessWriterForSchemafulDsv(
-        config,
-        nameTable,
-        output,
-        enableContextSaving,
-        controlAttributesConfig,
-        keyColumnCount);
+    try {
+        auto config = ConvertTo<TSchemafulDsvFormatConfigPtr>(&attributes);
+        return CreateSchemalessWriterForSchemafulDsv(
+            config,
+            nameTable,
+            output,
+            enableContextSaving,
+            controlAttributesConfig,
+            keyColumnCount);
+    } catch (const TErrorException& ex) {
+        THROW_ERROR_EXCEPTION(EErrorCode::InvalidFormat, "Failed to parse config for schemaful DSV format") << ex;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

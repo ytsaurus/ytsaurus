@@ -33,6 +33,7 @@ FailedToFetchDynamicConfig = 2600
 DuplicateMatchingDynamicConfigs = 2601
 UnrecognizedDynamicConfigOption = 2602
 InvalidDynamicConfig = 2604
+InvalidFormat = 2800
 ControllerMemoryLimitExceeded = 4416
 ContainerDoesNotExist = 12004
 

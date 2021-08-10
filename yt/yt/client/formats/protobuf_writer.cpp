@@ -944,15 +944,19 @@ ISchemalessFormatWriterPtr CreateWriterForProtobuf(
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)
 {
-    auto config = ConvertTo<TProtobufFormatConfigPtr>(&attributes);
-    return CreateWriterForProtobuf(
-        config,
-        schemas,
-        nameTable,
-        output,
-        enableContextSaving,
-        controlAttributesConfig,
-        keyColumnCount);
+    try {
+        auto config = ConvertTo<TProtobufFormatConfigPtr>(&attributes);
+        return CreateWriterForProtobuf(
+            config,
+            schemas,
+            nameTable,
+            output,
+            enableContextSaving,
+            controlAttributesConfig,
+            keyColumnCount);
+    } catch (const TErrorException& ex) {
+        THROW_ERROR_EXCEPTION(EErrorCode::InvalidFormat, "Failed to parse config for protobuf format") << ex;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

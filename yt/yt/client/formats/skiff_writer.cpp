@@ -1,5 +1,6 @@
 #include "skiff_writer.h"
 
+#include "public.h"
 #include "schemaless_writer_adapter.h"
 #include "skiff_yson_converter.h"
 
@@ -1042,27 +1043,31 @@ ISchemalessFormatWriterPtr CreateWriterForSkiff(
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)
 {
-    auto config = NYTree::ConvertTo<TSkiffFormatConfigPtr>(attributes);
-    auto skiffSchemas = ParseSkiffSchemas(config->SkiffSchemaRegistry, config->TableSkiffSchemas);
+    try {
+        auto config = NYTree::ConvertTo<TSkiffFormatConfigPtr>(attributes);
+        auto skiffSchemas = ParseSkiffSchemas(config->SkiffSchemaRegistry, config->TableSkiffSchemas);
 
-    auto copySchemas = schemas;
-    if (config->OverrideIntermediateTableSchema) {
-        Y_VERIFY(!schemas.empty());
-        if (!IsTrivialIntermediateSchema(*schemas[0])) {
-            THROW_ERROR_EXCEPTION("Cannot use \"override_intermediate_table_schema\" since input table #0 has nontrivial schema")
-                << TErrorAttribute("schema", *schemas[0]);
+        auto copySchemas = schemas;
+        if (config->OverrideIntermediateTableSchema) {
+            Y_VERIFY(!schemas.empty());
+            if (!IsTrivialIntermediateSchema(*schemas[0])) {
+                THROW_ERROR_EXCEPTION("Cannot use \"override_intermediate_table_schema\" since input table #0 has nontrivial schema")
+                    << TErrorAttribute("schema", *schemas[0]);
+            }
+            copySchemas[0] = New<TTableSchema>(*config->OverrideIntermediateTableSchema);
         }
-        copySchemas[0] = New<TTableSchema>(*config->OverrideIntermediateTableSchema);
-    }
 
-    return CreateWriterForSkiff(
-        skiffSchemas,
-        std::move(nameTable),
-        copySchemas,
-        std::move(output),
-        enableContextSaving,
-        std::move(controlAttributesConfig),
-        keyColumnCount);
+        return CreateWriterForSkiff(
+            skiffSchemas,
+            std::move(nameTable),
+            copySchemas,
+            std::move(output),
+            enableContextSaving,
+            std::move(controlAttributesConfig),
+            keyColumnCount);
+    } catch (const TErrorException& ex) {
+        THROW_ERROR_EXCEPTION(EErrorCode::InvalidFormat, "Failed to parse config for Skiff format") << ex;
+    }
 }
 
 ISchemalessFormatWriterPtr CreateWriterForSkiff(

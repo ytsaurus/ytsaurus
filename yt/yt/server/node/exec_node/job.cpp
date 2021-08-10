@@ -2132,7 +2132,8 @@ private:
             error.FindMatching(EErrorCode::SetupCommandFailed) ||
             error.FindMatching(EErrorCode::GpuJobWithoutLayers) ||
             error.FindMatching(EErrorCode::GpuCheckCommandIncorrect) ||
-            error.FindMatching(EErrorCode::TmpfsOverflow);
+            error.FindMatching(EErrorCode::TmpfsOverflow) ||
+            error.FindMatching(NFormats::EErrorCode::InvalidFormat);
     }
 
     void EnrichStatisticsWithGpuInfo(TStatistics* statistics)

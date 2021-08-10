@@ -2079,3 +2079,103 @@ class TestRepairExecNode(YTEnvSetup):
         repair_exec_node(node_id, ["slot0"])
 
         wait(lambda: not is_disabled())
+
+
+##################################################################
+
+
+class TestArtifactInvalidFormat(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    USE_PORTO = True
+
+    def _prepare_tables(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"first": "second"})
+        create("table", "//tmp/table")
+        write_table("//tmp/table",  [{"key_first": "value_first", "key_second": 42},
+                                     {"key_first": "Value_second", "key_second": 43}])
+
+    def _run_map_with_format(self, fmt):
+        map(
+            command='echo "{\\"key1\\": \\"value1\\", \\"size\\": $(wc -l <table)}"',
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "file_paths": ["<format=" + fmt + ">//tmp/table"],
+                    "output_format": "json"
+                },
+                "max_failed_job_count": 1,
+            },
+        )
+
+    @authors("gepardo")
+    def test_bad_skiff(self):
+        # This test reproduces YT-14726.
+        self._prepare_tables()
+        bad_skiff_format = """<
+    "table_skiff_schemas" = [
+        "$table"
+    ];
+    "skiff_schema_registry" = {
+        "table" = {
+            "children" = [
+                {
+                    "name" = "key_first";
+                    "wire_type" = "string32"
+                };
+                {
+                    "wire_type" = "int64"
+                };
+            ];
+            "wire_type" = "tuple"
+        }
+    }
+>skiff"""
+        with raises_yt_error(yt_error_codes.InvalidFormat):
+            self._run_map_with_format(bad_skiff_format)
+
+    @authors("gepardo")
+    def test_bad_protobuf(self):
+        self._prepare_tables()
+        bad_protobuf_format = "protobuf"
+        with raises_yt_error(yt_error_codes.InvalidFormat):
+            self._run_map_with_format(bad_protobuf_format)
+
+    @authors("gepardo")
+    def test_bad_format(self):
+        self._prepare_tables()
+        with raises_yt_error('Invalid format name "bad-format"'):
+            self._run_map_with_format("bad-format")
+
+    @authors("gepardo")
+    def test_bad_dsv(self):
+        self._prepare_tables()
+        bad_dsv_format = "<key_value_separator = %true>dsv"
+        with raises_yt_error(yt_error_codes.InvalidFormat):
+            self._run_map_with_format(bad_dsv_format)
+
+    @authors("gepardo")
+    def test_bad_yamred_dsv(self):
+        self._prepare_tables()
+        bad_dsv_format = '<enable_escaping = "some_long_string">yamred_dsv'
+        with raises_yt_error(yt_error_codes.InvalidFormat):
+            self._run_map_with_format(bad_dsv_format)
+
+    @authors("gepardo")
+    def test_bad_schemaful_dsv(self):
+        self._prepare_tables()
+        bad_dsv_format = '<enable_escaping = "some_long_string">schemaful_dsv'
+        with raises_yt_error(yt_error_codes.InvalidFormat):
+            self._run_map_with_format(bad_dsv_format)
+
+    @authors("gepardo")
+    def test_bad_web_json(self):
+        self._prepare_tables()
+        bad_web_json_format = '<field_weight_limit = -42>web_json'
+        with raises_yt_error(yt_error_codes.InvalidFormat):
+            self._run_map_with_format(bad_web_json_format)
