@@ -1282,6 +1282,9 @@ private:
         if (request->has_recursive()) {
             options.Recursive = request->recursive();
         }
+        if (request->has_force()) {
+            options.Force = request->force();
+        }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }

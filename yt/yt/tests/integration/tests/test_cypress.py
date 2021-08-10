@@ -3361,6 +3361,14 @@ class TestCypress(YTEnvSetup):
         remove("{}/sample/@folder_id".format(object_map))
         assert not exists("{}/sample/@folder_id".format(object_map))
 
+    @authors("cookiedoth")
+    def test_force(self):
+        set("//sys/@config/cypress_manager/forbid_set_command", True)
+        create("map_node", "//tmp/a")
+        with pytest.raises(YtError):
+            set("//tmp/a", {"x": "y"})
+        set("//tmp/a", {"x": "y"}, force=True)
+
 
 ##################################################################
 
