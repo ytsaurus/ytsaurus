@@ -14,6 +14,7 @@
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
+#include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/small_vector.h>
 #include <yt/yt/core/misc/small_set.h>
 
@@ -24,6 +25,7 @@
 namespace NYT::NJournalClient {
 
 using namespace NChunkClient;
+using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NApi::NNative;
 using namespace NYT::NErasure;
@@ -60,13 +62,32 @@ public:
             FirstRowIndex_,
             ReadRowCount_);
 
-        std::vector<TFuture<TRefCountedChunkMetaPtr>> metaFutures;
-        for (const auto& reader : Reader_->ChunkReaders_) {
-            metaFutures.push_back(reader->GetMeta(Options_));
+        const auto& chunkReaders = Reader_->ChunkReaders_;
+
+        MetaFutures_.reserve(chunkReaders.size());
+        Replicas_.reserve(chunkReaders.size());
+        for (int index = 0; index < std::ssize(chunkReaders); ++index) {
+            const auto& reader = chunkReaders[index];
+
+            auto& replica = Replicas_.emplace_back();
+            replica.ChunkReader = reader;
+            replica.PartIndex = DecodeChunkId(reader->GetChunkId()).ReplicaIndex;
+            YT_VERIFY(IndexToReplica_.emplace(replica.PartIndex, &replica).second);
+
+            MetaFutures_.push_back(reader->GetMeta(Options_));
         }
 
-        return AllSet(std::move(metaFutures))
-            .Apply(BIND(&TReadRowsSession::OnGotReplicaMetas, MakeStrong(this)));
+        Promise_.OnCanceled(BIND(&TErasurePartsReader::TReadRowsSession::CancelMetaFutures, MakeWeak(this)));
+
+        for (int index = 0; index < std::ssize(chunkReaders); ++index) {
+            // NB: Future subscription might trigger immediate subscriber execution and OnGotReplicaMeta
+            // requires all meta futures to be present, so we firstly create all meta futures and then subscribe to them.
+            const auto& metaFuture = MetaFutures_[index];
+            metaFuture
+                .Subscribe(BIND(&TErasurePartsReader::TReadRowsSession::OnGotReplicaMeta, MakeStrong(this), index));
+        }
+
+        return Promise_.ToFuture();
     }
 
 private:
@@ -77,9 +98,10 @@ private:
 
     const NLogging::TLogger& Logger;
 
+    const TPromise<std::vector<std::vector<TSharedRef>>> Promise_ = NewPromise<std::vector<std::vector<TSharedRef>>>();
+
     struct TReplica
     {
-        int SequenceIndex;
         int PartIndex;
         IChunkReaderPtr ChunkReader;
         int RowCount;
@@ -91,78 +113,155 @@ private:
     int MinAvailableRowCount_ = Max<int>();
     int AdjustedReadRowCount_ = -1;
 
-    TFuture<std::vector<std::vector<TSharedRef>>> OnGotReplicaMetas(const std::vector<TErrorOr<TRefCountedChunkMetaPtr>>& metaOrErrors)
+    std::vector<TFuture<TRefCountedChunkMetaPtr>> MetaFutures_;
+    int MetaResponseCount_ = 0;
+
+    bool ReadStarted_ = false;
+    bool SlowPathScheduled_ = false;
+
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, ReplicasLock_);
+
+    void OnGotReplicaMeta(int index, const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
-        YT_LOG_DEBUG("Chunk metas received (Metas: {%v})",
-            MakeFormattableView(metaOrErrors, [&] (auto* builder, const auto& metaOrError) {
-                const auto& reader = Reader_->ChunkReaders_[std::distance(metaOrErrors.data(), &metaOrError)];
-                builder->AppendFormat("%v => ",
-                    DecodeChunkId(reader->GetChunkId()).ReplicaIndex);
-                if (metaOrError.IsOK()) {
-                    const auto& meta = metaOrError.Value();
-                    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
-                    builder->AppendFormat("{RowCount: %v}",
-                        miscExt.row_count());
-                } else {
-                    builder->AppendFormat("<error>");
-                }
-            }));
-
-        YT_VERIFY(Reader_->ChunkReaders_.size() == metaOrErrors.size());
-        Replicas_.reserve(metaOrErrors.size());
-        for (int index = 0; index < static_cast<int>(metaOrErrors.size()); ++index) {
-            const auto& metaOrError = metaOrErrors[index];
-            auto& replica = Replicas_.emplace_back();
-            replica.SequenceIndex = index;
-            replica.ChunkReader = Reader_->ChunkReaders_[index];
-            replica.PartIndex = DecodeChunkId(replica.ChunkReader->GetChunkId()).ReplicaIndex;
-            IndexToReplica_[replica.PartIndex] = &replica;
-            if (metaOrError.IsOK()) {
-                const auto& meta = metaOrError.Value();
-                auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
-                replica.RowCount = miscExt.row_count();
-                replica.DataSize = miscExt.uncompressed_data_size();
-                replica.Available = true;
-            } else {
-                YT_LOG_DEBUG(metaOrError, "Replica dropped: chunk meta cannot be obtained (Index: %v)",
-                    replica.PartIndex);
-            }
+        // NB: Meta future cancelation might happen with #ReplicasLock_ acquired, so this check is performed
+        // before lock acquisition to avoid deadlock.
+        if (metaOrError.FindMatching(NYT::EErrorCode::Canceled)) {
+            return;
         }
 
-        for (auto& replica : Replicas_) {
-            i64 relevantRowCount = replica.RowCount - FirstRowIndex_;
-            if (relevantRowCount <= 0) {
-                YT_LOG_DEBUG("Replica dropped: no relevant rows present (Index: %v, ReplicaRowCount: %v, SessionFirstRowIndex: %v)",
-                    replica.PartIndex,
-                    replica.RowCount,
-                    FirstRowIndex_);
-                replica.Available = false;
-                continue;
-            }
+        auto guard = Guard(ReplicasLock_);
 
-            i64 relevantDataSize = static_cast<i64>(replica.DataSize * relevantRowCount / replica.RowCount);
-            if (replica.RowCount < FirstRowIndex_ + ReadRowCount_ && relevantDataSize < Reader_->Config_->ReplicaDataSizeReadThreshold) {
-                YT_LOG_DEBUG("Replica dropped: too few relevant data (Index: %v, RelevantDataSize: %v)",
-                    replica.PartIndex,
-                    relevantDataSize);
-                replica.Available = false;
-                continue;
-            }
+        ++MetaResponseCount_;
 
-            MinAvailableRowCount_ = std::min(MinAvailableRowCount_, replica.RowCount);
+        if (ReadStarted_) {
+            YT_LOG_DEBUG("Replica dropped: read already started (Index: %v)",
+                index);
+            return;
         }
 
+        YT_VERIFY(index >= 0);
+        YT_VERIFY(index < std::ssize(Replicas_));
+        auto& replica = Replicas_[index];
+
+        if (metaOrError.IsOK()) {
+            const auto& meta = metaOrError.Value();
+            RegisterReplicaMeta(index, meta);
+        } else {
+            YT_LOG_DEBUG(metaOrError, "Replica dropped: chunk meta cannot be obtained (Index: %v)",
+                replica.PartIndex);
+        }
+
+        if (MetaResponseCount_ == std::ssize(MetaFutures_) && !CanRunSlowPath()) {
+            auto availableIndices = GetAvailableIndices();
+            auto erasedIndices = GetErasedIndices(availableIndices);
+
+            auto error = TError("Erasure journal chunk %v cannot be read: codec is unable to perform repair from given replicas",
+                Reader_->ChunkId_)
+                << TErrorAttribute("needed_row_count", FirstRowIndex_ + ReadRowCount_)
+                << TErrorAttribute("min_available_row_count", MinAvailableRowCount_)
+                << TErrorAttribute("erased_indices", erasedIndices)
+                << TErrorAttribute("available_indices", availableIndices);
+            Promise_.Set(error);
+        }
+    }
+
+    void RegisterReplicaMeta(int replicaIndex, const TRefCountedChunkMetaPtr& meta)
+    {
+        VERIFY_SPINLOCK_AFFINITY(ReplicasLock_);
+
+        auto& replica = Replicas_[replicaIndex];
+
+        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
+        replica.RowCount = miscExt.row_count();
+        replica.DataSize = miscExt.uncompressed_data_size();
+
+        YT_LOG_DEBUG("Got replica meta (Index: %v, RowCount: %v, DataSize: %v)",
+            replicaIndex,
+            replica.RowCount,
+            replica.DataSize);
+
+        i64 relevantRowCount = replica.RowCount - FirstRowIndex_;
+        if (relevantRowCount <= 0) {
+            YT_LOG_DEBUG("Replica dropped: no relevant rows present (Index: %v, ReplicaRowCount: %v, SessionFirstRowIndex: %v)",
+                replica.PartIndex,
+                replica.RowCount,
+                FirstRowIndex_);
+            return;
+        }
+
+        i64 relevantDataSize = static_cast<i64>(replica.DataSize * relevantRowCount / replica.RowCount);
+        if (replica.RowCount < FirstRowIndex_ + ReadRowCount_ && relevantDataSize < Reader_->Config_->ReplicaDataSizeReadThreshold) {
+            YT_LOG_DEBUG("Replica dropped: too few relevant data (Index: %v, RelevantDataSize: %v)",
+                replica.PartIndex,
+                relevantDataSize);
+            return;
+        }
+
+        YT_LOG_DEBUG("Replica is available (Index: %v)", replicaIndex);
+
+        replica.Available = true;
+
+        MinAvailableRowCount_ = std::min(MinAvailableRowCount_, replica.RowCount);
         AdjustedReadRowCount_ = std::min(ReadRowCount_, MinAvailableRowCount_ - FirstRowIndex_);
+
+        if (CanRunFastPath()) {
+            MaybeStartRead();
+        } else if (CanRunSlowPath()) {
+            if (MetaResponseCount_ == std::ssize(MetaFutures_)) {
+                // No hope to run fast path, so start slow path immediately.
+                MaybeStartRead();
+            } else if (!SlowPathScheduled_) {
+                auto slowPathDelay = Reader_->Config_->SlowPathDelay;
+
+                YT_LOG_DEBUG("Scheduling slow path execution (SlowPathDelay: %v)",
+                    Reader_->Config_->SlowPathDelay);
+
+                TDelayedExecutor::Submit(
+                    BIND(&TErasurePartsReader::TReadRowsSession::OnSlowPathDelayExpired, MakeStrong(this)),
+                    slowPathDelay);
+                SlowPathScheduled_ = true;
+            }
+        }
+    }
+
+    void OnSlowPathDelayExpired()
+    {
+        YT_LOG_DEBUG("Slow path delay expired");
+
+        auto guard = Guard(ReplicasLock_);
+        MaybeStartRead();
+    }
+
+    void MaybeStartRead()
+    {
+        VERIFY_SPINLOCK_AFFINITY(ReplicasLock_);
+
+        if (ReadStarted_) {
+            return;
+        }
+
+        ReadStarted_ = true;
+
+        for (const auto& metaFuture : MetaFutures_) {
+            metaFuture.Cancel(TError(NYT::EErrorCode::Canceled, "Read started"));
+        }
 
         YT_LOG_DEBUG("Available replicas determined (MinAvailableRowCount: %v, AdjustedReadRowCount: %v)",
             MinAvailableRowCount_,
             AdjustedReadRowCount_);
 
-        return IsFastPath() ? DoRunFastPath() : DoRunSlowPath();
+        if (CanRunFastPath()) {
+            Promise_.SetFrom(DoRunFastPath());
+        } else {
+            YT_VERIFY(CanRunSlowPath());
+            Promise_.SetFrom(DoRunSlowPath());
+        }
     }
 
-    bool IsFastPath()
+    bool CanRunFastPath()
     {
+        VERIFY_SPINLOCK_AFFINITY(ReplicasLock_);
+
         TPartIndexSet set;
         for (int index : Reader_->PartIndices_) {
             set.insert(index);
@@ -175,8 +274,19 @@ private:
         return set.empty();
     }
 
+    bool CanRunSlowPath()
+    {
+        VERIFY_SPINLOCK_AFFINITY(ReplicasLock_);
+
+        auto availableIndices = GetAvailableIndices();
+        auto erasedIndices = GetErasedIndices(availableIndices);
+        return Reader_->Codec_->CanRepair(erasedIndices);
+    }
+
     TFuture<std::vector<std::vector<TSharedRef>>> DoRunFastPath()
     {
+        VERIFY_SPINLOCK_AFFINITY(ReplicasLock_);
+
         YT_LOG_DEBUG("Session will run fast path");
 
         std::vector<TFuture<std::vector<TSharedRef>>> futures;
@@ -195,6 +305,8 @@ private:
 
     TPartIndexList GetAvailableIndices()
     {
+        VERIFY_SPINLOCK_AFFINITY(ReplicasLock_);
+
         NErasure::TPartIndexList result;
         for (const auto& replica : Replicas_) {
             if (replica.Available) {
@@ -219,27 +331,11 @@ private:
         return list;
     }
 
-    TPartIndexList GetRepairIndices(const TPartIndexList& availableIndices, const TPartIndexList& erasedIndices)
+    TPartIndexList GetRepairIndices(const TPartIndexList& erasedIndices)
     {
-        auto throwError = [&] {
-            THROW_ERROR_EXCEPTION("Erasure journal chunk %v cannot be read: codec is unable to perform repair from given replicas",
-                Reader_->ChunkId_)
-                << TErrorAttribute("needed_row_count", FirstRowIndex_ + ReadRowCount_)
-                << TErrorAttribute("min_available_row_count", MinAvailableRowCount_)
-                << TErrorAttribute("erased_indices", erasedIndices)
-                << TErrorAttribute("available_indices", availableIndices);
-        };
-
-        auto optionalRepairIndices = Reader_->Codec_->GetRepairIndices(erasedIndices);
-        if (!optionalRepairIndices) {
-            throwError();
-        }
-        for (int index : *optionalRepairIndices) {
-            if (Find(availableIndices, index) == availableIndices.end()) {
-                throwError();
-            }
-        }
-        return *optionalRepairIndices;
+        auto repairIndices = Reader_->Codec_->GetRepairIndices(erasedIndices);
+        YT_VERIFY(repairIndices);
+        return *repairIndices;
     }
 
     TPartIndexList GetFetchIndices(const TPartIndexList& erasedIndices, const TPartIndexList& repairIndices)
@@ -260,9 +356,11 @@ private:
 
     TFuture<std::vector<std::vector<TSharedRef>>> DoRunSlowPath()
     {
+        VERIFY_SPINLOCK_AFFINITY(ReplicasLock_);
+
         auto availableIndicies = GetAvailableIndices();
         auto erasedIndices = GetErasedIndices(availableIndicies);
-        auto repairIndices = GetRepairIndices(availableIndicies, erasedIndices);
+        auto repairIndices = GetRepairIndices(erasedIndices);
         auto fetchIndices = GetFetchIndices(erasedIndices, repairIndices);
 
         YT_LOG_DEBUG("Session will run slow path (AvailableIndices: %v, ErasedIndices: %v, RepairIndices: %v, FetchIndices: %v)",
@@ -324,6 +422,8 @@ private:
 
     TFuture<std::vector<TSharedRef>> RequestRowsFromReplica(const TReplica& replica)
     {
+        VERIFY_SPINLOCK_AFFINITY(ReplicasLock_);
+
         int partIndex = replica.PartIndex;
         i64 estimatedSize = static_cast<i64>(AdjustedReadRowCount_ * replica.DataSize / replica.RowCount);
         YT_LOG_DEBUG("Requesting rows from replica (PartIndex: %v, EstimatedSize: %v)",
@@ -350,6 +450,13 @@ private:
 
                 return rows;
             }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+    }
+
+    void CancelMetaFutures(const TError& error)
+    {
+        for (const auto& metaFuture : MetaFutures_) {
+            metaFuture.Cancel(error);
+        }
     }
 };
 
