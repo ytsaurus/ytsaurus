@@ -69,7 +69,8 @@ TCellMasterConfig::TCellMasterConfig()
         .Default(false);
     RegisterParameter("enable_networking", EnableNetworking)
         .Default(true);
-    RegisterParameter("cluster_connection", ClusterConnection);
+    RegisterParameter("cluster_connection", ClusterConnection)
+        .Optional();
 
     RegisterPostprocessor([&] () {
         if (SecondaryMasters.size() > MaxSecondaryMasterCells) {
