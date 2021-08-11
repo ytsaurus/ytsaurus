@@ -261,6 +261,10 @@ void DoConfigure(const TYTAllocConfigPtr& config, bool fromEnv)
         SetEnableEagerMemoryRelease(*config->EnableEagerMemoryRelease);
     }
 
+    if (config->EnableMadvisePopulate) {
+        SetEnableMadvisePopulate(*config->EnableMadvisePopulate);
+    }
+
     if (config->LargeUnreclaimableCoeff) {
         SetLargeUnreclaimableCoeff(*config->LargeUnreclaimableCoeff);
     }
