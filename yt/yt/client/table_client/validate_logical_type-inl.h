@@ -11,6 +11,8 @@
 
 #include <util/charset/utf8.h>
 
+#include <cmath>
+
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,10 +157,12 @@ template <ESimpleLogicalValueType type>
 Y_FORCE_INLINE void ValidateSimpleLogicalType(double value)
 {
     if constexpr (type == ESimpleLogicalValueType::Float) {
-        NDetail::ValidateNumericRange(
-            value,
-            NDetail::GetLogicalTypeMin<type>(),
-            NDetail::GetLogicalTypeMax<type>());
+        if (!std::isinf(value) && !std::isnan(value)) {
+            NDetail::ValidateNumericRange(
+                value,
+                NDetail::GetLogicalTypeMin<type>(),
+                NDetail::GetLogicalTypeMax<type>());
+        }
     } else if constexpr (type == ESimpleLogicalValueType::Double)  {
         // do nothing
     } else {

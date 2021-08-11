@@ -1126,6 +1126,10 @@ class TestLogicalType(YTEnvSetup):
         type_tester.check_good_value("float", -3.14)
         type_tester.check_good_value("float", -3.14e35)
         type_tester.check_good_value("float", 3.14e35)
+        type_tester.check_good_value("float", float("inf"))
+        type_tester.check_good_value("float", float("-inf"))
+        type_tester.check_good_value("float", float("nan"))
+
         type_tester.check_bad_value("float", 3.14e135)
         type_tester.check_bad_value("float", -3.14e135)
 
@@ -1142,6 +1146,33 @@ class TestLogicalType(YTEnvSetup):
         type_tester.check_bad_value("json", "}{")
         type_tester.check_bad_value("json", '{3: "wrong key type"}')
         type_tester.check_bad_value("json", "Non-utf8: \xFF")
+
+    @authors("ermolovd")
+    def test_special_float_values(self):
+        create(
+            "table",
+            "//test-table",
+            attributes={
+                "schema": [
+                    {"name": "value", "type": "float"}
+                ]
+            },
+        )
+        write_table("//test-table", [
+            {"value": float("nan")},
+            {"value": float("-nan")},
+            {"value": float("inf")},
+            {"value": float("+inf")},
+            {"value": float("-inf")},
+        ])
+        rows = read_table("//test-table")
+        assert [str(r["value"]) for r in rows] == [
+            "nan",
+            "nan",
+            "inf",
+            "inf",
+            "-inf",
+        ]
 
     @authors("ermolovd")
     def test_bad_alter_table(self):
