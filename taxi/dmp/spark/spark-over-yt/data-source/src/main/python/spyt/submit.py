@@ -10,15 +10,20 @@ from subprocess import Popen, PIPE
 from pyspark.find_spark_home import _find_spark_home
 from py4j.protocol import Py4JJavaError
 from enum import Enum
+from datetime import timedelta
 
 
-def launch_gateway():
+def launch_gateway(memory="512m",
+                   java_home=None,
+                   java_opts=None):
     spark_home = _find_spark_home()
     classpath = [os.path.join(spark_home, "jars", name) for name in os.listdir(os.path.join(spark_home, "jars"))]
-    command = ["java",
-               "-cp",
-               ":".join(classpath),
-               "ru.yandex.spark.yt.submit.PythonGatewayServer"]
+
+    java = os.path.join(java_home, "bin", "java") if java_home else "java"
+
+    command = [java, "-Xmx{}".format(memory)]
+    command += java_opts or []
+    command += ["-cp", ":".join(classpath), "ru.yandex.spark.yt.submit.PythonGatewayServer"]
 
     conn_info_dir = tempfile.mkdtemp()
     try:
@@ -70,14 +75,32 @@ def shutdown_gateway(gateway):
 
 
 @contextmanager
-def java_gateway():
-    gateway = launch_gateway()
+def java_gateway(*args, **kwargs):
+    gateway = launch_gateway(*args, **kwargs)
     try:
         yield gateway
     except Py4JJavaError as e:
         raise RuntimeError(str(e))
     finally:
         shutdown_gateway(gateway)
+
+
+class RetryConfig(object):
+    def __new__(cls, *args, **kwargs):
+        instance = super(RetryConfig, cls).__new__(cls)
+        return instance
+
+    def __init__(self, enable_retry=True, retry_limit=10, retry_interval=timedelta(minutes=1)):
+        self.enable_retry = enable_retry
+        self.retry_limit = retry_limit
+        self.retry_interval = retry_interval
+
+    def _to_java(self, gateway):
+        jduration = gateway.jvm.ru.yandex.spark.yt.submit.RetryConfig.durationFromSeconds(
+            int(self.retry_interval.total_seconds()))
+        return gateway.jvm.ru.yandex.spark.yt.submit.RetryConfig(self.enable_retry,
+                                                                 self.retry_limit,
+                                                                 jduration)
 
 
 class SparkSubmissionClient(object):
@@ -94,8 +117,13 @@ class SparkSubmissionClient(object):
         jlauncher = self._jclient.newLauncher()
         return SparkLauncher(jlauncher, self.gateway)
 
-    def submit(self, launcher):
-        return self._jclient.submit(launcher._jlauncher)
+    def submit(self, launcher, retry_config = None):
+        if retry_config is None:
+            retry_config = RetryConfig()
+        jresult = self._jclient.submit(launcher._jlauncher, retry_config._to_java(self.gateway))
+        if jresult.isFailure():
+            raise RuntimeError(jresult.failed().get().getMessage())
+        return jresult.get()
 
     def get_status(self, submission_id):
         return SubmissionStatus.from_string(self._jclient.getStringStatus(submission_id))
@@ -110,6 +138,7 @@ class SubmissionStatus(Enum):
     KILLED = "KILLED"
     FAILED = "FAILED"
     ERROR = "ERROR"
+    UNDEFINED = "UNDEFINED"
 
     @staticmethod
     def from_string(name):
