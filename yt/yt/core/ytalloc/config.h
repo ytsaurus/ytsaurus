@@ -22,6 +22,7 @@ public:
     std::optional<int> StockpileThreadCount;
     std::optional<size_t> StockpileSize;
     std::optional<bool> EnableEagerMemoryRelease;
+    std::optional<bool> EnableMadvisePopulate;
     std::optional<double> LargeUnreclaimableCoeff;
     std::optional<size_t> MinLargeUnreclaimableBytes;
     std::optional<size_t> MaxLargeUnreclaimableBytes;
@@ -51,6 +52,8 @@ public:
             .GreaterThan(0)
             .Default();
         RegisterParameter("enable_eager_memory_release", EnableEagerMemoryRelease)
+            .Default();
+        RegisterParameter("enable_madvise_populate", EnableMadvisePopulate)
             .Default();
         RegisterParameter("large_unreclaimable_coeff", LargeUnreclaimableCoeff)
             .Default();
