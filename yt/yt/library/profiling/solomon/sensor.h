@@ -73,7 +73,7 @@ class TSimpleTimeCounter
 public:
     virtual void Add(TDuration delta) override;
     
-    TDuration GetValue();
+    virtual TDuration GetValue() override;
 
 private:
     std::atomic<TDuration::TValue> Value_{0};

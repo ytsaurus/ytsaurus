@@ -16,8 +16,8 @@ public:
     ~TTableOutput() override;
 
 private:
-    void DoWrite(const void* buf, size_t len);
-    void DoFinish();
+    virtual void DoWrite(const void* buf, size_t len) override;
+    virtual void DoFinish() override;
 
     const std::unique_ptr<NFormats::IParser> Parser_;
 

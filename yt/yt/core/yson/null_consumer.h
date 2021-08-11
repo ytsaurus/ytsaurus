@@ -38,7 +38,7 @@ class TNullYsonConsumer
 
     virtual void OnEndAttributes() override;
 
-    virtual void OnRaw(TStringBuf /*yson*/, EYsonType /*type*/);
+    virtual void OnRaw(TStringBuf /*yson*/, EYsonType /*type*/) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -102,17 +102,17 @@ public:
         return ColumnMeta_;
     }
 
-    virtual TTimestamp GetMinTimestamp() const
+    virtual TTimestamp GetMinTimestamp() const override
     {
         return MinTimestamp_;
     }
 
-    virtual TTimestamp GetMaxTimestamp() const
+    virtual TTimestamp GetMaxTimestamp() const override
     {
         return MaxTimestamp_;
     }
 
-    virtual i64 GetMetaSize() const
+    virtual i64 GetMetaSize() const override
     {
         return MetaSize_;
     }

@@ -261,7 +261,7 @@ public:
 
     virtual TFuture<void> Close(
         TCloseRequest request,
-        i64 priority)
+        i64 priority) override
     {
         return BIND(&TIOEngineBase::DoClose, MakeStrong(this), std::move(request))
             .AsyncVia(CreateFixedPriorityInvoker(AuxInvoker_, priority))
@@ -270,7 +270,7 @@ public:
 
     virtual TFuture<void> FlushDirectory(
         TFlushDirectoryRequest request,
-        i64 priority)
+        i64 priority) override
     {
         return BIND(&TIOEngineBase::DoFlushDirectory, MakeStrong(this), std::move(request))
             .AsyncVia(CreateFixedPriorityInvoker(AuxInvoker_, priority))
