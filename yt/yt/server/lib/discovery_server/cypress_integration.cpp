@@ -37,7 +37,7 @@ public:
 private:
     const TGroupTreePtr GroupTree_;
 
-    bool DoInvoke(const IServiceContextPtr& context)
+    virtual bool DoInvoke(const IServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Exists);
         DISPATCH_YPATH_SERVICE_METHOD(List);

@@ -146,12 +146,12 @@ public:
     virtual void Terminate(const TError& /* error */) override
     { }
 
-    void SubscribeTerminated(const TCallback<void(const TError&)>& /* callback */)
+    virtual void SubscribeTerminated(const TCallback<void(const TError&)>& /* callback */) override
     {
         YT_UNIMPLEMENTED();
     }
 
-    void UnsubscribeTerminated(const TCallback<void(const TError&)>& /* callback */)
+    virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& /* callback */) override
     {
         YT_UNIMPLEMENTED();
     }

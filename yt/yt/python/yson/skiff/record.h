@@ -72,7 +72,7 @@ public:
     int mapping_ass_subscript(const Py::Object& key, const Py::Object& value) override;
     PyCxx_ssize_t mapping_length() override;
 
-    Py::Object iter();
+    virtual Py::Object iter() override;
 
     Py::Object GetItemsIterator();
     PYCXX_NOARGS_METHOD_DECL(TSkiffRecordPython, GetItemsIterator);
@@ -109,7 +109,7 @@ public:
 
     void Init(const TIntrusivePtr<TSkiffRecord>& record);
 
-    Py::Object iter();
+    virtual Py::Object iter() override;
 
     PyObject* iternext();
 

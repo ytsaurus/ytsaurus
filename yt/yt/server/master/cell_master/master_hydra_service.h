@@ -26,7 +26,7 @@ protected:
 
 private:
     virtual NHydra::IHydraManagerPtr GetHydraManager() override;
-    virtual TFuture<void> DoSyncWithUpstream();
+    virtual TFuture<void> DoSyncWithUpstream() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

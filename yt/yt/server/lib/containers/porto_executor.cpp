@@ -246,12 +246,12 @@ public:
             .Run();
     }
 
-    virtual void SubscribeFailed(const TCallback<void (const TError&)>& callback)
+    virtual void SubscribeFailed(const TCallback<void (const TError&)>& callback) override
     {
         Failed_.Subscribe(callback);
     }
 
-    virtual void UnsubscribeFailed(const TCallback<void (const TError&)>& callback)
+    virtual void UnsubscribeFailed(const TCallback<void (const TError&)>& callback) override
     {
         Failed_.Unsubscribe(callback);
     }

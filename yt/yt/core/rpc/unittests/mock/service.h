@@ -101,7 +101,7 @@ public:
         std::optional<TDuration>,
         GetExecutionDuration,
         (),
-        (const)
+        (const, override)
     );
 
     MOCK_METHOD(

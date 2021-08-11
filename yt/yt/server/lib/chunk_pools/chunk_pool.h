@@ -265,7 +265,7 @@ public:
     //! found out that all its siblings were actually empty (in this case we also mark all descendants
     //! of the job empty).
     //! For a completed job return value is undefined (yet safe to call).
-    virtual bool IsSplittable(TCookie cookie) const;
+    virtual bool IsSplittable(TCookie cookie) const override;
 
 protected:
     //! Registers the children of the job in the job splitting tree. If there is only one child,
