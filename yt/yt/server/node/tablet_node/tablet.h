@@ -5,8 +5,8 @@
 #include "partition.h"
 #include "store.h"
 #include "sorted_dynamic_comparer.h"
-#include "cached_row.h"
 #include "tablet_profiling.h"
+#include "row_cache.h"
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
@@ -29,37 +29,10 @@
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/ref_tracked.h>
 #include <yt/yt/core/misc/atomic_object.h>
-#include <yt/yt/core/misc/slab_allocator.h>
-#include <yt/yt/core/misc/concurrent_cache.h>
 
 #include <atomic>
 
 namespace NYT::NTabletNode {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TDeleteListFlusher
-{
-    ~TDeleteListFlusher();
-};
-
-struct TRowCache
-    : public TRefCounted
-    , public TDeleteListFlusher
-{
-    TSlabAllocator Allocator;
-    TConcurrentCache<TCachedRow> Cache;
-
-    // Rows with revision less than FlushIndex are considered outdated.
-    std::atomic<ui32> FlushIndex = 0;
-
-    TRowCache(
-        size_t elementCount,
-        const NProfiling::TProfiler& profiler,
-        IMemoryUsageTrackerPtr memoryTracker);
-};
-
-DEFINE_REFCOUNTED_TYPE(TRowCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -561,6 +534,8 @@ public:
 
     // COMPAT(babenko)
     static TTabletHunkWriterOptionsPtr CreateFallbackHunkWriterOptions(const TTabletStoreWriterOptionsPtr& storeWriterOptions);
+
+    const TRowCachePtr& GetRowCache() const;
 
 private:
     ITabletContext* const Context_;

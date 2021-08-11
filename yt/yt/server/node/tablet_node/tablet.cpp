@@ -82,21 +82,6 @@ void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, T
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDeleteListFlusher::~TDeleteListFlusher()
-{
-    FlushDeleteList();
-}
-
-TRowCache::TRowCache(
-    size_t elementCount,
-    const NProfiling::TProfiler& profiler,
-    IMemoryUsageTrackerPtr memoryTracker)
-    : Allocator(profiler, std::move(memoryTracker))
-    , Cache(elementCount)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TRuntimeTableReplicaData::Populate(TTableReplicaStatistics* statistics) const
 {
     statistics->set_current_replication_row_index(CurrentReplicationRowIndex.load());
@@ -1449,7 +1434,7 @@ void TTablet::ConfigureRowCache()
                     ->GetMemoryUsageTracker()
                     ->WithCategory(NNodeTrackerClient::EMemoryCategory::LookupRowsCache));
         } else {
-            RowCache_->Cache.SetCapacity(Settings_.MountConfig->LookupCacheRowsPerTablet);
+            RowCache_->GetCache()->SetCapacity(Settings_.MountConfig->LookupCacheRowsPerTablet);
         }
     } else if (RowCache_) {
         RowCache_.Reset();
@@ -1815,6 +1800,11 @@ TTabletHunkWriterOptionsPtr TTablet::CreateFallbackHunkWriterOptions(const TTabl
     hunkWriterOptions->ErasureCodec = storeWriterOptions->ErasureCodec;
     hunkWriterOptions->ChunksVital = storeWriterOptions->ChunksVital;
     return hunkWriterOptions;
+}
+
+const TRowCachePtr& TTablet::GetRowCache() const
+{
+    return RowCache_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

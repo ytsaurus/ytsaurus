@@ -304,6 +304,7 @@ private:
     {
         ScanTabletForRotation(slot, tablet);
         ScanTabletForFlush(slot, tablet);
+        ScanTabletForLookupCacheReallocation(tablet);
         ScanTabletForMemoryUsage(slot, tablet);
     }
 
@@ -358,8 +359,58 @@ private:
     {
         tablet->UpdateUnflushedTimestamp();
 
+        const auto& rowCache = tablet->GetRowCache();
+        if (rowCache && rowCache->GetReallocatingItems()) {
+            return;
+        }
+
         for (const auto& [storeId, store] : tablet->StoreIdMap()) {
             ScanStoreForFlush(slot, tablet, store);
+        }
+    }
+
+    void ScanTabletForLookupCacheReallocation(TTablet* tablet)
+    {
+        for (const auto& [storeId, store] : tablet->StoreIdMap()) {
+            if (!store->IsDynamic()) {
+                continue;
+            }
+
+            auto dynamicStore = store->AsDynamic();
+            if (dynamicStore->GetFlushState() == EStoreFlushState::Running) {
+                return;
+            }
+        }
+
+        const auto& rowCache = tablet->GetRowCache();
+
+        if (!rowCache || rowCache->GetReallocatingItems() || !rowCache->GetAllocator()->IsReallocationNeeded()) {
+            return;
+        }
+
+        rowCache->SetReallocatingItems(true);
+
+        tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
+            &TStoreFlusher::ReallocateLookupCacheMemory,
+            MakeStrong(this),
+            tablet));
+    }
+
+    void ReallocateLookupCacheMemory(TTablet* tablet)
+    {
+        const auto& rowCache = tablet->GetRowCache();
+
+        try {
+            auto reallocateResult = BIND(&TRowCache::ReallocateItems, rowCache, Logger)
+                .AsyncVia(ThreadPool_->GetInvoker())
+                .Run();
+
+            WaitFor(reallocateResult)
+                .ThrowOnError();
+
+            rowCache->SetReallocatingItems(false);
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Error reallocating cache memory (TabletId: %v)", tablet->GetId());
         }
     }
 
