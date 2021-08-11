@@ -149,6 +149,10 @@ public: \
     void Subscribe##name(const ::NYT::TCallback<TSignature>& callback); \
     void Unsubscribe##name(const ::NYT::TCallback<TSignature>& callback);
 
+#define DECLARE_SIGNAL_OVERRIDE(TSignature, name) \
+    void Subscribe##name(const ::NYT::TCallback<TSignature>& callback) override; \
+    void Unsubscribe##name(const ::NYT::TCallback<TSignature>& callback) override;
+
 #define DECLARE_INTERFACE_SIGNAL(TSignature, name) \
     virtual void Subscribe##name(const ::NYT::TCallback<TSignature>& callback) = 0; \
     virtual void Unsubscribe##name(const ::NYT::TCallback<TSignature>& callback) = 0;

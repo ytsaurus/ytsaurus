@@ -72,7 +72,7 @@ public:
         return result;
     }
 
-    void Persist(const TPersistenceContext& context)
+    void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;
         Persist(context, MaxBuckets_);
@@ -187,4 +187,3 @@ THistogramQuartiles ComputeHistogramQuartiles(const THistogramView& histogramVie
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
-

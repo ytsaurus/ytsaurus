@@ -69,13 +69,13 @@ public:
         return Connection_->GetEndpointAddress();
     }
 
-    virtual TTcpDispatcherStatistics GetStatistics() const
+    virtual TTcpDispatcherStatistics GetStatistics() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Connection_->GetStatistics();
     }
 
-    virtual TFuture<void> GetReadyFuture() const
+    virtual TFuture<void> GetReadyFuture() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Connection_->GetReadyFuture();
