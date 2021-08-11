@@ -37,16 +37,17 @@ TEncodingWriter::TEncodingWriter(
     , ChunkWriter_(std::move(chunkWriter))
     , BlockCache_(std::move(blockCache))
     , Logger(std::move(logger))
-    , Semaphore_(New<TAsyncSemaphore>(Config_->EncodeWindowSize))
+    , SizeSemaphore_(New<TAsyncSemaphore>(Config_->EncodeWindowSize))
+    , CodecSemaphore_(New<TAsyncSemaphore>(Config_->CompressionConcurrency))
     , Codec_(NCompression::GetCodec(Options_->CompressionCodec))
-    , CompressionInvoker_(CreateSerializedInvoker(CreateFixedPriorityInvoker(
+    , CompressionInvoker_(CreateFixedPriorityInvoker(
         NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
-        Config_->WorkloadDescriptor.GetPriority())))
+        Config_->WorkloadDescriptor.GetPriority()))
     , WritePendingBlockCallback_(BIND(
         &TEncodingWriter::WritePendingBlock,
         MakeWeak(this)).Via(CompressionInvoker_))
     , CompressionRatio_(Config_->DefaultCompressionRatio)
-    , CodecTime_({Options_->CompressionCodec, TDuration::MicroSeconds(0)})
+    , CodecTime_({Options_->CompressionCodec, TDuration::Zero()})
 { }
 
 void TEncodingWriter::WriteBlock(TSharedRef block, std::optional<int> groupIndex)
@@ -54,13 +55,23 @@ void TEncodingWriter::WriteBlock(TSharedRef block, std::optional<int> groupIndex
     EnsureOpen();
 
     UncompressedSize_ += block.Size();
-    Semaphore_->Acquire(block.Size());
+    SizeSemaphore_->Acquire(block.Size());
 
-    CompressionInvoker_->Invoke(BIND(
+    TPromise<TBlock> promise = NewPromise<TBlock>();
+    PendingBlocks_.Enqueue(promise.ToFuture());
+
+    YT_LOG_DEBUG("Pending block added (Block: %v)", AddedBlockIndex_);
+
+    CodecSemaphore_->AsyncAcquire(BIND(
         &TEncodingWriter::DoCompressBlock,
         MakeWeak(this),
         std::move(block),
-        groupIndex));
+        AddedBlockIndex_,
+        groupIndex,
+        std::move(promise)),
+        CompressionInvoker_);
+
+    ++AddedBlockIndex_;
 }
 
 void TEncodingWriter::WriteBlock(std::vector<TSharedRef> vectorizedBlock, std::optional<int> groupIndex)
@@ -68,15 +79,25 @@ void TEncodingWriter::WriteBlock(std::vector<TSharedRef> vectorizedBlock, std::o
     EnsureOpen();
 
     for (const auto& part : vectorizedBlock) {
-        Semaphore_->Acquire(part.Size());
+        SizeSemaphore_->Acquire(part.Size());
         UncompressedSize_ += part.Size();
     }
 
-    CompressionInvoker_->Invoke(BIND(
+    TPromise<TBlock> promise = NewPromise<TBlock>();
+    PendingBlocks_.Enqueue(promise.ToFuture());
+
+    YT_LOG_DEBUG("Pending block added (Block: %v)", AddedBlockIndex_);
+
+    CodecSemaphore_->AsyncAcquire(BIND(
         &TEncodingWriter::DoCompressVector,
         MakeWeak(this),
         std::move(vectorizedBlock),
-        groupIndex));
+        AddedBlockIndex_,
+        groupIndex,
+        std::move(promise)),
+        CompressionInvoker_);
+
+    ++AddedBlockIndex_;
 }
 
 void TEncodingWriter::EnsureOpen()
@@ -103,18 +124,26 @@ void TEncodingWriter::CacheUncompressedBlock(const TSharedRef& block, int blockI
     BlockCache_->PutBlock(blockId, EBlockType::UncompressedData, TBlock(block));
 }
 
-// Serialized compression invoker affinity (don't use thread affinity because of thread pool).
-void TEncodingWriter::DoCompressBlock(const TSharedRef& uncompressedBlock, std::optional<int> groupIndex)
+void TEncodingWriter::DoCompressBlock(
+    const TSharedRef& uncompressedBlock,
+    int blockIndex,
+    std::optional<int> groupIndex,
+    TPromise<TBlock> promise,
+    TAsyncSemaphoreGuard guard)
 {
     YT_LOG_DEBUG("Started compressing block (Block: %v, Codec: %v)",
-        AddedBlockIndex_,
+        blockIndex,
         Codec_->GetId());
 
     TBlock compressedBlock;
     compressedBlock.GroupIndex = groupIndex;
     {
         TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
-        TValueIncrementingTimingGuard<TFiberWallTimer> guard(&CodecTime_.CpuDuration);
+        TFiberWallTimer timer;
+        auto finally = Finally([&]{
+            auto guard = WriterGuard(CodecTimeLock_);
+            CodecTime_.CpuDuration += timer.GetElapsedTime();
+        });
         compressedBlock.Data = Codec_->Compress(uncompressedBlock);
     }
 
@@ -127,7 +156,7 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& uncompressedBlock, std::
     }
 
     YT_LOG_DEBUG("Finished compressing block (Block: %v, Codec: %v)",
-        AddedBlockIndex_,
+        blockIndex,
         Codec_->GetId());
 
     if (Any(BlockCache_->GetSupportedBlockTypes() & EBlockType::UncompressedData)) {
@@ -135,25 +164,39 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& uncompressedBlock, std::
             &TEncodingWriter::CacheUncompressedBlock,
             MakeWeak(this),
             uncompressedBlock,
-            AddedBlockIndex_));
+            blockIndex));
     }
 
     auto sizeToRelease = -static_cast<i64>(compressedBlock.Size()) + uncompressedBlock.Size();
-    ProcessCompressedBlock(compressedBlock, sizeToRelease);
+    ProcessCompressedBlock(sizeToRelease);
+
+    // We explicitly release the guard,
+    // because promise setting can involve write of the compressed block and may block on the underlying writer.
+    guard.Release();
+
+    promise.Set(std::move(compressedBlock));
 }
 
-// Serialized compression invoker affinity (don't use thread affinity because of thread pool).
-void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& uncompressedVectorizedBlock, std::optional<int> groupIndex)
+void TEncodingWriter::DoCompressVector(
+    const std::vector<TSharedRef>& uncompressedVectorizedBlock,
+    int blockIndex,
+    std::optional<int> groupIndex,
+    TPromise<TBlock> promise,
+    TAsyncSemaphoreGuard guard)
 {
     YT_LOG_DEBUG("Started compressing block (Block: %v, Codec: %v)",
-        AddedBlockIndex_,
+        blockIndex,
         Codec_->GetId());
 
     TBlock compressedBlock;
     compressedBlock.GroupIndex = groupIndex;
     {
         TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
-        TValueIncrementingTimingGuard<TFiberWallTimer> guard(&CodecTime_.CpuDuration);
+        TFiberWallTimer timer;
+        auto finally = Finally([&]{
+            auto guard = WriterGuard(CodecTimeLock_);
+            CodecTime_.CpuDuration += timer.GetElapsedTime();
+        });
         compressedBlock.Data = Codec_->Compress(uncompressedVectorizedBlock);
     }
 
@@ -166,7 +209,7 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& uncompress
     }
 
     YT_LOG_DEBUG("Finished compressing block (Block: %v, Codec: %v)",
-        AddedBlockIndex_,
+        blockIndex,
         Codec_->GetId());
 
     if (Any(BlockCache_->GetSupportedBlockTypes() & EBlockType::UncompressedData)) {
@@ -179,11 +222,16 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& uncompress
             &TEncodingWriter::CacheUncompressedBlock,
             MakeWeak(this),
             uncompressedBlock,
-            AddedBlockIndex_));
+            blockIndex));
     }
 
     auto sizeToRelease = -static_cast<i64>(compressedBlock.Size()) + GetByteSize(uncompressedVectorizedBlock);
-    ProcessCompressedBlock(compressedBlock, sizeToRelease);
+    ProcessCompressedBlock(sizeToRelease);
+
+    // We explicitly release the guard,
+    // because promise setting can involve write of the compressed block and may block on the underlying writer.
+    guard.Release();
+    promise.Set(std::move(compressedBlock));
 }
 
 void TEncodingWriter::VerifyVector(
@@ -215,22 +263,15 @@ void TEncodingWriter::VerifyBlock(
         "Compression verification failed");
 }
 
-// Serialized compression invoker affinity (don't use thread affinity because of thread pool).
-void TEncodingWriter::ProcessCompressedBlock(const TBlock& block, i64 sizeToRelease)
+void TEncodingWriter::ProcessCompressedBlock(i64 sizeToRelease)
 {
     if (sizeToRelease > 0) {
-        Semaphore_->Release(sizeToRelease);
+        SizeSemaphore_->Release(sizeToRelease);
     } else {
-        Semaphore_->Acquire(-sizeToRelease);
+        SizeSemaphore_->Acquire(-sizeToRelease);
     }
-
-    PendingBlocks_.Enqueue(block);
-    YT_LOG_DEBUG("Pending block added (Block: %v)", AddedBlockIndex_);
-
-    ++AddedBlockIndex_;
 }
 
-// Serialized compression invoker affinity (don't use thread affinity because of thread pool).
 void TEncodingWriter::WritePendingBlock(const TErrorOr<TBlock>& blockOrError)
 {
     YT_VERIFY(blockOrError.IsOK());
@@ -254,7 +295,7 @@ void TEncodingWriter::WritePendingBlock(const TErrorOr<TBlock>& blockOrError)
     ++WrittenBlockIndex_;
 
     auto finally = Finally([&] (){
-        Semaphore_->Release(block.Size());
+        SizeSemaphore_->Release(block.Size());
     });
 
     if (!isReady) {
@@ -271,16 +312,14 @@ void TEncodingWriter::WritePendingBlock(const TErrorOr<TBlock>& blockOrError)
 
 bool TEncodingWriter::IsReady() const
 {
-    return Semaphore_->IsReady() && !CompletionError_.IsSet();
+    return SizeSemaphore_->IsReady() && !CompletionError_.IsSet();
 }
 
 TFuture<void> TEncodingWriter::GetReadyEvent()
 {
-    auto promise = NewPromise<void>();
-    promise.TrySetFrom(CompletionError_.ToFuture());
-    promise.TrySetFrom(Semaphore_->GetReadyEvent());
-
-    return promise.ToFuture();
+    return AnySet(std::vector{
+        CompletionError_.ToFuture().ToUncancelable(),
+        SizeSemaphore_->GetReadyEvent().ToUncancelable()});
 }
 
 TFuture<void> TEncodingWriter::Flush()
@@ -288,9 +327,7 @@ TFuture<void> TEncodingWriter::Flush()
     YT_LOG_DEBUG("Flushing encoding writer");
 
     // This must be the last enqueued element.
-    CompressionInvoker_->Invoke(BIND([this, this_ = MakeStrong(this)] () {
-        PendingBlocks_.Enqueue(TBlock());
-    }));
+    PendingBlocks_.Enqueue(TBlock());
     return CompletionError_.ToFuture();
 }
 
@@ -310,8 +347,9 @@ double TEncodingWriter::GetCompressionRatio() const
     return CompressionRatio_.load();
 }
 
-const TCodecDuration& TEncodingWriter::GetCompressionDuration() const
+TCodecDuration TEncodingWriter::GetCompressionDuration() const
 {
+    auto guard = ReaderGuard(CodecTimeLock_);
     return CodecTime_;
 }
 

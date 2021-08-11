@@ -114,6 +114,7 @@ public:
     double DefaultCompressionRatio;
     bool VerifyCompression;
     bool ComputeChecksum;
+    int CompressionConcurrency;
 
     TEncodingWriterConfig()
     {
@@ -126,6 +127,9 @@ public:
             .Default(true);
         RegisterParameter("compute_checksum", ComputeChecksum)
             .Default(true);
+        RegisterParameter("compression_concurrency", CompressionConcurrency)
+            .Default(1)
+            .GreaterThan(0);
     }
 };
 
