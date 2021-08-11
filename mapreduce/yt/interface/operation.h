@@ -182,7 +182,7 @@ enum class EAutoMergeMode
     Economy    /* "economy" */,
 
     ///
-    /// @breif Manual configuration of automerge parameters.
+    /// @brief Manual configuration of automerge parameters.
     ///
     /// @ref TAutoMergeSpec
     Manual     /* "manual" */,
