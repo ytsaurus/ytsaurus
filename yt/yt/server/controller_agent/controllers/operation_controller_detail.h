@@ -1344,7 +1344,7 @@ private:
         THashMap<TString, double> Features_;
     };
 
-    TControllerFeatures controllerFeatures_;
+    TControllerFeatures ControllerFeatures_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
