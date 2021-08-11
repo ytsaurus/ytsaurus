@@ -1934,7 +1934,7 @@ void TOperationControllerBase::FlushFeatures()
     auto path = GetOperationPath(OperationId) + "/@controller_features";
     auto req = TYPathProxy::Set(path);
     SetTransactionId(req, DebugTransaction->GetId());
-    req->set_value(ConvertToYsonString(controllerFeatures_.FlushFeatures()).ToString());
+    req->set_value(ConvertToYsonString(ControllerFeatures_.FlushFeatures()).ToString());
 
     WaitFor(proxy.Execute(req))
         .ThrowOnError();
@@ -1942,8 +1942,8 @@ void TOperationControllerBase::FlushFeatures()
 
 void TOperationControllerBase::FinalizeFeatures()
 {
-    controllerFeatures_.AddSingularFeature("wall_time", (TInstant::Now() - StartTime).MilliSeconds());
-    controllerFeatures_.AddSingularFeature("peak_controller_memory_usage", PeakMemoryUsage_);
+    ControllerFeatures_.AddSingularFeature("wall_time", (TInstant::Now() - StartTime).MilliSeconds());
+    ControllerFeatures_.AddSingularFeature("peak_controller_memory_usage", PeakMemoryUsage_);
 }
 
 void TOperationControllerBase::SafeCommit()
