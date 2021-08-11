@@ -47,8 +47,6 @@ public:
 
     void MarkInitialized();
 
-    void SetMaintainInstantResourceUsage(bool value);
-
 private:
     TResourceTree* ResourceTree_;
     const TString Id_;
@@ -59,7 +57,6 @@ private:
     TJobResources ResourceUsage_;
     TJobResources ResourceUsagePrecommit_;
 
-    std::atomic<bool> MaintainInstantResourceUsage_ = false;
     std::atomic<bool> ResourceLimitsSpecified_ = false;
 
     // NB: all usages of this field must be in TResourceTree.

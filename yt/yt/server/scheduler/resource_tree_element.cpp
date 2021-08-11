@@ -109,7 +109,7 @@ bool TResourceTreeElement::CommitLocalResourceUsage(
     const TJobResources& resourceUsageDelta,
     const TJobResources& precommittedResources)
 {
-    if (!MaintainInstantResourceUsage_ && !ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
+    if (!ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
         return true;
     }
 
@@ -134,7 +134,7 @@ bool TResourceTreeElement::CommitLocalResourceUsage(
 
 bool TResourceTreeElement::IncreaseLocalResourceUsage(const TJobResources& delta)
 {
-    if (!MaintainInstantResourceUsage_ && !ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
+    if (!ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
         return true;
     }
 
@@ -170,9 +170,7 @@ void TResourceTreeElement::ReleaseResources(TJobResources* usagePrecommit, TJobR
 
 TJobResources TResourceTreeElement::GetResourceUsagePrecommit()
 {
-    if (!MaintainInstantResourceUsage_) {
-        YT_VERIFY(ResourceLimitsSpecified_ || Kind_ == EResourceTreeElementKind::Operation);
-    }
+    YT_VERIFY(ResourceLimitsSpecified_ || Kind_ == EResourceTreeElementKind::Operation);
 
     auto guard = ReaderGuard(ResourceUsageLock_);
 
@@ -185,7 +183,7 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheck(
     const TJobResources& delta,
     TJobResources* availableResourceLimitsOutput)
 {
-    if (!MaintainInstantResourceUsage_ && !ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
+    if (!ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
         *availableResourceLimitsOutput = TJobResources::Infinite();
         return true;
     }
@@ -224,13 +222,6 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheck(
 void TResourceTreeElement::MarkInitialized()
 {
     Initialized_ = true;
-}
-
-void TResourceTreeElement::SetMaintainInstantResourceUsage(bool value)
-{
-    auto guard = WriterGuard(ResourceUsageLock_);
-
-    MaintainInstantResourceUsage_ = value;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

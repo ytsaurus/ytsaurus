@@ -994,8 +994,6 @@ void TSchedulerCompositeElement::UpdateDynamicAttributes(
     // and thus are not in the |SchedulableChildren_| list.
     if (Mutable_) {
         attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio(ResourceUsageAtUpdate_);
-    } else if (TreeConfig_->UseRecentResourceUsageForLocalSatisfaction) {
-        attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio(GetInstantResourceUsage());
     } else {
         attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio(attributes.ResourceUsage);
     }
@@ -2596,8 +2594,6 @@ void TSchedulerOperationElement::UpdateDynamicAttributes(
 
     if (Mutable_) {
         attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio(ResourceUsageAtUpdate_);
-    } else if (TreeConfig_->UseRecentResourceUsageForLocalSatisfaction) {
-        attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio(GetInstantResourceUsage());
     } else {
         attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio(attributes.ResourceUsage);
     }
@@ -3101,12 +3097,7 @@ const TSchedulerElement* TSchedulerOperationElement::FindPreemptionBlockingAnces
             : config->PreemptionSatisfactionThreshold;
 
         // NB: We want to use *local* satisfaction ratio here.
-        double localSatisfactionRatio;
-        if (TreeConfig_->UseRecentResourceUsageForLocalSatisfaction) {
-            localSatisfactionRatio = element->ComputeLocalSatisfactionRatio(element->GetInstantResourceUsage());
-        } else {
-            localSatisfactionRatio = element->ComputeLocalSatisfactionRatio(element->GetCurrentResourceUsage(dynamicAttributesList));
-        }
+        double localSatisfactionRatio = element->ComputeLocalSatisfactionRatio(element->GetCurrentResourceUsage(dynamicAttributesList));
         if (config->PreemptionCheckSatisfaction && localSatisfactionRatio < threshold + RatioComparisonPrecision) {
             OperationElementSharedState_->UpdatePreemptionStatusStatistics(element == this
                 ? EOperationPreemptionStatus::ForbiddenSinceUnsatisfied

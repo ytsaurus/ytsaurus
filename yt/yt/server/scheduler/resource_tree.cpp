@@ -29,18 +29,6 @@ void TResourceTree::UpdateConfig(const TFairShareStrategyTreeConfigPtr& config)
 
     EnableStructureLockProfiling.store(config->EnableResourceTreeStructureLockProfiling);
     EnableUsageLockProfiling.store(config->EnableResourceTreeUsageLockProfiling);
-    if (MaintainInstantResourceUsage_ != config->UseRecentResourceUsageForLocalSatisfaction) {
-        auto structureGuard = WriterGuard(StructureLock_);
-        MaintainInstantResourceUsage_ = config->UseRecentResourceUsageForLocalSatisfaction;
-
-        for (const auto& element : AliveElements_) {
-            element->SetMaintainInstantResourceUsage(MaintainInstantResourceUsage_);
-        }
-
-        if (MaintainInstantResourceUsage_) {
-            DoRecalculateAllResourceUsages();
-        }
-    }
 }
 
 void TResourceTree::AttachParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& parent)
@@ -54,7 +42,6 @@ void TResourceTree::AttachParent(const TResourceTreeElementPtr& element, const T
 
     element->Parent_ = parent;
     element->Initialized_ = true;
-    element->MaintainInstantResourceUsage_.store(MaintainInstantResourceUsage_.load());
 
     AliveElements_.insert(element);
 }
@@ -397,29 +384,6 @@ void TResourceTree::InitializeResourceUsageFor(
     auto structureGuard = WriterGuard(StructureLock_);
 
     DoInitializeResourceUsageFor(targetElement, operationElements);
-}
-
-void TResourceTree::DoRecalculateAllResourceUsages()
-{
-    VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
-
-    YT_LOG_DEBUG("Recalculating all resource usages in resource tree");
-
-    // NB: to use this method your must acquire structured lock and active elements lock.
-    for (const auto& element : AliveElements_) {
-        if (element->Kind_ != EResourceTreeElementKind::Operation) {
-            element->ResourceUsage_ = TJobResources();
-        }
-    }
-    for (const auto& element : AliveElements_) {
-        if (element->Kind_ == EResourceTreeElementKind::Operation) {
-            auto current = element->Parent_;
-            do {
-                current->ResourceUsage_ += element->ResourceUsage_;
-                current = current->Parent_;
-            } while (current->Kind_ != EResourceTreeElementKind::Root);
-        }
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
