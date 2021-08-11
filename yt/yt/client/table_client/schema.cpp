@@ -467,6 +467,11 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
     schema->SetMaxInlineHunkSize(protoSchema.has_max_inline_hunk_size() ? std::make_optional(protoSchema.max_inline_hunk_size()) : std::nullopt);
 }
 
+void PrintTo(const TColumnSchema& columnSchema, std::ostream* os)
+{
+    *os << Format("%v", columnSchema);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableSchema::TTableSchema(
@@ -1260,6 +1265,11 @@ void FromProto(
 {
     *schema = New<TTableSchema>();
     FromProto(schema->Get(), protoSchema, keyColumnsExt);
+}
+
+void PrintTo(const TTableSchema& tableSchema, std::ostream* os)
+{
+    (*os) << Format("%v", tableSchema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
