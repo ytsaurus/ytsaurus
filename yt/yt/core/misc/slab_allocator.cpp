@@ -10,11 +10,9 @@ namespace NYT {
 
 /////////////////////////////////////////////////////////////////////////////
 
-static constexpr size_t SegmentSize = 64_KB;
-static_assert(SegmentSize >= NYTAlloc::LargeAllocationSizeThreshold, "Segment size violation");
+static_assert(TSlabAllocator::SegmentSize >= NYTAlloc::LargeAllocationSizeThreshold, "Segment size violation");
 
-constexpr size_t AcquireMemoryGranularity = 500_KB;
-static_assert(AcquireMemoryGranularity % 2 == 0, "Must be divisible by 2");
+static_assert(TSlabAllocator::AcquireMemoryGranularity % 2 == 0, "Must be divisible by 2");
 
 struct TArenaCounters
 {
@@ -24,13 +22,13 @@ struct TArenaCounters
         : AllocatedItems(profiler.Counter("/lookup/allocated_items"))
         , FreedItems(profiler.Counter("/lookup/freed_items"))
         , AliveItems(profiler.Gauge("/lookup/alive_items"))
-        , AliveSegments(profiler.Gauge("/lookup/alive_segments"))
+        , ArenaSize(profiler.Gauge("/lookup/arena_size"))
     { }
 
     NProfiling::TCounter AllocatedItems;
     NProfiling::TCounter FreedItems;
     NProfiling::TGauge AliveItems;
-    NProfiling::TGauge AliveSegments;
+    NProfiling::TGauge ArenaSize;
 };
 
 class TSmallArena final
@@ -114,7 +112,9 @@ public:
     {
         auto refCount = GetRefCounter(this)->GetRefCount();
         auto segmentCount = SegmentCount_.load();
-        return segmentCount > 0 && refCount * 2 < static_cast<ssize_t>(segmentCount * ObjectCount_);
+
+        auto maxRefCount = static_cast<ssize_t>(segmentCount * ObjectCount_) + 4;
+        return segmentCount > 1 && refCount * 2 < maxRefCount || segmentCount == 1 && refCount == 2;
     }
 
     IMemoryUsageTrackerPtr GetMemoryTracker() const
@@ -191,7 +191,7 @@ private:
         ++SegmentCount_;
 
         AllocatedItems.Increment();
-        AliveSegments.Update(SegmentCount_.load());
+        ArenaSize.Update(SegmentCount_.load() * totalSize);
 
         auto [head, tail] = BuildFreeList(static_cast<char*>(ptr) + sizeof(TFreeListItem));
 
@@ -207,10 +207,13 @@ DEFINE_REFCOUNTED_TYPE(TSmallArena)
 /////////////////////////////////////////////////////////////////////////////
 
 class TLargeArena
+    : public TRefTracked<TLargeArena>
+    , public TArenaCounters
 {
 public:
-    explicit TLargeArena(IMemoryUsageTrackerPtr memoryTracker)
-        : MemoryTracker_(std::move(memoryTracker))
+    TLargeArena(IMemoryUsageTrackerPtr memoryTracker, const NProfiling::TProfiler& profiler)
+        : TArenaCounters(profiler.WithTag("rank", "large"))
+        , MemoryTracker_(std::move(memoryTracker))
     { }
 
     void* Allocate(size_t size)
@@ -251,7 +254,7 @@ public:
         auto overheadMemory = OverheadMemory_.load();
         do {
             if (overheadMemory < size) {
-                auto targetAcquire = std::max(AcquireMemoryGranularity, size);
+                auto targetAcquire = std::max(TSlabAllocator::AcquireMemoryGranularity, size);
                 auto result = MemoryTracker_->TryAcquire(targetAcquire);
                 if (result.IsOK()) {
                     OverheadMemory_.fetch_add(targetAcquire - size);
@@ -273,9 +276,10 @@ public:
 
         auto overheadMemory = OverheadMemory_.load();
 
-        while (overheadMemory + size > AcquireMemoryGranularity) {
-            if (OverheadMemory_.compare_exchange_weak(overheadMemory, AcquireMemoryGranularity / 2)) {
-                MemoryTracker_->Release(overheadMemory + size - AcquireMemoryGranularity / 2);
+        while (overheadMemory + size > TSlabAllocator::AcquireMemoryGranularity) {
+            auto halfMemoryGranularity = TSlabAllocator::AcquireMemoryGranularity / 2;
+            if (OverheadMemory_.compare_exchange_weak(overheadMemory, halfMemoryGranularity)) {
+                MemoryTracker_->Release(overheadMemory + size - halfMemoryGranularity);
                 return;
             }
         }
@@ -299,10 +303,10 @@ TSlabAllocator::TSlabAllocator(
 {
     for (size_t rank = 1; rank < NYTAlloc::SmallRankCount; ++rank) {
         // There is no std::make_unique overload with custom deleter.
-        SmallArenas_[rank].Exchange(New<TSmallArena>(rank, SegmentSize, memoryTracker, Profiler_));
+        SmallArenas_[rank].Exchange(New<TSmallArena>(rank, TSlabAllocator::SegmentSize, memoryTracker, Profiler_));
     }
 
-    LargeArena_.reset(new TLargeArena(memoryTracker));
+    LargeArena_.reset(new TLargeArena(memoryTracker, profiler));
 }
 
 namespace {
@@ -382,21 +386,30 @@ void* TSlabAllocator::Allocate(size_t size)
     return header + 1;
 }
 
-void TSlabAllocator::ReallocateArenasIfNeeded()
+bool TSlabAllocator::IsReallocationNeeded() const
 {
-    for (size_t rank = 2; rank < NYTAlloc::SmallRankCount; ++rank) {
-        // Rank is not used.
-        if (rank == 3) {
-            continue;
+    for (size_t rank = 1; rank < NYTAlloc::SmallRankCount; ++rank) {
+        auto arena = SmallArenas_[rank].Acquire();
+        if (arena->IsReallocationNeeded()) {
+            return true;
         }
+    }
+    return false;
+}
 
+bool TSlabAllocator::ReallocateArenasIfNeeded()
+{
+    bool hasReallocatedArenas = false;
+    for (size_t rank = 1; rank < NYTAlloc::SmallRankCount; ++rank) {
         auto arena = SmallArenas_[rank].Acquire();
         if (arena->IsReallocationNeeded()) {
             SmallArenas_[rank].SwapIfCompare(
                 arena,
-                New<TSmallArena>(rank, SegmentSize, arena->GetMemoryTracker(), Profiler_));
+                New<TSmallArena>(rank, TSlabAllocator::SegmentSize, arena->GetMemoryTracker(), Profiler_));
+            hasReallocatedArenas = true;
         }
     }
+    return hasReallocatedArenas;
 }
 
 void TSlabAllocator::Free(void* ptr)

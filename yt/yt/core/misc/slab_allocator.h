@@ -34,7 +34,11 @@ public:
     void* Allocate(size_t size);
     static void Free(void* ptr);
 
-    void ReallocateArenasIfNeeded();
+    bool IsReallocationNeeded() const;
+    bool ReallocateArenasIfNeeded();
+
+    static constexpr size_t SegmentSize = 64_KB;
+    static constexpr size_t AcquireMemoryGranularity = 500_KB;
 
 private:
     const NProfiling::TProfiler Profiler_;

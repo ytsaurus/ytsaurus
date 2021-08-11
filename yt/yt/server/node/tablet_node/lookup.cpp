@@ -110,9 +110,11 @@ public:
             YT_LOG_DEBUG("Looking up in row cache (ReadSessionId: %v)",
                 ChunkReadOptions_.ReadSessionId);
 
-            auto flushIndex = TabletSnapshot_->RowCache->FlushIndex.load(std::memory_order_acquire);
+            const auto& rowCache = TabletSnapshot_->RowCache;
 
-            CacheLookuper_ = TabletSnapshot_->RowCache->Cache.GetLookuper();
+            auto flushIndex = rowCache->GetFlushIndex();
+
+            CacheLookuper_ = rowCache->GetCache()->GetLookuper();
             for (auto key : LookupKeys_) {
                 auto foundItemRef = CacheLookuper_(key);
                 auto foundItem = foundItemRef.Get();
@@ -493,7 +495,6 @@ private:
                 auto row = session.FetchRow();
                 addPartialRow(row, Timestamp_ + 1);
                 if (UseLookupCache_) {
-
                     versionedRows.push_back(row);
 
                     // Do not add values from active dynamic store.
@@ -508,8 +509,10 @@ private:
 
         TConcurrentCache<TCachedRow>::TInserter inserter;
 
+        const auto& rowCache = TabletSnapshot_->RowCache;
+
         if (UseLookupCache_) {
-            inserter = TabletSnapshot_->RowCache->Cache.GetInserter();
+            inserter = rowCache->GetCache()->GetInserter();
         }
 
         for (int index = startKeyIndex; index < endKeyIndex; ++index) {
@@ -559,7 +562,7 @@ private:
                     auto mergedRow = CacheRowMerger_->BuildMergedRow();
 
                     auto cachedItem = CachedRowFromVersionedRow(
-                        &TabletSnapshot_->RowCache->Allocator,
+                        rowCache->GetAllocator(),
                         mergedRow,
                         RetainedTimestamp_);
 
@@ -574,7 +577,7 @@ private:
                             revision);
                         inserter.GetTable()->Insert(cachedItem);
 
-                        auto flushIndex = TabletSnapshot_->RowCache->FlushIndex.load(std::memory_order_acquire);
+                        auto flushIndex = rowCache->GetFlushIndex();
 
                         // Row revision is equal to flushRevision if the last passive dynamic store has started flushing.
                         if (revision >= flushIndex) {
