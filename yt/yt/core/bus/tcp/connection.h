@@ -86,7 +86,7 @@ public:
     virtual void SetTosLevel(TTosLevel tosLevel) override;
     virtual void Terminate(const TError& error) override;
 
-    DECLARE_SIGNAL(void(const TError&), Terminated);
+    DECLARE_SIGNAL_OVERRIDE(void(const TError&), Terminated);
 
 private:
     using EState = ETcpConnectionState;

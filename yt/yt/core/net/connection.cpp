@@ -996,7 +996,7 @@ public:
         return Impl_->SetKeepAlive();
     }
 
-    virtual void SubscribePeerDisconnect(TCallback<void()> cb)
+    virtual void SubscribePeerDisconnect(TCallback<void()> cb) override
     {
         return Impl_->SubscribePeerDisconnect(std::move(cb));
     }

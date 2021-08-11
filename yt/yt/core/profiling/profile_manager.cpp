@@ -333,7 +333,7 @@ private:
         virtual void GetSelf(
             TReqGet* request,
             TRspGet* response,
-            const TCtxGetPtr& context)
+            const TCtxGetPtr& context) override
         {
             auto options = FromProto(request->options());
             auto fromTime = ParseInstant(options->Find<i64>("from_time"));

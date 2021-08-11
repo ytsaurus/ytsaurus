@@ -65,7 +65,7 @@ public:
     virtual TTabletInfoPtr FindTabletInfo(TTabletId tabletId) override;
     virtual void InvalidateTablet(TTabletInfoPtr tabletInfo) override;
     virtual std::pair<bool, TTabletInfoPtr> InvalidateOnError(const TError& error, bool forceRetry) override;
-    virtual void Clear();
+    virtual void Clear() override;
 
 protected:
     const TTableMountCacheConfigPtr Config_;

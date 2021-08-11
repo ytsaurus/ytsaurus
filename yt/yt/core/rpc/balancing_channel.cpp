@@ -184,7 +184,7 @@ public:
         }
     }
 
-    virtual void Terminate(const TError& error)
+    virtual void Terminate(const TError& error) override
     {
         std::vector<TBalancingChannelSubproviderPtr> subproviders;
         {

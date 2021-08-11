@@ -162,12 +162,12 @@ private:
             }
         }
 
-        virtual const TString& GetEndpointDescription() const
+        virtual const TString& GetEndpointDescription() const override
         {
             return EndpointDescription;
         }
 
-        virtual const IAttributeDictionary& GetEndpointAttributes() const
+        virtual const IAttributeDictionary& GetEndpointAttributes() const override
         {
             return *EndpointAttributes;
         }
