@@ -28,10 +28,6 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient
 
   private def masterWrapperPath: String = s"$discoveryPath/master_wrapper"
 
-  def eventLogPath(discoveryBasePath: String): String = {
-    s"$discoveryBasePath/logs/event_log_table"
-  }
-
   override def register(operationId: String,
                         address: Address,
                         clusterVersion: String,
@@ -130,5 +126,11 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient
       .map(name => s"$discoveryPath/$name")
       .filter(_ != shsPath)
       .foreach(YtWrapper.removeDirIfExists(_, recursive = true, transaction))
+  }
+}
+
+object CypressDiscoveryService {
+  def eventLogPath(discoveryBasePath: String): String = {
+    s"$discoveryBasePath/logs/event_log_table"
   }
 }

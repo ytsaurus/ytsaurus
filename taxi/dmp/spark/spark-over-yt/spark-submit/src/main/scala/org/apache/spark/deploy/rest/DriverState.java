@@ -5,7 +5,7 @@ import java.util.Set;
 
 // copy of org.apache.spark.deploy.master.DriverState
 public enum DriverState {
-    SUBMITTED, RUNNING, FINISHED, RELAUNCHING, UNKNOWN, KILLED, FAILED, ERROR;
+    SUBMITTED, RUNNING, FINISHED, RELAUNCHING, UNKNOWN, KILLED, FAILED, ERROR, UNDEFINED;
 
     private static Set<DriverState> failedStates = new HashSet<>() {{
         add(UNKNOWN);

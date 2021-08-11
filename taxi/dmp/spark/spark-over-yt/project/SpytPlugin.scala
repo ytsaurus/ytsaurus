@@ -134,6 +134,7 @@ object SpytPlugin extends AutoPlugin {
     spytIncreaseSparkPythonBetaVersion := {
       val oldVersion = spytSparkPythonVersion.value
       val newVersion = increaseBetaVersion(oldVersion)
+      streams.value.log.info(s"New spark python version: $newVersion")
       writeVersion(Seq(
         spytSparkPythonVersion -> newVersion
       ), spytSparkVersionFile.value)
@@ -154,12 +155,14 @@ object SpytPlugin extends AutoPlugin {
       if (rebuildSpark) {
         Def.sequential(
           spytIncreaseSparkPythonBetaVersion,
-          spytPublishAll
+          spytPublishAll,
+          spytIncreasePythonBetaVersion
         )
       } else {
         Def.sequential(
           spytPublishCluster,
-          spytPublishClient
+          spytPublishClient,
+          spytIncreasePythonBetaVersion
         )
       }
     }.value,
