@@ -129,6 +129,8 @@ void Deserialize(TColumnSchema& schema, NYson::TYsonPullParserCursor* cursor);
 void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema);
 void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema);
 
+void PrintTo(const TColumnSchema& columnSchema, std::ostream* os);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using TKeyColumnTypes = SmallVector<EValueType, 16>;
@@ -319,6 +321,8 @@ void FromProto(
     TTableSchemaPtr* schema,
     const NProto::TTableSchemaExt& protoSchema,
     const NProto::TKeyColumnsExt& keyColumnsExt);
+
+void PrintTo(const TTableSchema& tableSchema, std::ostream* os);
 
 ////////////////////////////////////////////////////////////////////////////////
 

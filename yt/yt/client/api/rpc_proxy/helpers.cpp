@@ -405,11 +405,8 @@ void ToProto(NProto::TColumnSchema* protoSchema, const NTableClient::TColumnSche
 {
     protoSchema->set_name(schema.Name());
     protoSchema->set_type(NYT::ToProto<int>(schema.GetPhysicalType()));
-    if (!schema.IsOfV1Type()) {
-        THROW_ERROR_EXCEPTION("Complex logical types are not supported in rpc yet")
-            << TErrorAttribute("name", schema.Name())
-            << TErrorAttribute("type", ToString(*schema.LogicalType()));
-    }
+    auto typeV3Yson = ConvertToYsonString(TTypeV3LogicalTypeWrapper{schema.LogicalType()});
+    protoSchema->set_type_v3(typeV3Yson.ToString());
     if (schema.Lock()) {
         protoSchema->set_lock(*schema.Lock());
     } else {
@@ -450,16 +447,45 @@ void ToProto(NProto::TColumnSchema* protoSchema, const NTableClient::TColumnSche
 void FromProto(NTableClient::TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
 {
     schema->SetName(protoSchema.name());
-    if (protoSchema.has_logical_type()) {
-        auto logicalType = MakeLogicalType(
-            CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(protoSchema.logical_type()),
+
+    TLogicalTypePtr columnType;
+    if (protoSchema.has_type_v3()) {
+        columnType = ConvertTo<TTypeV3LogicalTypeWrapper>(TYsonStringBuf(protoSchema.type_v3())).LogicalType;
+        auto [v1Type, v1Required] = CastToV1Type(columnType);
+        if (protoSchema.has_required() && protoSchema.required() != v1Required) {
+            THROW_ERROR_EXCEPTION("Fields \"type_v3\" and \"required\" mismatches")
+                << TErrorAttribute("type_v3", ToString(*columnType))
+                << TErrorAttribute("required", protoSchema.required());
+        }
+        if (protoSchema.has_logical_type() && v1Type != protoSchema.logical_type()) {
+            THROW_ERROR_EXCEPTION("Fields \"type_v3\" and \"logical_type\" mismatches")
+                << TErrorAttribute("type_v3", ToString(*columnType))
+                << TErrorAttribute("logical_type", protoSchema.logical_type());
+        }
+        if (protoSchema.has_type() && GetPhysicalType(v1Type) != protoSchema.type()) {
+            THROW_ERROR_EXCEPTION("Fields \"type_v3\" and \"logical_type\" mismatches")
+                << TErrorAttribute("type_v3", ToString(*columnType))
+                << TErrorAttribute("type", protoSchema.type());
+        }
+    } else if (protoSchema.has_logical_type()) {
+        auto simpleLogicalType = CheckedEnumCast<ESimpleLogicalValueType>(protoSchema.logical_type());
+        columnType = MakeLogicalType(simpleLogicalType, protoSchema.required());
+        if (protoSchema.has_type() && GetPhysicalType(simpleLogicalType) != protoSchema.type()) {
+            THROW_ERROR_EXCEPTION("Fields \"logical_type\" and \"type\" mismatches")
+                << TErrorAttribute("logical_type", ToString(*columnType))
+                << TErrorAttribute("type", protoSchema.type());
+        }
+    } else if (protoSchema.has_type()) {
+        columnType = MakeLogicalType(
+            GetLogicalType(CheckedEnumCast<EValueType>(protoSchema.type())),
             protoSchema.required());
-        schema->SetLogicalType(std::move(logicalType));
-        YT_VERIFY(schema->GetPhysicalType() == CheckedEnumCast<EValueType>(protoSchema.type()));
-    } else {
-        auto physicalType = CheckedEnumCast<NTableClient::EValueType>(protoSchema.type());
-        schema->SetLogicalType(MakeLogicalType(NTableClient::GetLogicalType(physicalType), protoSchema.required()));
     }
+
+    if (!columnType) {
+        THROW_ERROR_EXCEPTION("Type is not specified");
+    }
+    schema->SetLogicalType(std::move(columnType));
+
     schema->SetLock(protoSchema.has_lock() ? std::make_optional(protoSchema.lock()) : std::nullopt);
     schema->SetExpression(protoSchema.has_expression() ? std::make_optional(protoSchema.expression()) : std::nullopt);
     schema->SetAggregate(protoSchema.has_aggregate() ? std::make_optional(protoSchema.aggregate()) : std::nullopt);

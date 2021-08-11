@@ -815,8 +815,9 @@ message TColumnSchema
 {
     required string name = 1;
 
-    required int32 type = 2;
+    optional int32 type = 2;
     optional int32 logical_type = 3;
+    optional bytes type_v3 = 11; // yson representation of type_v3
 
     optional string lock = 4;
     optional string expression = 5;
