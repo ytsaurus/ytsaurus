@@ -40,7 +40,7 @@ public:
     // Future is set when all block get written to underlying writer.
     TFuture<void> Flush();
 
-    const TCodecDuration& GetCompressionDuration() const;
+    TCodecDuration GetCompressionDuration() const;
 
 private:
     const TEncodingWriterConfigPtr Config_;
@@ -49,7 +49,8 @@ private:
     const IBlockCachePtr BlockCache_;
 
     const NLogging::TLogger Logger;
-    const NConcurrency::TAsyncSemaphorePtr Semaphore_;
+    const NConcurrency::TAsyncSemaphorePtr SizeSemaphore_;
+    const NConcurrency::TAsyncSemaphorePtr CodecSemaphore_;
     NCompression::ICodec* const Codec_;
     const IInvokerPtr CompressionInvoker_;
     const TCallback<void(const TErrorOr<TBlock>&)> WritePendingBlockCallback_;
@@ -58,6 +59,7 @@ private:
     std::atomic<i64> UncompressedSize_ = {0};
     std::atomic<i64> CompressedSize_ = {0};
 
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, CodecTimeLock_);
     NChunkClient::TCodecDuration CodecTime_;
 
     int AddedBlockIndex_ = 0;
@@ -76,12 +78,18 @@ private:
 
     void DoCompressBlock(
         const TSharedRef& uncompressedBlock,
-        std::optional<int> groupIndex = std::nullopt);
+        int blockIndex,
+        std::optional<int> groupIndex,
+        TPromise<TBlock> promise,
+        NConcurrency::TAsyncSemaphoreGuard guard);
     void DoCompressVector(
         const std::vector<TSharedRef>& uncompressedVectorizedBlock,
-        std::optional<int> groupIndex = std::nullopt);
+        int blockIndex,
+        std::optional<int> groupIndex,
+        TPromise<TBlock> promise,
+        NConcurrency::TAsyncSemaphoreGuard guard);
 
-    void ProcessCompressedBlock(const TBlock& block, i64 delta);
+    void ProcessCompressedBlock(i64 delta);
 
     void VerifyBlock(
         const TSharedRef& uncompressedBlock,

@@ -14,16 +14,19 @@ class TNonblockingQueue
     : private TNonCopyable
 {
 public:
+    void Enqueue(TFuture<T> asyncValue);
+
     // This template is required to enable perfect forwarding.
     template <class TArg>
     void Enqueue(TArg&& value);
 
+    // Dequeued futures could be set in arbitrary order.
     TFuture<T> Dequeue();
 
 private:
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
 
-    TRingQueue<TErrorOr<T>> ValueQueue_;
+    TRingQueue<TFuture<T>> ValueQueue_;
     TRingQueue<TPromise<T>> PromiseQueue_;
 
 };

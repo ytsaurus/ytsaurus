@@ -11,18 +11,24 @@ namespace NYT::NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-template <class TArg>
-void TNonblockingQueue<T>::Enqueue(TArg&& value)
+void TNonblockingQueue<T>::Enqueue(TFuture<T> asyncValue)
 {
     auto guard = Guard(SpinLock_);
     if (PromiseQueue_.empty()) {
-        ValueQueue_.push(std::forward<TArg>(value));
+        ValueQueue_.push(std::move(asyncValue));
     } else {
         auto promise = PromiseQueue_.front();
         PromiseQueue_.pop();
         guard.Release();
-        promise.Set(std::forward<TArg>(value));
+        promise.SetFrom(std::move(asyncValue));
     }
+}
+
+template <class T>
+template <class TArg>
+void TNonblockingQueue<T>::Enqueue(TArg&& value)
+{
+    Enqueue(MakeFuture<T>(std::forward<TArg>(value)));
 }
 
 template <class T>
@@ -34,7 +40,7 @@ TFuture<T> TNonblockingQueue<T>::Dequeue()
         PromiseQueue_.push(promise);
         return promise.ToFuture();
     } else {
-        auto future = MakeFuture(std::move(ValueQueue_.front()));
+        auto future = std::move(ValueQueue_.front());
         ValueQueue_.pop();
         return future;
     }
