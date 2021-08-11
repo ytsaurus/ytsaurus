@@ -246,8 +246,6 @@ public:
 
     TSchedulerIntegralGuaranteesConfigPtr IntegralGuarantees;
 
-    bool UseRecentResourceUsageForLocalSatisfaction;
-
     bool EnableResourceTreeStructureLockProfiling;
     bool EnableResourceTreeUsageLockProfiling;
 

@@ -69,7 +69,6 @@ public:
 private:
     std::vector<IInvokerPtr> FeasibleInvokers_;
 
-    std::atomic<bool> MaintainInstantResourceUsage_ = false;
     std::atomic<bool> EnableStructureLockProfiling = false;
     std::atomic<bool> EnableUsageLockProfiling = false;
 
@@ -88,8 +87,6 @@ private:
     void DoIncreaseHierarchicalResourceUsage(const TResourceTreeElementPtr& element, const TJobResources& delta);
     void DoIncreaseHierarchicalResourceUsagePrecommit(const TResourceTreeElementPtr& element, const TJobResources& delta);
 
-    void DoRecalculateAllResourceUsages();
-    
     void DoInitializeResourceUsageFor(
         const TResourceTreeElementPtr& targetElement,
         const std::vector<TResourceTreeElementPtr>& operationElements);
