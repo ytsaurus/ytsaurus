@@ -2523,12 +2523,24 @@ class TestResourceMetering(YTEnvSetup):
         set("//sys/pool_trees/default/@config/metering_tags", {"my_tag": "my_value"})
         wait(lambda: get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/config/metering_tags"))
 
+        # Check that metering tag cannot be specified without abc attribute.
+        with pytest.raises(YtError):
+            create_pool(
+                "my_pool",
+                pool_tree="default",
+                attributes={
+                    "metering_tags": {"pool_tag": "pool_value"},
+                },
+                wait_for_orchid=False,
+            )
+
         create_pool(
             "my_pool",
             pool_tree="default",
             attributes={
                 "strong_guarantee_resources": {"cpu": 4},
                 "abc": {"id": 1, "slug": "my", "name": "MyService"},
+                "metering_tags": {"pool_tag": "pool_value"},
             },
             wait_for_orchid=False,
         )
@@ -2548,7 +2560,8 @@ class TestResourceMetering(YTEnvSetup):
                 "resource_flow/cpu": 0,
                 "burst_guarantee_resources/cpu": 0,
                 "allocated_resources/cpu": 0,
-                "my_tag": "my_value"
+                "my_tag": "my_value",
+                "pool_tag": "pool_value",
             },
         }
 

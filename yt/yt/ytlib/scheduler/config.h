@@ -256,6 +256,8 @@ public:
 
     std::optional<bool> TruncateFifoPoolUnsatisfiedChildFairShare;
 
+    THashMap<TString, TString> MeteringTags;
+
     TPoolConfig();
 
     void Validate();

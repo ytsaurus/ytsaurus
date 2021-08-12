@@ -235,6 +235,7 @@
     XX(MergeJobCounter, merge_job_counter) \
     XX(MergeJobRateLimit, merge_job_rate_limit) \
     XX(MetaSize, meta_size) \
+    XX(MeteringTags, metering_tags) \
     XX(MinChildHeapSize, min_child_heap_size) \
     XX(MinKey, min_key) \
     XX(MinShareResources, min_share_resources) \

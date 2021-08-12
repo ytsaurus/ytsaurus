@@ -71,7 +71,7 @@ TMeteringStatistics operator-(const TMeteringStatistics& lhs, const TMeteringSta
 
 bool TMeteringKey::operator==(const TMeteringKey& other) const
 {
-    return AbcId == other.AbcId && TreeId == other.TreeId && PoolId == other.PoolId;
+    return AbcId == other.AbcId && TreeId == other.TreeId && PoolId == other.PoolId && MeteringTags == other.MeteringTags;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,5 +86,17 @@ size_t THash<NYT::NScheduler::TMeteringKey>::operator()(const NYT::NScheduler::T
     NYT::HashCombine(res, key.AbcId);
     NYT::HashCombine(res, key.TreeId);
     NYT::HashCombine(res, key.PoolId);
+
+    std::vector<std::pair<TString, TString>> sortedMeteringTags;
+    for (const auto& pair : key.MeteringTags) {
+        sortedMeteringTags.push_back(pair);
+    }
+    std::sort(sortedMeteringTags.begin(), sortedMeteringTags.end());
+
+    for (const auto& [key, value] : sortedMeteringTags) {
+        NYT::HashCombine(res, key);
+        NYT::HashCombine(res, value);
+    }
+
     return res;
 }
