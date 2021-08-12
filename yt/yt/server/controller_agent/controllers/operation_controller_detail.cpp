@@ -1922,7 +1922,17 @@ i64 TOperationControllerBase::GetPartSize(EOutputTableType tableType)
     YT_ABORT();
 }
 
-void TOperationControllerBase::FlushFeatures()
+void TOperationControllerBase::BuildFeatureYson(TFluentAny fluent) const
+{
+    fluent.BeginList()
+        .Item().Value(ControllerFeatures_)
+        .DoFor(Tasks, [] (TFluentList fluent, const TTaskPtr& task) {
+            fluent.Item().Do(BIND(&TTask::BuildFeatureYson, task));
+        })
+    .EndList();
+}
+
+void TOperationControllerBase::CommitFeatures()
 {
     if (!DebugTransaction) {
         return;
@@ -1934,7 +1944,9 @@ void TOperationControllerBase::FlushFeatures()
     auto path = GetOperationPath(OperationId) + "/@controller_features";
     auto req = TYPathProxy::Set(path);
     SetTransactionId(req, DebugTransaction->GetId());
-    req->set_value(ConvertToYsonString(ControllerFeatures_.FlushFeatures()).ToString());
+    req->set_value(BuildYsonStringFluently().Do(
+        BIND(&TOperationControllerBase::BuildFeatureYson, Unretained(this)))
+        .ToString());
 
     WaitFor(proxy.Execute(req))
         .ThrowOnError();
@@ -1942,8 +1954,11 @@ void TOperationControllerBase::FlushFeatures()
 
 void TOperationControllerBase::FinalizeFeatures()
 {
-    ControllerFeatures_.AddSingularFeature("wall_time", (TInstant::Now() - StartTime).MilliSeconds());
-    ControllerFeatures_.AddSingularFeature("peak_controller_memory_usage", PeakMemoryUsage_);
+    for (const auto& task : Tasks) {
+        task->FinalizeFeatures();
+    }
+    ControllerFeatures_.AddSingular("wall_time", (TInstant::Now() - StartTime).MilliSeconds());
+    ControllerFeatures_.AddSingular("peak_controller_memory_usage", PeakMemoryUsage_);
 }
 
 void TOperationControllerBase::SafeCommit()
@@ -1968,7 +1983,7 @@ void TOperationControllerBase::SafeCommit()
     SleepInCommitStage(EDelayInsideOperationCommitStage::Stage5);
 
     CustomCommit();
-    FlushFeatures();
+    CommitFeatures();
 
     LockOutputDynamicTables();
     CommitOutputCompletionTransaction();
@@ -3483,7 +3498,7 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
                 EndUploadOutputTables(tables);
             }
             FinalizeFeatures();
-            FlushFeatures();
+            CommitFeatures();
             CommitDebugCompletionTransaction();
 
             if (DebugTransaction) {
@@ -4735,6 +4750,10 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
             return;
         }
         State = EControllerState::Failed;
+
+        for (const auto& task : Tasks) {
+            task->ForceComplete();
+        }
 
         BuildAndSaveProgress();
         LogProgress(/*force*/ true);
@@ -9537,28 +9556,6 @@ void TOperationControllerBase::TSink::Persist(const TPersistenceContext& context
 }
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOperationControllerBase::TSink);
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TOperationControllerBase::TControllerFeatures::AddSingularFeature(TStringBuf name, double value)
-{
-    Features_[name] += value;
-}
-
-void TOperationControllerBase::TControllerFeatures::AddCountedFeature(TStringBuf name, double value)
-{
-    TString sumFeature{name};
-    sumFeature += ".sum";
-    Features_[sumFeature] += value;
-    TString countFeature{name};
-    countFeature += ".count";
-    Features_[countFeature] += 1;
-}
-
-THashMap<TString, double> TOperationControllerBase::TControllerFeatures::FlushFeatures()
-{
-    return std::move(Features_);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

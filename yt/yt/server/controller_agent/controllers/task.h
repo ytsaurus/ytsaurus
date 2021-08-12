@@ -5,6 +5,7 @@
 #include "competitive_job_manager.h"
 #include "data_flow_graph.h"
 #include "job_splitter.h"
+#include "helpers.h"
 
 #include <yt/yt/server/controller_agent/tentative_tree_eligibility.h>
 
@@ -189,6 +190,10 @@ public:
 
     void UpdateMemoryDigests(const TJobletPtr& joblet, const TStatistics& statistics, bool resourceOverdraft);
 
+    void BuildFeatureYson(NYTree::TFluentAny fluent) const;
+
+    void FinalizeFeatures();
+
 protected:
     NLogging::TLogger Logger;
 
@@ -352,6 +357,7 @@ private:
     std::unique_ptr<IHistogram> InputDataWeightHistogram_;
 
     TReadRangeRegistry InputReadRangeRegistry_;
+    TControllerFeatures ControllerFeatures_;
 
     //! If job is aborted because of resource overdraft, its output cookie is put into this set.
     //! Next incarnation of this job will be run with maximal possible memory reserve factor to

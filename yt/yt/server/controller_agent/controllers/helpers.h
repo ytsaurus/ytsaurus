@@ -25,4 +25,26 @@ NChunkClient::TDataSourceDirectoryPtr BuildDataSourceDirectoryFromInputTables(co
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TControllerFeatures
+{
+public:
+    void AddTag(TString name, auto value);
+    void AddSingular(TStringBuf name, double value);
+    void AddCounted(TStringBuf name, double value);
+
+private:
+    THashMap<TString, NYson::TYsonString> Tags_;
+    THashMap<TString, double> Features_;
+
+    friend void Serialize(const TControllerFeatures& features, NYson::IYsonConsumer* consumer);
+};
+
+void Serialize(const TControllerFeatures& features, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent::NControllers
+
+#define HELPERS_INL_H
+#include "helpers-inl.h"
+#undef HELPERS_INL_H
