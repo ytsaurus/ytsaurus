@@ -109,9 +109,9 @@ public:
 
     void Init(const TIntrusivePtr<TSkiffRecord>& record);
 
-    virtual Py::Object iter() override;
+    Py::Object iter() override;
 
-    PyObject* iternext();
+    PyObject* iternext() override;
 
     static void InitType();
 
