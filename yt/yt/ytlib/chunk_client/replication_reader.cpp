@@ -839,8 +839,10 @@ protected:
             return;
         }
 
+        // TODO(akozhikhov): Propagate ally replicas to erasure reader.
         if (!allyReplicas ||
-            SeedReplicas_.Revision >= allyReplicas.Revision)
+            SeedReplicas_.Revision >= allyReplicas.Revision ||
+            !IsRegularChunkId(ChunkId_))
         {
             return;
         }
