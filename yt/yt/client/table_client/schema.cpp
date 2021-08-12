@@ -1269,7 +1269,7 @@ void FromProto(
 
 void PrintTo(const TTableSchema& tableSchema, std::ostream* os)
 {
-    (*os) << Format("%v", tableSchema);
+    *os << Format("%v", tableSchema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -453,17 +453,17 @@ void FromProto(NTableClient::TColumnSchema* schema, const NProto::TColumnSchema&
         columnType = ConvertTo<TTypeV3LogicalTypeWrapper>(TYsonStringBuf(protoSchema.type_v3())).LogicalType;
         auto [v1Type, v1Required] = CastToV1Type(columnType);
         if (protoSchema.has_required() && protoSchema.required() != v1Required) {
-            THROW_ERROR_EXCEPTION("Fields \"type_v3\" and \"required\" mismatches")
+            THROW_ERROR_EXCEPTION("Fields \"type_v3\" and \"required\" do not match")
                 << TErrorAttribute("type_v3", ToString(*columnType))
                 << TErrorAttribute("required", protoSchema.required());
         }
         if (protoSchema.has_logical_type() && v1Type != protoSchema.logical_type()) {
-            THROW_ERROR_EXCEPTION("Fields \"type_v3\" and \"logical_type\" mismatches")
+            THROW_ERROR_EXCEPTION("Fields \"type_v3\" and \"logical_type\" do not match")
                 << TErrorAttribute("type_v3", ToString(*columnType))
                 << TErrorAttribute("logical_type", protoSchema.logical_type());
         }
         if (protoSchema.has_type() && GetPhysicalType(v1Type) != protoSchema.type()) {
-            THROW_ERROR_EXCEPTION("Fields \"type_v3\" and \"logical_type\" mismatches")
+            THROW_ERROR_EXCEPTION("Fields \"type_v3\" and \"logical_type\" do not match")
                 << TErrorAttribute("type_v3", ToString(*columnType))
                 << TErrorAttribute("type", protoSchema.type());
         }
@@ -471,7 +471,7 @@ void FromProto(NTableClient::TColumnSchema* schema, const NProto::TColumnSchema&
         auto simpleLogicalType = CheckedEnumCast<ESimpleLogicalValueType>(protoSchema.logical_type());
         columnType = MakeLogicalType(simpleLogicalType, protoSchema.required());
         if (protoSchema.has_type() && GetPhysicalType(simpleLogicalType) != protoSchema.type()) {
-            THROW_ERROR_EXCEPTION("Fields \"logical_type\" and \"type\" mismatches")
+            THROW_ERROR_EXCEPTION("Fields \"logical_type\" and \"type\" do not match")
                 << TErrorAttribute("logical_type", ToString(*columnType))
                 << TErrorAttribute("type", protoSchema.type());
         }
