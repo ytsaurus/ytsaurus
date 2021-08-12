@@ -10,7 +10,8 @@ import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguratio
 import ru.yandex.spark.yt.wrapper.{LogLazy, YtWrapper}
 import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtClientProvider, YtRpcClient}
 import ru.yandex.spark.yt.wrapper.cypress.PathType
-import ru.yandex.spark.yt.wrapper.model.EventLogSchema.{metaSchema, schema}
+import ru.yandex.spark.yt.wrapper.model.EventLogSchema.Key._
+import ru.yandex.spark.yt.wrapper.model.EventLogSchema._
 import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient}
 
 import java.io.FileNotFoundException
@@ -115,7 +116,7 @@ class YtEventLogFileSystem extends FileSystem with LogLazy {
         getFileDetailsImpl(hadoopPathToYt(srcTablePath), srcName, Some(transaction)).exists {
           details => {
             YtWrapper.deleteRow(hadoopPathToYt(srcMetaTablePath), metaSchema,
-              util.Map.of("file_name", srcName), Some(transaction))
+              util.Map.of(FILENAME, srcName), Some(transaction))
             YtWrapper.insertRows(hadoopPathToYt(dstMetaTablePath), metaSchema,
               List(details.copy(fileName = dstName).toList), Some(transaction))
             true
@@ -131,7 +132,7 @@ class YtEventLogFileSystem extends FileSystem with LogLazy {
     implicit val ytClient: CompoundClient = yt
     for (i <- 1 to blocksCnt) {
       YtWrapper.deleteRow(path, schema,
-        java.util.Map.of("id", id, "order", i), transaction)
+        java.util.Map.of(ID, id, ORDER, i), transaction)
     }
   }
 
@@ -144,7 +145,7 @@ class YtEventLogFileSystem extends FileSystem with LogLazy {
     val meta_path = getMetaPath(tablePathStr)
     YtWrapper.runUnderTransaction(None)(transaction => {
       getFileDetailsImpl(tablePathStr, fullTableName, Some(transaction)).exists(details => {
-        YtWrapper.deleteRow(meta_path, metaSchema, java.util.Map.of("file_name", fullTableName), Some(transaction))
+        YtWrapper.deleteRow(meta_path, metaSchema, java.util.Map.of(FILENAME, fullTableName), Some(transaction))
         deleteAllRowsWithId(tablePathStr, fullTableName, details.meta.blocksCnt, Some(transaction))
         true
       })
@@ -198,7 +199,8 @@ class YtEventLogFileSystem extends FileSystem with LogLazy {
     if (!YtWrapper.exists(meta_path)) {
       None
     } else {
-      val selectedRows = YtWrapper.selectRows(meta_path, metaSchema, Some(s"""file_name="$fileName""""), transaction)
+      val selectedRows = YtWrapper.selectRows(meta_path, metaSchema,
+        Some(s"""${FILENAME}="$fileName""""), transaction)
       selectedRows match {
         case Nil => None
         case meta :: Nil => Some(YtEventLogFileDetails(meta))

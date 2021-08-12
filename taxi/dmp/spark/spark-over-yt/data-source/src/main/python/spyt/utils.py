@@ -73,6 +73,9 @@ class SparkDiscovery(object):
     def event_log_table(self):
         return self.logs().join("event_log_table")
 
+    def worker_log(self):
+        return self.logs().join("worker_log")
+
     def master_spark(self):
         return self.discovery().join("address") if self.spark_id else self.discovery().join("spark_address")
 

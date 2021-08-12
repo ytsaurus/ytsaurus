@@ -8,6 +8,7 @@ import ru.yandex.spark.launcher.Service.{BasicService, MasterService}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 import ru.yandex.spark.yt.wrapper.discovery.{Address, CypressDiscoveryService, DiscoveryService}
+import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 import java.io.File
 import scala.annotation.tailrec
@@ -128,9 +129,10 @@ trait SparkLauncher {
 
     log.info(s"Run command: $command")
 
+    val workerLog4j = s"-Dlog4j.configuration=file://$sparkHome/conf/log4j.worker.properties"
     val javaHome = env("JAVA_HOME", "/opt/jdk11")
     val sparkLocalDirs = env("SPARK_LOCAL_DIRS", "./tmpfs")
-    val javaOpts = (systemProperties ++ sparkSystemProperties.map { case (k, v) => s"-D$k=$v" }).mkString(" ")
+    val javaOpts = (workerLog4j +: (systemProperties ++ sparkSystemProperties.map { case (k, v) => s"-D$k=$v" })).mkString(" ")
     Process(
       command,
       new File("."),
@@ -152,11 +154,11 @@ trait SparkLauncher {
     }
   }
 
-  def withDiscovery(ytConfig: YtClientConfiguration, discoveryPath: String)(f: DiscoveryService => Unit): Unit = {
+  def withDiscovery(ytConfig: YtClientConfiguration, discoveryPath: String)(f: (DiscoveryService, CompoundClient) => Unit): Unit = {
     val client = YtWrapper.createRpcClient("discovery", ytConfig)
     try {
       val discoveryService = new CypressDiscoveryService(discoveryPath)(client.yt)
-      f(discoveryService)
+      f(discoveryService, client.yt)
     } finally {
       log.info("Close yt client")
       client.close()

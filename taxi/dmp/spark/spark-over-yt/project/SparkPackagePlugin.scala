@@ -76,7 +76,9 @@ object SparkPackagePlugin extends AutoPlugin {
       Seq(
         (Compile / resourceDirectory).value / "spark-defaults.conf",
         (Compile / resourceDirectory).value / "spark-env.sh",
-        (Compile / resourceDirectory).value / "metrics.properties"
+        (Compile / resourceDirectory).value / "metrics.properties",
+        (Compile / resourceDirectory).value / "log4j.properties",
+        (Compile / resourceDirectory).value / "log4j.worker.properties"
       )
     },
     sparkAdditionalBin := {

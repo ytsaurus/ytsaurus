@@ -1,18 +1,24 @@
 package ru.yandex.spark.yt.wrapper.dyntable
 
 import org.slf4j.LoggerFactory
+import ru.yandex.inside.yt.kosher.impl.ytree.YTreeNodeUtils
+import ru.yandex.inside.yt.kosher.impl.ytree.`object`.YTreeSerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.{YTreeBinarySerializer, YTreeTextSerializer}
 import ru.yandex.inside.yt.kosher.ytree.{YTreeMapNode, YTreeNode}
+import ru.yandex.misc.reflection.ClassX
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
+import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.YtWrapper.{createTable, createTransaction}
 import ru.yandex.spark.yt.wrapper.cypress.{YtAttributes, YtCypressUtils}
 import ru.yandex.spark.yt.wrapper.table.YtTableSettings
-import ru.yandex.yt.ytclient.proxy.request.GetTablePivotKeys
+import ru.yandex.yson.YsonConsumer
+import ru.yandex.yt.ytclient.proxy.request.{GetTablePivotKeys, WriteTable}
 import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient, ModifyRowsRequest, SelectRowsRequest}
-import ru.yandex.yt.ytclient.tables.TableSchema
+import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 
-import java.io.ByteArrayOutputStream
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+import java.nio.charset.StandardCharsets
 import java.time.{Duration => JDuration}
 import scala.annotation.tailrec
 import scala.concurrent.TimeoutException
@@ -132,6 +138,7 @@ trait YtDynTableUtils {
     val request = SelectRowsRequest.of(s"""* from [${formatPath(path)}] ${condition.map("where " + _).mkString}""")
 
     runUnderTransaction(parentTransaction)(transaction => {
+      waitState(path, TabletState.Mounted, 60 seconds)
       val selected = transaction.selectRows(request).get(10, MINUTES)
       selected.getRows.asScala.map(x => x.toYTreeMap(schema)).toList
     })

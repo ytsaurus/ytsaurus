@@ -5,7 +5,8 @@ import org.apache.hadoop.fs.FSInputStream
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.YtWrapper.RichLogger
-import ru.yandex.spark.yt.wrapper.model.EventLogSchema.schema
+import ru.yandex.spark.yt.wrapper.model.EventLogSchema.Key._
+import ru.yandex.spark.yt.wrapper.model.EventLogSchema._
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 import java.io.IOException
@@ -70,7 +71,7 @@ class YtEventLogFsInputStream(conf: Configuration, path: String, details: YtEven
     val rows = YtWrapper
       .selectRows(
         path, schema,
-        Some(s"""id="${details.id}" and order > $order and order <= ${order + count}""")
+        Some(s"""${ID}="${details.id}" and ${ORDER} > $order and ${ORDER} <= ${order + count}""")
       )
       .map(x => YtEventLogBlock(x))
     order += count

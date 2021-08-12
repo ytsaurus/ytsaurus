@@ -2,7 +2,7 @@ package ru.yandex.spark.yt.fs.eventlog
 
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
-import ru.yandex.spark.yt.fs.eventlog.YtEventLogBlock.{ID, LOG, ORDER}
+import ru.yandex.spark.yt.wrapper.model.EventLogSchema.Key._
 
 case class YtEventLogBlock(id: String,
                            order: Long,
@@ -21,10 +21,6 @@ case class YtEventLogBlock(id: String,
 }
 
 object YtEventLogBlock {
-  private val ID = "id"
-  private val ORDER = "order"
-  private val LOG = "log"
-
   def apply(node: YTreeNode): YtEventLogBlock = {
     val mp = node.asMap()
 

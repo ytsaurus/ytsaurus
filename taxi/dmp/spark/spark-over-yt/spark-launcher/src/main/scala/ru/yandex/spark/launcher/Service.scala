@@ -60,6 +60,8 @@ sealed trait ServiceWithAddress extends Service {
 object Service {
   case class BasicService(name: String, address: HostAndPort, thread: Thread) extends ServiceWithAddress
 
+  case class LocalService(name: String, thread: Thread) extends Service
+
   object BasicService {
     def apply(name: String, port: Int, thread: Thread): BasicService = {
       BasicService(name, HostAndPort.fromParts(Utils.ytHostnameOrIpAddress, port), thread)

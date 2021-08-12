@@ -14,7 +14,7 @@ import scala.annotation.tailrec
 class YtEventLogFsOutputStream(conf: Configuration, path: String, fileName: String, clock: Clock, implicit val yt: CompoundClient) extends OutputStream {
   private val meta_path = getMetaPath(path)
   private var order = 0
-  private val rowSize = conf.get("fs.ytEventLog.rowSize").toInt
+  private val rowSize = conf.get("yt.dynTable.rowSize").toInt
   private val buffer: Array[Byte] = new Array[Byte](rowSize)
   private var bufferPos = 0
   private var flushedDataSize = 0

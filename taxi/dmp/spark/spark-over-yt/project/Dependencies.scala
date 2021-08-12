@@ -91,6 +91,8 @@ object Dependencies {
     "org.slf4j" % "jul-to-slf4j"
   ).map(_ % slf4jVersion) ++ Seq(
     "log4j" % "log4j" % "1.2.17"
+  ) ++ Seq(
+    "net.logstash.log4j" % "jsonevent-layout" % "1.7"
   )
 
   lazy val scalatra = Seq(
