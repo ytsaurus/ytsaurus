@@ -596,9 +596,16 @@ class TestControllerFeatures(YTEnvSetup):
         )
 
         features = get(op.get_path() + "/@controller_features")
+        assert len(features) == 2
+        operation = features[0]
+        task = features[1]
+        if "task_name" in operation["tags"]:
+            task, operation = operation, task
+        assert task["tags"]["task_name"] == "map"
+        assert task["features"]["wall_time"] > 1000
+        assert operation["features"]["wall_time"] > 1000
         if not is_asan_build():
-            assert features["peak_controller_memory_usage"] > 0
-        assert features["wall_time"] > 1000
+            assert operation["features"]["peak_controller_memory_usage"] > 0
 
         op = map(
             in_=["//tmp/t_in"],
@@ -614,6 +621,13 @@ class TestControllerFeatures(YTEnvSetup):
             op.track()
 
         features = get(op.get_path() + "/@controller_features")
+        assert len(features) == 2
+        operation = features[0]
+        task = features[1]
+        if "task_name" in operation["tags"]:
+            task, operation = operation, task
+        assert task["tags"]["task_name"] == "map"
+        assert task["features"]["wall_time"] > 1000
+        assert operation["features"]["wall_time"] > 1000
         if not is_asan_build():
-            assert features["peak_controller_memory_usage"] > 0
-        assert features["wall_time"] > 1000
+            assert operation["features"]["peak_controller_memory_usage"] > 0

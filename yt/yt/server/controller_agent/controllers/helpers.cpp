@@ -11,6 +11,8 @@ namespace NYT::NControllerAgent::NControllers {
 using namespace NChunkClient;
 using namespace NChunkPools;
 using namespace NTableClient;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,6 +69,31 @@ TDataSourceDirectoryPtr BuildDataSourceDirectoryFromInputTables(const std::vecto
     }
 
     return dataSourceDirectory;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TControllerFeatures::AddSingular(TStringBuf name, double value)
+{
+    Features_[name] += value;
+}
+
+void TControllerFeatures::AddCounted(TStringBuf name, double value)
+{
+    TString sumFeature{name};
+    sumFeature += ".sum";
+    Features_[sumFeature] += value;
+    TString countFeature{name};
+    countFeature += ".count";
+    Features_[countFeature] += 1;
+}
+
+void Serialize(const TControllerFeatures& features, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer).BeginMap()
+        .Item("tags").Value(features.Tags_)
+        .Item("features").Value(features.Features_)
+    .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

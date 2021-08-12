@@ -1743,6 +1743,19 @@ std::optional<TString> TTask::SelectProfiler()
     return {};
 }
 
+void TTask::BuildFeatureYson(TFluentAny fluent) const
+{
+    fluent.Value(ControllerFeatures_);
+}
+
+void TTask::FinalizeFeatures()
+{
+    ControllerFeatures_.AddTag("task_name", GetVertexDescriptor());
+    if (StartTime_ && CompletionTime_) {
+        ControllerFeatures_.AddSingular("wall_time", (*CompletionTime_ - *StartTime_).MilliSeconds());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent::NControllers

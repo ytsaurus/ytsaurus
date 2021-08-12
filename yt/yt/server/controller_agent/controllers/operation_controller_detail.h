@@ -6,6 +6,7 @@
 #include "job_memory.h"
 #include "job_splitter.h"
 #include "task_host.h"
+#include "helpers.h"
 
 #include <yt/yt/server/controller_agent/chunk_list_pool.h>
 #include <yt/yt/server/controller_agent/tentative_tree_eligibility.h>
@@ -674,7 +675,7 @@ protected:
 
     i64 GetPartSize(EOutputTableType tableType);
 
-    void FlushFeatures();
+    void CommitFeatures();
     void FinalizeFeatures();
 
     // Revival.
@@ -1303,6 +1304,8 @@ private:
 
     void CheckMemoryUsage();
 
+    void BuildFeatureYson(NYTree::TFluentAny fluent) const;
+
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink
         : public NChunkPools::IChunkPoolInput
@@ -1331,17 +1334,6 @@ private:
 
         TThis* Controller_;
         int OutputTableIndex_ = -1;
-    };
-
-    class TControllerFeatures
-    {
-    public:
-        void AddSingularFeature(TStringBuf name, double value);
-        void AddCountedFeature(TStringBuf name, double value);
-        THashMap<TString, double> FlushFeatures();
-
-    private:
-        THashMap<TString, double> Features_;
     };
 
     TControllerFeatures ControllerFeatures_;
