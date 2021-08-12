@@ -48,8 +48,7 @@ public:
         const TString& artifactName,
         ESandboxKind sandboxKind,
         const TString& sourcePath,
-        const TFile& destinationFile,
-        bool executable);
+        const TFile& destinationFile);
 
     TFuture<void> MakeSandboxLink(
         TJobId jobId,
@@ -66,8 +65,7 @@ public:
         const TString& artifactName,
         ESandboxKind sandboxKind,
         const std::function<void(IOutputStream*)>& producer,
-        const TFile& destinationFile,
-        bool executable);
+        const TFile& destinationFile);
 
     TFuture<void> MakeConfig(int slotIndex, NYTree::INodePtr config);
 

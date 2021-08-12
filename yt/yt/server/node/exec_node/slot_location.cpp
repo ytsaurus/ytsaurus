@@ -328,8 +328,7 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
     const TString& artifactName,
     ESandboxKind sandboxKind,
     const TString& sourcePath,
-    const TFile& destinationFile,
-    bool executable)
+    const TFile& destinationFile)
 {
     return DoMakeSandboxFile(
         jobId,
@@ -351,8 +350,6 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
                 sourceFile,
                 destinationFile,
                 Bootstrap_->GetConfig()->ExecNode->SlotManager->FileCopyChunkSize);
-
-            NFS::SetPermissions(destinationFile.GetName(), 0666 + (executable ? 0111 : 0));
 
             YT_LOG_DEBUG(
                 "Finished copying file to sandbox "
@@ -408,6 +405,8 @@ TFuture<void> TSlotLocation::MakeSandboxLink(
 
             NFS::MakeSymbolicLink(targetPath, linkPath);
 
+            EnsureNotInUse(targetPath);
+
             YT_LOG_DEBUG("Finished making sandbox symlink "
                 "(JobId: %v, ArtifactName: %v, SandboxKind: %v)",
                 jobId,
@@ -424,8 +423,7 @@ TFuture<void> TSlotLocation::MakeSandboxFile(
     const TString& artifactName,
     ESandboxKind sandboxKind,
     const std::function<void(IOutputStream*)>& producer,
-    const TFile& destinationFile,
-    bool executable)
+    const TFile& destinationFile)
 {
     return DoMakeSandboxFile(
         jobId,
@@ -443,8 +441,6 @@ TFuture<void> TSlotLocation::MakeSandboxFile(
 
             TFileOutput stream(destinationFile);
             producer(&stream);
-
-            NFS::SetPermissions(destinationFile.GetName(), 0666 + (executable ? 0111 : 0));
 
             YT_LOG_DEBUG(
                 "Finished building sandbox file "
@@ -652,6 +648,13 @@ void TSlotLocation::OnArtifactPreparationFailed(
     // We silently ignore it and wait for the job proxy exit error.
     if (brokenPipe) {
         YT_LOG_INFO(error, "Failed to build file in sandbox: broken pipe");
+
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::ArtifactCopyingFailed,
+            "Failed to build file %Qv in sandbox %Qv: broken pipe",
+            artifactName,
+            sandboxKind)
+            << error;
     } else if (destinationInsideTmpfs && noSpace) {
         YT_LOG_INFO(error, "Failed to build file in sandbox: tmpfs is too small");
 

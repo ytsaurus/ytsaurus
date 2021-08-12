@@ -354,8 +354,7 @@ public:
                         artifact.Name,
                         artifact.SandboxKind,
                         producer,
-                        pipe,
-                        artifact.Executable));
+                        pipe));
             } else if (artifact.CopyFile) {
                 YT_VERIFY(artifact.Chunk);
 
@@ -372,8 +371,7 @@ public:
                             artifact.Name,
                             artifact.SandboxKind,
                             artifact.Chunk->GetFileName(),
-                            pipe,
-                            artifact.Executable));
+                            pipe));
                 }
             }
         });

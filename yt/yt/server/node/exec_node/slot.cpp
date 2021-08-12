@@ -123,8 +123,7 @@ public:
         const TString& artifactName,
         ESandboxKind sandboxKind,
         const TString& sourcePath,
-        const TFile& destinationFile,
-        bool executable) override
+        const TFile& destinationFile) override
     {
         return RunPrepareAction<void>([&] {
                 return Location_->MakeSandboxCopy(
@@ -133,8 +132,7 @@ public:
                     artifactName,
                     sandboxKind,
                     sourcePath,
-                    destinationFile,
-                    executable);
+                    destinationFile);
             });
     }
 
@@ -143,8 +141,7 @@ public:
         const TString& artifactName,
         ESandboxKind sandboxKind,
         const std::function<void(IOutputStream*)>& producer,
-        const TFile& destinationFile,
-        bool executable) override
+        const TFile& destinationFile) override
     {
         return RunPrepareAction<void>([&] {
                 return Location_->MakeSandboxFile(
@@ -153,8 +150,7 @@ public:
                     artifactName,
                     sandboxKind,
                     producer,
-                    destinationFile,
-                    executable);
+                    destinationFile);
             });
     }
 
