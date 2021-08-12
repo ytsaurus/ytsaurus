@@ -282,6 +282,10 @@ protected:
         TChunkId chunkId,
         const TResponse& response)
     {
+        if (!IsRegularChunkId(chunkId)) {
+            return;
+        }
+
         auto it = ChunkIdToReplicaLocationInfo_.find(chunkId);
         if (it == ChunkIdToReplicaLocationInfo_.end()) {
             return;
