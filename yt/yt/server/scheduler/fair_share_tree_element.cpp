@@ -1683,6 +1683,7 @@ void TSchedulerPoolElement::BuildResourceMetering(const std::optional<TMeteringK
             .AbcId  = Config_->Abc->Id,
             .TreeId = GetTreeId(),
             .PoolId = GetId(),
+            .MeteringTags = Config_->MeteringTags,
         };
     }
 

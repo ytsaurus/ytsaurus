@@ -41,6 +41,7 @@ struct TMeteringKey
     int AbcId;
     TString TreeId;
     TString PoolId;
+    THashMap<TString, TString> MeteringTags;
 
     bool operator==(const TMeteringKey& other) const;
 };

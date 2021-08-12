@@ -1810,6 +1810,9 @@ TPoolConfig::TPoolConfig()
 
     RegisterParameter("truncate_fifo_pool_unsatisfied_child_fair_share", TruncateFifoPoolUnsatisfiedChildFairShare)
         .Default();
+
+    RegisterParameter("metering_tags", MeteringTags)
+        .Default();
 }
 
 void TPoolConfig::Validate()
@@ -1832,6 +1835,9 @@ void TPoolConfig::Validate()
         THROW_ERROR_EXCEPTION("Burst guarantees cannot be specified for integral guarantee type \"relaxed\"")
             << TErrorAttribute("integral_guarantee_type", IntegralGuarantees->GuaranteeType)
             << TErrorAttribute("burst_guarantee_resources", IntegralGuarantees->BurstGuaranteeResources);
+    }
+    if (!MeteringTags.empty() && !Abc) {
+        THROW_ERROR_EXCEPTION("Metering tags can be specified only for pool with specified abc attribute");
     }
 }
 

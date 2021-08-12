@@ -1499,6 +1499,9 @@ public:
                 .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
                     fluent.Item(pair.first).Value(pair.second);
                 })
+                .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                    fluent.Item(pair.first).Value(pair.second);
+                })
             .EndMap()
             .Item("labels").BeginMap()
                 .Item("pool_tree").Value(key.TreeId)
