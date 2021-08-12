@@ -3,9 +3,12 @@ package ru.yandex.spark.launcher
 import com.twitter.scalding.Args
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.launcher.ByopLauncher.ByopConfig
+import ru.yandex.spark.launcher.Service.LocalService
+import ru.yandex.spark.launcher.WorkerLogLauncher.WorkerLogConfig
 import ru.yandex.spark.yt.wrapper.Utils.parseDuration
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 import ru.yandex.spark.yt.wrapper.discovery.DiscoveryService
+import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -14,28 +17,41 @@ object WorkerLauncher extends App with VanillaLauncher with SparkLauncher with B
   private val log = LoggerFactory.getLogger(getClass)
   private val workerArgs = WorkerLauncherArgs(args)
   private val byopConfig = ByopConfig.create(sparkSystemProperties, args)
+  private val workerLogConfig = WorkerLogConfig.create(sparkSystemProperties, args)
 
   import workerArgs._
 
   prepareProfiler()
 
+  def startWorkerLogService(client: CompoundClient): Option[Service] = {
+    if (workerLogConfig.enableService) {
+      Some(LocalService("WorkerLogService", WorkerLogLauncher.start(workerLogConfig, client)))
+    } else {
+      None
+    }
+  }
+
   withOptionService(byopConfig.map(startByop)) { byop =>
-    withDiscovery(ytConfig, discoveryPath) { discoveryService =>
-      val masterAddress = waitForMaster(waitMasterTimeout, discoveryService)
+    withDiscovery(ytConfig, discoveryPath) { case (discoveryService, client) =>
+      withOptionService(startWorkerLogService(client)) { workerLog =>
 
-      log.info(s"Starting worker for master $masterAddress")
-      withService(startWorker(masterAddress, cores, memory)) { worker =>
-        withService(startSolomonAgent(args, "worker", worker.address.getPort)) { solomonAgent =>
-          def isAlive: Boolean = {
-            val isMasterAlive = DiscoveryService.isAlive(masterAddress.hostAndPort, 3)
-            val isWorkerAlive = worker.isAlive(3)
-            val isRpcProxyAlive = byop.forall(_.isAlive(3))
-            val isSolomonAgentAlive = solomonAgent.isAlive(3)
+        val masterAddress = waitForMaster(waitMasterTimeout, discoveryService)
 
-            isMasterAlive && isWorkerAlive && isRpcProxyAlive && isSolomonAgentAlive
+        log.info(s"Starting worker for master $masterAddress")
+        withService(startWorker(masterAddress, cores, memory)) { worker =>
+          withService(startSolomonAgent(args, "worker", worker.address.getPort)) { solomonAgent =>
+            def isAlive: Boolean = {
+              val isMasterAlive = DiscoveryService.isAlive(masterAddress.hostAndPort, 3)
+              val isWorkerAlive = worker.isAlive(3)
+              val isWorkerLogAlive = workerLog.forall(_.isAlive(3))
+              val isRpcProxyAlive = byop.forall(_.isAlive(3))
+              val isSolomonAgentAlive = solomonAgent.isAlive(3)
+
+              isMasterAlive && isWorkerAlive && isWorkerLogAlive && isRpcProxyAlive && isSolomonAgentAlive
+            }
+
+            checkPeriodically(isAlive)
           }
-
-          checkPeriodically(isAlive)
         }
       }
     }

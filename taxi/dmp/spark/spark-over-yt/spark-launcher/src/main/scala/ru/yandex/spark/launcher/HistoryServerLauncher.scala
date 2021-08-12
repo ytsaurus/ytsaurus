@@ -18,7 +18,7 @@ object HistoryServerLauncher extends App with VanillaLauncher with SparkLauncher
 
   prepareProfiler()
 
-  withDiscovery(ytConfig, discoveryPath) { discoveryService =>
+  withDiscovery(ytConfig, discoveryPath) { case (discoveryService, _) =>
     val masterAddress = waitForMaster(waitMasterTimeout, discoveryService)
 
     withService(startHistoryServer(logPath, memory, discoveryService)) { historyServer =>

@@ -7,7 +7,8 @@ import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.spark.yt.fs.PathUtils.{getMetaPath, hadoopPathToYt}
 import ru.yandex.spark.yt.test.{LocalSpark, LocalYtClient, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.spark.yt.wrapper.model.EventLogSchema.{metaSchema, schema}
+import ru.yandex.spark.yt.wrapper.model.EventLogSchema.Key._
+import ru.yandex.spark.yt.wrapper.model.EventLogSchema._
 import ru.yandex.yt.ytclient.tables.TableSchema
 
 import java.io.FileNotFoundException
@@ -28,7 +29,7 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
 
   private val fsConf = {
     val c = new Configuration()
-    c.set("fs.ytEventLog.rowSize", "2")
+    c.set("yt.dynTable.rowSize", "2")
     c.set("fs.ytEventLog.singleReadLimit", "2")
     c.set("yt.proxy", "localhost:8000")
     c.set("yt.user", "root")
@@ -90,15 +91,25 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
     }
   }
 
+  case class YtEventLogBlockTest(id: String,
+                                 order: Long,
+                                 log: List[Byte])
+
+  object YtEventLogBlockTest {
+    def apply(ytEventLogBlock: YtEventLogBlock): YtEventLogBlockTest = {
+      YtEventLogBlockTest(ytEventLogBlock.id, ytEventLogBlock.order, ytEventLogBlock.log.toList)
+    }
+  }
+
   it should "create" in {
     val (fileName, tablePath) = getNameAndFileLocation("testLog")
     writeSingleStringToLog(tablePath, "123")
     val id = getId(tableLocation, fileName)
 
-    val res = getAllRows(tableLocation, schema)
+    val res = getAllRows(tableLocation, schema).map(x => YtEventLogBlockTest(YtEventLogBlock(x)))
     res should contain theSameElementsAs Seq(
-      s"""{"log"="12";"id"="$id";"order"=1}""",
-      s"""{"log"="3";"id"="$id";"order"=2}"""
+      YtEventLogBlockTest(YtEventLogBlock(id, 1, "12".getBytes)),
+      YtEventLogBlockTest(YtEventLogBlock(id, 2, "3".getBytes))
     )
   }
 
@@ -109,7 +120,7 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
   }
 
   it should "seek" in {
-    val (fileName, tablePath) = getNameAndFileLocation("testLog")
+    val (_, tablePath) = getNameAndFileLocation("testLog")
     writeSingleStringToLog(tablePath, "1_2_3_4_5_6_7_8_9_10_11_12_13_14_15_16_17_18_19_20")
 
     val buffer = new Array[Byte](3)
@@ -128,16 +139,16 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
     writeSingleStringToLog(tablePath, "345")
     val id = getId(tableLocation, fileName)
 
-    val res = getAllRows(tableLocation, schema)
+    val res = getAllRows(tableLocation, schema).map(x => YtEventLogBlockTest(YtEventLogBlock(x)))
     res should contain theSameElementsAs Seq(
-      s"""{"log"="34";"id"="$id";"order"=1}""",
-      s"""{"log"="5";"id"="$id";"order"=2}"""
+      YtEventLogBlockTest(YtEventLogBlock(id, 1, "34".getBytes)),
+      YtEventLogBlockTest(YtEventLogBlock(id, 2, "5".getBytes))
     )
   }
 
   private def getMetaByFileName(fileName: String): Seq[YtEventLogFileMeta] = {
-    YtWrapper.selectRows(hadoopPathToYt(metaTableLocation), metaSchema, Some(s"""file_name="$fileName""""))
-      .map(YtEventLogFileDetails(_).meta)
+    YtWrapper.selectRows(hadoopPathToYt(metaTableLocation), metaSchema,
+      Some(s"""${FILENAME}="$fileName"""")).map(YtEventLogFileDetails(_).meta)
   }
 
   private def getAllRows(path: String, schema: TableSchema): Seq[String] = {
@@ -160,13 +171,13 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
     }
     val id = getId(tableLocation, fileName)
 
-    val res = getAllRows(tableLocation, schema)
+    val res = getAllRows(tableLocation, schema).map(x => YtEventLogBlockTest(YtEventLogBlock(x)))
     res should contain theSameElementsAs Seq(
-      s"""{"log"="12";"id"="$id";"order"=1}""",
-      s"""{"log"="34";"id"="$id";"order"=2}""",
-      s"""{"log"="56";"id"="$id";"order"=3}""",
-      s"""{"log"="78";"id"="$id";"order"=4}""",
-      s"""{"log"="9";"id"="$id";"order"=5}""",
+      YtEventLogBlockTest(YtEventLogBlock(id, 1, "12".getBytes)),
+      YtEventLogBlockTest(YtEventLogBlock(id, 2, "34".getBytes)),
+      YtEventLogBlockTest(YtEventLogBlock(id, 3, "56".getBytes)),
+      YtEventLogBlockTest(YtEventLogBlock(id, 4, "78".getBytes)),
+      YtEventLogBlockTest(YtEventLogBlock(id, 5, "9".getBytes))
     )
   }
 
@@ -272,7 +283,7 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
     fs.mkdirs(new Path(tableLocation))
 
     val fileStatus = unpackFileStatus(fs.getFileStatus(new Path(tableLocation)))
-    fileStatus shouldEqual (new Path(tableLocation), true, 0)
+    fileStatus shouldEqual(new Path(tableLocation), true, 0)
 
     val listDirectory = fs.listStatus(new Path(tableLocation))
     val resDirectory = listDirectory.map(unpackFileStatus)

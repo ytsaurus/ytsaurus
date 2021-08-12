@@ -21,7 +21,7 @@ lazy val `yt-wrapper` = (project in file("yt-wrapper"))
 
 lazy val `spark-launcher` = (project in file("spark-launcher"))
   .configs(IntegrationTest)
-  .dependsOn(`yt-wrapper`)
+  .dependsOn(`yt-wrapper`, `yt-wrapper` % "test->test")
   .settings(
     libraryDependencies ++= scaldingArgs,
     libraryDependencies ++= logging,
@@ -79,7 +79,8 @@ lazy val `data-source` = (project in file("data-source"))
 lazy val `file-system` = (project in file("file-system"))
   .dependsOn(`yt-wrapper`, `yt-wrapper` % "test->test")
   .settings(
-    libraryDependencies ++= commonDependencies
+    libraryDependencies ++= commonDependencies,
+    libraryDependencies += "net.logstash.log4j" % "jsonevent-layout" % "1.7"
   )
   .settings(
     assembly / assemblyMergeStrategy := {

@@ -3,8 +3,8 @@ package ru.yandex.spark.yt.fs.eventlog
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
-import ru.yandex.spark.yt.fs.eventlog.YtEventLogFileMeta.{BLOCKS_CNT, LENGTH, MODIFICATION_TS, ROW_SIZE}
 import ru.yandex.spark.yt.wrapper.YtWrapper
+import ru.yandex.spark.yt.wrapper.model.EventLogSchema.Key._
 
 case class YtEventLogFileMeta(rowSize: Int,
                               blocksCnt: Int,
@@ -24,11 +24,6 @@ case class YtEventLogFileMeta(rowSize: Int,
 }
 
 object YtEventLogFileMeta {
-  private val ROW_SIZE = "rowSize"
-  private val BLOCKS_CNT = "blocksCnt"
-  private val LENGTH = "length"
-  private val MODIFICATION_TS = "modificationTs"
-
   def apply(node: YTreeNode): YtEventLogFileMeta = {
     val mp = node.asMap()
 

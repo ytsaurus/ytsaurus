@@ -226,18 +226,19 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     else:
         spark_home = "./tmpfs"
 
-    def _launcher_command(component):
+    def _launcher_command(component, xmx="512m"):
         unpack_tar = "tar --warning=no-unknown-keyword -xf spark.tgz -C {}".format(spark_home)
         move_java = "cp -r /opt/jdk11 ./tmpfs/jdk11"
-        run_launcher = "./tmpfs/jdk11/bin/java -Xmx512m -cp spark-yt-launcher.jar"
+        run_launcher = "./tmpfs/jdk11/bin/java -Xmx{0} -cp spark-yt-launcher.jar".format(xmx)
         spark_conf = get_spark_conf(config=config, enablers=enablers)
 
         return "{0} && {1} && {2} {3} ru.yandex.spark.launcher.{4}Launcher ".format(unpack_tar, move_java, run_launcher,
                                                                                     spark_conf, component)
 
     master_command = _launcher_command("Master")
-    worker_command = _launcher_command("Worker") + \
-        "--cores {0} --memory {1} --wait-master-timeout {2}".format(worker_cores, worker_memory, worker_timeout)
+    worker_command = _launcher_command("Worker", "2g") + \
+        "--cores {0} --memory {1} --wait-master-timeout {2} --wlog-table-path {3}"\
+            .format(worker_cores, worker_memory, worker_timeout, "yt:/{}".format(spark_discovery.worker_log()))
 
     if advanced_event_log:
         event_log_path = "ytEventLog:/{}".format(spark_discovery.event_log_table())
