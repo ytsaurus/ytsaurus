@@ -457,6 +457,7 @@ public:
             NFS::MakeDirRecursive(NFS::GetDirectoryName(artifactPath));
 
             TFile artifactFile(artifactPath, CreateAlways | WrOnly | Seq | CloseOnExec);
+            artifactFile.Flock(LOCK_EX);
 
             Host_->PrepareArtifact(artifactName, pipePath);
 
