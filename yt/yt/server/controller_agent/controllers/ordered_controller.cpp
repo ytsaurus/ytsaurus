@@ -798,7 +798,7 @@ private:
             schedulerJobSpecExt->mutable_user_job_spec(),
             Spec_->Mapper,
             UserJobFiles_[Spec_->Mapper],
-            Spec_->JobNodeAccount);
+            Spec_->DebugArtifactsAccount);
     }
 
     virtual bool IsTeleportationSupported() const override

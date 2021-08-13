@@ -147,7 +147,7 @@ void TJobInfoBase::Persist(const TPersistenceContext& context)
     Persist(context, NodeDescriptor);
     Persist(context, StartTime);
     Persist(context, FinishTime);
-    Persist(context, Account);
+    Persist(context, DebugArtifactsAccount);
     Persist(context, Suspicious);
     Persist(context, LastActivityTime);
     Persist(context, BriefStatistics);

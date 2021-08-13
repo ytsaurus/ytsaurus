@@ -489,7 +489,7 @@ void TTask::ScheduleJob(
         accountBuildingJobSpec.Run(-1, -sliceCount);
     });
 
-    joblet->Account = TaskHost_->GetSpec()->JobNodeAccount;
+    joblet->DebugArtifactsAccount = TaskHost_->GetSpec()->DebugArtifactsAccount;
 
     auto jobType = GetJobType();
     scheduleJobResult->StartDescriptor.emplace(

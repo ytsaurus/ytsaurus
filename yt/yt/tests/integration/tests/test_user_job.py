@@ -1358,7 +1358,7 @@ class TestJobStderr(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t2",
             command="cat > /dev/null; echo 'stderr' >&2;",
-            spec={"max_failed_job_count": 1, "job_node_account": "test_account"},
+            spec={"max_failed_job_count": 1, "debug_artifacts_account": "test_account"},
         )
         check_all_stderrs(op, "stderr\n", 1)
 
@@ -1386,7 +1386,7 @@ class TestJobStderr(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t2",
             command="cat > /dev/null; echo 'stderr' >&2;",
-            spec={"max_failed_job_count": 1, "job_node_account": "test_account"},
+            spec={"max_failed_job_count": 1, "debug_artifacts_account": "test_account"},
         )
         check_all_stderrs(op, "stderr\n", 0)
 

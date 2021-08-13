@@ -3050,7 +3050,7 @@ void TOperationControllerBase::BuildJobAttributes(
         .Item("state").Value(state)
         .Item("address").Value(job->NodeDescriptor.Address)
         .Item("start_time").Value(job->StartTime)
-        .Item("account").Value(job->Account)
+        .Item("account").Value(job->DebugArtifactsAccount)
         .Item("progress").Value(job->Progress)
 
         // We use Int64 for `stderr_size' to be consistent with
@@ -8311,7 +8311,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     NScheduler::NProto::TUserJobSpec* jobSpec,
     const TUserJobSpecPtr& jobSpecConfig,
     const std::vector<TUserFile>& files,
-    const TString& fileAccount)
+    const TString& debugArtifactsAccount)
 {
     const auto& userJobOptions = Options->UserJobOptions;
 
@@ -8330,7 +8330,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
     jobSpec->set_custom_statistics_count_limit(jobSpecConfig->CustomStatisticsCountLimit);
     jobSpec->set_copy_files(jobSpecConfig->CopyFiles);
-    jobSpec->set_file_account(fileAccount);
+    jobSpec->set_debug_artifacts_account(debugArtifactsAccount);
     jobSpec->set_set_container_cpu_limit(jobSpecConfig->SetContainerCpuLimit || Options->SetContainerCpuLimit);
 
     // This is common policy for all operations of given type.
