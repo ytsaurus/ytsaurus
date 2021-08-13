@@ -404,7 +404,7 @@ protected:
     const TOperationId OperationId;
 
     const EOperationType OperationType;
-    const TInstant StartTime;
+    const TInstant StartTime_;
     const TString AuthenticatedUser;
     const NYTree::IMapNodePtr SecureVault;
     const NTransactionClient::TTransactionId UserTransactionId;
@@ -1171,6 +1171,9 @@ private:
 
     using TControllerQueueStatistics = TEnumIndexedVector<EOperationControllerQueue, IDiagnosableInvokerPool::TInvokerStatistics>;
     TControllerQueueStatistics LastControllerQueueStatistics_;
+
+    TInstant FinishTime_;
+    std::vector<NScheduler::TExperimentAssignmentPtr> ExperimentAssignments_;
 
     struct TLivePreviewChunkDescriptor
     {

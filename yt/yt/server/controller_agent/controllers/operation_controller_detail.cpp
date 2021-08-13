@@ -122,6 +122,7 @@
 #include <yt/yt/core/profiling/profiler.h>
 
 #include <yt/yt/core/logging/log.h>
+#include <yt/yt/core/logging/fluent_log.h>
 
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_resolver.h>
@@ -211,7 +212,7 @@ TOperationControllerBase::TOperationControllerBase(
     , Config(std::move(config))
     , OperationId(operation->GetId())
     , OperationType(operation->GetType())
-    , StartTime(operation->GetStartTime())
+    , StartTime_(operation->GetStartTime())
     , AuthenticatedUser(operation->GetAuthenticatedUser())
     , SecureVault(operation->GetSecureVault())
     , UserTransactionId(operation->GetUserTransactionId())
@@ -291,6 +292,7 @@ TOperationControllerBase::TOperationControllerBase(
         BIND(&TThis::CheckTentativeTreeEligibility, MakeWeak(this)),
         Config->CheckTentativeTreeEligibilityPeriod))
     , MediumDirectory_(Host->GetMediumDirectory())
+    , ExperimentAssignments_(operation->ExperimentAssignments())
 {
     // Attach user transaction if any. Don't ping it.
     TTransactionAttachOptions userAttachOptions;
@@ -1934,6 +1936,22 @@ void TOperationControllerBase::BuildFeatureYson(TFluentAny fluent) const
 
 void TOperationControllerBase::CommitFeatures()
 {
+    LogStructuredEventFluently(ControllerFeatureStructuredLogger, NLogging::ELogLevel::Info)
+        .Item("operation_id").Value(ToString(GetOperationId()))
+        .Item("start_time").Value(StartTime_)
+        .Item("finish_time").Value(FinishTime_)
+        .Item("experiment_assignment_names").DoListFor(
+            ExperimentAssignments_,
+            [] (TFluentList fluent, const TExperimentAssignmentPtr& experiment) {
+                fluent.Item().Value(experiment->Experiment);
+            })
+        .Item("tags").BeginMap()
+            .Item("operation_type").Value(GetOperationType())
+            .Item("estimated_input_data_weight").Value(TotalEstimatedInputDataWeight)
+        .EndMap()
+        .Item("features").Do(
+            BIND(&TOperationControllerBase::BuildFeatureYson, Unretained(this)));
+
     if (!DebugTransaction) {
         return;
     }
@@ -1954,10 +1972,11 @@ void TOperationControllerBase::CommitFeatures()
 
 void TOperationControllerBase::FinalizeFeatures()
 {
+    FinishTime_ = TInstant::Now();
     for (const auto& task : Tasks) {
         task->FinalizeFeatures();
     }
-    ControllerFeatures_.AddSingular("wall_time", (TInstant::Now() - StartTime).MilliSeconds());
+    ControllerFeatures_.AddSingular("wall_time", (FinishTime_ - StartTime_).MilliSeconds());
     ControllerFeatures_.AddSingular("peak_controller_memory_usage", PeakMemoryUsage_);
 }
 
@@ -3573,7 +3592,7 @@ void TOperationControllerBase::CheckTimeLimit()
 
     auto timeLimit = GetTimeLimit();
     if (timeLimit) {
-        if (TInstant::Now() - StartTime > *timeLimit) {
+        if (TInstant::Now() - StartTime_ > *timeLimit) {
             OnOperationTimeLimitExceeded();
         }
     }
@@ -3963,7 +3982,7 @@ void TOperationControllerBase::AnalyzeJobsCpuUsage()
 
 void TOperationControllerBase::AnalyzeJobsGpuUsage()
 {
-    if (TInstant::Now() - StartTime < Config->OperationAlerts->LowGpuUsageAlertMinDuration && !IsCompleted()) {
+    if (TInstant::Now() - StartTime_ < Config->OperationAlerts->LowGpuUsageAlertMinDuration && !IsCompleted()) {
         return;
     }
 
@@ -3995,7 +4014,7 @@ void TOperationControllerBase::AnalyzeJobsDuration()
         return;
     }
 
-    auto operationDuration = TInstant::Now() - StartTime;
+    auto operationDuration = TInstant::Now() - StartTime_;
 
     std::vector<TError> innerErrors;
 
@@ -4053,7 +4072,7 @@ void TOperationControllerBase::AnalyzeOperationDuration()
             continue;
         }
         i64 pending = jobCounter->GetPending();
-        TDuration wallTime = GetInstant() - StartTime;
+        TDuration wallTime = GetInstant() - StartTime_;
         TDuration estimatedDuration = (wallTime / completedAndRunning) * pending;
 
         if (wallTime > Config->OperationAlerts->OperationTooLongAlertMinWallTime &&
