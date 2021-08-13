@@ -357,7 +357,7 @@ public:
 
     virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override;
 
-    virtual TTimingStatistics GetTimingStatistics() const
+    virtual TTimingStatistics GetTimingStatistics() const override
     {
         // We take wait time from multi reader manager as all ready event bookkeeping is delegated to it.
         // Read time is accounted from our own read timer (reacall that multi reader manager deals with chunk readers

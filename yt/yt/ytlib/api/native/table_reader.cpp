@@ -112,7 +112,7 @@ public:
         return Reader_->GetReadyEvent();
     }
 
-    i64 GetStartRowIndex() const
+    virtual i64 GetStartRowIndex() const override
     {
         YT_VERIFY(Reader_);
         return StartRowIndex_;

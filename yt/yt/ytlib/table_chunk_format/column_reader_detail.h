@@ -801,7 +801,7 @@ public:
         return rangeRowIndex;
     }
 
-    void ReadValueCounts(TMutableRange<ui32> valueCounts) const
+    virtual void ReadValueCounts(TMutableRange<ui32> valueCounts) const override
     {
         YT_VERIFY(SegmentRowIndex_ + std::ssize(valueCounts) <= Meta_.row_count());
 

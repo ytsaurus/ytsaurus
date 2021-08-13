@@ -241,9 +241,9 @@ public:
         return DoBuildReadWindows(chunkMeta, KeyRanges_, TPredicate{});
     }
 
-    std::vector<TReadSpan> BuildReadListForWindow(
+    virtual std::vector<TReadSpan> BuildReadListForWindow(
         TRange<TColumnSlice> columnSlices,
-        TSpanMatching initialWindow) const
+        TSpanMatching initialWindow) const override
     {
         std::vector<TSpanMatching> matchings;
         std::vector<TSpanMatching> nextMatchings;
@@ -339,9 +339,9 @@ public:
             TPredicate{});
     }
 
-    std::vector<TReadSpan> BuildReadListForWindow(
+    virtual std::vector<TReadSpan> BuildReadListForWindow(
         TRange<TColumnSlice> columnSlices,
-        TSpanMatching initialWindow) const
+        TSpanMatching initialWindow) const override
     {
         // TODO(lukyan): Reuse vectors.
         std::vector<TSpanMatching> matchings;
@@ -713,7 +713,7 @@ public:
             MakeStrong(this)));
     }
 
-    virtual TFuture<void> GetReadyEvent() const
+    virtual TFuture<void> GetReadyEvent() const override
     {
         return TVersionedChunkReader::GetReadyEvent();
     }

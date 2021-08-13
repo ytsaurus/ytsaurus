@@ -76,7 +76,7 @@ public:
         TLegacyDataSlicePtr dataSlice,
         const TComparator& comparator,
         i64 sliceDataWeight,
-        bool sliceByKeys)
+        bool sliceByKeys) override
     {
         YT_VERIFY(sliceDataWeight > 0);
 

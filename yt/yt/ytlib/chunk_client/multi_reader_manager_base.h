@@ -50,7 +50,7 @@ public:
 
     virtual TMultiReaderManagerUnreadState GetUnreadState() const override = 0;
 
-    DEFINE_SIGNAL(void(), ReaderSwitched);
+    DEFINE_SIGNAL_OVERRIDE(void(), ReaderSwitched);
 
 protected:
     const TGuid Id_;

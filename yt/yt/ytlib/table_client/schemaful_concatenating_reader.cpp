@@ -57,7 +57,7 @@ public:
         return result;
     }
 
-    virtual bool IsFetchingCompleted() const
+    virtual bool IsFetchingCompleted() const override
     {
         for (const auto& reader : Readers_) {
             if (!reader->IsFetchingCompleted()) {
