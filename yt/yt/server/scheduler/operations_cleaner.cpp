@@ -118,6 +118,7 @@ const std::vector<TString>& TArchiveOperationRequest::GetAttributeKeys()
         "slot_index_per_pool_tree",
         "task_names",
         "experiment_assignments",
+        "controller_features",
     };
 
     return attributeKeys;
@@ -169,6 +170,7 @@ void TArchiveOperationRequest::InitializeFromAttributes(const IAttributeDictiona
     Alias = ConvertTo<TOperationSpecBasePtr>(Spec)->Alias;
     SlotIndexPerPoolTree = attributes.FindYson("slot_index_per_pool_tree");
     TaskNames = attributes.FindYson("task_names");
+    ControllerFeatures = attributes.FindYson("controller_features");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -337,6 +339,10 @@ TUnversionedRow BuildOrderedByIdTableRow(
     if (version >= 40 && request.ExperimentAssignments) {
         builder.AddValue(MakeUnversionedAnyValue(request.ExperimentAssignments.AsStringBuf(), index.ExperimentAssignments));
         builder.AddValue(MakeUnversionedAnyValue(request.ExperimentAssignmentNames.AsStringBuf(), index.ExperimentAssignmentNames));
+    }
+
+    if (version >= 42 && request.ControllerFeatures) {
+        builder.AddValue(MakeUnversionedAnyValue(request.ControllerFeatures.AsStringBuf(), index.ControllerFeatures));
     }
 
     return rowBuffer->CaptureRow(builder.GetRow());

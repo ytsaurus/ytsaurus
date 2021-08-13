@@ -130,6 +130,7 @@ class TestGetOperation(YTEnvSetup):
                 "full_spec",
                 "slot_index_per_pool_tree",
                 "alerts",
+                "controller_features",
             ]
             return {key: attrs[key] for key in PROPER_ATTRS if key in attrs}
 

@@ -2,8 +2,8 @@ import __builtin__
 
 from yt_env_setup import YTEnvSetup, is_asan_build
 from yt_commands import (
-    authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
-    get, exists,
+    authors, clean_operations, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
+    get, exists, remove,
     reduce, map_reduce, sort, erase, remote_copy, get_driver, vanilla,
     write_table, map, merge, get_operation, list_operations, sync_create_cells, raises_yt_error)
 
@@ -583,6 +583,33 @@ class TestControllerFeatures(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period": 10,
+            "operations_cleaner": {
+                "enable": False,
+                "analysis_period": 100,
+                # Cleanup all operations
+                "hard_retained_operation_count": 0,
+                "clean_delay": 0,
+            },
+            "enable_job_reporter": True,
+            "enable_job_spec_reporter": True,
+            "enable_job_stderr_reporter": True,
+        },
+    }
+
+    def setup(self):
+        sync_create_cells(1)
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
+    def teardown(self):
+        remove("//sys/operations_archive", force=True)
 
     @authors("alexkolodezny")
     def test_controller_features(self):
@@ -595,17 +622,20 @@ class TestControllerFeatures(YTEnvSetup):
             command="sleep 1",
         )
 
-        features = get(op.get_path() + "/@controller_features")
-        assert len(features) == 2
-        operation = features[0]
-        task = features[1]
-        if "task_name" in operation["tags"]:
-            task, operation = operation, task
-        assert task["tags"]["task_name"] == "map"
-        assert task["features"]["wall_time"] > 1000
-        assert operation["features"]["wall_time"] > 1000
-        if not is_asan_build():
-            assert operation["features"]["peak_controller_memory_usage"] > 0
+        def check_features(op):
+            features = get_operation(op.id, attributes=["controller_features"])["controller_features"]
+            assert len(features) == 2
+            operation = features[0]
+            task = features[1]
+            if "task_name" in operation["tags"]:
+                task, operation = operation, task
+            assert task["tags"]["task_name"] == "map"
+            assert task["features"]["wall_time"] > 1000
+            assert operation["features"]["wall_time"] > 1000
+            if not is_asan_build():
+                assert operation["features"]["peak_controller_memory_usage"] > 0
+
+        check_features(op)
 
         op = map(
             in_=["//tmp/t_in"],
@@ -620,14 +650,31 @@ class TestControllerFeatures(YTEnvSetup):
         with raises_yt_error("Process exited with code 1"):
             op.track()
 
-        features = get(op.get_path() + "/@controller_features")
-        assert len(features) == 2
-        operation = features[0]
-        task = features[1]
-        if "task_name" in operation["tags"]:
-            task, operation = operation, task
-        assert task["tags"]["task_name"] == "map"
-        assert task["features"]["wall_time"] > 1000
-        assert operation["features"]["wall_time"] > 1000
-        if not is_asan_build():
-            assert operation["features"]["peak_controller_memory_usage"] > 0
+        check_features(op)
+
+        op = map(
+            in_=["//tmp/t_in"],
+            out=[],
+            command="sleep 1",
+        )
+
+        clean_operations()
+
+        check_features(op)
+
+        op = map(
+            in_=["//tmp/t_in"],
+            out=[],
+            command="sleep 1 && exit 1",
+            spec={
+                "max_failed_job_count": 0,
+            },
+            track=False,
+        )
+
+        with raises_yt_error("Process exited with code 1"):
+            op.track()
+
+        clean_operations()
+
+        check_features(op)

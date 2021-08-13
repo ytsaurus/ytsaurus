@@ -225,6 +225,7 @@ void Serialize(
             .OptionalItem("slot_index_per_pool_tree", operation.SlotIndexPerPoolTree)
             .OptionalItem("alerts", operation.Alerts)
             .OptionalItem("task_names", operation.TaskNames)
+            .OptionalItem("controller_features", operation.ControllerFeatures)
             .DoIf(operation.OtherAttributes.operator bool(), [&] (TFluentMap fluent) {
                 for (const auto& [key, value] : operation.OtherAttributes->ListPairs()) {
                     fluent.Item(key).Value(value);
@@ -297,6 +298,7 @@ void Deserialize(TOperation& operation, NYTree::IAttributeDictionaryPtr attribut
     setField(operation.SlotIndexPerPoolTree, "slot_index_per_pool_tree");
     setField(operation.Alerts, "alerts");
     setField(operation.TaskNames, "task_names");
+    setField(operation.ControllerFeatures, "controller_features");
 
     operation.OtherAttributes = std::move(attributes);
 }
