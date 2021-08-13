@@ -111,9 +111,11 @@ void TCompositeAutomatonPart::RegisterMethod(
     const TString& type,
     TCallback<void(TMutationContext*)> callback)
 {
+    auto profiler = Automaton_->Profiler_.WithTag("type", type);
     TCompositeAutomaton::TMethodDescriptor descriptor{
         callback,
-        Automaton_->Profiler_.WithTag("type", type).TimeCounter("/cumulative_mutation_time")
+        profiler.TimeCounter("/cumulative_mutation_time"),
+        profiler.Counter("/mutation_count"),
     };
     YT_VERIFY(Automaton_->MethodNameToDescriptor_.emplace(type, descriptor).second);
 }
@@ -222,7 +224,6 @@ TCompositeAutomaton::TCompositeAutomaton(
     : Logger(HydraLogger.WithTag("CellId: %v", cellId))
     , Profiler_(HydraProfiler.WithTag("cell_id", ToString(cellId)))
     , AsyncSnapshotInvoker_(asyncSnapshotInvoker)
-    , MutationCounter_(Profiler_.Counter("/mutation_count"))
     , MutationWaitTimer_(Profiler_.Timer("/mutation_wait_time"))
 { }
 
@@ -479,11 +480,8 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
 
         if (!isRecovery) {
             descriptor->CumulativeTimeCounter.Add(timer.GetElapsedTime());
+            descriptor->MutationCounter.Increment();
         }
-    }
-
-    if (!isRecovery) {
-        MutationCounter_.Increment();
     }
 }
 

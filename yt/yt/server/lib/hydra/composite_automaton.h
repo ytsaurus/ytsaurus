@@ -203,6 +203,7 @@ private:
     {
         TCallback<void(TMutationContext* context)> Callback;
         NProfiling::TTimeCounter CumulativeTimeCounter;
+        NProfiling::TCounter MutationCounter;
     };
 
     struct TSaverDescriptorBase
@@ -245,7 +246,6 @@ private:
 
     EFinalRecoveryAction FinalRecoveryAction_ = EFinalRecoveryAction::None;
 
-    NProfiling::TCounter MutationCounter_;
     NProfiling::TEventTimer MutationWaitTimer_;
 
 private:
