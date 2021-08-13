@@ -72,7 +72,7 @@ public:
         return result;
     }
 
-    void Persist(const TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;
         Persist(context, MaxBuckets_);

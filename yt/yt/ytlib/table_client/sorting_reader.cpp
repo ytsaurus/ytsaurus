@@ -138,7 +138,7 @@ public:
         return 0;
     }
 
-    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const
+    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
     {
         YT_ABORT();
     }

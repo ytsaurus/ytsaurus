@@ -610,12 +610,12 @@ private:
         return EChunkFormat::TableSchemalessHorizontal;
     }
 
-    virtual bool SupportBoundaryKeys() const
+    virtual bool SupportBoundaryKeys() const override
     {
         return true;
     }
 
-    void DoClose()
+    virtual void DoClose() override
     {
         if (BlockWriter_->GetRowCount() > 0) {
             auto block = BlockWriter_->FlushBlock();
@@ -752,7 +752,7 @@ private:
         return EChunkFormat::TableUnversionedColumnar;
     }
 
-    virtual bool SupportBoundaryKeys() const
+    virtual bool SupportBoundaryKeys() const override
     {
         return true;
     }

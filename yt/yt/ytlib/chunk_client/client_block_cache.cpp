@@ -56,7 +56,7 @@ public:
         : Cookie_(std::move(cookie))
     { }
 
-    virtual bool IsActive() const
+    virtual bool IsActive() const override
     {
         return Cookie_.IsActive();
     }
@@ -380,7 +380,7 @@ public:
 
     virtual std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
         const TBlockId& /* id */,
-        EBlockType /* type */)
+        EBlockType /* type */) override
     {
         return CreateActiveCachedBlockCookie();
     }

@@ -414,7 +414,7 @@ public:
         std::tie(Schema_, ColumnFilter_, IdMapping_) = CreateSortedReadParameters(schema, columnFilter);
     }
 
-    virtual TFuture<void> Open()
+    virtual TFuture<void> Open() override
     {
         return DoOpen();
     }
@@ -788,14 +788,14 @@ public:
         return batch;
     }
 
-    virtual TDataStatistics GetDataStatistics() const
+    virtual TDataStatistics GetDataStatistics() const override
     {
         auto dataStatistics = CurrentReader_ ? CurrentReader_->GetDataStatistics() : TDataStatistics{};
         CombineDataStatistics(&dataStatistics, AccumulatedDataStatistics_);
         return dataStatistics;
     }
 
-    virtual TCodecStatistics GetDecompressionStatistics() const
+    virtual TCodecStatistics GetDecompressionStatistics() const override
     {
         if (ChunkReaderFallbackOccured_ && CurrentReader_) {
             return CurrentReader_->GetDecompressionStatistics();
@@ -803,12 +803,12 @@ public:
         return {};
     }
 
-    virtual bool IsFetchingCompleted() const
+    virtual bool IsFetchingCompleted() const override
     {
         return false;
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const
+    virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return {};
     }
@@ -1063,7 +1063,7 @@ public:
         DoCreateRemoteDynamicStoreReader();
     }
 
-    virtual TFuture<void> Open()
+    virtual TFuture<void> Open() override
     {
         return DoOpen();
     }

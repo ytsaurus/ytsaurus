@@ -81,7 +81,7 @@ public:
         }
     }
 
-    virtual bool CheckAffinity(const IInvokerPtr& invoker) const
+    virtual bool CheckAffinity(const IInvokerPtr& invoker) const override
     {
         return invoker.Get() == this;
     }

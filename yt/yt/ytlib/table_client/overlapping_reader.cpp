@@ -42,7 +42,7 @@ public:
     virtual TDataStatistics GetDataStatistics() const override;
     virtual TCodecStatistics GetDecompressionStatistics() const override;
 
-    virtual bool IsFetchingCompleted() const;
+    virtual bool IsFetchingCompleted() const override;
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
 
 private:
@@ -742,7 +742,7 @@ public:
         return DoGetDecompressionStatistics();
     }
 
-    virtual bool IsFetchingCompleted() const
+    virtual bool IsFetchingCompleted() const override
     {
         return DoIsFetchingCompleted();
     }

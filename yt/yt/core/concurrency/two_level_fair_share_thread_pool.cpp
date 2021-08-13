@@ -55,12 +55,12 @@ struct TBucket
     }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-    virtual NConcurrency::TThreadId GetThreadId() const
+    virtual NConcurrency::TThreadId GetThreadId() const override
     {
         return InvalidThreadId;
     }
 
-    virtual bool CheckAffinity(const IInvokerPtr& invoker) const
+    virtual bool CheckAffinity(const IInvokerPtr& invoker) const override
     {
         return invoker.Get() == this;
     }

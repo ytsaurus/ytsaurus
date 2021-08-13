@@ -145,13 +145,27 @@ public: \
         name##_.Unsubscribe(callback); \
     }
 
+#define DEFINE_SIGNAL_OVERRIDE(TSignature, name) \
+protected: \
+    ::NYT::TCallbackList<TSignature> name##_; \
+public: \
+    virtual void Subscribe##name(const ::NYT::TCallback<TSignature>& callback) override \
+    { \
+        name##_.Subscribe(callback); \
+    } \
+    \
+    virtual void Unsubscribe##name(const ::NYT::TCallback<TSignature>& callback) override \
+    { \
+        name##_.Unsubscribe(callback); \
+    }
+
 #define DECLARE_SIGNAL(TSignature, name) \
     void Subscribe##name(const ::NYT::TCallback<TSignature>& callback); \
     void Unsubscribe##name(const ::NYT::TCallback<TSignature>& callback);
 
 #define DECLARE_SIGNAL_OVERRIDE(TSignature, name) \
-    void Subscribe##name(const ::NYT::TCallback<TSignature>& callback) override; \
-    void Unsubscribe##name(const ::NYT::TCallback<TSignature>& callback) override;
+    virtual void Subscribe##name(const ::NYT::TCallback<TSignature>& callback) override; \
+    virtual void Unsubscribe##name(const ::NYT::TCallback<TSignature>& callback) override;
 
 #define DECLARE_INTERFACE_SIGNAL(TSignature, name) \
     virtual void Subscribe##name(const ::NYT::TCallback<TSignature>& callback) = 0; \
