@@ -228,6 +228,11 @@ public:
         TransferAndGetYson("experiment_assignment_names", Operation_.ExperimentAssignmentNames, cursor);
     }
 
+    void OnControllerFeatures(TYsonPullParserCursor* cursor)
+    {
+        TransferAndGetYson("controller_features", Operation_.ControllerFeatures, cursor);
+    }
+
 private:
     TOperation& Operation_;
     const THashSet<TString>& Attributes_;
@@ -325,6 +330,9 @@ void ParseOperationToConsumer(TYsonPullParserCursor* cursor, TConsumer* consumer
         } else if (key == TStringBuf("task_names")) {
             cursor->Next();
             consumer->OnTaskNames(cursor);
+        } else if (key == TStringBuf("controller_features")) {
+            cursor->Next();
+            consumer->OnControllerFeatures(cursor);
         } else {
             cursor->Next();
             cursor->SkipComplexValue();
@@ -599,6 +607,11 @@ public:
     void OnExperimentAssignmentNames(TYsonPullParserCursor* cursor)
     {
         // TODO(max42): maybe support filtering on experiment assignment names?
+        cursor->SkipComplexValue();
+    }
+
+    void OnControllerFeatures(TYsonPullParserCursor* cursor)
+    {
         cursor->SkipComplexValue();
     }
 

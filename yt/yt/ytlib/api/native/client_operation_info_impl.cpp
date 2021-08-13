@@ -72,6 +72,7 @@ static const THashSet<TString> SupportedOperationAttributes = {
     "slot_index_per_pool_tree",
     "alerts",
     "task_names",
+    "controller_features",
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -907,6 +908,7 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
     auto slotIndexPerPoolTreeIndex = columnFilter.FindPosition(tableIndex.SlotIndexPerPoolTree);
     auto alertsIndex = columnFilter.FindPosition(tableIndex.Alerts);
     auto taskNamesIndex = columnFilter.FindPosition(tableIndex.TaskNames);
+    auto controllerFeaturesIndex = columnFilter.FindPosition(tableIndex.ControllerFeatures);
 
     YT_LOG_DEBUG("Parsing operations from archive (OperationCount: %v)", ids.size());
 
@@ -951,6 +953,7 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
         TryFromUnversionedValue(operation.TaskNames, row, taskNamesIndex);
         TryFromUnversionedValue(operation.ExperimentAssignments, row, experimentAssignments);
         TryFromUnversionedValue(operation.ExperimentAssignmentNames, row, experimentAssignmentNames);
+        TryFromUnversionedValue(operation.ControllerFeatures, row, controllerFeaturesIndex);
 
         idToOperation.emplace(operationId, std::move(operation));
     }

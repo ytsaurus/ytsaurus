@@ -165,6 +165,8 @@ class OperationArchiver(object):
             value_columns.append("slot_index_per_pool_tree")
         if self.version >= 35:
             value_columns.append("task_names")
+        if self.version >= 42:
+            value_columns.append("controller_features")
 
         by_id_row = {}
         for key in index_columns + value_columns:

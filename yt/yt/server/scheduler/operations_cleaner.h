@@ -40,6 +40,8 @@ struct TArchiveOperationRequest
     // Archive version >= 40
     NYson::TYsonString ExperimentAssignments;
     NYson::TYsonString ExperimentAssignmentNames;
+    // Archive version >= 42
+    NYson::TYsonString ControllerFeatures;
 
     void InitializeFromOperation(const TOperationPtr& operation);
 

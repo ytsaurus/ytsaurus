@@ -40,6 +40,7 @@ struct TOrderedByIdTableDescriptor
         const int TaskNames;
         const int ExperimentAssignments;
         const int ExperimentAssignmentNames;
+        const int ControllerFeatures;
     };
 
     const NTableClient::TNameTablePtr NameTable;

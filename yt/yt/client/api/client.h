@@ -1121,6 +1121,8 @@ struct TOperation
 
     NYson::TYsonString TaskNames;
 
+    NYson::TYsonString ControllerFeatures;
+
     NYTree::IAttributeDictionaryPtr OtherAttributes;
 };
 
