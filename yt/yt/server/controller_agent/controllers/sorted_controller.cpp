@@ -1045,7 +1045,7 @@ public:
             schedulerJobSpecExt->mutable_user_job_spec(),
             Spec_->Reducer,
             UserJobFiles_[Spec_->Reducer],
-            Spec_->JobNodeAccount);
+            Spec_->DebugArtifactsAccount);
 
         auto* reduceJobSpecExt = JobSpecTemplate_.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         ToProto(reduceJobSpecExt->mutable_key_columns(), GetColumnNames(SortColumns_));

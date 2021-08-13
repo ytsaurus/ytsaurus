@@ -641,7 +641,7 @@ private:
             schedulerJobSpecExt->mutable_user_job_spec(),
             Spec->Mapper,
             UserJobFiles_[Spec->Mapper],
-            Spec->JobNodeAccount);
+            Spec->DebugArtifactsAccount);
     }
 
     virtual void CustomizeJoblet(const TJobletPtr& joblet) override

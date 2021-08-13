@@ -431,7 +431,8 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("intermediate_data_medium", IntermediateDataMediumName)
         .Default(NChunkClient::DefaultStoreMediumName);
 
-    RegisterParameter("job_node_account", JobNodeAccount)
+    RegisterParameter("debug_artifacts_account", DebugArtifactsAccount)
+        .Alias("job_node_account")
         .Default(NSecurityClient::TmpAccountName);
 
     RegisterParameter("unavailable_chunk_strategy", UnavailableChunkStrategy)

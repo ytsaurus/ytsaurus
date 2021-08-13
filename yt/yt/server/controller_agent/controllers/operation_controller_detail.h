@@ -292,7 +292,7 @@ public:
         NScheduler::NProto::TUserJobSpec* proto,
         const NScheduler::TUserJobSpecPtr& jobSpecConfig,
         const std::vector<TUserFile>& files,
-        const TString& fileAccount) override;
+        const TString& debugArtifactsAccount) override;
     virtual const std::vector<TUserFile>& GetUserFiles(const NScheduler::TUserJobSpecPtr& userJobSpec) const override;
 
     virtual void CustomizeJobSpec(const TJobletPtr& joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;

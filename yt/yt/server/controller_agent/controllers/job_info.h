@@ -46,7 +46,7 @@ struct TJobInfoBase
     TInstant FinishTime;
     TInstant LastUpdateTime = TInstant();
 
-    TString Account;
+    TString DebugArtifactsAccount;
     bool Suspicious = false;
     TInstant LastActivityTime;
     TBriefJobStatisticsPtr BriefStatistics;

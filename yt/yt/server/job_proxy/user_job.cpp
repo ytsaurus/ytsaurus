@@ -700,8 +700,8 @@ private:
     TMultiChunkWriterOptionsPtr CreateFileOptions()
     {
         auto options = New<TMultiChunkWriterOptions>();
-        options->Account = UserJobSpec_.has_file_account()
-            ? UserJobSpec_.file_account()
+        options->Account = UserJobSpec_.has_debug_artifacts_account()
+            ? UserJobSpec_.debug_artifacts_account()
             : NSecurityClient::TmpAccountName;
         options->ReplicationFactor = 1;
         options->ChunksVital = false;

@@ -133,7 +133,7 @@ message TUserJobSpec
     // will be fresh enough.
     optional bool copy_files = 24 [default = false];
 
-    optional string file_account = 25;
+    optional string debug_artifacts_account = 25;
 
     // Time after which job will be failed.
     optional uint64 job_time_limit = 26;

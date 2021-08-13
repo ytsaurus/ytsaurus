@@ -4280,7 +4280,7 @@ private:
                     schedulerJobSpecExt->mutable_user_job_spec(),
                     Spec->Mapper,
                     MapperFiles,
-                    Spec->JobNodeAccount);
+                    Spec->DebugArtifactsAccount);
             }
         }
 
@@ -4323,7 +4323,7 @@ private:
                     schedulerJobSpecExt->mutable_user_job_spec(),
                     Spec->ReduceCombiner,
                     ReduceCombinerFiles,
-                    Spec->JobNodeAccount);
+                    Spec->DebugArtifactsAccount);
                 schedulerJobSpecExt->mutable_user_job_spec()->set_cast_input_any_to_composite(castAnyToComposite);
             } else {
                 IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::IntermediateSort));
@@ -4351,7 +4351,7 @@ private:
                 schedulerJobSpecExt->mutable_user_job_spec(),
                 Spec->Reducer,
                 ReducerFiles,
-                Spec->JobNodeAccount);
+                Spec->DebugArtifactsAccount);
             schedulerJobSpecExt->mutable_user_job_spec()->set_cast_input_any_to_composite(castAnyToComposite);
         }
 
@@ -4374,7 +4374,7 @@ private:
                 schedulerJobSpecExt->mutable_user_job_spec(),
                 Spec->Reducer,
                 ReducerFiles,
-                Spec->JobNodeAccount);
+                Spec->DebugArtifactsAccount);
             schedulerJobSpecExt->mutable_user_job_spec()->set_cast_input_any_to_composite(castAnyToComposite);
         }
     }

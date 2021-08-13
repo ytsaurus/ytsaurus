@@ -683,7 +683,7 @@ public:
     TString IntermediateDataMediumName;
 
     //! Account for job nodes and operation files (stderrs and input contexts of failed jobs).
-    TString JobNodeAccount;
+    TString DebugArtifactsAccount;
 
     //! What to do during initialization if some chunks are unavailable.
     EUnavailableChunkAction UnavailableChunkStrategy;

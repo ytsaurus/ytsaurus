@@ -180,7 +180,7 @@ private:
             schedulerJobSpecExt->mutable_user_job_spec(),
             Spec_,
             TaskHost_->GetUserFiles(Spec_),
-            TaskHost_->GetSpec()->JobNodeAccount);
+            TaskHost_->GetSpec()->DebugArtifactsAccount);
     }
 };
 
