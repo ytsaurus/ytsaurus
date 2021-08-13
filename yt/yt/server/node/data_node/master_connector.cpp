@@ -683,6 +683,9 @@ private:
         } else {
             YT_LOG_WARNING(rspOrError, "Error reporting incremental data node heartbeat to master (CellTag: %v)",
                 cellTag);
+
+            OnIncrementalHeartbeatFailed(cellTag);
+
             if (IsRetriableError(rspOrError)) {
                 DoScheduleHeartbeat(cellTag, /*immediately*/ false);
             } else {
