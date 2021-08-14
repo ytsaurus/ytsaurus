@@ -710,7 +710,7 @@ private:
         return false;
     }
 
-    virtual TUserJobSpecPtr GetUserJobSpec() const
+    virtual TUserJobSpecPtr GetUserJobSpec() const override
     {
         return Spec_->Mapper;
     }
@@ -1283,7 +1283,7 @@ private:
         }
     }
 
-    void InitJobSpecTemplate()
+    virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate_.set_type(static_cast<int>(EJobType::RemoteCopy));
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(
@@ -1370,7 +1370,7 @@ private:
         return Spec_;
     }
 
-    virtual TCpuResource GetCpuLimit() const
+    virtual TCpuResource GetCpuLimit() const override
     {
         return Options_->CpuLimit;
     }

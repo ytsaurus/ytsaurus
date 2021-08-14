@@ -257,9 +257,6 @@ public:
     //! regardless any ACL specification and any ACL changes made by user.
     DEFINE_BYREF_RO_PROPERTY(NSecurityClient::TSerializableAccessControlList, BaseAcl);
 
-    //! Aggregated minimum needed resources at the start of the operation.
-    DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(std::optional<TJobResources>, InitialAggregatedMinNeededResources);
-
     //! List of assigned experiments.
     DEFINE_BYREF_RO_PROPERTY(std::vector<TExperimentAssignmentPtr>, ExperimentAssignments);
 
@@ -341,6 +338,9 @@ public:
 
     TOperationRuntimeParametersPtr GetRuntimeParameters() const override;
     void SetRuntimeParameters(TOperationRuntimeParametersPtr parameters);
+
+    virtual std::optional<TJobResources> GetInitialAggregatedMinNeededResources() const override;
+    void SetInitialAggregatedMinNeededResources(const std::optional<TJobResources>& resources);
 
     NYson::TYsonString BuildAlertsString() const;
     bool HasAlert(EOperationAlertType alertType) const;
@@ -426,6 +426,9 @@ private:
     bool Unregistering_ = false;
 
     TWeakPtr<TControllerAgent> Agent_;
+    
+    //! Aggregated minimum needed resources at the start of the operation.
+    std::optional<TJobResources> InitialAggregatedMinNeededResources_;
 };
 
 #undef DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH

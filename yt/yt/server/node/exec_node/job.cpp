@@ -106,10 +106,10 @@ class TJob
     : public NJobAgent::IJob
 {
 public:
-    DEFINE_SIGNAL(void(const TNodeResources&), ResourcesUpdated);
-    DEFINE_SIGNAL(void(), PortsReleased);
-    DEFINE_SIGNAL(void(), JobPrepared);
-    DEFINE_SIGNAL(void(), JobFinished);
+    DEFINE_SIGNAL_OVERRIDE(void(const TNodeResources&), ResourcesUpdated);
+    DEFINE_SIGNAL_OVERRIDE(void(), PortsReleased);
+    DEFINE_SIGNAL_OVERRIDE(void(), JobPrepared);
+    DEFINE_SIGNAL_OVERRIDE(void(), JobFinished);
 
 public:
     TJob(
@@ -380,7 +380,7 @@ public:
     virtual void OnArtifactPreparationFailed(
         const TString& artifactName,
         const TString& artifactPath,
-        const TError& error)
+        const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 

@@ -291,7 +291,7 @@ private:
 
     const TActionQueuePtr MounterThread_ = New<TActionQueue>("Mounter");
 
-    virtual TProcessBasePtr CreateJobProxyProcess(int /*slotIndex*/, TJobId /* jobId */)
+    virtual TProcessBasePtr CreateJobProxyProcess(int /*slotIndex*/, TJobId /* jobId */) override
     {
         auto process = New<TSimpleProcess>(JobProxyProgramName);
         process->CreateProcessGroup();
@@ -362,7 +362,7 @@ public:
         return Config_->StartUid + slotIndex;
     }
 
-    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path, int locationIndex)
+    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path, int locationIndex) override
     {
         return CreatePortoJobDirectoryManager(Bootstrap_->GetConfig()->DataNode->VolumeManager, path, locationIndex);
     }
@@ -547,7 +547,7 @@ private:
         return New<TPortoProcess>(JobProxyProgramName, launcher);
     }
 
-    virtual void UpdateCpuLimit(double cpuLimit)
+    virtual void UpdateCpuLimit(double cpuLimit) override
     {
         if (std::abs(CpuLimit_ - cpuLimit) < CpuUpdatePrecision) {
             return;

@@ -58,7 +58,7 @@ public:
         JobEnvironment_->CleanProcesses(SlotIndex_);
     }
 
-    virtual void CleanSandbox()
+    virtual void CleanSandbox() override
     {
         WaitFor(Location_->CleanSandboxes(
             SlotIndex_))
@@ -196,7 +196,7 @@ public:
         return TTcpBusClientConfig::CreateUnixDomain(JobProxyUnixDomainSocketPath_);
     }
 
-    virtual TFuture<std::vector<TString>> PrepareSandboxDirectories(const TUserSandboxOptions& options)
+    virtual TFuture<std::vector<TString>> PrepareSandboxDirectories(const TUserSandboxOptions& options) override
     {
         return RunPrepareAction<std::vector<TString>>([&] {
                 return Location_->PrepareSandboxDirectories(
@@ -213,7 +213,7 @@ public:
         const NContainers::TRootFS& rootFS,
         const TString& user,
         const std::optional<std::vector<TDevice>>& devices,
-        int startIndex)
+        int startIndex) override
     {
         return RunPrepareAction<void>([&] {
                 return JobEnvironment_->RunSetupCommands(SlotIndex_, jobId, commands, rootFS, user, devices, startIndex);
@@ -227,7 +227,7 @@ public:
         const TString& artifactName,
         ESandboxKind sandboxKind,
         const TString& artifactPath,
-        const TError& error)
+        const TError& error) override
     {
         Location_->OnArtifactPreparationFailed(
             jobId,

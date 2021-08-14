@@ -101,12 +101,12 @@ private:
         return "//sys/estimated_creation_time";
     }
 
-    virtual std::vector<TString> GetKeys(i64 /*limit*/) const
+    virtual std::vector<TString> GetKeys(i64 /*limit*/) const override
     {
         return {};
     }
 
-    virtual i64 GetSize() const
+    virtual i64 GetSize() const override
     {
         return std::numeric_limits<i64>::max();
     }

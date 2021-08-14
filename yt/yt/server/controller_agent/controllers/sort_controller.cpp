@@ -671,10 +671,10 @@ protected:
             }
         }
 
-        void PropagatePartitions(
+        virtual void PropagatePartitions(
             const std::vector<TStreamDescriptor>& streamDescriptors,
             const TChunkStripeListPtr& inputStripeList,
-            std::vector<TChunkStripePtr>* outputStripes)
+            std::vector<TChunkStripePtr>* outputStripes) override
         {
             TTask::PropagatePartitions(streamDescriptors, inputStripeList, outputStripes);
 
@@ -1495,7 +1495,7 @@ protected:
             return cookie;
         }
 
-        void Persist(const TPersistenceContext& context)
+        void Persist(const TPersistenceContext& context) override
         {
             TSortTaskBase::Persist(context);
 
@@ -2541,7 +2541,7 @@ protected:
     virtual TExtendedJobResources GetUnorderedMergeResources(
         const TChunkStripeStatisticsVector& statistics) const = 0;
 
-    virtual void OnExecNodesUpdated()
+    virtual void OnExecNodesUpdated() override
     {
         for (const auto& partitionTask : PartitionTasks) {
             partitionTask->OnExecNodesUpdated();
@@ -3800,7 +3800,7 @@ public:
             });
     }
 
-    void Persist(const TPersistenceContext& context)
+    void Persist(const TPersistenceContext& context) override
     {
         TSortControllerBase::Persist(context);
 

@@ -468,7 +468,7 @@ public:
         ResourceMeteringExecutor_->SetPeriod(Config->ResourceMeteringPeriod);
     }
 
-    virtual void BuildOperationInfoForEventLog(const IOperationStrategyHost* operation, TFluentMap fluent)
+    virtual void BuildOperationInfoForEventLog(const IOperationStrategyHost* operation, TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 

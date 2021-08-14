@@ -36,9 +36,9 @@ const auto& Logger = CellarAgentLogger;
 class TCellar
     : public ICellar
 {
-    DEFINE_SIGNAL(void(), CreateOccupant);
-    DEFINE_SIGNAL(void(), RemoveOccupant);
-    DEFINE_SIGNAL(void(), UpdateOccupant);
+    DEFINE_SIGNAL_OVERRIDE(void(), CreateOccupant);
+    DEFINE_SIGNAL_OVERRIDE(void(), RemoveOccupant);
+    DEFINE_SIGNAL_OVERRIDE(void(), UpdateOccupant);
 
 public:
     TCellar(

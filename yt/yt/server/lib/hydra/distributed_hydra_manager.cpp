@@ -521,18 +521,18 @@ public:
         DynamicOptions_.Store(options);
     }
 
-    DEFINE_SIGNAL(void(), StartLeading);
-    DEFINE_SIGNAL(void(), AutomatonLeaderRecoveryComplete);
-    DEFINE_SIGNAL(void(), ControlLeaderRecoveryComplete);
-    DEFINE_SIGNAL(void(), LeaderActive);
-    DEFINE_SIGNAL(void(), StopLeading);
+    DEFINE_SIGNAL_OVERRIDE(void(), StartLeading);
+    DEFINE_SIGNAL_OVERRIDE(void(), AutomatonLeaderRecoveryComplete);
+    DEFINE_SIGNAL_OVERRIDE(void(), ControlLeaderRecoveryComplete);
+    DEFINE_SIGNAL_OVERRIDE(void(), LeaderActive);
+    DEFINE_SIGNAL_OVERRIDE(void(), StopLeading);
 
-    DEFINE_SIGNAL(void(), StartFollowing);
-    DEFINE_SIGNAL(void(), AutomatonFollowerRecoveryComplete);
-    DEFINE_SIGNAL(void(), ControlFollowerRecoveryComplete);
-    DEFINE_SIGNAL(void(), StopFollowing);
+    DEFINE_SIGNAL_OVERRIDE(void(), StartFollowing);
+    DEFINE_SIGNAL_OVERRIDE(void(), AutomatonFollowerRecoveryComplete);
+    DEFINE_SIGNAL_OVERRIDE(void(), ControlFollowerRecoveryComplete);
+    DEFINE_SIGNAL_OVERRIDE(void(), StopFollowing);
 
-    DEFINE_SIGNAL(TFuture<void>(), LeaderLeaseCheck);
+    DEFINE_SIGNAL_OVERRIDE(TFuture<void>(), LeaderLeaseCheck);
 
 private:
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();

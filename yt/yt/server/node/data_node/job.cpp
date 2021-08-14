@@ -106,10 +106,10 @@ class TMasterJobBase
     : public IJob
 {
 public:
-    DEFINE_SIGNAL(void(const TNodeResources& resourcesDelta), ResourcesUpdated);
-    DEFINE_SIGNAL(void(), PortsReleased);
-    DEFINE_SIGNAL(void(), JobPrepared);
-    DEFINE_SIGNAL(void(), JobFinished);
+    DEFINE_SIGNAL_OVERRIDE(void(const TNodeResources& resourcesDelta), ResourcesUpdated);
+    DEFINE_SIGNAL_OVERRIDE(void(), PortsReleased);
+    DEFINE_SIGNAL_OVERRIDE(void(), JobPrepared);
+    DEFINE_SIGNAL_OVERRIDE(void(), JobFinished);
 
 public:
     TMasterJobBase(
@@ -379,7 +379,7 @@ public:
 
     virtual void PrepareArtifact(
         const TString& /*artifactName*/,
-        const TString& /*pipePath*/)
+        const TString& /*pipePath*/) override
     {
         YT_ABORT();
     }
@@ -387,7 +387,7 @@ public:
     virtual void OnArtifactPreparationFailed(
         const TString& /*artifactName*/,
         const TString& /*artifactPath*/,
-        const TError& /*error*/)
+        const TError& /*error*/) override
     {
         YT_ABORT();
     }

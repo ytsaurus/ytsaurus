@@ -430,7 +430,7 @@ public:
     virtual void OnPartitionSplit(
         const TPartition* oldPartition,
         int partitionIndex,
-        int splitFactor)
+        int splitFactor) override
     {
         auto newPartitions = MakeRange(Tablet_->PartitionList())
             .Slice(partitionIndex, partitionIndex + splitFactor);
@@ -457,7 +457,7 @@ public:
 
     virtual void OnPartitionsMerged(
         const std::vector<TPartitionId>& oldPartitionIds,
-        const TPartition* newPartition)
+        const TPartition* newPartition) override
     {
         LogEvent("merge_partitions")
             .Item("old_partition_ids").List(oldPartitionIds)

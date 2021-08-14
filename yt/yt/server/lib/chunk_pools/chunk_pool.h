@@ -25,7 +25,8 @@ struct IChunkPoolInput
 
     virtual TCookie Add(TChunkStripePtr stripe) = 0;
 
-    virtual TCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey /* key */) {
+    virtual TCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey /* key */)
+    {
         return Add(stripe);
     }
 
@@ -228,9 +229,9 @@ public:
     virtual void Persist(const TPersistenceContext& context) override;
 
 public:
-    DEFINE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
-    DEFINE_SIGNAL(void(), Completed);
-    DEFINE_SIGNAL(void(), Uncompleted);
+    DEFINE_SIGNAL_OVERRIDE(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
+    DEFINE_SIGNAL_OVERRIDE(void(), Completed);
+    DEFINE_SIGNAL_OVERRIDE(void(), Uncompleted);
 
 protected:
     TIntrusivePtr<TJobManager> JobManager_;

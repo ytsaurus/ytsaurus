@@ -52,7 +52,7 @@ public:
     virtual const TSamplerPtr& GetTraceSampler() override;
 
 public:
-    DEFINE_SIGNAL(void(const std::optional<TString>&), OnProxyRoleChanged);
+    DEFINE_SIGNAL_OVERRIDE(void(const std::optional<TString>&), OnProxyRoleChanged);
 
 private:
     TBootstrap* Bootstrap_;

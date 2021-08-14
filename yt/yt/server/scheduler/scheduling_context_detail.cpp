@@ -29,20 +29,60 @@ TSchedulingContextBase::TSchedulingContextBase(
     const std::vector<TJobPtr>& runningJobs,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
     : NodeShardId_(nodeShardId)
-    , ResourceUsage_(node->GetResourceUsage())
-    , ResourceLimits_(node->GetResourceLimits())
-    , DiskResources_(node->GetDiskResources())
-    , MinSpareJobResources_(
-        config->MinSpareJobResourcesOnNode
-        ? ToJobResources(*config->MinSpareJobResourcesOnNode, TJobResources())
-        : TJobResources())
-    , RunningJobs_(runningJobs)
     , Config_(std::move(config))
     , Node_(std::move(node))
     , NodeDescriptor_(Node_->BuildExecDescriptor())
     , NodeTags_(Node_->Tags())
     , MediumDirectory_(mediumDirectory)
+    , MinSpareJobResources_(
+        Config_->MinSpareJobResourcesOnNode
+        ? ToJobResources(*Config_->MinSpareJobResourcesOnNode, TJobResources())
+        : TJobResources())
+    , ResourceUsage_(Node_->GetResourceUsage())
+    , ResourceLimits_(Node_->GetResourceLimits())
+    , DiskResources_(Node_->GetDiskResources())
+    , RunningJobs_(runningJobs)
 { }
+
+int TSchedulingContextBase::GetNodeShardId() const
+{
+    return NodeShardId_;
+}
+	
+TJobResources& TSchedulingContextBase::UnconditionalResourceUsageDiscount()
+{
+    return UnconditionalResourceUsageDiscount_;
+}
+    
+TJobResources TSchedulingContextBase::GetMaxConditionalUsageDiscount() const
+{
+    return MaxConditionalUsageDiscount_;
+}
+
+TJobResources& TSchedulingContextBase::ResourceUsage()
+{
+    return ResourceUsage_;
+}
+
+const TJobResources& TSchedulingContextBase::ResourceUsage() const
+{
+    return ResourceUsage_;
+}
+
+const TJobResources& TSchedulingContextBase::ResourceLimits() const
+{
+    return ResourceLimits_;
+}
+    
+const NNodeTrackerClient::NProto::TDiskResources& TSchedulingContextBase::DiskResources() const
+{
+    return DiskResources_;
+}
+
+NNodeTrackerClient::NProto::TDiskResources& TSchedulingContextBase::DiskResources()
+{
+    return DiskResources_;
+}
 
 const TExecNodeDescriptor& TSchedulingContextBase::GetNodeDescriptor() const
 {
@@ -96,6 +136,21 @@ bool TSchedulingContextBase::ShouldAbortJobsSinceResourcesOvercommit() const
     return resourcesOvercommitted && allowedOvercommitTimePassed;
 }
 
+const std::vector<TJobPtr>& TSchedulingContextBase::StartedJobs() const
+{
+    return StartedJobs_;
+}
+
+const std::vector<TJobPtr>& TSchedulingContextBase::RunningJobs() const
+{
+    return RunningJobs_;
+}
+
+const std::vector<TPreemptedJob>& TSchedulingContextBase::PreemptedJobs() const
+{
+    return PreemptedJobs_;
+}
+
 void TSchedulingContextBase::StartJob(
     const TString& treeId,
     TOperationId operationId,
@@ -143,6 +198,16 @@ TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithDiscount() const
 TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithDiscountForOperation(TOperationId operationId) const
 {
     return ResourceLimits_ - ResourceUsage_ + UnconditionalResourceUsageDiscount_ + GetConditionalDiscountForOperation(operationId);
+}
+    
+TScheduleJobsStatistics TSchedulingContextBase::GetSchedulingStatistics() const
+{
+    return SchedulingStatistics_;
+}
+
+void TSchedulingContextBase::SetSchedulingStatistics(TScheduleJobsStatistics statistics)
+{
+    SchedulingStatistics_ = statistics;
 }
 
 ESchedulingSegment TSchedulingContextBase::GetSchedulingSegment() const

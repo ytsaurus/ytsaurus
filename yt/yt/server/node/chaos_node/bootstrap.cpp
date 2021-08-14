@@ -46,7 +46,7 @@ private:
 
     ISlotManagerPtr SlotManager_;
 
-    NCellarNode::IBootstrap* GetCellarNodeBootstrap() const
+    virtual NCellarNode::IBootstrap* GetCellarNodeBootstrap() const override
     {
         return ClusterNodeBootstrap_->GetCellarNodeBootstrap();
     }

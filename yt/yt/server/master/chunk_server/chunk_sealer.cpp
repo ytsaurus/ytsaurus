@@ -151,13 +151,13 @@ public:
         }
     }
 
-    void OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks* callbacks)
+    void OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks* callbacks) override
     {
         // In Chunk Sealer we don't distinguish between waiting and running jobs.
         OnJobRunning(job, callbacks);
     }
 
-    void OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* callbacks)
+    void OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* callbacks) override
     {
         if (TInstant::Now() - job->GetStartTime() > GetDynamicConfig()->JobTimeout) {
             YT_LOG_WARNING("Job timed out, aborting (JobId: %v, JobType: %v, Address: %v, Duration: %v, ChunkId: %v)",
@@ -171,13 +171,13 @@ public:
         }
     }
 
-    void OnJobCompleted(const TJobPtr& /*job*/)
+    void OnJobCompleted(const TJobPtr& /*job*/) override
     { }
 
-    void OnJobAborted(const TJobPtr& /*job*/)
+    void OnJobAborted(const TJobPtr& /*job*/) override
     { }
 
-    void OnJobFailed(const TJobPtr& /*job*/)
+    void OnJobFailed(const TJobPtr& /*job*/) override
     { }
 
 private:

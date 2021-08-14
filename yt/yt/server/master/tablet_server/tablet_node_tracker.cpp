@@ -36,7 +36,7 @@ class TTabletNodeTracker
     , public TMasterAutomatonPart
 {
 public:
-    DEFINE_SIGNAL(void(
+    DEFINE_SIGNAL_OVERRIDE(void(
         NNodeTrackerServer::TNode* node,
         NTabletNodeTrackerClient::NProto::TReqHeartbeat* request,
         NTabletNodeTrackerClient::NProto::TRspHeartbeat* response),

@@ -191,9 +191,9 @@ class TBootstrapBase
     : public virtual IBootstrapBase
 {
 public:
-    DEFINE_SIGNAL(void(NNodeTrackerClient::TNodeId nodeId), MasterConnected);
-    DEFINE_SIGNAL(void(), MasterDisconnected);
-    DEFINE_SIGNAL(void(std::vector<TError>* alerts), PopulateAlerts);
+    DEFINE_SIGNAL_OVERRIDE(void(NNodeTrackerClient::TNodeId nodeId), MasterConnected);
+    DEFINE_SIGNAL_OVERRIDE(void(), MasterDisconnected);
+    DEFINE_SIGNAL_OVERRIDE(void(std::vector<TError>* alerts), PopulateAlerts);
 
 public:
     explicit TBootstrapBase(IBootstrapBase* bootstrap);

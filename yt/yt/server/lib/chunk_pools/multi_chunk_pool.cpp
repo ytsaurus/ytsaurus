@@ -41,7 +41,7 @@ public:
         return AddCookie(poolIndex, cookie);
     }
 
-    virtual TExternalCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key)
+    virtual TExternalCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key) override
     {
         YT_VERIFY(stripe->PartitionTag);
         auto poolIndex = *stripe->PartitionTag;
@@ -161,9 +161,9 @@ class TMultiChunkPoolOutput
     , public TJobSplittingBase
 {
 public:
-    DEFINE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
-    DEFINE_SIGNAL(void(), Completed);
-    DEFINE_SIGNAL(void(), Uncompleted);
+    DEFINE_SIGNAL_OVERRIDE(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
+    DEFINE_SIGNAL_OVERRIDE(void(), Completed);
+    DEFINE_SIGNAL_OVERRIDE(void(), Uncompleted);
 
 public:
     using TExternalCookie = TCookie;
@@ -557,7 +557,7 @@ public:
         AddPoolOutput(std::move(pool), poolIndex);
     }
 
-    virtual void Persist(const TPersistenceContext& context)
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TMultiChunkPoolInput::Persist(context);
         TMultiChunkPoolOutput::Persist(context);

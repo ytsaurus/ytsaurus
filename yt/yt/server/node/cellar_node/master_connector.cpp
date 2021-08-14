@@ -47,7 +47,7 @@ static const auto& Logger = CellarNodeLogger;
 class TMasterConnector
     : public IMasterConnector
 {
-    DEFINE_SIGNAL(OnHeartbeatRequestedSignature, HeartbeatRequested);
+    DEFINE_SIGNAL_OVERRIDE(OnHeartbeatRequestedSignature, HeartbeatRequested);
 
 public:
     explicit TMasterConnector(IBootstrap* bootstrap)

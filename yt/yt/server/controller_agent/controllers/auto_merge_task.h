@@ -30,7 +30,7 @@ public:
     virtual NChunkPools::IChunkPoolInput::TCookie Add(
         NChunkPools::TChunkStripePtr stripe) override;
 
-    virtual void Suspend(IChunkPoolInput::TCookie cookie);
+    virtual void Suspend(IChunkPoolInput::TCookie cookie) override;
 
     virtual const TProgressCounterPtr& GetJobCounter() const override;
 
@@ -38,7 +38,7 @@ public:
 
     void SetShouldScheduleJob(bool shouldScheduleJob);
 
-    void Persist(const TPersistenceContext& context);
+    void Persist(const TPersistenceContext& context) override;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeChunkPoolAdapter, 0x54ab375c);
@@ -98,7 +98,7 @@ public:
 
     virtual bool IsCompleted() const override;
 
-    void Persist(const TPersistenceContext& context);
+    void Persist(const TPersistenceContext& context) override;
 
 protected:
     NScheduler::TExtendedJobResources GetMinNeededResourcesHeavy() const override;

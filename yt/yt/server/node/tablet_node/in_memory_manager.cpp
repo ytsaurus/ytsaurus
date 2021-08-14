@@ -193,7 +193,7 @@ public:
             Config_->InterceptedDataRetentionTime);
     }
 
-    const TInMemoryManagerConfigPtr& GetConfig() const
+    const TInMemoryManagerConfigPtr& GetConfig() const override
     {
         return Config_;
     }

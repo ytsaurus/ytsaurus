@@ -775,7 +775,7 @@ public:
             !Spec_->JobIO->TableReader->SamplingRate;
     }
 
-    virtual TUserJobSpecPtr GetUserJobSpec() const
+    virtual TUserJobSpecPtr GetUserJobSpec() const override
     {
         return nullptr;
     }
@@ -993,7 +993,7 @@ public:
         return TCpuResource(Spec_->Reducer->CpuLimit);
     }
 
-    virtual TUserJobSpecPtr GetUserJobSpec() const
+    virtual TUserJobSpecPtr GetUserJobSpec() const override
     {
         return Spec_->Reducer;
     }

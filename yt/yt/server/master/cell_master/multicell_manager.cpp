@@ -511,7 +511,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
-    virtual void OnAfterSnapshotLoaded()
+    virtual void OnAfterSnapshotLoaded() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

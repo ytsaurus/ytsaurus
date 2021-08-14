@@ -228,9 +228,9 @@ class TBootstrap
     : public IBootstrap
 {
 public:
-    DEFINE_SIGNAL(void(NNodeTrackerClient::TNodeId nodeId), MasterConnected);
-    DEFINE_SIGNAL(void(), MasterDisconnected);
-    DEFINE_SIGNAL(void(std::vector<TError>* alerts), PopulateAlerts);
+    DEFINE_SIGNAL_OVERRIDE(void(NNodeTrackerClient::TNodeId nodeId), MasterConnected);
+    DEFINE_SIGNAL_OVERRIDE(void(), MasterDisconnected);
+    DEFINE_SIGNAL_OVERRIDE(void(std::vector<TError>* alerts), PopulateAlerts);
 
 public:
     TBootstrap(TClusterNodeConfigPtr config, INodePtr configNode)
@@ -321,12 +321,12 @@ public:
         return ReadRpsOutThrottler_;
     }
 
-    virtual const TClusterNodeConfigPtr& GetConfig() const
+    virtual const TClusterNodeConfigPtr& GetConfig() const override
     {
         return Config_;
     }
 
-    virtual const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const
+    virtual const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override
     {
         return DynamicConfigManager_;
     }

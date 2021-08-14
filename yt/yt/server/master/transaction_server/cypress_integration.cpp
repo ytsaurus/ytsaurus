@@ -52,7 +52,7 @@ private:
         return IsObjectAlive(object);
     }
 
-    virtual bool NeedSuppressUpstreamSync() const
+    virtual bool NeedSuppressUpstreamSync() const override
     {
         return false;
     }

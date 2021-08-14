@@ -196,7 +196,7 @@ public:
         return AddWithKey(stripe, TChunkStripeKey());
     }
 
-    void Persist(const TPersistenceContext& context)
+    void Persist(const TPersistenceContext& context) override
     {
         TChunkPoolInputAdapterBase::Persist(context);
 
@@ -245,7 +245,7 @@ public:
         return AddWithKey(stripe, TChunkStripeKey());
     }
 
-    void Persist(const TPersistenceContext& context)
+    void Persist(const TPersistenceContext& context) override
     {
         TChunkPoolInputAdapterBase::Persist(context);
 

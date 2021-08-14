@@ -33,12 +33,12 @@ class TDataNodeTracker
     , public TMasterAutomatonPart
 {
 public:
-    DEFINE_SIGNAL(void(
+    DEFINE_SIGNAL_OVERRIDE(void(
         TNode* node,
         TReqFullHeartbeat* request,
         TRspFullHeartbeat* response),
         FullHeartbeat);
-    DEFINE_SIGNAL(void(
+    DEFINE_SIGNAL_OVERRIDE(void(
         TNode* node,
         TReqIncrementalHeartbeat* request,
         TRspIncrementalHeartbeat* response),
