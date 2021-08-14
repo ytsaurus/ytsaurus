@@ -48,9 +48,9 @@ public:
         SlotScanExecutor_->Start();
     }
 
-    DEFINE_SIGNAL(void(), BeginSlotScan);
-    DEFINE_SIGNAL(void(IChaosSlotPtr), ScanSlot);
-    DEFINE_SIGNAL(void(), EndSlotScan);
+    DEFINE_SIGNAL_OVERRIDE(void(), BeginSlotScan);
+    DEFINE_SIGNAL_OVERRIDE(void(IChaosSlotPtr), ScanSlot);
+    DEFINE_SIGNAL_OVERRIDE(void(), EndSlotScan);
 
 private:
     const TChaosNodeConfigPtr Config_;

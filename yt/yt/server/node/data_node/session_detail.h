@@ -55,7 +55,7 @@ public:
 
     virtual TFuture<void> FlushBlocks(int blockIndex) override;
 
-    DEFINE_SIGNAL(void(const TError& error), Finished);
+    DEFINE_SIGNAL_OVERRIDE(void(const TError& error), Finished);
 
 protected:
     const TDataNodeConfigPtr Config_;

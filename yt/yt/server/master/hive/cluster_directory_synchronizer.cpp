@@ -86,7 +86,7 @@ public:
         SyncExecutor_->SetPeriod(config->SyncPeriod);
     }
 
-    DEFINE_SIGNAL(void(const TError&), Synchronized);
+    DEFINE_SIGNAL_OVERRIDE(void(const TError&), Synchronized);
 
 private:
     NCellMaster::TBootstrap* Bootstrap_;

@@ -606,7 +606,7 @@ public:
     virtual const TElement* GetChild(int index) const override final;
     virtual int GetChildrenCount() const override final;
 
-    virtual ESchedulingMode GetMode() const;
+    virtual ESchedulingMode GetMode() const override final;
     virtual bool HasHigherPriorityInFifoMode(const NFairShare::TElement* lhs, const NFairShare::TElement* rhs) const override final;
 
     //! Post fair share update methods.

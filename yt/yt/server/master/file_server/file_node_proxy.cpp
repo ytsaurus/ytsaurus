@@ -62,7 +62,7 @@ private:
             .SetReplicated(true));
     }
 
-    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto* node = GetThisImpl<TFileNode>();
 

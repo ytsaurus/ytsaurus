@@ -346,7 +346,7 @@ public:
 
     virtual void RegisterRecoveryInfo(
         const TCompletedJobPtr& completedJob,
-        const NChunkPools::TChunkStripePtr& stripe);
+        const NChunkPools::TChunkStripePtr& stripe) override;
 
     virtual NTableClient::TRowBufferPtr GetRowBuffer() override;
 
@@ -1330,7 +1330,7 @@ private:
         virtual void Finish() override;
         virtual bool IsFinished() const override;
 
-        void Persist(const TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context) override;
 
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TSink, 0x7fb74a90);

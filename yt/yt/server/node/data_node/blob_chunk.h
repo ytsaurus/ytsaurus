@@ -39,12 +39,12 @@ public:
 
     virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockSet(
         const std::vector<int>& blockIndexes,
-        const TChunkReadOptions& options);
+        const TChunkReadOptions& options) override;
 
     virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockRange(
         int firstBlockIndex,
         int blockCount,
-        const TChunkReadOptions& options);
+        const TChunkReadOptions& options) override;
 
     virtual NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor) override;

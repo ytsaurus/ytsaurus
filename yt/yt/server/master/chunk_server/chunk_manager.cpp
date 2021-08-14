@@ -405,7 +405,7 @@ public:
         return ScheduledJobs_;
     }
 
-    virtual const TJobRegistryPtr& GetJobRegistry() const
+    virtual const TJobRegistryPtr& GetJobRegistry() const override
     {
         return JobRegistry_;
     }

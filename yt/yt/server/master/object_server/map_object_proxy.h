@@ -45,13 +45,13 @@ public:
         TObjectTypeMetadata* metadata,
         TObject* object);
 
-    TIntrusivePtr<const NYTree::ICompositeNode> AsComposite() const;
-    TIntrusivePtr<NYTree::ICompositeNode> AsComposite();
+    virtual TIntrusivePtr<const NYTree::ICompositeNode> AsComposite() const override;
+    virtual TIntrusivePtr<NYTree::ICompositeNode> AsComposite() override;
 
     virtual NYTree::TYPath GetPath() const override;
 
     virtual NYTree::ICompositeNodePtr GetParent() const override;
-    virtual void SetParent(const NYTree::ICompositeNodePtr& parent);
+    virtual void SetParent(const NYTree::ICompositeNodePtr& parent) override;
 
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
     virtual NYTree::IYPathService::TResolveResult ResolveRecursive(

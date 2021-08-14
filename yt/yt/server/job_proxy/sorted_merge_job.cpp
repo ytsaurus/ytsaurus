@@ -167,7 +167,7 @@ private:
         DoInitializeWriter(nullptr, nullptr);
     }
 
-    virtual i64 GetTotalReaderMemoryLimit() const
+    virtual i64 GetTotalReaderMemoryLimit() const override
     {
         auto readerMemoryLimit = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader->MaxBufferSize;
         return readerMemoryLimit * SchedulerJobSpecExt_.input_table_specs_size();

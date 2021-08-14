@@ -57,7 +57,7 @@ public:
         return static_cast<i64>(DataWeightPerJob_);
     }
 
-    void Persist(const TPersistenceContext& context)
+    void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;
         Persist(context, DataWeightPerJob_);

@@ -153,7 +153,6 @@ TOperation::TOperation(
     , SuspiciousJobs_(NYson::TYsonString(TString(), NYson::EYsonType::MapFragment))
     , Alias_(alias)
     , BaseAcl_(std::move(baseAcl))
-    , InitialAggregatedMinNeededResources_(initialAggregatedMinNeededResources)
     , ExperimentAssignments_(std::move(experimentAssignments))
     , RegistrationIndex_(registrationIndex)
     , Id_(id)
@@ -166,6 +165,7 @@ TOperation::TOperation(
     , ControlInvoker_(std::move(controlInvoker))
     , State_(state)
     , RuntimeParameters_(std::move(runtimeParameters))
+    , InitialAggregatedMinNeededResources_(initialAggregatedMinNeededResources)
 {
     // COMPAT(gritukan)
     auto annotations = Spec_->Annotations;
@@ -372,6 +372,17 @@ void TOperation::SetRunningInStrategy()
 {
     RunningInStrategy_= true;
 };
+    
+std::optional<TJobResources> TOperation::GetInitialAggregatedMinNeededResources() const
+{
+    return InitialAggregatedMinNeededResources_;
+}
+
+void TOperation::SetInitialAggregatedMinNeededResources(const std::optional<TJobResources>& resources)
+{
+    ShouldFlush_ = true;
+    InitialAggregatedMinNeededResources_ = resources;
+}
 
 void TOperation::SetRuntimeParameters(TOperationRuntimeParametersPtr parameters)
 {

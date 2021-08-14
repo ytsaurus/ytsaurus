@@ -601,7 +601,7 @@ private:
         }
     }
 
-    TOutputOrderPtr GetOutputOrder() const
+    virtual TOutputOrderPtr GetOutputOrder() const override
     {
         return nullptr;
     }

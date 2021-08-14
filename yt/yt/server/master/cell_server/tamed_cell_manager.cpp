@@ -130,14 +130,14 @@ class TTamedCellManager
     , public TMasterAutomatonPart
 {
 public:
-    DEFINE_SIGNAL(void(TCellBundle* bundle), CellBundleDestroyed);
-    DEFINE_SIGNAL(void(TArea* area), AreaCreated);
-    DEFINE_SIGNAL(void(TArea* area), AreaDestroyed);
-    DEFINE_SIGNAL(void(TArea* area), AreaNodeTagFilterChanged);
-    DEFINE_SIGNAL(void(TCellBase* cell), CellCreated);
-    DEFINE_SIGNAL(void(TCellBase* cell), CellDecommissionStarted);
-    DEFINE_SIGNAL(void(), CellPeersAssigned);
-    DEFINE_SIGNAL(void(), AfterSnapshotLoaded);
+    DEFINE_SIGNAL_OVERRIDE(void(TCellBundle* bundle), CellBundleDestroyed);
+    DEFINE_SIGNAL_OVERRIDE(void(TArea* area), AreaCreated);
+    DEFINE_SIGNAL_OVERRIDE(void(TArea* area), AreaDestroyed);
+    DEFINE_SIGNAL_OVERRIDE(void(TArea* area), AreaNodeTagFilterChanged);
+    DEFINE_SIGNAL_OVERRIDE(void(TCellBase* cell), CellCreated);
+    DEFINE_SIGNAL_OVERRIDE(void(TCellBase* cell), CellDecommissionStarted);
+    DEFINE_SIGNAL_OVERRIDE(void(), CellPeersAssigned);
+    DEFINE_SIGNAL_OVERRIDE(void(), AfterSnapshotLoaded);
 
 public:
     explicit TTamedCellManager(NCellMaster::TBootstrap* bootstrap)
@@ -181,7 +181,7 @@ public:
         RegisterMethod(BIND(&TTamedCellManager::HydraUpdatePeerCount, Unretained(this)));
     }
 
-    void Initialize()
+    void Initialize() override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeNodeUnregistered(BIND(&TTamedCellManager::OnNodeUnregistered, MakeWeak(this)));
@@ -219,7 +219,7 @@ public:
     TCellBundle* CreateCellBundle(
         const TString& name,
         std::unique_ptr<TCellBundle> holder,
-        TTabletCellOptionsPtr options)
+        TTabletCellOptionsPtr options) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -248,7 +248,7 @@ public:
         return cellBundle;
     }
 
-    void ZombifyCellBundle(TCellBundle* cellBundle)
+    void ZombifyCellBundle(TCellBundle* cellBundle) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -270,12 +270,12 @@ public:
         CellBundleDestroyed_.Fire(cellBundle);
     }
 
-    void DestroyCellBundle(TCellBundle* cellBundle)
+    void DestroyCellBundle(TCellBundle* cellBundle) override
     {
         CellBundleMap_.Release(cellBundle->GetId()).release();
     }
 
-    void SetCellBundleOptions(TCellBundle* cellBundle, TTabletCellOptionsPtr newOptions)
+    void SetCellBundleOptions(TCellBundle* cellBundle, TTabletCellOptionsPtr newOptions) override
     {
         Bootstrap_->GetSecurityManager()->ValidatePermission(cellBundle, EPermission::Use);
 
@@ -360,7 +360,7 @@ public:
     TArea* CreateArea(
         const TString& name,
         TCellBundle* cellBundle,
-        TObjectId hintId)
+        TObjectId hintId) override
     {
         ValidateAreaName(name);
 
@@ -404,7 +404,7 @@ public:
         return area;
     }
 
-    void ZombifyArea(TArea* area)
+    void ZombifyArea(TArea* area) override
     {
         YT_VERIFY(area->Cells().empty());
 
@@ -441,7 +441,7 @@ public:
         }
     }
 
-    TCellBase* CreateCell(TCellBundle* cellBundle, TArea* area, std::unique_ptr<TCellBase> holder)
+    TCellBase* CreateCell(TCellBundle* cellBundle, TArea* area, std::unique_ptr<TCellBase> holder) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -561,7 +561,7 @@ public:
         return cell;
     }
 
-    void ZombifyCell(TCellBase* cell)
+    void ZombifyCell(TCellBase* cell) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -621,14 +621,14 @@ public:
         cell->Peers().clear();
     }
 
-    void DestroyCell(TCellBase* cell)
+    void DestroyCell(TCellBase* cell) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         CellMap_.Release(cell->GetId()).release();
     }
 
-    void UpdatePeerCount(TCellBase* cell, std::optional<int> peerCount)
+    void UpdatePeerCount(TCellBase* cell, std::optional<int> peerCount) override
     {
         YT_VERIFY(!cell->IsIndependent());
 
@@ -704,7 +704,7 @@ public:
         }
     }
 
-    const TCellSet* FindAssignedCells(const TString& address) const
+    const TCellSet* FindAssignedCells(const TString& address) const override
     {
         auto it = AddressToCell_.find(address);
         return it != AddressToCell_.end()
@@ -712,17 +712,17 @@ public:
            : nullptr;
     }
 
-    const TBundleNodeTrackerPtr& GetBundleNodeTracker()
+    const TBundleNodeTrackerPtr& GetBundleNodeTracker() override
     {
         return BundleNodeTracker_;
     }
 
-    const THashSet<TCellBase*>& Cells(ECellarType cellarType)
+    const THashSet<TCellBase*>& Cells(ECellarType cellarType) override
     {
         return CellsPerTypeMap_[cellarType];
     }
 
-    TCellBase* GetCellOrThrow(TTamedCellId id)
+    TCellBase* GetCellOrThrow(TTamedCellId id) override
     {
         auto* cell = FindCell(id);
         if (!IsObjectAlive(cell)) {
@@ -734,7 +734,7 @@ public:
         return cell;
     }
 
-    void RemoveCell(TCellBase* cell, bool force)
+    void RemoveCell(TCellBase* cell, bool force) override
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsPrimaryMaster());
@@ -862,12 +862,12 @@ public:
             cell->GetId());
     }
 
-    const THashSet<TCellBundle*>& CellBundles(ECellarType cellarType)
+    const THashSet<TCellBundle*>& CellBundles(ECellarType cellarType) override
     {
         return CellBundlesPerTypeMap_[cellarType];
     }
 
-    TCellBundle* FindCellBundleByName(const TString& name, ECellarType cellarType, bool activeLifeStageOnly)
+    TCellBundle* FindCellBundleByName(const TString& name, ECellarType cellarType, bool activeLifeStageOnly) override
     {
         auto* cellBundle = DoFindCellBundleByName(name, cellarType);
         if (!cellBundle) {
@@ -884,7 +884,7 @@ public:
         }
     }
 
-    TCellBundle* GetCellBundleByNameOrThrow(const TString& name, ECellarType cellarType, bool activeLifeStageOnly)
+    TCellBundle* GetCellBundleByNameOrThrow(const TString& name, ECellarType cellarType, bool activeLifeStageOnly) override
     {
         auto* cellBundle = DoFindCellBundleByName(name, cellarType);
         if (!cellBundle) {
@@ -902,7 +902,7 @@ public:
         return cellBundle;
     }
 
-    TCellBundle* GetCellBundleByIdOrThrow(TCellBundleId cellBundleId, bool activeLifeStageOnly)
+    TCellBundle* GetCellBundleByIdOrThrow(TCellBundleId cellBundleId, bool activeLifeStageOnly) override
     {
         auto* cellBundle = FindCellBundle(cellBundleId);
         if (!cellBundle) {
@@ -920,7 +920,7 @@ public:
         return cellBundle;
     }
 
-    void RenameCellBundle(TCellBundle* cellBundle, const TString& newName)
+    void RenameCellBundle(TCellBundle* cellBundle, const TString& newName) override
     {
         if (newName == cellBundle->GetName()) {
             return;
@@ -940,7 +940,7 @@ public:
         cellBundle->SetName(newName);
     }
 
-    void RenameArea(TArea* area, const TString& newName)
+    void RenameArea(TArea* area, const TString& newName) override
     {
         if (newName == area->GetName()) {
             return;
@@ -968,7 +968,7 @@ public:
         area->SetName(newName);
     }
 
-    void SetAreaNodeTagFilter(TArea* area, const TString& formula)
+    void SetAreaNodeTagFilter(TArea* area, const TString& formula) override
     {
         if (area->NodeTagFilter().GetFormula() != formula) {
             area->NodeTagFilter() = MakeBooleanFormula(formula);

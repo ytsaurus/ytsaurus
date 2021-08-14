@@ -33,7 +33,7 @@ public:
 
     virtual bool IsFinished() const override;
 
-    void Persist(const TPersistenceContext& context);
+    void Persist(const TPersistenceContext& context) override;
 
 protected:
     // NB: Underlying input is owned by the owner of the adapter.
@@ -76,14 +76,14 @@ public:
     virtual void Aborted(TCookie cookie, NScheduler::EAbortReason reason) override;
     virtual void Lost(TCookie cookie) override;
 
-    virtual bool IsSplittable(NChunkPools::TOutputCookie cookie) const;
+    virtual bool IsSplittable(NChunkPools::TOutputCookie cookie) const override;
 
-    void Persist(const TPersistenceContext& context);
+    void Persist(const TPersistenceContext& context) override;
 
-    DECLARE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
+    DECLARE_SIGNAL_OVERRIDE(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
 
-    DECLARE_SIGNAL(void(), Completed);
-    DECLARE_SIGNAL(void(), Uncompleted);
+    DECLARE_SIGNAL_OVERRIDE(void(), Completed);
+    DECLARE_SIGNAL_OVERRIDE(void(), Uncompleted);
 
 protected:
     NChunkPools::IChunkPoolOutputPtr UnderlyingOutput_;
@@ -102,7 +102,7 @@ public:
 
     explicit TChunkPoolAdapterBase(NChunkPools::IChunkPoolPtr underlyingPool);
 
-    void Persist(const TPersistenceContext& context);
+    void Persist(const TPersistenceContext& context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

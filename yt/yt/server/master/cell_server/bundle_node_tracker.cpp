@@ -50,7 +50,7 @@ public:
         cellManager->SubscribeAfterSnapshotLoaded(BIND(&TImpl::OnAfterSnapshotLoaded, MakeWeak(this)));
     }
 
-    void OnAfterSnapshotLoaded()
+    virtual void OnAfterSnapshotLoaded()
     {
         Clear();
 

@@ -26,7 +26,7 @@ public:
 
     virtual NYTree::ENodeType GetNodeType() const override;
 
-    virtual bool IsSupportedInheritableAttribute(const TString& key) const;
+    virtual bool IsSupportedInheritableAttribute(const TString& key) const override;
 
     virtual bool HasBranchedChangesImpl(TChunkOwner* originatingNode, TChunkOwner* branchedNode) override;
 

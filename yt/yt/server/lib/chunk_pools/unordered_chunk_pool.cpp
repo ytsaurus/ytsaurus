@@ -41,9 +41,9 @@ class TUnorderedChunkPool
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
-    DEFINE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
-    DEFINE_SIGNAL(void(), Completed);
-    DEFINE_SIGNAL(void(), Uncompleted);
+    DEFINE_SIGNAL_OVERRIDE(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
+    DEFINE_SIGNAL_OVERRIDE(void(), Completed);
+    DEFINE_SIGNAL_OVERRIDE(void(), Uncompleted);
 
 public:
     //! For persistence only.

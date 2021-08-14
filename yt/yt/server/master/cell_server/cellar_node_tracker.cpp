@@ -39,7 +39,7 @@ class TCellarNodeTracker
     , public TMasterAutomatonPart
 {
 public:
-    DEFINE_SIGNAL(void(
+    DEFINE_SIGNAL_OVERRIDE(void(
         NNodeTrackerServer::TNode* node,
         NCellarNodeTrackerClient::NProto::TReqHeartbeat* request,
         NCellarNodeTrackerClient::NProto::TRspHeartbeat* response),

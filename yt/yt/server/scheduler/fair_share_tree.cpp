@@ -390,7 +390,7 @@ public:
         int minScheduleJobCallAttempts,
         const THashSet<EDeactivationReason>& deactivationReasons,
         TDuration limitingAncestorSafeTimeout,
-        const TJobResourcesWithQuotaList& minNeededResources)
+        const TJobResourcesWithQuotaList& minNeededResources) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2632,7 +2632,7 @@ private:
             });
     }
 
-    DEFINE_SIGNAL(void(TOperationId), OperationRunning);
+    DEFINE_SIGNAL_OVERRIDE(void(TOperationId), OperationRunning);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1613,7 +1613,7 @@ private:
     }
 
 
-    void OnAfterSnapshotLoaded()
+    virtual void OnAfterSnapshotLoaded() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

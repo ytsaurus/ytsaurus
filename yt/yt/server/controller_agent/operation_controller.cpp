@@ -223,7 +223,7 @@ public:
         Underlying_->Dispose();
     }
 
-    virtual bool IsThrottling() const noexcept
+    virtual bool IsThrottling() const noexcept override 
     {
         return Underlying_->IsThrottling();
     }

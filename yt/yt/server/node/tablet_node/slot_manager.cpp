@@ -96,7 +96,7 @@ public:
         return result;
     }
 
-    virtual ITabletSlotPtr FindSlot(NHydra::TCellId id)
+    virtual ITabletSlotPtr FindSlot(NHydra::TCellId id) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -111,9 +111,9 @@ public:
         return OrchidService_;
     }
 
-    DEFINE_SIGNAL(void(), BeginSlotScan);
-    DEFINE_SIGNAL(void(ITabletSlotPtr), ScanSlot);
-    DEFINE_SIGNAL(void(), EndSlotScan);
+    DEFINE_SIGNAL_OVERRIDE(void(), BeginSlotScan);
+    DEFINE_SIGNAL_OVERRIDE(void(ITabletSlotPtr), ScanSlot);
+    DEFINE_SIGNAL_OVERRIDE(void(), EndSlotScan);
 
 private:
     IBootstrap* const Bootstrap_;

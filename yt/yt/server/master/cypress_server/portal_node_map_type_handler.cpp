@@ -55,7 +55,7 @@ private:
         return result;
     }
 
-    virtual bool IsValid(TObject* /*object*/) const
+    virtual bool IsValid(TObject* /*object*/) const override
     {
         return true;
     }

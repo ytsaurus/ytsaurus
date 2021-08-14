@@ -647,7 +647,7 @@ public:
             slot->GetCellId());
     }
 
-    void OnEndSlotScan()
+    virtual void OnEndSlotScan() override
     {
         // NB: Strictly speaking, redundant.
         auto guard = Guard(ScanSpinLock_);

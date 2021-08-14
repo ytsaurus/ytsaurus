@@ -262,7 +262,7 @@ public:
             jobCounter->GetAbortedTotal());
     }
 
-    virtual std::vector<TRichYPath> GetInputTablePaths() const
+    virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return {};
     }
@@ -281,7 +281,7 @@ public:
         }
     }
 
-    virtual std::vector<TRichYPath> GetOutputTablePaths() const
+    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         std::vector<TRichYPath> outputTablePaths;
         for (const auto& [taskName, taskSpec] : Spec_->Tasks) {
@@ -315,22 +315,22 @@ public:
         return Spec_->EnableCudaGpuCoreDump;
     }
 
-    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
     {
         return TStringBuf();
     }
 
-    virtual TYsonSerializablePtr GetTypedSpec() const
+    virtual TYsonSerializablePtr GetTypedSpec() const override
     {
         return Spec_;
     }
 
-    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
     {
         return {};
     }
 
-    virtual bool IsCompleted() const
+    virtual bool IsCompleted() const override
     {
         for (const auto& task : Tasks_) {
             if (!task->IsCompleted()) {
@@ -341,7 +341,7 @@ public:
         return true;
     }
 
-    virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const
+    virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override
     {
         std::vector<TUserJobSpecPtr> specs;
         specs.reserve(Spec_->Tasks.size());
