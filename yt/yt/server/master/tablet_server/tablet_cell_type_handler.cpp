@@ -59,7 +59,7 @@ private:
         return CreateTabletCellProxy(Bootstrap_, &Metadata_, cell);
     }
 
-    virtual void DoZombifyObject(TTabletCell* cell)
+    virtual void DoZombifyObject(TTabletCell* cell) override
     {
         const auto& tabletManager = TBase::Bootstrap_->GetTabletManager();
         tabletManager->ZombifyTabletCell(cell);

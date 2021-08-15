@@ -38,7 +38,7 @@ private:
         return ToObjectIds(GetValues(tabletManager->Tablets(), sizeLimit));
     }
 
-    virtual bool IsValid(TObject* object) const
+    virtual bool IsValid(TObject* object) const override
     {
         return object->GetType() == EObjectType::Tablet;
     }
@@ -91,7 +91,7 @@ private:
         return ToObjectIds(GetValues(tabletManager->TabletActions(), sizeLimit));
     }
 
-    virtual bool IsValid(TObject* object) const
+    virtual bool IsValid(TObject* object) const override
     {
         return object->GetType() == EObjectType::TabletAction;
     }
