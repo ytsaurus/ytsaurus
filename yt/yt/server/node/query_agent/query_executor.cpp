@@ -282,6 +282,7 @@ public:
         // Any tablet snapshot would suffice.
         auto tabletSnapshot = Map_.begin()->second;
         return NTableClient::CreateHunkChunkReaderStatistics(
+            tabletSnapshot->Settings.MountConfig->EnableHunkColumnarProfiling,
             tabletSnapshot->PhysicalSchema);
     }
 

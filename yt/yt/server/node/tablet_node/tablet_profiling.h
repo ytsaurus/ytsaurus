@@ -27,7 +27,9 @@ struct TLookupCounters
 {
     TLookupCounters() = default;
 
-    explicit TLookupCounters(const NProfiling::TProfiler& profiler);
+    TLookupCounters(
+        const NProfiling::TProfiler& profiler,
+        const NTableClient::TTableSchemaPtr& schema);
 
     NProfiling::TCounter CacheHits;
     NProfiling::TCounter CacheOutdated;
@@ -55,7 +57,9 @@ struct TSelectCpuCounters
 {
     TSelectCpuCounters() = default;
 
-    explicit TSelectCpuCounters(const NProfiling::TProfiler& profiler);
+    TSelectCpuCounters(
+        const NProfiling::TProfiler& profiler,
+        const NTableClient::TTableSchemaPtr& schema);
 
     NProfiling::TTimeCounter CpuTime;
     NChunkClient::TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
@@ -128,11 +132,14 @@ struct TChunkReadCounters
 {
     TChunkReadCounters() = default;
 
-    explicit TChunkReadCounters(const NProfiling::TProfiler& profiler);
+    TChunkReadCounters(
+        const NProfiling::TProfiler& profiler,
+        const NTableClient::TTableSchemaPtr& schema);
 
     NProfiling::TCounter CompressedDataSize;
     NProfiling::TCounter UnmergedDataWeight;
     NProfiling::TTimeCounter DecompressionCpuTime;
+
     NChunkClient::TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
     NTableClient::THunkChunkReaderCounters HunkChunkReaderCounters;
 };
@@ -314,13 +321,16 @@ public:
 
     void Update(const NChunkClient::IMultiChunkWriterPtr& writer);
     void Update(const NChunkClient::IChunkWriterBasePtr& writer);
-    void Update(const NTableClient::IHunkChunkPayloadWriterPtr& hunkChunkWriter);
+    void Update(
+        const NTableClient::IHunkChunkPayloadWriterPtr& hunkChunkWriter,
+        const NTableClient::IHunkChunkWriterStatisticsPtr& hunkChunkWriterStatistics);
 
 private:
     NChunkClient::NProto::TDataStatistics DataStatistics_;
     NChunkClient::TCodecStatistics CodecStatistics_;
 
     NChunkClient::NProto::TDataStatistics HunkChunkDataStatistics_;
+    NTableClient::IHunkChunkWriterStatisticsPtr HunkChunkWriterStatistics_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TWriterProfiler)

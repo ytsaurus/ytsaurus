@@ -38,8 +38,37 @@ TString ToString(const THunkChunkRef& ref);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*
+ * These are per-column hunk chunk-related statistics that are profiled
+ * when hunk columnar profiling of a table is enabled.
+ *
+ * Inline* represents inline hunk values.
+ * Ref* represents local and global ref hunk values.
+ *
+ * *Count represents number of accesses to the column.
+ * *Weight represents total weight of accessed blobs.
+*/
+struct TColumnarHunkChunkStatistics
+{
+    i64 InlineValueCount = 0;
+    i64 RefValueCount = 0;
+
+    i64 InlineValueWeight = 0;
+    i64 RefValueWeight = 0;
+};
+
+struct IHunkChunkStatisticsBase
+    : public virtual TRefCounted
+{
+    virtual bool HasColumnarStatistics() const = 0;
+    virtual TColumnarHunkChunkStatistics GetColumnarStatistics(int columnId) const = 0;
+    virtual void UpdateColumnarStatistics(
+        int columnId,
+        const TColumnarHunkChunkStatistics& statistics) = 0;
+};
+
 struct IHunkChunkReaderStatistics
-    : public TRefCounted
+    : public virtual IHunkChunkStatisticsBase
 {
     virtual const NChunkClient::TChunkReaderStatisticsPtr& GetChunkReaderStatistics() const = 0;
 
@@ -50,17 +79,55 @@ struct IHunkChunkReaderStatistics
 DEFINE_REFCOUNTED_TYPE(IHunkChunkReaderStatistics)
 
 IHunkChunkReaderStatisticsPtr CreateHunkChunkReaderStatistics(
+    bool enableHunkColumnarProfiling,
+    const TTableSchemaPtr& schema);
+
+struct IHunkChunkWriterStatistics
+    : public virtual IHunkChunkStatisticsBase
+{ };
+
+DEFINE_REFCOUNTED_TYPE(IHunkChunkWriterStatistics)
+
+IHunkChunkWriterStatisticsPtr CreateHunkChunkWriterStatistics(
+    bool enableHunkColumnarProfiling,
     const TTableSchemaPtr& schema);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TColumnarHunkChunkStatisticsCounters
+{
+    NProfiling::TCounter InlineValueCount;
+    NProfiling::TCounter RefValueCount;
+
+    NProfiling::TCounter InlineValueWeight;
+    NProfiling::TCounter RefValueWeight;
+};
+
+class THunkChunkStatisticsCountersBase
+{
+public:
+    THunkChunkStatisticsCountersBase() = default;
+ 
+    THunkChunkStatisticsCountersBase(
+        const NProfiling::TProfiler& profiler,
+        const TTableSchemaPtr& schema);
+ 
+    template <class IStatisticsPtr>
+    void IncrementColumnar(const IStatisticsPtr& statistics);
+ 
+private:
+    THashMap<int, TColumnarHunkChunkStatisticsCounters> ColumnIdToCounters_;
+};
+
 class THunkChunkReaderCounters
+    : public THunkChunkStatisticsCountersBase
 {
 public:
     THunkChunkReaderCounters() = default;
 
     explicit THunkChunkReaderCounters(
-        const NProfiling::TProfiler& profiler);
+        const NProfiling::TProfiler& profiler,
+        const TTableSchemaPtr& schema);
 
     void Increment(const IHunkChunkReaderStatisticsPtr& statistics);
 
@@ -72,6 +139,7 @@ private:
 };
 
 class THunkChunkWriterCounters
+    : public THunkChunkStatisticsCountersBase
 {
 public:
     THunkChunkWriterCounters() = default;
@@ -81,6 +149,7 @@ public:
         const TTableSchemaPtr& schema);
 
     void Increment(
+        const IHunkChunkWriterStatisticsPtr& statistics,
         const NChunkClient::NProto::TDataStatistics& dataStatistics,
         const NChunkClient::TCodecStatistics& codecStatistics,
         int replicationFactor);
@@ -202,7 +271,8 @@ TFuture<TSharedRange<TMutableVersionedRow>> DecodeHunksInVersionedRows(
 IVersionedChunkWriterPtr CreateHunkEncodingVersionedWriter(
     IVersionedChunkWriterPtr underlying,
     TTableSchemaPtr schema,
-    IHunkChunkPayloadWriterPtr hunkChunkPayloadWriter);
+    IHunkChunkPayloadWriterPtr hunkChunkPayloadWriter,
+    IHunkChunkWriterStatisticsPtr hunkChunkWriterStatistics);
 
 //! Constructs a schemaful reader replacing hunk refs with their content
 //! (obtained by reading it via #chunkFragmentReader).

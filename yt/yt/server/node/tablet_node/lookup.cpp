@@ -734,7 +734,9 @@ void DoLookupRows(
     }
 
     const auto& schema = tabletSnapshot->PhysicalSchema;
-    chunkReadOptions.HunkChunkReaderStatistics = CreateHunkChunkReaderStatistics(schema);
+    chunkReadOptions.HunkChunkReaderStatistics = CreateHunkChunkReaderStatistics(
+        tabletSnapshot->Settings.MountConfig->EnableHunkColumnarProfiling,
+        schema);
 
     TLookupSession session(
         tabletSnapshot,

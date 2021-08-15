@@ -48,7 +48,8 @@ TString HideDigits(const TString& path)
 ////////////////////////////////////////////////////////////////////////////////
 
 TLookupCounters::TLookupCounters(
-    const TProfiler& profiler)
+    const TProfiler& profiler,
+    const TTableSchemaPtr& schema)
     : CacheHits(profiler.Counter("/lookup/cache_hits"))
     , CacheOutdated(profiler.Counter("/lookup/cache_outdated"))
     , CacheMisses(profiler.Counter("/lookup/cache_misses"))
@@ -65,16 +66,17 @@ TLookupCounters::TLookupCounters(
         TDuration::MicroSeconds(1),
         TDuration::Seconds(10)))
     , ChunkReaderStatisticsCounters(profiler.WithPrefix("/lookup/chunk_reader_statistics"))
-    , HunkChunkReaderCounters(profiler.WithPrefix("/lookup/hunks"))
+    , HunkChunkReaderCounters(profiler.WithPrefix("/lookup/hunks"), schema)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TSelectCpuCounters::TSelectCpuCounters(
-    const TProfiler& profiler)
+    const TProfiler& profiler,
+    const TTableSchemaPtr& schema)
     : CpuTime(profiler.TimeCounter("/select/cpu_time"))
     , ChunkReaderStatisticsCounters(profiler.WithPrefix("/select/chunk_reader_statistics"))
-    , HunkChunkReaderCounters(profiler.WithPrefix("/select/hunks"))
+    , HunkChunkReaderCounters(profiler.WithPrefix("/select/hunks"), schema)
 { }
 
 TSelectReadCounters::TSelectReadCounters(const TProfiler& profiler)
@@ -117,12 +119,13 @@ TRemoteDynamicStoreReadCounters::TRemoteDynamicStoreReadCounters(const TProfiler
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkReadCounters::TChunkReadCounters(
-    const TProfiler& profiler)
+    const TProfiler& profiler,
+    const TTableSchemaPtr& schema)
     : CompressedDataSize(profiler.Counter("/chunk_reader/compressed_data_size"))
     , UnmergedDataWeight(profiler.Counter("/chunk_reader/unmerged_data_weight"))
     , DecompressionCpuTime(profiler.TimeCounter("/chunk_reader/decompression_cpu_time"))
     , ChunkReaderStatisticsCounters(profiler.WithPrefix("/chunk_reader_statistics"))
-    , HunkChunkReaderCounters(profiler.WithPrefix("/hunks"))
+    , HunkChunkReaderCounters(profiler.WithPrefix("/hunks"), schema)
 { }
 
 TChunkWriteCounters::TChunkWriteCounters(
@@ -180,6 +183,7 @@ void TWriterProfiler::Profile(
         tabletSnapshot->Settings.StoreWriterOptions->ReplicationFactor);
     
     counters->HunkChunkWriterCounters.Increment(
+        HunkChunkWriterStatistics_,
         HunkChunkDataStatistics_,
         /*codecStatistics*/ {},
         tabletSnapshot->Settings.HunkWriterOptions->ReplicationFactor);
@@ -202,11 +206,13 @@ void TWriterProfiler::Update(const IChunkWriterBasePtr& writer)
 }
 
 void TWriterProfiler::Update(
-    const IHunkChunkPayloadWriterPtr& hunkChunkWriter)
+    const IHunkChunkPayloadWriterPtr& hunkChunkWriter,
+    const IHunkChunkWriterStatisticsPtr& hunkChunkWriterStatistics)
 {
     if (hunkChunkWriter) {
         HunkChunkDataStatistics_ += hunkChunkWriter->GetDataStatistics();
     }
+    HunkChunkWriterStatistics_ = hunkChunkWriterStatistics;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -459,9 +465,11 @@ TTableProfiler::TTableProfiler(
     for (auto method : TEnumTraits<EChunkReadProfilingMethod>::GetDomainValues()) {
         ChunkReadCounters_[method] = {
             TChunkReadCounters(
-                diskProfiler.WithTag("method", FormatEnum(method))),
+                diskProfiler.WithTag("method", FormatEnum(method)),
+                Schema_),
             TChunkReadCounters(
-                diskProfiler.WithTag("method", FormatEnum(method) + "_failed"))
+                diskProfiler.WithTag("method", FormatEnum(method) + "_failed"),
+                Schema_)
         };
     }
 
@@ -492,7 +500,7 @@ TTabletCounters TTableProfiler::GetTabletCounters()
 
 TLookupCounters* TTableProfiler::GetLookupCounters(const std::optional<TString>& userTag)
 {
-    return LookupCounters_.Get(Disabled_, userTag, Profiler_);
+    return LookupCounters_.Get(Disabled_, userTag, Profiler_, Schema_);
 }
 
 TWriteCounters* TTableProfiler::GetWriteCounters(const std::optional<TString>& userTag)
@@ -507,7 +515,7 @@ TCommitCounters* TTableProfiler::GetCommitCounters(const std::optional<TString>&
 
 TSelectCpuCounters* TTableProfiler::GetSelectCpuCounters(const std::optional<TString>& userTag)
 {
-    return SelectCpuCounters_.Get(Disabled_, userTag, Profiler_);
+    return SelectCpuCounters_.Get(Disabled_, userTag, Profiler_, Schema_);
 }
 
 TSelectReadCounters* TTableProfiler::GetSelectReadCounters(const std::optional<TString>& userTag)
