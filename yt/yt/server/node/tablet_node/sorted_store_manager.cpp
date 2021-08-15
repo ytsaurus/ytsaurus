@@ -725,6 +725,9 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto hunkChunkPayloadWriter = CreateHunkChunkPayloadWriter(
             hunkWriterConfig,
             hunkChunkWriter);
+        auto hunkChunkWriterStatistics = CreateHunkChunkWriterStatistics(
+            tabletSnapshot->Settings.MountConfig->EnableHunkColumnarProfiling,
+            tabletSnapshot->PhysicalSchema);
 
         auto storeWriter = CreateHunkEncodingVersionedWriter(
             CreateVersionedChunkWriter(
@@ -734,11 +737,12 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                 storeChunkWriter,
                 blockCache),
             tabletSnapshot->PhysicalSchema,
-            hunkChunkPayloadWriter);
+            hunkChunkPayloadWriter,
+            hunkChunkWriterStatistics);
 
         auto updateProfilerGuard = Finally([&] {
             writerProfiler->Update(storeWriter);
-            writerProfiler->Update(hunkChunkPayloadWriter);
+            writerProfiler->Update(hunkChunkPayloadWriter, hunkChunkWriterStatistics);
         });
 
         TVersionedRowMerger onFlushRowMerger(

@@ -164,6 +164,7 @@ public:
     bool EnableConsistentChunkReplicaPlacement;
 
     bool EnableDetailedProfiling;
+    bool EnableHunkColumnarProfiling;
 
     i64 MinHunkCompactionTotalHunkLength;
     double MaxHunkCompactionGarbageRatio;
@@ -388,6 +389,8 @@ public:
             .Default(false);
 
         RegisterParameter("enable_detailed_profiling", EnableDetailedProfiling)
+            .Default(false);
+        RegisterParameter("enable_hunk_columnar_profiling", EnableHunkColumnarProfiling)
             .Default(false);
 
         RegisterParameter("min_hunk_compaction_total_hunk_length", MinHunkCompactionTotalHunkLength)

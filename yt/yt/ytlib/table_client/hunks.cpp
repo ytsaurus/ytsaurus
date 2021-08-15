@@ -327,10 +327,142 @@ void GlobalizeHunkValues(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THunkChunkReaderStatistics
-    : public IHunkChunkReaderStatistics
+class THunkChunkStatisticsBase
+    : public virtual IHunkChunkStatisticsBase
 {
 public:
+    THunkChunkStatisticsBase(
+        bool enableHunkColumnarProfiling,
+        const TTableSchemaPtr& schema)
+    {
+        if (enableHunkColumnarProfiling) {
+            ColumnIdToStatistics_.emplace();
+            for (auto id : schema->GetHunkColumnIds()) {
+                YT_VERIFY(ColumnIdToStatistics_->emplace(id, TAtomicColumnarStatistics{})
+                    .second);
+            }
+        }
+    }
+
+    virtual bool HasColumnarStatistics() const override
+    {
+        return ColumnIdToStatistics_.has_value();
+    }
+
+    virtual TColumnarHunkChunkStatistics GetColumnarStatistics(int columnId) const override
+    {
+        const auto& statistics = GetOrCrash(*ColumnIdToStatistics_, columnId);
+
+        return {
+            .InlineValueCount = statistics.InlineValueCount.load(std::memory_order_relaxed),
+            .RefValueCount = statistics.RefValueCount.load(std::memory_order_relaxed),
+            .InlineValueWeight = statistics.InlineValueWeight.load(std::memory_order_relaxed),
+            .RefValueWeight = statistics.RefValueWeight.load(std::memory_order_relaxed)
+        };
+    }
+
+    virtual void UpdateColumnarStatistics(
+        int columnId,
+        const TColumnarHunkChunkStatistics& newStatistics) override
+    {
+        auto& statistics = GetOrCrash(*ColumnIdToStatistics_, columnId);
+
+        statistics.InlineValueCount += newStatistics.InlineValueCount;
+        statistics.RefValueCount += newStatistics.RefValueCount;
+        statistics.InlineValueWeight += newStatistics.InlineValueWeight;
+        statistics.RefValueWeight += newStatistics.RefValueWeight;
+    }
+
+private:
+    struct TAtomicColumnarStatistics
+    {
+        TAtomicColumnarStatistics()
+        { }
+
+        TAtomicColumnarStatistics(TAtomicColumnarStatistics&& other)
+            : InlineValueCount(other.InlineValueCount.load(std::memory_order_relaxed))
+            , RefValueCount(other.RefValueCount.load(std::memory_order_relaxed))
+            , InlineValueWeight(other.InlineValueWeight.load(std::memory_order_relaxed))
+            , RefValueWeight(other.RefValueWeight.load(std::memory_order_relaxed))
+        { }
+
+        std::atomic<i64> InlineValueCount = 0;
+        std::atomic<i64> RefValueCount = 0;
+
+        std::atomic<i64> InlineValueWeight = 0;
+        std::atomic<i64> RefValueWeight = 0;
+    };
+
+    std::optional<THashMap<int, TAtomicColumnarStatistics>> ColumnIdToStatistics_;
+};
+
+class TColumnarStatisticsThunk
+{
+public:
+    void UpdateStatistics(int columnId, const TInlineHunkValue& hunkValue)
+    {
+        auto* statistics = GetOrCreateStatistics(columnId);
+
+        ++statistics->InlineValueCount;
+        statistics->InlineValueWeight += hunkValue.Payload.Size();
+    }
+
+    void UpdateStatistics(int columnId, const TLocalRefHunkValue& hunkValue)
+    {
+        auto* statistics = GetOrCreateStatistics(columnId);
+
+        ++statistics->RefValueCount;
+        statistics->RefValueWeight += hunkValue.Length;
+    }
+
+    void UpdateStatistics(int columnId, const TGlobalRefHunkValue& hunkValue)
+    {
+        auto* statistics = GetOrCreateStatistics(columnId);
+
+        ++statistics->RefValueCount;
+        statistics->RefValueWeight += hunkValue.Length;
+    }
+
+    void MergeTo(const IHunkChunkReaderStatisticsPtr& statistics) const
+    {
+        YT_VERIFY(statistics);
+        for (const auto& [columnId, columnarStatistics] : ColumnIdToStatistics_) {
+            statistics->UpdateColumnarStatistics(columnId, columnarStatistics);
+        }
+    }
+
+    void MergeTo(const IHunkChunkWriterStatisticsPtr& statistics) const
+    {
+        YT_VERIFY(statistics);
+        for (const auto& [columnId, columnarStatistics] : ColumnIdToStatistics_) {
+            statistics->UpdateColumnarStatistics(columnId, columnarStatistics);
+        }
+    }
+
+private:
+    THashMap<int, TColumnarHunkChunkStatistics> ColumnIdToStatistics_;
+
+
+    TColumnarHunkChunkStatistics* GetOrCreateStatistics(int columnId)
+    {
+        auto it = ColumnIdToStatistics_.find(columnId);
+        if (it == ColumnIdToStatistics_.end()) {
+            it = ColumnIdToStatistics_.emplace(
+                columnId,
+                TColumnarHunkChunkStatistics{})
+                .first;
+        }
+        return &it->second;
+    }
+};
+
+class THunkChunkReaderStatistics
+    : public THunkChunkStatisticsBase
+    , public IHunkChunkReaderStatistics
+{
+public:
+    using THunkChunkStatisticsBase::THunkChunkStatisticsBase;
+
     virtual const TChunkReaderStatisticsPtr& GetChunkReaderStatistics() const override
     {
         return ChunkReaderStatistics_;
@@ -354,20 +486,83 @@ private:
 };
  
 IHunkChunkReaderStatisticsPtr CreateHunkChunkReaderStatistics(
+    bool enableHunkColumnarProfiling,
     const TTableSchemaPtr& schema)
 {
     if (!schema->HasHunkColumns()) {
         return nullptr;
     }
  
-    return New<THunkChunkReaderStatistics>();
+    return New<THunkChunkReaderStatistics>(
+        enableHunkColumnarProfiling,
+        schema);
+}
+
+class THunkChunkWriterStatistics
+    : public THunkChunkStatisticsBase
+    , public IHunkChunkWriterStatistics
+{
+public:
+    using THunkChunkStatisticsBase::THunkChunkStatisticsBase;
+};
+
+DEFINE_REFCOUNTED_TYPE(THunkChunkWriterStatistics)
+
+IHunkChunkWriterStatisticsPtr CreateHunkChunkWriterStatistics(
+    bool enableHunkColumnarProfiling,
+    const TTableSchemaPtr& schema)
+{
+    // NB: No need to create object if |enableHunkColumnarProfiling| is false.
+    if (!schema->HasHunkColumns() || !enableHunkColumnarProfiling) {
+        return nullptr;
+    }
+
+    return New<THunkChunkWriterStatistics>(
+        enableHunkColumnarProfiling,
+        schema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THunkChunkStatisticsCountersBase::THunkChunkStatisticsCountersBase(
+    const NProfiling::TProfiler& profiler,
+    const TTableSchemaPtr& schema)
+{
+    for (auto id : schema->GetHunkColumnIds()) {
+        auto columnProfiler = profiler.WithTag("column", schema->Columns()[id].Name());
+        YT_VERIFY(ColumnIdToCounters_.emplace(
+            id,
+            TColumnarHunkChunkStatisticsCounters{
+                .InlineValueCount = columnProfiler.Counter("/inline_value_count"),
+                .RefValueCount = columnProfiler.Counter("/ref_value_count"),
+                .InlineValueWeight = columnProfiler.Counter("/inline_value_weight"),
+                .RefValueWeight = columnProfiler.Counter("/ref_value_weight")
+            })
+            .second);
+    }
+}
+
+template <class IStatisticsPtr>
+void THunkChunkStatisticsCountersBase::IncrementColumnar(const IStatisticsPtr& statistics)
+{
+    if (!statistics->HasColumnarStatistics()) {
+        return;
+    }
+
+    for (auto& [columnId, counters] : ColumnIdToCounters_) {
+        auto columnarStatistics = statistics->GetColumnarStatistics(columnId);
+        counters.InlineValueCount.Increment(columnarStatistics.InlineValueCount);
+        counters.RefValueCount.Increment(columnarStatistics.RefValueCount);
+        counters.InlineValueWeight.Increment(columnarStatistics.InlineValueWeight);
+        counters.RefValueWeight.Increment(columnarStatistics.RefValueWeight);
+    }
+}
+
 THunkChunkReaderCounters::THunkChunkReaderCounters(
-    const NProfiling::TProfiler& profiler)
-    : DataWeight_(profiler.Counter("/data_weight"))
+    const NProfiling::TProfiler& profiler,
+    const TTableSchemaPtr& schema)
+    : THunkChunkStatisticsCountersBase(profiler, schema)
+    , DataWeight_(profiler.Counter("/data_weight"))
     , SkippedDataWeight_(profiler.Counter("/skipped_data_weight"))
     , ChunkReaderStatisticsCounters_(profiler.WithPrefix("/chunk_reader_statistics"))
 { }
@@ -382,18 +577,20 @@ void THunkChunkReaderCounters::Increment(const IHunkChunkReaderStatisticsPtr& st
     SkippedDataWeight_.Increment(statistics->SkippedDataWeight());
 
     ChunkReaderStatisticsCounters_.Increment(statistics->GetChunkReaderStatistics());
-}
 
-////////////////////////////////////////////////////////////////////////////////
+    IncrementColumnar(statistics);
+}
 
 THunkChunkWriterCounters::THunkChunkWriterCounters(
     const NProfiling::TProfiler& profiler,
     const TTableSchemaPtr& schema)
-    : HasHunkColumns_(schema->HasHunkColumns())
+    : THunkChunkStatisticsCountersBase(profiler, schema)
+    , HasHunkColumns_(schema->HasHunkColumns())
     , ChunkWriterCounters_(profiler)
 { }
 
 void THunkChunkWriterCounters::Increment(
+    const IHunkChunkWriterStatisticsPtr& statistics,
     const NChunkClient::NProto::TDataStatistics& dataStatistics,
     const TCodecStatistics& codecStatistics,
     int replicationFactor)
@@ -406,6 +603,10 @@ void THunkChunkWriterCounters::Increment(
         dataStatistics,
         codecStatistics,
         replicationFactor);
+
+    if (statistics) {
+        IncrementColumnar(statistics);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -417,14 +618,21 @@ public:
     THunkEncodingVersionedWriter(
         IVersionedChunkWriterPtr underlying,
         TTableSchemaPtr schema,
-        IHunkChunkPayloadWriterPtr hunkChunkPayloadWriter)
+        IHunkChunkPayloadWriterPtr hunkChunkPayloadWriter,
+        IHunkChunkWriterStatisticsPtr hunkChunkWriterStatistics)
         : Underlying_(std::move(underlying))
         , Schema_(std::move(schema))
         , HunkChunkPayloadWriter_(std::move(hunkChunkPayloadWriter))
+        , HunkChunkWriterStatistics_(std::move(hunkChunkWriterStatistics))
     { }
 
     virtual bool Write(TRange<TVersionedRow> rows) override
     {
+        std::optional<TColumnarStatisticsThunk> columnarStatisticsThunk;
+        if (HunkChunkWriterStatistics_ && HunkChunkWriterStatistics_->HasColumnarStatistics()) {
+            columnarStatisticsThunk.emplace();
+        }
+
         ScratchRowBuffer_->Clear();
         ScratchRows_.clear();
         ScratchRows_.reserve(rows.Size());
@@ -452,6 +660,9 @@ public:
                     auto payloadLength = static_cast<i64>(inlineHunkValue.Payload.Size());
                     if (payloadLength < *maxInlineHunkSize) {
                         // Leave as is.
+                        if (columnarStatisticsThunk) {
+                            columnarStatisticsThunk->UpdateStatistics(value.Id, inlineHunkValue);
+                        }
                         return;
                     }
 
@@ -461,13 +672,15 @@ public:
                     auto [offset, hunkWriterReady] = HunkChunkPayloadWriter_->WriteHunk(inlineHunkValue.Payload);
                     ready &= hunkWriterReady;
 
-                    auto localizedPayload = WriteHunkValue(
-                        pool,
-                        TLocalRefHunkValue{
-                            .ChunkIndex = GetHunkChunkPayloadWriterChunkIndex(),
-                            .Length = payloadLength,
-                            .Offset = offset
-                        });
+                    TLocalRefHunkValue localRefHunkValue{
+                        .ChunkIndex = GetHunkChunkPayloadWriterChunkIndex(),
+                        .Length = payloadLength,
+                        .Offset = offset
+                    };
+                    if (columnarStatisticsThunk) {
+                        columnarStatisticsThunk->UpdateStatistics(value.Id, localRefHunkValue);
+                    }
+                    auto localizedPayload = WriteHunkValue(pool, localRefHunkValue);
                     SetValueRef(&value, localizedPayload);
                     value.Flags |= EValueFlags::Hunk;
                 };
@@ -481,21 +694,27 @@ public:
                             THROW_ERROR_EXCEPTION("Unexpected local hunk reference");
                         },
                         [&] (const TGlobalRefHunkValue& globalRefHunkValue) {
-                            auto localizedPayload = WriteHunkValue(
-                                pool,
-                                TLocalRefHunkValue{
-                                    .ChunkIndex = RegisterHunkRef(globalRefHunkValue.ChunkId, globalRefHunkValue.Length),
-                                    .Length = globalRefHunkValue.Length,
-                                    .Offset = globalRefHunkValue.Offset
-                                });
+                            TLocalRefHunkValue localRefHunkValue{
+                                .ChunkIndex = RegisterHunkRef(globalRefHunkValue.ChunkId, globalRefHunkValue.Length),
+                                .Length = globalRefHunkValue.Length,
+                                .Offset = globalRefHunkValue.Offset
+                            };
+                            if (columnarStatisticsThunk) {
+                                columnarStatisticsThunk->UpdateStatistics(value.Id, localRefHunkValue);
+                            }
+                            auto localizedPayload = WriteHunkValue(pool, localRefHunkValue);
                             SetValueRef(&value, localizedPayload);
                             // NB: Strictly speaking, this is redundant.
                             value.Flags |= EValueFlags::Hunk;
                         });
                 } else {
-                     handleInlineHunkValue(TInlineHunkValue{valueRef});
+                    handleInlineHunkValue(TInlineHunkValue{valueRef});
                 }
             }
+        }
+
+        if (columnarStatisticsThunk) {
+            columnarStatisticsThunk->MergeTo(HunkChunkWriterStatistics_);
         }
 
         ready &= Underlying_->Write(MakeRange(ScratchRows_));
@@ -600,6 +819,7 @@ private:
     const IVersionedChunkWriterPtr Underlying_;
     const TTableSchemaPtr Schema_;
     const IHunkChunkPayloadWriterPtr HunkChunkPayloadWriter_;
+    const IHunkChunkWriterStatisticsPtr HunkChunkWriterStatistics_;
 
     struct TScratchRowBufferTag
     { };
@@ -650,7 +870,8 @@ private:
 IVersionedChunkWriterPtr CreateHunkEncodingVersionedWriter(
     IVersionedChunkWriterPtr underlying,
     TTableSchemaPtr schema,
-    IHunkChunkPayloadWriterPtr hunkChunkPayloadWriter)
+    IHunkChunkPayloadWriterPtr hunkChunkPayloadWriter,
+    IHunkChunkWriterStatisticsPtr hunkChunkWriterStatistics)
 {
     if (!schema->HasHunkColumns()) {
         return underlying;
@@ -658,7 +879,8 @@ IVersionedChunkWriterPtr CreateHunkEncodingVersionedWriter(
     return New<THunkEncodingVersionedWriter>(
         std::move(underlying),
         std::move(schema),
-        std::move(hunkChunkPayloadWriter));
+        std::move(hunkChunkPayloadWriter),
+        std::move(hunkChunkWriterStatistics));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -670,6 +892,13 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
     TClientChunkReadOptions options,
     TSharedRange<TUnversionedValue*> values)
 {
+    std::optional<TColumnarStatisticsThunk> columnarStatisticsThunk;
+    if (options.HunkChunkReaderStatistics &&
+        options.HunkChunkReaderStatistics->HasColumnarStatistics())
+    {
+        columnarStatisticsThunk.emplace();
+    }
+
     auto setValuePayload = [] (TUnversionedValue* value, TRef payload) {
         SetValueRef(value, payload);
         value->Flags &= ~EValueFlags::Hunk;
@@ -682,12 +911,18 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
         Visit(
             ReadHunkValue(GetValueRef(*value)),
             [&] (const TInlineHunkValue& inlineHunkValue) {
+                if (columnarStatisticsThunk) {
+                    columnarStatisticsThunk->UpdateStatistics(value->Id, inlineHunkValue);
+                }
                 setValuePayload(value, inlineHunkValue.Payload);
             },
             [&] (const TLocalRefHunkValue& /*localRefHunkValue*/) {
                 THROW_ERROR_EXCEPTION("Unexpected local hunk reference");
             },
             [&] (const TGlobalRefHunkValue& globalRefHunkValue) {
+                if (columnarStatisticsThunk) {
+                    columnarStatisticsThunk->UpdateStatistics(value->Id, globalRefHunkValue);
+                }
                 requests.push_back({
                     .ChunkId = globalRefHunkValue.ChunkId,
                     .Offset = globalRefHunkValue.Offset,
@@ -702,6 +937,10 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
         // NB: Chunk fragment reader does not update any hunk chunk reader statistics.
         options.ChunkReaderStatistics = options.HunkChunkReaderStatistics->GetChunkReaderStatistics();
         options.HunkChunkReaderStatistics->DataWeight() += dataWeight;
+    }
+
+    if (columnarStatisticsThunk) {
+        columnarStatisticsThunk->MergeTo(options.HunkChunkReaderStatistics);
     }
 
     return chunkFragmentReader

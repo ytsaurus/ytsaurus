@@ -109,6 +109,7 @@ DECLARE_REFCOUNTED_CLASS(THunkChunkPayloadWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TBatchHunkReaderConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IHunkChunkReaderStatistics)
+DECLARE_REFCOUNTED_STRUCT(IHunkChunkWriterStatistics)
 class THunkChunkReaderCounters;
 class THunkChunkWriterCounters;
 

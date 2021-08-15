@@ -136,6 +136,8 @@ protected:
     IChunkWriterPtr HunkChunkWriter_;
     IHunkChunkPayloadWriterPtr HunkChunkPayloadWriter_;
 
+    IHunkChunkWriterStatisticsPtr HunkChunkWriterStatistics_;
+
     IRemoteInMemoryBlockCachePtr BlockCache_;
 
 
@@ -229,6 +231,10 @@ private:
             TabletSnapshot_->CompactionThrottler
         });
 
+        HunkChunkWriterStatistics_ = CreateHunkChunkWriterStatistics(
+            TabletSnapshot_->Settings.MountConfig->EnableHunkColumnarProfiling,
+            TabletSnapshot_->PhysicalSchema);
+
         HunkChunkWriter_ = CreateConfirmingWriter(
             HunkWriterConfig_,
             HunkWriterOptions_,
@@ -293,7 +299,8 @@ private:
                 std::move(underlyingWriter),
                 BlockCache_),
             TabletSnapshot_->PhysicalSchema,
-            HunkChunkPayloadWriter_);
+            HunkChunkPayloadWriter_,
+            HunkChunkWriterStatistics_);
     }
 };
 
@@ -309,6 +316,7 @@ struct TEdenPartitioningResult
 
     std::vector<TPartitionWriter> PartitionStoreWriters;
     IHunkChunkPayloadWriterPtr HunkWriter;
+    IHunkChunkWriterStatisticsPtr HunkWriterStatistics;
     i64 RowCount;
 };
 
@@ -467,6 +475,7 @@ public:
             return TEdenPartitioningResult{
                 .PartitionStoreWriters = std::move(partitionWriters),
                 .HunkWriter = HunkChunkPayloadWriter_,
+                .HunkWriterStatistics = HunkChunkWriterStatistics_,
                 .RowCount = readRowCount
             };
         });
@@ -479,6 +488,7 @@ struct TPartitionCompactionResult
 {
     IVersionedMultiChunkWriterPtr StoreWriter;
     IHunkChunkPayloadWriterPtr HunkWriter;
+    IHunkChunkWriterStatisticsPtr HunkWriterStatistics;
     i64 RowCount;
 };
 
@@ -529,6 +539,7 @@ public:
             return TPartitionCompactionResult{
                 .StoreWriter = writer,
                 .HunkWriter = HunkChunkPayloadWriter_,
+                .HunkWriterStatistics = HunkChunkWriterStatistics_,
                 .RowCount = rowCount
             };
         });
@@ -1360,6 +1371,7 @@ private:
         auto writerProfiler = New<TWriterProfiler>();
 
         chunkReadOptions.HunkChunkReaderStatistics = CreateHunkChunkReaderStatistics(
+            tabletSnapshot->Settings.MountConfig->EnableHunkColumnarProfiling,
             tabletSnapshot->PhysicalSchema);
 
         bool failed = false;
@@ -1509,7 +1521,9 @@ private:
         for (const auto& [writer, _] : partitioningResult.PartitionStoreWriters) {
             writerProfiler->Update(writer);
         }
-        writerProfiler->Update(partitioningResult.HunkWriter);
+        writerProfiler->Update(
+            partitioningResult.HunkWriter,
+            partitioningResult.HunkWriterStatistics);
  
         readerProfiler->Update(
             reader,
@@ -1691,6 +1705,7 @@ private:
         auto readerProfiler = New<TReaderProfiler>();
 
         chunkReadOptions.HunkChunkReaderStatistics = CreateHunkChunkReaderStatistics(
+            tabletSnapshot->Settings.MountConfig->EnableHunkColumnarProfiling,
             tabletSnapshot->PhysicalSchema);
 
         bool failed = false;
@@ -1835,7 +1850,9 @@ private:
         }
 
         writerProfiler->Update(compactionResult.StoreWriter);
-        writerProfiler->Update(compactionResult.HunkWriter);
+        writerProfiler->Update(
+            compactionResult.HunkWriter,
+            compactionResult.HunkWriterStatistics);
  
         readerProfiler->Update(
             reader,
