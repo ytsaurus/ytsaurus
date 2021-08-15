@@ -729,7 +729,7 @@ private:
         return node->GetParent();
     }
 
-    virtual void DoDestroyObject(TCypressNode* node) noexcept;
+    virtual void DoDestroyObject(TCypressNode* node) noexcept override;
 
 };
 

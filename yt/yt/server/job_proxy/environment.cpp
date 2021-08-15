@@ -272,7 +272,7 @@ public:
         }
     }
 
-    virtual std::optional<TMemoryStatistics> GetMemoryStatistics() const
+    virtual std::optional<TMemoryStatistics> GetMemoryStatistics() const override
     {
         auto resourceTracker = ResourceTracker_.Load();
         if (Options_.EnablePortoMemoryTracking && resourceTracker) {
@@ -636,7 +636,7 @@ public:
 
     virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(
         TGuid /* jobId */,
-        const TUserJobEnvironmentOptions& options) 
+        const TUserJobEnvironmentOptions& options) override
     {
         if (options.RootFS) {
             THROW_ERROR_EXCEPTION("Root FS isolation is not supported in simple job environment");

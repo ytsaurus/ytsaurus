@@ -156,7 +156,7 @@ private:
         DoInitializeWriter(nullptr, nullptr);
     }
 
-    virtual i64 GetTotalReaderMemoryLimit() const
+    virtual i64 GetTotalReaderMemoryLimit() const override
     {
         return Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader->MaxBufferSize;
     }

@@ -976,9 +976,9 @@ public:
         }
     }
 
-    DECLARE_ENTITY_MAP_ACCESSORS(CellBundle, TCellBundle);
-    DECLARE_ENTITY_MAP_ACCESSORS(Cell, TCellBase);
-    DECLARE_ENTITY_MAP_ACCESSORS(Area, TArea);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(CellBundle, TCellBundle);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Cell, TCellBase);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Area, TArea);
 
 private:
     template <class T>
