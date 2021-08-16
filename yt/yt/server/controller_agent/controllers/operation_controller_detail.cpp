@@ -1976,8 +1976,18 @@ void TOperationControllerBase::FinalizeFeatures()
     for (const auto& task : Tasks) {
         task->FinalizeFeatures();
     }
+
+    ControllerFeatures_.AddSingular("operation_count", 1);
     ControllerFeatures_.AddSingular("wall_time", (FinishTime_ - StartTime_).MilliSeconds());
     ControllerFeatures_.AddSingular("peak_controller_memory_usage", PeakMemoryUsage_);
+
+    if (DataFlowGraph_) {
+        ControllerFeatures_.AddSingular(
+            "job_count",
+            BuildYsonNodeFluently().Value(DataFlowGraph_->GetTotalJobCounter()));
+    }
+
+
 }
 
 void TOperationControllerBase::SafeCommit()

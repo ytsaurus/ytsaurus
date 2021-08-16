@@ -78,6 +78,32 @@ void TControllerFeatures::AddSingular(TStringBuf name, double value)
     Features_[name] += value;
 }
 
+void TControllerFeatures::AddSingular(const TString& name, const INodePtr& node)
+{
+    switch (node->GetType()) {
+        case ENodeType::Map:
+            for (const auto& [key, child] : node->AsMap()->GetChildren()) {
+                AddSingular(name + "." + key, child);
+            }
+            break;
+        case ENodeType::Int64:
+            AddSingular(name, node->AsInt64()->GetValue());
+            break;
+        case ENodeType::Uint64:
+            AddSingular(name, node->AsUint64()->GetValue());
+            break;
+        case ENodeType::Double:
+            AddSingular(name, node->AsDouble()->GetValue());
+            break;
+        case ENodeType::Boolean:
+            AddSingular(name, node->AsBoolean()->GetValue());
+            break;
+        default:
+            YT_VERIFY(false && "Unexpected type as controller feature");
+            break;
+    }
+};
+
 void TControllerFeatures::AddCounted(TStringBuf name, double value)
 {
     TString sumFeature{name};
