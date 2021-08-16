@@ -31,6 +31,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((RemoveFinishedJobs)                   (300608))
     ((TinyJobSplittingFix)                  (300609))
     ((LastFieldInStatistics)                (300610))
+    ((InputOutputTableSchemaId)             (300611))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

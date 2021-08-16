@@ -87,9 +87,9 @@ static void ValidateAppendKeyColumns(const TSortColumns& sortColumns, const TTab
 TTableUploadOptions GetTableUploadOptions(
     const TRichYPath& path,
     const IAttributeDictionary& cypressTableAttributes,
+    const TTableSchemaPtr& schema,
     i64 rowCount)
 {
-    auto schema = cypressTableAttributes.Get<TTableSchemaPtr>("schema");
     auto schemaMode = cypressTableAttributes.Get<ETableSchemaMode>("schema_mode");
     auto optimizeFor = cypressTableAttributes.Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
     auto compressionCodec = cypressTableAttributes.Get<NCompression::ECodec>("compression_codec");

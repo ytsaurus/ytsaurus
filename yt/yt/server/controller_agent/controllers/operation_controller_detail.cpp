@@ -5512,6 +5512,70 @@ void TOperationControllerBase::LockInputTables()
     }
 }
 
+template <class TTable, class TTransactionIdFunc, class TCellTagFunc>
+void TOperationControllerBase::FetchTableSchemas(
+    const NApi::NNative::IClientPtr& client,
+    const TRange<TTable>& tables,
+    TTransactionIdFunc tableToTransactionId,
+    TCellTagFunc tableToCellTag) const
+{
+    // The tableToCellTag parameter allows us to fetch the schema from both native cell and external cell.
+    // Ideally, we want to fetch schemas only from external cells, but it is not possible now. For output
+    // tables, lock is acquired after the schema is fetched. This behavior is bad as it may lead to races.
+    // Once locking output tables is fixed, we will always fetch the schemas from external cells, and the
+    // tableToCellTag parameter will be removed. See also YT-15269.
+    // TODO(gepardo): always fetch schemas from external cells.
+
+    THashMap<TGuid, std::vector<TTable>> schemaIdToTables;
+    THashMap<TCellTag, std::vector<TGuid>> cellTagToSchemaIds;
+    for (const auto& table : tables) {
+        const auto& schemaId = table->SchemaId;
+        schemaIdToTables[schemaId].push_back(table);
+        cellTagToSchemaIds[tableToCellTag(table)].push_back(schemaId);
+    }
+
+    std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
+    for (auto& [cellTag, schemaIds] : cellTagToSchemaIds) {
+        std::sort(schemaIds.begin(), schemaIds.end());
+        schemaIds.erase(std::unique(schemaIds.begin(), schemaIds.end()), schemaIds.end());
+
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
+        TObjectServiceProxy proxy(channel);
+        auto batchReq = proxy.ExecuteBatch();
+
+        for (const auto& schemaId : schemaIds) {
+            // TODO(gepardo): fetch schema by schema ID directly, without using Get for the corresponding table.
+            auto table = schemaIdToTables[schemaId][0];
+            auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@schema");
+            AddCellTagToSyncWith(req, table->ObjectId);
+            SetTransactionId(req, tableToTransactionId(table));
+            req->Tag() = schemaId;
+            batchReq->AddRequest(req);
+        }
+
+        asyncResults.push_back(batchReq->Invoke());
+    }
+
+    auto checkError = [] (const auto& error) {
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error fetching table schemas");
+    };
+
+    auto result = WaitFor(AllSucceeded(asyncResults));
+    checkError(result);
+
+    for (const auto& batchRsp : result.Value()) {
+        checkError(GetCumulativeError(batchRsp));
+        for (const auto& rspOrError : batchRsp->GetResponses<TTableYPathProxy::TRspGet>()) {
+            const auto& rsp = rspOrError.Value();
+            auto schema = ConvertTo<TTableSchemaPtr>(TYsonString(rsp->value()));
+            auto schemaId = std::any_cast<TGuid>(rsp->Tag());
+            for (const auto& table : schemaIdToTables[schemaId]) {
+                table->Schema = schema;
+            }
+        }
+    }
+}
+
 void TOperationControllerBase::GetInputTablesAttributes()
 {
     YT_LOG_INFO("Getting input tables attributes");
@@ -5570,7 +5634,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
                 "chunk_count",
                 "retained_timestamp",
                 "schema_mode",
-                "schema",
+                "schema_id",
                 "unflushed_timestamp",
                 "content_revision",
                 "enable_dynamic_store_read",
@@ -5592,96 +5656,110 @@ void TOperationControllerBase::GetInputTablesAttributes()
     auto result = WaitFor(AllSucceeded(asyncResults));
     checkError(result);
 
-    bool haveTablesWithEnabledDynamicStoreRead = false;
-
+    THashMap<TInputTablePtr, IAttributeDictionaryPtr> tableAttributes;
     for (const auto& batchRsp : result.Value()) {
         checkError(GetCumulativeError(batchRsp));
         for (const auto& rspOrError : batchRsp->GetResponses<TTableYPathProxy::TRspGet>()) {
             const auto& rsp = rspOrError.Value();
             auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
-
             auto table = std::any_cast<TInputTablePtr>(rsp->Tag());
-            table->Dynamic = attributes->Get<bool>("dynamic");
-            table->Schema = attributes->Get<TTableSchemaPtr>("schema");
-            if (table->Schema->IsSorted()) {
-                table->Comparator = table->Schema->ToComparator();
+            tableAttributes.emplace(std::move(table), std::move(attributes));
+        }
+    }
+
+    // Fetch the schemas based on schema IDs. We didn't fetch the schemas initially to allow deduplication
+    // if there are multiple tables sharing same schema.
+    for (const auto& [table, attributes] : tableAttributes) {
+        table->SchemaId = attributes->Get<TGuid>("schema_id");
+    }
+    FetchTableSchemas(
+        InputClient,
+        MakeRange(InputTables_),
+        [] (const auto& table) { return table->ExternalTransactionId; },
+        [] (const auto& table) { return table->ExternalCellTag; });
+
+    bool haveTablesWithEnabledDynamicStoreRead = false;
+
+    for (const auto& [table, attributes] : tableAttributes) {
+        table->Dynamic = attributes->Get<bool>("dynamic");
+        if (table->Schema->IsSorted()) {
+            table->Comparator = table->Schema->ToComparator();
+        }
+        table->SchemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
+        table->ChunkCount = attributes->Get<int>("chunk_count");
+        table->ContentRevision = attributes->Get<NHydra::TRevision>("content_revision");
+
+        haveTablesWithEnabledDynamicStoreRead |= attributes->Get<bool>("enable_dynamic_store_read", false);
+
+        // Validate that timestamp is correct.
+        ValidateDynamicTableTimestamp(
+            table->Path,
+            table->Dynamic,
+            *table->Schema,
+            *attributes,
+            !Spec_->EnableDynamicStoreRead.value_or(true));
+
+        YT_LOG_INFO("Input table locked (Path: %v, ObjectId: %v, Schema: %v, Dynamic: %v, ChunkCount: %v, SecurityTags: %v, "
+            "Revision: %llx, ContentRevision: %llx)",
+            table->GetPath(),
+            table->ObjectId,
+            *table->Schema,
+            table->Dynamic,
+            table->ChunkCount,
+            table->SecurityTags,
+            table->Revision,
+            table->ContentRevision);
+
+        if (!table->ColumnRenameDescriptors.empty()) {
+            if (table->Path.GetTeleport()) {
+                THROW_ERROR_EXCEPTION("Cannot rename columns in table with teleport")
+                    << TErrorAttribute("table_path", table->Path);
             }
-            table->SchemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
-            table->ChunkCount = attributes->Get<int>("chunk_count");
-            table->ContentRevision = attributes->Get<NHydra::TRevision>("content_revision");
-
-            haveTablesWithEnabledDynamicStoreRead |= attributes->Get<bool>("enable_dynamic_store_read", false);
-
-            // Validate that timestamp is correct.
-            ValidateDynamicTableTimestamp(
-                table->Path,
-                table->Dynamic,
-                *table->Schema,
-                *attributes,
-                !Spec_->EnableDynamicStoreRead.value_or(true));
-
-            YT_LOG_INFO("Input table locked (Path: %v, ObjectId: %v, Schema: %v, Dynamic: %v, ChunkCount: %v, SecurityTags: %v, "
-                "Revision: %llx, ContentRevision: %llx)",
+            YT_LOG_DEBUG("Start renaming columns");
+            try {
+                THashMap<TString, TString> columnMapping;
+                for (const auto& descriptor : table->ColumnRenameDescriptors) {
+                    auto it = columnMapping.insert({descriptor.OriginalName, descriptor.NewName});
+                    YT_VERIFY(it.second);
+                }
+                auto newColumns = table->Schema->Columns();
+                for (auto& column : newColumns) {
+                    auto it = columnMapping.find(column.Name());
+                    if (it != columnMapping.end()) {
+                        column.SetName(it->second);
+                        ValidateColumnSchema(column, table->Schema->IsSorted(), table->Dynamic);
+                        columnMapping.erase(it);
+                    }
+                }
+                if (!columnMapping.empty()) {
+                    THROW_ERROR_EXCEPTION("Rename is supported only for columns in schema")
+                        << TErrorAttribute("failed_rename_descriptors", columnMapping);
+                }
+                table->Schema = New<TTableSchema>(newColumns, table->Schema->GetStrict(), table->Schema->GetUniqueKeys());
+                ValidateColumnUniqueness(*table->Schema);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Error renaming columns")
+                    << TErrorAttribute("table_path", table->Path)
+                    << TErrorAttribute("column_rename_descriptors", table->ColumnRenameDescriptors)
+                    << ex;
+            }
+            YT_LOG_DEBUG("Columns are renamed (Path: %v, NewSchema: %v)",
                 table->GetPath(),
-                table->ObjectId,
-                *table->Schema,
-                table->Dynamic,
-                table->ChunkCount,
-                table->SecurityTags,
-                table->Revision,
-                table->ContentRevision);
+                *table->Schema);
+        }
 
-            if (!table->ColumnRenameDescriptors.empty()) {
-                if (table->Path.GetTeleport()) {
-                    THROW_ERROR_EXCEPTION("Cannot rename columns in table with teleport")
-                        << TErrorAttribute("table_path", table->Path);
-                }
-                YT_LOG_DEBUG("Start renaming columns");
-                try {
-                    THashMap<TString, TString> columnMapping;
-                    for (const auto& descriptor : table->ColumnRenameDescriptors) {
-                        auto it = columnMapping.insert({descriptor.OriginalName, descriptor.NewName});
-                        YT_VERIFY(it.second);
-                    }
-                    auto newColumns = table->Schema->Columns();
-                    for (auto& column : newColumns) {
-                        auto it = columnMapping.find(column.Name());
-                        if (it != columnMapping.end()) {
-                            column.SetName(it->second);
-                            ValidateColumnSchema(column, table->Schema->IsSorted(), table->Dynamic);
-                            columnMapping.erase(it);
-                        }
-                    }
-                    if (!columnMapping.empty()) {
-                        THROW_ERROR_EXCEPTION("Rename is supported only for columns in schema")
-                            << TErrorAttribute("failed_rename_descriptors", columnMapping);
-                    }
-                    table->Schema = New<TTableSchema>(newColumns, table->Schema->GetStrict(), table->Schema->GetUniqueKeys());
-                    ValidateColumnUniqueness(*table->Schema);
-                } catch (const std::exception& ex) {
-                    THROW_ERROR_EXCEPTION("Error renaming columns")
-                        << TErrorAttribute("table_path", table->Path)
-                        << TErrorAttribute("column_rename_descriptors", table->ColumnRenameDescriptors)
-                        << ex;
-                }
-                YT_LOG_DEBUG("Columns are renamed (Path: %v, NewSchema: %v)",
-                    table->GetPath(),
-                    *table->Schema);
+        if (table->Dynamic && OperationType == EOperationType::RemoteCopy) {
+            if (!Config->EnableVersionedRemoteCopy) {
+                THROW_ERROR_EXCEPTION("Remote copy for dynamic tables is disabled");
             }
 
-            if (table->Dynamic && OperationType == EOperationType::RemoteCopy) {
-                if (!Config->EnableVersionedRemoteCopy) {
-                    THROW_ERROR_EXCEPTION("Remote copy for dynamic tables is disabled");
-                }
-
-                auto tabletState = attributes->Get<ETabletState>("tablet_state");
-                if (tabletState != ETabletState::Frozen && tabletState != ETabletState::Unmounted) {
-                    THROW_ERROR_EXCEPTION("Input table has tablet state %Qlv: expected %Qlv or %Qlv",
-                        tabletState,
-                        ETabletState::Frozen,
-                        ETabletState::Unmounted)
-                        << TErrorAttribute("table_path", table->Path);
-                }
+            auto tabletState = attributes->Get<ETabletState>("tablet_state");
+            if (tabletState != ETabletState::Frozen && tabletState != ETabletState::Unmounted) {
+                THROW_ERROR_EXCEPTION("Input table has tablet state %Qlv: expected %Qlv or %Qlv",
+                    tabletState,
+                    ETabletState::Frozen,
+                    ETabletState::Unmounted)
+                    << TErrorAttribute("table_path", table->Path);
             }
         }
     }
@@ -5708,7 +5786,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
         auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@");
         ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
             "schema_mode",
-            "schema",
+            "schema_id",
             "optimize_for",
             "compression_codec",
             "erasure_codec",
@@ -5723,19 +5801,34 @@ void TOperationControllerBase::GetOutputTablesSchema()
     THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of output tables");
     const auto& batchRsp = batchRspOrError.Value();
 
+    THashMap<TOutputTablePtr, IAttributeDictionaryPtr> tableAttributes;
     auto rspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspGet>();
     for (const auto& rspOrError : rspsOrError) {
         const auto& rsp = rspOrError.Value();
 
         auto table = std::any_cast<TOutputTablePtr>(rsp->Tag());
-        const auto& path = table->Path;
-
         auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+        tableAttributes.emplace(std::move(table), std::move(attributes));
+    }
+
+    // Fetch the schemas based on schema IDs. We didn't fetch the schemas initially to allow deduplication
+    // if there are multiple tables sharing same schema.
+    for (const auto& [table, attributes] : tableAttributes) {
+        table->SchemaId = attributes->Get<TGuid>("schema_id");
+    }
+    FetchTableSchemas(OutputClient,
+        MakeRange(UpdatingTables_),
+        [this] (const auto& table) { return GetTransactionForOutputTable(table)->GetId(); },
+        [] (const auto&) { return PrimaryMasterCellTag; });
+
+    for (const auto& [table, attributes] : tableAttributes) {
+        const auto& path = table->Path;
 
         table->Dynamic = attributes->Get<bool>("dynamic");
         table->TableUploadOptions = GetTableUploadOptions(
             path,
             *attributes,
+            table->Schema,
             0); // Here we assume zero row count, we will do additional check later.
 
         if (table->Dynamic) {

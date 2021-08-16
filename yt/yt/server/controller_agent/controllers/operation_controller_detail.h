@@ -1301,6 +1301,13 @@ private:
 
     void MarkJobHasCompetitors(const TJobletPtr& joblet);
 
+    template <class TTable, class TTransactionIdFunc, class TCellTagFunc>
+    void FetchTableSchemas(
+        const NApi::NNative::IClientPtr& client,
+        const TRange<TTable>& tables,
+        TTransactionIdFunc tableToTransactionId,
+        TCellTagFunc tableToCellTag) const;
+
     //! Returns list of operation tasks that have a vertex in data flow graph,
     //! ordered according to topological order of data flow graph.
     std::vector<TTaskPtr> GetTopologicallyOrderedTasks() const;

@@ -21,6 +21,17 @@ void TLivePreviewTableBase::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTableBase::Persist(const TPersistenceContext &context)
+{
+    TUserObject::Persist(context);
+
+    using NYT::Persist;
+    Persist<TNonNullableIntrusivePtrSerializer<>>(context, Schema);
+    Persist(context, SchemaId);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool TInputTable::IsForeign() const
 {
     return Path.GetForeign();
@@ -33,11 +44,10 @@ bool TInputTable::IsPrimary() const
 
 void TInputTable::Persist(const TPersistenceContext& context)
 {
-    TUserObject::Persist(context);
+    TTableBase::Persist(context);
 
     using NYT::Persist;
     Persist(context, Chunks);
-    Persist<TNonNullableIntrusivePtrSerializer<>>(context, Schema);
     Persist(context, Comparator);
     Persist(context, SchemaMode);
     Persist(context, Dynamic);
@@ -46,7 +56,7 @@ void TInputTable::Persist(const TPersistenceContext& context)
 ////////////////////////////////////////////////////////////////////////////////
 
 TOutputTable::TOutputTable(NYPath::TRichYPath path, EOutputTableType outputType)
-    : TUserObject(std::move(path))
+    : TTableBase(std::move(path))
     , OutputType(outputType)
 { }
 
@@ -57,7 +67,7 @@ bool TOutputTable::IsBeginUploadCompleted() const
 
 void TOutputTable::Persist(const TPersistenceContext& context)
 {
-    TUserObject::Persist(context);
+    TTableBase::Persist(context);
     TLivePreviewTableBase::Persist(context);
 
     using NYT::Persist;

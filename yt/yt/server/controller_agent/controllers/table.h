@@ -37,16 +37,27 @@ struct TLivePreviewTableBase
     void Persist(const TPersistenceContext& context);
 };
 
-struct TInputTable
-    : public TRefCounted
-    , public NChunkClient::TUserObject
+// Base class for TInputTable and TOutputTable.
+struct TTableBase
+    : public NChunkClient::TUserObject
 {
     using NChunkClient::TUserObject::TUserObject;
+
+    NTableClient::TTableSchemaPtr Schema = New<NTableClient::TTableSchema>();
+    TGuid SchemaId;
+
+    void Persist(const TPersistenceContext& context);
+};
+
+struct TInputTable
+    : public TRefCounted
+    , public TTableBase
+{
+    using TTableBase::TTableBase;
 
     //! Number of chunks in the whole table (without range selectors).
     std::vector<NChunkClient::TInputChunkPtr> Chunks;
     NTableClient::TColumnRenameDescriptors ColumnRenameDescriptors;
-    NTableClient::TTableSchemaPtr Schema = New<NTableClient::TTableSchema>();
     //! Comparator corresponding to the input table sort order.
     //! Used around read limits using keys.
     NTableClient::TComparator Comparator;
@@ -68,7 +79,7 @@ struct TInputTable
 DEFINE_REFCOUNTED_TYPE(TInputTable)
 
 struct TOutputTable
-    : public NChunkClient::TUserObject
+    : public TTableBase
     , public TLivePreviewTableBase
     , public TRefCounted
 {
