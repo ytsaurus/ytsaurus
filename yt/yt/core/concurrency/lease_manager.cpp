@@ -43,6 +43,7 @@ public:
         YT_ASSERT(onExpired);
 
         auto lease = New<TLeaseEntry>(timeout, std::move(onExpired));
+        auto guard = Guard(lease->SpinLock);
         lease->Cookie = TDelayedExecutor::Submit(
             BIND(&TImpl::OnLeaseExpired, lease),
             timeout);
