@@ -112,16 +112,19 @@ private:
                         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(0);
                         const auto& rsp = rspOrError.Value();
 
-                        auto serializableResourceUsage = ConvertTo<TSerializableClusterResourcesPtr>(TYsonString(rsp->value()));
-                        const auto& chunkManager = Bootstrap_->GetChunkManager();
-                        auto resourceUsage = serializableResourceUsage->ToClusterResources(chunkManager);
+                        TClusterResources resourceUsage;
+                        DeserializeClusterResources(
+                            resourceUsage,
+                            ConvertToNode(TYsonString(rsp->value())),
+                            Bootstrap_);
 
                         // NB: account for both portal entrance and portal exit resource usage.
                         resourceUsage += node->GetTotalResourceUsage();
 
-                        auto resourceSerializer = New<TSerializableClusterResources>(chunkManager, resourceUsage);
-                        return BuildYsonStringFluently()
-                            .Value(resourceSerializer);
+                        TStringStream output;
+                        TYsonWriter writer(&output, EYsonFormat::Binary);
+                        SerializeClusterResources(resourceUsage, &writer, Bootstrap_);
+                        return TYsonString(output.Str());
                     }).AsyncVia(GetCurrentInvoker()));
             }
 

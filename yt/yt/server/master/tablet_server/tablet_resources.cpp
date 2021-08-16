@@ -2,7 +2,12 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/server/master/security_server/helpers.h>
+
 namespace NYT::NTabletServer {
+
+using namespace NYTree;
+using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,28 +37,31 @@ void TTabletResources::Load(NCellMaster::TLoadContext& context)
     Load(context, TabletStaticMemory);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TSerializableTabletResources::TSerializableTabletResources(const TTabletResources& resources)
-    : TTabletResources(resources)
+void Serialize(const TTabletResources& tabletResources, NYTree::TFluentMap& fluent)
 {
-    Initialize();
-
-    static_cast<TTabletResources&>(*this) = resources;
+    fluent
+        .Item("tablet_count").Value(tabletResources.TabletCount)
+        .Item("tablet_static_memory").Value(tabletResources.TabletStaticMemory);
 }
 
-TSerializableTabletResources::TSerializableTabletResources()
+void Serialize(const TTabletResources& tabletResources, NYson::IYsonConsumer* consumer)
 {
-    Initialize();
+    auto fluent = BuildYsonFluently(consumer)
+        .BeginMap();
+    Serialize(tabletResources, fluent);
+    fluent
+        .EndMap();
 }
 
-void TSerializableTabletResources::Initialize()
+void Deserialize(TTabletResources& tabletResources, const NYTree::INodePtr& node)
 {
-    RegisterParameter("tablet_count", TabletCount)
-        .Default(0);
+    auto map = node->AsMap();
 
-    RegisterParameter("tablet_static_memory", TabletStaticMemory)
-        .Default(0);
+    auto result = TTabletResources()
+        .SetTabletCount(GetOptionalNonNegativeI64ChildOrThrow(map, "tablet_count"))
+        .SetTabletStaticMemory(GetOptionalNonNegativeI64ChildOrThrow(map, "tablet_static_memory"));
+
+    tabletResources = result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

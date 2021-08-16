@@ -1,3 +1,4 @@
+#include "private.h"
 #include "cluster_resources.h"
 #include "cluster_resource_limits.h"
 #include "helpers.h"
@@ -11,13 +12,17 @@
 
 #include <yt/yt/core/ytree/yson_serializable.h>
 
+#include <util/generic/algorithm.h>
+
 namespace NYT::NSecurityServer {
 
+using namespace NCellMaster;
 using namespace NYson;
+using namespace NYTree;
 using namespace NTabletServer;
+using namespace NChunkServer;
 
 using NChunkClient::MaxMediumCount;
-using NChunkServer::DefaultStoreMediumIndex;
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,6 +61,12 @@ void TClusterResources::SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &
     } else {
         DiskSpace_[mediumIndex] = diskSpace;
     }
+}
+
+i64 TClusterResources::GetMediumDiskSpace(int mediumIndex) const
+{
+    auto it = DiskSpace_.find(mediumIndex);
+    return it == DiskSpace_.end() ? 0 : it->second;
 }
 
 void TClusterResources::AddToMediumDiskSpace(int mediumIndex, i64 diskSpaceDelta)
@@ -287,86 +298,289 @@ void FromProto(TClusterResources* resources, const NProto::TClusterResources& pr
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSerializableClusterResources::TSerializableClusterResources(bool serializeTabletResources)
-{
-    RegisterParameter("node_count", NodeCount_)
-        .Default(0)
-        .GreaterThanOrEqual(0);
-    RegisterParameter("chunk_count", ChunkCount_)
-        .Default(0)
-        .GreaterThanOrEqual(0);
+namespace {
 
-    // COMPAT(ifsmirnov)
-    if (serializeTabletResources) {
-        RegisterParameter("tablet_count", TabletCount_)
-            .Default(0)
-            .GreaterThanOrEqual(0);
-        RegisterParameter("tablet_static_memory", TabletStaticMemory_)
-            .Default(0)
-            .GreaterThanOrEqual(0);
-    }
-
-    RegisterParameter("disk_space_per_medium", DiskSpacePerMedium_)
-        .Optional();
-    RegisterParameter("disk_space", DiskSpace_)
-        .Optional();
-    RegisterParameter("master_memory", MasterMemory_)
-        .Optional();
-    RegisterParameter("detailed_master_memory", DetailedMasterMemory_)
-        .Optional();
-
-    RegisterPostprocessor([&] {
-        for (const auto& [medium, diskSpace] : DiskSpacePerMedium_) {
-            ValidateDiskSpace(diskSpace);
-        }
-        if (DetailedMasterMemory_.IsNegative()) {
-            THROW_ERROR_EXCEPTION("Detailed master memory %v is negative",
-                DetailedMasterMemory_);
-        }
-    });
-}
-
-TSerializableClusterResources::TSerializableClusterResources(
-    const NChunkServer::TChunkManagerPtr& chunkManager,
+// When #multicellStatistics are provided, serializes master memory usage in a
+// detailed way. #committed is only relevant iff #multicellStatistics is provided.
+void DoSerializeClusterResources(
     const TClusterResources& clusterResources,
-    bool serializeTabletResources)
-    : TSerializableClusterResources(serializeTabletResources)
+    const TAccountMulticellStatistics* multicellStatistics,
+    bool committed,
+    TFluentMap& fluent,
+    const TBootstrap* bootstrap,
+    bool serializeTabletResources,
+    const SmallVector<int, 4>& additionalMediumIndexes = {})
 {
-    NodeCount_ = clusterResources.GetNodeCount();
-    ChunkCount_ = clusterResources.GetChunkCount();
-    TabletCount_ = clusterResources.GetTabletCount();
-    TabletStaticMemory_ = clusterResources.GetTabletStaticMemory();
-    MasterMemory_ = clusterResources.DetailedMasterMemory().GetTotal();
-    DetailedMasterMemory_ = clusterResources.DetailedMasterMemory();
-    DiskSpace_ = 0;
-    for (const auto& [mediumIndex, mediumDiskSpace] : clusterResources.DiskSpace()) {
+    const auto& chunkManager = bootstrap->GetChunkManager();
+    const auto& multicellManager = bootstrap->GetMulticellManager();
+
+    YT_ASSERT(!multicellStatistics ||
+        clusterResources == std::accumulate(
+            multicellStatistics->begin(),
+            multicellStatistics->end(),
+            TClusterResources{},
+            [&] (const TClusterResources& total, const auto& pair) {
+                return total + (committed ? pair.second.CommittedResourceUsage : pair.second.ResourceUsage);
+            }));
+
+    auto compareByMediumIndexes =
+        [] (std::pair<const TMedium*, i64> a, std::pair<const TMedium*, i64> b) {
+            return a.first->GetIndex() < b.first->GetIndex();
+        };
+
+    // Disk space patched with additional media.
+    SmallVector<std::pair<const TMedium*, i64>, 4> diskSpace;
+    auto totalDiskSpace = i64(0);
+    auto addMediumIndex = [&] (int mediumIndex, i64 mediumDiskSpace) {
         const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-        if (!medium || medium->GetCache()) {
-            continue;
+        if (!IsObjectAlive(medium) || medium->GetCache()) {
+            return;
         }
-        YT_VERIFY(DiskSpacePerMedium_.emplace(medium->GetName(), mediumDiskSpace).second);
-        DiskSpace_ += mediumDiskSpace;
+
+        auto [it, ite] = std::equal_range(
+            diskSpace.begin(),
+            diskSpace.end(),
+            std::pair<const TMedium*, i64>(medium, mediumDiskSpace),
+            compareByMediumIndexes);
+
+        if (auto distance = std::distance(it, ite); distance > 0) {
+            YT_ASSERT(distance == 1); // No duplicate media.
+            YT_ASSERT(mediumDiskSpace == 0);
+            return;
+        }
+
+        diskSpace.insert(it, {medium, mediumDiskSpace}); // No emplace in SmallVector.
+        totalDiskSpace += mediumDiskSpace;
+    };
+
+    for (auto [mediumIndex, mediumDiskSpace] : clusterResources.DiskSpace()) {
+        addMediumIndex(mediumIndex, mediumDiskSpace);
     }
+    for (auto mediumIndex : additionalMediumIndexes) {
+        addMediumIndex(mediumIndex, 0);
+    }
+    YT_ASSERT(std::is_sorted(diskSpace.begin(), diskSpace.end(), compareByMediumIndexes));
+
+    fluent
+        .Item("node_count").Value(clusterResources.GetNodeCount())
+        .Item("chunk_count").Value(clusterResources.GetChunkCount())
+        // COMPAT(ifsmirnov)
+        .DoIf(serializeTabletResources, [&] (TFluentMap fluent) {
+            fluent
+                .Item("tablet_count").Value(clusterResources.GetTabletCount())
+                .Item("tablet_static_memory").Value(clusterResources.GetTabletStaticMemory());
+        })
+        .Item("disk_space_per_medium").DoMapFor(
+            diskSpace,
+            [&] (TFluentMap fluent, auto pair) {
+                auto [medium, mediumDiskSpace] = pair;
+                fluent.Item(medium->GetName()).Value(mediumDiskSpace);
+            })
+        .Item("disk_space").Value(totalDiskSpace)
+        .DoIf(multicellStatistics, [&] (TFluentMap fluent) {
+            i64 totalMasterMemory = 0;
+            i64 chunkHostMasterMemory = 0;
+            for (const auto& [cellTag, accountStatistics] : *multicellStatistics) {
+                const auto& cellMasterMemory = committed
+                    ? accountStatistics.CommittedResourceUsage.GetTotalMasterMemory()
+                    : accountStatistics.ResourceUsage.GetTotalMasterMemory();
+                totalMasterMemory += cellMasterMemory;
+                if (Any(multicellManager->GetMasterCellRoles(cellTag) & EMasterCellRoles::ChunkHost)) {
+                    chunkHostMasterMemory += cellMasterMemory;
+                }
+            }
+            YT_ASSERT(totalMasterMemory == clusterResources.DetailedMasterMemory().GetTotal());
+            fluent
+                .Item("master_memory").BeginMap()
+                    .Item("total").Value(totalMasterMemory)
+                    .Item("chunk_host").Value(chunkHostMasterMemory)
+                    .Item("per_cell").DoMapFor(
+                        *multicellStatistics,
+                        [&] (TFluentMap fluent, const auto& pair) {
+                            const auto& [cellTag, accountStatistics] = pair;
+                            const auto& cellMasterMemory = committed
+                                ? accountStatistics.CommittedResourceUsage.GetTotalMasterMemory()
+                                : accountStatistics.ResourceUsage.GetTotalMasterMemory();
+                            fluent
+                                .Item(multicellManager->GetMasterCellName(cellTag)).Value(cellMasterMemory);
+                        })
+                .EndMap();
+        })
+        .DoIf(!multicellStatistics, [&] (TFluentMap fluent) {
+            fluent.Item("master_memory").Value(clusterResources.DetailedMasterMemory().GetTotal());
+        })
+        .Item("detailed_master_memory").Value(clusterResources.DetailedMasterMemory());
 }
 
-TClusterResources TSerializableClusterResources::ToClusterResources(const NChunkServer::TChunkManagerPtr& chunkManager) const
+void DoDeserializeClusterResources(
+    TClusterResources& clusterResources,
+    INodePtr node,
+    const TBootstrap* bootstrap,
+    bool deserializeTabletResources)
 {
+    auto map = node->AsMap();
+
     auto result = TClusterResources()
-        .SetNodeCount(NodeCount_)
-        .SetChunkCount(ChunkCount_)
-        .SetTabletCount(TabletCount_)
-        .SetTabletStaticMemory(TabletStaticMemory_)
-        .SetDetailedMasterMemory(DetailedMasterMemory_);
-    for (const auto& [mediumName, mediumDiskSpace] : DiskSpacePerMedium_) {
-        auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
-        result.SetMediumDiskSpace(medium->GetIndex(), mediumDiskSpace);
+        .SetNodeCount(GetOptionalNonNegativeI64ChildOrThrow(map, "node_count"))
+        .SetChunkCount(GetOptionalNonNegativeI64ChildOrThrow(map, "chunk_count"));
+    if (deserializeTabletResources) {
+        result.SetTabletCount(GetOptionalNonNegativeI64ChildOrThrow(map, "tablet_count"));
+        result.SetTabletStaticMemory(GetOptionalNonNegativeI64ChildOrThrow(map, "tablet_static_memory"));
     }
-    return result;
+
+    if (auto child = map->FindChild("disk_space_per_medium")) {
+        const auto& chunkManager = bootstrap->GetChunkManager();
+        auto mediumToNode = child->AsMap()->GetChildren();
+        for (const auto& [mediumName, diskSpaceNode] : mediumToNode) {
+            const auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
+            auto mediumDiskSpace = diskSpaceNode->AsInt64()->GetValue();
+            ValidateDiskSpace(mediumDiskSpace);
+            result.SetMediumDiskSpace(medium->GetIndex(), mediumDiskSpace);
+        }
+    }
+
+    if (auto child = map->FindChild("detailed_master_memory")) {
+        Deserialize(result.DetailedMasterMemory(), child);
+        if (result.DetailedMasterMemory().IsNegative()) {
+            THROW_ERROR_EXCEPTION("Detailed master memory cannot be negative, found %v",
+                result.DetailedMasterMemory());
+        }
+    }
+
+    clusterResources = result;
 }
 
-void TSerializableClusterResources::AddToMediumDiskSpace(const TString& mediumName, i64 mediumDiskSpace)
+} // namespace
+
+void SerializeClusterResources(
+    const TClusterResources& resources,
+    NYson::IYsonConsumer* consumer,
+    const TBootstrap* bootstrap)
 {
-    DiskSpacePerMedium_[mediumName] += mediumDiskSpace;
+    auto fluent = BuildYsonFluently(consumer)
+        .BeginMap();
+
+    DoSerializeClusterResources(
+        resources,
+        /* multicellStatistics */ nullptr,
+        /* committed */ false, // Doesn't matter.
+        fluent,
+        bootstrap,
+        /* serializeTabletResources */ true);
+
+    fluent
+        .EndMap();
+}
+
+void SerializeRichClusterResources(
+    const TRichClusterResources& resources,
+    NYson::IYsonConsumer* consumer,
+    const TBootstrap* bootstrap)
+{
+    auto fluent = BuildYsonFluently(consumer)
+        .BeginMap();
+
+    DoSerializeClusterResources(
+        resources.ClusterResources,
+        /* multicellStatistics */ nullptr,
+        /* committed */ false, // Doesn't matter.
+        fluent,
+        bootstrap,
+        /* serializeTabletResources */ false);
+
+    Serialize(resources.TabletResources, fluent);
+
+    fluent
+        .EndMap();
+}
+
+void SerializeAccountClusterResourceUsage(
+    const TAccount* account,
+    bool committed,
+    bool recursive,
+    NYson::IYsonConsumer* consumer,
+    const TBootstrap* bootstrap)
+{
+    const TClusterResources* clusterResources = nullptr;
+    const TAccountMulticellStatistics* multicellStatistics = nullptr;
+
+    TClusterResources nonRecursiveResourceUsage;
+    TAccountMulticellStatistics nonRecursiveMulticellStatistics;
+
+    const auto& clusterStatistics = account->ClusterStatistics();
+
+    if (recursive) {
+        clusterResources = committed
+            ? &clusterStatistics.CommittedResourceUsage
+            : &clusterStatistics.ResourceUsage;
+        multicellStatistics = &account->MulticellStatistics();
+    } else {
+        nonRecursiveResourceUsage =
+            (committed ? clusterStatistics.CommittedResourceUsage : clusterStatistics.ResourceUsage)
+            - account->ComputeTotalChildrenResourceUsage(committed);
+        nonRecursiveMulticellStatistics = SubtractAccountMulticellStatistics(
+            account->MulticellStatistics(),
+            account->ComputeTotalChildrenMulticellStatistics());
+        clusterResources = &nonRecursiveResourceUsage;
+        multicellStatistics = &nonRecursiveMulticellStatistics;
+    }
+
+    YT_ASSERT(clusterResources);
+    YT_ASSERT(multicellStatistics);
+
+    auto fluent = BuildYsonFluently(consumer)
+        .BeginMap();
+
+    // Zero disk space usage should nevertheless be serialized if there's a
+    // non-zero limit for that medium.
+    SmallVector<int, 4> additionalMediumIndexes;
+    for (auto [mediumIndex, _] : account->ClusterResourceLimits().DiskSpace()) {
+        additionalMediumIndexes.push_back(mediumIndex);
+    }
+
+    DoSerializeClusterResources(
+        *clusterResources,
+        multicellStatistics,
+        committed,
+        fluent,
+        bootstrap,
+        /* serializeTabletResources */ true,
+        additionalMediumIndexes);
+
+    fluent
+        .EndMap();
+}
+
+void DeserializeClusterResources(
+    TClusterResources& clusterResources,
+    NYTree::INodePtr node,
+    const TBootstrap* bootstrap)
+{
+    DoDeserializeClusterResources(
+        clusterResources,
+        std::move(node),
+        bootstrap,
+        /* deserializeTabletResources */ true);
+}
+
+void DeserializeRichClusterResources(
+    TRichClusterResources& clusterResources,
+    NYTree::INodePtr node,
+    const TBootstrap* bootstrap)
+{
+    TRichClusterResources result;
+
+    DoDeserializeClusterResources(
+        result.ClusterResources,
+        node,
+        bootstrap,
+        /* serializeTabletResources */ false);
+
+    auto map = node->AsMap();
+
+    Deserialize(result.TabletResources, node);
+
+    clusterResources = result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -379,31 +593,6 @@ TRichClusterResources::TRichClusterResources(
 {
     YT_VERIFY(ClusterResources.GetTabletCount() == 0);
     YT_VERIFY(ClusterResources.GetTabletStaticMemory() == 0);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSerializableRichClusterResources::TSerializableRichClusterResources()
-    : TSerializableClusterResources(/*serializeTabletResources*/ false)
-    , TSerializableTabletResources()
-{ }
-
-TSerializableRichClusterResources::TSerializableRichClusterResources(
-    const NChunkServer::TChunkManagerPtr& chunkManager,
-    const TRichClusterResources& richClusterResources)
-    : TSerializableClusterResources(
-        chunkManager,
-        richClusterResources.ClusterResources,
-        /*serializeTabletResources*/ false)
-    , TSerializableTabletResources(richClusterResources.TabletResources)
-{ }
-
-TRichClusterResources TSerializableRichClusterResources::ToRichClusterResources(
-    const NChunkServer::TChunkManagerPtr& chunkManager) const
-{
-    auto clusterResources = ToClusterResources(chunkManager);
-    auto tabletResources = static_cast<TTabletResources>(*this);
-    return {clusterResources, tabletResources};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "detailed_master_memory.h"
+#include "master_memory.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -31,6 +32,8 @@ public:
     TClusterResources&& SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &&;
     void SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &;
 
+    i64 GetMediumDiskSpace(int mediumIndex) const;
+
     //! Increases medium disk space by a given amount.
     //! NB: the amount may be negative.
     void AddToMediumDiskSpace(int mediumIndex, i64 diskSpaceDelta);
@@ -56,7 +59,7 @@ public:
     TClusterResources& operator -= (const TClusterResources& rhs);
     TClusterResources operator - (const TClusterResources& rhs) const;
 
-    TClusterResources& operator *= (i64 rhs); 
+    TClusterResources& operator *= (i64 rhs);
     TClusterResources operator * (i64 rhs) const;
 
     TClusterResources operator - () const;
@@ -84,38 +87,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A helper for (de)serializing TClusterResources.
-//! This cannot be done directly as serialization requires converting medium
-//! indexes to names, which is impossible without the chunk manager.
-class TSerializableClusterResources
-    : public virtual NYTree::TYsonSerializable
-{
-public:
-    // For deserialization.
-    explicit TSerializableClusterResources(bool serializeTabletResources = true);
-    // For serialization.
-    TSerializableClusterResources(
-        const NChunkServer::TChunkManagerPtr& chunkManager,
-        const TClusterResources& clusterResources,
-        bool serializeTabletResources = true);
+void ToProto(NProto::TClusterResources* protoResources, const TClusterResources& resources);
+void FromProto(TClusterResources* resources, const NProto::TClusterResources& protoResources);
 
-    TClusterResources ToClusterResources(const NChunkServer::TChunkManagerPtr& chunkManager) const;
-
-    void AddToMediumDiskSpace(const TString& mediumName, i64 mediumDiskSpace);
-
-private:
-    i64 NodeCount_ = 0;
-    i64 ChunkCount_ = 0;
-    int TabletCount_ = 0;
-    i64 TabletStaticMemory_ = 0;
-    THashMap<TString, i64> DiskSpacePerMedium_;
-    // COMPAT(shakurov)
-    i64 DiskSpace_;
-    i64 MasterMemory_ = 0;
-    TDetailedMasterMemory DetailedMasterMemory_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TSerializableClusterResources)
+void FormatValue(TStringBuilderBase* builder, const TClusterResources& resources, TStringBuf /*format*/);
+TString ToString(const TClusterResources& resources);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,37 +112,40 @@ public:
     NTabletServer::TTabletResources TabletResources;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-//! Helper for serializing rich cluster resources.
-class TSerializableRichClusterResources
-    : public TSerializableClusterResources
-    , public NTabletServer::TSerializableTabletResources
-{
-public:
-    TSerializableRichClusterResources();
-
-    TSerializableRichClusterResources(
-        const NChunkServer::TChunkManagerPtr& chunkManager,
-        const TRichClusterResources& richClusterResources);
-
-    TRichClusterResources ToRichClusterResources(const NChunkServer::TChunkManagerPtr& chunkManager) const;
-};
-
-DEFINE_REFCOUNTED_TYPE(TSerializableRichClusterResources)
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ToProto(NProto::TClusterResources* protoResources, const TClusterResources& resources);
-void FromProto(TClusterResources* resources, const NProto::TClusterResources& protoResources);
-
-void FormatValue(TStringBuilderBase* builder, const TClusterResources& resources, TStringBuf /*format*/);
-TString ToString(const TClusterResources& resources);
-
-////////////////////////////////////////////////////////////////////////////////
-
 TRichClusterResources& operator += (TRichClusterResources& lhs, const TRichClusterResources& rhs);
 TRichClusterResources  operator +  (const TRichClusterResources& lhs, const TRichClusterResources& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// NB: this serialization requires access to chunk and multicell managers and
+// cannot be easily integrated into yson serialization framework.
+
+void SerializeClusterResources(
+    const TClusterResources& resources,
+    NYson::IYsonConsumer* consumer,
+    const NCellMaster::TBootstrap* bootstrap);
+
+void DeserializeClusterResources(
+    TClusterResources& clusterResources,
+    NYTree::INodePtr node,
+    const NCellMaster::TBootstrap* bootstrap);
+
+void SerializeRichClusterResources(
+    const TRichClusterResources& resources,
+    NYson::IYsonConsumer* consumer,
+    const NCellMaster::TBootstrap* bootstrap);
+
+void DeserializeRichClusterResources(
+    TRichClusterResources& clusterResources,
+    NYTree::INodePtr node,
+    const NCellMaster::TBootstrap* bootstrap);
+
+void SerializeAccountClusterResourceUsage(
+    const TAccount* account,
+    bool committed,
+    bool recursive,
+    NYson::IYsonConsumer* consumer,
+    const NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

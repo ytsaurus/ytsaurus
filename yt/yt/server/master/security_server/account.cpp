@@ -19,6 +19,7 @@ namespace NYT::NSecurityServer {
 using namespace NYson;
 using namespace NYTree;
 using namespace NCellMaster;
+using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NConcurrency;
 
@@ -47,15 +48,20 @@ void FromProto(TAccountStatistics* statistics, const NProto::TAccountStatistics&
     FromProto(&statistics->CommittedResourceUsage, protoStatistics.committed_resource_usage());
 }
 
-void Serialize(const TAccountStatistics& statistics, IYsonConsumer* consumer, const NChunkServer::TChunkManagerPtr& chunkManager)
+void Serialize(const TAccountStatistics& statistics, IYsonConsumer* consumer, const TBootstrap* bootstrap)
 {
-    auto usage = New<TSerializableClusterResources>(chunkManager, statistics.ResourceUsage);
-    auto committedUsage = New<TSerializableClusterResources>(chunkManager, statistics.CommittedResourceUsage);
+    auto fluent = BuildYsonFluently(consumer)
+        .BeginMap();
 
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("resource_usage").Value(usage)
-            .Item("committed_resource_usage").Value(committedUsage)
+    fluent
+        .Item("resource_usage");
+    SerializeClusterResources(statistics.ResourceUsage, fluent.GetConsumer(), bootstrap);
+
+    fluent
+        .Item("committed_resource_usage");
+    SerializeClusterResources(statistics.CommittedResourceUsage, fluent.GetConsumer(), bootstrap);
+
+    fluent
         .EndMap();
 }
 
@@ -70,6 +76,59 @@ TAccountStatistics operator + (const TAccountStatistics& lhs, const TAccountStat
 {
     auto result = lhs;
     result += rhs;
+    return result;
+}
+
+TAccountStatistics& operator -= (TAccountStatistics& lhs, const TAccountStatistics& rhs)
+{
+    lhs.ResourceUsage -= rhs.ResourceUsage;
+    lhs.CommittedResourceUsage -= rhs.CommittedResourceUsage;
+    return lhs;
+}
+
+TAccountStatistics operator - (const TAccountStatistics& lhs, const TAccountStatistics& rhs)
+{
+    auto result = lhs;
+    result -= rhs;
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void AddToAccountMulticellStatistics(
+    TAccountMulticellStatistics& lhs,
+    const TAccountMulticellStatistics& rhs)
+{
+    for (const auto& [cellTag, accountStatistics] : rhs) {
+        lhs[cellTag] += accountStatistics;
+    }
+}
+
+void SubtractFromAccountMulticellStatistics(
+    TAccountMulticellStatistics& lhs,
+    const TAccountMulticellStatistics& rhs)
+{
+    for (const auto& [cellTag, accountStatistics] : rhs) {
+        lhs[cellTag] -= accountStatistics;
+    }
+}
+
+
+TAccountMulticellStatistics AddAccountMulticellStatistics(
+    const TAccountMulticellStatistics& lhs,
+    const TAccountMulticellStatistics& rhs)
+{
+    auto result = lhs;
+    AddToAccountMulticellStatistics(result, rhs);
+    return result;
+}
+
+TAccountMulticellStatistics SubtractAccountMulticellStatistics(
+    const TAccountMulticellStatistics& lhs,
+    const TAccountMulticellStatistics& rhs)
+{
+    auto result = lhs;
+    SubtractFromAccountMulticellStatistics(result, rhs);
     return result;
 }
 
@@ -148,7 +207,7 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
         moveUserToBuiltinAttribute(FolderId_, EInternedAttributeKey::FolderId);
     } else {
         if (Load<bool>(context)) {
-            AbcConfig_ = New<NObjectClient::TAbcConfig>();
+            AbcConfig_ = New<TAbcConfig>();
             Load(context, *AbcConfig_);
         }
         Load(context, FolderId_);
@@ -203,12 +262,12 @@ bool TAccount::IsTabletStaticMemoryLimitViolated() const
 
 bool TAccount::IsMasterMemoryLimitViolated() const
 {
-    return ClusterStatistics_.ResourceUsage.GetTotalMasterMemory() > ClusterResourceLimits_.GetMasterMemory();
+    return ClusterStatistics_.ResourceUsage.GetTotalMasterMemory() > ClusterResourceLimits_.MasterMemory().Total;
 }
 
 bool TAccount::IsMasterMemoryLimitViolated(TCellTag cellTag) const
 {
-    const auto& perCellLimits = ClusterResourceLimits_.CellMasterMemoryLimits();
+    const auto& perCellLimits = ClusterResourceLimits_.MasterMemory().PerCell;
     auto limitIt = perCellLimits.find(cellTag);
     if (limitIt == perCellLimits.end()) {
         return false;
@@ -225,7 +284,7 @@ bool TAccount::IsMasterMemoryLimitViolated(TCellTag cellTag) const
 bool TAccount::IsChunkHostMasterMemoryLimitViolated(const TMulticellManagerPtr& multicellManager) const
 {
     auto totalRoleMasterMemory = GetChunkHostMasterMemoryUsage(multicellManager);
-    return totalRoleMasterMemory > ClusterResourceLimits_.GetChunkHostMasterMemory();
+    return totalRoleMasterMemory > ClusterResourceLimits_.MasterMemory().ChunkHost;
 }
 
 i64 TAccount::GetChunkHostMasterMemoryUsage(const TMulticellManagerPtr& multicellManager) const
@@ -242,7 +301,7 @@ i64 TAccount::GetChunkHostMasterMemoryUsage(const TMulticellManagerPtr& multicel
     return totalRoleMasterMemory;
 }
 
-TAccountStatistics* TAccount::GetCellStatistics(NObjectClient::TCellTag cellTag)
+TAccountStatistics* TAccount::GetCellStatistics(TCellTag cellTag)
 {
     return &GetOrCrash(MulticellStatistics_, cellTag);
 }
@@ -308,20 +367,22 @@ TClusterResourceLimits TAccount::ComputeTotalChildrenLimits() const
     return result;
 }
 
-TClusterResources TAccount::ComputeTotalChildrenResourceUsage() const
+TClusterResources TAccount::ComputeTotalChildrenResourceUsage(bool committed) const
 {
     auto result = TClusterResources();
     for (const auto& [key, child] : KeyToChild()) {
-        result += child->ClusterStatistics().ResourceUsage;
+        result += committed
+            ? child->ClusterStatistics().CommittedResourceUsage
+            : child->ClusterStatistics().ResourceUsage;
     }
     return result;
 }
 
-TClusterResources TAccount::ComputeTotalChildrenCommittedResourceUsage() const
+TAccountMulticellStatistics TAccount::ComputeTotalChildrenMulticellStatistics() const
 {
-    auto result = TClusterResources();
+    auto result = TAccountMulticellStatistics();
     for (const auto& [key, child] : KeyToChild()) {
-        result += child->ClusterStatistics().CommittedResourceUsage;
+        AddToAccountMulticellStatistics(result, child->MulticellStatistics());
     }
     return result;
 }

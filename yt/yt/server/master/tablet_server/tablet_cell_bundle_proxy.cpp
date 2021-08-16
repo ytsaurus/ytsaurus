@@ -127,8 +127,7 @@ private:
             }
 
             case EInternedAttributeKey::ResourceLimits:
-                BuildYsonFluently(consumer)
-                    .Value(New<TSerializableTabletResources>(cellBundle->ResourceLimits()));
+                Serialize(cellBundle->ResourceLimits(), consumer);
                 return true;
 
             case EInternedAttributeKey::ViolatedResourceLimits: {
@@ -145,10 +144,9 @@ private:
             }
 
             case EInternedAttributeKey::ResourceUsage:
-                BuildYsonFluently(consumer)
-                    .Value(New<TSerializableTabletResources>(cellBundle->ResourceUsage().Cluster()));
+                Serialize(cellBundle->ResourceUsage().Cluster(), consumer);
                 return true;
-            
+
             case EInternedAttributeKey::Abc: {
                 if (cellBundle->GetAbcConfig()) {
                     BuildYsonFluently(consumer)
@@ -186,8 +184,7 @@ private:
                 return true;
 
             case EInternedAttributeKey::ResourceLimits: {
-                auto serializableResources = ConvertTo<TSerializableTabletResourcesPtr>(value);
-                cellBundle->ResourceLimits() = static_cast<TTabletResources>(*serializableResources);
+                cellBundle->ResourceLimits() = ConvertTo<TTabletResources>(value);
                 return true;
             }
 

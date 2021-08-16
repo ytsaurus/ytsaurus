@@ -217,7 +217,6 @@ private:
     virtual TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
         const auto* transaction = GetThisImpl();
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         switch (key) {
             case EInternedAttributeKey::LastPingTime:
@@ -230,25 +229,25 @@ private:
                     }));
 
             case EInternedAttributeKey::ResourceUsage:
-                return GetAggregatedResourceUsageMap().Apply(BIND([=] (const TAccountResourcesMap& usageMap) {
+                return GetAggregatedResourceUsageMap().Apply(BIND([=, this_ = MakeStrong(this)] (const TAccountResourcesMap& usageMap) {
                     return BuildYsonStringFluently()
                         .DoMapFor(usageMap, [=] (TFluentMap fluent, const TAccountResourcesMap::value_type& nameAndUsage) {
                             fluent
-                                .Item(nameAndUsage.first)
-                                .Value(New<TSerializableClusterResources>(chunkManager, nameAndUsage.second));
+                                .Item(nameAndUsage.first);
+                            SerializeClusterResources(nameAndUsage.second, fluent.GetConsumer(), Bootstrap_);
                         });
                 }).AsyncVia(GetCurrentInvoker()));
 
             case EInternedAttributeKey::MulticellResourceUsage:
-                return GetMulticellResourceUsageMap().Apply(BIND([=] (const TMulticellAccountResourcesMap& multicellUsageMap) {
+                return GetMulticellResourceUsageMap().Apply(BIND([=, this_ = MakeStrong(this)] (const TMulticellAccountResourcesMap& multicellUsageMap) {
                     return BuildYsonStringFluently()
                         .DoMapFor(multicellUsageMap, [=] (TFluentMap fluent, const TMulticellAccountResourcesMap::value_type& cellTagAndUsageMap) {
                             fluent
                                 .Item(ToString(cellTagAndUsageMap.first))
                                 .DoMapFor(cellTagAndUsageMap.second, [=] (TFluentMap fluent, const TAccountResourcesMap::value_type& nameAndUsage) {
                                     fluent
-                                        .Item(nameAndUsage.first)
-                                        .Value(New<TSerializableClusterResources>(chunkManager, nameAndUsage.second));
+                                        .Item(nameAndUsage.first);
+                                    SerializeClusterResources(nameAndUsage.second, fluent.GetConsumer(), Bootstrap_);
                                 });
                         });
                 }).AsyncVia(GetCurrentInvoker()));
@@ -433,14 +432,12 @@ private:
     TAccountResourcesMap DeserializeAccountResourcesMap(const TYsonString& value)
     {
         TAccountResourcesMap result;
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto serializableAccountResources = ConvertTo<THashMap<TString, TSerializableClusterResourcesPtr>>(value);
-        for (const auto& [id, resources] : serializableAccountResources) {
-            result.emplace(id, resources->ToClusterResources(chunkManager));
+        auto map = ConvertToNode(value)->AsMap();
+        for (const auto& [accountName, resources] : map->GetChildren()) {
+            DeserializeClusterResources(result[accountName], resources, Bootstrap_);
         }
         return result;
     }
-
 
     template <class TSession>
     TFuture<void> FetchCombinedAttributeFromRemote(

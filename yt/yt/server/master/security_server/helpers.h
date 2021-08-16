@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "master_memory.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -23,15 +24,11 @@ template <class T>
 THashMap<NObjectClient::TCellTag, T> CellNameMapToCellTagMapOrThrow(const THashMap<TString, T>& map, const NCellMaster::TMulticellManagerPtr& multicellManager);
 
 ////////////////////////////////////////////////////////////////////////////////
-    
-void SerializeClusterResources(
-    const NChunkServer::TChunkManagerPtr& chunkManager,
-    const TClusterResources& clusterResources,
-    const TAccount* account,
-    NYson::IYsonConsumer* consumer);
+
+i64 GetOptionalNonNegativeI64ChildOrThrow(const NYTree::IMapNodePtr mapNode, const char* key);
 
 ////////////////////////////////////////////////////////////////////////////////
-    
+
 } // namespace NYT::NSecurityServer
 
 #define HELPERS_INL_H_

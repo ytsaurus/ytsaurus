@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "master_memory.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -26,12 +27,6 @@ public:
     static TClusterResourceLimits Infinite();
     static TClusterResourceLimits Zero(const NCellMaster::TMulticellManagerPtr& multicellManager);
 
-    TClusterResourceLimits&& SetMasterMemory(THashMap<NObjectServer::TCellTag, i64> masterMemory) &&;
-
-    void SetMasterMemory(NObjectServer::TCellTag cellTag, i64 masterMemory);
-    void AddMasterMemory(NObjectServer::TCellTag cellTag, i64 masterMemory);
-    void RemoveCellMasterMemoryEntry(NObjectServer::TCellTag cellTag);
-
     TClusterResourceLimits&& SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &&;
     void SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &;
 
@@ -46,14 +41,16 @@ public:
     TViolatedResourceLimits GetViolatedBy(const TClusterResourceLimits& usage) const;
 
     const NChunkClient::TMediumMap<i64>& DiskSpace() const;
-    const THashMap<NObjectServer::TCellTag, i64>& CellMasterMemoryLimits() const;
 
     DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResourceLimits, i64, NodeCount);
     DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResourceLimits, i64, ChunkCount);
     DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResourceLimits, int, TabletCount);
     DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResourceLimits, i64, TabletStaticMemory);
-    DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResourceLimits, i64, MasterMemory);
-    DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResourceLimits, i64, ChunkHostMasterMemory);
+
+    TMasterMemoryLimits& MasterMemory();
+    const TMasterMemoryLimits& MasterMemory() const;
+    TClusterResourceLimits&& SetMasterMemory(TMasterMemoryLimits masterMemoryLimits) &&;
+    void SetMasterMemory(TMasterMemoryLimits masterMemoryLimits) &;
 
 public:
     void Save(NCellMaster::TSaveContext& context) const;
@@ -77,96 +74,32 @@ public:
 
 private:
     NChunkClient::TMediumMap<i64> DiskSpace_;
-    THashMap<NObjectServer::TCellTag, i64> CellMasterMemoryLimits_;
+    TMasterMemoryLimits MasterMemory_;
 };
 
-////////////////////////////////////////////////////////////////////////////////
+// NB: this serialization requires access to chunk and multicell managers and
+// cannot be easily integrated into yson serialization framework.
 
-//! A helper for (de)serializing TClusterResourceLimits.
-//! This cannot be done directly as serialization requires converting medium
-//! indexes to names, which is impossible without the chunk manager.
-class TSerializableClusterResourceLimits
-    : public NYTree::TYsonSerializable
-{
-public:
-    // For deserialization.
-    explicit TSerializableClusterResourceLimits(bool serializeDiskSpace = true);
-    // For serialization.
-    TSerializableClusterResourceLimits(
-        const NChunkServer::TChunkManagerPtr& chunkManager,
-        const NCellMaster::TMulticellManagerPtr& multicellManager,
-        const TClusterResourceLimits& clusterResources,
-        bool serializeDiskSpace = true);
+void SerializeClusterResourceLimits(
+    const TClusterResourceLimits& resourceLimits,
+    NYson::IYsonConsumer* consumer,
+    const NCellMaster::TBootstrap* bootstrap,
+    bool serializeDiskSpace);
 
-    TClusterResourceLimits ToClusterResourceLimits(
-        const NChunkServer::TChunkManagerPtr& chunkManager,
-        const NCellMaster::TMulticellManagerPtr& multicellManager) const;
+void SerializeViolatedClusterResourceLimits(
+    const TClusterResourceLimits::TViolatedResourceLimits& violatedResourceLimits,
+    NYson::IYsonConsumer* consumer,
+    const NCellMaster::TBootstrap* bootstrap);
 
-    void AddToMediumDiskSpace(const TString& mediumName, i64 mediumDiskSpace);
-
-private:
-    i64 NodeCount_ = 0;
-    i64 ChunkCount_ = 0;
-    int TabletCount_ = 0;
-    i64 TabletStaticMemory_ = 0;
-    THashMap<TString, i64> DiskSpacePerMedium_;
-    // COMPAT(shakurov)
-    i64 DiskSpace_;
-    
-    struct TSerializableMasterMemoryLimits
-        : public NYTree::TYsonSerializable
-    {
-        TSerializableMasterMemoryLimits();
-
-        i64 Total = 0;
-        i64 ChunkHost = 0;
-        THashMap<TString, i64> PerCell;
-    };
-    using TSerializableMasterMemoryLimitsPtr = TIntrusivePtr<TSerializableMasterMemoryLimits>;
-    TSerializableMasterMemoryLimitsPtr MasterMemory_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TSerializableClusterResourceLimits)
+void DeserializeClusterResourceLimits(
+    TClusterResourceLimits& resourceLimits,
+    NYTree::INodePtr node,
+    const NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void FormatValue(TStringBuilderBase* builder, const TClusterResourceLimits& resources, TStringBuf /*format*/);
 TString ToString(const TClusterResourceLimits& resources);
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! A helper for serializing TClusterResourceLimits as violated resource limits.
-// TODO(shakurov): introduce an actual TViolatedClusterResourceLimits and use it here.
-class TSerializableViolatedClusterResourceLimits
-    : public NYTree::TYsonSerializable
-{
-public:
-    TSerializableViolatedClusterResourceLimits(
-        const NChunkServer::TChunkManagerPtr& chunkManager,
-        const NCellMaster::TMulticellManagerPtr& multicellManager,
-        const TClusterResourceLimits& violatedResourceLimits);
-
-private:
-    bool NodeCount_ = 0;
-    bool ChunkCount_ = 0;
-    bool TabletCount_ = 0;
-    bool TabletStaticMemory_ = 0;
-    THashMap<TString, bool> DiskSpacePerMedium_;
-
-    struct TSerializableViolatedMasterMemoryLimits
-        : public NYTree::TYsonSerializable
-    {
-        explicit TSerializableViolatedMasterMemoryLimits();
-
-        bool Total = 0;
-        bool ChunkHost = 0;
-        THashMap<TString, bool> PerCell;
-    };
-    using TSerializableViolatedMasterMemoryLimitsPtr = TIntrusivePtr<TSerializableViolatedMasterMemoryLimits>;
-    TSerializableViolatedMasterMemoryLimitsPtr MasterMemory_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TSerializableViolatedClusterResourceLimits)
 
 ////////////////////////////////////////////////////////////////////////////////
 

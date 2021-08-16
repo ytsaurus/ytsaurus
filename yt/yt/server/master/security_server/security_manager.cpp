@@ -646,6 +646,12 @@ public:
                     violatedLimits->SetChunkCount(violatedLimits->GetChunkCount() + 1);
                 }
 
+                for (const auto& [mediumIndex, usage] : account->ClusterStatistics().ResourceUsage.DiskSpace()) {
+                    if (account->IsDiskSpaceLimitViolated(mediumIndex)) {
+                        violatedLimits->AddToMediumDiskSpace(mediumIndex, 1);
+                    }
+                }
+
                 if (dynamicConfig->EnableTabletResourceValidation) {
                     if (account->IsTabletCountLimitViolated()) {
                         violatedLimits->SetTabletCount(violatedLimits->GetTabletCount() + 1);
@@ -654,27 +660,22 @@ public:
                         violatedLimits->SetTabletStaticMemory(violatedLimits->GetTabletStaticMemory() + 1);
                     }
                 }
+
                 if (account->IsMasterMemoryLimitViolated()) {
-                    violatedLimits->SetMasterMemory(violatedLimits->GetMasterMemory() + 1);
+                    violatedLimits->MasterMemory().Total += 1;
                 }
 
                 if (account->IsChunkHostMasterMemoryLimitViolated(multicellManager)) {
-                    violatedLimits->SetChunkHostMasterMemory(violatedLimits->GetChunkHostMasterMemory() + 1);
-                }
-
-                for (const auto& [mediumIndex, usage] : account->ClusterStatistics().ResourceUsage.DiskSpace()) {
-                    if (account->IsDiskSpaceLimitViolated(mediumIndex)) {
-                        violatedLimits->AddToMediumDiskSpace(mediumIndex, 1);
-                    }
+                    violatedLimits->MasterMemory().ChunkHost += 1;
                 }
 
                 if (account->IsMasterMemoryLimitViolated(primaryCellTag)) {
-                    violatedLimits->AddMasterMemory(primaryCellTag, 1);
+                    violatedLimits->MasterMemory().PerCell[primaryCellTag] += 1;
                 }
 
                 for (auto cellTag : cellTags) {
                     if (account->IsMasterMemoryLimitViolated(cellTag)) {
-                        violatedLimits->AddMasterMemory(cellTag, 1);
+                        violatedLimits->MasterMemory().PerCell[cellTag] += 1;
                     }
                 }
             });
@@ -684,16 +685,15 @@ public:
     void ThrowWithDetailedViolatedResources(
         const TClusterResourceLimits& limits, const TClusterResourceLimits& usage, TArgs&&... args)
     {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto violatedResources = limits.GetViolatedBy(usage);
-        auto serializer = New<TSerializableViolatedClusterResourceLimits>(
-            chunkManager,
-            multicellManager,
-            violatedResources);
+
+        TStringStream output;
+        TYsonWriter writer(&output, EYsonFormat::Binary);
+        SerializeViolatedClusterResourceLimits(violatedResources, &writer, Bootstrap_);
+        writer.Flush();
 
         THROW_ERROR(TError(std::forward<TArgs>(args)...)
-            << TErrorAttribute("violated_resources", serializer));
+            << TErrorAttribute("violated_resources", TYsonString(output.Str())));
     }
 
     TClusterResourceLimits ComputeAccountTotalChildrenLimits(TAccount* account)
@@ -703,22 +703,21 @@ public:
 
         const auto& dynamicConfig = GetDynamicConfig();
         if (!dynamicConfig->EnableMasterMemoryUsageAccountOvercommitValidation) {
-            totalChildrenLimits.SetMasterMemory(0);
-            totalChildrenLimits.SetChunkHostMasterMemory(0);
+            totalChildrenLimits.SetMasterMemory(TMasterMemoryLimits(0, 0, {}));
+            totalChildrenLimits.MasterMemory().PerCell[multicellManager->GetPrimaryCellTag()] = 0;
             for (auto cellTag : multicellManager->GetSecondaryCellTags()) {
-                totalChildrenLimits.SetMasterMemory(cellTag, 0);
+                totalChildrenLimits.MasterMemory().PerCell[cellTag] = 0;
             }
-            totalChildrenLimits.SetMasterMemory(multicellManager->GetPrimaryCellTag(), 0);
         } else {
-            const auto& cellMasterMemoryLimits = account->ClusterResourceLimits().CellMasterMemoryLimits();
+            const auto& cellMasterMemoryLimits = account->ClusterResourceLimits().MasterMemory().PerCell;
             for (auto cellTag : multicellManager->GetSecondaryCellTags()) {
                 if (!cellMasterMemoryLimits.contains(cellTag)) {
-                    totalChildrenLimits.SetMasterMemory(cellTag, 0);
+                    totalChildrenLimits.MasterMemory().PerCell[cellTag] = 0;
                 }
             }
             auto primaryCellTag = multicellManager->GetPrimaryCellTag();
             if (!cellMasterMemoryLimits.contains(primaryCellTag)) {
-                totalChildrenLimits.SetMasterMemory(primaryCellTag, 0);
+                totalChildrenLimits.MasterMemory().PerCell[primaryCellTag] = 0;
             }
         }
         return totalChildrenLimits;
@@ -2147,7 +2146,7 @@ public:
             const auto& limits = account->ClusterResourceLimits();
             const auto& multicellStatistics = account->MulticellStatistics();
 
-            const auto& perCellLimit = limits.CellMasterMemoryLimits();
+            const auto& perCellLimit = limits.MasterMemory().PerCell;
             auto cellLimitsIt = perCellLimit.find(cellTag);
             auto multicellStatisticsIt = multicellStatistics.find(cellTag);
             if (cellLimitsIt != perCellLimit.end() && multicellStatisticsIt != multicellStatistics.end()) {
@@ -2163,22 +2162,22 @@ public:
 
             if (isChunkHostCell) {
                 auto chunkHostMasterMemory = account->GetChunkHostMasterMemoryUsage(multicellManager);
-                if (chunkHostMasterMemory + totalMasterMemoryDelta > limits.GetChunkHostMasterMemory()) {
+                if (chunkHostMasterMemory + totalMasterMemoryDelta > limits.MasterMemory().ChunkHost) {
                     throwOverdraftError(Format("chunk host master memory"),
                         account,
                         chunkHostMasterMemory,
                         totalMasterMemoryDelta,
-                        limits.GetChunkHostMasterMemory());
+                        limits.MasterMemory().ChunkHost);
                 }
             }
 
             auto masterMemoryUsage = account->ClusterStatistics().ResourceUsage.GetTotalMasterMemory();
-            if (masterMemoryUsage + totalMasterMemoryDelta > limits.GetMasterMemory()) {
+            if (masterMemoryUsage + totalMasterMemoryDelta > limits.MasterMemory().Total) {
                 throwOverdraftError("master memory",
                     account,
                     masterMemoryUsage,
                     totalMasterMemoryDelta,
-                    limits.GetMasterMemory());
+                    limits.MasterMemory().Total);
             }
         };
 
@@ -2930,7 +2929,7 @@ private:
                 while (!accounts.empty()) {
                     account = accounts.top();
                     auto resourceLimits = account->ClusterResourceLimits();
-                    resourceLimits.SetChunkHostMasterMemory(100_GB);
+                    resourceLimits.MasterMemory().Total = 100_GB;
 
                     TrySetResourceLimits(account, resourceLimits);
                     accounts.pop();
@@ -3342,7 +3341,7 @@ private:
             .SetNodeCount(100000)
             .SetChunkCount(1000000000)
             .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_TB)
-            .SetMasterMemory(100_GB);
+            .SetMasterMemory({100_GB, 100_GB, {}});
 
         // sys, 1 TB disk space, 100 000 nodes, 1 000 000 000 chunks, 100 000 tablets, 10TB tablet static memory, 100_GB master memory allowed for: root
         if (EnsureBuiltinAccountInitialized(SysAccount_, SysAccountId_, SysAccountName)) {
@@ -3380,7 +3379,7 @@ private:
             auto resourceLimits = TClusterResourceLimits()
                 .SetNodeCount(std::numeric_limits<int>::max())
                 .SetChunkCount(std::numeric_limits<int>::max())
-                .SetMasterMemory(100_GB)
+                .SetMasterMemory({100_GB, 100_GB, {}})
                 .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, std::numeric_limits<i64>::max() / 4);
             TrySetResourceLimits(ChunkWiseAccountingMigrationAccount_, resourceLimits);
             ChunkWiseAccountingMigrationAccount_->Acd().AddEntry(TAccessControlEntry(
