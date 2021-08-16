@@ -3,7 +3,7 @@ import __builtin__
 from yt_env_setup import YTEnvSetup, is_asan_build
 from yt_commands import (
     authors, clean_operations, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
-    get, exists, remove,
+    get, exists, remove, abort_job,
     reduce, map_reduce, sort, erase, remote_copy, get_driver, vanilla,
     write_table, map, merge, get_operation, list_operations, sync_create_cells, raises_yt_error)
 
@@ -678,3 +678,69 @@ class TestControllerFeatures(YTEnvSetup):
         clean_operations()
 
         check_features(op)
+
+    @authors("alexkolodezny")
+    def test_various_controller_features(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"key": 1}])
+
+        op = map(
+            in_=["//tmp/t_in"],
+            out=[],
+            command="sleep 1",
+            spec={
+                "job_count": 1,
+            },
+        )
+
+        def get_operation_features(op):
+            features = get(op.get_path() + "/@controller_features")
+            operation = features[0]
+            task = features[1]
+            if "task_name" in operation["tags"]:
+                task, operation = operation, task
+            return operation["features"]
+
+        operation = get_operation_features(op)
+        assert operation["operation_count"] == 1.0
+        assert operation["job_count.completed.non-interrupted"] == 1.0
+
+        op = map(
+            in_=["//tmp/t_in"],
+            out=[],
+            command="sleep 1 && exit 1",
+            spec={
+                "max_failed_job_count": 0,
+            },
+            track=False,
+        )
+
+        with raises_yt_error("Process exited with code 1"):
+            op.track()
+
+        operation = get_operation_features(op)
+        assert operation["operation_count"] == 1.0
+        assert operation["job_count.failed"] == 1.0
+
+        op = map(
+            in_=["//tmp/t_in"],
+            out=[],
+            command=with_breakpoint("BREAKPOINT"),
+            track=False,
+            spec={
+                "max_failed_job_count": 0,
+            },
+        )
+
+        wait_breakpoint()
+
+        for job in op.get_running_jobs():
+            abort_job(job)
+
+        release_breakpoint()
+
+        op.track()
+
+        operation = get_operation_features(op)
+        assert operation["operation_count"] == 1.0
+        assert operation["job_count.aborted.scheduled.user_request"] == 1.0

@@ -30,6 +30,7 @@ class TControllerFeatures
 public:
     void AddTag(TString name, auto value);
     void AddSingular(TStringBuf name, double value);
+    void AddSingular(const TString& name, const NYTree::INodePtr& node);
     void AddCounted(TStringBuf name, double value);
 
 private:
