@@ -39,6 +39,7 @@ struct TTableUploadOptions
 TTableUploadOptions GetTableUploadOptions(
     const NYPath::TRichYPath& path,
     const NYTree::IAttributeDictionary& cypressTableAttributes,
+    const TTableSchemaPtr& schema,
     i64 rowCount);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2190,6 +2190,7 @@ private:
             TableUploadOptions_ = GetTableUploadOptions(
                 RichPath_,
                 attributes,
+                attributes.Get<TTableSchemaPtr>("schema"),
                 attributes.Get<i64>("row_count"));
 
             chunkSchema = GetChunkSchema();
