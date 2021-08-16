@@ -4,7 +4,7 @@ from yt_commands import (
     authors, print_debug, wait, create, ls, get, set,
     remove, exists,
     insert_rows, lookup_rows, write_file, read_table, write_table, map, sort,
-    sync_create_cells, sync_mount_table, sync_flush_table,
+    sync_create_cells, sync_mount_table, sync_flush_table, sync_unmount_table,
     get_singular_chunk_id, set_node_banned, set_banned_flag, create_dynamic_table, raises_yt_error)
 
 from yt_driver_bindings import BufferedStream
@@ -509,3 +509,20 @@ class TestDynamicTablesErasure(TestErasureBase):
         _failing_read()
 
         wait(lambda: _read())
+
+    @authors("akozhikhov")
+    def test_preload_with_repair(self):
+        sync_create_cells(1)
+
+        _, content = self._prepare_table("isa_lrc_12_2_2", dynamic=True)
+        chunk_id = get_singular_chunk_id("//tmp/table")
+        replicas = get("#{0}/@stored_replicas".format(chunk_id))
+        set_banned_flag(True, replicas[:3])
+        time.sleep(1)
+
+        sync_unmount_table("//tmp/table")
+        set("//tmp/table/@in_memory_mode", "uncompressed")
+        sync_mount_table("//tmp/table")
+        wait(lambda: get("//tmp/table/@preload_state") == "complete")
+
+        assert lookup_rows("//tmp/table", [{"key": i} for i in range(12)]) == content

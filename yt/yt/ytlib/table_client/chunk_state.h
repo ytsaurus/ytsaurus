@@ -13,7 +13,7 @@ struct TChunkState
     : public TRefCounted
 {
     TChunkState(
-        NChunkClient::IBlockCachePtr preloadedBlockCache = nullptr,
+        NChunkClient::IBlockCachePtr blockCache = nullptr,
         NChunkClient::NProto::TChunkSpec chunkSpec = {},
         TCachedVersionedChunkMetaPtr chunkMeta = nullptr,
         NTransactionClient::TTimestamp chunkTimestamp = NTransactionClient::NullTimestamp,

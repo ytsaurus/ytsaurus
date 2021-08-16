@@ -7,7 +7,7 @@ namespace NYT::NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkState::TChunkState(
-    NChunkClient::IBlockCachePtr preloadedBlockCache,
+    NChunkClient::IBlockCachePtr blockCache,
     NChunkClient::NProto::TChunkSpec chunkSpec,
     TCachedVersionedChunkMetaPtr chunkMeta,
     NTransactionClient::TTimestamp chunkTimestamp,
@@ -16,7 +16,7 @@ TChunkState::TChunkState(
     TKeyComparer keyComparer,
     TVirtualValueDirectoryPtr virtualValueDirectory,
     TTableSchemaPtr tableSchema)
-    : BlockCache(std::move(preloadedBlockCache))
+    : BlockCache(std::move(blockCache))
     , ChunkSpec(std::move(chunkSpec))
     , ChunkMeta(std::move(chunkMeta))
     , ChunkTimestamp(chunkTimestamp)

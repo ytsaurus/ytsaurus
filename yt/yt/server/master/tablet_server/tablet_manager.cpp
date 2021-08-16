@@ -900,12 +900,6 @@ public:
             lastTabletIndex,
             tableSettings.MountConfig);
 
-        if (tableSettings.MountConfig->InMemoryMode != EInMemoryMode::None &&
-            tableSettings.StoreWriterOptions->ErasureCodec != NErasure::ECodec::None)
-        {
-            THROW_ERROR_EXCEPTION("Cannot mount erasure coded table in memory");
-        }
-
         // Check for store duplicates.
         auto* rootChunkList = table->GetChunkList();
 
@@ -1102,12 +1096,6 @@ public:
 
         auto tableSettings = GetTableSettings(table);
         ValidateTableMountConfig(table, tableSettings.MountConfig);
-
-        if (tableSettings.MountConfig->InMemoryMode != EInMemoryMode::None &&
-            tableSettings.StoreWriterOptions->ErasureCodec != NErasure::ECodec::None)
-        {
-            THROW_ERROR_EXCEPTION("Cannot mount erasure coded table in memory");
-        }
     }
 
     void RemountTable(
