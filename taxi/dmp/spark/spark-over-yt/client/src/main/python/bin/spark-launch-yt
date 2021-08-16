@@ -43,6 +43,7 @@ def main():
                         default=SparkDefaultArguments.get_params())
     parser.add_argument('--abort-existing', required=False, action='store_true', default=False)
     parser.add_argument("--spark-cluster-version", required=False)
+    parser.add_argument("--worker-log-update-interval", required=False, default="10m")
 
     default_enablers = SpytEnablers()
     group = parser.add_mutually_exclusive_group(required=False)
@@ -64,6 +65,16 @@ def main():
     group.add_argument('--enable-advanced-event-log', dest='advanced_event_log', action='store_true')
     group.add_argument('--disable-advanced-event-log', dest='advanced_event_log', action='store_false')
     parser.set_defaults(advanced_event_log=False)
+
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument('--enable-worker-log-transfer', dest='worker_log_transfer', action='store_true')
+    group.add_argument('--disable-worker-log-transfer', dest='worker_log_transfer', action='store_false')
+    parser.set_defaults(worker_log_transfer=False)
+
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument('--enable-worker-log-json-parsing', dest='worker_log_json_parsing', action='store_true')
+    group.add_argument('--disable-worker-log-json-parsing', dest='worker_log_json_parsing', action='store_false')
+    parser.set_defaults(worker_log_json_parsing=False)
 
     args, unknown_args = spark_utils.parse_args(parser)
 
@@ -88,6 +99,9 @@ def main():
                         tvm_secret=spark_utils.default_tvm_secret(),
                         abort_existing=args.abort_existing,
                         advanced_event_log=args.advanced_event_log,
+                        worker_log_transfer=args.worker_log_transfer,
+                        worker_log_json_parsing=args.worker_log_json_parsing,
+                        worker_log_update_interval=args.worker_log_update_interval,
                         params=args.params,
                         spark_cluster_version=args.spark_cluster_version,
                         enablers=SpytEnablers(
