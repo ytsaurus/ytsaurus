@@ -6,7 +6,7 @@
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NTabletServer {
 
@@ -25,22 +25,9 @@ public:
     void Load(NCellMaster::TLoadContext& context);
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-class TSerializableTabletResources
-    : public virtual NYTree::TYsonSerializable
-    , public TTabletResources
-{
-public:
-    explicit TSerializableTabletResources(const TTabletResources& resources);
-
-    TSerializableTabletResources();
-
-private:
-    void Initialize();
-};
-
-DEFINE_REFCOUNTED_TYPE(TSerializableTabletResources)
+void Serialize(const TTabletResources& tabletResources, NYTree::TFluentMap& fluent);
+void Serialize(const TTabletResources& tabletResources, NYson::IYsonConsumer* consumer);
+void Deserialize(TTabletResources& tabletResources, const NYTree::INodePtr& node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

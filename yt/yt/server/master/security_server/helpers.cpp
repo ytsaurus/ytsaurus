@@ -12,6 +12,7 @@ namespace NYT::NSecurityServer {
 
 using namespace NYson;
 using namespace NYTree;
+using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,29 +26,19 @@ void ValidateDiskSpace(i64 diskSpace)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SerializeClusterResources(
-    const NChunkServer::TChunkManagerPtr& chunkManager,
-    const TClusterResources& clusterResources,
-    const TAccount* account,
-    NYson::IYsonConsumer* consumer)
+i64 GetOptionalNonNegativeI64ChildOrThrow(const NYTree::IMapNodePtr mapNode, const char* key)
 {
-    auto resourceSerializer = New<TSerializableClusterResources>(
-        chunkManager,
-        clusterResources);
-
-    if (account) {
-        // Make sure medium disk space usage is serialized even if it's zero - for media with limits set.
-        for (auto [mediumIndex, _] : account->ClusterResourceLimits().DiskSpace()) {
-            const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-            if (!medium || medium->GetCache()) {
-                continue;
-            }
-            resourceSerializer->AddToMediumDiskSpace(medium->GetName(), 0);
-        }
+    auto fieldNode = mapNode->FindChild(key);
+    if (!fieldNode) {
+        return 0;
     }
 
-    BuildYsonFluently(consumer)
-        .Value(resourceSerializer);
+    auto result = fieldNode->AsInt64()->GetValue();
+    if (result < 0) {
+        THROW_ERROR_EXCEPTION("%Qv cannot be negative, found %v", key, result);
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -55,7 +55,6 @@ private:
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto* accountResourceUsageLease = GetThisImpl();
 
         switch (key) {
@@ -71,10 +70,9 @@ private:
 
             case EInternedAttributeKey::ResourceUsage:
                 SerializeClusterResources(
-                    chunkManager,
                     accountResourceUsageLease->Resources(),
-                    accountResourceUsageLease->GetAccount(),
-                    consumer);
+                    consumer,
+                    Bootstrap_);
                 return true;
 
             case EInternedAttributeKey::CreationTime:
@@ -88,17 +86,16 @@ private:
 
         return TBase::GetBuiltinAttribute(key, consumer);
     }
-    
+
     virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         auto* accountResourceUsageLease = GetThisImpl();
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
 
         switch (key) {
             case EInternedAttributeKey::ResourceUsage: {
-                auto serializableResources = ConvertTo<TSerializableClusterResourcesPtr>(value);
-                auto resources = serializableResources->ToClusterResources(chunkManager);
+                TClusterResources resources;
+                DeserializeClusterResources(resources, ConvertToNode(value), Bootstrap_);
                 securityManager->UpdateAccountResourceUsageLease(accountResourceUsageLease, resources);
                 return true;
             }

@@ -205,6 +205,38 @@ class AccountsTestSuiteBase(YTEnvSetup):
             else:
                 return get("//sys/accounts/{0}/@resource_usage".format(account))
 
+        def _get_cell_name(self, cell_tag):
+            return get("//sys/@config/multicell_manager/cell_descriptors/{}/name".format(cell_tag), default=str(cell_tag))
+
+        def _is_chunk_host(self, cell_tag):
+            path = "//sys/@config/multicell_manager/cell_roles/{}".format(cell_tag)
+            return "chunk_host" in get(path) if exists(path) else True
+
+        def _add_node_resource_usage_to_account(self, account_resource_usage, node_resource_usage, node, subtract=False):
+            sign = -1 if subtract else 1
+            account_master_memory = account_resource_usage["master_memory"]
+            account_resource_usage.pop("master_memory")
+            node_master_memory = node_resource_usage.get("master_memory", 0)
+            node_resource_usage.pop("master_memory", None)
+            if subtract:
+                account_resource_usage = subtract_recursive(account_resource_usage, node_resource_usage)
+            else:
+                account_resource_usage = add_recursive(account_resource_usage, node_resource_usage)
+            node_resource_usage["master_memory"] = node_master_memory
+            account_master_memory["total"] += node_master_memory * sign
+            cell_tags = {
+                get("{}/@native_cell_tag".format(node), default=None),
+                get("{}/@external_cell_tag".format(node), default=None)
+            }
+            for cell_tag in cell_tags:
+                if cell_tag is None:
+                    continue
+                account_master_memory["per_cell"][self._get_cell_name(cell_tag)] += node_master_memory * sign
+                if (self._is_chunk_host(cell_tag)):
+                    account_master_memory["chunk_host"] += node_master_memory * sign
+            account_resource_usage["master_memory"] = account_master_memory
+            return account_resource_usage
+
         def __enter__(self):
             if exists(self._node, tx=self._tx):
                 self._old_account = get("{0}/@account".format(self._node), tx=self._tx)
@@ -223,8 +255,11 @@ class AccountsTestSuiteBase(YTEnvSetup):
             if was_branched or self._append:
                 old_resource_usage = get("{0}/@resource_usage".format(self._node), tx=self._tx)
                 old_resource_usage["node_count"] = 0
-                self._expected_old_account_usage = subtract_recursive(
-                    self._expected_old_account_usage, old_resource_usage
+                self._expected_old_account_usage = self._add_node_resource_usage_to_account(
+                    self._expected_old_account_usage,
+                    old_resource_usage,
+                    self._node,
+                    True
                 )
 
         def __exit__(self, exc_type, exc_val, exc_tb):
@@ -251,7 +286,10 @@ class AccountsTestSuiteBase(YTEnvSetup):
                 self._expected_new_account_usage["node_count"] += branched_versions
 
             if self._new_account == self._old_account:
-                self._expected_old_account_usage = add_recursive(self._expected_old_account_usage, new_resource_usage)
+                self._expected_old_account_usage = self._add_node_resource_usage_to_account(
+                    self._expected_old_account_usage,
+                    new_resource_usage,
+                    self._node)
                 wait(
                     lambda: cluster_resources_equal(
                         self._get_account_resource_usage(self._old_account),
@@ -260,7 +298,10 @@ class AccountsTestSuiteBase(YTEnvSetup):
                     iter=20,
                 )
             else:
-                self._expected_new_account_usage = add_recursive(self._expected_new_account_usage, new_resource_usage)
+                self._expected_new_account_usage = self._add_node_resource_usage_to_account(
+                    self._expected_new_account_usage,
+                    new_resource_usage,
+                    self._node)
                 wait(
                     lambda: cluster_resources_equal(
                         self._get_account_resource_usage(self._old_account),
@@ -1455,7 +1496,7 @@ class TestAccounts(AccountsTestSuiteBase):
         assert get("//sys/accounts/a/@ref_counter") == 3
 
     def _get_master_memory_usage(self, account):
-        master_memory = get("//sys/accounts/{}/@resource_usage/master_memory".format(account))
+        master_memory = get("//sys/accounts/{}/@resource_usage/master_memory/total".format(account))
         assert master_memory >= 0
         return master_memory
 
@@ -2036,7 +2077,12 @@ class TestAccounts(AccountsTestSuiteBase):
                 "node_count": 0,
                 "tablet_count": 0,
                 "tablet_static_memory": 0,
-                "master_memory": 0
+                "master_memory":
+                {
+                    "total": 0,
+                    "chunk_host": 0,
+                    "per_cell": {}
+                }
             }
             for r in resources:
                 result["disk_space_per_medium"]["default"] += r["disk_space_per_medium"].get("default", 0)
@@ -2045,7 +2091,8 @@ class TestAccounts(AccountsTestSuiteBase):
                 result["node_count"] += r["node_count"]
                 result["tablet_count"] += r["tablet_count"]
                 result["tablet_static_memory"] += r["tablet_static_memory"]
-                result["master_memory"] += r["master_memory"]
+                result["master_memory"]["total"] += r["master_memory"]["total"]
+                result["master_memory"]["chunk_host"] += r["master_memory"]["chunk_host"]
 
             return result
 
@@ -4176,6 +4223,62 @@ class TestAccountsMulticell(TestAccounts):
         create("table", "//tmp/t2", attributes={"account": "a", "external_cell_tag": 2})
         write_table("//tmp/t2", {"a": "b"})
 
+    @authors("cookiedoth")
+    def test_master_memory_usage_per_cell1(self):
+        create_account("a")
+        master_memory_sleep()
+        total = get("//sys/accounts/a/@resource_usage/master_memory/total")
+        mem1 = get("//sys/accounts/a/@resource_usage/master_memory/per_cell/1")
+
+        create("table", "//tmp/t1", attributes={"account": "a"})
+        write_table("//tmp/t1", {"a": "b"})
+        master_memory_sleep()
+        assert get("//sys/accounts/a/@resource_usage/master_memory/total") > total
+        mem2 = get("//sys/accounts/a/@resource_usage/master_memory/per_cell/2")
+
+        create("table", "//tmp/t2", attributes={"account": "a", "external_cell_tag": 1})
+        write_table("//tmp/t2", {"a": "b"})
+        master_memory_sleep()
+        assert get("//sys/accounts/a/@resource_usage/master_memory/total") > total
+        assert get("//sys/accounts/a/@resource_usage/master_memory/per_cell/1") > mem1
+        assert get("//sys/accounts/a/@resource_usage/master_memory/per_cell/2") == mem2
+        assert get("//sys/accounts/a/@multicell_statistics/1/resource_usage/master_memory") > mem1
+        assert get("//sys/accounts/a/@multicell_statistics/2/resource_usage/master_memory") == mem2
+        mem1 = get("//sys/accounts/a/@resource_usage/master_memory/per_cell/1")
+
+        create("table", "//tmp/t3", attributes={"account": "a", "external_cell_tag": 2})
+        write_table("//tmp/t3", {"a": "b"})
+        master_memory_sleep()
+        assert get("//sys/accounts/a/@resource_usage/master_memory/total") > total
+        assert get("//sys/accounts/a/@resource_usage/master_memory/per_cell/1") == mem1
+        assert get("//sys/accounts/a/@resource_usage/master_memory/per_cell/2") > mem2
+        assert get("//sys/accounts/a/@multicell_statistics/1/resource_usage/master_memory") == mem1
+        assert get("//sys/accounts/a/@multicell_statistics/2/resource_usage/master_memory") > mem2
+
+    @authors("cookiedoth")
+    def test_master_memory_usage_per_cell2(self):
+        create_account("a")
+        master_memory_sleep()
+
+        set("//sys/@config/multicell_manager/cell_roles", {"1": ["chunk_host"], "2": ["chunk_host"]})
+        assert get("//sys/accounts/a/@resource_usage/master_memory/chunk_host") == 0
+
+        create("table", "//tmp/t1", attributes={"account": "a", "external_cell_tag": 2})
+        write_table("//tmp/t1", {"a": "b"})
+        master_memory_sleep()
+        assert get("//sys/accounts/a/@resource_usage/master_memory/chunk_host") > 0
+        assert get("//sys/accounts/a/@resource_usage/master_memory/chunk_host") == \
+            get("//sys/accounts/a/@resource_usage/master_memory/per_cell/1") + \
+            get("//sys/accounts/a/@resource_usage/master_memory/per_cell/2")
+
+        create("table", "//tmp/t2", attributes={"account": "a", "external_cell_tag": 1})
+        write_table("//tmp/t2", {"a": "b"})
+        master_memory_sleep()
+        assert get("//sys/accounts/a/@resource_usage/master_memory/chunk_host") > 0
+        assert get("//sys/accounts/a/@resource_usage/master_memory/chunk_host") == \
+            get("//sys/accounts/a/@resource_usage/master_memory/per_cell/1") + \
+            get("//sys/accounts/a/@resource_usage/master_memory/per_cell/2")
+
     @authors("aleksandra-zh")
     def test_master_memory_per_cell_overcommit_validation(self):
         set("//sys/@config/security_manager/enable_master_memory_usage_validation", True)
@@ -4264,3 +4367,38 @@ class TestAccountsMulticell(TestAccounts):
 class TestAccountTreeMulticell(TestAccountTree):
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_SCHEDULERS = 1
+
+    @authors("cookiedoth")
+    def test_master_memory_usage_per_cell3(self):
+        create_account("a")
+        create_account("aa", "a")
+
+        create("table", "//tmp/t1", attributes={"account": "aa", "external_cell_tag": 2})
+        write_table("//tmp/t1", {"a": "b"})
+        master_memory_sleep()
+
+        mem = get("//sys/accounts/aa/@resource_usage/master_memory/total")
+        mem2 = get("//sys/accounts/aa/@resource_usage/master_memory/per_cell/2")
+        assert get("//sys/accounts/a/@resource_usage/master_memory/total") == 0
+        assert get("//sys/accounts/a/@resource_usage/master_memory/per_cell/1") == 0
+        assert get("//sys/accounts/a/@resource_usage/master_memory/per_cell/2") == 0
+        assert get("//sys/accounts/aa/@resource_usage/master_memory/total") > 0
+        assert get("//sys/accounts/aa/@resource_usage/master_memory/per_cell/1") == 0
+        assert get("//sys/accounts/aa/@resource_usage/master_memory/per_cell/2") > 0
+        assert get("//sys/accounts/a/@recursive_resource_usage/master_memory/total") == mem
+        assert get("//sys/accounts/a/@recursive_resource_usage/master_memory/per_cell/1") == 0
+        assert get("//sys/accounts/a/@recursive_resource_usage/master_memory/per_cell/2") == mem2
+
+        create("table", "//tmp/t2", attributes={"account": "a", "external_cell_tag": 1})
+        write_table("//tmp/t2", {"a": "b"})
+        master_memory_sleep()
+
+        assert get("//sys/accounts/a/@resource_usage/master_memory/total") > 0
+        assert get("//sys/accounts/a/@resource_usage/master_memory/per_cell/1") > 0
+        assert get("//sys/accounts/a/@resource_usage/master_memory/per_cell/2") == 0
+        assert get("//sys/accounts/aa/@resource_usage/master_memory/total") == mem
+        assert get("//sys/accounts/aa/@resource_usage/master_memory/per_cell/1") == 0
+        assert get("//sys/accounts/aa/@resource_usage/master_memory/per_cell/2") == mem2
+        assert get("//sys/accounts/a/@recursive_resource_usage/master_memory/total") > mem
+        assert get("//sys/accounts/a/@recursive_resource_usage/master_memory/per_cell/1") > 0
+        assert get("//sys/accounts/a/@recursive_resource_usage/master_memory/per_cell/2") == mem2

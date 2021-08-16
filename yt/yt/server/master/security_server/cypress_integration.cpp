@@ -3,6 +3,7 @@
 #include "account.h"
 #include "account_resource_usage_lease.h"
 #include "group.h"
+#include "helpers.h"
 #include "user.h"
 #include "network_project.h"
 #include "proxy_role.h"
@@ -105,32 +106,23 @@ private:
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto* rootAccount = securityManager->GetRootAccount();
 
         switch (key) {
-            case EInternedAttributeKey::TotalResourceUsage: {
-                const auto& resources = rootAccount->ClusterStatistics().ResourceUsage;
-                auto serializer = New<TSerializableClusterResources>(chunkManager, resources);
-                BuildYsonFluently(consumer)
-                    .Value(serializer);
-                return true;
-            }
-
+            case EInternedAttributeKey::TotalResourceUsage:
             case EInternedAttributeKey::TotalCommittedResourceUsage: {
-                const auto& resources = rootAccount->ClusterStatistics().CommittedResourceUsage;
-                auto serializer = New<TSerializableClusterResources>(chunkManager, resources);
-                BuildYsonFluently(consumer)
-                    .Value(serializer);
+                SerializeAccountClusterResourceUsage(
+                    rootAccount,
+                    key == EInternedAttributeKey::CommittedResourceUsage,
+                    /* recursive */ true,
+                    consumer,
+                    Bootstrap_);
                 return true;
             }
 
             case EInternedAttributeKey::TotalResourceLimits: {
                 auto resources = rootAccount->ComputeTotalChildrenLimits();
-                auto serializer = New<TSerializableClusterResourceLimits>(chunkManager, multicellManager, resources);
-                BuildYsonFluently(consumer)
-                    .Value(serializer);
+                SerializeClusterResourceLimits(resources, consumer, Bootstrap_, /* serializeDiskSpace */ true);
                 return true;
             }
 

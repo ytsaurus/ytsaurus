@@ -804,9 +804,9 @@ private:
 
             auto asyncResourceUsage = proxy->GetBuiltinAttributeAsync(EInternedAttributeKey::RecursiveResourceUsage)
                 .Apply(BIND([=, this_ = MakeStrong(this)] (const TYsonString& ysonResourceUsage) {
-                    auto serializableResourceUsage = ConvertTo<TSerializableRichClusterResourcesPtr>(ysonResourceUsage);
-                    const auto& chunkManager = Bootstrap_->GetChunkManager();
-                    return serializableResourceUsage->ToRichClusterResources(chunkManager);
+                    TRichClusterResources result;
+                    DeserializeRichClusterResources(result, ConvertToNode(ysonResourceUsage), Bootstrap_);
+                    return result;
                 }).AsyncVia(GetCurrentInvoker()));
 
             RemoteCellResourceUsage_.push_back(std::move(asyncResourceUsage));
@@ -833,8 +833,12 @@ private:
 
                 const auto& resourceUsage = resourceUsageOrError.Value();
                 auto result = std::accumulate(resourceUsage.begin(), resourceUsage.end(), LocalCellResourceUsage_);
-                auto usage = New<TSerializableRichClusterResources>(Bootstrap_->GetChunkManager(), result);
-                Promise_.Set(ConvertToYsonString(usage));
+
+                TStringStream output;
+                TYsonWriter writer(&output, EYsonFormat::Binary);
+                SerializeRichClusterResources(result, &writer, Bootstrap_);
+                writer.Flush();
+                Promise_.Set(TYsonString(output.Str()));
             }).Via(GetCurrentInvoker()));
     }
 };

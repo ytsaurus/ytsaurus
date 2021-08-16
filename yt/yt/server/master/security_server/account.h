@@ -4,6 +4,7 @@
 #include "acl.h"
 #include "cluster_resources.h"
 #include "cluster_resource_limits.h"
+#include "master_memory.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -31,10 +32,27 @@ struct TAccountStatistics
 void ToProto(NProto::TAccountStatistics* protoStatistics, const TAccountStatistics& statistics);
 void FromProto(TAccountStatistics* statistics, const NProto::TAccountStatistics& protoStatistics);
 
-void Serialize(const TAccountStatistics& statistics, NYson::IYsonConsumer* consumer, const NChunkServer::TChunkManagerPtr& chunkManager);
+void Serialize(
+    const TAccountStatistics& statistics,
+    NYson::IYsonConsumer* consumer,
+    const NCellMaster::TBootstrap* bootstrap);
 
 TAccountStatistics& operator += (TAccountStatistics& lhs, const TAccountStatistics& rhs);
 TAccountStatistics  operator +  (const TAccountStatistics& lhs, const TAccountStatistics& rhs);
+TAccountStatistics& operator -= (TAccountStatistics& lhs, const TAccountStatistics& rhs);
+TAccountStatistics  operator -  (const TAccountStatistics& lhs, const TAccountStatistics& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// lhs += rhs
+void AddToAccountMulticellStatistics(TAccountMulticellStatistics& lhs, const TAccountMulticellStatistics& rhs);
+// lhs -= rhs
+void SubtractFromAccountMulticellStatistics(TAccountMulticellStatistics& lhs, const TAccountMulticellStatistics& rhs);
+
+// lhs + rhs
+TAccountMulticellStatistics AddAccountMulticellStatistics(const TAccountMulticellStatistics& lhs, const TAccountMulticellStatistics& rhs);
+// lhs - rhs
+TAccountMulticellStatistics SubtractAccountMulticellStatistics(const TAccountMulticellStatistics& lhs, const TAccountMulticellStatistics& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,8 +60,7 @@ class TAccount
     : public NObjectServer::TNonversionedMapObjectBase<TAccount>
 {
 public:
-    using TMulticellStatistics = THashMap<NObjectClient::TCellTag, TAccountStatistics>;
-    DEFINE_BYREF_RW_PROPERTY(TMulticellStatistics, MulticellStatistics);
+    DEFINE_BYREF_RW_PROPERTY(TAccountMulticellStatistics, MulticellStatistics);
     DEFINE_BYVAL_RW_PROPERTY(TAccountStatistics*, LocalStatisticsPtr);
     DEFINE_BYREF_RW_PROPERTY(TAccountStatistics, ClusterStatistics);
     DEFINE_BYREF_RW_PROPERTY(TClusterResourceLimits, ClusterResourceLimits);
@@ -119,8 +136,8 @@ public:
 
     TClusterResourceLimits ComputeTotalChildrenLimits() const;
 
-    TClusterResources ComputeTotalChildrenResourceUsage() const;
-    TClusterResources ComputeTotalChildrenCommittedResourceUsage() const;
+    TClusterResources ComputeTotalChildrenResourceUsage(bool committed) const;
+    TAccountMulticellStatistics ComputeTotalChildrenMulticellStatistics() const;
 
     int GetMergeJobRateLimit() const;
     void SetMergeJobRateLimit(int mergeJobRateLimit);
