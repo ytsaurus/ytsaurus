@@ -24,11 +24,7 @@ object WorkerLauncher extends App with VanillaLauncher with SparkLauncher with B
   prepareProfiler()
 
   def startWorkerLogService(client: CompoundClient): Option[Service] = {
-    if (workerLogConfig.enableService) {
-      Some(LocalService("WorkerLogService", WorkerLogLauncher.start(workerLogConfig, client)))
-    } else {
-      None
-    }
+    workerLogConfig.map(x => LocalService("WorkerLogService", WorkerLogLauncher.start(x, client)))
   }
 
   withOptionService(byopConfig.map(startByop)) { byop =>

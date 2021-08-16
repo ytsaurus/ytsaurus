@@ -16,6 +16,7 @@ import java.nio.file.attribute.FileTime
 import java.nio.file.{Files, Path, Paths}
 import java.time.{LocalDateTime, ZoneOffset}
 import java.util.UUID
+import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
 
@@ -363,61 +364,39 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
   }
 
   it should "read successfully after error attempt" in {
-    val (allLogsBefore, allLogsAfter1Attempt, allLogsAfterWriteSecondPart) = writeMakeAttemptsAndRead(1)
+    val (_, _, allLogsAfterWriteSecondPart) = writeMakeAttemptsAndRead(1)
 
     allLogsAfterWriteSecondPart should contain theSameElementsAs Seq(
       Seq(simpleInfoEvent),
       Seq(simpleInfoEvent2)
     )
   }
-//
-//  it should "ignore after several error reading attempts" in {
-//    val (allLogsBefore, allLogsAfter1Attempt, allLogsAfterWriteSecondPart) = writeMakeAttemptsAndRead(100)
-//
-//    allLogsBefore shouldBe allLogsAfter1Attempt
-//
-//    allLogsAfter1Attempt shouldBe allLogsAfterWriteSecondPart
-//  }
 
-  it should "support parallel write, upload and read" in {
+  it should "support multiple write, upload and read" in {
     val driver = "example"
     createDriver(driver)
 
-    val events = (0 until 100).map(x => TestEventHolder(x, Some(Level.INFO.toString), "m"))
+    val eventCnt = 100
+    val groupCnt = 10
+    val events = (0 until eventCnt).map(x => TestEventHolder(x, Some(Level.INFO.toString), ""))
+    val logSnaps = new ArrayBuffer[LogArray](groupCnt)
 
-    val threadUpload = new Thread(() => {
-      val workerLogService = new LogServiceRunnable(config)
-      (0 until 10000).foreach {
-        _ => workerLogService.uploadLogs()
-      }
-    })
+    val workerLogService = new LogServiceRunnable(config)
 
-    val threadWrite = new Thread(() => {
-      events.foreach {
+    val thread = new Thread(() => {
+      events.grouped(groupCnt).foreach {
         event =>
-          writeToLog(getDriverFileLog(driver, STDOUT), List(event))
-          Thread.sleep(10)
+          writeToLog(getDriverFileLog(driver, STDOUT), event)
+          workerLogService.uploadLogs()
+          logSnaps += getAllLogs
       }
       finalizeDriverLog(driver, STDOUT)
+      workerLogService.uploadLogs()
+      logSnaps(groupCnt - 1) = getAllLogs
     })
 
-    val readCnt = 1000
-    val logSnaps = new Array[LogArray](readCnt)
-    val threadRead = new Thread(() => {
-      (0 until readCnt - 1).foreach {
-        i => logSnaps(i) = getAllLogs
-      }
-    })
-
-    threadUpload.start()
-    threadWrite.start()
-    threadRead.start()
-
-    threadUpload.join()
-    threadWrite.join()
-    threadRead.join()
-
-    logSnaps(readCnt - 1) = getAllLogs
+    thread.start()
+    thread.join()
 
     logSnaps.foreach {
       logSnap =>
@@ -429,10 +408,10 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
         }
     }
 
-    logSnaps(readCnt - 1) shouldBe List(events)
+    logSnaps(groupCnt - 1) shouldBe List(events)
 
     def getLengthOfHead(a: LogArray): Int = a.headOption.map(_.length).getOrElse(0)
-    (0 until readCnt - 1).foreach {
+    (0 until groupCnt - 1).foreach {
       i =>
         getLengthOfHead(logSnaps(i)) should be <= getLengthOfHead(logSnaps(i + 1))
     }

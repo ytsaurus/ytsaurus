@@ -30,23 +30,20 @@ class WorkerLogWriter(workerLogConfig: WorkerLogConfig)(implicit yt: CompoundCli
   }
 
   def flush(): Unit = {
-    log.info(s"Flushing ${buffer.length} new log lines")
     if (buffer.nonEmpty) {
-      val sizes = buffer.map(x => x.inner.message.length).mkString(", ")
-      log.info(s"Length $sizes")
+      log.info(s"Flushing ${buffer.length} new log lines")
       val headDate = buffer.head.inner.date
       if (buffer.forall(log => log.inner.date == headDate)) {
-        log.info("All logs have same date")
+        log.debug("All logs have same date")
         uploadOneTable(headDate, buffer)
       } else {
-        log.info("Not all logs have same date")
+        log.debug("Not all logs have same date")
         buffer.groupBy(log => log.inner.date)
           .foreach { case (date, logs) => uploadOneTable(date, logs) }
       }
       buffer.clear()
+      log.debug("Finished flushing")
     }
-    log.info("Finished flushing")
-    log.info(s"Free memory: ${Runtime.getRuntime.freeMemory()} bytes")
   }
 
   private def uploadOneTable(date: LocalDate, logArray: Seq[WorkerLogBlock]): Unit = {
