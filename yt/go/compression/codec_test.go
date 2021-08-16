@@ -95,7 +95,7 @@ func TestCodecs(t *testing.T) {
 		},
 		{
 			name:  "large",
-			input: []byte(strings.Repeat("Hello, Codecs!", 1000000)),
+			input: []byte(strings.Repeat("Hello, Codecs!", 100000)),
 		},
 		{
 			name:  "random-bytes-small",
@@ -103,7 +103,7 @@ func TestCodecs(t *testing.T) {
 		},
 		{
 			name:  "random-bytes-large",
-			input: randomBytes(10 * 1000 * 1000),
+			input: randomBytes(2 * 1000 * 1000),
 		},
 		{
 			name:  "empty-string",
