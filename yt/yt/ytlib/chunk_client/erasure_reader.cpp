@@ -311,12 +311,17 @@ TFuture<std::vector<TBlock>> TAdaptiveRepairingErasureReader::ReadBlocks(
 }
 
 TFuture<std::vector<TBlock>> TAdaptiveRepairingErasureReader::ReadBlocks(
-    const TClientChunkReadOptions& /*options*/,
-    int /*firstBlockIndex*/,
-    int /*blockCount*/,
-    std::optional<i64> /*estimatedSize*/)
+    const TClientChunkReadOptions& options,
+    int firstBlockIndex,
+    int blockCount,
+    std::optional<i64> estimatedSize)
 {
-    YT_ABORT();
+    std::vector<int> blockIndexes(blockCount);
+    std::iota(blockIndexes.begin(), blockIndexes.end(), firstBlockIndex);
+    return ReadBlocks(
+        options,
+        blockIndexes,
+        estimatedSize);
 }
 
 TInstant TAdaptiveRepairingErasureReader::GetLastFailureTime() const
@@ -503,12 +508,17 @@ public:
     }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& /*options*/,
-        int /*firstBlockIndex*/,
-        int /*blockCount*/,
-        std::optional<i64> /*estimatedSize*/) override
+        const TClientChunkReadOptions& options,
+        int firstBlockIndex,
+        int blockCount,
+        std::optional<i64> estimatedSize) override
     {
-        YT_ABORT();
+        std::vector<int> blockIndexes(blockCount);
+        std::iota(blockIndexes.begin(), blockIndexes.end(), firstBlockIndex);
+        return ReadBlocks(
+            options,
+            blockIndexes,
+            estimatedSize);
     }
 
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(

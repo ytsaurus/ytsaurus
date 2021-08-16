@@ -1560,6 +1560,25 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         remount_table("//tmp/t")
         wait(lambda: _get_chunk_view_count() == 0)
 
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_in_memory_erasure(self, optimize_for):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", optimize_for=optimize_for)
+        set("//tmp/t/@in_memory_mode", "uncompressed")
+        set("//tmp/t/@erasure_codec", "isa_lrc_12_2_2")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "1"}]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == rows
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        wait(lambda: get("//tmp/t/@preload_state") == "complete")
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == rows
+
 
 class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
     NUM_TEST_PARTITIONS = 5
@@ -1790,7 +1809,7 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
     DELTA_NODE_CONFIG = {
         "tablet_node": {
             "resource_limits": {
-                "tablet_static_memory": 20000
+                "tablet_static_memory": 40000
             },
             "tablet_manager": {
                 "preload_backoff_time": 5000
@@ -1834,7 +1853,7 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
         table_create(SMALL)
 
         # create large table over memory limit
-        large_data = table_insert_rows(10000, LARGE)
+        table_insert_rows(10000, LARGE)
         sync_flush_table(LARGE)
         sync_unmount_table(LARGE)
 
@@ -1843,10 +1862,10 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
         sync_flush_table(SMALL)
         sync_unmount_table(SMALL)
 
-        # mount large table to trigger memory limit
+        # mount large table, preload must fail
         sync_mount_table(LARGE)
-        self._wait_for_in_memory_stores_preload(LARGE)
-        check_lookup(LARGE, *large_data)
+        self._wait_for_in_memory_stores_preload_failed(LARGE)
+        wait(lambda: get(LARGE + "/@preload_state") == "failed")
 
         for node in ls("//sys/cluster_nodes"):
             get("//sys/cluster_nodes/{}/@".format(node))
@@ -1897,21 +1916,30 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
 
         sync_flush_table(path)
 
-        def is_preloaded(statistics):
-            return \
-                statistics["preload_completed_store_count"] > 0 and \
-                statistics["preload_pending_store_count"] == 0 and \
-                statistics["preload_failed_store_count"] == 0
+        def preload_succeeded(statistics, table):
+            return (
+                statistics["preload_completed_store_count"] > 0 and
+                statistics["preload_pending_store_count"] == 0 and
+                statistics["preload_failed_store_count"] == 0 and
+                get("{}/@preload_state".format(table)) == "complete")
 
-        def wait_preload(table, tablet):
-            wait(lambda: is_preloaded(get("{}/@tablets/{}/statistics".format(table, tablet))))
+        def preload_failed(statistics, table):
+            return (
+                statistics["preload_completed_store_count"] == 0 and
+                statistics["preload_pending_store_count"] == 0 and
+                statistics["preload_failed_store_count"] > 0 and
+                get("{}/@preload_state".format(table)) == "failed")
+
+        def wait_preload(table, tablet, predicate):
+            wait(lambda: predicate(get("{}/@tablets/{}/statistics".format(table, tablet)), table))
 
         sync_unmount_table(path)
         sync_mount_table(path, first_tablet_index=0, last_tablet_index=1, cell_id=cells[0])
         sync_mount_table(path, first_tablet_index=3, last_tablet_index=3, cell_id=cells[1])
-        wait_preload(path, 1)
-        wait_preload(path, 3)
+        wait_preload(path, 1, preload_succeeded)
+        wait_preload(path, 3, preload_succeeded)
         sync_mount_table(path, first_tablet_index=2, last_tablet_index=2, cell_id=cells[1])
+        wait_preload(path, 2, preload_failed)
 
         keys = [{"key": i} for i in xrange(0, 30)]
 

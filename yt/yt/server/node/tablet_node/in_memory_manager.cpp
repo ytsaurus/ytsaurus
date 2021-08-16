@@ -349,7 +349,6 @@ private:
 
         snapshotStore->RegisterTabletSnapshot(slot, tablet);
     }
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TInMemoryManager)
@@ -395,7 +394,6 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         .ValueOrThrow();
 
     auto miscExt = GetProtoExtension<TMiscExt>(meta->extensions());
-    auto blocksExt = GetProtoExtension<TBlocksExt>(meta->extensions());
     auto format = CheckedEnumCast<EChunkFormat>(meta->format());
 
     if (format == EChunkFormat::TableSchemalessHorizontal ||
@@ -413,16 +411,15 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         }
     }
 
-    auto erasureCodec = FromProto<NErasure::ECodec>(miscExt.erasure_codec());
-    if (erasureCodec != NErasure::ECodec::None) {
-        THROW_ERROR_EXCEPTION("Preloading erasure-coded store %v is not supported; consider using replicated chunks or disabling in-memory mode",
-            store->GetId());
-    }
+    auto compressionCodecId = CheckedEnumCast<NCompression::ECodec>(miscExt.compression_codec());
+    auto* compressionCodec = NCompression::GetCodec(compressionCodecId);
+    auto erasureCodecId = FromProto<NErasure::ECodec>(miscExt.erasure_codec());
 
-    auto codecId = CheckedEnumCast<NCompression::ECodec>(miscExt.compression_codec());
-    auto* codec = NCompression::GetCodec(codecId);
-
-    auto chunkData = New<TInMemoryChunkData>();
+    auto chunkMeta = TCachedVersionedChunkMeta::Create(
+        store->GetChunkId(),
+        *meta,
+        tabletSnapshot->PhysicalSchema);
+    auto blockCount = chunkMeta->BlockMeta()->blocks_size();
 
     int startBlockIndex;
     int endBlockIndex;
@@ -433,30 +430,25 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         format == EChunkFormat::TableVersionedSimple;
 
     if (store->IsSorted() && canDeduceBlockRange) {
-        chunkData->ChunkMeta = TCachedVersionedChunkMeta::Create(
-            store->GetChunkId(),
-            *meta,
-            tabletSnapshot->PhysicalSchema);
-
         auto sortedStore = store->AsSortedChunk();
         auto lowerBound = std::max(tabletSnapshot->PivotKey, sortedStore->GetMinKey());
         auto upperBound = std::min(tabletSnapshot->NextPivotKey, sortedStore->GetUpperBoundKey());
 
-        auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(meta->extensions());
+        YT_VERIFY(blockCount == std::ssize(chunkMeta->LegacyBlockLastKeys()));
 
-        startBlockIndex = BinarySearch(0, blocksExt.blocks_size(), [&] (int index) {
-            return chunkData->ChunkMeta->LegacyBlockLastKeys()[index] < lowerBound;
+        startBlockIndex = BinarySearch(0, blockCount, [&] (int index) {
+            return chunkMeta->LegacyBlockLastKeys()[index] < lowerBound;
         });
 
-        endBlockIndex = BinarySearch(0, blocksExt.blocks_size(), [&] (int index) {
-            return chunkData->ChunkMeta->LegacyBlockLastKeys()[index] < upperBound;
+        endBlockIndex = BinarySearch(0, blockCount, [&] (int index) {
+            return chunkMeta->LegacyBlockLastKeys()[index] < upperBound;
         });
-        if (endBlockIndex < blocksExt.blocks_size()) {
+        if (endBlockIndex < blockCount) {
             ++endBlockIndex;
         }
     } else {
         startBlockIndex = 0;
-        endBlockIndex = blocksExt.blocks_size();
+        endBlockIndex = blockCount;
     }
 
     i64 preallocatedMemory = 0;
@@ -465,14 +457,32 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     TDuration decompressionTime;
 
-    for (int i = startBlockIndex; i < endBlockIndex; ++i) {
-        preallocatedMemory += blocksExt.blocks(i).size();
+    if (erasureCodecId == NErasure::ECodec::None) {
+        auto blocksExt = GetProtoExtension<TBlocksExt>(meta->extensions());
+        YT_VERIFY(blockCount == blocksExt.blocks_size());
+        for (int i = startBlockIndex; i < endBlockIndex; ++i) {
+            preallocatedMemory += blocksExt.blocks(i).size();
+        }
+    } else {
+        // NB: For erasure case we overestimate preallocated memory size
+        // because we cannot predict repair. Memory usage will be adjusted at the end of preload.
+        preallocatedMemory = miscExt.compressed_data_size();
+    }
+
+    if (mode == EInMemoryMode::Uncompressed &&
+        compressionCodecId != NCompression::ECodec::None)
+    {
+        for (int i = startBlockIndex; i < endBlockIndex; ++i) {
+            preallocatedMemory += chunkMeta->BlockMeta()->blocks(i).uncompressed_size();
+        }
     }
 
     if (memoryTracker && memoryTracker->GetFree(EMemoryCategory::TabletStatic) < preallocatedMemory) {
         THROW_ERROR_EXCEPTION("Preload is cancelled due to memory pressure");
     }
 
+    auto chunkData = New<TInMemoryChunkData>();
+    chunkData->ChunkMeta = std::move(chunkMeta);
     chunkData->InMemoryMode = mode;
     chunkData->StartBlockIndex = startBlockIndex;
     if (memoryTracker) {
@@ -500,17 +510,16 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
         for (const auto& compressedBlock : compressedBlocks) {
             compressedDataSize += compressedBlock.Size();
-            readerProfiler->SetCompressedDataSize(compressedDataSize);
         }
+        readerProfiler->SetCompressedDataSize(compressedDataSize);
 
-        std::vector<TBlock> cachedBlocks;
         switch (mode) {
             case EInMemoryMode::Compressed: {
                 for (const auto& compressedBlock : compressedBlocks) {
                     TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
                     auto undumpableData = TSharedRef::MakeCopy<TPreloadedBlockTag>(compressedBlock.Data);
                     auto block = TBlock(undumpableData, compressedBlock.Checksum, compressedBlock.BlockOrigin);
-                    cachedBlocks.push_back(std::move(block));
+                    chunkData->Blocks.push_back(std::move(block));
                 }
 
                 break;
@@ -520,26 +529,27 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
                 YT_LOG_DEBUG("Decompressing chunk blocks (Blocks: %v-%v, Codec: %v)",
                     startBlockIndex,
                     startBlockIndex + readBlockCount - 1,
-                    codec->GetId());
+                    compressionCodec->GetId());
 
                 std::vector<TFuture<std::pair<TSharedRef, TDuration>>> asyncUncompressedBlocks;
+                asyncUncompressedBlocks.reserve(compressedBlocks.size());
                 for (auto& compressedBlock : compressedBlocks) {
                     asyncUncompressedBlocks.push_back(
                         BIND([&] {
                                 TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
                                 NProfiling::TFiberWallTimer timer;
-                                auto block = codec->Decompress(compressedBlock.Data);
+                                auto block = compressionCodec->Decompress(compressedBlock.Data);
                                 return std::make_pair(std::move(block), timer.GetElapsedTime());
                             })
                             .AsyncVia(compressionInvoker)
                             .Run());
                 }
 
-                auto results = WaitFor(AllSucceeded(asyncUncompressedBlocks))
+                auto results = WaitFor(AllSucceeded(std::move(asyncUncompressedBlocks)))
                     .ValueOrThrow();
 
-                for (const auto& [block, duration] : results) {
-                    cachedBlocks.emplace_back(block);
+                for (auto& [block, duration] : results) {
+                    chunkData->Blocks.emplace_back(std::move(block));
                     decompressionTime += duration;
                 }
 
@@ -550,31 +560,26 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
                 YT_ABORT();
         }
 
-        for (const auto& cachedBlock : cachedBlocks) {
-            allocatedMemory += cachedBlock.Size();
-        }
-
-        chunkData->Blocks.insert(
-            chunkData->Blocks.end(),
-            std::make_move_iterator(cachedBlocks.begin()),
-            std::make_move_iterator(cachedBlocks.end()));
-
         startBlockIndex += readBlockCount;
     }
 
     TCodecStatistics decompressionStatistics;
-    decompressionStatistics.Append(TCodecDuration{codecId, decompressionTime});
+    decompressionStatistics.Append(TCodecDuration{compressionCodecId, decompressionTime});
     readerProfiler->SetCodecStatistics(decompressionStatistics);
 
+    for (const auto& block : chunkData->Blocks) {
+        allocatedMemory += block.Size();
+    }
     if (chunkData->MemoryTrackerGuard) {
-        chunkData->MemoryTrackerGuard.IncrementSize(allocatedMemory - preallocatedMemory);
+        chunkData->MemoryTrackerGuard.SetSize(allocatedMemory);
     }
 
     FinalizeChunkData(chunkData, store->GetChunkId(), meta, tabletSnapshot);
 
     YT_LOG_INFO(
-        "Store preload completed (MemoryUsage: %v, LookupHashTable: %v)",
+        "Store preload completed (MemoryUsage: %v, PreallocatedMemory: %v, LookupHashTable: %v)",
         allocatedMemory,
+        preallocatedMemory,
         static_cast<bool>(chunkData->LookupHashTable));
 
     return chunkData;

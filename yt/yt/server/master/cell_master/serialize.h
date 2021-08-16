@@ -177,6 +177,7 @@ DEFINE_ENUM(EMasterReign,
     ((RecomputeApprovedReplicaCount)                                (1650))  // ifsmirnov
     ((DropDanglingChunkViews)                                       (1651))  // ifsmirnov
     ((SyncAlienCells)                                               (1652))  // savrus
+    ((ErasureInMemory)                                              (1653))  // akozhikhov
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1700))  // ignat
 );
