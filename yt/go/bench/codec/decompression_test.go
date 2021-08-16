@@ -55,49 +55,49 @@ func BenchmarkDecompression_ProxyLog_Gzip(b *testing.B) {
 func BenchmarkDecompression_ProxyLog_Block_Snappy(b *testing.B) {
 	benchmarkDecompression(b, "yt-structured-http-proxy-log.yson", func(o io.Writer) io.WriteCloser {
 		return blockcodecs.NewEncoder(o, blockcodecs.FindCodecByName("snappy"))
-	}, blockcodecs.NewDecoder)
+	}, NewDecoder)
 }
 
 func BenchmarkDecompression_ProxyLog_Block_LZ4(b *testing.B) {
 	benchmarkDecompression(b, "yt-structured-http-proxy-log.yson", func(o io.Writer) io.WriteCloser {
 		return blockcodecs.NewEncoder(o, blockcodecs.FindCodecByName("lz4-fast14-safe"))
-	}, blockcodecs.NewDecoder)
+	}, NewDecoder)
 }
 
 func BenchmarkDecompression_ProxyLog_Block_LZ4HC(b *testing.B) {
 	benchmarkDecompression(b, "yt-structured-http-proxy-log.yson", func(o io.Writer) io.WriteCloser {
 		return blockcodecs.NewEncoder(o, blockcodecs.FindCodecByName("lz4-hc-safe"))
-	}, blockcodecs.NewDecoder)
+	}, NewDecoder)
 }
 
 func BenchmarkDecompression_ProxyLog_Block_ZSTD_1(b *testing.B) {
 	benchmarkDecompression(b, "yt-structured-http-proxy-log.yson", func(o io.Writer) io.WriteCloser {
 		return blockcodecs.NewEncoder(o, blockcodecs.FindCodecByName("zstd_1"))
-	}, blockcodecs.NewDecoder)
+	}, NewDecoder)
 }
 
 func BenchmarkDecompression_ProxyLog_Block_ZSTD_3(b *testing.B) {
 	benchmarkDecompression(b, "yt-structured-http-proxy-log.yson", func(o io.Writer) io.WriteCloser {
 		return blockcodecs.NewEncoder(o, blockcodecs.FindCodecByName("zstd_3"))
-	}, blockcodecs.NewDecoder)
+	}, NewDecoder)
 }
 
 func BenchmarkDecompression_ProxyLog_Block_ZSTD_7(b *testing.B) {
 	benchmarkDecompression(b, "yt-structured-http-proxy-log.yson", func(o io.Writer) io.WriteCloser {
 		return blockcodecs.NewEncoder(o, blockcodecs.FindCodecByName("zstd_7"))
-	}, blockcodecs.NewDecoder)
+	}, NewDecoder)
 }
 
 func BenchmarkDecompression_ProxyLog_Block_Brotli_1(b *testing.B) {
 	benchmarkDecompression(b, "yt-structured-http-proxy-log.yson", func(o io.Writer) io.WriteCloser {
 		return blockcodecs.NewEncoder(o, blockcodecs.FindCodecByName("brotli_1"))
-	}, blockcodecs.NewDecoder)
+	}, NewDecoder)
 }
 
 func BenchmarkDecompression_ProxyLog_Block_Brotli_6(b *testing.B) {
 	benchmarkDecompression(b, "yt-structured-http-proxy-log.yson", func(o io.Writer) io.WriteCloser {
 		return blockcodecs.NewEncoder(o, blockcodecs.FindCodecByName("brotli_3"))
-	}, blockcodecs.NewDecoder)
+	}, NewDecoder)
 }
 
 func BenchmarkDecompression_LF_Gzip(b *testing.B) {
@@ -113,47 +113,51 @@ func BenchmarkDecompression_LF_Gzip(b *testing.B) {
 func BenchmarkDecompression_LF_Block_Snappy(b *testing.B) {
 	benchmarkDecompression(b, "lf.yson", func(o io.Writer) io.WriteCloser {
 		return blockcodecs.NewEncoder(o, blockcodecs.FindCodecByName("snappy"))
-	}, blockcodecs.NewDecoder)
+	}, NewDecoder)
 }
 
 func BenchmarkDecompression_LF_Block_LZ4(b *testing.B) {
 	benchmarkDecompression(b, "lf.yson", func(o io.Writer) io.WriteCloser {
 		return blockcodecs.NewEncoder(o, blockcodecs.FindCodecByName("lz4-fast14-safe"))
-	}, blockcodecs.NewDecoder)
+	}, NewDecoder)
 }
 
 func BenchmarkDecompression_LF_Block_LZ4HC(b *testing.B) {
 	benchmarkDecompression(b, "lf.yson", func(o io.Writer) io.WriteCloser {
 		return blockcodecs.NewEncoder(o, blockcodecs.FindCodecByName("lz4-hc-safe"))
-	}, blockcodecs.NewDecoder)
+	}, NewDecoder)
 }
 
 func BenchmarkDecompression_LF_Block_ZSTD_1(b *testing.B) {
 	benchmarkDecompression(b, "lf.yson", func(o io.Writer) io.WriteCloser {
 		return blockcodecs.NewEncoder(o, blockcodecs.FindCodecByName("zstd_1"))
-	}, blockcodecs.NewDecoder)
+	}, NewDecoder)
 }
 
 func BenchmarkDecompression_LF_Block_ZSTD_3(b *testing.B) {
 	benchmarkDecompression(b, "lf.yson", func(o io.Writer) io.WriteCloser {
 		return blockcodecs.NewEncoder(o, blockcodecs.FindCodecByName("zstd_3"))
-	}, blockcodecs.NewDecoder)
+	}, NewDecoder)
 }
 
 func BenchmarkDecompression_LF_Block_ZSTD_7(b *testing.B) {
 	benchmarkDecompression(b, "lf.yson", func(o io.Writer) io.WriteCloser {
 		return blockcodecs.NewEncoder(o, blockcodecs.FindCodecByName("zstd_7"))
-	}, blockcodecs.NewDecoder)
+	}, NewDecoder)
 }
 
 func BenchmarkDecompression_LF_Block_Brotli_1(b *testing.B) {
 	benchmarkDecompression(b, "lf.yson", func(o io.Writer) io.WriteCloser {
 		return blockcodecs.NewEncoder(o, blockcodecs.FindCodecByName("brotli_1"))
-	}, blockcodecs.NewDecoder)
+	}, NewDecoder)
 }
 
 func BenchmarkDecompression_LF_Block_Brotli_6(b *testing.B) {
 	benchmarkDecompression(b, "lf.yson", func(o io.Writer) io.WriteCloser {
 		return blockcodecs.NewEncoder(o, blockcodecs.FindCodecByName("brotli_3"))
-	}, blockcodecs.NewDecoder)
+	}, NewDecoder)
+}
+
+func NewDecoder(r io.Reader) io.Reader {
+	return blockcodecs.NewDecoder(r)
 }
