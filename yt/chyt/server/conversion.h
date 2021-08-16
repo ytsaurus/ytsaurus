@@ -63,20 +63,27 @@ TSharedRange<NTableClient::TUnversionedRow> ToRowRange(
 
 struct TClickHouseKeys
 {
-    // Both are inclusive.
+    // Both keys are inclusive (ClickHouse-notation).
     std::vector<DB::FieldRef> MinKey;
     std::vector<DB::FieldRef> MaxKey;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Converts chunk keys from YT format to CH format.
+//! Since CH does not support Nullable types in primary key, there are some tricks
+//! to eliminate Null values. These tricks can lead to key bounds expansion.
+//! (more detailed explanation of the tricks is given in comments near implementation)
+//! dataTypes - actual data types of the columns. Can be nullable.
+//! usedKeyColumnCount - hint about how many columns are used in KeyCondition.
+//! Returned CH-keys always have usedKeyColumnCount columns fro non-empty key.
+//! tryMakeBoundsInclusive - try to convert exclusive bounds to inclusive.
 TClickHouseKeys ToClickHouseKeys(
-    const NTableClient::TLegacyKey& ytLowerKey,
-    const NTableClient::TLegacyKey& ytUpperKey,
-    // How many columns are used in key condition.
-    int usedKeyColumnCount,
+    const NTableClient::TKeyBound& ytLowerBound,
+    const NTableClient::TKeyBound& ytUpperBound,
     const DB::DataTypes& dataTypes,
-    bool makeUpperBoundInclusive = true);
+    int usedKeyColumnCount,
+    bool tryMakeBoundsInclusive = true);
 
 ////////////////////////////////////////////////////////////////////////////////
 

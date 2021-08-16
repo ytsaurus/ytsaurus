@@ -31,22 +31,26 @@ void RegisterNewUser(DB::AccessControlManager& accessControlManager, TString use
 
 // These functions help to convert YT key bounds to CH key bounds.
 
-// CH doesn't have EValueType::Min, so we replace it with the minimum possible value.
 //! Retruns the minimum possible value for given dataType.
 //! Throws an error if dataType is unexpected for YT-tables.
-DB::Field TryGetMinimumTypeValue(const DB::DataTypePtr& dataType);
+DB::Field GetMinimumTypeValue(const DB::DataTypePtr& dataType);
 
-// Same as above, but replaces EValueType::Max.
 //! Retruns the maximum possible value for given dataType.
 //! If the maximum value is unrepresentable, returns some big value.
 //! Throws an error if dataType is unexpected for YT-tables.
-DB::Field TryGetMaximumTypeValue(const DB::DataTypePtr& dataType);
+DB::Field GetMaximumTypeValue(const DB::DataTypePtr& dataType);
 
-//! It helps to convert an exclusive right bound to inclusive in simple cases (e.g. [x, y) to [x, y - 1]).
+// It helps to convert an exclusive right bound to inclusive in simple cases (e.g. [x, y) to [x, y - 1]).
+//! Returns previous value of the type in sort order.
 //! It's guaranteed that there are no values greater than returned one and less than provided one.
-//! Returns std::nullopt if the decremented value is unrepresentable or unsupported yet (e.g. field=0 and dataType=UInt64).
+//! Returns std::nullopt if the decremented value is unrepresentable or not implemented yet (e.g. field=0 and dataType=UInt64).
 //! Throws an error if dataType is unexpected for YT-tables.
 std::optional<DB::Field> TryDecrementFieldValue(const DB::Field& field, const DB::DataTypePtr& dataType);
+//! Returns next value of the type in sort order.
+//! It's guaranteed that there are no values less than returned one and greater than provided one.
+//! Returns std::nullopt if the decremented value is unrepresentable or not implemented yet (e.g. field=0 and dataType=UInt64).
+//! Throws an error if dataType is unexpected for YT-tables.
+std::optional<DB::Field> TryIncrementFieldValue(const DB::Field& field, const DB::DataTypePtr& dataType);
 
 ////////////////////////////////////////////////////////////////////////////////
 

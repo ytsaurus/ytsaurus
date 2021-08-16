@@ -329,128 +329,178 @@ TSharedRange<TUnversionedRow> ToRowRange(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*
+ * How does it work?
+ *
+ * If types are not Nullable, then conversion is trivial.
+ * Just convert every TUnversiondValue to DB::Field.
+ *
+ * If a key is shorter than provided usedKeyColumnCount, the rest of the key is
+ * filled with min (lower) or max (upper) possible value of the coresponding column.
+ *
+ * If a column has a Nullable (optional) type, then we have a problem, because
+ * ClickHouse does not support Nullable columns in primary key.
+ *
+ * To overcome this limitation, we use the following trick:
+ * Imagine that we have a sorted table and following key bounds:
+ *
+ * Bound-1: >= [#; 2]
+ * Bound-2: <= [0; 1]
+ *
+ * [#; 0], [#; 2], [#; 4], [0; 1], [0; 3], [0, 5], [1, 0]
+ * [-----------------------Sorted-----------------------]
+ *         [-------------------Bound-1------------------]
+ * [-----------Bound-2----------]
+ *
+ * We replace all Null (#) values with the minimum possible type value (in the mind).
+ * After it, the table contains following values:
+ *
+ * [0; 0], [0; 2], [0; 4], [0; 1], [0; 3], [0, 5], [1, 0]
+ * [-------Sorted-------]  [-----------Sorted-----------]
+ * [---------------------Not-Sorted---------------------]
+ *
+ * The table is not sorted any more. Instead, we have two sorted segments.
+ * But it's still possible to efficiently filter some chunks.
+ *
+ * Unfortunately, replacing all Null values with minimum breaks key bounds:
+ *
+ * Bound-1': >= [0; 2]
+ * Bound-1': <= [0; 1]
+ *
+ * [0; 0],         [0; 2],         [0; 4]
+ *         [0; 1],         [0; 3],         [0; 5], [1; 0]
+ *                 [--------------Bound-1'--------------]
+ * [--Bound-2'--]
+ *
+ * Now both Bound-1 and Bound-2 cover less values.
+ *
+ * It's because before replacing Bound-1 included all rows starting with 0
+ * and Bound-2 included all rows starting with #.
+ * Now some of these values are missing.
+ *
+ * We need to adjust key bounds a little bit, so they include all previous values:
+ *
+ * Adjusted-Bound-1: >= [0; std::numeric_limits<Uint64>::min()]
+ * Adjusted-Bound-2: <= [0; std::numeric_limits<Uint64>::max()]
+ *
+ * [0; 0],         [0; 2],         [0; 4]
+ *         [0; 1],         [0; 3],         [0; 5], [1; 0]
+ * [------------------Adjusted-Bound-1------------------]
+ * [--------------Adjusted-Bound-2--------------]
+ *
+ * Now key bounds do not contain Null values and cover all original rows.
+ * They also may cover some 'extra' rows (range became wider). But it does not
+ * affect correctness, it can only affect performance a little bit.
+ *
+ * We need to adjust lower key bound only when it contains Null,
+ * and adjust upper key bound only when it contains minimum type value.
+ *
+ * One more optimization:
+ * If the common prefix of lowerBound and upperBound contains Null or minumum type value,
+ * then we do not need to adjust bounds. They already include all values from the range:
+ *
+ * Bound-1: >= [#; 1]
+ * Bound-2: <= [#; 2]
+ *
+ * [#; 0], [#; 2], [#; 4], [0; 1], [0; 3], [0, 5], [1, 0]
+ * [-----------------------Sorted-----------------------]
+ *         [------------------Bound-1-------------------]
+ * [---Bound-2--]
+ *
+ * After replacing:
+ *
+ * Bound-1': >= [0; 1]
+ * Bound-2': <= [0; 2]
+ *
+ * [0; 0],         [0; 2],         [0; 4]
+ *         [0; 1],         [0; 3],         [0; 5], [1; 0]
+ *         [------------------Bound-1'------------------]
+ * [------Bound-2'------]
+ */
 TClickHouseKeys ToClickHouseKeys(
-    const TLegacyKey& lowerKey,
-    const TLegacyKey& upperKey,
-    // How many columns are used in key condition.
-    int usedKeyColumnCount,
+    const TKeyBound& lowerBound,
+    const TKeyBound& upperBound,
     const DB::DataTypes& dataTypes,
-    bool makeUpperBoundInclusive)
+    int usedKeyColumnCount,
+    bool tryMakeBoundsInclusive)
 {
     YT_VERIFY(usedKeyColumnCount <= std::ssize(dataTypes));
 
-    // XXX(dakovalkov): CH does not support nullable key columns, so we use several dirty tricks to represent them as not nullable.
-    DB::DataTypes notNullableDataTypes(usedKeyColumnCount);
-    for (int index = 0; index < usedKeyColumnCount; ++index) {
-        notNullableDataTypes[index] = DB::removeNullable(dataTypes[index]);
-    }
-
     int commonPrefixSize = 0;
-    while (commonPrefixSize < static_cast<int>(lowerKey.GetCount())
-        && commonPrefixSize < static_cast<int>(upperKey.GetCount())
-        && lowerKey[commonPrefixSize] == upperKey[commonPrefixSize])
-    {
-        ++commonPrefixSize;
+    if (lowerBound && upperBound) {
+        while (commonPrefixSize < static_cast<int>(lowerBound.Prefix.GetCount())
+            && commonPrefixSize < static_cast<int>(upperBound.Prefix.GetCount())
+            && lowerBound.Prefix[commonPrefixSize] == upperBound.Prefix[commonPrefixSize])
+        {
+            ++commonPrefixSize;
+        }
     }
 
-    TClickHouseKeys result;
-    result.MinKey.resize(usedKeyColumnCount);
-    result.MaxKey.resize(usedKeyColumnCount);
+    auto convertToClickHouseKey = [&] (const TKeyBound& ytBound) {
+        std::vector<DB::FieldRef> chKey(usedKeyColumnCount);
+        // See explanation above.
+        bool adjusted = false;
 
-    // Convert TLegacyKey to ClickHouse FieldRef[].
-    auto convertToClickHouseKey = [&] (DB::FieldRef* chKey, const TLegacyKey& ytKey, bool isUpperKey) {
-        std::optional<EValueType> sentinel;
-        int lastNonSentinelIndex = -1;
+        int ytBoundSize = ytBound.Prefix.GetCount();
 
         for (int index = 0; index < usedKeyColumnCount; ++index) {
-            if (!sentinel) {
-                if (index >= static_cast<int>(ytKey.GetCount()) || ytKey[index].Type == EValueType::Min) {
-                    sentinel = EValueType::Min;
-                } else if (ytKey[index].Type == EValueType::Max) {
-                    sentinel = EValueType::Max;
-                } else if (!isUpperKey && index >= commonPrefixSize && ytKey[index].Type == EValueType::Null) {
-                    // XXX(dakovalkov): Dirty trick (1) to remove null.
-                    // For lower key replacing Null with the minimum value can break our boundaries,
-                    // so we need to replace all following values with the minimum as well.
-                    // See 'Dirty trick (4)' for more details.
-                    sentinel = EValueType::Min;
-                }
-            }
+            const auto& dataType = DB::removeNullable(dataTypes[index]);
+            bool isNullable = dataTypes[index]->isNullable();
 
-            if (sentinel) {
-                // XXX(dakovalkov): Dirty trick (2) to remove sentinels.
-                // CH does not support Min/Max sentinels yet, so replace them with min/max values.
-                // If min/max value is not representable, replace it with some big/small value.
-                // It will work in most cases.
-                if (*sentinel == EValueType::Min) {
-                    chKey[index] = TryGetMinimumTypeValue(notNullableDataTypes[index]);
+            if (index < ytBoundSize && !adjusted) {
+                if (ytBound.Prefix[index].Type == EValueType::Null) {
+                    chKey[index] = GetMinimumTypeValue(dataType);
+
+                    adjusted = !ytBound.IsUpper && index >= commonPrefixSize;
                 } else {
-                    chKey[index] = TryGetMaximumTypeValue(notNullableDataTypes[index]);
+                    chKey[index] = ToField(ytBound.Prefix[index]);
+
+                    adjusted = ytBound.IsUpper
+                        && index >= commonPrefixSize
+                        && isNullable
+                        && chKey[index] == GetMinimumTypeValue(dataType);
                 }
             } else {
-                if (ytKey[index].Type == EValueType::Null) {
-                    // XXX(dakovalkov): Dirty trick (3) to remove null.
-                    // Replacing Null in keys with fixed value helps when a meaningful column follows a null column.
-                    // For instance, (lowerKey=[Null, 1], upperKey=[Null, 3]) -> (lowerKey=[0, 1], upperKey=[0, 3]).
-                    // 'where' condition on second column will work fine in this case.
-                    YT_VERIFY(index < commonPrefixSize || isUpperKey);
-                    chKey[index] = TryGetMinimumTypeValue(notNullableDataTypes[index]);
+                if (ytBound.IsUpper) {
+                    chKey[index] = GetMaximumTypeValue(dataType);
                 } else {
-                    chKey[index] = ToField(ytKey[index]);
-                    lastNonSentinelIndex = index;
-                    // XXX(dakovalkov): Dirty trick (4) to remove null.
-                    // When we replace null with minimum value, we break sort order a litle bit.
-                    // For instance, ([Null, 5], [0, 1]) -> ([0, 5], [0, 1]).
-                    // If upper key of the chunk is [0, 2] and the query is 'where second_column = 5',
-                    // we can wrongly skip this chunk.
-                    // To eliminate this, we need to extend upper key with maximum values.
-                    if (isUpperKey && index >= commonPrefixSize && dataTypes[index]->isNullable()) {
-                        if (chKey[index] == TryGetMinimumTypeValue(notNullableDataTypes[index])) {
-                            sentinel = EValueType::Max;
-                        }
-                    }
+                    chKey[index] = GetMinimumTypeValue(dataType);
                 }
             }
         }
 
-        // Trying to convert the exclusive upper bound to inclusive.
-        if (isUpperKey && makeUpperBoundInclusive) {
-            bool isExclusive;
+        bool isInclusive = ytBound.IsInclusive;
+        // Adjusted key is always inclusive.
+        isInclusive |= adjusted;
+        // Truncated key also loses its exclusiveness.
+        isInclusive |= (ytBoundSize > usedKeyColumnCount);
 
-            if (sentinel) {
-                isExclusive = (*sentinel == EValueType::Min);
+        if (!isInclusive && tryMakeBoundsInclusive && ytBoundSize > 0) {
+            int index = ytBoundSize - 1;
+            const auto& dataType = DB::removeNullable(dataTypes[index]);
+
+            std::optional<DB::Field> value;
+            if (ytBound.IsUpper) {
+                value = TryDecrementFieldValue(chKey[index], dataType);
             } else {
-                isExclusive = (static_cast<int>(ytKey.GetCount()) == usedKeyColumnCount);
+                value = TryIncrementFieldValue(chKey[index], dataType);
             }
-
-            if (isExclusive && lastNonSentinelIndex >= 0) {
-                std::vector<std::optional<DB::Field>> inclusiveSuffix;
-                inclusiveSuffix.reserve(usedKeyColumnCount);
-
-                // We try to decrement last non-sentinel value and convert all min-values after it to max-values.
-                // A, B, X, MIN, MIN -> A, B, (X - 1), MAX, MAX
-
-                bool failed = false;
-                failed |= !inclusiveSuffix.emplace_back(
-                    TryDecrementFieldValue(
-                        chKey[lastNonSentinelIndex],
-                        notNullableDataTypes[lastNonSentinelIndex]));
-
-                for (int index = lastNonSentinelIndex + 1; !failed && index < usedKeyColumnCount; ++index) {
-                    failed |= !inclusiveSuffix.emplace_back(TryGetMaximumTypeValue(notNullableDataTypes[index]));
-                }
-
-                if (!failed) {
-                    for (int index = lastNonSentinelIndex; index < usedKeyColumnCount; ++index) {
-                        chKey[index] = *inclusiveSuffix[index - lastNonSentinelIndex];
-                    }
-                }
+            if (value) {
+                chKey[index] = *value;
             }
         }
+
+        return chKey;
     };
 
-    convertToClickHouseKey(result.MinKey.data(), lowerKey, false);
-    convertToClickHouseKey(result.MaxKey.data(), upperKey, true);
+    TClickHouseKeys result;
+
+    if (lowerBound) {
+        result.MinKey = convertToClickHouseKey(lowerBound);
+    }
+    if (upperBound) {
+        result.MaxKey = convertToClickHouseKey(upperBound);
+    }
 
     return result;
 }
