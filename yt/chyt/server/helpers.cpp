@@ -71,7 +71,7 @@ void RegisterNewUser(DB::AccessControlManager& accessControlManager, TString use
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::Field TryGetMinimumTypeValue(const DB::DataTypePtr& dataType)
+DB::Field GetMinimumTypeValue(const DB::DataTypePtr& dataType)
 {
     switch (dataType->getTypeId()) {
         case DB::TypeIndex::Nullable:
@@ -116,11 +116,11 @@ DB::Field TryGetMinimumTypeValue(const DB::DataTypePtr& dataType)
     }
 }
 
-DB::Field TryGetMaximumTypeValue(const DB::DataTypePtr& dataType)
+DB::Field GetMaximumTypeValue(const DB::DataTypePtr& dataType)
 {
     switch (dataType->getTypeId()) {
         case DB::TypeIndex::Nullable:
-            return TryGetMaximumTypeValue(DB::removeNullable(dataType));
+            return GetMaximumTypeValue(DB::removeNullable(dataType));
 
         case DB::TypeIndex::Int8:
             return DB::Field(std::numeric_limits<DB::Int8>::max());
@@ -155,9 +155,9 @@ DB::Field TryGetMaximumTypeValue(const DB::DataTypePtr& dataType)
 
         case DB::TypeIndex::String:
             // The "maximum" string does not exist.
-            // TODO(dakovalkov): Key condition does not support max/min sentinels. Set big value instead of it.
-            return DB::Field(std::string(SentinelMaxStringLength, std::numeric_limits<std::string::value_type>::max()));
-            // return std::nullopt;
+            // Set some big value instead of it.
+            // NOTE: CH uses unsigned char comparison, so max char is '\xff', not '\xef'.
+            return DB::Field(std::string(SentinelMaxStringLength, '\xff'));
 
         default:
             THROW_ERROR_EXCEPTION("Unexpected data type %v", dataType->getName());
@@ -166,7 +166,7 @@ DB::Field TryGetMaximumTypeValue(const DB::DataTypePtr& dataType)
 
 std::optional<DB::Field> TryDecrementFieldValue(const DB::Field& field, const DB::DataTypePtr& dataType)
 {
-    if (field == TryGetMinimumTypeValue(dataType)) {
+    if (field == GetMinimumTypeValue(dataType)) {
         return std::nullopt;
     }
     switch (dataType->getTypeId()) {
@@ -192,10 +192,64 @@ std::optional<DB::Field> TryDecrementFieldValue(const DB::Field& field, const DB
         case DB::TypeIndex::DateTime:
             return DB::Field(field.get<UInt64>() - 1);
 
+        case DB::TypeIndex::String: {
+            std::string value = field.get<std::string>();
+            if (value.back() != '\0') {
+                value.back() = static_cast<unsigned char>(value.back()) - 1;
+            } else {
+                value.pop_back();
+            }
+            return DB::Field(std::move(value));
+        }
+
         case DB::TypeIndex::Float32:
         case DB::TypeIndex::Float64:
-        case DB::TypeIndex::String:
-            // Not supported yet.
+            // Not implemented yet.
+            return std::nullopt;
+
+        default:
+            THROW_ERROR_EXCEPTION("Unexpected data type %v", dataType->getName());
+    }
+}
+
+std::optional<DB::Field> TryIncrementFieldValue(const DB::Field& field, const DB::DataTypePtr& dataType)
+{
+    if (field == GetMaximumTypeValue(dataType)) {
+        return std::nullopt;
+    }
+    switch (dataType->getTypeId()) {
+        case DB::TypeIndex::Nullable:
+            return TryIncrementFieldValue(field, DB::removeNullable(dataType));
+
+        case DB::TypeIndex::Int8:
+        case DB::TypeIndex::Int16:
+        case DB::TypeIndex::Int32:
+        case DB::TypeIndex::Int64:
+            return DB::Field(field.get<Int64>() + 1);
+
+        case DB::TypeIndex::UInt8:
+        case DB::TypeIndex::UInt16:
+        case DB::TypeIndex::UInt32:
+        case DB::TypeIndex::UInt64:
+            return DB::Field(field.get<UInt64>() + 1);
+
+        case DB::TypeIndex::Date:
+        case DB::TypeIndex::DateTime:
+            return DB::Field(field.get<UInt64>() + 1);
+
+        case DB::TypeIndex::String: {
+            std::string value = field.get<std::string>();
+            if (value.back() != '\xff') {
+                value.back() = static_cast<unsigned char>(value.back()) + 1;
+            } else {
+                value.push_back('\0');
+            }
+            return DB::Field(std::move(value));
+        }
+
+        case DB::TypeIndex::Float32:
+        case DB::TypeIndex::Float64:
+            // Not implemented yet.
             return std::nullopt;
 
         default:

@@ -241,14 +241,10 @@ private:
                     return false;
                 }
 
-                // TODO(max42, dakovalkov): rewrite GetRangeMask using key bounds.
-                auto legacyLowerKey = KeyBoundToLegacyRow(dataSlice->LowerLimit().KeyBound, RowBuffer_);
-                auto legacyUpperKey = KeyBoundToLegacyRow(dataSlice->UpperLimit().KeyBound, RowBuffer_);
-
                 return !GetRangeMask(
                     EKeyConditionScale::TopLevelDataSlice,
-                    legacyLowerKey,
-                    legacyUpperKey,
+                    dataSlice->LowerLimit().KeyBound,
+                    dataSlice->UpperLimit().KeyBound,
                     dataSlice->InputStreamIndex).can_be_true;
             });
             dataSlices.resize(it - dataSlices.begin());
@@ -524,9 +520,12 @@ private:
                 lowerBound = TOwningKeyBound();
             };
 
-            for (int index = 0; index < static_cast<int>(tablets.size()); ++index) {
-                const auto& lowerPivotKey = tablets[index]->PivotKey;
-                const auto& upperPivotKey = (index + 1 < static_cast<int>(tablets.size())) ? tablets[index + 1]->PivotKey : MaxKey();
+            for (ui32 index = 0; index < tablets.size(); ++index) {
+                const auto& lowerPivotKey = (TOwningKeyBound::FromRow() >= tablets[index]->PivotKey);
+                const auto& upperPivotKey = (index + 1 < tablets.size())
+                    ? (TOwningKeyBound::FromRow() < tablets[index + 1]->PivotKey)
+                    : TOwningKeyBound::MakeUniversal(/*isUpper*/ true);
+
                 if (GetRangeMask(
                         EKeyConditionScale::Tablet,
                         lowerPivotKey,
@@ -534,17 +533,17 @@ private:
                         inputTable->OperandIndex).can_be_true)
                 {
                     if (!lowerBound) {
-                        lowerBound = TOwningKeyBound::FromRow() >= lowerPivotKey;
+                        lowerBound = lowerPivotKey;
                     }
                 } else {
                     if (lowerBound) {
-                        flushRange(TOwningKeyBound::FromRow() < lowerPivotKey);
+                        flushRange(lowerPivotKey.Invert());
                     }
                 }
             }
 
             if (lowerBound) {
-                flushRange(TOwningKeyBound::MakeUniversal(/* isUpper */ true));
+                flushRange(TOwningKeyBound::MakeUniversal(/*isUpper*/ true));
             }
 
             YT_LOG_DEBUG("Dynamic table ranges inferred from tablet pivot keys (Table: %v, Ranges: %v)", inputTable->Path, ranges);
@@ -712,16 +711,16 @@ private:
         InputDataSlices_[tableIndex].emplace_back(std::move(dataSlice));
     }
 
-    BoolMask GetRangeMask(EKeyConditionScale scale, TLegacyKey lowerKey, TLegacyKey upperKey, int operandIndex)
+    BoolMask GetRangeMask(EKeyConditionScale scale, const TKeyBound& lowerBound, const TKeyBound& upperBound, int operandIndex)
     {
         const auto& keyCondition = KeyConditions_[operandIndex];
         const auto& keyColumnDataTypes = KeyColumnDataTypes_[operandIndex];
 
         YT_LOG_TRACE(
-            "Checking range mask (Scale: %v, LowerKey: %v, UpperKey: %v, OperandIndex: %v, KeyCondition: %v)",
+            "Checking range mask (Scale: %v, LowerBound: %v, UpperBound: %v, OperandIndex: %v, KeyCondition: %v)",
             scale,
-            lowerKey,
-            upperKey,
+            lowerBound,
+            upperBound,
             operandIndex,
             keyCondition ? keyCondition->toString() : "(n/a)");
 
@@ -729,6 +728,7 @@ private:
             !StorageContext_->Settings->Testing->EnableKeyConditionFiltering ||
             keyCondition->alwaysUnknownOrTrue())
         {
+            YT_LOG_TRACE("Can not process key condition");
             return BoolMask(true, true);
         }
 
@@ -736,10 +736,10 @@ private:
         YT_VERIFY(usedKeyColumnCount <= OperandSchemas_[operandIndex]->GetKeyColumnCount());
 
         auto chKeys = ToClickHouseKeys(
-            lowerKey,
-            upperKey,
-            usedKeyColumnCount,
+            lowerBound,
+            upperBound,
             keyColumnDataTypes,
+            usedKeyColumnCount,
             StorageContext_->Settings->Testing->MakeUpperBoundInclusive);
 
         auto toFormattable = [&] (DB::FieldRef* fields, int keyColumUsed) {
@@ -748,9 +748,9 @@ private:
                 [&] (auto* builder, DB::FieldRef field) { builder->AppendString(TString(field.dump())); });
         };
 
-        YT_LOG_TRACE("Chunk keys were successfully converted to CH keys (LowerKey: %v, UpperKey %v, MinKey: %v, MaxKey: %v)",
-            lowerKey,
-            upperKey,
+        YT_LOG_TRACE("Chunk keys were successfully converted to CH keys (LowerBound: %v, UpperBound: %v, MinKey: %v, MaxKey: %v)",
+            lowerBound,
+            upperBound,
             toFormattable(chKeys.MinKey.data(), usedKeyColumnCount),
             toFormattable(chKeys.MaxKey.data(), usedKeyColumnCount));
 
@@ -769,10 +769,10 @@ private:
 
         YT_LOG_EVENT(Logger,
             StorageContext_->Settings->LogKeyConditionDetails ? ELogLevel::Debug : ELogLevel::Trace,
-            "Range mask (Scale: %v, LowerKey: %v, UpperKey: %v, CanBeTrue: %v)",
+            "Range mask (Scale: %v, LowerBound: %v, UpperBound: %v, CanBeTrue: %v)",
             scale,
-            lowerKey,
-            upperKey,
+            lowerBound,
+            upperBound,
             result.can_be_true);
         return result;
     }
