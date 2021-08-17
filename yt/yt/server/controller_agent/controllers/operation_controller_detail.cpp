@@ -7609,8 +7609,8 @@ void TOperationControllerBase::Dispose()
         auto guard = Guard(JobMetricsDeltaPerTreeLock_);
 
         for (auto& [treeId, metrics] : JobMetricsDeltaPerTree_) {
-            auto totalTime = TotalTimePerTree_.at(treeId);
-            auto mainResourceConsumption = MainResourceConsumptionPerTree_.at(treeId);
+            auto totalTime = GetOrCrash(TotalTimePerTree_, treeId);
+            auto mainResourceConsumption = GetOrCrash(MainResourceConsumptionPerTree_, treeId);
 
             switch (State) {
                 case EControllerState::Completed:
