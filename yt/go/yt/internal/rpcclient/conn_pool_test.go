@@ -27,7 +27,7 @@ func TestLRUConnPool(t *testing.T) {
 
 	size := 10
 	conns := &sync.Map{}
-	p := NewLRUConnPool(func(ctx context.Context, addr string) (*bus.ClientConn, error) {
+	p := NewLRUConnPool(func(ctx context.Context, addr string) (BusConn, error) {
 		conn := &bus.ClientConn{}
 		conns.Store(addr, conn)
 		return conn, nil

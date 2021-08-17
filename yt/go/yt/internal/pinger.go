@@ -282,3 +282,23 @@ func (p *Pinger) Run() {
 		}
 	}
 }
+
+func (p *Pinger) ID() yt.TxID {
+	return p.txID
+}
+
+func (p *Pinger) Finished() <-chan struct{} {
+	return p.finished
+}
+
+func (p *Pinger) Ctx() context.Context {
+	return p.ctx
+}
+
+func (p *Pinger) Stop() *StopGroup {
+	return p.stop
+}
+
+func (p *Pinger) Config() *yt.Config {
+	return p.config
+}

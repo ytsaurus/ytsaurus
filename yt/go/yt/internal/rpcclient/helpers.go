@@ -34,6 +34,14 @@ func convertTxID(txID yt.TxID) *misc.TGuid {
 	return convertGUID(guid.GUID(txID))
 }
 
+func convertParentTxID(txID yt.TxID) *misc.TGuid {
+	zero := yt.TxID{}
+	if txID == zero {
+		return nil
+	}
+	return convertTxID(txID)
+}
+
 func getTxID(opts *yt.TransactionOptions) *misc.TGuid {
 	if opts == nil {
 		return nil
@@ -64,8 +72,12 @@ func convertGUIDs(guids []guid.GUID) []*misc.TGuid {
 	return ret
 }
 
+func makeGUID(g *misc.TGuid) guid.GUID {
+	return guid.FromHalves(g.GetFirst(), g.GetSecond())
+}
+
 func makeNodeID(g *misc.TGuid) yt.NodeID {
-	return yt.NodeID(guid.FromHalves(g.GetFirst(), g.GetSecond()))
+	return yt.NodeID(makeGUID(g))
 }
 
 func convertAttributes(attrs map[string]interface{}) (*ytree.TAttributeDictionary, error) {
@@ -846,4 +858,43 @@ func intPtrToUint64Ptr(i *int) *uint64 {
 		return nil
 	}
 	return ptr.Uint64(uint64(*i))
+}
+
+type LockMode int32
+
+const (
+	LockModeNone      LockMode = 0
+	LockModeSnapshot  LockMode = 1
+	LockModeShared    LockMode = 2
+	LockModeExclusive LockMode = 3
+)
+
+func convertLockMode(m yt.LockMode) (LockMode, error) {
+	var ret LockMode
+
+	switch m {
+	case yt.LockSnapshot:
+		ret = LockModeSnapshot
+	case yt.LockShared:
+		ret = LockModeShared
+	case yt.LockExclusive:
+		ret = LockModeExclusive
+	default:
+		return 0, xerrors.Errorf("unexpected lock mode %q", m)
+	}
+
+	return ret, nil
+}
+
+func makeLockNodeResult(r *rpc_proxy.TRspLockNode) (yt.LockResult, error) {
+	if r == nil {
+		return yt.LockResult{}, xerrors.Errorf("unable to convert nil lock node result")
+	}
+
+	ret := yt.LockResult{
+		NodeID: makeNodeID(r.NodeId),
+		LockID: makeGUID(r.LockId),
+	}
+
+	return ret, nil
 }

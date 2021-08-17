@@ -16,6 +16,8 @@ import (
 	"a.yandex-team.ru/yt/go/yterrors"
 )
 
+const ProtocolVersionMajor = 1
+
 func (c *client) listRPCProxies() ([]string, error) {
 	if !c.stop.TryAdd() {
 		return nil, xerrors.New("client is stopped")
