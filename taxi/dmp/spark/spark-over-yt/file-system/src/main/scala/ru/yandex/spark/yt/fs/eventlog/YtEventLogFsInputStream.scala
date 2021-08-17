@@ -15,7 +15,7 @@ import scala.annotation.tailrec
 class YtEventLogFsInputStream(conf: Configuration, path: String, details: YtEventLogFileDetails, implicit val yt: CompoundClient) extends FSInputStream {
   private val log = LoggerFactory.getLogger(getClass)
 
-  private val singleReadLimit = conf.get("fs.ytEventLog.singleReadLimit").toInt
+  private val singleReadLimit = conf.get("fs.ytEventLog.singleReadLimit", "268435456").toInt
   private var finished = false
   private var manualClosed = false
 
