@@ -125,10 +125,14 @@ public abstract class CopyLikeReq<T extends CopyLikeReq<T>> extends MutateNode<T
     }
 
     public YTreeBuilder toTree(YTreeBuilder builder) {
+        return toTree(builder, "source_path", "destination_path");
+    }
+
+    public YTreeBuilder toTree(YTreeBuilder builder, String sourcePathKey, String destinationPathKey) {
         return builder
                 .apply(super::toTree)
-                .key("source_path").value(source)
-                .key("destination_path").value(destination)
+                .key(sourcePathKey).value(source)
+                .key(destinationPathKey).value(destination)
                 .key("recursive").value(recursive)
                 .key("force").value(force)
                 .key("preserve_account").value(preserveAccount)
