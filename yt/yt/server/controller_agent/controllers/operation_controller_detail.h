@@ -251,6 +251,7 @@ public:
     virtual void BuildBriefProgress(NYTree::TFluentMap fluent) const;
     virtual void BuildJobsYson(NYTree::TFluentMap fluent) const;
     virtual void BuildRetainedFinishedJobsYson(NYTree::TFluentMap fluent) const;
+    virtual void BuildUnavailableInputChunksYson(NYTree::TFluentAny fluent) const;
 
     // NB(max42, babenko): this method should not be safe. Writing a core dump or trying to fail
     // operation from a forked process is a bad idea.
@@ -1001,8 +1002,28 @@ private:
 
     TAtomicObject<NScheduler::TJobResourcesWithQuotaList> CachedMinNeededJobResources;
 
-    mutable TInstant CachedRunningJobsUpdateTime_;
-    mutable NYson::TYsonString CachedRunningJobsYson_ = NYson::TYsonString(TStringBuf(), NYson::EYsonType::MapFragment);
+    class TCachedYsonCallback
+    {
+    public:
+        using TCallback = NYT::TCallback<NYson::TYsonString()>;
+
+        DEFINE_BYVAL_RW_PROPERTY(TDuration, UpdatePeriod)
+
+        TCachedYsonCallback(TDuration period, TCallback callback);
+
+        const NYson::TYsonString& GetValue();
+
+    private:
+        TInstant UpdateTime_ = TInstant::Zero();
+        TCallback Callback_;
+        NYson::TYsonString Value_;
+    };
+
+    mutable TCachedYsonCallback CachedRunningJobs_;
+    mutable TCachedYsonCallback CachedUnavailableChunks_;
+
+    NYson::TYsonString DoBuildJobsYson();
+    NYson::TYsonString DoBuildUnavailableInputChunksYson();
 
     NYson::TYsonString CachedSuspiciousJobsYson_ = NYson::TYsonString(TStringBuf(), NYson::EYsonType::MapFragment);
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, CachedSuspiciousJobsYsonLock_);

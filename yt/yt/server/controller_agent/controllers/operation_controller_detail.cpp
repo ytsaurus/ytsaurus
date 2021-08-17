@@ -252,6 +252,12 @@ TOperationControllerBase::TOperationControllerBase(
     , PoolTreeControllerSettingsMap_(operation->PoolTreeControllerSettingsMap())
     , Spec_(std::move(spec))
     , Options(std::move(options))
+    , CachedRunningJobs_(
+        Config->CachedRunningJobsUpdatePeriod,
+        BIND(&TOperationControllerBase::DoBuildJobsYson, Unretained(this)))
+    , CachedUnavailableChunks_(
+        Config->CachedUnavailableChunksUpdatePeriod,
+        BIND(&TOperationControllerBase::DoBuildUnavailableInputChunksYson, Unretained(this)))
     , SuspiciousJobsYsonUpdater_(New<TPeriodicExecutor>(
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         BIND(&TThis::UpdateSuspiciousJobsYson, MakeWeak(this)),
@@ -804,9 +810,13 @@ void TOperationControllerBase::InitializeOrchid()
         };
     };
 
-    auto createCachedMapService = [=] (auto fluentMethod, const TString& key) -> IYPathServicePtr {
-        return createService(wrapWithMap(std::move(fluentMethod)), key)
+    auto createServiceWithInvoker = [=] (auto fluentMethod, const TString& key) -> IYPathServicePtr {
+        return createService(std::move(fluentMethod), key)
             ->Via(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    };
+
+    auto createMapServiceWithInvoker = [=] (auto fluentMethod, const TString& key) -> IYPathServicePtr {
+        return createServiceWithInvoker(wrapWithMap(std::move(fluentMethod)), key);
     };
 
     // NB: we may safely pass unretained this below as all the callbacks are wrapped with a createService helper
@@ -814,16 +824,19 @@ void TOperationControllerBase::InitializeOrchid()
     auto service = New<TCompositeMapService>()
         ->AddChild(
             "progress",
-            createCachedMapService(BIND(&TOperationControllerBase::BuildProgress, Unretained(this)), "progress"))
+            createMapServiceWithInvoker(BIND(&TOperationControllerBase::BuildProgress, Unretained(this)), "progress"))
         ->AddChild(
             "brief_progress",
-            createCachedMapService(BIND(&TOperationControllerBase::BuildBriefProgress, Unretained(this)), "brief_progress"))
+            createMapServiceWithInvoker(BIND(&TOperationControllerBase::BuildBriefProgress, Unretained(this)), "brief_progress"))
         ->AddChild(
             "running_jobs",
-            createCachedMapService(BIND(&TOperationControllerBase::BuildJobsYson, Unretained(this)), "running_jobs"))
+            createMapServiceWithInvoker(BIND(&TOperationControllerBase::BuildJobsYson, Unretained(this)), "running_jobs"))
         ->AddChild(
             "retained_finished_jobs",
-            createCachedMapService(BIND(&TOperationControllerBase::BuildRetainedFinishedJobsYson, Unretained(this)), "retained_finished_jobs"))
+            createMapServiceWithInvoker(BIND(&TOperationControllerBase::BuildRetainedFinishedJobsYson, Unretained(this)), "retained_finished_jobs"))
+        ->AddChild(
+            "unavailable_input_chunks",
+            createServiceWithInvoker(BIND(&TOperationControllerBase::BuildUnavailableInputChunksYson, Unretained(this)), "unavailable_input_chunks"))
         ->AddChild(
             "memory_usage",
             createService(BIND(&TOperationControllerBase::BuildMemoryUsageYson, Unretained(this)), "memory_usage"))
@@ -8089,34 +8102,32 @@ IYPathServicePtr TOperationControllerBase::GetOrchid() const
     return Orchid_;
 }
 
+NYson::TYsonString TOperationControllerBase::DoBuildJobsYson()
+{
+    return BuildYsonStringFluently<EYsonType::MapFragment>()
+        .DoFor(JobletMap, [&] (TFluentMap fluent, const std::pair<TJobId, TJobletPtr>& pair) {
+            auto jobId = pair.first;
+            const auto& joblet = pair.second;
+            if (joblet->StartTime) {
+                fluent.Item(ToString(jobId)).BeginMap()
+                    .Do([&] (TFluentMap fluent) {
+                        BuildJobAttributes(
+                            joblet,
+                            EJobState::Running,
+                            /* outputStatistics */ false,
+                            joblet->StderrSize,
+                            fluent);
+                    })
+                .EndMap();
+            }
+        })
+        .Finish();
+}
+
 void TOperationControllerBase::BuildJobsYson(TFluentMap fluent) const
 {
     VERIFY_INVOKER_AFFINITY(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
-
-    auto now = GetInstant();
-    if (CachedRunningJobsUpdateTime_ + Config->CachedRunningJobsUpdatePeriod < now) {
-        CachedRunningJobsYson_ = BuildYsonStringFluently<EYsonType::MapFragment>()
-            .DoFor(JobletMap, [&] (TFluentMap fluent, const std::pair<TJobId, TJobletPtr>& pair) {
-                auto jobId = pair.first;
-                const auto& joblet = pair.second;
-                if (joblet->StartTime) {
-                    fluent.Item(ToString(jobId)).BeginMap()
-                        .Do([&] (TFluentMap fluent) {
-                            BuildJobAttributes(
-                                joblet,
-                                EJobState::Running,
-                                /* outputStatistics */ false,
-                                joblet->StderrSize,
-                                fluent);
-                        })
-                    .EndMap();
-                }
-            })
-            .Finish();
-        CachedRunningJobsUpdateTime_ = now;
-    }
-
-    fluent.GetConsumer()->OnRaw(CachedRunningJobsYson_);
+    fluent.GetConsumer()->OnRaw(CachedRunningJobs_.GetValue());
 }
 
 void TOperationControllerBase::BuildRetainedFinishedJobsYson(TFluentMap fluent) const
@@ -8125,6 +8136,25 @@ void TOperationControllerBase::BuildRetainedFinishedJobsYson(TFluentMap fluent) 
         fluent
             .Item(ToString(jobId)).Value(attributes);
     }
+}
+
+NYson::TYsonString TOperationControllerBase::DoBuildUnavailableInputChunksYson()
+{
+    return BuildYsonStringFluently<EYsonType::Node>()
+        .BeginList()
+            .DoFor(InputChunkMap, [&] (TFluentList fluent, const std::pair<TChunkId, TInputChunkDescriptor>& pair) {
+                const auto& [chunkId, chunkDescriptor] = pair;
+                if (chunkDescriptor.State == EInputChunkState::Waiting) {
+                    fluent.Item().Value(chunkId);
+                }
+            })
+        .EndList();
+}
+
+void TOperationControllerBase::BuildUnavailableInputChunksYson(TFluentAny fluent) const
+{
+    VERIFY_INVOKER_AFFINITY(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    fluent.GetConsumer()->OnRaw(CachedUnavailableChunks_.GetValue());
 }
 
 void TOperationControllerBase::CheckTentativeTreeEligibility()
@@ -9678,6 +9708,23 @@ void TOperationControllerBase::TSink::Persist(const TPersistenceContext& context
 }
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOperationControllerBase::TSink);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TOperationControllerBase::TCachedYsonCallback::TCachedYsonCallback(TDuration period, TCallback callback)
+    : UpdatePeriod_(period)
+    , Callback_(std::move(callback))
+{ }
+
+const NYson::TYsonString& TOperationControllerBase::TCachedYsonCallback::GetValue()
+{
+    auto now = GetInstant();
+    if (UpdateTime_ + UpdatePeriod_ < now) {
+        Value_ = Callback_();
+        UpdateTime_ = now;
+    }
+    return Value_;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

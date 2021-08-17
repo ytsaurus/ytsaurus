@@ -1276,6 +1276,14 @@ class Operation(object):
     def resume(self, **kwargs):
         resume_op(self.id, **kwargs)
 
+    def get_orchid_path(self):
+        path = self.get_path() + "/@controller_agent_address"
+        wait(lambda: exists(path))
+        controller_agent = get(path)
+        return "//sys/controller_agents/instances/{}/orchid/controller_agent/operations/{}".format(
+            controller_agent, self.id
+        )
+
 
 def create_tmpdir(prefix):
     basedir = os.path.join(path_to_run_tests, "tmp")
