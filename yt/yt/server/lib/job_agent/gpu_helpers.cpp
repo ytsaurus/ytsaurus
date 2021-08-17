@@ -89,9 +89,9 @@ THashMap<TString, int> GetGpuIds(TDuration checkTimeout)
     subprocess.AddArguments({ "-q" });
 
     auto killCookie = TDelayedExecutor::Submit(
-        BIND([&] () {
+        BIND([process=subprocess.GetProcess()] () {
             try {
-                subprocess.Kill(SIGKILL);
+                process->Kill(SIGKILL);
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR(ex, "Failed to kill nvidia-smi process");
             }

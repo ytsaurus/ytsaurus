@@ -120,6 +120,11 @@ TString TSubprocess::GetCommandLine() const
 {
     return Process_->GetCommandLine();
 }
+    
+TProcessBasePtr TSubprocess::GetProcess() const
+{
+    return Process_;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
