@@ -1,5 +1,10 @@
 #pragma once
 
+///
+/// @file mapreduce/yt/interface/common.h
+///
+/// Header containing miscelaneous structs and classes used in library.
+
 #include "fwd.h"
 
 #include <statbox/ydl/runtime/cpp/traits/traits.h>
@@ -22,6 +27,8 @@
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+/// @cond Doxygen_Suppress
 
 #define FLUENT_FIELD(type, name) \
     type name##_; \
@@ -138,7 +145,6 @@ public: \
         name##s_ = std::move(values); \
         return static_cast<TSelf&>(*this);\
     }
-    
 
 #define FLUENT_VECTOR_FIELD_ENCAPSULATED(type, name) \
 private: \
@@ -180,6 +186,8 @@ public: \
         name##_.emplace(key, value); \
         return static_cast<TSelf&>(*this);\
     }
+
+/// @endcond
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -239,8 +247,13 @@ struct TOneOrMany
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
+/// @brief Type of the value that can occur in YT table.
+///
+/// @ref NYT::TTableSchema
 enum EValueType : int
 {
+/// @cond Doxygen_Suppress
     VT_INT64,
 
     VT_UINT64,
@@ -272,20 +285,35 @@ enum EValueType : int
 
     VT_FLOAT,
     VT_JSON,
+/// @endcond
 };
 
+///
+/// @brief Sort order.
+///
+/// @ref NYT::TTableSchema
 enum ESortOrder : int
 {
+    /// Ascending sort order.
     SO_ASCENDING    /* "ascending" */,
+    /// Descending sort order.
     SO_DESCENDING   /* "descending" */,
 };
 
+///
+/// @brief Value of "optimize_for" attribute.
+///
+/// @ref NYT::TRichYPath
 enum EOptimizeForAttr : i8
 {
     OF_SCAN_ATTR    /* "scan" */,
     OF_LOOKUP_ATTR  /* "lookup" */,
 };
 
+///
+/// @brief Value of "erasure_codec" attribute.
+///
+/// @ref NYT::TRichYPath
 enum EErasureCodecAttr : i8
 {
     EC_NONE_ATTR                /* "none" */,
