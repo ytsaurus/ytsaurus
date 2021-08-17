@@ -1061,6 +1061,7 @@ private:
     // are not accumulated, and (2) job statistics don't provide per tree granularity.
     //! Aggregated total time of jobs per tree.
     THashMap<TString, i64> TotalTimePerTree_;
+    THashMap<TString, i64> MainResourceConsumptionPerTree_;
     NProfiling::TCpuInstant LastJobMetricsDeltaReportTime_ = 0;
 
     //! Aggregated schedule job statistics.
