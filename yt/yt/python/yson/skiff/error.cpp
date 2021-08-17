@@ -15,9 +15,7 @@ Py::Exception CreateSkiffError(const TString& message, const TError& error, TSki
 {
     auto innerErrors = NYTree::ConvertTo<Py::Object>(std::vector<TError>({error}));
 
-    thread_local auto skiffErrorClass = Py::Object(
-        GetModuleAttribute("yt.wrapper.schema", "SkiffError"),
-        /*owned*/ true);
+    static auto* skiffErrorClass = GetModuleAttribute("yt.wrapper.schema", "SkiffError");
 
     Py::Dict attributes;
     if (rowContext) {

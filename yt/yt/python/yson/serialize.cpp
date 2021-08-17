@@ -40,11 +40,11 @@ namespace NYTree {
 
 static void ValidateKeyType(const Py::Object& key, TContext* context = nullptr)
 {
-    thread_local auto YsonStringProxyClass = PyObjectPtr(FindYsonTypeClass("YsonStringProxy"));
+    static auto* YsonStringProxyClass = FindYsonTypeClass("YsonStringProxy");
 
     if (!PyBytes_Check(key.ptr()) &&
         !PyUnicode_Check(key.ptr()) &&
-        !(YsonStringProxyClass && PyObject_IsInstance(key.ptr(), YsonStringProxyClass.get())))
+        !(YsonStringProxyClass && PyObject_IsInstance(key.ptr(), YsonStringProxyClass)))
     {
         if (context) {
             throw CreateYsonError(Format("Map key should be string, found %Qv", Py::Repr(key)), context);
@@ -176,9 +176,9 @@ void SerializeMapFragment(
 
 void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TContext* context)
 {
-    thread_local auto YsonBooleanClass = PyObjectPtr(GetYsonTypeClass("YsonBoolean"));
-    thread_local auto YsonUint64Class = PyObjectPtr(GetYsonTypeClass("YsonUint64"));
-    thread_local auto YsonInt64Class = PyObjectPtr(GetYsonTypeClass("YsonInt64"));
+    static auto* YsonBooleanClass = GetYsonTypeClass("YsonBoolean");
+    static auto* YsonUint64Class = GetYsonTypeClass("YsonUint64");
+    static auto* YsonInt64Class = GetYsonTypeClass("YsonInt64");
 
     // TODO(asaitgalin): Make singleton with all global variables and
     // free all objects there before interpreter exit.
@@ -222,17 +222,17 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TCon
 
     if (PyLong_CheckExact(obj.ptr())) {
         consumeAsLong();
-    } else if (PyObject_IsInstance(obj.ptr(), YsonBooleanClass.get())) {
+    } else if (PyObject_IsInstance(obj.ptr(), YsonBooleanClass)) {
         // YsonBoolean inherited from int
         consumer->OnBooleanScalar(Py::Boolean(obj));
-    } else if (PyObject_IsInstance(obj.ptr(), YsonUint64Class.get())) {
+    } else if (PyObject_IsInstance(obj.ptr(), YsonUint64Class)) {
         auto value = static_cast<ui64>(Py::LongLong(obj));
         if (PyErr_Occurred()) {
             PyErr_Clear();
             throw CreateYsonError("Can not dump negative integer as YSON uint64", context);
         }
         consumer->OnUint64Scalar(value);
-    } else if (PyObject_IsInstance(obj.ptr(), YsonInt64Class.get())) {
+    } else if (PyObject_IsInstance(obj.ptr(), YsonInt64Class)) {
         auto value = static_cast<i64>(Py::LongLong(obj));
         if (PyErr_Occurred()) {
             PyErr_Clear();
@@ -265,8 +265,8 @@ void Serialize(
     int depth,
     TContext* context)
 {
-    thread_local auto YsonEntityClass = PyObjectPtr(GetYsonTypeClass("YsonEntity"));
-    thread_local auto YsonStringProxyClass = PyObjectPtr(FindYsonTypeClass("YsonStringProxy"));
+    static auto* YsonEntityClass = GetYsonTypeClass("YsonEntity");
+    static auto* YsonStringProxyClass = FindYsonTypeClass("YsonStringProxy");
 
     std::unique_ptr<TContext> contextHolder;
     if (!context) {
@@ -304,7 +304,7 @@ void Serialize(
         consumer->OnBooleanScalar(Py::Boolean(obj));
     } else if (Py::IsInteger(obj)) {
         SerializePythonInteger(obj, consumer, context);
-    } else if (YsonStringProxyClass && Py_TYPE(obj.ptr()) == reinterpret_cast<PyTypeObject*>(YsonStringProxyClass.get())) {
+    } else if (YsonStringProxyClass && Py_TYPE(obj.ptr()) == reinterpret_cast<PyTypeObject*>(YsonStringProxyClass)) {
         consumer->OnStringScalar(ConvertToStringBuf(obj.getAttr("_bytes")));
     } else if (obj.hasAttr("to_yson_type") && obj.getAttr("to_yson_type").isCallable()) {
         auto repr = obj.callMemberFunction("to_yson_type");
@@ -332,7 +332,7 @@ void Serialize(
         consumer->OnEndList();
     } else if (Py::IsFloat(obj)) {
         consumer->OnDoubleScalar(Py::Float(obj));
-    } else if (obj.isNone() || Py_TYPE(obj.ptr()) == reinterpret_cast<PyTypeObject*>(YsonEntityClass.get())) {
+    } else if (obj.isNone() || Py_TYPE(obj.ptr()) == reinterpret_cast<PyTypeObject*>(YsonEntityClass)) {
         consumer->OnEntity();
     } else {
         throw CreateYsonError(
