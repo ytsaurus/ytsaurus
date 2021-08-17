@@ -27,11 +27,8 @@ type ClientTest struct {
 }
 
 func RunClientTests(t *testing.T, tests []ClientTest) {
-	httpClient, err := ythttp.NewClient(&yt.Config{Proxy: os.Getenv("YT_PROXY"), Logger: ytlog.Must()})
-	require.NoError(t, err)
-
-	rpcClient, err := ytrpc.NewClient(&yt.Config{Proxy: os.Getenv("YT_PROXY"), Logger: ytlog.Must()})
-	require.NoError(t, err)
+	httpClient := NewHTTPClient(t)
+	rpcClient := NewRPCClient(t)
 
 	for _, tc := range []struct {
 		name   string
@@ -48,4 +45,22 @@ func RunClientTests(t *testing.T, tests []ClientTest) {
 			}
 		})
 	}
+}
+
+func NewHTTPClient(t *testing.T) yt.Client {
+	t.Helper()
+
+	yc, err := ythttp.NewClient(&yt.Config{Proxy: os.Getenv("YT_PROXY"), Logger: ytlog.Must()})
+	require.NoError(t, err)
+
+	return yc
+}
+
+func NewRPCClient(t *testing.T) yt.Client {
+	t.Helper()
+
+	yc, err := ytrpc.NewClient(&yt.Config{Proxy: os.Getenv("YT_PROXY"), Logger: ytlog.Must()})
+	require.NoError(t, err)
+
+	return yc
 }

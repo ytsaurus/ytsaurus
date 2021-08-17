@@ -320,7 +320,7 @@ func TestAbortCommittedTabletTx(t *testing.T) {
 	}
 }
 
-func TestLockRows(t *testing.T) {
+func TestLockRows(t *testing.T) { // todo rewrite as suite test after LockRows is implemented in rpc client
 	t.Parallel()
 
 	env := yttest.New(t)

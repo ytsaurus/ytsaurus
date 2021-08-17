@@ -42,4 +42,6 @@ const (
 	MethodListOperations            Method = "ListOperations"
 	MethodListJobs                  Method = "ListJobs"
 	MethodGenerateTimestamps        Method = "GenerateTimestamps"
+	MethodLockNode                  Method = "LockNode"
+	MethodUnlockNode                Method = "UnlockNode"
 )

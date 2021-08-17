@@ -919,7 +919,7 @@ func (e *Encoder) startTx(
 		Type:                       &txType,
 		Timeout:                    convertDuration(opts.Timeout),
 		Id:                         nil, // todo
-		ParentId:                   nil, // todo
+		ParentId:                   convertParentTxID(opts.TransactionID),
 		AutoAbort:                  nil, // todo
 		Sticky:                     &opts.Sticky,
 		Ping:                       &opts.Ping,
@@ -1479,6 +1479,75 @@ func (e *Encoder) GetJobStderr(
 	return nil, xerrors.New("implement me")
 }
 
+func (e *Encoder) LockNode(
+	ctx context.Context,
+	path ypath.YPath,
+	mode yt.LockMode,
+	opts *yt.LockNodeOptions,
+) (lr yt.LockResult, err error) {
+	if opts == nil {
+		opts = &yt.LockNodeOptions{}
+	}
+
+	lockMode, err := convertLockMode(mode)
+	if err != nil {
+		return yt.LockResult{}, err
+	}
+
+	req := &rpc_proxy.TReqLockNode{
+		Path:                 ptr.String(path.YPath().String()),
+		Mode:                 ptr.Int32(int32(lockMode)),
+		Waitable:             &opts.Waitable,
+		ChildKey:             opts.ChildKey,
+		AttributeKey:         opts.AttributeKey,
+		TransactionalOptions: convertTransactionOptions(opts.TransactionOptions),
+		PrerequisiteOptions:  nil, // todo
+		MutatingOptions:      convertMutatingOptions(opts.MutatingOptions),
+	}
+
+	call := e.newCall(MethodLockNode, NewLockNodeRequest(req), nil)
+
+	var rsp rpc_proxy.TRspLockNode
+	err = e.Invoke(ctx, call, &rsp)
+	if err != nil {
+		return
+	}
+
+	lr, err = makeLockNodeResult(&rsp)
+	if err != nil {
+		return yt.LockResult{}, xerrors.Errorf("unable to deserializer response: %w", err)
+	}
+
+	return
+}
+
+func (e *Encoder) UnlockNode(
+	ctx context.Context,
+	path ypath.YPath,
+	opts *yt.UnlockNodeOptions,
+) (err error) {
+	if opts == nil {
+		opts = &yt.UnlockNodeOptions{}
+	}
+
+	req := &rpc_proxy.TReqUnlockNode{
+		Path:                 ptr.String(path.YPath().String()),
+		TransactionalOptions: convertTransactionOptions(opts.TransactionOptions),
+		PrerequisiteOptions:  nil, // todo
+		MutatingOptions:      convertMutatingOptions(opts.MutatingOptions),
+	}
+
+	call := e.newCall(MethodUnlockNode, NewUnlockNodeRequest(req), nil)
+
+	var rsp rpc_proxy.TRspUnlockNode
+	err = e.Invoke(ctx, call, &rsp)
+	if err != nil {
+		return
+	}
+
+	return
+}
+
 func (e *Encoder) GenerateTimestamp(
 	ctx context.Context,
 	opts *yt.GenerateTimestampOptions,
@@ -1514,12 +1583,5 @@ func (e *Encoder) GetInSyncReplicas(
 	keys []interface{},
 	opts *yt.GetInSyncReplicasOptions,
 ) (ids []yt.NodeID, err error) {
-	return nil, xerrors.New("implement me")
-}
-
-func (e *Encoder) BeginTx(
-	ctx context.Context,
-	opts *yt.StartTxOptions,
-) (tx yt.Tx, err error) {
 	return nil, xerrors.New("implement me")
 }

@@ -26,15 +26,13 @@ type ConnPool interface {
 	Close() error
 }
 
-type dialFunc func(ctx context.Context, addr string) (*bus.ClientConn, error)
-
 type lruConnPool struct {
 	dialLock sync.Mutex
-	dialFunc dialFunc
+	dialFunc Dialer
 	cache    *ccache.Cache
 }
 
-func NewLRUConnPool(dialFunc dialFunc, size int) *lruConnPool {
+func NewLRUConnPool(dialFunc Dialer, size int) *lruConnPool {
 	p := &lruConnPool{
 		dialFunc: dialFunc,
 		cache: ccache.New(ccache.Configure().

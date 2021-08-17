@@ -3,11 +3,12 @@ package rpcclient
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"a.yandex-team.ru/library/go/ptr"
 	"a.yandex-team.ru/library/go/test/requirepb"
 	"a.yandex-team.ru/yt/go/proto/client/api/rpc_proxy"
 	"a.yandex-team.ru/yt/go/yt"
-	"github.com/stretchr/testify/require"
 )
 
 func TestConvertOperationType(t *testing.T) {
@@ -462,6 +463,32 @@ func TestConvertTableReplicaMode(t *testing.T) {
 				} else {
 					require.Equal(t, *tc.expected, *converted)
 				}
+			}
+		})
+	}
+}
+
+func TestConvertLockMode(t *testing.T) {
+	unexpectedMode := yt.LockMode("unexpected")
+
+	for _, tc := range []struct {
+		name     string
+		mode     yt.LockMode
+		expected LockMode
+		err      bool
+	}{
+		{name: "Snapshot", mode: yt.LockSnapshot, expected: LockModeSnapshot},
+		{name: "Shared", mode: yt.LockShared, expected: LockModeShared},
+		{name: "Exclusive", mode: yt.LockExclusive, expected: LockModeExclusive},
+		{name: "unexpected", mode: unexpectedMode, err: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			converted, err := convertLockMode(tc.mode)
+			if tc.err {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.expected, converted)
 			}
 		})
 	}

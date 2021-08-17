@@ -72,10 +72,10 @@ func NewClient(conf *yt.Config) (*client, error) {
 
 	c.proxySet = &internal.ProxySet{UpdateFn: c.listRPCProxies}
 
-	c.connPool = NewLRUConnPool(func(ctx context.Context, addr string) (*bus.ClientConn, error) {
+	c.connPool = NewLRUConnPool(func(ctx context.Context, addr string) (BusConn, error) {
 		clientOpts := []bus.ClientOption{
 			bus.WithLogger(c.log.Logger()),
-			bus.WithDefaultProtocolVersionMajor(1),
+			bus.WithDefaultProtocolVersionMajor(ProtocolVersionMajor),
 		}
 		return bus.NewClient(ctx, addr, clientOpts...)
 	}, connPoolSize)
@@ -153,12 +153,6 @@ func (c *client) invoke(
 	}
 	call.SelectedProxy = addr
 
-	conn, err := c.connPool.Conn(ctx, addr)
-	if err != nil {
-		return err
-	}
-	c.log.Debug("got bus conn", log.String("fqdn", addr))
-
 	opts = append(opts,
 		bus.WithRequestID(call.CallID),
 		bus.WithToken(c.token),
@@ -167,7 +161,20 @@ func (c *client) invoke(
 		opts = append(opts, bus.WithAttachments(call.Attachments...))
 	}
 
+	conn, err := c.getConn(ctx, addr)
+	if err != nil {
+		return err
+	}
+
 	return conn.Send(ctx, "ApiService", string(call.Method), call.Req, rsp, opts...)
+}
+
+func (c *client) getConn(ctx context.Context, addr string) (BusConn, error) {
+	dial, ok := GetDialer(ctx)
+	if ok {
+		return dial(ctx, addr)
+	}
+	return c.connPool.Conn(ctx, addr)
 }
 
 func (c *client) Stop() {
