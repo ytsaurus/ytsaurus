@@ -3,8 +3,8 @@ package ru.yandex.spark.launcher
 import io.circe.generic.auto._
 import io.circe.parser._
 import org.slf4j.{Logger, LoggerFactory}
-import ru.yandex.spark.launcher.HistoryServerLauncher.log
 import ru.yandex.spark.launcher.Service.{BasicService, MasterService}
+import ru.yandex.spark.yt.wrapper.Utils.parseDuration
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 import ru.yandex.spark.yt.wrapper.discovery.{Address, CypressDiscoveryService, DiscoveryService}
@@ -26,17 +26,32 @@ trait SparkLauncher {
   private val workerClass = "org.apache.spark.deploy.worker.Worker"
   private val historyServerClass = "org.apache.spark.deploy.history.HistoryServer"
 
+  case class SparkDaemonConfig(memory: String,
+                               startTimeout: Duration)
+
+  object SparkDaemonConfig {
+    def fromProperties(daemonName: String,
+                       defaultMemory: String): SparkDaemonConfig = {
+      SparkDaemonConfig(
+        sparkSystemProperties.getOrElse(s"spark.$daemonName.memory", defaultMemory),
+        sparkSystemProperties.get(s"spark.$daemonName.timeout").map(parseDuration).getOrElse(5 minutes)
+      )
+    }
+  }
+
   def startMaster: MasterService = {
     log.info("Start Spark master")
-    val thread = runSparkThread(masterClass, "512M", namedArgs = Map("host" -> Utils.ytHostnameOrIpAddress))
-    val address = readAddressOrDie("master", 5 minutes, thread)
+    val config = SparkDaemonConfig.fromProperties("master", "512M")
+    val thread = runSparkThread(masterClass, config.memory, namedArgs = Map("host" -> Utils.ytHostnameOrIpAddress))
+    val address = readAddressOrDie("master", config.startTimeout, thread)
     MasterService("Master", address, thread)
   }
 
   def startWorker(master: Address, cores: Int, memory: String): BasicService = {
+    val config = SparkDaemonConfig.fromProperties("worker", "512M")
     val thread = runSparkThread(
       workerClass,
-      "256M",
+      config.memory,
       namedArgs = Map(
         "cores" -> cores.toString,
         "memory" -> memory,
@@ -44,26 +59,25 @@ trait SparkLauncher {
       ),
       positionalArgs = Seq(s"spark://${master.hostAndPort}")
     )
-    val address = readAddressOrDie("worker", 5 minutes, thread)
+    val address = readAddressOrDie("worker", config.startTimeout, thread)
 
     BasicService("Worker", address.hostAndPort, thread)
   }
 
   def startHistoryServer(path: String, memory: String, discoveryService: DiscoveryService): BasicService = {
     val javaOpts = Seq(
-      discoveryService.masterWrapperEndpoint()
-        .map(hp => s"-Dspark.hadoop.yt.masterWrapper.url=$hp"),
-      Some("-agentpath:/slot/sandbox/YourKit-JavaProfiler-2019.8/bin/linux-x86-64/libyjpagent.so=port=27111,listen=all")
-        .filter(_ => isProfilingEnabled),
+      discoveryService.masterWrapperEndpoint().map(hp => s"-Dspark.hadoop.yt.masterWrapper.url=$hp"),
+      Some(profilingJavaOpt(27111)).filter(_ => isProfilingEnabled),
       Some(s"-Dspark.history.fs.logDirectory=$path")
     )
+    val config = SparkDaemonConfig.fromProperties("history", memory)
 
     val thread = runSparkThread(
       historyServerClass,
-      memory,
+      config.memory,
       systemProperties = javaOpts.flatten
     )
-    val address = readAddressOrDie("history", 5 minutes, thread)
+    val address = readAddressOrDie("history", config.startTimeout, thread)
     BasicService("Spark History Server", address.hostAndPort, thread)
   }
 
@@ -154,7 +168,8 @@ trait SparkLauncher {
     }
   }
 
-  def withDiscovery(ytConfig: YtClientConfiguration, discoveryPath: String)(f: (DiscoveryService, CompoundClient) => Unit): Unit = {
+  def withDiscovery(ytConfig: YtClientConfiguration, discoveryPath: String)
+                   (f: (DiscoveryService, CompoundClient) => Unit): Unit = {
     val client = YtWrapper.createRpcClient("discovery", ytConfig)
     try {
       val discoveryService = new CypressDiscoveryService(discoveryPath)(client.yt)
