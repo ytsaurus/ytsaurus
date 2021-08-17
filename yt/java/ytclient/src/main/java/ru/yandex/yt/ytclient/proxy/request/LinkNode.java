@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.proxy.request;
 import javax.annotation.Nonnull;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqLinkNode;
@@ -15,7 +16,11 @@ public class LinkNode extends CopyLikeReq<LinkNode> implements HighLevelRequest<
     }
 
     public LinkNode(YPath src, YPath dst) {
-        this(src.toString(), dst.toString());
+        this(src.justPath().toString(), dst.justPath().toString());
+    }
+
+    public LinkNode(LinkNode linkNode) {
+        super(linkNode);
     }
 
 
@@ -46,5 +51,10 @@ public class LinkNode extends CopyLikeReq<LinkNode> implements HighLevelRequest<
     @Override
     protected LinkNode self() {
         return this;
+    }
+
+    @Override
+    public YTreeBuilder toTree(YTreeBuilder builder) {
+        return super.toTree(builder, "target_path", "link_path");
     }
 }
