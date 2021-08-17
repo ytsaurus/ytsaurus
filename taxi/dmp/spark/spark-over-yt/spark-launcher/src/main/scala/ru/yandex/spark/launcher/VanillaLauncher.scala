@@ -40,6 +40,9 @@ trait VanillaLauncher {
     }
   }
 
+  def profilingJavaOpt(port: Int) =
+    s"-agentpath:/slot/sandbox/YourKit-JavaProfiler-2019.8/bin/linux-x86-64/libyjpagent.so=port=$port,listen=all"
+
   def isProfilingEnabled: Boolean = sparkSystemProperties.get("spark.hadoop.yt.profiling.enabled").exists(_.toBoolean)
 
   def prepareProfiler(): Unit = {

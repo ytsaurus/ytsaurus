@@ -4,8 +4,7 @@ import com.twitter.scalding.Args
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.launcher.WorkerLogLauncher.WorkerLogConfig
 import ru.yandex.spark.yt.wrapper.Utils.parseDuration
-import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.spark.yt.wrapper.YtWrapper.RichLogger
+import ru.yandex.spark.yt.wrapper.{LogLazy, YtWrapper}
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 import java.io.{File, RandomAccessFile}
@@ -85,7 +84,7 @@ object WorkerLogLauncher extends VanillaLauncher {
   }
 }
 
-class LogServiceRunnable(workerLogConfig: WorkerLogConfig)(implicit yt: CompoundClient) extends Runnable {
+class LogServiceRunnable(workerLogConfig: WorkerLogConfig)(implicit yt: CompoundClient) extends Runnable with LogLazy {
   val fileMeta: mutable.Map[String, (Long, Long)] = mutable.HashMap[String, (Long, Long)]().withDefaultValue((0L, 0L))
   val finishedPaths: mutable.Set[String] = mutable.HashSet[String]()
   private val log = LoggerFactory.getLogger(getClass)
@@ -165,7 +164,7 @@ class LogServiceRunnable(workerLogConfig: WorkerLogConfig)(implicit yt: Compound
   }
 
   def uploadLogs(): Unit = {
-    log.debug("Started scanning logs")
+    log.debugLazy("Started scanning logs")
     val appsFolder = new File(workerLogConfig.scanDirectory)
     appsFolder.list().foreach { dirName =>
       val fullPath = s"${appsFolder.getAbsolutePath}/$dirName"
@@ -183,6 +182,6 @@ class LogServiceRunnable(workerLogConfig: WorkerLogConfig)(implicit yt: Compound
     }
     writer.flush()
 
-    log.debug("Finished scanning logs")
+    log.debugLazy("Finished scanning logs")
   }
 }

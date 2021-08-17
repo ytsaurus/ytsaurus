@@ -2,14 +2,14 @@ package ru.yandex.spark.launcher
 
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.launcher.WorkerLogLauncher.WorkerLogConfig
-import ru.yandex.spark.yt.wrapper.YtWrapper
+import ru.yandex.spark.yt.wrapper.{LogLazy, YtWrapper}
 import ru.yandex.spark.yt.wrapper.model.WorkerLogSchema.schema
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 import java.time.LocalDate
 import scala.collection.mutable.ArrayBuffer
 
-class WorkerLogWriter(workerLogConfig: WorkerLogConfig)(implicit yt: CompoundClient) {
+class WorkerLogWriter(workerLogConfig: WorkerLogConfig)(implicit yt: CompoundClient) extends LogLazy {
   private val log = LoggerFactory.getLogger(getClass)
   private val buffer = new ArrayBuffer[WorkerLogBlock](workerLogConfig.bufferSize)
 
@@ -34,15 +34,15 @@ class WorkerLogWriter(workerLogConfig: WorkerLogConfig)(implicit yt: CompoundCli
       log.info(s"Flushing ${buffer.length} new log lines")
       val headDate = buffer.head.inner.date
       if (buffer.forall(log => log.inner.date == headDate)) {
-        log.debug("All logs have same date")
+        log.debugLazy("All logs have same date")
         uploadOneTable(headDate, buffer)
       } else {
-        log.debug("Not all logs have same date")
+        log.debugLazy("Not all logs have same date")
         buffer.groupBy(log => log.inner.date)
           .foreach { case (date, logs) => uploadOneTable(date, logs) }
       }
       buffer.clear()
-      log.debug("Finished flushing")
+      log.debugLazy("Finished flushing")
     }
   }
 
