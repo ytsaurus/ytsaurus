@@ -514,6 +514,30 @@ class TestUnavailableChunkStrategies(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
 
+    @authors("gepardo")
+    def test_unavailable_chunks_orchid(self):
+        self._prepare_tables()
+
+        node = self._get_table_chunk_node("//tmp/t_in")
+        set_banned_flag(True, [node])
+
+        op = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="cat",
+            spec={"unavailable_chunk_strategy": "wait"},
+        )
+
+        orchid_path = op.get_orchid_path()
+        wait(lambda: exists(orchid_path))
+        wait(lambda: get(orchid_path + "/unavailable_input_chunks") == [get_first_chunk_id("//tmp/t_in")])
+
+        set_banned_flag(False, [node])
+        wait(lambda: get(orchid_path + "/unavailable_input_chunks") == [])
+
+        op.track()
+
     @authors("ignat")
     def test_strategies_in_sort(self):
         v1 = {"key": "aaa"}

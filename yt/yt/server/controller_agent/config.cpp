@@ -21,7 +21,7 @@ TTestingOptions::TTestingOptions()
 
     RegisterParameter("rootfs_test_layers", RootfsTestLayers)
         .Default();
-    
+
     RegisterParameter("delay_in_unregistration", DelayInUnregistration)
         .Default();
 }
@@ -740,6 +740,9 @@ TControllerAgentConfig::TControllerAgentConfig()
         .Default(TDuration::Seconds(1));
 
     RegisterParameter("cached_running_jobs_update_period", CachedRunningJobsUpdatePeriod)
+        .Default();
+
+    RegisterParameter("cached_unavailable_chunks_update_period", CachedUnavailableChunksUpdatePeriod)
         .Default();
 
     RegisterParameter("tagged_memory_statistics_update_period", TaggedMemoryStatisticsUpdatePeriod)
