@@ -66,6 +66,7 @@ struct TPoolTreeControllerSettings
 {
     TSchedulingTagFilter SchedulingTagFilter;
     bool Tentative;
+    EJobResourceType MainResource;
 };
 
 using TPoolTreeControllerSettingsMap = THashMap<TString, TPoolTreeControllerSettings>;

@@ -125,6 +125,10 @@ TJobMetrics TJobMetrics::FromJobStatistics(
     metrics.Values()[EJobMetricName::TotalTimeOperationCompleted] = 0;
     metrics.Values()[EJobMetricName::TotalTimeOperationAborted] = 0;
     metrics.Values()[EJobMetricName::TotalTimeOperationFailed] = 0;
+    
+    metrics.Values()[EJobMetricName::MainResourceConsumptionOperationCompleted] = 0;
+    metrics.Values()[EJobMetricName::MainResourceConsumptionOperationAborted] = 0;
+    metrics.Values()[EJobMetricName::MainResourceConsumptionOperationFailed] = 0;
 
     metrics.Values()[EJobMetricName::AggregatedSmoothedCpuUsageX100] =
         FindNumericValue(statistics, "/job_proxy/aggregated_smoothed_cpu_usage_x100").value_or(0);

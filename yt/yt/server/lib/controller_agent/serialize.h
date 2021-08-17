@@ -32,6 +32,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((TinyJobSplittingFix)                  (300609))
     ((LastFieldInStatistics)                (300610))
     ((InputOutputTableSchemaId)             (300611))
+    ((MainResourceConsumptionPerTree)       (300612))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

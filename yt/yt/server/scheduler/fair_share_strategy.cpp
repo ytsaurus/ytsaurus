@@ -403,7 +403,8 @@ public:
                 treeName,
                 TPoolTreeControllerSettings{
                     .SchedulingTagFilter = tree->GetNodesFilter(),
-                    .Tentative = GetSchedulingOptionsPerPoolTree(state->GetHost(), treeName)->Tentative
+                    .Tentative = GetSchedulingOptionsPerPoolTree(state->GetHost(), treeName)->Tentative,
+                    .MainResource = tree->GetConfig()->MainResource,
                 });
         }
         return result;

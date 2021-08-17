@@ -7610,18 +7610,22 @@ void TOperationControllerBase::Dispose()
 
         for (auto& [treeId, metrics] : JobMetricsDeltaPerTree_) {
             auto totalTime = TotalTimePerTree_.at(treeId);
+            auto mainResourceConsumption = MainResourceConsumptionPerTree_.at(treeId);
 
             switch (State) {
                 case EControllerState::Completed:
                     metrics.Values()[EJobMetricName::TotalTimeOperationCompleted] = totalTime;
+                    metrics.Values()[EJobMetricName::MainResourceConsumptionOperationCompleted] = mainResourceConsumption;
                     break;
 
                 case EControllerState::Aborted:
                     metrics.Values()[EJobMetricName::TotalTimeOperationAborted] = totalTime;
+                    metrics.Values()[EJobMetricName::MainResourceConsumptionOperationAborted] = mainResourceConsumption;
                     break;
 
                 case EControllerState::Failed:
                     metrics.Values()[EJobMetricName::TotalTimeOperationFailed] = totalTime;
+                    metrics.Values()[EJobMetricName::MainResourceConsumptionOperationFailed] = mainResourceConsumption;
                     break;
 
                 default:
@@ -8349,6 +8353,8 @@ void TOperationControllerBase::UpdateJobMetrics(const TJobletPtr& joblet, const 
         }
 
         TotalTimePerTree_[joblet->TreeId] += delta.Values()[EJobMetricName::TotalTime];
+        MainResourceConsumptionPerTree_[joblet->TreeId] += delta.Values()[EJobMetricName::TotalTime] *
+            GetResource(joblet->ResourceLimits, PoolTreeControllerSettingsMap_[joblet->TreeId].MainResource);
     }
 }
 
@@ -9071,6 +9077,10 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, AutoMergeEnabled_);
     Persist(context, InputHasOrderedDynamicStores_);
     Persist(context, StandardStreamDescriptors_);
+    
+    if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::MainResourceConsumptionPerTree) {
+        Persist(context, MainResourceConsumptionPerTree_);
+    }
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already initialized.

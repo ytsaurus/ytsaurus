@@ -41,6 +41,10 @@ DEFINE_ENUM(EJobMetricName,
     (TotalTimeOperationCompleted)
     (TotalTimeOperationFailed)
     (TotalTimeOperationAborted)
+    
+    (MainResourceConsumptionOperationCompleted)
+    (MainResourceConsumptionOperationFailed)
+    (MainResourceConsumptionOperationAborted)
 );
 
 DEFINE_ENUM(ESummaryValueType,

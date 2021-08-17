@@ -11,6 +11,8 @@ from yt_commands import (
 
 from yt_helpers import Profiler
 
+from yt.test_helpers import are_almost_equal
+
 import pytest
 from flaky import flaky
 
@@ -279,11 +281,24 @@ class TestPoolMetrics(YTEnvSetup):
             for pool in pools
         }
 
+        main_resource_consumption_operation_completed_counter = {
+            pool: profiler.counter("scheduler/pools/metrics/main_resource_consumption_operation_completed", tags={"pool": pool})
+            for pool in pools
+        }
+        main_resource_consumption_operation_failed_counter = {
+            pool: profiler.counter("scheduler/pools/metrics/main_resource_consumption_operation_failed", tags={"pool": pool})
+            for pool in pools
+        }
+        main_resource_consumption_operation_aborted_counter = {
+            pool: profiler.counter("scheduler/pools/metrics/main_resource_consumption_operation_aborted", tags={"pool": pool})
+            for pool in pools
+        }
+
         op1 = map(
             command=("sleep 5; cat"),
             in_="//tmp/t_input",
             out="//tmp/t_output_1",
-            spec={"pool": "child1"},
+            spec={"pool": "child1", "mapper": {"cpu_limit": 0.5}},
             track=False,
         )
         op2 = map(
@@ -328,6 +343,16 @@ class TestPoolMetrics(YTEnvSetup):
             + total_time_operation_failed_counter["parent"].get()
             + total_time_operation_aborted_counter["parent"].get()
             > 0
+        )
+
+        # We have high relative error due to rounding issues.
+        wait(
+            lambda: are_almost_equal(
+                total_time_counter["parent"].get(),
+                2.0 * main_resource_consumption_operation_completed_counter["parent"].get()
+                + main_resource_consumption_operation_failed_counter["parent"].get()
+                + main_resource_consumption_operation_aborted_counter["parent"].get(),
+                relative_error=0.05)
         )
 
     # Temporarily flaky due to YT-12207.

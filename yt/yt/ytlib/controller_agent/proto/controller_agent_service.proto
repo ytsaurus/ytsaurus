@@ -70,6 +70,7 @@ message TPoolTreeControllerSettings
     required string tree_name = 1;
     required string scheduling_tag_filter = 2;
     required bool tentative = 3;
+    optional int32 main_resource = 4;
 }
 
 message TPoolTreeControllerSettingsMap
