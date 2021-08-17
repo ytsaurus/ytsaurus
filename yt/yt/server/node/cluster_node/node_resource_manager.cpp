@@ -156,7 +156,9 @@ void TNodeResourceManager::UpdateMemoryLimits()
     auto externalMemory = std::max(
         memoryUsageTracker->GetLimit(EMemoryCategory::UserJobs),
         memoryUsageTracker->GetUsed(EMemoryCategory::UserJobs));
-    auto selfMemoryGuarantee = TotalMemory_ - externalMemory;
+    auto selfMemoryGuarantee = std::max(
+        static_cast<i64>(0),
+        TotalMemory_ - externalMemory - config->MemoryAccountingGap);
     if (std::abs(selfMemoryGuarantee - SelfMemoryGuarantee_) > config->MemoryAccountingTolerance) {
         SelfMemoryGuarantee_ = selfMemoryGuarantee;
         SelfMemoryGuaranteeUpdated_.Fire(SelfMemoryGuarantee_);

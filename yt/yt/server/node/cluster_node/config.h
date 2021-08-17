@@ -118,6 +118,7 @@ public:
     double NodeCpuWeight;
 
     i64 MemoryAccountingTolerance;
+    i64 MemoryAccountingGap;
 
     TResourceLimitsConfig()
     {
@@ -159,6 +160,10 @@ public:
             .GreaterThan(0)
             .LessThanOrEqual(1_GB)
             .Default(1_MB);
+
+        RegisterParameter("memory_accounting_gap", MemoryAccountingGap)
+            .GreaterThan(0)
+            .Default(512_MB);
 
         RegisterPreprocessor([&] {
             // Default LookupRowsCache memory limit.
