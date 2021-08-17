@@ -81,7 +81,7 @@ def main(ya_make_built=True):
             "yt": {
                 "settings": {
                     "composite": {
-                        "default_yson_format": "pretty",
+                        "default_yson_format": "unescaped_pretty",
                     },
                 },
             },
