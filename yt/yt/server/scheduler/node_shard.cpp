@@ -180,6 +180,9 @@ IInvokerPtr TNodeShard::OnMasterConnected(const TNodeShardMasterHandshakeResult&
     YT_VERIFY(!Connected_);
     Connected_ = true;
 
+    WaitingForRegisterOperationIds_.clear();
+    WaitingForRegisterOperationIds_.insert(std::cbegin(result.OperationIds), std::cend(result.OperationIds));
+
     YT_VERIFY(!CancelableContext_);
     CancelableContext_ = New<TCancelableContext>();
     CancelableInvoker_ = CancelableContext_->CreateInvoker(GetInvoker());
@@ -267,6 +270,8 @@ void TNodeShard::RegisterOperation(
         operationId,
         TOperationState(controller, jobsReady, CurrentEpoch_++, controllerEpoch)
     ).second);
+
+    WaitingForRegisterOperationIds_.erase(operationId);
 
     YT_LOG_DEBUG("Operation registered at node shard (OperationId: %v, JobsReady: %v)",
         operationId,
@@ -1854,7 +1859,9 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         // We can decide what to do with the job of an operation only when all
         // TJob structures of the operation are materialized. Also we should
         // not remove the completed jobs that were not saved to the snapshot.
-        if (operation && !operation->JobsReady) {
+        if ((operation && !operation->JobsReady) ||
+            WaitingForRegisterOperationIds_.find(operationId) != std::cend(WaitingForRegisterOperationIds_))
+        {
             if (!operation->OperationUnreadyLoggedJobIds.contains(jobId)) {
                 YT_LOG_DEBUG("Job is skipped since operation jobs are not ready yet");
                 operation->OperationUnreadyLoggedJobIds.insert(jobId);

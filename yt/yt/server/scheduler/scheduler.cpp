@@ -2115,14 +2115,25 @@ private:
             auto segmentsInitializationDeadline = TInstant::Now() + Config_->SchedulingSegmentsInitializationTimeout;
             NodeSchedulingSegmentManager_.SetNodeSegmentsInitializationDeadline(segmentsInitializationDeadline);
 
-            TNodeShardMasterHandshakeResult nodeShardResult{
+            const auto getOperationIds = [&operations{result.Operations}] {
+                std::vector<TOperationId> operationIds;
+                operationIds.reserve(std::size(operations));
+
+                for (const auto& operation : operations) {
+                    operationIds.push_back(operation->GetId());
+                }
+
+                return operationIds;
+            };
+            const TNodeShardMasterHandshakeResult nodeShardResult{
                 .InitialSchedulingSegmentsState = result.SchedulingSegmentsState,
                 .SchedulingSegmentInitializationDeadline = segmentsInitializationDeadline,
+                .OperationIds = getOperationIds(),
             };
 
             std::vector<TFuture<IInvokerPtr>> asyncInvokers;
             for (const auto& nodeShard : NodeShards_) {
-                asyncInvokers.push_back(BIND(&TNodeShard::OnMasterConnected, nodeShard, nodeShardResult)
+                asyncInvokers.push_back(BIND(&TNodeShard::OnMasterConnected, nodeShard, ConstRef(nodeShardResult))
                     .AsyncVia(nodeShard->GetInvoker())
                     .Run());
             }
