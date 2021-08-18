@@ -30,6 +30,8 @@ DEFINE_ENUM(EPerfEvents,
     (EmulationFaults)
     (DataTlbReferences)
     (DataTlbMisses)
+    (DataStoreTlbReferences)
+    (DataStoreTlbMisses)
     (InstructionTlbReferences)
     (InstructionTlbMisses)
     (LocalMemoryReferences)

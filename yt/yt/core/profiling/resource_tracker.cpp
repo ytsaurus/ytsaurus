@@ -83,26 +83,47 @@ enum class ECacheEventType
     Miss,
 };
 
-TPerfEventDescription CacheEvent(const int perfName, const ECacheEventType eventType) noexcept 
+enum class ECacheActionType
+{
+    Load,
+    Store,
+};
+
+TPerfEventDescription CacheEvent(
+    const int perfName,
+    const ECacheActionType eventType,
+    const ECacheEventType eventResultType) noexcept 
 {
     constexpr auto kEventNameShift = 0;
     constexpr auto kCacheActionTypeShift = 8;
     constexpr auto kEventTypeShift = 16;
 
-    const int eventTypeForConfig = [&] {
+    const int cacheActionTypeForConfig = [&] {
         switch (eventType)
+        {
+            case ECacheActionType::Load:
+                return PERF_COUNT_HW_CACHE_OP_READ;
+            case ECacheActionType::Store:
+                return PERF_COUNT_HW_CACHE_OP_WRITE;
+            default:
+                YT_ABORT();
+        }
+    }();
+    
+    const int eventTypeForConfig = [&] {
+        switch (eventResultType)
         {
             case ECacheEventType::Access:
                 return PERF_COUNT_HW_CACHE_RESULT_ACCESS;
             case ECacheEventType::Miss:
                 return PERF_COUNT_HW_CACHE_RESULT_MISS;
             default:
-                YT_VERIFY(false);
+                YT_ABORT();
         }
     }();
 
     const int eventConfig = (perfName << kEventNameShift) | 
-        (PERF_COUNT_HW_CACHE_OP_READ << kCacheActionTypeShift) | 
+        (cacheActionTypeForConfig << kCacheActionTypeShift) | 
         (eventTypeForConfig << kEventTypeShift);
 
     return {PERF_TYPE_HW_CACHE, eventConfig};
@@ -128,15 +149,17 @@ const TPerfEventDescription EventDescriptions[] = {
     SoftwareEvent(PERF_COUNT_SW_ALIGNMENT_FAULTS),
     SoftwareEvent(PERF_COUNT_SW_EMULATION_FAULTS),
 
-    CacheEvent(PERF_COUNT_HW_CACHE_DTLB, ECacheEventType::Access),
-    CacheEvent(PERF_COUNT_HW_CACHE_DTLB, ECacheEventType::Miss),
+    CacheEvent(PERF_COUNT_HW_CACHE_DTLB, ECacheActionType::Load, ECacheEventType::Access),
+    CacheEvent(PERF_COUNT_HW_CACHE_DTLB, ECacheActionType::Load, ECacheEventType::Miss),
+    CacheEvent(PERF_COUNT_HW_CACHE_DTLB, ECacheActionType::Store, ECacheEventType::Access),
+    CacheEvent(PERF_COUNT_HW_CACHE_DTLB, ECacheActionType::Store, ECacheEventType::Miss),
 
     // Apparently it doesn't make sense to treat these values as relative:
     // https://stackoverflow.com/questions/49933319/how-to-interpret-perf-itlb-loads-itlb-load-misses
-    CacheEvent(PERF_COUNT_HW_CACHE_ITLB, ECacheEventType::Access),
-    CacheEvent(PERF_COUNT_HW_CACHE_ITLB, ECacheEventType::Miss),
-    CacheEvent(PERF_COUNT_HW_CACHE_NODE, ECacheEventType::Access),
-    CacheEvent(PERF_COUNT_HW_CACHE_NODE, ECacheEventType::Miss),
+    CacheEvent(PERF_COUNT_HW_CACHE_ITLB, ECacheActionType::Load, ECacheEventType::Access),
+    CacheEvent(PERF_COUNT_HW_CACHE_ITLB, ECacheActionType::Load, ECacheEventType::Miss),
+    CacheEvent(PERF_COUNT_HW_CACHE_NODE, ECacheActionType::Load, ECacheEventType::Access),
+    CacheEvent(PERF_COUNT_HW_CACHE_NODE, ECacheActionType::Load, ECacheEventType::Miss),
 };
 
 int OpenPerfEvent(const int tid, const int eventType, const int eventConfig) 
