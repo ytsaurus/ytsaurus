@@ -43,6 +43,7 @@ OPTION_NAME_MAPPING = {
     "NUM_CONTROLLER_AGENTS": "controller_agent_count",
     "DELTA_MASTER_CONFIG": "master_config",
     "RPC_PROXY_COUNT": "rpc_proxy_count",
+    "RPC_PROXY_CONFIG": "rpc_proxy_config"
 }
 
 
@@ -86,6 +87,7 @@ def start(args):
         set_env("YT_DRIVER_CONFIG_PATH", yt_instance.config_paths["driver"])
         set_env("YT_DRIVER_LOGGING_CONFIG_PATH", yt_instance.config_paths["driver_logging"])
     elif driver_backend == "rpc":
+        set_env("YT_NATIVE_DRIVER_CONFIG_PATH", yt_instance.config_paths["driver"])
         set_env("YT_DRIVER_CONFIG_PATH", yt_instance.config_paths["rpc_driver"])
         set_env("YT_DRIVER_LOGGING_CONFIG_PATH", yt_instance.config_paths["driver_logging"])
     else:
