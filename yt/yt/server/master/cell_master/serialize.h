@@ -178,6 +178,7 @@ DEFINE_ENUM(EMasterReign,
     ((DropDanglingChunkViews)                                       (1651))  // ifsmirnov
     ((SyncAlienCells)                                               (1652))  // savrus
     ((ErasureInMemory)                                              (1653))  // akozhikhov
+    ((FixPreserveOwnerUnderTx)                                      (1654))  // aleksandra-zh
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1700))  // ignat
 );
