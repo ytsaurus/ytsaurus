@@ -117,6 +117,7 @@ struct TNodeShardMasterHandshakeResult
 {
     TPersistentSchedulingSegmentsStatePtr InitialSchedulingSegmentsState;
     TInstant SchedulingSegmentInitializationDeadline;
+    std::vector<TOperationId> OperationIds;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -311,6 +312,7 @@ private:
     };
 
     THashMap<TOperationId, TOperationState> IdToOpertionState_;
+    THashSet<TOperationId> WaitingForRegisterOperationIds_;
     TShardEpoch CurrentEpoch_ = 0;
 
     TPersistentSchedulingSegmentsStatePtr InitialSchedulingSegmentsState_;
