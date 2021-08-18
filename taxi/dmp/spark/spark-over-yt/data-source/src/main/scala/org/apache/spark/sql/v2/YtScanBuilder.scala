@@ -33,6 +33,19 @@ case class YtScanBuilder(sparkSession: SparkSession,
 
   override protected val supportsNestedSchemaPruning: Boolean = true
 
+  override def pruneColumns(requiredSchema: StructType): Unit = {
+    this.requiredSchema = StructType(
+      requiredSchema.fields.map {
+        f =>
+          val opt = dataSchema.fields.find(sf => sf.name == f.name)
+          opt match {
+            case None => f
+            case Some(v) => f.copy(metadata = v.metadata)
+          }
+      }
+    )
+  }
+
   private var filters: Array[Filter] = Array.empty
 
   override def pushFilters(filters: Array[Filter]): Array[Filter] = {
