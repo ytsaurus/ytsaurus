@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.proxy.request;
 import javax.annotation.Nullable;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.lang.NonNullApi;
 
 @NonNullApi
@@ -15,6 +16,19 @@ public abstract class GetLikeReq<T extends GetLikeReq<T>> extends TransactionalR
 
     GetLikeReq(YPath path) {
         this.path = path.justPath();
+    }
+
+    protected GetLikeReq(GetLikeReq<?> getLikeReq) {
+        super(getLikeReq);
+        path = getLikeReq.path;
+        attributes = getLikeReq.attributes;
+        maxSize = getLikeReq.maxSize;
+        masterReadOptions = (getLikeReq.masterReadOptions != null)
+                ? new MasterReadOptions(getLikeReq.masterReadOptions)
+                : null;
+        suppressableAccessTrackingOptions = (getLikeReq.suppressableAccessTrackingOptions != null)
+                ? new SuppressableAccessTrackingOptions(getLikeReq.suppressableAccessTrackingOptions)
+                : null;
     }
 
     public YPath getPath() {
@@ -48,5 +62,13 @@ public abstract class GetLikeReq<T extends GetLikeReq<T>> extends TransactionalR
             sb.append("Attributes: ").append(attributes).append("; ");
         }
         super.writeArgumentsLogString(sb);
+    }
+
+    public YTreeBuilder toTree(YTreeBuilder builder) {
+        return builder
+                .apply(super::toTree)
+                .key("path").apply(path::toTree)
+                .when(masterReadOptions != null, b -> b.key("read_from").apply(masterReadOptions::toTree))
+                .when(attributes != null, b2 -> b2.key("attributes").apply(attributes::toTree));
     }
 }

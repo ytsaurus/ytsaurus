@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 
 public class MasterReadOptions {
@@ -7,6 +8,17 @@ public class MasterReadOptions {
     private Long expireAfterSuccessfulUpdateTime;
     private Long expireAfterFailedUpdateTime;
     private Integer cacheStickyGroupSize;
+
+    public MasterReadOptions() {
+
+    }
+
+    public MasterReadOptions(MasterReadOptions other) {
+        readFrom = other.readFrom;
+        expireAfterSuccessfulUpdateTime = other.expireAfterSuccessfulUpdateTime;
+        expireAfterFailedUpdateTime = other.expireAfterFailedUpdateTime;
+        cacheStickyGroupSize = other.cacheStickyGroupSize;
+    }
 
     public MasterReadOptions setReadFrom(MasterReadKind f) {
         readFrom = f;
@@ -40,5 +52,9 @@ public class MasterReadOptions {
             builder.setCacheStickyGroupSize(cacheStickyGroupSize);
         }
         return builder;
+    }
+
+    public YTreeBuilder toTree(YTreeBuilder builder) {
+        return builder.value(readFrom.getWireName());
     }
 }

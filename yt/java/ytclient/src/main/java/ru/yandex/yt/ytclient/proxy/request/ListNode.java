@@ -22,6 +22,11 @@ public class ListNode extends GetLikeReq<ListNode> implements HighLevelRequest<T
         super(path);
     }
 
+    public ListNode(ListNode listNode) {
+        super(listNode);
+    }
+
+
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqListNode.Builder, ?> builder) {
         builder.body().setPath(path.toString());

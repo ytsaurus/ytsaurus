@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.yt.rpcproxy.TAttributeKeys;
 
 public class ColumnFilter {
@@ -45,5 +46,9 @@ public class ColumnFilter {
     @Override
     public String toString() {
         return columns.toString();
+    }
+
+    public YTreeBuilder toTree(YTreeBuilder builder) {
+        return builder.value(columns);
     }
 }

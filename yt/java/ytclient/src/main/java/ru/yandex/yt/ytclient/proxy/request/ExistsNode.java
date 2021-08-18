@@ -19,6 +19,10 @@ public class ExistsNode extends GetLikeReq<ExistsNode> implements HighLevelReque
         super(path);
     }
 
+    public ExistsNode(ExistsNode existsNode) {
+        super(existsNode);
+    }
+
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqExistsNode.Builder, ?> builder) {
         builder.body().setPath(path.toString());
