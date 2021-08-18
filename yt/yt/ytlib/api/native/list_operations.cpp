@@ -606,8 +606,14 @@ public:
 
     void OnExperimentAssignmentNames(TYsonPullParserCursor* cursor)
     {
-        // TODO(max42): maybe support filtering on experiment assignment names?
-        cursor->SkipComplexValue();
+        if (!Options_.SubstrFilter) {
+            cursor->SkipComplexValue();
+            return;
+        }
+        cursor->ParseList([&] (TYsonPullParserCursor* cursor) {
+            SearchSubstring((*cursor)->UncheckedAsString());
+            cursor->Next();
+        });
     }
 
     void OnControllerFeatures(TYsonPullParserCursor* cursor)
