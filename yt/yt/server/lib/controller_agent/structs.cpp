@@ -41,22 +41,7 @@ TJobSummary::TJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
 {
     auto* status = event->mutable_status();
     Result.Swap(status->mutable_result());
-    if (status->has_time_statistics()) {
-        TimeStatistics = FromProto<NJobAgent::TTimeStatistics>(status->time_statistics());
-    } else {
-        if (status->has_prepare_duration()) {
-            TimeStatistics.PrepareDuration = FromProto<TDuration>(status->prepare_duration());
-        }
-        if (status->has_download_duration()) {
-            TimeStatistics.ArtifactsDownloadDuration = FromProto<TDuration>(status->download_duration());
-        }
-        if (status->has_prepare_root_fs_duration()) {
-            TimeStatistics.PrepareRootFSDuration = FromProto<TDuration>(status->prepare_root_fs_duration());
-        }
-        if (status->has_exec_duration()) {
-            TimeStatistics.ExecDuration = FromProto<TDuration>(status->exec_duration());
-        }
-    }
+    TimeStatistics = FromProto<NJobAgent::TTimeStatistics>(status->time_statistics());
     if (status->has_statistics()) {
         StatisticsYson = TYsonString(status->statistics());
     }
