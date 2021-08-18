@@ -744,3 +744,63 @@ class TestControllerFeatures(YTEnvSetup):
         operation = get_operation_features(op)
         assert operation["operation_count"] == 1.0
         assert operation["job_count.aborted.scheduled.user_request"] == 1.0
+
+
+class TestListOperationFilterExperiments(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "experiments": {
+                "exp_a1": {
+                    "fraction": 0.4,
+                    "ticket": "ytexp-1",
+                    "ab_treatment_group": {
+                        "fraction": 0.5,
+                    },
+                },
+                "exp_b1": {
+                    "fraction": 0.4,
+                    "ticket": "ytexp-2",
+                    "ab_treatment_group": {
+                        "fraction": 0.5,
+                    },
+                },
+                "exp_c1": {
+                    "fraction": 0.1,
+                    "ticket": "ytexp-2",
+                    "ab_treatment_group": {
+                        "fraction": 0.5,
+                    },
+                },
+            },
+        },
+    }
+
+    @authors("alexkolodezny")
+    def test_list_operation_filter(self):
+        create("table", "//tmp/t_in")
+
+        op1 = map(in_="//tmp/t_in",
+                  out=[],
+                  command="cat",
+                  spec={"experiment_overrides": ["exp_a1.treatment"]})
+
+        op2 = map(in_="//tmp/t_in",
+                  out=[],
+                  command="cat",
+                  spec={"experiment_overrides": ["exp_b1.treatment"]})
+
+        op3 = map(in_="//tmp/t_in",
+                  out=[],
+                  command="cat",
+                  spec={"experiment_overrides": ["exp_c1.treatment"]})
+
+        res = list_operations(filter="exp_a1.treatment")
+        assert set(op["id"] for op in res["operations"]) == {op1.id}
+        res = list_operations(filter="exp_b1.treatment")
+        assert set(op["id"] for op in res["operations"]) == {op2.id}
+        res = list_operations()
+        assert set(op["id"] for op in res["operations"]) == {op1.id, op2.id, op3.id}

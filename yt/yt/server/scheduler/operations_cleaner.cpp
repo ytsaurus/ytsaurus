@@ -215,6 +215,8 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
     parts.push_back(request.AuthenticatedUser);
     parts.push_back(FormatEnum(request.State));
     parts.push_back(FormatEnum(request.OperationType));
+    auto experimentAssignmentNames = ConvertTo<std::vector<TString>>(request.ExperimentAssignmentNames);
+    parts.insert(parts.end(), experimentAssignmentNames.begin(), experimentAssignmentNames.end());
     if (auto node = runtimeParametersMapNode->FindChild("annotations")) {
         parts.push_back(ConvertToYsonString(node, EYsonFormat::Text).ToString());
     }
