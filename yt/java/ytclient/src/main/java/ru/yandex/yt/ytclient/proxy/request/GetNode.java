@@ -20,6 +20,10 @@ public class GetNode extends GetLikeReq<GetNode> implements HighLevelRequest<TRe
         super(path);
     }
 
+    public GetNode(GetNode getNode) {
+        super(getNode);
+    }
+
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqGetNode.Builder, ?> builder) {
         builder.body().setPath(path.toString());
