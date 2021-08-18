@@ -350,6 +350,8 @@ protected:
 
 TLegacyOwningKey RowToKey(const TTableSchema& schema, TSortedDynamicRow row);
 
+TTimestamp CalculateRetainedTimestamp(TTimestamp currentTimestamp, TDuration minDataTtl);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode

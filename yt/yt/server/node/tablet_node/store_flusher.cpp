@@ -541,9 +541,7 @@ private:
 
             const auto& mountConfig = tablet->GetSettings().MountConfig;
             auto currentTimestamp = transaction->GetStartTimestamp();
-            auto retainedTimestamp = std::min(
-                InstantToTimestamp(TimestampToInstant(currentTimestamp).second - mountConfig->MinDataTtl).second,
-                currentTimestamp);
+            auto retainedTimestamp = CalculateRetainedTimestamp(currentTimestamp, mountConfig->MinDataTtl);
 
             YT_LOG_INFO("Store flush transaction created (TransactionId: %v)",
                 transaction->GetId());

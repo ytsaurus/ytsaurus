@@ -99,6 +99,8 @@ TSortedStoreManager::TSortedStoreManager(
         std::move(client))
     , KeyColumnCount_(Tablet_->GetPhysicalSchema()->GetKeyColumnCount())
 {
+    YT_VERIFY(Tablet_->GetStoreFlushIndex() == 0);
+    ui32 storeFlushIndex = 0;
     for (const auto& [storeId, store] : Tablet_->StoreIdMap()) {
         auto sortedStore = store->AsSorted();
         if (sortedStore->GetStoreState() != EStoreState::ActiveDynamic) {
@@ -108,8 +110,16 @@ TSortedStoreManager::TSortedStoreManager(
         if (sortedStore->IsDynamic()) {
             auto sortedDynamicStore = sortedStore->AsSortedDynamic();
             YT_VERIFY(sortedDynamicStore->GetFlushIndex() == 0);
+
+            YT_VERIFY(sortedDynamicStore->GetFlushState() == EStoreFlushState::None);
+            if (sortedDynamicStore->GetStoreState() == EStoreState::PassiveDynamic) {
+                sortedDynamicStore->SetFlushIndex(storeFlushIndex);
+                StoreFlushIndexQueue_.insert(storeFlushIndex++);
+            }
         }
     }
+
+    Tablet_->SetStoreFlushIndex(storeFlushIndex);
 
     if (Tablet_->GetActiveStore()) {
         ActiveStore_ = Tablet_->GetActiveStore()->AsSortedDynamic();
@@ -583,7 +593,7 @@ void TSortedStoreManager::RemoveStore(IStorePtr store)
     if (sortedStore->IsDynamic()) {
         auto sortedDynamicStore = store->AsSortedDynamic();
         auto flushIndex = sortedDynamicStore->GetFlushIndex();
-        StoreFlushIndexQueue_.erase(flushIndex);
+        YT_VERIFY(StoreFlushIndexQueue_.erase(flushIndex) == 1);
     }
 
     SchedulePartitionSampling(sortedStore->GetPartition());
@@ -629,6 +639,11 @@ void TSortedStoreManager::OnActiveStoreRotated()
 {
     auto storeFlushIndex = Tablet_->GetStoreFlushIndex();
     ++storeFlushIndex;
+
+    YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Active sorted store rotated (StoreId: %v, StoreFlushIndex: %v)",
+        ActiveStore_->GetId(),
+        storeFlushIndex);
+
     Tablet_->SetStoreFlushIndex(storeFlushIndex);
     ActiveStore_->SetFlushIndex(storeFlushIndex);
     YT_VERIFY(StoreFlushIndexQueue_.insert(storeFlushIndex).second);
@@ -780,21 +795,26 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             /*lookup*/ true, // Forbid null rows. All rows in cache must have a key.
             /*mergeRowsOnFlush*/ false);
 
-        auto retainedTimestamp = InstantToTimestamp(TimestampToInstant(currentTimestamp).first - mountConfig->MinDataTtl).first;
+        // Retained timestamp according to compactionRowMerger.
+        auto newRetainedTimestamp = CalculateRetainedTimestamp(currentTimestamp, mountConfig->MinDataTtl);
 
         const auto& rowCache = tabletSnapshot->RowCache;
-        if (rowCache) {
-            rowCache->SetFlushIndex(storeFlushIndex);
-        }
 
         YT_LOG_DEBUG("Sorted store flush started (StoreId: %v, MergeRowsOnFlush: %v, "
-            "MergeDeletionsOnFlush: %v, RetentionConfig: %v, HaveRowCache: %v, RetainedTimestamp: %v)",
+            "MergeDeletionsOnFlush: %v, RetentionConfig: %v, HaveRowCache: %v, "
+            "CurrentRetainedTimestamp: %v, NewRetainedTimestamp: %v, StoreFlushIndex: %v)",
             store->GetId(),
             mountConfig->MergeRowsOnFlush,
             mountConfig->MergeDeletionsOnFlush,
             ConvertTo<TRetentionConfigPtr>(mountConfig),
             static_cast<bool>(rowCache),
-            tabletSnapshot->RetainedTimestamp);
+            tabletSnapshot->RetainedTimestamp,
+            newRetainedTimestamp,
+            storeFlushIndex);
+
+        if (rowCache) {
+            rowCache->SetFlushIndex(storeFlushIndex);
+        }
 
         THazardPtrFlushGuard flushGuard;
 
@@ -825,7 +845,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             }
 
             if (rowCache) {
-                rowCache->UpdateItems(rows, retainedTimestamp, &compactionRowMerger, storeFlushIndex, Logger);
+                rowCache->UpdateItems(rows, newRetainedTimestamp, &compactionRowMerger, storeFlushIndex, Logger);
             }
 
             if (!storeWriter->Write(rows)) {
@@ -937,8 +957,14 @@ bool TSortedStoreManager::IsStoreFlushable(IStorePtr store) const
     }
 
     // Ensure that stores are being flushed in order.
+    YT_VERIFY(!StoreFlushIndexQueue_.empty());
+
     auto sortedStore = store->AsSortedDynamic();
-    return StoreFlushIndexQueue_.empty() || sortedStore->GetFlushIndex() <= *StoreFlushIndexQueue_.begin();
+
+    auto nextFlushIndex = *StoreFlushIndexQueue_.begin();
+    YT_VERIFY(sortedStore->GetFlushIndex() >= nextFlushIndex);
+
+    return sortedStore->GetFlushIndex() == nextFlushIndex;
 }
 
 ISortedStoreManagerPtr TSortedStoreManager::AsSorted()

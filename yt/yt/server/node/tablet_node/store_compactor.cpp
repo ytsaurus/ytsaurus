@@ -1730,9 +1730,7 @@ private:
             partition->SetCompactionTime(timer.GetStartTime());
 
             const auto& mountConfig = tablet->GetSettings().MountConfig;
-            auto retainedTimestamp = std::min(
-                InstantToTimestamp(TimestampToInstant(currentTimestamp).second - mountConfig->MinDataTtl).second,
-                currentTimestamp);
+            auto retainedTimestamp = CalculateRetainedTimestamp(currentTimestamp, mountConfig->MinDataTtl);
 
             auto majorTimestamp = std::min(ComputeMajorTimestamp(partition, stores), retainedTimestamp);
 

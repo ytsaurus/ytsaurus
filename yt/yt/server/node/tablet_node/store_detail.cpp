@@ -24,6 +24,8 @@
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
+#include <yt/yt/client/transaction_client/helpers.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
@@ -1138,6 +1140,13 @@ TLegacyOwningKey RowToKey(const TTableSchema& schema, TSortedDynamicRow row)
         builder.AddValue(GetUnversionedKeyValue(row, index, schema.Columns()[index].GetPhysicalType()));
     }
     return builder.FinishRow();
+}
+
+TTimestamp CalculateRetainedTimestamp(TTimestamp currentTimestamp, TDuration minDataTtl)
+{
+    return std::min(
+        InstantToTimestamp(TimestampToInstant(currentTimestamp).second - minDataTtl).second,
+        currentTimestamp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
