@@ -2945,6 +2945,22 @@ class TestCypress(YTEnvSetup):
         copy("//tmp/test_node", "//tmp/copy2", tx=tx1)
         assert not exists("//tmp/copy0/child", tx=tx1)
 
+    @authors("aleksandra-zh")
+    def test_preserve_owner_under_tx_yt_15292(self):
+        create_user("u")
+
+        tx = start_transaction(authenticated_user="u")
+
+        create("table", "//tmp/t", authenticated_user="u", tx=tx)
+        copy("//tmp/t", "//tmp/t1", authenticated_user="u", tx=tx)
+        copy("//tmp/t", "//tmp/t2", authenticated_user="u", tx=tx, preserve_owner=True)
+
+        commit_transaction(tx)
+
+        assert get("//tmp/t/@owner") == "u"
+        assert get("//tmp/t1/@owner") == "u"
+        assert get("//tmp/t2/@owner") == "u"
+
     @authors("shakurov")
     def test_builtin_versioned_attributes(self):
         create(

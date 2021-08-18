@@ -3402,9 +3402,11 @@ private:
             mode,
             account);
 
+        auto* sourceTrunkNode = sourceNode->GetTrunkNode();
+
         // Set owner.
         if (factory->ShouldPreserveOwner()) {
-            clonedTrunkNode->Acd().SetOwner(sourceNode->Acd().GetOwner());
+            clonedTrunkNode->Acd().SetOwner(sourceTrunkNode->Acd().GetOwner());
         } else {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             auto* user = securityManager->GetAuthenticatedUser();
@@ -3413,12 +3415,12 @@ private:
 
         // Copy creation time.
         if (factory->ShouldPreserveCreationTime()) {
-            clonedTrunkNode->SetCreationTime(sourceNode->GetTrunkNode()->GetCreationTime());
+            clonedTrunkNode->SetCreationTime(sourceTrunkNode->GetCreationTime());
         }
 
         // Copy modification time.
         if (factory->ShouldPreserveModificationTime()) {
-            clonedTrunkNode->SetModificationTime(sourceNode->GetTrunkNode()->GetModificationTime());
+            clonedTrunkNode->SetModificationTime(sourceTrunkNode->GetModificationTime());
         }
 
         // Copy expiration time.
