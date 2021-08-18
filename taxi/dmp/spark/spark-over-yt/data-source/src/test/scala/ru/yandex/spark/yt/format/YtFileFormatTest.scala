@@ -40,7 +40,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     .addValue("value", ColumnValueType.ANY)
     .build()
 
-  "YtFileFormat" should "read dataset" in {
+  it should "read dataset" in {
     writeTableFromYson(Seq(
       """{a = 1; b = "a"; c = 0.3}""",
       """{a = 2; b = "b"; c = 0.5}"""
@@ -67,6 +67,39 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     res.select("a", "b", "c").collect() should contain theSameElementsAs Seq(
       Row(1, "a", 0.3),
       Row(2, "b", 0.5)
+    )
+  }
+
+  it should "read dataset with column name containing spaces and digits" in {
+    val columnName = "3a b"
+    writeTableFromYson(Seq(
+      s"""{"$columnName" = 1}""",
+      s"""{"$columnName" = 2}"""
+    ), tmpPath, new TableSchema.Builder().addKey(columnName, ColumnValueType.INT64).build())
+
+    val res = spark.read.yt(tmpPath)
+
+    res.columns should contain theSameElementsAs Seq(columnName)
+    res.select(columnName).collect() should contain theSameElementsAs Seq(
+      Row(1),
+      Row(2)
+    )
+  }
+
+  it should "read dataset with column name containing dots" in {
+    val columnName = "a.b"
+    val sparkColumnName = columnName.replace('.', '_')
+    writeTableFromYson(Seq(
+      s"""{"$columnName" = 1}""",
+      s"""{"$columnName" = 2}"""
+    ), tmpPath, new TableSchema.Builder().addKey(columnName, ColumnValueType.INT64).build())
+
+    val res = spark.read.yt(tmpPath)
+
+    res.columns should contain theSameElementsAs Seq(sparkColumnName)
+    res.select(sparkColumnName).collect() should contain theSameElementsAs Seq(
+      Row(1),
+      Row(2)
     )
   }
 

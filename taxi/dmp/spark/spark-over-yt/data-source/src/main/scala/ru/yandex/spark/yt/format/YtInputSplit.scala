@@ -9,7 +9,9 @@ case class YtInputSplit(file: YtPartitionedFile, schema: StructType) extends Inp
 
   override def getLocations: Array[String] = Array.empty
 
-  private val basePath: YPath = YPath.simple(s"/${file.path}{${schema.fieldNames.mkString(",")}}")
+  private val originalFieldNames = schema.fields.map(x => s""""${x.metadata.getString("original_name")}"""")
+  private val basePath: YPath =
+    YPath.simple(s"/${file.path}{${originalFieldNames.mkString(",")}}")
 
   def ytPath: YPath = {
     if (file.isDynamic) {

@@ -94,9 +94,9 @@ class ArrowBatchReader(stream: YtArrowInputStream,
 
     val arrowSchema = _root.getSchema.getFields.asScala.map(_.getName)
     val arrowVectors = arrowSchema.zip(_root.getFieldVectors.asScala).toMap
-    schema.fieldNames.zipWithIndex.foreach { case (fieldName, index) =>
+    schema.fields.zipWithIndex.foreach { case (fieldName, index) =>
       val dataType = indexedSchema(index)
-      val arrowVector = arrowVectors.get(fieldName)
+      val arrowVector = arrowVectors.get(fieldName.metadata.getString("original_name"))
         .map(createArrowColumnVector(_, dataType))
         .getOrElse(ArrowColumnVector.nullVector(dataType))
       _columnVectors(index) = arrowVector
