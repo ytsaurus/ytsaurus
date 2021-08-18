@@ -55,13 +55,7 @@ message TJobStatus
     optional string statistics = 9;
     optional int64 stderr_size = 13;
 
-    // COMPAT(ignat)
-    optional int64 prepare_duration = 10;
-    optional int64 exec_duration = 11;
-    optional int64 download_duration = 12;
-    optional int64 prepare_root_fs_duration = 14;
-
-    optional TTimeStatistics time_statistics = 15;
+    required TTimeStatistics time_statistics = 15;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

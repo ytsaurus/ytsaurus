@@ -2204,13 +2204,9 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status, bool shoul
         return;
     }
 
-    if (status->has_time_statistics()) {
-        auto timeStatistics = FromProto<NJobAgent::TTimeStatistics>(status->time_statistics());
-        if (auto execDuration = timeStatistics.ExecDuration) {
-            job->SetExecDuration(*execDuration);
-        }
-    } else if (status->has_exec_duration()) {
-        job->SetExecDuration(FromProto<TDuration>(status->exec_duration()));
+    auto timeStatistics = FromProto<NJobAgent::TTimeStatistics>(status->time_statistics());
+    if (auto execDuration = timeStatistics.ExecDuration) {
+        job->SetExecDuration(*execDuration);
     }
 
     auto now = GetCpuInstant();

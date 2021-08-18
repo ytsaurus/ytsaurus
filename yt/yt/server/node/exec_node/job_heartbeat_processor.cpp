@@ -151,6 +151,7 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
         jobStatus->set_state(static_cast<int>(EJobState::Aborted));
         jobStatus->set_phase(static_cast<int>(EJobPhase::Missing));
         jobStatus->set_progress(0.0);
+        jobStatus->mutable_time_statistics();
 
         TJobResult jobResult;
         auto error = TError("Failed to get job spec")
