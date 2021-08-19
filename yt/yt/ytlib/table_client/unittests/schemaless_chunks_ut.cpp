@@ -230,67 +230,6 @@ protected:
             EXPECT_EQ(id, nameTable->GetIdOrRegisterName(ColumnNames[(id + idShift) % ColumnNames.size()]));
         }
     }
-
-    std::vector<TUnversionedRow> CreateExpected(
-        const std::vector<TUnversionedRow>& initial,
-        TNameTablePtr writeNameTable,
-        TNameTablePtr readNameTable,
-        TColumnFilter columnFilter,
-        TLegacyReadRange readRange,
-        int keyColumnCount)
-    {
-        std::vector<TUnversionedRow> rows;
-
-        int lowerRowIndex = 0;
-        if (readRange.LowerLimit().HasRowIndex()) {
-            lowerRowIndex = readRange.LowerLimit().GetRowIndex();
-        }
-
-        int upperRowIndex = initial.size();
-        if (readRange.UpperLimit().HasRowIndex()) {
-            upperRowIndex = readRange.UpperLimit().GetRowIndex();
-        }
-
-        auto fulfillLowerKeyLimit = [&] (TUnversionedRow row) {
-            return !readRange.LowerLimit().HasLegacyKey() ||
-                CompareRows(
-                    row.Begin(),
-                    row.Begin() + keyColumnCount,
-                    readRange.LowerLimit().GetLegacyKey().Begin(),
-                    readRange.LowerLimit().GetLegacyKey().End()) >= 0;
-        };
-
-        auto fulfillUpperKeyLimit = [&] (TUnversionedRow row) {
-            return !readRange.UpperLimit().HasLegacyKey() ||
-               CompareRows(
-                   row.Begin(),
-                   row.Begin() + keyColumnCount,
-                   readRange.UpperLimit().GetLegacyKey().Begin(),
-                   readRange.UpperLimit().GetLegacyKey().End()) < 0;
-        };
-
-        for (int rowIndex = lowerRowIndex; rowIndex < upperRowIndex; ++rowIndex) {
-            auto initialRow = initial[rowIndex];
-            if (fulfillLowerKeyLimit(initialRow) && fulfillUpperKeyLimit(initialRow)) {
-                auto row = TMutableUnversionedRow::Allocate(&Pool_, initialRow.GetCount());
-                int count = 0;
-                for (const auto* it = initialRow.Begin(); it != initialRow.End(); ++it) {
-                    auto name = writeNameTable->GetName(it->Id);
-                    auto readerId = readNameTable->GetId(name);
-
-                    if (columnFilter.ContainsIndex(readerId)) {
-                        row[count] = *it;
-                        row[count].Id = readerId;
-                        ++count;
-                    }
-                }
-                row.SetCount(count);
-                rows.push_back(row);
-            }
-        }
-
-        return rows;
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -303,12 +242,13 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
     InitNameTable(readNameTable, 4);
 
     auto columnFilter = std::get<2>(GetParam());
-    auto expected = CreateExpected(
+    auto expected = CreateFilteredRangedRows(
         Rows_,
         WriteNameTable_,
         readNameTable,
         columnFilter,
         std::get<3>(GetParam()),
+        &Pool_,
         keyColumnCount);
 
     auto chunkState = New<TChunkState>(

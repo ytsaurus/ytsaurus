@@ -201,6 +201,15 @@ inline bool DecodeBoolFromColumn(
     return GetBit(*column.Values, index);
 }
 
+std::vector<TUnversionedRow> CreateFilteredRangedRows(
+    const std::vector<TUnversionedRow>& initial,
+    TNameTablePtr writeNameTable,
+    TNameTablePtr readNameTable,
+    TColumnFilter columnFilter,
+    NChunkClient::TLegacyReadRange readRange,
+    TChunkedMemoryPool* pool,
+    int keyColumnCount);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

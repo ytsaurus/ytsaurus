@@ -59,6 +59,7 @@ DEFINE_ENUM(EErrorCode,
     ((ConcurrentChunkUpdate)                 (732))
     ((InvalidInputChunk)                     (733))
     ((UnsupportedChunkFeature)               (734))
+    ((IncompatibleChunkMetas)                (735))
 );
 
 using TChunkId = NObjectClient::TObjectId;

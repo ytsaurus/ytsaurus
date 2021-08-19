@@ -172,6 +172,13 @@ private:
         ui64 valueCount) const;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+NProto::THeavyColumnStatisticsExt GetHeavyColumnStatisticsExt(
+    const NProto::TColumnarStatisticsExt& columnarStatisticsExt,
+    const std::function<TString(int index)>& getNameByIndex,
+    int columnCount,
+    int maxHeavyColumns);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -346,6 +346,11 @@ NYT::NProto::TExtensionSet FilterProtoExtensions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THashSet<int> GetExtensionTagSet(const NYT::NProto::TExtensionSet& source);
+std::optional<TString> FindExtensionName(int tag);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Wrapper that makes proto message ref-counted.
 template <class TProto>
 class TRefCountedProto

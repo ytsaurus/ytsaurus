@@ -505,6 +505,27 @@ NYT::NProto::TExtensionSet FilterProtoExtensions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THashSet<int> GetExtensionTagSet(const NYT::NProto::TExtensionSet& source)
+{
+    THashSet<int> tags;
+    for (const auto& extension : source.extensions()) {
+        tags.insert(extension.tag());
+    }
+    return tags;
+}
+
+std::optional<TString> FindExtensionName(int tag)
+{
+    const auto* extensionRegistry = TProtobufExtensionRegistry::Get();
+    auto extensionDescriptor = extensionRegistry->FindProtobufExtension(tag);
+    if (!extensionDescriptor) {
+        return std::nullopt;
+    }
+    return extensionDescriptor->Name;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 google::protobuf::Timestamp GetProtoNow()
 {
     // Unfortunately TimeUtil::GetCurrentTime provides only one second accuracy, so we use TInstant::Now.

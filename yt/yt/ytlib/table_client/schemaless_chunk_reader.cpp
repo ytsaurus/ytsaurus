@@ -260,7 +260,6 @@ protected:
     TInterruptDescriptor GetInterruptDescriptorImpl(
         TRange<TUnversionedRow> unreadRows,
         const NChunkClient::NProto::TMiscExt& misc,
-        const NProto::TBlockMetaExt& blockMeta,
         const TChunkSpec& chunkSpec,
         const TReadLimit& lowerLimit,
         const TReadLimit& upperLimit,
@@ -281,10 +280,6 @@ protected:
             YT_VERIFY(lowerRowIndex <= rowIndex);
             YT_VERIFY(rowIndex <= upperRowIndex);
         }
-
-        auto lowerKeyBound = lowerLimit.KeyBound();
-        auto upperKeyBound = upperLimit.KeyBound();
-        auto lastChunkKey = FromProto<TLegacyOwningKey>(blockMeta.blocks().rbegin()->last_key());
 
         TKey firstUnreadKey;
         if (!unreadRows.Empty()) {
@@ -816,7 +811,6 @@ TInterruptDescriptor THorizontalSchemalessRangeChunkReader::GetInterruptDescript
     return GetInterruptDescriptorImpl(
         unreadRows,
         ChunkMeta_->Misc(),
-        *BlockMetaExt_,
         ChunkSpec_,
         ReadRange_.LowerLimit(),
         ReadRange_.UpperLimit(),
@@ -1160,7 +1154,6 @@ public:
         return GetInterruptDescriptorImpl(
             unreadRows,
             ChunkMeta_->Misc(),
-            *ChunkMeta_->BlockMeta(),
             ChunkSpec_,
             LowerLimit_,
             UpperLimit_,

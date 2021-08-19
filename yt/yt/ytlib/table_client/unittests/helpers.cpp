@@ -1,8 +1,13 @@
 #include "helpers.h"
 
+#include <yt/yt/client/chunk_client/read_limit.h>
+
+#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
 
 namespace NYT::NTableClient {
+
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -172,6 +177,68 @@ std::vector<std::pair<ui32, ui32>> GetTimestampIndexRanges(
         indexRanges.push_back(std::make_pair(lowerTimestampIndex, upperTimestampIndex));
     }
     return indexRanges;
+}
+
+std::vector<TUnversionedRow> CreateFilteredRangedRows(
+    const std::vector<TUnversionedRow>& initial,
+    TNameTablePtr writeNameTable,
+    TNameTablePtr readNameTable,
+    TColumnFilter columnFilter,
+    TLegacyReadRange readRange,
+    TChunkedMemoryPool* pool,
+    int keyColumnCount)
+{
+    std::vector<TUnversionedRow> rows;
+
+    int lowerRowIndex = 0;
+    if (readRange.LowerLimit().HasRowIndex()) {
+        lowerRowIndex = readRange.LowerLimit().GetRowIndex();
+    }
+
+    int upperRowIndex = initial.size();
+    if (readRange.UpperLimit().HasRowIndex()) {
+        upperRowIndex = readRange.UpperLimit().GetRowIndex();
+    }
+
+    auto fulfillLowerKeyLimit = [&] (TUnversionedRow row) {
+        return !readRange.LowerLimit().HasLegacyKey() ||
+            CompareRows(
+                row.Begin(),
+                row.Begin() + keyColumnCount,
+                readRange.LowerLimit().GetLegacyKey().Begin(),
+                readRange.LowerLimit().GetLegacyKey().End()) >= 0;
+    };
+
+    auto fulfillUpperKeyLimit = [&] (TUnversionedRow row) {
+        return !readRange.UpperLimit().HasLegacyKey() ||
+        CompareRows(
+            row.Begin(),
+            row.Begin() + keyColumnCount,
+            readRange.UpperLimit().GetLegacyKey().Begin(),
+            readRange.UpperLimit().GetLegacyKey().End()) < 0;
+    };
+
+    for (int rowIndex = lowerRowIndex; rowIndex < upperRowIndex; ++rowIndex) {
+        auto initialRow = initial[rowIndex];
+        if (fulfillLowerKeyLimit(initialRow) && fulfillUpperKeyLimit(initialRow)) {
+            auto row = TMutableUnversionedRow::Allocate(pool, initialRow.GetCount());
+            int count = 0;
+            for (const auto* it = initialRow.Begin(); it != initialRow.End(); ++it) {
+                auto name = writeNameTable->GetName(it->Id);
+                auto readerId = readNameTable->GetId(name);
+
+                if (columnFilter.ContainsIndex(readerId)) {
+                    row[count] = *it;
+                    row[count].Id = readerId;
+                    ++count;
+                }
+            }
+            row.SetCount(count);
+            rows.push_back(row);
+        }
+    }
+
+    return rows;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
