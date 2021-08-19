@@ -107,14 +107,14 @@ class THunkChunkStatisticsCountersBase
 {
 public:
     THunkChunkStatisticsCountersBase() = default;
- 
+
     THunkChunkStatisticsCountersBase(
         const NProfiling::TProfiler& profiler,
         const TTableSchemaPtr& schema);
- 
+
     template <class IStatisticsPtr>
     void IncrementColumnar(const IStatisticsPtr& statistics);
- 
+
 private:
     THashMap<int, TColumnarHunkChunkStatisticsCounters> ColumnIdToCounters_;
 };
@@ -220,7 +220,7 @@ using THunkValue = std::variant<
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr auto InlineHunkRefHeaderSize =
+constexpr auto InlineHunkHeaderSize =
     sizeof(ui8);       // tag
 
 constexpr auto MaxLocalHunkRefSize =

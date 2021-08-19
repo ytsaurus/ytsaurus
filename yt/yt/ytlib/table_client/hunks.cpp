@@ -228,7 +228,7 @@ TRef WriteHunkValue(TChunkedMemoryPool* pool, const TGlobalRefHunkValue& value)
 
 size_t GetInlineHunkValueSize(const TInlineHunkValue& value)
 {
-    return InlineHunkRefHeaderSize + value.Payload.Size();
+    return InlineHunkHeaderSize + value.Payload.Size();
 }
 
 TRef WriteHunkValue(char* ptr, const TInlineHunkValue& value)
@@ -467,7 +467,7 @@ public:
     {
         return ChunkReaderStatistics_;
     }
- 
+
     virtual i64& DataWeight() override
     {
         return DataWeight_;
@@ -484,7 +484,7 @@ private:
     i64 DataWeight_ = 0;
     i64 SkippedDataWeight_ = 0;
 };
- 
+
 IHunkChunkReaderStatisticsPtr CreateHunkChunkReaderStatistics(
     bool enableHunkColumnarProfiling,
     const TTableSchemaPtr& schema)
@@ -492,7 +492,7 @@ IHunkChunkReaderStatisticsPtr CreateHunkChunkReaderStatistics(
     if (!schema->HasHunkColumns()) {
         return nullptr;
     }
- 
+
     return New<THunkChunkReaderStatistics>(
         enableHunkColumnarProfiling,
         schema);
