@@ -329,6 +329,12 @@ private:
                 }
             }
 
+            if (replicationRows.empty()) {
+                THROW_ERROR_EXCEPTION("Replication reader returned zero rows")
+                    << HardErrorAttribute;
+                return;
+            }
+
             {
                 TEventTimerGuard timerGuard(counters.ReplicationRowsWriteTime);
 
