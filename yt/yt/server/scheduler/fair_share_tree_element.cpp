@@ -1846,6 +1846,11 @@ TResourceVector TSchedulerPoolElement::GetIntegralShareLimitForRelaxedPool() con
     return TResourceVector::FromDouble(Attributes_.ResourceFlowRatio) * multiplier;
 }
 
+bool TSchedulerPoolElement::CanAcceptFreeVolume() const
+{
+    return Config_->IntegralGuarantees->CanAcceptFreeVolume;
+}
+
 bool TSchedulerPoolElement::AreDetailedLogsEnabled() const
 {
     return Config_->EnableDetailedLogs;
@@ -3737,6 +3742,12 @@ bool TSchedulerRootElement::ShouldTruncateUnsatisfiedChildFairShareInFifoPool() 
 {
     // NB(eshcherbin): Not proud of this.
     return TreeConfig_->TruncateFifoPoolUnsatisfiedChildFairShare;
+}
+
+bool TSchedulerRootElement::CanAcceptFreeVolume() const
+{
+    // This value is not used.
+    return false;
 }
 
 bool TSchedulerRootElement::IsInferringChildrenWeightsFromHistoricUsageEnabled() const

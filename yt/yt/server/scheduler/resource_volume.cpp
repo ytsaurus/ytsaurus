@@ -31,6 +31,15 @@ double TResourceVolume::GetMinResourceRatio(const TJobResources& denominator) co
     return updated ? result : 0.0;
 }
 
+bool TResourceVolume::IsZero() const
+{
+    bool result = true;
+    TResourceVolume::ForEachResource([&] (EJobResourceType /*resourceType*/, auto TResourceVolume::* resourceDataMember) {
+        result = result && this->*resourceDataMember == 0;
+    });
+    return result;
+}
+
 TResourceVolume Max(const TResourceVolume& lhs, const TResourceVolume& rhs)
 {
     TResourceVolume result;
@@ -82,12 +91,24 @@ TResourceVolume& operator *= (TResourceVolume& lhs, double rhs)
     return lhs;
 }
 
+TResourceVolume operator + (const TResourceVolume& lhs, const TResourceVolume& rhs)
+{
+    TResourceVolume result = lhs;
+    result += rhs;
+    return result;
+}
+
+TResourceVolume operator - (const TResourceVolume& lhs, const TResourceVolume& rhs)
+{
+    TResourceVolume result = lhs;
+    result -= rhs;
+    return result;
+}
+
 TResourceVolume operator * (const TResourceVolume& lhs, double rhs)
 {
-    TResourceVolume result;
-    #define XX(name, Name) result.Set##Name(lhs.Get##Name() * rhs);
-    ITERATE_JOB_RESOURCES(XX)
-    #undef XX
+    TResourceVolume result = lhs;
+    result *= rhs;
     return result;
 }
 
@@ -133,6 +154,11 @@ void FormatValue(TStringBuilderBase* builder, const TResourceVolume& volume, TSt
         volume.GetGpu(),
         volume.GetMemory() / 1_MB,
         volume.GetNetwork());
+}
+
+TString ToString(const TResourceVolume& volume)
+{
+    return ToStringViaBuilder(volume);
 }
 
 } // namespace NYT::NScheduler

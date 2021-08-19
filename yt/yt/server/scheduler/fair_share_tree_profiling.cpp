@@ -401,6 +401,17 @@ void TFairShareTreeProfiler::ProfilePool(
         ProfileResources(&buffer, ToJobResources(integralGuaranteesConfig->BurstGuaranteeResources, {}), "/burst_guarantee_resources");
     }
 
+    if (integralGuaranteesConfig->ResourceFlow->IsNonTrivial()) {
+        ProfileResourceVolume(
+            &buffer,
+            element->Attributes().AcceptedFreeVolume,
+            "/accepted_free_volume");
+        ProfileResourceVolume(
+            &buffer,
+            element->Attributes().VolumeOverflow,
+            "/volume_overflow");
+    }
+
     producer->Update(std::move(buffer));
 }
 

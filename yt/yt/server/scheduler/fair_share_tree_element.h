@@ -787,6 +787,7 @@ public:
 
     virtual EIntegralGuaranteeType GetIntegralGuaranteeType() const override;
     virtual TResourceVector GetIntegralShareLimitForRelaxedPool() const override;
+    virtual bool CanAcceptFreeVolume() const override;
 
     virtual const TIntegralResourcesState& IntegralResourcesState() const override;
     virtual TIntegralResourcesState& IntegralResourcesState() override;
@@ -1349,6 +1350,8 @@ private:
 
     // Post fair share update methods.
     void ManageSchedulingSegments(TManageTreeSchedulingSegmentsContext* manageSegmentsContext);
+
+    virtual bool CanAcceptFreeVolume() const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerRootElement)

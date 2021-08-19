@@ -1755,6 +1755,9 @@ TPoolIntegralGuaranteesConfig::TPoolIntegralGuaranteesConfig()
     RegisterParameter("relaxed_share_multiplier_limit", RelaxedShareMultiplierLimit)
         .InRange(1, 10)
         .Default();
+
+    RegisterParameter("can_accept_free_volume", CanAcceptFreeVolume)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

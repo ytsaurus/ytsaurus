@@ -5043,6 +5043,64 @@ class TestIntegralGuarantees(YTEnvSetup):
         wait(lambda: get(orchid_prefix + "child/total_burst_ratio") == 0.5)
         wait(lambda: get(orchid_prefix + "child/total_resource_flow_ratio") == 0.3)
 
+    def test_volume_overflow_distribution_simple(self):
+        create_pool("ancestor", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "none",
+                "resource_flow": {"cpu": 10**10 + 1},
+            },
+        })
+        create_pool("overflow_pool", parent_name="ancestor", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "relaxed",
+                "resource_flow": {"cpu": 10**10},
+            },
+        })
+        create_pool("acceptable_pool", parent_name="ancestor", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "relaxed",
+                "resource_flow": {"cpu": 1},
+            },
+        })
+
+        time.sleep(1)  # Wait a bit to accumulate some volume in overflow_pool.
+
+        set("//sys/pools/ancestor/overflow_pool/@integral_guarantees/resource_flow/cpu", 10**5)
+        # With 10**5 cpu flow overflow_pool is already full and will fill sibling acceptable_pool in one second.
+
+        volume_path = scheduler_orchid_pool_path("acceptable_pool") + "/accumulated_resource_volume/cpu"
+        wait(lambda: get(volume_path) == 86400.)
+
+    def test_volume_overflow_distribution_if_pool_does_not_accept_it(self):
+        create_pool("ancestor", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "none",
+                "resource_flow": {"cpu": 10**10 + 1},
+            },
+        })
+        create_pool("overflow_pool", parent_name="ancestor", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "relaxed",
+                "resource_flow": {"cpu": 10**10},
+            },
+        })
+        create_pool("not_acceptable_pool", parent_name="ancestor", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "relaxed",
+                "resource_flow": {"cpu": 1},
+                "can_accept_free_volume": False,
+            },
+        })
+
+        time.sleep(1)  # Wait a bit to accumulate some volume in overflow_pool.
+
+        set("//sys/pools/ancestor/overflow_pool/@integral_guarantees/resource_flow/cpu", 10**5)
+        # With 10**5 cpu flow overflow_pool is full.
+
+        time.sleep(2)
+        volume_path = scheduler_orchid_pool_path("not_acceptable_pool") + "/accumulated_resource_volume/cpu"
+        assert get(volume_path) < 30.
+
 
 ##################################################################
 

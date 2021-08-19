@@ -24,6 +24,18 @@ public:
     explicit TResourceVolume(const TJobResources& jobResources, TDuration duration);
 
     double GetMinResourceRatio(const TJobResources& denominator) const;
+
+    bool IsZero() const;
+
+    template <class TFunction>
+    static void ForEachResource(TFunction processResource)
+    {
+        processResource(EJobResourceType::UserSlots, &TResourceVolume::UserSlots_);
+        processResource(EJobResourceType::Cpu, &TResourceVolume::Cpu_);
+        processResource(EJobResourceType::Network, &TResourceVolume::Network_);
+        processResource(EJobResourceType::Memory, &TResourceVolume::Memory_);
+        processResource(EJobResourceType::Gpu, &TResourceVolume::Gpu_);
+    }
 };
 
 TResourceVolume Max(const TResourceVolume& lhs, const TResourceVolume& rhs);
@@ -33,6 +45,8 @@ bool operator == (const TResourceVolume& lhs, const TResourceVolume& rhs);
 TResourceVolume& operator += (TResourceVolume& lhs, const TResourceVolume& rhs);
 TResourceVolume& operator -= (TResourceVolume& lhs, const TResourceVolume& rhs);
 TResourceVolume& operator *= (TResourceVolume& lhs, double rhs);
+TResourceVolume operator + (const TResourceVolume& lhs, const TResourceVolume& rhs);
+TResourceVolume operator - (const TResourceVolume& lhs, const TResourceVolume& rhs);
 TResourceVolume operator * (const TResourceVolume& lhs, double rhs);
 
 void ProfileResourceVolume(
@@ -44,6 +58,7 @@ void Serialize(const TResourceVolume& volume, NYson::IYsonConsumer* consumer);
 void Deserialize(TResourceVolume& volume, NYTree::INodePtr node);
 
 void FormatValue(TStringBuilderBase* builder, const TResourceVolume& volume, TStringBuf /* format */);
+TString ToString(const TResourceVolume& volume);
 
 } // namespace NYT::NScheduler
 
