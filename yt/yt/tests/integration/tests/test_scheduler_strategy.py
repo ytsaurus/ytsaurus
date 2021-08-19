@@ -2166,7 +2166,7 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
     @authors("ignat")
     def test_aggressive_preemption(self):
         create_pool("special_pool")
-        set("//sys/pools/special_pool/@aggressive_starvation_enabled", True)
+        set("//sys/pools/special_pool/@enable_aggressive_starvation", True)
 
         def get_fair_share_ratio(op):
             return op.get_runtime_progress("scheduling_info_per_pool_tree/default/fair_share_ratio", 0.0)
@@ -2255,7 +2255,7 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
         # (1/8) / (1/6) = 0.75 < 0.9 (which is fair_share_starvation_tolerance).
         assert get_starvation_status(op1) == "starving"
 
-        set("//sys/pools/special_pool/@aggressive_starvation_enabled", True)
+        set("//sys/pools/special_pool/@enable_aggressive_starvation", True)
         wait(lambda: are_almost_equal(get_usage_ratio(op1), 2.0 / 8.0))
         wait(lambda: len(op1.get_running_jobs()) == 2)
         assert get_starvation_status(op1) == "non_starving"
@@ -2314,7 +2314,7 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
             "special_pool",
             attributes={
                 "min_share_resources": {"cpu": 10},
-                "aggressive_starvation_enabled": True,
+                "enable_aggressive_starvation": True,
             },
         )
 
@@ -2368,7 +2368,7 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
             "special_pool",
             attributes={
                 "min_share_resources": {"cpu": 10},
-                "aggressive_starvation_enabled": True,
+                "enable_aggressive_starvation": True,
             },
         )
 

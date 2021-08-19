@@ -793,17 +793,17 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
 
-        attribute_key = "//sys/pool_trees/my_tree/nirvana/@aggressive_starvation_enabled"
-        attribute_alias = "//sys/pool_trees/my_tree/nirvana/@enable_aggressive_starvation"
+        attribute_key = "//sys/pool_trees/my_tree/nirvana/@fair_share_starvation_timeout"
+        attribute_alias = "//sys/pool_trees/my_tree/nirvana/@fair_share_preemption_timeout"
 
-        set(attribute_key, True)
+        set(attribute_key, 5000)
         with pytest.raises(YtError):
-            set(attribute_alias, True)
+            set(attribute_alias, 10000)
 
         remove(attribute_key)
-        set(attribute_alias, True)
+        set(attribute_alias, 10000)
         with pytest.raises(YtError):
-            set(attribute_key, True)
+            set(attribute_key, 5000)
 
     def test_set_inexistent_path_fails_with_correct_error(self):
         create_pool_tree("my_tree", wait_for_orchid=False)

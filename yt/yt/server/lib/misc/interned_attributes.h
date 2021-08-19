@@ -17,7 +17,6 @@
     XX(ActualTabletState, actual_tablet_state) \
     XX(AcquisitionTime, acquisition_time) \
     XX(Addresses, addresses) \
-    XX(AggressiveStarvationEnabled, aggressive_starvation_enabled) \
     XX(AlertCount, alert_count) \
     XX(Alerts, alerts) \
     XX(Aliases, aliases) \
