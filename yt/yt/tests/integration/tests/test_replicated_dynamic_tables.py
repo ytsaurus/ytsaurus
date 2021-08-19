@@ -2549,6 +2549,32 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             del row2["$timestamp"]
             assert row1 == row2
 
+    @authors("savrus")
+    def test_add_zero_lag_replica_to_fully_trimmed_replicated_table(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema=self.SIMPLE_SCHEMA_SORTED, min_replication_log_ttl=0)
+
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
+        self._create_replica_table("//tmp/r", replica_id, schema=self.SIMPLE_SCHEMA_SORTED)
+
+        insert_rows("//tmp/t", [{"key": 1, "value2": 2}], require_sync_replica=False)
+        sync_freeze_table("//tmp/t")
+
+        sync_enable_table_replica(replica_id)
+        wait(lambda: select_rows("key, value2 from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value2": 2}])
+        wait(lambda: get("//tmp/t/@tablets/0/trimmed_row_count") == 1)
+
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1")
+        self._create_replica_table("//tmp/r1", replica_id, schema=self.SIMPLE_SCHEMA_SORTED)
+        sync_enable_table_replica(replica_id)
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        def _check():
+            orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id), tablet_id)
+            errors = orchid["replication_errors"]
+            return replica_id in errors and "Replication reader returned zero rows" in str(errors[replica_id])
+
+        wait(lambda: _check())
 
 ##################################################################
 
