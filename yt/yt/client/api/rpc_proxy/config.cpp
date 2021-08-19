@@ -39,8 +39,6 @@ TConnectionConfig::TConnectionConfig()
         .Default(TDuration::Seconds(15));
     RegisterParameter("timestamp_provider_latest_timestamp_update_period", TimestampProviderLatestTimestampUpdatePeriod)
         .Default(TDuration::Seconds(3));
-    RegisterParameter("timestamp_provider_batch_period", TimestampProviderBatchPeriod)
-        .Default(TDuration::MilliSeconds(10));
     RegisterParameter("default_transaction_timeout", DefaultTransactionTimeout)
         .Default(TDuration::Seconds(30));
     RegisterParameter("default_select_rows_timeout", DefaultSelectRowsTimeout)
