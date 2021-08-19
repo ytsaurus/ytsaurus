@@ -214,6 +214,8 @@ public:
 
     std::optional<double> RelaxedShareMultiplierLimit;
 
+    bool CanAcceptFreeVolume;
+
     TPoolIntegralGuaranteesConfig();
 };
 

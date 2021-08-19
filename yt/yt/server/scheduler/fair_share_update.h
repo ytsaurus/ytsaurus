@@ -76,6 +76,11 @@ struct TSchedulableAttributes
     TResourceVector ProposedIntegralShare;
     TResourceVector PromisedFairShare;
 
+    TResourceVolume VolumeOverflow;
+    TResourceVolume AcceptableVolume;
+    TResourceVolume AcceptedFreeVolume;
+    TResourceVolume ChildrenVolumeOverflow;
+
     TJobResources EffectiveStrongGuaranteeResources;
 
     double BurstRatio = 0.0;
@@ -123,6 +128,7 @@ public:
 
     virtual bool IsRoot() const;
     virtual bool IsOperation() const;
+    TPool* AsPool();
 
     virtual TString GetId() const = 0;
 
@@ -154,6 +160,7 @@ private:
 
     virtual void AdjustStrongGuarantees(const TFairShareUpdateContext* context);
     virtual void InitIntegralPoolLists(TFairShareUpdateContext* context);
+    virtual void DistributeFreeVolume();
 
     friend class TCompositeElement;
     friend class TPool;
@@ -182,6 +189,8 @@ public:
     virtual double GetSpecifiedResourceFlowRatio() const = 0;
 
     virtual bool ShouldTruncateUnsatisfiedChildFairShareInFifoPool() const = 0;
+    virtual bool CanAcceptFreeVolume() const = 0;
+    virtual bool ShouldDistributeFreeVolumeAmongChildren() = 0;
 
 private:
     using TChildSuggestions = std::vector<double>;
@@ -197,6 +206,8 @@ private:
     virtual void InitIntegralPoolLists(TFairShareUpdateContext* context) override;
     virtual void DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context) override;
     virtual void UpdateCumulativeAttributes(TFairShareUpdateContext* context) override;
+    void UpdateOverflowAndAcceptableVolumesRecursively();
+    virtual void DistributeFreeVolume() override;
     virtual TResourceVector DoUpdateFairShare(double suggestion, TFairShareUpdateContext* context) override;
 
     void PrepareFifoPool();
@@ -242,6 +253,7 @@ private:
     virtual void InitIntegralPoolLists(TFairShareUpdateContext* context) override;
 
     void UpdateAccumulatedResourceVolume(TFairShareUpdateContext* context);
+    virtual bool ShouldDistributeFreeVolumeAmongChildren() override;
 
     friend class TFairShareUpdateExecutor;
 };
@@ -260,6 +272,7 @@ public:
 private:
     virtual void DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context) override;
     virtual void UpdateCumulativeAttributes(TFairShareUpdateContext* context) override;
+    virtual bool ShouldDistributeFreeVolumeAmongChildren() override;
 
     void ValidateAndAdjustSpecifiedGuarantees(TFairShareUpdateContext* context);
 

@@ -87,6 +87,11 @@ bool TElement::IsRoot() const
     return false;
 }
 
+TPool* TElement::AsPool()
+{
+    return dynamic_cast<TPool*>(this);
+}
+
 void TElement::AdjustStrongGuarantees(const TFairShareUpdateContext* /* context */)
 { }
 
@@ -221,6 +226,9 @@ TResourceVector TElement::GetVectorSuggestion(double suggestion) const
     vectorSuggestion = TResourceVector::Min(vectorSuggestion, Attributes().LimitsShare);
     return vectorSuggestion;
 }
+
+void TElement::DistributeFreeVolume()
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -742,6 +750,127 @@ TResourceVector TCompositeElement::DoUpdateFairShare(double suggestion, TFairSha
     return usedFairShare;
 }
 
+void TCompositeElement::UpdateOverflowAndAcceptableVolumesRecursively()
+{
+    const auto& Logger = GetLogger();
+    auto& attributes = Attributes();
+
+    auto thisPool = AsPool();
+    if (thisPool && thisPool->GetIntegralGuaranteeType() != EIntegralGuaranteeType::None) {
+        return;
+    }
+
+    TResourceVolume childrenAcceptableVolume;
+    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+        if (auto* childPool = GetChild(childIndex)->AsPool()) {
+            childPool->UpdateOverflowAndAcceptableVolumesRecursively();
+            attributes.ChildrenVolumeOverflow += childPool->Attributes().VolumeOverflow;
+            childrenAcceptableVolume += childPool->Attributes().AcceptableVolume;
+        }
+    }
+
+    bool canAcceptFreeVolume = CanAcceptFreeVolume();
+
+    TResourceVolume::ForEachResource([&] (EJobResourceType /*resourceType*/, auto TResourceVolume::* resourceDataMember) {
+        auto diff = attributes.ChildrenVolumeOverflow.*resourceDataMember - childrenAcceptableVolume.*resourceDataMember;
+        if (diff > 0) {
+            attributes.VolumeOverflow.*resourceDataMember = diff;
+            attributes.AcceptableVolume.*resourceDataMember = 0;
+        } else {
+            attributes.VolumeOverflow.*resourceDataMember = 0;
+            attributes.AcceptableVolume.*resourceDataMember = canAcceptFreeVolume ? -diff : 0;
+        }
+    });
+
+    if (!attributes.VolumeOverflow.IsZero()) {
+        YT_LOG_DEBUG("Pool has volume overflow (Volume: %v)", attributes.VolumeOverflow);
+    }
+}
+
+void TCompositeElement::DistributeFreeVolume()
+{
+    const auto& Logger = GetLogger();
+    auto& attributes = Attributes();
+
+    TResourceVolume freeVolume = attributes.AcceptedFreeVolume;
+
+    auto* thisPool = AsPool();
+    if (thisPool && thisPool->GetIntegralGuaranteeType() != NScheduler::EIntegralGuaranteeType::None) {
+        if (!freeVolume.IsZero()) {
+            thisPool->IntegralResourcesState().AccumulatedVolume += freeVolume;
+            YT_LOG_DEBUG("Pool has accepted free volume (FreeVolume: %v)", freeVolume);
+        }
+        return;
+    }
+
+    if (ShouldDistributeFreeVolumeAmongChildren() && !(freeVolume.IsZero() && attributes.ChildrenVolumeOverflow.IsZero())) {
+        YT_LOG_DEBUG(
+            "Distributing free volume among children (FreeVolumeFromParent: %v, ChildrenVolumeOverflow: %v)",
+            freeVolume,
+            attributes.ChildrenVolumeOverflow);
+
+        freeVolume += attributes.ChildrenVolumeOverflow;
+
+        struct TChildAttributes {
+            int Index;
+            TSchedulableAttributes* Attributes;
+            double AcceptableVolumeToWeightRatio;
+        };
+
+        TResourceVolume::ForEachResource([&] (EJobResourceType /*resourceType*/, auto TResourceVolume::* resourceDataMember) {
+            if (freeVolume.*resourceDataMember  == 0) {
+                return;
+            }
+            std::vector<TChildAttributes> hungryChildren;
+            auto weightSum = 0.0;
+            for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+                auto* child = GetChild(childIndex);
+                if (child->Attributes().AcceptableVolume.*resourceDataMember > 0) {
+                    // Resource flow is taken as weight.
+                    auto weight = child->Attributes().ResourceFlowRatio;
+                    hungryChildren.push_back(TChildAttributes{
+                        .Index = childIndex,
+                        .Attributes = &child->Attributes(),
+                        .AcceptableVolumeToWeightRatio = static_cast<double>(child->Attributes().AcceptableVolume.*resourceDataMember) / weight,
+                    });
+                    weightSum += weight;
+                }
+            }
+
+            // Children will be saturated in ascending order of |AcceptableVolumeToWeightRatio|.
+            std::sort(
+                hungryChildren.begin(),
+                hungryChildren.end(),
+                [] (const TChildAttributes& lhs, const TChildAttributes& rhs) {
+                    return lhs.AcceptableVolumeToWeightRatio < rhs.AcceptableVolumeToWeightRatio;
+                });
+
+            auto it = hungryChildren.begin();
+            // First we provide free volume to the pools that cannot fully consume the suggested volume.
+            for (; it != hungryChildren.end(); ++it) {
+                const auto suggestedFreeVolume = freeVolume.*resourceDataMember * it->Attributes->ResourceFlowRatio / weightSum;
+                const auto acceptableVolume = it->Attributes->AcceptableVolume.*resourceDataMember;
+                if (suggestedFreeVolume < acceptableVolume) {
+                    break;
+                }
+                it->Attributes->AcceptedFreeVolume.*resourceDataMember = acceptableVolume;
+                freeVolume.*resourceDataMember -= acceptableVolume;
+                weightSum -= static_cast<double>(it->Attributes->ResourceFlowRatio);
+            }
+
+            // Then we provide free volume to remaining pools that will fully consume the suggested volume.
+            for (; it != hungryChildren.end(); ++it) {
+                auto suggestedFreeVolume = freeVolume.*resourceDataMember * it->Attributes->ResourceFlowRatio / weightSum;
+                it->Attributes->AcceptedFreeVolume.*resourceDataMember = suggestedFreeVolume;
+            }
+        });
+    }
+
+    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+        GetChild(childIndex)->DistributeFreeVolume();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TPool::InitIntegralPoolLists(TFairShareUpdateContext* context)
@@ -762,6 +891,7 @@ void TPool::InitIntegralPoolLists(TFairShareUpdateContext* context)
 void TPool::UpdateAccumulatedResourceVolume(TFairShareUpdateContext* context)
 {
     const auto& Logger = GetLogger();
+    auto& attributes = Attributes();
 
     if (context->TotalResourceLimits == TJobResources()) {
         return;
@@ -775,29 +905,42 @@ void TPool::UpdateAccumulatedResourceVolume(TFairShareUpdateContext* context)
     auto& integralResourcesState = IntegralResourcesState();
 
     auto oldVolume = integralResourcesState.AccumulatedVolume;
-    auto maxAllowedVolume = TResourceVolume(context->TotalResourceLimits * Attributes().ResourceFlowRatio, context->IntegralPoolCapacitySaturationPeriod);
+    auto poolCapacity = TResourceVolume(context->TotalResourceLimits * attributes.ResourceFlowRatio, context->IntegralPoolCapacitySaturationPeriod);
 
     integralResourcesState.AccumulatedVolume +=
-        TResourceVolume(context->TotalResourceLimits, periodSinceLastUpdate) * Attributes().ResourceFlowRatio;
+        TResourceVolume(context->TotalResourceLimits, periodSinceLastUpdate) * attributes.ResourceFlowRatio;
     integralResourcesState.AccumulatedVolume -=
         TResourceVolume(context->TotalResourceLimits, periodSinceLastUpdate) * integralResourcesState.LastShareRatio;
 
     auto lowerLimit = TResourceVolume();
-    auto upperLimit = Max(oldVolume, maxAllowedVolume);
+    auto upperLimit = Max(oldVolume, poolCapacity);
+
+    attributes.VolumeOverflow = Max(integralResourcesState.AccumulatedVolume - upperLimit, TResourceVolume());
+    if (CanAcceptFreeVolume()) {
+        attributes.AcceptableVolume = Max(upperLimit - integralResourcesState.AccumulatedVolume, TResourceVolume());
+    }
+
     integralResourcesState.AccumulatedVolume = Max(integralResourcesState.AccumulatedVolume, lowerLimit);
     integralResourcesState.AccumulatedVolume = Min(integralResourcesState.AccumulatedVolume, upperLimit);
 
     YT_LOG_DEBUG(
         "Accumulated resource volume updated "
-        "(ResourceFlowRatio: %v, PeriodSinceLastUpdateInSeconds: %v, TotalResourceLimits: %v, "
-        "LastIntegralShareRatio: %v, PoolCapacity: %v, OldVolume: %v, UpdatedVolume: %v)",
-        Attributes().ResourceFlowRatio,
+        "(ResourceFlowRatio: %v, PeriodSinceLastUpdateInSeconds: %v, TotalResourceLimits: %v, LastIntegralShareRatio: %v, "
+        "PoolCapacity: %v, OldVolume: %v, UpdatedVolume: %v, VolumeOverflow: %v, AcceptableVolume: %v)",
+        attributes.ResourceFlowRatio,
         periodSinceLastUpdate.SecondsFloat(),
         context->TotalResourceLimits,
         integralResourcesState.LastShareRatio,
-        maxAllowedVolume,
+        poolCapacity,
         oldVolume,
-        integralResourcesState.AccumulatedVolume);
+        integralResourcesState.AccumulatedVolume,
+        attributes.VolumeOverflow,
+        attributes.AcceptableVolume);
+}
+
+bool TPool::ShouldDistributeFreeVolumeAmongChildren()
+{
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -868,6 +1011,11 @@ void TRootElement::ValidateAndAdjustSpecifiedGuarantees(TFairShareUpdateContext*
     }
 
     AdjustStrongGuarantees(context);
+}
+
+bool TRootElement::ShouldDistributeFreeVolumeAmongChildren()
+{
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1176,6 +1324,9 @@ void TFairShareUpdateExecutor::ConsumeAndRefillIntegralPools()
     for (auto* pool : Context_->RelaxedPools) {
         pool->UpdateAccumulatedResourceVolume(Context_);
     }
+
+    RootElement_->UpdateOverflowAndAcceptableVolumesRecursively();
+    RootElement_->DistributeFreeVolume();
 }
 
 void TFairShareUpdateExecutor::UpdateRootFairShare()

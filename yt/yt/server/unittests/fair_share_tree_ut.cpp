@@ -681,15 +681,43 @@ void ResetFairShareFunctionsRecursively(TSchedulerCompositeElement* compositeEle
     }
 }
 
+TResourceVolume GetHugeVolume()
+{
+    TResourceVolume hugeVolume;
+    hugeVolume.SetCpu(10000000000);
+    hugeVolume.SetUserSlots(10000000000);
+    hugeVolume.SetMemory(10000000000_MB);
+    return hugeVolume;
+}
+
+TJobResources OneHundredthOfCluster()
+{
+    TJobResources oneHundredthOfCluster;
+    oneHundredthOfCluster.SetCpu(1);
+    oneHundredthOfCluster.SetUserSlots(1);
+    oneHundredthOfCluster.SetMemory(10_MB);
+    return oneHundredthOfCluster;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 MATCHER_P2(ResourceVectorNear, vec, absError, "") {
-//    *result_listener << "where the remainder is " << (arg % n);
     return TResourceVector::Near(arg, vec, absError);
 }
 
 #define EXPECT_RV_NEAR(vector1, vector2) \
     EXPECT_THAT(vector2, ResourceVectorNear(vector1, 1e-7))
+
+MATCHER_P2(ResourceVolumeNear, vec, absError, "") {
+    bool result = true;
+    TResourceVolume::ForEachResource([&] (EJobResourceType /*resourceType*/, auto TResourceVolume::* resourceDataMember) {
+        result = result && std::abs(static_cast<double>(arg.*resourceDataMember - vec.*resourceDataMember)) < absError;
+    });
+    return result;
+}
+
+#define EXPECT_RESOURCE_VOLUME_NEAR(vector1, vector2) \
+    EXPECT_THAT(vector2, ResourceVolumeNear(vector1, 1e-7))
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1924,6 +1952,8 @@ TEST_F(TFairShareTreeTest, TestConditionalPreemption)
     EXPECT_EQ(TJobResources(), schedulingContext->GetConditionalDiscountForOperation(blockingOperation->GetId()));
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_F(TFairShareTreeTest, TestRelaxedPoolFairShareSimple)
 {
     auto host = CreateHostWith10NodesAnd10Cpu();
@@ -1972,12 +2002,8 @@ TEST_F(TFairShareTreeTest, TestRelaxedPoolWithIncreasedMultiplierLimit)
     auto [operationElement1, operationHost1] = CreateOperationWithJobs(100, host.Get(), defaultRelaxedPool.Get());
     auto [operationElement2, operationHost2] = CreateOperationWithJobs(100, host.Get(), increasedLimitRelaxedPool.Get());
 
-    TResourceVolume hugeVolume;
-    hugeVolume.SetCpu(10000000000);
-    hugeVolume.SetUserSlots(10000000000);
-    hugeVolume.SetMemory(10000000000_MB);
-    defaultRelaxedPool->InitAccumulatedResourceVolume(hugeVolume);
-    increasedLimitRelaxedPool->InitAccumulatedResourceVolume(hugeVolume);
+    defaultRelaxedPool->InitAccumulatedResourceVolume(GetHugeVolume());
+    increasedLimitRelaxedPool->InitAccumulatedResourceVolume(GetHugeVolume());
 
     {
         DoFairShareUpdate(host.Get(), rootElement);
@@ -2026,7 +2052,7 @@ TEST_F(TFairShareTreeTest, TestAccumulatedVolumeProvidesMore)
     auto host = CreateHostWith10NodesAnd10Cpu();
     auto rootElement = CreateTestRootElement(host.Get());
 
-    auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 10));
+    auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(/*flowCpu*/ 10));
     relaxedPool->AttachParent(rootElement.Get());
 
     auto firstUpdateTime = TInstant::Now();
@@ -2035,8 +2061,8 @@ TEST_F(TFairShareTreeTest, TestAccumulatedVolumeProvidesMore)
         DoFairShareUpdate(
 			host.Get(),
 			rootElement,
-			/* now */ firstUpdateTime,
-			/* previousUpdateTime */ firstUpdateTime - TDuration::Minutes(1));
+			/*now*/ firstUpdateTime,
+			/*previousUpdateTime*/ firstUpdateTime - TDuration::Minutes(1));
     }
 
     auto [operationElement, operationHost] = CreateOperationWithJobs(30, host.Get(), relaxedPool.Get());
@@ -2046,8 +2072,8 @@ TEST_F(TFairShareTreeTest, TestAccumulatedVolumeProvidesMore)
         DoFairShareUpdate(
 			host.Get(),
 			rootElement,
-			/* now */ secondUpdateTime,
-			/* previousUpdateTime */ firstUpdateTime);
+			/*now*/ secondUpdateTime,
+			/*previousUpdateTime*/ firstUpdateTime);
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_RV_NEAR(unit * 3, operationElement->Attributes().FairShare.WeightProportional);
@@ -2293,6 +2319,117 @@ TEST_F(TFairShareTreeTest, TestTwoRelaxedPoolsGetShareRatioProportionalToVolume)
     }
 }
 
+TEST_F(TFairShareTreeTest, TestVolumeOverflowDistributionSimple)
+{
+    auto host = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(host.Get());
+    auto ancestor = CreateTestPool(host.Get(), "ancestor", CreateIntegralPoolConfig(
+        EIntegralGuaranteeType::None,
+        /*flowCpu*/ 100,
+        /*burstCpu*/ 100));
+    ancestor->AttachParent(rootElement.Get());
+
+    auto acceptablePool = CreateTestPool(host.Get(), "acceptablePool", CreateRelaxedPoolConfig(/*flowCpu*/ 1));  // 1% of cluster.
+    acceptablePool->AttachParent(ancestor.Get());
+
+    auto overflowedPool = CreateTestPool(host.Get(), "overflowedPool", CreateRelaxedPoolConfig(/*flowCpu*/ 10));  // 10% of cluster.
+    overflowedPool->AttachParent(ancestor.Get());
+
+    acceptablePool->InitAccumulatedResourceVolume(TResourceVolume());
+    overflowedPool->InitAccumulatedResourceVolume(GetHugeVolume());
+    {
+        auto updateTime = TInstant::Now();
+        DoFairShareUpdate(
+            host.Get(),
+            rootElement,
+            /*now*/ updateTime,
+            /*previousUpdateTime*/ updateTime - TDuration::Seconds(10));
+
+        auto selfVolume = TResourceVolume(OneHundredthOfCluster(), TDuration::Seconds(10));  // 1% of cluster for 10 seconds.
+        auto overflowedVolume = TResourceVolume(OneHundredthOfCluster() * 10., TDuration::Seconds(10));  // 10% of cluster for 10 seconds.
+        auto expectedVolume = selfVolume + overflowedVolume;
+        EXPECT_RESOURCE_VOLUME_NEAR(expectedVolume, acceptablePool->GetAccumulatedResourceVolume());
+    }
+}
+
+TEST_F(TFairShareTreeTest, TestVolumeOverflowDistributionIfPoolDoesNotAcceptIt)
+{
+    auto host = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(host.Get());
+    auto ancestor = CreateTestPool(host.Get(), "ancestor", CreateIntegralPoolConfig(
+        EIntegralGuaranteeType::None,
+        /*flowCpu*/ 100,
+        /*burstCpu*/ 100));
+    ancestor->AttachParent(rootElement.Get());
+
+    auto poolConfig = CreateRelaxedPoolConfig(/*flowCpu*/ 1);
+    poolConfig->IntegralGuarantees->CanAcceptFreeVolume = false;
+    auto notAcceptablePool = CreateTestPool(host.Get(), "notAcceptablePool", poolConfig);  // 1% of cluster.
+    notAcceptablePool->AttachParent(ancestor.Get());
+
+    auto overflowedPool = CreateTestPool(host.Get(), "overflowedPool", CreateRelaxedPoolConfig(/*flowCpu*/ 10));  // 10% of cluster.
+    overflowedPool->AttachParent(ancestor.Get());
+
+    notAcceptablePool->InitAccumulatedResourceVolume(TResourceVolume());
+    overflowedPool->InitAccumulatedResourceVolume(GetHugeVolume());
+    {
+        auto updateTime = TInstant::Now();
+        DoFairShareUpdate(
+            host.Get(),
+            rootElement,
+            /*now*/ updateTime,
+            /*previousUpdateTime*/ updateTime - TDuration::Seconds(10));
+
+        auto selfVolume = TResourceVolume(OneHundredthOfCluster(), TDuration::Seconds(10));
+        EXPECT_RESOURCE_VOLUME_NEAR(selfVolume, notAcceptablePool->GetAccumulatedResourceVolume());
+    }
+}
+
+TEST_F(TFairShareTreeTest, TestVolumeOverflowDisributionWithLimitedAcceptablePool)
+{
+    auto host = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(host.Get());
+    auto ancestor = CreateTestPool(host.Get(), "ancestor", CreateIntegralPoolConfig(
+        EIntegralGuaranteeType::None,
+        /*flowCpu*/ 100,
+        /*burstCpu*/ 100));
+    ancestor->AttachParent(rootElement.Get());
+
+    auto emptyVolumePool = CreateTestPool(host.Get(), "fullyAcceptablePool", CreateRelaxedPoolConfig(/*flowCpu*/ 1));
+    emptyVolumePool->AttachParent(ancestor.Get());
+
+    auto limitedAcceptablePool = CreateTestPool(host.Get(), "limitedAcceptablePool", CreateRelaxedPoolConfig(/*flowCpu*/ 1));
+    limitedAcceptablePool->AttachParent(ancestor.Get());
+
+    auto overflowedPool = CreateTestPool(host.Get(), "overflowedPool", CreateRelaxedPoolConfig(/*flowCpu*/ 10));
+    overflowedPool->AttachParent(ancestor.Get());
+
+    auto smallVolumeUnit = TResourceVolume(OneHundredthOfCluster(), TDuration::Seconds(10));  // 1% of cluster for 10 seconds.
+
+    emptyVolumePool->InitAccumulatedResourceVolume(TResourceVolume());
+    overflowedPool->InitAccumulatedResourceVolume(GetHugeVolume());
+
+    limitedAcceptablePool->Attributes().ResourceFlowRatio = 0.01;  // 1 flow cpu. It is needed for integral pool capacity.
+
+    auto fullCapacity = limitedAcceptablePool->GetIntegralPoolCapacity();
+    limitedAcceptablePool->InitAccumulatedResourceVolume(fullCapacity - smallVolumeUnit*3);  // Can accept three units until full capacity.
+    {
+        auto updateTime = TInstant::Now();
+        DoFairShareUpdate(
+            host.Get(),
+            rootElement,
+            /*now*/ updateTime,
+            /*previousUpdateTime*/ updateTime - TDuration::Seconds(10));
+
+        // Limited pool will get 1 (self volume) + 2 (from overflowed sibling) and will have full capacity.
+        EXPECT_RESOURCE_VOLUME_NEAR(fullCapacity, limitedAcceptablePool->GetAccumulatedResourceVolume());
+
+        // Empty volume pool will get 1 (self volume) + 8 (remaining from overflowed sibling).
+        auto emptyVolumePoolVolume = smallVolumeUnit*9;
+        EXPECT_RESOURCE_VOLUME_NEAR(emptyVolumePoolVolume, emptyVolumePool->GetAccumulatedResourceVolume());
+    }
+}
+
 TEST_F(TFairShareTreeTest, TestStrongGuaranteeAdjustmentToTotalResources)
 {
     auto host = CreateHostWith10NodesAnd10Cpu();
@@ -2407,6 +2544,7 @@ TEST_F(TFairShareTreeTest, TestParentWithoutGuaranteeAndHisLimitsLowerThanChildB
         EXPECT_RV_NEAR(unit * 5, burstChild->Attributes().FairShare.Total);
     }
 }
+
 TEST_F(TFairShareTreeTest, TestParentWithStrongGuaranteeAndHisLimitsLowerThanChildBurstShare)
 {
     auto host = CreateHostWith10NodesAnd10Cpu();
@@ -2638,12 +2776,7 @@ TEST_F(TFairShareTreeTest, TestPoolCapacityDoesntDecreaseExistingAccumulatedVolu
     auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 100));
     relaxedPool->AttachParent(rootElement.Get());
 
-
-    TResourceVolume hugeVolume;
-    hugeVolume.SetCpu(10000000000);
-    hugeVolume.SetUserSlots(10000000000);
-    hugeVolume.SetMemory(10000000000_MB);
-
+    auto hugeVolume = GetHugeVolume();
     relaxedPool->InitAccumulatedResourceVolume(hugeVolume);
     {
         auto now = TInstant::Now();
