@@ -61,7 +61,7 @@ public:
     int GetTotalGpuCount() const;
     int GetFreeGpuCount() const;
     int GetUsedGpuCount() const;
-    const std::vector<TString>& ListGpuDevices() const;
+    const std::vector<TString>& GetGpuDevices() const;
     THashMap<int, NJobAgent::TGpuInfo> GetGpuInfoMap() const;
 
     using TGpuSlotPtr = std::unique_ptr<TGpuSlot, std::function<void(TGpuSlot*)>>;

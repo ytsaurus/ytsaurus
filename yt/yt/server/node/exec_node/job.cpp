@@ -1321,9 +1321,7 @@ private:
         checkCommand->Path = gpuCheckBinaryPath;
 
         std::vector<TDevice> devices;
-        for (const auto& descriptor : ListGpuDevices()) {
-            const auto& deviceName = descriptor.DeviceName;
-
+        for (const auto& deviceName : Bootstrap_->GetGpuManager()->GetGpuDevices()) {
             bool deviceFound = false;
             for (const auto& slot : GpuSlots_) {
                 if (slot->GetDeviceName() == deviceName) {
@@ -1332,7 +1330,8 @@ private:
                 }
             }
 
-            if (!deviceFound) {
+            // We should not explicitly exclude test device that does not actually exists.
+            if (!deviceFound && !Config_->JobController->GpuManager->TestResource) {
                 // Exclude device explicitly.
                 devices.emplace_back(TDevice{
                     .DeviceName = deviceName,
