@@ -40,7 +40,8 @@
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
-
+#include <yt/yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/random.h>
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/node.h>
 #include <yt/yt/core/ytree/permission.h>
@@ -625,6 +626,77 @@ void TReaderVirtualValues::FillColumns(
     YT_VERIFY(std::ssize(columnRange) == GetBatchColumnCount(virtualColumnIndex));
     FillRleColumn(&columnRange[1], virtualColumnIndex);
     FillMainColumn(&columnRange[0], &columnRange[1], virtualColumnIndex, startIndex, valueCount);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+NProto::THeavyColumnStatisticsExt GetHeavyColumnStatisticsExt(
+    const NProto::TColumnarStatisticsExt& columnarStatisticsExt,
+    const std::function<TString(int index)>& getNameByIndex,
+    int columnCount,
+    int maxHeavyColumns)
+{
+    YT_VERIFY(columnCount == columnarStatisticsExt.data_weights_size());
+
+    // Column weights here are measured in units, which are equal to 1/255 of the weight
+    // of heaviest column.
+    constexpr int DataWeightGranularity = 256;
+
+    auto salt = RandomNumber<ui32>();
+
+    struct TColumnStatistics
+    {
+        i64 DataWeight;
+        TString Name;
+    };
+    std::vector<TColumnStatistics> columnStatistics;
+    columnStatistics.reserve(columnCount);
+
+    auto heavyColumnCount = std::min<int>(columnCount, maxHeavyColumns);
+    i64 maxColumnDataWeight = 0;
+
+    for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
+        auto dataWeight = columnarStatisticsExt.data_weights(columnIndex);
+        maxColumnDataWeight = std::max<i64>(maxColumnDataWeight, dataWeight);
+        columnStatistics.push_back(TColumnStatistics{
+            .DataWeight = dataWeight,
+            .Name = getNameByIndex(columnIndex)
+        });
+    }
+
+    auto dataWeightUnit = std::max<i64>(1, DivCeil<i64>(maxColumnDataWeight, DataWeightGranularity - 1));
+
+    if (heavyColumnCount > 0) {
+        std::nth_element(
+            columnStatistics.begin(),
+            columnStatistics.begin() + heavyColumnCount - 1,
+            columnStatistics.end(),
+            [] (const TColumnStatistics& lhs, const TColumnStatistics& rhs) {
+                return lhs.DataWeight > rhs.DataWeight;
+            });
+    }
+
+    NProto::THeavyColumnStatisticsExt heavyColumnStatistics;
+    heavyColumnStatistics.set_version(1);
+    heavyColumnStatistics.set_salt(salt);
+
+    TBuffer dataWeightBuffer(heavyColumnCount);
+    heavyColumnStatistics.set_data_weight_unit(dataWeightUnit);
+    for (int columnIndex = 0; columnIndex < heavyColumnCount; ++columnIndex) {
+        heavyColumnStatistics.add_column_name_hashes(GetHeavyColumnStatisticsHash(salt, columnStatistics[columnIndex].Name));
+
+        auto dataWeight = DivCeil<i64>(columnStatistics[columnIndex].DataWeight, dataWeightUnit);
+        YT_VERIFY(dataWeight >= 0 && dataWeight < DataWeightGranularity);
+        dataWeightBuffer.Append(static_cast<ui8>(dataWeight));
+
+        // All other columns have weight 0.
+        if (dataWeight == 0) {
+            break;
+        }
+    }
+    heavyColumnStatistics.set_column_data_weights(dataWeightBuffer.data(), dataWeightBuffer.size());
+
+    return heavyColumnStatistics;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

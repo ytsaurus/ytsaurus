@@ -190,6 +190,29 @@ DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMetaAggregatingWriterOptions
+    : public TMultiChunkWriterOptions
+{
+public:
+    bool EnableSkynetSharing;
+    int MaxHeavyColumns;
+    bool AllowUnknownExtensions;
+
+    TMetaAggregatingWriterOptions()
+    {
+        RegisterParameter("enable_skynet_sharing", EnableSkynetSharing)
+            .Default(false);
+        RegisterParameter("max_heavy_columns", MaxHeavyColumns)
+            .Default(0);
+        RegisterParameter("allow_unknown_extensions", AllowUnknownExtensions)
+            .Default(false);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMetaAggregatingWriterOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBlockCacheConfig
     : public virtual NYTree::TYsonSerializable
 {
