@@ -419,97 +419,24 @@ abstract class StreamWriterImpl<T extends Message> extends StreamBase<T> impleme
     }
 }
 
-class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> implements TableWriter<T>, RpcStreamConsumer {
-    private TableSchema schema;
+class RowsSerializer<T> {
     private TRowsetDescriptor rowsetDescriptor = TRowsetDescriptor.newBuilder().build();
-    private final WireRowSerializer<T> serializer;
+    private final WireRowSerializer<T> rowSerializer;
     private final Map<String, Integer> column2id = new HashMap<>();
 
-    TableWriterImpl(long windowSize, long packetSize, WireRowSerializer<T> serializer) {
-        super(windowSize, packetSize);
-
-        this.serializer = Objects.requireNonNull(serializer);
+    RowsSerializer(WireRowSerializer<T> rowSerializer) {
+        this.rowSerializer = Objects.requireNonNull(rowSerializer);
     }
 
     public WireRowSerializer<T> getRowSerializer() {
-        return this.serializer;
+        return rowSerializer;
     }
 
-    @Override
-    protected Parser<TRspWriteTable> responseParser() {
-        return TRspWriteTable.parser();
+    public TRowsetDescriptor getRowsetDescriptor() {
+        return rowsetDescriptor;
     }
 
-    public CompletableFuture<TableWriter<T>> startUpload() {
-        TableWriterImpl<T> self = this;
-
-        return startUpload.thenApply((attachments) -> {
-            if (attachments.size() != 1) {
-                throw new IllegalArgumentException("protocol error");
-            }
-            byte[] head = attachments.get(0);
-            if (head == null) {
-                throw new IllegalArgumentException("protocol error");
-            }
-
-            TWriteTableMeta metadata = RpcUtil.parseMessageBodyWithCompression(
-                    head,
-                    TWriteTableMeta.parser(),
-                    Compression.None
-            );
-            self.schema = ApiServiceUtil.deserializeTableSchema(metadata.getSchema());
-
-            logger.debug("schema -> {}", schema.toYTree().toString());
-
-            return self;
-        });
-    }
-
-    private void writeDescriptorDelta(ByteBuf buf, TRowsetDescriptor descriptor) throws IOException {
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        CodedOutputStream os = CodedOutputStream.newInstance(byteArrayOutputStream);
-        descriptor.writeTo(os);
-        os.flush();
-
-        buf.writeBytes(byteArrayOutputStream.toByteArray());
-    }
-
-    private void writeMergedRow(ByteBuf buf, TRowsetDescriptor descriptor, List<T> rows, int[] idMapping) {
-        WireProtocolWriter writer = new WireProtocolWriter();
-        serializer.updateSchema(descriptor);
-        writer.writeUnversionedRowset(rows, serializer, idMapping);
-
-        for (byte[] bytes : writer.finish()) {
-            buf.writeBytes(bytes);
-        }
-    }
-
-    private void writeRowsData(
-            ByteBuf buf,
-            TRowsetDescriptor descriptor,
-            List<T> rows,
-            int[] idMapping
-    ) throws IOException {
-        // parts
-        buf.writeIntLE(2);
-
-        int descriptorDeltaSizeIndex = buf.writerIndex();
-        buf.writeLongLE(0); // reserve space
-
-        writeDescriptorDelta(buf, descriptor);
-
-        buf.setLongLE(descriptorDeltaSizeIndex, buf.writerIndex() - descriptorDeltaSizeIndex - 8);
-
-        int mergedRowSizeIndex = buf.writerIndex();
-        buf.writeLongLE(0); // reserve space
-
-        writeMergedRow(buf, descriptor, rows, idMapping);
-
-        buf.setLongLE(mergedRowSizeIndex, buf.writerIndex() - mergedRowSizeIndex - 8);
-    }
-
-    @Override
-    public boolean write(List<T> rows, TableSchema schema) throws IOException {
+    public byte[] serialize(List<T> rows, TableSchema schema) throws IOException {
         Iterator<T> it = rows.iterator();
         if (!it.hasNext()) {
             throw new IllegalStateException();
@@ -570,12 +497,106 @@ class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> implements Tab
             rowsetDescriptor = merged.build();
         }
 
+        return attachment;
+    }
+
+    private void writeDescriptorDelta(ByteBuf buf, TRowsetDescriptor descriptor) throws IOException {
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        CodedOutputStream os = CodedOutputStream.newInstance(byteArrayOutputStream);
+        descriptor.writeTo(os);
+        os.flush();
+
+        buf.writeBytes(byteArrayOutputStream.toByteArray());
+    }
+
+    private void writeMergedRow(ByteBuf buf, TRowsetDescriptor descriptor, List<T> rows, int[] idMapping) {
+        WireProtocolWriter writer = new WireProtocolWriter();
+        rowSerializer.updateSchema(descriptor);
+        writer.writeUnversionedRowset(rows, rowSerializer, idMapping);
+
+        for (byte[] bytes : writer.finish()) {
+            buf.writeBytes(bytes);
+        }
+    }
+
+    private void writeRowsData(
+            ByteBuf buf,
+            TRowsetDescriptor descriptor,
+            List<T> rows,
+            int[] idMapping
+    ) throws IOException {
+        // parts
+        buf.writeIntLE(2);
+
+        int descriptorDeltaSizeIndex = buf.writerIndex();
+        buf.writeLongLE(0); // reserve space
+
+        writeDescriptorDelta(buf, descriptor);
+
+        buf.setLongLE(descriptorDeltaSizeIndex, buf.writerIndex() - descriptorDeltaSizeIndex - 8);
+
+        int mergedRowSizeIndex = buf.writerIndex();
+        buf.writeLongLE(0); // reserve space
+
+        writeMergedRow(buf, descriptor, rows, idMapping);
+
+        buf.setLongLE(mergedRowSizeIndex, buf.writerIndex() - mergedRowSizeIndex - 8);
+    }
+}
+
+class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> implements TableWriter<T>, RpcStreamConsumer {
+    private TableSchema schema;
+    private RowsSerializer rowsSerializer;
+
+    TableWriterImpl(long windowSize, long packetSize, WireRowSerializer<T> serializer) {
+        super(windowSize, packetSize);
+        this.rowsSerializer = new RowsSerializer(serializer);
+    }
+
+    public WireRowSerializer<T> getRowSerializer() {
+        return rowsSerializer.getRowSerializer();
+    }
+
+    @Override
+    protected Parser<TRspWriteTable> responseParser() {
+        return TRspWriteTable.parser();
+    }
+
+    public CompletableFuture<TableWriter<T>> startUpload() {
+        TableWriterImpl<T> self = this;
+
+        return startUpload.thenApply((attachments) -> {
+            if (attachments.size() != 1) {
+                throw new IllegalArgumentException("protocol error");
+            }
+            byte[] head = attachments.get(0);
+            if (head == null) {
+                throw new IllegalArgumentException("protocol error");
+            }
+
+            TWriteTableMeta metadata = RpcUtil.parseMessageBodyWithCompression(
+                    head,
+                    TWriteTableMeta.parser(),
+                    Compression.None
+            );
+            self.schema = ApiServiceUtil.deserializeTableSchema(metadata.getSchema());
+
+            logger.debug("schema -> {}", schema.toYTree().toString());
+
+            return self;
+        });
+    }
+
+    @Override
+    public boolean write(List<T> rows, TableSchema schema) throws IOException {
+        byte[] attachment = rowsSerializer.serialize(rows, schema);
+
         return push(attachment);
     }
 
     @Override
     public TRowsetDescriptor getRowsetDescriptor() {
-        return rowsetDescriptor;
+        return rowsSerializer.getRowsetDescriptor();
     }
 
     @Override
