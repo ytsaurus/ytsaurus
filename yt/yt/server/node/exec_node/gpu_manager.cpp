@@ -94,7 +94,12 @@ TGpuManager::TGpuManager(
         }
         shouldInitializeLayers = Config_->TestLayers;
     } else {
-        descriptors = NJobAgent::ListGpuDevices();
+        try {
+            descriptors = NJobAgent::ListGpuDevices();
+        } catch (const std::exception& ex) {
+            Error_ = TError(ex);
+            descriptors = {};
+        }
         shouldInitializeLayers = !descriptors.empty();
     }
 
@@ -345,7 +350,7 @@ THashMap<int, TGpuInfo> TGpuManager::GetGpuInfoMap() const
     return HealthyGpuInfoMap_;
 }
 
-const std::vector<TString>& TGpuManager::ListGpuDevices() const
+const std::vector<TString>& TGpuManager::GetGpuDevices() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
