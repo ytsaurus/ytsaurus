@@ -3,7 +3,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait, create, ls, get, copy, remove,
+    authors, wait, create, ls, get, copy, remove, set,
     exists, create_table,
     start_transaction, abort_transaction, commit_transaction, insert_rows, alter_table, read_table, write_table,
     merge, sort,
@@ -1678,6 +1678,21 @@ class TestSchemaObjects(TestSchemaDeduplication):
         assert src_schema_id != external_dst_schema_id
         assert external_src_schema_id != dst_schema_id
         assert dst_schema_id != external_dst_schema_id
+
+    @authors("cookiedoth")
+    def test_schema_get(self):
+        create("table", "//tmp/schema_holder", attributes={"schema": self._get_schema(True)})
+        schema_id = get("//tmp/schema_holder/@schema_id")
+
+        schema = get("//tmp/schema_holder/@schema")
+        assert get("#{}".format(schema_id)) == schema
+        assert get("#{}/@value".format(schema_id)) == schema
+        with pytest.raises(YtError):
+            set("#{}/@value".format(schema_id), self._get_schema(True))
+        with pytest.raises(YtError):
+            set("#{}".format(schema_id), self._get_schema(True))
+        with pytest.raises(YtError):
+            remove("#{}/@value".format(schema_id))
 
 
 class TestSchemaValidation(YTEnvSetup):

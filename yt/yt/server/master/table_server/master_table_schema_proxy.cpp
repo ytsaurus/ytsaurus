@@ -15,6 +15,7 @@ namespace NYT::NTableServer {
 
 using namespace NCellMaster;
 using namespace NObjectServer;
+using namespace NYson;
 using namespace NYTree;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -34,6 +35,7 @@ public:
 
         descriptors->push_back(EInternedAttributeKey::MemoryUsage);
         descriptors->push_back(EInternedAttributeKey::ReferencingAccounts);
+        descriptors->push_back(EInternedAttributeKey::Value);
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -61,6 +63,33 @@ public:
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override
+    {
+        const auto* schema = GetThisImpl();
+
+        switch(key) {
+            case EInternedAttributeKey::Value:
+                return schema->AsYsonAsync();
+
+            default:
+                break;
+        }
+
+        return TBase::GetBuiltinAttributeAsync(key);
+    }
+
+    virtual void GetSelf(TReqGet* /*request*/, TRspGet* response, const TCtxGetPtr& context) override
+    {
+        GetThisImpl()->AsYsonAsync().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
+            if (resultOrError.IsOK()) {
+                response->set_value(resultOrError.Value().ToString());
+                context->Reply();
+            } else {
+                context->Reply(resultOrError);
+            }
+        }));
     }
 };
 
