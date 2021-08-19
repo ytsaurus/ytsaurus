@@ -745,7 +745,7 @@ private:
                     continue;
                 }
 
-                if (suspicionMarkTimes[i]) {
+                if (suspiciousNodeCount != 0 && suspicionMarkTimes[i]) {
                     peerProbingFutures[i].Cancel(TError("Node is suspicious"));
                     continue;
                 }
