@@ -145,16 +145,7 @@ class TestMasterCache(Base, YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
 
-    MASTER_CACHE_CONFIG = {
-        "enable_master_cache_discovery": True,
-        "master_cache_discovery_period": 100,
-        "addresses": [],
-        "cell_id": "1-1-1-1",
-    }
-
-    DELTA_NODE_CONFIG = {"cluster_connection": {"master_cache": MASTER_CACHE_CONFIG}}
-
-    DELTA_DRIVER_CONFIG = {"master_cache": MASTER_CACHE_CONFIG}
+    USE_MASTER_CACHE = True
 
     def get_discovered_node_list(self):
         return sorted(get("//sys/cluster_nodes/@master_cache_nodes"))
