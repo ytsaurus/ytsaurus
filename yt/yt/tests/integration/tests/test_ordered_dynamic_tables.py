@@ -1101,6 +1101,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
     def test_delete_rows_error(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         try:
             delete_rows("//tmp/t", [{"key": 0}])
         except YtError as err:
