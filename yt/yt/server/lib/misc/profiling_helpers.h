@@ -61,3 +61,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+#define PROFILING_HELPERS_H_
+#include "profiling_helpers-inl.h"
+#undef PROFILING_HELPERS_H_

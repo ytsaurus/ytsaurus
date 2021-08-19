@@ -9,8 +9,6 @@
 #include <yt/yt/core/profiling/profiler.h>
 #include <yt/yt/core/profiling/profile_manager.h>
 
-#include <yt/yt/core/rpc/authentication_identity.h>
-
 namespace NYT {
 
 using namespace NProfiling;
@@ -19,21 +17,6 @@ using namespace NYPath;
 ////////////////////////////////////////////////////////////////////////////////
 
 const TString UnknownProfilingTag("unknown");
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::optional<TString> GetCurrentProfilingUser()
-{
-    return GetProfilingUser(NRpc::GetCurrentAuthenticationIdentity());
-}
-
-std::optional<TString> GetProfilingUser(const NRpc::TAuthenticationIdentity& identity)
-{
-    if (&identity == &NRpc::GetRootAuthenticationIdentity()) {
-        return {};
-    }
-    return identity.UserTag;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
