@@ -1666,7 +1666,6 @@ TJobResourcesConfig::TJobResourcesConfig()
 TCommonPreemptionConfig::TCommonPreemptionConfig()
 {
     RegisterParameter("enable_aggressive_starvation", EnableAggressiveStarvation)
-        .Alias("aggressive_starvation_enabled")
         .Default();
 }
 
