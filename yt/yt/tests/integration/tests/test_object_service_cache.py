@@ -10,23 +10,13 @@ class TestObjectServiceCache(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
 
-    MASTER_CACHE_CONFIG = {
-        "enable_master_cache_discovery": True,
-        "master_cache_discovery_period": 100,
-        "addresses": [],
-        "cell_id": "1-1-1-1",
-    }
+    USE_MASTER_CACHE = True
 
     DELTA_NODE_CONFIG = {
-        "cluster_connection": {
-            "master_cache": MASTER_CACHE_CONFIG
-        },
         "master_cache_service": {
             "top_entry_byte_rate_threshold": 1
         }
     }
-
-    DELTA_DRIVER_CONFIG = {"master_cache": MASTER_CACHE_CONFIG}
 
     @authors("aleksandra-zh")
     def test_orchid(self):

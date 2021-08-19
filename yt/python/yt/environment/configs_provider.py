@@ -27,16 +27,6 @@ def _get_timestamp_provider_addresses(yt_config,
     else:
         return master_connection_configs[master_connection_configs["primary_cell_tag"]]["addresses"]
 
-
-def _get_master_cache_addresses(yt_config,
-                                master_cache_addresses,
-                                node_addresses):
-    if yt_config.master_cache_count > 0:
-        return master_cache_addresses
-    else:
-        return node_addresses
-
-
 def build_configs(yt_config, ports_generator, dirs, logs_dir):
     clock_configs, clock_connection_configs = _build_clock_configs(
         yt_config,
@@ -84,9 +74,6 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         ports_generator,
         logs_dir,
         yt_config)
-
-    if len(master_cache_addresses) == 0:
-        master_cache_addresses = node_addresses
 
     chaos_node_configs = _build_chaos_node_configs(
         dirs["chaos_node"],
@@ -942,9 +929,9 @@ def _build_cluster_connection_config(yt_config,
     if config_template is not None:
         cluster_connection = update_inplace(config_template, cluster_connection)
 
-    if yt_config.enable_master_cache and len(master_cache_addresses) > 0:
+    if yt_config.enable_master_cache:
         cluster_connection["master_cache"] = {
-            "enable_master_cache_discovery": False,
+            "enable_master_cache_discovery": len(master_cache_addresses) == 0,
             "master_cache_discovery_period": 100,
             "soft_backoff_time": 100,
             "hard_backoff_time": 100,
