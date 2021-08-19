@@ -467,6 +467,14 @@ class TestDynamicTablesErasure(TestErasureBase):
         }
     }
 
+    def _separate_tablet_and_data_nodes(self):
+        self._nodes = ls("//sys/cluster_nodes")
+        assert len(self._nodes) == self.NUM_NODES
+
+        set("//sys/cluster_nodes/{0}/@disable_write_sessions".format(self._nodes[0]), True)
+        for node in self._nodes[1:]:
+            set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), True)
+
     @authors("akozhikhov")
     def test_erasure_reader_failures(self):
         set("//sys/@config/tablet_manager/store_chunk_reader", {
@@ -475,6 +483,7 @@ class TestDynamicTablesErasure(TestErasureBase):
             "slow_reader_expiration_timeout": 1000,
             "replication_reader_failure_timeout": 10000})
 
+        self._separate_tablet_and_data_nodes()
         sync_create_cells(1)
 
         replicas, content = self._prepare_table("isa_lrc_12_2_2", dynamic=True)
@@ -512,6 +521,7 @@ class TestDynamicTablesErasure(TestErasureBase):
 
     @authors("akozhikhov")
     def test_preload_with_repair(self):
+        self._separate_tablet_and_data_nodes()
         sync_create_cells(1)
 
         _, content = self._prepare_table("isa_lrc_12_2_2", dynamic=True)
