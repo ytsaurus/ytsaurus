@@ -169,7 +169,7 @@ private:
     TChunkVector InputChunks_;
     NChunkClient::NProto::TChunkMergerWriterOptions ChunkMergerWriterOptions_;
 
-    static NNodeTrackerClient::NProto::TNodeResources GetResourceUsage();
+    static NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(const TChunkVector& inputChunks);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMergeJob)

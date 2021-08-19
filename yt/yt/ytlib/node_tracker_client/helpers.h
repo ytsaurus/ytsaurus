@@ -27,6 +27,7 @@ namespace NYT::NNodeTrackerClient {
     XX(network,               Network) \
     XX(replication_slots,     ReplicationSlots) \
     XX(replication_data_size, ReplicationDataSize) \
+    XX(merge_data_size,       MergeDataSize) \
     XX(removal_slots,         RemovalSlots) \
     XX(repair_slots,          RepairSlots) \
     XX(repair_data_size,      RepairDataSize) \
@@ -39,6 +40,7 @@ namespace NYT::NNodeTrackerClient {
     XX(network,               Network) \
     XX(replication_slots,     ReplicationSlots) \
     XX(replication_data_size, ReplicationDataSize) \
+    XX(merge_data_size,       MergeDataSize) \
     XX(removal_slots,         RemovalSlots) \
     XX(repair_slots,          RepairSlots) \
     XX(repair_data_size,      RepairDataSize) \

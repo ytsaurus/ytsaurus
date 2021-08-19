@@ -31,7 +31,7 @@ TString FormatResources(
         "RemovalSlots: %v/%v, "
         "RepairSlots: %v/%v, RepairDataSize: %v/%v, "
         "SealSlots: %v/%v, "
-        "MergeSlots: %v/%v",
+        "MergeSlots: %v/%v, MergeDataSize: %v/%v",
         // User slots
         usage.user_slots(),
         limits.user_slots(),
@@ -70,7 +70,10 @@ TString FormatResources(
         limits.seal_slots(),
         // Merge slots
         usage.merge_slots(),
-        limits.merge_slots());
+        limits.merge_slots(),
+        // Merge data size
+        usage.merge_data_size(),
+        limits.merge_data_size());
 }
 
 TString FormatResourceUsage(
@@ -133,7 +136,7 @@ TString FormatResources(const TNodeResources& resources)
         "RemovalSlots: %v, "
         "RepairSlots: %v, RepairDataSize: %vMB, "
         "SealSlots: %v"
-        "MergeSlots: %v"
+        "MergeSlots: %v, MergeDataSize: %vMB"
         "}",
         resources.user_slots(),
         resources.cpu(),
@@ -147,7 +150,8 @@ TString FormatResources(const TNodeResources& resources)
         resources.repair_slots(),
         resources.repair_data_size() / 1_MB,
         resources.seal_slots(),
-        resources.merge_slots());
+        resources.merge_slots(),
+        resources.merge_data_size() / 1_MB);
 }
 
 void ProfileResources(ISensorWriter* writer, const NProto::TNodeResources& resources)

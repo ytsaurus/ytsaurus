@@ -123,9 +123,9 @@ void TJobRegistry::UpdateInterDCEdgeConsumption(
     const TDataCenter* srcDataCenter,
     int sizeMultiplier)
 {
-    // TODO(aleksandra-zh): Add merge jobs here.
     if (job->GetType() != EJobType::ReplicateChunk &&
-        job->GetType() != EJobType::RepairChunk)
+        job->GetType() != EJobType::RepairChunk &&
+        job->GetType() != EJobType::MergeChunks)
     {
         return;
     }
@@ -145,6 +145,10 @@ void TJobRegistry::UpdateInterDCEdgeConsumption(
                 auto repairJob = StaticPointerCast<TRepairJob>(job);
                 return repairJob->TargetReplicas();
             }
+            case EJobType::MergeChunks: {
+                auto mergeJob = StaticPointerCast<TMergeJob>(job);
+                return mergeJob->TargetReplicas();
+            }
             default:
                 YT_ABORT();
         }
@@ -157,6 +161,9 @@ void TJobRegistry::UpdateInterDCEdgeConsumption(
             break;
         case EJobType::RepairChunk:
             chunkPartSize = job->ResourceUsage().repair_data_size();
+            break;
+        case EJobType::MergeChunks:
+            chunkPartSize = job->ResourceUsage().merge_data_size();
             break;
         default:
             YT_ABORT();
