@@ -28,6 +28,7 @@ public:
     i64 SystemMemory;
     int ReplicationSlots;
     i64 ReplicationDataSize;
+    i64 MergeDataSize;
     int RemovalSlots;
     int RepairSlots;
     i64 RepairDataSize;
@@ -61,6 +62,9 @@ public:
             .GreaterThanOrEqual(0)
             .Default(16);
         RegisterParameter("replication_data_size", ReplicationDataSize)
+            .Default(10_GB)
+            .GreaterThanOrEqual(0);
+        RegisterParameter("merge_data_size", MergeDataSize)
             .Default(10_GB)
             .GreaterThanOrEqual(0);
         RegisterParameter("removal_slots", RemovalSlots)

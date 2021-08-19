@@ -234,7 +234,7 @@ TMergeJob::TMergeJob(
     TChunkVector inputChunks,
     TChunkMergerWriterOptions chunkMergerWriterOptions,
     TNodePtrWithIndexesList targetReplicas)
-    : TJob(jobId, EJobType::MergeChunks, node, TMergeJob::GetResourceUsage(), chunkIdWithIndexes)
+    : TJob(jobId, EJobType::MergeChunks, node, TMergeJob::GetResourceUsage(inputChunks), chunkIdWithIndexes)
     , TargetReplicas_(targetReplicas)
     , InputChunks_(std::move(inputChunks))
     , ChunkMergerWriterOptions_(std::move(chunkMergerWriterOptions))
@@ -270,10 +270,16 @@ void TMergeJob::FillJobSpec(NCellMaster::TBootstrap* bootstrap, TJobSpec* jobSpe
     }
 }
 
-TNodeResources TMergeJob::GetResourceUsage()
+TNodeResources TMergeJob::GetResourceUsage(const TChunkVector& inputChunks)
 {
+    i64 dataSize = 0;
+    for (auto chunk : inputChunks) {
+        dataSize += chunk->GetPartDiskSpace();
+    }
+
     TNodeResources resourceUsage;
     resourceUsage.set_merge_slots(1);
+    resourceUsage.set_merge_data_size(dataSize);
 
     return resourceUsage;
 }

@@ -381,7 +381,8 @@ void TChunkMerger::ScheduleJobs(IJobSchedulingContext* context)
     const auto& resourceLimits = context->GetNodeResourceLimits();
 
     auto hasSpareMergeResources = [&] {
-        return resourceUsage.merge_slots() < resourceLimits.merge_slots();
+        return resourceUsage.merge_slots() < resourceLimits.merge_slots() &&
+            (resourceUsage.merge_slots() == 0 || resourceUsage.merge_data_size() < resourceLimits.merge_data_size());
     };
 
     while (!JobsAwaitingNodeHeartbeat_.empty() && hasSpareMergeResources()) {

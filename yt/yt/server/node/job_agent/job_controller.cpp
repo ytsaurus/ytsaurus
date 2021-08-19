@@ -1160,9 +1160,10 @@ bool TJobController::TImpl::HasEnoughResources(
 
     auto totalResources = GetResourceLimits();
     auto spareResources = MakeNonnegative(totalResources - usedResources);
-    // Allow replication/repair data size overcommit.
+    // Allow replication/repair/merge data size overcommit.
     spareResources.set_replication_data_size(InfiniteNodeResources().replication_data_size());
     spareResources.set_repair_data_size(InfiniteNodeResources().repair_data_size());
+    spareResources.set_merge_data_size(InfiniteNodeResources().merge_data_size());
     return Dominates(spareResources, jobResources);
 }
 
