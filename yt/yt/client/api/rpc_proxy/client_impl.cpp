@@ -152,12 +152,10 @@ IChannelPtr TClient::WrapStickyChannel(IChannelPtr channel)
 
 ITimestampProviderPtr TClient::CreateTimestampProvider() const
 {
-    return CreateBatchingTimestampProvider(
-        NRpcProxy::CreateTimestampProvider(
-            Channel_,
-            Connection_->GetConfig()->RpcTimeout,
-            Connection_->GetConfig()->TimestampProviderLatestTimestampUpdatePeriod),
-        Connection_->GetConfig()->TimestampProviderBatchPeriod);
+    return NRpcProxy::CreateTimestampProvider(
+        Channel_,
+        Connection_->GetConfig()->RpcTimeout,
+        Connection_->GetConfig()->TimestampProviderLatestTimestampUpdatePeriod);
 }
 
 ITransactionPtr TClient::AttachTransaction(
