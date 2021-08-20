@@ -2,6 +2,7 @@
 
 import yt.yson as yson
 from yt.wrapper import YtClient, TablePath, config, ypath_join
+from yt.common import YtError
 
 from yt.environment.init_cluster import get_default_resource_limits
 

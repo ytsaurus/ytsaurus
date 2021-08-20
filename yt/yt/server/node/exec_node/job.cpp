@@ -100,6 +100,11 @@ static constexpr auto DisableSandboxCleanupEnv = "YT_DISABLE_SANDBOX_CLEANUP";
 
 static const TString SlotIndexPattern("\%slot_index\%");
 
+DEFINE_ENUM(EGpuCheckType,
+    (Preliminary)
+    (Extra)
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJob
@@ -534,13 +539,33 @@ public:
                 return *FinishTime_ - *ExecTime_;
             }
         };
-        auto getGpuCheckDuration = [&] () -> std::optional<TDuration> {
-            if (!GpuCheckStartTime_) {
+        auto getPreliminaryGpuCheckDuration = [&] () -> std::optional<TDuration> {
+            if (!PreliminaryGpuCheckStartTime_) {
                 return std::nullopt;
-            } else if (!GpuCheckFinishTime_) {
-                return TInstant::Now() - *GpuCheckStartTime_;
+            } else if (!PreliminaryGpuCheckFinishTime_) {
+                return TInstant::Now() - *PreliminaryGpuCheckStartTime_;
             } else {
-                return *GpuCheckFinishTime_ - *GpuCheckStartTime_;
+                return *PreliminaryGpuCheckFinishTime_ - *PreliminaryGpuCheckStartTime_;
+            }
+        };
+        auto getExtraGpuCheckDuration = [&] () -> std::optional<TDuration> {
+            if (!ExtraGpuCheckStartTime_) {
+                return std::nullopt;
+            } else if (!ExtraGpuCheckFinishTime_) {
+                return TInstant::Now() - *ExtraGpuCheckStartTime_;
+            } else {
+                return *ExtraGpuCheckFinishTime_ - *ExtraGpuCheckStartTime_;
+            }
+        };
+        auto sumOptionals = [&] (std::optional<TDuration> lhs, std::optional<TDuration> rhs) -> std::optional<TDuration> {
+            if (!lhs && !rhs) {
+                return std::nullopt;
+            } else if (lhs && !rhs) {
+                return lhs;
+            } else if (rhs && !lhs) {
+                return rhs;
+            } else {
+                return *lhs + *rhs;
             }
         };
 
@@ -549,7 +574,7 @@ public:
             .ArtifactsDownloadDuration = getArtifactsDownloadDuration(),
             .PrepareRootFSDuration = getPrepareRootFSDuration(),
             .ExecDuration = getExecDuration(),
-            .GpuCheckDuration = getGpuCheckDuration()};
+            .GpuCheckDuration = sumOptionals(getPreliminaryGpuCheckDuration(), getExtraGpuCheckDuration())};
     }
 
     virtual EJobPhase GetPhase() const override
@@ -945,8 +970,11 @@ private:
     std::optional<TInstant> ExecTime_;
     std::optional<TInstant> FinishTime_;
 
-    std::optional<TInstant> GpuCheckStartTime_;
-    std::optional<TInstant> GpuCheckFinishTime_;
+    std::optional<TInstant> PreliminaryGpuCheckStartTime_;
+    std::optional<TInstant> PreliminaryGpuCheckFinishTime_;
+
+    std::optional<TInstant> ExtraGpuCheckStartTime_;
+    std::optional<TInstant> ExtraGpuCheckFinishTime_;
 
     std::vector<TGpuManager::TGpuSlotPtr> GpuSlots_;
     std::vector<TGpuStatistics> GpuStatistics_;
@@ -1088,6 +1116,7 @@ private:
         if (JobResult_) {
             auto error = FromProto<TError>(JobResult_->error());
             if (!error.IsOK()) {
+                // Job result with error is already set.
                 return;
             }
         }
@@ -1278,7 +1307,7 @@ private:
                 // since Porto API is used and can cause context switch.
                 BIND(&TJob::RunGpuCheckCommand, MakeStrong(this))
                     .AsyncVia(Invoker_)
-                    .Run(UserJobSpec_->gpu_check_binary_path())
+                    .Run(UserJobSpec_->gpu_check_binary_path(), EGpuCheckType::Preliminary)
                     .Subscribe(BIND(
                         &TJob::OnGpuCheckCommandFinished,
                         MakeWeak(this))
@@ -1289,13 +1318,22 @@ private:
         });
     }
 
-    TFuture<void> RunGpuCheckCommand(const TString& gpuCheckBinaryPath)
+    TFuture<void> RunGpuCheckCommand(const TString& gpuCheckBinaryPath, EGpuCheckType gpuCheckType)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        YT_LOG_INFO("Running GPU check commands");
+        YT_LOG_INFO("Running %lv GPU check commands", gpuCheckType);
 
-        GpuCheckStartTime_ = TInstant::Now();
+        switch (gpuCheckType) {
+            case EGpuCheckType::Preliminary:
+                PreliminaryGpuCheckStartTime_ = TInstant::Now();
+                break;
+            case EGpuCheckType::Extra:
+                ExtraGpuCheckStartTime_ = TInstant::Now();
+                break;
+            default:
+                Y_UNREACHABLE();
+        }
 
         {
             auto testFileCommand = New<TShellCommandConfig>();
@@ -1339,6 +1377,10 @@ private:
             }
         }
 
+        if (Config_->JobController->GpuManager->TestExtraGpuCheckCommandFailure) {
+            return MakeFuture(TError("Testing extra GPU check command failed"));
+        }
+
         return Slot_->RunSetupCommands(
             Id_,
             {checkCommand},
@@ -1352,18 +1394,42 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        GpuCheckFinishTime_ = TInstant::Now();
+        PreliminaryGpuCheckFinishTime_ = TInstant::Now();
 
         GuardedAction([&] {
             ValidateJobPhase(EJobPhase::RunningGpuCheckCommand);
             if (!error.IsOK()) {
-                auto checkError = TError(EErrorCode::GpuCheckCommandFailed, "GPU check command failed")
+                auto checkError = TError(EErrorCode::GpuCheckCommandFailed, "Preliminary GPU check command failed")
                     << error;
                 THROW_ERROR checkError;
             }
 
             RunJobProxy();
         });
+    }
+
+    void OnExtraGpuCheckCommandFinished(const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        ExtraGpuCheckFinishTime_ = TInstant::Now();
+
+        ValidateJobPhase(EJobPhase::RunningExtraGpuCheckCommand);
+        if (!error.IsOK()) {
+            auto initialJobError = FromProto<TError>(JobResult_->error());
+            YT_VERIFY(!initialJobError.IsOK());
+            // Reset JobResult_ to set it with checkError
+            JobResult_ = TJobResult();
+
+            auto checkError = TError(EErrorCode::GpuCheckCommandFailed, "Extra GPU check command failed")
+                << error
+                << initialJobError;
+
+            YT_LOG_WARNING(checkError, "Extra GPU check command executed after job failure is also failed");
+            DoSetResult(checkError);
+        }
+
+        Cleanup();
     }
 
     void RunJobProxy()
@@ -1445,12 +1511,27 @@ private:
 
         YT_LOG_INFO("Job proxy finished");
 
-        if (!error.IsOK()) {
-            DoSetResult(TError(EErrorCode::JobProxyFailed, "Job proxy failed")
-                << BuildJobProxyError(error));
-        }
+        auto currentError = JobResult_
+            ? FromProto<TError>(JobResult_->error())
+            : TError();
+        if (!currentError.IsOK() && UserJobSpec_ && UserJobSpec_->has_gpu_check_binary_path()) {
+            SetJobPhase(EJobPhase::RunningExtraGpuCheckCommand);
 
-        Cleanup();
+            BIND(&TJob::RunGpuCheckCommand, MakeStrong(this))
+                .AsyncVia(Invoker_)
+                .Run(UserJobSpec_->gpu_check_binary_path(), EGpuCheckType::Extra)
+                .Subscribe(BIND(
+                    &TJob::OnExtraGpuCheckCommandFinished,
+                    MakeWeak(this))
+                    .Via(Invoker_));
+        } else {
+            if (!error.IsOK()) {
+                DoSetResult(TError(EErrorCode::JobProxyFailed, "Job proxy failed")
+                    << BuildJobProxyError(error));
+            }
+
+            Cleanup();
+        }
     }
 
     void GuardedAction(std::function<void()> action)

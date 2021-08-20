@@ -114,6 +114,7 @@ public:
     //! These options enable testing gpu layers and setup commands.
     bool TestLayers;
     bool TestSetupCommands;
+    bool TestExtraGpuCheckCommandFailure;
 
     int TestGpuCount;
 
@@ -147,6 +148,8 @@ public:
         RegisterParameter("test_layers", TestLayers)
             .Default(false);
         RegisterParameter("test_setup_commands", TestSetupCommands)
+            .Default(false);
+        RegisterParameter("test_extra_gpu_check_command_failure", TestExtraGpuCheckCommandFailure)
             .Default(false);
         RegisterParameter("test_gpu_count", TestGpuCount)
             .Default(0);
