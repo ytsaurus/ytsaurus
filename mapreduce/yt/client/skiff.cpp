@@ -288,7 +288,13 @@ NSkiff::TSkiffSchemaPtr CreateSkiffSchemaIfNecessary(
         auth,
         NRawClient::CanonizeYPaths(clientRetryPolicy->CreatePolicyForGenericRequest(), auth, tablePaths),
         [&] (TRawBatchRequest& batch, const TRichYPath& path) {
-            auto getOptions = TGetOptions().AttributeFilter(TAttributeFilter().AddAttribute("schema").AddAttribute("dynamic"));
+            auto getOptions = TGetOptions()
+                .AttributeFilter(
+                    TAttributeFilter()
+                        .AddAttribute("schema")
+                        .AddAttribute("dynamic")
+                        .AddAttribute("type")
+                );
             return batch.Get(transactionId, path.Path_, getOptions);
         });
 
@@ -296,6 +302,8 @@ NSkiff::TSkiffSchemaPtr CreateSkiffSchemaIfNecessary(
     for (size_t tableIndex = 0; tableIndex < nodes.size(); ++tableIndex) {
         const auto& tablePath = tablePaths[tableIndex].Path_;
         const auto& attributes = nodes[tableIndex].GetAttributes();
+        Y_ENSURE_EX(attributes["type"] == TNode("table"),
+            TApiUsageError() << "Operation input path " << tablePath << " is not a table");
         bool dynamic = attributes["dynamic"].AsBool();
         bool strict = attributes["schema"].GetAttributes()["strict"].AsBool();
         switch (nodeReaderFormat) {
