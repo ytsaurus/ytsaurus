@@ -26,6 +26,7 @@
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/lookup_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/versioned_reader_adapter.h>
 
 #include <yt/yt/ytlib/new_table_client/versioned_chunk_reader.h>
 
@@ -271,8 +272,11 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     ranges = FilterRowRangesByReadRange(ranges);
 
-    // Fast lane: ranges do not intersect with chunk view.
-    if (ranges.Empty()) {
+    // Fast lane:
+    // - ranges do not intersect with chunk view;
+    // - chunk timestamp is greater than requested timestamp.
+    if (ranges.Empty() || (ChunkTimestamp_ && ChunkTimestamp_ > timestamp))
+    {
         return CreateEmptyVersionedReader();
     }
 
@@ -285,12 +289,13 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         chunkReadOptions,
         ReadRange_))
     {
-        return reader;
+        return MaybeWrapWithTimestampResettingAdapter(reader);
     }
 
     // Another fast lane: check for backing store.
     if (auto backingStore = GetSortedBackingStore()) {
         YT_VERIFY(!HasNontrivialReadRange());
+        YT_VERIFY(!ChunkTimestamp_);
         return backingStore->CreateReader(
             tabletSnapshot,
             ranges,
@@ -318,7 +323,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             ReadRange_.Size() > 0 ? ReadRange_.Front().second : TUnversionedRow(),
             ReadRange_.GetHolder());
 
-        return NNewTableClient::CreateVersionedChunkReader(
+        return MaybeWrapWithTimestampResettingAdapter(NNewTableClient::CreateVersionedChunkReader(
             std::move(ranges),
             timestamp,
             chunkState->ChunkMeta,
@@ -329,9 +334,11 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             chunkReader,
             chunkState->PerformanceCounters,
             chunkReadOptions,
-            produceAllVersions);
+            produceAllVersions));
     }
 
+    // Reader can handle chunk timestamp itself if needed, no need to wrap with
+    // timestamp resetting adapter.
     return CreateVersionedChunkReader(
         ReaderConfig_,
         std::move(chunkReader),
@@ -381,6 +388,10 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    if (ChunkTimestamp_ && ChunkTimestamp_ > timestamp) {
+        return CreateEmptyVersionedReader(keys.Size());
+    }
+
     int skippedBefore = 0;
     int skippedAfter = 0;
     auto filteredKeys = FilterKeysByReadRange(keys, &skippedBefore, &skippedAfter);
@@ -389,11 +400,21 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         return CreateEmptyVersionedReader(keys.Size());
     }
 
-    auto createFilteringReader = [&] (IVersionedReaderPtr underlyingReader) -> IVersionedReaderPtr {
-        if (skippedBefore == 0 && skippedAfter == 0) {
+    auto wrapReader = [&] (
+        IVersionedReaderPtr underlyingReader,
+        bool needSetTimestamp) -> IVersionedReaderPtr
+    {
+        if (skippedBefore > 0 || skippedAfter > 0) {
+            underlyingReader = New<TFilteringReader>(
+                std::move(underlyingReader),
+                skippedBefore,
+                skippedAfter);
+        }
+        if (needSetTimestamp) {
+            return MaybeWrapWithTimestampResettingAdapter(underlyingReader);
+        } else {
             return underlyingReader;
         }
-        return New<TFilteringReader>(std::move(underlyingReader), skippedBefore, skippedAfter);
     };
 
     // Fast lane: check for in-memory reads.
@@ -404,12 +425,13 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         columnFilter,
         chunkReadOptions))
     {
-        return createFilteringReader(std::move(reader));
+        return wrapReader(std::move(reader), /*needSetTimestamp*/ true);
     }
 
     // Another fast lane: check for backing store.
     if (auto backingStore = GetSortedBackingStore()) {
         YT_VERIFY(!HasNontrivialReadRange());
+        YT_VERIFY(!ChunkTimestamp_);
         return backingStore->CreateReader(
             std::move(tabletSnapshot),
             filteredKeys,
@@ -424,7 +446,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
     if (mountConfig->EnableDataNodeLookup && readers.LookupReader) {
-        return createFilteringReader(CreateRowLookupReader(
+        auto reader = CreateRowLookupReader(
             std::move(readers.LookupReader),
             chunkReadOptions,
             filteredKeys,
@@ -434,7 +456,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             produceAllVersions,
             ChunkTimestamp_,
             mountConfig->EnablePeerProbingInDataNodeLookup,
-            mountConfig->EnableRejectsInDataNodeLookupIfThrottling));
+            mountConfig->EnableRejectsInDataNodeLookupIfThrottling);
+        return wrapReader(std::move(reader), /*needSetTimestamp*/ true);
     }
 
     auto chunkState = PrepareChunkState(readers.ChunkReader, chunkReadOptions);
@@ -443,7 +466,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     if (mountConfig->EnableNewScanReaderForLookup &&
         chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar)
     {
-        return createFilteringReader(NNewTableClient::CreateVersionedChunkReader(
+        auto reader = NNewTableClient::CreateVersionedChunkReader(
             filteredKeys,
             timestamp,
             chunkState->ChunkMeta,
@@ -454,10 +477,11 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             readers.ChunkReader,
             chunkState->PerformanceCounters,
             chunkReadOptions,
-            produceAllVersions));
+            produceAllVersions);
+        return wrapReader(std::move(reader), /*needSetTimestamp*/ true);
     }
 
-    return createFilteringReader(CreateVersionedChunkReader(
+    auto reader = CreateVersionedChunkReader(
         ReaderConfig_,
         std::move(readers.ChunkReader),
         chunkState,
@@ -466,7 +490,11 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         filteredKeys,
         columnFilter,
         timestamp,
-        produceAllVersions));
+        produceAllVersions);
+
+    // Reader can handle chunk timestamp itself if needed, no need to wrap with
+    // timestamp resetting adapter.
+    return wrapReader(std::move(reader), /*needSetTimestamp*/ false);
 }
 
 TSharedRange<TLegacyKey> TSortedChunkStore::FilterKeysByReadRange(
@@ -547,6 +575,18 @@ void TSortedChunkStore::Load(TLoadContext& context)
     auto lowerBound = Load<TLegacyOwningKey>(context);
     auto upperBound = Load<TLegacyOwningKey>(context);
     ReadRange_ = MakeSingletonRowRange(lowerBound, upperBound);
+}
+
+IVersionedReaderPtr TSortedChunkStore::MaybeWrapWithTimestampResettingAdapter(
+    IVersionedReaderPtr underlyingReader) const
+{
+    if (ChunkTimestamp_) {
+        return CreateTimestampResettingAdapter(
+            std::move(underlyingReader),
+            ChunkTimestamp_);
+    } else {
+        return underlyingReader;
+    }
 }
 
 TChunkStatePtr TSortedChunkStore::PrepareChunkState(
