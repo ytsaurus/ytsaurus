@@ -656,14 +656,14 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             name="chunk_writer/data_weight",
             tags={"method": "store_flush"})
         hunk_chunk_data_weight = Profiler.at_tablet_node("//tmp/t").counter(
-            name="hunks/chunk_writer/data_weight",
+            name="chunk_writer/hunks/data_weight",
             tags={"method": "store_flush"})
 
         inline_hunk_value_count = Profiler.at_tablet_node("//tmp/t").counter(
-            name="hunks/chunk_writer/inline_value_count",
+            name="chunk_writer/hunks/inline_value_count",
             tags={"column": "value", "method": "store_flush"})
         ref_hunk_value_count = Profiler.at_tablet_node("//tmp/t").counter(
-            name="hunks/chunk_writer/ref_value_count",
+            name="chunk_writer/hunks/ref_value_count",
             tags={"column": "value", "method": "store_flush"})
 
         sync_flush_table("//tmp/t")
@@ -686,31 +686,31 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows1 + rows2)
 
         reader_hunk_chunk_transmitted = Profiler.at_tablet_node("//tmp/t").counter(
-            name="hunks/chunk_reader_statistics/data_bytes_transmitted",
+            name="chunk_reader/hunks/chunk_reader_statistics/data_bytes_transmitted",
             tags={"method": "compaction"})
         reader_hunk_chunk_data_weight = Profiler.at_tablet_node("//tmp/t").counter(
-            name="hunks/data_weight",
+            name="chunk_reader/hunks/data_weight",
             tags={"method": "compaction"})
 
         reader_inline_hunk_value_count = Profiler.at_tablet_node("//tmp/t").counter(
-            name="hunks/inline_value_count",
+            name="chunk_reader/hunks/inline_value_count",
             tags={"column": "value"})
         reader_ref_hunk_value_count = Profiler.at_tablet_node("//tmp/t").counter(
-            name="hunks/ref_value_count",
+            name="chunk_reader/hunks/ref_value_count",
             tags={"column": "value"})
 
         writer_chunk_data_weight = Profiler.at_tablet_node("//tmp/t").counter(
             name="chunk_writer/data_weight",
             tags={"method": "compaction"})
         writer_hunk_chunk_data_weight = Profiler.at_tablet_node("//tmp/t").counter(
-            name="hunks/chunk_writer/data_weight",
+            name="chunk_writer/hunks/data_weight",
             tags={"method": "compaction"})
 
         writer_inline_hunk_value_count = Profiler.at_tablet_node("//tmp/t").counter(
-            name="hunks/chunk_writer/inline_value_count",
+            name="chunk_writer/hunks/inline_value_count",
             tags={"column": "value", "method": "compaction"})
         writer_ref_hunk_value_count = Profiler.at_tablet_node("//tmp/t").counter(
-            name="hunks/chunk_writer/ref_value_count",
+            name="chunk_writer/hunks/ref_value_count",
             tags={"column": "value", "method": "compaction"})
 
         sync_unmount_table("//tmp/t")
@@ -751,19 +751,32 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             name="lookup/hunks/data_weight")
 
         inline_hunk_value_count = Profiler.at_tablet_node("//tmp/t").counter(
+            name="lookup/hunks/inline_value_count")
+        ref_hunk_value_count = Profiler.at_tablet_node("//tmp/t").counter(
+            name="lookup/hunks/ref_value_count")
+
+        columnar_inline_hunk_value_count = Profiler.at_tablet_node("//tmp/t").counter(
             name="lookup/hunks/inline_value_count",
             tags={"column": "value"})
-        ref_hunk_value_count = Profiler.at_tablet_node("//tmp/t").counter(
+        columnar_ref_hunk_value_count = Profiler.at_tablet_node("//tmp/t").counter(
             name="lookup/hunks/ref_value_count",
             tags={"column": "value"})
+
+        backend_request_count = Profiler.at_tablet_node("//tmp/t").counter(
+            name="lookup/hunks/backend_request_count")
 
         assert_items_equal(lookup_rows("//tmp/t", keys1 + keys2), rows1 + rows2)
 
         wait(lambda: hunk_chunk_transmitted.get_delta() > 0)
         wait(lambda: hunk_chunk_data_weight.get_delta() > 0)
 
-        wait(lambda: inline_hunk_value_count.get_delta() == 10)
-        wait(lambda: ref_hunk_value_count.get_delta() == 5)
+        wait(lambda: inline_hunk_value_count.get_delta() == 20)
+        wait(lambda: ref_hunk_value_count.get_delta() == 10)
+
+        wait(lambda: columnar_inline_hunk_value_count.get_delta() == 10)
+        wait(lambda: columnar_ref_hunk_value_count.get_delta() == 5)
+
+        wait(lambda: backend_request_count.get_delta() == 1)
 
     @authors("akozhikhov")
     def test_hunks_profiling_select(self):

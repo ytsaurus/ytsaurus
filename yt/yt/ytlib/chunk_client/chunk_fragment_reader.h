@@ -25,8 +25,14 @@ struct IChunkFragmentReader
         i64 Length;
     };
 
+    struct TReadFragmentsResponse
+    {
+        std::vector<TSharedRef> Fragments;
+        int BackendRequestCount = 0;
+    };
+
     //! Asynchronously reads a given set of chunk fragments.
-    virtual TFuture<std::vector<TSharedRef>> ReadFragments(
+    virtual TFuture<TReadFragmentsResponse> ReadFragments(
         TClientChunkReadOptions options,
         std::vector<TChunkFragmentRequest> requests) = 0;
 };

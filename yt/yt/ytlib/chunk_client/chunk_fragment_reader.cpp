@@ -121,7 +121,7 @@ public:
         SchedulePeriodicUpdate();
     }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadFragments(
+    virtual TFuture<TReadFragmentsResponse> ReadFragments(
         TClientChunkReadOptions options,
         std::vector<TChunkFragmentRequest> requests) override;
 
@@ -434,8 +434,9 @@ public:
         std::vector<TChunkFragmentReader::TChunkFragmentRequest> requests)
         : TSessionBase(std::move(reader), std::move(options))
         , Requests_(std::move(requests))
-        , Fragments_(Requests_.size())
-    { }
+    {
+        Response_.Fragments.resize(Requests_.size());
+    }
 
     ~TReadFragmentsSession()
     {
@@ -443,7 +444,7 @@ public:
             Timer_.GetElapsedTime()));
     }
 
-    TFuture<std::vector<TSharedRef>> Run()
+    TFuture<TReadFragmentsResponse> Run()
     {
         DoRun();
 
@@ -471,14 +472,13 @@ private:
     };
 
     const std::vector<TChunkFragmentReader::TChunkFragmentRequest> Requests_;
-    const TPromise<std::vector<TSharedRef>> Promise_ = NewPromise<std::vector<TSharedRef>>();
+    const TPromise<TReadFragmentsResponse> Promise_ = NewPromise<TReadFragmentsResponse>();
 
     // Preprocessed chunk requests grouped by node.
     THashMap<TNodeId, TGetChunkFragmentSetInfo> PeerToRequestInfo_;
     // Chunk requests that are not assigned to any node yet.
     std::vector<TChunkFragmentSetInfo> PendingChunkFragmentSetInfos_;
-    // Resulting fragments.
-    std::vector<TSharedRef> Fragments_;
+    TReadFragmentsResponse Response_;
 
     int Iteration_ = 0;
 
@@ -494,7 +494,7 @@ private:
     void DoRun()
     {
         if (Requests_.empty()) {
-            Promise_.TrySet(Fragments_);
+            Promise_.TrySet(Response_);
             return;
         }
 
@@ -1033,15 +1033,17 @@ private:
                 for (const auto& fragmentInfo : chunkFragmentSetInfo.FragmentInfos) {
                     auto&& fragment = response->Attachments()[attachmentIndex++];
                     YT_VERIFY(fragment);
-                    Fragments_[fragmentInfo.FragmentIndex] = std::move(fragment);
+                    Response_.Fragments[fragmentInfo.FragmentIndex] = std::move(fragment);
                 }
             }
             YT_VERIFY(attachmentIndex == std::ssize(response->Attachments()));
+
+            ++Response_.BackendRequestCount;
         }
 
         auto finished = PendingChunkFragmentSetInfos_.empty();
         if (finished) {
-            Promise_.TrySet(std::move(Fragments_));
+            Promise_.TrySet(std::move(Response_));
             YT_LOG_DEBUG("Chunk fragment read session finished successfully (Iteration: %v, WallTime: %v)",
                 Iteration_,
                 Timer_.GetElapsedTime());
@@ -1529,7 +1531,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<std::vector<TSharedRef>> TChunkFragmentReader::ReadFragments(
+TFuture<IChunkFragmentReader::TReadFragmentsResponse> TChunkFragmentReader::ReadFragments(
     TClientChunkReadOptions options,
     std::vector<TChunkFragmentRequest> requests)
 {
