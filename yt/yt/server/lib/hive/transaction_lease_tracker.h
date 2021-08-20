@@ -5,7 +5,7 @@
 #include <yt/yt/core/actions/callback.h>
 
 #include <yt/yt/core/misc/optional.h>
-#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/mpsc_stack.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
@@ -135,7 +135,7 @@ private:
         TSetTimeoutRequest
     >;
 
-    TMultipleProducerSingleConsumerLockFreeStack<TRequest> Requests_;
+    TMpscStack<TRequest> Requests_;
 
     struct TTransactionDescriptor;
 

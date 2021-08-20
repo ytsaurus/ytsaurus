@@ -5,7 +5,7 @@
 #include <yt/yt/core/actions/invoker_util.h>
 
 #include <yt/yt/core/misc/ref_counted_tracker.h>
-#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/mpsc_stack.h>
 
 #include <util/system/thread.h>
 
@@ -1493,7 +1493,7 @@ TEST_F(TFutureTest, CancelableDoesNotProhibitDestruction)
 
 TEST_F(TFutureTest, AbandonCancel)
 {
-    TMultipleProducerSingleConsumerLockFreeStack<TFuture<void>> queue;
+    TMpscStack<TFuture<void>> queue;
     std::thread producer([&] {
         for (int i = 0; i < 10000; i++) {
             auto p = NewPromise<void>();

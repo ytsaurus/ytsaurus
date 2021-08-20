@@ -15,7 +15,7 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/ring_queue.h>
 
 namespace NYT::NDataNode {
@@ -104,7 +104,7 @@ private:
         TInstant Deadline;
     };
 
-    TMultipleProducerSingleConsumerLockFreeStack<TChunkReaderSweepEntry> ChunkReaderSweepStack_;
+    TMpscStack<TChunkReaderSweepEntry> ChunkReaderSweepStack_;
     TRingQueue<TChunkReaderSweepEntry> ChunkReaderSweepQueue_;
 
     static constexpr auto ChunkReaderSweepPeriod = TDuration::Seconds(1);

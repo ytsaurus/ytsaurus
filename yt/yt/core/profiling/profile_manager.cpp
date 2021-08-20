@@ -13,7 +13,7 @@
 
 #include <yt/yt/core/misc/hash.h>
 #include <yt/yt/core/misc/id_generator.h>
-#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/singleton.h>
 #include <yt/yt/core/misc/shutdown.h>
 
@@ -425,7 +425,7 @@ private:
 
     TProfileManagerConfigPtr Config_;
 
-    TMultipleProducerSingleConsumerLockFreeStack<TQueuedSample> SampleQueue_;
+    TMpscStack<TQueuedSample> SampleQueue_;
     THashMap<TYPath, TBucketPtr> PathToBucket_;
     TIdGenerator SampleIdGenerator_;
 

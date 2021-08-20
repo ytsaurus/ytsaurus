@@ -13,7 +13,7 @@
 #include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/mpsc_stack.h>
 
 #include <atomic>
 
@@ -68,7 +68,7 @@ private:
     NConcurrency::IPollerPtr AcceptorPoller_;
     NConcurrency::IPollerPtr XferPoller_;
 
-    TMultipleProducerSingleConsumerLockFreeStack<TWeakPtr<TTcpConnection>> ConnectionsToRegister_;
+    TMpscStack<TWeakPtr<TTcpConnection>> ConnectionsToRegister_;
     std::vector<TWeakPtr<TTcpConnection>> ConnectionList_;
     int CurrentConnectionListIndex_ = 0;
 

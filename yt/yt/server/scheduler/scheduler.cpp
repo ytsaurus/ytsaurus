@@ -71,7 +71,7 @@
 
 #include <yt/yt/core/logging/fluent_log.h>
 
-#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/numeric_helpers.h>
 #include <yt/yt/core/misc/sync_expiring_cache.h>
@@ -1424,7 +1424,7 @@ public:
     {
         return OrchidWorkerPool_->GetInvoker();
     }
-    
+
     virtual const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override
     {
         return CancelableNodeShardInvokers_;
@@ -3361,7 +3361,7 @@ private:
 
         // Switch to regular control invoker.
         SwitchTo(operation->GetControlInvoker());
-            
+
         // Notify controller that it is going to be disposed (failure is intentionally ignored).
         {
             const auto& controller = operation->GetController();

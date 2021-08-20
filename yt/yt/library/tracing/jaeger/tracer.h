@@ -4,7 +4,7 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
-#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/atomic_object.h>
 
 #include <yt/yt/core/rpc/grpc/config.h>
@@ -103,7 +103,7 @@ private:
 
     TAtomicObject<TJaegerTracerConfigPtr> Config_;
 
-    TMultipleProducerSingleConsumerLockFreeStack<TTraceContextPtr> TraceQueue_;
+    TMpscStack<TTraceContextPtr> TraceQueue_;
 
     TInstant LastSuccessfullFlushTime_ = TInstant::Now();
 

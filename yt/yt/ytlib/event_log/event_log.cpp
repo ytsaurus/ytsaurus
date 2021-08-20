@@ -9,7 +9,7 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/mpsc_stack.h>
 
 namespace NYT::NEventLog {
 
@@ -178,7 +178,7 @@ private:
 
     NTableClient::IUnversionedWriterPtr EventLogWriter_;
 
-    TMultipleProducerSingleConsumerLockFreeStack<TUnversionedOwningRow> PendingEventLogRows_;
+    TMpscStack<TUnversionedOwningRow> PendingEventLogRows_;
     TPeriodicExecutorPtr PendingRowsFlushExecutor_;
 
     std::atomic<bool> Enabled_{false};
