@@ -7,7 +7,7 @@
 
 #include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/mpsc_stack.h>
 
 namespace NYT::NScheduler {
 
@@ -74,7 +74,7 @@ private:
 
     THashSet<TResourceTreeElementPtr> AliveElements_;
 
-    TMultipleProducerSingleConsumerLockFreeStack<TResourceTreeElementPtr> ElementsToDetachQueue_;
+    TMpscStack<TResourceTreeElementPtr> ElementsToDetachQueue_;
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, StructureLock_);
 
     NProfiling::TProfiler Profiler_ = NProfiling::TProfiler{"/resource_tree"}.WithHot();

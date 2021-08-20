@@ -13,7 +13,7 @@
 #include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/misc/blob.h>
-#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/ring_queue.h>
 
 #include <yt/yt/core/net/public.h>
@@ -191,7 +191,7 @@ private:
 
     TSingleShotCallbackList<void(const TError&)> Terminated_;
 
-    TMultipleProducerSingleConsumerLockFreeStack<TQueuedMessage> QueuedMessages_;
+    TMpscStack<TQueuedMessage> QueuedMessages_;
     std::atomic<size_t> PendingOutPayloadBytes_ = 0;
 
     TPacketDecoder Decoder_;

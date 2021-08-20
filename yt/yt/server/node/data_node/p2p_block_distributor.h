@@ -11,7 +11,7 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
-#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/mpsc_stack.h>
 
 namespace NYT::NDataNode {
 
@@ -38,7 +38,7 @@ private:
     //! Blocks that were requested since last iteration of distribution. This stack
     //! is completely dequeued on each iteration and all information from it is accounted
     //! in `BlockRequestCount_` and `RequestHistory_`.
-    TMultipleProducerSingleConsumerLockFreeStack<TBlockId> RecentlyRequestedBlocks_;
+    TMpscStack<TBlockId> RecentlyRequestedBlocks_;
 
     //! History of what happened with block during the considered time window.
     struct TDistributionEntry

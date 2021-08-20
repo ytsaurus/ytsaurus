@@ -8,7 +8,7 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/mpsc_stack.h>
 
 namespace NYT::NRpc {
 
@@ -140,7 +140,7 @@ private:
     THashMap<TString, TWeakPtr<TCachedChannel>> WeakChannelMap_;
 
     using TTtlItem = std::pair<TString, TWeakPtr<TCachedChannel>>;
-    TMultipleProducerSingleConsumerLockFreeStack<TTtlItem> TtlRegisterQueue_;
+    TMpscStack<TTtlItem> TtlRegisterQueue_;
     std::vector<TTtlItem> TtlCheckQueue_;
 
     template <class TFactory>

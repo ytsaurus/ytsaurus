@@ -53,7 +53,7 @@
 
 #include <yt/yt/core/misc/crash_handler.h>
 #include <yt/yt/core/misc/heap.h>
-#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/mpsc_stack.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
@@ -224,8 +224,8 @@ private:
     //! A bucket is only present here iff it has at least one session.
     std::vector<TUserBucket*> BucketHeap_;
 
-    TMultipleProducerSingleConsumerLockFreeStack<TExecuteSessionPtr> ReadySessions_;
-    TMultipleProducerSingleConsumerLockFreeStack<TExecuteSessionInfo> FinishedSessionInfos_;
+    TMpscStack<TExecuteSessionPtr> ReadySessions_;
+    TMpscStack<TExecuteSessionInfo> FinishedSessionInfos_;
 
     std::atomic<bool> ProcessSessionsCallbackEnqueued_ = false;
 

@@ -1,6 +1,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/spsc_queue.h>
 
 #include <util/system/thread.h>
 
@@ -13,8 +13,8 @@ class TSpscQueueTest
     : public ::testing::Test
 {
 protected:
-    TSingleProducerSingleConsumerQueue<int> A;
-    TSingleProducerSingleConsumerQueue<int> B;
+    TSpscQueue<int> A;
+    TSpscQueue<int> B;
 
     std::atomic<bool> Stopped = {false};
 

@@ -7,7 +7,7 @@
 
 #include <yt/yt/core/actions/invoker_util.h>
 
-#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/mpsc_stack.h>
 
 #include <yt/yt/core/concurrency/spinlock.h>
 
@@ -151,7 +151,7 @@ private:
     std::vector<TTag> DynamicTags_;
 
     std::atomic<bool> Disabled_ = false;
-    TMultipleProducerSingleConsumerLockFreeStack<std::function<void()>> RegistrationQueue_;
+    TMpscStack<std::function<void()>> RegistrationQueue_;
 
     template <class TFn>
     void DoRegister(TFn fn);

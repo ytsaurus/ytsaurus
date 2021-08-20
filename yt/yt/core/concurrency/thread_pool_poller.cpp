@@ -6,7 +6,7 @@
 #include "notification_handle.h"
 #include "scheduler_thread.h"
 
-#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/ref_tracked.h>
 
@@ -381,7 +381,7 @@ private:
         const NLogging::TLogger Logger;
 
         bool MustExecuteCallbacks_ = false;
-        TMultipleProducerSingleConsumerLockFreeStack<IPollablePtr> UnregisterQueue_;
+        TMpscStack<IPollablePtr> UnregisterQueue_;
 
         std::atomic<bool> Dying_ = false;
 

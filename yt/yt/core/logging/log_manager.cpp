@@ -13,7 +13,8 @@
 
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/hash.h>
-#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/spsc_queue.h>
+#include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/pattern_formatter.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/property.h>
@@ -334,7 +335,7 @@ TCpuInstant GetEventInstant(const TLoggerQueueItem& item)
         });
 }
 
-using TThreadLocalQueue = TSingleProducerSingleConsumerQueue<TLoggerQueueItem>;
+using TThreadLocalQueue = TSpscQueue<TLoggerQueueItem>;
 
 static constexpr uintptr_t ThreadQueueDestroyedSentinel = -1;
 static thread_local TThreadLocalQueue* PerThreadQueue;
@@ -1338,11 +1339,11 @@ private:
     std::atomic_flag ScheduledOutOfBand_ = false;
 
     THashSet<TThreadLocalQueue*> LocalQueues_;
-    TMultipleProducerSingleConsumerLockFreeStack<TThreadLocalQueue*> RegisteredLocalQueues_;
-    TMultipleProducerSingleConsumerLockFreeStack<TThreadLocalQueue*> UnregisteredLocalQueues_;
+    TMpscStack<TThreadLocalQueue*> RegisteredLocalQueues_;
+    TMpscStack<TThreadLocalQueue*> UnregisteredLocalQueues_;
 
-    TMultipleProducerSingleConsumerLockFreeStack<TLoggerQueueItem> GlobalQueue_;
-    TMultipleProducerSingleConsumerLockFreeStack<TRequestId> SuppressedRequestIdQueue_;
+    TMpscStack<TLoggerQueueItem> GlobalQueue_;
+    TMpscStack<TRequestId> SuppressedRequestIdQueue_;
 
     std::deque<TLoggerQueueItem> TimeOrderedBuffer_;
     TExpiringSet<TRequestId> SuppressedRequestIdSet_;

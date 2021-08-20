@@ -3,7 +3,7 @@
 #include "scheduler.h"
 #include "private.h"
 
-#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/singleton.h>
 #include <yt/yt/core/misc/shutdown.h>
 #include <yt/yt/core/misc/proc.h>
@@ -224,8 +224,8 @@ private:
     std::set<TDelayedExecutorEntryPtr, TDelayedExecutorEntry::TComparer> ScheduledEntries_;
 
     //! Enqueued from any thread, dequeued from DelayedPoller thread.
-    TMultipleProducerSingleConsumerLockFreeStack<TDelayedExecutorEntryPtr> SubmitQueue_;
-    TMultipleProducerSingleConsumerLockFreeStack<TDelayedExecutorEntryPtr> CancelQueue_;
+    TMpscStack<TDelayedExecutorEntryPtr> SubmitQueue_;
+    TMpscStack<TDelayedExecutorEntryPtr> CancelQueue_;
 
     TThread PollerThread_;
 

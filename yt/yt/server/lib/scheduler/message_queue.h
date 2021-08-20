@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <yt/yt/core/misc/ring_queue.h>
-#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/variant.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -48,7 +48,7 @@ private:
     const NLogging::TLogger Logger;
 
     using TEntry = std::variant<TItem, std::vector<TItem>>;
-    TMultipleProducerSingleConsumerLockFreeStack<TEntry> Stack_;
+    TMpscStack<TEntry> Stack_;
 
     TRingQueue<TItem> Queue_;
     TMessageQueueItemId FirstItemId_ = 0;
