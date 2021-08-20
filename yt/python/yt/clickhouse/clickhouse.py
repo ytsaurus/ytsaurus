@@ -457,6 +457,9 @@ def start_clique(instance_count,
     if wait_for_instances is None:
         wait_for_instances = True
 
+    if clickhouse_config is not None:
+        memory_config = update(memory_config, clickhouse_config["memory"])
+
     memory_config = process_memory_config(memory_config=memory_config, defaults=defaults)
     validate_dominant_resource(
         memory_config=memory_config,
