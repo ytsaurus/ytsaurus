@@ -588,6 +588,9 @@ IConnectionPtr CreateConnection(
 {
     NTracing::TNullTraceContextGuard nullTraceContext;
 
+    if (!config->PrimaryMaster) {
+        THROW_ERROR_EXCEPTION("Missing \"primary_master\" parameter in connection configuration");
+    }
     auto connection = New<TConnection>(std::move(config), std::move(options));
     connection->Initialize();
     return connection;
