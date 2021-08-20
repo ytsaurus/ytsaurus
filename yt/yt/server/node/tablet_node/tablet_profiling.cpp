@@ -125,7 +125,7 @@ TChunkReadCounters::TChunkReadCounters(
     , UnmergedDataWeight(profiler.Counter("/chunk_reader/unmerged_data_weight"))
     , DecompressionCpuTime(profiler.TimeCounter("/chunk_reader/decompression_cpu_time"))
     , ChunkReaderStatisticsCounters(profiler.WithPrefix("/chunk_reader_statistics"))
-    , HunkChunkReaderCounters(profiler.WithPrefix("/hunks"), schema)
+    , HunkChunkReaderCounters(profiler.WithPrefix("/chunk_reader/hunks"), schema)
 { }
 
 TChunkWriteCounters::TChunkWriteCounters(
@@ -133,7 +133,7 @@ TChunkWriteCounters::TChunkWriteCounters(
     const TTableSchemaPtr& schema)
     : ChunkWriterCounters(profiler.WithPrefix("/chunk_writer"))
     , HunkChunkWriterCounters(
-        profiler.WithPrefix("/hunks/chunk_writer"),
+        profiler.WithPrefix("/chunk_writer/hunks"),
         schema)
 { }
 
