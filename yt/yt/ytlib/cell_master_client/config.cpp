@@ -14,7 +14,8 @@ using namespace NObjectClient;
 
 TCellDirectoryConfig::TCellDirectoryConfig()
 {
-    RegisterParameter("primary_master", PrimaryMaster);
+    RegisterParameter("primary_master", PrimaryMaster)
+        .Default();
     RegisterParameter("secondary_masters", SecondaryMasters)
         .Default();
     RegisterParameter("master_cache", MasterCache)
@@ -26,23 +27,24 @@ TCellDirectoryConfig::TCellDirectoryConfig()
     RegisterPreprocessor([&] {
         CachingObjectService->RateLimit = 1000000; // effective infinity
     });
-
-    if (PrimaryMaster) {
-        auto cellId = PrimaryMaster->CellId;
-        auto primaryCellTag = CellTagFromId(cellId);
-        THashSet<TCellTag> cellTags = {primaryCellTag};
-        for (const auto& cellConfig : SecondaryMasters) {
-            if (ReplaceCellTagInId(cellConfig->CellId, primaryCellTag) != cellId) {
-                THROW_ERROR_EXCEPTION("Invalid cell id %v specified for secondary master in connection configuration",
-                    cellConfig->CellId);
-            }
-            auto cellTag = CellTagFromId(cellConfig->CellId);
-            if (!cellTags.insert(cellTag).second) {
-                THROW_ERROR_EXCEPTION("Duplicate cell tag %v in connection configuration",
-                    cellTag);
+    RegisterPostprocessor([&] {
+        if (PrimaryMaster) {
+            auto cellId = PrimaryMaster->CellId;
+            auto primaryCellTag = CellTagFromId(cellId);
+            THashSet<TCellTag> cellTags = {primaryCellTag};
+            for (const auto& cellConfig : SecondaryMasters) {
+                if (ReplaceCellTagInId(cellConfig->CellId, primaryCellTag) != cellId) {
+                    THROW_ERROR_EXCEPTION("Invalid cell id %v specified for secondary master in connection configuration",
+                        cellConfig->CellId);
+                }
+                auto cellTag = CellTagFromId(cellConfig->CellId);
+                if (!cellTags.insert(cellTag).second) {
+                    THROW_ERROR_EXCEPTION("Duplicate cell tag %v in connection configuration",
+                        cellTag);
+                }
             }
         }
-    }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
