@@ -1153,6 +1153,90 @@ class TestBulkInsert(DynamicTablesBase):
         sync_mount_table("//tmp/t_input")
         _check("//tmp/t_input")
 
+    @pytest.mark.parametrize("in_memory_mode", ["none", "uncompressed"])
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @pytest.mark.parametrize("dynamic", [True, False])
+    def test_chunk_timestamp_various_chunk_formats(self, dynamic, optimize_for, in_memory_mode):
+        cell_id = sync_create_cells(1)[0]
+        tablet_node = get("#{}/@peers/0/address".format(cell_id))
+        set("//sys/cluster_nodes/{}/@disable_write_sessions".format(tablet_node), True)
+
+        self._create_simple_dynamic_table(
+            "//tmp/t_output",
+            optimize_for=optimize_for,
+            in_memory_mode=in_memory_mode)
+        sync_mount_table("//tmp/t_output")
+
+        schema = get("//tmp/t_output/@schema")
+        create("table", "//tmp/t_input1", attributes={"schema": schema, "optimize_for": optimize_for})
+        create("table", "//tmp/t_input2", attributes={"schema": schema, "optimize_for": optimize_for})
+
+        keys = [{"key": i} for i in range(2)]
+        rows = [{"key": i, "value": str(i)} for i in range(2)]
+        write_table("//tmp/t_input1", rows[:1])
+        write_table("//tmp/t_input2", rows[1:])
+
+        if dynamic:
+            input_query = "0u as [$change_type], key, value as [$value:value]"
+            run_op = lambda input: merge(
+                in_=input,
+                out="<append=%true;schema_modification=unversioned_update>//tmp/t_output",
+                spec={"input_query": input_query},
+                mode="ordered")
+        else:
+            run_op = lambda input: merge(in_=input, out="<append=%true>//tmp/t_output", mode="ordered")
+
+        run_op("//tmp/t_input1")
+        ts_between = generate_timestamp()
+        run_op("//tmp/t_input2")
+        ts_after = generate_timestamp()
+
+        tablet_id = get("//tmp/t_output/@tablets/0/tablet_id")
+        def _wait_preload():
+            orchid = self._find_tablet_orchid(tablet_node, tablet_id)
+            if not orchid:
+                return False
+            for store in orchid["eden"]["stores"].itervalues():
+                if store["store_state"] == "persistent" and store["preload_state"] != "complete":
+                    return False
+            for partition in orchid["partitions"]:
+                for store in partition["stores"].itervalues():
+                    if store["preload_state"] != "complete":
+                        return False
+            return True
+
+        _wait_preload()
+
+        def _check(expected, ts):
+            lookup_rows("//tmp/t_output", keys, versioned=True)
+            get("//tmp/t_output/@table_chunk_format_statistics")
+            kwargs = {} if ts is None else {"timestamp": ts}
+            assert lookup_rows("//tmp/t_output", keys, **kwargs) == expected
+            assert_items_equal(select_rows("* from [//tmp/t_output]", **kwargs), expected)
+
+            ts_prefix = "" if ts is None else "<timestamp={}>".format(ts)
+            assert_items_equal(read_table(ts_prefix + "//tmp/t_output"), expected)
+
+        _check(rows[:1], ts_between)
+        _check(rows, ts_after)
+        _check(rows, None)
+
+        set("//tmp/t_output/@enable_data_node_lookup", True)
+        sync_unmount_table("//tmp/t_output")
+        sync_mount_table("//tmp/t_output")
+        _wait_preload()
+        assert lookup_rows("//tmp/t_output", keys, timestamp=ts_between) == rows[:1]
+        assert lookup_rows("//tmp/t_output", keys) == rows
+
+        set("//tmp/t_output/@enable_data_node_lookup", False)
+        sync_unmount_table("//tmp/t_output")
+        sync_mount_table("//tmp/t_output")
+        _wait_preload()
+
+        sync_compact_table("//tmp/t_output")
+        _check(rows[:1], ts_between)
+        _check(rows, ts_after)
+        _check(rows, None)
 
 ##################################################################
 

@@ -19,24 +19,15 @@ using namespace NChunkClient;
 
 struct TVersionedReaderAdapterPoolTag { };
 
-class TVersionedReaderAdapter
+template <class TRow, class TUnderlyingReaderPtr>
+class TVersionedReaderAdapterBase
     : public IVersionedReader
 {
 public:
-    TVersionedReaderAdapter(
-        ISchemafulUnversionedReaderPtr underlyingReader,
-        TTableSchemaPtr schema,
-        TTimestamp timestamp)
-        : UnderlyingReader_(std::move(underlyingReader))
-        , KeyColumnCount_(schema->GetKeyColumnCount())
-        , Timestamp_(timestamp)
-        , MemoryPool_(TVersionedReaderAdapterPoolTag())
+    TVersionedReaderAdapterBase(TUnderlyingReaderPtr underlyingReader)
+        : MemoryPool_(TVersionedReaderAdapterPoolTag())
+        , UnderlyingReader_(std::move(underlyingReader))
     { }
-
-    virtual TFuture<void> Open() override
-    {
-        return UnderlyingReader_->GetReadyEvent();
-    }
 
     virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
@@ -82,13 +73,39 @@ public:
         return UnderlyingReader_->GetFailedChunkIds();
     }
 
+protected:
+    TChunkedMemoryPool MemoryPool_;
+    const TUnderlyingReaderPtr UnderlyingReader_;
+
 private:
-    const ISchemafulUnversionedReaderPtr UnderlyingReader_;
+    virtual TVersionedRow MakeVersionedRow(TRow row) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVersionedReaderAdapter
+    : public TVersionedReaderAdapterBase<TUnversionedRow, ISchemafulUnversionedReaderPtr>
+{
+public:
+    TVersionedReaderAdapter(
+        ISchemafulUnversionedReaderPtr underlyingReader,
+        TTableSchemaPtr schema,
+        TTimestamp timestamp)
+        : TVersionedReaderAdapterBase(std::move(underlyingReader))
+        , KeyColumnCount_(schema->GetKeyColumnCount())
+        , Timestamp_(timestamp)
+    { }
+
+    virtual TFuture<void> Open() override
+    {
+        return UnderlyingReader_->GetReadyEvent();
+    }
+
+private:
     const int KeyColumnCount_;
     const TTimestamp Timestamp_;
-    TChunkedMemoryPool MemoryPool_;
 
-    TVersionedRow MakeVersionedRow(TUnversionedRow row)
+    virtual TVersionedRow MakeVersionedRow(TUnversionedRow row) override
     {
         if (!row) {
             return TVersionedRow();
@@ -152,83 +169,64 @@ IVersionedReaderPtr CreateVersionedReaderAdapter(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTimestampResettingAdapter
-    : public IVersionedReader
+    : public TVersionedReaderAdapterBase<TVersionedRow, IVersionedReaderPtr>
 {
 public:
     TTimestampResettingAdapter(
         IVersionedReaderPtr underlyingReader,
         TTimestamp timestamp)
-        : UnderlyingReader_(std::move(underlyingReader))
+        : TVersionedReaderAdapterBase(std::move(underlyingReader))
         , Timestamp_(timestamp)
     { }
 
     virtual TFuture<void> Open() override
     {
-        return UnderlyingReader_->GetReadyEvent();
-    }
-
-    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
-    {
-        auto batch = UnderlyingReader_->Read(options);
-        if (!batch) {
-            return nullptr;
-        }
-
-        for (auto row : batch->MaterializeRows()) {
-            if (row) {
-                ResetTimestamp(row);
-            }
-        }
-
-        return batch;
-    }
-
-    virtual TFuture<void> GetReadyEvent() const override
-    {
-        return UnderlyingReader_->GetReadyEvent();
-    }
-
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
-    {
-        return UnderlyingReader_->GetDataStatistics();
-    }
-
-    virtual TCodecStatistics GetDecompressionStatistics() const override
-    {
-        return UnderlyingReader_->GetDecompressionStatistics();
-    }
-
-    virtual bool IsFetchingCompleted() const override
-    {
-        YT_ABORT();
-    }
-
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
-    {
-        YT_ABORT();
+        return UnderlyingReader_->Open();
     }
 
 private:
-    const IVersionedReaderPtr UnderlyingReader_;
     const TTimestamp Timestamp_;
 
-    void ResetTimestamp(TVersionedRow row) const
+    virtual TVersionedRow MakeVersionedRow(TVersionedRow row) override
     {
-        TMutableVersionedRow mutableRow(row.ToTypeErasedRow());
+        if (!row) {
+            return TVersionedRow();
+        }
 
         YT_VERIFY(row.GetWriteTimestampCount() <= 1);
-        for (int i = 0; i < row.GetWriteTimestampCount(); ++i) {
-            mutableRow.BeginWriteTimestamps()[i] = Timestamp_;
-        }
-
         YT_VERIFY(row.GetDeleteTimestampCount() <= 1);
-        for (int i = 0; i < row.GetDeleteTimestampCount(); ++i) {
-            mutableRow.BeginDeleteTimestamps()[i] = Timestamp_;
-        }
 
-        for (auto* value = mutableRow.BeginValues(); value != mutableRow.EndValues(); ++value) {
+        auto versionedRow = TMutableVersionedRow::Allocate(
+            &MemoryPool_,
+            row.GetKeyCount(),
+            row.GetValueCount(),
+            row.GetWriteTimestampCount(),
+            row.GetDeleteTimestampCount());
+
+        // Keys.
+        ::memcpy(
+            versionedRow.BeginKeys(),
+            row.BeginKeys(),
+            sizeof(TUnversionedValue) * row.GetKeyCount());
+
+        // Values.
+        ::memcpy(
+            versionedRow.BeginValues(),
+            row.BeginValues(),
+            sizeof(TVersionedValue) * row.GetValueCount());
+        for (auto* value = versionedRow.BeginValues(); value != versionedRow.EndValues(); ++value) {
             value->Timestamp = Timestamp_;
         }
+
+        // Write/delete timestamps.
+        if (row.GetWriteTimestampCount() > 0) {
+            *versionedRow.BeginWriteTimestamps() = Timestamp_;
+        }
+        if (row.GetDeleteTimestampCount() > 0) {
+            *versionedRow.BeginDeleteTimestamps() = Timestamp_;
+        }
+
+        return versionedRow;
     }
 };
 

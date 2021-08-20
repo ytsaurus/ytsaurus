@@ -108,6 +108,9 @@ private:
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         const TSharedRange<NTableClient::TRowRange>& singletonClippingRange);
 
+    NTableClient::IVersionedReaderPtr MaybeWrapWithTimestampResettingAdapter(
+        NTableClient::IVersionedReaderPtr underlyingReader) const;
+
     NTableClient::TChunkStatePtr PrepareChunkState(
         const NChunkClient::IChunkReaderPtr& chunkReader,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions);

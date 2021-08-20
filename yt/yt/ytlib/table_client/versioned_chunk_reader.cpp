@@ -1895,7 +1895,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
     if (chunkState->ChunkTimestamp) {
         return CreateTimestampResettingAdapter(
-            reader,
+            std::move(reader),
             chunkState->ChunkTimestamp);
     } else {
         return reader;
@@ -2061,7 +2061,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
     if (chunkState->ChunkTimestamp) {
         return CreateTimestampResettingAdapter(
-            reader,
+            std::move(reader),
             chunkState->ChunkTimestamp);
     } else {
         return reader;
