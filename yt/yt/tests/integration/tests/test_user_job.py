@@ -2062,8 +2062,7 @@ class TestRepairExecNode(YTEnvSetup):
 
         wait(is_disabled)
 
-        with raises_yt_error('No online nodes that match operation scheduling tag filter ""'
-                             ' and have sufficient resources to schedule a job found in trees'):
+        with raises_yt_error(yt_error_codes.NoOnlineNodeToScheduleJob):
             op = run_test_vanilla("sleep 0.1")
             op.track()
 
