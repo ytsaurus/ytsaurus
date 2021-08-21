@@ -5,15 +5,15 @@
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// Mpsc queue.
-/*
- * Based on http://www.1024cores.net/home/lock-free-algorithms/queues/non-intrusive-mpsc-node-based-queue
- */
+// Multiple-producer single-consumer queue.
+//
+// Based on http://www.1024cores.net/home/lock-free-algorithms/queues/non-intrusive-mpsc-node-based-queue
+//
+////////////////////////////////////////////////////////////////////////////////
 
 struct TMpscQueueHook
 {
-    std::atomic<TMpscQueueHook*> Next_ = {nullptr};
+    std::atomic<TMpscQueueHook*> Next = nullptr;
 };
 
 class TMpscQueueBase
@@ -22,73 +22,72 @@ protected:
     TMpscQueueBase();
     ~TMpscQueueBase();
 
-    // Pushes the (detached) node to the queue. Node ownership is transferred to the queue.
-    void PushImpl(TMpscQueueHook* node) noexcept;
+    //! Pushes the (detached) node to the queue.
+    //! Node ownership is transferred to the queue.
+    void EnqueueImpl(TMpscQueueHook* node) noexcept;
 
-    // Pops and detachs a node from the queue. Node ownership is transferred to the caller.
-    // When nullptr is returned that means that either queue is empty or queue is blocked.
-    // This method does not distinguishes between these two cases.
-    TMpscQueueHook* PopImpl() noexcept;
+    //! Pops and detaches a node from the queue. Node ownership is transferred to the caller.
+    //! When null is returned then the queue is either empty or blocked.
+    //! This method does not distinguish between these two cases.
+    TMpscQueueHook* TryDequeueImpl() noexcept;
 
 private:
-    TMpscQueueHook Stub_;
-    char StubPadding_[64 - sizeof(Stub_)];
+    alignas(CacheLineSize) TMpscQueueHook Stub_;
 
-    // Producer-side.
-    std::atomic<TMpscQueueHook*> Head_;
-    char HeadPadding_[64 - sizeof(Head_)];
+    //! Producer-side.
+    alignas(CacheLineSize) std::atomic<TMpscQueueHook*> Head_;
 
-    // Consumer-side.
-    TMpscQueueHook* Tail_;
-    char TailPadding_[64 - sizeof(Tail_)];
+    //! Consumer-side.
+    alignas(CacheLineSize) TMpscQueueHook* Tail_;
 };
 
-template <class T, TMpscQueueHook T::*M>
-class TMpscQueue
+template <class T, TMpscQueueHook T::*Hook>
+class TIntrusiveMpscQueue
     : public TMpscQueueBase
 {
-private:
-    static TMpscQueueHook* MemberFromNode(T* node) noexcept
-    {
-        if (!node) {
-            return nullptr;
-        }
-        return &(node->*M);
-    }
-
-    static T* NodeFromMember(TMpscQueueHook* member) noexcept
-    {
-        if (!member) {
-            return nullptr;
-        }
-        const T* const fakeNode = nullptr;
-        const char* const fakeMember = static_cast<const char*>(static_cast<const void*>(&(fakeNode->*M)));
-        const size_t offset = fakeMember - static_cast<const char*>(static_cast<const void*>(fakeNode));
-        return static_cast<T*>(static_cast<void*>(static_cast<char*>(static_cast<void*>(member)) - offset));
-    }
-
 public:
-    void Push(std::unique_ptr<T> node)
-    {
-        PushImpl(MemberFromNode(node.release()));
-    }
+    TIntrusiveMpscQueue() = default;
+    TIntrusiveMpscQueue(const TIntrusiveMpscQueue&) = delete;
+    TIntrusiveMpscQueue(TIntrusiveMpscQueue&&) = delete;
 
-    std::unique_ptr<T> Pop()
-    {
-        return std::unique_ptr<T>{NodeFromMember(PopImpl())};
-    }
+    ~TIntrusiveMpscQueue();
 
+    void Enqueue(std::unique_ptr<T> node);
+    std::unique_ptr<T> TryDequeue();
+
+private:
+    static TMpscQueueHook* HookFromNode(T* node) noexcept;
+    static T* NodeFromHook(TMpscQueueHook* hook) noexcept;
+};
+
+template <class T>
+class TMpscQueue
+{
+public:
     TMpscQueue() = default;
     TMpscQueue(const TMpscQueue&) = delete;
     TMpscQueue(TMpscQueue&&) = delete;
 
-    ~TMpscQueue()
+    void Enqueue(T&& value);
+    bool TryDequeue(T* value);
+
+private:
+    struct TNode
     {
-        while (auto item = Pop());
-    }
+        explicit TNode(T&& value);
+
+        T Value;
+        TMpscQueueHook Hook;
+    };
+
+    TIntrusiveMpscQueue<TNode, &TNode::Hook> Impl_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+#define MPSC_QUEUE_INL_H_
+#include "mpsc_queue-inl.h"
+#undef MPSC_QUEUE_INL_H_
 
