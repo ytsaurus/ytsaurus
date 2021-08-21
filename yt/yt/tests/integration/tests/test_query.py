@@ -1,17 +1,20 @@
 from yt_env_setup import YTEnvSetup, find_ut_file, skip_if_rpc_driver_backend
 
+from yt.test_helpers.profiler import Profiler
+
 from yt_commands import (
     authors, wait, create, ls, get, move, create_user, make_ace,
     insert_rows, select_rows,
     write_local_file, reshard_table, sync_create_cells, sync_mount_table, sync_unmount_table, WaitFailed)
 
-from yt_helpers import Profiler
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 import yt.yson as yson
 
 from yt_driver_bindings import Driver
+
+from yt.packages.six.moves import xrange
 
 from flaky import flaky
 import pytest
@@ -1496,13 +1499,8 @@ class TestQueryRpcProxy(TestQuery):
         rows = [{"key": 1, "value": "one"}]
         insert_rows("//tmp/t", rows)
 
-        node_select_duration_histogram = Profiler.at_tablet_node("//tmp/t").histogram(
+        node_select_duration_histogram = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").histogram(
             name="select/duration")
-
-        # NB(eshcherbin): This is done to bypass RPC driver which currently doesn't support options for get queries.
-        driver_config = deepcopy(self.Env.configs["driver"])
-        driver_config["api_version"] = 4
-        driver = Driver(config=driver_config)
 
         rpc_proxy = ls("//sys/rpc_proxies")[0]
 
@@ -1511,14 +1509,14 @@ class TestQueryRpcProxy(TestQuery):
         rpc_driver_config["api_version"] = 3
         rpc_driver = Driver(config=rpc_driver_config)
 
-        proxy_select_duration_histogram = Profiler.at_rpc_proxy(rpc_proxy).histogram(
+        proxy_select_duration_histogram = Profiler.at_rpc_proxy(self.Env.create_native_client(), rpc_proxy).histogram(
             name="rpc_proxy/detailed_table_statistics/select_duration",
             fixed_tags={"table_path": "//tmp/t"})
 
         def check():
             def _check(select_duration_histogram):
                 try:
-                    bins = select_duration_histogram.get_bins(verbose=True, driver=driver)
+                    bins = select_duration_histogram.get_bins(verbose=True)
                     bin_counters = [bin["count"] for bin in bins]
                     if sum(bin_counters) != 1:
                         return False

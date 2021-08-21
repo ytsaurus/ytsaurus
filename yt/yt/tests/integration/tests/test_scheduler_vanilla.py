@@ -6,8 +6,8 @@ from yt_commands import (
     get, read_file, write_file, read_table, write_table, vanilla, run_test_vanilla, abort_job, abandon_job,
     interrupt_job, dump_job_context)
 
-from yt_helpers import Profiler, skip_if_no_descending
-
+from yt_helpers import skip_if_no_descending
+from yt.test_helpers.profiler import Profiler
 from yt.yson import to_yson_type
 from yt.common import YtError
 
@@ -540,7 +540,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     def test_set_final_job_state_metrics(self):
         nodes = ls("//sys/cluster_nodes")
 
-        counters = [Profiler.at_node(node).counter("job_controller/job_final_state") for node in nodes]
+        counters = [Profiler.at_node(self.Env.create_native_client(), node).counter("job_controller/job_final_state") for node in nodes]
         op = run_test_vanilla("sleep 1")
 
         wait(lambda: any(counter.get_delta() > 0 for counter in counters))

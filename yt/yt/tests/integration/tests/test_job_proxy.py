@@ -1,7 +1,9 @@
 from yt_env_setup import (YTEnvSetup, Restarter, NODES_SERVICE)
+
+from yt.test_helpers.profiler import Profiler
+
 from yt_commands import (ls, get, print_debug, authors, wait, run_test_vanilla)
 
-from yt_helpers import Profiler
 
 import os.path
 import shutil
@@ -152,7 +154,7 @@ class TestJobProxyProfiling(YTEnvSetup):
         op = run_test_vanilla("sleep 100", job_count=10, track=False)
 
         node = ls("//sys/cluster_nodes")[0]
-        profiler = Profiler.at_job_proxy(node)
+        profiler = Profiler.at_job_proxy(self.Env.create_native_client(), node)
 
         thread_count = profiler.gauge("resource_tracker/thread_count")
 

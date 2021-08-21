@@ -1,11 +1,12 @@
 from yt_env_setup import YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE
 
+from yt.test_helpers.profiler import Profiler
+
 from yt_commands import (
     authors, wait, retry, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     create_pool, insert_rows,
     lookup_rows, delete_rows, write_table, map, vanilla, run_test_vanilla, abort_job, get_job, sync_create_cells, raises_yt_error)
 
-from yt_helpers import Profiler
 import yt_error_codes
 
 import yt.environment.init_operation_archive as init_operation_archive
@@ -451,7 +452,9 @@ class TestGetJobMonitoring(_TestGetJobBase):
         descriptor = job["monitoring_descriptor"]
 
         wait(
-            lambda: Profiler.at_node(job["address"]).get("user_job/cpu/user", {"job_descriptor": descriptor})
+            lambda: Profiler.at_node(
+                self.Env.create_native_client(),
+                job["address"]).get("user_job/cpu/user", {"job_descriptor": descriptor})
             is not None)
 
 

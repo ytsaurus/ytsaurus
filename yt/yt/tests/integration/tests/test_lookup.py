@@ -1,5 +1,7 @@
 from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
+from yt.test_helpers.profiler import Profiler
+
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, insert_rows,
     lookup_rows, delete_rows,
@@ -7,7 +9,6 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_reshard_table,
     sync_flush_table, sync_compact_table, update_nodes_dynamic_config, set_banned_flag, WaitFailed)
 
-from yt_helpers import Profiler
 from yt_type_helpers import make_schema
 
 from yt.environment.helpers import assert_items_equal
@@ -15,6 +16,8 @@ from yt.common import YtError
 import yt.yson as yson
 
 from yt_driver_bindings import Driver
+
+from yt.packages.six.moves import xrange
 
 import pytest
 
@@ -931,13 +934,8 @@ class TestLookupRpcProxy(TestLookup):
         rows = [{"key": 1, "value": "one"}]
         insert_rows("//tmp/t", rows)
 
-        node_lookup_duration_histogram = Profiler.at_tablet_node("//tmp/t").histogram(
+        node_lookup_duration_histogram = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").histogram(
             name="lookup/duration")
-
-        # NB(eshcherbin): This is done to bypass RPC driver which currently doesn't support options for get queries.
-        driver_config = deepcopy(self.Env.configs["driver"])
-        driver_config["api_version"] = 4
-        driver = Driver(config=driver_config)
 
         rpc_proxy = ls("//sys/rpc_proxies")[0]
 
@@ -946,14 +944,14 @@ class TestLookupRpcProxy(TestLookup):
         rpc_driver_config["api_version"] = 3
         rpc_driver = Driver(config=rpc_driver_config)
 
-        proxy_lookup_duration_histogram = Profiler.at_rpc_proxy(rpc_proxy).histogram(
+        proxy_lookup_duration_histogram = Profiler.at_rpc_proxy(self.Env.create_native_client(), rpc_proxy).histogram(
             name="rpc_proxy/detailed_table_statistics/lookup_duration",
             fixed_tags={"table_path": "//tmp/t"})
 
         def check():
             def _check(lookup_duration_histogram):
                 try:
-                    bins = lookup_duration_histogram.get_bins(verbose=True, driver=driver)
+                    bins = lookup_duration_histogram.get_bins(verbose=True)
                     bin_counters = [bin["count"] for bin in bins]
                     if sum(bin_counters) != 1:
                         return False

@@ -15,13 +15,13 @@ from yt.common import (
     date_string_to_datetime,
 )
 
+from yt.packages.six.moves import xrange, builtins
+
 from yt.test_helpers import wait, WaitFailed
 from yt.test_helpers.job_events import JobEvents, TimeoutError
 
-import __builtin__
 import contextlib
 import copy as pycopy
-import logging
 import os
 import pytest
 import random
@@ -31,6 +31,7 @@ import sys
 import tempfile
 import time
 import traceback
+import logging
 from datetime import datetime, timedelta
 from cStringIO import StringIO, OutputType
 
@@ -106,7 +107,7 @@ def raises_yt_error(code=None, required=True):
 
 def print_debug(*args):
     if args:
-        root_logger.debug(" ".join(__builtin__.map(str, args)))
+        root_logger.debug(" ".join(builtins.map(str, args)))
 
 
 def get_driver(cell_index=0, cluster="primary", api_version=default_api_version):
@@ -1055,7 +1056,7 @@ def release_breakpoint(*args, **kwargs):
 
 
 def get_operation_cypress_path(op_id):
-    return "//sys/operations/{}/{}".format("%02x" % (long(op_id.split("-")[3], 16) % 256), op_id)
+    return "//sys/operations/{}/{}".format("%02x" % (int(op_id.split("-")[3], 16) % 256), op_id)
 
 
 def get_cypress_metrics(operation_id, key, aggr="sum"):
@@ -1744,10 +1745,10 @@ def remove_tablet_cell(id, driver=None):
 
 
 def sync_remove_tablet_cells(cells, driver=None):
-    cells = __builtin__.set(cells)
+    cells = builtins.set(cells)
     for id in cells:
         remove_tablet_cell(id, driver=driver)
-    wait(lambda: len(cells.intersection(__builtin__.set(get("//sys/tablet_cells", driver=driver)))) == 0)
+    wait(lambda: len(cells.intersection(builtins.set(get("//sys/tablet_cells", driver=driver)))) == 0)
 
 
 def remove_tablet_action(id, driver=None):
@@ -1901,8 +1902,8 @@ def cluster_resources_equal(a, b):
             or a.get("tablet_static_memory", 0) != b.get("tablet_static_memory", 0)):
         return False
 
-    media = __builtin__.set(a.get("disk_space_per_medium", {}).keys())
-    media.union(__builtin__.set(b.get("disk_space_per_medium", {}).keys()))
+    media = builtins.set(a.get("disk_space_per_medium", {}).keys())
+    media.union(builtins.set(b.get("disk_space_per_medium", {}).keys()))
     return all(
         a.get("disk_space_per_medium", {}).get(medium, 0) == b.get("disk_space_per_medium", {}).get(medium, 0)
         for medium in media
@@ -2208,13 +2209,13 @@ def sync_flush_table(path, driver=None):
 
 
 def sync_compact_table(path, driver=None):
-    chunk_ids = __builtin__.set(get(path + "/@chunk_ids", driver=driver))
+    chunk_ids = builtins.set(get(path + "/@chunk_ids", driver=driver))
     sync_unmount_table(path, driver=driver)
     set(path + "/@forced_compaction_revision", 1, driver=driver)
     sync_mount_table(path, driver=driver)
 
     print_debug("Waiting for tablets to become compacted...")
-    wait(lambda: len(chunk_ids.intersection(__builtin__.set(get(path + "/@chunk_ids", driver=driver)))) == 0)
+    wait(lambda: len(chunk_ids.intersection(builtins.set(get(path + "/@chunk_ids", driver=driver)))) == 0)
 
     print_debug("Waiting for tablets to become stable...")
 

@@ -7,6 +7,7 @@ def pytest_configure(config):
     ]:
         config.addinivalue_line("markers", line)
 
+
 def _get_first_marker(item, name):
     marker = None
     if hasattr(item, "get_closest_marker"):
@@ -15,11 +16,13 @@ def _get_first_marker(item, name):
         marker = item.get_marker(name)
     return marker.args[0] if marker is not None else None
 
+
 def pytest_collection_modifyitems(items, config):
     for item in items:
         authors = _get_first_marker(item, name="authors")
         if authors is not None:
             item._nodeid += " ({})".format(", ".join(authors))
+
 
 def pytest_itemcollected(item):
     authors = _get_first_marker(item, name="authors")

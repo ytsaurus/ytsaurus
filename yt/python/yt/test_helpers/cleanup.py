@@ -4,6 +4,7 @@ from yt.common import YtError, wait, format_error
 
 import sys
 
+
 def abort_transactions(list_action, abort_action):
     for tx in list_action("//sys/transactions", attributes=["title"]):
         title = tx.attributes.get("title", "")
@@ -22,6 +23,7 @@ def abort_transactions(list_action, abort_action):
         except YtError:
             pass
 
+
 def cleanup_operations(list_action, abort_action, remove_action, remove_operations_archive=True):
     operations_from_orchid = []
     try:
@@ -38,6 +40,7 @@ def cleanup_operations(list_action, abort_action, remove_action, remove_operatio
     remove_action(path="//sys/operations/*")
     if remove_operations_archive:
         remove_action(path="//sys/operations_archive", force=True, recursive=True)
+
 
 def cleanup_objects(list_multiple_action, remove_multiple_action, exists_multiple_action,
                     enable_secondary_cells_cleanup=False, object_ids_to_ignore=None):

@@ -18,17 +18,15 @@ from yt_commands import (
 import yt_error_codes
 
 from yt_type_helpers import make_schema
-from yt_helpers import Profiler
+from yt.test_helpers.profiler import Profiler
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError, YtResponseError
 import yt.yson as yson
 
-from yt_driver_bindings import Driver
-
 import pytest
 
-from copy import deepcopy
+from yt.packages.six.moves import xrange
 from random import randint, choice, sample
 from string import ascii_lowercase
 import random
@@ -1155,6 +1153,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
         sync_freeze_table("//tmp/t")
+
         def check_statistics(statistics):
             return (
                 statistics["tablet_count"] == 1 and
@@ -1431,32 +1430,27 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     @authors("avmatrosov")
     def test_chunk_profiling(self):
-        # NB(eshcherbin): This is done to bypass RPC driver which currently doesn't support options for get queries.
-        driver_config = deepcopy(self.Env.configs["driver"])
-        driver_config["api_version"] = 4
-        driver = Driver(config=driver_config)
-
         path = "//tmp/t"
         sync_create_cells(1)
         self._create_simple_table(path)
         sync_mount_table(path)
 
-        profiler = Profiler.at_tablet_node(path, fixed_tags={
+        profiler = Profiler.at_tablet_node(self.Env.create_native_client(), path, fixed_tags={
             "table_path": path,
             "method": "compaction",
             "account": "tmp",
             "medium": "default"
         })
-        disk_space_counter = profiler.counter("chunk_writer/disk_space", driver=driver)
-        data_weight_counter = profiler.counter("chunk_writer/data_weight", driver=driver)
-        data_bytes_counter = profiler.counter("chunk_reader_statistics/data_bytes_read_from_disk", driver=driver)
+        disk_space_counter = profiler.counter("chunk_writer/disk_space")
+        data_weight_counter = profiler.counter("chunk_writer/data_weight")
+        data_bytes_counter = profiler.counter("chunk_reader_statistics/data_bytes_read_from_disk")
 
         insert_rows(path, [{"key": 0, "value": "test"}])
         sync_compact_table(path)
 
-        wait(lambda: disk_space_counter.get_delta(driver=driver) > 0)
-        wait(lambda: data_weight_counter.get_delta(driver=driver) > 0)
-        wait(lambda: data_bytes_counter.get_delta(driver=driver) > 0)
+        wait(lambda: disk_space_counter.get_delta() > 0)
+        wait(lambda: data_weight_counter.get_delta() > 0)
+        wait(lambda: data_bytes_counter.get_delta() > 0)
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])

@@ -5,7 +5,7 @@ from yt_commands import (
     get, set, ls, create, read_table, write_table,
     get_singular_chunk_id)
 
-from yt_helpers import Profiler
+from yt.test_helpers.profiler import Profiler
 
 from flaky import flaky
 
@@ -76,7 +76,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
     @authors("max42")
     @clear_everything_after_test
     def test_no_distribution(self):
-        counter = Profiler.at_node(self.seed).counter("data_node/p2p/distributed_bytes")
+        counter = Profiler.at_node(self.Env.create_native_client(), self.seed).counter("data_node/p2p/distributed_bytes")
 
         # Keep number of tries in sync with min_request_count.
         self._access()
@@ -89,7 +89,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
     @flaky(max_runs=5)
     @clear_everything_after_test
     def test_simple_distribution(self):
-        counter = Profiler.at_node(self.seed).counter("data_node/p2p/distributed_bytes")
+        counter = Profiler.at_node(self.Env.create_native_client(), self.seed).counter("data_node/p2p/distributed_bytes")
 
         # Must be greater than min_request_count in config.
         self._access()
@@ -109,7 +109,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
         # Wait for node directory to become updated.
         time.sleep(2)
 
-        counter = Profiler.at_node(self.seed).counter("data_node/p2p/distributed_bytes")
+        counter = Profiler.at_node(self.Env.create_native_client(), self.seed).counter("data_node/p2p/distributed_bytes")
 
         self._access()
         self._access()
@@ -152,13 +152,10 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
     @authors("max42", "prime")
     @clear_everything_after_test
     def test_wow_such_flappy_test_so_many_failures(self):
-        metric_s_delta = Profiler.at_node(self.seed).counter("data_node/block_cache/compressed_data/hit_weight_sync")
-        metric_ns0_delta = Profiler.at_node(self.non_seeds[0]).counter(
-            "data_node/block_cache/compressed_data/hit_weight_sync")
-        metric_ns1_delta = Profiler.at_node(self.non_seeds[1]).counter(
-            "data_node/block_cache/compressed_data/hit_weight_sync")
-        metric_ns2_delta = Profiler.at_node(self.non_seeds[2]).counter(
-            "data_node/block_cache/compressed_data/hit_weight_sync")
+        metric_s_delta = Profiler.at_node(self.Env.create_native_client(), self.seed).counter("data_node/block_cache/compressed_data/hit_weight_sync")
+        metric_ns0_delta = Profiler.at_node(self.Env.create_native_client(), self.non_seeds[0]).counter("data_node/block_cache/compressed_data/hit_weight_sync")
+        metric_ns1_delta = Profiler.at_node(self.Env.create_native_client(), self.non_seeds[1]).counter("data_node/block_cache/compressed_data/hit_weight_sync")
+        metric_ns2_delta = Profiler.at_node(self.Env.create_native_client(), self.non_seeds[2]).counter("data_node/block_cache/compressed_data/hit_weight_sync")
 
         def read_table():
             for i in range(10):

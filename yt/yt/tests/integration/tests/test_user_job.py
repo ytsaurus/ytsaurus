@@ -1,5 +1,6 @@
 from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE
 
+
 from yt_commands import (
     authors, print_debug, wait, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
     events_on_fs, create,
@@ -14,14 +15,16 @@ from yt_commands import (
     repair_exec_node,
     make_random_string, raises_yt_error)
 
-from yt_helpers import Profiler
 
 import yt_error_codes
 
 import yt.environment.init_operation_archive as init_operation_archive
 import yt.yson as yson
+from yt.test_helpers.profiler import Profiler
 from yt.test_helpers import are_almost_equal
 from yt.common import update, YtError
+
+from yt.packages.six.moves import xrange
 
 from flaky import flaky
 
@@ -125,8 +128,8 @@ class TestSandboxTmpfs(YTEnvSetup):
         assert len(nodes) == 1
         node = nodes[0]
 
-        tmpfs_size = Profiler.at_node(node).gauge("job_controller/tmpfs/size")
-        tmpfs_usage = Profiler.at_node(node).gauge("job_controller/tmpfs/usage")
+        tmpfs_size = Profiler.at_node(self.Env.create_native_client(), node).gauge("job_controller/tmpfs/size")
+        tmpfs_usage = Profiler.at_node(self.Env.create_native_client(), node).gauge("job_controller/tmpfs/usage")
         wait(lambda: tmpfs_size.get() == 1024 * 1024)
         wait(lambda: tmpfs_usage.get() > 0)
         assert tmpfs_usage.get() <= 4 * 1024
@@ -936,7 +939,7 @@ class TestArtifactCacheBypass(YTEnvSetup):
     @authors("babenko")
     def test_bypass_artifact_cache_for_file(self):
         counters = [
-            Profiler.at_node(node).counter("job_controller/chunk_cache/cache_bypassed_artifacts_size")
+            Profiler.at_node(self.Env.create_native_client(), node).counter("job_controller/chunk_cache/cache_bypassed_artifacts_size")
             for node in sorted(ls("//sys/cluster_nodes"))
         ]
 
@@ -1903,7 +1906,7 @@ class TestUserJobMonitoring(YTEnvSetup):
         node = job_info["address"]
         descriptor = job_info["monitoring_descriptor"]
 
-        profiler = Profiler.at_node(node)
+        profiler = Profiler.at_node(self.Env.create_native_client(), node)
 
         cpu_user_counter = profiler.counter("user_job/cpu/user", tags={"job_descriptor": descriptor})
         wait(lambda: cpu_user_counter.get_delta() >= expected_time)
