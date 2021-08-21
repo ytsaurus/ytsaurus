@@ -3,6 +3,7 @@
 #include "fair_share_queue_scheduler_thread.h"
 #include "private.h"
 #include "profiling_helpers.h"
+#include "moody_camel_concurrent_queue.h"
 
 #include <yt/yt/core/actions/invoker_util.h>
 #include <yt/yt/core/actions/invoker_detail.h>
@@ -11,8 +12,6 @@
 
 #include <yt/yt/core/misc/crash_handler.h>
 #include <yt/yt/core/misc/ring_queue.h>
-
-#include <util/thread/lfqueue.h>
 
 namespace NYT::NConcurrency {
 
@@ -120,13 +119,15 @@ public:
 
     virtual void Invoke(TClosure callback) override
     {
-        Queue_.Enqueue(std::move(callback));
+        Queue_.enqueue(std::move(callback));
+        ++QueueSize_;
         TrySchedule();
     }
 
 private:
-    TLockFreeQueue<TClosure> Queue_;
-    std::atomic_flag Lock_ = ATOMIC_FLAG_INIT;
+    moodycamel::ConcurrentQueue<TClosure> Queue_;
+    std::atomic<bool> CallbackScheduled_ = false;
+    std::atomic<int> QueueSize_ = 0;
 
 
     class TInvocationGuard
@@ -160,12 +161,11 @@ private:
     private:
         TIntrusivePtr<TSerializedInvoker> Owner_;
         bool Activated_ = false;
-
     };
 
     void TrySchedule()
     {
-        if (!Lock_.test_and_set(std::memory_order_acquire)) {
+        if (!CallbackScheduled_.exchange(true)) {
             UnderlyingInvoker_->Invoke(BIND(
                 &TSerializedInvoker::RunCallback,
                 MakeStrong(this),
@@ -176,9 +176,7 @@ private:
     void DrainQueue()
     {
         TClosure callback;
-        while (Queue_.Dequeue(&callback)) {
-            callback.Reset();
-        }
+        while (Queue_.try_dequeue(callback));
     }
 
     void RunCallback(TInvocationGuard invocationGuard)
@@ -192,23 +190,23 @@ private:
         });
 
         TClosure callback;
-        if (Queue_.Dequeue(&callback)) {
-            callback.Run();
+        if (Queue_.try_dequeue(callback)) {
+            --QueueSize_;
+            callback();
         }
     }
 
     void OnFinished(bool activated)
     {
-        Lock_.clear(std::memory_order_release);
+        CallbackScheduled_.store(false);
         if (activated) {
-            if (!Queue_.IsEmpty()) {
+            if (QueueSize_.load() > 0) {
                 TrySchedule();
             }
         } else {
             DrainQueue();
         }
     }
-
 };
 
 IInvokerPtr CreateSerializedInvoker(IInvokerPtr underlyingInvoker)
@@ -266,7 +264,6 @@ private:
         guard.Release();
         callback.Run();
     }
-
 };
 
 IPrioritizedInvokerPtr CreatePrioritizedInvoker(IInvokerPtr underlyingInvoker)
@@ -322,7 +319,6 @@ public:
 private:
     const IPrioritizedInvokerPtr UnderlyingInvoker_;
     const i64 Priority_;
-
 };
 
 IInvokerPtr CreateFixedPriorityInvoker(
@@ -458,7 +454,8 @@ public:
 
     virtual void Invoke(TClosure callback) override
     {
-        Queue_.Enqueue(std::move(callback));
+        Queue_.enqueue(std::move(callback));
+        RetryScheduleMore_.store(true);
         ScheduleMore();
     }
 
@@ -491,13 +488,14 @@ public:
     }
 
 private:
-    std::atomic<bool> Suspended_ = {false};
-    std::atomic<bool> SchedulingMore_ = {false};
-    std::atomic<int> ActiveInvocationCount_ = {0};
-
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
 
-    TLockFreeQueue<TClosure> Queue_;
+    std::atomic<bool> Suspended_ = false;
+    std::atomic<bool> SchedulingMore_ = false;
+    std::atomic<bool> RetryScheduleMore_ = false;
+    std::atomic<int> ActiveInvocationCount_ = 0;
+
+    moodycamel::ConcurrentQueue<TClosure> Queue_;
 
     TPromise<void> FreeEvent_;
 
@@ -526,7 +524,6 @@ private:
 
     private:
         TIntrusivePtr<TSuspendableInvoker> Owner_;
-
     };
 
 
@@ -556,30 +553,31 @@ private:
 
     void ScheduleMore()
     {
-        if (Suspended_ || SchedulingMore_.exchange(true)) {
-            return;
-        }
-
-        while (!Suspended_) {
-            ++ActiveInvocationCount_;
-            TInvocationGuard guard(this);
-
-            TClosure callback;
-            if (Suspended_ || !Queue_.Dequeue(&callback)) {
-                break;
+        do {
+            if (Suspended_ || SchedulingMore_.exchange(true)) {
+                return;
             }
 
-            UnderlyingInvoker_->Invoke(BIND(
-               &TSuspendableInvoker::RunCallback,
-               MakeStrong(this),
-               Passed(std::move(callback)),
-               Passed(std::move(guard))));
-        }
+            RetryScheduleMore_.store(false);
 
-        SchedulingMore_ = false;
-        if (!Queue_.IsEmpty()) {
-            ScheduleMore();
-        }
+            while (!Suspended_) {
+                ++ActiveInvocationCount_;
+                TInvocationGuard guard(this);
+
+                TClosure callback;
+                if (Suspended_ || !Queue_.try_dequeue(callback)) {
+                    break;
+                }
+
+                UnderlyingInvoker_->Invoke(BIND(
+                &TSuspendableInvoker::RunCallback,
+                MakeStrong(this),
+                Passed(std::move(callback)),
+                Passed(std::move(guard))));
+            }
+
+            SchedulingMore_ = false;
+        } while (RetryScheduleMore_);
     }
 };
 
