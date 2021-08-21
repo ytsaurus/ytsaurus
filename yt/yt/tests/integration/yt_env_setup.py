@@ -21,6 +21,9 @@ from yt.environment.helpers import (  # noqa
 
 from yt.test_helpers import wait, WaitFailed
 import yt.test_helpers.cleanup as test_cleanup
+
+
+from yt.packages.six.moves import xrange
 from yt.common import YtResponseError, format_error, update_inplace
 import yt.logger
 

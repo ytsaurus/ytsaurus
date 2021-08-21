@@ -1,13 +1,14 @@
-import pytest
-
 from yt_env_setup import YTEnvSetup, wait
+
+from yt.test_helpers.profiler import Profiler
+
 from yt_commands import (
     authors, wait_breakpoint, release_breakpoint, with_breakpoint,
     exists, get, set, create, ls, write_table, sort,
     run_sleeping_vanilla, run_test_vanilla)
-from yt_helpers import Profiler
 
 from flaky import flaky
+import pytest
 
 import time
 import copy
@@ -55,7 +56,7 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
 
     @authors("renadeen")
     def test_sleeping(self):
-        profiler = Profiler.at_scheduler(fixed_tags={"tree": "default", "pool": "root"})
+        profiler = Profiler.at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default", "pool": "root"})
         smoothed_cpu_counter = profiler.counter("scheduler/pools/metrics/aggregated_smoothed_cpu_usage_x100")
         max_cpu_counter = profiler.counter("scheduler/pools/metrics/aggregated_max_cpu_usage_x100")
         preemptable_cpu_counter = profiler.counter("scheduler/pools/metrics/aggregated_preemptable_cpu_x100")
@@ -72,7 +73,7 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
         spec = copy.deepcopy(SPEC_WITH_CPU_MONITOR)
         spec["job_cpu_monitor"]["min_cpu_limit"] = 1
 
-        profiler = Profiler.at_scheduler(fixed_tags={"tree": "default", "pool": "root"})
+        profiler = Profiler.at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default", "pool": "root"})
         smoothed_cpu_counter = profiler.counter("scheduler/pools/metrics/aggregated_smoothed_cpu_usage_x100")
         max_cpu_counter = profiler.counter("scheduler/pools/metrics/aggregated_max_cpu_usage_x100")
         preemptable_cpu_counter = profiler.counter("scheduler/pools/metrics/aggregated_preemptable_cpu_x100")

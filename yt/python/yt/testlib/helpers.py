@@ -1,19 +1,22 @@
 from __future__ import print_function
 
-from yt.packages.six import iteritems, text_type
-from yt.packages.six.moves import map as imap
 import yt.wrapper as yt
-
-import pytest
-from contextlib import contextmanager
 
 try:
     import yatest.common as yatest_common
 except ImportError:
     yatest_common = None
 
+from yt.packages.six import iteritems, text_type
+from yt.packages.six.moves import map as imap
+
+import pytest
+from contextlib import contextmanager
+
+
 def authors(*the_authors):
     return pytest.mark.authors(the_authors)
+
 
 def check_rows_equality(rowsA, rowsB, ordered=True):
     def prepare(rows):
@@ -21,6 +24,7 @@ def check_rows_equality(rowsA, rowsB, ordered=True):
             if isinstance(obj, text_type):
                 return str(obj)
             return obj
+
         def process_row(row):
             if isinstance(row, dict):
                 return dict([(fix_unicode(key), fix_unicode(value)) for key, value in iteritems(row)])
@@ -35,6 +39,7 @@ def check_rows_equality(rowsA, rowsB, ordered=True):
     lhs, rhs = prepare(rowsA), prepare(rowsB)
     assert lhs == rhs
 
+
 @contextmanager
 def set_config_option(name, value, final_action=None):
     old_value = yt.config._get(name)
@@ -45,6 +50,7 @@ def set_config_option(name, value, final_action=None):
         if final_action is not None:
             final_action()
         yt.config._set(name, old_value)
+
 
 @contextmanager
 def set_config_options(options_dict):

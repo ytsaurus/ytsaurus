@@ -2,12 +2,12 @@ from proxy_format_config import _TestProxyFormatConfigBase
 
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
 
+from yt.test_helpers.profiler import Profiler
+
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, create_user,
     create_proxy_role, make_ace,
     read_table, write_table, Operation)
-
-from yt_helpers import Profiler
 
 from yt.common import YtResponseError
 import yt.packages.requests as requests
@@ -111,7 +111,7 @@ class TestHttpProxy(HttpProxyTestBase):
             requests.get(url)
             return counter.get_delta() > 0
 
-        profiler = Profiler.at_proxy(proxy, fixed_tags={"http_code": "404"})
+        profiler = Profiler.at_proxy(self.Env.create_native_client(), proxy, fixed_tags={"http_code": "404"})
         data_http_code_counter = profiler.counter("http_proxy/http_code_count", tags={"proxy_role": "data"})
 
         wait(lambda: make_failing_request_and_check_counter(data_http_code_counter))

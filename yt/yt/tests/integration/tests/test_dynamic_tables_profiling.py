@@ -5,7 +5,7 @@ from yt_commands import (
     create_tablet_cell_bundle, remove_tablet_cell,
     insert_rows, select_rows, lookup_rows, sync_create_cells, sync_mount_table, sync_flush_table, generate_uuid)
 
-from yt_helpers import Profiler
+from yt.test_helpers.profiler import Profiler
 
 from yt.yson import YsonEntity
 from yt.environment.helpers import assert_items_equal
@@ -210,7 +210,7 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         insert_rows("//tmp/path_letters/t0", [{"key": 0, "value": "hello"}])
         time.sleep(2)
 
-        profiler = Profiler.at_tablet_node("//tmp/path_letters/t0")
+        profiler = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/path_letters/t0")
 
         counter = profiler.get("write/row_count", {"table_path": "//tmp/path_letters/t_"})
         assert counter == 1

@@ -6,6 +6,8 @@ from yt_env_setup import (
     is_asan_build,
 )
 
+from yt.test_helpers.profiler import Profiler
+
 from yt_commands import (
     authors, wait, create, ls, get, set, copy,
     move, remove,
@@ -24,7 +26,6 @@ from yt_commands import (
     sync_remove_tablet_cells, set_node_decommissioned, create_dynamic_table, build_snapshot, get_driver,
     AsyncLastCommittedTimestamp, create_medium, raises_yt_error)
 
-from yt_helpers import Profiler
 from yt_type_helpers import make_schema, optional_type
 import yt_error_codes
 
@@ -32,11 +33,8 @@ from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 import yt.yson as yson
 
-from yt_driver_bindings import Driver
-
 import pytest
-
-from copy import deepcopy
+from yt.packages.six.moves import xrange
 from flaky import flaky
 from collections import Counter
 import time
@@ -150,21 +148,14 @@ class DynamicTablesBase(YTEnvSetup):
         return addresses
 
     def _get_table_profiling(self, table, user=None):
-        driver_config = deepcopy(self.Env.configs["driver"])
-        driver_config["api_version"] = 4
-
         class Profiling:
-            def __init__(self):
-                self.profiler = Profiler.at_tablet_node(table)
+            def __init__(self, yt_client):
+                self.profiler = Profiler.at_tablet_node(yt_client, table)
                 self.tags = {
                     "table_path": table,
                 }
                 if user is not None:
                     self.tags["user"] = user
-
-                # NB(eshcherbin): This is done to bypass RPC driver
-                # which currently doesn't support options for get queries.
-                self.driver = Driver(config=driver_config)
 
             def get_counter(self, counter_name, tags={}):
                 return self.profiler.get(
@@ -172,14 +163,12 @@ class DynamicTablesBase(YTEnvSetup):
                     dict(self.tags, **tags),
                     postprocessor=float,
                     verbose=False,
-                    default=0,
-                    driver=self.driver
-                )
+                    default=0)
 
             def has_projections_with_tags(self, counter_name, required_tags):
-                return len(self.profiler.get_all(counter_name, required_tags, verbose=False, driver=self.driver)) > 0
+                return len(self.profiler.get_all(counter_name, required_tags, verbose=False)) > 0
 
-        return Profiling()
+        return Profiling(self.Env.create_native_client())
 
     def _disable_tablet_cells_on_peer(self, cell):
         peer = get("#{0}/@peers/0/address".format(cell))
@@ -196,12 +185,6 @@ class DynamicTablesBase(YTEnvSetup):
             return True
 
         wait(check)
-
-    def _override_driver_config(self):
-        # NB(eshcherbin): This is done to bypass RPC driver which currently doesn't support options for get queries.
-        driver_config = deepcopy(self.Env.configs["driver"])
-        driver_config["api_version"] = 4
-        return Driver(config=driver_config)
 
 
 ##################################################################
@@ -240,14 +223,11 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
             assert lookup_rows("//tmp/t", keys) == rows
 
     def _check_cell_stable(self, cell_id):
-        driver = self._override_driver_config()
 
         addresses = [peer["address"] for peer in get("#" + cell_id + "/@peers")]
 
-        # NB(eshcherbin): Should use Profiler.counter() and counter.get_delta(). However, as long as
-        # we have to use the custom driver here we cannot use the counter helper.
         sensors = [
-            Profiler.at_node(address).gauge("hydra/restart_count", fixed_tags={"cell_id": cell_id})
+            Profiler.at_node(self.Env.create_native_client(), address).counter("hydra/restart_count", tags={"cell_id": cell_id})
             for address in addresses
         ]
 
@@ -255,12 +235,12 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         counts = []
         for sensor in sensors:
-            counts.append(sensor.get(driver=driver))
+            counts.append(sensor.get_delta())
 
         time.sleep(10.0)
 
         for i, sensor in enumerate(sensors):
-            assert sensor.get(driver=driver) == counts[i]
+            assert sensor.get_delta() == counts[i]
 
     @authors("ifsmirnov")
     @pytest.mark.parametrize("decommission_through_extra_peers", [False, True])
@@ -659,8 +639,6 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
     @authors("akozhikhov")
     def test_override_profiling_mode_attribute(self):
-        # TODO: ?
-        # driver = self._override_driver_config()
 
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
@@ -2512,7 +2490,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
     @authors("akozhikhov")
     def test_lookup_throttler(self):
-        driver = self._override_driver_config()
 
         sync_create_cells(1)
 
@@ -2524,9 +2501,8 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(5)])
         sync_flush_table("//tmp/t")
 
-        throttled_lookup_count = Profiler.at_tablet_node("//tmp/t").counter(
-            name="tablet/throttled_lookup_count",
-            driver=driver)
+        throttled_lookup_count = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+            name="tablet/throttled_lookup_count")
 
         start_time = time.time()
         for i in range(5):
@@ -2535,12 +2511,10 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 check_result=True)
         delta = time.time() - start_time
         assert delta > 5
-        assert throttled_lookup_count.get_delta(driver=driver) > 0
+        assert throttled_lookup_count.get_delta() > 0
 
     @authors("akozhikhov")
     def test_select_throttler(self):
-        driver = self._override_driver_config()
-
         sync_create_cells(1)
 
         self._create_sorted_table("//tmp/t")
@@ -2551,9 +2525,8 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(5)])
         sync_flush_table("//tmp/t")
 
-        throttled_select_count = Profiler.at_tablet_node("//tmp/t").counter(
-            name="tablet/throttled_select_count",
-            driver=driver)
+        throttled_select_count = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+            name="tablet/throttled_select_count")
 
         start_time = time.time()
         for i in range(5):
@@ -2564,11 +2537,10 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 check_result=True)
         delta = time.time() - start_time
         assert delta > 5
-        assert throttled_select_count.get_delta(driver=driver) > 0
+        assert throttled_select_count.get_delta() > 0
 
     @authors("akozhikhov")
     def test_write_throttler(self):
-        driver = self._override_driver_config()
 
         sync_create_cells(1)
 
@@ -2576,9 +2548,8 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//tmp/t/@throttlers", {"write": {"limit": 10}})
         sync_mount_table("//tmp/t")
 
-        throttled_write_count = Profiler.at_tablet_node("//tmp/t").counter(
-            name="tablet/throttled_write_count",
-            driver=driver)
+        throttled_write_count = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+            name="tablet/throttled_write_count")
 
         def _insert():
             start_time = time.time()
@@ -2589,7 +2560,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             return time.time() - start_time
 
         assert _insert() > 2
-        assert throttled_write_count.get_delta(driver=driver) > 0
+        assert throttled_write_count.get_delta() > 0
 
         remove("//tmp/t/@throttlers")
         sync_unmount_table("//tmp/t")
@@ -2783,7 +2754,7 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         def prepare():
             cells.extend(sync_create_cells(10))
             sync_remove_tablet_cells(cells[:10])
-            for l in xrange(10):
+            for _ in xrange(10):
                 cells.pop(0)
             cell = cells[0]
             node = get("#{0}/@peers/0/address".format(cell))

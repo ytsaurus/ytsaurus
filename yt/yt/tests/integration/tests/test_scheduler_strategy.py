@@ -6,6 +6,7 @@ from yt_env_setup import (
     CONTROLLER_AGENTS_SERVICE,
     is_asan_build,
 )
+from yt.packages.six.moves import xrange
 
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
@@ -28,8 +29,7 @@ from yt_scheduler_helpers import (
 
 import yt_error_codes
 
-from yt_helpers import Profiler
-
+from yt.test_helpers.profiler import Profiler
 from yt.test_helpers import are_almost_equal
 
 from yt.common import YtError
@@ -2733,7 +2733,7 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
         def get_orchid_pool_count():
             return get_from_tree_orchid("default", "fair_share_info/pool_count")
 
-        pool_count_sensor = Profiler.at_scheduler(fixed_tags={"tree": "default"}).gauge("scheduler/pools/pool_count")
+        pool_count_sensor = Profiler.at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default"}).gauge("scheduler/pools/pool_count")
 
         def check_pool_count(expected_pool_count):
             wait(lambda: get_orchid_pool_count() == expected_pool_count)
@@ -3551,7 +3551,7 @@ class TestSchedulingSegments(YTEnvSetup):
         op_slot_index = get(op_slot_index_path)
 
         op_usage_ratio_sensor = Profiler\
-            .at_scheduler(fixed_tags={"tree": "default", "pool": "large_gpu", "slot_index": str(op_slot_index)})\
+            .at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default", "pool": "large_gpu", "slot_index": str(op_slot_index)})\
             .gauge("scheduler/operations_by_slot/dominant_usage_share")
 
         for _ in range(30):
@@ -3582,7 +3582,7 @@ class TestSchedulingSegments(YTEnvSetup):
         op_slot_index = get(op_slot_index_path)
 
         op_usage_ratio_sensor = Profiler \
-            .at_scheduler(fixed_tags={"tree": "default", "pool": "large_gpu", "slot_index": str(op_slot_index)}) \
+            .at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default", "pool": "large_gpu", "slot_index": str(op_slot_index)}) \
             .gauge("scheduler/operations_by_slot/dominant_usage_share")
 
         for _ in range(30):
@@ -3660,7 +3660,7 @@ class TestSchedulingSegments(YTEnvSetup):
         set("//sys/pool_trees/default/@config/scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000000000)
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout") == 1000000000)
 
-        profiler = Profiler.at_scheduler()
+        profiler = Profiler.at_scheduler(self.Env.create_native_client())
         fair_resource_amount_default_sensor = profiler.gauge("scheduler/segments/fair_resource_amount", fixed_tags={"segment": "default"})
         current_resource_amount_default_sensor = profiler.gauge("scheduler/segments/current_resource_amount", fixed_tags={"segment": "default"})
         fair_resource_amount_large_sensor = profiler.gauge("scheduler/segments/fair_resource_amount", fixed_tags={"segment": "large_gpu"})
@@ -4044,8 +4044,7 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             lambda: get(
                 scheduler_orchid_default_pool_tree_config_path()
                 + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout"
-            )
-                    == 1000
+            ) == 1000
         )
         # Not to let preemption abort the jobs instead of segments manager.
         set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
@@ -4239,11 +4238,11 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
         set("//sys/pool_trees/default/@config/scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000000000)
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout") == 1000000000)
 
-        profiler = Profiler.at_scheduler()
+        profiler = Profiler.at_scheduler(self.Env.create_native_client())
 
         for dc in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS:
             wait(lambda: profiler.gauge("scheduler/segments/data_center_capacity", fixed_tags={"data_center": dc}).get() ==
-                         8 * (TestSchedulingSegmentsMultiDataCenter.NUM_NODES / 2))
+                 8 * (TestSchedulingSegmentsMultiDataCenter.NUM_NODES / 2))
 
         fair_resource_amount_default_sensor = profiler.gauge("scheduler/segments/fair_resource_amount", fixed_tags={"segment": "default"})
         current_resource_amount_default_sensor = profiler.gauge("scheduler/segments/current_resource_amount", fixed_tags={"segment": "default"})
@@ -4375,7 +4374,7 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
     def test_min_remaining_feasible_capacity_assignment_heuristic(self):
         set("//sys/pool_trees/default/@config/scheduling_segments/data_center_assignment_heuristic", "min_remaining_feasible_capacity")
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/data_center_assignment_heuristic") ==
-                     "min_remaining_feasible_capacity")
+             "min_remaining_feasible_capacity")
 
         op1 = run_sleeping_vanilla(
             job_count=1,
@@ -4482,7 +4481,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
         op2_tasks_spec = {"task": {"job_count": num_jobs_op2, "command": "sleep 100;"}}
 
         dominant_fair_share_sensor = Profiler\
-            .at_scheduler(fixed_tags={"tree": "default", "pool": "child2"})\
+            .at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default", "pool": "child2"})\
             .gauge("scheduler/pools/dominant_fair_share/total")
 
         op2 = vanilla(spec={"pool": "child2", "tasks": op2_tasks_spec}, track=False)
@@ -4538,7 +4537,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
         op2_tasks_spec = {"task": {"job_count": self.NUM_SLOTS_PER_NODE, "command": "sleep 100;"}}
 
         dominant_fair_share_sensor = Profiler \
-            .at_scheduler(fixed_tags={"tree": "default", "pool": "child2"}) \
+            .at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default", "pool": "child2"}) \
             .gauge("scheduler/pools/dominant_fair_share/total")
 
         op2 = vanilla(spec={"pool": "child2", "tasks": op2_tasks_spec}, track=False)
