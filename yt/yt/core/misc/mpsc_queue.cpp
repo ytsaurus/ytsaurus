@@ -7,41 +7,37 @@ namespace NYT {
 TMpscQueueBase::TMpscQueueBase()
     : Head_(&Stub_)
     , Tail_(&Stub_)
-{
-    Y_UNUSED(StubPadding_);
-    Y_UNUSED(HeadPadding_);
-    Y_UNUSED(TailPadding_);
-}
+{ }
 
 TMpscQueueBase::~TMpscQueueBase()
 {
     // Check that queue is empty. Derived classes must ensure that the queue is empty.
     YT_VERIFY(Head_ == Tail_);
     YT_VERIFY(Head_ == &Stub_);
-    YT_VERIFY(Head_.load()->Next_.load() == nullptr);
+    YT_VERIFY(!Head_.load()->Next.load());
 }
 
-void TMpscQueueBase::PushImpl(TMpscQueueHook* node) noexcept
+void TMpscQueueBase::EnqueueImpl(TMpscQueueHook* node) noexcept
 {
-    node->Next_.store(nullptr, std::memory_order_release);
-    auto prev = Head_.exchange(node, std::memory_order_acq_rel);
-    prev->Next_.store(node, std::memory_order_release);
+    node->Next.store(nullptr, std::memory_order_release);
+    auto* prev = Head_.exchange(node, std::memory_order_acq_rel);
+    prev->Next.store(node, std::memory_order_release);
 }
 
-TMpscQueueHook* TMpscQueueBase::PopImpl() noexcept
+TMpscQueueHook* TMpscQueueBase::TryDequeueImpl() noexcept
 {
-    auto tail = Tail_;
-    auto next = tail->Next_.load(std::memory_order_acquire);
+    auto* tail = Tail_;
+    auto* next = tail->Next.load(std::memory_order_acquire);
 
     // Handle stub node.
     if (tail == &Stub_) {
-        if (next == nullptr) {
+        if (!next) {
             return nullptr;
         }
         Tail_ = next;
         // Save tail-recursive call by updating local variables.
         tail = next;
-        next = next->Next_.load(std::memory_order_acquire);
+        next = next->Next.load(std::memory_order_acquire);
     }
 
     // No producer-consumer race.
@@ -50,7 +46,7 @@ TMpscQueueHook* TMpscQueueBase::PopImpl() noexcept
         return tail;
     }
 
-    auto head = Head_.load(std::memory_order_acquire);
+    auto* head = Head_.load(std::memory_order_acquire);
 
     // Concurrent producer was blocked, bail out.
     if (tail != head) {
@@ -58,8 +54,8 @@ TMpscQueueHook* TMpscQueueBase::PopImpl() noexcept
     }
 
     // Decouple (future) producers and consumer by barriering via stub node.
-    PushImpl(&Stub_);
-    next = tail->Next_.load(std::memory_order_acquire);
+    EnqueueImpl(&Stub_);
+    next = tail->Next.load(std::memory_order_acquire);
 
     if (next) {
         Tail_ = next;

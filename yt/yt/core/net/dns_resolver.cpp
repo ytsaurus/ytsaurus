@@ -141,7 +141,7 @@ private:
         TMpscQueueHook QueueHook;
     };
 
-    using TNameRequestQueue = TMpscQueue<TNameRequest, &TNameRequest::QueueHook>;
+    using TNameRequestQueue = TIntrusiveMpscQueue<TNameRequest, &TNameRequest::QueueHook>;
 
     TNameRequestQueue Queue_;
 
@@ -297,7 +297,7 @@ TFuture<TNetworkAddress> TDnsResolver::TImpl::ResolveName(
         std::move(timeoutCookie),
         {}}};
 
-    Queue_.Push(std::move(request));
+    Queue_.Enqueue(std::move(request));
 
     WakeupHandle_.Raise();
 
@@ -318,7 +318,7 @@ void TDnsResolver::TImpl::ResolverThreadMain()
 
     auto drainQueue = [&] {
         for (size_t iteration = 0; iteration < MaxRequestsPerDrain; ++iteration) {
-            auto request = Queue_.Pop();
+            auto request = Queue_.TryDequeue();
             if (!request) {
                 return true;
             }

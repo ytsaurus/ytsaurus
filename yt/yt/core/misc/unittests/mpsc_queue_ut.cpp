@@ -17,52 +17,51 @@ struct TIntNode
     int Value;
     TMpscQueueHook Hook;
 
-    TIntNode(int value)
+    explicit TIntNode(int value)
         : Value(value)
     { }
 };
 
 TEST(TMpscQueueTest, SimpleSingleThreaded)
 {
-    TMpscQueue<TIntNode, &TIntNode::Hook> queue;
+    TIntrusiveMpscQueue<TIntNode, &TIntNode::Hook> queue;
 
-    queue.Push(std::make_unique<TIntNode>(1));
-    queue.Push(std::make_unique<TIntNode>(2));
-    queue.Push(std::make_unique<TIntNode>(3));
+    queue.Enqueue(std::make_unique<TIntNode>(1));
+    queue.Enqueue(std::make_unique<TIntNode>(2));
+    queue.Enqueue(std::make_unique<TIntNode>(3));
 
-    auto n1 = queue.Pop();
+    auto n1 = queue.TryDequeue();
     EXPECT_EQ(1, n1->Value);
-    auto n2 = queue.Pop();
+    auto n2 = queue.TryDequeue();
     EXPECT_EQ(2, n2->Value);
-    auto n3 = queue.Pop();
+    auto n3 = queue.TryDequeue();
     EXPECT_EQ(3, n3->Value);
 
-    EXPECT_FALSE(static_cast<bool>(queue.Pop()));
+    EXPECT_FALSE(static_cast<bool>(queue.TryDequeue()));
 };
 
 TEST(TMpscQueueTest, SimpleMultiThreaded)
 {
-    TMpscQueue<TIntNode, &TIntNode::Hook> queue;
+    TIntrusiveMpscQueue<TIntNode, &TIntNode::Hook> queue;
 
     constexpr int N = 10000;
     constexpr int T = 4;
 
     auto barrier = NewPromise<void>();
 
-    auto producer = [&] () {
+    auto producer = [&] {
         barrier.ToFuture().Get();
         for (int i = 0; i < N; ++i) {
-            queue.Push(std::make_unique<TIntNode>(i));
+            queue.Enqueue(std::make_unique<TIntNode>(i));
         }
     };
 
-    auto consumer = [&] () {
-        std::array<int, N> counts;
-        counts.fill(0);
+    auto consumer = [&] {
+        std::array<int, N> counts{};
         barrier.ToFuture().Get();
         for (int i = 0; i < N * T; ++i) {
             while (true) {
-                if (auto item = queue.Pop()) {
+                if (auto item = queue.TryDequeue()) {
                     counts[item->Value]++;
                     break;
                 }
@@ -86,8 +85,6 @@ TEST(TMpscQueueTest, SimpleMultiThreaded)
     for (int i = 0; i < T + 1; ++i) {
         threads[i].join();
     }
-
-    SUCCEED();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
