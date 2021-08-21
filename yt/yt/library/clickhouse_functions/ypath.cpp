@@ -298,7 +298,7 @@ public:
         return std::make_shared<TFunctionYPathRawImpl>();
     }
 
-    virtual DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName& arguments) const
+    virtual DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName& arguments) const override
     {
         if (arguments.size() < 2) {
             throw Exception(
@@ -452,7 +452,7 @@ public:
         return std::make_shared<TFunctionYPathExtractImpl>();
     }
 
-    virtual DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName& arguments) const
+    virtual DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName& arguments) const override
     {
         if (!isString(removeNullable(arguments[0].type)) && !WhichDataType(removeNullable(arguments[0].type)).isNothing()) {
             throw Exception(
