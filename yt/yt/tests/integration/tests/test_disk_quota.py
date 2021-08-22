@@ -2,10 +2,12 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, wait, events_on_fs, create, ls, get, set, exists,
-    create_medium, read_table,
-    write_table, map)
+    create_medium, create_account, read_table,
+    write_table, map,
+    start_transaction, abort_transaction,
+    create_account_resource_usage_lease)
 
-from yt.common import YtError
+from yt.common import YtError, update
 
 import pytest
 
@@ -882,3 +884,116 @@ class TestDefaultDiskMediumWithUnspecifiedMediumAndMultipleSlotsPorto(YTEnvSetup
                                .format(nodes[0], jobs[0])
         wait(lambda: exists(node_orchid_job_path))
         wait(lambda: get(node_orchid_job_path + "/exec_attributes/medium_name") == "ssd")
+
+
+class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
+    NUM_SCHEDULERS = 1
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+
+    DELTA_MASTER_CONFIG = DiskMediumTestConfiguration.MASTER_CONFIG
+    DELTA_SCHEDULER_CONFIG = DiskMediumTestConfiguration.SCHEDULER_CONFIG
+    DELTA_CONTROLLER_AGENT_CONFIG = update(
+        DiskMediumTestConfiguration.CONTROLLER_AGENT_CONFIG,
+        {
+            "controller_agent": {
+                "obligatory_account_mediums": ["ssd"],
+            },
+        })
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "slot_manager": {
+                "disk_resources_update_period": 100,
+            },
+            "job_controller": {"resource_limits": {"user_slots": 2, "cpu": 2.0}},
+            "min_required_disk_space": 0,
+        },
+        "data_node": {
+            "volume_manager": {
+                "test_disk_quota": True,
+            }
+        }
+    }
+
+    USE_PORTO = True
+
+    @classmethod
+    def modify_node_config(cls, config):
+        for disk in (cls.fake_default_disk_path, cls.fake_ssd_disk_path):
+            if os.path.exists(disk):
+                shutil.rmtree(disk)
+            os.makedirs(disk)
+
+        config["exec_agent"]["slot_manager"]["locations"] = [
+            {
+                "path": cls.fake_default_disk_path,
+                "disk_quota": 2 * 1024 * 1024,
+                "disk_usage_watermark": 0,
+                "medium_name": "hdd",
+            },
+            {
+                "path": cls.fake_ssd_disk_path,
+                "disk_quota": 2 * 1024 * 1024,
+                "disk_usage_watermark": 0,
+                "medium_name": "ssd",
+            },
+        ]
+        config["exec_agent"]["slot_manager"]["default_medium_name"] = "ssd"
+
+    @classmethod
+    def on_masters_started(cls):
+        create_medium("hdd")
+        create_medium("ssd")
+
+    @authors("ignat")
+    def test_accounting(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "bar"}])
+        create("table", "//tmp/out")
+
+        create_account("my_account")
+        set("//sys/accounts/my_account/@resource_limits/disk_space_per_medium/ssd", 1024 * 1024)
+
+        def start_op(medium_type, account, disk_space, track, sleep_seconds=100):
+            disk_request = {"disk_space": disk_space}
+            if medium_type is not None:
+                disk_request["medium_name"] = medium_type
+                if account is not None:
+                    disk_request["account"] = account
+
+            return map(
+                command="cat; echo $(pwd) >&2; sleep {}".format(sleep_seconds),
+                in_="//tmp/in",
+                out="//tmp/out",
+                spec={
+                    "mapper": {
+                        "disk_request": disk_request
+                    },
+                    "max_failed_job_count": 1,
+                },
+                track=track,
+            )
+
+        # Check that account is obligatory for ssd medium
+        with pytest.raises(YtError):
+            start_op("ssd", None, 1024 * 1024, track=True)
+
+        start_op("ssd", "my_account", 1024 * 1024, track=True, sleep_seconds=1)
+
+        # Artificially take some space from account.
+        tx = start_transaction(timeout=60000)
+        lease_id = create_account_resource_usage_lease(account="my_account", transaction_id=tx)
+        set("#{}/@resource_usage".format(lease_id), {"disk_space_per_medium": {"ssd": 1024}})
+
+        # Check that operation failed due to lack of space.
+        with pytest.raises(YtError):
+            start_op("ssd", "my_account", 1024 * 1024, track=True)
+
+        abort_transaction(tx)
+
+        op = start_op("ssd", "my_account", 768 * 1024, track=False)
+        wait(lambda: op.get_running_jobs())
+
+        # Check that second operation failed due to lack of space.
+        with pytest.raises(YtError):
+            start_op("ssd", "my_account", 768 * 1024, track=True)

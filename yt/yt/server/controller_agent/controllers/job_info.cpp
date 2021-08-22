@@ -122,6 +122,10 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, Speculative);
     Persist(context, JobSpeculationTimeout);
     Persist(context, StreamDescriptors);
+   
+    if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::AccountInDiskRequest) {
+        Persist(context, DiskQuota);
+    }
 
     if (context.IsLoad()) {
         Revived = true;

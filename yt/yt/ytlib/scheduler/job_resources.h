@@ -108,6 +108,14 @@ void FormatValue(TStringBuilderBase* builder, const TDiskQuota& diskQuota, TStri
 TDiskQuota CreateDiskQuota(i32 mediumIndex, i64 diskSpace);
 TDiskQuota CreateDiskQuotaWithoutMedium(i64 diskSpace);
 
+TDiskQuota  operator -  (const TDiskQuota& quota);
+
+TDiskQuota  operator +  (const TDiskQuota& lhs, const TDiskQuota& rhs);
+TDiskQuota& operator += (TDiskQuota& lhs, const TDiskQuota& rhs);
+
+TDiskQuota  operator -  (const TDiskQuota& lhs, const TDiskQuota& rhs);
+TDiskQuota& operator -= (TDiskQuota& lhs, const TDiskQuota& rhs);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobResourcesWithQuota

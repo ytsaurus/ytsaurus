@@ -33,6 +33,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((LastFieldInStatistics)                (300610))
     ((InputOutputTableSchemaId)             (300611))
     ((MainResourceConsumptionPerTree)       (300612))
+    ((AccountInDiskRequest)                 (300613))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

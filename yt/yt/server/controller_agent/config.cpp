@@ -824,6 +824,9 @@ TControllerAgentConfig::TControllerAgentConfig()
 
     RegisterParameter("user_job_monitoring", UserJobMonitoring)
         .DefaultNew();
+    
+    RegisterParameter("obligatory_account_mediums", ObligatoryAccountMediums)
+        .Default();
 
     RegisterPreprocessor([&] {
         EventLog->MaxRowWeight = 128_MB;

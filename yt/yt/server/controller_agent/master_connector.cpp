@@ -171,6 +171,15 @@ public:
             .Run(operationId, transactionId, tableId, childIds);
     }
 
+    TFuture<void> UpdateAccountResourceUsageLease(
+        NSecurityClient::TAccountResourceUsageLeaseId leaseId,
+        const TDiskQuota& diskQuota)
+    {
+        return BIND(&TImpl::DoUpdateAccountResourceUsageLease, MakeStrong(this))
+            .AsyncVia(CancelableControlInvoker_)
+            .Run(leaseId, diskQuota);
+    }
+
     TFuture<TOperationSnapshot> DownloadSnapshot(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1268,6 +1277,33 @@ private:
         }
     }
 
+    void DoUpdateAccountResourceUsageLease(
+        NSecurityClient::TAccountResourceUsageLeaseId leaseId,
+        const TDiskQuota& diskQuota)
+    {
+        auto mediumDirectory = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetMediumDirectory();
+
+        TObjectServiceProxy proxy(Bootstrap_
+            ->GetMasterClient()
+            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
+
+        auto batchReq = proxy.ExecuteBatch();
+        for (auto [mediumIndex, diskSpace] : diskQuota.DiskSpacePerMedium) {
+            auto* mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
+            auto req = TYPathProxy::Set(Format("#%v/@resource_usage/disk_space_per_medium/%v", leaseId, mediumDescriptor->Name));
+            req->set_value(ConvertToYsonString(diskSpace).ToString());
+            GenerateMutationId(req);
+            batchReq->AddRequest(req);
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        GetCumulativeError(batchRspOrError)
+            .ThrowOnError();
+    }
+
     bool IsOperationInFinishedState(const TOperationNodeUpdate* update) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1513,6 +1549,13 @@ TFuture<void> TMasterConnector::AttachToLivePreview(
     const std::vector<TChunkTreeId>& childIds)
 {
     return Impl_->AttachToLivePreview(operationId, transactionId, tableId, childIds);
+}
+
+TFuture<void> TMasterConnector::UpdateAccountResourceUsageLease(
+    NSecurityClient::TAccountResourceUsageLeaseId leaseId,
+    const TDiskQuota& diskQuota)
+{
+    return Impl_->UpdateAccountResourceUsageLease(leaseId, diskQuota);
 }
 
 TFuture<TOperationSnapshot> TMasterConnector::DownloadSnapshot(TOperationId operationId)

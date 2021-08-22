@@ -110,6 +110,62 @@ TDiskQuota CreateDiskQuotaWithoutMedium(i64 diskSpace)
     return result;
 }
 
+TDiskQuota  operator - (const TDiskQuota& quota)
+{
+    TDiskQuota result;
+    if (quota.DiskSpaceWithoutMedium) {
+        result.DiskSpaceWithoutMedium = -*quota.DiskSpaceWithoutMedium;
+    }
+    for (auto [key, value] : quota.DiskSpacePerMedium) {
+        result.DiskSpacePerMedium[key] = -value;
+    }
+    return result;
+}
+
+TDiskQuota  operator + (const TDiskQuota& lhs, const TDiskQuota& rhs)
+{
+    TDiskQuota result;
+    result.DiskSpaceWithoutMedium = lhs.DiskSpaceWithoutMedium.value_or(0) + rhs.DiskSpaceWithoutMedium.value_or(0);
+    if (*result.DiskSpaceWithoutMedium == 0) {
+        result.DiskSpaceWithoutMedium = std::nullopt;
+    }
+    for (auto [key, value] : lhs.DiskSpacePerMedium) {
+        result.DiskSpacePerMedium[key] += value;
+    }
+    for (auto [key, value] : rhs.DiskSpacePerMedium) {
+        result.DiskSpacePerMedium[key] += value;
+    }
+    return result;
+}
+
+TDiskQuota& operator += (TDiskQuota& lhs, const TDiskQuota& rhs)
+{
+    lhs = lhs + rhs;
+    return lhs;
+}
+
+TDiskQuota  operator - (const TDiskQuota& lhs, const TDiskQuota& rhs)
+{
+    TDiskQuota result;
+    result.DiskSpaceWithoutMedium = lhs.DiskSpaceWithoutMedium.value_or(0) - rhs.DiskSpaceWithoutMedium.value_or(0);
+    if (*result.DiskSpaceWithoutMedium == 0) {
+        result.DiskSpaceWithoutMedium = std::nullopt;
+    }
+    for (auto [key, value] : lhs.DiskSpacePerMedium) {
+        result.DiskSpacePerMedium[key] += value;
+    }
+    for (auto [key, value] : rhs.DiskSpacePerMedium) {
+        result.DiskSpacePerMedium[key] -= value;
+    }
+    return result;
+}
+
+TDiskQuota& operator -= (TDiskQuota& lhs, const TDiskQuota& rhs)
+{
+    lhs = lhs - rhs;
+    return lhs;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobResourcesWithQuota::TJobResourcesWithQuota(const TJobResources& jobResources)

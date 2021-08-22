@@ -347,6 +347,14 @@ TDiskRequestConfig::TDiskRequestConfig()
         .Default();
     RegisterParameter("medium_name", MediumName)
         .Default(std::nullopt);
+    RegisterParameter("account", Account)
+        .Default(std::nullopt);
+    
+    RegisterPostprocessor([&] {
+        if (Account && !MediumName) {
+            THROW_ERROR_EXCEPTION("\"medium_name\" is required in disk request if account is specified");
+        }
+    });
 }
 
 void ToProto(
