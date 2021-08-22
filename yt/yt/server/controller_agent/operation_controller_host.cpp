@@ -474,6 +474,15 @@ void TOperationControllerHost::ValidateOperationAccess(
             permission))
         .ThrowOnError();
 }
+    
+TFuture<void> TOperationControllerHost::UpdateAccountResourceUsageLease(
+    NSecurityClient::TAccountResourceUsageLeaseId leaseId,
+    const TDiskQuota& diskQuota) 
+{
+    return Bootstrap_->GetControllerAgent()->GetMasterConnector()->UpdateAccountResourceUsageLease(
+        leaseId,
+        diskQuota);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

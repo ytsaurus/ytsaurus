@@ -50,6 +50,8 @@
 
 #include <yt/yt/ytlib/job_tracker_client/statistics.h>
 
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
+
 #include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
 
 #include <yt/yt/ytlib/security_client/helpers.h>
@@ -730,6 +732,8 @@ void TOperationControllerBase::InitializeStructures()
             OutputTables_.size());
     }
 
+    InitAccountResourceUsageLeases();
+
     DoInitialize();
 }
 
@@ -1238,7 +1242,7 @@ bool TOperationControllerBase::IsTransactionNeeded(ETransactionType type) const
 {
     switch (type) {
         case ETransactionType::Async:
-            return IsIntermediateLivePreviewSupported() || IsOutputLivePreviewSupported() || GetStderrTablePath();
+            return IsIntermediateLivePreviewSupported() || IsOutputLivePreviewSupported() || GetStderrTablePath() || HasDiskRequestsWithSpecifiedAccount();
         case ETransactionType::Input:
             return !GetInputTablePaths().empty() || HasUserJobFiles();
         case ETransactionType::Output:
@@ -2591,6 +2595,8 @@ void TOperationControllerBase::SafeOnJobStarted(std::unique_ptr<TStartedJobSumma
     auto joblet = GetJoblet(jobId);
     joblet->LastActivityTime = jobSummary->StartTime;
     joblet->TaskName = joblet->Task->GetVertexDescriptor();
+
+    IncreaseAccountResourceUsageLease(joblet->DiskRequestAccount, joblet->DiskQuota);
 
     LogEventFluently(ELogEventType::JobStarted)
         .Item("job_id").Value(jobId)
@@ -4680,6 +4686,38 @@ void TOperationControllerBase::IncreaseNeededResources(const TJobResources& reso
     CachedNeededResources += resourcesDelta;
 }
 
+void TOperationControllerBase::IncreaseAccountResourceUsageLease(const std::optional<TString>& account, const TDiskQuota& delta)
+{
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
+
+    if (!account) {
+        return;
+    }
+
+    auto& info = GetOrCrash(AccountResourceUsageLeaseMap_, *account);
+
+    YT_LOG_DEBUG("Increasing account resource usage lease (Account: %v, CurrentDiskQuota: %v, Delta: %v)",
+        account,
+        info.DiskQuota,
+        delta);
+
+    info.DiskQuota += delta;
+    YT_VERIFY(!info.DiskQuota.DiskSpaceWithoutMedium.has_value());
+
+    Host->UpdateAccountResourceUsageLease(info.LeaseId, info.DiskQuota).Subscribe(
+        BIND([this, this_ = MakeStrong(this), account, diskQuota=info.DiskQuota] (TError error) {
+            if (!error.IsOK()) {
+                OnOperationFailed(
+                    TError("Failed to update account usage lease")
+                        << TErrorAttribute("account", account)
+                        << TErrorAttribute("resource_usage", diskQuota)
+                        << error);
+            } else {
+                YT_LOG_DEBUG("Account resource usage lease updated (Account: %v, DiskQuota: %v)", account, diskQuota);
+            }
+        }).Via(GetInvoker()));
+}
+
 TJobResources TOperationControllerBase::GetNeededResources() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -4991,6 +5029,9 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
         return;
     }
 
+    // XXX(ignat): decrease account resource usage
+    // AccountResourceUsage()
+
     bool shouldRetainJob =
         (requestJobNodeCreation && RetainedJobCount_ < Config->MaxJobNodesPerOperation) ||
         (hasStderr && RetainedJobWithStderrCount_ < Spec_->MaxStderrCount) ||
@@ -5057,6 +5098,8 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     }
     RetainedJobsCoreInfoCount_ += coreInfoCount;
     ++RetainedJobCount_;
+
+    IncreaseAccountResourceUsageLease(joblet->DiskRequestAccount, -joblet->DiskQuota);
 }
 
 bool TOperationControllerBase::IsPrepared() const
@@ -6823,6 +6866,71 @@ void TOperationControllerBase::CollectTotals()
         totalInputDataWeight);
 }
 
+bool TOperationControllerBase::HasDiskRequestsWithSpecifiedAccount() const
+{
+    for (const auto& userJobSpec : GetUserJobSpecs()) {
+        if (userJobSpec->DiskRequest && userJobSpec->DiskRequest->Account) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void TOperationControllerBase::InitAccountResourceUsageLeases()
+{
+    THashSet<TString> accounts;
+
+    for (const auto& userJobSpec : GetUserJobSpecs()) {
+        if (auto& diskRequest = userJobSpec->DiskRequest) {
+            auto mediumDirectory = GetMediumDirectory();
+            if (!diskRequest->MediumName) {
+                continue;
+            }
+            auto mediumName = *diskRequest->MediumName;
+            auto* mediumDescriptor = mediumDirectory->FindByName(mediumName);
+            if (!mediumDescriptor) {
+                THROW_ERROR_EXCEPTION("Unknown medium %Qv", mediumName);
+            }
+            diskRequest->MediumIndex = mediumDescriptor->Index;
+
+            if (Config->ObligatoryAccountMediums.contains(mediumName)) {
+                if (!diskRequest->Account) {
+                    THROW_ERROR_EXCEPTION("Account must be specified for disk request with given medium (MediumName: %v)",
+                        mediumName);
+                }
+            }
+            if (diskRequest->Account) {
+                accounts.insert(*diskRequest->Account);
+            }
+        }
+    }
+
+    // TODO(ignat): use batching here.
+    for (const auto& account : accounts) {
+        ValidateAccountPermission(account, EPermission::Use);
+
+        auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
+
+        auto req = TMasterYPathProxy::CreateObject();
+        req->set_type(static_cast<int>(EObjectType::AccountResourceUsageLease));
+        // SetTransactionId(req, AsyncTransaction->GetId());
+
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("account", account);
+        attributes->Set("transaction_id", AsyncTransaction->GetId());
+        ToProto(req->mutable_object_attributes(), *attributes);
+
+        auto rsp = WaitFor(proxy.Execute(req))
+            .ValueOrThrow();
+
+        AccountResourceUsageLeaseMap_[account] = {
+            .LeaseId = FromProto<TAccountResourceUsageLeaseId>(rsp->object_id()),
+            .DiskQuota = TDiskQuota(),
+        };
+    }
+}
+
 void TOperationControllerBase::CustomPrepare()
 { }
 
@@ -8517,17 +8625,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
 
     if (auto& diskRequest = jobSpecConfig->DiskRequest) {
-        auto mediumDirectory = GetMediumDirectory();
-        if (diskRequest->MediumName) {
-            auto* mediumDescriptor = mediumDirectory->FindByName(*diskRequest->MediumName);
-            if (!mediumDescriptor) {
-                THROW_ERROR_EXCEPTION("Unknown medium %Qv", *diskRequest->MediumName);
-            }
-            diskRequest->MediumIndex = mediumDescriptor->Index;
-        }
-
         ToProto(jobSpec->mutable_disk_request(), *diskRequest);
-
         if (diskRequest->InodeCount) {
             jobSpec->set_inode_limit(*diskRequest->InodeCount);
         }

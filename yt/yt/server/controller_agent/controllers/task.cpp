@@ -452,10 +452,11 @@ void TTask::ScheduleJob(
     joblet->EstimatedResourceUsage = estimatedResourceUsage;
     joblet->ResourceLimits = neededResources.ToJobResources();
 
-    TDiskQuota neededDiskQuota;
     auto userJobSpec = GetUserJobSpec();
     if (userJobSpec && userJobSpec->DiskRequest) {
         neededResources.SetDiskQuota(CreateDiskQuota(userJobSpec->DiskRequest, TaskHost_->GetMediumDirectory()));
+        joblet->DiskRequestAccount = userJobSpec->DiskRequest->Account;
+        joblet->DiskQuota = neededResources.GetDiskQuota();
     }
 
     // Check the usage against the limits. This is the last chance to give up.
@@ -495,7 +496,7 @@ void TTask::ScheduleJob(
     scheduleJobResult->StartDescriptor.emplace(
         joblet->JobId,
         jobType,
-        neededResources,
+        neededResources.ToJobResources(),
         IsJobInterruptible());
 
     joblet->Restarted = restarted;

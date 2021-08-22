@@ -103,7 +103,11 @@ public:
     NScheduler::TExtendedJobResources EstimatedResourceUsage;
     std::optional<double> JobProxyMemoryReserveFactor;
     std::optional<double> UserJobMemoryReserveFactor;
+    // TODO(ignat): use TJobResourcesWithQuota.
     TJobResources ResourceLimits;
+    NScheduler::TDiskQuota DiskQuota;
+
+    std::optional<TString> DiskRequestAccount;
 
     NChunkPools::TChunkStripeListPtr InputStripeList;
     NChunkPools::IChunkPoolOutput::TCookie OutputCookie;

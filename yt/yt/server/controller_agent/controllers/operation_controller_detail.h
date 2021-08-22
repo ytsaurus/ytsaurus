@@ -611,6 +611,8 @@ protected:
     void ValidateIntermediateDataAccess(const TString& user, NYTree::EPermission permission) const;
     void InitUpdatingTables();
     virtual void PrepareInputTables();
+    bool HasDiskRequestsWithSpecifiedAccount() const;
+    void InitAccountResourceUsageLeases();
 
     // Preparation.
     void RegisterInputChunk(const NChunkClient::TInputChunkPtr& inputChunk);
@@ -1207,6 +1209,13 @@ private:
 
     THashMap<NChunkClient::TInputChunkPtr, TLivePreviewChunkDescriptor> LivePreviewChunks_;
 
+    struct TResourceUsageLeaseInfo
+    {
+        NSecurityClient::TAccountResourceUsageLeaseId LeaseId;
+        NScheduler::TDiskQuota DiskQuota;
+    };
+    THashMap<TString, TResourceUsageLeaseInfo> AccountResourceUsageLeaseMap_;
+
     void AccountExternalScheduleJobFailures() const;
 
     void InitializeOrchid();
@@ -1232,6 +1241,8 @@ private:
     TJobResources GetAggregatedMinNeededJobResources() const;
 
     void IncreaseNeededResources(const TJobResources& resourcesDelta);
+
+    void IncreaseAccountResourceUsageLease(const std::optional<TString>& account, const NScheduler::TDiskQuota& quota);
 
     void InitializeStandardStreamDescriptors();
 

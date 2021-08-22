@@ -60,6 +60,9 @@ def insert_sudo_wrapper(bin_dir):
     for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-tools"]:
         bin_path = os.path.join(bin_dir, binary)
         orig_path = os.path.join(bin_dir, binary + ".orig")
+        if not os.path.exists(bin_path):
+            continue
+
         os.rename(bin_path, orig_path)
 
         with open(bin_path, "w") as trampoline:

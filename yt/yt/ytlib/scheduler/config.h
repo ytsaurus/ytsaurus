@@ -608,6 +608,7 @@ public:
     std::optional<i64> InodeCount;
     std::optional<TString> MediumName;
     std::optional<int> MediumIndex;
+    std::optional<TString> Account;
 
     TDiskRequestConfig();
 };

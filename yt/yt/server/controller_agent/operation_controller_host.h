@@ -155,6 +155,10 @@ public:
     virtual void ValidateOperationAccess(
         const TString& user,
         NYTree::EPermission permission) override;
+    
+    virtual TFuture<void> UpdateAccountResourceUsageLease(
+        NSecurityClient::TAccountResourceUsageLeaseId leaseId,
+        const NScheduler::TDiskQuota& diskQuota) override;
 
 private:
     const TOperationId OperationId_;

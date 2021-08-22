@@ -52,6 +52,10 @@ public:
     void AddChunkTreesToUnstageList(
         std::vector<NChunkClient::TChunkTreeId> chunkTreeIds,
         bool recursive);
+    
+    TFuture<void> UpdateAccountResourceUsageLease(
+        NSecurityClient::TAccountResourceUsageLeaseId leaseId,
+        const NScheduler::TDiskQuota& diskQuota);
 
     TFuture<void> UpdateConfig();
     ui64 GetConfigRevision() const;

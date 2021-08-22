@@ -23,6 +23,8 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources.h>
 
+#include <yt/yt/client/security_client/public.h>
+
 #include <yt/yt/core/actions/future.h>
 #include <yt/yt/core/actions/invoker_pool.h>
 
@@ -217,6 +219,10 @@ struct IOperationControllerHost
     virtual void ValidateOperationAccess(
         const TString& user,
         NYTree::EPermission permission) = 0;
+
+    virtual TFuture<void> UpdateAccountResourceUsageLease(
+        NSecurityClient::TAccountResourceUsageLeaseId leaseId,
+        const NScheduler::TDiskQuota& diskQuota) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationControllerHost)
