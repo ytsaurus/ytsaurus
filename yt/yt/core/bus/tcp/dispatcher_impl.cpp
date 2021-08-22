@@ -158,7 +158,7 @@ void TTcpDispatcher::TImpl::ValidateNetworkingNotDisabled(EMessageDirection mess
 
 IPollerPtr TTcpDispatcher::TImpl::GetAcceptorPoller()
 {
-    static const TString ThreadNamePrefix("BusAcceptor");
+    static const TString ThreadNamePrefix("BusAcpt");
     return GetOrCreatePoller(&AcceptorPoller_, false, ThreadNamePrefix);
 }
 

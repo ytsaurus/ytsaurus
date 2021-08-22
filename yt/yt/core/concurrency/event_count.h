@@ -88,6 +88,7 @@ public:
 
     void NotifyOne();
     void NotifyAll();
+    void NotifyMany(int count);
 
     TCookie PrepareWait();
     void CancelWait();
@@ -99,8 +100,6 @@ public:
     bool Await(TCondition condition, std::optional<TInstant> deadline = std::nullopt);
 
 private:
-    void DoNotify(int n);
-
     //! Lower 32 bits: number of waiters.
     //! Upper 32 bits: epoch
     std::atomic<ui64> Value_ = 0;

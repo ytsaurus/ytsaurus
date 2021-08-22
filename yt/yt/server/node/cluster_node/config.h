@@ -671,7 +671,7 @@ public:
         config->Port = SkynetHttpPort;
         config->BindRetryCount = BusServer->BindRetryCount;
         config->BindRetryBackoff = BusServer->BindRetryBackoff;
-        config->ServerName = "skynet";
+        config->ServerName = "HttpSky";
         return config;
     }
 };

@@ -70,7 +70,9 @@ public:
     void Start()
     {
         OpenServerSocket();
-        Poller_->Register(this);
+        if (!Poller_->TryRegister(this)) {
+            THROW_ERROR_EXCEPTION("Cannot register server pollable");
+        }
         ArmPoller();
     }
 
@@ -282,7 +284,7 @@ protected:
         if (ServerSocket_ == INVALID_SOCKET) {
             return;
         }
-        Poller_->Unarm(ServerSocket_);
+        Poller_->Unarm(ServerSocket_, this);
     }
 
     void ArmPoller()

@@ -17,7 +17,7 @@ public:
     void Load(TStreamLoadContext& context);
 
 private:
-    std::atomic<ui64> Current_ = {0};
+    std::atomic<ui64> Current_ = 0;
 
 };
 

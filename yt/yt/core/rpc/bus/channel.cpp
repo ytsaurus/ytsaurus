@@ -353,9 +353,9 @@ private:
                         =,
                         this_ = MakeStrong(this),
                         request = std::move(request)
-                    ] (const TError& /*error*/) {
+                    ] (const TError& error) {
                         if (!BusReady_.exchange(true)) {
-                            YT_LOG_DEBUG("Bus has become ready (Endpoint: %v)",
+                            YT_LOG_DEBUG(error, "Bus has become ready (Endpoint: %v)",
                                 Bus_->GetEndpointDescription());
                         }
                         DoSendRequest(

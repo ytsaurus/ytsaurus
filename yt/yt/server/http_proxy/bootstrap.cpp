@@ -164,12 +164,12 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     HttpAuthenticator_ = New<THttpAuthenticator>(this);
 
     Api_ = New<TApi>(this);
-    Config_->HttpServer->ServerName = "http_api";
+    Config_->HttpServer->ServerName = "HttpApi";
     ApiHttpServer_ = NHttp::CreateServer(Config_->HttpServer, Poller_, Acceptor_);
     RegisterRoutes(ApiHttpServer_);
 
     if (Config_->HttpsServer) {
-        Config_->HttpsServer->ServerName = "https_api";
+        Config_->HttpsServer->ServerName = "HttpsApi";
         ApiHttpsServer_ = NHttps::CreateServer(Config_->HttpsServer, Poller_, Acceptor_);
         RegisterRoutes(ApiHttpsServer_);
     }

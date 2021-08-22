@@ -730,7 +730,11 @@ private:
         AbortFromReadTimeout_ = BIND(&TFDConnectionImpl::AbortFromReadTimeout, MakeWeak(this));
         AbortFromWriteTimeout_ = BIND(&TFDConnectionImpl::AbortFromWriteTimeout, MakeWeak(this));
 
-        Poller_->Register(this);
+        if (!Poller_->TryRegister(this)) {
+            Error_ = TError("Cannot register connection pollable");
+            return;
+        }
+
         Poller_->Arm(FD_, this, EPollControl::Read | EPollControl::Write | EPollControl::EdgeTriggered | EPollControl::ReadHup);
     }
 
@@ -809,7 +813,7 @@ private:
                 operation = std::move(direction->Operation);
                 if (Error_.IsOK()) {
                     Error_ = result;
-                    Poller_->Unarm(FD_);
+                    Poller_->Unarm(FD_, this);
                     needUnregister = true;
                 }
                 direction->StopBusyTimer();
@@ -852,7 +856,7 @@ private:
         auto guard = Guard(Lock_);
         if (Error_.IsOK()) {
             Error_ = error;
-            Poller_->Unarm(FD_);
+            Poller_->Unarm(FD_, this);
             guard.Release();
             Poller_->Unregister(this);
         }

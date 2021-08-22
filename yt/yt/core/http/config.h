@@ -48,11 +48,13 @@ public:
 
     bool CancelFiberOnConnectionClose;
 
-    //! This field is not accessable from config.
+    //! This field is not accessible from config.
     bool IsHttps = false;
 
     //! Used for thread naming.
-    TString ServerName;
+    //! CamelCase identifiers are preferred.
+    //! This field is not accessible from config.
+    TString ServerName = "Http";
 
     TServerConfig();
 };

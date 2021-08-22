@@ -424,12 +424,9 @@ IServerPtr CreateServer(int port, const IPollerPtr& poller)
     return CreateServer(config, poller);
 }
 
-IServerPtr CreateServer(const TServerConfigPtr& config, int threads)
+IServerPtr CreateServer(const TServerConfigPtr& config, int pollerThreadCount)
 {
-    auto threadName = config->ServerName
-        ? "Http:" + config->ServerName
-        : "Http";
-    auto poller = CreateThreadPoolPoller(threads, threadName);
+    auto poller = CreateThreadPoolPoller(pollerThreadCount, config->ServerName);
     return CreateServer(config, poller, poller, poller->GetInvoker(), true);
 }
 

@@ -231,8 +231,7 @@ TEST_F(TBusTest, Terminate)
     bus->Terminate(TError(12345, "Ignored"));
 
     auto result = bus->Send(message, NBus::TSendOptions(EDeliveryTrackingLevel::Full));
-    EXPECT_FALSE(result.IsSet());
-    bus.Reset(); // Destructor discards message queue
+    EXPECT_TRUE(result.IsSet());
     EXPECT_EQ(result.Get().GetCode(), error.GetCode());
 
     server->Stop()

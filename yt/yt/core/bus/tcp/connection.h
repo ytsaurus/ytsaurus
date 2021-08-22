@@ -12,6 +12,7 @@
 
 #include <yt/yt/core/net/address.h>
 
+#include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/ring_queue.h>
@@ -185,7 +186,7 @@ private:
 
     SOCKET Socket_ = INVALID_SOCKET;
 
-    TError CloseError_;
+    TAtomicObject<TError> Error_;
 
     NNet::IAsyncDialerSessionPtr DialerSession_;
 
@@ -263,8 +264,8 @@ private:
     void OnMessagePacketSent(const TPacket& packet);
     void OnTerminate();
     void ProcessQueuedMessages();
-    void DiscardOutcomingMessages(const TError& error);
-    void DiscardUnackedMessages(const TError& error);
+    void DiscardOutcomingMessages();
+    void DiscardUnackedMessages();
 
     void UpdateConnectionCount(int delta);
     void UpdatePendingOut(int countDelta, i64 sizeDelta);
