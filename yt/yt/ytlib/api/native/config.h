@@ -78,6 +78,8 @@ class TConnectionConfig
     , public NCellMasterClient::TCellDirectoryConfig
 {
 public:
+    std::optional<TString> ClusterName;
+
     std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks;
 
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;

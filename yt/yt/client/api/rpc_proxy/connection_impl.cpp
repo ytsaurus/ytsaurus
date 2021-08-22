@@ -99,7 +99,9 @@ IAttributeDictionaryPtr MakeEndpointAttributes(const TConnectionConfigPtr& confi
 
 TString MakeConnectionClusterId(const TConnectionConfigPtr& config)
 {
-    if (config->ClusterUrl) {
+    if (config->ClusterName) {
+        return Format("Rpc(Name=%v)", *config->ClusterName);
+    } else if (config->ClusterUrl) {
         return Format("Rpc(Url=%v)", *config->ClusterUrl);
     } else {
         return Format("Rpc(ProxyAddresses=%v)", config->ProxyAddresses);

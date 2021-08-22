@@ -50,12 +50,15 @@ class TConnectionConfig
 {
 public:
     EConnectionType ConnectionType;
+    std::optional<TString> ClusterName;
     TTableMountCacheConfigPtr TableMountCache;
 
     TConnectionConfig()
     {
         RegisterParameter("connection_type", ConnectionType)
             .Default(EConnectionType::Native);
+        RegisterParameter("cluster_name", ClusterName)
+            .Default();
         RegisterParameter("table_mount_cache", TableMountCache)
             .DefaultNew();
     }
