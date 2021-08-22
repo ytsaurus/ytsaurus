@@ -16,15 +16,15 @@ namespace NYT::NConcurrency {
 
 inline void TEventCount::NotifyOne()
 {
-    DoNotify(1);
+    NotifyMany(1);
 }
 
 inline void TEventCount::NotifyAll()
 {
-    DoNotify(std::numeric_limits<int>::max());
+    NotifyMany(std::numeric_limits<int>::max());
 }
 
-inline void TEventCount::DoNotify(int n)
+inline void TEventCount::NotifyMany(int count)
 {
     // The order is important: Epoch is incremented before Waiters is checked.
     // prepareWait() increments Waiters before checking Epoch, so it is
@@ -39,12 +39,12 @@ inline void TEventCount::DoNotify(int n)
         NDetail::futex(
             reinterpret_cast<int*>(&Value_) + 1, // assume little-endian architecture
             FUTEX_WAKE_PRIVATE,
-            n,
+            count,
             nullptr,
             nullptr,
             0);
 #else
-        if (n == 1) {
+        if (count == 1) {
             ConditionVariable_.Signal();
         } else {
             ConditionVariable_.BroadCast();

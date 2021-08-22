@@ -176,9 +176,14 @@ private:
         }
 
         virtual void OnShutdown() override
-        { }
+        {
+            if (auto owner = Owner_.Lock()) {
+                owner->OnShutdown(this);
+            }
+        }
 
     private:
+        const NLogging::TLogger Logger;
         const TWeakPtr<TAsyncDialerSession> Owner_;
         const TString LoggingTag_;
     };
@@ -208,14 +213,19 @@ private:
         }
     }
 
-    void RegisterPollable()
+    bool TryRegisterPollable()
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
+        auto pollable = New<TPollable>(this, Id_, Socket_);
+        if (!Poller_->TryRegister(pollable)) {
+            return false;
+        }
+
         YT_VERIFY(!Pollable_);
-        Pollable_ = New<TPollable>(this, Id_, Socket_);
-        Poller_->Register(Pollable_);
+        Pollable_ = std::move(pollable);
         Poller_->Arm(Socket_, Pollable_, EPollControl::Read | EPollControl::Write | EPollControl::EdgeTriggered);
+        return true;
     }
 
     void UnregisterPollable()
@@ -223,7 +233,7 @@ private:
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
         YT_VERIFY(Socket_ != INVALID_SOCKET);
-        Poller_->Unarm(Socket_);
+        Poller_->Unarm(Socket_, Pollable_);
 
         YT_VERIFY(Pollable_);
         Poller_->Unregister(Pollable_);
@@ -259,6 +269,10 @@ private:
                 OnFinished_(socket);
                 return;
             }
+
+            if (!TryRegisterPollable()) {
+                THROW_ERROR_EXCEPTION("Cannot register dailer pollable");
+            }
         } catch (const std::exception& ex) {
             Finished_ = true;
             CloseSocket();
@@ -266,8 +280,6 @@ private:
             OnFinished_(ex);
             return;
         }
-
-        RegisterPollable();
 
         if (Config_->EnableAggressiveReconnect) {
             TimeoutCookie_ = TDelayedExecutor::Submit(
@@ -304,6 +316,25 @@ private:
             guard.Release();
             OnFinished_(error);
         }
+    }
+
+
+    void OnShutdown(TPollable* pollable)
+    {
+        auto guard = Guard(SpinLock_);
+
+        if (Finished_ || pollable != Pollable_) {
+            return;
+        }
+
+        Finished_ = true;
+
+        Pollable_.Reset();
+        TDelayedExecutor::CancelAndClear(TimeoutCookie_);
+
+        guard.Release();
+
+        OnFinished_(TError("Dialer session was shut down"));
     }
 
     void OnTimeout()

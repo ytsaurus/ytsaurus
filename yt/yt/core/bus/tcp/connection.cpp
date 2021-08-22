@@ -126,14 +126,14 @@ void TTcpConnection::Close()
     {
         auto guard = Guard(Lock_);
 
-        if (CloseError_.IsOK()) {
-            CloseError_ = TError(NBus::EErrorCode::TransportError, "Bus terminated")
-                << *EndpointAttributes_;
+        if (Error_.Load().IsOK()) {
+            Error_.Store(TError(NBus::EErrorCode::TransportError, "Bus terminated")
+                << *EndpointAttributes_);
         }
 
         if (Socket_ != INVALID_SOCKET) {
             if (State_ == EState::Open) {
-                Poller_->Unarm(Socket_);
+                Poller_->Unarm(Socket_, this);
                 UpdateConnectionCount(-1);
             }
             CloseSocket(Socket_);
@@ -144,8 +144,8 @@ void TTcpConnection::Close()
         PendingControl_.store(static_cast<ui64>(EPollControl::Offline));
     }
 
-    DiscardOutcomingMessages(CloseError_);
-    DiscardUnackedMessages(CloseError_);
+    DiscardOutcomingMessages();
+    DiscardUnackedMessages();
 
     while (!QueuedPackets_.empty()) {
         const auto& packet = QueuedPackets_.front();
@@ -171,7 +171,11 @@ void TTcpConnection::Start()
     // Offline in PendingControl_ prevents retrying events until end of Open().
     YT_VERIFY(Any(static_cast<EPollControl>(PendingControl_.load()) & EPollControl::Offline));
 
-    Poller_->Register(this);
+    if (!Poller_->TryRegister(this)) {
+        Abort(TError("Cannot register connection pollable"));
+        return;
+    }
+
     TTcpDispatcher::TImpl::Get()->RegisterConnection(this);
     InitBuffers();
 
@@ -354,6 +358,10 @@ void TTcpConnection::Abort(const TError& error)
         return;
     }
 
+    // Construct a detailed error.
+    YT_VERIFY(!error.IsOK());
+    auto detailedError = error << *EndpointAttributes_;
+
     {
         auto guard = Guard(Lock_);
 
@@ -362,27 +370,25 @@ void TTcpConnection::Abort(const TError& error)
         }
 
         if (State_ == EState::Open && Socket_ != INVALID_SOCKET) {
-            Poller_->Unarm(Socket_);
+            Poller_->Unarm(Socket_, this);
             UpdateConnectionCount(-1);
         }
 
         State_ = EState::Aborted;
-        YT_VERIFY(!error.IsOK());
 
-        CloseError_ = error << *EndpointAttributes_;
+        Error_.Store(detailedError);
 
         // Prevent starting new OnSocketRead/OnSocketWrite and Retry.
         // Already running will continue, Unregister will drain them.
         PendingControl_.fetch_or(static_cast<ui64>(EPollControl::Shutdown));
     }
 
-    // Construct a detailed error.
-    YT_LOG_DEBUG(CloseError_, "Connection aborted");
+    YT_LOG_DEBUG(detailedError, "Connection aborted");
 
     // OnShutdown() will be called after draining events from thread pools.
     Poller_->Unregister(this);
 
-    ReadyPromise_.TrySet(error);
+    ReadyPromise_.TrySet(detailedError);
 }
 
 void TTcpConnection::InitBuffers()
@@ -524,12 +530,18 @@ TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& 
 
     QueuedMessages_.Enqueue(queuedMessage);
 
+    // Wake up the event processing if needed.
     {
         auto previousPendingControl = static_cast<EPollControl>(PendingControl_.fetch_or(static_cast<ui64>(EPollControl::Write)));
         if (None(previousPendingControl)) {
             YT_LOG_TRACE("Retrying event processing for Send");
             Poller_->Retry(this);
         }
+    }
+
+    // Double-check the state not to leave any dangling outcoming messages.
+    if (State_.load() == EState::Closed) {
+        DiscardOutcomingMessages();
     }
 
     return queuedMessage.Promise;
@@ -553,9 +565,13 @@ void TTcpConnection::SetTosLevel(TTosLevel tosLevel)
 
 void TTcpConnection::Terminate(const TError& error)
 {
+    // Construct a detailed error.
+    YT_VERIFY(!error.IsOK());
+    auto detailedError = error << *EndpointAttributes_;
+
     auto guard = Guard(Lock_);
 
-    if (!CloseError_.IsOK() ||
+    if (!Error_.Load().IsOK() ||
         State_ == EState::Aborted ||
         State_ == EState::Closed)
     {
@@ -569,8 +585,7 @@ void TTcpConnection::Terminate(const TError& error)
     YT_LOG_DEBUG("Sending termination request");
 
     // Save error for OnTerminate().
-    YT_VERIFY(!error.IsOK());
-    CloseError_ = error;
+    Error_.Store(detailedError);
 
     // Arm calling OnTerminate() from OnEvent().
     auto previousPendingControl = static_cast<EPollControl>(PendingControl_.fetch_or(static_cast<ui64>(EPollControl::Terminate)));
@@ -675,9 +690,10 @@ void TTcpConnection::OnShutdown()
     // Perform the initial cleanup (the final one will be in dtor).
     Close();
 
-    YT_LOG_DEBUG(CloseError_, "Connection terminated");
+    auto error = Error_.Load();
+    YT_LOG_DEBUG(error, "Connection terminated");
 
-    Terminated_.Fire(CloseError_);
+    Terminated_.Fire(error);
 }
 
 void TTcpConnection::OnSocketRead()
@@ -1188,15 +1204,9 @@ void TTcpConnection::OnTerminate()
         return;
     }
 
-    TError error;
-    {
-        auto guard = Guard(Lock_);
-        error = CloseError_;
-    }
-
     YT_LOG_DEBUG("Termination request received");
 
-    Abort(error);
+    Abort(Error_.Load());
 }
 
 void TTcpConnection::ProcessQueuedMessages()
@@ -1238,8 +1248,10 @@ void TTcpConnection::ProcessQueuedMessages()
     }
 }
 
-void TTcpConnection::DiscardOutcomingMessages(const TError& error)
+void TTcpConnection::DiscardOutcomingMessages()
 {
+    auto error = Error_.Load();
+
     TQueuedMessage queuedMessage;
     while (QueuedMessages_.Dequeue(&queuedMessage)) {
         YT_LOG_DEBUG("Outcoming message discarded (PacketId: %v)",
@@ -1250,8 +1262,11 @@ void TTcpConnection::DiscardOutcomingMessages(const TError& error)
     }
 }
 
-void TTcpConnection::DiscardUnackedMessages(const TError& error)
+void TTcpConnection::DiscardUnackedMessages()
 {
+    auto error = Error_.Load();
+
+
     while (!UnackedPackets_.empty()) {
         auto& message = UnackedPackets_.front();
         if (message->Promise) {

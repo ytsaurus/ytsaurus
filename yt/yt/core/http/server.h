@@ -92,7 +92,7 @@ IServerPtr CreateServer(
     const NConcurrency::IPollerPtr& poller);
 IServerPtr CreateServer(
     const TServerConfigPtr& config,
-    int pollerThreads = 1);
+    int pollerThreadCount = 1);
 IServerPtr CreateServer(
     const TServerConfigPtr& config,
     const NConcurrency::IPollerPtr& poller,

@@ -40,7 +40,7 @@ NHttp::TServerConfigPtr TServerConfig::CreateMonitoringHttpServerConfig()
     config->Port = MonitoringPort;
     config->BindRetryCount = BusServer->BindRetryCount;
     config->BindRetryBackoff = BusServer->BindRetryBackoff;
-    config->ServerName = "monitoring";
+    config->ServerName = "HttpMon";
     return config;
 }
 

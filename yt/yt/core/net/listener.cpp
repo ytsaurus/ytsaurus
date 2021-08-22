@@ -157,7 +157,7 @@ private:
         Pending_ = false;
         Error_ = error
             << TErrorAttribute("listener", Name_);
-        Acceptor_->Unarm(ServerSocket_);
+        Acceptor_->Unarm(ServerSocket_, this);
         Acceptor_->Unregister(this);
     }
 
@@ -207,8 +207,10 @@ IListenerPtr CreateListener(
             Format("Listener{%v}", realAddress),
             poller,
             acceptor);
-        acceptor->Register(listener.Get());
-        acceptor->Arm(serverSocket, listener.Get(), EPollControl::Read | EPollControl::EdgeTriggered);
+        if (!acceptor->TryRegister(listener)) {
+            THROW_ERROR_EXCEPTION("Cannot register listener pollable");
+        }
+        acceptor->Arm(serverSocket, listener, EPollControl::Read | EPollControl::EdgeTriggered);
         return listener;
     } catch (const std::exception& ) {
         YT_VERIFY(TryClose(serverSocket, false));

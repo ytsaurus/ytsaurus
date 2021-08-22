@@ -41,6 +41,16 @@ protected:
     }
 };
 
+TEST_F(TNetTest, ReconfigurePoller)
+{
+    for (int i = 1; i <= 10; ++i) {
+        Poller->Reconfigure(i);
+    }
+    for (int i = 9; i >= 10; --i) {
+        Poller->Reconfigure(i);
+    }
+}
+
 TEST_F(TNetTest, CreateConnectionPair)
 {
     IConnectionPtr a, b;

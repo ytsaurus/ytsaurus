@@ -66,11 +66,12 @@ struct IPoller
     //! The poller is not longer usable after this call.
     virtual void Shutdown() = 0;
 
-    //! Registers a pollable entity but does not arm the poller yet.
-    virtual void Register(const IPollablePtr& pollable) = 0;
+    //! Tries to register a pollable entity but does not arm the poller yet.
+    //! Returns |false| if the poller is already shutting down.
+    virtual bool TryRegister(const IPollablePtr& pollable) = 0;
 
     //! Reconfigures number of polling threads.
-    //! Is viable for thread pool implementations only. 
+    //! Is viable for thread pool implementations only.
     virtual void Reconfigure(int threadCount) = 0;
 
     //! Unregisters the previously registered entity.
@@ -98,7 +99,7 @@ struct IPoller
     virtual void Retry(const IPollablePtr& pollable, bool wakeup = true) = 0;
 
     //! Unarms the poller.
-    virtual void Unarm(int fd) = 0;
+    virtual void Unarm(int fd, const IPollablePtr& pollable) = 0;
 
     //! Returns the invoker capable of executing arbitrary callbacks
     //! in the poller's context.

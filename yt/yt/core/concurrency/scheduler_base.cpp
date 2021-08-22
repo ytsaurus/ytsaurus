@@ -44,7 +44,7 @@ TSchedulerThreadBase::TSchedulerThreadBase(
     : CallbackEventCount_(std::move(callbackEventCount))
     , ThreadGroupName_(threadGroupName)
     , ThreadName_(threadName)
-    , Thread_(ThreadTrampoline, (void*) this)
+    , Thread_(&ThreadTrampoline, this)
 { }
 
 TSchedulerThreadBase::~TSchedulerThreadBase()

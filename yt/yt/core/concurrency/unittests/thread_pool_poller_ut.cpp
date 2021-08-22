@@ -92,7 +92,7 @@ protected:
 TEST_F(TThreadPoolPollerTest, SimplePollable)
 {
     auto pollable = New<TPollableMock>();
-    Poller->Register(pollable);
+    EXPECT_TRUE(Poller->TryRegister(pollable));
     Poller->Retry(pollable);
 
     ExpectSuccessfullySetFuture(pollable->GetRetryFuture());
@@ -117,7 +117,7 @@ TEST_F(TThreadPoolPollerTest, SimpleCallback)
 TEST_F(TThreadPoolPollerTest, SimpleReconfigure)
 {
     auto pollable = New<TPollableMock>();
-    Poller->Register(pollable);
+    EXPECT_TRUE(Poller->TryRegister(pollable));
 
     Poller->Reconfigure(InitialThreadCount * 2);
 
@@ -139,7 +139,7 @@ TEST_F(TThreadPoolPollerTest, Stress)
                 std::vector<TIntrusivePtr<TPollableMock>> pollables;
                 for (int j = 0; j < 20000; ++j) {
                     pollables.push_back(New<TPollableMock>());
-                    Poller->Register(pollables.back());
+                    EXPECT_TRUE(Poller->TryRegister(pollables.back()));
                 }
 
                 Sleep(TDuration::MicroSeconds(1));
