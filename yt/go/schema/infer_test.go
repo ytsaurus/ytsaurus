@@ -355,3 +355,22 @@ func TestInferTime(t *testing.T) {
 		},
 	})
 }
+
+type testColumnGroup struct {
+	C0 int `ytgroup:"a"`
+	C1 int `ytgroup:"b"`
+	C2 int
+}
+
+func TestInferColumnGroup(t *testing.T) {
+	s, err := Infer(&testColumnGroup{})
+	require.NoError(t, err)
+
+	require.Equal(t, s, Schema{
+		Columns: []Column{
+			{Name: "C0", Type: TypeInt64, Required: true, Group: "a"},
+			{Name: "C1", Type: TypeInt64, Required: true, Group: "b"},
+			{Name: "C2", Type: TypeInt64, Required: true},
+		},
+	})
+}

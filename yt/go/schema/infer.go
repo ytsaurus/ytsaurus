@@ -96,12 +96,24 @@ func parseTag(fieldName string, typ reflect.Type, tag reflect.StructTag) (c *Col
 		c.Required = false
 	}
 
+	if ytGroup, ok := tag.Lookup("ytgroup"); ok {
+		c.Group = ytGroup
+	}
+
 	return
 }
 
 // Infer infers Schema from go struct.
 //
 // By default Infer creates column for each struct field.
+//
+// Column name is inferred from the value of yson tag,
+// by the usual rules of the yson.Marshal.
+//
+// `yson:",key"` tag corresponds to sort_order=ascending scheme attribute.
+//
+// `ytgroup:""` tag is used to fill "group" scheme attribute.
+//
 // Type of the column corresponds to go type of the field.
 //
 // Mapping between go and YT types is defined as follows:

@@ -111,11 +111,17 @@ type Column struct {
 	//   Type == TypeInt64 && Required == false is equivalent to ComplexType == Optional{Item: TypeInt64}
 	ComplexType ComplexType `yson:"type_v3,omitempty"`
 
-	SortOrder  SortOrder         `yson:"sort_order,omitempty"`
+	SortOrder SortOrder `yson:"sort_order,omitempty"`
+
+	// Lock specifies lock group.
+	//
+	// Used by the MVCC mechanism of dynamic tables. Columns from different lock groups might be modified concurrently.
 	Lock       string            `yson:"lock,omitempty"`
 	Expression string            `yson:"expression,omitempty"`
 	Aggregate  AggregateFunction `yson:"aggregate,omitempty"`
-	Group      string            `yson:"group,omitempty"`
+
+	// Group specifies column group. When using columnar format (optimize_for=scan), columns groups are stored together.
+	Group string `yson:"group,omitempty"`
 }
 
 var (
