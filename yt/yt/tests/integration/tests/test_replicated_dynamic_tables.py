@@ -11,7 +11,7 @@ from yt_commands import (
     sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_unfreeze_table, sync_flush_table, sync_enable_table_replica, sync_disable_table_replica,
     remove_table_replica, alter_table_replica, get_in_sync_replicas, sync_alter_table_replica_mode,
-    raises_yt_error, get_driver, SyncLastCommittedTimestamp)
+    get_driver, SyncLastCommittedTimestamp)
 
 from yt.test_helpers import are_items_equal, assert_items_equal
 from yt.wrapper import YtError, YtResponseError
@@ -2070,7 +2070,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         set("//tmp/r/@acl", [make_ace("deny", "u", "write")], driver=self.replica_driver)
 
         rows = [{"key": 1, "value1": "1"}]
-        with raises_yt_error("replica_cluster"):
+        with pytest.raises(YtError):
             insert_rows("//tmp/t", rows, authenticated_user="u")
 
     @authors("ifsmirnov")

@@ -83,6 +83,8 @@ public:
         , Logger(logger.WithTag("TransactionId: %v, ConnectionCellTag: %v",
             GetId(),
             Client_->GetConnection()->GetCellTag()))
+        , SerializedInvoker_(CreateSerializedInvoker(
+            Client_->GetConnection()->GetInvoker()))
         , OrderedRequestsSlidingWindow_(
             Client_->GetNativeConnection()->GetConfig()->MaxRequestWindowSize)
     { }
@@ -153,7 +155,7 @@ public:
         }
 
         return BIND(&TTransaction::DoCommit, MakeStrong(this))
-            .AsyncVia(GetThreadPoolInvoker())
+            .AsyncVia(SerializedInvoker_)
             .Run(options, needsFlush);
     }
 
@@ -209,7 +211,7 @@ public:
         YT_LOG_DEBUG("Flushing transaction");
 
         return BIND(&TTransaction::DoFlush, MakeStrong(this))
-            .AsyncVia(GetThreadPoolInvoker())
+            .AsyncVia(SerializedInvoker_)
             .Run();
     }
 
@@ -538,6 +540,8 @@ private:
 
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TNativeTransactionBufferTag());
 
+    const IInvokerPtr SerializedInvoker_;
+
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     ETransactionState State_ = ETransactionState::Active;
     TPromise<void> AbortPromise_;
@@ -569,7 +573,8 @@ private:
             , NameTable_(std::move(nameTable))
             , Modifications_(std::move(modifications))
             , Options_(options)
-            , Logger(Transaction_->Logger)
+            , Logger(transaction->Logger)
+            , TableSession_(transaction->GetOrCreateTableSession(Path_, Options_.UpstreamReplicaId))
         { }
 
         std::optional<i64> GetSequenceNumber()
@@ -577,13 +582,13 @@ private:
             return Options_.SequenceNumber;
         }
 
-        void PrepareTableSessions()
-        {
-            TableSession_ = Transaction_->GetOrCreateTableSession(Path_, Options_.UpstreamReplicaId);
-        }
-
         void SubmitRows()
         {
+            auto transaction = Transaction_.Lock();
+            if (!transaction) {
+                return;
+            }
+
             const auto& tableInfo = TableSession_->GetInfo();
             if (Options_.UpstreamReplicaId && tableInfo->IsReplicated()) {
                 THROW_ERROR_EXCEPTION(
@@ -592,8 +597,10 @@ private:
                     tableInfo->Path);
             }
 
+            const auto& syncReplicas = TableSession_->GetSyncReplicas();
+
             if (!tableInfo->Replicas.empty() &&
-                TableSession_->SyncReplicas().empty() &&
+                syncReplicas.empty() &&
                 Options_.RequireSyncReplica)
             {
                 THROW_ERROR_EXCEPTION(
@@ -602,15 +609,15 @@ private:
                     tableInfo->Path);
             }
 
-            for (const auto& replicaData : TableSession_->SyncReplicas()) {
+            for (const auto& syncReplica : syncReplicas) {
                 auto replicaOptions = Options_;
-                replicaOptions.UpstreamReplicaId = replicaData.ReplicaInfo->ReplicaId;
+                replicaOptions.UpstreamReplicaId = syncReplica.ReplicaInfo->ReplicaId;
                 replicaOptions.SequenceNumber.reset();
-                if (replicaData.Transaction) {
+                if (syncReplica.Transaction) {
                     YT_LOG_DEBUG("Submitting remote sync replication modifications (Count: %v)",
                         Modifications_.Size());
-                    replicaData.Transaction->ModifyRows(
-                        replicaData.ReplicaInfo->ReplicaPath,
+                    syncReplica.Transaction->ModifyRows(
+                        syncReplica.ReplicaInfo->ReplicaPath,
                         NameTable_,
                         Modifications_,
                         replicaOptions);
@@ -620,10 +627,10 @@ private:
                     // the transaction is already committing.
                     YT_LOG_DEBUG("Buffering local sync replication modifications (Count: %v)",
                         Modifications_.Size());
-                    Transaction_->EnqueueModificationRequest(std::make_unique<TModificationRequest>(
-                        Transaction_,
+                    transaction->EnqueueModificationRequest(std::make_unique<TModificationRequest>(
+                        transaction.Get(),
                         Connection_,
-                        replicaData.ReplicaInfo->ReplicaPath,
+                        syncReplica.ReplicaInfo->ReplicaPath,
                         NameTable_,
                         Modifications_,
                         replicaOptions));
@@ -636,24 +643,24 @@ private:
             }
 
             const auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
-            const auto& primaryIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Primary);
+            const auto& primaryIdMapping = transaction->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Primary);
 
             const auto& primarySchemaWithTabletIndex = tableInfo->Schemas[ETableSchemaKind::PrimaryWithTabletIndex];
-            const auto& primaryWithTabletIndexIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::PrimaryWithTabletIndex);
+            const auto& primaryWithTabletIndexIdMapping = transaction->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::PrimaryWithTabletIndex);
 
             const auto& writeSchema = tableInfo->Schemas[ETableSchemaKind::Write];
-            const auto& writeIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Write);
+            const auto& writeIdMapping = transaction->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Write);
 
             const auto& versionedWriteSchema = tableInfo->Schemas[ETableSchemaKind::VersionedWrite];
-            const auto& versionedWriteIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::VersionedWrite);
+            const auto& versionedWriteIdMapping = transaction->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::VersionedWrite);
 
             const auto& deleteSchema = tableInfo->Schemas[ETableSchemaKind::Delete];
-            const auto& deleteIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Delete);
+            const auto& deleteIdMapping = transaction->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Delete);
 
             const auto& modificationSchema = !tableInfo->IsReplicated() && !tableInfo->IsSorted() ? primarySchema : primarySchemaWithTabletIndex;
             const auto& modificationIdMapping = !tableInfo->IsReplicated() && !tableInfo->IsSorted() ? primaryIdMapping : primaryWithTabletIndexIdMapping;
 
-            const auto& rowBuffer = Transaction_->RowBuffer_;
+            const auto& rowBuffer = transaction->RowBuffer_;
 
             auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
             auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(primarySchema) : nullptr;
@@ -758,7 +765,7 @@ private:
                             modificationType = ERowModificationType::Write;
                         }
 
-                        auto session = Transaction_->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
+                        auto session = transaction->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
                         auto command = GetCommand(modificationType);
                         session->SubmitRow(command, capturedRow, modification.Locks);
                         break;
@@ -794,7 +801,7 @@ private:
                                 true);
                         }
 
-                        auto session = Transaction_->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
+                        auto session = transaction->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
                         session->SubmitRow(row);
                         break;
                     }
@@ -806,7 +813,7 @@ private:
         }
 
     protected:
-        TTransaction* const Transaction_;
+        const TWeakPtr<TTransaction> Transaction_;
         const IConnectionPtr Connection_;
         const TYPath Path_;
         const TNameTablePtr NameTable_;
@@ -814,8 +821,7 @@ private:
         const TModifyRowsOptions Options_;
 
         const NLogging::TLogger& Logger;
-
-        TTableCommitSessionPtr TableSession_;
+        const TTableCommitSessionPtr TableSession_;
 
 
         static EWireProtocolCommand GetCommand(ERowModificationType modificationType)
@@ -855,16 +861,30 @@ private:
     public:
         TTableCommitSession(
             TTransaction* transaction,
-            TTableMountInfoPtr tableInfo,
+            const TYPath& path,
             TTableReplicaId upstreamReplicaId)
             : Transaction_(transaction)
-            , TableInfo_(std::move(tableInfo))
             , UpstreamReplicaId_(upstreamReplicaId)
-            , Logger(transaction->Logger.WithTag("Path: %v", TableInfo_->Path))
-        { }
+            , Logger(transaction->Logger.WithTag("Path: %v", path))
+        {
+            const auto& tableMountCache = transaction->Client_->GetTableMountCache();
+            auto tableInfoFuture = tableMountCache->GetTableInfo(path);
+            auto tableInfoOrError = tableInfoFuture.TryGet();
+            PrepareFuture_  = tableInfoOrError && tableInfoOrError->IsOK()
+                ? OnGotTableInfo(tableInfoOrError->Value())
+                : tableInfoFuture
+                    .Apply(BIND(&TTableCommitSession::OnGotTableInfo, MakeStrong(this))
+                        .AsyncVia(transaction->SerializedInvoker_));
+        }
+
+        const TFuture<void>& GetPrepareFuture()
+        {
+            return PrepareFuture_;
+        }
 
         const TTableMountInfoPtr& GetInfo() const
         {
+            YT_VERIFY(TableInfo_);
             return TableInfo_;
         }
 
@@ -873,14 +893,60 @@ private:
             return UpstreamReplicaId_;
         }
 
-        const std::vector<TSyncReplica>& SyncReplicas() const
+        const std::vector<TSyncReplica>& GetSyncReplicas() const
         {
             return SyncReplicas_;
         }
 
+    private:
+        const TWeakPtr<TTransaction> Transaction_;
+        const TTableReplicaId UpstreamReplicaId_;
+        const NLogging::TLogger Logger;
 
-        void RegisterSyncReplicas(bool* clusterDirectorySynced)
+        TFuture<void> PrepareFuture_;
+        TTableMountInfoPtr TableInfo_;
+        std::vector<TSyncReplica> SyncReplicas_;
+
+
+        TFuture<void> OnGotTableInfo(const TTableMountInfoPtr& tableInfo)
         {
+            TableInfo_ = tableInfo;
+
+            std::vector<TFuture<void>> futures;
+            CheckPermissions(&futures);
+            RegisterSyncReplicas(&futures);
+
+            return AllSucceeded(std::move(futures));
+        }
+
+        void CheckPermissions(std::vector<TFuture<void>>* futures)
+        {
+            auto transaction = Transaction_.Lock();
+            if (!transaction) {
+                return;
+            }
+
+            const auto& client = transaction->Client_;
+            const auto& permissionCache = client->GetNativeConnection()->GetPermissionCache();
+            NSecurityClient::TPermissionKey permissionKey{
+                .Object = FromObjectId(TableInfo_->TableId),
+                .User = client->GetOptions().GetAuthenticatedUser(),
+                .Permission = NYTree::EPermission::Write
+            };
+            auto future = permissionCache->Get(permissionKey);
+            auto result = future.TryGet();
+            if (!result || !result->IsOK()) {
+                futures->push_back(std::move(future));
+            }
+        }
+
+        void RegisterSyncReplicas(std::vector<TFuture<void>>* futures)
+        {
+            auto transaction = Transaction_.Lock();
+            if (!transaction) {
+                return;
+            }
+
             for (const auto& replicaInfo : TableInfo_->Replicas) {
                 if (replicaInfo->Mode != ETableReplicaMode::Sync) {
                     continue;
@@ -891,21 +957,16 @@ private:
                     replicaInfo->ClusterName,
                     replicaInfo->ReplicaPath);
 
-                auto syncReplicaTransaction = Transaction_->GetSyncReplicaTransaction(
-                    replicaInfo,
-                    clusterDirectorySynced);
-                SyncReplicas_.push_back(TSyncReplica{replicaInfo, std::move(syncReplicaTransaction)});
+                futures->push_back(
+                    transaction->GetSyncReplicaTransaction(replicaInfo)
+                        .Apply(BIND([=, this_ = MakeStrong(this)] (const NApi::ITransactionPtr& transaction) {
+                            SyncReplicas_.push_back(TSyncReplica{
+                                replicaInfo,
+                                transaction
+                            });
+                        }).AsyncVia(transaction->SerializedInvoker_)));
             }
         }
-
-    private:
-        TTransaction* const Transaction_;
-        const TTableMountInfoPtr TableInfo_;
-        const TTableReplicaId UpstreamReplicaId_;
-        const NLogging::TLogger Logger;
-
-        std::vector<TSyncReplica> SyncReplicas_;
-
     };
 
     //! Maintains per-table commit info.
@@ -1328,21 +1389,21 @@ private:
             YT_LOG_DEBUG("Sending transaction actions (ActionCount: %v)",
                 Actions_.size());
 
-            TFuture<void> asyncResult;
+            TFuture<void> future;
             switch (TypeFromId(CellId_)) {
                 case EObjectType::TabletCell:
-                    asyncResult = SendTabletActions(transaction, channel);
+                    future = SendTabletActions(transaction, channel);
                     break;
                 case EObjectType::MasterCell:
-                    asyncResult = SendMasterActions(transaction, channel);
+                    future = SendMasterActions(transaction, channel);
                     break;
                 default:
                     YT_ABORT();
             }
 
-            return asyncResult.Apply(
-                // NB: OnResponse is trivial; need no invoker here.
-                BIND(&TCellCommitSession::OnResponse, MakeStrong(this)));
+            return future.Apply(
+                BIND(&TCellCommitSession::OnResponse, MakeStrong(this))
+                    /* serialization intentionally omitted */);
         }
 
     private:
@@ -1352,8 +1413,8 @@ private:
 
         std::vector<TTransactionActionData> Actions_;
 
-        std::atomic<int> RequestsTotal_ = {0};
-        std::atomic<int> RequestsRemaining_ = {0};
+        std::atomic<int> RequestsTotal_ = 0;
+        std::atomic<int> RequestsRemaining_ = 0;
 
 
         TFuture<void> SendTabletActions(const TTransactionPtr& owner, const IChannelPtr& channel)
@@ -1396,16 +1457,14 @@ private:
     THashMap<TCellId, TCellCommitSessionPtr> CellIdToSession_;
 
     //! Maps replica cluster name to sync replica transaction.
-    THashMap<TString, NApi::ITransactionPtr> ClusterNameToSyncReplicaTransaction_;
+    THashMap<TString, TPromise<NApi::ITransactionPtr>> ClusterNameToSyncReplicaTransactionPromise_;
 
     //! Caches mappings from name table ids to schema ids.
     THashMap<std::tuple<TTableId, TNameTablePtr, ETableSchemaKind>, TNameTableToSchemaIdMapping> IdMappingCache_;
 
+    //! The actual options to be used during commit.
+    TTransactionCommitOptions CommitOptions_;
 
-    IInvokerPtr GetThreadPoolInvoker()
-    {
-        return Client_->GetConnection()->GetInvoker();
-    }
 
     const TNameTableToSchemaIdMapping& GetColumnIdMapping(
         const TTableMountInfoPtr& tableInfo,
@@ -1421,50 +1480,59 @@ private:
         return it->second;
     }
 
-    NApi::ITransactionPtr GetSyncReplicaTransaction(
-        const TTableReplicaInfoPtr& replicaInfo,
-        bool* clusterDirectorySynced)
+    TFuture<NApi::ITransactionPtr> GetSyncReplicaTransaction(const TTableReplicaInfoPtr& replicaInfo)
     {
-        auto it = ClusterNameToSyncReplicaTransaction_.find(replicaInfo->ClusterName);
-        if (it != ClusterNameToSyncReplicaTransaction_.end()) {
-            return it->second;
+        TPromise<NApi::ITransactionPtr> promise;
+        auto it = ClusterNameToSyncReplicaTransactionPromise_.find(replicaInfo->ClusterName);
+        if (it != ClusterNameToSyncReplicaTransactionPromise_.end()) {
+            return it->second.ToFuture();
+        } else {
+            promise = NewPromise<NApi::ITransactionPtr>();
+            YT_VERIFY(ClusterNameToSyncReplicaTransactionPromise_.emplace(replicaInfo->ClusterName, promise).second);
         }
 
-        const auto& clusterDirectory = Client_->GetNativeConnection()->GetClusterDirectory();
-        auto connection = clusterDirectory->FindConnection(replicaInfo->ClusterName);
-        if (!connection) {
-            if (!*clusterDirectorySynced) {
-                YT_LOG_DEBUG("Replica cluster is not known; synchronizing cluster directory");
-                WaitFor(Client_->GetNativeConnection()->GetClusterDirectorySynchronizer()->Sync())
-                    .ThrowOnError();
-                *clusterDirectorySynced = true;
-            }
-            connection = clusterDirectory->GetConnectionOrThrow(replicaInfo->ClusterName);
-        }
+        return
+            [&] {
+                const auto& clusterDirectory = Client_->GetNativeConnection()->GetClusterDirectory();
+                if (clusterDirectory->FindConnection(replicaInfo->ClusterName)) {
+                    return VoidFuture;
+                }
 
-        if (connection->GetCellTag() == Client_->GetConnection()->GetCellTag()) {
-            return nullptr;
-        }
+                YT_LOG_DEBUG("Replica cluster is not known; waiting for cluster directory sync (ClusterName: %v)",
+                    replicaInfo->ClusterName);
 
-        auto client = connection->CreateClient(Client_->GetOptions());
+                return Client_
+                    ->GetNativeConnection()
+                    ->GetClusterDirectorySynchronizer()
+                    ->Sync();
+            }()
+            .Apply(BIND([=, this_ = MakeStrong(this)] {
+                const auto& clusterDirectory = Client_->GetNativeConnection()->GetClusterDirectory();
+                return clusterDirectory->GetConnectionOrThrow(replicaInfo->ClusterName);
+            }) /* serialization intentionally omitted */)
+            .Apply(BIND([=, this_ = MakeStrong(this)] (const NApi::IConnectionPtr& connection) {
+                if (connection->GetCellTag() == Client_->GetConnection()->GetCellTag()) {
+                    return MakeFuture<NApi::ITransactionPtr>(nullptr);
+                }
 
-        TTransactionStartOptions options;
-        options.Id = Transaction_->GetId();
-        options.StartTimestamp = Transaction_->GetStartTimestamp();
-        auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, options))
-            .ValueOrThrow();
+                TTransactionStartOptions options;
+                options.Id = Transaction_->GetId();
+                options.StartTimestamp = Transaction_->GetStartTimestamp();
 
-        YT_LOG_DEBUG("Sync replica transaction started (ClusterName: %v)",
-            replicaInfo->ClusterName);
+                auto client = connection->CreateClient(Client_->GetOptions());
+                return client->StartTransaction(ETransactionType::Tablet, options);
+            }) /* serialization intentionally omitted */)
+            .Apply(BIND([=, this_ = MakeStrong(this)] (const NApi::ITransactionPtr& transaction) {
+                promise.Set(transaction);
 
-        {
-            auto guard = Guard(SpinLock_);
-            AlienTransactions_.push_back(transaction);
-        }
+                if (transaction) {
+                    YT_LOG_DEBUG("Sync replica transaction started (ClusterName: %v)",
+                        replicaInfo->ClusterName);
+                    DoRegisterSyncReplicaAlienTransaction(transaction);
+                }
 
-        YT_VERIFY(ClusterNameToSyncReplicaTransaction_.emplace(replicaInfo->ClusterName, transaction).second);
-
-        return transaction;
+                return transaction;
+            }) /* serialization intentionally omitted */);
     }
 
 
@@ -1497,20 +1565,7 @@ private:
     {
         auto it = TablePathToSession_.find(path);
         if (it == TablePathToSession_.end()) {
-            const auto& tableMountCache = Client_->GetTableMountCache();
-            auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
-                .ValueOrThrow();
-
-            const auto& permissionCache = Client_->GetNativeConnection()->GetPermissionCache();
-            NSecurityClient::TPermissionKey permissionKey{
-                .Object = FromObjectId(tableInfo->TableId),
-                .User = Client_->GetOptions().GetAuthenticatedUser(),
-                .Permission = NYTree::EPermission::Write
-            };
-            WaitFor(permissionCache->Get(permissionKey))
-                .ThrowOnError();
-
-            auto session = New<TTableCommitSession>(this, std::move(tableInfo), upstreamReplicaId);
+            auto session = New<TTableCommitSession>(this, path, upstreamReplicaId);
             PendingSessions_.push_back(session);
             it = TablePathToSession_.emplace(path, session).first;
         } else {
@@ -1572,124 +1627,120 @@ private:
         return abortFuture;
     }
 
-    void PrepareRequests()
+    TFuture<void> PrepareRequests()
     {
-        bool clusterDirectorySynced = false;
-
         if (!OrderedRequestsSlidingWindow_.IsEmpty()) {
-            THROW_ERROR_EXCEPTION(
+            return MakeFuture(TError(
                 NRpc::EErrorCode::ProtocolError,
                 "Cannot prepare transaction %v since sequence number %v is missing",
                 GetId(),
-                OrderedRequestsSlidingWindow_.GetNextSequenceNumber());
+                OrderedRequestsSlidingWindow_.GetNextSequenceNumber()));
         }
 
+        return DoPrepareRequests();
+    }
+
+    TFuture<void> DoPrepareRequests()
+    {
         // Tables with local sync replicas pose a problem since modifications in such tables
         // induce more modifications that need to be taken care of.
         // Here we iterate over requests and sessions until no more new items are added.
-        while (!PendingRequests_.empty() || !PendingSessions_.empty()) {
+        if (!PendingRequests_.empty() || !PendingSessions_.empty()) {
             decltype(PendingRequests_) pendingRequests;
             std::swap(PendingRequests_, pendingRequests);
-
-            for (auto* request : pendingRequests) {
-                request->PrepareTableSessions();
-            }
 
             decltype(PendingSessions_) pendingSessions;
             std::swap(PendingSessions_, pendingSessions);
 
+            std::vector<TFuture<void>> prepareFutures;
+            prepareFutures.reserve(pendingSessions.size());
             for (const auto& tableSession : pendingSessions) {
-                tableSession->RegisterSyncReplicas(&clusterDirectorySynced);
+                prepareFutures.push_back(tableSession->GetPrepareFuture());
             }
 
-            for (auto* request : pendingRequests) {
-                request->SubmitRows();
+            return AllSucceeded(std::move(prepareFutures))
+                .Apply(BIND([=, this_ = MakeStrong(this), pendingRequests = std::move(pendingRequests)] {
+                    for (auto* request : pendingRequests) {
+                        request->SubmitRows();
+                    }
+
+                    return DoPrepareRequests();
+                }).AsyncVia(SerializedInvoker_));
+        } else {
+            for (const auto& [tabletId, tabletSession] : TabletIdToSession_) {
+                auto cellId = tabletSession->GetCellId();
+                int requestCount = tabletSession->Prepare();
+                auto cellSession = GetOrCreateCellCommitSession(cellId);
+                cellSession->RegisterRequests(requestCount);
             }
-        }
 
-        for (const auto& [tabletId, tabletSession] : TabletIdToSession_) {
-            auto cellId = tabletSession->GetCellId();
-            int requestCount = tabletSession->Prepare();
-            auto cellSession = GetOrCreateCellCommitSession(cellId);
-            cellSession->RegisterRequests(requestCount);
-        }
+            for (const auto& [cellId, session] : CellIdToSession_) {
+                Transaction_->RegisterParticipant(cellId);
+            }
 
-        for (const auto& [cellId, session] : CellIdToSession_) {
-            Transaction_->RegisterParticipant(cellId);
+            return VoidFuture;
         }
     }
 
     TFuture<void> SendRequests()
     {
-        std::vector<TFuture<void>> asyncResults;
+        std::vector<TFuture<void>> futures;
 
         for (const auto& [tabletId, session] : TabletIdToSession_) {
             auto cellId = session->GetCellId();
             auto channel = Client_->GetCellChannelOrThrow(cellId);
-            asyncResults.push_back(session->Invoke(std::move(channel)));
+            futures.push_back(session->Invoke(std::move(channel)));
         }
 
         for (const auto& [cellId, session] : CellIdToSession_) {
             auto channel = Client_->GetCellChannelOrThrow(cellId);
-            asyncResults.push_back(session->Invoke(std::move(channel)));
+            futures.push_back(session->Invoke(std::move(channel)));
         }
 
-        return AllSucceeded(asyncResults);
+        return AllSucceeded(std::move(futures));
     }
 
-    TTransactionCommitOptions AdjustCommitOptions(TTransactionCommitOptions options)
+    void BuildAdjustedCommitOptions(const TTransactionCommitOptions& options)
     {
+        CommitOptions_ = options;
+
         for (const auto& [path, session] : TablePathToSession_) {
             if (session->GetInfo()->IsReplicated()) {
-                options.Force2PC = true;
+                CommitOptions_.Force2PC = true;
+                break;
             }
         }
-        return options;
     }
 
     TFuture<TTransactionCommitResult> DoCommit(const TTransactionCommitOptions& options, bool needsFlush)
     {
-        std::vector<TFuture<TTransactionFlushResult>> flushFutures;
-        if (needsFlush) {
-            // Issue flush requests first to paralellize local preparation and alien flushes.
-            for (const auto& transaction : GetAlienTransactions()) {
-                flushFutures.push_back(transaction->Flush());
-            }
-
-            PrepareRequests();
-
-            // NB: The call above could have extended the set of alien transactions.
-            // Let's flush these new guys as well.
-            for (const auto& [clusterName, transaction] : ClusterNameToSyncReplicaTransaction_) {
-                flushFutures.push_back(
-                    transaction->Flush()
-                    .Apply(
-                        BIND([clusterName = clusterName] (const TErrorOr<TTransactionFlushResult>& resultOrError) {
-                            if (!resultOrError.IsOK()) {
-                                THROW_ERROR_EXCEPTION(resultOrError)
-                                    << TErrorAttribute("replica_cluster", clusterName);
-                            }
-                            return resultOrError.Value();
-                        })));
-            }
-        }
-
         for (auto cellId : options.AdditionalParticipantCellIds) {
             Transaction_->RegisterParticipant(cellId);
         }
 
-        auto adjustedOptions = AdjustCommitOptions(options);
-        Transaction_->ChooseCoordinator(adjustedOptions);
-
-        return Transaction_->ValidateNoDownedParticipants()
+        return
+            [&] {
+                return needsFlush ? PrepareRequests() : VoidFuture;
+            }()
             .Apply(
-                BIND([=, this_ = MakeStrong(this), flushFutures = std::move(flushFutures)] () mutable {
+                BIND([=, this_ = MakeStrong(this)] {
+                    BuildAdjustedCommitOptions(options);
+                    Transaction_->ChooseCoordinator(CommitOptions_);
+
+                    return Transaction_->ValidateNoDownedParticipants();
+                }).AsyncVia(SerializedInvoker_))
+            .Apply(
+                BIND([=, this_ = MakeStrong(this)] {
+                    std::vector<TFuture<TTransactionFlushResult>> futures;
                     if (needsFlush) {
-                        flushFutures.push_back(SendRequests()
+                        for (const auto& transaction : GetAlienTransactions()) {
+                            futures.push_back(transaction->Flush());
+                        }
+                        futures.push_back(SendRequests()
                             .Apply(BIND([] { return TTransactionFlushResult{}; })));
                     }
-                    return AllSucceeded(std::move(flushFutures));
-                }).AsyncVia(GetCurrentInvoker()))
+                    return AllSucceeded(std::move(futures));
+                }).AsyncVia(SerializedInvoker_))
             .Apply(
                 BIND([=, this_ = MakeStrong(this)] (const std::vector<TTransactionFlushResult>& results) {
                     for (const auto& result : results) {
@@ -1698,8 +1749,8 @@ private:
                         }
                     }
 
-                    return Transaction_->Commit(adjustedOptions);
-                }).AsyncVia(GetCurrentInvoker()))
+                    return Transaction_->Commit(CommitOptions_);
+                }).AsyncVia(SerializedInvoker_))
             .Apply(
                 BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TTransactionCommitResult>& resultOrError) {
                     {
@@ -1710,6 +1761,7 @@ private:
                             DoAbort(&guard);
                             THROW_ERROR_EXCEPTION("Error committing transaction %v",
                                 GetId())
+                                << MakeClusterIdErrorAttribute()
                                 << resultOrError;
                         }
                     }
@@ -1719,14 +1771,16 @@ private:
                     }
 
                     return resultOrError.Value();
-                }).AsyncVia(GetCurrentInvoker()));
+                }) /* serialization intentionally omitted */);
     }
 
     TFuture<TTransactionFlushResult> DoFlush()
     {
-        PrepareRequests();
-
-        return SendRequests()
+        return PrepareRequests()
+            .Apply(
+                BIND([=, this_ = MakeStrong(this)] {
+                    return SendRequests();
+                }).AsyncVia(SerializedInvoker_))
             .Apply(
                 BIND([=, this_ = MakeStrong(this)] (const TError& error) {
                     {
@@ -1738,6 +1792,7 @@ private:
                             DoAbort(&guard);
                             THROW_ERROR_EXCEPTION("Error flushing transaction %v",
                                 GetId())
+                                << MakeClusterIdErrorAttribute()
                                 << error;
                         }
                     }
@@ -1750,7 +1805,7 @@ private:
                         result.ParticipantCellIds);
 
                     return result;
-                }).AsyncVia(GetCurrentInvoker()));
+                }).AsyncVia(SerializedInvoker_));
     }
 
 
@@ -1819,10 +1874,21 @@ private:
             transaction->GetConnection()->GetLoggingTag());
     }
 
+    void DoRegisterSyncReplicaAlienTransaction(const NApi::ITransactionPtr& transaction)
+    {
+        auto guard = Guard(SpinLock_);
+        AlienTransactions_.push_back(transaction);
+    }
+
     std::vector<NApi::ITransactionPtr> GetAlienTransactions()
     {
         auto guard = Guard(SpinLock_);
         return AlienTransactions_;
+    }
+
+    TErrorAttribute MakeClusterIdErrorAttribute()
+    {
+        return {"cluster_id", Client_->GetConnection()->GetClusterId()};
     }
 };
 

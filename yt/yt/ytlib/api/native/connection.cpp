@@ -87,6 +87,20 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+TString MakeConnectionClusterId(const TConnectionConfigPtr& config)
+{
+    if (config->ClusterName) {
+        return Format("Native(Name=%v)", *config->ClusterName);
+    } else {
+        return Format("Native(PrimaryCellTag=%v)",
+            CellTagFromId(config->PrimaryMaster->CellId));
+    }
+}
+
+} // namespace
+
 class TConnection
     : public IConnection
 {
@@ -100,8 +114,7 @@ public:
             CellTagFromId(Config_->PrimaryMaster->CellId),
             TGuid::Create(),
             Config_->Name))
-        , ClusterId_(Format("Native(PrimaryCellTag=%v)",
-            CellTagFromId(Config_->PrimaryMaster->CellId)))
+        , ClusterId_(MakeConnectionClusterId(Config_))
         , ChannelFactory_(CreateCachingChannelFactory(
             NRpc::NBus::CreateBusChannelFactory(Config_->BusClient),
             Config_->IdleChannelTtl))
