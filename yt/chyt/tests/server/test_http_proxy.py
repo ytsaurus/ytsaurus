@@ -7,7 +7,7 @@ from yt_commands import (get, write_table, authors, raises_yt_error, abort_job, 
 
 from yt.common import wait
 
-from yt_helpers import Profiler
+from yt.test_helpers.profiler import Profiler
 
 import yt.environment.init_operation_archive as init_operation_archive
 
@@ -34,7 +34,9 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         self._setup()
 
     def _get_proxy_metric(self, metric_name):
-        return Profiler.at_proxy(self.Env.get_http_proxy_address()).counter(metric_name)
+        return Profiler.at_proxy(
+            self.Env.create_native_client(),
+            self.Env.get_http_proxy_address()).counter(metric_name)
 
     @authors("evgenstf")
     def test_instance_choice(self):
