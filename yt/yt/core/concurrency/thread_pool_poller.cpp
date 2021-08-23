@@ -95,6 +95,11 @@ public:
         }
     }
 
+    ~TThreadPoolPoller()
+    {
+        Shutdown();
+    }
+
     void Start()
     {
         PollerThread_->Start();
