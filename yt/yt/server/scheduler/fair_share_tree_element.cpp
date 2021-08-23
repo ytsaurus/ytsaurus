@@ -2595,7 +2595,7 @@ void TSchedulerOperationElement::UpdateDynamicAttributes(
 
     // NB: unset Active attribute we treat as unknown here.
     if (!attributes.Active) {
-        attributes.Active = IsAlive();
+        attributes.Active = IsAlive() && OperationElementSharedState_->Enabled();
     }
 
     if (Mutable_) {
@@ -2626,7 +2626,7 @@ const TJobResources& TSchedulerOperationElement::CalculateCurrentResourceUsage(T
 {
     auto& attributes = context->DynamicAttributesFor(this);
 
-    attributes.ResourceUsage = IsAlive()
+    attributes.ResourceUsage = (IsAlive() && OperationElementSharedState_->Enabled())
         ? GetInstantResourceUsage()
         : TJobResources();
 
@@ -2646,7 +2646,7 @@ void TSchedulerOperationElement::PrescheduleJob(
         OnOperationDeactivated(context, reason);
     };
 
-    if (!IsAlive()) {
+    if (!IsAlive() || !OperationElementSharedState_->Enabled()) {
         onOperationDeactivated(EDeactivationReason::IsNotAlive);
         return;
     }
@@ -2930,7 +2930,9 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
             TreeId_,
             scheduleJobResult);
 
-        TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
+        if (OperationElementSharedState_->Enabled()) {
+            TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
+        }
 
         FinishScheduleJob(context->SchedulingContext());
 
