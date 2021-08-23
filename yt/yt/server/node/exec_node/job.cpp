@@ -1456,7 +1456,7 @@ private:
         TDelayedExecutor::Submit(
             BIND(
                 &TJob::OnJobProxyPreparationTimeout,
-                MakeStrong(this))
+                MakeWeak(this))
            .Via(Invoker_),
            Config_->JobProxyPreparationTimeout);
     }
