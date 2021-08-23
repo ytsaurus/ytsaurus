@@ -102,6 +102,8 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommit(const TJobResourc
 
     ResourceUsagePrecommit_ += delta;
 
+    YT_VERIFY(Dominates(ResourceUsagePrecommit_, TJobResources()));
+
     return true;
 }
 
