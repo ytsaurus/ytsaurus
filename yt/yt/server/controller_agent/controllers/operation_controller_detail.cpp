@@ -7471,9 +7471,19 @@ void TOperationControllerBase::RegisterStderr(const TJobletPtr& joblet, const TJ
         return;
     }
     auto key = BuildBoundaryKeysFromOutputResult(boundaryKeys, StderrTable_->GetStreamDescriptorTemplate(), RowBuffer);
+    if (!key.MinKey || key.MinKey.GetLength() == 0 || !key.MaxKey || key.MaxKey.GetLength() == 0) {
+        YT_LOG_DEBUG("Dropping empty stderr chunk tree (JobId: %v, NodeAddress: %v, ChunkListId: %v)",
+           joblet->JobId,
+           joblet->NodeDescriptor.Address,
+           chunkListId);
+        return;
+    }
+
     StderrTable_->OutputChunkTreeIds.emplace_back(key, chunkListId);
 
-    YT_LOG_DEBUG("Stderr chunk tree registered (ChunkListId: %v)",
+    YT_LOG_DEBUG("Stderr chunk tree registered (JobId: %v, NodeAddress: %v, ChunkListId: %v)",
+        joblet->JobId,
+        joblet->NodeDescriptor.Address,
         chunkListId);
 }
 
@@ -7511,7 +7521,19 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
         return;
     }
     auto key = BuildBoundaryKeysFromOutputResult(boundaryKeys, CoreTable_->GetStreamDescriptorTemplate(), RowBuffer);
+    if (!key.MinKey || key.MinKey.GetLength() == 0 || !key.MaxKey || key.MaxKey.GetLength() == 0) {
+        YT_LOG_DEBUG("Dropping empty core chunk tree (JobId: %v, NodeAddress: %v, ChunkListId: %v)",
+           joblet->JobId,
+           joblet->NodeDescriptor.Address,
+           chunkListId);
+        return;
+    }
     CoreTable_->OutputChunkTreeIds.emplace_back(key, chunkListId);
+
+    YT_LOG_DEBUG("Core chunk tree registered (JobId: %v, NodeAddress: %v, ChunkListId: %v)",
+        joblet->JobId,
+        joblet->NodeDescriptor.Address,
+        chunkListId);
 }
 
 const ITransactionPtr& TOperationControllerBase::GetTransactionForOutputTable(const TOutputTablePtr& table) const
