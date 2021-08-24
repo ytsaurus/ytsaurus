@@ -142,6 +142,8 @@ const (
 	CodeGpuLayerNotFetched                     ErrorCode = 1122
 	CodeGpuJobWithoutLayers                    ErrorCode = 1123
 	CodeTmpfsOverflow                          ErrorCode = 1124
+	CodeGpuCheckCommandFailed                  ErrorCode = 1125
+	CodeGpuCheckCommandIncorrect               ErrorCode = 1126
 	CodeMemoryLimitExceeded                    ErrorCode = 1200
 	CodeMemoryCheckFailed                      ErrorCode = 1201
 	CodeJobTimeLimitExceeded                   ErrorCode = 1202
