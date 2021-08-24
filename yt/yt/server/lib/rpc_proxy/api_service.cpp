@@ -1,17 +1,16 @@
 #include "api_service.h"
 
 #include "access_checker.h"
-#include "proxy_coordinator.h"
-#include "public.h"
-#include "private.h"
 #include "bootstrap.h"
 #include "config.h"
+#include "proxy_coordinator.h"
 #include "security_manager.h"
 
 #include <yt/yt/server/lib/misc/format_manager.h>
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
+#include <yt/yt/ytlib/auth/config.h>
 #include <yt/yt/ytlib/auth/cookie_authenticator.h>
 #include <yt/yt/ytlib/auth/token_authenticator.h>
 
@@ -19,15 +18,16 @@
 #include <yt/yt/ytlib/api/native/client_cache.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/client/api/config.h>
 #include <yt/yt/client/api/file_reader.h>
 #include <yt/yt/client/api/file_writer.h>
 #include <yt/yt/client/api/journal_reader.h>
 #include <yt/yt/client/api/journal_writer.h>
+#include <yt/yt/client/api/rowset.h>
+#include <yt/yt/client/api/sticky_transaction_pool.h>
 #include <yt/yt/client/api/table_reader.h>
 #include <yt/yt/client/api/table_writer.h>
 #include <yt/yt/client/api/transaction.h>
-#include <yt/yt/client/api/rowset.h>
-#include <yt/yt/client/api/sticky_transaction_pool.h>
 
 #include <yt/yt/client/api/rpc_proxy/api_service_proxy.h>
 #include <yt/yt/client/api/rpc_proxy/helpers.h>
@@ -58,6 +58,8 @@
 #include <yt/yt/client/arrow/arrow_row_stream_encoder.h>
 #include <yt/yt/client/arrow/arrow_row_stream_decoder.h>
 
+#include <yt/yt/library/tracing/jaeger/sampler.h>
+
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/misc/cast.h>
@@ -70,8 +72,6 @@
 #include <yt/yt/core/rpc/stream.h>
 
 #include <yt/yt/core/misc/backoff_strategy.h>
-
-#include <yt/yt/library/tracing/jaeger/sampler.h>
 
 namespace NYT::NRpcProxy {
 
@@ -341,19 +341,26 @@ class TApiService
     : public TServiceBase
 {
 public:
-    explicit TApiService(TBootstrap* bootstrap)
+    TApiService(
+        IBootstrap* bootstrap,
+        NLogging::TLogger logger,
+        NProfiling::TProfiler profiler,
+        IStickyTransactionPoolPtr stickyTransactionPool)
         : TServiceBase(
             bootstrap->GetWorkerInvoker(),
             GetServiceDescriptor(),
-            RpcProxyLogger,
+            std::move(logger),
             NullRealmId,
             bootstrap->GetRpcAuthenticator())
         , Bootstrap_(bootstrap)
-        , Config_(bootstrap->GetConfig()->ApiService)
-        , Coordinator_(bootstrap->GetProxyCoordinator())
-        , AccessChecker_(bootstrap->GetAccessChecker())
-        , SecurityManager_(Config_->SecurityManager, Bootstrap_)
-        , StickyTransactionPool_(CreateStickyTransactionPool(Logger))
+        , Profiler_(std::move(profiler))
+        , Config_(Bootstrap_->GetConfigApiService())
+        , Coordinator_(Bootstrap_->GetProxyCoordinator())
+        , AccessChecker_(Bootstrap_->GetAccessChecker())
+        , SecurityManager_(Config_->SecurityManager, Bootstrap_, Logger)
+        , StickyTransactionPool_(stickyTransactionPool
+            ? stickyTransactionPool
+            : CreateStickyTransactionPool(Logger))
         , AuthenticatedClientCache_(New<NApi::NNative::TClientCache>(
             Config_->ClientCache,
             Bootstrap_->GetNativeConnection()))
@@ -473,13 +480,14 @@ public:
 
         DeclareServerFeature(ERpcProxyFeature::GetInSyncWithoutKeys);
 
-        if (!Bootstrap_->GetConfig()->RequireAuthentication) {
+        if (!Bootstrap_->GetConfigAuthenticationManager()->RequireAuthentication) {
             GetOrCreateClient(NSecurityClient::RootUserName);
         }
     }
 
 private:
-    TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
+    const NProfiling::TProfiler Profiler_;
     const TApiServiceConfigPtr Config_;
     const IProxyCoordinatorPtr Coordinator_;
     const IAccessCheckerPtr AccessChecker_;
@@ -510,7 +518,7 @@ private:
         }
 
         const auto& identity = context->GetAuthenticationIdentity();
-        Coordinator_->GetTraceSampler()->SampleTraceContext(identity.User, traceContext);
+        Bootstrap_->GetTraceSampler()->SampleTraceContext(identity.User, traceContext);
 
         if (traceContext->IsRecorded()) {
             traceContext->AddTag("user", identity.User);
@@ -703,7 +711,7 @@ private:
         return DetailedTableProfilingCountersMap_.FindOrInsert(
             path,
             [&] {
-                return TDetailedTableProfilingCounters(RpcProxyProfiler
+                return TDetailedTableProfilingCounters(Profiler_
                     .WithPrefix("/detailed_table_statistics")
                     .WithTag("table_path", path)
                     .WithSparse());
@@ -2011,7 +2019,7 @@ private:
 
         {
             auto user = context->GetAuthenticationIdentity().User;
-            auto formatConfigs = Bootstrap_->GetDynamicConfig()->Api->Formats;
+            auto formatConfigs = Bootstrap_->GetDynamicConfigApiService()->Formats;
             TFormatManager formatManager(formatConfigs, user);
             auto specNode = ConvertToNode(specYson);
             formatManager.ValidateAndPatchOperationSpec(specNode, type);
@@ -3981,9 +3989,19 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TApiService)
 
-IServicePtr CreateApiService(TBootstrap* bootstrap)
+////////////////////////////////////////////////////////////////////////////////
+
+IServicePtr CreateApiService(
+    IBootstrap* bootstrap,
+    NLogging::TLogger logger,
+    NProfiling::TProfiler profiler,
+    IStickyTransactionPoolPtr stickyTransactionPool)
 {
-    return New<TApiService>(bootstrap);
+    return New<TApiService>(
+        bootstrap,
+        std::move(logger),
+        std::move(profiler),
+        std::move(stickyTransactionPool));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

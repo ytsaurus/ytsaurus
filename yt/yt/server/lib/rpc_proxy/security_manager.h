@@ -1,8 +1,8 @@
 #pragma once
 
-#include "bootstrap.h"
 #include "public.h"
-#include "config.h"
+
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NRpcProxy {
 
@@ -13,7 +13,8 @@ class TSecurityManager
 public:
     TSecurityManager(
         TSecurityManagerConfigPtr config,
-        TBootstrap* bootstrap);
+        IBootstrap* bootstrap,
+        NLogging::TLogger logger);
     ~TSecurityManager();
 
     void ValidateUser(const TString& user);

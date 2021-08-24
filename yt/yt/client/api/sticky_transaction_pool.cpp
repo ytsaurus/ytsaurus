@@ -49,7 +49,7 @@ public:
                 BIND(&TStickyTransactionPool::OnStickyTransactionLeaseExpired, MakeWeak(this), transactionId, MakeWeak(transaction)))
         };
 
-        bool inserted;
+        bool inserted = false;
         {
             auto guard = WriterGuard(StickyTransactionLock_);
             inserted = IdToStickyTransactionEntry_.emplace(transactionId, entry).second;
@@ -58,7 +58,8 @@ public:
         if (!inserted) {
             NConcurrency::TLeaseManager::CloseLease(entry.Lease);
             THROW_ERROR_EXCEPTION(NTransactionClient::EErrorCode::InvalidTransactionState,
-                "Failed to register duplicate sticky transaction (TransactionId: %v)", transactionId);
+                "Failed to register duplicate sticky transaction %v",
+                transactionId);
         }
 
         transaction->SubscribeCommitted(

@@ -1,13 +1,9 @@
 #include "security_manager.h"
-#include "private.h"
-#include "bootstrap.h"
 
-#include <yt/yt/server/lib/tablet_node/config.h>
+#include "bootstrap.h"
+#include "config.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
-
-#include <yt/yt/core/concurrency/fls.h>
-#include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/misc/async_expiring_cache.h>
 
@@ -15,14 +11,11 @@ namespace NYT::NRpcProxy {
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NLogging;
+using namespace NSecurityClient;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
-using namespace NSecurityClient;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const auto& Logger = RpcProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,15 +27,16 @@ class TUserCache
 public:
     TUserCache(
         TAsyncExpiringCacheConfigPtr config,
-        TBootstrap* bootstrap)
-        : TAsyncExpiringCache(
-            std::move(config),
-            RpcProxyLogger.WithTag("Cache: User"))
+        IBootstrap* bootstrap,
+        TLogger logger)
+        : TAsyncExpiringCache(std::move(config), logger.WithTag("Cache: User"))
         , Bootstrap_(bootstrap)
+        , Logger(std::move(logger))
     { }
 
 private:
-    TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
+    const TLogger Logger;
 
     virtual TFuture<void> DoGet(const TString& user, bool /*isPeriodicUpdate*/) noexcept override
     {
@@ -86,10 +80,13 @@ class TSecurityManager::TImpl
 public:
     TImpl(
         TSecurityManagerConfigPtr config,
-        TBootstrap* bootstrap)
+        IBootstrap* bootstrap,
+        TLogger logger)
         : Config_(std::move(config))
-        , Bootstrap_(bootstrap)
-        , UserCache_(New<TUserCache>(Config_->UserCache, Bootstrap_))
+        , UserCache_(New<TUserCache>(
+            Config_->UserCache,
+            bootstrap,
+            std::move(logger)))
     { }
 
     void ValidateUser(const TString& user)
@@ -100,7 +97,6 @@ public:
 
 private:
     const TSecurityManagerConfigPtr Config_;
-    TBootstrap* const Bootstrap_;
     const TUserCachePtr UserCache_;
 };
 
@@ -108,10 +104,12 @@ private:
 
 TSecurityManager::TSecurityManager(
     TSecurityManagerConfigPtr config,
-    TBootstrap* bootstrap)
+    IBootstrap* bootstrap,
+    TLogger logger)
     : Impl_(New<TImpl>(
         std::move(config),
-        bootstrap))
+        bootstrap,
+        std::move(logger)))
 { }
 
 TSecurityManager::~TSecurityManager() = default;
