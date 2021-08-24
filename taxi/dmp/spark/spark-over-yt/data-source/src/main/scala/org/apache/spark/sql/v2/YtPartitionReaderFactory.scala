@@ -9,7 +9,7 @@ import org.apache.spark.sql.connector.read.{InputPartition, PartitionReader}
 import org.apache.spark.sql.execution.datasources.PartitionedFile
 import org.apache.spark.sql.execution.datasources.v2.{FilePartitionReaderFactory, PartitionReaderWithPartitionValues}
 import org.apache.spark.sql.internal.SQLConf
-import org.apache.spark.sql.types.{AtomicType, StructType}
+import org.apache.spark.sql.types.{AtomicType, DataType, DateType, StructType, TimestampType}
 import org.apache.spark.sql.vectorized.{ColumnarBatch, YtVectorizedReader}
 import org.apache.spark.util.SerializableConfiguration
 import org.slf4j.LoggerFactory
@@ -28,6 +28,8 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
                                     readDataSchema: StructType,
                                     partitionSchema: StructType,
                                     options: Map[String, String]) extends FilePartitionReaderFactory with Logging {
+  private val unsupportedTypes: Set[DataType] = Set(DateType, TimestampType)
+
   private val resultSchema = StructType(partitionSchema.fields ++ readDataSchema.fields)
   private val ytClientConf = ytClientConfiguration(sqlConf)
   private val arrowEnabled: Boolean = {
@@ -53,7 +55,7 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
   }
 
   def arrowSchemaSupported(dataSchema: StructType): Boolean = {
-    true
+    dataSchema.fields.forall(f => !unsupportedTypes.contains(f.dataType))
   }
 
   override def buildReader(file: PartitionedFile): PartitionReader[InternalRow] = {
