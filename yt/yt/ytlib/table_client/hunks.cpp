@@ -204,10 +204,11 @@ TRef WriteHunkValue(TChunkedMemoryPool* pool, const TLocalRefHunkValue& value)
     char* beginPtr =  pool->AllocateUnaligned(MaxLocalHunkRefSize);
     char* endPtr =  beginPtr + MaxLocalHunkRefSize;
     auto* currentPtr = beginPtr;
-    *currentPtr++ = static_cast<char>(EHunkValueTag::LocalRef);                    // tag
-    currentPtr += WriteVarUint32(currentPtr, static_cast<ui32>(value.ChunkIndex)); // chunkIndex
-    currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.Length));     // length
-    currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.Offset));     // offset
+    *currentPtr++ = static_cast<char>(EHunkValueTag::LocalRef);                     // tag
+    currentPtr += WriteVarUint32(currentPtr, static_cast<ui32>(value.ChunkIndex));  // chunkIndex
+    currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.Length));      // length
+    currentPtr += WriteVarUint32(currentPtr, static_cast<ui32>(value.BlockIndex));  // blockIndex
+    currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.BlockOffset)); // blockOffset
     pool->Free(currentPtr, endPtr);
     return TRef(beginPtr, currentPtr);
 }
@@ -217,11 +218,12 @@ TRef WriteHunkValue(TChunkedMemoryPool* pool, const TGlobalRefHunkValue& value)
     char* beginPtr =  pool->AllocateUnaligned(MaxGlobalHunkRefSize);
     char* endPtr =  beginPtr + MaxGlobalHunkRefSize;
     auto* currentPtr = beginPtr;
-    *currentPtr++ = static_cast<char>(EHunkValueTag::GlobalRef);               // tag
-    ::memcpy(currentPtr, &value.ChunkId, sizeof(TChunkId));                    // chunkId
+    *currentPtr++ = static_cast<char>(EHunkValueTag::GlobalRef);                    // tag
+    ::memcpy(currentPtr, &value.ChunkId, sizeof(TChunkId));                         // chunkId
     currentPtr += sizeof(TChunkId);
-    currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.Length)); // length
-    currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.Offset)); // offset
+    currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.Length));      // length
+    currentPtr += WriteVarUint32(currentPtr, static_cast<ui32>(value.BlockIndex));  // blockIndex
+    currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.BlockOffset)); // blockOffset
     pool->Free(currentPtr, endPtr);
     return TRef(beginPtr, currentPtr);
 }
@@ -255,29 +257,34 @@ THunkValue ReadHunkValue(TRef input)
         case static_cast<char>(EHunkValueTag::LocalRef): {
             ui32 chunkIndex;
             ui64 length;
-            ui64 offset;
+            ui32 blockIndex;
+            ui64 blockOffset;
             currentPtr += ReadVarUint32(currentPtr, &chunkIndex);
             currentPtr += ReadVarUint64(currentPtr, &length);
-            currentPtr += ReadVarUint64(currentPtr, &offset);
+            currentPtr += ReadVarUint32(currentPtr, &blockIndex);
+            currentPtr += ReadVarUint64(currentPtr, &blockOffset);
             // TODO(babenko): better out-of-bounds check.
             if (currentPtr > input.End()) {
                 THROW_ERROR_EXCEPTION("Malformed local ref hunk value");
             }
             return TLocalRefHunkValue{
                 .ChunkIndex = static_cast<int>(chunkIndex),
-                .Length = static_cast<i64>(length),
-                .Offset = static_cast<i64>(offset)
+                .BlockIndex = static_cast<int>(blockIndex),
+                .BlockOffset = static_cast<i64>(blockOffset),
+                .Length = static_cast<i64>(length)
             };
         }
 
         case static_cast<char>(EHunkValueTag::GlobalRef): {
             TChunkId chunkId;
             ui64 length;
-            ui64 offset;
+            ui32 blockIndex;
+            ui64 blockOffset;
             ::memcpy(&chunkId, currentPtr, sizeof(TChunkId));
             currentPtr += sizeof(TChunkId);
             currentPtr += ReadVarUint64(currentPtr, &length);
-            currentPtr += ReadVarUint64(currentPtr, &offset);
+            currentPtr += ReadVarUint32(currentPtr, &blockIndex);
+            currentPtr += ReadVarUint64(currentPtr, &blockOffset);
             // TODO(babenko): better out-of-bounds check.
             if (currentPtr > input.End()) {
                 THROW_ERROR_EXCEPTION("Malformed global ref hunk value");
@@ -285,7 +292,8 @@ THunkValue ReadHunkValue(TRef input)
             return TGlobalRefHunkValue{
                 .ChunkId = chunkId,
                 .Length = static_cast<i64>(length),
-                .Offset = static_cast<i64>(offset)
+                .BlockIndex = static_cast<int>(blockIndex),
+                .BlockOffset = static_cast<i64>(blockOffset)
             };
         }
 
@@ -316,7 +324,8 @@ void GlobalizeHunkValues(
             auto globalRefHunkValue = TGlobalRefHunkValue{
                 .ChunkId = FromProto<TChunkId>(hunkChunkRefsExt.refs(localRefHunkValue->ChunkIndex).chunk_id()),
                 .Length = localRefHunkValue->Length,
-                .Offset = localRefHunkValue->Offset
+                .BlockIndex = localRefHunkValue->BlockIndex,
+                .BlockOffset = localRefHunkValue->BlockOffset
             };
             auto globalRefPayload = WriteHunkValue(pool, globalRefHunkValue);
             value.Data.String = globalRefPayload.Begin();
@@ -697,13 +706,14 @@ public:
                     HunkCount_ += 1;
                     TotalHunkLength_ += payloadLength;
 
-                    auto [offset, hunkWriterReady] = HunkChunkPayloadWriter_->WriteHunk(inlineHunkValue.Payload);
+                    auto [blockIndex, blockOffset, hunkWriterReady] = HunkChunkPayloadWriter_->WriteHunk(inlineHunkValue.Payload);
                     ready &= hunkWriterReady;
 
                     TLocalRefHunkValue localRefHunkValue{
                         .ChunkIndex = GetHunkChunkPayloadWriterChunkIndex(),
                         .Length = payloadLength,
-                        .Offset = offset
+                        .BlockIndex = blockIndex,
+                        .BlockOffset = blockOffset
                     };
                     if (columnarStatisticsThunk) {
                         columnarStatisticsThunk->UpdateStatistics(value.Id, localRefHunkValue);
@@ -725,7 +735,8 @@ public:
                             TLocalRefHunkValue localRefHunkValue{
                                 .ChunkIndex = RegisterHunkRef(globalRefHunkValue.ChunkId, globalRefHunkValue.Length),
                                 .Length = globalRefHunkValue.Length,
-                                .Offset = globalRefHunkValue.Offset
+                                .BlockIndex = globalRefHunkValue.BlockIndex,
+                                .BlockOffset = globalRefHunkValue.BlockOffset
                             };
                             if (columnarStatisticsThunk) {
                                 columnarStatisticsThunk->UpdateStatistics(value.Id, localRefHunkValue);
@@ -956,8 +967,9 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                 }
                 requests.push_back({
                     .ChunkId = globalRefHunkValue.ChunkId,
-                    .Offset = globalRefHunkValue.Offset,
-                    .Length = globalRefHunkValue.Length
+                    .Length = globalRefHunkValue.Length,
+                    .BlockIndex = globalRefHunkValue.BlockIndex,
+                    .BlockOffset = globalRefHunkValue.BlockOffset
                 });
                 requestedValues.push_back(value);
                 dataWeight += globalRefHunkValue.Length;
@@ -1532,13 +1544,13 @@ public:
         Buffer_.Reserve(static_cast<i64>(Config_->DesiredBlockSize * BufferReserveFactor));
     }
 
-    virtual std::tuple<i64, bool> WriteHunk(TRef payload) override
+    virtual std::tuple<int, i64, bool> WriteHunk(TRef payload) override
     {
         if (!OpenFuture_) {
             OpenFuture_ = Underlying_->Open();
         }
 
-        auto offset = AppendPayloadToBuffer(payload);
+        auto [blockIndex, blockOffset] = AppendPayloadToBuffer(payload);
 
         bool ready = true;
         if (!OpenFuture_.IsSet()) {
@@ -1550,7 +1562,7 @@ public:
         HunkCount_ += 1;
         TotalHunkLength_ += std::ssize(payload);
 
-        return {offset, ready};
+        return {blockIndex, blockOffset, ready};
     }
 
     virtual bool HasHunks() const override
@@ -1630,7 +1642,8 @@ private:
 
     TFuture<void> OpenFuture_;
 
-    i64 UncompressedDataSize_ = 0;
+    int BlockIndex_ = 0;
+    i64 BlockOffset_ = 0;
     i64 HunkCount_ = 0;
     i64 TotalHunkLength_ = 0;
 
@@ -1653,13 +1666,14 @@ private:
         return Buffer_.Begin() + oldSize;
     }
 
-    i64 AppendPayloadToBuffer(TRef payload)
+    //! Returns |(blockIndex, blockOffset)|.
+    std::tuple<int, i64> AppendPayloadToBuffer(TRef payload)
     {
-        auto offset = UncompressedDataSize_;
         auto* ptr = BeginWriteToBuffer(payload.Size());
         ::memcpy(ptr, payload.Begin(), payload.Size());
-        UncompressedDataSize_ += payload.Size();
-        return offset;
+        auto offset = BlockOffset_;
+        BlockOffset_ += payload.Size();
+        return {BlockIndex_, offset};
     }
 
     bool FlushBuffer()
@@ -1670,6 +1684,7 @@ private:
         }
         auto block = TSharedRef::MakeCopy<TBlockTag>(Buffer_.ToRef());
         Buffer_.Clear();
+        ++BlockIndex_;
         return Underlying_->WriteBlock(TBlock(std::move(block)));
     }
 };

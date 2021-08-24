@@ -31,11 +31,8 @@ TJournalChunkPtr IChunk::AsJournalChunk()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkReadGuard::TChunkReadGuard(
-    IChunkPtr chunk,
-    TFuture<void> readerPreparedFuture)
+TChunkReadGuard::TChunkReadGuard(IChunkPtr chunk)
     : Chunk_(std::move(chunk))
-    , ReaderPreparedFuture_(std::move(readerPreparedFuture))
 { }
 
 TChunkReadGuard::~TChunkReadGuard()
@@ -55,15 +52,15 @@ const IChunkPtr& TChunkReadGuard::GetChunk() const
     return Chunk_;
 }
 
-const TFuture<void>& TChunkReadGuard::GetReaderPreparedFuture() const
+TFuture<void> TChunkReadGuard::PrepareToReadChunkFragments(const TClientChunkReadOptions& options) const
 {
-    return ReaderPreparedFuture_;
+    return Chunk_->PrepareToReadChunkFragments(options);
 }
 
 TChunkReadGuard TChunkReadGuard::Acquire(IChunkPtr chunk)
 {
-    auto readerPreparedFuture = chunk->AcquireReadLock();
-    return TChunkReadGuard(std::move(chunk), std::move(readerPreparedFuture));
+    chunk->AcquireReadLock();
+    return TChunkReadGuard(std::move(chunk));
 }
 
 TChunkReadGuard TChunkReadGuard::TryAcquire(IChunkPtr chunk)

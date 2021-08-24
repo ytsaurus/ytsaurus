@@ -49,6 +49,9 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
                                       "max_hunk_count_per_read": 2,
                                       "max_total_hunk_length_per_read": 60,
                                   },
+                                  hunk_chunk_writer={
+                                      "desired_block_size": 50
+                                  },
                                   min_hunk_compaction_total_hunk_length=1,
                                   max_hunk_compaction_garbage_ratio=0.5,
                                   enable_lsm_verbose_logging=True,

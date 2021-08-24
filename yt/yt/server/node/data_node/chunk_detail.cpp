@@ -75,12 +75,25 @@ int TChunkBase::IncrementVersion()
     return ++Version_;
 }
 
-TFuture<void> TChunkBase::AcquireReadLock()
+TFuture<void> TChunkBase::PrepareToReadChunkFragments(
+    const TClientChunkReadOptions& /*options*/)
+{
+    THROW_ERROR_EXCEPTION("Chunk %v does not support reading fragments",
+        Id_);
+}
+
+NIO::IIOEngine::TReadRequest TChunkBase::MakeChunkFragmentReadRequest(
+    const NIO::TChunkFragmentDescriptor& /*fragmentDescriptor*/)
+{
+    THROW_ERROR_EXCEPTION("Chunk %v does not support reading fragments",
+        Id_);
+}
+
+void TChunkBase::AcquireReadLock()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     int lockCount;
-    TFuture<void> result;
     {
         auto guard = ReaderGuard(LifetimeLock_);
         if (RemoveScheduled_.load()) {
@@ -91,14 +104,11 @@ TFuture<void> TChunkBase::AcquireReadLock()
         }
         ReaderSweepLatch_ += 2;
         lockCount = ++ReadLockCounter_;
-        result = PrepareReader(guard);
     }
 
     YT_LOG_TRACE("Chunk read lock acquired (ChunkId: %v, LockCount: %v)",
         Id_,
         lockCount);
-
-    return result;
 }
 
 void TChunkBase::ReleaseReadLock()
@@ -257,12 +267,7 @@ void TChunkBase::StartAsyncRemove()
     RemovedPromise_.SetFrom(AsyncRemove());
 }
 
-TFuture<void> TChunkBase::PrepareReader(TReaderGuard& /* readerGuard */)
-{
-    return {};
-}
-
-void TChunkBase::ReleaseReader(TWriterGuard& /* writerGuard */)
+void TChunkBase::ReleaseReader(NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& /* writerGuard */)
 { }
 
 TRefCountedChunkMetaPtr TChunkBase::FilterMeta(

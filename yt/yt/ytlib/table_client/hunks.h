@@ -193,14 +193,16 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EHunkValueTag, ui8,
  *  2) tag == EHunkValueTag::LocalRef
  *  Value payload is moved to a hunk chunk and is referenced by index in THunkChunkRefsExt.
  *  * chunkIndex: varuint32
+ *  * blockIndex: varuint32
+ *  * blockOffset: varuint64
  *  * length: varuint64
- *  * offset: varuint64
  *
  *  3) tag == EHunkValueTag::GlobalRef
  *  Value payload is moved to a hunk chunk and is referenced by chunk id.
  *  * chunkId: TChunkId
+ *  * blockIndex: varuint32
+ *  * blockOffset: varuint64
  *  * length: varuint64
- *  * offset: varuint64
  */
 
 struct TInlineHunkValue
@@ -211,15 +213,17 @@ struct TInlineHunkValue
 struct TLocalRefHunkValue
 {
     int ChunkIndex;
+    int BlockIndex;
+    i64 BlockOffset;
     i64 Length;
-    i64 Offset;
 };
 
 struct TGlobalRefHunkValue
 {
     NChunkClient::TChunkId ChunkId;
+    int BlockIndex;
+    i64 BlockOffset;
     i64 Length;
-    i64 Offset;
 };
 
 using THunkValue = std::variant<
@@ -237,13 +241,15 @@ constexpr auto MaxLocalHunkRefSize =
     sizeof(ui8) +      // tag
     MaxVarUint32Size + // chunkIndex
     MaxVarUint64Size + // length
-    MaxVarUint64Size;  // offset
+    MaxVarUint32Size + // blockIndex
+    MaxVarUint64Size;  // blockOffset
 
 constexpr auto MaxGlobalHunkRefSize =
     sizeof(ui8) +                    // tag
     sizeof(NChunkClient::TChunkId) + // chunkId
     MaxVarUint64Size +               // length
-    MaxVarUint64Size;                // offset
+    MaxVarUint32Size +               // blockIndex
+    MaxVarUint64Size;                // blockOffset
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -328,9 +334,9 @@ struct IHunkChunkPayloadWriter
     : public virtual TRefCounted
 {
     //! Enqueues a given #payload for writing.
-    //! Returns an offset and a flag indicating if the caller must wait on
+    //! Returns |(blockIndex, blockOffset, ready)| where #ready indicates if the caller must wait on
     //! #GetReadyEvent before proceeding any further.
-    virtual std::tuple<i64, bool> WriteHunk(TRef payload) = 0;
+    virtual std::tuple<int, i64, bool> WriteHunk(TRef payload) = 0;
 
     //! Returns |true| if some hunks were added via #WriteHunk.
     virtual bool HasHunks() const = 0;

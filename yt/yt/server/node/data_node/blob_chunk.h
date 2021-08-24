@@ -46,6 +46,9 @@ public:
         int blockCount,
         const TChunkReadOptions& options) override;
 
+    virtual TFuture<void> PrepareToReadChunkFragments(
+        const NChunkClient::TClientChunkReadOptions& options) override;
+
     virtual NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor) override;
 
@@ -101,8 +104,7 @@ private:
 
     NIO::TChunkFileReaderPtr GetReader();
 
-    virtual TFuture<void> PrepareReader(TReaderGuard& readerGuard) override;
-    virtual void ReleaseReader(TWriterGuard& writerGuard) override;
+    virtual void ReleaseReader(NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& writerGuard) override;
 
     void CompleteSession(const TIntrusivePtr<TReadBlockSetSession>& session);
     static void FailSession(const TIntrusivePtr<TReadBlockSetSession>& session, const TError& error);

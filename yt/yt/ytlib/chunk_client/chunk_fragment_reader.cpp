@@ -455,8 +455,9 @@ private:
     struct TFragmentInfo
     {
         int FragmentIndex;
-        i64 Offset;
         i64 Length;
+        int BlockIndex;
+        i64 BlockOffset;
     };
 
     struct TChunkFragmentSetInfo
@@ -504,8 +505,9 @@ private:
 
             chunkIdToFragmentInfos[request.ChunkId].push_back({
                 .FragmentIndex = i,
-                .Offset = request.Offset,
-                .Length = request.Length
+                .Length = request.Length,
+                .BlockIndex = request.BlockIndex,
+                .BlockOffset = request.BlockOffset
             });
         }
 
@@ -922,8 +924,9 @@ private:
 
                 for (const auto& fragmentInfo : chunkFragmentSetInfos.FragmentInfos) {
                     auto* fragment = subrequest->add_fragments();
-                    fragment->set_offset(fragmentInfo.Offset);
                     fragment->set_length(fragmentInfo.Length);
+                    fragment->set_block_index(fragmentInfo.BlockIndex);
+                    fragment->set_block_offset(fragmentInfo.BlockOffset);
                 }
             }
 

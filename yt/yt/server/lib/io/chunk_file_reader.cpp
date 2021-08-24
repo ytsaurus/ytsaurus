@@ -29,6 +29,21 @@ static const auto& Logger = IOLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void FormatValue(TStringBuilderBase* builder, const TChunkFragmentDescriptor& descriptor, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("{%v,%v,%v}",
+        descriptor.Length,
+        descriptor.BlockIndex,
+        descriptor.BlockOffset);
+}
+
+TString ToString(const TChunkFragmentDescriptor& descriptor)
+{
+    return ToStringViaBuilder(descriptor);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TChunkFileReaderDataBufferTag
 { };
 
@@ -150,26 +165,73 @@ TChunkId TChunkFileReader::GetChunkId() const
     return ChunkId_;
 }
 
-TFuture<void> TChunkFileReader::PrepareToReadChunkFragments()
+TFuture<void> TChunkFileReader::PrepareToReadChunkFragments(const TClientChunkReadOptions& options)
 {
     // Fast path.
-    if (DataFileOpened_.load()) {
+    if (ChunkFragmentReadsPrepared_.load()) {
         return {};
     }
 
     // Slow path.
-    return OpenDataFile().AsVoid();
+    auto guard = Guard(ChunkFragmentReadsLock_);
+    if (!ChunkFragmentReadsPreparedFuture_) {
+        ChunkFragmentReadsPreparedFuture_ = OpenDataFile()
+            .Apply(BIND([=, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& /*ioEngine*/) {
+                if (BlocksExtCache_) {
+                    BlocksExt_ = BlocksExtCache_->Find();
+                }
+
+                if (BlocksExt_) {
+                    ChunkFragmentReadsPrepared_.store(true);
+                    return VoidFuture;
+                }
+
+                return DoReadMeta(options, std::nullopt)
+                    .Apply(BIND([=, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
+                        BlocksExt_ = New<TRefCountedBlocksExt>(GetProtoExtension<TBlocksExt>(meta->extensions()));
+                        if (BlocksExtCache_) {
+                            BlocksExtCache_->Put(meta, BlocksExt_);
+                        }
+                        ChunkFragmentReadsPrepared_.store(true);
+                    }));
+            }))
+            .ToUncancelable();
+    }
+    return ChunkFragmentReadsPreparedFuture_;
 }
 
 IIOEngine::TReadRequest TChunkFileReader::MakeChunkFragmentReadRequest(
     const TChunkFragmentDescriptor& fragmentDescriptor)
 {
-    YT_ASSERT(DataFileOpened_.load());
+    YT_ASSERT(ChunkFragmentReadsPrepared_.load());
+
+    if (fragmentDescriptor.BlockIndex < 0 ||
+        fragmentDescriptor.BlockIndex >= BlocksExt_->blocks_size())
+    {
+        THROW_ERROR_EXCEPTION("Invalid block index in fragment descriptor %v: expected in range [0,%v)",
+            fragmentDescriptor,
+            BlocksExt_->blocks_size());
+    }
+
+    if (fragmentDescriptor.Length < 0) {
+        THROW_ERROR_EXCEPTION("Invalid length in fragment descriptor %v",
+            fragmentDescriptor,
+            BlocksExt_->blocks_size());
+    }
+
+    const auto& blockInfo = BlocksExt_->blocks(fragmentDescriptor.BlockIndex);
+    if (fragmentDescriptor.BlockOffset < 0 ||
+        fragmentDescriptor.BlockOffset + fragmentDescriptor.Length > blockInfo.size())
+    {
+        THROW_ERROR_EXCEPTION("Invalid block offset in fragment descriptor %v for block of size %v",
+            fragmentDescriptor,
+            blockInfo.size());
+    }
 
     return IIOEngine::TReadRequest{
-        DataFile_,
-        fragmentDescriptor.Offset,
-        fragmentDescriptor.Length
+        .Handle = DataFile_,
+        .Offset = blockInfo.offset() + fragmentDescriptor.BlockOffset,
+        .Size = fragmentDescriptor.Length
     };
 }
 
@@ -389,7 +451,6 @@ TIOEngineHandlePtr TChunkFileReader::OnDataFileOpened(const TIOEngineHandlePtr& 
         static_cast<FHANDLE>(*file));
 
     DataFile_ = file;
-    DataFileOpened_.store(true);
 
     return file;
 }

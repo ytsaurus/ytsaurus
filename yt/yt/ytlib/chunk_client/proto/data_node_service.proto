@@ -260,10 +260,12 @@ message TReqGetChunkFragmentSet
 
         message TFragment
         {
-            // Chunk-wise offset.
-            required int64 offset = 1;
             // Length of the fragment.
-            required int32 length = 2;
+            required int32 length = 1;
+            // Chunk-wise block index.
+            required int32 block_index = 2;
+            // Block-wise offset.
+            required int64 block_offset = 3;
         }
 
         repeated TFragment fragments = 2;
