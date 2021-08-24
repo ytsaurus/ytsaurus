@@ -409,10 +409,12 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     """
     spark_discovery = SparkDiscovery(discovery_path=discovery_path)
 
-    if abort_existing:
-        current_operation_id = SparkDiscovery.getOption(spark_discovery.operation(), client=client)
-        if current_operation_id is not None:
+    current_operation_id = SparkDiscovery.getOption(spark_discovery.operation(), client=client)
+    if current_operation_id is not None:
+        if abort_existing:
             abort_operation(current_operation_id, client=client)
+        else:
+            raise RuntimeError("This spark cluster is started already, use --abort-existing for auto restarting")
 
     ytserver_proxy_path = latest_ytserver_proxy_path(spark_cluster_version, client=client)
     global_conf = read_global_conf(client=client)
