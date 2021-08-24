@@ -3215,7 +3215,7 @@ void TSchedulerOperationElement::OnJobFinished(TJobId jobId)
 
 void TSchedulerOperationElement::BuildElementMapping(TFairSharePostUpdateContext* context)
 {
-    if (OperationElementSharedState_->Enabled()) {
+    if (Parent_->IsEnabledChild(this)) {
         context->EnabledOperationIdToElement.emplace(OperationId_, this);
     } else {
         context->DisabledOperationIdToElement.emplace(OperationId_, this);
