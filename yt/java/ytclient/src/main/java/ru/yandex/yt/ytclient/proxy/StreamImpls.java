@@ -598,11 +598,6 @@ class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> implements Tab
     public TRowsetDescriptor getRowsetDescriptor() {
         return rowsSerializer.getRowsetDescriptor();
     }
-
-    @Override
-    public TableSchema getTableSchema() {
-        return schema;
-    }
 }
 
 class FileWriterImpl extends StreamWriterImpl<TRspWriteFile> implements FileWriter, RpcStreamConsumer {
