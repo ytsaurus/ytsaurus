@@ -300,7 +300,7 @@ void TNodeShard::StartOperationRevival(TOperationId operationId, TControllerEpoc
         JobsToSubmitToStrategy_.erase(jobId);
     }
 
-    for (auto jobId : operationState.JobsToSubmitToStrategy) {
+    for (const auto jobId : operationState.JobsToSubmitToStrategy) {
         JobsToSubmitToStrategy_.erase(jobId);
     }
     operationState.JobsToSubmitToStrategy.clear();
@@ -378,6 +378,10 @@ void TNodeShard::UnregisterOperation(TOperationId operationId)
 
     for (const auto& job : operationState.Jobs) {
         YT_VERIFY(job.second->GetUnregistered());
+    }
+    
+    for (const auto jobId : operationState.JobsToSubmitToStrategy) {
+        JobsToSubmitToStrategy_.erase(jobId);
     }
 
     SetOperationJobsReleaseDeadline(&operationState);
@@ -1773,7 +1777,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     HeartbeatJobCount_.Increment(request->jobs_size());
     HeartbeatStatisticBytes_.Increment(totalJobStatisticsSize);
     HeartbeatCount_.Increment();
-    
+
     node->SetRunningJobStatistics(runningJobStatistics);
 
     YT_LOG_DEBUG_UNLESS(
@@ -2224,25 +2228,26 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status, bool shoul
 
     job->ResourceUsage() = status->resource_usage();
 
-    auto it = JobsToSubmitToStrategy_.find(job->GetId());
-    if (it == JobsToSubmitToStrategy_.end() || it->second.Status != EJobUpdateStatus::Finished) {
-        JobsToSubmitToStrategy_[job->GetId()] = TJobUpdate{
-            EJobUpdateStatus::Running,
-            job->GetOperationId(),
-            job->GetId(),
-            job->GetTreeId(),
-            job->ResourceUsage(),
-            job->GetNode()->NodeDescriptor().GetDataCenter()
-        };
-    }
-
     YT_VERIFY(Dominates(job->ResourceUsage(), TJobResources()));
 
     auto* operationState = FindOperationState(job->GetOperationId());
     if (operationState) {
         const auto& controller = operationState->Controller;
         controller->OnJobRunning(job, status, shouldLogJob);
-        operationState->JobsToSubmitToStrategy.insert(job->GetId());
+
+        auto it = JobsToSubmitToStrategy_.find(job->GetId());
+        if (it == JobsToSubmitToStrategy_.end() || it->second.Status != EJobUpdateStatus::Finished) {
+            JobsToSubmitToStrategy_[job->GetId()] = TJobUpdate{
+                EJobUpdateStatus::Running,
+                job->GetOperationId(),
+                job->GetId(),
+                job->GetTreeId(),
+                job->ResourceUsage(),
+                job->GetNode()->NodeDescriptor().GetDataCenter()
+            };
+
+            operationState->JobsToSubmitToStrategy.insert(job->GetId());
+        }
     }
 }
 

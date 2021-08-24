@@ -848,7 +848,7 @@ public:
                     auto snapshotIt = snapshots.find(job.TreeId);
                     if (snapshotIt == snapshots.end()) {
                         // Job is finished but tree does not exist, nothing to do.
-                        YT_LOG_DEBUG("Skipping job update since pool tree is missing (OperationId: %v, JobId: %v)",
+                        YT_LOG_DEBUG("Dropping job update since pool tree is missing (OperationId: %v, JobId: %v)",
                             job.OperationId,
                             job.JobId);
                         continue;
@@ -856,13 +856,11 @@ public:
                     const auto& snapshot = snapshotIt->second;
                     if (snapshot->HasEnabledOperation(job.OperationId)) {
                         snapshot->ProcessFinishedJob(job.OperationId, job.JobId);
-                    } else if (snapshot->HasDisabledOperation(job.OperationId)) {
-                        YT_LOG_DEBUG("Postpone job update since operation is disabled (OperationId: %v, JobId: %v)",
+                    } else { 
+                        YT_LOG_DEBUG("Postpone job update since operation is disabled or missing in snapshot (OperationId: %v, JobId: %v)",
                             job.OperationId,
                             job.JobId);
                         jobsToPostpone.insert(job.JobId);
-                    } else {
-                        YT_LOG_DEBUG("Dropping finished job (OperationId: %v, JobId: %v)", job.OperationId, job.JobId);
                     }
                     break;
                 }
