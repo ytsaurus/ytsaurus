@@ -1,20 +1,22 @@
 package ru.yandex.spark.yt.serializers
 
 import java.io.ByteArrayOutputStream
-
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.yson.YsonType
-import org.apache.spark.unsafe.types.UTF8String
+import org.apache.spark.unsafe.types.{CalendarInterval, UTF8String}
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.YsonDecoder
 import ru.yandex.yt.ytclient.`object`.{WireRowDeserializer, WireValueDeserializer}
 import ru.yandex.yt.ytclient.tables.ColumnValueType
 
+import java.sql.{Date, Timestamp}
+import java.util.concurrent.TimeUnit
 import scala.collection.mutable
+import scala.concurrent.duration.Duration
 
 class InternalRowDeserializer(schema: StructType) extends WireRowDeserializer[InternalRow] with WireValueDeserializer[Any] {
   private var _values: Array[Any] = _
@@ -64,6 +66,8 @@ class InternalRowDeserializer(schema: StructType) extends WireRowDeserializer[In
         case IntegerType => addValue(value.toInt)
         case ShortType => addValue(value.toShort)
         case ByteType => addValue(value.toByte)
+        case DateType => addValue(value.toInt)
+        case TimestampType => addValue(value)
         case YsonType => addValue(toYsonBytes(value))
       }
     }

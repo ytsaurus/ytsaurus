@@ -17,14 +17,18 @@ import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 import org.apache.spark.sql.internal.SQLConf.PARALLEL_PARTITION_DISCOVERY_THRESHOLD
+import ru.yandex.type_info.TiType
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
+import java.sql.{Date, Timestamp}
+import java.time.{Instant, LocalDate, ZoneId}
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
 class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
   with TmpDir with TestUtils with MockitoSugar with TableDrivenPropertyChecks {
+  behavior of "YtFileFormat"
 
   import spark.implicits._
 
@@ -67,6 +71,28 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     res.select("a", "b", "c").collect() should contain theSameElementsAs Seq(
       Row(1, "a", 0.3),
       Row(2, "b", 0.5)
+    )
+  }
+
+  it should "read utf8, date, datetime, timestamp, interval datatypes" in {
+    writeTableFromYson(Seq(
+      """{utf8 = "12"; date = 1; datetime = 1000; timestamp = 1; interval = 1}""",
+      """{utf8 = "23"; date = 2; datetime = 3000; timestamp = 4; interval = 5}"""
+    ), tmpPath, new TableSchema.Builder()
+      .setUniqueKeys(false)
+      .addValue("utf8", TiType.utf8())
+      .addValue("date", TiType.date())
+      .addValue("datetime", TiType.datetime())
+      .addValue("timestamp", TiType.timestamp())
+      .addValue("interval", TiType.interval())
+      .build()
+    )
+    val res = spark.read.yt(tmpPath)
+
+    res.select("utf8", "date", "datetime", "timestamp", "interval")
+      .collect() should contain theSameElementsAs Seq(
+      Row("12", Date.valueOf(LocalDate.ofEpochDay(1)), new Timestamp(1), 1, 1),
+      Row("23", Date.valueOf(LocalDate.ofEpochDay(2)), new Timestamp(3), 4, 5)
     )
   }
 
