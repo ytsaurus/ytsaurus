@@ -79,6 +79,8 @@ protected:
     virtual IOutputStream* GetOutputStream() const noexcept = 0;
     virtual void OnException(const std::exception& ex);
 
+    void ResetCurrentSegment(i64 size);
+
     TRateLimitCounter* GetCategoryRateLimitCounter(TStringBuf category);
 
     const std::unique_ptr<ILogFormatter> LogFormatter_;
@@ -86,6 +88,9 @@ protected:
 
     TRateLimitCounter RateLimit_;
     THashMap<TStringBuf, TRateLimitCounter> CategoryToRateLimit_;
+
+    i64 CurrentSegmentSize_ = 0;
+    NProfiling::TGauge CurrentSegmentSizeGauge_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

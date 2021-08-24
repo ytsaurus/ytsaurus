@@ -83,6 +83,8 @@ TStreamLogWriterBase::TStreamLogWriterBase(std::unique_ptr<ILogFormatter> format
         std::nullopt,
         {},
         TProfiler{"/logging"}.WithSparse().WithTag("writer", Name_).Counter("/events_skipped_by_global_limit"))
+    , CurrentSegmentSizeGauge_(
+        TProfiler{"/logging"}.WithSparse().WithTag("writer", Name_).Gauge("/current_segment_size"))
 { }
 
 TStreamLogWriterBase::~TStreamLogWriterBase() = default;
@@ -110,6 +112,8 @@ void TStreamLogWriterBase::Write(const TLogEvent& event)
         }
         if (!RateLimit_.IsLimitReached() && !categoryRateLimit->IsLimitReached()) {
             auto bytesWritten = LogFormatter_->WriteFormatted(stream, event);
+            CurrentSegmentSize_ += bytesWritten;
+            CurrentSegmentSizeGauge_.Update(CurrentSegmentSize_);
             RateLimit_.UpdateCounter(bytesWritten);
             categoryRateLimit->UpdateCounter(bytesWritten);
         }
@@ -150,6 +154,12 @@ void TStreamLogWriterBase::OnException(const std::exception& ex)
 
     _exit(100);
     YT_ABORT();
+}
+
+void TStreamLogWriterBase::ResetCurrentSegment(i64 size)
+{
+    CurrentSegmentSize_ = size;
+    CurrentSegmentSizeGauge_.Update(CurrentSegmentSize_);
 }
 
 void TStreamLogWriterBase::SetRateLimit(std::optional<size_t> limit)
@@ -314,6 +324,8 @@ void TFileLogWriter::Open()
         }
 
         LogFormatter_->WriteLogStartEvent(GetOutputStream());
+
+        ResetCurrentSegment(File_->GetLength());
     } catch (const std::exception& ex) {
         Disabled_ = true;
         YT_LOG_ERROR(ex, "Failed to open log file (FileName: %v)", FileName_);
