@@ -13,7 +13,7 @@ public:
     // IJobController implementation.
     virtual void ScheduleJobs(IJobSchedulingContext* context) override
     {
-        for (const auto& [jobType, jobController] : JobTypeToJobController_) {
+        for (const auto& jobController : JobControllers_) {
             jobController->ScheduleJobs(context);
         }
     }
@@ -51,11 +51,13 @@ public:
     // ICompositeJobController implementation.
     virtual void RegisterJobController(EJobType jobType, IJobControllerPtr controller) override
     {
-        YT_VERIFY(JobTypeToJobController_.emplace(jobType, std::move(controller)).second);
+        YT_VERIFY(JobTypeToJobController_.emplace(jobType, controller).second);
+        JobControllers_.insert(std::move(controller));
     }
 
 private:
     THashMap<EJobType, IJobControllerPtr> JobTypeToJobController_;
+    THashSet<IJobControllerPtr> JobControllers_;
 
     const IJobControllerPtr& GetControllerForJob(const TJobPtr& job) const
     {
