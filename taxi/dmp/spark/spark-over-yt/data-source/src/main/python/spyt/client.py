@@ -30,6 +30,8 @@ class SparkInfo(object):
         client = YtClient(proxy=yt_proxy, token=yt_token)
         discovery_path = self.spark.conf.get("spark.yt.master.discoveryPath")
         discovery = SparkDiscovery(discovery_path=discovery_path)
+        shs_url = SparkDiscovery.getOption(discovery.shs(), client=client)
+        app_id = self.spark.conf.get("spark.app.id")
         master_web_ui = SparkDiscovery.get(discovery.master_webui(), client=client)
         spyt_version = self.spark.conf.get("spark.yt.version")
         spyt_cluster_version = self.spark.conf.get("spark.yt.cluster.version")
@@ -38,6 +40,7 @@ class SparkInfo(object):
                 <p><b>SPYT</b></p>
                 
                 <p><a href="{master_web_ui}">Master Web UI</a></p>
+                <p><a href="http://{shs_url}/history/{app_id}/jobs/">Spark history server</a></p>
                 <dl>
                   <dt>Yt Cluster</dt>
                     <dd><code>{yt_proxy}</code></dd>
@@ -54,6 +57,8 @@ class SparkInfo(object):
             master_web_ui=master_web_ui,
             spyt_cluster_version=spyt_cluster_version,
             spyt_version=spyt_version,
+            shs_url=shs_url,
+            app_id=app_id,
             sc_HTML=self.spark.sparkContext._repr_html_()
         )
 
@@ -292,8 +297,12 @@ def connect(num_executors=5,
 
     spark = SparkSession.builder.config(conf=conf).getOrCreate()
 
+    discovery = SparkDiscovery(discovery_path=discovery_path)
+    shs_url = SparkDiscovery.getOption(discovery.shs(), client=client)
+    app_id = spark.conf.get("spark.app.id")
     logger.info("SPYT Cluster version: {}".format(spark.conf.get("spark.yt.cluster.version", default=None)))
     logger.info("SPYT library version: {}".format(spark.conf.get("spark.yt.version", default=None)))
+    logger.info("SHS link: http://{}/history/{}/jobs/".format(shs_url, app_id))
 
     return spark
 
