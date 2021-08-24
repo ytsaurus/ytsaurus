@@ -284,6 +284,8 @@ public:
 
     bool EnableConditionalPreemption;
 
+    bool UseResourceUsageWithPrecommit;
+
     TFairShareStrategyTreeConfig();
 };
 
