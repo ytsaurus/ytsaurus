@@ -179,6 +179,7 @@ DEFINE_ENUM(EMasterReign,
     ((SyncAlienCells)                                               (1652))  // savrus
     ((ErasureInMemory)                                              (1653))  // akozhikhov
     ((FixPreserveOwnerUnderTx)                                      (1654))  // aleksandra-zh
+    ((XdeltaAggregation)                                            (1655))  // leasid
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1700))  // ignat
 );
