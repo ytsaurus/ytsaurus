@@ -1,9 +1,10 @@
 #include "discovery_service.h"
-#include "proxy_coordinator.h"
-#include "config.h"
-#include "public.h"
-#include "private.h"
+
 #include "bootstrap.h"
+#include "config.h"
+#include "private.h"
+
+#include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
@@ -101,18 +102,10 @@ public:
             Bootstrap_->GetControlInvoker(),
             BIND(&TDiscoveryService::OnPeriodicEvent, MakeWeak(this), &TDiscoveryService::UpdateProxies),
             TPeriodicExecutorOptions::WithJitter(Config_->ProxyUpdatePeriod)))
+        , GrpcProxyPath_(BuildGrpcProxyPath())
     {
-        if (Bootstrap_->GetConfig()->GrpcServer) {
-            const auto& addresses = Bootstrap_->GetConfig()->GrpcServer->Addresses;
-            YT_VERIFY(addresses.size() == 1);
-
-            int port;
-            ParseServiceAddress(addresses[0]->Address, nullptr, &port);
-
-            GrpcProxyPath_ = GrpcProxiesPath + "/" + BuildServiceAddress(GetLocalHostName(), port);
-        }
-
-        Initialize();
+        AliveUpdateExecutor_->Start();
+        ProxyUpdateExecutor_->Start();
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DiscoverProxies));
     }
@@ -125,8 +118,7 @@ private:
     const TString ProxyPath_;
     const TPeriodicExecutorPtr AliveUpdateExecutor_;
     const TPeriodicExecutorPtr ProxyUpdateExecutor_;
-
-    std::optional<TString> GrpcProxyPath_;
+    const std::optional<TString> GrpcProxyPath_;
 
     TInstant LastSuccessTimestamp_ = Now();
 
@@ -143,10 +135,20 @@ private:
     bool Initialized_ = false;
 
 
-    void Initialize()
+    std::optional<TString> BuildGrpcProxyPath()
     {
-        AliveUpdateExecutor_->Start();
-        ProxyUpdateExecutor_->Start();
+        const auto& grpcServerConfig = Bootstrap_->GetConfig()->GrpcServer;
+        if (!grpcServerConfig) {
+            return std::nullopt;
+        }
+
+        const auto& addresses = grpcServerConfig->Addresses;
+        YT_VERIFY(addresses.size() == 1);
+
+        int port;
+        ParseServiceAddress(addresses[0]->Address, nullptr, &port);
+
+        return GrpcProxiesPath + "/" + BuildServiceAddress(GetLocalHostName(), port);
     }
 
     std::vector<TString> GetCypressPaths() const

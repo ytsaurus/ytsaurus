@@ -2,17 +2,9 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/rpc_proxy/access_checker.h>
+
 namespace NYT::NRpcProxy {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IAccessChecker
-    : public TRefCounted
-{
-    virtual TError ValidateAccess(const TString& user) const = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IAccessChecker)
 
 ////////////////////////////////////////////////////////////////////////////////
 

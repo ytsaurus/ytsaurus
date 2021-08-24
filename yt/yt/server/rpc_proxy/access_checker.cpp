@@ -4,7 +4,8 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "dynamic_config_manager.h"
-#include "proxy_coordinator.h"
+
+#include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 

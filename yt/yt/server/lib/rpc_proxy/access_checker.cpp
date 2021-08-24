@@ -1,0 +1,26 @@
+#include "access_checker.h"
+
+namespace NYT::NRpcProxy {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNoopAccessChecker
+    : public IAccessChecker
+{
+public:
+    virtual TError ValidateAccess(const TString& /* user */) const override
+    {
+        return TError();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IAccessCheckerPtr CreateNoopAccessChecker()
+{
+    return New<TNoopAccessChecker>();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NRpcProxy

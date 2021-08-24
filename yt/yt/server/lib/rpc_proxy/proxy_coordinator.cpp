@@ -1,28 +1,11 @@
 #include "proxy_coordinator.h"
 
-#include "bootstrap.h"
-#include "dynamic_config_manager.h"
-
-#include <yt/yt/ytlib/security_client/public.h>
-
-#include <yt/yt/core/rpc/public.h>
-#include <yt/yt/core/rpc/service.h>
-
-#include <yt/yt/core/ytree/ypath_proxy.h>
-
 #include <yt/yt/core/misc/atomic_object.h>
-
-#include <yt/yt/library/tracing/jaeger/sampler.h>
+#include <yt/yt/core/rpc/public.h>
 
 #include <atomic>
 
 namespace NYT::NRpcProxy {
-
-using namespace NRpc;
-using namespace NConcurrency;
-using namespace NTracing;
-using namespace NYson;
-using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,10 +13,6 @@ class TProxyCoordinator
     : public IProxyCoordinator
 {
 public:
-    explicit TProxyCoordinator(TBootstrap* bootstrap);
-
-    virtual void Initialize() override;
-
     virtual bool SetBannedState(bool banned) override;
     virtual bool GetBannedState() const override;
 
@@ -49,40 +28,18 @@ public:
     virtual bool GetOperableState() const override;
     virtual void ValidateOperable() const override;
 
-    virtual const TSamplerPtr& GetTraceSampler() override;
-
-public:
     DEFINE_SIGNAL_OVERRIDE(void(const std::optional<TString>&), OnProxyRoleChanged);
 
 private:
-    TBootstrap* Bootstrap_;
-    const NTracing::TSamplerPtr Sampler_;
-
     std::atomic<bool> Banned_ = false;
     std::atomic<bool> Available_ = false;
 
     TAtomicObject<TString> BanMessage_;
 
     TAtomicObject<std::optional<TString>> ProxyRole_;
-
-
-    void BuildOrchid(IYsonConsumer* consumer);
-
-    void OnDynamicConfigChanged(
-        const TProxyDynamicConfigPtr& /*oldConfig*/,
-        const TProxyDynamicConfigPtr& newConfig);
 };
 
-TProxyCoordinator::TProxyCoordinator(TBootstrap* bootstrap)
-    : Bootstrap_(bootstrap)
-    , Sampler_(New<TSampler>())
-{ }
-
-void TProxyCoordinator::Initialize()
-{
-    const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-    dynamicConfigManager->SubscribeConfigChanged(BIND(&TProxyCoordinator::OnDynamicConfigChanged, MakeWeak(this)));
-}
+////////////////////////////////////////////////////////////////////////////////
 
 bool TProxyCoordinator::SetBannedState(bool banned)
 {
@@ -141,23 +98,11 @@ void TProxyCoordinator::ValidateOperable() const
     }
 }
 
-const TSamplerPtr& TProxyCoordinator::GetTraceSampler()
-{
-    return Sampler_;
-}
-
-void TProxyCoordinator::OnDynamicConfigChanged(
-    const TProxyDynamicConfigPtr& /*oldConfig*/,
-    const TProxyDynamicConfigPtr& newConfig)
-{
-    Sampler_->UpdateConfig(newConfig->Tracing);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-IProxyCoordinatorPtr CreateProxyCoordinator(TBootstrap* bootstrap)
+IProxyCoordinatorPtr CreateProxyCoordinator()
 {
-    return New<TProxyCoordinator>(bootstrap);
+    return New<TProxyCoordinator>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

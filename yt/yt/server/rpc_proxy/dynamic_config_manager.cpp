@@ -2,7 +2,8 @@
 
 #include "bootstrap.h"
 #include "config.h"
-#include "proxy_coordinator.h"
+
+#include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 
 #include <yt/yt/core/net/local_address.h>
 

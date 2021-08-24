@@ -2,18 +2,18 @@
 
 #include "access_checker.h"
 #include "config.h"
+#include "discovery_service.h"
 #include "dynamic_config_manager.h"
+#include "private.h"
+
+#include <yt/yt/server/lib/rpc_proxy/api_service.h>
+#include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
 
 #include <yt/yt/server/lib/core_dump/core_dumper.h>
-
-#include <yt/yt/server/rpc_proxy/api_service.h>
-#include <yt/yt/server/rpc_proxy/discovery_service.h>
-#include <yt/yt/server/rpc_proxy/proxy_coordinator.h>
-#include <yt/yt/server/rpc_proxy/private.h>
 
 #include <yt/yt/ytlib/program/build_attributes.h>
 
@@ -28,6 +28,8 @@
 #include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/ytlib/auth/authentication_manager.h>
+
+#include <yt/yt/library/tracing/jaeger/sampler.h>
 
 #include <yt/yt/core/bus/server.h>
 
@@ -137,7 +139,8 @@ void TBootstrap::DoRun()
         Config_,
         HttpPoller_,
         NativeClient_);
-    ProxyCoordinator_ = CreateProxyCoordinator(this);
+    ProxyCoordinator_ = CreateProxyCoordinator();
+    TraceSampler_ = New<NTracing::TSampler>();
 
     DynamicConfigManager_ = CreateDynamicConfigManager(this);
     DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
@@ -178,10 +181,9 @@ void TBootstrap::DoRun()
         orchidRoot,
         GetControlInvoker()));
 
-    ApiService_ = CreateApiService(this);
+    ApiService_ = CreateApiService(this, RpcProxyLogger, RpcProxyProfiler);
     RpcServer_->RegisterService(ApiService_);
 
-    ProxyCoordinator_->Initialize();
     DynamicConfigManager_->Initialize();
     DynamicConfigManager_->Start();
 
@@ -219,6 +221,60 @@ void TBootstrap::DoRun()
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+const IInvokerPtr& TBootstrap::GetWorkerInvoker() const
+{
+    return WorkerPool_->GetInvoker();
+}
+
+const IAuthenticatorPtr& TBootstrap::GetRpcAuthenticator() const
+{
+    return AuthenticationManager_->GetRpcAuthenticator();
+}
+
+TApiServiceConfigPtr TBootstrap::GetConfigApiService() const
+{
+    return Config_->ApiService;
+}
+
+NAuth::TAuthenticationManagerConfigPtr TBootstrap::GetConfigAuthenticationManager() const
+{
+    return Config_;
+}
+
+TApiServiceDynamicConfigPtr TBootstrap::GetDynamicConfigApiService() const
+{
+    return GetDynamicConfig()->Api;
+}
+
+const NTracing::TSamplerPtr& TBootstrap::GetTraceSampler() const
+{
+    return TraceSampler_;
+}
+
+const IProxyCoordinatorPtr& TBootstrap::GetProxyCoordinator() const
+{
+    return ProxyCoordinator_;
+}
+
+const IAccessCheckerPtr& TBootstrap::GetAccessChecker() const
+{
+    return AccessChecker_;
+}
+
+const NNative::IConnectionPtr& TBootstrap::GetNativeConnection() const
+{
+    return NativeConnection_;
+}
+
+const NNative::IClientPtr& TBootstrap::GetNativeClient() const
+{
+    return NativeClient_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 const TProxyConfigPtr& TBootstrap::GetConfig() const
 {
     return Config_;
@@ -234,31 +290,6 @@ const IInvokerPtr& TBootstrap::GetControlInvoker() const
     return ControlQueue_->GetInvoker();
 }
 
-const IInvokerPtr& TBootstrap::GetWorkerInvoker() const
-{
-    return WorkerPool_->GetInvoker();
-}
-
-const NNative::IConnectionPtr& TBootstrap::GetNativeConnection() const
-{
-    return NativeConnection_;
-}
-
-const NNative::IClientPtr& TBootstrap::GetNativeClient() const
-{
-    return NativeClient_;
-}
-
-const IAuthenticatorPtr& TBootstrap::GetRpcAuthenticator() const
-{
-    return AuthenticationManager_->GetRpcAuthenticator();
-}
-
-const IProxyCoordinatorPtr& TBootstrap::GetProxyCoordinator() const
-{
-    return ProxyCoordinator_;
-}
-
 const NNodeTrackerClient::TAddressMap& TBootstrap::GetLocalAddresses() const
 {
     return LocalAddresses_;
@@ -269,16 +300,15 @@ const IDynamicConfigManagerPtr& TBootstrap::GetDynamicConfigManager() const
     return DynamicConfigManager_;
 }
 
-const IAccessCheckerPtr& TBootstrap::GetAccessChecker() const
-{
-    return AccessChecker_;
-}
+////////////////////////////////////////////////////////////////////////////////
 
 void TBootstrap::OnDynamicConfigChanged(
     const TProxyDynamicConfigPtr& /*oldConfig*/,
     const TProxyDynamicConfigPtr& newConfig)
 {
     ReconfigureSingletons(Config_, newConfig);
+
+    TraceSampler_->UpdateConfig(newConfig->Tracing);
 
     DynamicConfig_.Store(newConfig);
 }

@@ -2,13 +2,7 @@
 
 #include "public.h"
 
-#include "config.h"
-
-#include <yt/yt/client/api/rpc_proxy/public.h>
-
-#include <yt/yt/core/rpc/public.h>
-
-#include <yt/yt/library/tracing/jaeger/sampler.h>
+#include <yt/yt/core/actions/signal.h>
 
 namespace NYT::NRpcProxy {
 
@@ -17,8 +11,6 @@ namespace NYT::NRpcProxy {
 struct IProxyCoordinator
     : public virtual TRefCounted
 {
-    virtual void Initialize() = 0;
-
     virtual bool SetBannedState(bool banned) = 0;
     virtual bool GetBannedState() const = 0;
 
@@ -34,8 +26,6 @@ struct IProxyCoordinator
     virtual bool GetOperableState() const = 0;
     virtual void ValidateOperable() const = 0;
 
-    virtual const NTracing::TSamplerPtr& GetTraceSampler() = 0;
-
     DECLARE_INTERFACE_SIGNAL(void(const std::optional<TString>& newRole), OnProxyRoleChanged);
 };
 
@@ -43,7 +33,7 @@ DEFINE_REFCOUNTED_TYPE(IProxyCoordinator)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IProxyCoordinatorPtr CreateProxyCoordinator(TBootstrap* bootstrap);
+IProxyCoordinatorPtr CreateProxyCoordinator();
 
 ////////////////////////////////////////////////////////////////////////////////
 
