@@ -430,6 +430,7 @@ public:
         TreeConfig_->AggressivePreemptionSatisfactionThreshold = 0.5;
         TreeConfig_->MinChildHeapSize = 3;
         TreeConfig_->EnableConditionalPreemption = true;
+        TreeConfig_->UseResourceUsageWithPrecommit = false;
     }
 
 protected:

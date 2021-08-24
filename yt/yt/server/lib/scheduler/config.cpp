@@ -297,6 +297,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
 
     RegisterParameter("enable_conditional_preemption", EnableConditionalPreemption)
         .Default(false);
+    
+    RegisterParameter("use_resource_usage_with_precommit", UseResourceUsageWithPrecommit)
+        .Default(false);
 
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
