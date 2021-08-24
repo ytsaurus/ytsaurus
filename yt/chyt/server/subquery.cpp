@@ -686,7 +686,12 @@ private:
     void RegisterDataSlice(TDataSliceDescriptor& dataSliceDescriptor)
     {
         auto& chunkSpec = dataSliceDescriptor.GetSingleChunk();
-        auto inputChunk = New<TInputChunk>(chunkSpec);
+
+        auto tableIndex = chunkSpec.table_index();
+        int keyLength = InputTables_[tableIndex]->Comparator.GetLength();
+
+        auto inputChunk = New<TInputChunk>(chunkSpec, keyLength);
+
         auto miscExt = FindProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
         if (miscExt) {
             // Note that misc extension for given chunk may already be present as same chunk may appear several times.
@@ -694,8 +699,6 @@ private:
         } else {
             MiscExtMap_.emplace(inputChunk->GetChunkId(), nullptr);
         }
-
-        auto tableIndex = inputChunk->GetTableIndex();
 
         auto chunkSlice = CreateInputChunkSlice(std::move(inputChunk));
         if (OperandSchemas_[InputTables_[tableIndex]->OperandIndex]->IsSorted()) {
@@ -705,7 +708,6 @@ private:
 
         dataSlice->VirtualRowIndex = dataSliceDescriptor.VirtualRowIndex;
 
-        int keyLength = InputTables_[tableIndex]->Comparator.GetLength();
         dataSlice->TransformToNew(RowBuffer_, keyLength, /* trimChunkSliceKeys */ true);
 
         InputDataSlices_[tableIndex].emplace_back(std::move(dataSlice));

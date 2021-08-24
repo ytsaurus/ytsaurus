@@ -1,5 +1,5 @@
 from yt_commands import (create, authors, write_table, insert_rows, get, sync_reshard_table, sync_mount_table,
-                         read_table, get_singular_chunk_id, copy, raises_yt_error)
+                         read_table, get_singular_chunk_id, copy, raises_yt_error, alter_table)
 
 from base import ClickHouseTestBase, Clique, QueryFailedError
 
@@ -595,3 +595,35 @@ class TestInputFetching(ClickHouseTestBase):
                 clique.make_query("select * from `//tmp/t_dynamic` as a join `//tmp/t_static` as b using a") == []
             with raises_yt_error(QueryFailedError):
                 clique.make_query("select * from `//tmp/t_static` as a join `//tmp/t_dynamic` as b using a") == []
+
+    # CHYT-647
+    @authors("dakovalkov")
+    def test_long_chunk_key(self):
+        create(
+            "table",
+            "//tmp/t0",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                    {"name": "b", "type": "int64", "sort_order": "ascending"},
+                ],
+            },
+        )
+
+        write_table("//tmp/t0", [{"a": 1, "b": 1}, {"a": 2, "b": 2}])
+        write_table("<append=%true>//tmp/t0", [{"a": 3, "b": 3}])
+
+        alter_table(
+            "//tmp/t0",
+            schema=[
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64", "sort_order": None},
+            ],
+        )
+
+        with Clique(1) as clique:
+            query = 'select a from "//tmp/t0" order by a'
+            assert clique.make_query(query) == [{"a": 1}, {"a": 2}, {"a": 3}]
+
+            query = 'select a from "//tmp/t0" where a = 1 order by a'
+            assert clique.make_query(query) == [{"a": 1}]
