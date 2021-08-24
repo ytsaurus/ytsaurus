@@ -12,6 +12,11 @@ from yt.common import YtError
 
 import pytest
 
+from yt.xdelta_aggregate_column.bindings import State
+from yt.xdelta_aggregate_column.bindings import StateEncoder
+from yt.xdelta_aggregate_column.bindings import XDeltaCodec
+
+
 ##################################################################
 
 
@@ -353,9 +358,107 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):
             self._create_table_with_aggregate_column("//tmp/t", aggregate=aggregate)
 
+    @authors("leasid")
+    def test_aggregate_xdelta(self):
+        sync_create_cells(1)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "time", "type": "int64"},
+            {"name": "value", "type": "string", "aggregate": "xdelta"},
+        ]
+        create_dynamic_table("//tmp/t", schema=schema)
+        sync_mount_table("//tmp/t")
+
+        encoder = StateEncoder(None)
+        codec = XDeltaCodec(None)
+
+        # basic case: write patches
+        base = b""
+        state = b"123456"
+        patch = encoder.create_patch_state((base, state))
+        insert_rows("//tmp/t", [{"key": 1, "time": 1, "value": patch}], aggregate=True)
+
+        state1 = b"567890"
+        patch = encoder.create_patch_state((state, state1))
+        insert_rows("//tmp/t", [{"key": 1, "time": 2, "value": patch}], aggregate=True)
+
+        row = lookup_rows("//tmp/t", [{"key": 1}])
+        result = State(row[0]["value"])
+        assert result.type == result.PATCH_TYPE
+        result_state = codec.apply_patch((base, result.payload_data, len(state1)))
+        assert result_state == state1
+
+        state2 = b"7890"
+        patch = encoder.create_patch_state((state1, state2))
+        insert_rows("//tmp/t", [{"key": 1, "time": 3, "value": patch}], aggregate=True)
+
+        row = lookup_rows("//tmp/t", [{"key": 1}])
+        result = State(row[0]["value"])
+        assert result.type == result.PATCH_TYPE
+        result_state = codec.apply_patch((base, result.payload_data, len(state2)))
+        assert result_state == state2
+
+        # overwrite state
+        base = state
+        base_state = encoder.create_base_state(base)
+        insert_rows("//tmp/t", [{"key": 1, "time": 4, "value": base_state}], aggregate=True)
+
+        row = lookup_rows("//tmp/t", [{"key": 1}])
+        result = State(row[0]["value"])
+        assert result.type == result.BASE_TYPE
+        assert result.payload_data == base
+
+        patch = encoder.create_patch_state((base, state2))
+        insert_rows("//tmp/t", [{"key": 1, "time": 5, "value": patch}], aggregate=True)
+
+        row = lookup_rows("//tmp/t", [{"key": 1}])
+        result = State(row[0]["value"])
+        assert result.type == result.BASE_TYPE
+        assert result.payload_data == state2
+
+        # test null as patch
+        patch = encoder.create_patch_state((state2, state2))
+        insert_rows("//tmp/t", [{"key": 1, "time": 6, "value": patch}], aggregate=True)
+
+        row = lookup_rows("//tmp/t", [{"key": 1}])
+        result = State(row[0]["value"])
+        assert result.type == result.BASE_TYPE
+        assert result.payload_data == state2
+
+        # plant error
+        patch = encoder.create_patch_state((state1, state2))  # inconsistent patch - not applicable for stored base
+        insert_rows("//tmp/t", [{"key": 1, "time": 7, "value": patch}], aggregate=True)
+
+        row = lookup_rows("//tmp/t", [{"key": 1}])
+        result = State(row[0]["value"])
+        assert result.type == result.ERROR_TYPE
+        assert result.has_error_code
+        assert result.error_code > 0  # base hash error
+
+        # fix error
+        base_state = encoder.create_base_state(base)
+        insert_rows("//tmp/t", [{"key": 1, "time": 8, "value": base_state}], aggregate=True)
+
+        row = lookup_rows("//tmp/t", [{"key": 1}])
+        result = State(row[0]["value"])
+        assert result.type == result.BASE_TYPE
+        assert result.payload_data == base
+
+        patch = encoder.create_patch_state((base, state2))
+        insert_rows("//tmp/t", [{"key": 1, "time": 9, "value": patch}], aggregate=True)
+
+        row = lookup_rows("//tmp/t", [{"key": 1}])
+        result = State(row[0]["value"])
+        assert result.type == result.BASE_TYPE
+        assert result.payload_data == state2
+
+        # delete rows
+        delete_rows("//tmp/t", [{"key": 1}])
+        row = lookup_rows("//tmp/t", [{"key": 1}])
+        assert_items_equal(row, [])
+
 
 ##################################################################
-
 
 class TestAggregateColumnsMulticell(TestAggregateColumns):
     NUM_SECONDARY_MASTER_CELLS = 2

@@ -938,6 +938,19 @@ void RegisterBuiltinFunctions(
         UDF_BC(first),
         ECallingConvention::UnversionedValue,
         true);
+    
+    auto xdeltaConstraints = std::unordered_map<TTypeArgument, TUnionType>();
+    xdeltaConstraints[typeArg] = std::vector<EValueType>{
+        EValueType::Null,
+        EValueType::String};
+    builder.RegisterAggregate(
+        "xdelta",
+        xdeltaConstraints,
+        typeArg,
+        typeArg,
+        typeArg,
+        UDF_BC(xdelta),
+        ECallingConvention::UnversionedValue);
 
     if (typeInferrers) {
         typeInferrers->emplace("sum", New<TAggregateTypeInferrer>(

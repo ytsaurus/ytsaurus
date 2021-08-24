@@ -1404,7 +1404,8 @@ void ValidateColumnSchema(
         "sum",
         "min",
         "max",
-        "first"
+        "first",
+        "xdelta"
     };
 
     const auto& name = columnSchema.Name();

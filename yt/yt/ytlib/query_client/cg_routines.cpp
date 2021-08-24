@@ -35,6 +35,8 @@
 
 #include <contrib/libs/re2/re2/re2.h>
 
+#include <library/cpp/xdelta3/state/merge.h>
+
 #include <util/charset/utf8.h>
 
 #include <mutex>
@@ -1254,6 +1256,48 @@ void RegexEscape(
     CopyString(context, result, str);
 }
 
+static void* XdeltaAllocate(void* opaque, size_t size)
+{
+    if (opaque) {
+        return reinterpret_cast<uint8_t*>(NRoutines::AllocateBytes(static_cast<NYT::NCodegen::TExpressionContext*>(opaque), size));
+    }
+    return reinterpret_cast<uint8_t*>(malloc(size));
+}
+
+static void XdeltaFree(void* opaque, void* ptr)
+{
+    if (!opaque) {
+        free(ptr);
+    }
+}
+
+int XdeltaMerge(
+    void* context,
+    const uint8_t* lhsData,
+    size_t lhsSize,
+    const uint8_t* rhsData,
+    size_t rhsSize,
+    const uint8_t** resultData,
+    size_t* resultOffset,
+    size_t* resultSize)
+{
+    NXdeltaAggregateColumn::TSpan result;
+    XDeltaContext ctx{
+        .opaque = context,
+        .allocate = XdeltaAllocate,
+        .free = XdeltaFree
+    };
+    auto code = NXdeltaAggregateColumn::MergeStates(&ctx, lhsData, lhsSize, rhsData, rhsSize, &result);
+    if (code == 0) {
+        ThrowException("Failed to merge xdelta states");
+    }
+    *resultData = result.Data;
+    *resultOffset = result.Offset;
+    *resultSize = result.Size;
+
+    return code;
+}
+
 #define DEFINE_YPATH_GET_IMPL2(PREFIX, TYPE, STATEMENT_OK, STATEMENT_FAIL) \
     void PREFIX ## Get ## TYPE( \
         [[maybe_unused]] TExpressionContext* context, \
@@ -1811,6 +1855,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(RegexReplaceAll);
     REGISTER_ROUTINE(RegexExtract);
     REGISTER_ROUTINE(RegexEscape);
+    REGISTER_ROUTINE(XdeltaMerge);
     REGISTER_ROUTINE(ToLowerUTF8);
     REGISTER_ROUTINE(GetFarmFingerprint);
     REGISTER_ROUTINE(CompareAny);
