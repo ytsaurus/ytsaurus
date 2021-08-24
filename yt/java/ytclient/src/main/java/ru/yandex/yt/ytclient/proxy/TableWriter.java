@@ -28,8 +28,5 @@ public interface TableWriter<T> {
     //! Returns the name table to be used for constructing rows.
     TRowsetDescriptor getRowsetDescriptor();
 
-    //! Returns the schema to be used for constructing rows.
-    TableSchema getTableSchema();
-
     void cancel();
 }
