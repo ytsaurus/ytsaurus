@@ -82,7 +82,7 @@ TStreamLogWriterBase::TStreamLogWriterBase(std::unique_ptr<ILogFormatter> format
     , RateLimit_(
         std::nullopt,
         {},
-        TProfiler{"/logging"}.WithSparse().WithTag("writer", name).Counter("/events_skipped_by_global_limit"))
+        TProfiler{"/logging"}.WithSparse().WithTag("writer", Name_).Counter("/events_skipped_by_global_limit"))
 { }
 
 TStreamLogWriterBase::~TStreamLogWriterBase() = default;
