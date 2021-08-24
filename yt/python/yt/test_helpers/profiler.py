@@ -95,7 +95,9 @@ class Profiler(object):
     def list(self, **kwargs):
         return self.yt_client.list(self.path, format=YsonFormat(), **kwargs)
 
-    def get(self, name, tags, verbose=True, verbose_value_name="value", postprocessor=lambda value: value, default=None, **kwargs):
+    def get(self, name, tags=None, verbose=True, verbose_value_name="value", postprocessor=lambda value: value, default=None, **kwargs):
+        if tags is None:
+            tags = {}
         tags = dict(self.fixed_tags, **tags)
 
         if "export_summary_as_max" in kwargs:
@@ -131,7 +133,9 @@ class Profiler(object):
 
         return value
 
-    def get_all(self, name, tags, **kwargs):
+    def get_all(self, name, tags=None, **kwargs):
+        if tags is None:
+            tags = {}
         return self.get(name, tags, verbose_value_name="projections", read_all_projections=True, default=[], **kwargs)
 
     class _Sensor(object):
