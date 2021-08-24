@@ -502,10 +502,65 @@ NApi::IConnectionPtr TClient::GetReplicaConnectionOrThrow(const TString& cluster
 
 NApi::IClientPtr TClient::GetOrCreateReplicaClient(const TString& clusterName)
 {
-    return *ReplicaClients_.FindOrInsert(clusterName, [&] {
-        auto replicaConnection = GetReplicaConnectionOrThrow(clusterName);
-        return replicaConnection->CreateClient(Options_);
-    }).first;
+    TIntrusivePtr<TReplicaClient> replicaClient;
+
+    {
+        auto guard = ReaderGuard(ReplicaClientsLock_);
+        if (auto it = ReplicaClients_.find(clusterName); it != ReplicaClients_.end()) {
+            replicaClient = it->second;
+        } else {
+            guard.Release();
+
+            auto guard = WriterGuard(ReplicaClientsLock_);
+            if (auto it = ReplicaClients_.find(clusterName); it != ReplicaClients_.end()) {
+                replicaClient = it->second;
+            } else {
+                replicaClient = New<TReplicaClient>();
+                ReplicaClients_.emplace(clusterName, replicaClient);
+            }
+        }
+    }
+
+    auto guard = ReaderGuard(replicaClient->Lock);
+    if (replicaClient->Client) {
+        return replicaClient->Client;
+    }
+    guard.Release();
+
+    auto writerGuard = WriterGuard(replicaClient->Lock);
+    if (replicaClient->Client) {
+        return replicaClient->Client;
+    }
+
+    if (auto asyncClient = replicaClient->AsyncClient) {
+        writerGuard.Release();
+
+        return WaitFor(asyncClient)
+            .ValueOrThrow();
+    }
+
+    auto asyncClient = BIND([this, replicaClient, clusterName, this_=MakeStrong(this)] () {
+        try {
+            auto connection = GetReplicaConnectionOrThrow(clusterName);
+
+            auto guard = WriterGuard(replicaClient->Lock);
+            replicaClient->Client = connection->CreateClient(Options_);
+            return replicaClient->Client;
+        } catch (const std::exception& ex) {
+            auto guard = WriterGuard(replicaClient->Lock);
+            replicaClient->AsyncClient = {};
+
+            throw;
+        }
+    })
+        .AsyncVia(Connection_->GetInvoker())
+        .Run();
+    
+    replicaClient->AsyncClient = asyncClient;
+    writerGuard.Release();
+
+    return WaitFor(asyncClient)
+        .ValueOrThrow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -501,8 +501,16 @@ private:
     NQueryClient::IFunctionRegistryPtr FunctionRegistry_;
     std::unique_ptr<NScheduler::TSchedulerServiceProxy> SchedulerProxy_;
     std::unique_ptr<NScheduler::TJobProberServiceProxy> JobProberProxy_;
-    NConcurrency::TSyncMap<TString, NApi::IClientPtr> ReplicaClients_;
 
+    struct TReplicaClient final
+    {
+        YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock);
+        NApi::IClientPtr Client;
+        TFuture<NApi::IClientPtr> AsyncClient;
+    };
+
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, ReplicaClientsLock_);
+    THashMap<TString, TIntrusivePtr<TReplicaClient>> ReplicaClients_;
 
     const NRpc::IChannelPtr& GetOperationArchiveChannel(EMasterChannelKind kind);
 
