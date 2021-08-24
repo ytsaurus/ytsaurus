@@ -17,7 +17,7 @@ TChunkScanner::TChunkScanner(
     : ObjectManager_(std::move(objectManager))
     , Kind_(kind)
     , Journal_(journal)
-    , Logger(ChunkServerLogger.WithTag("Kind: %, Journal: %v",
+    , Logger(ChunkServerLogger.WithTag("Kind: %v, Journal: %v",
         Kind_,
         Journal_))
 { }
