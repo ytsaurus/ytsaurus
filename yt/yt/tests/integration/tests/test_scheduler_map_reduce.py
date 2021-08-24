@@ -452,7 +452,7 @@ print "x={0}\ty={1}".format(x, y)
         assert len(read_table("//tmp/t_out")) == 1
 
     @authors("gritukan")
-    def test_row_count_limit_sorted_merge(self):
+    def test_row_count_limit_sorted_reduce(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
@@ -470,11 +470,44 @@ print "x={0}\ty={1}".format(x, y)
                 "data_size_per_map_job": 1,
                 "data_size_per_sort_job": 1,
                 "reducer": {"format": "dsv"},
-                "resource_limits": {"user_slots": 1},
             },
         )
 
         assert len(read_table("//tmp/t_out", verbose=False)) == 2
+
+    @authors("gritukan")
+    def test_force_complete_sorted_reduce(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        for i in range(10):
+            write_table("<append=true>//tmp/t_in", [{"x": i, "y": 2, "z": "A" * 100000}])
+
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            reduce_by="x",
+            sort_by="x",
+            reducer_command='if [ " $YT_TASK_JOB_INDEX " == "0" ]; then sleep 1000; else cat; fi',
+            spec={
+                "partition_count": 2,
+                "data_size_per_map_job": 1,
+                "data_size_per_sort_job": 1,
+                "reducer": {"format": "dsv"},
+            },
+            track=False,
+        )
+
+        def get_completed_reduce_job_count():
+            path = op.get_path() + "/@progress/data_flow_graph/vertices/sorted_reduce/job_counter"
+            if not exists(path):
+                return 0
+            return get(path)["completed"]["total"]
+
+        wait(lambda: get_completed_reduce_job_count() > 0)
+        op.complete()
+
+        assert len(read_table("//tmp/t_out", verbose=False)) > 0
 
     @authors("levysotsky")
     def test_intermediate_live_preview(self):

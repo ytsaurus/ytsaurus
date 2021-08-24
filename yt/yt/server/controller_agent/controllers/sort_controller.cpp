@@ -2328,14 +2328,12 @@ protected:
 
             YT_VERIFY(CompletedPartitionCount == std::ssize(GetFinalPartitions()));
         } else {
-            if (RowCountLimitTableIndex && CompletedRowCount_ >= RowCountLimit) {
-                // We have to save all output in SortedMergeTask.
-                if (SortedMergeTask) {
-                    SortedMergeTask->CheckCompleted();
-                    if (!SortedMergeTask->IsCompleted()) {
-                        // Dirty hack to save chunks.
-                        SortedMergeTask->ForceComplete();
-                    }
+            // We have to save all output in SortedMergeTask.
+            if (SortedMergeTask) {
+                SortedMergeTask->CheckCompleted();
+                if (!SortedMergeTask->IsCompleted()) {
+                    // Dirty hack to save chunks.
+                    SortedMergeTask->ForceComplete();
                 }
             }
         }
