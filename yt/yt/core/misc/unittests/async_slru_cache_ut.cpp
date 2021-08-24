@@ -1,6 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/misc/async_slru_cache.h>
+#include <yt/yt/core/misc/property.h>
 
 namespace NYT {
 namespace {
@@ -45,6 +46,39 @@ protected:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSimpleSlruCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TCountingSlruCache)
+
+class TCountingSlruCache
+    : public TAsyncSlruCacheBase<int, TSimpleCachedValue>
+{
+public:
+    explicit TCountingSlruCache(TSlruCacheConfigPtr config)
+        : TAsyncSlruCacheBase(std::move(config))
+    { }
+
+    DEFINE_BYVAL_RO_PROPERTY(int, ItemCount, 0);
+
+protected:
+    virtual i64 GetWeight(const TSimpleCachedValuePtr& value) const override
+    {
+        return value->Weight;
+    }
+
+    void OnAdded(const TSimpleCachedValuePtr& /*value*/) override
+    {
+        ++ItemCount_;
+    }
+
+    void OnRemoved(const TSimpleCachedValuePtr& /*value*/) override
+    {
+        --ItemCount_;
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCountingSlruCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -278,6 +312,45 @@ TEST(TAsyncSlruCacheTest, Touch)
     EXPECT_EQ(cache->Find(0), values[0]);
     EXPECT_EQ(cache->Find(1), nullptr);
     EXPECT_EQ(cache->Find(2), values[2]);
+}
+
+TEST(TAsyncSrluCacheTest, AddRemoveWithResurrection)
+{
+    constexpr int cacheSize = 2;
+    constexpr int valueCount = 10;
+    auto config = CreateCacheConfig(cacheSize);
+    auto cache = New<TCountingSlruCache>(std::move(config));
+
+    std::vector<TSimpleCachedValuePtr> values;
+    for (int i = 0; i < valueCount; ++i) {
+        values.push_back(New<TSimpleCachedValue>(i, i));
+        auto cookie = cache->BeginInsert(i);
+        EXPECT_TRUE(cookie.IsActive());
+        cookie.EndInsert(values.back());
+        EXPECT_EQ(cache->GetItemCount(), std::min(2, i + 1));
+        EXPECT_EQ(cache->GetItemCount(), cache->GetSize());
+    }
+
+    for (int iter = 0; iter < 5; ++iter) {
+        for (int i = 0; i < valueCount; ++i) {
+            auto value = cache->Lookup(i)
+                .Get()
+                .ValueOrThrow();
+            EXPECT_EQ(value->Value, i);
+            EXPECT_EQ(cache->GetItemCount(), 2);
+            EXPECT_EQ(cache->GetItemCount(), cache->GetSize());
+        }
+        for (int i = 0; i < valueCount; ++i) {
+            auto cookie = cache->BeginInsert(i);
+            EXPECT_TRUE(!cookie.IsActive());
+            auto value = cookie.GetValue()
+                .Get()
+                .ValueOrThrow();
+            EXPECT_EQ(value->Value, i);
+            EXPECT_EQ(cache->GetItemCount(), 2);
+            EXPECT_EQ(cache->GetItemCount(), cache->GetSize());
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

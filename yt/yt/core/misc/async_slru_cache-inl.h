@@ -331,7 +331,10 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::DoLookup(TShard* shard, const TKey& ke
         SyncHitWeightCounter_.Increment(weight);
         SyncHitCounter_.Increment();
 
+        // NB: Releases the lock.
         Trim(shard, writerGuard);
+
+        OnAdded(value);
 
         return valueFuture;
     }
