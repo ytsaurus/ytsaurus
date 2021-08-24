@@ -28,11 +28,16 @@ struct IBlocksExtCache
 
 struct TChunkFragmentDescriptor
 {
-    //! Chunk-wise offset.
-    i64 Offset;
     //! Length of the fragment.
     int Length;
+    //! Chunk-wise block index.
+    int BlockIndex;
+    //! Block-wise offset.
+    i64 BlockOffset;
 };
+
+void FormatValue(TStringBuilderBase* builder, const TChunkFragmentDescriptor& descriptor, TStringBuf spec);
+TString ToString(const TChunkFragmentDescriptor& descriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,8 +73,14 @@ public:
         const NChunkClient::TClientChunkReadOptions& options,
         std::optional<int> partitionTag = std::nullopt);
 
-    //! Returns null if already prepared.
-    TFuture<void> PrepareToReadChunkFragments();
+    //! Returns the future indicating the moment when the underlying file is
+    //! open and the relevant meta is read.
+    /*!
+     *  Returns null if already prepared.
+     *  Blocks extensions is permanently cached in the reader after this call.
+     */
+    TFuture<void> PrepareToReadChunkFragments(
+        const NChunkClient::TClientChunkReadOptions& options);
 
     //! Reader must be prepared (see #PrepareToReadChunkFragments) prior to this call.
     IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
@@ -88,7 +99,12 @@ private:
     YT_DECLARE_SPINLOCK(TAdaptiveLock, DataFileLock_);
     TFuture<TIOEngineHandlePtr> DataFileFuture_;
     TIOEngineHandlePtr DataFile_;
-    std::atomic<bool> DataFileOpened_ = false;
+
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, ChunkFragmentReadsLock_);
+    TFuture<void> ChunkFragmentReadsPreparedFuture_;
+    // Permanently caches blocks extension for readers with PrepareToReadChunkFragments invoked.
+    NChunkClient::TRefCountedBlocksExtPtr BlocksExt_;
+    std::atomic<bool> ChunkFragmentReadsPrepared_ = false;
 
     TFuture<std::vector<NChunkClient::TBlock>> DoReadBlocks(
         const NChunkClient::TClientChunkReadOptions& options,
@@ -109,8 +125,6 @@ private:
         const TString& metaFileName,
         NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
         const TSharedRef& data);
-
-    TFuture<NChunkClient::TRefCountedBlocksExtPtr> ReadBlocksExt(const NChunkClient::TClientChunkReadOptions& options);
 
     TFuture<TIOEngineHandlePtr> OpenDataFile();
     TIOEngineHandlePtr OnDataFileOpened(const TIOEngineHandlePtr& file);

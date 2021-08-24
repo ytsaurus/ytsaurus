@@ -45,7 +45,12 @@ public:
     virtual int GetVersion() const override;
     virtual int IncrementVersion() override;
 
-    virtual TFuture<void> AcquireReadLock() override;
+    virtual TFuture<void> PrepareToReadChunkFragments(
+        const NChunkClient::TClientChunkReadOptions& options) override;
+    virtual NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+        const NIO::TChunkFragmentDescriptor& fragmentDescriptor) override;
+
+    virtual void AcquireReadLock() override;
     virtual void ReleaseReadLock() override;
 
     virtual void AcquireUpdateLock() override;
@@ -102,10 +107,7 @@ protected:
     void StartAsyncRemove();
     virtual TFuture<void> AsyncRemove() = 0;
 
-    using TReaderGuard = NConcurrency::TSpinlockReaderGuard<NConcurrency::TReaderWriterSpinLock>;
-    using TWriterGuard = NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>;
-    virtual TFuture<void> PrepareReader(TReaderGuard& readerGuard);
-    virtual void ReleaseReader(TWriterGuard& writerGuard);
+    virtual void ReleaseReader(NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& writerGuard);
 
     static NChunkClient::TRefCountedChunkMetaPtr FilterMeta(
         NChunkClient::TRefCountedChunkMetaPtr meta,

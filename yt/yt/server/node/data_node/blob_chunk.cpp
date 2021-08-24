@@ -175,63 +175,7 @@ TChunkFileReaderPtr TBlobChunkBase::GetReader()
     }
 }
 
-TFuture<void> TBlobChunkBase::PrepareReader(TReaderGuard& readerGuard)
-{
-    VERIFY_READER_SPINLOCK_AFFINITY(LifetimeLock_);
-    YT_ASSERT(ReadLockCounter_.load() > 0);
-
-    if (PreparedReader_) {
-        return {};
-    }
-
-    auto reader = CachedWeakReader_.Lock();
-    if (reader && !reader->PrepareToReadChunkFragments()) {
-        PreparedReader_ = std::move(reader);
-        return {};
-    }
-
-    readerGuard.Release();
-
-    if (!reader) {
-        const auto& readerCache = Bootstrap_->GetBlobReaderCache();
-        reader = readerCache->GetReader(this);
-    }
-
-    auto prepareFuture = reader->PrepareToReadChunkFragments();
-
-    auto writerGuard = WriterGuard(LifetimeLock_);
-
-    YT_VERIFY(ReadLockCounter_.load() > 0);
-
-    CachedWeakReader_ = reader;
-
-    if (!prepareFuture) {
-        PreparedReader_ = std::move(reader);
-    }
-
-    if (PreparedReader_) {
-        return {};
-    }
-
-    writerGuard.Release();
-
-    return prepareFuture
-        .Apply(BIND([=, this_ = MakeStrong(this)] {
-            auto writerGuard = WriterGuard(LifetimeLock_);
-
-            if (ReadLockCounter_.load() == 0 || PreparedReader_) {
-                return;
-            }
-
-            PreparedReader_ = reader;
-
-            YT_LOG_DEBUG("Chunk reader prepared (ChunkId: %v, LocationId: %v)",
-                Id_,
-                Location_->GetId());
-        }).AsyncVia(Bootstrap_->GetStorageLightInvoker()));
-}
-
-void TBlobChunkBase::ReleaseReader(TWriterGuard& writerGuard)
+void TBlobChunkBase::ReleaseReader(TSpinlockWriterGuard<TReaderWriterSpinLock>& writerGuard)
 {
     VERIFY_WRITER_SPINLOCK_AFFINITY(LifetimeLock_);
     YT_VERIFY(ReadLockCounter_.load() == 0);
@@ -493,8 +437,8 @@ void TBlobChunkBase::DoReadBlockSet(
         ++session->CurrentEntryIndex;
     }
 
-    YT_ASSERT(session->CurrentEntryIndex < session->EntryCount);
-    YT_ASSERT(!session->Entries[session->CurrentEntryIndex].Cached);
+    YT_VERIFY(session->CurrentEntryIndex < session->EntryCount);
+    YT_VERIFY(!session->Entries[session->CurrentEntryIndex].Cached);
 
     // Extract the maximum run of block. Blocks should be contiguous or at least have pretty small gap between them
     // (if gap is small enough, coalesced read including gap blocks is more efficient than making two separate runs).
@@ -826,11 +770,68 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockRange(
     return ReadBlockSet(blockIndexes, options);
 }
 
+TFuture<void> TBlobChunkBase::PrepareToReadChunkFragments(const TClientChunkReadOptions& options)
+{
+    auto guard = ReaderGuard(LifetimeLock_);
+
+    YT_VERIFY(ReadLockCounter_.load() > 0);
+
+    if (PreparedReader_) {
+        return {};
+    }
+
+    auto reader = CachedWeakReader_.Lock();
+    if (reader && !reader->PrepareToReadChunkFragments(options)) {
+        PreparedReader_ = std::move(reader);
+        return {};
+    }
+
+    guard.Release();
+
+    if (!reader) {
+        const auto& readerCache = Bootstrap_->GetBlobReaderCache();
+        reader = readerCache->GetReader(this);
+    }
+
+    auto prepareFuture = reader->PrepareToReadChunkFragments(options);
+
+    auto writerGuard = WriterGuard(LifetimeLock_);
+
+    YT_VERIFY(ReadLockCounter_.load() > 0);
+
+    CachedWeakReader_ = reader;
+
+    if (!prepareFuture) {
+        PreparedReader_ = std::move(reader);
+    }
+
+    if (PreparedReader_) {
+        return {};
+    }
+
+    writerGuard.Release();
+
+    return prepareFuture
+        .Apply(BIND([=, this_ = MakeStrong(this)] {
+            auto writerGuard = WriterGuard(LifetimeLock_);
+
+            if (ReadLockCounter_.load() == 0 || PreparedReader_) {
+                return;
+            }
+
+            PreparedReader_ = reader;
+
+            YT_LOG_DEBUG("Chunk reader prepared to read fragments (ChunkId: %v, LocationId: %v)",
+                Id_,
+                Location_->GetId());
+        }).AsyncVia(Bootstrap_->GetStorageLightInvoker()));
+}
+
 IIOEngine::TReadRequest TBlobChunkBase::MakeChunkFragmentReadRequest(
     const TChunkFragmentDescriptor& fragmentDescriptor)
 {
-    YT_ASSERT(ReadLockCounter_.load() > 0);
-    YT_ASSERT(PreparedReader_);
+    YT_VERIFY(ReadLockCounter_.load() > 0);
+    YT_VERIFY(PreparedReader_);
 
     if (!IsReadable()) {
         THROW_ERROR_EXCEPTION("Chunk %v is not readable",

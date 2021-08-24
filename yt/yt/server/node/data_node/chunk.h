@@ -81,9 +81,23 @@ struct IChunk
         int blockCount,
         const TChunkReadOptions& options) = 0;
 
+    //! Prepares the underlying reader to read chunk fragments.
+    /*!
+     *  Read lock must be held.
+     *
+     *  If null future is returned then the underlying reader is already open and prepared (this is the fast path).
+     *  Otherwise the caller must wait for the returned future to become set to access the underlying reader.
+     *
+     *  \note
+     *  Thread affinity: any
+     */
+    virtual TFuture<void> PrepareToReadChunkFragments(
+        const NChunkClient::TClientChunkReadOptions& options) = 0;
+
     //! Prepares a block fragment read request to be passed to IIOEngine.
     /*!
-     *  A read lock must be acquired prior to this call and the underlying reader must be prepared.
+     *  #PrepareToReadChunkFragments must be invoked and its returned future
+     *  must be set prior to this call.
      *
      *  \note
      *  Thread affinity: any
@@ -96,13 +110,10 @@ struct IChunk
      *  Succeeds if removal is not scheduled yet.
      *  Concurrent update locks do not interfere with read locks.
      *
-     *  If null future is returned then the underlying reader is already open and prepared (this is the fast path).
-     *  Otherwise the caller must wait for the returned future to become set to access the underlying reader.
-     *
      *  \note
      *  Thread affinity: any
      */
-    virtual TFuture<void> AcquireReadLock() = 0;
+    virtual void AcquireReadLock() = 0;
 
     //! Releases an earlier acquired read lock, decrements the lock counter.
     /*!
@@ -188,15 +199,12 @@ public:
     static TChunkReadGuard TryAcquire(IChunkPtr chunk);
 
     const IChunkPtr& GetChunk() const;
-    const TFuture<void>& GetReaderPreparedFuture() const;
+    TFuture<void> PrepareToReadChunkFragments(const NChunkClient::TClientChunkReadOptions& options) const;
 
 private:
-    TChunkReadGuard(
-        IChunkPtr chunk,
-        TFuture<void> readerPreparedFuture);
+    explicit TChunkReadGuard(IChunkPtr chunk);
 
     IChunkPtr Chunk_;
-    TFuture<void> ReaderPreparedFuture_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

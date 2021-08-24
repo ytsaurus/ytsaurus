@@ -671,7 +671,7 @@ private:
             }
 
             if (!checkNetThrottling(Config_->GetNetOutThrottlingHardLimit())) {
-                SetRpcAttachedBlocks(response, blocks);                
+                SetRpcAttachedBlocks(response, blocks);
             } else if (!netThrottling) {
                 netThrottling = true;
                 IncrementReadThrottlingCounter(context);
@@ -888,7 +888,11 @@ private:
                 bool chunkAvailable = false;
                 if (chunk) {
                     if (auto guard = TChunkReadGuard::TryAcquire(chunk)) {
-                        if (auto future = guard.GetReaderPreparedFuture()) {
+                        TClientChunkReadOptions options{
+                            .WorkloadDescriptor = workloadDescriptor,
+                            .ReadSessionId = readSessionId
+                        };
+                        if (auto future = guard.PrepareToReadChunkFragments(options)) {
                             YT_LOG_DEBUG("Will wait for chunk reader to become prepared (ChunkId: %v)",
                                 chunk->GetId());
                             prepareReaderFutures.push_back(std::move(future));
@@ -939,8 +943,9 @@ private:
                         for (const auto& fragment : subrequest.fragments()) {
                             auto readRequest = chunk->MakeChunkFragmentReadRequest(
                                 TChunkFragmentDescriptor{
-                                    fragment.offset(),
-                                    fragment.length()
+                                    .Length = fragment.length(),
+                                    .BlockIndex = fragment.block_index(),
+                                    .BlockOffset = fragment.block_offset()
                                 });
                             locationRequests.Requests.push_back(std::move(readRequest));
                             locationRequests.FragmentIndices.push_back(fragmentIndex);

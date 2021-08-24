@@ -37,9 +37,6 @@ public:
         int blockCount,
         const TChunkReadOptions& options) override;
 
-    virtual NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
-        const NIO::TChunkFragmentDescriptor& fragmentDescriptor) override;
-
     i64 GetFlushedRowCount() const;
     void UpdateFlushedRowCount(i64 rowCount);
 

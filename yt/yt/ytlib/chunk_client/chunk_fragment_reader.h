@@ -21,8 +21,9 @@ struct IChunkFragmentReader
     struct TChunkFragmentRequest
     {
         TChunkId ChunkId;
-        i64 Offset;
         i64 Length;
+        int BlockIndex;
+        i64 BlockOffset;
     };
 
     struct TReadFragmentsResponse
