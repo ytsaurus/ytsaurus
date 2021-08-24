@@ -74,6 +74,15 @@ def latest_cluster_version(global_conf):
     return global_conf["latest_spark_cluster_version"]
 
 
+def worker_num_limit(global_conf):
+    return global_conf["worker_num_limit"]
+
+
+def validate_worker_num(worker_num, worker_num_lim):
+    if worker_num > worker_num_lim:
+        raise RuntimeError("Number of workers ({0}) is more than limit ({1})".format(worker_num, worker_num_lim))
+
+
 def get_available_cluster_versions(client=None):
     subdirs = yt_list(CONF_BASE_PATH.join(RELEASES_SUBDIR), client=client)
     return [x for x in subdirs if x != "spark-launch-conf"]

@@ -15,7 +15,8 @@ from yt.wrapper.spec_builders import VanillaSpecBuilder
 from .conf import read_remote_conf, validate_cluster_version, spyt_jar_path, spyt_python_path, \
     validate_spyt_version, validate_versions_compatibility, latest_compatible_spyt_version, \
     latest_cluster_version, update_config_inplace, validate_custom_params, validate_mtn_config, \
-    latest_ytserver_proxy_path, ytserver_proxy_attributes, read_global_conf
+    latest_ytserver_proxy_path, ytserver_proxy_attributes, read_global_conf, worker_num_limit, \
+    validate_worker_num
 from .utils import get_spark_master, base_spark_conf, SparkDiscovery, SparkCluster
 from .enabler import SpytEnablers
 
@@ -420,6 +421,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     validate_cluster_version(spark_cluster_version, client=client)
     validate_custom_params(params)
     validate_mtn_config(enablers, network_project, tvm_id, tvm_secret)
+    validate_worker_num(worker_num, worker_num_limit(global_conf))
 
     dynamic_config = SparkDefaultArguments.get_params()
     update_config_inplace(dynamic_config, read_remote_conf(global_conf, spark_cluster_version, client=client))
