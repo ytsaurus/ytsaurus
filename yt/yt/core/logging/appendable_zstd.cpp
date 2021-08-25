@@ -107,7 +107,7 @@ void TAppendableZstdFile::CompressOneFrame()
 
     size_t toWrite = Min(Input_.Size(), size_t(MaxZstdFrameUncompressedLength));
 
-    Output_.Reserve(MaxZstdFrameLength + ZstdSyncTagLength);
+    Output_.Reserve(Output_.Size() + MaxZstdFrameLength + ZstdSyncTagLength);
     size_t size = ZSTD_compressCCtx(
         Context_->CCtx,
         Output_.Data() + Output_.Size(),
