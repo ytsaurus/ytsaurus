@@ -1,6 +1,8 @@
 #include "timing.h"
 
 #include <yt/yt/core/misc/assert.h>
+#include <yt/yt/core/misc/public.h>
+#include <yt/yt/core/misc/serialize.h>
 
 #include <util/system/hp_timer.h>
 
@@ -195,6 +197,20 @@ TCpuDuration TWallTimer::GetCurrentDuration() const
     return Active_
         ? Max<TCpuDuration>(GetCpuInstant() - StartTime_, 0)
         : 0;
+}
+
+void TWallTimer::Persist(const TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Active_);
+    if (context.IsSave()) {
+        auto duration = GetElapsedCpuTime();
+        Persist(context, duration);
+    } else {
+        Persist(context, Duration_);
+        StartTime_ = Active_ ? GetCpuInstant() : 0;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,9 +1,9 @@
 import __builtin__
 
-from yt_env_setup import YTEnvSetup, is_asan_build
+from yt_env_setup import YTEnvSetup, is_asan_build, Restarter, CONTROLLER_AGENTS_SERVICE
 from yt_commands import (
     authors, clean_operations, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
-    get, exists, remove, abort_job,
+    get, exists, remove, abort_job, ls, set,
     reduce, map_reduce, sort, erase, remote_copy, get_driver, vanilla,
     write_table, map, merge, get_operation, list_operations, sync_create_cells, raises_yt_error)
 
@@ -11,6 +11,7 @@ import yt.environment.init_operation_archive as init_operation_archive
 
 from flaky import flaky
 import math
+import time
 
 ##################################################################
 
@@ -799,8 +800,121 @@ class TestListOperationFilterExperiments(YTEnvSetup):
                   spec={"experiment_overrides": ["exp_c1.treatment"]})
 
         res = list_operations(filter="exp_a1.treatment")
-        assert set(op["id"] for op in res["operations"]) == {op1.id}
+        assert {op["id"] for op in res["operations"]} == {op1.id}
         res = list_operations(filter="exp_b1.treatment")
-        assert set(op["id"] for op in res["operations"]) == {op2.id}
+        assert {op["id"] for op in res["operations"]} == {op2.id}
         res = list_operations()
-        assert set(op["id"] for op in res["operations"]) == {op1.id, op2.id, op3.id}
+        assert {op["id"] for op in res["operations"]} == {op1.id, op2.id, op3.id}
+
+
+class TestPendingTimeFeatures(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
+    NUM_NODES = 3
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+        }
+    }
+
+    @authors("alexkolodezny")
+    def test_pending_time_features(self):
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) > 2
+        for i in range(2):
+            set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(nodes[i]), True)
+
+        op = vanilla(
+            spec={
+                "tasks": {
+                    "task1": {
+                        "job_count": 2,
+                        "command": "sleep 4",
+                    },
+                },
+            },
+            track=False,
+        )
+        time.sleep(2)
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            time.sleep(2)
+
+        op.track()
+
+        def get_time(op):
+            res = get(op.get_path() + "/@controller_features")
+            ready_time = 0
+            exhaust_time = 0
+            wall_time = 0
+            for task in res:
+                if "task_name" in task["tags"]:
+                    ready_time += task["features"]["ready_time"]
+                    exhaust_time += task["features"]["exhaust_time"]
+                    wall_time += task["features"]["wall_time"]
+            return ready_time, exhaust_time, wall_time
+
+        ready_time, exhaust_time, wall_time = get_time(op)
+
+        assert ready_time > 500
+        assert exhaust_time > 500
+        assert wall_time > 8000
+
+        op = vanilla(
+            spec={
+                "tasks": {
+                    "task1": {
+                        "job_count": 2,
+                        "command": "sleep 3",
+                    },
+                },
+            },
+        )
+
+        ready_time, exhaust_time, wall_time = get_time(op)
+
+        assert ready_time > 2000
+        assert exhaust_time > 2000
+        assert wall_time > 6000
+
+        op = vanilla(
+            spec={
+                "tasks": {
+                    "task1": {
+                        "job_count": 1,
+                        "command": "sleep 3",
+                    },
+                },
+            },
+        )
+
+        ready_time, exhaust_time, wall_time = get_time(op)
+
+        assert ready_time < 500
+        assert exhaust_time > 3000
+        assert wall_time > 3000
+
+        op = vanilla(
+            spec={
+                "tasks": {
+                    "task1": {
+                        "job_count": 1,
+                        "command": "sleep 3",
+                    },
+                    "task2": {
+                        "job_count": 1,
+                        "command": "sleep 3",
+                    }
+                },
+                "resource_limits": {
+                    "user_slots": 1,
+                },
+            },
+        )
+
+        ready_time, exhaust_time, wall_time = get_time(op)
+
+        assert ready_time < 500
+        assert exhaust_time > 6000
+        assert wall_time > 6000

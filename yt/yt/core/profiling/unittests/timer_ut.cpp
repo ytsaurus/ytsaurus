@@ -5,15 +5,38 @@
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/misc/lazy_ptr.h>
+#include <yt/yt/core/misc/blob_output.h>
+#include <yt/yt/core/misc/phoenix.h>
+
+#include <util/generic/cast.h>
 
 namespace NYT::NProfiling {
 namespace {
 
 using namespace NConcurrency;
+using namespace NPhoenix;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto SleepQuantum = TDuration::MilliSeconds(100);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void PersistWaitRestore(TWallTimer& timer)
+{
+    TBlobOutput output;
+    TSaveContext saveContext;
+    saveContext.SetOutput(&output);
+    Save(saveContext, timer);
+    auto blob = output.Flush();
+
+    TDelayedExecutor::WaitForDuration(SleepQuantum);
+
+    TMemoryInput input(blob.Begin(), blob.Size());
+    TLoadContext loadContext;
+    loadContext.SetInput(&input);
+    Load(loadContext, timer);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,6 +88,50 @@ TEST_F(TTimerTest, CpuWallCompare)
     EXPECT_LT(cpu, 10 * 1000);
     EXPECT_GT(wall, 80 * 1000);
     EXPECT_LT(wall, 120 * 1000);
+}
+
+TEST_F(TTimerTest, PersistAndRestoreActive)
+{
+    auto invoker = Queue->GetInvoker();
+    TValue wall = 0;
+
+    TWallTimer wallTimer;
+    TDelayedExecutor::WaitForDuration(SleepQuantum);
+
+    PersistWaitRestore(wallTimer);
+
+    TDelayedExecutor::WaitForDuration(SleepQuantum);
+
+    wall = wallTimer.GetElapsedValue();
+
+    EXPECT_GT(wall, 180 * 1000);
+    EXPECT_LT(wall, 220 * 1000);
+}
+
+TEST_F(TTimerTest, PersistAndRestoreNonActive)
+{
+    auto invoker = Queue->GetInvoker();
+    TValue wall = 0;
+
+    TWallTimer wallTimer;
+    TDelayedExecutor::WaitForDuration(SleepQuantum);
+
+    wallTimer.Stop();
+
+    TDelayedExecutor::WaitForDuration(SleepQuantum);
+
+    PersistWaitRestore(wallTimer);
+
+    TDelayedExecutor::WaitForDuration(SleepQuantum);
+
+    wallTimer.Start();
+
+    TDelayedExecutor::WaitForDuration(SleepQuantum);
+
+    wall = wallTimer.GetElapsedValue();
+
+    EXPECT_GT(wall, 180 * 1000);
+    EXPECT_LT(wall, 220 * 1000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

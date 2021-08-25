@@ -63,6 +63,8 @@ public:
     void Stop();
     void Restart();
 
+    void Persist(const TStreamPersistenceContext& context);
+
 private:
     TCpuDuration GetCurrentDuration() const;
 

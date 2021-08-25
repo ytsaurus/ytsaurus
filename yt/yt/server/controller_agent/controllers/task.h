@@ -346,6 +346,9 @@ private:
     //! Time of task completion.
     std::optional<TInstant> CompletionTime_;
 
+    NProfiling::TWallTimer ReadyTimer_{false};
+    NProfiling::TWallTimer ExhaustTimer_{false};
+
     //! Caches results of SerializeToWireProto serializations.
     // NB: This field is transient intentionally.
     // NB: this field is used in BuildJobSpecProto which is run in an non-serialized invoker,
@@ -385,6 +388,13 @@ private:
     TString GetOrCacheSerializedSchema(const NTableClient::TTableSchemaPtr& schema);
 
     std::optional<TString> SelectProfiler();
+
+    void OnPendingJobCountUpdated();
+
+    TDuration GetWallTime() const;
+    TDuration GetReadyTime() const;
+    TDuration GetExhaustTime() const;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TTask)
