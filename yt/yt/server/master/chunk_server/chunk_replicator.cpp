@@ -150,15 +150,6 @@ TChunkReplicator::TChunkReplicator(
         MissingPartChunkRepairQueueBalancer_.AddContender(i);
         DecommissionedPartChunkRepairQueueBalancer_.AddContender(i);
     }
-
-    for (auto [_, node] : Bootstrap_->GetNodeTracker()->Nodes()) {
-        if (!node->ReportedDataNodeHeartbeat()) {
-            continue;
-        }
-        for (const auto& replica : node->DestroyedReplicas()) {
-            node->AddToChunkRemovalQueue(replica);
-        }
-    }
 }
 
 TChunkReplicator::~TChunkReplicator()
@@ -846,21 +837,6 @@ void TChunkReplicator::OnReplicaRemoved(
     }
 }
 
-void TChunkReplicator::ScheduleUnknownReplicaRemoval(
-    TNode* node,
-    const TChunkIdWithIndexes& chunkIdWithIndexes)
-{
-    node->AddToChunkRemovalQueue(chunkIdWithIndexes);
-}
-
-void TChunkReplicator::ScheduleReplicaRemoval(
-    TNode* node,
-    TChunkPtrWithIndexes chunkWithIndexes)
-{
-    auto chunkIdWithIndexes = ToChunkIdWithIndexes(chunkWithIndexes);
-    node->AddToChunkRemovalQueue(chunkIdWithIndexes);
-}
-
 bool TChunkReplicator::TryScheduleReplicationJob(
     IJobSchedulingContext* context,
     TChunkPtrWithIndexes chunkWithIndexes,
@@ -1258,6 +1234,36 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
     }
 
     // Schedule removal jobs.
+    THashSet<TChunkIdWithIndexes> chunksBeingRemoved;
+    for (const auto& [_, job] : node->IdToJob()) {
+        if (job->GetType() != EJobType::RemoveChunk) {
+            continue;
+        }
+        chunksBeingRemoved.insert(job->GetChunkIdWithIndexes());
+    }
+    {
+        const auto& queue = node->DestroyedReplicas();
+        auto it = node->GetDestroyedReplicasIterator();
+        auto jt = it;
+        do {
+            if (queue.empty() || !hasSpareRemovalResources()) {
+                break;
+            }
+
+            if (!chunksBeingRemoved.contains(*jt)) {
+                if (TryScheduleRemovalJob(context, *jt)) {
+                    node->AdvanceDestroyedReplicasIterator();
+                } else {
+                    ++misscheduledRemovalJobs;
+                }
+            }
+
+            ++jt;
+            if (jt == queue.end()) {
+                jt = queue.begin();
+            }
+        } while (jt != it);
+    }
     {
         auto& queue = node->ChunkRemovalQueue();
         auto it = queue.begin();
@@ -1275,6 +1281,14 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
                         chunkIdWithIndex.Id,
                         chunkIdWithIndex.ReplicaIndex,
                         mediumIndex);
+
+                    if (chunksBeingRemoved.contains(chunkIdWithIndexes)) {
+                        YT_LOG_ALERT(
+                            "Trying to schedule a removal job for a chunk, that is already being removed (ChunkId: %v)",
+                            chunkIdWithIndexes);
+                        mediumIndexSet.reset(mediumIndex);
+                        continue;
+                    }
                     if (TryScheduleRemovalJob(context, chunkIdWithIndexes)) {
                         mediumIndexSet.reset(mediumIndex);
                     } else {
@@ -1913,6 +1927,13 @@ void TChunkReplicator::OnProfiling(TSensorBuffer* buffer) const
     buffer->AddGauge("/blob_requisition_update_queue_size", BlobRequisitionUpdateScanner_->GetQueueSize());
     buffer->AddGauge("/journal_refresh_queue_size", JournalRefreshScanner_->GetQueueSize());
     buffer->AddGauge("/journal_requisition_update_queue_size", JournalRequisitionUpdateScanner_->GetQueueSize());
+
+    for (auto [_, node] : Bootstrap_->GetNodeTracker()->Nodes()) {
+        buffer->PushTag({"node_address", node->GetDefaultAddress()});
+        buffer->AddGauge("/destroyed_replicas_size", node->DestroyedReplicas().size());
+        buffer->AddGauge("/removal_queue_size", node->ChunkRemovalQueue().size());
+        buffer->PopTag();
+    }
 }
 
 void TChunkReplicator::OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks* callbacks)

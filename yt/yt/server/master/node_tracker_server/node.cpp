@@ -532,6 +532,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     }
 
     ComputeDefaultAddress();
+    ResetDestroyedReplicasIterator();
 }
 
 TJobPtr TNode::FindJob(TJobId jobId)
@@ -616,6 +617,7 @@ void TNode::ClearReplicas()
     UnapprovedReplicas_.clear();
     RandomReplicaIters_.clear();
     DestroyedReplicas_.clear();
+    ResetDestroyedReplicasIterator();
 }
 
 void TNode::AddUnapprovedReplica(TChunkPtrWithIndexes replica, TInstant timestamp)
@@ -640,17 +642,32 @@ void TNode::ApproveReplica(TChunkPtrWithIndexes replica)
 
 bool TNode::AddDestroyedReplica(const TChunkIdWithIndexes& replica)
 {
-    return DestroyedReplicas_.insert(replica).second;
+    RemoveFromChunkRemovalQueue(replica);
+
+    auto [it, inserted] = DestroyedReplicas_.insert(replica);
+    if (!inserted) {
+        return false;
+    }
+    DestroyedReplicasIterator_ = it;
+    return true;
 }
 
 bool TNode::RemoveDestroyedReplica(const TChunkIdWithIndexes& replica)
 {
+    if (!DestroyedReplicas_.empty() && *DestroyedReplicasIterator_ == replica) {
+        AdvanceDestroyedReplicasIterator();
+    }
     return DestroyedReplicas_.erase(replica) > 0;
 }
 
 void TNode::AddToChunkRemovalQueue(const TChunkIdWithIndexes& replica)
 {
     YT_ASSERT(ReportedDataNodeHeartbeat());
+
+    if (DestroyedReplicas_.contains(replica)) {
+        return;
+    }
+
     ChunkRemovalQueue_[replica].set(replica.MediumIndex);
 }
 
@@ -825,6 +842,7 @@ void TNode::Reset()
     DisableWriteSessionsSentToNode_ = false;
     DisableWriteSessionsReportedByNode_ = false;
     ClearCellStatistics();
+    ResetDestroyedReplicasIterator();
 }
 
 ui64 TNode::GenerateVisitMark()
@@ -1154,6 +1172,20 @@ void TNode::ClearCellStatistics()
     for (auto& [_, descriptor] : MulticellDescriptors_) {
         descriptor.Statistics = TCellNodeStatistics();
     }
+}
+
+void TNode::AdvanceDestroyedReplicasIterator()
+{
+    YT_VERIFY(!DestroyedReplicas_.empty() && DestroyedReplicasIterator_ != DestroyedReplicas_.end());
+    ++DestroyedReplicasIterator_;
+    if (DestroyedReplicasIterator_ == DestroyedReplicas_.end()) {
+        DestroyedReplicasIterator_ = DestroyedReplicas_.begin();
+    }
+}
+
+void TNode::ResetDestroyedReplicasIterator()
+{
+    DestroyedReplicasIterator_ = DestroyedReplicas_.begin();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
