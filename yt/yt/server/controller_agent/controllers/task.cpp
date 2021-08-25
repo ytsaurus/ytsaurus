@@ -596,6 +596,8 @@ void TTask::ScheduleJob(
 
     if (!StartTime_) {
         StartTime_ = TInstant::Now();
+        // Start timers explicitly, because when the first job starts, StartTime_ is not set.
+        OnPendingJobCountUpdated();
     }
 }
 
@@ -625,6 +627,8 @@ void TTask::BuildTaskYson(TFluentMap fluent) const
         .DoIf(static_cast<bool>(CompletionTime_), [&] (TFluentMap fluent) {
             fluent.Item("completion_time").Value(*CompletionTime_);
         })
+        .Item("ready_time").Value(GetReadyTime())
+        .Item("exhaust_time").Value(GetExhaustTime())
         .DoIf(static_cast<bool>(EstimatedInputDataWeightHistogram_), [&] (TFluentMap fluent) {
             EstimatedInputDataWeightHistogram_->BuildHistogramView();
             fluent.Item("estimated_input_data_weight_histogram").Value(*EstimatedInputDataWeightHistogram_);
@@ -742,6 +746,9 @@ void TTask::Persist(const TPersistenceContext& context)
     Persist(context, ResourceOverdraftedOutputCookies_);
 
     Persist(context, Logger);
+
+    Persist(context, ReadyTimer_);
+    Persist(context, ExhaustTimer_);
 }
 
 void TTask::OnJobStarted(TJobletPtr joblet)
@@ -998,6 +1005,8 @@ void TTask::OnStripeRegistrationFailed(
 
 void TTask::OnTaskCompleted()
 {
+    ReadyTimer_.Stop();
+    ExhaustTimer_.Stop();
     CompletionTime_ = TInstant::Now();
     YT_LOG_DEBUG("Task completed");
 }
@@ -1648,7 +1657,9 @@ std::vector<TChunkStripePtr> TTask::BuildOutputChunkStripes(
 }
 
 void TTask::SetupCallbacks()
-{ }
+{
+    GetJobCounter()->SubscribePendingUpdated(BIND(&TTask::OnPendingJobCountUpdated, MakeWeak(this)));
+}
 
 std::vector<TString> TTask::FindAndBanSlowTentativeTrees()
 {
@@ -1752,9 +1763,45 @@ void TTask::BuildFeatureYson(TFluentAny fluent) const
 void TTask::FinalizeFeatures()
 {
     ControllerFeatures_.AddTag("task_name", GetVertexDescriptor());
-    if (StartTime_ && CompletionTime_) {
-        ControllerFeatures_.AddSingular("wall_time", (*CompletionTime_ - *StartTime_).MilliSeconds());
+    ControllerFeatures_.AddSingular("job_counter", BuildYsonNodeFluently().Value(GetJobCounter()));
+    ControllerFeatures_.AddSingular("ready_time", GetReadyTime().MilliSeconds());
+    ControllerFeatures_.AddSingular("wall_time", GetWallTime().MilliSeconds());
+    ControllerFeatures_.AddSingular("exhaust_time", GetExhaustTime().MilliSeconds());
+}
+
+void TTask::OnPendingJobCountUpdated()
+{
+    if (!StartTime_ || CompletionTime_) {
+        return;
     }
+    if (GetJobCounter()->GetPending() == 0) {
+        ReadyTimer_.Stop();
+        ExhaustTimer_.StartIfNotActive();
+    } else {
+        ExhaustTimer_.Stop();
+        ReadyTimer_.StartIfNotActive();
+    }
+}
+
+TDuration TTask::GetWallTime() const
+{
+    if (!StartTime_) {
+        return TDuration::Zero();
+    }
+    if (!CompletionTime_) {
+        return TInstant::Now() - *StartTime_;
+    }
+    return *CompletionTime_ - *StartTime_;
+}
+
+TDuration TTask::GetReadyTime() const
+{
+    return ReadyTimer_.GetElapsedTime();
+}
+
+TDuration TTask::GetExhaustTime() const
+{
+    return ExhaustTimer_.GetElapsedTime();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
