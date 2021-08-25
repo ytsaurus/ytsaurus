@@ -216,6 +216,7 @@ public:
     void ScheduleChunkRequisitionUpdate(TChunkTree* chunkTree);
     void ScheduleChunkSeal(TChunk* chunk);
     void ScheduleChunkMerge(TChunkOwnerBase* node);
+    bool IsNodeBeingMerged(NCypressClient::TObjectId nodeId) const;
     TChunkRequisitionRegistry* GetChunkRequisitionRegistry();
 
     const THashSet<TChunk*>& LostVitalChunks() const;

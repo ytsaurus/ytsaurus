@@ -187,6 +187,7 @@
     XX(InheritAcl, inherit_acl) \
     XX(IntegralGuarantees, integral_guarantees) \
     XX(IOWeights, io_weights) \
+    XX(IsBeingMerged, is_being_merged) \
     XX(Jobs, jobs) \
     XX(KeepFinished, keep_finished) \
     XX(Key, key) \
@@ -231,7 +232,6 @@
     XX(MemberOfClosure, member_of_closure) \
     XX(Members, members) \
     XX(MemoryUsage, memory_usage) \
-    XX(MergeJobCounter, merge_job_counter) \
     XX(MergeJobRateLimit, merge_job_rate_limit) \
     XX(MetaSize, meta_size) \
     XX(MeteringTags, metering_tags) \

@@ -42,6 +42,9 @@ public:
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, NErasure::ECodec, ErasureCodec);
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, bool, EnableSkynetSharing);
     DEFINE_BYVAL_RW_PROPERTY(bool, EnableChunkMerger, false);
+    // If chunk owner is changed, while it is being merged, it should be marked updated
+    // to initiate another merge after the current one is finished.
+    DEFINE_BYVAL_RW_PROPERTY(bool, UpdatedSinceLastMerge, false);
 
 public:
     explicit TChunkOwnerBase(NCypressServer::TVersionedNodeId id);
@@ -90,23 +93,10 @@ public:
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
 
-    // Indicates how many entries for this node there is in merge job queues.
-    // Do not schedule merge if this number is greater than zero.
-    void IncrementMergeJobCounter(NObjectServer::TEpoch epoch, int value);
-    int GetMergeJobCounter(NObjectServer::TEpoch epoch);
-
-    // To show the value in attributes.
-    int GetCurrentEpochMergeJobCounter();
-
 private:
-    int MergeJobCounter_ = 0;
-    NObjectServer::TEpoch MergeJobCounterEpoch_ = 0;
-
     NChunkClient::NProto::TDataStatistics ComputeUpdateStatistics() const;
 
     NSecurityServer::TClusterResources GetDiskUsage(const NChunkClient::NProto::TDataStatistics& statistics) const;
-
-    void MaybeResetObsoleteMergeJobCounter(NObjectServer::TEpoch epoch);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

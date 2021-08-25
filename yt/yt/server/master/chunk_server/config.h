@@ -217,8 +217,10 @@ public:
     TDuration SchedulePeriod;
     TDuration CreateChunksPeriod;
     TDuration TransactionUpdatePeriod;
+    TDuration SessionFinalizationPeriod;
 
     int CreateChunksBatchSize;
+    int SessionFinalizationBatchSize;
 
     int QueueSizeLimit;
 
@@ -252,13 +254,18 @@ public:
             .Default(TDuration::Seconds(1));
         RegisterParameter("transaction_update_period", TransactionUpdatePeriod)
             .Default(TDuration::Minutes(10));
+        RegisterParameter("session_finalization_period", SessionFinalizationPeriod)
+            .Default(TDuration::Seconds(10));
 
         RegisterParameter("create_chunks_batch_size", CreateChunksBatchSize)
-            .GreaterThan(1)
+            .GreaterThan(0)
+            .Default(100);
+        RegisterParameter("session_finalization_batch_size", SessionFinalizationBatchSize)
+            .GreaterThan(0)
             .Default(100);
 
         RegisterParameter("queue_size_limit", QueueSizeLimit)
-            .GreaterThan(1)
+            .GreaterThan(0)
             .Default(100000);
     }
 };
