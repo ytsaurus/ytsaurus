@@ -506,6 +506,10 @@ func (e ErrorCode) String() string {
 		return "GpuJobWithoutLayers"
 	case CodeTmpfsOverflow:
 		return "TmpfsOverflow"
+	case CodeGpuCheckCommandFailed:
+		return "GpuCheckCommandFailed"
+	case CodeGpuCheckCommandIncorrect:
+		return "GpuCheckCommandIncorrect"
 	case CodeMemoryLimitExceeded:
 		return "MemoryLimitExceeded"
 	case CodeMemoryCheckFailed:
