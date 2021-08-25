@@ -11,6 +11,7 @@ import org.apache.spark.sql.execution.datasources._
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.sources.{DataSourceRegister, Filter}
 import org.apache.spark.sql.types.{AtomicType, StructType}
+import org.apache.spark.sql.v2.YtUtils
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.format._
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read._
@@ -22,20 +23,13 @@ import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
+import scala.collection.mutable
+
 class YtFileFormat extends FileFormat with DataSourceRegister with Serializable {
   override def inferSchema(sparkSession: SparkSession,
                            options: Map[String, String],
                            files: Seq[FileStatus]): Option[StructType] = {
-    files.headOption.map { fileStatus =>
-      val schemaHint = SchemaConverter.schemaHint(options)
-      implicit val client: CompoundClient = YtClientProvider.ytClient(ytClientConfiguration(sparkSession))
-      val path = fileStatus.getPath match {
-        case ytPath: YtPath => ytPath.stringPath
-        case p => YtPath.basePath(p)
-      }
-      val schemaTree = YtWrapper.attribute(path, "schema")
-      SchemaConverter.sparkSchema(schemaTree, schemaHint)
-    }
+    YtUtils.inferSchema(sparkSession, options, files)
   }
 
 
