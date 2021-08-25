@@ -1,0 +1,23 @@
+#pragma once
+
+#include "public.h"
+
+namespace NYT::NChunkServer::NReplicator {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IReplicatorState
+    : public TRefCounted
+{
+    virtual void Load() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IReplicatorState)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IReplicatorStatePtr CreateReplicatorState(NCellMaster::TBootstrap* bootstrap);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NChunkServer::NReplicator

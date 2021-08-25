@@ -7,6 +7,8 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
+#include <yt/yt/server/master/chunk_server/new_replicator/public.h>
+
 #include <yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
@@ -49,7 +51,12 @@ public:
 
     void Initialize();
 
+    const IInvokerPtr& GetChunkInvoker(EChunkThreadQueue queue) const;
+
     NYTree::IYPathServicePtr GetOrchidService();
+
+    NReplicator::IChunkReplicaAllocatorPtr GetChunkReplicaAllocator() const;
+    NReplicator::IJobTrackerPtr GetJobTracker() const;
 
     std::unique_ptr<NHydra::TMutation> CreateUpdateChunkRequisitionMutation(
         const NProto::TReqUpdateChunkRequisition& request);

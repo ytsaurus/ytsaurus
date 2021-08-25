@@ -8,6 +8,9 @@
 #include "dynamic_store.h"
 #include "chunk_owner_node_proxy.h"
 
+#include <yt/yt/server/master/chunk_server/new_replicator/chunk_replica_allocator.h>
+#include <yt/yt/server/master/chunk_server/new_replicator/node.h>
+
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
@@ -65,6 +68,8 @@ public:
             EAutomatonThreadQueue::ChunkService,
             ChunkServerLogger)
     {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateChunks)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkLocator))
             .SetHeavy(true));
@@ -74,8 +79,13 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(TouchChunks)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkLocator))
             .SetHeavy(true));
+
+        const auto& allocateWriteTargetsInvoker = Bootstrap_->UseNewReplicator()
+            ? chunkManager->GetChunkInvoker(EChunkThreadQueue::ChunkReplicaAllocator)
+            : GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkReplicaAllocator);
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AllocateWriteTargets)
-            .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkReplicaAllocator)));
+            .SetInvoker(allocateWriteTargetsInvoker));
+
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExportChunks)
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ImportChunks)
@@ -261,11 +271,23 @@ private:
         context->SetRequestInfo("SubrequestCount: %v",
             request->subrequests_size());
 
-        ValidateClusterInitialized();
-        ValidatePeer(EPeerKind::Leader);
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+
+        NReplicator::IChunkReplicaAllocatorPtr chunkReplicaAllocator;
+
+        if (Bootstrap_->UseNewReplicator()) {
+            chunkReplicaAllocator = chunkManager->GetChunkReplicaAllocator();
+            if (!chunkReplicaAllocator) {
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::Unavailable,
+                    "Not an active leader");
+            }
+        } else {
+            ValidateClusterInitialized();
+            ValidatePeer(EPeerKind::Leader);
+        }
 
         TNodeDirectoryBuilder builder(response->mutable_node_directory());
 
@@ -279,53 +301,83 @@ private:
             auto preferredHostName = subrequest.has_preferred_host_name()
                 ? std::make_optional(subrequest.preferred_host_name())
                 : std::nullopt;
-            const auto& forbiddenAddresses = subrequest.forbidden_addresses();
+            auto forbiddenAddresses = FromProto<std::vector<TString>>(subrequest.forbidden_addresses());
 
             auto* subresponse = response->add_subresponses();
             try {
-                auto* medium = chunkManager->GetMediumByIndexOrThrow(sessionId.MediumIndex);
-                auto* chunk = chunkManager->GetChunkOrThrow(sessionId.ChunkId);
+                if (Bootstrap_->UseNewReplicator()) {
+                    NReplicator::TReplicaAllocationRequest allocationRequest{
+                        .ChunkId = sessionId.ChunkId,
+                        .MediumIndex = sessionId.MediumIndex,
+                        .DesiredReplicaCount = desiredTargetCount,
+                        .MinReplicaCount = minTargetCount,
+                        .ForbiddenAddresses = forbiddenAddresses,
+                        .PreferredHostName = preferredHostName
+                    };
 
-                TNodeList forbiddenNodes;
-                for (const auto& address : forbiddenAddresses) {
-                    auto* node = nodeTracker->FindNodeByAddress(address);
-                    if (node) {
-                        forbiddenNodes.push_back(node);
+                    auto replicas = chunkReplicaAllocator->AllocateReplicas(allocationRequest);
+
+                    for (const auto& replica : replicas) {
+                        // TODO(gritukan): Add replica to node directory builder.
+                        subresponse->add_replicas(ToProto<ui64>(replica));
                     }
+
+                    // TODO(gritukan): Log allocated targets.
+                    YT_LOG_DEBUG("Write targets allocated "
+                        "(SessionId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
+                        "PreferredHostName: %v, ForbiddenAddresses: %v)",
+                        sessionId,
+                        desiredTargetCount,
+                        minTargetCount,
+                        replicationFactorOverride,
+                        preferredHostName,
+                        forbiddenAddresses);
+
+                } else {
+                    auto* medium = chunkManager->GetMediumByIndexOrThrow(sessionId.MediumIndex);
+                    auto* chunk = chunkManager->GetChunkOrThrow(sessionId.ChunkId);
+
+                    TNodeList forbiddenNodes;
+                    for (const auto& address : forbiddenAddresses) {
+                        auto* node = nodeTracker->FindNodeByAddress(address);
+                        if (node) {
+                            forbiddenNodes.push_back(node);
+                        }
+                    }
+                    std::sort(forbiddenNodes.begin(), forbiddenNodes.end());
+
+                    auto targets = chunkManager->AllocateWriteTargets(
+                        medium,
+                        chunk,
+                        desiredTargetCount,
+                        minTargetCount,
+                        replicationFactorOverride,
+                        &forbiddenNodes,
+                        preferredHostName);
+
+                    for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
+                        auto* target = targets[index];
+                        auto replica = TNodePtrWithIndexes(target, GenericChunkReplicaIndex, sessionId.MediumIndex);
+                        builder.Add(replica);
+                        subresponse->add_replicas(ToProto<ui64>(replica));
+                    }
+
+                    YT_LOG_DEBUG("Write targets allocated "
+                        "(SessionId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
+                        "PreferredHostName: %v, ForbiddenAddresses: %v, Targets: %v)",
+                        sessionId,
+                        desiredTargetCount,
+                        minTargetCount,
+                        replicationFactorOverride,
+                        preferredHostName,
+                        forbiddenAddresses,
+                        MakeFormattableView(targets, TNodePtrAddressFormatter()));
                 }
-                std::sort(forbiddenNodes.begin(), forbiddenNodes.end());
-
-                auto targets = chunkManager->AllocateWriteTargets(
-                    medium,
-                    chunk,
-                    desiredTargetCount,
-                    minTargetCount,
-                    replicationFactorOverride,
-                    &forbiddenNodes,
-                    preferredHostName);
-
-                for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
-                    auto* target = targets[index];
-                    auto replica = TNodePtrWithIndexes(target, GenericChunkReplicaIndex, sessionId.MediumIndex);
-                    builder.Add(replica);
-                    subresponse->add_replicas(ToProto<ui64>(replica));
-                }
-
-                YT_LOG_DEBUG("Write targets allocated "
-                    "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
-                    "PreferredHostName: %v, ForbiddenAddresses: %v, Targets: %v)",
-                    sessionId,
-                    desiredTargetCount,
-                    minTargetCount,
-                    replicationFactorOverride,
-                    preferredHostName,
-                    forbiddenAddresses,
-                    MakeFormattableView(targets, TNodePtrAddressFormatter()));
             } catch (const std::exception& ex) {
                 auto error = TError(ex);
                 YT_LOG_DEBUG(error, "Error allocating write targets "
-                    "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
-                    "PreferredHostName: %v, ForbiddenAddresses: %v, MediumIndex: %v)",
+                    "(SessionId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
+                    "PreferredHostName: %v, ForbiddenAddresses: %v)",
                     sessionId,
                     desiredTargetCount,
                     minTargetCount,
