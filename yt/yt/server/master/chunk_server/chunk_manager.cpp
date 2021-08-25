@@ -79,12 +79,14 @@
 
 #include <yt/yt/ytlib/journal_client/helpers.h>
 
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 #include <yt/yt/client/chunk_client/data_statistics.h>
-
-#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/client/tablet_client/public.h>
 
@@ -725,6 +727,26 @@ public:
             }
         }
 
+        std::vector<TChunk*> referencedHunkChunks;
+        if (auto hunkChunkRefsExt = chunk->ChunkMeta()->FindExtension<NTableClient::NProto::THunkChunkRefsExt>()) {
+            referencedHunkChunks.reserve(hunkChunkRefsExt->refs_size());
+            for (const auto& protoRef : hunkChunkRefsExt->refs()) {
+                auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
+                auto* hunkChunk = FindChunk(hunkChunkId);
+                if (!IsObjectAlive(hunkChunk)) {
+                    THROW_ERROR_EXCEPTION("Cannot confirm chunk %v since it references an unknown hunk chunk %v",
+                        id,
+                        hunkChunkId);
+                }
+                referencedHunkChunks.push_back(hunkChunk);
+            }
+
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            for (auto* hunkChunk : referencedHunkChunks) {
+                objectManager->RefObject(hunkChunk);
+            }
+        }
+
         // NB: This is true for non-journal chunks.
         if (chunk->IsSealed()) {
             OnChunkSealed(chunk);
@@ -736,9 +758,10 @@ public:
 
         ScheduleChunkRefresh(chunk);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk confirmed (ChunkId: %v, Replicas: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk confirmed (ChunkId: %v, Replicas: %v, ReferencedHunkChunkIds: %v)",
             chunk->GetId(),
-            replicas);
+            replicas,
+            MakeFormattableView(referencedHunkChunks, TObjectIdFormatter()));
     }
 
     // Adds #chunk to its staging transaction resource usage.
@@ -2040,6 +2063,21 @@ private:
     {
         if (chunk->IsForeign()) {
             YT_VERIFY(ForeignChunks_.erase(chunk) == 1);
+        }
+
+        if (auto hunkChunkRefsExt = chunk->ChunkMeta()->FindExtension<NTableClient::NProto::THunkChunkRefsExt>()) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            for (const auto& protoRef : hunkChunkRefsExt->refs()) {
+                auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
+                auto* hunkChunk = FindChunk(hunkChunkId);
+                if (!IsObjectAlive(hunkChunk)) {
+                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Chunk being destroyed references an unknown hunk chunk (ChunkId: %v, HunkChunkId: %v)",
+                        chunk->GetId(),
+                        hunkChunkId);
+                    continue;
+                }
+                objectManager->UnrefObject(hunkChunk);
+            }
         }
 
         // Decrease staging resource usage; release account.

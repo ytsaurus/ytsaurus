@@ -3,7 +3,7 @@ from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 from yt.test_helpers.profiler import Profiler
 
 from yt_commands import (
-    authors, wait, create, get, set, set_banned_flag, insert_rows, select_rows,
+    authors, wait, create, exists, get, set, set_banned_flag, insert_rows, remove, select_rows,
     lookup_rows, delete_rows, remount_table,
     alter_table, read_table, map, reshard_table, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect)
@@ -108,13 +108,18 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
         assert len(store_chunk_ids) == 1
+        store_chunk_id = store_chunk_ids[0]
+
+        assert get("#{}/@ref_counter".format(store_chunk_id)) == 1
+
         hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
         assert len(hunk_chunk_ids) == 1
         hunk_chunk_id = hunk_chunk_ids[0]
 
-        assert get("#{}/@hunk_chunk_refs".format(store_chunk_ids[0])) == [
+        assert get("#{}/@hunk_chunk_refs".format(store_chunk_id)) == [
             {"chunk_id": hunk_chunk_ids[0], "hunk_count": 10, "total_hunk_length": 260}
         ]
+        assert get("#{}/@ref_counter".format(hunk_chunk_id)) == 2
         assert get("#{}/@data_weight".format(hunk_chunk_id)) == 260
         assert get("#{}/@uncompressed_data_size".format(hunk_chunk_id)) == 260
         assert get("#{}/@compressed_data_size".format(hunk_chunk_id)) == 260
@@ -126,6 +131,10 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
         assert_items_equal(select_rows("* from [//tmp/t] where value = \"{}\"".format(rows[0]["value"])), [rows[0]])
+
+        remove("//tmp/t")
+
+        wait(lambda: not exists("#{}".format(store_chunk_id)) and not exists("#{}".format(hunk_chunk_id)))
 
     @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
@@ -284,17 +293,17 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         gc_collect()
         assert get("#{}/@ref_counter".format(store_chunk_id1)) == 1
-        assert get("#{}/@ref_counter".format(hunk_chunk_id1)) == 1
+        assert get("#{}/@ref_counter".format(hunk_chunk_id1)) == 2
         assert get("#{}/@ref_counter".format(store_chunk_id2)) == 1
-        assert get("#{}/@ref_counter".format(hunk_chunk_id2)) == 1
+        assert get("#{}/@ref_counter".format(hunk_chunk_id2)) == 2
 
         reshard_table("//tmp/t", [[], [30]])
 
         gc_collect()
         assert get("#{}/@ref_counter".format(store_chunk_id1)) == 2
-        assert get("#{}/@ref_counter".format(hunk_chunk_id1)) == 2
+        assert get("#{}/@ref_counter".format(hunk_chunk_id1)) == 3
         assert get("#{}/@ref_counter".format(store_chunk_id2)) == 1
-        assert get("#{}/@ref_counter".format(hunk_chunk_id2)) == 1
+        assert get("#{}/@ref_counter".format(hunk_chunk_id2)) == 2
 
         sync_mount_table("//tmp/t")
 
