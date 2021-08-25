@@ -40,7 +40,7 @@ class TIdMapperNode
     : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
-    virtual void Do(
+    void Do(
         TTableReader<TNode>* input,
         TTableWriter<TNode>* output) override
     {
@@ -98,7 +98,7 @@ class TIdMapperYaMR
     : public IMapper<TTableReader<TYaMRRow>, TTableWriter<TYaMRRow>>
 {
 public:
-    virtual void Do(
+    void Do(
         TTableReader<TYaMRRow>* input,
         TTableWriter<TYaMRRow>* output) override
     {
@@ -159,7 +159,7 @@ class TIdMapperProto
     : public IMapper<TTableReader<TSampleProto>, TTableWriter<TSampleProto>>
 {
 public:
-    virtual void Do(
+    void Do(
         TTableReader<TSampleProto>* input,
         TTableWriter<TSampleProto>* output) override
     {
@@ -235,17 +235,17 @@ public:
         : StateValue_(stateValue)
     { }
 
-    virtual void Save(IOutputStream& stream) const override
+    void Save(IOutputStream& stream) const override
     {
         stream << StateValue_;
     }
 
-    virtual void Load(IInputStream& stream) override
+    void Load(IInputStream& stream) override
     {
         stream >> StateValue_;
     }
 
-    virtual void Do(
+    void Do(
         TTableReader<TNode>* input,
         TTableWriter<TNode>* output) override
     {
@@ -321,7 +321,7 @@ class TJoinReducerProto
     : public IReducer<TTableReader<Message>, TTableWriter<Message>>
 {
 public:
-    virtual void Do(
+    void Do(
         TTableReader<Message>* input,
         TTableWriter<Message>* output) override
     {

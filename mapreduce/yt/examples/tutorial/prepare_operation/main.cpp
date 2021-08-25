@@ -19,7 +19,7 @@ public:
         , Pattern_(pattern)
     { }
 
-    void Do(TReader* reader, TWriter* writer)
+    void Do(TReader* reader, TWriter* writer) override
     {
         for (const auto& cursor : *reader) {
             auto row = cursor.GetRow();

@@ -19,7 +19,7 @@ class TNormalizeNameMapper
           TTableWriter<TLoginRecord>>
 {
 public:
-    virtual void Do(TReader* reader, TWriter* writer) override
+    void Do(TReader* reader, TWriter* writer) override
     {
         for (auto& cursor : *reader) {
             auto row = cursor.GetRow();
@@ -36,7 +36,7 @@ class TCountNameReducer
           TTableWriter<TNameStatistics>>
 {
 public:
-    virtual void Do(TReader* reader, TWriter* writer) override
+    void Do(TReader* reader, TWriter* writer) override
     { TNameStatistics result;
         ui64 count = 0;
         for (auto& cursor : *reader) {

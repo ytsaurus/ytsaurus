@@ -18,7 +18,7 @@ public:
         : SleepSeconds_(sleepSeconds)
     { }
 
-    virtual void Do(TReader* /*reader*/, TWriter* /*writer*/) override
+    void Do(TReader* /*reader*/, TWriter* /*writer*/) override
     {
         Sleep(TDuration::Seconds(SleepSeconds_));
         _exit(1);

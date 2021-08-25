@@ -8,7 +8,7 @@ class TMockMapper
     : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
-    virtual void Do(TReader* /*reader*/, TWriter* /*writer*/) override
+    void Do(TReader* /*reader*/, TWriter* /*writer*/) override
     {
         // do nothing
     }

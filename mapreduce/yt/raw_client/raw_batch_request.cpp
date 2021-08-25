@@ -71,7 +71,7 @@ public:
         : Result(NewPromise<TReturnType>())
     { }
 
-    virtual void SetException(std::exception_ptr e) override
+    void SetException(std::exception_ptr e) override
     {
         Result.SetException(std::move(e));
     }
@@ -92,7 +92,7 @@ class TGetResponseParser
     : public TResponseParserBase<TNode>
 {
 public:
-    virtual void SetResponse(TMaybe<TNode> node) override
+    void SetResponse(TMaybe<TNode> node) override
     {
         EnsureSomething(node);
         Result.SetValue(std::move(*node));
@@ -105,7 +105,7 @@ class TVoidResponseParser
     : public TResponseParserBase<void>
 {
 public:
-    virtual void SetResponse(TMaybe<TNode> node) override
+    void SetResponse(TMaybe<TNode> node) override
     {
         EnsureNothing(node);
         Result.SetValue();
@@ -118,7 +118,7 @@ class TListResponseParser
     : public TResponseParserBase<TNode::TListType>
 {
 public:
-    virtual void SetResponse(TMaybe<TNode> node) override
+    void SetResponse(TMaybe<TNode> node) override
     {
         EnsureType(node, TNode::List);
         Result.SetValue(std::move(node->AsList()));
@@ -131,7 +131,7 @@ class TExistsResponseParser
     : public TResponseParserBase<bool>
 {
 public:
-    virtual void SetResponse(TMaybe<TNode> node) override
+    void SetResponse(TMaybe<TNode> node) override
     {
         EnsureType(node, TNode::Bool);
         Result.SetValue(std::move(node->AsBool()));
@@ -144,7 +144,7 @@ class TGuidResponseParser
     : public TResponseParserBase<TGUID>
 {
 public:
-    virtual void SetResponse(TMaybe<TNode> node) override
+    void SetResponse(TMaybe<TNode> node) override
     {
         EnsureType(node, TNode::String);
         Result.SetValue(GetGuid(node->AsString()));
@@ -161,7 +161,7 @@ public:
         : OriginalNode_(PathToNode(original))
     { }
 
-    virtual void SetResponse(TMaybe<TNode> node) override
+    void SetResponse(TMaybe<TNode> node) override
     {
         EnsureType(node, TNode::String);
 
@@ -184,7 +184,7 @@ class TGetOperationResponseParser
     : public TResponseParserBase<TOperationAttributes>
 {
 public:
-    virtual void SetResponse(TMaybe<TNode> node) override
+    void SetResponse(TMaybe<TNode> node) override
     {
         EnsureType(node, TNode::Map);
         Result.SetValue(ParseOperationAttributes(*node));
@@ -197,7 +197,7 @@ class TTableColumnarStatisticsParser
     : public TResponseParserBase<TVector<TTableColumnarStatistics>>
 {
 public:
-    virtual void SetResponse(TMaybe<TNode> node) override
+    void SetResponse(TMaybe<TNode> node) override
     {
         EnsureType(node, TNode::Map);
         TVector<TTableColumnarStatistics> statistics;
@@ -212,7 +212,7 @@ class TGetFileFromCacheParser
     : public TResponseParserBase<TMaybe<TYPath>>
 {
 public:
-    virtual void SetResponse(TMaybe<TNode> node) override
+    void SetResponse(TMaybe<TNode> node) override
     {
         EnsureType(node, TNode::String);
         if (node->AsString().empty()) {
@@ -229,7 +229,7 @@ class TYPathParser
     : public TResponseParserBase<TYPath>
 {
 public:
-    virtual void SetResponse(TMaybe<TNode> node) override
+    void SetResponse(TMaybe<TNode> node) override
     {
         EnsureType(node, TNode::String);
         Result.SetValue(node->AsString());
@@ -242,7 +242,7 @@ class TCheckPermissionParser
     : public TResponseParserBase<TCheckPermissionResponse>
 {
 public:
-    virtual void SetResponse(TMaybe<TNode> node) override
+    void SetResponse(TMaybe<TNode> node) override
     {
         EnsureType(node, TNode::Map);
         Result.SetValue(ParseCheckPermissionResponse(*node));

@@ -56,7 +56,7 @@ class TMapper
     : public IMapper<TTableReader<TInputRow>, TTableWriter<TOutputRow>>
 {
 public:
-    void Do(TTableReader<TInputRow>* reader, TTableWriter<TOutputRow>* writer)
+    void Do(TTableReader<TInputRow>* reader, TTableWriter<TOutputRow>* writer) override
     {
         for (; reader->IsValid(); reader->Next()) {
             TUrlRow out = GetRow<TUrlRow>(reader);
@@ -71,7 +71,7 @@ class TReduceCombiner
     : public IReducer<TTableReader<TInputRow>, TTableWriter<TOutputRow>>
 {
 public:
-    void Do(TTableReader<TInputRow>* reader, TTableWriter<TOutputRow>* writer)
+    void Do(TTableReader<TInputRow>* reader, TTableWriter<TOutputRow>* writer) override
     {
         const TString host = GetRow<TUrlRow>(reader).GetHost();
         ui64 httpCodeTotal = 0;
@@ -91,7 +91,7 @@ class TReducer : public IReducer<TTableReader<TInputRow>, TTableWriter<TOutputRo
 {
 public:
 
-    void Do(TTableReader<TInputRow>* reader, TTableWriter<TOutputRow>* writer)
+    void Do(TTableReader<TInputRow>* reader, TTableWriter<TOutputRow>* writer) override
     {
         const TString host = GetRow<TUrlRow>(reader).GetHost();
         ui64 httpCodeTotal = 0;

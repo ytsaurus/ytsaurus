@@ -8,7 +8,7 @@ class TComputeEmailsMapper
     : public IMapper<TTableReader<TNode>, TTableWriter<TNode>> // Указываем, что мы хотим использовать TNode
 {
 public:
-    virtual void Do(TReader* reader, TWriter* writer) override
+    void Do(TReader* reader, TWriter* writer) override
     {
         for (auto& cursor : *reader) {
             const auto& row = cursor.GetRow();

@@ -223,7 +223,7 @@ public:
         : Pattern_(pattern)
     { }
 
-    void Do(TReader* reader, TWriter* writer)
+    void Do(TReader* reader, TWriter* writer) override
     {
         for (const auto& cursor : *reader) {
             auto row = cursor.GetRow();
@@ -250,7 +250,7 @@ public:
         , Column_(column)
     { }
 
-    void Do(TReader* reader, TWriter* writer)
+    void Do(TReader* reader, TWriter* writer) override
     {
         for (const auto& cursor : *reader) {
             auto row = cursor.GetRow();
@@ -290,7 +290,7 @@ public:
         : KeyColumn_(keyColumn)
     {}
 
-    virtual void Do(TReader* reader, TWriter* writer) override
+    void Do(TReader* reader, TWriter* writer) override
     {
         TString key;
         i64 count = 0;

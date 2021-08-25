@@ -18,18 +18,18 @@ private:
     static constexpr int RetriableCode = 904;
 
 public:
-    virtual void NotifyNewAttempt() override
+    void NotifyNewAttempt() override
     { }
 
-    virtual TMaybe<TDuration> OnGenericError(const yexception& /*e*/) override
+    TMaybe<TDuration> OnGenericError(const yexception& /*e*/) override
     {
         return TDuration::Seconds(42);
     }
 
-    virtual void OnIgnoredError(const TErrorResponse& /*e*/) override
+    void OnIgnoredError(const TErrorResponse& /*e*/) override
     { }
 
-    virtual TMaybe<TDuration> OnRetriableError(const TErrorResponse& e) override
+    TMaybe<TDuration> OnRetriableError(const TErrorResponse& e) override
     {
         if (e.GetError().GetCode() == RetriableCode) {
             return TDuration::Seconds(e.GetError().GetAttributes().at("retry_interval").AsUint64());
@@ -38,7 +38,7 @@ public:
         }
     }
 
-    virtual TString GetAttemptDescription() const override
+    TString GetAttemptDescription() const override
     {
         return "attempt";
     }
