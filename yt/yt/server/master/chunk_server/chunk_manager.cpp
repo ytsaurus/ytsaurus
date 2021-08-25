@@ -35,6 +35,10 @@
 
 #include <yt/yt/server/master/cell_master/proto/multicell_manager.pb.h>
 
+#include <yt/yt/server/master/chunk_server/new_replicator/chunk_replica_allocator.h>
+#include <yt/yt/server/master/chunk_server/new_replicator/job_tracker.h>
+#include <yt/yt/server/master/chunk_server/new_replicator/replicator_state.h>
+
 #include <yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
@@ -90,7 +94,9 @@
 
 #include <yt/yt/client/tablet_client/public.h>
 
+#include <yt/yt/core/concurrency/fair_share_action_queue.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
+
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
@@ -459,6 +465,8 @@ public:
         , ExpirationTracker_(New<TExpirationTracker>(bootstrap))
         , ChunkMerger_(New<TChunkMerger>(Bootstrap_))
     {
+        ChunkQueue_ = CreateEnumIndexedFairShareActionQueue<EChunkThreadQueue>("Chunk");
+
         RegisterMethod(BIND(&TImpl::HydraConfirmChunkListsRequisitionTraverseFinished, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateChunkRequisition, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRegisterChunkEndorsements, Unretained(this)));
@@ -546,12 +554,31 @@ public:
         ChunkMerger_->Initialize();
     }
 
+    const IInvokerPtr& GetChunkInvoker(EChunkThreadQueue queue) const
+    {
+        return ChunkQueue_->GetInvoker(queue);
+    }
+
     IYPathServicePtr GetOrchidService()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return IYPathService::FromProducer(BIND(&TImpl::BuildOrchidYson, MakeStrong(this)))
             ->Via(Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkManager));
+    }
+
+    NReplicator::IChunkReplicaAllocatorPtr GetChunkReplicaAllocator() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return ChunkReplicaAllocator_.Load();
+    }
+
+    NReplicator::IJobTrackerPtr GetJobTracker() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return JobTracker_.Load();
     }
 
     void BuildOrchidYson(NYson::IYsonConsumer* consumer)
@@ -1962,6 +1989,8 @@ private:
 
     const TChunkManagerConfigPtr Config_;
 
+    IEnumIndexedFairShareActionQueuePtr<EChunkThreadQueue> ChunkQueue_;
+
     TChunkTreeBalancer ChunkTreeBalancer_;
 
     int TotalReplicaCount_ = 0;
@@ -1998,6 +2027,11 @@ private:
     TChunkPlacementPtr ChunkPlacement_;
     TChunkReplicatorPtr ChunkReplicator_;
     IChunkSealerPtr ChunkSealer_;
+
+    // New replicator.
+    NReplicator::IReplicatorStatePtr ReplicatorState_;
+    TAtomicObject<NReplicator::IJobTrackerPtr> JobTracker_;
+    TAtomicObject<NReplicator::IChunkReplicaAllocatorPtr> ChunkReplicaAllocator_;
 
     TJobRegistryPtr JobRegistry_;
 
@@ -3755,6 +3789,15 @@ private:
     {
         TMasterAutomatonPart::OnLeaderRecoveryComplete();
 
+        if (Bootstrap_->UseNewReplicator()) {
+            ReplicatorState_ = NReplicator::CreateReplicatorState(Bootstrap_);
+            ReplicatorState_->Load();
+
+            JobTracker_.Store(NReplicator::CreateJobTracker(ReplicatorState_));
+            ChunkReplicaAllocator_.Store(NReplicator::CreateChunkReplicaAllocator(ReplicatorState_));
+        }
+
+        // TODO(gritukan): Do not create legacy replicator stuff if new replicator is used.
         JobRegistry_ = New<TJobRegistry>(Config_, Bootstrap_);
         ChunkPlacement_ = New<TChunkPlacement>(Config_, Bootstrap_);
         ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_, JobRegistry_);
@@ -3829,6 +3872,12 @@ private:
         ExpirationTracker_->Stop();
 
         JobController_.Reset();
+
+        if (Bootstrap_->UseNewReplicator()) {
+            ReplicatorState_.Reset();
+            JobTracker_.Store(nullptr);
+            ChunkReplicaAllocator_.Store(nullptr);
+        }
     }
 
 
@@ -4597,6 +4646,11 @@ void TChunkManager::Initialize()
     Impl_->Initialize();
 }
 
+const IInvokerPtr& TChunkManager::GetChunkInvoker(EChunkThreadQueue queue) const
+{
+    return Impl_->GetChunkInvoker(queue);
+}
+
 TChunk* TChunkManager::GetChunkOrThrow(TChunkId id)
 {
     return Impl_->GetChunkOrThrow(id);
@@ -4671,6 +4725,16 @@ TNodeList TChunkManager::AllocateWriteTargets(
 NYTree::IYPathServicePtr TChunkManager::GetOrchidService()
 {
     return Impl_->GetOrchidService();
+}
+
+NReplicator::IChunkReplicaAllocatorPtr TChunkManager::GetChunkReplicaAllocator() const
+{
+    return Impl_->GetChunkReplicaAllocator();
+}
+
+NReplicator::IJobTrackerPtr TChunkManager::GetJobTracker() const
+{
+    return Impl_->GetJobTracker();
 }
 
 std::unique_ptr<TMutation> TChunkManager::CreateUpdateChunkRequisitionMutation(

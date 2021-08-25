@@ -74,6 +74,8 @@ public:
     bool IsSecondaryMaster() const;
     bool IsMulticell() const;
 
+    bool UseNewReplicator() const;
+
     NObjectClient::TCellId GetCellId() const;
     NObjectClient::TCellTag GetCellTag() const;
 

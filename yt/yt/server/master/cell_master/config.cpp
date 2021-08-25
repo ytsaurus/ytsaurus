@@ -71,8 +71,10 @@ TCellMasterConfig::TCellMasterConfig()
         .Default(true);
     RegisterParameter("cluster_connection", ClusterConnection)
         .Optional();
+    RegisterParameter("use_new_replicator", UseNewReplicator)
+        .Default(false);
 
-    RegisterPostprocessor([&] () {
+    RegisterPostprocessor([&] {
         if (SecondaryMasters.size() > MaxSecondaryMasterCells) {
             THROW_ERROR_EXCEPTION("Too many secondary master cells");
         }
