@@ -406,6 +406,14 @@ protected:
             file.Flush();
         }
     }
+
+    std::vector<char> GenerateIncompressibleData(i64 size) {
+        std::vector<char> data(size);
+        for (int index = 0; index < size; index++) {
+            data[index] = rand();
+        }
+        return std::move(data);
+    }
 };
 
 TEST_F(TAppendableZstdFileTest, Write)
@@ -421,17 +429,12 @@ TEST_F(TAppendableZstdFileTest, Write)
 TEST_F(TAppendableZstdFileTest, WriteMultipleFramesPerFlush)
 {
     auto logFile = GetLogFile();
+    auto data = GenerateIncompressibleData(5 * MaxZstdFrameUncompressedLength);
 
-    TStringBuilder builder;
-    for (int index = 0; builder.GetLength() < 3 * MaxZstdFrameUncompressedLength; ++index) {
-        builder.AppendFormat("test%v\n", index);
-    }
-
-    auto data = builder.Flush();
     {
         TFile rawFile(logFile.Name(), OpenAlways|RdWr|CloseOnExec);
         TAppendableZstdFile file(&rawFile, DefaultZstdCompressionLevel, true);
-        file.Write(data.Data(), data.Size());
+        file.Write(data.data(), data.size());
         file.Finish();
     }
 
@@ -439,7 +442,8 @@ TEST_F(TAppendableZstdFileTest, WriteMultipleFramesPerFlush)
     TZstdDecompress decompress(&file);
     auto decompressed = decompress.ReadAll();
 
-    EXPECT_TRUE(data == decompressed);
+    EXPECT_EQ(data.size(), decompressed.size());
+    EXPECT_TRUE(std::equal(data.begin(), data.end(), decompressed.begin()));
 }
 
 TEST_F(TAppendableZstdFileTest, RepairSmall)
