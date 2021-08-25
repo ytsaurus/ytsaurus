@@ -38,6 +38,8 @@ TCoordinatorConfig::TCoordinatorConfig()
         .Default(TDuration::Seconds(5));
     RegisterParameter("death_age", DeathAge)
         .Default(TDuration::Minutes(2));
+    RegisterParameter("cypress_timeout", CypressTimeout)
+        .Default(TDuration::Seconds(30));
 
     RegisterParameter("show_ports", ShowPorts)
         .Default(false);

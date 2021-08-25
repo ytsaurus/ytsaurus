@@ -80,6 +80,8 @@ TLiveness::TLiveness()
 TProxyEntry::TProxyEntry()
 {
     RegisterParameter("role", Role);
+    RegisterParameter("endpoint", Endpoint)
+        .Optional();
     RegisterParameter("banned", IsBanned)
         .Default(false);
     RegisterParameter("liveness", Liveness)
@@ -95,6 +97,12 @@ TString TProxyEntry::GetHost() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCoordinatorProxy::TCoordinatorProxy(const TProxyEntryPtr& proxyEntry)
+    : Entry(proxyEntry)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCoordinator::TCoordinator(
     const TProxyConfigPtr& config,
     TBootstrap* bootstrap)
@@ -107,15 +115,17 @@ TCoordinator::TCoordinator(
         BIND(&TCoordinator::UpdateState, MakeWeak(this)),
         TPeriodicExecutorOptions::WithJitter(Config_->HeartbeatInterval)))
 {
-    Self_ = New<TProxyEntry>();
-    Self_->Endpoint = Config_->PublicFqdn
+    auto selfEntry = New<TProxyEntry>();
+    selfEntry->Endpoint = Config_->PublicFqdn
         ? *Config_->PublicFqdn
         : Format("%v:%v", NNet::GetLocalHostName(), config->Port);
-    Self_->Role = "data";
+    selfEntry->Role = "data";
+    Self_ = New<TCoordinatorProxy>(std::move(selfEntry));
 }
 
 void TCoordinator::Start()
 {
+    AvailableAt_.Store(TInstant::Now());
     UpdateStateExecutor_->Start();
     UpdateStateExecutor_->ScheduleOutOfBand();
 
@@ -125,28 +135,28 @@ void TCoordinator::Start()
 
 bool TCoordinator::IsBanned() const
 {
-    auto guard = Guard(Lock_);
-    return Self_->IsBanned;
+    auto guard = Guard(SelfLock_);
+    return Self_->Entry->IsBanned;
 }
 
 bool TCoordinator::CanHandleHeavyRequests() const
 {
-    auto guard = Guard(Lock_);
-    return Self_->Role != "control";
+    auto guard = Guard(SelfLock_);
+    return Self_->Entry->Role != "control";
 }
 
-std::vector<TProxyEntryPtr> TCoordinator::ListProxies(std::optional<TString> roleFilter, bool includeDeadAndBanned)
+std::vector<TCoordinatorProxyPtr> TCoordinator::ListProxies(std::optional<TString> roleFilter, bool includeDeadAndBanned)
 {
-    std::vector<TProxyEntryPtr> proxies;
+    std::vector<TCoordinatorProxyPtr> proxies;
     {
-        auto guard = Guard(Lock_);
+        auto guard = Guard(ProxiesLock_);
         proxies = Proxies_;
     }
 
     auto now = TInstant::Now();
-    std::vector<TProxyEntryPtr> filtered;
+    std::vector<TCoordinatorProxyPtr> filtered;
     for (const auto& proxy : proxies) {
-        if (roleFilter && proxy->Role != roleFilter) {
+        if (roleFilter && proxy->Entry->Role != roleFilter) {
             continue;
         }
 
@@ -155,7 +165,7 @@ std::vector<TProxyEntryPtr> TCoordinator::ListProxies(std::optional<TString> rol
             continue;
         }
 
-        if(!proxy->IsBanned && !IsDead(proxy, now)) {
+        if(!proxy->Entry->IsBanned && !IsDead(proxy->Entry, now)) {
             filtered.push_back(proxy);
         }
     }
@@ -163,9 +173,9 @@ std::vector<TProxyEntryPtr> TCoordinator::ListProxies(std::optional<TString> rol
     auto dynamicConfig = Bootstrap_->GetDynamicConfig();
     TString fitnessFunction = dynamicConfig->FitnessFunction;
 
-    std::vector<std::pair<double, TProxyEntryPtr>> ordered;
+    std::vector<std::pair<double, TCoordinatorProxyPtr>> ordered;
     for (const auto& proxy : filtered) {
-        auto liveness = proxy->Liveness;
+        auto liveness = proxy->Entry->Liveness;
 
         double fitness = 0.0;
         if (fitnessFunction == "cpu") {
@@ -176,7 +186,7 @@ std::vector<TProxyEntryPtr> TCoordinator::ListProxies(std::optional<TString> rol
             auto adjustedNetworkLoad = std::pow(1.5, liveness->NetworkCoef);
             fitness = liveness->LoadAverage * Config_->LoadAverageWeight
                 + adjustedNetworkLoad * Config_->NetworkLoadWeight
-                + liveness->Dampening * Config_->DampeningWeight
+                + proxy->Dampening * Config_->DampeningWeight
                 + RandomNumber<double>() * Config_->RandomnessWeight;
         }
 
@@ -194,6 +204,16 @@ std::vector<TProxyEntryPtr> TCoordinator::ListProxies(std::optional<TString> rol
     return filtered;
 }
 
+std::vector<TProxyEntryPtr> TCoordinator::ListProxyEntries(std::optional<TString> roleFilter, bool includeDeadAndBanned)
+{
+    std::vector<TProxyEntryPtr> result;
+    auto proxies = ListProxies(roleFilter, includeDeadAndBanned);
+    for (const auto& proxy : proxies) {
+        result.push_back(proxy->Entry);
+    }
+    return std::move(result);
+}
+
 TProxyEntryPtr TCoordinator::AllocateProxy(const TString& role)
 {
     auto proxies = ListProxies(role);
@@ -202,14 +222,14 @@ TProxyEntryPtr TCoordinator::AllocateProxy(const TString& role)
         return nullptr;
     }
 
-    proxies[0]->Liveness->Dampening++;
-    return proxies[0];
+    proxies[0]->Dampening++;
+    return proxies[0]->Entry;
 }
 
 TProxyEntryPtr TCoordinator::GetSelf()
 {
-    auto guard = Guard(Lock_);
-    return Self_;
+    auto guard = Guard(SelfLock_);
+    return Self_->Entry;
 }
 
 const TCoordinatorConfigPtr& TCoordinator::GetConfig() const
@@ -222,21 +242,23 @@ TSamplerPtr TCoordinator::GetTraceSampler()
     return Sampler_;
 }
 
-std::vector<TProxyEntryPtr> TCoordinator::ListCypressProxies()
+std::vector<TCoordinatorProxyPtr> TCoordinator::ListCypressProxies()
 {
     TListNodeOptions options;
+    options.Timeout = Config_->CypressTimeout;
+    options.SuppressTransactionCoordinatorSync = true;
     options.ReadFrom = EMasterChannelKind::Cache;
     options.Attributes = {"role", "banned", "liveness", BanMessageAttributeName};
 
     auto proxiesYson = WaitFor(Client_->ListNode(SysProxies, options))
         .ValueOrThrow();
     auto proxiesList = ConvertTo<IListNodePtr>(proxiesYson);
-    std::vector<TProxyEntryPtr> proxies;
+    std::vector<TCoordinatorProxyPtr> proxies;
     for (const auto& proxyNode : proxiesList->GetChildren()) {
         try {
             auto proxy = ConvertTo<TProxyEntryPtr>(proxyNode->Attributes());
             proxy->Endpoint = proxyNode->GetValue<TString>();
-            proxies.emplace_back(std::move(proxy));
+            proxies.emplace_back(New<TCoordinatorProxy>(std::move(proxy)));
         } catch (std::exception& ex) {
             YT_LOG_WARNING(ex, "Broken proxy node found in Cypress (ProxyNode: %v)",
                 ConvertToYsonString(proxyNode));
@@ -248,22 +270,37 @@ std::vector<TProxyEntryPtr> TCoordinator::ListCypressProxies()
 
 void TCoordinator::UpdateState()
 {
-    auto selfPath = SysProxies + "/" + ToYPathLiteral(Self_->Endpoint);
+    auto selfPath = SysProxies + "/" + ToYPathLiteral(Self_->Entry->Endpoint);
 
+    auto proxyEntry = CloneYsonSerializable(Self_->Entry);
+    proxyEntry->Liveness = GetSelfLiveness();
     {
-        auto guard = Guard(Lock_);
-        Self_->Liveness = GetSelfLiveness();
+        auto guard = Guard(SelfLock_);
+        Self_ = New<TCoordinatorProxy>(std::move(proxyEntry));
     }
+
+    auto onUpdateSuccess = [&] {
+        BannedGauge_.Update(Self_->Entry->IsBanned ? 1 : 0);
+        AvailableAt_.Store(TInstant::Now());
+        FirstUpdateIterationFinished_.TrySet();
+    };
+
+    auto onUpdateFailure = [&] (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Coordinator update failed");
+        FirstUpdateIterationFinished_.TrySet(TError(ex));
+    };
 
     try {
         if (Config_->Enable && !Initialized_ && Config_->Announce) {
             TCreateNodeOptions options;
+            options.Timeout = Config_->CypressTimeout;
+            options.SuppressTransactionCoordinatorSync = true;
             options.Recursive = true;
             options.Attributes = ConvertToAttributes(BuildYsonStringFluently()
                 .BeginMap()
-                    .Item("role").Value(Self_->Role)
+                    .Item("role").Value(Self_->Entry->Role)
                     .Item("banned").Value(false)
-                    .Item("liveness").Value(Self_->Liveness)
+                    .Item("liveness").Value(Self_->Entry->Liveness)
                 .EndMap());
 
             auto error = WaitFor(Client_->CreateNode(selfPath, EObjectType::MapNode, options));
@@ -277,11 +314,13 @@ void TCoordinator::UpdateState()
 
             {
                 TCreateNodeOptions options;
+                options.Timeout = Config_->CypressTimeout;
+                options.SuppressTransactionCoordinatorSync = true;
                 options.Recursive = true;
                 options.IgnoreExisting = true;
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("remote_addresses",
-                    NYT::GetLocalAddresses({{"default", Self_->GetHost()}}, Bootstrap_->GetConfig()->RpcPort));
+                    NYT::GetLocalAddresses({{"default", Self_->Entry->GetHost()}}, Bootstrap_->GetConfig()->RpcPort));
                 options.Attributes = std::move(attributes);
                 auto orchidPath = selfPath + "/orchid";
                 WaitFor(Client_->CreateNode(orchidPath, EObjectType::Orchid, options))
@@ -289,13 +328,18 @@ void TCoordinator::UpdateState()
                 YT_LOG_INFO("Orchid node created (Path: %v)", orchidPath);
             }
 
-            WaitFor(Client_->SetNode(selfPath + "/@version", ConvertToYsonString(NYT::GetVersion())))
-                .ThrowOnError();
-            WaitFor(Client_->SetNode(selfPath + "/@start_time", ConvertToYsonString(TInstant::Now().ToString())))
-                .ThrowOnError();
+            TMultisetAttributesNodeOptions multisetOptions;
+            multisetOptions.Timeout = Config_->CypressTimeout;
+            multisetOptions.SuppressTransactionCoordinatorSync = true;
 
-            auto annotations = ConvertToYsonString(Bootstrap_->GetConfig()->CypressAnnotations);
-            WaitFor(Client_->SetNode(selfPath + "/@annotations", annotations))
+            WaitFor(Client_->MultisetAttributesNode(
+                selfPath + "/@",
+                BuildYsonNodeFluently().BeginMap()
+                    .Item("version").Value(NYT::GetVersion())
+                    .Item("start_time").Value(TInstant::Now().ToString())
+                    .Item("annotations").Value(Bootstrap_->GetConfig()->CypressAnnotations)
+                .EndMap()->AsMap(),
+                multisetOptions))
                 .ThrowOnError();
 
             Initialized_ = true;
@@ -307,43 +351,55 @@ void TCoordinator::UpdateState()
             return;
         }
 
+        TSetNodeOptions setOptions;
+        setOptions.Timeout = Config_->CypressTimeout;
+        setOptions.SuppressTransactionCoordinatorSync = true;
+
         if (Config_->Announce) {
-            WaitFor(Client_->SetNode(selfPath + "/@liveness", ConvertToYsonString(Self_->Liveness)))
+            WaitFor(Client_->SetNode(selfPath + "/@liveness", ConvertToYsonString(Self_->Entry->Liveness), setOptions))
                 .ThrowOnError();
         }
 
         auto proxies = ListCypressProxies();
 
         {
-            auto guard = Guard(Lock_);
+            auto guard = Guard(ProxiesLock_);
             Proxies_ = proxies;
-            for (auto& proxy : proxies) {
-                if (proxy->Endpoint != Self_->Endpoint) {
-                    continue;
-                }
+        }
+        for (auto& proxy : proxies) {
+            if (proxy->Entry->Endpoint != Self_->Entry->Endpoint) {
+                continue;
+            }
 
-                if (proxy->IsBanned != Self_->IsBanned) {
-                    YT_LOG_INFO("Updating self banned attribute (Old: %v, New: %v)",
-                        Self_->IsBanned,
-                        proxy->IsBanned);
-                }
+            if (proxy->Entry->IsBanned != Self_->Entry->IsBanned) {
+                YT_LOG_INFO("Updating self banned attribute (Old: %v, New: %v)",
+                    Self_->Entry->IsBanned,
+                    proxy->Entry->IsBanned);
+            }
 
-                if (proxy->Role != Self_->Role) {
-                    YT_LOG_INFO("Updating self role attribute (Old: %v, New: %v)",
-                        Self_->Role,
-                        proxy->Role);
-                    OnSelfRoleChanged_.Fire(proxy->Role);
-                }
+            if (proxy->Entry->Role != Self_->Entry->Role) {
+                YT_LOG_INFO("Updating self role attribute (Old: %v, New: %v)",
+                    Self_->Entry->Role,
+                    proxy->Entry->Role);
+                OnSelfRoleChanged_.Fire(proxy->Entry->Role);
+            }
 
+            {
+                auto guard = Guard(SelfLock_);
                 Self_ = proxy;
             }
         }
 
-        BannedGauge_.Update(Self_->IsBanned ? 1 : 0);
-        FirstUpdateIterationFinished_.TrySet();
+        onUpdateSuccess();
+    } catch (const TErrorException& ex) {
+        if (ex.Error().FindMatching(NHydra::EErrorCode::ReadOnly)) {
+            YT_LOG_INFO("Master is in read-only mode");
+            onUpdateSuccess();
+        } else {
+            onUpdateFailure(ex);
+        }
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Coordinator update failed");
-        FirstUpdateIterationFinished_.TrySet(TError(ex));
+        onUpdateFailure(ex);
     }
 }
 
@@ -354,6 +410,18 @@ bool TCoordinator::IsDead(const TProxyEntryPtr& proxy, TInstant at) const
     }
 
     return proxy->Liveness->UpdatedAt + Config_->DeathAge < at;
+}
+
+bool TCoordinator::IsUnavailable(TInstant at) const
+{
+    {
+        auto guard = Guard(SelfLock_);
+        if (!Self_->Entry->Liveness) {
+            return true;
+        }
+    }
+
+    return IsBanned() || AvailableAt_.Load() + Config_->DeathAge < at;
 }
 
 TLivenessPtr TCoordinator::GetSelfLiveness()
@@ -435,7 +503,7 @@ void THostsHandler::HandleRequest(
 
     rsp->SetStatus(EStatusCode::OK);
     if (suffix && *suffix == "all") {
-        auto proxies = Coordinator_->ListProxies({}, true);
+        auto proxies = Coordinator_->ListProxyEntries({}, true);
         ReplyJson(rsp, [&] (NYson::IYsonConsumer* json) {
             BuildYsonFluently(json)
                 .DoListFor(proxies, [&] (auto item, const TProxyEntryPtr& proxy) {
@@ -462,7 +530,7 @@ void THostsHandler::HandleRequest(
             }
         };
 
-        auto proxies = Coordinator_->ListProxies(role);
+        auto proxies = Coordinator_->ListProxyEntries(role);
         if (returnJson) {
             ReplyJson(rsp, [&] (NYson::IYsonConsumer* json) {
                 BuildYsonFluently(json)
@@ -497,7 +565,7 @@ void TPingHandler::HandleRequest(
         return;
     }
 
-    rsp->SetStatus(Coordinator_->IsBanned() || Coordinator_->IsDead(Coordinator_->GetSelf(), TInstant::Now())
+    rsp->SetStatus(Coordinator_->IsUnavailable(TInstant::Now())
         ? EStatusCode::ServiceUnavailable
         : EStatusCode::OK);
     WaitFor(rsp->Close())

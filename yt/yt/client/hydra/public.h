@@ -32,6 +32,7 @@ DEFINE_ENUM(EErrorCode,
     ((BrokenChangelog)             (613))
     ((ChangelogIOError)            (614))
     ((InvalidChangelogState)       (615))
+    ((ReadOnly)                    (616))
 );
 
 DEFINE_ENUM(EPeerKind,

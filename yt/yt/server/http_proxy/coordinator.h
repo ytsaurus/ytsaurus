@@ -30,8 +30,6 @@ struct TLiveness
     double UserCpu, SystemCpu, CpuWait;
     int ConcurrentRequests;
 
-    std::atomic<i64> Dampening{0};
-
     TLiveness();
 };
 
@@ -55,6 +53,17 @@ struct TProxyEntry
 
 DEFINE_REFCOUNTED_TYPE(TProxyEntry)
 
+struct TCoordinatorProxy
+    : public TRefCounted
+{
+    const TProxyEntryPtr Entry;
+    std::atomic<i64> Dampening{0};
+
+    explicit TCoordinatorProxy(const TProxyEntryPtr& proxyEntry);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCoordinatorProxy)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCoordinator
@@ -70,7 +79,7 @@ public:
     bool IsBanned() const;
     bool CanHandleHeavyRequests() const;
 
-    std::vector<TProxyEntryPtr> ListProxies(std::optional<TString> roleFilter, bool includeDeadAndBanned = false);
+    std::vector<TProxyEntryPtr> ListProxyEntries(std::optional<TString> roleFilter, bool includeDeadAndBanned = false);
     TProxyEntryPtr AllocateProxy(const TString& role);
     TProxyEntryPtr GetSelf();
 
@@ -78,6 +87,7 @@ public:
     NTracing::TSamplerPtr GetTraceSampler();
 
     bool IsDead(const TProxyEntryPtr& proxy, TInstant at) const;
+    bool IsUnavailable(TInstant at) const;
 
     //! Raised when proxy role changes.
     DEFINE_SIGNAL(void(const TString&), OnSelfRoleChanged);
@@ -94,15 +104,18 @@ private:
     TPromise<void> FirstUpdateIterationFinished_ = NewPromise<void>();
     bool Initialized_ = false;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
-    TProxyEntryPtr Self_;
-    std::vector<TProxyEntryPtr> Proxies_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SelfLock_);
+    TCoordinatorProxyPtr Self_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, ProxiesLock_);
+    std::vector<TCoordinatorProxyPtr> Proxies_;
 
     TInstant StatisticsUpdatedAt_;
     std::optional<TNetworkStatistics> LastStatistics_;
+    TAtomicObject<TInstant> AvailableAt_;
 
     void UpdateState();
-    std::vector<TProxyEntryPtr> ListCypressProxies();
+    std::vector<TCoordinatorProxyPtr> ListCypressProxies();
+    std::vector<TCoordinatorProxyPtr> ListProxies(std::optional<TString> roleFilter, bool includeDeadAndBanned = false);
 
     TLivenessPtr GetSelfLiveness();
 };
