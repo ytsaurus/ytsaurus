@@ -33,7 +33,7 @@ def _schematize_rows(rows, schema):
 
 
 class TestChunkMerger(YTEnvSetup):
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 3
 
     NUM_MASTERS = 5
     NUM_NODES = 3
@@ -45,7 +45,8 @@ class TestChunkMerger(YTEnvSetup):
         "chunk_manager": {
             "allow_multiple_erasure_parts_per_node": True,
             "chunk_merger": {
-                "max_chunks_to_merge": 5
+                "max_chunks_to_merge": 5,
+                "session_finalization_period": 500
             }
         }
     }
@@ -118,7 +119,7 @@ class TestChunkMerger(YTEnvSetup):
         assert read_table("//tmp/t") == rows
 
     @authors("aleksandra-zh")
-    def test_merge_job_counter(self):
+    def test_is_being_merged(self):
         set("//sys/@config/chunk_manager/chunk_merger/enable", True)
 
         create("table", "//tmp/t")
@@ -133,11 +134,11 @@ class TestChunkMerger(YTEnvSetup):
         set("//tmp/t/@enable_chunk_merger", True)
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
 
-        wait(lambda: get("//tmp/t/@merge_job_counter") > 0)
+        wait(lambda: get("//tmp/t/@is_being_merged"))
 
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
         assert read_table("//tmp/t") == rows
-        wait(lambda: get("//tmp/t/@merge_job_counter") == 0)
+        wait(lambda: not get("//tmp/t/@is_being_merged"))
 
     @authors("aleksandra-zh", "gritukan")
     def test_abort_merge_tx(self):
@@ -281,7 +282,7 @@ class TestChunkMerger(YTEnvSetup):
         set("//tmp/t/@enable_chunk_merger", True)
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
 
-        wait(lambda: get("//tmp/t/@merge_job_counter") > 0)
+        wait(lambda: get("//tmp/t/@is_being_merged"))
 
         write_table("//tmp/t", {"q": "r"})
         write_table("<append=true>//tmp/t", {"w": "t"})
@@ -309,7 +310,7 @@ class TestChunkMerger(YTEnvSetup):
         set("//tmp/t/@enable_chunk_merger", True)
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
 
-        wait(lambda: get("//tmp/t/@merge_job_counter") > 0)
+        wait(lambda: get("//tmp/t/@is_being_merged"))
 
         remove("//tmp/t")
 

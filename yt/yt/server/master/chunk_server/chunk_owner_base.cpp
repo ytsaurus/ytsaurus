@@ -67,6 +67,7 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     Save(context, DeltaSecurityTags_);
     Save(context, EnableChunkMerger_);
     Save(context, EnableSkynetSharing_);
+    Save(context, UpdatedSinceLastMerge_);
 }
 
 void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
@@ -107,6 +108,11 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
         }
     } else {
         Load(context, EnableSkynetSharing_);
+    }
+
+    // COMPAT(aleksandra-zh)
+    if (context.GetVersion() >= EMasterReign::PersistNodesBeingMerged) {
+        Load(context, UpdatedSinceLastMerge_);
     }
 }
 
@@ -277,32 +283,6 @@ NSecurityServer::TClusterResources TChunkOwnerBase::GetDiskUsage(const TDataStat
     }
     result.SetChunkCount(statistics.chunk_count());
     return result;
-}
-
-void TChunkOwnerBase::MaybeResetObsoleteMergeJobCounter(NObjectServer::TEpoch epoch)
-{
-    if (epoch != MergeJobCounterEpoch_) {
-        MergeJobCounter_ = 0;
-        MergeJobCounterEpoch_ = epoch;
-    }
-}
-
-void TChunkOwnerBase::IncrementMergeJobCounter(NObjectServer::TEpoch epoch, int value)
-{
-    MaybeResetObsoleteMergeJobCounter(epoch);
-    MergeJobCounter_ += value;
-    YT_LOG_ALERT_IF(MergeJobCounter_ < 0, "Negative merge job counter (NodeId: %v)", GetId());
-}
-
-int TChunkOwnerBase::GetMergeJobCounter(NObjectServer::TEpoch epoch)
-{
-    MaybeResetObsoleteMergeJobCounter(epoch);
-    return MergeJobCounter_;
-}
-
-int TChunkOwnerBase::GetCurrentEpochMergeJobCounter()
-{
-    return MergeJobCounter_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

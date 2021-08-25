@@ -54,7 +54,6 @@ using namespace NTableServer;
 using namespace NObjectServer;
 using namespace NCypressServer;
 using namespace NChunkClient;
-using namespace NNodeTrackerClient::NProto;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -106,54 +105,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-void IncrementMergeJobCounter(TBootstrap* bootstrap, TChunkOwnerBase* node)
-{
-    if (!IsObjectAlive(node)) {
-        return;
-    }
-
-    const auto& objectManager = bootstrap->GetObjectManager();
-    auto epoch = objectManager->GetCurrentEpoch();
-    node->IncrementMergeJobCounter(epoch, +1);
-    YT_LOG_DEBUG("Incrementing merge job counter (NodeId: %v, MergeJobCounter: %v)",
-        node->GetId(),
-        node->GetMergeJobCounter(epoch));
-}
-
-void DecrementMergeJobCounter(TBootstrap* bootstrap, TChunkOwnerBase* node)
-{
-    if (!IsObjectAlive(node)) {
-        return;
-    }
-
-    const auto& objectManager = bootstrap->GetObjectManager();
-    auto epoch = objectManager->GetCurrentEpoch();
-    node->IncrementMergeJobCounter(epoch, -1);
-    YT_LOG_DEBUG("Decrementing merge job counter (NodeId: %v, MergeJobCounter: %v)",
-        node->GetId(),
-        node->GetMergeJobCounter(epoch));
-}
-
-void LockNode(TBootstrap* bootstrap, TChunkOwnerBase* node)
-{
-    const auto& objectManager = bootstrap->GetObjectManager();
-    objectManager->EphemeralRefObject(node);
-    IncrementMergeJobCounter(bootstrap, node);
-}
-
-void UnlockNode(TBootstrap* bootstrap, TChunkOwnerBase* node)
-{
-    const auto& objectManager = bootstrap->GetObjectManager();
-    DecrementMergeJobCounter(bootstrap, node);
-    objectManager->EphemeralUnrefObject(node);
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TMergeChunkVisitor
     : public IChunkVisitor
 {
@@ -161,12 +112,12 @@ public:
     TMergeChunkVisitor(
         TBootstrap* bootstrap,
         TChunkOwnerBase* node,
-        std::queue<TMergeJobInfo>* jobsAwaitingChunkCreation)
+        TWeakPtr<IMergeChunkVisitorHost> chunkVisitorHost)
         : Bootstrap_(bootstrap)
         , Node_(node)
         , RootChunkList_(Node_->GetChunkList())
         , Account_(Node_->GetAccount())
-        , JobsAwaitingChunkCreation_(jobsAwaitingChunkCreation)
+        , ChunkVisitorHost_(std::move(chunkVisitorHost))
     { }
 
     void Run()
@@ -180,9 +131,8 @@ public:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->EphemeralRefObject(Account_);
+        objectManager->EphemeralRefObject(Node_);
         objectManager->EphemeralRefObject(RootChunkList_);
-
-        LockNode(Bootstrap_, Node_);
 
         TraverseChunkTree(std::move(callbacks), this, RootChunkList_);
     }
@@ -192,7 +142,7 @@ private:
     TChunkOwnerBase* const Node_;
     TChunkList* const RootChunkList_;
     TAccount* const Account_;
-    std::queue<TMergeJobInfo>* const JobsAwaitingChunkCreation_;
+    const TWeakPtr<IMergeChunkVisitorHost> ChunkVisitorHost_;
 
     std::vector<TChunkId> ChunkIds_;
 
@@ -240,20 +190,26 @@ private:
 
     virtual void OnFinish(const TError& error) override
     {
+        auto chunkVisitorHost = ChunkVisitorHost_.Lock();
+        if (!chunkVisitorHost) {
+            return;
+        }
+
         MaybePlanJob();
         if (IsObjectAlive(Account_)) {
             Account_->IncrementMergeJobRate(-1);
         }
 
-        if (!error.IsOK() || Node_->GetChunkList() != RootChunkList_) {
-            Bootstrap_->GetChunkManager()->ScheduleChunkMerge(Node_);
-        }
+        auto nodeId = Node_->GetId();
+        auto result = !error.IsOK() || Node_->GetChunkList() != RootChunkList_
+            ? EMergeSessionResult::TransientFailure
+            : EMergeSessionResult::OK;
+        chunkVisitorHost->OnTraversalFinished(nodeId, result);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->EphemeralUnrefObject(Account_);
+        objectManager->EphemeralUnrefObject(Node_);
         objectManager->EphemeralUnrefObject(RootChunkList_);
-
-        UnlockNode(Bootstrap_, Node_);
     }
 
     bool MaybeAddChunk(TChunk* chunk)
@@ -276,26 +232,20 @@ private:
 
     void MaybePlanJob()
     {
+        auto chunkVisitorHost = ChunkVisitorHost_.Lock();
+        if (!chunkVisitorHost) {
+            return;
+        }
+
         const auto& config = GetDynamicConfig();
         if (std::ssize(ChunkIds_) < config->MinChunkCount) {
             return;
         }
 
-        IncrementMergeJobCounter(Bootstrap_, Node_);
-
+        auto nodeId = Node_->GetId();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto jobId = chunkManager->GenerateJobId();
-        JobsAwaitingChunkCreation_->push({
-            .JobId = jobId,
-            .NodeId = Node_->GetId(),
-            .RootChunkListId = RootChunkList_->GetId(),
-            .InputChunkIds = std::move(ChunkIds_)
-        });
-
-        YT_LOG_DEBUG("Planning merge job (JobId: %v, NodeId: %v, RootChunkListId: %v)",
-            jobId,
-            Node_->GetId(),
-            RootChunkList_->GetId());
+        chunkVisitorHost->RegisterJobAwaitingChunkCreation(jobId, nodeId, RootChunkList_->GetId(), std::move(ChunkIds_));
     }
 
     const TDynamicChunkMergerConfigPtr& GetDynamicConfig() const
@@ -326,6 +276,7 @@ TChunkMerger::TChunkMerger(TBootstrap* bootstrap)
     RegisterMethod(BIND(&TChunkMerger::HydraStartMergeTransaction, Unretained(this)));
     RegisterMethod(BIND(&TChunkMerger::HydraCreateChunks, Unretained(this)));
     RegisterMethod(BIND(&TChunkMerger::HydraReplaceChunks, Unretained(this)));
+    RegisterMethod(BIND(&TChunkMerger::HydraFinalizeChunkMergeSessions, Unretained(this)));
 }
 
 void TChunkMerger::Initialize()
@@ -337,9 +288,10 @@ void TChunkMerger::Initialize()
     configManager->SubscribeConfigChanged(BIND(&TChunkMerger::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
-void TChunkMerger::ScheduleMerge(NCypressServer::TNodeId nodeId)
+void TChunkMerger::ScheduleMerge(TObjectId nodeId)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_VERIFY(HasMutationContext());
 
     if (auto* trunkNode = FindChunkOwner(nodeId)) {
         ScheduleMerge(trunkNode);
@@ -349,9 +301,14 @@ void TChunkMerger::ScheduleMerge(NCypressServer::TNodeId nodeId)
 void TChunkMerger::ScheduleMerge(TChunkOwnerBase* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_VERIFY(HasMutationContext());
 
-    YT_VERIFY(IsLeader());
     YT_VERIFY(trunkNode->IsTrunk());
+
+    if (!Enabled_) {
+        YT_LOG_DEBUG("Cannot schedule merge: chunk merger is disabled");
+        return;
+    }
 
     if (trunkNode->GetType() != EObjectType::Table) {
         YT_LOG_DEBUG("Chunk merging is supported only for table types (NodeId: %v)",
@@ -366,11 +323,41 @@ void TChunkMerger::ScheduleMerge(TChunkOwnerBase* trunkNode)
         return;
     }
 
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    auto epoch = objectManager->GetCurrentEpoch();
-    if (trunkNode->GetMergeJobCounter(epoch) == 0) {
-        DoScheduleMerge(trunkNode);
+    DoScheduleMerge(trunkNode);
+}
+
+void TChunkMerger::DoScheduleMerge(TChunkOwnerBase* chunkOwner)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_VERIFY(HasMutationContext());
+
+    if (!RegisterSession(chunkOwner)) {
+        return;
+    };
+
+    auto* account = chunkOwner->GetAccount();
+    YT_LOG_DEBUG_IF(
+        IsMutationLoggingEnabled(),
+        "Scheduling merge (NodeId: %v, Account: %v)",
+        chunkOwner->GetId(),
+        account->GetName());
+
+    if (IsLeader()) {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+
+        auto [it, inserted] = AccountToNodeQueue_.emplace(account, TNodeQueue());
+        if (inserted) {
+            objectManager->EphemeralRefObject(account);
+        }
+
+        auto& queue = it->second;
+        queue.push(chunkOwner->GetId());
     }
+}
+
+bool TChunkMerger::IsNodeBeingMerged(TObjectId nodeId) const
+{
+    return NodesBeingMerged_.contains(nodeId);
 }
 
 void TChunkMerger::ScheduleJobs(IJobSchedulingContext* context)
@@ -390,12 +377,11 @@ void TChunkMerger::ScheduleJobs(IJobSchedulingContext* context)
         JobsAwaitingNodeHeartbeat_.pop();
 
         if (!TryScheduleMergeJob(context, jobInfo)) {
-            if (auto* trunkNode = FindChunkOwner(jobInfo.NodeId)) {
-                DecrementMergeJobCounter(Bootstrap_, trunkNode);
-            }
-            if (IsLeader()) {
-                ScheduleMerge(jobInfo.NodeId);
-            }
+            auto* trunkNode = FindChunkOwner(jobInfo.NodeId);
+            FinalizeJob(
+                jobInfo.NodeId,
+                jobInfo.JobId,
+                CanScheduleMerge(trunkNode) ? EMergeSessionResult::TransientFailure : EMergeSessionResult::PermanentFailure);
             continue;
         }
     }
@@ -422,6 +408,8 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer) const
     buffer->AddCounter("/chunk_merger_chunk_replacement_succeeded", ChunkReplacementSucceded_);
     buffer->AddCounter("/chunk_merger_chunk_replacement_failed", ChunkReplacementFailed_);
     buffer->AddCounter("/chunk_merger_chunk_count_saving", ChunkCountSaving_);
+
+    buffer->AddCounter("/chunk_merger_sessions_awaiting_finalization", SessionsAwaitingFinalizaton_.size());
 }
 
 void TChunkMerger::OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks* callbacks)
@@ -490,6 +478,12 @@ void TChunkMerger::OnLeaderActive()
         BIND(&TChunkMerger::StartMergeTransaction, MakeWeak(this)),
         config->TransactionUpdatePeriod);
     StartTransactionExecutor_->Start();
+
+    FinalizeSessionExecutor_ = New<TPeriodicExecutor>(
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMerger),
+        BIND(&TChunkMerger::FinalizeSessions, MakeWeak(this)),
+        config->SessionFinalizationPeriod);
+    FinalizeSessionExecutor_->Start();
 }
 
 void TChunkMerger::OnStopLeading()
@@ -514,6 +508,11 @@ void TChunkMerger::OnStopLeading()
         StartTransactionExecutor_->Stop();
         StartTransactionExecutor_.Reset();
     }
+
+    if (FinalizeSessionExecutor_) {
+        FinalizeSessionExecutor_->Stop();
+        FinalizeSessionExecutor_.Reset();
+    }
 }
 
 void TChunkMerger::Clear()
@@ -524,19 +523,20 @@ void TChunkMerger::Clear()
 
     TransactionId_ = {};
     PreviousTransactionId_ = {};
+    NodesBeingMerged_.clear();
 }
 
 void TChunkMerger::ResetTransientState()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    // TODO(aleksandra-zh): persist some information (probably a flag) about nodes we are currently merging,
-    // so that we can initiate merge for them after recovery.
     AccountToNodeQueue_ = {};
     JobsAwaitingChunkCreation_ = {};
     JobsUndergoingChunkCreation_ = {};
     JobsAwaitingNodeHeartbeat_ = {};
     RunningJobs_ = {};
+    RunningSessions_ = {};
+    SessionsAwaitingFinalizaton_ = {};
 }
 
 bool TChunkMerger::IsMergeTransactionAlive() const
@@ -556,10 +556,7 @@ bool TChunkMerger::CanScheduleMerge(TChunkOwnerBase* chunkOwner) const
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    return
-        Enabled_ &&
-        IsObjectAlive(chunkOwner) &&
-        IsObjectAlive(chunkOwner->GetChunkList());
+    return Enabled_ && IsObjectAlive(chunkOwner);
 }
 
 void TChunkMerger::StartMergeTransaction()
@@ -591,34 +588,125 @@ void TChunkMerger::OnTransactionAborted(TTransaction* transaction)
     }
 }
 
-void TChunkMerger::DoScheduleMerge(TChunkOwnerBase* chunkOwner)
+bool TChunkMerger::RegisterSession(TChunkOwnerBase* chunkOwner)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YT_VERIFY(IsLeader());
+    YT_VERIFY(HasMutationContext());
 
-    if (!Enabled_) {
-        YT_LOG_DEBUG("Cannot schedule merge: chunk merger is disabled");
+    if (NodesBeingMerged_.contains(chunkOwner->GetId())) {
+        chunkOwner->SetUpdatedSinceLastMerge(true);
+        return false;
+    }
+
+    if (chunkOwner->GetUpdatedSinceLastMerge()) {
+        YT_LOG_ALERT_IF(
+            IsMutationLoggingEnabled(),
+            "Node is marked as updated, but has no running merge sessions (NodeId: %v)",
+            chunkOwner->GetId());
+        chunkOwner->SetUpdatedSinceLastMerge(false);
+    }
+
+    YT_VERIFY(NodesBeingMerged_.insert(chunkOwner->GetId()).second);
+
+    if (IsLeader()) {
+        YT_LOG_DEBUG("Starting new merge job session (NodeId: %v)", chunkOwner->GetId());
+        YT_VERIFY(RunningSessions_.emplace(chunkOwner->GetId(), TChunkMergerSession()).second);
+    }
+    return true;
+}
+
+void TChunkMerger::FinalizeJob(TObjectId nodeId, TJobId jobId, EMergeSessionResult result)
+{
+    if (!IsLeader()) {
         return;
     }
 
-    auto* account = chunkOwner->GetAccount();
+    YT_LOG_DEBUG("Finalizing merge job (NodeId: %v, JobId: %v)", nodeId, jobId);
+    auto it = RunningSessions_.find(nodeId);
+    YT_VERIFY(it != RunningSessions_.end());
+    auto& session = it->second;
+    YT_VERIFY(session.Jobs.erase(jobId) > 0);
+    session.Result = std::max(session.Result, result);
+    if (session.Jobs.empty()) {
+        ScheduleSessionFinalization(nodeId, EMergeSessionResult::None);
+    }
+}
 
-    YT_LOG_DEBUG("Scheduling merge (NodeId: %v, ChunkListId: %v, Account: %v)",
-        chunkOwner->GetId(),
-        chunkOwner->GetChunkList()->GetId(),
-        account->GetName());
+void TChunkMerger::RegisterJobAwaitingChunkCreation(
+    TJobId jobId,
+    TObjectId nodeId,
+    TChunkListId rootChunkListId,
+    std::vector<TChunkId> inputChunkIds)
+{
+    JobsAwaitingChunkCreation_.push({
+        .JobId = jobId,
+        .NodeId = nodeId,
+        .RootChunkListId = rootChunkListId,
+        .InputChunkIds = std::move(inputChunkIds)
+    });
 
-    const auto& objectManager = Bootstrap_->GetObjectManager();
+    YT_LOG_DEBUG("Planning merge job (JobId: %v, NodeId: %v, RootChunkListId: %v)",
+        jobId,
+        nodeId,
+        rootChunkListId);
 
-    auto [it, inserted] = AccountToNodeQueue_.emplace(account, TNodeQueue());
-    if (inserted) {
-        objectManager->EphemeralRefObject(account);
+    auto it = RunningSessions_.find(nodeId);
+    YT_VERIFY(it != RunningSessions_.end());
+    YT_VERIFY(it->second.Jobs.insert(jobId).second);
+}
+
+void TChunkMerger::OnTraversalFinished(TObjectId nodeId, EMergeSessionResult result)
+{
+    auto it = RunningSessions_.find(nodeId);
+    YT_VERIFY(it != RunningSessions_.end());
+    const auto& session = it->second;
+    if (session.Jobs.empty()) {
+        ScheduleSessionFinalization(nodeId, result);
+    }
+}
+
+void TChunkMerger::ScheduleSessionFinalization(TObjectId nodeId, EMergeSessionResult result)
+{
+    if (!IsLeader()) {
+        return;
     }
 
-    auto& queue = it->second;
-    queue.push(chunkOwner);
+    auto it = RunningSessions_.find(nodeId);
+    YT_VERIFY(it != RunningSessions_.end());
+    auto& session = it->second;
+    session.Result = std::max(session.Result, result);
 
-    LockNode(Bootstrap_, chunkOwner);
+    YT_VERIFY(session.Jobs.empty());
+    YT_LOG_DEBUG_IF(
+        IsMutationLoggingEnabled(),
+        "Finalizing merge session (NodeId: %v, Result: %v)",
+        nodeId,
+        session.Result);
+    SessionsAwaitingFinalizaton_.push({
+        .NodeId = nodeId,
+        .Result = session.Result
+    });
+    RunningSessions_.erase(it);
+}
+
+void TChunkMerger::FinalizeSessions()
+{
+    if (SessionsAwaitingFinalizaton_.empty()) {
+        return;
+    }
+
+    const auto& config = GetDynamicConfig();
+    TReqFinalizeChunkMergeSessions request;
+    for (auto index = 0; index < config->SessionFinalizationBatchSize && !SessionsAwaitingFinalizaton_.empty(); ++index) {
+        auto* req = request.add_subrequests();
+        const auto& sessionResult = SessionsAwaitingFinalizaton_.front();
+        ToProto(req->mutable_node_id(), sessionResult.NodeId);
+        req->set_result(ToProto<int>(sessionResult.Result));
+        SessionsAwaitingFinalizaton_.pop();
+    }
+
+    CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
+        ->CommitAndLog(Logger);
 }
 
 void TChunkMerger::ProcessTouchedNodes()
@@ -642,19 +730,22 @@ void TChunkMerger::ProcessTouchedNodes()
             account->GetMergeJobRate() < maxRate &&
             std::ssize(JobsAwaitingNodeHeartbeat_) < config->QueueSizeLimit)
         {
-            auto* node = queue.front();
+            auto nodeId = queue.front();
             queue.pop();
+
+            YT_VERIFY(RunningSessions_.contains(nodeId));
+            auto* node = FindChunkOwner(nodeId);
 
             if (CanScheduleMerge(node)) {
                 account->IncrementMergeJobRate(1);
                 New<TMergeChunkVisitor>(
                     Bootstrap_,
                     node,
-                    &JobsAwaitingChunkCreation_)
+                    MakeWeak(this))
                     ->Run();
+            } else {
+                ScheduleSessionFinalization(nodeId, EMergeSessionResult::PermanentFailure);
             }
-
-            UnlockNode(Bootstrap_, node);
         }
     }
 
@@ -664,8 +755,8 @@ void TChunkMerger::ProcessTouchedNodes()
 
         auto& queue = it->second;
         while (!queue.empty()) {
-            auto* node = queue.front();
-            UnlockNode(Bootstrap_, node);
+            auto nodeId = queue.front();
+            ScheduleSessionFinalization(nodeId, EMergeSessionResult::OK);
             queue.pop();
         }
 
@@ -696,6 +787,7 @@ void TChunkMerger::CreateChunks()
 
         auto* node = FindChunkOwner(jobInfo.NodeId);
         if (!node) {
+            FinalizeJob(jobInfo.NodeId, jobInfo.JobId, EMergeSessionResult::PermanentFailure);
             JobsAwaitingChunkCreation_.pop();
             continue;
         }
@@ -841,6 +933,7 @@ void TChunkMerger::ScheduleReplaceChunks(const TMergeJobInfo& jobInfo)
     ToProto(request.mutable_new_chunk_id(), jobInfo.OutputChunkId);
     ToProto(request.mutable_node_id(), jobInfo.NodeId);
     ToProto(request.mutable_old_chunk_ids(), jobInfo.InputChunkIds);
+    ToProto(request.mutable_job_id(), jobInfo.JobId);
 
     CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
         ->CommitAndLog(Logger);
@@ -861,10 +954,6 @@ void TChunkMerger::OnJobFinished(const TJobPtr& job)
     }
 
     const auto& jobInfo = it->second;
-    if (auto* trunkNode = FindChunkOwner(jobInfo.NodeId)) {
-        DecrementMergeJobCounter(Bootstrap_, trunkNode);
-    }
-
     switch (job->GetState()) {
         case EJobState::Completed:
             ScheduleReplaceChunks(jobInfo);
@@ -872,9 +961,7 @@ void TChunkMerger::OnJobFinished(const TJobPtr& job)
 
         case EJobState::Failed:
         case EJobState::Aborted:
-            if (IsLeader()) {
-                ScheduleMerge(jobInfo.NodeId);
-            }
+            FinalizeJob(jobInfo.NodeId, jobInfo.JobId, EMergeSessionResult::TransientFailure);
             break;
 
         default:
@@ -907,6 +994,9 @@ void TChunkMerger::OnDynamicConfigChanged(TDynamicClusterConfigPtr)
     if (StartTransactionExecutor_) {
         StartTransactionExecutor_->SetPeriod(config->TransactionUpdatePeriod);
     }
+    if (FinalizeSessionExecutor_) {
+        FinalizeSessionExecutor_->SetPeriod(config->SessionFinalizationPeriod);
+    }
 
     auto enable = config->Enable;
 
@@ -921,7 +1011,7 @@ void TChunkMerger::OnDynamicConfigChanged(TDynamicClusterConfigPtr)
     }
 }
 
-TChunkOwnerBase* TChunkMerger::FindChunkOwner(NCypressServer::TNodeId nodeId)
+TChunkOwnerBase* TChunkMerger::FindChunkOwner(TObjectId nodeId)
 {
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     auto* node = cypressManager->FindNode(TVersionedNodeId(nodeId));
@@ -950,15 +1040,13 @@ void TChunkMerger::HydraCreateChunks(NProto::TReqCreateChunks* request)
             if (!IsLeader()) {
                 return;
             }
+
             auto it = JobsUndergoingChunkCreation_.find(jobId);
             if (it == JobsUndergoingChunkCreation_.end()) {
                 return;
             }
 
-            if (auto* trunkNode = FindChunkOwner(it->second.NodeId)) {
-                DecrementMergeJobCounter(Bootstrap_, trunkNode);
-                ScheduleMerge(trunkNode);
-            }
+            FinalizeJob(it->second.NodeId, jobId, EMergeSessionResult::TransientFailure);
             JobsUndergoingChunkCreation_.erase(it);
         };
 
@@ -1028,11 +1116,13 @@ void TChunkMerger::HydraCreateChunks(NProto::TReqCreateChunks* request)
 void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
 {
     auto nodeId = FromProto<TObjectId>(request->node_id());
+    auto jobId = FromProto<TObjectId>(request->job_id());
     auto* chunkOwner = FindChunkOwner(nodeId);
     if (!chunkOwner) {
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: no such chunk owner node (NodeId: %v)",
             nodeId);
         ++ChunkReplacementFailed_;
+        FinalizeJob(nodeId, jobId, EMergeSessionResult::PermanentFailure);
         return;
     }
 
@@ -1042,6 +1132,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: table is dynamic (NodeId: %v)",
                 chunkOwner->GetId());
             ++ChunkReplacementFailed_;
+            FinalizeJob(nodeId, jobId, EMergeSessionResult::PermanentFailure);
             return;
         }
     }
@@ -1056,9 +1147,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
             nodeId,
             newChunkId);
         ++ChunkReplacementFailed_;
-        if (IsLeader()) {
-            ScheduleMerge(chunkOwner);
-        }
+        FinalizeJob(nodeId, jobId, EMergeSessionResult::TransientFailure);
         return;
     }
 
@@ -1075,9 +1164,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: root has changed (NodeId: %v)",
             nodeId);
         ++ChunkReplacementFailed_;
-        if (IsLeader()) {
-            ScheduleMerge(chunkOwner);
-        }
+        FinalizeJob(nodeId, jobId, EMergeSessionResult::TransientFailure);
         return;
     }
 
@@ -1103,9 +1190,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
 
     chunkManager->ScheduleChunkRequisitionUpdate(newChunk);
 
-    if (IsLeader()) {
-        ScheduleMerge(chunkOwner);
-    }
+    FinalizeJob(nodeId, jobId, EMergeSessionResult::OK);
 
     if (chunkOwner->IsForeign()) {
         const auto& tableManager = Bootstrap_->GetTableManager();
@@ -1114,6 +1199,33 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
             /*updateDataStatistics*/ true,
             /*updateTabletStatistics*/ false,
             /*useNativeContentRevisionCas*/ true);
+    }
+}
+
+void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMergeSessions* request)
+{
+    for (const auto& subrequest : request->subrequests()) {
+        auto nodeId = FromProto<TObjectId>(subrequest.node_id());
+        auto result = FromProto<EMergeSessionResult>(subrequest.result());
+        YT_VERIFY(result != EMergeSessionResult::None);
+
+        YT_VERIFY(NodesBeingMerged_.erase(nodeId) > 0);
+        auto* chunkOwner = FindChunkOwner(nodeId);
+        if (!chunkOwner) {
+            continue;
+        }
+
+        auto nodeTouched = chunkOwner->GetUpdatedSinceLastMerge();
+        chunkOwner->SetUpdatedSinceLastMerge(false);
+        YT_LOG_DEBUG_IF(
+            IsMutationLoggingEnabled(),
+            "Finalizing merge session (NodeId: %v, NodeTouched: %v, Result: %v)",
+            nodeId,
+            nodeTouched,
+            result);
+        if (result == EMergeSessionResult::TransientFailure || (result == EMergeSessionResult::OK && nodeTouched)) {
+            ScheduleMerge(nodeId);
+        }
     }
 }
 
@@ -1154,6 +1266,7 @@ void TChunkMerger::Save(NCellMaster::TSaveContext& context) const
     // Persist transactions so that we can commit them.
     Save(context, TransactionId_);
     Save(context, PreviousTransactionId_);
+    Save(context, NodesBeingMerged_);
 }
 
 void TChunkMerger::Load(NCellMaster::TLoadContext& context)
@@ -1162,6 +1275,27 @@ void TChunkMerger::Load(NCellMaster::TLoadContext& context)
 
     Load(context, TransactionId_);
     Load(context, PreviousTransactionId_);
+    if (context.GetVersion() >= EMasterReign::PersistNodesBeingMerged) {
+        Load(context, NodesBeingMerged_);
+    }
+}
+
+void TChunkMerger::OnAfterSnapshotLoaded()
+{
+    TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
+    auto nodesBeingMerged = std::move(NodesBeingMerged_);
+    NodesBeingMerged_.clear();
+
+    for (auto nodeId : nodesBeingMerged) {
+        auto* node = FindChunkOwner(nodeId);
+        if (!IsObjectAlive(node)) {
+            continue;
+        }
+
+        node->SetUpdatedSinceLastMerge(false);
+        ScheduleMerge(node);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

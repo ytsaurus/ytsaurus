@@ -1697,9 +1697,14 @@ public:
 
     void ScheduleChunkMerge(TChunkOwnerBase* node)
     {
-        if (IsLeader()) {
-            ChunkMerger_->ScheduleMerge(node);
-        }
+        YT_VERIFY(HasMutationContext());
+
+        ChunkMerger_->ScheduleMerge(node);
+    }
+
+    bool IsNodeBeingMerged(NCypressServer::TNodeId nodeId) const
+    {
+        return ChunkMerger_->IsNodeBeingMerged(nodeId);
     }
 
     TChunk* GetChunkOrThrow(TChunkId id)
@@ -4975,6 +4980,11 @@ void TChunkManager::ScheduleChunkSeal(TChunk* chunk)
 void TChunkManager::ScheduleChunkMerge(TChunkOwnerBase* node)
 {
     Impl_->ScheduleChunkMerge(node);
+}
+
+bool TChunkManager::IsNodeBeingMerged(NCypressServer::TNodeId nodeId) const
+{
+    return Impl_->IsNodeBeingMerged(nodeId);
 }
 
 int TChunkManager::GetTotalReplicaCount()

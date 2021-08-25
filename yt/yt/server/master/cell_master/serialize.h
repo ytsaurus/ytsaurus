@@ -181,6 +181,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixPreserveOwnerUnderTx)                                      (1654))  // aleksandra-zh
     ((XdeltaAggregation)                                            (1655))  // leasid
     ((RefHunkChunks)                                                (1656))  // babenko
+    ((PersistNodesBeingMerged)                                      (1657))  // aleksandra-zh
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1700))  // ignat
 );

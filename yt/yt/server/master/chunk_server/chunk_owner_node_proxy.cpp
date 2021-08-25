@@ -598,7 +598,7 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
         .SetWritePermission(EPermission::Administer)
         .SetExternal(isExternal)
         .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MergeJobCounter)
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::IsBeingMerged)
         .SetExternal(isExternal)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableSkynetSharing)
@@ -715,15 +715,16 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
                 .Value(node->GetEnableChunkMerger());
             return true;
 
-        case EInternedAttributeKey::MergeJobCounter:
+        case EInternedAttributeKey::IsBeingMerged: {
             if (isExternal) {
                 break;
             }
-            RequireLeader();
 
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
             BuildYsonFluently(consumer)
-                .Value(node->GetCurrentEpochMergeJobCounter());
+                .Value(chunkManager->IsNodeBeingMerged(node->GetId()));
             return true;
+        }
 
         case EInternedAttributeKey::EnableSkynetSharing:
             BuildYsonFluently(consumer)
