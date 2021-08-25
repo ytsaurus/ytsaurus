@@ -20,6 +20,7 @@ import os
 import struct
 import socket
 from datetime import datetime, timedelta
+import time
 
 
 def try_parse_yt_error(rsp):
@@ -44,6 +45,8 @@ class HttpProxyTestBase(YTEnvSetup):
     DELTA_PROXY_CONFIG = {
         "coordinator": {
             "heartbeat_interval": 100,
+            "death_age": 500,
+            "cypress_timeout": 50,
         },
         "api": {
             "force_tracing": True,
@@ -294,6 +297,22 @@ class TestHttpProxy(HttpProxyTestBase):
         # Enable access checker via dynamic config. And "u" is banned again.
         set("//sys/proxies/@config", {"access_checker": {"enabled": True}})
         wait(lambda: not check_access(proxy_address, "u"))
+
+    @authors("alexkolodezny")
+    def test_banned_proxy(self):
+        proxy = ls("//sys/proxies")[0]
+        set("//sys/proxies/" + proxy + "/@banned", True)
+        wait(lambda: not requests.get(self._get_proxy_address() + "/ping").ok)
+
+        set("//sys/proxies/" + proxy + "/@banned", False)
+        wait(lambda: requests.get(self._get_proxy_address() + "/ping").ok)
+
+    @authors("alexkolodezny")
+    def test_proxy_unavailable_on_master_failure(self):
+        with Restarter(self.Env, MASTERS_SERVICE):
+            wait(lambda: not requests.get(self._get_proxy_address() + "/ping").ok)
+
+        wait(lambda: requests.get(self._get_proxy_address() + "/ping").ok)
 
 
 class TestHttpProxyFraming(HttpProxyTestBase):
@@ -633,6 +652,7 @@ class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
 
 
 class TestHttpProxyBuildSnapshotNoReadonly(TestHttpProxyBuildSnapshotBase):
+
     @authors("babenko")
     def test_no_read_only(self):
         self._wait_for_snapshot_state(False, -1)
@@ -650,6 +670,25 @@ class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
         self._wait_for_snapshot_state(False)
 
         wait(lambda: self._get_hydra_monitoring().get("read_only", None))
+
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass
+
+        wait(lambda: not self._get_hydra_monitoring().get("read_only", None))
+
+    @authors("alexkolodezny")
+    def test_read_only_proxy_availability(self):
+        self._wait_for_snapshot_state(False, -1)
+        self._build_snapshot(True)
+        self._wait_for_snapshot_state(True, -1)
+        self._wait_for_snapshot_state(False)
+
+        wait(lambda: self._get_hydra_monitoring().get("read_only", None))
+
+        time.sleep(2)
+
+        rsp = requests.get(self._get_proxy_address() + "/ping")
+        rsp.raise_for_status()
 
         with Restarter(self.Env, MASTERS_SERVICE):
             pass

@@ -40,6 +40,7 @@ public:
 
     TDuration HeartbeatInterval;
     TDuration DeathAge;
+    TDuration CypressTimeout;
 
     bool ShowPorts;
 

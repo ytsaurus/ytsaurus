@@ -440,7 +440,7 @@ public:
         // NB: This is monotonic: once in read-only mode, cannot leave it.
         if (ReadOnly_) {
             return MakeFuture<TMutationResponse>(TError(
-                NRpc::EErrorCode::Unavailable,
+                NHydra::EErrorCode::ReadOnly,
                 "Read-only mode is active"));
         }
 
