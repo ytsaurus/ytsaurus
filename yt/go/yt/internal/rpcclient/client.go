@@ -211,20 +211,20 @@ func (c *client) LockRows(
 		return c.Encoder.LockRows(ctx, path, locks, lockType, keys, opts)
 	}
 
-	txID, err := c.StartTabletTx(ctx, nil)
+	tx, err := c.BeginTabletTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	defer c.AbortTx(ctx, txID, nil)
+	defer tx.Abort()
 
-	opts.TransactionID = txID
+	opts.TransactionID = tx.ID()
 
 	err = c.Encoder.LockRows(ctx, path, locks, lockType, keys, opts)
 	if err != nil {
 		return err
 	}
 
-	return c.CommitTx(ctx, txID, nil)
+	return tx.Commit()
 }
 
 // InsertRows wraps encoder's implementation with transaction.
@@ -246,20 +246,20 @@ func (c *client) InsertRows(
 		return c.Encoder.InsertRows(ctx, path, rows, opts)
 	}
 
-	txID, err := c.StartTabletTx(ctx, nil)
+	tx, err := c.BeginTabletTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	defer c.AbortTx(ctx, txID, nil)
+	defer tx.Abort()
 
-	opts.TransactionID = txID
+	opts.TransactionID = tx.ID()
 
-	err = c.Encoder.InsertRows(ctx, path, rows, opts)
+	err = tx.InsertRows(ctx, path, rows, opts)
 	if err != nil {
 		return err
 	}
 
-	return c.CommitTx(ctx, txID, nil)
+	return tx.Commit()
 }
 
 // DeleteRows wraps encoder's implementation with transaction.
@@ -281,18 +281,18 @@ func (c *client) DeleteRows(
 		return c.Encoder.DeleteRows(ctx, path, keys, opts)
 	}
 
-	txID, err := c.StartTabletTx(ctx, nil)
+	tx, err := c.BeginTabletTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	defer c.AbortTx(ctx, txID, nil)
+	defer tx.Abort()
 
-	opts.TransactionID = txID
+	opts.TransactionID = tx.ID()
 
 	err = c.Encoder.DeleteRows(ctx, path, keys, opts)
 	if err != nil {
 		return err
 	}
 
-	return c.CommitTx(ctx, txID, nil)
+	return tx.Commit()
 }
