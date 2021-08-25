@@ -118,16 +118,6 @@ TNodeShard::TNodeShard(
         BIND(&TNodeShard::SubmitJobsToStrategy, MakeWeak(this)),
         Config_->NodeShardSubmitJobsToStrategyPeriod))
 {
-    SchedulerProfiler.AddFuncCounter("/jobs/registered_job_count", MakeStrong(this), [this] {
-        return ActiveJobCount_.load();
-    });
-    SchedulerProfiler.AddFuncCounter("/exec_node_count", MakeStrong(this), [this] {
-        return ExecNodeCount_.load();
-    });
-    SchedulerProfiler.AddFuncCounter("/total_node_count", MakeStrong(this), [this] {
-        return TotalNodeCount_.load();
-    });
-
     TotalCompletedJobTime_ = SchedulerProfiler.TimeCounter("/jobs/total_completed_wall_time");
     TotalFailedJobTime_ = SchedulerProfiler.TimeCounter("/jobs/total_failed_wall_time");
     TotalAbortedJobTime_ = SchedulerProfiler.TimeCounter("/jobs/total_aborted_wall_time");
@@ -1273,21 +1263,28 @@ TJobResources TNodeShard::GetResourceUsage(const TSchedulingTagFilter& filter) c
     return CachedResourceStatisticsByTags_->Get(filter).Usage;
 }
 
-int TNodeShard::GetActiveJobCount()
+int TNodeShard::GetActiveJobCount() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return ActiveJobCount_;
 }
 
-int TNodeShard::GetExecNodeCount()
+int TNodeShard::GetSubmitToStrategyJobCount() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return SubmitToStrategyJobCount_;
+}
+
+int TNodeShard::GetExecNodeCount() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return ExecNodeCount_;
 }
 
-int TNodeShard::GetTotalNodeCount()
+int TNodeShard::GetTotalNodeCount() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -2394,6 +2391,7 @@ void TNodeShard::SubmitJobsToStrategy()
                 YT_VERIFY(JobsToSubmitToStrategy_.erase(jobId) == 1);
             }
         }
+        SubmitToStrategyJobCount_.store(JobsToSubmitToStrategy_.size());
     }
 }
 
