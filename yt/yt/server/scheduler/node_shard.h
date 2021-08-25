@@ -184,9 +184,10 @@ public:
     TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const;
     TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) const;
 
-    int GetActiveJobCount();
-    int GetExecNodeCount();
-    int GetTotalNodeCount();
+    int GetActiveJobCount() const;
+    int GetExecNodeCount() const;
+    int GetTotalNodeCount() const;
+    int GetSubmitToStrategyJobCount() const;
 
     TFuture<TControllerScheduleJobResultPtr> BeginScheduleJob(
         TIncarnationId incarnationId,
@@ -263,6 +264,7 @@ private:
     NProfiling::TCounter HeartbeatCount_;
 
     THashMap<TJobId, TJobUpdate> JobsToSubmitToStrategy_;
+    std::atomic<int> SubmitToStrategyJobCount_;
 
     struct TScheduleJobEntry
     {

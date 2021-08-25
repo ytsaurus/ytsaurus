@@ -2028,6 +2028,17 @@ private:
         return totalNodeCount;
     }
 
+    int GetSubmitToStrategyJobCount() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        int submitToStrategyJobCount = 0;
+        for (const auto& nodeShard : NodeShards_) {
+            submitToStrategyJobCount += nodeShard->GetSubmitToStrategyJobCount();
+        }
+        return submitToStrategyJobCount;
+    }
+
     int GetActiveJobCount()
     {
         int activeJobCount = 0;
@@ -2197,6 +2208,19 @@ private:
         TotalResourceLimitsProfiler_.Init(SchedulerProfiler.WithPrefix("/total_resource_limits"));
         TotalResourceUsageProfiler_.Init(SchedulerProfiler.WithPrefix("/total_resource_usage"));
         NodeSchedulingSegmentManager_.SetProfilingEnabled(true);
+    
+        SchedulerProfiler.AddFuncGauge("/jobs/registered_job_count", MakeStrong(this), [this] {
+            return GetActiveJobCount();
+        });
+        SchedulerProfiler.AddFuncGauge("/jobs/submit_to_strategy_count", MakeStrong(this), [this] {
+            return GetSubmitToStrategyJobCount();
+        });
+        SchedulerProfiler.AddFuncGauge("/exec_node_count", MakeStrong(this), [this] {
+            return GetExecNodeCount();
+        });
+        SchedulerProfiler.AddFuncGauge("/total_node_count", MakeStrong(this), [this] {
+            return GetTotalNodeCount();
+        });
 
         LogEventFluently(ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
