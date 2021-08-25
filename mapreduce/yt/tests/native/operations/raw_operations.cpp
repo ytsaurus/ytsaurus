@@ -17,7 +17,7 @@ class TJsonKvSwapper
     : public IRawJob
 {
 public:
-    virtual void Do(const TRawJobContext& context) override
+    void Do(const TRawJobContext& context) override
     {
         TUnbufferedFileInput inf(context.GetInputFile());
         TUnbufferedFileOutput outf(context.GetOutputFileList()[0]);
@@ -47,7 +47,7 @@ class TJsonValueJoin
     : public IRawJob
 {
 public:
-    virtual void Do(const TRawJobContext& context) override
+    void Do(const TRawJobContext& context) override
     {
         TUnbufferedFileInput inf(context.GetInputFile());
         TUnbufferedFileOutput outf(context.GetOutputFileList()[0]);

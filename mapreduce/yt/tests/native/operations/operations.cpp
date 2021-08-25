@@ -662,7 +662,7 @@ REGISTER_MAPPER(TMapperThatWritesRowsAndRanges<NYdlRows::TMessage>)
 class TMapperThatNumbersRows : public IMapper<TNodeReader, TNodeWriter>
 {
 public:
-    void Do(TReader* reader, TWriter* writer) {
+    void Do(TReader* reader, TWriter* writer) override {
         for (; reader->IsValid(); reader->Next()) {
             auto row = reader->GetRow();
             row["INDEX"] = reader->GetRowIndex();

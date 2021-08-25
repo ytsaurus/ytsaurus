@@ -12,7 +12,7 @@ class TComputeEmailsMapper
     : public IMapper<TTableReader<TLoginRecord>, TTableWriter<TEmailRecord>>
 {
 public:
-    virtual void Do(TReader* reader, TWriter* writer) override
+    void Do(TReader* reader, TWriter* writer) override
     {
         for (auto& cursor : *reader) {
             const auto& loginRecord = cursor.GetRow();

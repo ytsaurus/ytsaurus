@@ -17,7 +17,7 @@ class TSkynetGeneratingTable
     : public IVanillaJob<TTableWriter<TSkynetTableRow>>
 {
 public:
-    void Do(TWriter* writer)
+    void Do(TWriter* writer) override
     {
         auto skynetTableWriter = CreateSkynetWriter(writer);
         {

@@ -40,7 +40,7 @@ public:
         , SleepDuration_(sleepDuration)
     { }
 
-    virtual void Do(TReader*, TWriter* ) override
+    void Do(TReader*, TWriter* ) override
     {
         {
             TOFStream os(FileName_);

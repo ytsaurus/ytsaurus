@@ -7,7 +7,7 @@ class TComputeEmailsMapper
     : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
     public:
-        virtual void Do(TReader* reader, TWriter* writer) override
+        void Do(TReader* reader, TWriter* writer) override
         {
             // Соберём несколько интересных статистик по сотрудникам
             i64 fortyTwoCount = 0;

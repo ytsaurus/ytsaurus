@@ -13,7 +13,7 @@ class AggregateLinksReducer
     : public IReducer<TTableReader<TLinkEntry>, TTableWriter<TDoc>>
 {
 public:
-    virtual void Do(TReader* reader, TWriter* writer) override
+    void Do(TReader* reader, TWriter* writer) override
     {
         TDoc doc;
         for (auto& cursor : *reader) {

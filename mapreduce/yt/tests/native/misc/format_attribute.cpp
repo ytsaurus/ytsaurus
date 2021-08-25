@@ -27,7 +27,7 @@ class TSwapKvMapper
     : public IMapper<TTableReader<TYaMRRow>, TTableWriter<TYaMRRow>>
 {
 public:
-    virtual void Do(TTableReader<TYaMRRow>* reader, TTableWriter<TYaMRRow>* writer) override
+    void Do(TTableReader<TYaMRRow>* reader, TTableWriter<TYaMRRow>* writer) override
     {
         for (; reader->IsValid(); reader->Next()) {
             auto row = reader->GetRow();

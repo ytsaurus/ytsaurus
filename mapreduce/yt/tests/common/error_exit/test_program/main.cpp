@@ -11,13 +11,13 @@ public:
         : SleepSeconds(sleepSeconds)
     { }
 
-    virtual void Start(ui32, ui64, TUpdate&) override
+    void Start(ui32, ui64, TUpdate&) override
     {
         Sleep(TDuration::Seconds(SleepSeconds));
         _exit(1); // error exit
     }
 
-    virtual void Do(TValue, TValue, TUpdate&) override
+    void Do(TValue, TValue, TUpdate&) override
     { }
 
 private:

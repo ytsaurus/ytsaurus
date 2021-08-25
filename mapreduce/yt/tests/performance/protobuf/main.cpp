@@ -16,7 +16,7 @@ class TConsumingMapper
     : public IMapper<TTableReader<TIntermediateSemidupsDataProto>, TTableWriter<TNode>>
 {
 public:
-    void Do(TReader* reader, TWriter* writer)
+    void Do(TReader* reader, TWriter* writer) override
     {
         ui32 maxTableIndex = 0;
         for (const auto& cursor : *reader) {
@@ -31,7 +31,7 @@ class TGenericReducer
     : public IReducer<TTableReader<Message>, TTableWriter<TNode>>
 {
 public:
-    void Do(TReader* reader, TWriter* /* writer */)
+    void Do(TReader* reader, TWriter* /* writer */) override
     {
         for (const auto& cursor : *reader) {
             if (cursor.GetTableIndex() % 2 == 0) {
@@ -42,7 +42,7 @@ public:
         }
     }
 
-    void Finish(TWriter* writer)
+    void Finish(TWriter* writer) override
     {
         writer->AddRow(TNode()("max", Max_));
     }
@@ -56,7 +56,7 @@ class TProtoOneOfReducer
     : public IReducer<TTableReader<TProtoOneOf<TUrlDataRowProto, TUrlDataRowProto1>>, TTableWriter<TNode>>
 {
 public:
-    void Do(TReader* reader, TWriter* /* writer */)
+    void Do(TReader* reader, TWriter* /* writer */) override
     {
         for (const auto& cursor : *reader) {
             if (cursor.GetTableIndex() % 2 == 0) {
@@ -68,7 +68,7 @@ public:
         
     }
 
-    void Finish(TWriter* writer)
+    void Finish(TWriter* writer) override
     {
         writer->AddRow(TNode()("max", Max_));
     }

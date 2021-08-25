@@ -17,7 +17,7 @@ class TIdMapper
     : public IMapper<TNodeReader, TNodeWriter>
 {
 public:
-    virtual void Do(TReader* reader, TWriter* writer) override
+    void Do(TReader* reader, TWriter* writer) override
     {
         for (; reader->IsValid(); reader->Next()) {
             writer->AddRow(reader->GetRow());

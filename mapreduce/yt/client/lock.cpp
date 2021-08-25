@@ -26,12 +26,12 @@ public:
         , Acquired_(acquired)
     { }
 
-    virtual void PrepareRequest(TRawBatchRequest* batchRequest) override
+    void PrepareRequest(TRawBatchRequest* batchRequest) override
     {
         LockState_ = batchRequest->Get(TTransactionId(), LockStateYPath_, TGetOptions());
     }
 
-    virtual EStatus OnRequestExecuted() override
+    EStatus OnRequestExecuted() override
     {
         try {
             const auto& state = LockState_.GetValue().AsString();
