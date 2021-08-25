@@ -89,13 +89,6 @@ public:
         TChunk* journalFrontChunk,
         int journalChunkCount);
 
-    void ScheduleUnknownReplicaRemoval(
-        TNode* node,
-        const NChunkClient::TChunkIdWithIndexes& chunkdIdWithIndexes);
-    void ScheduleReplicaRemoval(
-        TNode* node,
-        TChunkPtrWithIndexes chunkWithIndexes);
-
     void ScheduleRequisitionUpdate(TChunk* chunk);
     void ScheduleRequisitionUpdate(TChunkList* chunkList);
 

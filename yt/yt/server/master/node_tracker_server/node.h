@@ -180,7 +180,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TUnapprovedReplicaMap, UnapprovedReplicas);
 
     using TDestroyedReplicaSet = THashSet<NChunkClient::TChunkIdWithIndexes>;
-    DEFINE_BYREF_RW_PROPERTY(TDestroyedReplicaSet, DestroyedReplicas);
+    DEFINE_BYREF_RO_PROPERTY(TDestroyedReplicaSet, DestroyedReplicas);
+    DEFINE_BYVAL_RO_PROPERTY(TDestroyedReplicaSet::iterator, DestroyedReplicasIterator);
 
     using TJobMap = THashMap<TJobId, TJobPtr>;
     DEFINE_BYREF_RO_PROPERTY(TJobMap, IdToJob);
@@ -367,6 +368,9 @@ public:
     TCellNodeStatistics ComputeClusterStatistics() const;
 
     void ClearCellStatistics();
+
+    void AdvanceDestroyedReplicasIterator();
+    void ResetDestroyedReplicasIterator();
 
 private:
     NNodeTrackerClient::TNodeAddressMap NodeAddresses_;

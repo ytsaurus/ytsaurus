@@ -2166,7 +2166,6 @@ private:
             if (!node->ReportedDataNodeHeartbeat()) {
                 return;
             }
-            ChunkReplicator_->ScheduleReplicaRemoval(node, chunkWithIndexes);
         };
 
         for (auto replica : chunk->StoredReplicas()) {
@@ -4084,11 +4083,6 @@ private:
                 nodeId,
                 node->GetDefaultAddress(),
                 chunkIdWithIndexes);
-
-            if (ChunkReplicator_) {
-                ChunkReplicator_->ScheduleUnknownReplicaRemoval(node, chunkIdWithIndexes);
-            }
-
             return nullptr;
         }
 

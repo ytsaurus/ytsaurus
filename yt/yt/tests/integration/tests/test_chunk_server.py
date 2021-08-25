@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE
 
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, exists,
@@ -94,7 +94,7 @@ class TestChunkServer(YTEnvSetup):
                 return False
         return True
 
-    def _wait_for_replicas_removal(self, path):
+    def _wait_for_replicas_removal(self, path, service_to_restart):
         chunk_id = get_singular_chunk_id(path)
         wait(lambda: len(get("#{0}/@stored_replicas".format(chunk_id))) > 0)
         node = get("#{0}/@stored_replicas".format(chunk_id))[0]
@@ -108,6 +108,9 @@ class TestChunkServer(YTEnvSetup):
 
         remove(path)
         wait(lambda: get("//sys/cluster_nodes/{0}/@destroyed_chunk_replica_count".format(node)) > 0)
+
+        with Restarter(self.Env, service_to_restart):
+            pass
 
         remove("//sys/cluster_nodes/{0}/@resource_limits_overrides/removal_slots".format(node))
         wait(lambda: get("//sys/cluster_nodes/{0}/@destroyed_chunk_replica_count".format(node)) == 0)
@@ -279,18 +282,20 @@ class TestChunkServer(YTEnvSetup):
             set("//sys/media/default/@config/max_replication_factor", old_max_rf)
 
     @authors("aleksandra-zh")
-    def test_chunk_replica_removal(self):
+    @pytest.mark.parametrize("service_to_restart", [NODES_SERVICE, MASTERS_SERVICE])
+    def test_chunk_replica_removal(self, service_to_restart):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a": "b"})
 
-        self._wait_for_replicas_removal("//tmp/t")
+        self._wait_for_replicas_removal("//tmp/t", service_to_restart)
 
     @authors("aleksandra-zh")
-    def test_journal_chunk_replica_removal(self):
+    @pytest.mark.parametrize("service_to_restart", [NODES_SERVICE, MASTERS_SERVICE])
+    def test_journal_chunk_replica_removal(self, service_to_restart):
         create("journal", "//tmp/j")
         write_journal("//tmp/j", [{"data": "payload" + str(i)} for i in xrange(0, 10)])
 
-        self._wait_for_replicas_removal("//tmp/j")
+        self._wait_for_replicas_removal("//tmp/j", service_to_restart)
 
     @authors("gritukan")
     def test_disable_store_location(self):

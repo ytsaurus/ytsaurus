@@ -1692,6 +1692,8 @@ private:
         node->SetNodeAddresses(nodeAddresses);
         InsertToAddressMaps(node);
 
+        node->ResetDestroyedReplicasIterator();
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto rootService = objectManager->GetRootService();
         auto nodePath = GetNodePath(node);
