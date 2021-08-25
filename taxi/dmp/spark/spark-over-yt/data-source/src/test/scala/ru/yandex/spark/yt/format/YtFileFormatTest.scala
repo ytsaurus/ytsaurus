@@ -558,6 +558,71 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
 
     spark.read.yt(customPath).as[Double].collect() should contain theSameElementsAs data
   }
+
+  it should "read table from several files" in {
+    YtWrapper.createDir(tmpPath)
+    val table1 = s"$tmpPath/t1"
+    val table2 = s"$tmpPath/t2"
+    writeTableFromYson(Seq(
+      """{a = 1; b = "a"; c = 0.3}"""
+    ), table1, atomicSchema)
+    writeTableFromYson(Seq(
+      """{a = 2; b = "b"; c = 0.5}"""
+    ), table2, atomicSchema)
+
+    val df = spark.read.yt(table1, table2)
+
+    df.columns should contain theSameElementsAs Seq("a", "b", "c")
+    df.select("a", "b", "c").collect() should contain theSameElementsAs Seq(
+      Row(1, "a", 0.3),
+      Row(2, "b", 0.5)
+    )
+  }
+
+  it should "read joined different tables" in {
+    YtWrapper.createDir(tmpPath)
+    val table1 = s"$tmpPath/t1"
+    val table2 = s"$tmpPath/t2"
+    writeTableFromYson(Seq(
+      """{a = 1; b = "a"; c = 0.3}"""
+    ), table1, atomicSchema)
+    writeTableFromYson(Seq(
+      """{c = 2.0; d = "t"}"""
+    ), table2, new TableSchema.Builder()
+      .setUniqueKeys(false)
+      .addValue("c", ColumnValueType.DOUBLE)
+      .addValue("d", ColumnValueType.STRING)
+      .build()
+    )
+
+    val df = spark.read.yt(table1, table2)
+
+    df.columns should contain theSameElementsAs Seq("a", "b", "c", "d")
+    df.select("a", "b", "c", "d").collect() should contain theSameElementsAs Seq(
+      Row(1, "a", 0.3, null),
+      Row(null, null, 2.0, "t")
+    )
+  }
+
+  it should "fail when incompatible tables joined" in {
+    YtWrapper.createDir(tmpPath)
+    val table1 = s"$tmpPath/t1"
+    val table2 = s"$tmpPath/t2"
+    writeTableFromYson(Seq(
+      """{a = 1; b = "a"; c = 0.3}"""
+    ), table1, atomicSchema)
+    writeTableFromYson(Seq(
+      """{c = "a"}"""
+    ), table2, new TableSchema.Builder()
+      .setUniqueKeys(false)
+      .addValue("c", ColumnValueType.STRING)
+      .build()
+    )
+
+    a[SparkException] shouldBe thrownBy {
+      spark.read.yt(table1, table2)
+    }
+  }
 }
 
 object Counter {
