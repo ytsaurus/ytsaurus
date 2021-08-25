@@ -40,8 +40,6 @@ using namespace NYTAlloc;
 
 #ifdef _linux_
 
-static constexpr auto PageSize = 4_KBs;
-
 static constexpr auto UringEngineNotificationCount = 2;
 static constexpr auto MaxIovCountPerRequest = 64;
 static constexpr auto MaxUringConcurrentRequestsPerThread = 32;
@@ -199,21 +197,7 @@ public:
     //! Limits the number of concurrent (outstanding) #IIOEngine requests per a single uring thread.
     int MaxConcurrentRequestsPerThread;
 
-    //! A read request may indicate that DirectIO is required to serve it;
-    //! see #IIOEngine::TReadRequest::UseDirectIO. In particular, the file
-    //! must be opened with O_DIRECT flag. If, however, #IIOEngine::TReadRequest::Data
-    //! is not page-aligned and is smaller than #LargeUnalignedDirectIOReadSize,
-    //! the engine will use an internal pooled buffer of size
-    //! #PooledDirectIOReadBufferSize to serve the read and copy the data.
-    //! This parameter must be divisible by page size.
-    //! The total memory footprint is
-    //! |UringThreadCount * MaxConcurrentRequestsPerThread * PooledDirectIOReadBufferSize|.
-    i64 PooledDirectIOReadBufferSize;
-
-    //! See above. In case of an unaligned read of size at least #LargeUnalignedDirectIOReadSize
-    //! the engine will allocate an aligned buffer, issue a read request into it, and then
-    //! copy the data back to the user's buffer.
-    i64 LargeUnalignedDirectIOReadSize;
+    int DirectIOPageSize;
 
     TUringIOEngineConfig()
     {
@@ -225,18 +209,9 @@ public:
             .LessThanOrEqual(MaxUringConcurrentRequestsPerThread)
             .Default(22);
 
-        RegisterParameter("pooled_direct_io_read_buffer_size", PooledDirectIOReadBufferSize)
+        RegisterParameter("direct_io_page_size", DirectIOPageSize)
             .GreaterThan(0)
-            .Default(16_KB);
-        RegisterParameter("large_unaligned_direct_io_read_size", LargeUnalignedDirectIOReadSize)
-            .GreaterThan(0)
-            .Default(64_KB);
-
-        RegisterPostprocessor([&] {
-            if (PooledDirectIOReadBufferSize % PageSize != 0) {
-                THROW_ERROR_EXCEPTION("\"direct_io_read_buffer_size\" must be divisible by page size");
-            }
-        });
+            .Default(4_KB);
     }
 };
 
@@ -1780,7 +1755,11 @@ public:
 
         auto uringRequest = std::make_unique<TReadUringRequest>();
 
-        uringRequest->ReadRequestCombiner.Combine(std::move(requests), PageSize, memoryZone, tagCookie);
+        uringRequest->ReadRequestCombiner.Combine(
+            std::move(requests),
+            Config_->DirectIOPageSize,
+            memoryZone,
+            tagCookie);
         const auto& ioRequests = uringRequest->ReadRequestCombiner.GetIORequests();
 
         uringRequest->Type = EUringRequestType::Read;
