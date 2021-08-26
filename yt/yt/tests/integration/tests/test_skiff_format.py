@@ -670,6 +670,19 @@ while True:
         with raises_yt_error("Skiff type int64 cannot represent"):
             write_table("//tmp/table", "", is_raw=True, input_format=format)
 
+    @authors("ermolovd")
+    def test_too_many_columns(self):
+        max_column_id = 32 * 1024
+        column_names = ["column_{}".format(i) for i in range(max_column_id - 1)]
+        create_table("//tmp/table")
+        write_table("//tmp/table", {name: 0 for name in column_names})
+
+        format_args = [skiff_simple("int64", name=name) for name in column_names]
+        format = make_skiff_format(skiff_tuple(*format_args))
+
+        with raises_yt_error("Failed to add system columns"):
+            read_table("//tmp/table", is_raw=True, output_format=format)
+
 
 @pytest.mark.parametrize("precision,binary_size,skiff_type", [
     (3, 4, "int32"),

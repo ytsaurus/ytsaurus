@@ -627,6 +627,8 @@ public:
 
     void Init(const std::vector<TTableSchemaPtr>& schemas, const std::vector<std::shared_ptr<TSkiffSchema>>& tableSkiffSchemas)
     {
+        GetError().ThrowOnError();
+
         for (const auto& schema : schemas) {
             UnversionedValueToYsonConverter_.emplace_back(NameTable_, schema, EComplexTypeMode::Named, /* skipNullValues */ false);
         }
