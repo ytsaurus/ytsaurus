@@ -1,5 +1,7 @@
 #include "job_tracker.h"
 
+#include "replicator_state.h"
+
 namespace NYT::NChunkServer::NReplicator {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,6 +16,9 @@ public:
 
     virtual void ProcessJobHeartbeat(const TCtxJobHeartbeatPtr& context) override
     {
+        // Node should be replicated to chunk thread, so SyncWithUpstream is required here.
+        ReplicatorState_->SyncWithUpstream();
+
         Y_UNUSED(context);
     }
 

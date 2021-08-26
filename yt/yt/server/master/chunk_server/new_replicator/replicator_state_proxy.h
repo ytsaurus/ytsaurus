@@ -1,0 +1,26 @@
+#include "public.h"
+
+#include <yt/yt/server/master/cell_master/public.h>
+
+namespace NYT::NChunkServer::NReplicator {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IReplicatorStateProxy
+{
+    virtual ~IReplicatorStateProxy() = default;
+
+    virtual const IInvokerPtr& GetChunkInvoker(EChunkThreadQueue queue) const = 0;
+
+    virtual const NCellMaster::TDynamicClusterConfigPtr& GetDynamicConfig() const = 0;
+
+    virtual bool CheckThreadAffinity() const = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<IReplicatorStateProxy> CreateReplicatorStateProxy(NCellMaster::TBootstrap* bootstrap);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NChunkServer::NReplicator
