@@ -8,7 +8,8 @@ from yt.wrapper.common import update_inplace, update
 from yt.wrapper.cypress_commands import exists
 from yt.wrapper.acl_commands import check_permission
 from yt.wrapper.http_helpers import get_token, get_user_name, get_proxy_url
-from yt.wrapper.operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state, abort_operation
+from yt.wrapper.operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state, \
+    abort_operation, get_operation_state
 from yt.wrapper.run_operation_commands import run_operation
 from yt.wrapper.spec_builders import VanillaSpecBuilder
 
@@ -32,6 +33,7 @@ class SparkDefaultArguments(object):
     SPARK_HISTORY_SERVER_CPU_LIMIT = 8
     DYNAMIC_CONFIG_PATH = "//sys/spark/bin/releases/spark-launch-conf"
     SPARK_WORKER_TIMEOUT = "10m"
+    SPARK_WORKER_LOG_UPDATE_INTERVAL = "10m"
     SPARK_WORKER_CORES_OVERHEAD = 0
     SPARK_WORKER_CORES_BYOP_OVERHEAD = 0
 
@@ -387,9 +389,8 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                         history_server_memory_overhead=SparkDefaultArguments.SPARK_HISTORY_SERVER_MEMORY_OVERHEAD,
                         network_project=None, abort_existing=False, tvm_id=None, tvm_secret=None,
                         advanced_event_log=False, worker_log_transfer=False, worker_log_json_mode=False,
-                        worker_log_update_interval=False, params=None, spark_cluster_version=None,
-                        enablers=None,
-                        client=None):
+                        worker_log_update_interval=SparkDefaultArguments.SPARK_WORKER_LOG_UPDATE_INTERVAL,
+                        params=None, spark_cluster_version=None, enablers=None, client=None):
     """Start Spark cluster
     :param operation_alias: alias for the underlying YT operation
     :param pool: pool for the underlying YT operation
@@ -425,10 +426,11 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
 
     current_operation_id = SparkDiscovery.getOption(spark_discovery.operation(), client=client)
     if current_operation_id is not None:
-        if abort_existing:
-            abort_operation(current_operation_id, client=client)
-        else:
-            raise RuntimeError("This spark cluster is started already, use --abort-existing for auto restarting")
+        if get_operation_state(current_operation_id, client=client).is_running():
+            if abort_existing:
+                abort_operation(current_operation_id, client=client)
+            else:
+                raise RuntimeError("This spark cluster is started already, use --abort-existing for auto restarting")
 
     ytserver_proxy_path = latest_ytserver_proxy_path(spark_cluster_version, client=client)
     global_conf = read_global_conf(client=client)
