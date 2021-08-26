@@ -26,8 +26,7 @@ class SparkInfo(object):
 
     def _repr_html_(self):
         yt_proxy = self.spark.conf.get("spark.hadoop.yt.proxy")
-        yt_token = self.spark.conf.get("spark.hadoop.yt.token")
-        client = YtClient(proxy=yt_proxy, token=yt_token)
+        client = yt_client(self.spark)
         discovery_path = self.spark.conf.get("spark.yt.master.discoveryPath")
         discovery = SparkDiscovery(discovery_path=discovery_path)
         shs_url = SparkDiscovery.getOption(discovery.shs(), client=client)
@@ -297,14 +296,24 @@ def connect(num_executors=5,
 
     spark = SparkSession.builder.config(conf=conf).getOrCreate()
 
-    discovery = SparkDiscovery(discovery_path=discovery_path)
-    shs_url = SparkDiscovery.getOption(discovery.shs(), client=client)
-    app_id = spark.conf.get("spark.app.id")
     logger.info("SPYT Cluster version: {}".format(spark.conf.get("spark.yt.cluster.version", default=None)))
     logger.info("SPYT library version: {}".format(spark.conf.get("spark.yt.version", default=None)))
-    logger.info("SHS link: http://{}/history/{}/jobs/".format(shs_url, app_id))
-
+    shs_url = _shs_url(discovery_path, spark)
+    if shs_url is not None:
+        logger.info("SHS link: {}".format(shs_url))
     return spark
+
+def _shs_url(discovery_path, spark):
+    discovery_path = discovery_path or \
+                     spark.conf.get("spark.yt.master.discoveryPath", default=None) or \
+                     os.getenv("SPARK_BASE_DISCOVERY_PATH")
+    client = yt_client(spark)
+    if discovery_path is not None:
+        discovery = SparkDiscovery(discovery_path=discovery_path)
+        shs_url = SparkDiscovery.getOption(discovery.shs(), client=client)
+        if shs_url is not None:
+            app_id = spark.conf.get("spark.app.id")
+            return "http://{}/history/{}/jobs/".format(shs_url, app_id)
 
 
 def stop(spark, exception=None):
@@ -321,6 +330,11 @@ def stop(spark, exception=None):
             )
         )
     )
+
+def yt_client(spark):
+    yt_proxy = spark.conf.get("spark.hadoop.yt.proxy")
+    yt_token = spark.conf.get("spark.hadoop.yt.token")
+    return YtClient(proxy=yt_proxy, token=yt_token)
 
 
 def jvm_process_pid():
