@@ -16,6 +16,8 @@ public:
 
     virtual TNodePtrWithIndexesList AllocateReplicas(const TReplicaAllocationRequest& request) override
     {
+        // NB: Stale dual cluster state is OK here, so SyncWithUpstream is not required.
+
         Y_UNUSED(request);
         YT_UNIMPLEMENTED();
     }

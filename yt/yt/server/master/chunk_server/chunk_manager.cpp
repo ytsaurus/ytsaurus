@@ -539,6 +539,9 @@ public:
         const auto& alertManager = Bootstrap_->GetAlertManager();
         alertManager->RegisterAlertSource(BIND(&TImpl::GetAlerts, MakeStrong(this)));
 
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+
         BufferedProducer_ = New<TBufferedProducer>();
         ChunkServerProfilerRegistry
             .WithDefaultDisabled()
@@ -3794,7 +3797,8 @@ private:
         TMasterAutomatonPart::OnLeaderRecoveryComplete();
 
         if (Bootstrap_->UseNewReplicator()) {
-            ReplicatorState_ = NReplicator::CreateReplicatorState(Bootstrap_);
+            auto replicatorStateProxy = NReplicator::CreateReplicatorStateProxy(Bootstrap_);
+            ReplicatorState_ = NReplicator::CreateReplicatorState(std::move(replicatorStateProxy));
             ReplicatorState_->Load();
 
             JobTracker_.Store(NReplicator::CreateJobTracker(ReplicatorState_));
@@ -4426,6 +4430,14 @@ private:
         }
 
         return alerts;
+    }
+
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
+    {
+        if (ReplicatorState_) {
+            const auto& configManager = Bootstrap_->GetConfigManager();
+            ReplicatorState_->UpdateDynamicConfig(configManager->GetConfig());
+        }
     }
 
     static void ValidateMediumName(const TString& name)
