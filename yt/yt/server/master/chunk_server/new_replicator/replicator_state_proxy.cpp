@@ -31,6 +31,20 @@ public:
         return configManager->GetConfig();
     }
 
+    virtual std::vector<NChunkServer::TMedium*> GetMedia() const
+    {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& mediaMap = chunkManager->Media();
+
+        std::vector<NChunkServer::TMedium*> media;
+        media.reserve(mediaMap.size());
+        for (const auto& [mediumId, medium] : chunkManager->Media()) {
+            media.push_back(medium);
+        }
+
+        return media;
+    }
+
     virtual bool CheckThreadAffinity() const override
     {
         return true;
