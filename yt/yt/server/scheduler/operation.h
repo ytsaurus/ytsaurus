@@ -195,6 +195,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(bool, Suspended);
 
+    DEFINE_BYVAL_RW_PROPERTY(TError, OrhanedOperationAbortionError);
+
 public:
     // By default, all new operations are not activated.
     // When operation passes admission control and scheduler decides

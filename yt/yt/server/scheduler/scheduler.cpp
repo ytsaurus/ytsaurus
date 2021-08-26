@@ -749,8 +749,12 @@ public:
             return operation->GetFinished();
         }
 
-        operation->GetCancelableControlInvoker()->Invoke(
-            BIND(&TImpl::DoAbortOperation, MakeStrong(this), operation, error));
+        if (operation->GetState() == EOperationState::Orphaned) {
+            operation->SetOrhanedOperationAbortionError(error);
+        } else {
+            operation->GetCancelableControlInvoker()->Invoke(
+                BIND(&TImpl::DoAbortOperation, MakeStrong(this), operation, error));
+        }
 
         return operation->GetFinished();
     }
@@ -4036,6 +4040,13 @@ private:
                 return;
             }
 
+            if (auto abortionError = operation->GetOrhanedOperationAbortionError(); !abortionError.IsOK()) {
+                AbortOperationWithoutRevival(
+                    operation,
+                    abortionError);
+                return;
+            }
+
             if (operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree.empty()) {
                 AbortOperationWithoutRevival(
                     operation,
@@ -4068,6 +4079,10 @@ private:
 
     void HandleOrphanedOperations()
     {
+        if (auto delay = Config_->TestingOptions->HandleOrphanedOperationsDelay) {
+            TDelayedExecutor::WaitForDuration(*delay);
+        }
+
         auto& queuedOperations = StateToTransientOperations_[EOperationState::Orphaned];
         std::vector<TOperationPtr> operations;
         operations.reserve(queuedOperations.size());

@@ -417,6 +417,8 @@ TTestingOptions::TTestingOptions()
         .Default(TDuration::Seconds(5));
     RegisterParameter("master_disconnect_delay", MasterDisconnectDelay)
         .Default();
+    RegisterParameter("handle_orphaned_operations_delay", HandleOrphanedOperationsDelay)
+        .Default();
     RegisterParameter("finish_operation_transition_delay", FinishOperationTransitionDelay)
         .Default();
 }
