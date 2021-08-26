@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.proxy.request;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.rpcproxy.TReqReshardTable;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
@@ -14,6 +15,14 @@ public class ReshardTable
     private @Nullable Integer tabletCount;
     private @Nullable TableSchema schema;
 
+    public ReshardTable(YPath path) {
+        super(path.justPath());
+    }
+
+    /**
+     * @deprecated Use {@link #ReshardTable(YPath path)} instead.
+     */
+    @Deprecated
     public ReshardTable(String path) {
         super(path);
     }

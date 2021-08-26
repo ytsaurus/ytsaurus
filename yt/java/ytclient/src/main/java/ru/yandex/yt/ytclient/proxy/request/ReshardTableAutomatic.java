@@ -2,11 +2,21 @@ package ru.yandex.yt.ytclient.proxy.request;
 
 import javax.annotation.Nonnull;
 
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.rpcproxy.TReqReshardTableAutomatic;
 
 public class ReshardTableAutomatic extends TableReq<ReshardTableAutomatic> {
     private boolean keepActions = false;
 
+    public ReshardTableAutomatic(YPath path, boolean keepActions) {
+        super(path.justPath());
+        this.keepActions = keepActions;
+    }
+
+    /**
+     * @deprecated Use {@link #ReshardTableAutomatic(YPath path,  boolean keepActions)} instead.
+     */
+    @Deprecated
     public ReshardTableAutomatic(String path, boolean keepActions) {
         super(path);
         this.keepActions = keepActions;

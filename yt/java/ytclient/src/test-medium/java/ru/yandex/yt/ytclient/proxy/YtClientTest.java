@@ -130,7 +130,7 @@ public class YtClientTest {
     public void cleanup() {
         if (client != null) {
             try {
-                deleteDirectory(client, path);
+                deleteDirectory(client, YPath.simple(path));
             } finally {
                 client.close();
             }
@@ -139,7 +139,7 @@ public class YtClientTest {
 
     @Test(timeout = 10000)
     public void executeSomeOperations() {
-        final String table = path + "/dir1/table1";
+        final YPath table = YPath.simple(path + "/dir1/table1");
 
         createDynamicTable(client, table);
 
@@ -174,42 +174,40 @@ public class YtClientTest {
 
     @Test(timeout = 10000)
     public void readTable() throws Exception {
-        final String table = path + "/dir1/table2";
+        final YPath writePath = YPath.simple(path + "/dir1/table2");
 
-        final String path = YPath.simple(table).toString();
+        final YPath readPath = writePath;
 
-        readWriteImpl(table, path, new MappedObject(1, "test1"), new MappedObject(2, "test2"));
+        readWriteImpl(writePath, readPath, new MappedObject(1, "test1"), new MappedObject(2, "test2"));
     }
 
     @Test(timeout = 10000)
     public void readTableWithRange() throws Exception {
-        final String table = path + "/dir1/table3";
+        final YPath writePath = YPath.simple(path + "/dir1/table3");
 
-        final String path = YPath.simple(table)
+        final YPath readPath = YPath.simple(writePath.toString())
                 .withColumns("k1", "v1")
                 .withExact(new RangeLimit(
                         Cf.list(new YTreeBuilder().value(1).build()),
                         -1,
-                        -1))
-                .toString();
+                        -1));
 
-        readWriteImpl(table, path, new MappedObject(1, "test1"));
+        readWriteImpl(writePath, readPath, new MappedObject(1, "test1"));
     }
 
     @Test(timeout = 10000)
     public void alterTable() throws Exception {
-        final String table = path + "/dir1/table4";
-
-        final String path = YPath.simple(table).toString();
+        final YPath writePath = YPath.simple(path + "/dir1/table4");
+        final YPath readPath = YPath.simple(writePath.toString());
 
         // Вставляем данные
-        readWriteImpl(table, path, new MappedObject(1, "test1"), new MappedObject(2, "test2"));
+        readWriteImpl(writePath, readPath, new MappedObject(1, "test1"), new MappedObject(2, "test2"));
 
         // Такая же схема - ничего не изменилось
-        client.alterTable(new AlterTable(table).setSchema(schema())).join();
+        client.alterTable(new AlterTable(writePath).setSchema(schema())).join();
 
         // Модифицируем - новый столбец
-        client.alterTable(new AlterTable(table).setSchema(schema(b ->
+        client.alterTable(new AlterTable(writePath).setSchema(schema(b ->
                 b.beginMap()
                         .key("name").value("v2")
                         .key("type").value("string")
@@ -219,7 +217,7 @@ public class YtClientTest {
 
     @Test(timeout = 10000)
     public void selectRowsWithKnownPool() {
-        final String table = path + "/dir1/table5";
+        final YPath table = YPath.simple(path + "/dir1/table5");
 
         createDynamicTable(client, table);
 
@@ -237,7 +235,7 @@ public class YtClientTest {
 
     @Test(timeout = 10000)
     public void lookupRowsDefault() throws ExecutionException, InterruptedException {
-        final String table = path + "/dir1/table6";
+        final YPath table = YPath.simple(path + "/dir1/table6");
         createDynamicTable(client, table);
 
         final List<MappedObject> objects = Arrays.asList(
@@ -255,7 +253,7 @@ public class YtClientTest {
                 .build()
                 .toLookup();
 
-        LookupRowsRequest request = new LookupRowsRequest(table, schema)
+        LookupRowsRequest request = new LookupRowsRequest(table.toString(), schema)
                 .addLookupColumns("k1", "v1")
                 .addFilter(2);
         List<UnversionedRow> result = client.lookupRows(request).get().getRows();
@@ -270,7 +268,7 @@ public class YtClientTest {
 
     @Test(timeout = 10000)
     public void lookupRowsMapped() throws ExecutionException, InterruptedException {
-        final String table = path + "/dir1/table7";
+        final YPath table = YPath.simple(path + "/dir1/table7");
         createDynamicTable(client, table);
 
         final List<MappedObject> objects = Arrays.asList(
@@ -283,7 +281,7 @@ public class YtClientTest {
         insertData(client, table, objects, serializer);
 
         // Достаем только ключи
-        MappedLookupRowsRequest<MappedObject> request1 = new MappedLookupRowsRequest<>(table, serializer)
+        MappedLookupRowsRequest<MappedObject> request1 = new MappedLookupRowsRequest<>(table.toString(), serializer)
                 .addKeyLookupColumns()
                 .addFilter(objects.get(1));
         List<MappedObject> result1 = client.lookupRows(request1, serializer).get();
@@ -294,7 +292,7 @@ public class YtClientTest {
 
 
         // Достаем все поля
-        MappedLookupRowsRequest<MappedObject> request2 = new MappedLookupRowsRequest<>(table, serializer)
+        MappedLookupRowsRequest<MappedObject> request2 = new MappedLookupRowsRequest<>(table.toString(), serializer)
                 .addAllLookupColumns()
                 .addFilter(objects.get(1));
         List<MappedObject> result2 = client.lookupRows(request2, serializer).get();
@@ -304,7 +302,7 @@ public class YtClientTest {
         Assert.assertNotSame(objects.get(1), result2.get(0));
 
         // Достаем все поля и все записи
-        MappedLookupRowsRequest<MappedObject> request3 = new MappedLookupRowsRequest<>(table, serializer)
+        MappedLookupRowsRequest<MappedObject> request3 = new MappedLookupRowsRequest<>(table.toString(), serializer)
                 .addAllLookupColumns()
                 .addFilters(objects);
         List<MappedObject> result3 = client.lookupRows(request3, serializer).get();
@@ -314,7 +312,7 @@ public class YtClientTest {
 
         // Достаем все поля и все записи, передавая списка ключей в обратном порядке
         // Результатом будут записи также в обратном (указанном) порядке
-        MappedLookupRowsRequest<MappedObject> request4 = new MappedLookupRowsRequest<>(table, serializer)
+        MappedLookupRowsRequest<MappedObject> request4 = new MappedLookupRowsRequest<>(table.toString(), serializer)
                 .addAllLookupColumns()
                 .addFilter(new MappedObject(2, null))
                 .addFilter(new MappedObject(1, null));
@@ -357,7 +355,7 @@ public class YtClientTest {
 
     @Test
     public void testInsertWithFieldFilter() {
-        String table = path + "/table8";
+        YPath table = YPath.simple(path + "/table8");
         createDynamicTable(client, table);
 
         final String query = String.format("* from [%s]", table);
@@ -380,7 +378,7 @@ public class YtClientTest {
 
     @Test
     public void testSelectWithFieldFilter() {
-        String table = path + "/table8";
+        YPath table = YPath.simple(path + "/table8");
         createDynamicTable(client, table);
 
         final String query = String.format("* from [%s]", table);
@@ -404,8 +402,8 @@ public class YtClientTest {
 
     }
 
-    private void readWriteImpl(String table, String path, MappedObject... expect) throws Exception {
-        createStaticTable(client, table);
+    private void readWriteImpl(YPath writePath, YPath readPath, MappedObject... expect) throws Exception {
+        createStaticTable(client, writePath);
 
         final YTreeObjectSerializer<MappedObject> serializer =
                 (YTreeObjectSerializer<MappedObject>) YTreeObjectSerializerFactory.forClass(MappedObject.class);
@@ -416,25 +414,25 @@ public class YtClientTest {
 
         LOGGER.info("Inserting: {}", objects);
 
-        insertData(client, table, objects, serializer, false);
+        insertData(client, writePath, objects, serializer, false);
 
-        LOGGER.info("Reading table from {}", path);
+        LOGGER.info("Reading table from {}", readPath);
 
-        List<MappedObject> actual = readData(client, path, serializer);
+        List<MappedObject> actual = readData(client, readPath, serializer);
 
         Assert.assertEquals(Arrays.asList(expect), actual);
     }
 
 
-    public static void deleteDirectory(YtClient client, String path) {
+    public static void deleteDirectory(YtClient client, YPath path) {
         client.removeNode(new RemoveNode(path)).join();
     }
 
-    public static void createStaticTable(YtClient client, String table) {
+    public static void createStaticTable(YtClient client, YPath table) {
         createTable(client, table, false);
     }
 
-    public static void createDynamicTable(YtClient client, String table) {
+    public static void createDynamicTable(YtClient client, YPath table) {
         createTable(client, table, true);
     }
 
@@ -476,11 +474,11 @@ public class YtClientTest {
                 .build();
     }
 
-    public static void createTable(YtClient client, String table, boolean dynamic) {
+    public static void createTable(YtClient client, YPath table, boolean dynamic) {
         createTable(client, table, schema(), dynamic);
     }
 
-    public static void createTable(YtClient client, String table, YTreeNode schema, boolean dynamic) {
+    public static void createTable(YtClient client, YPath table, YTreeNode schema, boolean dynamic) {
         LOGGER.info("Creating {} table: {}", dynamic ? "dynamic" : "static", table);
 
         final Map<String, YTreeNode> attrs = YTree.mapBuilder()
@@ -488,19 +486,19 @@ public class YtClientTest {
                 .key("schema").value(schema)
                 .buildMap().asMap();
 
-        client.createNode(new CreateNode(YPath.simple(table), CypressNodeType.TABLE, attrs)
+        client.createNode(new CreateNode(table, CypressNodeType.TABLE, attrs)
                 .setRecursive(true)
                 .setIgnoreExisting(false)).join();
 
         if (dynamic) {
             LOGGER.info("Waiting for table mount: {}", table);
-            client.mountTable(table, null, false, true).join();
+            client.mountTable(table.toString(), null, false, true).join();
         }
     }
 
-    public static <T> List<T> readData(YtClient client, String path,
+    public static <T> List<T> readData(YtClient client, YPath path,
                                        YTreeObjectSerializer<T> serializer) throws Exception {
-        LOGGER.info("Reading from {}", path);
+        LOGGER.info("Reading from {}", path.toString());
         final List<T> actual = new ArrayList<>();
         final TableReader<T> reader = client.readTable(new ReadTable<>(path, serializer)).join();
         try {
@@ -521,12 +519,12 @@ public class YtClientTest {
         return actual;
     }
 
-    public static <T> void insertData(YtClient client, String table, Collection<T> objects,
+    public static <T> void insertData(YtClient client, YPath table, Collection<T> objects,
                                       YTreeObjectSerializer<T> serializer) {
         insertData(client, table, objects, serializer, true);
     }
 
-    public static <T> void insertData(YtClient client, String table, Collection<T> objects,
+    public static <T> void insertData(YtClient client, YPath table, Collection<T> objects,
                                       YTreeObjectSerializer<T> serializer, boolean dynamic) {
         LOGGER.info("Inserting {} rows into {} table: {}", objects.size(), dynamic ? "dynamic" : "static", table);
 
@@ -535,7 +533,7 @@ public class YtClientTest {
 
         try (ApiServiceTransaction tx = client.startTransaction(options).join()) {
             if (dynamic) {
-                final MappedModifyRowsRequest<T> request = new MappedModifyRowsRequest<>(table, serializer);
+                final MappedModifyRowsRequest<T> request = new MappedModifyRowsRequest<>(table.toString(), serializer);
                 request.addInserts(objects);
                 tx.modifyRows(request).join();
             } else {

@@ -6,6 +6,7 @@ import javax.annotation.Nonnull;
 
 import com.google.protobuf.ByteString;
 
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
@@ -18,7 +19,8 @@ import ru.yandex.yt.ytclient.object.WireRowSerializer;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class WriteTable<T> extends RequestBase<WriteTable<T>> {
-    private final String path;
+    private final YPath path;
+    private final String stringPath;
     private final WireRowSerializer<T> serializer;
 
     private YTreeNode config = null;
@@ -28,8 +30,19 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
     private long windowSize = 16000000L;
     private long packetSize = windowSize / 2;
 
-    public WriteTable(String path, WireRowSerializer<T> serializer) {
+    public WriteTable(YPath path, WireRowSerializer<T> serializer) {
         this.path = path;
+        this.stringPath = null;
+        this.serializer = serializer;
+    }
+
+    public WriteTable(YPath path, YTreeSerializer<T> serializer) {
+        this(path, MappedRowSerializer.forClass(serializer));
+    }
+
+    public WriteTable(String path, WireRowSerializer<T> serializer) {
+        this.stringPath = path;
+        this.path = null;
         this.serializer = serializer;
     }
 
@@ -69,8 +82,12 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
         return this;
     }
 
+    public String getPath() {
+        return path != null ? path.toString() : stringPath;
+    }
+
     public TReqWriteTable.Builder writeTo(TReqWriteTable.Builder builder) {
-        builder.setPath(path);
+        builder.setPath(getPath());
         if (config != null) {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             YTreeBinarySerializer.serialize(config, baos);
