@@ -37,6 +37,8 @@ class TScheduleJobsContext;
 
 class TJobMetrics;
 
+////////////////////////////////////////////////////////////////////////////////
+
 using TJobCounter = THashMap<std::tuple<EJobType, EJobState>, std::pair<i64, NProfiling::TGauge>>;
 using TAbortedJobCounter = THashMap<std::tuple<EJobType, EJobState, EAbortReason>, NProfiling::TCounter>;
 using TCompletedJobCounter = THashMap<std::tuple<EJobType, EJobState, EInterruptReason>, NProfiling::TCounter>;
@@ -46,6 +48,8 @@ using TOperationElementMap = THashMap<TOperationId, TSchedulerOperationElementPt
 
 using TNonOwningPoolElementMap = THashMap<TString, TSchedulerPoolElement*>;
 using TPoolElementMap = THashMap<TString, TSchedulerPoolElementPtr>;
+
+////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ESchedulableStatus,
     (Normal)
@@ -69,6 +73,21 @@ DEFINE_ENUM(EResourceTreeElementKind,
     (Pool)
     (Root)
 );
+
+DEFINE_ENUM(EJobPreemptionStatus,
+    (NonPreemptable)
+    (AggressivelyPreemptable)
+    (Preemptable)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TJobPreemptionStatusMap = THashMap<TJobId, EJobPreemptionStatus>;
+using TJobPreemptionStatusMapPerOperation = THashMap<TOperationId, TJobPreemptionStatusMap>;
+
+DECLARE_REFCOUNTED_STRUCT(TRefCountedJobPreemptionStatusMapPerOperation);
+
+////////////////////////////////////////////////////////////////////////////////
 
 inline const auto SchedulerEventLogger = NLogging::TLogger("SchedulerEventLog").WithEssential();
 inline const auto SchedulerResourceMeteringLogger = NLogging::TLogger("SchedulerResourceMetering").WithEssential();

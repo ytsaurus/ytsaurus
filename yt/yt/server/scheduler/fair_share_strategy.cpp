@@ -147,7 +147,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto snapshot = FindTreeSnapshotByNodeDescriptor(schedulingContext->GetNodeDescriptor());
+        const auto& nodeDescriptor = schedulingContext->GetNodeDescriptor();
+        auto snapshot = FindTreeSnapshotForNode(nodeDescriptor.Address, nodeDescriptor.Tags);
         if (!snapshot) {
             return VoidFuture;
         }
@@ -159,7 +160,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto snapshot = FindTreeSnapshotByNodeDescriptor(schedulingContext->GetNodeDescriptor());
+        const auto& nodeDescriptor = schedulingContext->GetNodeDescriptor();
+        auto snapshot = FindTreeSnapshotForNode(nodeDescriptor.Address, nodeDescriptor.Tags);
         if (snapshot) {
             snapshot->PreemptJobsGracefully(schedulingContext);
         }
@@ -1092,6 +1094,16 @@ public:
         return result;
     }
 
+    virtual TCachedJobPreemptionStatuses GetCachedJobPreemptionStatusesForNode(
+        const TString& nodeAddress,
+        const TBooleanFormulaTags& nodeTags) const override
+    {
+        if (auto snapshot = FindTreeSnapshotForNode(nodeAddress, nodeTags)) {
+            return snapshot->GetCachedJobPreemptionStatuses();
+        }
+        return {};
+    }
+
 private:
     TFairShareStrategyConfigPtr Config;
     ISchedulerStrategyHost* const Host;
@@ -1207,17 +1219,17 @@ private:
         return result;
     }
 
-    IFairShareTreeSnapshotPtr FindTreeSnapshotByNodeDescriptor(const TExecNodeDescriptor& descriptor) const
+    IFairShareTreeSnapshotPtr FindTreeSnapshotForNode(const TString& nodeAddress, const TBooleanFormulaTags& nodeTags) const
     {
         IFairShareTreeSnapshotPtr matchingSnapshot;
 
         auto snapshots = TreeIdToSnapshot_.Load();
         for (const auto& [treeId, snapshot] : snapshots) {
-            if (snapshot->GetNodesFilter().CanSchedule(descriptor.Tags)) {
+            if (snapshot->GetNodesFilter().CanSchedule(nodeTags)) {
                 if (matchingSnapshot) {
                     // Found second matching snapshot, skip scheduling.
-                    YT_LOG_INFO("Node belong to multiple fair-share trees, scheduling skipped (Address: %v)",
-                        descriptor.Address);
+                    YT_LOG_INFO("Node belong to multiple fair-share trees (Address: %v)",
+                        nodeAddress);
                     return nullptr;
                 }
                 matchingSnapshot = snapshot;
@@ -1225,8 +1237,8 @@ private:
         }
 
         if (!matchingSnapshot) {
-            YT_LOG_INFO("Node does not belong to any fair-share tree, scheduling skipped (Address: %v)",
-                descriptor.Address);
+            YT_LOG_INFO("Node does not belong to any fair-share tree (Address: %v)",
+                nodeAddress);
             return nullptr;
         }
 

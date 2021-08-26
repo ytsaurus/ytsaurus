@@ -288,6 +288,9 @@ public:
 
     TDuration AllowedResourceUsageStaleness;
 
+    //! How often to update job preemption statuses snapshot.
+    TDuration CachedJobPreemptionStatusesUpdatePeriod;
+
     TFairShareStrategyTreeConfig();
 };
 
@@ -379,7 +382,7 @@ public:
 
     // Testing option that enables sleeping during master disconnect.
     std::optional<TDuration> MasterDisconnectDelay;
-    
+
     // Testing option that enabled sleeping before handle orphaned operations.
     std::optional<TDuration> HandleOrphanedOperationsDelay;
 

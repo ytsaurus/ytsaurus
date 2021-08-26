@@ -304,6 +304,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("allowed_resource_usage_staleness", AllowedResourceUsageStaleness)
         .Default(TDuration::Seconds(5));
 
+    RegisterParameter("cached_job_preemption_statuses_update_period", CachedJobPreemptionStatusesUpdatePeriod)
+        .Default(TDuration::Seconds(15));
+
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive starvation satisfaction threshold must be less than starvation satisfaction threshold")

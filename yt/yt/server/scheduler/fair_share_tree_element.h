@@ -109,11 +109,15 @@ using TJobSetMap = THashMap<int, TNonOwningJobSet>;
 
 struct TFairSharePostUpdateContext
 {
+    TInstant Now;
+
     TEnumIndexedVector<EUnschedulableReason, int> UnschedulableReasons;
 
     TNonOwningOperationElementMap EnabledOperationIdToElement;
     TNonOwningOperationElementMap DisabledOperationIdToElement;
     TNonOwningPoolElementMap PoolNameToElement;
+
+    TCachedJobPreemptionStatuses CachedJobPreemptionStatuses;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -888,6 +892,8 @@ DEFINE_ENUM(EOperationPreemptionStatus,
 
 using TPreemptionStatusStatisticsVector = TEnumIndexedVector<EOperationPreemptionStatus, int>;
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulerOperationElementSharedState
     : public TRefCounted
 {
@@ -924,6 +930,8 @@ public:
     bool AddJob(TJobId jobId, const TJobResources& resourceUsage, bool force);
     std::optional<TJobResources> RemoveJob(TJobId jobId);
 
+    TJobPreemptionStatusMap GetJobPreemptionStatuses() const;
+
     void UpdatePreemptionStatusStatistics(EOperationPreemptionStatus status);
     TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
 
@@ -957,6 +965,7 @@ public:
 private:
     const ISchedulerStrategyHost* Host_;
 
+    // TODO(eshcherbin): Use TEnumIndexedVector<EJobPreemptionStatus, TJobIdList> here and below.
     using TJobIdList = std::list<TJobId>;
     TJobIdList NonpreemptableJobs_;
     TJobIdList AggressivelyPreemptableJobs_;
@@ -977,22 +986,8 @@ private:
 
     struct TJobProperties
     {
-        TJobProperties(
-            bool preemptable,
-            bool aggressivelyPreemptable,
-            TJobIdList::iterator jobIdListIterator,
-            const TJobResources& resourceUsage)
-            : Preemptable(preemptable)
-            , AggressivelyPreemptable(aggressivelyPreemptable)
-            , JobIdListIterator(jobIdListIterator)
-            , ResourceUsage(resourceUsage)
-        { }
-
-        //! Determines whether job belongs to the list of preemptable or aggressively preemptable jobs of operation.
-        bool Preemptable;
-
-        //! Determines whether job belongs to the list of aggressively preemptable (but not all preemptable) jobs of operation.
-        bool AggressivelyPreemptable;
+        //! Determines whether job belongs to the preemptable, aggressively preemptable or non-preemptable jobs list.
+        EJobPreemptionStatus PreemptionStatus;
 
         //! Iterator in the per-operation list pointing to this particular job.
         TJobIdList::iterator JobIdListIterator;
@@ -1113,6 +1108,8 @@ public:
 
     bool IsJobKnown(TJobId jobId) const;
     bool IsJobPreemptable(TJobId jobId, bool aggressivePreemptionEnabled) const;
+
+    TJobPreemptionStatusMap GetJobPreemptionStatuses() const;
 
     int GetRunningJobCount() const;
     int GetPreemptableJobCount() const;
@@ -1354,6 +1351,7 @@ private:
 
     // Post fair share update methods.
     void ManageSchedulingSegments(TManageTreeSchedulingSegmentsContext* manageSegmentsContext);
+    void UpdateCachedJobPreemptionStatusesIfNecessary(TFairSharePostUpdateContext* context) const;
 
     virtual bool CanAcceptFreeVolume() const override;
 };

@@ -1718,7 +1718,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     }
 
     // Used for debug logging.
-    THashMap<EJobState, std::vector<TJobId>> jobStateToOngoingJobIds;
+    TJobStateToJobList ongoingJobsByJobState;
     std::vector<TJobId> recentlyFinishedJobIdsToLog;
     size_t totalJobStatisticsSize{};
     TRunningJobStatistics runningJobStatistics;
@@ -1745,7 +1745,7 @@ void TNodeShard::ProcessHeartbeatJobs(
             switch (job->GetState()) {
                 case EJobState::Running: {
                     runningJobs->push_back(job);
-                    jobStateToOngoingJobIds[job->GetState()].push_back(job->GetId());
+                    ongoingJobsByJobState[job->GetState()].push_back(job);
                     // Update running job statistics.
                     auto execDurationSeconds = job->GetExecDuration().SecondsFloat();
                     runningJobStatistics.TotalCpuTime += static_cast<double>(job->ResourceLimits().GetCpu()) * execDurationSeconds;
@@ -1754,7 +1754,7 @@ void TNodeShard::ProcessHeartbeatJobs(
                 }
                 case EJobState::Waiting:
                     *hasWaitingJobs = true;
-                    jobStateToOngoingJobIds[job->GetState()].push_back(job->GetId());
+                    ongoingJobsByJobState[job->GetState()].push_back(job);
                     break;
                 default:
                     break;
@@ -1784,9 +1784,7 @@ void TNodeShard::ProcessHeartbeatJobs(
         recentlyFinishedJobIdsToLog);
 
     if (shouldLogOngoingJobs) {
-        for (const auto& [jobState, jobIds] : jobStateToOngoingJobIds) {
-            YT_LOG_DEBUG_IF(!jobIds.empty(), "Jobs are %lv (JobIds: %v)", jobState, jobIds);
-        }
+        LogOngoingJobsAt(CpuInstantToInstant(now), node, ongoingJobsByJobState);
     }
 
     if (checkMissingJobs) {
@@ -1825,6 +1823,46 @@ void TNodeShard::ProcessHeartbeatJobs(
         OnJobAborted(job, &status, /* byScheduler */ true);
 
         ResetJobWaitingForConfirmation(job);
+    }
+}
+
+void TNodeShard::LogOngoingJobsAt(TInstant now, const TExecNodePtr& node, const TJobStateToJobList& ongoingJobsByJobState) const
+{
+    auto cachedJobPreemptionStatuses =
+        Host_->GetStrategy()->GetCachedJobPreemptionStatusesForNode(node->GetDefaultAddress(), node->Tags());
+    auto getJobPreemptionStatus = [&] (const TJobPtr& job) -> std::optional<EJobPreemptionStatus> {
+        auto operationIt = cachedJobPreemptionStatuses.Value->find(job->GetOperationId());
+        if (operationIt == cachedJobPreemptionStatuses.Value->end()) {
+            return {};
+        }
+
+        const auto& jobIdToStatus = operationIt->second;
+        auto jobIt = jobIdToStatus.find(job->GetId());
+        return jobIt != jobIdToStatus.end() ? std::make_optional(jobIt->second) : std::nullopt;
+    };
+
+    for (auto jobState : TEnumTraits<EJobState>::GetDomainValues()) {
+        const auto& jobs = ongoingJobsByJobState[jobState];
+
+        if (jobs.empty()) {
+            continue;
+        }
+
+        TEnumIndexedVector<EJobPreemptionStatus, std::vector<TJobId>> jobIdsByPreemptionStatus;
+        std::vector<TJobId> unknownStatusJobIds;
+        for (const auto& job : jobs) {
+            if (auto status = getJobPreemptionStatus(job)) {
+                jobIdsByPreemptionStatus[*status].push_back(job->GetId());
+            } else {
+                unknownStatusJobIds.push_back(job->GetId());
+            }
+        }
+
+        YT_LOG_DEBUG("Jobs are %lv (JobIdsByPreemptionStatus: %v, UnknownStatusJobIds: %v, TimeSinceLastPreemptionStatusUpdateSeconds: %v)",
+            jobState,
+            jobIdsByPreemptionStatus,
+            unknownStatusJobIds,
+            (now - cachedJobPreemptionStatuses.UpdateTime).SecondsFloat());
     }
 }
 

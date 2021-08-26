@@ -120,6 +120,21 @@ struct TJobUpdate
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRefCountedJobPreemptionStatusMapPerOperation
+    : public TRefCounted
+    , public TJobPreemptionStatusMapPerOperation
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TRefCountedJobPreemptionStatusMapPerOperation);
+
+struct TCachedJobPreemptionStatuses
+{
+    TRefCountedJobPreemptionStatusMapPerOperationPtr Value;
+    TInstant UpdateTime;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ISchedulerStrategy
     : public virtual TRefCounted
 {
@@ -145,6 +160,7 @@ struct ISchedulerStrategy
     //! Called periodically to log essential for simulator tree state.
     virtual void OnFairShareEssentialLoggingAt(TInstant now) = 0;
 
+    // TODO(eshcherbin): Do we really need this method in the interface?
     //! Called periodically to update min needed job resources for operation.
     virtual void OnMinNeededJobResourcesUpdate() = 0;
 
@@ -272,8 +288,13 @@ struct ISchedulerStrategy
 
     virtual TFuture<void> GetFullFairShareUpdateFinished() = 0;
 
+    // TODO(eshcherbin): Do we really need this method in the interface?
     //! Called periodically to build resource guarantees and usages statistics.
     virtual void OnBuildResourceMetering() = 0;
+
+    virtual TCachedJobPreemptionStatuses GetCachedJobPreemptionStatusesForNode(
+        const TString& nodeAddress,
+        const TBooleanFormulaTags& nodeTags) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulerStrategy)

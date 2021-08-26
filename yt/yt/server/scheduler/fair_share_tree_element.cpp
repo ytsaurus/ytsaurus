@@ -1898,7 +1898,7 @@ TJobResources TSchedulerOperationElementSharedState::Disable()
     Enabled_ = false;
 
     TJobResources resourceUsage;
-    for (const auto& [jodId, properties] : JobPropertiesMap_) {
+    for (const auto& [jobId, properties] : JobPropertiesMap_) {
         resourceUsage += properties.ResourceUsage;
     }
 
@@ -2025,18 +2025,15 @@ void TSchedulerOperationElementSharedState::UpdatePreemptableJobsList(
     };
 
     auto setPreemptable = [] (TJobProperties* properties) {
-        properties->Preemptable = true;
-        properties->AggressivelyPreemptable = true;
+        properties->PreemptionStatus = EJobPreemptionStatus::Preemptable;
     };
 
     auto setAggressivelyPreemptable = [] (TJobProperties* properties) {
-        properties->Preemptable = false;
-        properties->AggressivelyPreemptable = true;
+        properties->PreemptionStatus = EJobPreemptionStatus::AggressivelyPreemptable;
     };
 
     auto setNonPreemptable = [] (TJobProperties* properties) {
-        properties->Preemptable = false;
-        properties->AggressivelyPreemptable = false;
+        properties->PreemptionStatus = EJobPreemptionStatus::NonPreemptable;
     };
 
     bool enableLogging =
@@ -2116,8 +2113,10 @@ bool TSchedulerOperationElementSharedState::IsJobPreemptable(TJobId jobId, bool 
         return false;
     }
 
-    const auto* properties = GetJobProperties(jobId);
-    return aggressivePreemptionEnabled ? properties->AggressivelyPreemptable : properties->Preemptable;
+    const auto status = GetJobProperties(jobId)->PreemptionStatus;
+    return aggressivePreemptionEnabled
+        ? status != EJobPreemptionStatus::NonPreemptable
+        : status == EJobPreemptionStatus::Preemptable;
 }
 
 int TSchedulerOperationElementSharedState::GetRunningJobCount() const
@@ -2153,11 +2152,10 @@ bool TSchedulerOperationElementSharedState::AddJob(TJobId jobId, const TJobResou
 
     auto it = JobPropertiesMap_.emplace(
         jobId,
-        TJobProperties(
-            /* preemptable */ true,
-            /* aggressivelyPreemptable */ true,
-            --PreemptableJobs_.end(),
-            {}));
+        TJobProperties{
+            .PreemptionStatus = EJobPreemptionStatus::Preemptable,
+            .JobIdListIterator = --PreemptableJobs_.end(),
+            .ResourceUsage = {}});
     YT_VERIFY(it.second);
 
     ++RunningJobCount_;
@@ -2179,6 +2177,20 @@ TPreemptionStatusStatisticsVector TSchedulerOperationElementSharedState::GetPree
     auto guard = Guard(PreemptionStatusStatisticsLock_);
 
     return PreemptionStatusStatistics_;
+}
+
+TJobPreemptionStatusMap TSchedulerOperationElementSharedState::GetJobPreemptionStatuses() const
+{
+    TJobPreemptionStatusMap jobPreemptionStatuses;
+
+    auto guard = ReaderGuard(JobPropertiesMapLock_);
+
+    jobPreemptionStatuses.reserve(JobPropertiesMap_.size());
+    for (const auto& [jobId, properties] : JobPropertiesMap_) {
+        YT_VERIFY(jobPreemptionStatuses.emplace(jobId, properties.PreemptionStatus).second);
+    }
+
+    return jobPreemptionStatuses;
 }
 
 void TSchedulerOperationElementSharedState::OnMinNeededResourcesUnsatisfied(
@@ -2371,12 +2383,18 @@ std::optional<TJobResources> TSchedulerOperationElementSharedState::RemoveJob(TJ
     YT_VERIFY(it != JobPropertiesMap_.end());
 
     auto* properties = &it->second;
-    if (properties->Preemptable) {
-        PreemptableJobs_.erase(properties->JobIdListIterator);
-    } else if (properties->AggressivelyPreemptable) {
-        AggressivelyPreemptableJobs_.erase(properties->JobIdListIterator);
-    } else {
-        NonpreemptableJobs_.erase(properties->JobIdListIterator);
+    switch (properties->PreemptionStatus) {
+        case EJobPreemptionStatus::Preemptable:
+            PreemptableJobs_.erase(properties->JobIdListIterator);
+            break;
+        case EJobPreemptionStatus::AggressivelyPreemptable:
+            AggressivelyPreemptableJobs_.erase(properties->JobIdListIterator);
+            break;
+        case EJobPreemptionStatus::NonPreemptable:
+            NonpreemptableJobs_.erase(properties->JobIdListIterator);
+            break;
+        default:
+            YT_ABORT();
     }
 
     --RunningJobCount_;
@@ -2438,12 +2456,18 @@ TJobResources TSchedulerOperationElementSharedState::SetJobResourceUsage(
     auto delta = resources - properties->ResourceUsage;
     properties->ResourceUsage = resources;
     TotalResourceUsage_ += delta;
-    if (!properties->Preemptable) {
-        if (properties->AggressivelyPreemptable) {
+    switch (properties->PreemptionStatus) {
+        case EJobPreemptionStatus::Preemptable:
+            // Do nothing.
+            break;
+        case EJobPreemptionStatus::AggressivelyPreemptable:
             AggressivelyPreemptableResourceUsage_ += delta;
-        } else {
+            break;
+        case EJobPreemptionStatus::NonPreemptable:
             NonpreemptableResourceUsage_ += delta;
-        }
+            break;
+        default:
+            YT_ABORT();
     }
 
     return delta;
@@ -3161,6 +3185,11 @@ bool TSchedulerOperationElement::IsJobPreemptable(TJobId jobId, bool aggressiveP
     return OperationElementSharedState_->IsJobPreemptable(jobId, aggressivePreemptionEnabled);
 }
 
+TJobPreemptionStatusMap TSchedulerOperationElement::GetJobPreemptionStatuses() const
+{
+    return OperationElementSharedState_->GetJobPreemptionStatuses();
+}
+
 int TSchedulerOperationElement::GetRunningJobCount() const
 {
     return OperationElementSharedState_->GetRunningJobCount();
@@ -3683,6 +3712,9 @@ void TSchedulerRootElement::PostUpdate(
     ManageSchedulingSegments(manageSegmentsContext);
 
     BuildElementMapping(postUpdateContext);
+
+    // NB(eshcherbin): This method should be called after |BuildElementMapping|.
+    UpdateCachedJobPreemptionStatusesIfNecessary(postUpdateContext);
 }
 
 const TSchedulingTagFilter& TSchedulerRootElement::GetSchedulingTagFilter() const
@@ -3874,6 +3906,28 @@ void TSchedulerRootElement::ManageSchedulingSegments(TManageTreeSchedulingSegmen
     if (mode != ESegmentedSchedulingMode::Disabled) {
         ApplyOperationSchedulingSegmentChanges(manageSegmentsContext->Operations);
     }
+}
+
+void TSchedulerRootElement::UpdateCachedJobPreemptionStatusesIfNecessary(TFairSharePostUpdateContext* context) const
+{
+    if (context->Now < context->CachedJobPreemptionStatuses.UpdateTime + TreeConfig_->CachedJobPreemptionStatusesUpdatePeriod) {
+        return;
+    }
+
+    auto jobPreemptionStatuses = New<TRefCountedJobPreemptionStatusMapPerOperation>();
+    auto collectJobPreemptionStatuses = [&] (const auto& operationMap) {
+        for (auto [operationId, operationElement] : operationMap) {
+            YT_VERIFY(jobPreemptionStatuses->emplace(operationId, operationElement->GetJobPreemptionStatuses()).second);
+        }
+    };
+
+    collectJobPreemptionStatuses(context->EnabledOperationIdToElement);
+    collectJobPreemptionStatuses(context->DisabledOperationIdToElement);
+
+    context->CachedJobPreemptionStatuses = {
+        .Value = std::move(jobPreemptionStatuses),
+        .UpdateTime = context->Now,
+    };
 }
 
 double TSchedulerRootElement::GetSpecifiedBurstRatio() const

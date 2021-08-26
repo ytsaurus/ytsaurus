@@ -888,6 +888,8 @@ private:
     };
     THashMap<TSchedulingTagFilter, TSchedulingTagFilterEntry> SchedulingTagFilterToIndexAndCount_;
 
+    TCachedJobPreemptionStatuses PersistentCachedJobPreemptionStatuses_;
+
     TSchedulerRootElementPtr RootElement_;
 
     class TFairShareTreeSnapshot
@@ -1032,6 +1034,11 @@ private:
             rootElement->BuildResourceMetering(/* parentKey */ std::nullopt, meteringMap);
         }
 
+        virtual TCachedJobPreemptionStatuses GetCachedJobPreemptionStatuses() const override
+        {
+            return TreeSnapshotImpl_->CachedJobPreemptionStatuses();
+        }
+
         virtual void ProfileFairShare() const override
         {
             Tree_->DoProfileFairShare(TreeSnapshotImpl_);
@@ -1099,6 +1106,8 @@ private:
         };
 
         TFairSharePostUpdateContext fairSharePostUpdateContext;
+        fairSharePostUpdateContext.Now = updateContext.Now;
+        fairSharePostUpdateContext.CachedJobPreemptionStatuses = PersistentCachedJobPreemptionStatuses_;
 
         auto rootElement = RootElement_->Clone();
         {
@@ -1152,6 +1161,7 @@ private:
             }
         }
         RootElement_->PersistentAttributes() = rootElement->PersistentAttributes();
+        PersistentCachedJobPreemptionStatuses_ = fairSharePostUpdateContext.CachedJobPreemptionStatuses;
 
         rootElement->MarkImmutable();
 
@@ -1160,6 +1170,7 @@ private:
             std::move(fairSharePostUpdateContext.EnabledOperationIdToElement),
             std::move(fairSharePostUpdateContext.DisabledOperationIdToElement),
             std::move(fairSharePostUpdateContext.PoolNameToElement),
+            fairSharePostUpdateContext.CachedJobPreemptionStatuses,
             Config_,
             ControllerConfig_,
             std::move(manageSegmentsContext.SchedulingSegmentsState));
@@ -1452,6 +1463,7 @@ private:
         YT_LOG_TRACE("Looking for %v jobs",
             isAggressive ? "aggressively preemptable" : "preemptable");
         std::vector<TJobPtr> unconditionallyPreemptableJobs;
+        TNonOwningJobSet forcefullyPreemptableJobs;
         int totalConditionallyPreemptableJobCount = 0;
         int maxConditionallyPreemptableJobCountInPool = 0;
         {
@@ -1469,15 +1481,19 @@ private:
                 bool isJobForcefullyPreemptable = !operationElement->IsSchedulingSegmentCompatibleWithNode(
                     context->SchedulingContext()->GetSchedulingSegment(),
                     context->SchedulingContext()->GetNodeDescriptor().DataCenter);
-                YT_LOG_TRACE_IF(isJobForcefullyPreemptable,
-                    "Job is unconditionally preemptable because it is running on a node in a different scheduling segment or data center "
-                    "(JobId: %v, OperationId: %v, OperationSegment: %v, NodeSegment: %v, Address: %v, DataCenter: %v)",
-                    job->GetId(),
-                    operationElement->GetId(),
-                    operationElement->SchedulingSegment(),
-                    context->SchedulingContext()->GetSchedulingSegment(),
-                    context->SchedulingContext()->GetNodeDescriptor().Address,
-                    context->SchedulingContext()->GetNodeDescriptor().DataCenter);
+                if (isJobForcefullyPreemptable) {
+                    YT_ELEMENT_LOG_DETAILED(operationElement,
+                        "Job is forcefully preemptable because it is running on a node in a different scheduling segment or data center "
+                        "(JobId: %v, OperationId: %v, OperationSegment: %v, NodeSegment: %v, Address: %v, DataCenter: %v)",
+                        job->GetId(),
+                        operationElement->GetId(),
+                        operationElement->SchedulingSegment(),
+                        context->SchedulingContext()->GetSchedulingSegment(),
+                        context->SchedulingContext()->GetNodeDescriptor().Address,
+                        context->SchedulingContext()->GetNodeDescriptor().DataCenter);
+
+                    forcefullyPreemptableJobs.insert(job.Get());
+                }
 
                 bool isAggressivePreemptionEnabled = isAggressive &&
                     operationElement->GetEffectiveAggressivePreemptionAllowed();
@@ -1647,10 +1663,15 @@ private:
             }
 
             if (jobStartedUsingPreemption) {
-                job->SetPreemptionReason(Format("%v to start job %v of operation %v",
-                    isAggressive ? "Aggressively preempted" : "Preempted",
+                // TODO(eshcherbin): Rethink preemption reason format to allow more variable attributes easily.
+                job->SetPreemptionReason(Format(
+                    "Preempted to start job %v of operation %v during %v preemptive stage, "
+                    "job was %v and %v preemptable",
                     jobStartedUsingPreemption->GetId(),
-                    jobStartedUsingPreemption->GetOperationId()));
+                    jobStartedUsingPreemption->GetOperationId(),
+                    isAggressive ? "aggressively" : "normal",
+                    forcefullyPreemptableJobs.contains(job.Get()) ? "forcefully" : "nonforcefully",
+                    conditionallyPreemptableJobs.contains(job.Get()) ? "conditionally" : "unconditionally"));
 
                 job->SetPreemptedFor(TPreemptedFor{
                     .JobId = jobStartedUsingPreemption->GetId(),

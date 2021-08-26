@@ -9,6 +9,7 @@ TFairShareTreeSnapshotImpl::TFairShareTreeSnapshotImpl(
     TNonOwningOperationElementMap enabledOperationIdToElement,
     TNonOwningOperationElementMap disabledOperationIdToElement,
     TNonOwningPoolElementMap poolNameToElement,
+    const TCachedJobPreemptionStatuses& cachedJobPreemptionStatuses,
     TFairShareStrategyTreeConfigPtr treeConfig,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     TTreeSchedulingSegmentsState schedulingSegmentsState)
@@ -19,6 +20,7 @@ TFairShareTreeSnapshotImpl::TFairShareTreeSnapshotImpl(
     , TreeConfig_(std::move(treeConfig))
     , ControllerConfig_(std::move(controllerConfig))
     , SchedulingSegmentsState_(std::move(schedulingSegmentsState))
+    , CachedJobPreemptionStatuses_(cachedJobPreemptionStatuses)
 { }
 
 TSchedulerPoolElement* TFairShareTreeSnapshotImpl::FindPool(const TString& poolName) const

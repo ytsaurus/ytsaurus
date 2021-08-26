@@ -1529,7 +1529,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         assert job["error"]["attributes"]["abort_reason"] == "preemption"
         preemption_reason = job["error"]["attributes"]["preemption_reason"]
         assert preemption_reason.startswith("Preempted to start job") and \
-               preemption_reason.endswith("of operation {}".format(op2.id))
+            "of operation {}".format(op2.id) in preemption_reason
 
     @authors("eshcherbin")
     def test_conditional_preemption(self):

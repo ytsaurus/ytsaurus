@@ -370,6 +370,9 @@ private:
         NJobTrackerClient::NProto::TRspHeartbeat* response,
         TJobStatus* jobStatus);
 
+    using TJobStateToJobList = TEnumIndexedVector<EJobState, std::vector<TJobPtr>>;
+    void LogOngoingJobsAt(TInstant now, const TExecNodePtr& node, const TJobStateToJobList& ongoingJobIdsByJobState) const;
+
     void SubtractNodeResources(const TExecNodePtr& node);
     void AddNodeResources(const TExecNodePtr& node);
     void UpdateNodeResources(
