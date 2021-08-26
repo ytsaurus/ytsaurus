@@ -301,6 +301,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("use_resource_usage_with_precommit", UseResourceUsageWithPrecommit)
         .Default(false);
 
+    RegisterParameter("allowed_resource_usage_staleness", AllowedResourceUsageStaleness)
+        .Default(TDuration::Seconds(5));
+
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive starvation satisfaction threshold must be less than starvation satisfaction threshold")

@@ -286,6 +286,8 @@ public:
 
     bool UseResourceUsageWithPrecommit;
 
+    TDuration AllowedResourceUsageStaleness;
+
     TFairShareStrategyTreeConfig();
 };
 
