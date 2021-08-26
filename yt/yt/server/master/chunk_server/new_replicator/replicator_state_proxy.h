@@ -14,6 +14,8 @@ struct IReplicatorStateProxy
 
     virtual const NCellMaster::TDynamicClusterConfigPtr& GetDynamicConfig() const = 0;
 
+    virtual std::vector<NChunkServer::TMedium*> GetMedia() const = 0;
+
     virtual bool CheckThreadAffinity() const = 0;
 };
 

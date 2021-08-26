@@ -1817,6 +1817,10 @@ public:
         YT_VERIFY(NameToMediumMap_.erase(medium->GetName()) == 1);
         YT_VERIFY(NameToMediumMap_.emplace(newName, medium).second);
         medium->SetName(newName);
+
+        if (ReplicatorState_) {
+            ReplicatorState_->RenameMedium(medium->GetId(), newName);
+        }
     }
 
     void SetMediumPriority(TMedium* medium, int priority)
@@ -1833,6 +1837,7 @@ public:
     void SetMediumConfig(TMedium* medium, TMediumConfigPtr newConfig)
     {
         auto oldMaxReplicationFactor = medium->Config()->MaxReplicationFactor;
+
         medium->Config() = std::move(newConfig);
         if (ChunkReplicator_ && medium->Config()->MaxReplicationFactor != oldMaxReplicationFactor) {
             ChunkReplicator_->ScheduleGlobalChunkRefresh(
@@ -1840,6 +1845,10 @@ public:
                 BlobChunks_.GetSize(),
                 JournalChunks_.GetFront(),
                 JournalChunks_.GetSize());
+        }
+
+        if (ReplicatorState_) {
+            ReplicatorState_->UpdateMediumConfig(medium->GetId(), medium->Config());
         }
     }
 
@@ -4365,6 +4374,10 @@ private:
 
         // Make the fake reference.
         YT_VERIFY(medium->RefObject() == 1);
+
+        if (ReplicatorState_) {
+            ReplicatorState_->CreateMedium(medium);
+        }
 
         return medium;
     }

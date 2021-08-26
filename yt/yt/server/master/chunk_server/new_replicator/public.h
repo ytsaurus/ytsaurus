@@ -9,6 +9,7 @@ namespace NYT::NChunkServer::NReplicator {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TNode;
+struct TMedium;
 
 DECLARE_REFCOUNTED_STRUCT(IChunkReplicaAllocator)
 DECLARE_REFCOUNTED_STRUCT(IJobTracker)
@@ -16,6 +17,8 @@ DECLARE_REFCOUNTED_STRUCT(IReplicatorState)
 
 using TNodePtrWithIndexes = TPtrWithIndexes<TNode>;
 using TNodePtrWithIndexesList = SmallVector<TNodePtrWithIndexes, NChunkClient::TypicalReplicaCount>;
+
+using TMediumIndex = int;
 
 ////////////////////////////////////////////////////////////////////////////////
 

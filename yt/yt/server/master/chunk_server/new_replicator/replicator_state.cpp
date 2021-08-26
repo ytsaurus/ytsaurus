@@ -1,10 +1,13 @@
 #include "replicator_state.h"
 
 #include "private.h"
+#include "medium.h"
 
 #include <yt/yt/server/master/cell_master/config.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/config.h>
+#include <yt/yt/server/master/chunk_server/medium.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
@@ -39,10 +42,21 @@ public:
 
         YT_LOG_INFO("Started loading dual state");
 
+        CheckThreadAffinity_ = false;
+
         const auto& dynamicConfig = Proxy_->GetDynamicConfig();
         // NB: Config copying is not essential here, however occasional config change from another thread
         // will end up with a disaster, so it's better to clone it.
         DynamicConfig_ = CloneYsonSerializable(dynamicConfig);
+
+        for (auto* primaryMedium : Proxy_->GetMedia()) {
+            auto mediumId = primaryMedium->GetId();
+            auto dualMedium = TMedium::FromPrimary(primaryMedium);
+            YT_VERIFY(Media_.emplace(mediumId, std::move(dualMedium)).second);
+            RegisterMediumInMaps(mediumId);
+        }
+
+        CheckThreadAffinity_ = true;
 
         YT_LOG_INFO("Finished loading dual state");
     }
@@ -63,19 +77,101 @@ public:
 
         // NB: Config copying is not essential here, however occasional config change from another thread
         // will end up with a disaster, so it's better to clone it.
-        auto clonedConfig = CloneYsonSerializable(newConfig);
         DualMutationInvoker_->Invoke(
             BIND(
                 &TReplicatorState::DoUpdateDynamicConfig,
                 MakeWeak(this),
-                Passed(std::move(clonedConfig))));
+                CloneYsonSerializable(newConfig)));
     }
 
-    virtual const TDynamicClusterConfigPtr& GetDynamicConfig() const
+    virtual void CreateMedium(NChunkServer::TMedium* medium) override
+    {
+        VerifyAutomatonThread();
+
+        auto dualMedium = TMedium::FromPrimary(medium);
+        DualMutationInvoker_->Invoke(
+            BIND(
+                &TReplicatorState::DoCreateMedium,
+                MakeWeak(this),
+                Passed(std::move(dualMedium))));
+    }
+
+    virtual void RenameMedium(TMediumId mediumId, const TString& newName) override
+    {
+        VerifyAutomatonThread();
+
+        DualMutationInvoker_->Invoke(
+            BIND(
+                &TReplicatorState::DoRenameMedium,
+                MakeWeak(this),
+                mediumId,
+                newName));
+    }
+
+    virtual void UpdateMediumConfig(TMediumId mediumId, const TMediumConfigPtr& newConfig) override
+    {
+        VerifyAutomatonThread();
+
+        DualMutationInvoker_->Invoke(
+            BIND(
+                &TReplicatorState::DoUpdateMediumConfig,
+                MakeWeak(this),
+                mediumId,
+                CloneYsonSerializable(newConfig)));
+    }
+
+    virtual const TDynamicClusterConfigPtr& GetDynamicConfig() const override
     {
         VerifyChunkThread();
 
         return DynamicConfig_;
+    }
+
+    virtual const THashMap<TMediumId, std::unique_ptr<TMedium>>& Media() const override
+    {
+        VerifyChunkThread();
+
+        return Media_;
+    }
+
+    virtual TMedium* FindMedium(TMediumId mediumId) const override
+    {
+        VerifyChunkThread();
+
+        if (auto mediumIt = Media_.find(mediumId); mediumIt != Media_.end()) {
+            return mediumIt->second.get();
+        } else {
+            return nullptr;
+        }
+    }
+
+    virtual TMedium* GetMedium(TMediumId mediumId) const override
+    {
+        VerifyChunkThread();
+
+        return GetOrCrash(Media_, mediumId).get();
+    }
+
+    virtual TMedium* FindMediumByIndex(TMediumIndex index) const override
+    {
+        VerifyChunkThread();
+
+        if (auto mediumIt = MediumIndexToMedium_.find(index); mediumIt != MediumIndexToMedium_.end()) {
+            return mediumIt->second;
+        } else {
+            return nullptr;
+        }
+    }
+
+    virtual TMedium* FindMediumByName(const TString& name) const override
+    {
+        VerifyChunkThread();
+
+        if (auto mediumIt = MediumNameToMedium_.find(name); mediumIt != MediumNameToMedium_.end()) {
+            return mediumIt->second;
+        } else {
+            return nullptr;
+        }
     }
 
 private:
@@ -88,16 +184,22 @@ private:
 
     TDynamicClusterConfigPtr DynamicConfig_;
 
+    THashMap<TMediumId, std::unique_ptr<TMedium>> Media_;
+    THashMap<TMediumIndex, TMedium*> MediumIndexToMedium_;
+    THashMap<TString, TMedium*> MediumNameToMedium_;
+
+    bool CheckThreadAffinity_ = true;
+
     void VerifyAutomatonThread() const
     {
-        if (Proxy_->CheckThreadAffinity()) {
+        if (CheckThreadAffinity_ && Proxy_->CheckThreadAffinity()) {
             VERIFY_THREAD_AFFINITY(AutomatonThread);
         }
     }
 
     void VerifyChunkThread() const
     {
-        if (Proxy_->CheckThreadAffinity()) {
+        if (CheckThreadAffinity_ && Proxy_->CheckThreadAffinity()) {
             VERIFY_THREAD_AFFINITY(ChunkThread);
         }
     }
@@ -109,6 +211,72 @@ private:
         DynamicConfig_ = std::move(newConfig);
 
         YT_LOG_DEBUG("Dynamic config updated");
+    }
+
+    void DoCreateMedium(std::unique_ptr<TMedium> medium)
+    {
+        VerifyChunkThread();
+
+        auto mediumId = medium->GetId();
+        auto* mediumPtr = medium.get();
+        // TODO(gritukan): Use helpers from Max.
+        YT_VERIFY(Media_.emplace(mediumId, std::move(medium)).second);
+        RegisterMediumInMaps(mediumId);
+
+        YT_LOG_DEBUG("Medium created (MediumId: %v, MediumIndex: %v, MediumName: %v)",
+            mediumId,
+            mediumPtr->GetIndex(),
+            mediumPtr->Name());
+    }
+
+    void DoRenameMedium(TMediumId mediumId, const TString& newName)
+    {
+        VerifyChunkThread();
+
+        auto* medium = GetMedium(mediumId);
+        UnregisterMediumFromMaps(mediumId);
+        auto oldName = medium->Name();
+        medium->Name() = newName;
+        RegisterMediumInMaps(mediumId);
+
+        YT_LOG_DEBUG("Medium renamed (MediumId: %v, MediumName: %v -> %v)",
+            mediumId,
+            oldName,
+            newName);
+    }
+
+    void DoUpdateMediumConfig(TMediumId mediumId, TMediumConfigPtr newConfig)
+    {
+        VerifyChunkThread();
+
+        auto* medium = GetMedium(mediumId);
+        medium->Config() = std::move(newConfig);
+
+        YT_LOG_DEBUG("Medium config updated (MediumId: %v, MediumName: %v)",
+            mediumId,
+            medium->Name());
+    }
+
+    void RegisterMediumInMaps(TMediumId mediumId)
+    {
+        VerifyChunkThread();
+
+        auto* medium = GetMedium(mediumId);
+
+        // TODO(gritukan): Use helpers from Max.
+        YT_VERIFY(MediumIndexToMedium_.emplace(medium->GetIndex(), medium).second);
+        YT_VERIFY(MediumNameToMedium_.emplace(medium->Name(), medium).second);
+    }
+
+    void UnregisterMediumFromMaps(TMediumId mediumId)
+    {
+        VerifyChunkThread();
+
+        auto* medium = GetMedium(mediumId);
+
+        // TODO(gritukan): Use helpers from Max.
+        YT_VERIFY(MediumIndexToMedium_.erase(medium->GetIndex()) > 0);
+        YT_VERIFY(MediumNameToMedium_.erase(medium->Name()) > 0);
     }
 };
 
