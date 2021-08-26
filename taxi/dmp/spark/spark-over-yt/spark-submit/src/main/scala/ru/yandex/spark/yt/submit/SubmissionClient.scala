@@ -3,7 +3,7 @@ package ru.yandex.spark.yt.submit
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import io.netty.channel.DefaultEventLoopGroup
 import org.apache.commons.io.FileUtils
-import org.apache.spark.deploy.rest.{DriverState, RestSubmissionClientWrapper}
+import org.apache.spark.deploy.rest.{DriverState, MasterClient, RestSubmissionClientWrapper}
 import org.apache.spark.launcher.InProcessLauncher
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.cypress.YPath
@@ -81,6 +81,19 @@ class SubmissionClient(proxy: String,
       forceClusterUpdate()
     }
     res
+  }
+
+  def getActiveDrivers: Seq[String] = {
+    val response = MasterClient.activeDrivers(cluster.get().master)
+    if (response.isFailure) {
+      log.warn(s"Failed to get list of active drivers")
+    }
+    response.getOrElse(Nil)
+  }
+
+  def kill(id: String): Boolean = {
+    val response = RestSubmissionClientWrapper.killSubmission(cluster.get().client, id)
+    response.success.booleanValue()
   }
 
   case class SubmissionFiles(id: File, error: File) {

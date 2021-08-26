@@ -4,6 +4,7 @@ import com.google.common.net.HostAndPort
 import io.circe._
 import io.circe.generic.semiauto.deriveEncoder
 import io.circe.parser._
+import ru.yandex.spark.yt.wrapper.Utils.flatten
 import ru.yandex.spark.yt.wrapper.cypress.{YsonWriter, YsonableProduct}
 import sttp.client._
 
@@ -67,12 +68,5 @@ object ByopDiscoveryService {
       case WorkerInfo(host, true) => Some(appendPort(host, byopPort))
       case _ => None
     }
-  }
-
-  def flatten[A, B](seq: Seq[Either[A, B]]): Either[A, Seq[B]] = {
-    seq
-      .find(_.isLeft)
-      .map(e => Left(e.left.get))
-      .getOrElse(Right(seq.map(_.right.get)))
   }
 }

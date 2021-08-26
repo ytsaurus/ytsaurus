@@ -6,16 +6,7 @@ import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{FlatSpec, Matchers}
 
 class ByopDiscoveryServiceTest extends FlatSpec with Matchers with TableDrivenPropertyChecks {
-
   behavior of "ByopDiscoveryTest"
-
-  def l[A, B](a: A): Either[A, B] = Left(a)
-
-  def lS[A](a: A): Either[A, String] = l(a)
-
-  def lSeq[A](a: A): Either[A, Seq[String]] = l(a)
-
-  def r[A](a: A): Either[String, A] = Right(a)
 
   private val hosts = Seq(
     "2a02:6b8:c0a:990:10e:ad5b:0:2334",
@@ -75,20 +66,6 @@ class ByopDiscoveryServiceTest extends FlatSpec with Matchers with TableDrivenPr
        |}
        |""".stripMargin
 
-  it should "flatten" in {
-    val table = Table(
-      ("seq", "expected"),
-      (Seq(r("1"), r("2"), r("3")), r(Seq("1", "2", "3"))),
-      (Seq(r("1"), lS("2"), r("3")), lSeq("2")),
-      (Seq(lS("1")), lSeq("1")),
-      (Seq.empty, Right(Seq.empty))
-    )
-
-    forAll(table) { (seq: Seq[Either[String, String]], expected: Either[String, Seq[String]]) =>
-      ByopDiscoveryService.flatten(seq) shouldEqual expected
-    }
-  }
-
   it should "parseWorkerInfo" in {
     def json(text: String): Json = parse(text).right.get
 
@@ -121,5 +98,4 @@ class ByopDiscoveryServiceTest extends FlatSpec with Matchers with TableDrivenPr
     val proxies = ByopDiscoveryService.workersToProxies(workerInfos, 27002)
     proxies should contain theSameElementsAs Seq(s"${hosts(1)}:27002")
   }
-
 }
