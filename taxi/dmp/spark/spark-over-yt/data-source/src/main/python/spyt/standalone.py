@@ -169,7 +169,7 @@ def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None, python
     _add_shs(discovery, spark_base_args, client=client)
     _add_base_spark_conf(client, discovery, spark_base_args)
     _add_spyt_deps(spyt_version, spark_base_args, discovery, client)
-    _add_python_version(python_version, spark_base_args, discovery, client)
+    _add_python_version(python_version, spark_base_args, client)
     spark_env = _create_spark_env(client, spark_home)
 
     # replace stdin to avoid https://bugs.openjdk.java.net/browse/JDK-8211842
