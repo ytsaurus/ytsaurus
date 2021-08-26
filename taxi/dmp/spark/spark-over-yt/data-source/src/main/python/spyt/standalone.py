@@ -15,8 +15,8 @@ from yt.wrapper.spec_builders import VanillaSpecBuilder
 from .conf import read_remote_conf, validate_cluster_version, spyt_jar_path, spyt_python_path, \
     validate_spyt_version, validate_versions_compatibility, latest_compatible_spyt_version, \
     latest_cluster_version, update_config_inplace, validate_custom_params, validate_mtn_config, \
-    latest_ytserver_proxy_path, ytserver_proxy_attributes, read_global_conf, worker_num_limit, \
-    validate_worker_num
+    latest_ytserver_proxy_path, ytserver_proxy_attributes, read_global_conf, python_bin_path, \
+    worker_num_limit, validate_worker_num
 from .utils import get_spark_master, base_spark_conf, SparkDiscovery, SparkCluster
 from .enabler import SpytEnablers
 
@@ -158,7 +158,7 @@ def submit_python(discovery_path, spark_home, deploy_mode, spark_conf, main_py_p
                client=client)
 
 
-def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None, client=None, spark_id=None):
+def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None, python_version=None, client=None, spark_id=None):
     spark_submit_path = "{}/bin/spark-submit".format(spark_home)
     spark_base_args = [spark_submit_path]
     permission_status = check_permission(user=client.get_user_name(), permission='read', path=discovery_path, client=client)
@@ -169,10 +169,23 @@ def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None, client
     _add_shs(discovery, spark_base_args, client=client)
     _add_base_spark_conf(client, discovery, spark_base_args)
     _add_spyt_deps(spyt_version, spark_base_args, discovery, client)
+    _add_python_version(python_version, spark_base_args, discovery, client)
     spark_env = _create_spark_env(client, spark_home)
 
     # replace stdin to avoid https://bugs.openjdk.java.net/browse/JDK-8211842
     return subprocess.call(spark_base_args + spark_args, env=spark_env, stdin=subprocess.PIPE)
+
+
+def _add_python_version(python_version, spark_args, client):
+    if python_version is not None:
+        global_conf = read_global_conf(client=client)
+        python_path = python_bin_path(global_conf, python_version)
+        if python_path:
+            _add_conf({
+                "spark.pyspark.python": python_path
+            }, spark_args)
+        else:
+            raise RuntimeError("Interpreter for python version `{}` is not found".format(python_version))
 
 
 def _add_spyt_deps(spyt_version, spark_args, discovery, client):
