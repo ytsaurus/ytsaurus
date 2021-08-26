@@ -1141,17 +1141,25 @@ void TSchedulerCompositeElement::PrepareConditionalUsageDiscounts(TScheduleJobsC
 TFairShareScheduleJobResult TSchedulerCompositeElement::ScheduleJob(TScheduleJobsContext* context, bool ignorePacking)
 {
     auto& attributes = context->DynamicAttributesFor(this);
-    if (!attributes.Active) {
-        return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
-    }
 
-    auto bestLeafDescendant = attributes.BestLeafDescendant;
-    if (!bestLeafDescendant->IsAlive()) {
-        UpdateDynamicAttributes(&context->DynamicAttributesList(), context->ChildHeapMap());
+    TSchedulerOperationElement* bestLeafDescendant = nullptr;
+
+    while (bestLeafDescendant == nullptr) {
         if (!attributes.Active) {
             return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
         }
+
         bestLeafDescendant = attributes.BestLeafDescendant;
+        if (!bestLeafDescendant->IsAlive()) {
+            UpdateDynamicAttributes(&context->DynamicAttributesList(), context->ChildHeapMap());
+            bestLeafDescendant = nullptr;
+            continue;
+        }
+        if (bestLeafDescendant->IsUsageOutdated(context)) {
+            bestLeafDescendant->UpdateCurrentResourceUsage(context);
+            bestLeafDescendant = nullptr;
+            continue;
+        }
     }
 
     auto childResult = bestLeafDescendant->ScheduleJob(context, ignorePacking);
@@ -2631,8 +2639,29 @@ const TJobResources& TSchedulerOperationElement::CalculateCurrentResourceUsage(T
     attributes.ResourceUsage = (IsAlive() && OperationElementSharedState_->Enabled())
         ? GetInstantResourceUsage()
         : TJobResources();
+    attributes.ResourceUsageUpdateTime = context->SchedulingContext()->GetNow();
 
     return attributes.ResourceUsage;
+}
+    
+void TSchedulerOperationElement::UpdateCurrentResourceUsage(TScheduleJobsContext* context)
+{
+    auto resourceUsageBeforeUpdate = GetCurrentResourceUsage(context->DynamicAttributesList());
+    CalculateCurrentResourceUsage(context);
+    UpdateDynamicAttributes(&context->DynamicAttributesList(), context->ChildHeapMap());
+    auto resourceUsageAfterUpdate = GetCurrentResourceUsage(context->DynamicAttributesList());
+
+    auto resourceUsageDelta = resourceUsageAfterUpdate - resourceUsageBeforeUpdate;
+
+    GetMutableParent()->UpdateChild(context, this);
+    UpdateAncestorsDynamicAttributes(context, resourceUsageDelta);
+}
+
+bool TSchedulerOperationElement::IsUsageOutdated(TScheduleJobsContext* context) const
+{
+    auto now = context->SchedulingContext()->GetNow();
+    auto updateTime = context->DynamicAttributesFor(this).ResourceUsageUpdateTime;
+    return updateTime + DurationToCpuDuration(TreeConfig_->AllowedResourceUsageStaleness) < now;
 }
 
 void TSchedulerOperationElement::PrescheduleJob(
@@ -2958,15 +2987,7 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
         startDescriptor,
         Spec_->PreemptionMode);
 
-    auto resourceUsageBeforeUpdate = GetCurrentResourceUsage(context->DynamicAttributesList());
-    CalculateCurrentResourceUsage(context);
-    UpdateDynamicAttributes(&context->DynamicAttributesList(), context->ChildHeapMap());
-    auto resourceUsageAfterUpdate = GetCurrentResourceUsage(context->DynamicAttributesList());
-
-    auto resourceUsageDelta = resourceUsageAfterUpdate - resourceUsageBeforeUpdate;
-
-    GetMutableParent()->UpdateChild(context, this);
-    UpdateAncestorsDynamicAttributes(context, resourceUsageDelta);
+    UpdateCurrentResourceUsage(context);
 
     if (heartbeatSnapshot) {
         recordHeartbeatWithTimer(*heartbeatSnapshot);

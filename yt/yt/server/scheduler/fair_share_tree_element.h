@@ -91,8 +91,9 @@ struct TDynamicAttributes
 {
     double SatisfactionRatio = 0.0;
     bool Active = false;
-    TSchedulerElement* BestLeafDescendant = nullptr;
+    TSchedulerOperationElement* BestLeafDescendant = nullptr;
     TJobResources ResourceUsage;
+    NProfiling::TCpuInstant ResourceUsageUpdateTime;
 
     int HeapIndex = InvalidHeapIndex;
 };
@@ -1150,6 +1151,9 @@ public:
         const TChildHeapMap& childHeapMap) override final;
 
     virtual const TJobResources& CalculateCurrentResourceUsage(TScheduleJobsContext* context) override final;
+
+    void UpdateCurrentResourceUsage(TScheduleJobsContext* context);
+    bool IsUsageOutdated(TScheduleJobsContext* context) const;
 
     virtual TFairShareScheduleJobResult ScheduleJob(TScheduleJobsContext* context, bool ignorePacking) override final;
 
