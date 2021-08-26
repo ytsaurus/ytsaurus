@@ -1,7 +1,7 @@
 from .default_config import get_watcher_config
 from .helpers import is_file_locked
 
-from yt.common import which, touch
+from yt.common import which, touch, update
 
 from yt.test_helpers import wait, yatest_common
 import yt.subprocess_wrapper as subprocess
@@ -57,7 +57,10 @@ class ProcessWatcher(object):
         env = None
         if self._binary_path is None:
             watcher_cmd = [sys.executable]
-            env = {"Y_PYTHON_ENTRY_POINT": "__yt_env_watcher_entry_point__"}
+            # If self._process_runner receives env which is not None, then the existing environment
+            # variables are not inherited. That's not what we expect. Watcher needs to inherit PATH
+            # at least in order to locate logrotate binary. So, we add the existing environment.
+            env = update(os.environ, {"Y_PYTHON_ENTRY_POINT": "__yt_env_watcher_entry_point__"})
         elif getattr(sys, "is_standalone_binary", False):
             watcher_cmd = [self._binary_path]
         else:  # Use current binary python for yt_env_watcher execution.
