@@ -1,21 +1,24 @@
 package ru.yandex.spark.yt.format.batch
 
 import java.io.InputStream
-
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.types.{DoubleType, StructField, StructType}
+import org.apache.spark.sql.types.{DataType, DoubleType, MetadataBuilder, StructField, StructType}
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.spark.yt.test.LocalSpark
 import ru.yandex.spark.yt.wrapper.table.YtArrowInputStream
 
 class ArrowBatchReaderTest extends FlatSpec with Matchers with LocalSpark with ReadBatchRows {
 
-  behavior of "ArrowVectorizedReaderTest"
+  behavior of "ArrowBatchReader"
+
+  private def sf(name: String, dt: DataType): StructField = {
+    StructField(name, dt, metadata = new MetadataBuilder().putString("original_name", name).build())
+  }
 
   private val schema = StructType(Seq(
-    StructField("_0", DoubleType),
-    StructField("_1", DoubleType),
-    StructField("_2", DoubleType)
+    sf("_0", DoubleType),
+    sf("_1", DoubleType),
+    sf("_2", DoubleType)
   ))
 
   it should "read old arrow format (< 0.15.0)" in {
