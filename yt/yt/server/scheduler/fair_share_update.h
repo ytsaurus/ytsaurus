@@ -148,10 +148,11 @@ private:
     virtual void PrepareFairShareByFitFactor(TFairShareUpdateContext* context) = 0;
     void PrepareMaxFitFactorBySuggestion(TFairShareUpdateContext* context);
 
-
     virtual void DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context);
     virtual void UpdateCumulativeAttributes(TFairShareUpdateContext* context);
     virtual TResourceVector DoUpdateFairShare(double suggestion, TFairShareUpdateContext* context) = 0;
+
+    void CheckFairShareFeasibility() const;
 
     virtual TResourceVector ComputeLimitsShare(const TFairShareUpdateContext* context) const;
     void UpdateAttributes(const TFairShareUpdateContext* context);

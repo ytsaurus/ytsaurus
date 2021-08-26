@@ -1953,6 +1953,55 @@ TEST_F(TFairShareTreeTest, TestConditionalPreemption)
     EXPECT_EQ(TJobResources(), schedulingContext->GetConditionalDiscountForOperation(blockingOperation->GetId()));
 }
 
+TEST_F(TFairShareTreeTest, TestIncorrectStatusDueToPrecisionError)
+{
+    // Test is based on real circumstances, all resource amounts are not random.
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetUserSlots(74000);
+    nodeResources.SetCpu(7994.4);
+    nodeResources.SetMemory(72081411174707);
+    nodeResources.SetNetwork(14800);
+    nodeResources.SetGpu(1184);
+    auto execNode = CreateTestExecNode(nodeResources);
+
+    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
+    auto rootElement = CreateTestRootElement(host.Get());
+    auto pool = CreateTestPool(host.Get(), "pool", CreateSimplePoolConfig());
+
+    pool->AttachParent(rootElement.Get());
+
+    TJobResources jobResourcesA;
+    jobResourcesA.SetUserSlots(1);
+    jobResourcesA.SetCpu(3.81);
+    jobResourcesA.SetMemory(107340424507);
+    jobResourcesA.SetNetwork(0);
+    jobResourcesA.SetGpu(1);
+
+    auto operationA = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
+    auto operationElementA = CreateTestOperationElement(host.Get(), operationA.Get(), pool.Get());
+    operationElementA->OnJobStarted(TGuid::Create(), jobResourcesA, /*precommitedResources*/ {});
+
+    TJobResources jobResourcesB;
+    jobResourcesB.SetUserSlots(1);
+    jobResourcesB.SetCpu(4);
+    jobResourcesB.SetMemory(107340424507);
+    jobResourcesB.SetNetwork(0);
+    jobResourcesB.SetGpu(1);
+
+    auto operationB = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
+    auto operationElementB = CreateTestOperationElement(host.Get(), operationB.Get(), pool.Get());
+    operationElementB->OnJobStarted(TGuid::Create(), jobResourcesB, /*precommitedResources*/ {});
+
+    DoFairShareUpdate(host.Get(), rootElement);
+
+    EXPECT_EQ(pool->Attributes().UsageShare, pool->Attributes().DemandShare);
+    EXPECT_TRUE(Dominates(
+        pool->Attributes().DemandShare + TResourceVector::SmallEpsilon(),
+        pool->Attributes().FairShare.Total));
+
+    EXPECT_EQ(ESchedulableStatus::Normal, pool->GetStatus(/* atUpdate */ true));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TFairShareTreeTest, TestRelaxedPoolFairShareSimple)
