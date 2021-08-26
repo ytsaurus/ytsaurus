@@ -295,6 +295,11 @@ bool TSchemalessFormatWriterBase::HasError() const
     return !Error_.IsOK();
 }
 
+const TError& TSchemalessFormatWriterBase::GetError() const
+{
+    return Error_;
+}
+
 void TSchemalessFormatWriterBase::RegisterError(const TError& error)
 {
     Error_ = error;

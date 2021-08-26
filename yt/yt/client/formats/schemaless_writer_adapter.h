@@ -83,6 +83,7 @@ protected:
     virtual void WriteEndOfStream();
 
     bool HasError() const;
+    const TError& GetError() const;
     void RegisterError(const TError& error);
 
 private:
