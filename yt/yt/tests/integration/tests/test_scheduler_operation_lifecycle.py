@@ -13,7 +13,7 @@ from yt_commands import (
     read_file, read_table, write_table, map, sort,
     run_test_vanilla, run_sleeping_vanilla,
     abort_job, get_job,
-    abandon_job, get_operation_cypress_path, sync_create_cells, update_controller_agent_config,
+    abandon_job, get_operation_cypress_path, sync_create_cells, update_controller_agent_config, update_scheduler_config,
     set_banned_flag, PrepareTables, get_statistics)
 
 from yt_scheduler_helpers import scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_path
@@ -206,6 +206,33 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         op.track()
 
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
+
+    @authors("ignat")
+    def test_scheduler_operation_abort_when_operation_is_orphaned(self):
+        self._prepare_tables()
+
+        op = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="echo '{foo=bar}'; sleep 100",
+        )
+
+        wait(lambda: op.get_state() == "running")
+
+        input_tx = get(op.get_path() + "/@input_transaction_id")
+        assert exists("#" + input_tx)
+
+        update_scheduler_config("testing_options/handle_orphaned_operations_delay", 5000)
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            assert exists("#" + input_tx)
+
+        wait(lambda: op.get_state() == "orphaned")
+
+        op.abort()
+
+        assert not exists("#" + input_tx)
 
     @authors("ignat")
     def test_suspend_during_revive(self):

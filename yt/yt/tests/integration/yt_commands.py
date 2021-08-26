@@ -2357,6 +2357,13 @@ def update_controller_agent_config(path, value):
         wait(lambda: get("{}/{}".format(orchid_config_path, path)) == value)
 
 
+def update_scheduler_config(path, value):
+    set("//sys/scheduler/config/" + path, value, recursive=True)
+    orchid_path = "{}/{}".format("//sys/scheduler/orchid/scheduler/config", path)
+    wait(lambda: exists(orchid_path))
+    wait(lambda: get(orchid_path) == value)
+
+
 def get_nodes_with_flavor(flavor):
     cluster_nodes = ls("//sys/cluster_nodes", attributes=["flavors"])
     nodes = []
