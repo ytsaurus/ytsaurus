@@ -62,7 +62,7 @@ public class MappedModifyRowsRequestTest {
         final ObjectsMetadata<T> metadata = ObjectsMetadata.getMetadata(clazz, value -> { });
 
         final MappedModifyRowsRequest<T> request =
-                new MappedModifyRowsRequest<>("", metadata.getMappedSerializer());
+                new MappedModifyRowsRequest<>("//tmp", metadata.getMappedSerializer());
         final List<T> sample1 = metadata.generateObjects(1, random);
         final List<T> sample2 = metadata.generateObjects(2, random);
         final List<T> sample3 = metadata.generateObjects(1, random);

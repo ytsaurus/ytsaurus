@@ -25,6 +25,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.misc.io.InputStreamSourceUtils2;
@@ -70,13 +71,13 @@ class YtConnectionTest {
         client = ((YtConnection) permanentConnection).getClient();
 
         table = home + "/dir1/table1";
-        YtClientTest.createDynamicTable(client, table);
+        YtClientTest.createDynamicTable(client, YPath.simple(table));
 
         final Collection<MappedObject> objects = Arrays.asList(
                 new MappedObject(1, "test1"),
                 new MappedObject(2, "test2"));
 
-        YtClientTest.insertData(client, table, objects,
+        YtClientTest.insertData(client, YPath.simple(table), objects,
                 (YTreeObjectSerializer<MappedObject>) YTreeObjectSerializerFactory.forClass(MappedObject.class));
 
         mapper = new ObjectMapper();
@@ -85,7 +86,7 @@ class YtConnectionTest {
 
     @AfterAll
     static void closeYtConnection() throws SQLException {
-        YtClientTest.deleteDirectory(client, home);
+        YtClientTest.deleteDirectory(client, YPath.simple(home));
         permanentConnection.close();
     }
 

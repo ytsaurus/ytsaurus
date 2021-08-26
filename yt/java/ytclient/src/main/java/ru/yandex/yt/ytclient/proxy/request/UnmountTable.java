@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.yt.rpcproxy.TReqUnmountTable;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
@@ -14,6 +15,14 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 public class UnmountTable extends TableReq<UnmountTable> implements HighLevelRequest<TReqUnmountTable.Builder> {
     boolean force = false;
 
+    public UnmountTable(YPath path) {
+        super(path.justPath());
+    }
+
+    /**
+     * @deprecated Use {@link #UnmountTable(YPath path)} instead.
+     */
+    @Deprecated
     public UnmountTable(String path) {
         super(path);
     }

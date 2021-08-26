@@ -4,6 +4,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.yt.rpcproxy.TReqMountTable;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
@@ -14,6 +15,14 @@ public class MountTable extends TableReq<MountTable> implements HighLevelRequest
     private @Nullable GUID cellId;
     private boolean freeze = false;
 
+    public MountTable(YPath path) {
+        super(path.justPath());
+    }
+
+    /**
+     * @deprecated Use {@link #MountTable(YPath path)} instead.
+     */
+    @Deprecated
     public MountTable(String path) {
         super(path);
     }

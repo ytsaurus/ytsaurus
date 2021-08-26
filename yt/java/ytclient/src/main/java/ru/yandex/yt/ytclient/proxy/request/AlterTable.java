@@ -5,6 +5,7 @@ import javax.annotation.Nonnull;
 import com.google.protobuf.ByteString;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TReqAlterTable;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
@@ -17,6 +18,14 @@ public class AlterTable extends TableReq<AlterTable> implements HighLevelRequest
     private GUID upstreamReplicaId;
     private TransactionalOptions transactionalOptions;
 
+    public AlterTable(YPath path) {
+        super(path.justPath());
+    }
+
+    /**
+     * @deprecated Use {@link #AlterTable(YPath path)} instead.
+     */
+    @Deprecated
     public AlterTable(String path) {
         super(path);
     }
