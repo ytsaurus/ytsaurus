@@ -31,7 +31,7 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
   private val tmpLogDir: String = s"$testLogDir/test-${UUID.randomUUID()}"
   private val config = WorkerLogConfig(
     enableService = true,
-    enableJsonParsing = true,
+    enableJson = true,
     scanDirectory = tmpLogDir,
     tablesPath = tablesDir,
     updateInterval = 20 seconds,
@@ -303,7 +303,7 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
     val executor = "exampleE"
     createExecutor(app, executor)
 
-    val workerLogService = new LogServiceRunnable(config.copy(enableJsonParsing = false))
+    val workerLogService = new LogServiceRunnable(config.copy(enableJson = false))
     writeToLog(getExecutorFileLog(app, executor, STDERR), List(simpleInfoEvent))
     rawWriteToLog(getExecutorFileLog(app, executor, STDERR), s"$nonJsonLog\n")
     finalizeExecutorLog(app, executor, STDERR)

@@ -78,6 +78,7 @@ object SparkPackagePlugin extends AutoPlugin {
         (Compile / resourceDirectory).value / "spark-env.sh",
         (Compile / resourceDirectory).value / "metrics.properties",
         (Compile / resourceDirectory).value / "log4j.properties",
+        (Compile / resourceDirectory).value / "log4j.workerLogJson.properties",
         (Compile / resourceDirectory).value / "log4j.worker.properties"
       )
     },
