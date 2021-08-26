@@ -641,12 +641,14 @@ double TSchedulerElement::ComputeLocalSatisfactionRatio(const TJobResources& res
 
 bool TSchedulerElement::IsResourceBlocked(EJobResourceType resource) const
 {
-    return Attributes_.DemandShare[resource] == Attributes_.FairShare.Total[resource];
+    // Fair share may be slightly greater than demand share due to precision errors. See: YT-15359.
+    return Attributes_.FairShare.Total[resource] >= Attributes_.DemandShare[resource];
 }
 
 bool TSchedulerElement::AreAllResourcesBlocked() const
 {
-    return Attributes_.DemandShare == Attributes_.FairShare.Total;
+    // Fair share may be slightly greater than demand share due to precision errors. See: YT-15359.
+    return Dominates(Attributes_.FairShare.Total, Attributes_.DemandShare);
 }
 
 // Returns true either if there are non-blocked resources and for any such resource |r|: |lhs[r] > rhs[r]|
@@ -689,7 +691,9 @@ ESchedulableStatus TSchedulerElement::GetStatusImpl(double tolerance, bool atUpd
         tolerance = 1.0;
     }
 
-    if (IsStrictlyDominatesNonBlocked(Attributes_.FairShare.Total * tolerance, usageShare)) {
+    // Fair share may be slightly greater than demand share due to precision errors. See: YT-15359.
+    auto adjustedFairShareBound = TResourceVector::Min(Attributes_.FairShare.Total * tolerance, Attributes_.DemandShare);
+    if (IsStrictlyDominatesNonBlocked(adjustedFairShareBound, usageShare)) {
         return ESchedulableStatus::BelowFairShare;
     }
 
@@ -1987,6 +1991,8 @@ void TSchedulerOperationElementSharedState::UpdatePreemptableJobsList(
     {
         // Move from left to right and decrease |resourceUsage| until the next move causes
         // |operationElement->IsStrictlyDominatesNonBlocked(fairShareBound, getUsageShare(nextUsage))| to become true.
+        // In particular, even if fair share is slightly less than it should be due to precision errors,
+        // we expect no problems, because the job which crosses the fair share boundary belongs to the left list.
         while (!left->empty()) {
             auto jobId = left->back();
             auto* jobProperties = GetJobProperties(jobId);

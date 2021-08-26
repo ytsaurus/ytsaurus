@@ -127,6 +127,30 @@ void TElement::UpdateCumulativeAttributes(TFairShareUpdateContext* context)
     UpdateAttributes(context);
 }
 
+void TElement::CheckFairShareFeasibility() const
+{
+    const auto& demandShare = Attributes().DemandShare;
+    const auto& fairShare = Attributes().FairShare.Total;
+    bool isFairShareSignificantlyGreaterThanDemandShare =
+        !Dominates(demandShare + TResourceVector::SmallEpsilon(), fairShare);
+    if (isFairShareSignificantlyGreaterThanDemandShare) {
+        std::vector<NScheduler::EJobResourceType> significantlyGreaterResources;
+        for (auto resource : TEnumTraits<NScheduler::EJobResourceType>::GetDomainValues()) {
+            if (demandShare[resource] + NScheduler::RatioComputationPrecision <= fairShare[resource]) {
+                significantlyGreaterResources.push_back(resource);
+            }
+        }
+
+        const auto& Logger = GetLogger();
+        YT_LOG_WARNING(
+            "Fair share is significantly greater than demand share "
+            "(FairShare: %v, DemandShare: %v, SignificantlyGreaterResources: %v)",
+            fairShare,
+            demandShare,
+            significantlyGreaterResources);
+    }
+}
+
 TResourceVector TElement::ComputeLimitsShare(const TFairShareUpdateContext* context) const
 {
     return TResourceVector::FromJobResources(Min(GetResourceLimits(), context->TotalResourceLimits), context->TotalResourceLimits);
@@ -747,6 +771,7 @@ TResourceVector TCompositeElement::DoUpdateFairShare(double suggestion, TFairSha
     YT_VERIFY(suggestedShareNearlyDominatesUsedShare);
 
     Attributes().SetFairShare(usedFairShare);
+    CheckFairShareFeasibility();
     return usedFairShare;
 }
 
@@ -1067,6 +1092,7 @@ TResourceVector TOperationElement::DoUpdateFairShare(double suggestion, TFairSha
 {
     TResourceVector usedFairShare = FairShareBySuggestion_->ValueAt(suggestion);
     Attributes().SetFairShare(usedFairShare);
+    CheckFairShareFeasibility();
 
     if (AreDetailedLogsEnabled()) {
         const auto& Logger = GetLogger();
