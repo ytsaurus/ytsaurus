@@ -834,7 +834,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
     @authors("dakovalkov")
     def test_long_query_interrupt(self):
         patch = {
-            "interruption_graceful_timeout": 1000,
+            "graceful_interruption_delay": 0,
         }
         with Clique(1, max_failed_job_count=2, config_patch=patch) as clique:
             update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=0))
@@ -844,11 +844,13 @@ class TestClickHouseCommon(ClickHouseTestBase):
             def signal_job_later():
                 time.sleep(0.3)
                 self._signal_instance(instances[0].attributes["pid"], "INT")
+                print_debug("SIGINT sent to the job")
 
             signal_thread = threading.Thread(target=signal_job_later)
             signal_thread.start()
 
             assert clique.make_direct_query(instances[0], "select sleep(3)") == [{"sleep(3)": 0}]
+
             time.sleep(0.3)
             with raises_yt_error(InstanceUnavailableCode):
                 clique.make_direct_query(instances[0], "select 1")
