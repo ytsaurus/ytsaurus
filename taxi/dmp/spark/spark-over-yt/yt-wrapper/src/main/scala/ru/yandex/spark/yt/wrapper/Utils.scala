@@ -15,4 +15,11 @@ object Utils {
       case _ => throw new IllegalArgumentException(s"Illegal time format: $s")
     }
   }
+
+  def flatten[A, B](seq: Seq[Either[A, B]]): Either[A, Seq[B]] = {
+    seq
+      .find(_.isLeft)
+      .map(e => Left(e.left.get))
+      .getOrElse(Right(seq.map(_.right.get)))
+  }
 }

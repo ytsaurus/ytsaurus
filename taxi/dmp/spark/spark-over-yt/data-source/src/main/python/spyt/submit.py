@@ -117,13 +117,19 @@ class SparkSubmissionClient(object):
         jlauncher = self._jclient.newLauncher()
         return SparkLauncher(jlauncher, self.gateway)
 
-    def submit(self, launcher, retry_config = None):
+    def submit(self, launcher, retry_config=None):
         if retry_config is None:
             retry_config = RetryConfig()
         jresult = self._jclient.submit(launcher._jlauncher, retry_config._to_java(self.gateway))
         if jresult.isFailure():
             raise RuntimeError(jresult.failed().get().getMessage())
         return jresult.get()
+
+    def kill(self, submission_id):
+        return self._jclient.kill(submission_id)
+
+    def get_active_drivers(self):
+        return self._jclient.getActiveDrivers()
 
     def get_status(self, submission_id):
         return SubmissionStatus.from_string(self._jclient.getStringStatus(submission_id))
