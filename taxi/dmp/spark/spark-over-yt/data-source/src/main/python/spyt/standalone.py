@@ -287,6 +287,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     environment = config["environment"]
     environment["YT_PROXY"] = get_proxy_url(required=True, client=client)
     environment["YT_OPERATION_ALIAS"] = operation_spec["title"]
+    environment["SPARK_BASE_DISCOVERY_PATH"] = str(spark_discovery.base_discovery_path)
     environment["SPARK_DISCOVERY_PATH"] = str(spark_discovery.discovery())
     environment["JAVA_HOME"] = "$HOME/tmpfs/jdk11"
     environment["SPARK_HOME"] = "$HOME/{}/spark".format(spark_home)

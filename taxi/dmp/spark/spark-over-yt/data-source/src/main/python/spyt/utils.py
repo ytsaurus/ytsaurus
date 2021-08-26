@@ -30,7 +30,7 @@ class SparkCluster(object):
 
 class SparkDiscovery(object):
     def __init__(self, discovery_path=None, spark_id=None):
-        discovery_path = discovery_path or os.getenv("SPARK_YT_DISCOVERY_PATH")
+        discovery_path = discovery_path or os.getenv("SPARK_BASE_DISCOVERY_PATH")
         self.base_discovery_path = YPath(discovery_path)
         self.spark_id = spark_id
 
