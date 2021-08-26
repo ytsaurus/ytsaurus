@@ -233,7 +233,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                master_memory_limit,
                                history_server_memory_limit, history_server_memory_overhead, history_server_cpu_limit,
                                network_project, tvm_id, tvm_secret,
-                               advanced_event_log, worker_log_transfer, worker_log_json_parsing,
+                               advanced_event_log, worker_log_transfer, worker_log_json_mode,
                                worker_log_update_interval,
                                pool, enablers, client):
     if ssd_limit:
@@ -253,8 +253,8 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     master_command = _launcher_command("Master")
     worker_command = _launcher_command("Worker", "2g") + \
         "--cores {0} --memory {1} --wait-master-timeout {2} --wlog-service-enabled {3} " \
-        "--wlog-enable-json-parsing {4} --wlog-update-interval {5} --wlog-table-path {6}".format(
-            worker_cores, worker_memory, worker_timeout, worker_log_transfer, worker_log_json_parsing,
+        "--wlog-enable-json {4} --wlog-update-interval {5} --wlog-table-path {6}".format(
+            worker_cores, worker_memory, worker_timeout, worker_log_transfer, worker_log_json_mode,
             worker_log_update_interval, "yt:/{}".format(spark_discovery.worker_log()))
 
     if advanced_event_log:
@@ -385,7 +385,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                         history_server_cpu_limit=SparkDefaultArguments.SPARK_HISTORY_SERVER_CPU_LIMIT,
                         history_server_memory_overhead=SparkDefaultArguments.SPARK_HISTORY_SERVER_MEMORY_OVERHEAD,
                         network_project=None, abort_existing=False, tvm_id=None, tvm_secret=None,
-                        advanced_event_log=False, worker_log_transfer=False, worker_log_json_parsing=False,
+                        advanced_event_log=False, worker_log_transfer=False, worker_log_json_mode=False,
                         worker_log_update_interval=False, params=None, spark_cluster_version=None,
                         enablers=None,
                         client=None):
@@ -411,7 +411,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     :param abort_existing: abort existing running operation
     :param advanced_event_log: advanced log format for history server (requires dynamic tables write permission)
     :param worker_log_transfer: sending logs from workers to yt
-    :param worker_log_json_parsing: parsing json worker logs
+    :param worker_log_json_mode: using json for worker logs
     :param worker_log_update_interval: intervals between log updates
     :param tvm_id: TVM id for network project
     :param tvm_secret: TVM secret for network project
@@ -466,7 +466,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                                               tvm_secret=tvm_secret,
                                               advanced_event_log=advanced_event_log,
                                               worker_log_transfer=worker_log_transfer,
-                                              worker_log_json_parsing=worker_log_json_parsing,
+                                              worker_log_json_mode=worker_log_json_mode,
                                               worker_log_update_interval=worker_log_update_interval,
                                               pool=pool,
                                               enablers=enablers,

@@ -3,13 +3,14 @@ package ru.yandex.spark.launcher
 import com.twitter.scalding.Args
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.launcher.WorkerLogLauncher.WorkerLogConfig
+import ru.yandex.spark.launcher.WorkerLogLauncher.WorkerLogConfig.{getSparkHomeDir, getSparkWorkDir}
 import ru.yandex.spark.yt.wrapper.Utils.parseDuration
 import ru.yandex.spark.yt.wrapper.{LogLazy, YtWrapper}
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 import java.io.{File, RandomAccessFile}
 import java.nio.file.attribute.FileTime
-import java.nio.file.{Files, Path}
+import java.nio.file.{Files, Path, StandardCopyOption}
 import java.time.ZoneOffset
 import scala.collection.mutable
 import scala.concurrent.duration.{Duration, DurationInt}
@@ -19,7 +20,7 @@ object WorkerLogLauncher extends VanillaLauncher {
   private val log = LoggerFactory.getLogger(getClass)
 
   case class WorkerLogConfig(enableService: Boolean,
-                             enableJsonParsing: Boolean,
+                             enableJson: Boolean,
                              scanDirectory: String,
                              tablesPath: String,
                              updateInterval: Duration,
@@ -30,6 +31,14 @@ object WorkerLogLauncher extends VanillaLauncher {
     val minimalInterval: Duration = 1 minute
     def create(sparkConf: Map[String, String], args: Array[String]): Option[WorkerLogConfig] = {
       create(sparkConf, Args(args))
+    }
+
+    def getSparkHomeDir: String = {
+      new File(env("SPARK_HOME", "/slot/sandbox/tmpfs/spark")).getAbsolutePath
+    }
+
+    def getSparkWorkDir: String = {
+      sys.env.getOrElse("SPARK_WORKER_DIR", s"$getSparkHomeDir/work")
     }
 
     def create(sparkConf: Map[String, String], args: Args): Option[WorkerLogConfig] = {
@@ -57,13 +66,12 @@ object WorkerLogLauncher extends VanillaLauncher {
 
         Some(WorkerLogConfig(
           enableService = enableService,
-          enableJsonParsing = args.optional("wlog-enable-json-parsing")
-            .orElse(sparkConf.get("spark.workerLog.enableJsonParsing"))
+          enableJson = args.optional("wlog-enable-json")
+            .orElse(sparkConf.get("spark.workerLog.enableJson"))
             .exists(_.toBoolean),
           scanDirectory = args.optional("wlog-file-log-path")
             .orElse(sparkConf.get("spark.workerLog.fileLogPath"))
-            .orElse(sys.env.get("SPARK_WORKER_DIR"))
-            .getOrElse(s"${new File(env("SPARK_HOME", "./spark")).getAbsolutePath}/work"),
+            .getOrElse(getSparkWorkDir),
           tablesPath = tablesPathOpt.get,
           updateInterval = updateInterval,
           bufferSize = args.optional("wlog-buffer-size")
@@ -78,6 +86,16 @@ object WorkerLogLauncher extends VanillaLauncher {
   }
 
   def start(workerLogConfig: WorkerLogConfig, client: CompoundClient): Thread = {
+    if (workerLogConfig.enableJson) {
+      val path = Files.move(
+        Path.of(getSparkHomeDir, "conf", "log4j.workerLogJson.properties"),
+        Path.of(getSparkHomeDir, "conf", "log4j.properties"),
+        StandardCopyOption.REPLACE_EXISTING
+      )
+      if (path == null) {
+        throw new RuntimeException("Couldn't replace log4j properties")
+      }
+    }
     val thread = new Thread(new LogServiceRunnable(workerLogConfig)(client), "WorkerLogRunnable")
     thread.start()
     thread
@@ -149,7 +167,7 @@ class LogServiceRunnable(workerLogConfig: WorkerLogConfig)(implicit yt: Compound
             val ans = readUntilEnd(reader, ignoreLast)
             val (lastSeek, length) = ans.foldLeft((currentSeek, 0)) {
               case ((_, len), (seek, line)) =>
-                val block = if (workerLogConfig.enableJsonParsing) {
+                val block = if (workerLogConfig.enableJson) {
                   WorkerLogBlock.fromJson(line, logFileName, appDriver, execId, currentLine + len, creationTime)
                 } else {
                   WorkerLogBlock.fromMessage(line, logFileName, appDriver, execId, currentLine + len, creationTime)
@@ -166,21 +184,25 @@ class LogServiceRunnable(workerLogConfig: WorkerLogConfig)(implicit yt: Compound
   def uploadLogs(): Unit = {
     log.debugLazy("Started scanning logs")
     val appsFolder = new File(workerLogConfig.scanDirectory)
-    appsFolder.list().foreach { dirName =>
-      val fullPath = s"${appsFolder.getAbsolutePath}/$dirName"
-      val file = new File(fullPath)
-      if (file.getName.startsWith("app-")) {
-        file.list().foreach { executorId =>
-          val executorPath = s"${file.getAbsolutePath}/$executorId"
-          processStdoutStderrData(new File(executorPath), dirName, executorId)
+    if (appsFolder.exists()) {
+      appsFolder.list().foreach { dirName =>
+        val fullPath = s"${appsFolder.getAbsolutePath}/$dirName"
+        val file = new File(fullPath)
+        if (file.getName.startsWith("app-")) {
+          file.list().foreach { executorId =>
+            val executorPath = s"${file.getAbsolutePath}/$executorId"
+            processStdoutStderrData(new File(executorPath), dirName, executorId)
+          }
+        } else if (file.getName.startsWith("driver-")) {
+          processStdoutStderrData(file, dirName)
+        } else {
+          Nil
         }
-      } else if (file.getName.startsWith("driver-")) {
-        processStdoutStderrData(file, dirName)
-      } else {
-        Nil
       }
+      writer.flush()
+    } else {
+      log.debugLazy("No logs folder")
     }
-    writer.flush()
 
     log.debugLazy("Finished scanning logs")
   }

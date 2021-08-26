@@ -31,7 +31,7 @@ class WorkerLogWriter(workerLogConfig: WorkerLogConfig)(implicit yt: CompoundCli
 
   def flush(): Unit = {
     if (buffer.nonEmpty) {
-      log.info(s"Flushing ${buffer.length} new log lines")
+      log.debugLazy(s"Flushing ${buffer.length} new log lines")
       val headDate = buffer.head.inner.date
       if (buffer.forall(log => log.inner.date == headDate)) {
         log.debugLazy("All logs have same date")

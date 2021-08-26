@@ -72,9 +72,9 @@ def main():
     parser.set_defaults(worker_log_transfer=False)
 
     group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--enable-worker-log-json-parsing', dest='worker_log_json_parsing', action='store_true')
-    group.add_argument('--disable-worker-log-json-parsing', dest='worker_log_json_parsing', action='store_false')
-    parser.set_defaults(worker_log_json_parsing=False)
+    group.add_argument('--enable-worker-log-json-mode', dest='worker_log_json_mode', action='store_true')
+    group.add_argument('--disable-worker-log-json-mode', dest='worker_log_json_mode', action='store_false')
+    parser.set_defaults(worker_log_json_mode=False)
 
     args, unknown_args = spark_utils.parse_args(parser)
 
@@ -100,7 +100,7 @@ def main():
                         abort_existing=args.abort_existing,
                         advanced_event_log=args.advanced_event_log,
                         worker_log_transfer=args.worker_log_transfer,
-                        worker_log_json_parsing=args.worker_log_json_parsing,
+                        worker_log_json_mode=args.worker_log_json_mode,
                         worker_log_update_interval=args.worker_log_update_interval,
                         params=args.params,
                         spark_cluster_version=args.spark_cluster_version,

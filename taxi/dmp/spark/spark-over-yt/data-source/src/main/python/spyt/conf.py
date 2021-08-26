@@ -79,7 +79,7 @@ def python_bin_path(global_conf, version):
 
 
 def worker_num_limit(global_conf):
-    return global_conf["worker_num_limit"]
+    return global_conf.get("worker_num_limit", 1000)
 
 
 def validate_worker_num(worker_num, worker_num_lim):
