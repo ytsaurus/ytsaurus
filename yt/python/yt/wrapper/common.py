@@ -320,9 +320,10 @@ def forbidden_inside_job(func, *args, **kwargs):
     if is_inside_job() and not bool(int(flag)):
         raise YtError('HTTP requests to YT are forbidden inside jobs by default. '
                       'Did you forget to surround code that runs YT operations with '
-                      'if __name__ == "__main__"? If not and you need to make requests '
-                      'you can override this behaviour by turning on '
-                      '"allow_http_requests_to_yt_from_job" option in config.')
+                      'if __name__ == "__main__"? If not, and you indeed need to make '
+                      'requests, obtain an explicit permission on doing that at '
+                      'yt-admin@.')
+
     return func(*args, **kwargs)
 
 class DoNotReplaceAction(argparse.Action):
