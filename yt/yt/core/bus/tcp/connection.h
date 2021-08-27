@@ -192,6 +192,7 @@ private:
 
     TSingleShotCallbackList<void(const TError&)> Terminated_;
 
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, QueuedMessagesDiscardLock_);
     TMpscStack<TQueuedMessage> QueuedMessages_;
     std::atomic<size_t> PendingOutPayloadBytes_ = 0;
 

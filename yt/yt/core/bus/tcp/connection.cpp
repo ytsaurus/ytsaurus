@@ -1252,8 +1252,11 @@ void TTcpConnection::DiscardOutcomingMessages()
 {
     auto error = Error_.Load();
 
-    TQueuedMessage queuedMessage;
-    while (QueuedMessages_.Dequeue(&queuedMessage)) {
+    auto guard = Guard(QueuedMessagesDiscardLock_);
+    auto queuedMessages = QueuedMessages_.DequeueAll();
+    guard.Release();
+
+    for (const auto& queuedMessage : queuedMessages) {
         YT_LOG_DEBUG("Outcoming message discarded (PacketId: %v)",
             queuedMessage.PacketId);
         if (queuedMessage.Promise) {
