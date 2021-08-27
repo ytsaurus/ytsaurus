@@ -2670,15 +2670,26 @@ private:
         if (JobRegistry_) {
             JobRegistry_->OnDataCenterCreated(dataCenter);
         }
+        if (ReplicatorState_) {
+            ReplicatorState_->CreateDataCenter(dataCenter);
+        }
     }
 
-    void OnDataCenterRenamed(TDataCenter* /*dataCenter*/)
-    { }
+    void OnDataCenterRenamed(TDataCenter* dataCenter)
+    {
+        if (ReplicatorState_) {
+            auto newName = dataCenter->GetName();
+            ReplicatorState_->RenameDataCenter(dataCenter->GetId(), newName);
+        }
+    }
 
     void OnDataCenterDestroyed(TDataCenter* dataCenter)
     {
         if (JobRegistry_) {
             JobRegistry_->OnDataCenterDestroyed(dataCenter);
+        }
+        if (ReplicatorState_) {
+            ReplicatorState_->DestroyDataCenter(dataCenter->GetId());
         }
     }
 

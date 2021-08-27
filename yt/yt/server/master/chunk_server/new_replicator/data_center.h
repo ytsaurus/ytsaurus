@@ -2,22 +2,21 @@
 
 #include "public.h"
 
+#include <yt/yt/server/master/node_tracker_server/public.h>
+
 namespace NYT::NChunkServer::NReplicator {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TMedium
+struct TDataCenter
 {
-    DEFINE_BYVAL_RO_PROPERTY(TMediumId, Id);
-    DEFINE_BYVAL_RO_PROPERTY(TMediumIndex, Index);
+    DEFINE_BYVAL_RO_PROPERTY(TDataCenterId, Id);
 
     DEFINE_BYREF_RW_PROPERTY(TString, Name);
 
-    DEFINE_BYREF_RW_PROPERTY(TMediumConfigPtr, Config);
+    explicit TDataCenter(NNodeTrackerServer::TDataCenter* dataCenter);
 
-    explicit TMedium(NChunkServer::TMedium* medium);
-
-    static std::unique_ptr<TMedium> FromPrimary(NChunkServer::TMedium* medium);
+    static std::unique_ptr<TDataCenter> FromPrimary(NNodeTrackerServer::TDataCenter* dataCenter);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

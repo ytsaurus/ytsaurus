@@ -1,6 +1,7 @@
 #include "replicator_state.h"
 
 #include "private.h"
+#include "data_center.h"
 #include "medium.h"
 
 #include <yt/yt/server/master/cell_master/config.h>
@@ -54,6 +55,13 @@ public:
             auto dualMedium = TMedium::FromPrimary(primaryMedium);
             YT_VERIFY(Media_.emplace(mediumId, std::move(dualMedium)).second);
             RegisterMediumInMaps(mediumId);
+        }
+
+        for (auto* primaryDataCenter : Proxy_->GetDataCenters()) {
+            auto dataCenterId = primaryDataCenter->GetId();
+            auto dualDataCenter = TDataCenter::FromPrimary(primaryDataCenter);
+            YT_VERIFY(DataCenters_.emplace(dataCenterId, std::move(dualDataCenter)).second);
+            RegisterDataCenterInMaps(dataCenterId);
         }
 
         CheckThreadAffinity_ = true;
@@ -120,6 +128,41 @@ public:
                 CloneYsonSerializable(newConfig)));
     }
 
+    virtual void CreateDataCenter(NNodeTrackerServer::TDataCenter* dataCenter) override
+    {
+        VerifyAutomatonThread();
+
+        auto dualDataCenter = TDataCenter::FromPrimary(dataCenter);
+        DualMutationInvoker_->Invoke(
+            BIND(
+                &TReplicatorState::DoCreateDataCenter,
+                MakeWeak(this),
+                Passed(std::move(dualDataCenter))));
+    }
+
+    virtual void DestroyDataCenter(TDataCenterId dataCenterId) override
+    {
+        VerifyAutomatonThread();
+
+        DualMutationInvoker_->Invoke(
+            BIND(
+                &TReplicatorState::DoDestroyDataCenter,
+                MakeWeak(this),
+                dataCenterId));
+    }
+
+    virtual void RenameDataCenter(TDataCenterId dataCenterId, const TString& name) override
+    {
+        VerifyAutomatonThread();
+
+        DualMutationInvoker_->Invoke(
+            BIND(
+                &TReplicatorState::DoRenameDataCenter,
+                MakeWeak(this),
+                dataCenterId,
+                name));
+    }
+
     virtual const TDynamicClusterConfigPtr& GetDynamicConfig() const override
     {
         VerifyChunkThread();
@@ -174,6 +217,42 @@ public:
         }
     }
 
+    virtual const THashMap<TDataCenterId, std::unique_ptr<TDataCenter>>& DataCenters() const override
+    {
+        VerifyChunkThread();
+
+        return DataCenters_;
+    }
+
+    virtual TDataCenter* FindDataCenter(TDataCenterId dataCenterId) const override
+    {
+        VerifyChunkThread();
+
+        if (auto dataCenterIt = DataCenters_.find(dataCenterId); dataCenterIt != DataCenters_.end()) {
+            return dataCenterIt->second.get();
+        } else {
+            return nullptr;
+        }
+    }
+
+    virtual TDataCenter* GetDataCenter(TDataCenterId dataCenterId) const override
+    {
+        VerifyChunkThread();
+
+        return GetOrCrash(DataCenters_, dataCenterId).get();
+    }
+
+    virtual TDataCenter* FindDataCenterByName(const TString& name) const override
+    {
+        VerifyChunkThread();
+
+        if (auto dataCenterIt = DataCenterNameToDataCenter_.find(name); dataCenterIt != DataCenterNameToDataCenter_.end()) {
+            return dataCenterIt->second;
+        } else {
+            return nullptr;
+        }
+    }
+
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(ChunkThread);
@@ -187,6 +266,9 @@ private:
     THashMap<TMediumId, std::unique_ptr<TMedium>> Media_;
     THashMap<TMediumIndex, TMedium*> MediumIndexToMedium_;
     THashMap<TString, TMedium*> MediumNameToMedium_;
+
+    THashMap<TDataCenterId, std::unique_ptr<TDataCenter>> DataCenters_;
+    THashMap<TString, TDataCenter*> DataCenterNameToDataCenter_;
 
     bool CheckThreadAffinity_ = true;
 
@@ -277,6 +359,73 @@ private:
         // TODO(gritukan): Use helpers from Max.
         YT_VERIFY(MediumIndexToMedium_.erase(medium->GetIndex()) > 0);
         YT_VERIFY(MediumNameToMedium_.erase(medium->Name()) > 0);
+    }
+
+    void DoCreateDataCenter(std::unique_ptr<TDataCenter> dataCenter)
+    {
+        VerifyChunkThread();
+
+        auto dataCenterId = dataCenter->GetId();
+        auto dataCenterPtr = dataCenter.get();
+        // TODO(gritukan): Use helpers from Max.
+        YT_VERIFY(DataCenters_.emplace(dataCenterId, std::move(dataCenter)).second);
+        RegisterDataCenterInMaps(dataCenterId);
+
+        YT_LOG_DEBUG("Data center created (DataCenterId: %v, DataCenterName: %v)",
+            dataCenterId,
+            dataCenterPtr->Name());
+    }
+
+    void DoDestroyDataCenter(TDataCenterId dataCenterId)
+    {
+        VerifyChunkThread();
+
+        auto* dataCenter = GetDataCenter(dataCenterId);
+        auto dataCenterName = dataCenter->Name();
+        UnregisterDataCenterFromMaps(dataCenterId);
+        // TODO(gritukan): Use helpers from Max.
+        YT_VERIFY(DataCenters_.erase(dataCenterId) > 0);
+
+        YT_LOG_DEBUG("Data center destroyed (DataCenterId: %v, DataCenterName: %v)",
+            dataCenterId,
+            dataCenterName);
+    }
+
+    void DoRenameDataCenter(TDataCenterId dataCenterId, const TString& newName)
+    {
+        VerifyChunkThread();
+
+        auto* dataCenter = GetDataCenter(dataCenterId);
+        auto oldName = dataCenter->Name();
+
+        UnregisterDataCenterFromMaps(dataCenterId);
+        dataCenter->Name() = newName;
+        RegisterDataCenterInMaps(dataCenterId);
+
+        YT_LOG_DEBUG("Data center renamed (DataCenterId: %v, DataCenterName: %v -> %v)",
+            dataCenterId,
+            oldName,
+            newName);
+    }
+
+    void RegisterDataCenterInMaps(TDataCenterId dataCenterId)
+    {
+        VerifyChunkThread();
+
+        auto* dataCenter = GetDataCenter(dataCenterId);
+
+        // TODO(gritukan): Use helpers from Max.
+        YT_VERIFY(DataCenterNameToDataCenter_.emplace(dataCenter->Name(), dataCenter).second);
+    }
+
+    void UnregisterDataCenterFromMaps(TDataCenterId dataCenterId)
+    {
+        VerifyChunkThread();
+
+        auto* dataCenter = GetDataCenter(dataCenterId);
+
+        // TODO(gritukan): Use helpers from Max.
+        YT_VERIFY(DataCenterNameToDataCenter_.erase(dataCenter->Name()) > 0);
     }
 };
 

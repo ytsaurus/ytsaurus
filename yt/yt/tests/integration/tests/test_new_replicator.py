@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup
 
-from yt_commands import authors, set, create_medium
+from yt_commands import authors, set, create_medium, create_data_center, remove_data_center
 
 
 ##################################################################
@@ -24,6 +24,12 @@ class TestNewReplicator(YTEnvSetup):
         create_medium("nvme")
         set("//sys/media/nvme/@name", "optane")
         set("//sys/media/optane/@config/max_replicas_per_rack", 3)
+
+    @authors("gritukan")
+    def test_data_centers_update(self):
+        create_data_center("d1")
+        set("//sys/data_centers/d1/@name", "d2")
+        remove_data_center("d2")
 
 
 ##################################################################
