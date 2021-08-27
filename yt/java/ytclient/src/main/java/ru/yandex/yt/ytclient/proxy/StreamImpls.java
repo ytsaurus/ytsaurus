@@ -600,8 +600,8 @@ class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> implements Tab
     }
 
     @Override
-    public TableSchema getTableSchema() {
-        return schema;
+    public CompletableFuture<TableSchema> getTableSchema() {
+        return CompletableFuture.completedFuture(schema);
     }
 }
 
