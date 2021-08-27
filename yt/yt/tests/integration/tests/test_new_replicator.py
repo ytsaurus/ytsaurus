@@ -1,6 +1,8 @@
 from yt_env_setup import YTEnvSetup
 
-from yt_commands import authors, set, create_medium, create_data_center, remove_data_center
+from yt_commands import (
+    authors, set, remove, create_medium, create_data_center, remove_data_center,
+    create_rack, remove_rack)
 
 
 ##################################################################
@@ -30,6 +32,15 @@ class TestNewReplicator(YTEnvSetup):
         create_data_center("d1")
         set("//sys/data_centers/d1/@name", "d2")
         remove_data_center("d2")
+
+    @authors("gritukan")
+    def test_racks_update(self):
+        create_rack("r")
+        create_data_center("d1")
+        set("//sys/racks/r/@data_center", "d1")
+        remove("//sys/racks/r/@data_center")
+        set("//sys/racks/r/@name", "w")
+        remove_rack("w")
 
 
 ##################################################################

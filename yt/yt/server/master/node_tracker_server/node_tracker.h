@@ -111,6 +111,18 @@ public:
     //! Fired when a data center is removed.
     DECLARE_SIGNAL(void(TDataCenter* dataCenter), DataCenterDestroyed);
 
+    //! Fired when a new rack is created.
+    DECLARE_SIGNAL(void(TRack* rack), RackCreated);
+
+    //! Fired when a rack is renamed.
+    DECLARE_SIGNAL(void(TRack* rack), RackRenamed);
+
+    //! Fired when a rack data center changed.
+    DECLARE_SIGNAL(void(TRack* rack, TDataCenter* oldDataCenter), RackDataCenterChanged);
+
+    //! Fired when a data rack is removed.
+    DECLARE_SIGNAL(void(TRack* rack), RackDestroyed);
+
 
     //! Constructs the full object id from a (short) node id.
     NObjectClient::TObjectId ObjectIdFromNodeId(TNodeId nodeId);

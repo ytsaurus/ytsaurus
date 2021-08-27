@@ -11,6 +11,7 @@ namespace NYT::NChunkServer::NReplicator {
 struct TNode;
 struct TMedium;
 struct TDataCenter;
+struct TRack;
 
 DECLARE_REFCOUNTED_STRUCT(IChunkReplicaAllocator)
 DECLARE_REFCOUNTED_STRUCT(IJobTracker)
@@ -20,8 +21,10 @@ using TNodePtrWithIndexes = TPtrWithIndexes<TNode>;
 using TNodePtrWithIndexesList = SmallVector<TNodePtrWithIndexes, NChunkClient::TypicalReplicaCount>;
 
 using TMediumIndex = int;
+using TRackIndex = int;
 
 using NNodeTrackerServer::TDataCenterId;
+using NNodeTrackerServer::TRackId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

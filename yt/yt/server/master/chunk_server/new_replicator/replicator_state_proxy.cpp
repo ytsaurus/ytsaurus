@@ -61,6 +61,20 @@ public:
         return dataCenters;
     }
 
+    std::vector<NNodeTrackerServer::TRack*> GetRacks() const override
+    {
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& rackMap = nodeTracker->Racks();
+
+        std::vector<NNodeTrackerServer::TRack*> racks;
+        racks.reserve(rackMap.size());
+        for (const auto& [rackId, rack] : rackMap) {
+            racks.push_back(rack);
+        }
+
+        return racks;
+    }
+
     bool CheckThreadAffinity() const override
     {
         return true;

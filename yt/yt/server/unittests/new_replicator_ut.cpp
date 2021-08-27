@@ -6,9 +6,11 @@
 
 #include <yt/yt/server/master/chunk_server/new_replicator/data_center.h>
 #include <yt/yt/server/master/chunk_server/new_replicator/medium.h>
+#include <yt/yt/server/master/chunk_server/new_replicator/rack.h>
 #include <yt/yt/server/master/chunk_server/new_replicator/replicator_state.h>
 
 #include <yt/yt/server/master/node_tracker_server/data_center.h>
+#include <yt/yt/server/master/node_tracker_server/rack.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -43,6 +45,11 @@ struct TReplicatorStateProxy
         return DataCenters;
     }
 
+    std::vector<NNodeTrackerServer::TRack*> GetRacks() const override
+    {
+        return Racks;
+    }
+
     bool CheckThreadAffinity() const override
     {
         return false;
@@ -54,6 +61,7 @@ struct TReplicatorStateProxy
 
     std::vector<NChunkServer::TMedium*> Media;
     std::vector<NNodeTrackerServer::TDataCenter*> DataCenters;
+    std::vector<NNodeTrackerServer::TRack*> Racks;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,6 +104,20 @@ protected:
         dataCenter->SetName(name);
 
         return dataCenter;
+    }
+
+    static std::unique_ptr<NNodeTrackerServer::TRack> CreateRack(
+        TRackId rackId,
+        TRackIndex rackIndex,
+        const TString& name,
+        NNodeTrackerServer::TDataCenter* dataCenter)
+    {
+        auto rack = TPoolAllocator::New<NNodeTrackerServer::TRack>(rackId);
+        rack->SetIndex(rackIndex);
+        rack->SetName(name);
+        rack->SetDataCenter(dataCenter);
+
+        return rack;
     }
 };
 
@@ -296,6 +318,163 @@ TEST_F(TReplicatorTest, TestRenameDataCenter)
     EXPECT_EQ(dualDataCenter->Name(), "M");
     EXPECT_EQ(ReplicatorState_->FindDataCenterByName("N"), nullptr);
     EXPECT_EQ(ReplicatorState_->FindDataCenterByName("M"), dualDataCenter);
+}
+
+TEST_F(TReplicatorTest, TestRackReplication)
+{
+    auto dataCenter = CreateDataCenter(/*dataCenterId*/ TGuid::Create(), "d1");
+    Proxy_->DataCenters.push_back(dataCenter.get());
+
+    auto rack1 = CreateRack(/*rackId*/ TGuid::Create(), /*rackIndex*/ 42, "r1", /*dataCenter*/ nullptr);
+    auto rack2 = CreateRack(/*rackId*/ TGuid::Create(), /*rackIndex*/ 57, "r2", /*dataCenter*/ dataCenter.get());
+    Proxy_->Racks = {rack1.get(), rack2.get()};
+
+    ReplicatorState_->Load();
+
+    auto* dualDataCenter = ReplicatorState_->FindDataCenter(dataCenter->GetId());
+    auto* dualRack1 = ReplicatorState_->FindRack(rack1->GetId());
+    auto* dualRack2 = ReplicatorState_->FindRack(rack2->GetId());
+    EXPECT_EQ(dualRack1->GetId(), rack1->GetId());
+    EXPECT_EQ(dualRack1->GetIndex(), 42);
+    EXPECT_EQ(dualRack1->Name(), "r1");
+    EXPECT_EQ(dualRack1->GetDataCenter(), nullptr);
+    EXPECT_EQ(dualRack2->GetId(), rack2->GetId());
+    EXPECT_EQ(dualRack2->GetIndex(), 57);
+    EXPECT_EQ(dualRack2->Name(), "r2");
+    EXPECT_EQ(dualRack2->GetDataCenter(), dualDataCenter);
+
+    EXPECT_EQ(ReplicatorState_->FindRack(rack1->GetId()), dualRack1);
+    EXPECT_EQ(ReplicatorState_->FindRack(rack2->GetId()), dualRack2);
+    EXPECT_EQ(ReplicatorState_->FindRack(TGuid::Create()), nullptr);
+
+    EXPECT_EQ(ReplicatorState_->FindRackByName("r1"), dualRack1);
+    EXPECT_EQ(ReplicatorState_->FindRackByName("r2"), dualRack2);
+    EXPECT_EQ(ReplicatorState_->FindRackByName("r3"), nullptr);
+
+    EXPECT_EQ(ReplicatorState_->FindRackByIndex(42), dualRack1);
+    EXPECT_EQ(ReplicatorState_->FindRackByIndex(57), dualRack2);
+    EXPECT_EQ(ReplicatorState_->FindRackByName("r3"), nullptr);
+
+    const auto& rackMap = ReplicatorState_->Racks();
+    EXPECT_EQ(std::ssize(rackMap), 2);
+    EXPECT_EQ(GetOrCrash(rackMap, rack1->GetId()).get(), dualRack1);
+    EXPECT_EQ(GetOrCrash(rackMap, rack2->GetId()).get(), dualRack2);
+}
+
+TEST_F(TReplicatorTest, TestCreateDestroyRacks)
+{
+    auto dataCenter = CreateDataCenter(/*dataCenterId*/ TGuid::Create(), "d1");
+    Proxy_->DataCenters.push_back(dataCenter.get());
+
+    ReplicatorState_->Load();
+
+    auto rack1 = CreateRack(/*rackId*/ TGuid::Create(), /*rackIndex*/ 42, "r1", /*dataCenter*/ nullptr);
+    auto rack2 = CreateRack(/*rackId*/ TGuid::Create(), /*rackIndex*/ 57, "r2", /*dataCenter*/ dataCenter.get());
+    ReplicatorState_->CreateRack(rack1.get());
+    ReplicatorState_->CreateRack(rack2.get());
+    ReplicatorState_->SyncWithUpstream();
+
+    auto* dualDataCenter = ReplicatorState_->FindDataCenter(dataCenter->GetId());
+    auto* dualRack1 = ReplicatorState_->FindRack(rack1->GetId());
+    auto* dualRack2 = ReplicatorState_->FindRack(rack2->GetId());
+    EXPECT_EQ(dualRack1->GetId(), rack1->GetId());
+    EXPECT_EQ(dualRack1->GetIndex(), 42);
+    EXPECT_EQ(dualRack1->Name(), "r1");
+    EXPECT_EQ(dualRack1->GetDataCenter(), nullptr);
+    EXPECT_EQ(dualRack2->GetId(), rack2->GetId());
+    EXPECT_EQ(dualRack2->GetIndex(), 57);
+    EXPECT_EQ(dualRack2->Name(), "r2");
+    EXPECT_EQ(dualRack2->GetDataCenter(), dualDataCenter);
+
+    EXPECT_EQ(ReplicatorState_->FindRack(rack1->GetId()), dualRack1);
+    EXPECT_EQ(ReplicatorState_->FindRack(rack2->GetId()), dualRack2);
+    EXPECT_EQ(ReplicatorState_->FindRack(TGuid::Create()), nullptr);
+
+    EXPECT_EQ(ReplicatorState_->FindRackByName("r1"), dualRack1);
+    EXPECT_EQ(ReplicatorState_->FindRackByName("r2"), dualRack2);
+    EXPECT_EQ(ReplicatorState_->FindRackByName("r3"), nullptr);
+
+    EXPECT_EQ(ReplicatorState_->FindRackByIndex(42), dualRack1);
+    EXPECT_EQ(ReplicatorState_->FindRackByIndex(57), dualRack2);
+    EXPECT_EQ(ReplicatorState_->FindRackByName("r3"), nullptr);
+
+    const auto& rackMap = ReplicatorState_->Racks();
+    EXPECT_EQ(std::ssize(rackMap), 2);
+    EXPECT_EQ(GetOrCrash(rackMap, rack1->GetId()).get(), dualRack1);
+    EXPECT_EQ(GetOrCrash(rackMap, rack2->GetId()).get(), dualRack2);
+
+    ReplicatorState_->DestroyRack(rack1->GetId());
+    ReplicatorState_->DestroyRack(rack2->GetId());
+    ReplicatorState_->SyncWithUpstream();
+
+    EXPECT_EQ(ReplicatorState_->FindRack(rack1->GetId()), nullptr);
+    EXPECT_EQ(ReplicatorState_->FindRack(rack2->GetId()), nullptr);
+
+    EXPECT_EQ(ReplicatorState_->FindRackByName("r1"), nullptr);
+    EXPECT_EQ(ReplicatorState_->FindRackByName("r2"), nullptr);
+
+    EXPECT_EQ(ReplicatorState_->FindRackByIndex(42), nullptr);
+    EXPECT_EQ(ReplicatorState_->FindRackByIndex(57), nullptr);
+
+    EXPECT_TRUE(rackMap.empty());
+}
+
+TEST_F(TReplicatorTest, TestRenameRack)
+{
+    auto rack = CreateRack(/*rackId*/ TGuid::Create(), /*rackIndex*/ 42, "r1", /*dataCenter*/ nullptr);
+    ReplicatorState_->CreateRack(rack.get());
+    ReplicatorState_->SyncWithUpstream();
+
+    auto* dualRack = ReplicatorState_->FindRack(rack->GetId());
+    EXPECT_EQ(dualRack->Name(), "r1");
+    EXPECT_EQ(ReplicatorState_->FindRackByName("r1"), dualRack);
+    EXPECT_EQ(ReplicatorState_->FindRackByName("r2"), nullptr);
+
+    ReplicatorState_->RenameRack(dualRack->GetId(), "r2");
+    ReplicatorState_->SyncWithUpstream();
+
+    EXPECT_EQ(dualRack->Name(), "r2");
+    EXPECT_EQ(ReplicatorState_->FindRackByName("r1"), nullptr);
+    EXPECT_EQ(ReplicatorState_->FindRackByName("r2"), dualRack);
+}
+
+TEST_F(TReplicatorTest, TestSetRackDataCenter)
+{
+    auto rack = CreateRack(/*rackId*/ TGuid::Create(), /*rackIndex*/ 42, "r1", /*dataCenter*/ nullptr);
+    auto dataCenter = CreateDataCenter(/*dataCenterId*/ TGuid::Create(), "Narnia");
+    ReplicatorState_->CreateRack(rack.get());
+    ReplicatorState_->CreateDataCenter(dataCenter.get());
+    ReplicatorState_->SyncWithUpstream();
+
+    auto* dualRack = ReplicatorState_->FindRack(rack->GetId());
+    auto* dualDataCenter = ReplicatorState_->FindDataCenter(dataCenter->GetId());
+    EXPECT_EQ(dualRack->GetDataCenter(), nullptr);
+
+    ReplicatorState_->SetRackDataCenter(rack->GetId(), dataCenter->GetId());
+    ReplicatorState_->SyncWithUpstream();
+    EXPECT_EQ(dualRack->GetDataCenter(), dualDataCenter);
+
+    ReplicatorState_->SetRackDataCenter(rack->GetId(), TDataCenterId());
+    ReplicatorState_->SyncWithUpstream();
+    EXPECT_EQ(dualRack->GetDataCenter(), nullptr);
+}
+
+TEST_F(TReplicatorTest, TestUnbindRackOnDataCenterDestroy)
+{
+    auto dataCenter = CreateDataCenter(/*dataCenterId*/ TGuid::Create(), "Narnia");
+    auto rack = CreateRack(/*rackId*/ TGuid::Create(), /*rackIndex*/ 42, "r1", /*dataCenter*/ dataCenter.get());
+    ReplicatorState_->CreateDataCenter(dataCenter.get());
+    ReplicatorState_->CreateRack(rack.get());
+    ReplicatorState_->SyncWithUpstream();
+
+    auto* dualRack = ReplicatorState_->FindRack(rack->GetId());
+    auto* dualDataCenter = ReplicatorState_->FindDataCenter(dataCenter->GetId());
+    EXPECT_EQ(dualRack->GetDataCenter(), dualDataCenter);
+
+    ReplicatorState_->DestroyDataCenter(dualDataCenter->GetId());
+    ReplicatorState_->SyncWithUpstream();
+
+    EXPECT_EQ(dualRack->GetDataCenter(), nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
