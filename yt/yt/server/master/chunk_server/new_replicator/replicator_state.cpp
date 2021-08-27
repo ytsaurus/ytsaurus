@@ -37,7 +37,7 @@ public:
         VerifyAutomatonThread();
     }
 
-    virtual void Load()
+    void Load() override
     {
         VerifyAutomatonThread();
 
@@ -69,7 +69,7 @@ public:
         YT_LOG_INFO("Finished loading dual state");
     }
 
-    virtual void SyncWithUpstream() override
+    void SyncWithUpstream() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -79,7 +79,7 @@ public:
             .ThrowOnError();
     }
 
-    virtual void UpdateDynamicConfig(const TDynamicClusterConfigPtr& newConfig) override
+    void UpdateDynamicConfig(const TDynamicClusterConfigPtr& newConfig) override
     {
         VerifyAutomatonThread();
 
@@ -92,7 +92,7 @@ public:
                 CloneYsonSerializable(newConfig)));
     }
 
-    virtual void CreateMedium(NChunkServer::TMedium* medium) override
+    void CreateMedium(NChunkServer::TMedium* medium) override
     {
         VerifyAutomatonThread();
 
@@ -104,7 +104,7 @@ public:
                 Passed(std::move(dualMedium))));
     }
 
-    virtual void RenameMedium(TMediumId mediumId, const TString& newName) override
+    void RenameMedium(TMediumId mediumId, const TString& newName) override
     {
         VerifyAutomatonThread();
 
@@ -116,7 +116,7 @@ public:
                 newName));
     }
 
-    virtual void UpdateMediumConfig(TMediumId mediumId, const TMediumConfigPtr& newConfig) override
+    void UpdateMediumConfig(TMediumId mediumId, const TMediumConfigPtr& newConfig) override
     {
         VerifyAutomatonThread();
 
@@ -128,7 +128,7 @@ public:
                 CloneYsonSerializable(newConfig)));
     }
 
-    virtual void CreateDataCenter(NNodeTrackerServer::TDataCenter* dataCenter) override
+    void CreateDataCenter(NNodeTrackerServer::TDataCenter* dataCenter) override
     {
         VerifyAutomatonThread();
 
@@ -140,7 +140,7 @@ public:
                 Passed(std::move(dualDataCenter))));
     }
 
-    virtual void DestroyDataCenter(TDataCenterId dataCenterId) override
+    void DestroyDataCenter(TDataCenterId dataCenterId) override
     {
         VerifyAutomatonThread();
 
@@ -151,7 +151,7 @@ public:
                 dataCenterId));
     }
 
-    virtual void RenameDataCenter(TDataCenterId dataCenterId, const TString& name) override
+    void RenameDataCenter(TDataCenterId dataCenterId, const TString& name) override
     {
         VerifyAutomatonThread();
 
@@ -163,21 +163,21 @@ public:
                 name));
     }
 
-    virtual const TDynamicClusterConfigPtr& GetDynamicConfig() const override
+    const TDynamicClusterConfigPtr& GetDynamicConfig() const override
     {
         VerifyChunkThread();
 
         return DynamicConfig_;
     }
 
-    virtual const THashMap<TMediumId, std::unique_ptr<TMedium>>& Media() const override
+    const THashMap<TMediumId, std::unique_ptr<TMedium>>& Media() const override
     {
         VerifyChunkThread();
 
         return Media_;
     }
 
-    virtual TMedium* FindMedium(TMediumId mediumId) const override
+    TMedium* FindMedium(TMediumId mediumId) const override
     {
         VerifyChunkThread();
 
@@ -188,14 +188,14 @@ public:
         }
     }
 
-    virtual TMedium* GetMedium(TMediumId mediumId) const override
+    TMedium* GetMedium(TMediumId mediumId) const override
     {
         VerifyChunkThread();
 
         return GetOrCrash(Media_, mediumId).get();
     }
 
-    virtual TMedium* FindMediumByIndex(TMediumIndex index) const override
+    TMedium* FindMediumByIndex(TMediumIndex index) const override
     {
         VerifyChunkThread();
 
@@ -206,7 +206,7 @@ public:
         }
     }
 
-    virtual TMedium* FindMediumByName(const TString& name) const override
+    TMedium* FindMediumByName(const TString& name) const override
     {
         VerifyChunkThread();
 
@@ -217,14 +217,14 @@ public:
         }
     }
 
-    virtual const THashMap<TDataCenterId, std::unique_ptr<TDataCenter>>& DataCenters() const override
+    const THashMap<TDataCenterId, std::unique_ptr<TDataCenter>>& DataCenters() const override
     {
         VerifyChunkThread();
 
         return DataCenters_;
     }
 
-    virtual TDataCenter* FindDataCenter(TDataCenterId dataCenterId) const override
+    TDataCenter* FindDataCenter(TDataCenterId dataCenterId) const override
     {
         VerifyChunkThread();
 
@@ -235,14 +235,14 @@ public:
         }
     }
 
-    virtual TDataCenter* GetDataCenter(TDataCenterId dataCenterId) const override
+    TDataCenter* GetDataCenter(TDataCenterId dataCenterId) const override
     {
         VerifyChunkThread();
 
         return GetOrCrash(DataCenters_, dataCenterId).get();
     }
 
-    virtual TDataCenter* FindDataCenterByName(const TString& name) const override
+    TDataCenter* FindDataCenterByName(const TString& name) const override
     {
         VerifyChunkThread();
 

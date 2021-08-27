@@ -19,7 +19,7 @@ public:
         , User_(user)
     { }
 
-    virtual IClientRequestControlPtr Send(
+    IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
@@ -65,7 +65,7 @@ public:
     { }
 
 protected:
-    virtual void DoInject(const IClientRequestPtr& request) override
+    void DoInject(const IClientRequestPtr& request) override
     {
         TUserInjectingChannel::DoInject(request);
 
@@ -106,7 +106,7 @@ public:
     { }
 
 protected:
-    virtual void DoInject(const IClientRequestPtr& request) override
+    void DoInject(const IClientRequestPtr& request) override
     {
         TUserInjectingChannel::DoInject(request);
 

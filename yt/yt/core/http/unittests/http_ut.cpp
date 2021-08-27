@@ -157,17 +157,17 @@ struct TFakeConnection
     TString Input;
     TString Output;
 
-    virtual bool SetNoDelay() override
+    bool SetNoDelay() override
     {
         return true;
     }
 
-    virtual bool SetKeepAlive() override
+    bool SetKeepAlive() override
     {
         return true;
     }
 
-    virtual TFuture<size_t> Read(const TSharedMutableRef& ref) override
+    TFuture<size_t> Read(const TSharedMutableRef& ref) override
     {
         size_t toCopy = std::min(ref.Size(), Input.size());
         std::copy_n(Input.data(), toCopy, ref.Begin());
@@ -175,13 +175,13 @@ struct TFakeConnection
         return MakeFuture(toCopy);
     }
 
-    virtual TFuture<void> Write(const TSharedRef& ref) override
+    TFuture<void> Write(const TSharedRef& ref) override
     {
         Output += TString(ref.Begin(), ref.Size());
         return VoidFuture;
     }
 
-    virtual TFuture<void> WriteV(const TSharedRefArray& refs) override
+    TFuture<void> WriteV(const TSharedRefArray& refs) override
     {
         for (const auto& ref : refs) {
             Output += TString(ref.Begin(), ref.Size());
@@ -189,73 +189,73 @@ struct TFakeConnection
         return VoidFuture;
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         THROW_ERROR_EXCEPTION("Not implemented");
     }
 
-    virtual bool IsIdle() const override
+    bool IsIdle() const override
     {
         return true;
     }
 
-    virtual TFuture<void> Abort() override
+    TFuture<void> Abort() override
     {
         THROW_ERROR_EXCEPTION("Not implemented");
     }
 
-    virtual TFuture<void> CloseRead() override
+    TFuture<void> CloseRead() override
     {
         THROW_ERROR_EXCEPTION("Not implemented");
     }
 
-    virtual TFuture<void> CloseWrite() override
+    TFuture<void> CloseWrite() override
     {
         THROW_ERROR_EXCEPTION("Not implemented");
     }
 
-    virtual const TNetworkAddress& LocalAddress() const override
+    const TNetworkAddress& LocalAddress() const override
     {
         THROW_ERROR_EXCEPTION("Not implemented");
     }
 
-    virtual const TNetworkAddress& RemoteAddress() const override
+    const TNetworkAddress& RemoteAddress() const override
     {
         THROW_ERROR_EXCEPTION("Not implemented");
     }
 
-    virtual int GetHandle() const override
+    int GetHandle() const override
     {
         THROW_ERROR_EXCEPTION("Not implemented");
     }
 
-    virtual TConnectionStatistics GetReadStatistics() const override
+    TConnectionStatistics GetReadStatistics() const override
     {
         return {};
     }
 
-    virtual TConnectionStatistics GetWriteStatistics() const override
+    TConnectionStatistics GetWriteStatistics() const override
     {
         return {};
     }
 
-    virtual i64 GetReadByteCount() const override
+    i64 GetReadByteCount() const override
     {
         return 0;
     }
 
-    virtual i64 GetWriteByteCount() const override
+    i64 GetWriteByteCount() const override
     {
         return 0;
     }
 
-    virtual void SetReadDeadline(std::optional<TInstant> /*deadline*/) override
+    void SetReadDeadline(std::optional<TInstant> /*deadline*/) override
     { }
 
-    virtual void SetWriteDeadline(std::optional<TInstant> /*deadline*/) override
+    void SetWriteDeadline(std::optional<TInstant> /*deadline*/) override
     { }
 
-    virtual void SubscribePeerDisconnect(TCallback<void()> /*cb*/) override
+    void SubscribePeerDisconnect(TCallback<void()> /*cb*/) override
     { }
 };
 
@@ -407,7 +407,7 @@ TEST(THttpOutputTest, LargeResponse)
     struct TLargeFakeConnection
         : public TFakeConnection
     {
-        virtual TFuture<void> WriteV(const TSharedRefArray& refs) override
+        TFuture<void> WriteV(const TSharedRefArray& refs) override
         {
             for (const auto& ref : refs) {
                 if (ref.Size() == Size) {
@@ -606,7 +606,7 @@ private:
     void SetupClient(const NHttp::TClientConfigPtr& /*config*/)
     { }
 
-    virtual void SetUp() override
+    void SetUp() override
     {
         TestPort = NTesting::GetFreePort();
         TestUrl = Format("http://localhost:%v", TestPort);
@@ -641,7 +641,7 @@ private:
         }
     }
 
-    virtual void TearDown() override
+    void TearDown() override
     {
         Server->Stop();
         Server.Reset();
@@ -655,7 +655,7 @@ class TOKHttpHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& rsp) override
+    void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& rsp) override
     {
         rsp->SetStatus(EStatusCode::OK);
         WaitFor(rsp->Close()).ThrowOnError();
@@ -675,7 +675,7 @@ class TEchoHttpHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         rsp->SetStatus(EStatusCode::OK);
         while (true) {
@@ -728,7 +728,7 @@ class TTestStatusCodeHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& rsp) override
+    void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& rsp) override
     {
         rsp->SetStatus(Code);
         WaitFor(rsp->Close()).ThrowOnError();
@@ -763,7 +763,7 @@ class TTestHeadersHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         for (const auto& header : ExpectedHeaders) {
             EXPECT_EQ(header.second, req->GetHeaders()->GetOrThrow(header.first));
@@ -811,7 +811,7 @@ class TTestTrailersHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& rsp) override
+    void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& rsp) override
     {
         WaitFor(rsp->Write(TSharedRef::FromString("test"))).ThrowOnError();
 
@@ -839,7 +839,7 @@ class THangingHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& /*rsp*/) override
+    void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& /*rsp*/) override
     { }
 };
 
@@ -847,7 +847,7 @@ class TImpatientHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& rsp) override
+    void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& rsp) override
     {
         WaitFor(rsp->Write(TSharedRef::FromString("body"))).ThrowOnError();
         WaitFor(rsp->Close()).ThrowOnError();
@@ -858,7 +858,7 @@ class TForgetfulHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& rsp) override
+    void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& rsp) override
     {
         rsp->SetStatus(EStatusCode::OK);
     }
@@ -899,7 +899,7 @@ class TThrowingHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& /*rsp*/) override
+    void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& /*rsp*/) override
     {
         THROW_ERROR_EXCEPTION("Your request is bad");
     }
@@ -925,7 +925,7 @@ class TConsumingHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         while (WaitFor(req->Read()).ValueOrThrow().Size() != 0)
         { }
@@ -953,7 +953,7 @@ class TStreamingHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& rsp) override
+    void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& rsp) override
     {
         rsp->SetStatus(EStatusCode::OK);
         auto data = TSharedRef::FromString(TString(1024, 'f'));
@@ -987,7 +987,7 @@ class TCancelingHandler
 public:
     TPromise<void> Canceled = NewPromise<void>();
 
-    virtual void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& /*rsp*/) override
+    void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& /*rsp*/) override
     {
         auto finally = Finally([this] {
             YT_LOG_DEBUG("Running finally block");
@@ -1037,7 +1037,7 @@ class TValidateErrorHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& /*rsp*/) override
+    void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& /*rsp*/) override
     {
         ASSERT_THROW(ReadAll(req), TErrorException);
         Ok = true;

@@ -130,7 +130,7 @@ class TTestChunkVisitor
     : public IChunkVisitor
 {
 public:
-    virtual bool OnChunk(
+    bool OnChunk(
         TChunk* chunk,
         std::optional<i64> rowIndex,
         std::optional<int> tabletIndex,
@@ -146,12 +146,12 @@ public:
         return true;
     }
 
-    virtual bool OnChunkView(TChunkView*) override
+    bool OnChunkView(TChunkView*) override
     {
         return false;
     }
 
-    virtual bool OnDynamicStore(
+    bool OnDynamicStore(
         TDynamicStore*,
         std::optional<i32>,
         const TReadLimit&,
@@ -160,7 +160,7 @@ public:
         return true;
     }
 
-    virtual void OnFinish(const TError& error) override
+    void OnFinish(const TError& error) override
     {
         ASSERT_TRUE(error.IsOK());
     }
@@ -181,29 +181,29 @@ class TTestTraverserContext
     : public IChunkTraverserContext
 {
 public:
-    virtual bool IsSynchronous() const override
+    bool IsSynchronous() const override
     {
         return true;
     }
 
-    virtual IInvokerPtr GetInvoker() const override
+    IInvokerPtr GetInvoker() const override
     {
         YT_ABORT();
     }
 
-    virtual void OnPop(TChunkTree* /*node*/) override
+    void OnPop(TChunkTree* /*node*/) override
     { }
 
-    virtual void OnPush(TChunkTree* /*node*/) override
+    void OnPush(TChunkTree* /*node*/) override
     { }
 
-    virtual void OnShutdown(const std::vector<TChunkTree*>& /*nodes*/) override
+    void OnShutdown(const std::vector<TChunkTree*>& /*nodes*/) override
     { }
 
-    virtual void OnTimeSpent(TDuration /*time*/) override
+    void OnTimeSpent(TDuration /*time*/) override
     { }
 
-    virtual TFuture<TUnsealedChunkStatistics> GetUnsealedChunkStatistics(TChunk* chunk) override
+    TFuture<TUnsealedChunkStatistics> GetUnsealedChunkStatistics(TChunk* chunk) override
     {
         const auto& statistics = GetOrCrash(ChunkIdToUnsealedChunkStatistics_, chunk->GetId());
         return MakeFuture<TUnsealedChunkStatistics>(statistics);

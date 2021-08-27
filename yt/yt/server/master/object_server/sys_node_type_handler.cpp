@@ -17,13 +17,13 @@ class TSysNodeTypeHandler
 public:
     using TMapNodeTypeHandler::TMapNodeTypeHandler;
 
-    virtual EObjectType GetObjectType() const override
+    EObjectType GetObjectType() const override
     {
         return EObjectType::SysNode;
     }
 
 private:
-    virtual ICypressNodeProxyPtr DoGetProxy(
+    ICypressNodeProxyPtr DoGetProxy(
         TMapNode* trunkNode,
         TTransaction* transaction) override
     {

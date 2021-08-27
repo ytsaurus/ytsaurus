@@ -48,7 +48,7 @@ public:
         , InvocationCount_(0)
     { }
 
-    virtual void Invoke(TClosure callback) override
+    void Invoke(TClosure callback) override
     {
         ++InvocationCount_;
         if (Bounded_ ) {
@@ -85,7 +85,7 @@ class TTransformInvokerPoolTest
 protected:
     const TActionQueuePtr Queue_ = New<TActionQueue>();
 
-    virtual void TearDown() override
+    void TearDown() override
     {
         Queue_->Shutdown();
     }

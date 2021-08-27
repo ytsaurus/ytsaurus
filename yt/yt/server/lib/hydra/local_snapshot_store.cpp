@@ -33,19 +33,19 @@ public:
         , SnapshotId_(snapshotId)
     { }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return BIND(&TLocalSnapshotReader::DoOpen, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
             .Run();
     }
 
-    virtual TFuture<TSharedRef> Read() override
+    TFuture<TSharedRef> Read() override
     {
         return UnderlyingReader_->Read();
     }
 
-    virtual TSnapshotParams GetParams() const override
+    TSnapshotParams GetParams() const override
     {
         return UnderlyingReader_->GetParams();
     }
@@ -94,7 +94,7 @@ public:
         , FileStore_(fileStore)
     { }
 
-    virtual ISnapshotReaderPtr CreateReader(int snapshotId) override
+    ISnapshotReaderPtr CreateReader(int snapshotId) override
     {
         return New<TLocalSnapshotReader>(
             Config_,
@@ -103,12 +103,12 @@ public:
             snapshotId);
     }
 
-    virtual ISnapshotWriterPtr CreateWriter(int snapshotId, const TSnapshotMeta& meta) override
+    ISnapshotWriterPtr CreateWriter(int snapshotId, const TSnapshotMeta& meta) override
     {
         return FileStore_->CreateWriter(snapshotId, meta);
     }
 
-    virtual TFuture<int> GetLatestSnapshotId(int maxSnapshotId) override
+    TFuture<int> GetLatestSnapshotId(int maxSnapshotId) override
     {
         return BIND(&TLocalSnapshotStore::DoGetLatestSnapshotId, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())

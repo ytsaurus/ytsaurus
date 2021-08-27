@@ -990,7 +990,7 @@ private:
         { }
 
     private:
-        virtual size_t DoNext(const void** ptr, size_t len) override
+        size_t DoNext(const void** ptr, size_t len) override
         {
             const auto end = Buffer_.data() + Buffer_.size();
             auto result = Min<size_t>(len, end - Pointer_);

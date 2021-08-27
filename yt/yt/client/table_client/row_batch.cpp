@@ -39,12 +39,12 @@ IUnversionedRowBatchPtr CreateBatchFromUnversionedRows(
             : Rows_(std::move(rows))
         { }
 
-        virtual int GetRowCount() const override
+        int GetRowCount() const override
         {
             return static_cast<int>(Rows_.size());
         }
 
-        virtual TSharedRange<TUnversionedRow> MaterializeRows() override
+        TSharedRange<TUnversionedRow> MaterializeRows() override
         {
             return Rows_;
         }
@@ -64,12 +64,12 @@ IUnversionedRowBatchPtr CreateEmptyUnversionedRowBatch()
         : public IUnversionedRowBatch
     {
     public:
-        virtual int GetRowCount() const override
+        int GetRowCount() const override
         {
             return 0;
         }
 
-        virtual TSharedRange<TUnversionedRow> MaterializeRows() override
+        TSharedRange<TUnversionedRow> MaterializeRows() override
         {
             return {};
         }
@@ -99,12 +99,12 @@ IVersionedRowBatchPtr CreateBatchFromVersionedRows(
             : Rows_(std::move(rows))
         { }
 
-        virtual int GetRowCount() const override
+        int GetRowCount() const override
         {
             return static_cast<int>(Rows_.size());
         }
 
-        virtual TSharedRange<TVersionedRow> MaterializeRows() override
+        TSharedRange<TVersionedRow> MaterializeRows() override
         {
             return Rows_;
         }
@@ -124,12 +124,12 @@ IVersionedRowBatchPtr CreateEmptyVersionedRowBatch()
         : public IVersionedRowBatch
     {
     public:
-        virtual int GetRowCount() const override
+        int GetRowCount() const override
         {
             return 0;
         }
 
-        virtual TSharedRange<TVersionedRow> MaterializeRows() override
+        TSharedRange<TVersionedRow> MaterializeRows() override
         {
             return {};
         }

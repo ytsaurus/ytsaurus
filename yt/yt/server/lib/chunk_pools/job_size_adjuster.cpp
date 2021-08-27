@@ -24,7 +24,7 @@ public:
         , ExecToPrepareTimeRatio_(config->ExecToPrepareTimeRatio)
     { }
 
-    virtual void UpdateStatistics(const TCompletedJobSummary& summary) override
+    void UpdateStatistics(const TCompletedJobSummary& summary) override
     {
         if (!summary.Abandoned) {
             YT_VERIFY(summary.Statistics);
@@ -35,7 +35,7 @@ public:
         }
     }
 
-    virtual void UpdateStatistics(i64 jobDataWeight, TDuration prepareDuration, TDuration execDuration) override
+    void UpdateStatistics(i64 jobDataWeight, TDuration prepareDuration, TDuration execDuration) override
     {
         Statistics_.AddSample(jobDataWeight, prepareDuration, execDuration);
 
@@ -52,7 +52,7 @@ public:
         }
     }
 
-    virtual i64 GetDataWeightPerJob() const override
+    i64 GetDataWeightPerJob() const override
     {
         return static_cast<i64>(DataWeightPerJob_);
     }

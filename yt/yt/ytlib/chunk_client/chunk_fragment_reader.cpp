@@ -121,7 +121,7 @@ public:
         SchedulePeriodicUpdate();
     }
 
-    virtual TFuture<TReadFragmentsResponse> ReadFragments(
+    TFuture<TReadFragmentsResponse> ReadFragments(
         TClientChunkReadOptions options,
         std::vector<TChunkFragmentRequest> requests) override;
 
@@ -487,7 +487,7 @@ private:
     std::vector<TError> InnerErrors_;
 
 
-    virtual TChunkId GetPendingChunkId(int chunkIndex) const final
+    TChunkId GetPendingChunkId(int chunkIndex) const final
     {
         return PendingChunkFragmentSetInfos_[chunkIndex].ChunkId;
     }
@@ -1526,7 +1526,7 @@ private:
             FailedChunkIds_.size());
     }
 
-    virtual TChunkId GetPendingChunkId(int chunkIndex) const final
+    TChunkId GetPendingChunkId(int chunkIndex) const final
     {
         return ChunkIds_[chunkIndex];
     }

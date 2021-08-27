@@ -92,19 +92,19 @@ public:
         }
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         auto statistics = UnderlyingReader_->GetDataStatistics();
         statistics.set_row_count(statistics.row_count() + FakeRowsRead_);
         return statistics;
     }
 
-    virtual TCodecStatistics GetDecompressionStatistics() const override
+    TCodecStatistics GetDecompressionStatistics() const override
     {
         return UnderlyingReader_->GetDecompressionStatistics();
     }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         YT_VERIFY(CurrentReaderIndex_ == 0);
         for (auto& reader : Readers_) {
@@ -113,7 +113,7 @@ public:
         return Readers_[CurrentReaderIndex_]->GetReadyEvent();
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         if (CurrentReaderIndex_ == std::ssize(Readers_)) {
             return VoidFuture;
@@ -121,17 +121,17 @@ public:
         return Readers_[CurrentReaderIndex_]->GetReadyEvent();
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return UnderlyingReader_->IsFetchingCompleted();
     }
 
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
+    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
     {
         return UnderlyingReader_->GetFailedChunkIds();
     }
 
-    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         if (CurrentReaderIndex_ == std::ssize(Readers_)) {
             return nullptr;

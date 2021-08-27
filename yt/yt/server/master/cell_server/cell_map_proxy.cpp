@@ -46,14 +46,14 @@ private:
 
     ECellarType CellarType_;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
         descriptors->push_back(EInternedAttributeKey::CountByHealth);
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         switch (key) {
             case EInternedAttributeKey::CountByHealth: {

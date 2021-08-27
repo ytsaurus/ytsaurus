@@ -33,7 +33,7 @@ public:
 private:
     using TBase = TNonversionedObjectProxyBase<TLock>;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
@@ -54,7 +54,7 @@ private:
             .SetPresent(lock->GetState() == ELockState::Acquired));
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto* lock = GetThisImpl();
         const auto& request = lock->Request();

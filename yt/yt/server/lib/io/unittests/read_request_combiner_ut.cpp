@@ -34,7 +34,7 @@ class TReadRequestCombinerTest
     : public ::testing::Test
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     {
         FileName = GenerateRandomFileName("ReadRequestCombiner");
 

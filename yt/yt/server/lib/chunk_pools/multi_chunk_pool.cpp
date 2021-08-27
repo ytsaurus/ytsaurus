@@ -31,7 +31,7 @@ public:
         : UnderlyingPools_(std::move(underlyingPools))
     { }
 
-    virtual TExternalCookie Add(TChunkStripePtr stripe) override
+    TExternalCookie Add(TChunkStripePtr stripe) override
     {
         YT_VERIFY(stripe->PartitionTag);
         auto poolIndex = *stripe->PartitionTag;
@@ -41,7 +41,7 @@ public:
         return AddCookie(poolIndex, cookie);
     }
 
-    virtual TExternalCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key) override
+    TExternalCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key) override
     {
         YT_VERIFY(stripe->PartitionTag);
         auto poolIndex = *stripe->PartitionTag;
@@ -51,21 +51,21 @@ public:
         return AddCookie(poolIndex, cookie);
     }
 
-    virtual void Suspend(TExternalCookie externalCookie) override
+    void Suspend(TExternalCookie externalCookie) override
     {
         auto [poolIndex, cookie] = Cookie(externalCookie);
         auto* pool = Pool(poolIndex);
         pool->Suspend(cookie);
     }
 
-    virtual void Resume(TExternalCookie externalCookie) override
+    void Resume(TExternalCookie externalCookie) override
     {
         auto [poolIndex, cookie] = Cookie(externalCookie);
         auto* pool = Pool(poolIndex);
         pool->Resume(cookie);
     }
 
-    virtual void Reset(
+    void Reset(
         TExternalCookie externalCookie,
         TChunkStripePtr stripe,
         TInputChunkMappingPtr mapping) override
@@ -77,7 +77,7 @@ public:
         cookiePool->Reset(cookie, std::move(stripe), std::move(mapping));
     }
 
-    virtual void FinishPool(int poolIndex) override
+    void FinishPool(int poolIndex) override
     {
         auto* pool = Pool(poolIndex);
         if (pool) {
@@ -85,7 +85,7 @@ public:
         }
     }
 
-    virtual void Finish() override
+    void Finish() override
     {
         for (int poolIndex = 0; poolIndex < std::ssize(UnderlyingPools_); ++poolIndex) {
             FinishPool(poolIndex);
@@ -93,12 +93,12 @@ public:
         IsFinished_ = true;
     }
 
-    virtual bool IsFinished() const override
+    bool IsFinished() const override
     {
         return IsFinished_;
     }
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         using ::NYT::Persist;
 
@@ -207,17 +207,17 @@ public:
         return DataSliceCounter_;
     }
 
-    virtual TOutputOrderPtr GetOutputOrder() const override
+    TOutputOrderPtr GetOutputOrder() const override
     {
         return nullptr;
     }
 
-    virtual i64 GetLocality(TNodeId /*nodeId*/) const override
+    i64 GetLocality(TNodeId /*nodeId*/) const override
     {
         return 0;
     }
 
-    virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
+    TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
     {
         if (PendingPools_.empty()) {
             return {};
@@ -226,7 +226,7 @@ public:
         return CurrentPool()->GetApproximateStripeStatistics();
     }
 
-    virtual TExternalCookie Extract(TNodeId nodeId) override
+    TExternalCookie Extract(TNodeId nodeId) override
     {
         int poolIndex = -1;
         auto cookie = IChunkPoolOutput::NullCookie;
@@ -260,7 +260,7 @@ public:
         }
     }
 
-    virtual TExternalCookie ExtractFromPool(int underlyingPoolIndexHint, TNodeId nodeId) override
+    TExternalCookie ExtractFromPool(int underlyingPoolIndexHint, TNodeId nodeId) override
     {
         // NB(gritukan): SortedMerge task can try to extract cookie from partition
         // that was not registered in its pool yet. Do not crash in this case.
@@ -284,7 +284,7 @@ public:
         }
     }
 
-    virtual TChunkStripeListPtr GetStripeList(TExternalCookie externalCookie) override
+    TChunkStripeListPtr GetStripeList(TExternalCookie externalCookie) override
     {
         auto [poolIndex, cookie] = Cookie(externalCookie);
         auto stripeList = Pool(poolIndex)->GetStripeList(cookie);
@@ -293,48 +293,48 @@ public:
         return stripeList;
     }
 
-    virtual bool IsCompleted() const override
+    bool IsCompleted() const override
     {
         return IsCompleted_;
     }
 
-    virtual int GetStripeListSliceCount(TExternalCookie externalCookie) const override
+    int GetStripeListSliceCount(TExternalCookie externalCookie) const override
     {
         auto [poolIndex, cookie] = Cookie(externalCookie);
         return Pool(poolIndex)->GetStripeListSliceCount(cookie);
     }
 
-    virtual void Completed(TExternalCookie externalCookie, const TCompletedJobSummary& jobSummary) override
+    void Completed(TExternalCookie externalCookie, const TCompletedJobSummary& jobSummary) override
     {
         auto [poolIndex, cookie] = Cookie(externalCookie);
         Pool(poolIndex)->Completed(cookie, jobSummary);
     }
 
-    virtual void Failed(TExternalCookie externalCookie) override
+    void Failed(TExternalCookie externalCookie) override
     {
         auto [poolIndex, cookie] = Cookie(externalCookie);
         Pool(poolIndex)->Failed(cookie);
     }
 
-    virtual void Aborted(TExternalCookie externalCookie, EAbortReason reason) override
+    void Aborted(TExternalCookie externalCookie, EAbortReason reason) override
     {
         auto [poolIndex, cookie] = Cookie(externalCookie);
         Pool(poolIndex)->Aborted(cookie, reason);
     }
 
-    virtual void Lost(TExternalCookie externalCookie) override
+    void Lost(TExternalCookie externalCookie) override
     {
         auto [poolIndex, cookie] = Cookie(externalCookie);
         Pool(poolIndex)->Lost(cookie);
     }
 
-    virtual void Finalize() override
+    void Finalize() override
     {
         Finalized_ = true;
         CheckCompleted();
     }
 
-    virtual void AddPoolOutput(IChunkPoolOutputPtr pool, int poolIndex) override
+    void AddPoolOutput(IChunkPoolOutputPtr pool, int poolIndex) override
     {
         YT_VERIFY(pool);
         YT_VERIFY(!pool->GetOutputOrder());
@@ -363,7 +363,7 @@ public:
         OnUnderlyingPoolBlockedJobCountChanged(poolIndex);
     }
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         using ::NYT::Persist;
 
@@ -551,13 +551,13 @@ public:
         YT_VERIFY(underlyingPoolsInput.size() == underlyingPoolsOutput.size());
     }
 
-    virtual void AddPool(IChunkPoolPtr pool, int poolIndex) override
+    void AddPool(IChunkPoolPtr pool, int poolIndex) override
     {
         AddPoolInput(pool, poolIndex);
         AddPoolOutput(std::move(pool), poolIndex);
     }
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         TMultiChunkPoolInput::Persist(context);
         TMultiChunkPoolOutput::Persist(context);

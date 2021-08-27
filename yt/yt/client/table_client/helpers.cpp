@@ -712,37 +712,37 @@ void UnversionedValueToListImpl(
               , OutputStream_(&WireBytes_)
         { }
 
-        virtual void OnStringScalar(TStringBuf value) override
+        void OnStringScalar(TStringBuf value) override
         {
             GetUnderlying()->OnStringScalar(value);
         }
 
-        virtual void OnInt64Scalar(i64 value) override
+        void OnInt64Scalar(i64 value) override
         {
             GetUnderlying()->OnInt64Scalar(value);
         }
 
-        virtual void OnUint64Scalar(ui64 value) override
+        void OnUint64Scalar(ui64 value) override
         {
             GetUnderlying()->OnUint64Scalar(value);
         }
 
-        virtual void OnDoubleScalar(double value) override
+        void OnDoubleScalar(double value) override
         {
             GetUnderlying()->OnDoubleScalar(value);
         }
 
-        virtual void OnBooleanScalar(bool value) override
+        void OnBooleanScalar(bool value) override
         {
             GetUnderlying()->OnBooleanScalar(value);
         }
 
-        virtual void OnEntity() override
+        void OnEntity() override
         {
             GetUnderlying()->OnEntity();
         }
 
-        virtual void OnBeginList() override
+        void OnBeginList() override
         {
             if (Depth_ > 0) {
                 GetUnderlying()->OnBeginList();
@@ -750,7 +750,7 @@ void UnversionedValueToListImpl(
             ++Depth_;
         }
 
-        virtual void OnListItem() override
+        void OnListItem() override
         {
             if (Depth_ == 1) {
                 NextElement();
@@ -759,7 +759,7 @@ void UnversionedValueToListImpl(
             }
         }
 
-        virtual void OnEndList() override
+        void OnEndList() override
         {
             --Depth_;
             if (Depth_ == 0) {
@@ -769,34 +769,34 @@ void UnversionedValueToListImpl(
             }
         }
 
-        virtual void OnBeginMap() override
+        void OnBeginMap() override
         {
             ++Depth_;
             GetUnderlying()->OnBeginMap();
         }
 
-        virtual void OnKeyedItem(TStringBuf key) override
+        void OnKeyedItem(TStringBuf key) override
         {
             GetUnderlying()->OnKeyedItem(key);
         }
 
-        virtual void OnEndMap() override
+        void OnEndMap() override
         {
             --Depth_;
             GetUnderlying()->OnEndMap();
         }
 
-        virtual void OnBeginAttributes() override
+        void OnBeginAttributes() override
         {
             GetUnderlying()->OnBeginAttributes();
         }
 
-        virtual void OnEndAttributes() override
+        void OnEndAttributes() override
         {
             GetUnderlying()->OnEndAttributes();
         }
 
-        virtual void OnRaw(TStringBuf yson, EYsonType type) override
+        void OnRaw(TStringBuf yson, EYsonType type) override
         {
             GetUnderlying()->OnRaw(yson, type);
         }
@@ -868,74 +868,74 @@ void UnversionedValueToListImpl(
             : Appender_(std::move(appender))
         { }
 
-        virtual void OnStringScalar(TStringBuf value) override
+        void OnStringScalar(TStringBuf value) override
         {
             EnsureInList();
             Appender_(MakeUnversionedStringValue(value));
         }
 
-        virtual void OnInt64Scalar(i64 value) override
+        void OnInt64Scalar(i64 value) override
         {
             EnsureInList();
             Appender_(MakeUnversionedInt64Value(value));
         }
 
-        virtual void OnUint64Scalar(ui64 value) override
+        void OnUint64Scalar(ui64 value) override
         {
             EnsureInList();
             Appender_(MakeUnversionedUint64Value(value));
         }
 
-        virtual void OnDoubleScalar(double value) override
+        void OnDoubleScalar(double value) override
         {
             EnsureInList();
             Appender_(MakeUnversionedDoubleValue(value));
         }
 
-        virtual void OnBooleanScalar(bool value) override
+        void OnBooleanScalar(bool value) override
         {
             EnsureInList();
             Appender_(MakeUnversionedBooleanValue(value));
         }
 
-        virtual void OnEntity() override
+        void OnEntity() override
         {
             THROW_ERROR_EXCEPTION("YSON entities are not supported");
         }
 
-        virtual void OnBeginList() override
+        void OnBeginList() override
         {
             EnsureNotInList();
             InList_ = true;
         }
 
-        virtual void OnListItem() override
+        void OnListItem() override
         { }
 
-        virtual void OnEndList() override
+        void OnEndList() override
         { }
 
-        virtual void OnBeginMap() override
+        void OnBeginMap() override
         {
             THROW_ERROR_EXCEPTION("YSON maps are not supported");
         }
 
-        virtual void OnKeyedItem(TStringBuf /*key*/) override
+        void OnKeyedItem(TStringBuf /*key*/) override
         {
             YT_ABORT();
         }
 
-        virtual void OnEndMap() override
+        void OnEndMap() override
         {
             YT_ABORT();
         }
 
-        virtual void OnBeginAttributes() override
+        void OnBeginAttributes() override
         {
             THROW_ERROR_EXCEPTION("YSON attributes are not supported");
         }
 
-        virtual void OnEndAttributes() override
+        void OnEndAttributes() override
         {
             YT_ABORT();
         }
@@ -1020,54 +1020,54 @@ void UnversionedValueToMapImpl(
             , OutputStream_(&WireBytes_)
         { }
 
-        virtual void OnStringScalar(TStringBuf value) override
+        void OnStringScalar(TStringBuf value) override
         {
             GetUnderlying()->OnStringScalar(value);
         }
 
-        virtual void OnInt64Scalar(i64 value) override
+        void OnInt64Scalar(i64 value) override
         {
             GetUnderlying()->OnInt64Scalar(value);
         }
 
-        virtual void OnUint64Scalar(ui64 value) override
+        void OnUint64Scalar(ui64 value) override
         {
             GetUnderlying()->OnUint64Scalar(value);
         }
 
-        virtual void OnDoubleScalar(double value) override
+        void OnDoubleScalar(double value) override
         {
             GetUnderlying()->OnDoubleScalar(value);
         }
 
-        virtual void OnBooleanScalar(bool value) override
+        void OnBooleanScalar(bool value) override
         {
             GetUnderlying()->OnBooleanScalar(value);
         }
 
-        virtual void OnEntity() override
+        void OnEntity() override
         {
             GetUnderlying()->OnEntity();
         }
 
-        virtual void OnBeginList() override
+        void OnBeginList() override
         {
             ++Depth_;
             GetUnderlying()->OnBeginList();
         }
 
-        virtual void OnListItem() override
+        void OnListItem() override
         {
             GetUnderlying()->OnListItem();
         }
 
-        virtual void OnEndList() override
+        void OnEndList() override
         {
             --Depth_;
             GetUnderlying()->OnEndList();
         }
 
-        virtual void OnBeginMap() override
+        void OnBeginMap() override
         {
             if (Depth_ > 0) {
                 GetUnderlying()->OnBeginMap();
@@ -1075,7 +1075,7 @@ void UnversionedValueToMapImpl(
             ++Depth_;
         }
 
-        virtual void OnKeyedItem(TStringBuf key) override
+        void OnKeyedItem(TStringBuf key) override
         {
             if (Depth_ == 1) {
                 NextElement(key);
@@ -1084,7 +1084,7 @@ void UnversionedValueToMapImpl(
             }
         }
 
-        virtual void OnEndMap() override
+        void OnEndMap() override
         {
             --Depth_;
             if (Depth_ == 0) {
@@ -1094,17 +1094,17 @@ void UnversionedValueToMapImpl(
             }
         }
 
-        virtual void OnBeginAttributes() override
+        void OnBeginAttributes() override
         {
             GetUnderlying()->OnBeginAttributes();
         }
 
-        virtual void OnEndAttributes() override
+        void OnEndAttributes() override
         {
             GetUnderlying()->OnEndAttributes();
         }
 
-        virtual void OnRaw(TStringBuf yson, EYsonType type) override
+        void OnRaw(TStringBuf yson, EYsonType type) override
         {
             GetUnderlying()->OnRaw(yson, type);
         }

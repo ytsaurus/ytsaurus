@@ -831,7 +831,7 @@ private:
         return result;
     }
 
-    virtual void DoWrite(TRange<TUnversionedRow> rows) override
+    void DoWrite(TRange<TUnversionedRow> rows) override
     {
         const auto rowCount = rows.Size();
         TWriteContext writeContext;

@@ -95,7 +95,7 @@ public:
         , CachePeriod_(cachePeriod)
     { }
 
-    virtual TResolveResult Resolve(
+    TResolveResult Resolve(
         const TYPath& path,
         const IServiceContextPtr& context) override
     {
@@ -107,7 +107,7 @@ public:
         }
     }
 
-    virtual void SetCachePeriod(TDuration period) override
+    void SetCachePeriod(TDuration period) override
     {
         CachePeriod_ = period;
     }
@@ -121,13 +121,13 @@ private:
     TInstant LastStringUpdateTime_;
     TInstant LastNodeUpdateTime_;
 
-    virtual bool DoInvoke(const IServiceContextPtr& context) override
+    bool DoInvoke(const IServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Get);
         return TYPathServiceBase::DoInvoke(context);
     }
 
-    virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
+    void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
     {
         if (request->has_attributes())  {
             // Execute fallback.
@@ -141,12 +141,12 @@ private:
         context->Reply();
     }
 
-    virtual void GetRecursive(const TYPath& /*path*/, TReqGet* /*request*/, TRspGet* /*response*/, const TCtxGetPtr& /*context*/) override
+    void GetRecursive(const TYPath& /*path*/, TReqGet* /*request*/, TRspGet* /*response*/, const TCtxGetPtr& /*context*/) override
     {
         YT_ABORT();
     }
 
-    virtual void GetAttribute(const TYPath& /*path*/, TReqGet* /*request*/, TRspGet* /*response*/, const TCtxGetPtr& /*context*/) override
+    void GetAttribute(const TYPath& /*path*/, TReqGet* /*request*/, TRspGet* /*response*/, const TCtxGetPtr& /*context*/) override
     {
         YT_ABORT();
     }
@@ -292,14 +292,14 @@ public:
         , Invoker_(invoker)
     { }
 
-    virtual TResolveResult Resolve(
+    TResolveResult Resolve(
         const TYPath& path,
         const IServiceContextPtr& /*context*/) override
     {
         return TResolveResultHere{path};
     }
 
-    virtual bool ShouldHideAttributes() override
+    bool ShouldHideAttributes() override
     {
         return UnderlyingService_->ShouldHideAttributes();
     }
@@ -309,7 +309,7 @@ private:
     const IInvokerPtr Invoker_;
 
 
-    virtual bool DoInvoke(const IServiceContextPtr& context) override
+    bool DoInvoke(const IServiceContextPtr& context) override
     {
         Invoker_->Invoke(BIND([=, this_ = MakeStrong(this)] () {
             ExecuteVerb(UnderlyingService_, context);
@@ -414,13 +414,13 @@ public:
         , CacheKey_(std::move(cacheKey))
     { }
 
-    virtual void Reply(const TError& error) override
+    void Reply(const TError& error) override
     {
         TryAddResponseToCache(error);
         TServiceContextWrapper::Reply(error);
     }
 
-    virtual void Reply(const TSharedRefArray& responseMessage) override
+    void Reply(const TSharedRefArray& responseMessage) override
     {
         TryAddResponseToCache(responseMessage);
         TServiceContextWrapper::Reply(responseMessage);
@@ -456,9 +456,9 @@ public:
         IInvokerPtr workerInvoker,
         const NProfiling::TProfiler& profiler);
 
-    virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override;
+    TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override;
 
-    virtual void SetCachePeriod(TDuration period) override;
+    void SetCachePeriod(TDuration period) override;
 
 private:
     const IYPathServicePtr UnderlyingService_;
@@ -472,7 +472,7 @@ private:
 
     TAtomicObject<TCacheSnapshotPtr> CurrentCacheSnapshot_ = nullptr;
 
-    virtual bool DoInvoke(const IServiceContextPtr& context) override;
+    bool DoInvoke(const IServiceContextPtr& context) override;
 
     void RebuildCache();
 
@@ -624,14 +624,14 @@ public:
         , PermissionValidator_(this, EPermissionCheckScope::This)
     { }
 
-    virtual TResolveResult Resolve(
+    TResolveResult Resolve(
         const TYPath& path,
         const IServiceContextPtr& /*context*/) override
     {
         return TResolveResultHere{path};
     }
 
-    virtual bool ShouldHideAttributes() override
+    bool ShouldHideAttributes() override
     {
         return UnderlyingService_->ShouldHideAttributes();
     }
@@ -642,7 +642,7 @@ private:
 
     TCachingPermissionValidator PermissionValidator_;
 
-    virtual void ValidatePermission(
+    void ValidatePermission(
         EPermissionCheckScope /* scope */,
         EPermission permission,
         const TString& user) override
@@ -650,7 +650,7 @@ private:
         ValidationCallback_.Run(user, permission);
     }
 
-    virtual bool DoInvoke(const IServiceContextPtr& context) override
+    bool DoInvoke(const IServiceContextPtr& context) override
     {
         // TODO(max42): choose permission depending on method.
         PermissionValidator_.Validate(EPermission::Read, context->GetAuthenticationIdentity().User);

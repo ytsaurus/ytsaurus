@@ -151,7 +151,7 @@ public:
         : Logger(logger)
     { }
 
-    virtual void CloseChangelog(TFuture<IChangelogPtr> changelogFuture, int changelogId) override
+    void CloseChangelog(TFuture<IChangelogPtr> changelogFuture, int changelogId) override
     {
         if (!changelogFuture) {
             return;
@@ -168,7 +168,7 @@ public:
         }));
     }
 
-    virtual void CloseChangelog(const IChangelogPtr& changelog, int changelogId) override
+    void CloseChangelog(const IChangelogPtr& changelog, int changelogId) override
     {
         if (!changelog) {
             return;
@@ -206,7 +206,7 @@ public:
         , Owner_(decoratedAutomaton)
     { }
 
-    virtual void Invoke(TClosure callback) override
+    void Invoke(TClosure callback) override
     {
         auto lockGuard = TSystemLockGuard::Acquire(Owner_);
 
@@ -235,7 +235,7 @@ public:
         , Owner_(decoratedAutomaton)
     { }
 
-    virtual void Invoke(TClosure callback) override
+    void Invoke(TClosure callback) override
     {
         auto lockGuard = TUserLockGuard::TryAcquire(Owner_);
         if (!lockGuard)
@@ -385,7 +385,7 @@ private:
     TFuture<void> AsyncTransferResult_;
 
 
-    virtual TFuture<void> DoRun() override
+    TFuture<void> DoRun() override
     {
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
 
@@ -405,17 +405,17 @@ private:
                 .AsyncVia(GetHydraIOInvoker()));
     }
 
-    virtual TDuration GetTimeout() const override
+    TDuration GetTimeout() const override
     {
         return Owner_->Config_->SnapshotBuildTimeout;
     }
 
-    virtual TDuration GetForkTimeout() const override
+    TDuration GetForkTimeout() const override
     {
         return Owner_->Config_->SnapshotForkTimeout;
     }
 
-    virtual void RunChild() override
+    void RunChild() override
     {
         CloseAllDescriptors({
             2, // stderr
@@ -429,12 +429,12 @@ private:
         OutputFile_->Close();
     }
 
-    virtual void RunParent() override
+    void RunParent() override
     {
         OutputFile_->Close();
     }
 
-    virtual void Cleanup() override
+    void Cleanup() override
     {
         ReleaseLock();
     }
@@ -534,13 +534,13 @@ public:
         }
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         auto guard = Guard(SpinLock_);
         return LastForwardResult_;
     }
 
-    virtual TFuture<void> Write(const TSharedRef& block) override
+    TFuture<void> Write(const TSharedRef& block) override
     {
         // NB: We are not allowed to store by-ref copies of #block, cf. #IAsyncOutputStream::Write.
         struct TBlockTag { };
@@ -611,7 +611,7 @@ private:
     TFuture<void> AsyncSaveSnapshotResult_;
 
 
-    virtual TFuture<void> DoRun() override
+    TFuture<void> DoRun() override
     {
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
 

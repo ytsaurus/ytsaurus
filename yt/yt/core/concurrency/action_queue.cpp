@@ -118,7 +118,7 @@ public:
         : TInvokerWrapper(std::move(underlyingInvoker))
     { }
 
-    virtual void Invoke(TClosure callback) override
+    void Invoke(TClosure callback) override
     {
         Queue_.Enqueue(std::move(callback));
         TrySchedule();
@@ -229,7 +229,7 @@ public:
 
     using TInvokerWrapper::Invoke;
 
-    virtual void Invoke(TClosure callback, i64 priority) override
+    void Invoke(TClosure callback, i64 priority) override
     {
         {
             auto guard = Guard(SpinLock_);
@@ -287,7 +287,7 @@ public:
 
     using TInvokerWrapper::Invoke;
 
-    virtual void Invoke(TClosure callback, i64 /*priority*/) override
+    void Invoke(TClosure callback, i64 /*priority*/) override
     {
         return UnderlyingInvoker_->Invoke(std::move(callback));
     }
@@ -314,7 +314,7 @@ public:
 
     using TInvokerWrapper::Invoke;
 
-    virtual void Invoke(TClosure callback) override
+    void Invoke(TClosure callback) override
     {
         return UnderlyingInvoker_->Invoke(std::move(callback), Priority_);
     }
@@ -347,7 +347,7 @@ public:
         , MaxConcurrentInvocations_(maxConcurrentInvocations)
     { }
 
-    virtual void Invoke(TClosure callback) override
+    void Invoke(TClosure callback) override
     {
         auto guard = Guard(SpinLock_);
         if (Semaphore_ < MaxConcurrentInvocations_) {
@@ -456,7 +456,7 @@ public:
         : TInvokerWrapper(std::move(underlyingInvoker))
     { }
 
-    virtual void Invoke(TClosure callback) override
+    void Invoke(TClosure callback) override
     {
         Queue_.Enqueue(std::move(callback));
         ScheduleMore();
@@ -599,7 +599,7 @@ public:
         , MemoryTag_(memoryTag)
     { }
 
-    virtual void Invoke(TClosure callback) override
+    void Invoke(TClosure callback) override
     {
         UnderlyingInvoker_->Invoke(BIND(
             &TMemoryTaggingInvoker::RunCallback,
@@ -634,7 +634,7 @@ public:
         , Codicil_(std::move(codicil))
     { }
 
-    virtual void Invoke(TClosure callback) override
+    void Invoke(TClosure callback) override
     {
         UnderlyingInvoker_->Invoke(BIND(
             &TCodicilGuardedInvoker::RunCallback,

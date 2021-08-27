@@ -181,22 +181,22 @@ private:
             }
         }
 
-        virtual const TTableSchema& GetSchema() const override
+        const TTableSchema& GetSchema() const override
         {
             return Batch_.Rowset->GetSchema();
         }
 
-        virtual const TNameTablePtr& GetNameTable() const override
+        const TNameTablePtr& GetNameTable() const override
         {
             return Batch_.Rowset->GetNameTable();
         }
 
-        virtual TRange<TUnversionedRow> GetRows() const override
+        TRange<TUnversionedRow> GetRows() const override
         {
             return Rows_;
         }
 
-        virtual TFuture<void> Confirm(const ITransactionPtr& transaction) override
+        TFuture<void> Confirm(const ITransactionPtr& transaction) override
         {
             transaction->SubscribeCommitted(BIND(&TPolledRowset::OnCommitted, MakeStrong(this)));
             return Owner_->ConfirmBatch(State_, Batch_, transaction);

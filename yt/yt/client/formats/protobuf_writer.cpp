@@ -810,7 +810,7 @@ public:
     }
 
 private:
-    virtual void DoWrite(TRange<TUnversionedRow> rows) override
+    void DoWrite(TRange<TUnversionedRow> rows) override
     {
         int rowCount = static_cast<int>(rows.Size());
         for (int index = 0; index < rowCount; ++index) {
@@ -861,7 +861,7 @@ private:
         }
     }
 
-    virtual void FlushWriter() override
+    void FlushWriter() override
     {
         // Reset |StreamWriter_| to ensure it will never touch the
         // underlying |TBlobOutput| as it will be |Flush()|-ed soon.
@@ -869,7 +869,7 @@ private:
         TSchemalessFormatWriterBase::FlushWriter();
     }
 
-    virtual void WriteTableIndex(i64 tableIndex) override
+    void WriteTableIndex(i64 tableIndex) override
     {
         CurrentTableIndex_ = tableIndex;
         WriterImpl_.SetTableIndex(tableIndex);
@@ -878,25 +878,25 @@ private:
         WritePod(*StreamWriter_, static_cast<ui32>(tableIndex));
     }
 
-    virtual void WriteTabletIndex(i64 tabletIndex) override
+    void WriteTabletIndex(i64 tabletIndex) override
     {
         WritePod(*StreamWriter_, static_cast<ui32>(LenvalTabletIndexMarker));
         WritePod(*StreamWriter_, static_cast<ui64>(tabletIndex));
     }
 
-    virtual void WriteRangeIndex(i64 rangeIndex) override
+    void WriteRangeIndex(i64 rangeIndex) override
     {
         WritePod(*StreamWriter_, static_cast<ui32>(LenvalRangeIndexMarker));
         WritePod(*StreamWriter_, static_cast<ui32>(rangeIndex));
     }
 
-    virtual void WriteRowIndex(i64 rowIndex) override
+    void WriteRowIndex(i64 rowIndex) override
     {
         WritePod(*StreamWriter_, static_cast<ui32>(LenvalRowIndexMarker));
         WritePod(*StreamWriter_, static_cast<ui64>(rowIndex));
     }
 
-    virtual void WriteEndOfStream() override
+    void WriteEndOfStream() override
     {
         WritePod(*StreamWriter_, static_cast<ui32>(LenvalEndOfStream));
     }

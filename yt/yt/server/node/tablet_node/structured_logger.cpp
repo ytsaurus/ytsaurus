@@ -59,15 +59,15 @@ public:
             MakeWeak(this)));
     }
 
-    virtual TOneShotFluentLogEvent LogEvent(TStringBuf eventType) override
+    TOneShotFluentLogEvent LogEvent(TStringBuf eventType) override
     {
         return LogStructuredEventFluently(ELogEntryType::Event)
             .Item("event_type").Value(eventType);
     }
 
-    virtual IPerTabletStructuredLoggerPtr CreateLogger(TTablet* tablet) override;
+    IPerTabletStructuredLoggerPtr CreateLogger(TTablet* tablet) override;
 
-    virtual void OnHeartbeatRequest(const TTabletManagerPtr& tabletManager, bool initial) override
+    void OnHeartbeatRequest(const TTabletManagerPtr& tabletManager, bool initial) override
     {
         if (!Enabled_) {
             return;
@@ -171,18 +171,18 @@ public:
         , Enabled_(false)
     { }
 
-    virtual TTabletId GetTabletId() const override
+    TTabletId GetTabletId() const override
     {
         return TabletId_;
     }
 
-    virtual void SetEnabled(bool enabled) override
+    void SetEnabled(bool enabled) override
     {
         YT_VERIFY(Logger_);
         Enabled_ = enabled;
     }
 
-    virtual TOneShotFluentLogEvent LogEvent(TStringBuf eventType) override
+    TOneShotFluentLogEvent LogEvent(TStringBuf eventType) override
     {
         if (!Enabled_) {
             return LogStructuredEventFluentlyToNowhere();
@@ -192,7 +192,7 @@ public:
             .Item("tablet_id").Value(TabletId_);
     }
 
-    virtual void OnFullHeartbeat() override
+    void OnFullHeartbeat() override
     {
         if (!Enabled_) {
             return;
@@ -239,7 +239,7 @@ public:
         Tablet_->SetLastFullStructuredHeartbeatTime(TInstant::Now());
     }
 
-    virtual void OnIncrementalHeartbeat() override
+    void OnIncrementalHeartbeat() override
     {
         if (!Enabled_) {
             return;
@@ -277,7 +277,7 @@ public:
         Tablet_->SetLastIncrementalStructuredHeartbeatTime(TInstant::Now());
     }
 
-    virtual void OnStoreRotated(
+    void OnStoreRotated(
         const IDynamicStorePtr& previousStore,
         const IDynamicStorePtr& newStore) override
     {
@@ -293,7 +293,7 @@ public:
             });
     }
 
-    virtual void OnBackingStoreSet(
+    void OnBackingStoreSet(
         const IChunkStorePtr& store,
         const IDynamicStorePtr& backingStore) override
     {
@@ -306,13 +306,13 @@ public:
                 backingStore));
     }
 
-    virtual void OnBackingStoreReleased(const IChunkStorePtr& store) override
+    void OnBackingStoreReleased(const IChunkStorePtr& store) override
     {
         LogEvent("release_backing_store")
             .Item("store_id").Value(store->GetId());
     }
 
-    virtual void OnTabletStoresUpdatePrepared(
+    void OnTabletStoresUpdatePrepared(
         const std::vector<TStoreId>& addedStoreIds,
         const std::vector<TStoreId>& removedStoreIds,
         NTabletClient::ETabletStoresUpdateReason updateReason,
@@ -325,7 +325,7 @@ public:
             .Item("transaction_id").Value(transactionId);
     }
 
-    virtual void OnTabletStoresUpdateCommitted(
+    void OnTabletStoresUpdateCommitted(
         const std::vector<IStorePtr>& addedStores,
         const std::vector<TStoreId>& removedStoreIds,
         const std::vector<THunkChunkPtr>& addedHunkChunkds,
@@ -365,7 +365,7 @@ public:
             .Item("transaction_id").Value(transactionId);
     }
 
-    virtual void OnTabletUnlocked(
+    void OnTabletUnlocked(
         TRange<IStorePtr> stores,
         bool overwrite,
         TTransactionId transactionId) override
@@ -385,49 +385,49 @@ public:
             .Item("transaction_id").Value(transactionId);
     }
 
-    virtual void OnPartitionStateChanged(const TPartition* partition) override
+    void OnPartitionStateChanged(const TPartition* partition) override
     {
         LogEvent("set_partition_state")
             .Item("partition_id").Value(partition->GetId())
             .Item("state").Value(partition->GetState());
     }
 
-    virtual void OnStoreStateChanged(const IStorePtr& store) override
+    void OnStoreStateChanged(const IStorePtr& store) override
     {
         LogEvent("set_store_state")
             .Item("store_id").Value(store->GetId())
             .Item("state").Value(store->GetStoreState());
     }
 
-    virtual void OnHunkChunkStateChanged(const THunkChunkPtr& hunkChunk) override
+    void OnHunkChunkStateChanged(const THunkChunkPtr& hunkChunk) override
     {
         LogEvent("set_hunk_chunk_state")
             .Item("chunk_id").Value(hunkChunk->GetId())
             .Item("state").Value(hunkChunk->GetState());
     }
 
-    virtual void OnStoreCompactionStateChanged(const IChunkStorePtr& store) override
+    void OnStoreCompactionStateChanged(const IChunkStorePtr& store) override
     {
         LogEvent("set_store_compaction_state")
             .Item("store_id").Value(store->GetId())
             .Item("compaction_state").Value(store->GetCompactionState());
     }
 
-    virtual void OnStorePreloadStateChanged(const IChunkStorePtr& store) override
+    void OnStorePreloadStateChanged(const IChunkStorePtr& store) override
     {
         LogEvent("set_store_preload_state")
             .Item("store_id").Value(store->GetId())
             .Item("preload_state").Value(store->GetPreloadState());
     }
 
-    virtual void OnStoreFlushStateChanged(const IDynamicStorePtr& store) override
+    void OnStoreFlushStateChanged(const IDynamicStorePtr& store) override
     {
         LogEvent("set_store_flush_state")
             .Item("store_id").Value(store->GetId())
             .Item("flush_state").Value(store->GetFlushState());
     }
 
-    virtual void OnPartitionSplit(
+    void OnPartitionSplit(
         const TPartition* oldPartition,
         int partitionIndex,
         int splitFactor) override
@@ -455,7 +455,7 @@ public:
                 });
     }
 
-    virtual void OnPartitionsMerged(
+    void OnPartitionsMerged(
         const std::vector<TPartitionId>& oldPartitionIds,
         const TPartition* newPartition) override
     {
@@ -464,7 +464,7 @@ public:
             .Item("new_partition_id").Value(newPartition->GetId());
     }
 
-    virtual void OnImmediatePartitionSplitRequested(const TPartition* partition) override
+    void OnImmediatePartitionSplitRequested(const TPartition* partition) override
     {
         LogEvent("request_immediate_split")
             .Item("partition_id").Value(partition->GetId())

@@ -34,37 +34,37 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    virtual TCellId GetCellId() const override
+    TCellId GetCellId() const override
     {
         return Bootstrap_->GetCellId();
     }
 
-    virtual IClientPtr GetMasterClient() const override
+    IClientPtr GetMasterClient() const override
     {
         return Bootstrap_->GetMasterClient();
     }
 
-    virtual TNetworkPreferenceList GetLocalNetworks() const override
+    TNetworkPreferenceList GetLocalNetworks() const override
     {
         return Bootstrap_->GetLocalNetworks();
     }
 
-    virtual IInvokerPtr GetControlInvoker() const override
+    IInvokerPtr GetControlInvoker() const override
     {
         return Bootstrap_->GetControlInvoker();
     }
 
-    virtual IInvokerPtr GetTransactionTrackerInvoker() const override
+    IInvokerPtr GetTransactionTrackerInvoker() const override
     {
         return Bootstrap_->GetTransactionTrackerInvoker();
     }
 
-    virtual IServerPtr GetRpcServer() const override
+    IServerPtr GetRpcServer() const override
     {
         return Bootstrap_->GetRpcServer();
     }
 
-    virtual IResourceLimitsManagerPtr GetResourceLimitsManager() const override
+    IResourceLimitsManagerPtr GetResourceLimitsManager() const override
     {
         return Bootstrap_->GetResourceLimitsManager();
     }
@@ -85,7 +85,7 @@ public:
         , ClusterNodeBootstrap_(bootstrap)
     { }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         GetDynamicConfigManager()
             ->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
@@ -133,27 +133,27 @@ public:
         CellarManager_->Initialize();
     }
 
-    virtual void Run() override
+    void Run() override
     {
         MasterConnector_->Initialize();
     }
 
-    virtual const IInvokerPtr& GetTransactionTrackerInvoker() const override
+    const IInvokerPtr& GetTransactionTrackerInvoker() const override
     {
         return TransactionTrackerQueue_->GetInvoker();
     }
 
-    virtual const IResourceLimitsManagerPtr& GetResourceLimitsManager() const override
+    const IResourceLimitsManagerPtr& GetResourceLimitsManager() const override
     {
         return ResourceLimitsManager_;
     }
 
-    virtual const ICellarManagerPtr& GetCellarManager() const override
+    const ICellarManagerPtr& GetCellarManager() const override
     {
         return CellarManager_;
     }
 
-    virtual const IMasterConnectorPtr& GetMasterConnector() const override
+    const IMasterConnectorPtr& GetMasterConnector() const override
     {
         return MasterConnector_;
     }

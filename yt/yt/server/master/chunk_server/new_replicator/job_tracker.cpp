@@ -14,7 +14,7 @@ public:
         : ReplicatorState_(std::move(replicatorState))
     { }
 
-    virtual void ProcessJobHeartbeat(const TCtxJobHeartbeatPtr& context) override
+    void ProcessJobHeartbeat(const TCtxJobHeartbeatPtr& context) override
     {
         // Node should be replicated to chunk thread, so SyncWithUpstream is required here.
         ReplicatorState_->SyncWithUpstream();

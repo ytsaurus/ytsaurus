@@ -39,13 +39,13 @@ private:
     IBusServerPtr BusServer_;
 
 
-    virtual void DoStart() override
+    void DoStart() override
     {
         BusServer_->Start(this);
         TServerBase::DoStart();
     }
 
-    virtual TFuture<void> DoStop(bool graceful) override
+    TFuture<void> DoStop(bool graceful) override
     {
         return TServerBase::DoStop(graceful).Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
             // NB: Stop the bus server anyway.
@@ -56,7 +56,7 @@ private:
         }));
     }
 
-    virtual void HandleMessage(TSharedRefArray message, IBusPtr replyBus) noexcept override
+    void HandleMessage(TSharedRefArray message, IBusPtr replyBus) noexcept override
     {
         auto messageType = GetMessageType(message);
         switch (messageType) {

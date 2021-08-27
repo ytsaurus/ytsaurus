@@ -69,7 +69,7 @@ protected:
 
     TTableSchemaPtr Schema_;
 
-    virtual void SetUp() override
+    void SetUp() override
     {
         RowBuffer_ = New<TRowBuffer>();
         Schema_ = std::get<1>(GetParam());

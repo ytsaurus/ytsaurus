@@ -131,7 +131,7 @@ class TRefChild
     : public TRefParent
 {
 public:
-    virtual void VirtualSet()
+    void VirtualSet() override
     {
         Value = SomeChildValue;
     }
@@ -161,7 +161,7 @@ public:
 class NoRefChild
     : public TNoRefParent
 {
-    virtual void VirtualSet()
+    void VirtualSet() override
     {
         Value = SomeChildValue;
     }
@@ -262,7 +262,7 @@ class TBindTest
 public:
     TBindTest() = default;
 
-    virtual void SetUp()
+    void SetUp() override
     {
         ConstObjectWithRCPtr = &ObjectWithRC;
         ConstObjectPtr = &Object;

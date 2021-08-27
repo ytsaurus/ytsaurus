@@ -20,7 +20,7 @@ class TCpuProfilerHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         try {
             TCgiParameters params(req->GetUrl().RawQuery);

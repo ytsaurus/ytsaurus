@@ -39,7 +39,7 @@ public:
         TickExecutor_->Start();
     }
 
-    virtual TFuture<std::vector<TErrorOrSecretSubresponse>> GetSecrets(const std::vector<TSecretSubrequest>& subrequests) override
+    TFuture<std::vector<TErrorOrSecretSubresponse>> GetSecrets(const std::vector<TSecretSubrequest>& subrequests) override
     {
         std::vector<TFuture<TSecretSubresponse>> asyncResults;
         asyncResults.reserve(subrequests.size());
@@ -50,7 +50,7 @@ public:
         return AllSet(asyncResults);
     }
 
-    virtual TFuture<TString> GetDelegationToken(TDelegationTokenRequest request) override
+    TFuture<TString> GetDelegationToken(TDelegationTokenRequest request) override
     {
         return Underlying_->GetDelegationToken(std::move(request));
     }

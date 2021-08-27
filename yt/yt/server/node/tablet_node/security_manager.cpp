@@ -86,7 +86,7 @@ public:
 private:
     NCellarNode::IBootstrap* const Bootstrap_;
 
-    virtual TFuture<void> DoGet(const TResourceLimitsKey& key, bool /*isPeriodicUpdate*/) noexcept override
+    TFuture<void> DoGet(const TResourceLimitsKey& key, bool /*isPeriodicUpdate*/) noexcept override
     {
         YT_LOG_DEBUG("Resource limits violation check started (Key: %v)",
             key);

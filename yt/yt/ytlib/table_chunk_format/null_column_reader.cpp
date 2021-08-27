@@ -53,7 +53,7 @@ public:
         : TUnversionedColumnReaderBase(columnMeta, columnIndex, columnId, sortOrder)
     { }
 
-    virtual std::pair<i64, i64> GetEqualRange(
+    std::pair<i64, i64> GetEqualRange(
         const TUnversionedValue& value,
         i64 lowerRowIndex,
         i64 upperRowIndex) override
@@ -64,13 +64,13 @@ public:
             upperRowIndex);
     }
 
-    virtual i64 EstimateDataWeight(i64 /*lowerRowIndex*/, i64 /*upperRowIndex*/) override
+    i64 EstimateDataWeight(i64 /*lowerRowIndex*/, i64 /*upperRowIndex*/) override
     {
         return 0;
     }
 
 private:
-    virtual std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(int segmentIndex, bool /* scan */) override
+    std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(int segmentIndex, bool /* scan */) override
     {
         using TSegmentReader = TDenseUnversionedSegmentReader<
             EValueType::Null,
@@ -93,50 +93,50 @@ public:
         , SortOrder_(sortOrder)
     { }
 
-    virtual void SetCurrentBlock(TSharedRef /*block*/, int /*blockIndex*/) override
+    void SetCurrentBlock(TSharedRef /*block*/, int /*blockIndex*/) override
     {
         YT_ABORT();
     }
 
-    virtual void Rearm() override
+    void Rearm() override
     { }
 
-    virtual void SkipToRowIndex(i64 rowIndex) override
+    void SkipToRowIndex(i64 rowIndex) override
     {
         RowIndex_ = rowIndex;
     }
 
-    virtual i64 GetCurrentRowIndex() const override
+    i64 GetCurrentRowIndex() const override
     {
         return RowIndex_;
     }
 
-    virtual i64 GetBlockUpperRowIndex() const override
+    i64 GetBlockUpperRowIndex() const override
     {
         return std::numeric_limits<i64>::max();
     }
 
-    virtual i64 GetReadyUpperRowIndex() const override
+    i64 GetReadyUpperRowIndex() const override
     {
         return GetBlockUpperRowIndex();
     }
 
-    virtual int GetCurrentBlockIndex() const override
+    int GetCurrentBlockIndex() const override
     {
         YT_ABORT();
     }
 
-    virtual int GetCurrentSegmentIndex() const override
+    int GetCurrentSegmentIndex() const override
     {
         YT_ABORT();
     }
 
-    virtual std::optional<int> GetNextBlockIndex() const override
+    std::optional<int> GetNextBlockIndex() const override
     {
         return std::nullopt;
     }
 
-    virtual std::pair<i64, i64> GetEqualRange(const TUnversionedValue& value, i64 lowerRowIndex, i64 upperRowIndex) override
+    std::pair<i64, i64> GetEqualRange(const TUnversionedValue& value, i64 lowerRowIndex, i64 upperRowIndex) override
     {
         YT_VERIFY(SortOrder_);
 
@@ -154,22 +154,22 @@ public:
         }
     }
 
-    virtual void ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override
+    void ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override
     {
         DoReadValues(rows);
     }
 
-    virtual void ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) override
+    void ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) override
     {
         DoReadValues(rows);
     }
 
-    virtual int GetBatchColumnCount() override
+    int GetBatchColumnCount() override
     {
         return 1;
     }
 
-    virtual void ReadColumnarBatch(
+    void ReadColumnarBatch(
         TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> columns,
         i64 /*rowCount*/) override
     {
@@ -178,7 +178,7 @@ public:
         column.Type = SimpleLogicalType(ESimpleLogicalValueType::Null);
     }
 
-    virtual i64 EstimateDataWeight(i64 /*lowerRowIndex*/, i64 /*upperRowIndex*/) override
+    i64 EstimateDataWeight(i64 /*lowerRowIndex*/, i64 /*upperRowIndex*/) override
     {
         return 0;
     }

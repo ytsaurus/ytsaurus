@@ -27,23 +27,23 @@ private:
 public:
     using TBase::TBase;
 
-    virtual EObjectType GetObjectType() const override
+    EObjectType GetObjectType() const override
     {
         return EObjectType::PortalEntrance;
     }
 
-    virtual ENodeType GetNodeType() const override
+    ENodeType GetNodeType() const override
     {
         return ENodeType::Entity;
     }
 
-    virtual ETypeFlags GetFlags() const override
+    ETypeFlags GetFlags() const override
     {
         return TBase::GetFlags() | ETypeFlags::ForbidAnnotationRemoval;
     }
 
 private:
-    virtual ICypressNodeProxyPtr DoGetProxy(
+    ICypressNodeProxyPtr DoGetProxy(
         TPortalEntranceNode* trunkNode,
         TTransaction* transaction) override
     {
@@ -54,7 +54,7 @@ private:
             trunkNode);
     }
 
-    virtual std::unique_ptr<TPortalEntranceNode> DoCreate(
+    std::unique_ptr<TPortalEntranceNode> DoCreate(
         TVersionedNodeId id,
         const TCreateNodeContext& context) override
     {
@@ -82,7 +82,7 @@ private:
         return nodeHolder;
     }
 
-    virtual void DoDestroy(TPortalEntranceNode* node) override
+    void DoDestroy(TPortalEntranceNode* node) override
     {
         TBase::DoDestroy(node);
 
@@ -92,7 +92,7 @@ private:
         }
     }
 
-    virtual void DoBranch(
+    void DoBranch(
         const TPortalEntranceNode* originatingNode,
         TPortalEntranceNode* branchedNode,
         const TLockRequest& lockRequest) override
@@ -102,7 +102,7 @@ private:
         branchedNode->SetExitCellTag(originatingNode->GetExitCellTag());
     }
 
-    virtual void DoClone(
+    void DoClone(
         TPortalEntranceNode* /*sourceNode*/,
         TPortalEntranceNode* /*clonedTrunkNode*/,
         ICypressNodeFactory* /*factory*/,
@@ -112,7 +112,7 @@ private:
         THROW_ERROR_EXCEPTION("Cannot clone a portal");
     }
 
-    virtual bool HasBranchedChangesImpl(
+    bool HasBranchedChangesImpl(
         TPortalEntranceNode* /*originatingNode*/,
         TPortalEntranceNode* /*branchedNode*/) override
     {
@@ -120,7 +120,7 @@ private:
         return false;
     }
 
-    virtual void DoBeginCopy(
+    void DoBeginCopy(
         TPortalEntranceNode* node,
         TBeginCopyContext* context) override
     {
@@ -132,7 +132,7 @@ private:
         context->RegisterPortalRootId(exitId);
     }
 
-    virtual void DoEndCopy(
+    void DoEndCopy(
         TPortalEntranceNode* trunkNode,
         TEndCopyContext* context,
         ICypressNodeFactory* factory) override

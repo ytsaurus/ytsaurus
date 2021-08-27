@@ -744,61 +744,61 @@ class TYsonAnyValidator
     : public IYsonConsumer
 {
 public:
-    virtual void OnStringScalar(TStringBuf /*value*/) override
+    void OnStringScalar(TStringBuf /*value*/) override
     { }
 
-    virtual void OnInt64Scalar(i64 /*value*/) override
+    void OnInt64Scalar(i64 /*value*/) override
     { }
 
-    virtual void OnUint64Scalar(ui64 /*value*/) override
+    void OnUint64Scalar(ui64 /*value*/) override
     { }
 
-    virtual void OnDoubleScalar(double /*value*/) override
+    void OnDoubleScalar(double /*value*/) override
     { }
 
-    virtual void OnBooleanScalar(bool /*value*/) override
+    void OnBooleanScalar(bool /*value*/) override
     { }
 
-    virtual void OnEntity() override
+    void OnEntity() override
     { }
 
-    virtual void OnBeginList() override
+    void OnBeginList() override
     {
         ++Depth_;
     }
 
-    virtual void OnListItem() override
+    void OnListItem() override
     { }
 
-    virtual void OnEndList() override
+    void OnEndList() override
     {
         --Depth_;
     }
 
-    virtual void OnBeginMap() override
+    void OnBeginMap() override
     {
         ++Depth_;
     }
 
-    virtual void OnKeyedItem(TStringBuf /*key*/) override
+    void OnKeyedItem(TStringBuf /*key*/) override
     { }
 
-    virtual void OnEndMap() override
+    void OnEndMap() override
     {
         --Depth_;
     }
 
-    virtual void OnBeginAttributes() override
+    void OnBeginAttributes() override
     {
         if (Depth_ == 0) {
             THROW_ERROR_EXCEPTION("Table values cannot have top-level attributes");
         }
     }
 
-    virtual void OnEndAttributes() override
+    void OnEndAttributes() override
     { }
 
-    virtual void OnRaw(TStringBuf /*yson*/, EYsonType /*type*/) override
+    void OnRaw(TStringBuf /*yson*/, EYsonType /*type*/) override
     { }
 
 private:

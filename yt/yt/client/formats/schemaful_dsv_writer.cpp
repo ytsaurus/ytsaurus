@@ -114,7 +114,7 @@ private:
     const int TableIndexColumnId_;
 
     // ISchemalessFormatWriter overrides.
-    virtual void DoWrite(TRange<TUnversionedRow> rows) override
+    void DoWrite(TRange<TUnversionedRow> rows) override
     {
         for (const auto& row : rows) {
             CurrentRowValues_.assign(CurrentRowValues_.size(), nullptr);
@@ -193,13 +193,13 @@ public:
         });
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         DoFlushBuffer();
         return VoidFuture;
     }
 
-    virtual bool Write(TRange<TUnversionedRow> rows) override
+    bool Write(TRange<TUnversionedRow> rows) override
     {
         for (const auto& row : rows) {
             if (!row) {
@@ -244,7 +244,7 @@ public:
         return true;
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() override
     {
         return Result_;
     }

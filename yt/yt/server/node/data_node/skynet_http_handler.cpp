@@ -89,7 +89,7 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         TChunkId chunkId;
         TReadRange readRange;

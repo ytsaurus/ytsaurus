@@ -67,10 +67,10 @@ public:
             BIND(&TChaosManager::SaveValues, Unretained(this)));
     }
 
-    virtual void Initialize() override
+    void Initialize() override
     { }
 
-    virtual IYPathServicePtr GetOrchidService() const override
+    IYPathServicePtr GetOrchidService() const override
     {
         return OrchidService_;
     }
@@ -86,18 +86,18 @@ private:
                 ->Via(invoker);
         }
 
-        virtual std::vector<TString> GetKeys(i64 /*limit*/) const override
+        std::vector<TString> GetKeys(i64 /*limit*/) const override
         {
             std::vector<TString> keys;
             return keys;
         }
 
-        virtual i64 GetSize() const override
+        i64 GetSize() const override
         {
             return 0;
         }
 
-        virtual IYPathServicePtr FindItemService(TStringBuf /*key*/) const override
+        IYPathServicePtr FindItemService(TStringBuf /*key*/) const override
         {
             return nullptr;
         }
@@ -139,7 +139,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
     }
 
-    virtual void Clear() override
+    void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -147,7 +147,7 @@ private:
     }
 
 
-    virtual void OnLeaderRecoveryComplete() override
+    void OnLeaderRecoveryComplete() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -156,7 +156,7 @@ private:
         StartEpoch();
     }
 
-    virtual void OnLeaderActive() override
+    void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -164,7 +164,7 @@ private:
     }
 
 
-    virtual void OnStopLeading() override
+    void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -174,7 +174,7 @@ private:
     }
 
 
-    virtual void OnFollowerRecoveryComplete() override
+    void OnFollowerRecoveryComplete() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -183,7 +183,7 @@ private:
         StartEpoch();
     }
 
-    virtual void OnStopFollowing() override
+    void OnStopFollowing() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

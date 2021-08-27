@@ -312,7 +312,7 @@ private:
     TPromise<void> ServerStreamsAborted_ = NewPromise<void>();
 
 
-    virtual void BeforeInvoke(IServiceContext* context) override
+    void BeforeInvoke(IServiceContext* context) override
     {
         TServiceBase::BeforeInvoke(context);
         if (Secure_) {

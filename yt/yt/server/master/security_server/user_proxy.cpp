@@ -41,7 +41,7 @@ public:
 private:
     using TBase = TSubjectProxy<TUser>;
 
-    virtual void ValidateRemoval() override
+    void ValidateRemoval() override
     {
         const auto* user = GetThisImpl();
         if (user->IsBuiltin())  {
@@ -51,7 +51,7 @@ private:
         ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
     }
 
-    virtual void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
@@ -84,7 +84,7 @@ private:
             .SetOpaque(true));
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         auto* user = GetThisImpl();
 
@@ -184,7 +184,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         auto* user = GetThisImpl();
         const auto& securityManager = Bootstrap_->GetSecurityManager();

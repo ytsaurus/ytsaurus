@@ -43,7 +43,7 @@ public:
         MainMeta_->mutable_extensions()->clear_extensions();
     }
 
-    virtual TFuture<TRefCountedChunkMetaPtr> Fetch(
+    TFuture<TRefCountedChunkMetaPtr> Fetch(
         std::optional<std::vector<int>> extensionTags,
         const TMetaFetchCallback& metaFetchCallback) override
     {
@@ -164,7 +164,7 @@ public:
         }
     }
 
-    virtual i64 GetWeight() const override
+    i64 GetWeight() const override
     {
         auto guard = ReaderGuard(Lock_);
 
@@ -267,7 +267,7 @@ public:
         , Invoker_(TDispatcher::Get()->GetReaderInvoker())
     { }
 
-    virtual TFuture<TRefCountedChunkMetaPtr> Fetch(
+    TFuture<TRefCountedChunkMetaPtr> Fetch(
         TChunkId chunkId,
         const std::optional<std::vector<int>>& extensionTags,
         const TMetaFetchCallback& metaFetchCallback) override
@@ -283,7 +283,7 @@ public:
     }
 
 protected:
-    virtual i64 GetWeight(const TCachedChunkMetaPtr& value) const override
+    i64 GetWeight(const TCachedChunkMetaPtr& value) const override
     {
         return value->GetWeight();
     }

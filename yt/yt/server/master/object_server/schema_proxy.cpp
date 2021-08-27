@@ -36,7 +36,7 @@ public:
 private:
     using TBase = TNonversionedObjectProxyBase<TSchemaObject>;
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         switch (key) {
             case EInternedAttributeKey::Type: {

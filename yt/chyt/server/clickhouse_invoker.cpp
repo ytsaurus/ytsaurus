@@ -24,7 +24,7 @@ class TClickHouseInvoker
 public:
     using TInvokerWrapper::TInvokerWrapper;
 
-    virtual void Invoke(TClosure callback) override
+    void Invoke(TClosure callback) override
     {
         if (!DB::current_thread) {
             YT_ASSERT(ClickHouseFrameCount == 0);

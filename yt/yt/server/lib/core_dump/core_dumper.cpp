@@ -48,7 +48,7 @@ public:
 #endif
     }
 
-    virtual TCoreDump WriteCoreDump(const std::vector<TString>& notes, const TString& reason) override
+    TCoreDump WriteCoreDump(const std::vector<TString>& notes, const TString& reason) override
     {
 #ifdef _asan_enabled_
         Y_UNUSED(notes);
@@ -155,7 +155,7 @@ public:
 #endif
     }
 
-    virtual const IYPathServicePtr& CreateOrchidService() const override
+    const IYPathServicePtr& CreateOrchidService() const override
     {
         return OrchidService_;
     }

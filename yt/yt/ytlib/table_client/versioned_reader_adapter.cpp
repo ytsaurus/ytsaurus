@@ -29,7 +29,7 @@ public:
         , UnderlyingReader_(std::move(underlyingReader))
     { }
 
-    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         MemoryPool_.Clear();
 
@@ -48,27 +48,27 @@ public:
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         return UnderlyingReader_->GetReadyEvent();
     }
 
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
         return UnderlyingReader_->GetDataStatistics();
     }
 
-    virtual TCodecStatistics GetDecompressionStatistics() const override
+    TCodecStatistics GetDecompressionStatistics() const override
     {
         return UnderlyingReader_->GetDecompressionStatistics();
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return UnderlyingReader_->IsFetchingCompleted();
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return UnderlyingReader_->GetFailedChunkIds();
     }
@@ -96,7 +96,7 @@ public:
         , Timestamp_(timestamp)
     { }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return UnderlyingReader_->GetReadyEvent();
     }
@@ -105,7 +105,7 @@ private:
     const int KeyColumnCount_;
     const TTimestamp Timestamp_;
 
-    virtual TVersionedRow MakeVersionedRow(TUnversionedRow row) override
+    TVersionedRow MakeVersionedRow(TUnversionedRow row) override
     {
         if (!row) {
             return TVersionedRow();
@@ -179,7 +179,7 @@ public:
         , Timestamp_(timestamp)
     { }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return UnderlyingReader_->Open();
     }
@@ -187,7 +187,7 @@ public:
 private:
     const TTimestamp Timestamp_;
 
-    virtual TVersionedRow MakeVersionedRow(TVersionedRow row) override
+    TVersionedRow MakeVersionedRow(TVersionedRow row) override
     {
         if (!row) {
             return TVersionedRow();

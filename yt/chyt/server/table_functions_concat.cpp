@@ -149,7 +149,7 @@ public:
         return Execute(context);
     }
 
-    virtual const char* getStorageTypeName() const override
+    const char* getStorageTypeName() const override
     {
         return "YT";
     }
@@ -186,7 +186,7 @@ public:
     TListFilterAndConcatenateTables()
     { }
 
-    void parseArguments(const ASTPtr& functionAst, ContextPtr context)
+    void parseArguments(const ASTPtr& functionAst, ContextPtr context) override
     {
         auto& functionNode = typeid_cast<ASTFunction &>(*functionAst);
         auto& arguments = GetAllArguments(functionNode);
@@ -194,7 +194,7 @@ public:
         parsePathArguments(arguments, context);
     }
 
-    ColumnsDescription getActualTableStructure(ContextPtr context) const
+    ColumnsDescription getActualTableStructure(ContextPtr context) const override
     {
         auto table_tmp = Execute(context);
         return table_tmp->getInMemoryMetadataPtr()->getColumns();
@@ -209,7 +209,7 @@ public:
         return Execute(context);
     }
 
-    virtual const char* getStorageTypeName() const override
+    const char* getStorageTypeName() const override
     {
         return "YT";
     }
@@ -347,7 +347,7 @@ public:
         return "concatYtTablesRegexp";
     }
 
-    virtual std::string getName() const override
+    std::string getName() const override
     {
         return GetName();
     }

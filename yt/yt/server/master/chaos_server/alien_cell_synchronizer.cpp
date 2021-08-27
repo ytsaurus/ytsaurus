@@ -57,18 +57,18 @@ public:
             BIND(&TAlienCellSynchronizer::Synchronize, MakeWeak(this))))
     { }
 
-    virtual void Start() override
+    void Start() override
     {
         DoReconfigure();
         SynchronizationExecutor_->Start();
     }
 
-    virtual void Stop() override
+    void Stop() override
     {
         SynchronizationExecutor_->Stop();
     }
 
-    virtual void Reconfigure(TAlienCellSynchronizerConfigPtr config) override
+    void Reconfigure(TAlienCellSynchronizerConfigPtr config) override
     {
         Config_ = std::move(config);
         DoReconfigure();

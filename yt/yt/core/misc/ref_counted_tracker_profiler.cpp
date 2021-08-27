@@ -26,7 +26,7 @@ public:
         registry.AddProducer("/total", MakeStrong(this));
     }
 
-    void CollectSensors(ISensorWriter* writer)
+    void CollectSensors(ISensorWriter* writer) override
     {
         auto statistics = TRefCountedTracker::Get()->GetStatistics().TotalStatistics;
 

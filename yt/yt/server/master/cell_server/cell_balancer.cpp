@@ -138,7 +138,7 @@ public:
         : Provider_(std::move(provider))
     { }
 
-    virtual void AssignPeer(const TCellBase* cell, int peerId) override
+    void AssignPeer(const TCellBase* cell, int peerId) override
     {
         LazyInitNodes();
 
@@ -156,7 +156,7 @@ public:
         }
     }
 
-    virtual void RevokePeer(const TCellBase* cell, int peerId, const TError& reason) override
+    void RevokePeer(const TCellBase* cell, int peerId, const TError& reason) override
     {
         LazyInitNodes();
 
@@ -189,7 +189,7 @@ public:
             reason);
     }
 
-    virtual std::vector<TCellMoveDescriptor> GetCellMoveDescriptors() override
+    std::vector<TCellMoveDescriptor> GetCellMoveDescriptors() override
     {
         if (Provider_->IsBalancingRequired()) {
             LazyInitNodes();

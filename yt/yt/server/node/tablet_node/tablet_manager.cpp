@@ -515,7 +515,7 @@ private:
                 ->Via(invoker);
         }
 
-        virtual std::vector<TString> GetKeys(i64 limit) const override
+        std::vector<TString> GetKeys(i64 limit) const override
         {
             std::vector<TString> keys;
             if (auto owner = Owner_.Lock()) {
@@ -529,7 +529,7 @@ private:
             return keys;
         }
 
-        virtual i64 GetSize() const override
+        i64 GetSize() const override
         {
             if (auto owner = Owner_.Lock()) {
                 return owner->Tablets().size();
@@ -537,7 +537,7 @@ private:
             return 0;
         }
 
-        virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+        IYPathServicePtr FindItemService(TStringBuf key) const override
         {
             if (auto owner = Owner_.Lock()) {
                 if (auto tablet = owner->FindTablet(TTabletId::FromString(key))) {
@@ -570,37 +570,37 @@ private:
             : Owner_(owner)
         { }
 
-        virtual TCellId GetCellId() override
+        TCellId GetCellId() override
         {
             return Owner_->Slot_->GetCellId();
         }
 
-        virtual const TString& GetTabletCellBundleName() override
+        const TString& GetTabletCellBundleName() override
         {
             return Owner_->Slot_->GetTabletCellBundleName();
         }
 
-        virtual EPeerState GetAutomatonState() override
+        EPeerState GetAutomatonState() override
         {
             return Owner_->Slot_->GetAutomatonState();
         }
 
-        virtual IColumnEvaluatorCachePtr GetColumnEvaluatorCache() override
+        IColumnEvaluatorCachePtr GetColumnEvaluatorCache() override
         {
             return Owner_->Bootstrap_->GetColumnEvaluatorCache();
         }
 
-        virtual NTabletNode::IRowComparerProviderPtr GetRowComparerProvider() override
+        NTabletNode::IRowComparerProviderPtr GetRowComparerProvider() override
         {
             return Owner_->Bootstrap_->GetRowComparerProvider();
         }
 
-        virtual TObjectId GenerateId(EObjectType type) override
+        TObjectId GenerateId(EObjectType type) override
         {
             return Owner_->Slot_->GenerateId(type);
         }
 
-        virtual IStorePtr CreateStore(
+        IStorePtr CreateStore(
             TTablet* tablet,
             EStoreType type,
             TStoreId storeId,
@@ -609,7 +609,7 @@ private:
             return Owner_->CreateStore(tablet, type, storeId, descriptor);
         }
 
-        virtual THunkChunkPtr CreateHunkChunk(
+        THunkChunkPtr CreateHunkChunk(
             TTablet* tablet,
             TChunkId chunkId,
             const TAddHunkChunkDescriptor* descriptor) override
@@ -617,22 +617,22 @@ private:
             return Owner_->CreateHunkChunk(tablet, chunkId, descriptor);
         }
 
-        virtual TTransactionManagerPtr GetTransactionManager() override
+        TTransactionManagerPtr GetTransactionManager() override
         {
             return Owner_->Slot_->GetTransactionManager();
         }
 
-        virtual NRpc::IServerPtr GetLocalRpcServer() override
+        NRpc::IServerPtr GetLocalRpcServer() override
         {
             return Owner_->Bootstrap_->GetRpcServer();
         }
 
-        virtual NClusterNode::TNodeMemoryTrackerPtr GetMemoryUsageTracker() override
+        NClusterNode::TNodeMemoryTrackerPtr GetMemoryUsageTracker() override
         {
             return Owner_->Bootstrap_->GetMemoryUsageTracker();
         }
 
-        virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() override
+        NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() override
         {
             return Owner_->Bootstrap_->GetLocalDescriptor();
         }
@@ -760,7 +760,7 @@ private:
         }
     }
 
-    virtual void OnAfterSnapshotLoaded() noexcept override
+    void OnAfterSnapshotLoaded() noexcept override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -850,7 +850,7 @@ private:
         }
     }
 
-    virtual void Clear() override
+    void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -863,7 +863,7 @@ private:
     }
 
 
-    virtual void OnLeaderRecoveryComplete() override
+    void OnLeaderRecoveryComplete() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -872,7 +872,7 @@ private:
         StartEpoch();
     }
 
-    virtual void OnLeaderActive() override
+    void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -887,7 +887,7 @@ private:
     }
 
 
-    virtual void OnStopLeading() override
+    void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -905,7 +905,7 @@ private:
     }
 
 
-    virtual void OnFollowerRecoveryComplete() override
+    void OnFollowerRecoveryComplete() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -914,7 +914,7 @@ private:
         StartEpoch();
     }
 
-    virtual void OnStopFollowing() override
+    void OnStopFollowing() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

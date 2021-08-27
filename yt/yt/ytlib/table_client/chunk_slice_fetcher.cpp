@@ -67,12 +67,12 @@ public:
         , RowBuffer_(std::move(rowBuffer))
     { }
 
-    virtual void AddChunk(TInputChunkPtr /*chunk*/) override
+    void AddChunk(TInputChunkPtr /*chunk*/) override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual void AddDataSliceForSlicing(
+    void AddDataSliceForSlicing(
         TLegacyDataSlicePtr dataSlice,
         const TComparator& comparator,
         i64 sliceDataWeight,
@@ -113,14 +113,14 @@ public:
         YT_VERIFY(ChunkToChunkSliceRequest_.emplace(chunk, chunkSliceRequest).second);
     }
 
-    virtual TFuture<void> Fetch() override
+    TFuture<void> Fetch() override
     {
         YT_LOG_DEBUG("Started fetching chunk slices (ChunkCount: %v)",
             Chunks_.size());
         return TFetcherBase::Fetch();
     }
 
-    virtual std::vector<NChunkClient::TInputChunkSlicePtr> GetChunkSlices() override
+    std::vector<NChunkClient::TInputChunkSlicePtr> GetChunkSlices() override
     {
         std::vector<NChunkClient::TInputChunkSlicePtr> chunkSlices;
         chunkSlices.reserve(SliceCount_);
@@ -149,17 +149,17 @@ private:
     };
     THashMap<TInputChunkPtr, TChunkSliceRequest> ChunkToChunkSliceRequest_;
 
-    virtual void OnFetchingStarted() override
+    void OnFetchingStarted() override
     {
         SlicesByChunkIndex_.resize(Chunks_.size());
     }
 
-    virtual void ProcessDynamicStore(int chunkIndex) override
+    void ProcessDynamicStore(int chunkIndex) override
     {
         AddTrivialSlice(chunkIndex);
     }
 
-    virtual TFuture<void> FetchFromNode(
+    TFuture<void> FetchFromNode(
         NNodeTrackerClient::TNodeId nodeId,
         std::vector<int> chunkIndexes) override
     {

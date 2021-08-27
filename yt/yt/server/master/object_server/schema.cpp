@@ -57,17 +57,17 @@ public:
         , Type_(type)
     { }
 
-    virtual ETypeFlags GetFlags() const override
+    ETypeFlags GetFlags() const override
     {
         return ETypeFlags::ReplicateAttributes;
     }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return SchemaTypeFromType(Type_);
     }
 
-    virtual TObject* FindObject(TObjectId id) override
+    TObject* FindObject(TObjectId id) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetSchema(Type_);
@@ -79,34 +79,34 @@ private:
 
     const EObjectType Type_;
 
-    virtual void DoDestroyObject(TSchemaObject* /*object*/) noexcept override
+    void DoDestroyObject(TSchemaObject* /*object*/) noexcept override
     {
         YT_ABORT();
     }
 
-    virtual TCellTagList DoGetReplicationCellTags(const TSchemaObject* /*object*/) override
+    TCellTagList DoGetReplicationCellTags(const TSchemaObject* /*object*/) override
     {
         return AllSecondaryCellTags();
     }
 
-    virtual TString DoGetName(const TSchemaObject* /*object*/) override
+    TString DoGetName(const TSchemaObject* /*object*/) override
     {
         return Format("%Qlv schema", Type_);
     }
 
-    virtual IObjectProxyPtr DoGetProxy(
+    IObjectProxyPtr DoGetProxy(
         TSchemaObject* object,
         NTransactionServer::TTransaction* /*transaction*/) override
     {
         return CreateSchemaProxy(Bootstrap_, &Metadata_, object);
     }
 
-    virtual NSecurityServer::TAccessControlDescriptor* DoFindAcd(TSchemaObject* object) override
+    NSecurityServer::TAccessControlDescriptor* DoFindAcd(TSchemaObject* object) override
     {
         return &object->Acd();
     }
 
-    virtual TObject* DoGetParent(TSchemaObject* /*object*/) override
+    TObject* DoGetParent(TSchemaObject* /*object*/) override
     {
         return nullptr;
     }

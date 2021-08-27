@@ -21,8 +21,8 @@ public:
         IYsonConsumer* consumer,
         TSchemafulDsvFormatConfigPtr config);
 
-    virtual void Read(TStringBuf data) override;
-    virtual void Finish() override;
+    void Read(TStringBuf data) override;
+    void Finish() override;
 
 private:
     IYsonConsumer* Consumer_;

@@ -96,7 +96,7 @@ class TTestBase
     : public ::testing::Test
 {
 public:
-    virtual void SetUp() override final
+    void SetUp() final
     {
         Port_ = NTesting::GetFreePort();
         Address_ = Format("localhost:%v", Port_);
@@ -109,7 +109,7 @@ public:
         Server_->Start();
     }
 
-    virtual void TearDown() override final
+    void TearDown() final
     {
         Server_->Stop().Get().ThrowOnError();
         Server_.Reset();
@@ -1617,12 +1617,12 @@ TEST(TCachingChannelFactoryTest, IdleChannels)
         : public IChannelFactory
     {
     public:
-        virtual IChannelPtr CreateChannel(const TString& /*address*/) override
+        IChannelPtr CreateChannel(const TString& /*address*/) override
         {
             return CreateLocalChannel(Server_);
         }
 
-        virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
+        IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
         {
             return CreateChannel(addressWithNetwork.Address);
         }

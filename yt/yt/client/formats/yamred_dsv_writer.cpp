@@ -75,7 +75,7 @@ private:
 
 
     // ISchemalessFormatWriter implementation
-    virtual void DoWrite(TRange<TUnversionedRow> rows) override
+    void DoWrite(TRange<TUnversionedRow> rows) override
     {
         TableIndexWasWritten_ = false;
 

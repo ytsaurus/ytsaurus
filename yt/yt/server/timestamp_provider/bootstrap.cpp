@@ -60,7 +60,7 @@ public:
         }
     }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         ControlQueue_ = New<TActionQueue>("Control");
 
@@ -71,7 +71,7 @@ public:
             .ThrowOnError();
     }
 
-    virtual void Run() override
+    void Run() override
     {
         BIND(&TBootstrap::DoRun, this)
             .AsyncVia(GetControlInvoker())

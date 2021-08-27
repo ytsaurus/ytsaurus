@@ -153,7 +153,7 @@ private:
         }
     }
 
-    size_t DoNext(const void** ptr, size_t len)
+    size_t DoNext(const void** ptr, size_t len) override
     {
         if (!len) {
             return 0;

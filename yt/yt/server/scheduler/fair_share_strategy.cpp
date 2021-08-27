@@ -83,7 +83,7 @@ public:
             Config->ResourceMeteringPeriod);
     }
 
-    virtual void OnMasterConnected() override
+    void OnMasterConnected() override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -95,7 +95,7 @@ public:
         LastMeteringStatisticsUpdateTime_ = TInstant::Now();
     }
 
-    virtual void OnMasterDisconnected() override
+    void OnMasterDisconnected() override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -143,7 +143,7 @@ public:
         OnFairShareLoggingAt(TInstant::Now());
     }
 
-    virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override
+    TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -156,7 +156,7 @@ public:
         return snapshot->ScheduleJobs(schedulingContext);
     }
 
-    virtual void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) override
+    void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -167,7 +167,7 @@ public:
         }
     }
 
-    virtual void RegisterOperation(IOperationStrategyHost* operation, std::vector<TString>* unknownTreeIds) override
+    void RegisterOperation(IOperationStrategyHost* operation, std::vector<TString>* unknownTreeIds) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -195,7 +195,7 @@ public:
         }
     }
 
-    virtual void UnregisterOperation(IOperationStrategyHost* operation) override
+    void UnregisterOperation(IOperationStrategyHost* operation) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -207,7 +207,7 @@ public:
         YT_VERIFY(OperationIdToOperationState_.erase(operation->GetId()) == 1);
     }
 
-    virtual void UnregisterOperationFromTree(TOperationId operationId, const TString& treeId) override
+    void UnregisterOperationFromTree(TOperationId operationId, const TString& treeId) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -229,7 +229,7 @@ public:
         tree->ProcessActivatableOperations();
     }
 
-    virtual void DisableOperation(IOperationStrategyHost* operation) override
+    void DisableOperation(IOperationStrategyHost* operation) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -245,7 +245,7 @@ public:
         state->SetEnabled(false);
     }
 
-    virtual void UpdatePoolTrees(const INodePtr& poolTreesNode, const TPersistentStrategyStatePtr& persistentStrategyState) override
+    void UpdatePoolTrees(const INodePtr& poolTreesNode, const TPersistentStrategyStatePtr& persistentStrategyState) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -356,12 +356,12 @@ public:
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
-    virtual bool IsInitialized() override
+    bool IsInitialized() override
     {
         return Initialized_;
     }
 
-    virtual void BuildOperationAttributes(TOperationId operationId, TFluentMap fluent) override
+    void BuildOperationAttributes(TOperationId operationId, TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -373,7 +373,7 @@ public:
         }
     }
 
-    virtual void BuildOperationProgress(TOperationId operationId, TFluentMap fluent) override
+    void BuildOperationProgress(TOperationId operationId, TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -384,7 +384,7 @@ public:
         DoBuildOperationProgress(&ISchedulerTree::BuildOperationProgress, operationId, fluent);
     }
 
-    virtual void BuildBriefOperationProgress(TOperationId operationId, TFluentMap fluent) override
+    void BuildBriefOperationProgress(TOperationId operationId, TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -395,7 +395,7 @@ public:
         DoBuildOperationProgress(&ISchedulerTree::BuildBriefOperationProgress, operationId, fluent);
     }
 
-    virtual TPoolTreeControllerSettingsMap GetOperationPoolTreeControllerSettingsMap(TOperationId operationId) override
+    TPoolTreeControllerSettingsMap GetOperationPoolTreeControllerSettingsMap(TOperationId operationId) override
     {
         TPoolTreeControllerSettingsMap result;
         const auto& state = GetOperationState(operationId);
@@ -412,7 +412,7 @@ public:
         return result;
     }
 
-    virtual std::vector<std::pair<TOperationId, TError>> GetHungOperations() override
+    std::vector<std::pair<TOperationId, TError>> GetHungOperations() override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -450,7 +450,7 @@ public:
         return result;
     }
 
-    virtual void UpdateConfig(const TFairShareStrategyConfigPtr& config) override
+    void UpdateConfig(const TFairShareStrategyConfigPtr& config) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -471,7 +471,7 @@ public:
         ResourceMeteringExecutor_->SetPeriod(Config->ResourceMeteringPeriod);
     }
 
-    virtual void BuildOperationInfoForEventLog(const IOperationStrategyHost* operation, TFluentMap fluent) override
+    void BuildOperationInfoForEventLog(const IOperationStrategyHost* operation, TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -488,7 +488,7 @@ public:
             });
     }
 
-    virtual void ApplyOperationRuntimeParameters(IOperationStrategyHost* operation) override
+    void ApplyOperationRuntimeParameters(IOperationStrategyHost* operation) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -512,7 +512,7 @@ public:
         state->TreeIdToPoolNameMap() = newPools;
     }
 
-    virtual void InitOperationRuntimeParameters(
+    void InitOperationRuntimeParameters(
         const TOperationRuntimeParametersPtr& runtimeParameters,
         const TOperationSpecBasePtr& spec,
         const TSerializableAccessControlList& baseAcl,
@@ -545,7 +545,7 @@ public:
         }
     }
 
-    virtual TFuture<void> ValidateOperationRuntimeParameters(
+    TFuture<void> ValidateOperationRuntimeParameters(
         IOperationStrategyHost* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters,
         bool validatePools) override
@@ -568,7 +568,7 @@ public:
         }
     }
 
-    virtual void ValidatePoolLimits(
+    void ValidatePoolLimits(
         IOperationStrategyHost* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters) override
     {
@@ -580,7 +580,7 @@ public:
         }
     }
 
-    virtual void BuildOrchid(TFluentMap fluent) override
+    void BuildOrchid(TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -629,7 +629,7 @@ public:
             });
     }
 
-    virtual void ApplyJobMetricsDelta(TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics) override
+    void ApplyJobMetricsDelta(TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -666,12 +666,12 @@ public:
         }
     }
 
-    virtual TFuture<void> ValidateOperationStart(const IOperationStrategyHost* operation) override
+    TFuture<void> ValidateOperationStart(const IOperationStrategyHost* operation) override
     {
         return ValidateOperationPoolsCanBeUsed(operation, operation->GetRuntimeParameters());
     }
 
-    virtual THashMap<TString, TError> GetPoolLimitViolations(
+    THashMap<TString, TError> GetPoolLimitViolations(
         const IOperationStrategyHost* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters) override
     {
@@ -707,7 +707,7 @@ public:
         }
     }
 
-    virtual void OnFairShareProfilingAt(TInstant /*now*/) override
+    void OnFairShareProfilingAt(TInstant /*now*/) override
     {
         VERIFY_INVOKER_AFFINITY(Host->GetFairShareProfilingInvoker());
 
@@ -720,7 +720,7 @@ public:
     }
 
     // NB: This function is public for testing purposes.
-    virtual void OnFairShareUpdateAt(TInstant now) override
+    void OnFairShareUpdateAt(TInstant now) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -787,7 +787,7 @@ public:
         YT_LOG_INFO("Fair share successfully updated");
     }
 
-    virtual void OnFairShareEssentialLoggingAt(TInstant now) override
+    void OnFairShareEssentialLoggingAt(TInstant now) override
     {
         VERIFY_INVOKER_AFFINITY(Host->GetFairShareLoggingInvoker());
 
@@ -799,7 +799,7 @@ public:
         }
     }
 
-    virtual void OnFairShareLoggingAt(TInstant now) override
+    void OnFairShareLoggingAt(TInstant now) override
     {
         VERIFY_INVOKER_AFFINITY(Host->GetFairShareLoggingInvoker());
 
@@ -811,7 +811,7 @@ public:
         }
     }
 
-    virtual void ProcessJobUpdates(
+    void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
         std::vector<std::pair<TOperationId, TJobId>>* successfullyUpdatedJobs,
         std::vector<TJobId>* jobsToAbort) override
@@ -878,7 +878,7 @@ public:
         }
     }
 
-    virtual void RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& jobs) override
+    void RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& jobs) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -901,7 +901,7 @@ public:
         }
     }
 
-    virtual void EnableOperation(IOperationStrategyHost* host) override
+    void EnableOperation(IOperationStrategyHost* host) override
     {
         auto operationId = host->GetId();
         const auto& state = GetOperationState(operationId);
@@ -919,7 +919,7 @@ public:
         }
     }
 
-    virtual std::vector<TString> GetNodeTreeIds(const TBooleanFormulaTags& tags) override
+    std::vector<TString> GetNodeTreeIds(const TBooleanFormulaTags& tags) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -934,7 +934,7 @@ public:
         return treeIds;
     }
 
-    virtual TString ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand) override
+    TString ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand) override
     {
         auto snapshots = TreeIdToSnapshot_.Load();
 
@@ -1010,7 +1010,7 @@ public:
         return bestTree;
     }
 
-    virtual TError InitOperationSchedulingSegment(TOperationId operationId) override
+    TError InitOperationSchedulingSegment(TOperationId operationId) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -1037,7 +1037,7 @@ public:
         return TError();
     }
 
-    virtual TStrategySchedulingSegmentsState GetStrategySchedulingSegmentsState() const override
+    TStrategySchedulingSegmentsState GetStrategySchedulingSegmentsState() const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -1049,7 +1049,7 @@ public:
         return result;
     }
 
-    virtual THashMap<TString, TOperationIdWithDataCenterList> GetOperationSchedulingSegmentDataCenterUpdates() const override
+    THashMap<TString, TOperationIdWithDataCenterList> GetOperationSchedulingSegmentDataCenterUpdates() const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -1064,7 +1064,7 @@ public:
         return result;
     }
 
-    virtual void ScanPendingOperations() override
+    void ScanPendingOperations() override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -1073,14 +1073,14 @@ public:
         }
     }
 
-    virtual TFuture<void> GetFullFairShareUpdateFinished() override
+    TFuture<void> GetFullFairShareUpdateFinished() override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         return FairShareUpdateExecutor_->GetExecutedEvent();
     }
 
-    virtual void OnBuildResourceMetering() override
+    void OnBuildResourceMetering() override
     {
         DoBuildResourceMeteringAt(TInstant::Now());
     }
@@ -1094,7 +1094,7 @@ public:
         return result;
     }
 
-    virtual TCachedJobPreemptionStatuses GetCachedJobPreemptionStatusesForNode(
+    TCachedJobPreemptionStatuses GetCachedJobPreemptionStatusesForNode(
         const TString& nodeAddress,
         const TBooleanFormulaTags& nodeTags) const override
     {

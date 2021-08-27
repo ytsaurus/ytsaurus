@@ -47,7 +47,7 @@ public:
 private:
     using TBase = TNonversionedObjectProxyBase<TTransaction>;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
@@ -99,7 +99,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::Depth);
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto* transaction = GetThisImpl();
 
@@ -195,7 +195,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         auto* transaction = GetThisImpl();
 
@@ -214,7 +214,7 @@ private:
         return TBase::SetBuiltinAttribute(key, value);
     }
 
-    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
+    TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
         const auto* transaction = GetThisImpl();
 

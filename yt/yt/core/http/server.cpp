@@ -68,18 +68,18 @@ public:
         , OwnPoller_(ownPoller)
     { }
 
-    virtual void AddHandler(const TString& path, const IHttpHandlerPtr& handler) override
+    void AddHandler(const TString& path, const IHttpHandlerPtr& handler) override
     {
         YT_VERIFY(!Started_);
         Handlers_.Add(path, handler);
     }
 
-    virtual const TNetworkAddress& GetAddress() const override
+    const TNetworkAddress& GetAddress() const override
     {
         return Listener_->GetAddress();
     }
 
-    virtual void Start() override
+    void Start() override
     {
         YT_VERIFY(!Started_);
         Started_ = true;
@@ -89,7 +89,7 @@ public:
         AsyncAcceptConnection();
     }
 
-    virtual void Stop() override
+    void Stop() override
     {
         Stopped_.store(true);
 

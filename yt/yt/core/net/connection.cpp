@@ -54,7 +54,7 @@ public:
         : Buffer_(buffer)
     { }
 
-    virtual TErrorOr<TIOResult> PerformIO(int fd) override
+    TErrorOr<TIOResult> PerformIO(int fd) override
     {
         size_t bytesRead = 0;
         while (true) {
@@ -77,12 +77,12 @@ public:
         }
     }
 
-    virtual void Abort(const TError& error) override
+    void Abort(const TError& error) override
     {
         ResultPromise_.Set(error);
     }
 
-    virtual void SetResult() override
+    void SetResult() override
     {
         ResultPromise_.Set(Position_);
     }
@@ -109,7 +109,7 @@ public:
         : Buffer_(buffer)
     { }
 
-    virtual TErrorOr<TIOResult> PerformIO(int fd) override
+    TErrorOr<TIOResult> PerformIO(int fd) override
     {
         ssize_t size = HandleEintr(
             ::recvfrom,
@@ -133,12 +133,12 @@ public:
         return TIOResult(false, size);
     }
 
-    virtual void Abort(const TError& error) override
+    void Abort(const TError& error) override
     {
         ResultPromise_.Set(error);
     }
 
-    virtual void SetResult() override
+    void SetResult() override
     {
         ResultPromise_.Set(std::make_pair(Position_, RemoteAddress_));
     }
@@ -166,7 +166,7 @@ public:
         : Buffer_(buffer)
     { }
 
-    virtual TErrorOr<TIOResult> PerformIO(int fd) override
+    TErrorOr<TIOResult> PerformIO(int fd) override
     {
         size_t bytesWritten = 0;
         while (true) {
@@ -192,12 +192,12 @@ public:
         }
     }
 
-    virtual void Abort(const TError& error) override
+    void Abort(const TError& error) override
     {
         ResultPromise_.Set(error);
     }
 
-    virtual void SetResult() override
+    void SetResult() override
     {
         ResultPromise_.Set();
     }
@@ -224,7 +224,7 @@ public:
         : Buffers_(buffers)
     { }
 
-    virtual TErrorOr<TIOResult> PerformIO(int fd) override
+    TErrorOr<TIOResult> PerformIO(int fd) override
     {
         size_t bytesWritten = 0;
         while (true) {
@@ -268,12 +268,12 @@ public:
         }
     }
 
-    virtual void Abort(const TError& error) override
+    void Abort(const TError& error) override
     {
         ResultPromise_.Set(error);
     }
 
-    virtual void SetResult() override
+    void SetResult() override
     {
         ResultPromise_.Set();
     }
@@ -301,7 +301,7 @@ public:
         : ShutdownRead_(shutdownRead)
     { }
 
-    virtual TErrorOr<TIOResult> PerformIO(int fd) override
+    TErrorOr<TIOResult> PerformIO(int fd) override
     {
         int res = HandleEintr(::shutdown, fd, ShutdownRead_ ? SHUT_RD : SHUT_WR);
         if (res == -1) {
@@ -311,12 +311,12 @@ public:
         return TIOResult(false, 0);
     }
 
-    virtual void Abort(const TError& error) override
+    void Abort(const TError& error) override
     {
         ResultPromise_.Set(error);
     }
 
-    virtual void SetResult() override
+    void SetResult() override
     {
         ResultPromise_.Set();
     }
@@ -358,12 +358,12 @@ public:
         return impl;
     }
 
-    virtual const TString& GetLoggingTag() const override
+    const TString& GetLoggingTag() const override
     {
         return LoggingTag_;
     }
 
-    virtual void OnEvent(EPollControl control) override
+    void OnEvent(EPollControl control) override
     {
         DoIO(&WriteDirection_, Any(control & EPollControl::Write));
         DoIO(&ReadDirection_, Any(control & EPollControl::Read));
@@ -381,7 +381,7 @@ public:
         }
     }
 
-    virtual void OnShutdown() override
+    void OnShutdown() override
     {
         // Poller guarantees that OnShutdown is never executed concurrently with OnEvent()
         {
@@ -905,102 +905,102 @@ public:
         Impl_->Abort(TError("Connection is abandoned"));
     }
 
-    virtual const TNetworkAddress& LocalAddress() const override
+    const TNetworkAddress& LocalAddress() const override
     {
         return Impl_->LocalAddress();
     }
 
-    virtual const TNetworkAddress& RemoteAddress() const override
+    const TNetworkAddress& RemoteAddress() const override
     {
         return Impl_->RemoteAddress();
     }
 
-    virtual int GetHandle() const override
+    int GetHandle() const override
     {
         return Impl_->GetHandle();
     }
 
-    virtual TFuture<size_t> Read(const TSharedMutableRef& data) override
+    TFuture<size_t> Read(const TSharedMutableRef& data) override
     {
         return Impl_->Read(data);
     }
 
-    virtual TFuture<void> Write(const TSharedRef& data) override
+    TFuture<void> Write(const TSharedRef& data) override
     {
         return Impl_->Write(data);
     }
 
-    virtual TFuture<void> WriteV(const TSharedRefArray& data) override
+    TFuture<void> WriteV(const TSharedRefArray& data) override
     {
         return Impl_->WriteV(data);
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         return Impl_->Close();
     }
 
-    virtual bool IsIdle() const override
+    bool IsIdle() const override
     {
         return Impl_->IsIdle();
     }
 
-    virtual TFuture<void> Abort() override
+    TFuture<void> Abort() override
     {
         return Impl_->Abort(TError(EErrorCode::Aborted, "Connection aborted"));
     }
 
-    virtual TFuture<void> CloseRead() override
+    TFuture<void> CloseRead() override
     {
         return Impl_->CloseRead();
     }
 
-    virtual TFuture<void> CloseWrite() override
+    TFuture<void> CloseWrite() override
     {
         return Impl_->CloseWrite();
     }
 
-    virtual i64 GetReadByteCount() const override
+    i64 GetReadByteCount() const override
     {
         return Impl_->GetReadByteCount();
     }
 
-    virtual i64 GetWriteByteCount() const override
+    i64 GetWriteByteCount() const override
     {
         return Impl_->GetWriteByteCount();
     }
 
-    virtual TConnectionStatistics GetReadStatistics() const override
+    TConnectionStatistics GetReadStatistics() const override
     {
         return Impl_->GetReadStatistics();
     }
 
-    virtual TConnectionStatistics GetWriteStatistics() const override
+    TConnectionStatistics GetWriteStatistics() const override
     {
         return Impl_->GetWriteStatistics();
     }
 
-    virtual void SetReadDeadline(std::optional<TInstant> deadline) override
+    void SetReadDeadline(std::optional<TInstant> deadline) override
     {
         Impl_->SetReadDeadline(deadline);
     }
 
-    virtual void SetWriteDeadline(std::optional<TInstant> deadline) override
+    void SetWriteDeadline(std::optional<TInstant> deadline) override
     {
         Impl_->SetWriteDeadline(deadline);
     }
 
-    virtual bool SetNoDelay() override
+    bool SetNoDelay() override
     {
         return Impl_->SetNoDelay();
     }
 
-    virtual bool SetKeepAlive() override
+    bool SetKeepAlive() override
     {
         return Impl_->SetKeepAlive();
     }
 
-    virtual void SubscribePeerDisconnect(TCallback<void()> cb) override
+    void SubscribePeerDisconnect(TCallback<void()> cb) override
     {
         return Impl_->SubscribePeerDisconnect(std::move(cb));
     }
@@ -1113,18 +1113,18 @@ public:
         Abort();
     }
 
-    virtual TFuture<std::pair<size_t, TNetworkAddress>> ReceiveFrom(
+    TFuture<std::pair<size_t, TNetworkAddress>> ReceiveFrom(
         const TSharedMutableRef& buffer) override
     {
         return Impl_->ReceiveFrom(buffer);
     }
 
-    virtual void SendTo(const TSharedRef& buffer, const TNetworkAddress& address) override
+    void SendTo(const TSharedRef& buffer, const TNetworkAddress& address) override
     {
         Impl_->SendTo(buffer, address);
     }
 
-    virtual TFuture<void> Abort() override
+    TFuture<void> Abort() override
     {
         return Impl_->Abort(TError("Connection is abandoned"));
     }

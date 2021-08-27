@@ -110,7 +110,7 @@ struct TColumnRefiner
 {
     using TBase = TColumnIterator<Type>;
 
-    virtual void Refine(
+    void Refine(
         TKeysSlice<T>* keys,
         const TColumnSlice& columnSlice,
         const std::vector<TSpanMatching>& matchings,
@@ -223,7 +223,7 @@ public:
         }
     }
 
-    virtual std::vector<TSpanMatching> BuildReadWindows(const TCachedVersionedChunkMetaPtr& chunkMeta) const override
+    std::vector<TSpanMatching> BuildReadWindows(const TCachedVersionedChunkMetaPtr& chunkMeta) const override
     {
         struct TPredicate
         {
@@ -241,7 +241,7 @@ public:
         return DoBuildReadWindows(chunkMeta, KeyRanges_, TPredicate{});
     }
 
-    virtual std::vector<TReadSpan> BuildReadListForWindow(
+    std::vector<TReadSpan> BuildReadListForWindow(
         TRange<TColumnSlice> columnSlices,
         TSpanMatching initialWindow) const override
     {
@@ -311,7 +311,7 @@ public:
         }
     }
 
-    virtual std::vector<TSpanMatching> BuildReadWindows(const TCachedVersionedChunkMetaPtr& chunkMeta) const override
+    std::vector<TSpanMatching> BuildReadWindows(const TCachedVersionedChunkMetaPtr& chunkMeta) const override
     {
         // Strong typedef.
         struct TItem
@@ -339,7 +339,7 @@ public:
             TPredicate{});
     }
 
-    virtual std::vector<TReadSpan> BuildReadListForWindow(
+    std::vector<TReadSpan> BuildReadListForWindow(
         TRange<TColumnSlice> columnSlices,
         TSpanMatching initialWindow) const override
     {
@@ -683,12 +683,12 @@ public:
         , HasHunkColumns_(ChunkMeta_->GetChunkSchema()->HasHunkColumns())
     { }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return VoidFuture;
     }
 
-    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         YT_VERIFY(options.MaxRowsPerRead > 0);
 
@@ -713,13 +713,13 @@ public:
             MakeStrong(this)));
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         return TVersionedChunkReader::GetReadyEvent();
     }
 
     // TODO(lukyan): Provide statistics object to BlockFetcher.
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         if (!BlockFetcher_) {
             return TDataStatistics();
@@ -734,14 +734,14 @@ public:
         return dataStatistics;
     }
 
-    virtual TCodecStatistics GetDecompressionStatistics() const override
+    TCodecStatistics GetDecompressionStatistics() const override
     {
         return BlockFetcher_
             ? TCodecStatistics().Append(BlockFetcher_->GetDecompressionTime())
             : TCodecStatistics();
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         if (!BlockFetcher_) {
             return true;
@@ -750,7 +750,7 @@ public:
         return BlockFetcher_->IsFetchingCompleted();
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return {};
     }

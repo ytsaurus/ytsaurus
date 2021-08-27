@@ -38,32 +38,32 @@ public:
         return std::make_shared<TFunctionYson>(context_);
     }
 
-    virtual String getName() const override
+    String getName() const override
     {
         return Name::name;
     }
 
-    virtual bool isVariadic() const override
+    bool isVariadic() const override
     {
         return true;
     }
 
-    virtual size_t getNumberOfArguments() const override
+    size_t getNumberOfArguments() const override
     {
         return 0;
     }
 
-    virtual bool useDefaultImplementationForConstants() const override
+    bool useDefaultImplementationForConstants() const override
     {
         return false;
     }
 
-    virtual DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName& arguments) const override
+    DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName& arguments) const override
     {
         return Impl<TYsonParserAdapter>::getReturnType(Name::name, arguments);
     }
 
-    virtual ColumnPtr executeImpl(const ColumnsWithTypeAndName& arguments, const DataTypePtr & result_type, size_t input_rows_count) const override
+    ColumnPtr executeImpl(const ColumnsWithTypeAndName& arguments, const DataTypePtr & result_type, size_t input_rows_count) const override
     {
         return FunctionJSONHelpers::Executor<Name, Impl, TYsonParserAdapter>::run(arguments, result_type, input_rows_count);
     }

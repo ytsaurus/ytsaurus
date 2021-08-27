@@ -20,12 +20,12 @@ class TPortalExitTypeHandler
 public:
     using TMapNodeTypeHandlerImpl::TMapNodeTypeHandlerImpl;
 
-    virtual EObjectType GetObjectType() const override
+    EObjectType GetObjectType() const override
     {
         return EObjectType::PortalExit;
     }
 
-    virtual ETypeFlags GetFlags() const override
+    ETypeFlags GetFlags() const override
     {
         return
             ETypeFlags::ForbidInheritAclChange |
@@ -33,7 +33,7 @@ public:
     }
 
 private:
-    virtual ICypressNodeProxyPtr DoGetProxy(
+    ICypressNodeProxyPtr DoGetProxy(
         TPortalExitNode* trunkNode,
         TTransaction* transaction) override
     {
@@ -44,7 +44,7 @@ private:
             trunkNode);
     }
 
-    virtual void DoDestroy(TPortalExitNode* node) override
+    void DoDestroy(TPortalExitNode* node) override
     {
         TMapNodeTypeHandlerImpl::DoDestroy(node);
 
@@ -54,7 +54,7 @@ private:
         }
     }
 
-    virtual void DoBeginCopy(
+    void DoBeginCopy(
         TPortalExitNode* node,
         TBeginCopyContext* context) override
     {
@@ -63,7 +63,7 @@ private:
         TMapNodeTypeHandlerImpl::DoBeginCopy(node, context);
     }
 
-    virtual void DoEndCopy(
+    void DoEndCopy(
         TPortalExitNode* /*trunkNode*/,
         TEndCopyContext* /*context*/,
         ICypressNodeFactory* /*factory*/) override

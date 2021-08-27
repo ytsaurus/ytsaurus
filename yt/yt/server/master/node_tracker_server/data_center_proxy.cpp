@@ -34,12 +34,12 @@ public:
 private:
     using TBase = TNonversionedObjectProxyBase<TDataCenter>;
 
-    virtual void ValidateRemoval() override
+    void ValidateRemoval() override
     {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
     }
 
-    virtual void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
@@ -50,7 +50,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::Racks);
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         const auto* dc = GetThisImpl();
@@ -77,7 +77,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         auto* dc = GetThisImpl();
         auto nodeTracker = Bootstrap_->GetNodeTracker();

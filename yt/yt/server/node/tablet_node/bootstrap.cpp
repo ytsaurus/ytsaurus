@@ -61,7 +61,7 @@ public:
         , ClusterNodeBootstrap_(bootstrap)
     { }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         GetDynamicConfigManager()
             ->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
@@ -142,7 +142,7 @@ public:
         SlotManager_->Initialize();
     }
 
-    virtual void Run() override
+    void Run() override
     {
         SetNodeByYPath(
             GetOrchidRoot(),
@@ -167,62 +167,62 @@ public:
         HintManager_->Start();
     }
 
-    virtual const ITabletSnapshotStorePtr& GetTabletSnapshotStore() const override
+    const ITabletSnapshotStorePtr& GetTabletSnapshotStore() const override
     {
         return TabletSnapshotStore_;
     }
 
-    virtual const IInMemoryManagerPtr& GetInMemoryManager() const override
+    const IInMemoryManagerPtr& GetInMemoryManager() const override
     {
         return InMemoryManager_;
     }
 
-    virtual const IResourceLimitsManagerPtr& GetResourceLimitsManager() const override
+    const IResourceLimitsManagerPtr& GetResourceLimitsManager() const override
     {
         return GetCellarNodeBootstrap()->GetResourceLimitsManager();
     }
 
-    virtual const IStructuredLoggerPtr& GetStructuredLogger() const override
+    const IStructuredLoggerPtr& GetStructuredLogger() const override
     {
         return StructuredLogger_;
     }
 
-    virtual const IHintManagerPtr& GetHintManager() const override
+    const IHintManagerPtr& GetHintManager() const override
     {
         return HintManager_;
     }
 
-    virtual const ISlotManagerPtr& GetSlotManager() const override
+    const ISlotManagerPtr& GetSlotManager() const override
     {
         return SlotManager_;
     }
 
-    virtual const ICellarManagerPtr& GetCellarManager() const override
+    const ICellarManagerPtr& GetCellarManager() const override
     {
         return GetCellarNodeBootstrap()->GetCellarManager();
     }
 
-    virtual const IInvokerPtr& GetTransactionTrackerInvoker() const override
+    const IInvokerPtr& GetTransactionTrackerInvoker() const override
     {
         return GetCellarNodeBootstrap()->GetTransactionTrackerInvoker();
     }
 
-    virtual const IInvokerPtr& GetTableReplicatorPoolInvoker() const override
+    const IInvokerPtr& GetTableReplicatorPoolInvoker() const override
     {
         return TableReplicatorThreadPool_->GetInvoker();
     }
 
-    virtual const IInvokerPtr& GetTabletLookupPoolInvoker() const override
+    const IInvokerPtr& GetTabletLookupPoolInvoker() const override
     {
         return TabletLookupThreadPool_->GetInvoker();
     }
 
-    virtual const IInvokerPtr& GetTabletFetchPoolInvoker() const override
+    const IInvokerPtr& GetTabletFetchPoolInvoker() const override
     {
         return TabletFetchThreadPool_->GetInvoker();
     }
 
-    virtual IInvokerPtr GetQueryPoolInvoker(
+    IInvokerPtr GetQueryPoolInvoker(
         const TString& poolName,
         double weight,
         const TFairShareThreadPoolTag& tag) const override
@@ -230,12 +230,12 @@ public:
         return QueryThreadPool_->GetInvoker(poolName, weight, tag);
     }
 
-    virtual const IThroughputThrottlerPtr& GetThrottler(NTabletNode::ETabletNodeThrottlerKind kind) const override
+    const IThroughputThrottlerPtr& GetThrottler(NTabletNode::ETabletNodeThrottlerKind kind) const override
     {
         return Throttlers_[kind];
     }
 
-    virtual const IThroughputThrottlerPtr& GetInThrottler(EWorkloadCategory category) const override
+    const IThroughputThrottlerPtr& GetInThrottler(EWorkloadCategory category) const override
     {
         static const THashMap<EWorkloadCategory, ETabletNodeThrottlerKind> WorkloadCategoryToThrottlerKind = {
             {EWorkloadCategory::SystemTabletCompaction,      ETabletNodeThrottlerKind::StoreCompactionAndPartitioningIn},
@@ -248,7 +248,7 @@ public:
             : Throttlers_[it->second];
     }
 
-    virtual const IThroughputThrottlerPtr& GetOutThrottler(EWorkloadCategory category) const override
+    const IThroughputThrottlerPtr& GetOutThrottler(EWorkloadCategory category) const override
     {
         static const THashMap<EWorkloadCategory, ETabletNodeThrottlerKind> WorkloadCategoryToThrottlerKind = {
             {EWorkloadCategory::SystemTabletCompaction,      ETabletNodeThrottlerKind::StoreCompactionAndPartitioningOut},
@@ -263,27 +263,27 @@ public:
             : Throttlers_[it->second];
     }
 
-    virtual const IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() const override
+    const IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() const override
     {
         return ColumnEvaluatorCache_;
     }
 
-    virtual const IRowComparerProviderPtr& GetRowComparerProvider() const override
+    const IRowComparerProviderPtr& GetRowComparerProvider() const override
     {
         return RowComparerProvider_;
     }
 
-    virtual const IMasterConnectorPtr& GetMasterConnector() const override
+    const IMasterConnectorPtr& GetMasterConnector() const override
     {
         return MasterConnector_;
     }
 
-    virtual const NCellarNode::IMasterConnectorPtr& GetCellarNodeMasterConnector() const override
+    const NCellarNode::IMasterConnectorPtr& GetCellarNodeMasterConnector() const override
     {
         return GetCellarNodeBootstrap()->GetMasterConnector();
     }
 
-    virtual const IChunkRegistryPtr& GetChunkRegistry() const override
+    const IChunkRegistryPtr& GetChunkRegistry() const override
     {
         if (ClusterNodeBootstrap_->IsDataNode()) {
             return ClusterNodeBootstrap_
@@ -295,7 +295,7 @@ public:
         }
     }
 
-    virtual const IChunkBlockManagerPtr& GetChunkBlockManager() const override
+    const IChunkBlockManagerPtr& GetChunkBlockManager() const override
     {
         if (ClusterNodeBootstrap_->IsDataNode()) {
             return ClusterNodeBootstrap_

@@ -32,12 +32,12 @@ public:
     { }
 
     // IPollable implementation
-    virtual const TString& GetLoggingTag() const override
+    const TString& GetLoggingTag() const override
     {
         return Name_;
     }
 
-    virtual void OnEvent(EPollControl /*control*/) override
+    void OnEvent(EPollControl /*control*/) override
     {
         try {
             while (true) {
@@ -71,7 +71,7 @@ public:
         }
     }
 
-    virtual void OnShutdown() override
+    void OnShutdown() override
     {
         decltype(Queue_) queue;
         {
@@ -88,13 +88,13 @@ public:
         }
     }
 
-    virtual const TNetworkAddress& GetAddress() const override
+    const TNetworkAddress& GetAddress() const override
     {
         return Address_;
     }
 
     // IListener implementation
-    virtual TFuture<IConnectionPtr> Accept() override
+    TFuture<IConnectionPtr> Accept() override
     {
         auto promise = NewPromise<IConnectionPtr>();
 
@@ -126,7 +126,7 @@ public:
         return promise.ToFuture();
     }
 
-    virtual void Shutdown() override
+    void Shutdown() override
     {
         Abort(TError("Listener is shut down"));
     }

@@ -336,7 +336,7 @@ class TDecodeNullsFromRleDictionaryIndexesWithZeroNullTest
     , public ::testing::WithParamInterface<std::tuple<int, int>>
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         Expected.resize(800);
         std::fill(Expected.begin() +   3, Expected.begin() +   5, true);
@@ -524,7 +524,7 @@ class TDecodeNullsFromRleNullBitmapTest
     , public ::testing::WithParamInterface<std::tuple<int, int>>
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         Expected.resize(800);
         std::fill(Expected.begin() +   3, Expected.begin() +   5, true);
@@ -590,7 +590,7 @@ class TDecodeBytemapFromBitmapTest
     , public ::testing::WithParamInterface<std::tuple<int, int>>
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         Expected.resize(800);
         std::fill(Expected.begin() +   3, Expected.begin() +   5, true);
@@ -644,7 +644,7 @@ class TCountTotalStringLengthInRleDictionaryIndexesWithZeroNullTest
     , public ::testing::WithParamInterface<std::tuple<int, int>>
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         int j = -1;
         for (int i = 0; i < 40; ++i) {

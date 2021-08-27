@@ -563,7 +563,7 @@ public:
         : TCypressNode(id)
     { }
 
-    virtual ENodeType GetNodeType() const override
+    ENodeType GetNodeType() const override
     {
         return ENodeType::Entity;
     }
@@ -591,7 +591,7 @@ public:
         , Producer_(producer)
     { }
 
-    virtual ENodeType GetType() const override
+    ENodeType GetType() const override
     {
         return ENodeType::Entity;
     }
@@ -608,7 +608,7 @@ private:
         return IsRequestMutating(context->RequestHeader()) ? EPermission::Write : EPermission::Read;
     }
 
-    virtual TResolveResult Resolve(const TYPath& path, const NRpc::IServiceContextPtr& context) override
+    TResolveResult Resolve(const TYPath& path, const NRpc::IServiceContextPtr& context) override
     {
         NYPath::TTokenizer tokenizer(path);
         tokenizer.Advance();
@@ -631,7 +631,7 @@ private:
         }
     }
 
-    virtual TResolveResult ResolveSelf(const TYPath& path, const IServiceContextPtr& context) override
+    TResolveResult ResolveSelf(const TYPath& path, const IServiceContextPtr& context) override
     {
         auto service = GetService();
         const auto& method = context->GetMethod();
@@ -649,7 +649,7 @@ private:
         }
     }
 
-    virtual TResolveResult ResolveRecursive(const TYPath& path, const IServiceContextPtr& /*context*/) override
+    TResolveResult ResolveRecursive(const TYPath& path, const IServiceContextPtr& /*context*/) override
     {
         auto service = GetService();
         NYPath::TTokenizer tokenizer(path);
@@ -663,7 +663,7 @@ private:
     }
 
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         auto service = GetService();
         auto* provider = GetTargetBuiltinAttributeProvider(service);
@@ -674,7 +674,7 @@ private:
         TBase::ListSystemAttributes(descriptors);
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         auto service = GetService();
         auto* provider = GetTargetBuiltinAttributeProvider(service);
@@ -685,7 +685,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
+    TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
         auto service = GetService();
         auto* provider = GetTargetBuiltinAttributeProvider(service);
@@ -699,7 +699,7 @@ private:
         return TBase::GetBuiltinAttributeAsync(key);
     }
 
-    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         auto service = GetService();
         auto* provider = GetTargetBuiltinAttributeProvider(service);
@@ -738,17 +738,17 @@ public:
         , Options_(options)
     { }
 
-    virtual EObjectType GetObjectType() const override
+    EObjectType GetObjectType() const override
     {
         return ObjectType_;
     }
 
-    virtual ENodeType GetNodeType() const override
+    ENodeType GetNodeType() const override
     {
         return ENodeType::Entity;
     }
 
-    virtual bool HasBranchedChangesImpl(TVirtualNode* /*originatingNode*/, TVirtualNode* /*branchedNode*/) override
+    bool HasBranchedChangesImpl(TVirtualNode* /*originatingNode*/, TVirtualNode* /*branchedNode*/) override
     {
         // Treat virtual nodes as always different because explicitly unlocking
         // them makes little sense anyway.
@@ -761,7 +761,7 @@ private:
     const EVirtualNodeOptions Options_;
 
 
-    virtual ICypressNodeProxyPtr DoGetProxy(
+    ICypressNodeProxyPtr DoGetProxy(
         TVirtualNode* trunkNode,
         TTransaction* transaction) override
     {

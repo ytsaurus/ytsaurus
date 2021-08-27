@@ -58,19 +58,19 @@ public:
 
     // IShuffleChunkPool implementation.
 
-    virtual IChunkPoolInputPtr GetInput() override
+    IChunkPoolInputPtr GetInput() override
     {
         return this;
     }
 
-    virtual IChunkPoolOutputPtr GetOutput(int partitionIndex) override
+    IChunkPoolOutputPtr GetOutput(int partitionIndex) override
     {
         return Outputs_[partitionIndex];
     }
 
     // IChunkPoolInput implementation.
 
-    virtual IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
+    IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
     {
         YT_VERIFY(!Finished);
 
@@ -124,7 +124,7 @@ public:
         return cookie;
     }
 
-    virtual void Suspend(IChunkPoolInput::TCookie cookie) override
+    void Suspend(IChunkPoolInput::TCookie cookie) override
     {
         const auto& inputStripe = InputStripes_[cookie];
         for (int index = inputStripe.ElementaryIndexBegin; index < inputStripe.ElementaryIndexEnd; ++index) {
@@ -134,7 +134,7 @@ public:
         }
     }
 
-    virtual void Resume(IChunkPoolInput::TCookie cookie) override
+    void Resume(IChunkPoolInput::TCookie cookie) override
     {
         const auto& inputStripe = InputStripes_[cookie];
 
@@ -148,7 +148,7 @@ public:
         }
     }
 
-    virtual void Finish() override
+    void Finish() override
     {
         if (Finished) {
             return;
@@ -165,7 +165,7 @@ public:
 
     // IPersistent implementation.
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         TChunkPoolInputBase::Persist(context);
 
@@ -178,12 +178,12 @@ public:
         Persist(context, TotalJobCount_);
     }
 
-    virtual i64 GetTotalDataSliceCount() const override
+    i64 GetTotalDataSliceCount() const override
     {
         return ElementaryStripes_.size();
     }
 
-    virtual i64 GetTotalJobCount() const override
+    i64 GetTotalJobCount() const override
     {
         return TotalJobCount_;
     }
@@ -277,7 +277,7 @@ private:
 
         // IChunkPoolOutput implementation.
 
-        virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
+        TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
         {
             YT_VERIFY(!Runs_.empty());
             YT_VERIFY(JobCounter->GetPending() > 0);
@@ -304,12 +304,12 @@ private:
             return result;
         }
 
-        virtual bool IsCompleted() const override
+        bool IsCompleted() const override
         {
             return IsCompleted_;
         }
 
-        virtual TCookie Extract(TNodeId /* nodeId */) override
+        TCookie Extract(TNodeId /* nodeId */) override
         {
             if (JobCounter->GetPending() == 0) {
                 return IChunkPoolOutput::NullCookie;
@@ -327,7 +327,7 @@ private:
             return cookie;
         }
 
-        virtual TChunkStripeListPtr GetStripeList(TCookie cookie) override
+        TChunkStripeListPtr GetStripeList(TCookie cookie) override
         {
             const auto& run = Runs_[cookie];
 
@@ -355,13 +355,13 @@ private:
             return list;
         }
 
-        virtual int GetStripeListSliceCount(TCookie cookie) const override
+        int GetStripeListSliceCount(TCookie cookie) const override
         {
             const auto& run = Runs_[cookie];
             return run.GetSliceCount();
         }
 
-        virtual void Completed(TCookie cookie, const TCompletedJobSummary& /* jobSummary */) override
+        void Completed(TCookie cookie, const TCompletedJobSummary& /* jobSummary */) override
         {
             auto& run = Runs_[cookie];
             YT_VERIFY(run.State == ERunState::Running);
@@ -370,7 +370,7 @@ private:
             CheckCompleted();
         }
 
-        virtual void Failed(TCookie cookie) override
+        void Failed(TCookie cookie) override
         {
             auto& run = Runs_[cookie];
             YT_VERIFY(run.State == ERunState::Running);
@@ -380,7 +380,7 @@ private:
             UpdateRun(&run);
         }
 
-        virtual void Aborted(TCookie cookie, EAbortReason reason) override
+        void Aborted(TCookie cookie, EAbortReason reason) override
         {
             auto& run = Runs_[cookie];
             YT_VERIFY(run.State == ERunState::Running);
@@ -390,7 +390,7 @@ private:
             UpdateRun(&run);
         }
 
-        virtual void Lost(TCookie cookie) override
+        void Lost(TCookie cookie) override
         {
             auto& run = Runs_[cookie];
             YT_VERIFY(run.State == ERunState::Completed);
@@ -403,7 +403,7 @@ private:
 
         // IPersistent implementation.
 
-        virtual void Persist(const TPersistenceContext& context) override
+        void Persist(const TPersistenceContext& context) override
         {
             TChunkPoolOutputWithCountersBase::Persist(context);
 

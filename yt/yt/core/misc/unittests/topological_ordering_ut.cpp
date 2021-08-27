@@ -44,7 +44,7 @@ protected:
         IncrementalOrdering_ = TIncrementalTopologicalOrdering<int>();
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         Clear();
     }

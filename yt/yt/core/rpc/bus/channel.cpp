@@ -59,22 +59,22 @@ public:
         YT_VERIFY(Client_);
     }
 
-    virtual const TString& GetEndpointDescription() const override
+    const TString& GetEndpointDescription() const override
     {
         return Client_->GetEndpointDescription();
     }
 
-    virtual const IAttributeDictionary& GetEndpointAttributes() const override
+    const IAttributeDictionary& GetEndpointAttributes() const override
     {
         return Client_->GetEndpointAttributes();
     }
 
-    virtual TNetworkId GetNetworkId() const override
+    TNetworkId GetNetworkId() const override
     {
         return NetworkId_;
     }
 
-    virtual IClientRequestControlPtr Send(
+    IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
@@ -96,7 +96,7 @@ public:
             options);
     }
 
-    virtual void Terminate(const TError& error) override
+    void Terminate(const TError& error) override
     {
         YT_VERIFY(!error.IsOK());
         VERIFY_THREAD_AFFINITY_ANY();
@@ -126,12 +126,12 @@ public:
         Terminated_.Fire(error);
     }
 
-    virtual void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override
+    void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override
     {
         Terminated_.Subscribe(callback);
     }
 
-    virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& callback) override
+    void UnsubscribeTerminated(const TCallback<void(const TError&)>& callback) override
     {
         Terminated_.Unsubscribe(callback);
     }
@@ -247,7 +247,7 @@ private:
             : Session_(std::move(session))
         { }
 
-        virtual void HandleMessage(TSharedRefArray message, IBusPtr replyBus) noexcept override
+        void HandleMessage(TSharedRefArray message, IBusPtr replyBus) noexcept override
         {
             auto session_ = Session_.Lock();
             if (session_) {
@@ -589,7 +589,7 @@ private:
             Bus_->Terminate(error);
         }
 
-        virtual void HandleMessage(TSharedRefArray message, IBusPtr /*replyBus*/) noexcept override
+        void HandleMessage(TSharedRefArray message, IBusPtr /*replyBus*/) noexcept override
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1259,17 +1259,17 @@ private:
         }
 
         // IClientRequestControl overrides
-        virtual void Cancel() override
+        void Cancel() override
         {
             Session_->Cancel(this);
         }
 
-        virtual TFuture<void> SendStreamingPayload(const TStreamingPayload& payload) override
+        TFuture<void> SendStreamingPayload(const TStreamingPayload& payload) override
         {
             return Session_->SendStreamingPayload(this, payload);
         }
 
-        virtual TFuture<void> SendStreamingFeedback(const TStreamingFeedback& feedback) override
+        TFuture<void> SendStreamingFeedback(const TStreamingFeedback& feedback) override
         {
             return Session_->SendStreamingFeedback(this, feedback);
         }
@@ -1316,7 +1316,7 @@ public:
         : Config_(ConvertToNode(std::move(config)))
     { }
 
-    virtual IChannelPtr CreateChannel(const TString& address) override
+    IChannelPtr CreateChannel(const TString& address) override
     {
         auto config = TTcpBusClientConfig::CreateTcp(address);
         config->Load(Config_, true, false);
@@ -1324,7 +1324,7 @@ public:
         return CreateBusChannel(std::move(client));
     }
 
-    virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
+    IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
     {
         auto config = TTcpBusClientConfig::CreateTcp(addressWithNetwork.Address, addressWithNetwork.Network);
         config->Load(Config_, true, false);

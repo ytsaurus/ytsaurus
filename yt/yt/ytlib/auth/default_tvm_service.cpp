@@ -81,7 +81,7 @@ public:
         }
     }
 
-    virtual ui32 GetSelfTvmId() override
+    ui32 GetSelfTvmId() override
     {
         return Config_->ClientSelfId;
     }

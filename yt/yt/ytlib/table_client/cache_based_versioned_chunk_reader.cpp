@@ -57,9 +57,9 @@ class TChunkLookupHashTable
 {
 public:
     explicit TChunkLookupHashTable(size_t size);
-    virtual void Insert(TLegacyKey key, std::pair<ui16, ui32> index) override;
-    virtual SmallVector<std::pair<ui16, ui32>, 1> Find(TLegacyKey key) const override;
-    virtual size_t GetByteSize() const override;
+    void Insert(TLegacyKey key, std::pair<ui16, ui32> index) override;
+    SmallVector<std::pair<ui16, ui32>, 1> Find(TLegacyKey key) const override;
+    size_t GetByteSize() const override;
 
 private:
     TLinearProbeHashTable HashTable_;
@@ -88,17 +88,17 @@ public:
         , MemoryPool_(TCacheBasedVersionedChunkReaderPoolTag())
     { }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return VoidFuture;
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         return VoidFuture;
     }
 
-    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         // Drop all references except the last one, as the last surviving block
         // reader may still be alive.
@@ -122,7 +122,7 @@ public:
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
         NChunkClient::NProto::TDataStatistics dataStatistics;
         dataStatistics.set_row_count(RowCount_);
@@ -130,17 +130,17 @@ public:
         return dataStatistics;
     }
 
-    virtual TCodecStatistics GetDecompressionStatistics() const override
+    TCodecStatistics GetDecompressionStatistics() const override
     {
         return DecompressionStatistics_;
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return false;
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return {};
     }
@@ -359,7 +359,7 @@ private:
     int KeyIndex_ = 0;
 
 
-    virtual std::tuple<std::vector<TVersionedRow>, bool> DoRead(const TRowBatchReadOptions& options) override
+    std::tuple<std::vector<TVersionedRow>, bool> DoRead(const TRowBatchReadOptions& options) override
     {
         std::vector<TVersionedRow> rows;
         rows.reserve(
@@ -596,7 +596,7 @@ private:
     bool UpperBoundCheckNeeded_ = false;
     bool NeedLimitUpdate_ = true;
 
-    virtual std::tuple<std::vector<TVersionedRow>, bool> DoRead(const TRowBatchReadOptions& options) override
+    std::tuple<std::vector<TVersionedRow>, bool> DoRead(const TRowBatchReadOptions& options) override
     {
         if (NeedLimitUpdate_) {
             if (UpdateLimits()) {

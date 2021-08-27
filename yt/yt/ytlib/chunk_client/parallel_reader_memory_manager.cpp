@@ -65,7 +65,7 @@ public:
             Options_.EnableDetailedLogging);
     }
 
-    virtual TChunkReaderMemoryManagerPtr CreateChunkReaderMemoryManager(
+    TChunkReaderMemoryManagerPtr CreateChunkReaderMemoryManager(
         std::optional<i64> reservedMemorySize,
         const TTagList& profilingTagList) override
     {
@@ -91,7 +91,7 @@ public:
         return memoryManager;
     }
 
-    virtual IMultiReaderMemoryManagerPtr CreateMultiReaderMemoryManager(
+    IMultiReaderMemoryManagerPtr CreateMultiReaderMemoryManager(
         std::optional<i64> requiredMemorySize,
         const TTagList& profilingTagList) override
     {
@@ -120,14 +120,14 @@ public:
         return memoryManager;
     }
 
-    virtual void Unregister(IReaderMemoryManagerPtr readerMemoryManager) override
+    void Unregister(IReaderMemoryManagerPtr readerMemoryManager) override
     {
         YT_LOG_DEBUG("Child memory manager unregistration scheduled (ChildId: %v)", readerMemoryManager->GetId());
 
         Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoUnregister, MakeWeak(this), std::move(readerMemoryManager)));
     }
 
-    virtual void UpdateMemoryRequirements(IReaderMemoryManagerPtr readerMemoryManager) override
+    void UpdateMemoryRequirements(IReaderMemoryManagerPtr readerMemoryManager) override
     {
         YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Child memory manager memory requirements update scheduled (ChildId: %v, TotalRequiredMemorySize: %v, "
             "TotalDesiredMemorySize: %v, TotalReservedMemorySize: %v, FreeMemorySize: %v)",
@@ -141,22 +141,22 @@ public:
         ScheduleRebalancing();
     }
 
-    virtual i64 GetRequiredMemorySize() const override
+    i64 GetRequiredMemorySize() const override
     {
         return std::max<i64>(TotalRequiredMemory_, RequiredMemoryLowerBound_);
     }
 
-    virtual i64 GetDesiredMemorySize() const override
+    i64 GetDesiredMemorySize() const override
     {
         return std::max<i64>(TotalDesiredMemory_, RequiredMemoryLowerBound_);
     }
 
-    virtual i64 GetReservedMemorySize() const override
+    i64 GetReservedMemorySize() const override
     {
         return TotalReservedMemory_;
     }
 
-    virtual void SetReservedMemorySize(i64 size) override
+    void SetReservedMemorySize(i64 size) override
     {
         YT_LOG_DEBUG_UNLESS(GetReservedMemorySize() == size, "Updating reserved memory size (OldReservedMemorySize: %v, NewReservedMemorySize: %v)",
             GetReservedMemorySize(),
@@ -168,12 +168,12 @@ public:
         ScheduleRebalancing();
     }
 
-    virtual i64 GetFreeMemorySize() override
+    i64 GetFreeMemorySize() override
     {
         return FreeMemory_;
     }
 
-    virtual void Finalize() override
+    void Finalize() override
     {
         YT_LOG_DEBUG("Finalizing parallel reader memory manager (AlreadyFinalized: %v)",
             Finalized_.load());
@@ -182,22 +182,22 @@ public:
         Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::TryUnregister, MakeWeak(this)));
     }
 
-    virtual const TTagList& GetProfilingTagList() const override
+    const TTagList& GetProfilingTagList() const override
     {
         return ProfilingTagList_;
     }
 
-    virtual void AddChunkReaderInfo(TGuid chunkReaderId) override
+    void AddChunkReaderInfo(TGuid chunkReaderId) override
     {
         YT_LOG_DEBUG("Chunk reader info added (ChunkReaderId: %v)", chunkReaderId);
     }
 
-    virtual void AddReadSessionInfo(TGuid readSessionId) override
+    void AddReadSessionInfo(TGuid readSessionId) override
     {
         YT_LOG_DEBUG("Read session info added (ReadSessionId: %v)", readSessionId);
     }
 
-    virtual TGuid GetId() const override
+    TGuid GetId() const override
     {
         return Id_;
     }

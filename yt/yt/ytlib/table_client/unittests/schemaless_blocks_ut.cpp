@@ -44,7 +44,7 @@ class TSchemalessBlocksTestOneRow
     : public TSchemalessBlocksTestBase
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     {
         THorizontalBlockWriter blockWriter;
 
@@ -193,7 +193,7 @@ class TSchemalessBlocksTestManyRows
     : public TSchemalessBlocksTestBase
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     {
         THorizontalBlockWriter blockWriter;
 

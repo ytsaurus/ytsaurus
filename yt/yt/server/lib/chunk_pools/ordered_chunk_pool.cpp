@@ -90,7 +90,7 @@ public:
 
     // IChunkPoolInput implementation.
 
-    virtual IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
+    IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
     {
         YT_VERIFY(!Finished);
 
@@ -110,7 +110,7 @@ public:
         return cookie;
     }
 
-    virtual void Finish() override
+    void Finish() override
     {
         YT_VERIFY(!Finished);
         TChunkPoolInputBase::Finish();
@@ -123,7 +123,7 @@ public:
         CheckCompleted();
     }
 
-    virtual void Suspend(IChunkPoolInput::TCookie cookie) override
+    void Suspend(IChunkPoolInput::TCookie cookie) override
     {
         auto& suspendableStripe = Stripes_[cookie];
         suspendableStripe.Suspend();
@@ -132,7 +132,7 @@ public:
         }
     }
 
-    virtual void Resume(IChunkPoolInput::TCookie cookie) override
+    void Resume(IChunkPoolInput::TCookie cookie) override
     {
         Stripes_[cookie].Resume();
         if (Finished) {
@@ -140,12 +140,12 @@ public:
         }
     }
 
-    virtual bool IsCompleted() const override
+    bool IsCompleted() const override
     {
         return IsCompleted_;
     }
 
-    virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
+    void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
         TJobSplittingBase::Completed(cookie, jobSummary);
 
@@ -161,19 +161,19 @@ public:
         CheckCompleted();
     }
 
-    virtual void Lost(IChunkPoolOutput::TCookie cookie) override
+    void Lost(IChunkPoolOutput::TCookie cookie) override
     {
         TChunkPoolOutputWithJobManagerBase::Lost(cookie);
 
         CheckCompleted();
     }
 
-    virtual TOutputOrderPtr GetOutputOrder() const override
+    TOutputOrderPtr GetOutputOrder() const override
     {
         return OutputOrder_;
     }
 
-    virtual void Persist(const TPersistenceContext& context) final override
+    void Persist(const TPersistenceContext& context) final 
     {
         TChunkPoolInputBase::Persist(context);
         TChunkPoolOutputWithJobManagerBase::Persist(context);

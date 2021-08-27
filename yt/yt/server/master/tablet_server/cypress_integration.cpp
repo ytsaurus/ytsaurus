@@ -32,18 +32,18 @@ public:
     { }
 
 private:
-    virtual std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
+    std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         return ToObjectIds(GetValues(tabletManager->Tablets(), sizeLimit));
     }
 
-    virtual bool IsValid(TObject* object) const override
+    bool IsValid(TObject* object) const override
     {
         return object->GetType() == EObjectType::Tablet;
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         return tabletManager->Tablets().GetSize();
@@ -55,7 +55,7 @@ private:
     }
 
 protected:
-    virtual TYPath GetWellKnownPath() const override
+    TYPath GetWellKnownPath() const override
     {
         return "//sys/tablets";
     }
@@ -85,18 +85,18 @@ public:
     { }
 
 private:
-    virtual std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
+    std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         return ToObjectIds(GetValues(tabletManager->TabletActions(), sizeLimit));
     }
 
-    virtual bool IsValid(TObject* object) const override
+    bool IsValid(TObject* object) const override
     {
         return object->GetType() == EObjectType::TabletAction;
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         return tabletManager->TabletActions().GetSize();
@@ -108,7 +108,7 @@ private:
     }
 
 protected:
-    virtual TYPath GetWellKnownPath() const override
+    TYPath GetWellKnownPath() const override
     {
         return "//sys/tablet_actions";
     }

@@ -70,12 +70,12 @@ public:
         FlushExecutor_->Start();
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         auto guard = Guard(SpinLock_);
         Closed_ = true;
@@ -83,7 +83,7 @@ public:
         return AllSucceeded(std::vector<TFuture<void>>(BufferFlushedFutures_.begin(), BufferFlushedFutures_.end()));
     }
 
-    virtual bool Write(TRange<TUnversionedRow> rows) override
+    bool Write(TRange<TUnversionedRow> rows) override
     {
         auto guard = Guard(SpinLock_);
 
@@ -111,12 +111,12 @@ public:
         return true;
     }
 
-    virtual const TTableSchemaPtr& GetSchema() const override
+    const TTableSchemaPtr& GetSchema() const override
     {
         return Schema_;
     }
 
-    virtual const TNameTablePtr& GetNameTable() const override
+    const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
     }

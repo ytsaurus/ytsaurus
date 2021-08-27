@@ -48,7 +48,7 @@ protected:
         return NIO::CreateIOEngine(type, config);
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
         auto supportedTypes = GetSupportedIOEngineTypes();
         auto type = GetIOEngineType();

@@ -91,7 +91,7 @@ public:
             JobSizeConstraints_->GetInputSliceDataWeight());
     }
 
-    virtual IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
+    IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
     {
         if (stripe->DataSlices.empty()) {
             return IChunkPoolInput::NullCookie;
@@ -107,7 +107,7 @@ public:
         return cookie;
     }
 
-    virtual void Finish() override
+    void Finish() override
     {
         if (IsFinished()) {
             return;
@@ -122,7 +122,7 @@ public:
         DoFinish();
     }
 
-    virtual void Suspend(IChunkPoolInput::TCookie cookie) override
+    void Suspend(IChunkPoolInput::TCookie cookie) override
     {
         auto& suspendableStripe = Stripes_[cookie];
         suspendableStripe.Suspend();
@@ -131,7 +131,7 @@ public:
         }
     }
 
-    virtual void Resume(IChunkPoolInput::TCookie cookie) override
+    void Resume(IChunkPoolInput::TCookie cookie) override
     {
         Stripes_[cookie].Resume();
         if (Finished) {
@@ -139,7 +139,7 @@ public:
         }
     }
 
-    virtual void Reset(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe, TInputChunkMappingPtr mapping) override
+    void Reset(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe, TInputChunkMappingPtr mapping) override
     {
         for (int index = 0; index < std::ssize(Stripes_); ++index) {
             auto newStripe = (index == cookie) ? stripe : mapping->GetMappedStripe(Stripes_[index].GetStripe());
@@ -153,12 +153,12 @@ public:
         CheckCompleted();
     }
 
-    virtual bool IsCompleted() const override
+    bool IsCompleted() const override
     {
         return IsCompleted_;
     }
 
-    virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
+    void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
         TJobSplittingBase::Completed(cookie, jobSummary);
 
@@ -176,14 +176,14 @@ public:
         CheckCompleted();
     }
 
-    virtual void Lost(IChunkPoolOutput::TCookie cookie) override
+    void Lost(IChunkPoolOutput::TCookie cookie) override
     {
         TChunkPoolOutputWithJobManagerBase::Lost(cookie);
 
         CheckCompleted();
     }
 
-    virtual void Persist(const TPersistenceContext& context) final override
+    void Persist(const TPersistenceContext& context) final 
     {
         TChunkPoolInputBase::Persist(context);
         TChunkPoolOutputWithJobManagerBase::Persist(context);
@@ -215,13 +215,13 @@ public:
         }
     }
 
-    virtual std::pair<TKeyBound, TKeyBound> GetBounds(IChunkPoolOutput::TCookie /*cookie*/) const override
+    std::pair<TKeyBound, TKeyBound> GetBounds(IChunkPoolOutput::TCookie /*cookie*/) const override
     {
         // We drop support for this method in legacy pool as it is used only in CHYT which already uses new pool.
         YT_UNIMPLEMENTED();
     }
 
-    virtual TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie cookie) override
+    TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie cookie) override
     {
         // NB: recall that sorted pool deals with legacy data slices. If we simply call TransformToNew
         // on each data slice each time we extract a stripe list, it can lead to a controller-lifetime
@@ -601,7 +601,7 @@ private:
         }
     }
 
-    virtual TOutputOrderPtr GetOutputOrder() const override
+    TOutputOrderPtr GetOutputOrder() const override
     {
         return nullptr;
     }

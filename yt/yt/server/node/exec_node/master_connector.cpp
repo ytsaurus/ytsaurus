@@ -47,7 +47,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
     }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         Bootstrap_->SubscribeMasterConnected(BIND(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
 
@@ -55,7 +55,7 @@ public:
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    virtual TReqHeartbeat GetHeartbeatRequest() const override
+    TReqHeartbeat GetHeartbeatRequest() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Bootstrap_->IsConnected());
@@ -77,7 +77,7 @@ public:
         return heartbeat;
     }
 
-    virtual void OnHeartbeatResponse(const TRspHeartbeat& response) override
+    void OnHeartbeatResponse(const TRspHeartbeat& response) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 

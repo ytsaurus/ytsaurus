@@ -30,12 +30,12 @@ public:
         : TBase(bootstrap)
     { }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::TabletCellBundle;
     }
 
-    virtual TObject* CreateObject(
+    TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
@@ -48,7 +48,7 @@ public:
         return DoCreateObject(std::move(holder), attributes, std::move(options));
     }
 
-    virtual std::unique_ptr<TObject> InstantiateObject(
+    std::unique_ptr<TObject> InstantiateObject(
         TObjectId hintId) override
     {
         return TPoolAllocator::New<TTabletCellBundle>(hintId);
@@ -57,7 +57,7 @@ public:
 private:
     using TBase = TCellBundleTypeHandlerBase<TTabletCellBundle>;
 
-    virtual IObjectProxyPtr DoGetProxy(TTabletCellBundle* cellBundle, TTransaction* /*transaction*/) override
+    IObjectProxyPtr DoGetProxy(TTabletCellBundle* cellBundle, TTransaction* /*transaction*/) override
     {
         return CreateTabletCellBundleProxy(Bootstrap_, &Metadata_, cellBundle);
     }

@@ -29,7 +29,7 @@ public:
             mediumDirectory)
     { }
 
-    virtual NProfiling::TCpuInstant GetNow() const override
+    NProfiling::TCpuInstant GetNow() const override
     {
         return NProfiling::GetCpuInstant();
     }

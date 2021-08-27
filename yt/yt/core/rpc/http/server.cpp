@@ -80,32 +80,32 @@ public:
         , EndpointAddress_(endpointAddress)
     { }
 
-    virtual const TString& GetEndpointDescription() const override
+    const TString& GetEndpointDescription() const override
     {
         return EndpointDescription_;
     }
 
-    virtual const IAttributeDictionary& GetEndpointAttributes() const override
+    const IAttributeDictionary& GetEndpointAttributes() const override
     {
         return *EndpointAttributes_;
     }
 
-    virtual const NNet::TNetworkAddress& GetEndpointAddress() const override
+    const NNet::TNetworkAddress& GetEndpointAddress() const override
     {
         return EndpointAddress_;
     }
 
-    virtual TTcpDispatcherStatistics GetStatistics() const override
+    TTcpDispatcherStatistics GetStatistics() const override
     {
         return {};
     }
 
-    virtual TFuture<void> GetReadyFuture() const override
+    TFuture<void> GetReadyFuture() const override
     {
         return VoidFuture;
     }
 
-    virtual TFuture<void> Send(TSharedRefArray message, const NBus::TSendOptions& /* options */) override
+    TFuture<void> Send(TSharedRefArray message, const NBus::TSendOptions& /* options */) override
     {
         if (message.Size() > 2) {
             THROW_ERROR_EXCEPTION("Attachments are not supported in HTTP transport");
@@ -140,18 +140,18 @@ public:
         return bodySent;
     }
 
-    virtual void SetTosLevel(TTosLevel /* tosLevel */) override
+    void SetTosLevel(TTosLevel /* tosLevel */) override
     { }
 
-    virtual void Terminate(const TError& /* error */) override
+    void Terminate(const TError& /* error */) override
     { }
 
-    virtual void SubscribeTerminated(const TCallback<void(const TError&)>& /* callback */) override
+    void SubscribeTerminated(const TCallback<void(const TError&)>& /* callback */) override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& /* callback */) override
+    void UnsubscribeTerminated(const TCallback<void(const TError&)>& /* callback */) override
     {
         YT_UNIMPLEMENTED();
     }
@@ -184,7 +184,7 @@ public:
         , Logger(logger)
     { }
 
-    virtual void HandleRequest(
+    void HandleRequest(
         const IRequestPtr& req,
         const IResponseWriterPtr& rsp) override
     {
@@ -356,20 +356,20 @@ public:
 private:
     NYT::NHttp::IServerPtr HttpServer_;
 
-    virtual void DoStart() override
+    void DoStart() override
     {
         HttpServer_->Start();
         TServerBase::DoStart();
     }
 
-    virtual TFuture<void> DoStop(bool graceful) override
+    TFuture<void> DoStop(bool graceful) override
     {
         HttpServer_->Stop();
         HttpServer_.Reset();
         return TServerBase::DoStop(graceful);
     }
 
-    virtual void DoRegisterService(const IServicePtr& service) override
+    void DoRegisterService(const IServicePtr& service) override
     {
         auto baseUrl = Format("/%v/", service->GetServiceId().ServiceName);
         HttpServer_->AddHandler(baseUrl, New<THttpHandler>(std::move(service), baseUrl, Logger));
@@ -382,7 +382,7 @@ private:
         }
     }
 
-    virtual void DoUnregisterService(const IServicePtr& /*service*/) override
+    void DoUnregisterService(const IServicePtr& /*service*/) override
     {
         YT_ABORT();
     }

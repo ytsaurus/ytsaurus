@@ -55,7 +55,7 @@ class TSortedChunkPoolTest
     : public Test
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     {
         Options_.RowBuffer = RowBuffer_;
         Options_.MinTeleportChunkSize = Inf64;
@@ -3071,7 +3071,7 @@ class TSortedChunkPoolTestRandomized
 public:
     TSortedChunkPoolTestRandomized() = default;
 
-    virtual void SetUp() override final
+    void SetUp() final
     {
         TSortedChunkPoolTest::SetUp();
         Gen_.seed(get<0>(GetParam()));

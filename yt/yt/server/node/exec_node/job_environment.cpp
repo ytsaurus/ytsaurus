@@ -65,7 +65,7 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
-    virtual void Init(int slotCount, double cpuLimit) override
+    void Init(int slotCount, double cpuLimit) override
     {
         Bootstrap_->SubscribePopulateAlerts(
             BIND(&TProcessJobEnvironmentBase::PopulateAlerts, MakeWeak(this)));
@@ -79,7 +79,7 @@ public:
         }
     }
 
-    virtual TFuture<void> RunJobProxy(
+    TFuture<void> RunJobProxy(
         int slotIndex,
         const TString& workingDirectory,
         TJobId jobId,
@@ -134,15 +134,15 @@ public:
         }
     }
 
-    virtual bool IsEnabled() const override
+    bool IsEnabled() const override
     {
         return Enabled_;
     }
 
-    virtual void UpdateCpuLimit(double /*cpuLimit*/) override
+    void UpdateCpuLimit(double /*cpuLimit*/) override
     { }
 
-    virtual TFuture<void> RunSetupCommands(
+    TFuture<void> RunSetupCommands(
         int /*slotIndex*/,
         TJobId /*jobId*/,
         const std::vector<NJobAgent::TShellCommandConfigPtr>& /*commands*/,
@@ -259,7 +259,7 @@ public:
         , Config_(std::move(config))
     { }
 
-    virtual void CleanProcesses(int slotIndex) override
+    void CleanProcesses(int slotIndex) override
     {
         ValidateEnabled();
 
@@ -273,12 +273,12 @@ public:
         }
     }
 
-    virtual int GetUserId(int /*slotIndex*/) const override
+    int GetUserId(int /*slotIndex*/) const override
     {
         return ::getuid();
     }
 
-    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path, int /*locationIndex*/) override
+    IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path, int /*locationIndex*/) override
     {
         return CreateSimpleJobDirectoryManager(
             MounterThread_->GetInvoker(),
@@ -291,7 +291,7 @@ private:
 
     const TActionQueuePtr MounterThread_ = New<TActionQueue>("Mounter");
 
-    virtual TProcessBasePtr CreateJobProxyProcess(int /*slotIndex*/, TJobId /* jobId */) override
+    TProcessBasePtr CreateJobProxyProcess(int /*slotIndex*/, TJobId /* jobId */) override
     {
         auto process = New<TSimpleProcess>(JobProxyProgramName);
         process->CreateProcessGroup();
@@ -322,7 +322,7 @@ public:
             ExecNodeProfiler.WithPrefix("/job_environement/porto")))
     {  }
 
-    virtual void CleanProcesses(int slotIndex) override
+    void CleanProcesses(int slotIndex) override
     {
         ValidateEnabled();
 
@@ -357,17 +357,17 @@ public:
         }
     }
 
-    virtual int GetUserId(int slotIndex) const override
+    int GetUserId(int slotIndex) const override
     {
         return Config_->StartUid + slotIndex;
     }
 
-    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path, int locationIndex) override
+    IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path, int locationIndex) override
     {
         return CreatePortoJobDirectoryManager(Bootstrap_->GetConfig()->DataNode->VolumeManager, path, locationIndex);
     }
 
-    virtual TFuture<void> RunSetupCommands(
+    TFuture<void> RunSetupCommands(
         int slotIndex,
         TJobId jobId,
         const std::vector<NJobAgent::TShellCommandConfigPtr>& commands,
@@ -455,7 +455,7 @@ private:
             rootContainer);
     }
 
-    virtual void DoInit(int slotCount, double cpuLimit) override
+    void DoInit(int slotCount, double cpuLimit) override
     {
         auto portoFatalErrorHandler = BIND([weakThis_ = MakeWeak(this)](const TError& error) {
             // We use weak ptr to avoid cyclic references between container manager and job environment.
@@ -541,13 +541,13 @@ private:
         return launcher;
     }
 
-    virtual TProcessBasePtr CreateJobProxyProcess(int slotIndex, TJobId jobId) override
+    TProcessBasePtr CreateJobProxyProcess(int slotIndex, TJobId jobId) override
     {
         auto launcher = CreateJobProxyInstanceLauncher(slotIndex, jobId);
         return New<TPortoProcess>(JobProxyProgramName, launcher);
     }
 
-    virtual void UpdateCpuLimit(double cpuLimit) override
+    void UpdateCpuLimit(double cpuLimit) override
     {
         if (std::abs(CpuLimit_ - cpuLimit) < CpuUpdatePrecision) {
             return;

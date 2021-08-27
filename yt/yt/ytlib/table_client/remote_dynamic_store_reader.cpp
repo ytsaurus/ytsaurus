@@ -183,7 +183,7 @@ public:
         YT_LOG_DEBUG("Created remote dynamic store reader");
     }
 
-    virtual TDataStatistics GetDataStatistics() const
+    TDataStatistics GetDataStatistics() const override
     {
         TDataStatistics dataStatistics;
         dataStatistics.set_chunk_count(1);
@@ -194,19 +194,19 @@ public:
         return dataStatistics;
     }
 
-    virtual TCodecStatistics GetDecompressionStatistics() const
+    TCodecStatistics GetDecompressionStatistics() const override
     {
         // TODO(ifsmirnov): compression is done at the level of rpc streaming protocol, is it possible
         // to extract statistics from there?
         return {};
     }
 
-    virtual bool IsFetchingCompleted() const
+    bool IsFetchingCompleted() const override
     {
         return false;
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return FailedChunkIds_;
     }
@@ -414,12 +414,12 @@ public:
         std::tie(Schema_, ColumnFilter_, IdMapping_) = CreateSortedReadParameters(schema, columnFilter);
     }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return DoOpen();
     }
 
-    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         return DoRead(options);
     }
@@ -429,7 +429,7 @@ private:
 
     const TTimestamp Timestamp_;
 
-    virtual void FillRequestAndLog(TQueryServiceProxy::TReqReadDynamicStorePtr req) override
+    void FillRequestAndLog(TQueryServiceProxy::TReqReadDynamicStorePtr req) override
     {
         auto lowerLimit = FromProto<NChunkClient::TLegacyReadLimit>(ChunkSpec_.lower_limit());
         auto upperLimit = FromProto<NChunkClient::TLegacyReadLimit>(ChunkSpec_.upper_limit());
@@ -449,7 +449,7 @@ private:
             ColumnFilter_);
     }
 
-    virtual TRows DeserializeRows(const TSharedRef& data) override
+    TRows DeserializeRows(const TSharedRef& data) override
     {
         UncompressedDataSize_ += data.Size();
         // Default row buffer.
@@ -521,18 +521,18 @@ public:
         DoOpen();
     }
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         RowBuffer_->Clear();
         return DoRead(options);
     }
 
-    virtual const TNameTablePtr& GetNameTable() const override
+    const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
     }
 
-    virtual i64 GetTableRowIndex() const override
+    i64 GetTableRowIndex() const override
     {
         // NB: Table row index is requested only for the first reader in the sequential
         // group and only after ready event is set. Thus either this value is correctly
@@ -540,14 +540,14 @@ public:
         return CurrentRowIndex_ == -1 ? 0 : CurrentRowIndex_;
     }
 
-    virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor(
+    NChunkClient::TInterruptDescriptor GetInterruptDescriptor(
         TRange<NTableClient::TUnversionedRow> /*unreadRows*/) const override
     {
         // TODO(ifsmirnov): interrupts for ordered remote dynamic stores are disabled.
         return {};
     }
 
-    virtual const NChunkClient::TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
+    const NChunkClient::TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
     {
         // TODO(ifsmirnov, max42): used only in CHYT which does not yet support ordered dynamic tables.
         YT_UNIMPLEMENTED();
@@ -573,7 +573,7 @@ private:
 
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TRemoteDynamicStoreReaderPoolTag());
 
-    virtual void FillRequestAndLog(TQueryServiceProxy::TReqReadDynamicStorePtr req) override
+    void FillRequestAndLog(TQueryServiceProxy::TReqReadDynamicStorePtr req) override
     {
         auto lowerLimit = FromProto<NChunkClient::TLegacyReadLimit>(ChunkSpec_.lower_limit());
         auto upperLimit = FromProto<NChunkClient::TLegacyReadLimit>(ChunkSpec_.upper_limit());
@@ -590,7 +590,7 @@ private:
             ColumnFilter_);
     }
 
-    virtual TRows DeserializeRows(const TSharedRef& data) override
+    TRows DeserializeRows(const TSharedRef& data) override
     {
         UncompressedDataSize_ += data.Size();
 
@@ -606,7 +606,7 @@ private:
         return reader.ReadUnversionedRowset(/*captureValues*/ true, &IdMapping_);
     }
 
-    virtual TUnversionedRow PostprocessRow(TUnversionedRow row) override
+    TUnversionedRow PostprocessRow(TUnversionedRow row) override
     {
         if (SystemColumnCount_ == 0) {
             ++CurrentRowIndex_;
@@ -788,14 +788,14 @@ public:
         return batch;
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         auto dataStatistics = CurrentReader_ ? CurrentReader_->GetDataStatistics() : TDataStatistics{};
         CombineDataStatistics(&dataStatistics, AccumulatedDataStatistics_);
         return dataStatistics;
     }
 
-    virtual TCodecStatistics GetDecompressionStatistics() const override
+    TCodecStatistics GetDecompressionStatistics() const override
     {
         if (ChunkReaderFallbackOccured_ && CurrentReader_) {
             return CurrentReader_->GetDecompressionStatistics();
@@ -803,12 +803,12 @@ public:
         return {};
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return false;
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return {};
     }
@@ -1063,12 +1063,12 @@ public:
         DoCreateRemoteDynamicStoreReader();
     }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return DoOpen();
     }
 
-    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         return DoRead(options);
     }
@@ -1079,7 +1079,7 @@ private:
 
     TLegacyOwningKey LastKey_;
 
-    virtual void UpdateContinuationToken(const IVersionedRowBatchPtr& batch) override
+    void UpdateContinuationToken(const IVersionedRowBatchPtr& batch) override
     {
         if (batch->IsEmpty()) {
             return;
@@ -1090,7 +1090,7 @@ private:
         LastKey_ = TLegacyOwningKey(lastKey.BeginKeys(), lastKey.EndKeys());
     }
 
-    virtual void PatchChunkSpecWithContinuationToken() override
+    void PatchChunkSpecWithContinuationToken() override
     {
         if (!LastKey_) {
             return;
@@ -1108,7 +1108,7 @@ private:
         ToProto(ChunkSpec_.mutable_lower_limit(), lowerLimit);
     }
 
-    virtual void DoCreateRemoteDynamicStoreReader() override
+    void DoCreateRemoteDynamicStoreReader() override
     {
         TClientChunkReadOptions chunkReadOptions{
             .ReadSessionId = ReadSessionId_
@@ -1133,7 +1133,7 @@ private:
         }
     }
 
-    virtual TFuture<void> OpenCurrentReader() override
+    TFuture<void> OpenCurrentReader() override
     {
         return CurrentReader_->Open();
     }
@@ -1225,17 +1225,17 @@ public:
         DoOpen();
     }
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         return DoRead(options);
     }
 
-    virtual const TNameTablePtr& GetNameTable() const override
+    const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
     }
 
-    virtual i64 GetTableRowIndex() const override
+    i64 GetTableRowIndex() const override
     {
         if (!CurrentReader_) {
             YT_VERIFY(FlushedToEmptyChunk_);
@@ -1244,14 +1244,14 @@ public:
         return CurrentReader_->GetTableRowIndex();
     }
 
-    virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor(
+    NChunkClient::TInterruptDescriptor GetInterruptDescriptor(
         TRange<NTableClient::TUnversionedRow> /*unreadRows*/) const override
     {
         // XXX(ifsmirnov)
         return {};
     }
 
-    virtual const NChunkClient::TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
+    const NChunkClient::TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
     {
         YT_UNIMPLEMENTED();
     }
@@ -1268,13 +1268,13 @@ private:
     // chunk should be patched (converting absolute index to relative).
     std::optional<i64> TabletRowIndex_;
 
-    virtual void UpdateContinuationToken(const IUnversionedRowBatchPtr& /*batch*/) override
+    void UpdateContinuationToken(const IUnversionedRowBatchPtr& /*batch*/) override
     {
         YT_VERIFY(!ChunkReaderFallbackOccured_);
         TabletRowIndex_ = CurrentReader_->GetTableRowIndex();
     }
 
-    virtual void PatchChunkSpecWithContinuationToken() override
+    void PatchChunkSpecWithContinuationToken() override
     {
         if (!TabletRowIndex_) {
             return;
@@ -1309,7 +1309,7 @@ private:
         }
     }
 
-    virtual void DoCreateRemoteDynamicStoreReader() override
+    void DoCreateRemoteDynamicStoreReader() override
     {
         TClientChunkReadOptions chunkReadOptions{
             .ReadSessionId = ReadSessionId_
@@ -1330,7 +1330,7 @@ private:
             Columns_);
     }
 
-    virtual TFuture<void> OpenCurrentReader() override
+    TFuture<void> OpenCurrentReader() override
     {
         return CurrentReader_->GetReadyEvent();
     }

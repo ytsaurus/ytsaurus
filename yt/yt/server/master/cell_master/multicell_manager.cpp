@@ -511,7 +511,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
-    virtual void OnAfterSnapshotLoaded() override
+    void OnAfterSnapshotLoaded() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -543,7 +543,7 @@ private:
         RecomputeMasterCellNames();
     }
 
-    virtual void Clear() override
+    void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -582,14 +582,14 @@ private:
         Save(context, ClusterCellStatisics_);
     }
 
-    virtual void OnRecoveryComplete() override
+    void OnRecoveryComplete() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnRecoveryComplete();
     }
 
-    virtual void OnLeaderActive() override
+    void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -610,7 +610,7 @@ private:
         }
     }
 
-    virtual void OnStartLeading() override
+    void OnStartLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -619,7 +619,7 @@ private:
         OnStartEpoch();
     }
 
-    virtual void OnStopLeading() override
+    void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -638,7 +638,7 @@ private:
         OnStopEpoch();
     }
 
-    virtual void OnStartFollowing() override
+    void OnStartFollowing() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -647,7 +647,7 @@ private:
         OnStartEpoch();
     }
 
-    virtual void OnStopFollowing() override
+    void OnStopFollowing() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

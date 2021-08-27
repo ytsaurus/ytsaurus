@@ -60,12 +60,12 @@ public:
         ReadyEvent_ = DoOpen();
     }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return GetReadyEvent();
     }
 
-    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         YT_VERIFY(options.MaxRowsPerRead > 0);
 
@@ -93,12 +93,12 @@ public:
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         return ReadyEvent_;
     }
 
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
         NChunkClient::NProto::TDataStatistics dataStatistics;
         dataStatistics.set_chunk_count(1);
@@ -109,7 +109,7 @@ public:
         return dataStatistics;
     }
 
-    virtual TCodecStatistics GetDecompressionStatistics() const override
+    TCodecStatistics GetDecompressionStatistics() const override
     {
         TCodecDuration decompressionTime{
             CompressionCodecId,
@@ -117,12 +117,12 @@ public:
         return TCodecStatistics().Append(decompressionTime);
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         YT_ABORT();
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         // TODO(akozhikhov): get chunk id here.
         return {};

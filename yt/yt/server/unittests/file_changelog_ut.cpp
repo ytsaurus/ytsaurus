@@ -36,7 +36,7 @@ protected:
     TActionQueuePtr ActionQueue;
     IInvokerPtr Invoker;
 
-    virtual void SetUp()
+    void SetUp() override
     {
         ChangelogStoreConfig = New<TFileChangelogStoreConfig>();
         ChangelogStoreConfig->Path = "FileChangelog";
@@ -57,7 +57,7 @@ protected:
         Invoker = ActionQueue->GetInvoker();
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         NFS::RemoveRecursive(ChangelogStoreConfig->Path);
     }

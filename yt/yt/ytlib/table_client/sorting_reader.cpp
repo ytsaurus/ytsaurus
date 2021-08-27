@@ -50,7 +50,7 @@ public:
             .Run());
     }
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
             return CreateEmptyUnversionedRowBatch();
@@ -75,13 +75,13 @@ public:
             MakeStrong(this)));
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         YT_VERIFY(UnderlyingReader_);
         return UnderlyingReader_->IsFetchingCompleted();
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         YT_VERIFY(UnderlyingReader_);
         auto dataStatistics = UnderlyingReader_->GetDataStatistics();
@@ -96,49 +96,49 @@ public:
         return UnderlyingReader_->GetDecompressionStatistics();
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         YT_VERIFY(UnderlyingReader_);
         return UnderlyingReader_->GetFailedChunkIds();
     }
 
-    virtual TInterruptDescriptor GetInterruptDescriptor(
+    TInterruptDescriptor GetInterruptDescriptor(
         TRange<TUnversionedRow> /* unreadRows */) const override
     {
         YT_ABORT();
     }
 
-    virtual void Interrupt() override
+    void Interrupt() override
     {
         YT_ABORT();
     }
 
-    virtual void SkipCurrentReader() override
+    void SkipCurrentReader() override
     {
         YT_ABORT();
     }
 
-    virtual const TNameTablePtr& GetNameTable() const override
+    const TNameTablePtr& GetNameTable() const override
     {
         return UnderlyingReader_->GetNameTable();
     }
 
-    virtual i64 GetTotalRowCount() const override
+    i64 GetTotalRowCount() const override
     {
         return Rows_.size();
     }
 
-    virtual i64 GetSessionRowIndex() const override
+    i64 GetSessionRowIndex() const override
     {
         return ReadRowCount_;
     }
 
-    virtual i64 GetTableRowIndex() const override
+    i64 GetTableRowIndex() const override
     {
         return 0;
     }
 
-    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
+    const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
     {
         YT_ABORT();
     }

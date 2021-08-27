@@ -98,7 +98,7 @@ public:
             MakeStrong(this)));
     }
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         auto reader = RowsetReader_.Load();
         return reader
@@ -106,7 +106,7 @@ public:
             : CreateEmptyUnversionedRowBatch();
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         auto reader = RowsetReader_.Load();
         return reader
@@ -119,22 +119,22 @@ public:
         return QueryResult_;
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         return {};
     }
 
-    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
+    NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
     {
         return {};
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return false;
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return {};
     }
@@ -184,7 +184,7 @@ public:
         , FunctionImplCache_(std::move(functionImplCache))
     { }
 
-    virtual TFuture<TQueryStatistics> Execute(
+    TFuture<TQueryStatistics> Execute(
         TConstQueryPtr query,
         TConstExternalCGInfoPtr externalCGInfo,
         TDataSource dataSource,

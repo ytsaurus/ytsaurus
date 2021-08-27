@@ -49,7 +49,7 @@ public:
         Init(&Owner_->Opts_, argc, argv);
     }
 
-    virtual void HandleError() const override
+    void HandleError() const override
     {
         Owner_->OnError(CurrentExceptionMessage());
         Cerr << Endl << "Try running '" << Owner_->Argv0_ << " --help' for more information." << Endl;

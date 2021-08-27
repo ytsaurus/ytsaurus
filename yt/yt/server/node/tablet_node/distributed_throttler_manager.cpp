@@ -33,7 +33,7 @@ public:
         , MemberId_(ToString(cellId))
     { }
 
-    virtual IThroughputThrottlerPtr GetOrCreateThrottler(
+    IThroughputThrottlerPtr GetOrCreateThrottler(
         const TYPath& tablePath,
         TCellTag cellTag,
         const TThroughputThrottlerConfigPtr& config,

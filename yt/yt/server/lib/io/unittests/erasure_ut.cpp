@@ -49,7 +49,7 @@ public:
         , Period_(period)
     { }
 
-    virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
+    TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientChunkReadOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& /*extensionTags*/) override
@@ -57,12 +57,12 @@ public:
         return Underlying_->GetMeta(options, partitionTag);
     }
 
-    virtual TChunkId GetChunkId() const override
+    TChunkId GetChunkId() const override
     {
         return Underlying_->GetChunkId();
     }
 
-    virtual TFuture<std::vector<TBlock>> ReadBlocks(
+    TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
         std::optional<i64> estimatedSize) override
@@ -73,7 +73,7 @@ public:
         return Underlying_->ReadBlocks(options, blockIndexes, estimatedSize);
     }
 
-    virtual TFuture<std::vector<TBlock>> ReadBlocks(
+    TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
@@ -85,12 +85,12 @@ public:
         return Underlying_->ReadBlocks(options, firstBlockIndex, blockCount, estimatedSize);
     }
 
-    virtual TInstant GetLastFailureTime() const override
+    TInstant GetLastFailureTime() const override
     {
         return LastFailureTime_;
     }
 
-    virtual void SetSlownessChecker(TCallback<TError(i64, TDuration)>) override
+    void SetSlownessChecker(TCallback<TError(i64, TDuration)>) override
     { }
 
 private:

@@ -37,7 +37,7 @@ private:
     const ICoreDumperPtr CoreDumper_;
 
 
-    virtual void BeforeInvoke(NRpc::IServiceContext* context) override
+    void BeforeInvoke(NRpc::IServiceContext* context) override
     {
         if (context->GetAuthenticationIdentity().User != RootUserName) {
             THROW_ERROR_EXCEPTION("Only root is allowed to use AdminService");

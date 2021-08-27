@@ -74,7 +74,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
     }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -112,7 +112,7 @@ public:
         }
     }
 
-    virtual TReqFullHeartbeat GetFullHeartbeatRequest(TCellTag cellTag) override
+    TReqFullHeartbeat GetFullHeartbeatRequest(TCellTag cellTag) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -174,7 +174,7 @@ public:
         return heartbeat;
     }
 
-    virtual TReqIncrementalHeartbeat GetIncrementalHeartbeatRequest(TCellTag cellTag) override
+    TReqIncrementalHeartbeat GetIncrementalHeartbeatRequest(TCellTag cellTag) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -236,7 +236,7 @@ public:
         return heartbeat;
     }
 
-    virtual void OnFullHeartbeatResponse(
+    void OnFullHeartbeatResponse(
         TCellTag cellTag,
         const TRspFullHeartbeat& response) override
     {
@@ -261,7 +261,7 @@ public:
         }
     }
 
-    virtual void OnIncrementalHeartbeatFailed(TCellTag cellTag) override
+    void OnIncrementalHeartbeatFailed(TCellTag cellTag) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -272,7 +272,7 @@ public:
         nextHeartbeatBarrier.SetFrom(currentHeartbeatFuture);
     }
 
-    virtual void OnIncrementalHeartbeatResponse(
+    void OnIncrementalHeartbeatResponse(
         TCellTag cellTag,
         const TRspIncrementalHeartbeat& response) override
     {
@@ -339,7 +339,7 @@ public:
         }
     }
 
-    virtual EMasterConnectorState GetMasterConnectorState(TCellTag cellTag) override
+    EMasterConnectorState GetMasterConnectorState(TCellTag cellTag) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -347,7 +347,7 @@ public:
         return delta->State;
     }
 
-    virtual bool CanSendFullNodeHeartbeat(TCellTag cellTag) const override
+    bool CanSendFullNodeHeartbeat(TCellTag cellTag) const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -365,14 +365,14 @@ public:
         return true;
     }
 
-    virtual TFuture<void> GetHeartbeatBarrier(NObjectClient::TCellTag cellTag) override
+    TFuture<void> GetHeartbeatBarrier(NObjectClient::TCellTag cellTag) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return GetChunksDelta(cellTag)->NextHeartbeatBarrier.Load();
     }
 
-    virtual void ScheduleHeartbeat(bool immediately) override
+    void ScheduleHeartbeat(bool immediately) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

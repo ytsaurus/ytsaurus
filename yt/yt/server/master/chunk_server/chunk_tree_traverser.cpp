@@ -1490,31 +1490,31 @@ public:
         , ThreadQueue_(threadQueue)
     { }
 
-    virtual bool IsSynchronous() const override
+    bool IsSynchronous() const override
     {
         return false;
     }
 
-    virtual IInvokerPtr GetInvoker() const override
+    IInvokerPtr GetInvoker() const override
     {
         return Bootstrap_
             ->GetHydraFacade()
             ->GetEpochAutomatonInvoker(ThreadQueue_);
     }
 
-    virtual void OnPop(TChunkTree* node) override
+    void OnPop(TChunkTree* node) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->EphemeralUnrefObject(node);
     }
 
-    virtual void OnPush(TChunkTree* node) override
+    void OnPush(TChunkTree* node) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->EphemeralRefObject(node);
     }
 
-    virtual void OnShutdown(const std::vector<TChunkTree*>& nodes) override
+    void OnShutdown(const std::vector<TChunkTree*>& nodes) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (const auto& node : nodes) {
@@ -1522,14 +1522,14 @@ public:
         }
     }
 
-    virtual void OnTimeSpent(TDuration time) override
+    void OnTimeSpent(TDuration time) override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->FindUserByName(UserName_, true /*activeLifeStageOnly*/);
         securityManager->ChargeUser(user, {EUserWorkloadType::Read, 0, time});
     }
 
-    virtual TFuture<TUnsealedChunkStatistics> GetUnsealedChunkStatistics(TChunk* chunk) override
+    TFuture<TUnsealedChunkStatistics> GetUnsealedChunkStatistics(TChunk* chunk) override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         return chunkManager->GetChunkQuorumInfo(chunk).Apply(
@@ -1563,29 +1563,29 @@ class TSyncTraverserContext
     : public IChunkTraverserContext
 {
 public:
-    virtual bool IsSynchronous() const override
+    bool IsSynchronous() const override
     {
         return true;
     }
 
-    virtual IInvokerPtr GetInvoker() const override
+    IInvokerPtr GetInvoker() const override
     {
         YT_ABORT();
     }
 
-    virtual void OnPop(TChunkTree* /*node*/) override
+    void OnPop(TChunkTree* /*node*/) override
     { }
 
-    virtual void OnPush(TChunkTree* /*node*/) override
+    void OnPush(TChunkTree* /*node*/) override
     { }
 
-    virtual void OnShutdown(const std::vector<TChunkTree*>& /*nodes*/) override
+    void OnShutdown(const std::vector<TChunkTree*>& /*nodes*/) override
     { }
 
-    virtual void OnTimeSpent(TDuration /*time*/) override
+    void OnTimeSpent(TDuration /*time*/) override
     { }
 
-    virtual TFuture<TUnsealedChunkStatistics> GetUnsealedChunkStatistics(TChunk* chunk) override
+    TFuture<TUnsealedChunkStatistics> GetUnsealedChunkStatistics(TChunk* chunk) override
     {
         THROW_ERROR_EXCEPTION("Synchronous chunk tree traverser is unable to handle unsealed chunk %v",
             chunk->GetId());
@@ -1607,12 +1607,12 @@ public:
         : Chunks_(chunks)
     { }
 
-    virtual bool OnChunkView(TChunkView* /*chunkView*/) override
+    bool OnChunkView(TChunkView* /*chunkView*/) override
     {
         return false;
     }
 
-    virtual bool OnDynamicStore(
+    bool OnDynamicStore(
         TDynamicStore* /*dynamicStore*/,
         std::optional<int> /*tabletIndex*/,
         const NChunkClient::TReadLimit& /*startLimit*/,
@@ -1621,7 +1621,7 @@ public:
         return true;
     }
 
-    virtual bool OnChunk(
+    bool OnChunk(
         TChunk* chunk,
         std::optional<i64> /*rowIndex*/,
         std::optional<int> /*tabletIndex*/,
@@ -1633,7 +1633,7 @@ public:
         return true;
     }
 
-    virtual void OnFinish(const TError& error) override
+    void OnFinish(const TError& error) override
     {
         YT_VERIFY(error.IsOK());
     }
@@ -1675,13 +1675,13 @@ void EnumerateStoresInChunkTree(
             : Stores_(stores)
         { }
 
-        virtual bool OnChunkView(TChunkView* chunkView) override
+        bool OnChunkView(TChunkView* chunkView) override
         {
             Stores_->push_back(chunkView);
             return true;
         }
 
-        virtual bool OnDynamicStore(
+        bool OnDynamicStore(
             TDynamicStore* dynamicStore,
             std::optional<int> /*tabletIndex*/,
             const NChunkClient::TReadLimit& /*startLimit*/,
@@ -1691,7 +1691,7 @@ void EnumerateStoresInChunkTree(
             return true;
         }
 
-        virtual bool OnChunk(
+        bool OnChunk(
             TChunk* chunk,
             std::optional<i64> /*rowIndex*/,
             std::optional<int> /*tabletIndex*/,
@@ -1703,7 +1703,7 @@ void EnumerateStoresInChunkTree(
             return true;
         }
 
-        virtual void OnFinish(const TError& error) override
+        void OnFinish(const TError& error) override
         {
             YT_VERIFY(error.IsOK());
         }

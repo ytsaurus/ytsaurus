@@ -89,7 +89,7 @@ public:
         Pool_ = std::make_unique<TChunkedMemoryPool>(TOrderedDynamicStoreReaderPoolTag(), ReaderPoolSize);
     }
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         std::vector<TUnversionedRow> rows;
         rows.reserve(options.MaxRowsPerRead);
@@ -116,12 +116,12 @@ public:
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         YT_ABORT();
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         TDataStatistics dataStatistics;
         dataStatistics.set_row_count(RowCount_);
@@ -134,12 +134,12 @@ public:
         return TCodecStatistics();
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return false;
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return {};
     }

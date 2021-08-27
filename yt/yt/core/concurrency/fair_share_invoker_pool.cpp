@@ -30,7 +30,7 @@ public:
         , ExcessTimes_(bucketCount, 0)
     { }
 
-    virtual void Enqueue(TClosure callback, int bucketIndex) override
+    void Enqueue(TClosure callback, int bucketIndex) override
     {
         auto guard = Guard(Lock_);
 
@@ -38,7 +38,7 @@ public:
         Buckets_[bucketIndex].push(std::move(callback));
     }
 
-    virtual bool TryDequeue(TClosure* resultCallback, int* resultBucketIndex) override
+    bool TryDequeue(TClosure* resultCallback, int* resultBucketIndex) override
     {
         YT_VERIFY(resultCallback != nullptr);
         YT_VERIFY(resultBucketIndex != nullptr);
@@ -61,7 +61,7 @@ public:
         return true;
     }
 
-    virtual void AccountCpuTime(int bucketIndex, TCpuDuration cpuTime) override
+    void AccountCpuTime(int bucketIndex, TCpuDuration cpuTime) override
     {
         auto guard = Guard(Lock_);
 
@@ -137,7 +137,7 @@ public:
         InvokerQueueStates_.resize(invokerCount);
     }
 
-    virtual int GetSize() const override
+    int GetSize() const override
     {
         return Invokers_.size();
     }
@@ -162,13 +162,13 @@ public:
     }
 
 protected:
-    virtual const IInvokerPtr& DoGetInvoker(int index) const override
+    const IInvokerPtr& DoGetInvoker(int index) const override
     {
         YT_VERIFY(IsValidInvokerIndex(index));
         return Invokers_[index];
     }
 
-    virtual TInvokerStatistics DoGetInvokerStatistics(int index) const override
+    TInvokerStatistics DoGetInvokerStatistics(int index) const override
     {
         YT_VERIFY(IsValidInvokerIndex(index));
 
@@ -253,7 +253,7 @@ private:
             , Parent_(std::move(parent))
         { }
 
-        virtual void Invoke(TClosure callback) override
+        void Invoke(TClosure callback) override
         {
             if (auto strongParent = Parent_.Lock()) {
                 strongParent->Enqueue(std::move(callback), Index_);

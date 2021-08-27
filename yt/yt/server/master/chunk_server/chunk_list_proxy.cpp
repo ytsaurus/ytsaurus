@@ -40,7 +40,7 @@ public:
 private:
     using TBase = TNonversionedObjectProxyBase<TChunkList>;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
@@ -136,7 +136,7 @@ private:
         }
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         auto* chunkList = GetThisImpl();
 
@@ -205,7 +205,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
+    TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
         auto* chunkList = GetThisImpl();
 

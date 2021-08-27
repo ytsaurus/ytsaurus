@@ -54,7 +54,7 @@ class TEphemeralAttributeDictionary
     : public IAttributeDictionary
 {
 public:
-    virtual std::vector<TString> ListKeys() const override
+    std::vector<TString> ListKeys() const override
     {
         std::vector<TString> keys;
         keys.reserve(Map_.size());
@@ -64,7 +64,7 @@ public:
         return keys;
     }
 
-    virtual std::vector<TKeyValuePair> ListPairs() const override
+    std::vector<TKeyValuePair> ListPairs() const override
     {
         std::vector<TKeyValuePair> pairs;
         pairs.reserve(Map_.size());
@@ -74,19 +74,19 @@ public:
         return pairs;
     }
 
-    virtual TYsonString FindYson(TStringBuf key) const override
+    TYsonString FindYson(TStringBuf key) const override
     {
         auto it = Map_.find(key);
         return it == Map_.end() ? TYsonString() : it->second;
     }
 
-    virtual void SetYson(const TString& key, const TYsonString& value) override
+    void SetYson(const TString& key, const TYsonString& value) override
     {
         YT_ASSERT(value.GetType() == EYsonType::Node);
         Map_[key] = value;
     }
 
-    virtual bool Remove(const TString& key) override
+    bool Remove(const TString& key) override
     {
         return Map_.erase(key) > 0;
     }
@@ -107,27 +107,27 @@ class TEmptyAttributeDictionary
     : public IAttributeDictionary
 {
 public:
-    virtual std::vector<TString> ListKeys() const override
+    std::vector<TString> ListKeys() const override
     {
         return {};
     }
 
-    virtual std::vector<TKeyValuePair> ListPairs() const override
+    std::vector<TKeyValuePair> ListPairs() const override
     {
         return {};
     }
 
-    virtual TYsonString FindYson(TStringBuf /*key*/) const override
+    TYsonString FindYson(TStringBuf /*key*/) const override
     {
         return {};
     }
 
-    virtual void SetYson(const TString& /*key*/, const TYsonString& /*value*/) override
+    void SetYson(const TString& /*key*/, const TYsonString& /*value*/) override
     {
         YT_ABORT();
     }
 
-    virtual bool Remove(const TString& /*key*/) override
+    bool Remove(const TString& /*key*/) override
     {
         return false;
     }
@@ -153,31 +153,31 @@ public:
         : Underlying_(underlying)
     { }
 
-    virtual std::vector<TString> ListKeys() const override
+    std::vector<TString> ListKeys() const override
     {
         auto guard = ReaderGuard(Lock_);
         return Underlying_->ListKeys();
     }
 
-    virtual std::vector<TKeyValuePair> ListPairs() const override
+    std::vector<TKeyValuePair> ListPairs() const override
     {
         auto guard = ReaderGuard(Lock_);
         return Underlying_->ListPairs();
     }
 
-    virtual NYson::TYsonString FindYson(TStringBuf key) const override
+    NYson::TYsonString FindYson(TStringBuf key) const override
     {
         auto guard = ReaderGuard(Lock_);
         return Underlying_->FindYson(key);
     }
 
-    virtual void SetYson(const TString& key, const NYson::TYsonString& value) override
+    void SetYson(const TString& key, const NYson::TYsonString& value) override
     {
         auto guard = WriterGuard(Lock_);
         Underlying_->SetYson(key, value);
     }
 
-    virtual bool Remove(const TString& key) override
+    bool Remove(const TString& key) override
     {
         auto guard = WriterGuard(Lock_);
         return Underlying_->Remove(key);

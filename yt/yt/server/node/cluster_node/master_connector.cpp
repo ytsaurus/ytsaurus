@@ -89,7 +89,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
     }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -103,14 +103,14 @@ public:
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    virtual void Start() override
+    void Start() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         ResetAndRegisterAtMaster(/* firstTime */ true);
     }
 
-    virtual TReqHeartbeat GetHeartbeatRequest() override
+    TReqHeartbeat GetHeartbeatRequest() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -142,7 +142,7 @@ public:
         return heartbeat;
     }
 
-    virtual void OnHeartbeatResponse(const TRspHeartbeat& response) override
+    void OnHeartbeatResponse(const TRspHeartbeat& response) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -164,7 +164,7 @@ public:
         jobController->SetResourceLimitsOverrides(response.resource_limits_overrides());
     }
 
-    virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const override
+    NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -172,14 +172,14 @@ public:
         return LocalDescriptor_;
     }
 
-    virtual const IInvokerPtr& GetMasterConnectionInvoker() const override
+    const IInvokerPtr& GetMasterConnectionInvoker() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return MasterConnectionInvoker_;
     }
 
-    virtual void ResetAndRegisterAtMaster(bool firstTime) override
+    void ResetAndRegisterAtMaster(bool firstTime) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -195,7 +195,7 @@ public:
             MasterConnectionInvoker_);
     }
 
-    virtual NRpc::IChannelPtr GetMasterChannel(TCellTag cellTag) override
+    NRpc::IChannelPtr GetMasterChannel(TCellTag cellTag) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -206,21 +206,21 @@ public:
         return cellDirectory->GetChannel(cellId, NHydra::EPeerKind::Leader);
     }
 
-    virtual bool IsConnected() const override
+    bool IsConnected() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return NodeId_ != InvalidNodeId;
     }
 
-    virtual NNodeTrackerClient::TNodeId GetNodeId() const override
+    NNodeTrackerClient::TNodeId GetNodeId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return NodeId_.load();
     }
 
-    virtual bool UseNewHeartbeats() const override
+    bool UseNewHeartbeats() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -228,7 +228,7 @@ public:
         return *UseNewHeartbeats_;
     }
 
-    virtual const NObjectClient::TCellTagList& GetMasterCellTags() const override
+    const NObjectClient::TCellTagList& GetMasterCellTags() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

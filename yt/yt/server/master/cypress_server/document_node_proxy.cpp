@@ -64,17 +64,17 @@ public:
             trunkNode)
     { }
 
-    virtual ENodeType GetType() const override
+    ENodeType GetType() const override
     {
         return ENodeType::Entity;
     }
 
-    virtual TIntrusivePtr<const IEntityNode> AsEntity() const override
+    TIntrusivePtr<const IEntityNode> AsEntity() const override
     {
         return this;
     }
 
-    virtual TIntrusivePtr<IEntityNode> AsEntity() override
+    TIntrusivePtr<IEntityNode> AsEntity() override
     {
         return this;
     }
@@ -82,19 +82,19 @@ public:
 private:
     using TBase = TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TDocumentNode>;
 
-    virtual TResolveResult ResolveRecursive(const TYPath& path, const NRpc::IServiceContextPtr& /*context*/) override
+    TResolveResult ResolveRecursive(const TYPath& path, const NRpc::IServiceContextPtr& /*context*/) override
     {
         return TResolveResultHere{"/" + path};
     }
 
-    virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
+    void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
     {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
         const auto* impl = GetThisImpl();
         DelegateInvocation(impl->GetValue(), request, response, context);
     }
 
-    virtual void GetRecursive(const TYPath& /*path*/, TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
+    void GetRecursive(const TYPath& /*path*/, TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
     {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
         const auto* impl = GetThisImpl();
@@ -102,14 +102,14 @@ private:
     }
 
 
-    virtual void SetSelf(TReqSet* request, TRspSet* /*response*/, const TCtxSetPtr& context) override
+    void SetSelf(TReqSet* request, TRspSet* /*response*/, const TCtxSetPtr& context) override
     {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
         SetImplValue(TYsonString(request->value()));
         context->Reply();
     }
 
-    virtual void SetRecursive(const TYPath& /*path*/, TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override
+    void SetRecursive(const TYPath& /*path*/, TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override
     {
         context->SetRequestInfo();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
@@ -120,14 +120,14 @@ private:
     }
 
 
-    virtual void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override
+    void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override
     {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
         const auto* impl = GetThisImpl();
         DelegateInvocation(impl->GetValue(), request, response, context);
     }
 
-    virtual void ListRecursive(const TYPath& /*path*/, TReqList* request, TRspList* response, const TCtxListPtr& context) override
+    void ListRecursive(const TYPath& /*path*/, TReqList* request, TRspList* response, const TCtxListPtr& context) override
     {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
         const auto* impl = GetThisImpl();
@@ -135,7 +135,7 @@ private:
     }
 
 
-    virtual void RemoveRecursive(const TYPath& /*path*/, TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override
+    void RemoveRecursive(const TYPath& /*path*/, TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override
     {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
         auto* impl = LockThisImpl();
@@ -145,7 +145,7 @@ private:
     }
 
 
-    virtual void ExistsRecursive(const TYPath& /*path*/, TReqExists* request, TRspExists* response, const TCtxExistsPtr& context) override
+    void ExistsRecursive(const TYPath& /*path*/, TReqExists* request, TRspExists* response, const TCtxExistsPtr& context) override
     {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
         const auto* impl = GetThisImpl();
@@ -153,7 +153,7 @@ private:
     }
 
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
@@ -163,7 +163,7 @@ private:
             .SetReplicated(true));
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto* impl = GetThisImpl();
 
@@ -180,7 +180,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         switch (key) {
             case EInternedAttributeKey::Value:

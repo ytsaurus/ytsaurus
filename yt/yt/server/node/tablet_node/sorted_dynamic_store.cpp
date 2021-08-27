@@ -607,13 +607,13 @@ public:
         , Ranges_(std::move(ranges))
     { }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         UpdateLimits();
         return VoidFuture;
     }
 
-    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         YT_ASSERT(options.MaxRowsPerRead > 0);
         std::vector<TVersionedRow> rows;
@@ -654,12 +654,12 @@ public:
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         return VoidFuture;
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         TDataStatistics dataStatistics;
         dataStatistics.set_row_count(RowCount_);
@@ -667,17 +667,17 @@ public:
         return dataStatistics;
     }
 
-    virtual TCodecStatistics GetDecompressionStatistics() const override
+    TCodecStatistics GetDecompressionStatistics() const override
     {
         return TCodecStatistics();
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return true;
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return std::vector<TChunkId>();
     }
@@ -754,17 +754,17 @@ public:
         , Keys_(keys)
     { }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return VoidFuture;
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         return VoidFuture;
     }
 
-    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         YT_ASSERT(options.MaxRowsPerRead > 0);
         std::vector<TVersionedRow> rows;
@@ -813,7 +813,7 @@ public:
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         TDataStatistics dataStatistics;
         dataStatistics.set_row_count(RowCount_);
@@ -821,17 +821,17 @@ public:
         return dataStatistics;
     }
 
-    virtual TCodecStatistics GetDecompressionStatistics() const override
+    TCodecStatistics GetDecompressionStatistics() const override
     {
         return TCodecStatistics();
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return true;
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return std::vector<TChunkId>();
     }

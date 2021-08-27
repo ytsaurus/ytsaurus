@@ -17,17 +17,17 @@ public:
         , DataSliceDescriptor_(dataSliceDescriptor)
     { }
 
-    virtual TFuture<IReaderBasePtr> CreateReader() const override
+    TFuture<IReaderBasePtr> CreateReader() const override
     {
         return Factory_();
     }
 
-    virtual bool CanCreateReader() const override
+    bool CanCreateReader() const override
     {
         return CanCreateReader_();
     }
 
-    virtual const TDataSliceDescriptor& GetDataSliceDescriptor() const override
+    const TDataSliceDescriptor& GetDataSliceDescriptor() const override
     {
         return DataSliceDescriptor_;
     }

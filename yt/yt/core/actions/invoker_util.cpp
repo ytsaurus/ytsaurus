@@ -23,18 +23,18 @@ class TSyncInvoker
     : public IInvoker
 {
 public:
-    virtual void Invoke(TClosure callback) override
+    void Invoke(TClosure callback) override
     {
         callback.Run();
     }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-    virtual bool CheckAffinity(const IInvokerPtr& invoker) const override
+    bool CheckAffinity(const IInvokerPtr& invoker) const override
     {
         return invoker.Get() == this;
     }
 
-    virtual TThreadId GetThreadId() const override
+    TThreadId GetThreadId() const override
     {
         return InvalidThreadId;
     }
@@ -52,16 +52,16 @@ class TNullInvoker
     : public IInvoker
 {
 public:
-    virtual void Invoke(TClosure /*callback*/) override
+    void Invoke(TClosure /*callback*/) override
     { }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-    virtual bool CheckAffinity(const IInvokerPtr& /*invoker*/) const override
+    bool CheckAffinity(const IInvokerPtr& /*invoker*/) const override
     {
         return false;
     }
 
-    virtual TThreadId GetThreadId() const override
+    TThreadId GetThreadId() const override
     {
         return InvalidThreadId;
     }

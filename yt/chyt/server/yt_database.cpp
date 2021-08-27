@@ -61,17 +61,17 @@ public:
         // Do nothing.
     }
 
-    virtual bool isTableExist(const String& name, DB::ContextPtr context) const override
+    bool isTableExist(const String& name, DB::ContextPtr context) const override
     {
         return DoGetTable(context, name) != nullptr;
     }
 
-    virtual DB::StoragePtr tryGetTable(const String& name, DB::ContextPtr context) const override
+    DB::StoragePtr tryGetTable(const String& name, DB::ContextPtr context) const override
     {
         return DoGetTable(context, name);
     }
 
-    virtual DB::DatabaseTablesIteratorPtr getTablesIterator(
+    DB::DatabaseTablesIteratorPtr getTablesIterator(
         DB::ContextPtr context,
         const FilterByNameFunction& filterByTableName) override
     {
@@ -83,22 +83,22 @@ public:
                 : Paths_(std::move(paths))
             { }
 
-            virtual bool isValid() const override
+            bool isValid() const override
             {
                 return Index_ < Paths_.size();
             }
 
-            virtual void next() override
+            void next() override
             {
                 ++Index_;
             }
 
-            virtual const String& name() const override
+            const String& name() const override
             {
                 return Paths_[Index_];
             }
 
-            virtual DB::StoragePtr& table() const override
+            DB::StoragePtr& table() const override
             {
                 return Table_;
             }
@@ -117,35 +117,35 @@ public:
         return std::make_unique<TTableIterator>(traverser.GetTables());
     }
 
-    virtual bool empty() const override
+    bool empty() const override
     {
         // TODO(max42): what does this affect?
         return false;
     }
 
-    virtual bool canContainMergeTreeTables() const override
+    bool canContainMergeTreeTables() const override
     {
         return false;
     }
 
-    virtual bool canContainDistributedTables() const override
+    bool canContainDistributedTables() const override
     {
         return false;
     }
 
-    virtual DB::ASTPtr getCreateDatabaseQuery() const override
+    DB::ASTPtr getCreateDatabaseQuery() const override
     {
         THROW_ERROR_EXCEPTION("Getting CREATE DATABASE query is not supported");
     }
 
-    virtual void dropTable(DB::ContextPtr context, const String& name, bool /* noDelay */) override
+    void dropTable(DB::ContextPtr context, const String& name, bool /* noDelay */) override
     {
         auto* queryContext = GetQueryContext(context);
         WaitFor(queryContext->Client()->RemoveNode(TYPath(name)))
             .ThrowOnError();
     }
 
-    virtual DB::ASTPtr getCreateTableQueryImpl(const String& name, DB::ContextPtr context, bool throwOnError) const override
+    DB::ASTPtr getCreateTableQueryImpl(const String& name, DB::ContextPtr context, bool throwOnError) const override
     {
         auto* queryContext = GetQueryContext(context);
         auto path = TRichYPath::Parse(TString(name));

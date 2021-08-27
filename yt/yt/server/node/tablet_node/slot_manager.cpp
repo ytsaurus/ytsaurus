@@ -58,7 +58,7 @@ public:
         , OrchidService_(CreateOrchidService())
     { }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -72,13 +72,13 @@ public:
         SlotScanExecutor_->Start();
     }
 
-    virtual bool IsOutOfMemory(const std::optional<TString>& poolTag) const override
+    bool IsOutOfMemory(const std::optional<TString>& poolTag) const override
     {
         const auto& tracker = Bootstrap_->GetMemoryUsageTracker();
         return tracker->IsExceeded(EMemoryCategory::TabletDynamic, poolTag);
     }
 
-    virtual double GetUsedCpu(double cpuPerTabletSlot) const override
+    double GetUsedCpu(double cpuPerTabletSlot) const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -96,7 +96,7 @@ public:
         return result;
     }
 
-    virtual ITabletSlotPtr FindSlot(NHydra::TCellId id) override
+    ITabletSlotPtr FindSlot(NHydra::TCellId id) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -106,7 +106,7 @@ public:
         return nullptr;
     }
 
-    virtual const IYPathServicePtr& GetOrchidService() const override
+    const IYPathServicePtr& GetOrchidService() const override
     {
         return OrchidService_;
     }

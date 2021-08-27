@@ -39,7 +39,7 @@ public:
         , MergeJobSpecExt_(JobSpec_.GetExtension(TMergeJobSpecExt::merge_job_spec_ext))
     { }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         TSimpleJobBase::Initialize();
 
@@ -136,7 +136,7 @@ public:
         };
     }
 
-    virtual NJobTrackerClient::NProto::TJobResult Run() override
+    NJobTrackerClient::NProto::TJobResult Run() override
     {
         try {
             return TSimpleJobBase::Run();
@@ -157,17 +157,17 @@ public:
 private:
     const TMergeJobSpecExt& MergeJobSpecExt_;
 
-    virtual void InitializeReader() override
+    void InitializeReader() override
     {
         DoInitializeReader(nullptr, TColumnFilter());
     }
 
-    virtual void InitializeWriter() override
+    void InitializeWriter() override
     {
         DoInitializeWriter(nullptr, nullptr);
     }
 
-    virtual i64 GetTotalReaderMemoryLimit() const override
+    i64 GetTotalReaderMemoryLimit() const override
     {
         auto readerMemoryLimit = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader->MaxBufferSize;
         return readerMemoryLimit * SchedulerJobSpecExt_.input_table_specs_size();

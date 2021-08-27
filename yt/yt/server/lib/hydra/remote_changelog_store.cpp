@@ -73,31 +73,31 @@ public:
         , Logger(HydraLogger.WithTag("Path: %v", Path_))
     { }
 
-    virtual bool IsReadOnly() const override
+    bool IsReadOnly() const override
     {
         return !PrerequisiteTransaction_;
     }
 
-    virtual std::optional<TVersion> GetReachableVersion() const override
+    std::optional<TVersion> GetReachableVersion() const override
     {
         return ReachableVersion_;
     }
 
-    virtual TFuture<IChangelogPtr> CreateChangelog(int id) override
+    TFuture<IChangelogPtr> CreateChangelog(int id) override
     {
         return BIND(&TRemoteChangelogStore::DoCreateChangelog, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
             .Run(id);
     }
 
-    virtual TFuture<IChangelogPtr> OpenChangelog(int id) override
+    TFuture<IChangelogPtr> OpenChangelog(int id) override
     {
         return BIND(&TRemoteChangelogStore::DoOpenChangelog, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
             .Run(id);
     }
 
-    virtual void Abort() override
+    void Abort() override
     {
         if (PrerequisiteTransaction_) {
             PrerequisiteTransaction_->Abort();
@@ -255,17 +255,17 @@ private:
             , DataSize_(dataSize)
         { }
 
-        virtual int GetRecordCount() const override
+        int GetRecordCount() const override
         {
             return RecordCount_;
         }
 
-        virtual i64 GetDataSize() const override
+        i64 GetDataSize() const override
         {
             return DataSize_;
         }
 
-        virtual TFuture<void> Append(TRange<TSharedRef> records) override
+        TFuture<void> Append(TRange<TSharedRef> records) override
         {
             if (!Writer_) {
                 return MakeFuture<void>(TError("Changelog is read-only"));
@@ -277,12 +277,12 @@ private:
             return FlushResult_;
         }
 
-        virtual TFuture<void> Flush() override
+        TFuture<void> Flush() override
         {
             return FlushResult_;
         }
 
-        virtual TFuture<std::vector<TSharedRef>> Read(
+        TFuture<std::vector<TSharedRef>> Read(
             int firstRecordId,
             int maxRecords,
             i64 /*maxBytes*/) const override
@@ -292,17 +292,17 @@ private:
                 .Run(firstRecordId, maxRecords);
         }
 
-        virtual TFuture<void> Truncate(int /*recordCount*/) override
+        TFuture<void> Truncate(int /*recordCount*/) override
         {
             YT_ABORT();
         }
 
-        virtual TFuture<void> Close() override
+        TFuture<void> Close() override
         {
             return Writer_ ? Writer_->Close() : VoidFuture;
         }
 
-        virtual TFuture<void> Preallocate(size_t /*size*/) override
+        TFuture<void> Preallocate(size_t /*size*/) override
         {
             YT_ABORT();
         }
@@ -364,7 +364,7 @@ public:
         , Logger(HydraLogger.WithTag("Path: %v", Path_))
     { }
 
-    virtual TFuture<IChangelogStorePtr> Lock() override
+    TFuture<IChangelogStorePtr> Lock() override
     {
         return BIND(&TRemoteChangelogStoreFactory::DoLock, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())

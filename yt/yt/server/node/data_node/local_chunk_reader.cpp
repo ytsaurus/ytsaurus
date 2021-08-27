@@ -42,7 +42,7 @@ public:
         , BlockMetaCache_(std::move(blockMetaCache))
     { }
 
-    virtual TFuture<std::vector<TBlock>> ReadBlocks(
+    TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
         std::optional<i64> /* estimatedSize */) override
@@ -57,7 +57,7 @@ public:
         return session->Promise.ToFuture();
     }
 
-    virtual TFuture<std::vector<TBlock>> ReadBlocks(
+    TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& clientOptions,
         int firstBlockIndex,
         int blockCount,
@@ -82,7 +82,7 @@ public:
         }));
     }
 
-    virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
+    TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientChunkReadOptions& clientOptions,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override
@@ -117,12 +117,12 @@ public:
         }));
     }
 
-    virtual TChunkId GetChunkId() const override
+    TChunkId GetChunkId() const override
     {
         return Chunk_->GetId();
     }
 
-    virtual TInstant GetLastFailureTime() const override
+    TInstant GetLastFailureTime() const override
     {
         return TInstant();
     }

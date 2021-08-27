@@ -93,7 +93,7 @@ private:
     }
 
 
-    virtual void DoStart() override
+    void DoStart() override
     {
         TGrpcChannelArgs args(Config_->GrpcArguments);
 
@@ -143,7 +143,7 @@ private:
         New<TCallHandler>(this);
     }
 
-    virtual TFuture<void> DoStop(bool graceful) override
+    TFuture<void> DoStop(bool graceful) override
     {
         class TStopTag
             : public TCompletionQueueTag
@@ -153,7 +153,7 @@ private:
                 : Owner_(std::move(owner))
             { }
 
-            virtual void Run(bool success, int /*cookie*/) override
+            void Run(bool success, int /*cookie*/) override
             {
                 YT_VERIFY(success);
                 Owner_->OnCallHandlerDestroyed();
@@ -193,32 +193,32 @@ private:
         { }
 
         // IBus overrides
-        virtual const TString& GetEndpointDescription() const override
+        const TString& GetEndpointDescription() const override
         {
             return PeerAddressString_;
         }
 
-        virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
+        const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
         {
             YT_ABORT();
         }
 
-        virtual TTcpDispatcherStatistics GetStatistics() const override
+        TTcpDispatcherStatistics GetStatistics() const override
         {
             return {};
         }
 
-        virtual const NNet::TNetworkAddress& GetEndpointAddress() const override
+        const NNet::TNetworkAddress& GetEndpointAddress() const override
         {
             return PeerAddress_;
         }
 
-        virtual TFuture<void> GetReadyFuture() const override
+        TFuture<void> GetReadyFuture() const override
         {
             return VoidFuture;
         }
 
-        virtual TFuture<void> Send(TSharedRefArray message, const NBus::TSendOptions& /*options*/) override
+        TFuture<void> Send(TSharedRefArray message, const NBus::TSendOptions& /*options*/) override
         {
             if (auto handler = Handler_.Lock()) {
                 handler->OnResponseMessage(std::move(message));
@@ -226,16 +226,16 @@ private:
             return {};
         }
 
-        virtual void SetTosLevel(TTosLevel /*tosLevel*/) override
+        void SetTosLevel(TTosLevel /*tosLevel*/) override
         { }
 
-        virtual void Terminate(const TError& /*error*/) override
+        void Terminate(const TError& /*error*/) override
         { }
 
-        virtual void SubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/) override
+        void SubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/) override
         { }
 
-        virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/) override
+        void UnsubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/) override
         { }
 
     private:
@@ -274,7 +274,7 @@ private:
         }
 
         // TCompletionQueueTag overrides
-        virtual void Run(bool success, int cookie_) override
+        void Run(bool success, int cookie_) override
         {
             auto cookie = static_cast<EServerCallCookie>(cookie_);
             switch (cookie) {

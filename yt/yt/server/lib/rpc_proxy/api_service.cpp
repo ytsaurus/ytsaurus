@@ -642,7 +642,7 @@ private:
             , ResultHandler_(std::move(resultHandler))
         { }
 
-        virtual void Run() override
+        void Run() override
         {
             auto future = Executor_();
 
@@ -3979,7 +3979,7 @@ private:
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    virtual bool IsUp(const TCtxDiscoverPtr& /*context*/) override
+    bool IsUp(const TCtxDiscoverPtr& /*context*/) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

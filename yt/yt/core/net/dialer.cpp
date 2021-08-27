@@ -85,7 +85,7 @@ public:
         , Poller_(std::move(poller))
     { }
 
-    virtual TFuture<IConnectionPtr> Dial(const TNetworkAddress& remote) override
+    TFuture<IConnectionPtr> Dial(const TNetworkAddress& remote) override
     {
         auto session = New<TDialSession>(
             remote,
@@ -143,7 +143,7 @@ public:
         CloseSocket();
     }
 
-    virtual void Dial() override
+    void Dial() override
     {
         auto guard = Guard(SpinLock_);
 
@@ -163,19 +163,19 @@ private:
             , LoggingTag_(Format("AsyncDialerSession{%v:%v}", id, socket))
         { }
 
-        virtual const TString& GetLoggingTag() const override
+        const TString& GetLoggingTag() const override
         {
             return LoggingTag_;
         }
 
-        virtual void OnEvent(EPollControl /*control*/) override
+        void OnEvent(EPollControl /*control*/) override
         {
             if (auto owner = Owner_.Lock()) {
                 owner->OnConnected(this);
             }
         }
 
-        virtual void OnShutdown() override
+        void OnShutdown() override
         {
             if (auto owner = Owner_.Lock()) {
                 owner->OnShutdown(this);
@@ -380,7 +380,7 @@ public:
         , Logger(logger)
     { }
 
-    virtual IAsyncDialerSessionPtr CreateSession(
+    IAsyncDialerSessionPtr CreateSession(
         const TNetworkAddress& address,
         TAsyncDialerCallback onFinished) override
     {

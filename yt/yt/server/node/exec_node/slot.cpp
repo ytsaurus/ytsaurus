@@ -55,13 +55,13 @@ public:
         Location_->IncreaseSessionCount();
     }
 
-    virtual void CleanProcesses() override
+    void CleanProcesses() override
     {
         // First kill all processes that may hold open handles to slot directories.
         JobEnvironment_->CleanProcesses(SlotIndex_);
     }
 
-    virtual void CleanSandbox() override
+    void CleanSandbox() override
     {
         WaitFor(Location_->CleanSandboxes(
             SlotIndex_))
@@ -69,7 +69,7 @@ public:
         Location_->DecreaseSessionCount();
     }
 
-    virtual void CancelPreparation() override
+    void CancelPreparation() override
     {
         PreparationCanceled_ = true;
 
@@ -78,7 +78,7 @@ public:
         }
     }
 
-    virtual TFuture<void> RunJobProxy(
+    TFuture<void> RunJobProxy(
         NJobProxy::TJobProxyConfigPtr config,
         TJobId jobId,
         TOperationId operationId) override
@@ -101,7 +101,7 @@ public:
             true);
     }
 
-    virtual TFuture<void> MakeLink(
+    TFuture<void> MakeLink(
         TJobId jobId,
         const TString& artifactName,
         ESandboxKind sandboxKind,
@@ -121,7 +121,7 @@ public:
             });
     }
 
-    virtual TFuture<void> MakeCopy(
+    TFuture<void> MakeCopy(
         TJobId jobId,
         const TString& artifactName,
         ESandboxKind sandboxKind,
@@ -139,7 +139,7 @@ public:
             });
     }
 
-    virtual TFuture<void> MakeFile(
+    TFuture<void> MakeFile(
         TJobId jobId,
         const TString& artifactName,
         ESandboxKind sandboxKind,
@@ -157,12 +157,12 @@ public:
             });
     }
 
-    virtual bool IsLayerCached(const TArtifactKey& artifactKey) const override
+    bool IsLayerCached(const TArtifactKey& artifactKey) const override
     {
         return VolumeManager_->IsLayerCached(artifactKey);
     }
 
-    virtual TFuture<IVolumePtr> PrepareRootVolume(
+    TFuture<IVolumePtr> PrepareRootVolume(
         const std::vector<TArtifactKey>& layers,
         const TArtifactDownloadOptions& downloadOptions) override
     {
@@ -174,32 +174,32 @@ public:
             });
     }
 
-    virtual int GetSlotIndex() const override
+    int GetSlotIndex() const override
     {
         return SlotIndex_;
     }
 
-    virtual TString GetSandboxPath(ESandboxKind sandbox) const override
+    TString GetSandboxPath(ESandboxKind sandbox) const override
     {
         return Location_->GetSandboxPath(SlotIndex_, sandbox);
     }
 
-    virtual TString GetMediumName() const override
+    TString GetMediumName() const override
     {
         return Location_->GetMediumName();
     }
 
-    virtual TTcpBusServerConfigPtr GetBusServerConfig() const override
+    TTcpBusServerConfigPtr GetBusServerConfig() const override
     {
         return TTcpBusServerConfig::CreateUnixDomain(JobProxyUnixDomainSocketPath_);
     }
 
-    virtual TTcpBusClientConfigPtr GetBusClientConfig() const override
+    TTcpBusClientConfigPtr GetBusClientConfig() const override
     {
         return TTcpBusClientConfig::CreateUnixDomain(JobProxyUnixDomainSocketPath_);
     }
 
-    virtual TFuture<std::vector<TString>> PrepareSandboxDirectories(const TUserSandboxOptions& options) override
+    TFuture<std::vector<TString>> PrepareSandboxDirectories(const TUserSandboxOptions& options) override
     {
         return RunPrepareAction<std::vector<TString>>([&] {
                 return Location_->PrepareSandboxDirectories(
@@ -210,7 +210,7 @@ public:
             true);
     }
 
-    virtual TFuture<void> RunSetupCommands(
+    TFuture<void> RunSetupCommands(
         TJobId jobId,
         const std::vector<NJobAgent::TShellCommandConfigPtr>& commands,
         const NContainers::TRootFS& rootFS,
@@ -225,7 +225,7 @@ public:
             true);
     }
 
-    virtual void OnArtifactPreparationFailed(
+    void OnArtifactPreparationFailed(
         TJobId jobId,
         const TString& artifactName,
         ESandboxKind sandboxKind,

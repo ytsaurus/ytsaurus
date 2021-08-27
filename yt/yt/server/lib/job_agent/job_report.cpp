@@ -160,101 +160,101 @@ public:
         : Output_(output)
     { }
 
-    virtual void OnStringScalar(TStringBuf value) override
+    void OnStringScalar(TStringBuf value) override
     {
         if (AttributesDepth_ == 0) {
             Output_->OnStringScalar(value);
         }
     }
 
-    virtual void OnInt64Scalar(i64 value) override
+    void OnInt64Scalar(i64 value) override
     {
         if (AttributesDepth_ == 0) {
             Output_->OnInt64Scalar(value);
         }
     }
 
-    virtual void OnUint64Scalar(ui64 value) override
+    void OnUint64Scalar(ui64 value) override
     {
         if (AttributesDepth_ == 0) {
             Output_->OnInt64Scalar(value);
         }
     }
 
-    virtual void OnDoubleScalar(double value) override
+    void OnDoubleScalar(double value) override
     {
         if (AttributesDepth_ == 0) {
             Output_->OnDoubleScalar(value);
         }
     }
 
-    virtual void OnBooleanScalar(bool value) override
+    void OnBooleanScalar(bool value) override
     {
         if (AttributesDepth_ == 0) {
             Output_->OnBooleanScalar(value);
         }
     }
 
-    virtual void OnEntity() override
+    void OnEntity() override
     {
         if (AttributesDepth_ == 0) {
             Output_->OnEntity();
         }
     }
 
-    virtual void OnBeginList() override
+    void OnBeginList() override
     {
         if (AttributesDepth_ == 0) {
             Output_->OnBeginList();
         }
     }
 
-    virtual void OnListItem() override
+    void OnListItem() override
     {
         if (AttributesDepth_ == 0) {
             Output_->OnListItem();
         }
     }
 
-    virtual void OnEndList() override
+    void OnEndList() override
     {
         if (AttributesDepth_ == 0) {
             Output_->OnEndList();
         }
     }
 
-    virtual void OnBeginMap() override
+    void OnBeginMap() override
     {
         if (AttributesDepth_ == 0) {
             Output_->OnBeginMap();
         }
     }
 
-    virtual void OnKeyedItem(TStringBuf key) override
+    void OnKeyedItem(TStringBuf key) override
     {
         if (AttributesDepth_ == 0) {
             Output_->OnKeyedItem(key);
         }
     }
 
-    virtual void OnEndMap() override
+    void OnEndMap() override
     {
         if (AttributesDepth_ == 0) {
             Output_->OnEndMap();
         }
     }
 
-    virtual void OnBeginAttributes() override
+    void OnBeginAttributes() override
     {
         ++AttributesDepth_;
     }
 
-    virtual void OnEndAttributes() override
+    void OnEndAttributes() override
     {
         --AttributesDepth_;
     }
 
-    virtual void OnRaw(TStringBuf yson, EYsonType type) override
+    void OnRaw(TStringBuf yson, EYsonType type) override
     {
         if (AttributesDepth_ == 0) {
             Output_->OnRaw(yson, type);

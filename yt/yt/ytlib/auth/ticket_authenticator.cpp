@@ -31,7 +31,7 @@ public:
         , TvmService_(std::move(tvmService))
     { }
 
-    virtual TFuture<TAuthenticationResult> Authenticate(
+    TFuture<TAuthenticationResult> Authenticate(
         const TTicketCredentials& credentials) override
     {
         const auto& ticket = credentials.Ticket;
@@ -151,7 +151,7 @@ public:
         : Underlying_(std::move(underlying))
     { }
 
-    virtual TFuture<NRpc::TAuthenticationResult> Authenticate(
+    TFuture<NRpc::TAuthenticationResult> Authenticate(
         const NRpc::TAuthenticationContext& context) override
     {
         if (!context.Header->HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {

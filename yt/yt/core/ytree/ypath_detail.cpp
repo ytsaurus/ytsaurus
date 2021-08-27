@@ -1247,7 +1247,7 @@ private:
     std::unique_ptr<TBufferedBinaryYsonWriter> AttributeWriter_;
 
 
-    virtual void OnMyKeyedItem(TStringBuf key) override
+    void OnMyKeyedItem(TStringBuf key) override
     {
         AttributeWriter_.reset(new TBufferedBinaryYsonWriter(&AttributeStream_));
         Forward(
@@ -1376,10 +1376,10 @@ protected:
     }
 
 
-    virtual void DoReply() override
+    void DoReply() override
     { }
 
-    virtual void LogRequest() override
+    void LogRequest() override
     {
         const auto& ypathExt = GetYPathExt();
 
@@ -1422,7 +1422,7 @@ protected:
         Timer_.emplace();
     }
 
-    virtual void LogResponse() override
+    void LogResponse() override
     {
         const auto& ypathExt = GetYPathExt();
 
@@ -1501,12 +1501,12 @@ public:
         : UnderlyingService_(std::move(underlyingService))
     { }
 
-    virtual void Invoke(const IServiceContextPtr& /*context*/) override
+    void Invoke(const IServiceContextPtr& /*context*/) override
     {
         YT_ABORT();
     }
 
-    virtual TResolveResult Resolve(
+    TResolveResult Resolve(
         const TYPath& path,
         const IServiceContextPtr& /*context*/) override
     {
@@ -1518,7 +1518,7 @@ public:
         return TResolveResultThere{UnderlyingService_, TYPath(tokenizer.GetSuffix())};
     }
 
-    virtual void DoWriteAttributesFragment(
+    void DoWriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
         const std::optional<std::vector<TString>>& attributeKeys,
         bool stable) override
@@ -1526,7 +1526,7 @@ public:
         UnderlyingService_->WriteAttributesFragment(consumer, attributeKeys, stable);
     }
 
-    virtual bool ShouldHideAttributes() override
+    bool ShouldHideAttributes() override
     {
         return false;
     }

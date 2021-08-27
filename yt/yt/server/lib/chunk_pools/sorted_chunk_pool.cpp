@@ -17,12 +17,12 @@ public:
         : FactoryCallback_(std::move(factoryCallback))
     { }
 
-    virtual IChunkSliceFetcherPtr CreateChunkSliceFetcher() override
+    IChunkSliceFetcherPtr CreateChunkSliceFetcher() override
     {
         return FactoryCallback_();
     }
 
-    virtual void Persist(const TPersistenceContext& /*context*/) override
+    void Persist(const TPersistenceContext& /*context*/) override
     {
         // This implementation is not persistable.
         Y_UNREACHABLE();

@@ -1122,7 +1122,7 @@ public:
             GetByteSize(CompressedBlocks_));
     }
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& /*options*/) override
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& /*options*/) override
     {
         if (Finished_) {
             return nullptr;
@@ -1175,27 +1175,27 @@ public:
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         return VoidFuture;
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         YT_ABORT();
     }
 
-    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
+    NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
     {
         YT_ABORT();
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return false;
     }
 
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
+    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
     {
         return {};
     }
@@ -1252,7 +1252,7 @@ public:
             DesiredUncompressedBlockSize_);
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         if (!Closed_) {
             YT_LOG_DEBUG("Wire protocol rowset writer closed");
@@ -1262,7 +1262,7 @@ public:
         return VoidFuture;
     }
 
-    virtual bool Write(TRange<TUnversionedRow> rows) override
+    bool Write(TRange<TUnversionedRow> rows) override
     {
         YT_VERIFY(!Closed_);
         for (auto row : rows) {
@@ -1285,12 +1285,12 @@ public:
         return true;
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() override
     {
         return VoidFuture;
     }
 
-    virtual std::vector<TSharedRef> GetCompressedBlocks() override
+    std::vector<TSharedRef> GetCompressedBlocks() override
     {
         YT_VERIFY(Closed_);
         return CompressedBlocks_;

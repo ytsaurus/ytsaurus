@@ -193,7 +193,7 @@ public:
         }
     }
 
-    virtual TFuture<std::vector<TErrorOr<TColumnarStatisticsEntry>>> DoGetMany(
+    TFuture<std::vector<TErrorOr<TColumnarStatisticsEntry>>> DoGetMany(
         const std::vector<TTableKey>& keys,
         bool /*isPeriodicUpdate*/) noexcept override
     {
@@ -258,7 +258,7 @@ public:
         return results;
     }
 
-    virtual TFuture<TColumnarStatisticsEntry> DoGet(const TTableKey& key, bool isPeriodicUpdate) noexcept override
+    TFuture<TColumnarStatisticsEntry> DoGet(const TTableKey& key, bool isPeriodicUpdate) noexcept override
     {
         return DoGetMany({key}, isPeriodicUpdate)
             .Apply(BIND([] (const std::vector<TErrorOr<TColumnarStatisticsEntry>>& results) {

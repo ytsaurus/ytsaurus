@@ -40,7 +40,7 @@ public:
             Config_->SlotScanPeriod))
     { }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         auto cellar = Bootstrap_->GetCellarManager()->GetCellar(ECellarType::Chaos);
         cellar->RegisterOccupierProvider(CreateChaosCellarOccupierProvider(Config_, Bootstrap_));

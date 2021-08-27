@@ -41,11 +41,11 @@ public:
     { }
 
     // IClientResponseHandler implementation.
-    virtual void HandleAcknowledgement() override;
-    virtual void HandleResponse(TSharedRefArray message) override;
-    virtual void HandleError(const TError& error) override;
-    virtual void HandleStreamingPayload(const TStreamingPayload& /*payload*/) override;
-    virtual void HandleStreamingFeedback(const TStreamingFeedback& /*feedback*/) override;
+    void HandleAcknowledgement() override;
+    void HandleResponse(TSharedRefArray message) override;
+    void HandleError(const TError& error) override;
+    void HandleStreamingPayload(const TStreamingPayload& /*payload*/) override;
+    void HandleStreamingFeedback(const TStreamingFeedback& /*feedback*/) override;
 
 private:
     const THedgingSessionPtr Session_;
@@ -157,7 +157,7 @@ public:
     }
 
     // IClientRequestControl implementation.
-    virtual void Cancel() override
+    void Cancel() override
     {
         Acknowledged_.store(true);
         Responded_.store(true);
@@ -165,12 +165,12 @@ public:
         CancelSentRequests();
     }
 
-    virtual TFuture<void> SendStreamingPayload(const TStreamingPayload& /*payload*/) override
+    TFuture<void> SendStreamingPayload(const TStreamingPayload& /*payload*/) override
     {
         YT_ABORT();
     }
 
-    virtual TFuture<void> SendStreamingFeedback(const TStreamingFeedback& /*feedback*/) override
+    TFuture<void> SendStreamingFeedback(const TStreamingFeedback& /*feedback*/) override
     {
         YT_ABORT();
     }
@@ -318,22 +318,22 @@ public:
             .EndMap()))
     { }
 
-    virtual const TString& GetEndpointDescription() const override
+    const TString& GetEndpointDescription() const override
     {
         return EndpointDescription_;
     }
 
-    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
+    const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
     {
         return *EndpointAttributes_;
     }
 
-    virtual TNetworkId GetNetworkId() const override
+    TNetworkId GetNetworkId() const override
     {
         return PrimaryChannel_->GetNetworkId();
     }
 
-    virtual IClientRequestControlPtr Send(
+    IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
@@ -347,19 +347,19 @@ public:
             Options_);
     }
 
-    virtual void Terminate(const TError& error) override
+    void Terminate(const TError& error) override
     {
         PrimaryChannel_->Terminate(error);
         BackupChannel_->Terminate(error);
     }
 
-    virtual void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override
+    void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override
     {
         PrimaryChannel_->SubscribeTerminated(callback);
         BackupChannel_->SubscribeTerminated(callback);
     }
 
-    virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& callback) override
+    void UnsubscribeTerminated(const TCallback<void(const TError&)>& callback) override
     {
         PrimaryChannel_->UnsubscribeTerminated(callback);
         BackupChannel_->UnsubscribeTerminated(callback);

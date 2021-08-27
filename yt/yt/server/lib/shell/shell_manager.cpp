@@ -83,7 +83,7 @@ public:
         , Environment_(std::move(environment))
     { }
 
-    virtual TYsonString PollJobShell(
+    TYsonString PollJobShell(
         const TJobShellDescriptor& jobShellDescriptor,
         const TYsonString& serializedParameters) override
     {
@@ -224,7 +224,7 @@ public:
         return ConvertToYsonString(result);
     }
 
-    virtual void Terminate(const TError& error) override
+    void Terminate(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -237,7 +237,7 @@ public:
         IndexToShell_.clear();
     }
 
-    virtual TFuture<void> GracefulShutdown(const TError& error) override
+    TFuture<void> GracefulShutdown(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 

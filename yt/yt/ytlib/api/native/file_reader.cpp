@@ -87,7 +87,7 @@ public:
             .Run();
     }
 
-    virtual TFuture<TSharedRef> Read() override
+    TFuture<TSharedRef> Read() override
     {
         ValidateAborted();
 
@@ -104,12 +104,12 @@ public:
             BIND(&TFileReader::Read, MakeStrong(this)));
     }
 
-    virtual TObjectId GetId() const override
+    TObjectId GetId() const override
     {
         return Id_;
     }
 
-    virtual NHydra::TRevision GetRevision() const override
+    NHydra::TRevision GetRevision() const override
     {
         return Revision_;
     }

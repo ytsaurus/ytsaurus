@@ -91,12 +91,12 @@ public:
             ->Via(Slot_->GetGuardedAutomatonInvoker());
     }
 
-    virtual IYPathServicePtr GetOrchidService() override
+    IYPathServicePtr GetOrchidService() override
     {
         return OrchidService_;
     }
 
-    virtual void RegisterTransactionActionHandlers(
+    void RegisterTransactionActionHandlers(
         const TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
         const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
         const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor) override
@@ -108,14 +108,14 @@ public:
     }
 
     // ITransactionManager implementation.
-    virtual TFuture<void> GetReadyToPrepareTransactionCommit(
+    TFuture<void> GetReadyToPrepareTransactionCommit(
         const std::vector<TTransactionId>& /*prerequisiteTransactionIds*/,
         const std::vector<TCellId>& /*cellIdsToSyncWith*/) override
     {
         return VoidFuture;
     }
 
-    virtual void PrepareTransactionCommit(
+    void PrepareTransactionCommit(
         TTransactionId transactionId,
         bool persistent,
         TTimestamp prepareTimestamp,
@@ -150,7 +150,7 @@ public:
             prepareTimestamp);
     }
 
-    virtual void PrepareTransactionAbort(TTransactionId transactionId, bool force) override
+    void PrepareTransactionAbort(TTransactionId transactionId, bool force) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -170,7 +170,7 @@ public:
         }
     }
 
-    virtual void CommitTransaction(TTransactionId transactionId, TTimestamp commitTimestamp) override
+    void CommitTransaction(TTransactionId transactionId, TTimestamp commitTimestamp) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -203,7 +203,7 @@ public:
             commitTimestamp);
     }
 
-    virtual void AbortTransaction(TTransactionId transactionId, bool force) override
+    void AbortTransaction(TTransactionId transactionId, bool force) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -229,7 +229,7 @@ public:
         TransactionMap_.Remove(transactionId);
     }
 
-    virtual void PingTransaction(TTransactionId transactionId, bool pingAncestors) override
+    void PingTransaction(TTransactionId transactionId, bool pingAncestors) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -317,21 +317,21 @@ private:
     }
 
 
-    virtual void OnAfterSnapshotLoaded() override
+    void OnAfterSnapshotLoaded() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TChaosAutomatonPart::OnAfterSnapshotLoaded();
     }
 
-    virtual void OnLeaderActive() override
+    void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TChaosAutomatonPart::OnLeaderActive();
     }
 
-    virtual void OnStopLeading() override
+    void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -371,7 +371,7 @@ private:
     }
 
 
-    virtual void Clear() override
+    void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

@@ -42,7 +42,7 @@ public:
         Reconfigure(config);
     }
 
-    virtual TFuture<void> Throttle(i64 count) override
+    TFuture<void> Throttle(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YT_VERIFY(count >= 0);
@@ -105,7 +105,7 @@ public:
         return request->Promise;
     }
 
-    virtual bool TryAcquire(i64 count) override
+    bool TryAcquire(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YT_VERIFY(count >= 0);
@@ -132,7 +132,7 @@ public:
         return true;
     }
 
-    virtual i64 TryAcquireAvailable(i64 count) override
+    i64 TryAcquireAvailable(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YT_VERIFY(count >= 0);
@@ -161,7 +161,7 @@ public:
         return count;
     }
 
-    virtual void Acquire(i64 count) override
+    void Acquire(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YT_VERIFY(count >= 0);
@@ -179,7 +179,7 @@ public:
         ValueCounter_.Increment(count);
     }
 
-    virtual bool IsOverdraft() override
+    bool IsOverdraft() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -193,21 +193,21 @@ public:
         return Available_ <= 0;
     }
 
-    virtual void Reconfigure(TThroughputThrottlerConfigPtr config) override
+    void Reconfigure(TThroughputThrottlerConfigPtr config) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         DoReconfigure(config->Limit, config->Period);
     }
 
-    virtual void SetLimit(std::optional<double> limit) override
+    void SetLimit(std::optional<double> limit) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         DoReconfigure(limit, Period_);
     }
 
-    virtual i64 GetQueueTotalCount() const override
+    i64 GetQueueTotalCount() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -399,7 +399,7 @@ public:
         : ValueCounter_(profiler.Counter("/value"))
     { }
 
-    virtual TFuture<void> Throttle(i64 count) override
+    TFuture<void> Throttle(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YT_VERIFY(count >= 0);
@@ -408,7 +408,7 @@ public:
         return VoidFuture;
     }
 
-    virtual bool TryAcquire(i64 count) override
+    bool TryAcquire(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YT_VERIFY(count >= 0);
@@ -417,7 +417,7 @@ public:
         return true;
     }
 
-    virtual i64 TryAcquireAvailable(i64 count) override
+    i64 TryAcquireAvailable(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YT_VERIFY(count >= 0);
@@ -426,7 +426,7 @@ public:
         return count;
     }
 
-    virtual void Acquire(i64 count) override
+    void Acquire(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YT_VERIFY(count >= 0);
@@ -434,13 +434,13 @@ public:
         ValueCounter_.Increment(count);
     }
 
-    virtual bool IsOverdraft() override
+    bool IsOverdraft() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return false;
     }
 
-    virtual i64 GetQueueTotalCount() const override
+    i64 GetQueueTotalCount() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return 0;
@@ -473,7 +473,7 @@ public:
         : Throttlers_(throttlers)
     { }
 
-    virtual TFuture<void> Throttle(i64 count) override
+    TFuture<void> Throttle(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YT_VERIFY(count >= 0);
@@ -492,17 +492,17 @@ public:
         }));
     }
 
-    virtual bool TryAcquire(i64 /*count*/) override
+    bool TryAcquire(i64 /*count*/) override
     {
         YT_ABORT();
     }
 
-    virtual i64 TryAcquireAvailable(i64 /*count*/) override
+    i64 TryAcquireAvailable(i64 /*count*/) override
     {
         YT_ABORT();
     }
 
-    virtual void Acquire(i64 count) override
+    void Acquire(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YT_VERIFY(count >= 0);
@@ -512,7 +512,7 @@ public:
         }
     }
 
-    virtual bool IsOverdraft() override
+    bool IsOverdraft() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -524,7 +524,7 @@ public:
         return false;
     }
 
-    virtual i64 GetQueueTotalCount() const override
+    i64 GetQueueTotalCount() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

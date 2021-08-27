@@ -29,18 +29,18 @@ private:
 public:
     using TBase::TBase;
 
-    virtual EObjectType GetObjectType() const override
+    EObjectType GetObjectType() const override
     {
         return EObjectType::Link;
     }
 
-    virtual ENodeType GetNodeType() const override
+    ENodeType GetNodeType() const override
     {
         return ENodeType::Entity;
     }
 
 private:
-    virtual ICypressNodeProxyPtr DoGetProxy(
+    ICypressNodeProxyPtr DoGetProxy(
         TLinkNode* trunkNode,
         TTransaction* transaction) override
     {
@@ -51,7 +51,7 @@ private:
             trunkNode);
     }
 
-    virtual std::unique_ptr<TLinkNode> DoCreate(
+    std::unique_ptr<TLinkNode> DoCreate(
         TVersionedNodeId id,
         const TCreateNodeContext& context) override
     {
@@ -68,7 +68,7 @@ private:
         return implHolder;
     }
 
-    virtual void DoBranch(
+    void DoBranch(
         const TLinkNode* originatingNode,
         TLinkNode* branchedNode,
         const TLockRequest& lockRequest) override
@@ -78,7 +78,7 @@ private:
         branchedNode->SetTargetPath(originatingNode->GetTargetPath());
     }
 
-    virtual void DoMerge(
+    void DoMerge(
         TLinkNode* originatingNode,
         TLinkNode* branchedNode) override
     {
@@ -87,7 +87,7 @@ private:
         originatingNode->SetTargetPath(branchedNode->GetTargetPath());
     }
 
-    virtual void DoClone(
+    void DoClone(
         TLinkNode* sourceNode,
         TLinkNode* clonedTrunkNode,
         ICypressNodeFactory* factory,
@@ -99,7 +99,7 @@ private:
         clonedTrunkNode->SetTargetPath(sourceNode->GetTargetPath());
     }
 
-    virtual bool HasBranchedChangesImpl(
+    bool HasBranchedChangesImpl(
         TLinkNode* originatingNode,
         TLinkNode* branchedNode) override
     {
@@ -110,7 +110,7 @@ private:
         return branchedNode->GetTargetPath() != originatingNode->GetTargetPath();
     }
 
-    virtual void DoBeginCopy(
+    void DoBeginCopy(
         TLinkNode* node,
         TBeginCopyContext* context) override
     {
@@ -120,7 +120,7 @@ private:
         Save(*context, node->GetTargetPath());
     }
 
-    virtual void DoEndCopy(
+    void DoEndCopy(
         TLinkNode* trunkNode,
         TEndCopyContext* context,
         ICypressNodeFactory* factory) override

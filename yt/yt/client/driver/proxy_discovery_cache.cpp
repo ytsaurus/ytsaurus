@@ -67,7 +67,7 @@ public:
         , Client_(std::move(client))
     { }
 
-    virtual TFuture<TProxyDiscoveryResponse> Discover(
+    TFuture<TProxyDiscoveryResponse> Discover(
         const TProxyDiscoveryRequest& request) override
     {
         return Get(request);
@@ -76,7 +76,7 @@ public:
 private:
     const IClientPtr Client_;
 
-    virtual TFuture<TProxyDiscoveryResponse> DoGet(
+    TFuture<TProxyDiscoveryResponse> DoGet(
         const TProxyDiscoveryRequest& request,
         bool /*isPeriodicUpdate*/) noexcept override
     {

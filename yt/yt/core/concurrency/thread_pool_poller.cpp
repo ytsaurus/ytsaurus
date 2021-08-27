@@ -110,7 +110,7 @@ public:
         YT_LOG_INFO("Thread pool poller started");
     }
 
-    virtual void Shutdown() override
+    void Shutdown() override
     {
         std::vector<IPollablePtr> pollables;
         std::vector<THandlerThreadPtr> handlerThreads;
@@ -156,7 +156,7 @@ public:
         Invoker_->DrainQueue();
     }
 
-    virtual void Reconfigure(int threadCount) override
+    void Reconfigure(int threadCount) override
     {
         threadCount = std::clamp(threadCount, 1, MaxThreadCount);
 
@@ -199,7 +199,7 @@ public:
             threadCount);
     }
 
-    virtual bool TryRegister(const IPollablePtr& pollable) override
+    bool TryRegister(const IPollablePtr& pollable) override
     {
         {
             auto guard = Guard(SpinLock_);
@@ -220,7 +220,7 @@ public:
         return true;
     }
 
-    virtual TFuture<void> Unregister(const IPollablePtr& pollable) override
+    TFuture<void> Unregister(const IPollablePtr& pollable) override
     {
         TFuture<void> future;
         bool firstTime = false;
@@ -252,28 +252,28 @@ public:
         return future;
     }
 
-    virtual void Arm(int fd, const IPollablePtr& pollable, EPollControl control) override
+    void Arm(int fd, const IPollablePtr& pollable, EPollControl control) override
     {
         if (auto* cookie = TPollableCookie::FromPollable(pollable)) {
             PollerThread_->Arm(fd, pollable, control);
         }
     }
 
-    virtual void Unarm(int fd, const IPollablePtr& pollable) override
+    void Unarm(int fd, const IPollablePtr& pollable) override
     {
         if (auto* cookie = TPollableCookie::FromPollable(pollable)) {
             PollerThread_->Unarm(fd, pollable);
         }
     }
 
-    virtual void Retry(const IPollablePtr& pollable, bool wakeup) override
+    void Retry(const IPollablePtr& pollable, bool wakeup) override
     {
         if (auto* cookie = TPollableCookie::FromPollable(pollable)) {
             PollerThread_->Retry(pollable, wakeup);
         }
     }
 
-    virtual IInvokerPtr GetInvoker() const override
+    IInvokerPtr GetInvoker() const override
     {
         return Invoker_;
     }
@@ -502,12 +502,12 @@ private:
         }
 
     protected:
-        virtual void OnStart() override
+        void OnStart() override
         {
             Poller_->StartLatch_.CountDown();
         }
 
-        virtual TClosure BeginExecute() override
+        TClosure BeginExecute() override
         {
             if (Dying_.load()) {
                 MarkDead();
@@ -528,12 +528,12 @@ private:
             return Poller_->Invoker_->DequeCallback();
         }
 
-        virtual void EndExecute() override
+        void EndExecute() override
         {
             SetCurrentInvoker(nullptr);
         }
 
-        virtual void AfterShutdown() override
+        void AfterShutdown() override
         {
             HandleUnregisterRequests();
         }
@@ -652,7 +652,7 @@ private:
         }
 
         // IInvoker implementation.
-        virtual void Invoke(TClosure callback) override
+        void Invoke(TClosure callback) override
         {
             Callbacks_.enqueue(std::move(callback));
             if (ShutdownStarted_.load()) {
@@ -681,12 +681,12 @@ private:
         }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-        virtual NConcurrency::TThreadId GetThreadId() const override
+        NConcurrency::TThreadId GetThreadId() const override
         {
             return InvalidThreadId;
         }
 
-        virtual bool CheckAffinity(const IInvokerPtr& /*invoker*/) const override
+        bool CheckAffinity(const IInvokerPtr& /*invoker*/) const override
         {
             return true;
         }

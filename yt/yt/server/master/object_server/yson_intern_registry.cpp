@@ -25,7 +25,7 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    virtual TYsonString Intern(TYsonString value) override;
+    TYsonString Intern(TYsonString value) override;
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;

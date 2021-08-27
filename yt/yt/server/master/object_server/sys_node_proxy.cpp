@@ -46,7 +46,7 @@ public:
 private:
     using TBase = TMapNodeProxy;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
@@ -66,7 +66,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::HydraReadOnly);
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
@@ -151,7 +151,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         switch (key) {
             case EInternedAttributeKey::Config: {

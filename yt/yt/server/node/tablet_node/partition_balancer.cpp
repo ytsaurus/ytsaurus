@@ -91,7 +91,7 @@ private:
     TCounter ScheduledMergesCounter_ = Profiler_.Counter("/scheduled_merges");
     TEventTimer ScanTime_ = Profiler_.Timer("/scan_time");
 
-    virtual void ProcessLsmActionBatch(
+    void ProcessLsmActionBatch(
         const ITabletSlotPtr& slot,
         const NLsm::TLsmActionBatch& batch) override
     {

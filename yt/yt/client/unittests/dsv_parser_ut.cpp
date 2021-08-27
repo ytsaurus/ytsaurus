@@ -165,7 +165,7 @@ public:
 
     TDsvFormatConfigPtr Config;
 
-    void SetUp() {
+    void SetUp() override {
         Config = New<TDsvFormatConfig>();
         Config->LinePrefix = "tskv";
     }

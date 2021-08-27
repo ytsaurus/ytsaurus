@@ -93,7 +93,7 @@ public:
         , Throttler_(std::move(throttler))
     { }
 
-    virtual typename TRowBatchTrait<TRow>::IRowBatchPtr Read(const TRowBatchReadOptions& options = {}) override
+    typename TRowBatchTrait<TRow>::IRowBatchPtr Read(const TRowBatchReadOptions& options = {}) override
     {
         auto rawBatch = Underlying_->Read(options);
 
@@ -105,27 +105,27 @@ public:
         return rawBatch;
     }
 
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
         return Underlying_->GetDataStatistics();
     }
 
-    virtual TCodecStatistics GetDecompressionStatistics() const override
+    TCodecStatistics GetDecompressionStatistics() const override
     {
         return Underlying_->GetDecompressionStatistics();
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return Underlying_->IsFetchingCompleted();
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return Underlying_->GetFailedChunkIds();
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         return Underlying_->GetReadyEvent();
     }
@@ -147,7 +147,7 @@ public:
         : TThrottlerAwareReaderBase(std::move(underlying), std::move(throttler))
     { }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return Underlying_->Open();
     }

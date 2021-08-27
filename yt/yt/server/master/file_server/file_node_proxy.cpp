@@ -45,7 +45,7 @@ public:
 private:
     using TBase = TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TFileNode>;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
@@ -84,7 +84,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual void ValidateCustomAttributeUpdate(
+    void ValidateCustomAttributeUpdate(
         const TString& key,
         const TYsonString& oldValue,
         const TYsonString& newValue) override
@@ -113,7 +113,7 @@ private:
         TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
     }
 
-    virtual void ValidateReadLimit(const NChunkClient::NProto::TReadLimit& readLimit) const override
+    void ValidateReadLimit(const NChunkClient::NProto::TReadLimit& readLimit) const override
     {
         if (readLimit.has_key_bound_prefix() || readLimit.has_legacy_key()) {
             THROW_ERROR_EXCEPTION("Key selectors are not supported for files");

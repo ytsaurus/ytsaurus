@@ -25,7 +25,7 @@ public:
         : NameTable_(std::move(nameTable))
     { }
 
-    virtual TSharedRef Encode(
+    TSharedRef Encode(
         const IUnversionedRowBatchPtr& batch,
         const NApi::NRpcProxy::NProto::TRowsetStatistics* statistics) override
     {
@@ -80,7 +80,7 @@ public:
         Descriptor_.set_rowset_kind(NApi::NRpcProxy::NProto::RK_UNVERSIONED);
     }
 
-    virtual IUnversionedRowBatchPtr Decode(
+    IUnversionedRowBatchPtr Decode(
         const TSharedRef& payloadRef,
         const NProto::TRowsetDescriptor& descriptorDelta) override
     {

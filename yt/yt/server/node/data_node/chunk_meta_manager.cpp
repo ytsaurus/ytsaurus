@@ -88,18 +88,18 @@ public:
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TChunkMetaManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    virtual const NTableClient::TBlockMetaCachePtr& GetBlockMetaCache() override
+    const NTableClient::TBlockMetaCachePtr& GetBlockMetaCache() override
     {
         return BlockMetaCache_;
     }
 
-    virtual TRefCountedChunkMetaPtr FindCachedMeta(TChunkId chunkId) override
+    TRefCountedChunkMetaPtr FindCachedMeta(TChunkId chunkId) override
     {
         auto cachedMeta = ChunkMetaCache_->Find(chunkId);
         return cachedMeta ? cachedMeta->GetMeta() : nullptr;
     }
 
-    virtual void PutCachedMeta(
+    void PutCachedMeta(
         TChunkId chunkId,
         TRefCountedChunkMetaPtr meta) override
     {
@@ -112,12 +112,12 @@ public:
         }
     }
 
-    virtual TCachedChunkMetaCookie BeginInsertCachedMeta(TChunkId chunkId) override
+    TCachedChunkMetaCookie BeginInsertCachedMeta(TChunkId chunkId) override
     {
         return ChunkMetaCache_->BeginInsert(chunkId);
     }
 
-    virtual void EndInsertCachedMeta(
+    void EndInsertCachedMeta(
         TCachedChunkMetaCookie&& cookie,
         TRefCountedChunkMetaPtr meta) override
     {
@@ -131,19 +131,19 @@ public:
             chunkId);
     }
 
-    virtual void RemoveCachedMeta(TChunkId chunkId) override
+    void RemoveCachedMeta(TChunkId chunkId) override
     {
          ChunkMetaCache_->TryRemove(chunkId);
     }
 
 
-    virtual TRefCountedBlocksExtPtr FindCachedBlocksExt(TChunkId chunkId) override
+    TRefCountedBlocksExtPtr FindCachedBlocksExt(TChunkId chunkId) override
     {
         auto cachedBlocksExt = BlocksExtCache_->Find(chunkId);
         return cachedBlocksExt ? cachedBlocksExt->GetBlocksExt() : nullptr;
     }
 
-    virtual void PutCachedBlocksExt(TChunkId chunkId, TRefCountedBlocksExtPtr blocksExt) override
+    void PutCachedBlocksExt(TChunkId chunkId, TRefCountedBlocksExtPtr blocksExt) override
     {
         auto cookie = BeginInsertCachedBlocksExt(chunkId);
         if (cookie.IsActive()) {
@@ -154,12 +154,12 @@ public:
         }
     }
 
-    virtual TCachedBlocksExtCookie BeginInsertCachedBlocksExt(TChunkId chunkId) override
+    TCachedBlocksExtCookie BeginInsertCachedBlocksExt(TChunkId chunkId) override
     {
         return BlocksExtCache_->BeginInsert(chunkId);
     }
 
-    virtual void EndInsertCachedBlocksExt(
+    void EndInsertCachedBlocksExt(
         TCachedBlocksExtCookie&& cookie,
         TRefCountedBlocksExtPtr blocksExt) override
     {
@@ -173,7 +173,7 @@ public:
             chunkId);
     }
 
-    virtual void RemoveCachedBlocksExt(TChunkId chunkId) override
+    void RemoveCachedBlocksExt(TChunkId chunkId) override
     {
          BlocksExtCache_->TryRemove(chunkId);
     }
@@ -197,7 +197,7 @@ private:
         { }
 
     protected:
-        virtual i64 GetWeight(const TCachedChunkMetaPtr& meta) const override
+        i64 GetWeight(const TCachedChunkMetaPtr& meta) const override
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
@@ -222,7 +222,7 @@ private:
         { }
 
     protected:
-        virtual i64 GetWeight(const TCachedBlocksExtPtr& blocksExt) const override
+        i64 GetWeight(const TCachedBlocksExtPtr& blocksExt) const override
         {
             VERIFY_THREAD_AFFINITY_ANY();
 

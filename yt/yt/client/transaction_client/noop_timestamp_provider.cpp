@@ -11,12 +11,12 @@ class TNoopTimestampProvider
     : public ITimestampProvider
 {
 public:
-    virtual TFuture<TTimestamp> GenerateTimestamps(int /*count*/) override
+    TFuture<TTimestamp> GenerateTimestamps(int /*count*/) override
     {
         return MakeFuture(NullTimestamp);
     }
 
-    virtual TTimestamp GetLatestTimestamp() override
+    TTimestamp GetLatestTimestamp() override
     {
         return NullTimestamp;
     }

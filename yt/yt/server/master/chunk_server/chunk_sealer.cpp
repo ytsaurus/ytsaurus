@@ -82,7 +82,7 @@ public:
         YT_VERIFY(Bootstrap_);
     }
 
-    virtual void Start(TChunk* frontJournalChunk, int journalChunkCount) override
+    void Start(TChunk* frontJournalChunk, int journalChunkCount) override
     {
         SealScanner_->Start(frontJournalChunk, journalChunkCount);
         SealExecutor_->Start();
@@ -91,7 +91,7 @@ public:
         configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
     }
 
-    virtual void Stop() override
+    void Stop() override
     {
         SealExecutor_->Stop();
 
@@ -99,12 +99,12 @@ public:
         configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
     }
 
-    virtual bool IsEnabled() override
+    bool IsEnabled() override
     {
         return Enabled_;
     }
 
-    virtual void ScheduleSeal(TChunk* chunk) override
+    void ScheduleSeal(TChunk* chunk) override
     {
         YT_ASSERT(chunk->IsAlive());
 
@@ -113,18 +113,18 @@ public:
         }
     }
 
-    virtual void OnChunkDestroyed(TChunk* chunk) override
+    void OnChunkDestroyed(TChunk* chunk) override
     {
         SealScanner_->OnChunkDestroyed(chunk);
     }
 
-    virtual void OnProfiling(TSensorBuffer* buffer) const override
+    void OnProfiling(TSensorBuffer* buffer) const override
     {
         buffer->AddGauge("/seal_queue_size", SealScanner_->GetQueueSize());
     }
 
     // IJobController implementation.
-    virtual void ScheduleJobs(IJobSchedulingContext* context) override
+    void ScheduleJobs(IJobSchedulingContext* context) override
     {
         auto* node = context->GetNode();
         const auto& resourceUsage = context->GetNodeResourceUsage();

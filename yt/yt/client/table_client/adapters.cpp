@@ -22,27 +22,27 @@ public:
         : UnderlyingWriter_(std::move(underlyingWriter))
     { }
 
-    virtual bool Write(TRange<NTableClient::TUnversionedRow> rows) override
+    bool Write(TRange<NTableClient::TUnversionedRow> rows) override
     {
         return UnderlyingWriter_->Write(rows);
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() override
     {
         return UnderlyingWriter_->GetReadyEvent();
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         return UnderlyingWriter_->Close();
     }
 
-    virtual const NTableClient::TNameTablePtr& GetNameTable() const override
+    const NTableClient::TNameTablePtr& GetNameTable() const override
     {
         return UnderlyingWriter_->GetNameTable();
     }
 
-    virtual const NTableClient::TTableSchemaPtr& GetSchema() const override
+    const NTableClient::TTableSchemaPtr& GetSchema() const override
     {
         return UnderlyingWriter_->GetSchema();
     }
@@ -67,27 +67,27 @@ public:
         : UnderlyingWriter_(std::move(underlyingWriter))
     { }
 
-    virtual bool Write(TRange<NTableClient::TUnversionedRow> rows) override
+    bool Write(TRange<NTableClient::TUnversionedRow> rows) override
     {
         return UnderlyingWriter_->Write(rows);
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() override
     {
         return UnderlyingWriter_->GetReadyEvent();
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         return UnderlyingWriter_->Close();
     }
 
-    virtual const NTableClient::TNameTablePtr& GetNameTable() const override
+    const NTableClient::TNameTablePtr& GetNameTable() const override
     {
         return UnderlyingWriter_->GetNameTable();
     }
 
-    virtual const NTableClient::TTableSchemaPtr& GetSchema() const override
+    const NTableClient::TTableSchemaPtr& GetSchema() const override
     {
         return UnderlyingWriter_->GetSchema();
     }

@@ -32,7 +32,7 @@ using namespace NConcurrency;
 class TPortoProcessTest
     : public ::testing::Test
 {
-    virtual void SetUp() override
+    void SetUp() override
     {
         if (GetEnv("SKIP_PORTO_TESTS") != "") {
             GTEST_SKIP();

@@ -227,62 +227,62 @@ public:
 
     // IConnection implementation.
 
-    virtual TCellTag GetCellTag() override
+    TCellTag GetCellTag() override
     {
         return GetPrimaryMasterCellTag();
     }
 
-    virtual const TString& GetLoggingTag() override
+    const TString& GetLoggingTag() override
     {
         return LoggingTag_;
     }
 
-    virtual const TString& GetClusterId() override
+    const TString& GetClusterId() override
     {
         return ClusterId_;
     }
 
-    virtual const ITableMountCachePtr& GetTableMountCache() override
+    const ITableMountCachePtr& GetTableMountCache() override
     {
         return TableMountCache_;
     }
 
-    virtual const ITimestampProviderPtr& GetTimestampProvider() override
+    const ITimestampProviderPtr& GetTimestampProvider() override
     {
         return TimestampProvider_;
     }
 
-    virtual const TJobShellDescriptorCachePtr& GetJobShellDescriptorCache() override
+    const TJobShellDescriptorCachePtr& GetJobShellDescriptorCache() override
     {
         return JobShellDescriptorCache_;
     }
 
-    virtual const TPermissionCachePtr& GetPermissionCache() override
+    const TPermissionCachePtr& GetPermissionCache() override
     {
         return PermissionCache_;
     }
 
-    virtual const TStickyGroupSizeCachePtr& GetStickyGroupSizeCache() override
+    const TStickyGroupSizeCachePtr& GetStickyGroupSizeCache() override
     {
         return StickyGroupSizeCache_;
     }
 
-    virtual const TTabletSyncReplicaCachePtr& GetTabletSyncReplicaCache() override
+    const TTabletSyncReplicaCachePtr& GetTabletSyncReplicaCache() override
     {
         return TabletSyncReplicaCache_;
     }
 
-    virtual IInvokerPtr GetInvoker() override
+    IInvokerPtr GetInvoker() override
     {
         return ConnectionInvoker_;
     }
 
-    virtual NApi::IClientPtr CreateClient(const TClientOptions& options) override
+    NApi::IClientPtr CreateClient(const TClientOptions& options) override
     {
         return NNative::CreateClient(this, options);
     }
 
-    virtual void ClearMetadataCaches() override
+    void ClearMetadataCaches() override
     {
         TableMountCache_->Clear();
         PermissionCache_->Clear();
@@ -290,144 +290,144 @@ public:
 
     // NNative::IConnection implementation.
 
-    virtual const TConnectionConfigPtr& GetConfig() override
+    const TConnectionConfigPtr& GetConfig() override
     {
         return Config_;
     }
 
-    virtual const TNetworkPreferenceList& GetNetworks() const override
+    const TNetworkPreferenceList& GetNetworks() const override
     {
         return Config_->Networks ? *Config_->Networks : DefaultNetworkPreferences;
     }
 
-    virtual TCellId GetPrimaryMasterCellId() const override
+    TCellId GetPrimaryMasterCellId() const override
     {
         return MasterCellDirectory_->GetPrimaryMasterCellId();
     }
 
-    virtual TCellTag GetPrimaryMasterCellTag() const override
+    TCellTag GetPrimaryMasterCellTag() const override
     {
         return MasterCellDirectory_->GetPrimaryMasterCellTag();
     }
 
-    virtual const TCellTagList& GetSecondaryMasterCellTags() const override
+    const TCellTagList& GetSecondaryMasterCellTags() const override
     {
         return MasterCellDirectory_->GetSecondaryMasterCellTags();
     }
 
-    virtual TCellId GetMasterCellId(TCellTag cellTag) const override
+    TCellId GetMasterCellId(TCellTag cellTag) const override
     {
         return ReplaceCellTagInId(GetPrimaryMasterCellId(), cellTag);
     }
 
-    virtual IChannelPtr GetMasterChannelOrThrow(
+    IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTag) override
     {
         return MasterCellDirectory_->GetMasterChannelOrThrow(kind, cellTag);
     }
 
-    virtual IChannelPtr GetMasterChannelOrThrow(
+    IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         TCellId cellId) override
     {
         return MasterCellDirectory_->GetMasterChannelOrThrow(kind, cellId);
     }
 
-    virtual const IChannelPtr& GetSchedulerChannel() override
+    const IChannelPtr& GetSchedulerChannel() override
     {
         return SchedulerChannel_;
     }
 
-    virtual const IChannelFactoryPtr& GetChannelFactory() override
+    const IChannelFactoryPtr& GetChannelFactory() override
     {
         return ChannelFactory_;
     }
 
-    virtual const IBlockCachePtr& GetBlockCache() override
+    const IBlockCachePtr& GetBlockCache() override
     {
         return BlockCache_;
     }
 
-    virtual const IClientChunkMetaCachePtr& GetChunkMetaCache() override
+    const IClientChunkMetaCachePtr& GetChunkMetaCache() override
     {
         return ChunkMetaCache_;
     }
 
-    virtual const IEvaluatorPtr& GetQueryEvaluator() override
+    const IEvaluatorPtr& GetQueryEvaluator() override
     {
         return QueryEvaluator_;
     }
 
-    virtual const IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() override
+    const IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() override
     {
         return ColumnEvaluatorCache_;
     }
 
-    virtual const NCellMasterClient::TCellDirectoryPtr& GetMasterCellDirectory() override
+    const NCellMasterClient::TCellDirectoryPtr& GetMasterCellDirectory() override
     {
         return MasterCellDirectory_;
     }
 
-    virtual const NCellMasterClient::TCellDirectorySynchronizerPtr& GetMasterCellDirectorySynchronizer() override
+    const NCellMasterClient::TCellDirectorySynchronizerPtr& GetMasterCellDirectorySynchronizer() override
     {
         return MasterCellDirectorySynchronizer_;
     }
 
-    virtual const NHiveClient::TCellDirectoryPtr& GetCellDirectory() override
+    const NHiveClient::TCellDirectoryPtr& GetCellDirectory() override
     {
         return CellDirectory_;
     }
 
-    virtual const NHiveClient::TCellDirectorySynchronizerPtr& GetCellDirectorySynchronizer() override
+    const NHiveClient::TCellDirectorySynchronizerPtr& GetCellDirectorySynchronizer() override
     {
         return CellDirectorySynchronizer_;
     }
 
-    virtual const TNodeDirectoryPtr& GetNodeDirectory() override
+    const TNodeDirectoryPtr& GetNodeDirectory() override
     {
         NodeDirectorySynchronizer_->Start();
         return NodeDirectory_;
     }
 
-    virtual const TNodeDirectorySynchronizerPtr& GetNodeDirectorySynchronizer() override
+    const TNodeDirectorySynchronizerPtr& GetNodeDirectorySynchronizer() override
     {
         NodeDirectorySynchronizer_->Start();
         return NodeDirectorySynchronizer_;
     }
 
-    virtual const TCellTrackerPtr& GetDownedCellTracker() override
+    const TCellTrackerPtr& GetDownedCellTracker() override
     {
         return DownedCellTracker_;
     }
 
-    virtual const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory() override
+    const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory() override
     {
         return ClusterDirectory_;
     }
 
-    virtual const NHiveClient::TClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer() override
+    const NHiveClient::TClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer() override
     {
         return ClusterDirectorySynchronizer_;
     }
 
-    virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override
+    const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override
     {
         return MediumDirectory_;
     }
 
-    virtual const NChunkClient::TMediumDirectorySynchronizerPtr& GetMediumDirectorySynchronizer() override
+    const NChunkClient::TMediumDirectorySynchronizerPtr& GetMediumDirectorySynchronizer() override
     {
         return MediumDirectorySynchronizer_;
     }
 
 
-    virtual IClientPtr CreateNativeClient(const TClientOptions& options) override
+    IClientPtr CreateNativeClient(const TClientOptions& options) override
     {
         return NNative::CreateClient(this, options);
     }
 
-    virtual NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
+    NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
         TCellId cellId,
         const TTransactionParticipantOptions& options) override
     {
@@ -444,13 +444,13 @@ public:
             options);
     }
 
-    virtual IYPathServicePtr GetOrchidService() override
+    IYPathServicePtr GetOrchidService() override
     {
         auto producer = BIND(&TConnection::BuildOrchid, MakeStrong(this));
         return IYPathService::FromProducer(producer);
     }
 
-    virtual void Terminate() override
+    void Terminate() override
     {
         Terminated_ = true;
 
@@ -466,12 +466,12 @@ public:
         NodeDirectorySynchronizer_->Stop();
     }
 
-    virtual bool IsTerminated() override
+    bool IsTerminated() override
     {
         return Terminated_;
     }
 
-    virtual TFuture<void> SyncHiveCellWithOthers(
+    TFuture<void> SyncHiveCellWithOthers(
         const std::vector<TCellId>& srcCellIds,
         TCellId dstCellId) override
     {

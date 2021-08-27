@@ -92,12 +92,12 @@ public:
         TImpl* owner,
         EObjectType objectType);
 
-    virtual ETypeFlags GetFlags() const override
+    ETypeFlags GetFlags() const override
     {
         return ETypeFlags::None;
     }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return ObjectType_;
     }
@@ -106,17 +106,17 @@ private:
     const EObjectType ObjectType_;
 
 
-    virtual TCellTagList DoGetReplicationCellTags(const TTransaction* transaction) override
+    TCellTagList DoGetReplicationCellTags(const TTransaction* transaction) override
     {
         return transaction->ReplicatedToCellTags();
     }
 
-    virtual IObjectProxyPtr DoGetProxy(TTransaction* transaction, TTransaction* /*dummyTransaction*/) override
+    IObjectProxyPtr DoGetProxy(TTransaction* transaction, TTransaction* /*dummyTransaction*/) override
     {
         return CreateTransactionProxy(Bootstrap_, &Metadata_, transaction);
     }
 
-    virtual TAccessControlDescriptor* DoFindAcd(TTransaction* transaction) override
+    TAccessControlDescriptor* DoFindAcd(TTransaction* transaction) override
     {
         return &transaction->Acd();
     }
@@ -1613,7 +1613,7 @@ private:
     }
 
 
-    virtual void OnAfterSnapshotLoaded() override
+    void OnAfterSnapshotLoaded() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1639,7 +1639,7 @@ private:
         }
     }
 
-    virtual void Clear() override
+    void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1651,14 +1651,14 @@ private:
         TransactionPresenceCache_->Clear();
     }
 
-    virtual void OnStartLeading() override
+    void OnStartLeading() override
     {
         TMasterAutomatonPart::OnStartLeading();
 
         OnStartEpoch();
     }
 
-    virtual void OnStartFollowing() override
+    void OnStartFollowing() override
     {
         TMasterAutomatonPart::OnStartFollowing();
 
@@ -1670,7 +1670,7 @@ private:
         TransactionPresenceCache_->Start();
     }
 
-    virtual void OnLeaderActive() override
+    void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1688,7 +1688,7 @@ private:
         BoomerangTracker_->Start();
     }
 
-    virtual void OnStopLeading() override
+    void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1705,7 +1705,7 @@ private:
         OnStopEpoch();
     }
 
-    virtual void OnStopFollowing() override
+    void OnStopFollowing() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1719,14 +1719,14 @@ private:
         TransactionPresenceCache_->Stop();
     }
 
-    virtual void OnRecoveryStarted() override
+    void OnRecoveryStarted() override
     {
         TMasterAutomatonPart::OnRecoveryStarted();
 
         BufferedProducer_->SetEnabled(false);
     }
 
-    virtual void OnRecoveryComplete() override
+    void OnRecoveryComplete() override
     {
         TMasterAutomatonPart::OnRecoveryComplete();
 

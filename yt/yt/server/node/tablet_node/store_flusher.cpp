@@ -80,7 +80,7 @@ public:
             Profiler.Gauge("/running_store_flushes")))
     { }
 
-    virtual void Start() override
+    void Start() override
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TStoreFlusher::OnDynamicConfigChanged, MakeWeak(this)));

@@ -26,7 +26,7 @@ class TComputedColumnTest
     , public ::testing::WithParamInterface<std::vector<const char*>>
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     {
         SetUpSchema();
 

@@ -37,13 +37,13 @@ public:
         RegisterMethod(BIND(&TExecNodeTracker::HydraExecNodeHeartbeat, Unretained(this)));
     }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND(&TExecNodeTracker::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    virtual void ProcessHeartbeat(TCtxHeartbeatPtr context) override
+    void ProcessHeartbeat(TCtxHeartbeatPtr context) override
     {
         auto mutation = CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
@@ -53,7 +53,7 @@ public:
         CommitMutationWithSemaphore(std::move(mutation), std::move(context), HeartbeatSemaphore_);
     }
 
-    virtual void ProcessHeartbeat(
+    void ProcessHeartbeat(
         TNode* node,
         TReqHeartbeat* request,
         TRspHeartbeat* response) override

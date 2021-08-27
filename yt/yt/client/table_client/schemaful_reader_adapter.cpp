@@ -38,7 +38,7 @@ public:
         , IgnoreRequired_(ignoreRequired)
     { }
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         if (ErrorPromise_.IsSet()) {
             return CreateEmptyUnversionedRowBatch();
@@ -87,7 +87,7 @@ public:
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(schemafulRows), MakeStrong(this)));
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         if (ErrorPromise_.IsSet()) {
             return ErrorPromise_.ToFuture();
@@ -96,7 +96,7 @@ public:
         }
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         return UnderlyingReader_->GetDataStatistics();
     }
@@ -106,12 +106,12 @@ public:
         return UnderlyingReader_->GetDecompressionStatistics();
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return UnderlyingReader_->IsFetchingCompleted();
     }
 
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
+    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
     {
         return UnderlyingReader_->GetFailedChunkIds();
     }

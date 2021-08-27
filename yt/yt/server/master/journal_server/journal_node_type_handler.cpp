@@ -35,17 +35,17 @@ private:
 public:
     using TBase::TBase;
 
-    virtual EObjectType GetObjectType() const override
+    EObjectType GetObjectType() const override
     {
         return EObjectType::Journal;
     }
 
-    virtual ENodeType GetNodeType() const override
+    ENodeType GetNodeType() const override
     {
         return ENodeType::Entity;
     }
 
-    virtual bool HasBranchedChangesImpl(
+    bool HasBranchedChangesImpl(
         TJournalNode* /*originatingNode*/,
         TJournalNode* /*branchedNode*/) override
     {
@@ -54,7 +54,7 @@ public:
     }
 
 protected:
-    virtual ICypressNodeProxyPtr DoGetProxy(
+    ICypressNodeProxyPtr DoGetProxy(
         TJournalNode* trunkNode,
         TTransaction* transaction) override
     {
@@ -65,7 +65,7 @@ protected:
             trunkNode);
     }
 
-    virtual std::unique_ptr<TJournalNode> DoCreate(
+    std::unique_ptr<TJournalNode> DoCreate(
         TVersionedNodeId id,
         const TCreateNodeContext& context) override
     {
@@ -100,7 +100,7 @@ protected:
         return nodeHolder;
     }
 
-    virtual void DoBranch(
+    void DoBranch(
         const TJournalNode* originatingNode,
         TJournalNode* branchedNode,
         const TLockRequest& /*lockRequest*/) override
@@ -124,7 +124,7 @@ protected:
         }
     }
 
-    virtual void DoLogBranch(
+    void DoLogBranch(
         const TJournalNode* originatingNode,
         TJournalNode* branchedNode,
         const TLockRequest& lockRequest) override
@@ -148,7 +148,7 @@ protected:
             lockRequest.Timestamp);
     }
 
-    virtual void DoMerge(
+    void DoMerge(
         TJournalNode* originatingNode,
         TJournalNode* branchedNode) override
     {
@@ -167,7 +167,7 @@ protected:
         HandleTransactionFinished(branchedNode);
     }
 
-    virtual void DoLogMerge(
+    void DoLogMerge(
         TJournalNode* originatingNode,
         TJournalNode* branchedNode) override
     {
@@ -179,7 +179,7 @@ protected:
             GetObjectId(originatingNode->GetChunkList()));
     }
 
-    virtual void DoUnbranch(
+    void DoUnbranch(
         TJournalNode* originatingNode,
         TJournalNode* branchedNode) override
     {
@@ -190,7 +190,7 @@ protected:
         HandleTransactionFinished(branchedNode);
     }
 
-    virtual void DoLogUnbranch(
+    void DoLogUnbranch(
         TJournalNode* originatingNode,
         TJournalNode* branchedNode) override
     {
@@ -202,7 +202,7 @@ protected:
             GetObjectId(originatingNode->GetChunkList()));
     }
 
-    virtual void DoClone(
+    void DoClone(
         TJournalNode* sourceNode,
         TJournalNode* clonedTrunkNode,
         ICypressNodeFactory* factory,
@@ -224,7 +224,7 @@ protected:
         TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
     }
 
-    virtual void DoBeginCopy(
+    void DoBeginCopy(
         TJournalNode* node,
         TBeginCopyContext* context) override
     {
@@ -234,7 +234,7 @@ protected:
         THROW_ERROR_EXCEPTION("Cross-cell copying of journal is not supported");
     }
 
-    virtual void DoEndCopy(
+    void DoEndCopy(
         TJournalNode* node,
         TEndCopyContext* context,
         ICypressNodeFactory* factory) override

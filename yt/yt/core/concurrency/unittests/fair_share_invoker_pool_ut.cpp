@@ -36,17 +36,17 @@ public:
         , TotalCpuTime_(bucketCount)
     { }
 
-    virtual void Enqueue(TClosure callback, int bucketIndex) override
+    void Enqueue(TClosure callback, int bucketIndex) override
     {
         UnderlyingCallbackQueue_->Enqueue(std::move(callback), bucketIndex);
     }
 
-    virtual bool TryDequeue(TClosure* resultCallback, int* resultBucketIndex) override
+    bool TryDequeue(TClosure* resultCallback, int* resultBucketIndex) override
     {
         return UnderlyingCallbackQueue_->TryDequeue(resultCallback, resultBucketIndex);
     }
 
-    virtual void AccountCpuTime(int bucketIndex, NProfiling::TCpuDuration cpuTime) override
+    void AccountCpuTime(int bucketIndex, NProfiling::TCpuDuration cpuTime) override
     {
         YT_VERIFY(IsValidBucketIndex(bucketIndex));
         TotalCpuTime_[bucketIndex] += cpuTime;
@@ -89,7 +89,7 @@ protected:
         std::vector<int> InvokerIndexes_;
     } InvocationOrder_;
 
-    virtual void TearDown() override
+    void TearDown() override
     {
         for (int i = 0; i < std::ssize(Queues_); ++i) {
             if (Queues_[i]) {

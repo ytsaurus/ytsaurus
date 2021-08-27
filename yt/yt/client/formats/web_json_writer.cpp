@@ -480,11 +480,11 @@ public:
         const std::vector<TTableSchemaPtr>& schemas,
         TWebJsonFormatConfigPtr config);
 
-    virtual bool Write(TRange<TUnversionedRow> rows) override;
-    virtual TFuture<void> GetReadyEvent() override;
-    virtual TBlob GetContext() const override;
-    virtual i64 GetWrittenSize() const override;
-    virtual TFuture<void> Close() override;
+    bool Write(TRange<TUnversionedRow> rows) override;
+    TFuture<void> GetReadyEvent() override;
+    TBlob GetContext() const override;
+    i64 GetWrittenSize() const override;
+    TFuture<void> Close() override;
 
 private:
     const TWebJsonFormatConfigPtr Config_;

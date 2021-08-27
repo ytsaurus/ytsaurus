@@ -116,7 +116,7 @@ class TExtractSubexpressionPredicateTest
     , public TCompareExpressionTest
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     { }
 
 };
@@ -215,7 +215,7 @@ class TEliminateLookupPredicateTest
     , public TCompareExpressionTest
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     { }
 
     TConstExpressionPtr Eliminate(
@@ -567,7 +567,7 @@ class TPrepareExpressionTest
     , public TCompareExpressionTest
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     { }
 };
 
@@ -939,7 +939,7 @@ class TExpressionTest
     , public TCompareExpressionTest
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     { }
 };
 
@@ -1188,7 +1188,7 @@ class TTernaryLogicTest
     , public TCompareExpressionTest
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     { }
 };
 
@@ -1302,7 +1302,7 @@ class TCompareWithNullTest
     , public TCompareExpressionTest
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     { }
 };
 
@@ -1712,7 +1712,7 @@ class TFormatTimestampExpressionTest
     : public ::testing::Test
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     { }
 };
 
@@ -1762,7 +1762,7 @@ class TExpressionErrorTest
     : public ::testing::Test
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     { }
 };
 

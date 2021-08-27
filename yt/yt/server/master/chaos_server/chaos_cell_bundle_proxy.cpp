@@ -49,7 +49,7 @@ public:
 private:
     using TBase = TCellBundleProxy;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
     {
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ChaosOptions)
             .SetReplicated(true)
@@ -58,7 +58,7 @@ private:
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto* cellBundle = GetThisImpl<TChaosCellBundle>();
 
@@ -75,7 +75,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         return TBase::SetBuiltinAttribute(key, value);
     }

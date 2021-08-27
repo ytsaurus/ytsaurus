@@ -33,7 +33,7 @@ public:
         , CellTags_(cellTags)
     { }
 
-    virtual ITransactionParticipantPtr TryCreate(
+    ITransactionParticipantPtr TryCreate(
         TCellId cellId,
         const TTransactionParticipantOptions& options) override
     {
@@ -89,7 +89,7 @@ public:
         : ClusterDirectory_(std::move(clusterDirectory))
     { }
 
-    virtual ITransactionParticipantPtr TryCreate(
+    ITransactionParticipantPtr TryCreate(
         TCellId cellId,
         const TTransactionParticipantOptions& options) override
     {

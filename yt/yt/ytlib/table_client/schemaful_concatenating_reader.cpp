@@ -17,7 +17,7 @@ public:
         : UnderlyingReaderFactories_(std::move(underlyingReaderFactories))
     { }
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         if (!CurrentReader_) {
             SwitchCurrentReader();
@@ -32,14 +32,14 @@ public:
         return nullptr;
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         return CurrentReader_
             ? CurrentReader_->GetReadyEvent()
             : VoidFuture;
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         TDataStatistics dataStatistics;
         for (const auto& reader : Readers_) {
@@ -48,7 +48,7 @@ public:
         return dataStatistics;
     }
 
-    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
+    NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
     {
         NChunkClient::TCodecStatistics result;
         for (const auto& reader : Readers_) {
@@ -57,7 +57,7 @@ public:
         return result;
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         for (const auto& reader : Readers_) {
             if (!reader->IsFetchingCompleted()) {
@@ -67,7 +67,7 @@ public:
         return true;
     }
 
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
+    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
     {
         std::vector<NChunkClient::TChunkId> result;
         for (const auto& reader : Readers_) {

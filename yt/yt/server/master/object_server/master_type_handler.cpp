@@ -17,12 +17,12 @@ public:
         : TObjectTypeHandlerBase(bootstrap)
     { }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::Master;
     }
 
-    virtual TObject* FindObject(TObjectId id) override
+    TObject* FindObject(TObjectId id) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetMasterObject();
@@ -30,12 +30,12 @@ public:
     }
 
 private:
-    virtual void DoDestroyObject(TMasterObject* /*object*/) noexcept override
+    void DoDestroyObject(TMasterObject* /*object*/) noexcept override
     {
         YT_ABORT();
     }
 
-    virtual IObjectProxyPtr DoGetProxy(
+    IObjectProxyPtr DoGetProxy(
         TMasterObject* object,
         NTransactionServer::TTransaction* /*transaction*/) override
     {

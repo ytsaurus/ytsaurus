@@ -51,7 +51,7 @@ public:
         }
     }
 
-    virtual TFuture<std::vector<TBlock>> ReadBlocks(const std::vector<int>& blockIndexes) override
+    TFuture<std::vector<TBlock>> ReadBlocks(const std::vector<int>& blockIndexes) override
     {
         if (blockIndexes.empty()) {
             return MakeFuture(std::vector<TBlock>());
@@ -326,7 +326,7 @@ public:
         }
     }
 
-    virtual TFuture<void> Consume(const TPartRange& range, const TSharedRef& block) override
+    TFuture<void> Consume(const TPartRange& range, const TSharedRef& block) override
     {
         if (LastRange_ && *LastRange_ == range) {
             return VoidFuture;
@@ -375,7 +375,7 @@ class TEmptyPartBlockConsumer
     : public IPartBlockConsumer
 {
 public:
-    virtual TFuture<void> Consume(const TPartRange& /*range*/, const TSharedRef& /*block*/) override
+    TFuture<void> Consume(const TPartRange& /*range*/, const TSharedRef& /*block*/) override
     {
         return MakeFuture(TError());
     }
@@ -598,7 +598,7 @@ public:
         , Logger(logger)
     { }
 
-    virtual TFuture<std::vector<TBlock>> ReadBlocks(
+    TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
         std::optional<i64> /* estimatedSize */) override
@@ -621,7 +621,7 @@ public:
             }).AsyncVia(ReaderInvoker_));
     }
 
-    virtual TFuture<std::vector<TBlock>> ReadBlocks(
+    TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& /*options*/,
         int /*firstBlockIndex*/,
         int /*blockCount*/,
@@ -631,7 +631,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    virtual TInstant GetLastFailureTime() const override
+    TInstant GetLastFailureTime() const override
     {
         auto lastFailureTime = TInstant();
         for (const auto& reader : Readers_) {

@@ -37,7 +37,7 @@ public:
         OnProxyRoleChanged(std::nullopt);
     }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -52,7 +52,7 @@ private:
 
     TAtomicObject<TString> ProxyRole_;
 
-    virtual std::vector<TString> GetInstanceTags() const override
+    std::vector<TString> GetInstanceTags() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

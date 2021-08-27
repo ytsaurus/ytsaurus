@@ -70,7 +70,7 @@ public:
         }
     }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         ControlQueue_ = New<TActionQueue>("Control");
         WorkerPool_ = New<TThreadPool>(Config_->WorkerThreadPoolSize, "Worker");
@@ -82,7 +82,7 @@ public:
             .ThrowOnError();
     }
 
-    virtual void Run() override
+    void Run() override
     {
         BIND(&TBootstrap::DoRun, this)
             .AsyncVia(GetControlInvoker())

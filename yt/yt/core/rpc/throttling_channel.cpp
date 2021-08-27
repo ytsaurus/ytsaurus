@@ -26,7 +26,7 @@ public:
             Config_->RateLimit)))
     { }
 
-    virtual IClientRequestControlPtr Send(
+    IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
@@ -59,7 +59,7 @@ public:
         return requestControlThunk;
     }
 
-    virtual void Reconfigure(const TThrottlingChannelDynamicConfigPtr& config) override
+    void Reconfigure(const TThrottlingChannelDynamicConfigPtr& config) override
     {
         Throttler_->Reconfigure(New<TThroughputThrottlerConfig>(
             config->RateLimit.value_or(Config_->RateLimit)));

@@ -174,7 +174,7 @@ public:
 private:
     using TBase = TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TJournalNode>;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
@@ -191,7 +191,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::Sealed);
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         auto* node = GetThisImpl();
 
@@ -218,7 +218,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
+    TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
         auto* node = GetThisImpl();
         auto isExternal = node->IsExternal();
@@ -242,7 +242,7 @@ private:
         return TBase::GetBuiltinAttributeAsync(key);
     }
 
-    virtual void ValidateBeginUpload() override
+    void ValidateBeginUpload() override
     {
         TBase::ValidateBeginUpload();
 
@@ -252,13 +252,13 @@ private:
         }
     }
 
-    virtual void ValidateStorageParametersUpdate() override
+    void ValidateStorageParametersUpdate() override
     {
         TBase::ValidateStorageParametersUpdate();
         THROW_ERROR_EXCEPTION("Changing storage settings for journal nodes is forbidden");
     }
 
-    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
+    bool DoInvoke(const NRpc::IServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(UpdateStatistics);
         DISPATCH_YPATH_SERVICE_METHOD(Seal);
@@ -266,7 +266,7 @@ private:
         return TBase::DoInvoke(context);
     }
 
-    virtual void ValidateReadLimit(const NChunkClient::NProto::TReadLimit& readLimit) const override
+    void ValidateReadLimit(const NChunkClient::NProto::TReadLimit& readLimit) const override
     {
         if (readLimit.has_legacy_key() || readLimit.has_key_bound_prefix()) {
             THROW_ERROR_EXCEPTION("Key selectors are not supported for journals");

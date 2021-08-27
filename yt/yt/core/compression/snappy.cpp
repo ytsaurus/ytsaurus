@@ -19,12 +19,12 @@ public:
         Read(Source_, Buffer_.data(), Length_);
     }
 
-    virtual size_t Available() const override
+    size_t Available() const override
     {
         return Source_->Available() + Length_ - Position_;
     }
 
-    virtual const char* Peek(size_t* length) override
+    const char* Peek(size_t* length) override
     {
         if (Y_UNLIKELY(Position_ < Length_)) {
             *length = Length_ - Position_;
@@ -34,7 +34,7 @@ public:
         }
     }
 
-    virtual void Skip(size_t length) override
+    void Skip(size_t length) override
     {
         if (Y_UNLIKELY(Position_ < Length_)) {
             auto delta = std::min(length, Length_ - Position_);

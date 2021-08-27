@@ -80,7 +80,7 @@ public:
     }
 
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         YT_VERIFY(!Initialized_);
         YT_VERIFY(!OpenFuture_);
@@ -91,12 +91,12 @@ public:
         return OpenFuture_;
     }
 
-    virtual bool WriteBlock(const TBlock& block) override
+    bool WriteBlock(const TBlock& block) override
     {
         return WriteBlocks({block});
     }
 
-    virtual bool WriteBlocks(const std::vector<TBlock>& blocks) override
+    bool WriteBlocks(const std::vector<TBlock>& blocks) override
     {
         YT_VERIFY(Initialized_);
         YT_VERIFY(OpenFuture_.IsSet());
@@ -108,7 +108,7 @@ public:
         }
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() override
     {
         YT_VERIFY(Initialized_);
         YT_VERIFY(OpenFuture_.IsSet());
@@ -119,7 +119,7 @@ public:
         }
     }
 
-    virtual TFuture<void> Close(const TDeferredChunkMetaPtr& chunkMeta) override
+    TFuture<void> Close(const TDeferredChunkMetaPtr& chunkMeta) override
     {
         YT_VERIFY(Initialized_);
         YT_VERIFY(OpenFuture_.IsSet());
@@ -133,13 +133,13 @@ public:
             .Run();
     }
 
-    virtual const NProto::TChunkInfo& GetChunkInfo() const override
+    const NProto::TChunkInfo& GetChunkInfo() const override
     {
         YT_VERIFY(Closed_);
         return UnderlyingWriter_->GetChunkInfo();
     }
 
-    virtual const NProto::TDataStatistics& GetDataStatistics() const override
+    const NProto::TDataStatistics& GetDataStatistics() const override
     {
         if (!Closed_) {
             static const NProto::TDataStatistics EmptyDataStatistics;
@@ -149,23 +149,23 @@ public:
         return DataStatistics_;
     }
 
-    virtual TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
+    TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
     {
         YT_VERIFY(UnderlyingWriter_);
         return UnderlyingWriter_->GetWrittenChunkReplicas();
     }
 
-    virtual TChunkId GetChunkId() const override
+    TChunkId GetChunkId() const override
     {
         return SessionId_.ChunkId;
     }
 
-    virtual NErasure::ECodec GetErasureCodecId() const override
+    NErasure::ECodec GetErasureCodecId() const override
     {
         return Options_->ErasureCodec;
     }
 
-    virtual bool IsCloseDemanded() const override
+    bool IsCloseDemanded() const override
     {
         if (UnderlyingWriter_) {
             return UnderlyingWriter_->IsCloseDemanded();

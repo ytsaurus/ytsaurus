@@ -28,12 +28,12 @@ public:
         YT_ASSERT(Factory);
     }
 
-    virtual void BeginTree() override
+    void BeginTree() override
     {
         YT_VERIFY(NodeStack.size() == 0);
     }
 
-    virtual INodePtr EndTree() override
+    INodePtr EndTree() override
     {
         // Failure here means that the tree is not fully constructed yet.
         YT_VERIFY(NodeStack.size() == 0);
@@ -42,84 +42,84 @@ public:
         return ResultNode;
     }
 
-    virtual void OnNode(INodePtr node) override
+    void OnNode(INodePtr node) override
     {
         AddNode(node, false);
     }
 
-    virtual void OnMyStringScalar(TStringBuf value) override
+    void OnMyStringScalar(TStringBuf value) override
     {
         auto node = Factory->CreateString();
         node->SetValue(TString(value));
         AddNode(node, false);
     }
 
-    virtual void OnMyInt64Scalar(i64 value) override
+    void OnMyInt64Scalar(i64 value) override
     {
         auto node = Factory->CreateInt64();
         node->SetValue(value);
         AddNode(node, false);
     }
 
-    virtual void OnMyUint64Scalar(ui64 value) override
+    void OnMyUint64Scalar(ui64 value) override
     {
         auto node = Factory->CreateUint64();
         node->SetValue(value);
         AddNode(node, false);
     }
 
-    virtual void OnMyDoubleScalar(double value) override
+    void OnMyDoubleScalar(double value) override
     {
         auto node = Factory->CreateDouble();
         node->SetValue(value);
         AddNode(node, false);
     }
 
-    virtual void OnMyBooleanScalar(bool value) override
+    void OnMyBooleanScalar(bool value) override
     {
         auto node = Factory->CreateBoolean();
         node->SetValue(value);
         AddNode(node, false);
     }
 
-    virtual void OnMyEntity() override
+    void OnMyEntity() override
     {
         AddNode(Factory->CreateEntity(), false);
     }
 
 
-    virtual void OnMyBeginList() override
+    void OnMyBeginList() override
     {
         AddNode(Factory->CreateList(), true);
     }
 
-    virtual void OnMyListItem() override
+    void OnMyListItem() override
     {
         YT_ASSERT(!Key);
     }
 
-    virtual void OnMyEndList() override
+    void OnMyEndList() override
     {
         NodeStack.pop();
     }
 
 
-    virtual void OnMyBeginMap() override
+    void OnMyBeginMap() override
     {
         AddNode(Factory->CreateMap(), true);
     }
 
-    virtual void OnMyKeyedItem(TStringBuf key) override
+    void OnMyKeyedItem(TStringBuf key) override
     {
         Key = TString(key);
     }
 
-    virtual void OnMyEndMap() override
+    void OnMyEndMap() override
     {
         NodeStack.pop();
     }
 
-    virtual void OnMyBeginAttributes() override
+    void OnMyBeginAttributes() override
     {
         YT_ASSERT(!AttributeConsumer);
         Attributes = CreateEphemeralAttributes();
@@ -127,7 +127,7 @@ public:
         Forward(AttributeConsumer.get(), nullptr, NYson::EYsonType::MapFragment);
     }
 
-    virtual void OnMyEndAttributes() override
+    void OnMyEndAttributes() override
     {
         AttributeConsumer.reset();
         YT_ASSERT(Attributes);

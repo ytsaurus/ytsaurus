@@ -57,38 +57,38 @@ public:
         Persist(context, JobSpecTemplate_);
     }
 
-    virtual TString GetTitle() const override
+    TString GetTitle() const override
     {
         return Format("Vanilla(%v)", Name_);
     }
 
-    virtual TString GetVertexDescriptor() const override
+    TString GetVertexDescriptor() const override
     {
         return Spec_->TaskTitle;
     }
 
-    virtual IChunkPoolInputPtr GetChunkPoolInput() const override
+    IChunkPoolInputPtr GetChunkPoolInput() const override
     {
         static IChunkPoolInputPtr NullPool = nullptr;
         return NullPool;
     }
 
-    virtual IChunkPoolOutputPtr GetChunkPoolOutput() const override
+    IChunkPoolOutputPtr GetChunkPoolOutput() const override
     {
         return VanillaChunkPool_;
     }
 
-    virtual TUserJobSpecPtr GetUserJobSpec() const override
+    TUserJobSpecPtr GetUserJobSpec() const override
     {
         return Spec_;
     }
 
-    virtual TExtendedJobResources GetNeededResources(const TJobletPtr& /*joblet*/) const override
+    TExtendedJobResources GetNeededResources(const TJobletPtr& /*joblet*/) const override
     {
         return GetMinNeededResourcesHeavy();
     }
 
-    virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
+    TExtendedJobResources GetMinNeededResourcesHeavy() const override
     {
         TExtendedJobResources result;
         result.SetUserSlots(1);
@@ -99,7 +99,7 @@ public:
         return result;
     }
 
-    virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) override
+    void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) override
     {
         VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
@@ -107,19 +107,19 @@ public:
         AddOutputTableSpecs(jobSpec, joblet);
     }
 
-    virtual EJobType GetJobType() const override
+    EJobType GetJobType() const override
     {
         return EJobType::Vanilla;
     }
 
-    virtual void FinishInput() override
+    void FinishInput() override
     {
         TTask::FinishInput();
 
         InitJobSpecTemplate();
     }
 
-    virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+    TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
     {
         auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
@@ -131,7 +131,7 @@ public:
         return result;
     }
 
-    virtual bool IsJobInterruptible() const override
+    bool IsJobInterruptible() const override
     {
         if (!TTask::IsJobInterruptible()) {
             return false;
@@ -143,12 +143,12 @@ public:
     }
 
 protected:
-    virtual bool IsInputDataWeightHistogramSupported() const override
+    bool IsInputDataWeightHistogramSupported() const override
     {
         return false;
     }
 
-    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+    TJobSplitterConfigPtr GetJobSplitterConfig() const override
     {
         // In vanilla operations we don't want neither job splitting nor job speculation.
         auto config = TaskHost_->GetJobSplitterConfigTemplate();
@@ -213,7 +213,7 @@ public:
     //! Used only for persistence.
     TVanillaController() = default;
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         TOperationControllerBase::Persist(context);
 
@@ -224,7 +224,7 @@ public:
         Persist(context, TaskOutputTables_);
     }
 
-    virtual void CustomMaterialize() override
+    void CustomMaterialize() override
     {
         ValidateOperationLimits();
 
@@ -249,7 +249,7 @@ public:
         }
     }
 
-    virtual TString GetLoggingProgress() const override
+    TString GetLoggingProgress() const override
     {
         const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
         return Format(
@@ -262,12 +262,12 @@ public:
             jobCounter->GetAbortedTotal());
     }
 
-    virtual std::vector<TRichYPath> GetInputTablePaths() const override
+    std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return {};
     }
 
-    virtual void InitOutputTables() override
+    void InitOutputTables() override
     {
         TOperationControllerBase::InitOutputTables();
 
@@ -281,7 +281,7 @@ public:
         }
     }
 
-    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
+    std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         std::vector<TRichYPath> outputTablePaths;
         for (const auto& [taskName, taskSpec] : Spec_->Tasks) {
@@ -290,47 +290,47 @@ public:
         return outputTablePaths;
     }
 
-    virtual std::optional<TRichYPath> GetStderrTablePath() const override
+    std::optional<TRichYPath> GetStderrTablePath() const override
     {
         return Spec_->StderrTablePath;
     }
 
-    virtual TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const override
+    TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const override
     {
         return Spec_->StderrTableWriter;
     }
 
-    virtual std::optional<TRichYPath> GetCoreTablePath() const override
+    std::optional<TRichYPath> GetCoreTablePath() const override
     {
         return Spec_->CoreTablePath;
     }
 
-    virtual TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const override
+    TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const override
     {
         return Spec_->CoreTableWriter;
     }
 
-    virtual bool GetEnableCudaGpuCoreDump() const override
+    bool GetEnableCudaGpuCoreDump() const override
     {
         return Spec_->EnableCudaGpuCoreDump;
     }
 
-    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
+    TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
     {
         return TStringBuf();
     }
 
-    virtual TYsonSerializablePtr GetTypedSpec() const override
+    TYsonSerializablePtr GetTypedSpec() const override
     {
         return Spec_;
     }
 
-    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
     {
         return {};
     }
 
-    virtual bool IsCompleted() const override
+    bool IsCompleted() const override
     {
         for (const auto& task : Tasks_) {
             if (!task->IsCompleted()) {
@@ -341,7 +341,7 @@ public:
         return true;
     }
 
-    virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override
+    std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override
     {
         std::vector<TUserJobSpecPtr> specs;
         specs.reserve(Spec_->Tasks.size());
@@ -351,13 +351,13 @@ public:
         return specs;
     }
 
-    virtual void ValidateRevivalAllowed() const override
+    void ValidateRevivalAllowed() const override
     {
         // Even if fail_on_job_restart is set, we can not decline revival at this point
         // as it is still possible that all jobs are running or completed, thus the revival is permitted.
     }
 
-    virtual void ValidateSnapshot() const override
+    void ValidateSnapshot() const override
     {
         if (!Spec_->FailOnJobRestart) {
             return;

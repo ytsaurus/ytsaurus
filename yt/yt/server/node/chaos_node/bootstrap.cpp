@@ -22,21 +22,21 @@ public:
         , ClusterNodeBootstrap_(bootstrap)
     { }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         SlotManager_ = CreateSlotManager(GetConfig()->ChaosNode, this);
         SlotManager_->Initialize();
     }
 
-    virtual void Run() override
+    void Run() override
     { }
 
-    virtual const IInvokerPtr& GetTransactionTrackerInvoker() const override
+    const IInvokerPtr& GetTransactionTrackerInvoker() const override
     {
         return GetCellarNodeBootstrap()->GetTransactionTrackerInvoker();
     }
 
-    virtual const NCellarAgent::ICellarManagerPtr& GetCellarManager() const override
+    const NCellarAgent::ICellarManagerPtr& GetCellarManager() const override
     {
         return GetCellarNodeBootstrap()->GetCellarManager();
     }
@@ -46,7 +46,7 @@ private:
 
     ISlotManagerPtr SlotManager_;
 
-    virtual NCellarNode::IBootstrap* GetCellarNodeBootstrap() const override
+    NCellarNode::IBootstrap* GetCellarNodeBootstrap() const override
     {
         return ClusterNodeBootstrap_->GetCellarNodeBootstrap();
     }

@@ -97,7 +97,7 @@ public:
 
     // Persistence.
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         TOperationControllerBase::Persist(context);
 
@@ -141,17 +141,17 @@ protected:
             ChunkPool_->SubscribeChunkTeleported(BIND(&TOrderedTask::OnChunkTeleported, MakeWeak(this)));
         }
 
-        virtual IChunkPoolInputPtr GetChunkPoolInput() const override
+        IChunkPoolInputPtr GetChunkPoolInput() const override
         {
             return ChunkPool_;
         }
 
-        virtual IChunkPoolOutputPtr GetChunkPoolOutput() const override
+        IChunkPoolOutputPtr GetChunkPoolOutput() const override
         {
             return ChunkPool_;
         }
 
-        virtual void Persist(const TPersistenceContext& context) override
+        void Persist(const TPersistenceContext& context) override
         {
             TTask::Persist(context);
 
@@ -177,14 +177,14 @@ protected:
 
         i64 TotalOutputRowCount_ = 0;
 
-        virtual TDuration GetLocalityTimeout() const override
+        TDuration GetLocalityTimeout() const override
         {
             return Controller_->IsLocalityEnabled()
                 ? Controller_->Spec_->LocalityTimeout
                 : TDuration::Zero();
         }
 
-        virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
+        TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
             return GetMergeResources(joblet->InputStripeList->GetStatistics());
         }
@@ -195,7 +195,7 @@ protected:
             AddOutputTableSpecs(jobSpec, joblet);
         }
 
-        virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
+        TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
             return GetMergeResources(ChunkPool_->GetApproximateStripeStatistics());
         }
@@ -211,23 +211,23 @@ protected:
             return result;
         }
 
-        virtual EJobType GetJobType() const override
+        EJobType GetJobType() const override
         {
             return Controller_->GetJobType();
         }
 
-        virtual TUserJobSpecPtr GetUserJobSpec() const override
+        TUserJobSpecPtr GetUserJobSpec() const override
         {
             return Controller_->GetUserJobSpec();
         }
 
-        virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
+        void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller_->JobSpecTemplate_);
             BuildInputOutputJobSpec(joblet, jobSpec);
         }
 
-        virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
             TotalOutputRowCount_ += GetTotalOutputDataStatistics(*jobSummary.Statistics).row_count();
@@ -242,12 +242,12 @@ protected:
             return result;
         }
 
-        virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
+        TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
             return TTask::OnJobAborted(joblet, jobSummary);
         }
 
-        virtual void OnChunkTeleported(TInputChunkPtr teleportChunk, std::any tag) override
+        void OnChunkTeleported(TInputChunkPtr teleportChunk, std::any tag) override
         {
             TTask::OnChunkTeleported(teleportChunk, tag);
 
@@ -258,7 +258,7 @@ protected:
             }
         }
 
-        virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+        TJobSplitterConfigPtr GetJobSplitterConfig() const override
         {
             auto config = TaskHost_->GetJobSplitterConfigTemplate();
 
@@ -269,7 +269,7 @@ protected:
             return config;
         }
 
-        virtual bool IsJobInterruptible() const override
+        bool IsJobInterruptible() const override
         {
             if (!TTask::IsJobInterruptible()) {
                 return false;
@@ -322,7 +322,7 @@ protected:
         return nullptr;
     }
 
-    virtual bool IsCompleted() const override
+    bool IsCompleted() const override
     {
         return OrderedTask_ && OrderedTask_->IsCompleted();
     }
@@ -431,12 +431,12 @@ protected:
         }
     }
 
-    virtual TOutputOrderPtr GetOutputOrder() const override
+    TOutputOrderPtr GetOutputOrder() const override
     {
         return OrderedTask_->GetChunkPoolOutput()->GetOutputOrder();
     }
 
-    virtual void CustomMaterialize() override
+    void CustomMaterialize() override
     {
         // NB: Base member is not called intentionally.
 
@@ -502,7 +502,7 @@ public:
         , Spec_(spec)
     { }
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         TOrderedControllerBase::Persist(context);
 
@@ -516,14 +516,14 @@ private:
 
     TOrderedMergeOperationSpecPtr Spec_;
 
-    virtual bool IsRowCountPreserved() const override
+    bool IsRowCountPreserved() const override
     {
         return !Spec_->InputQuery &&
             !Spec_->Sampling->SamplingRate &&
             !Spec_->JobIO->TableReader->SamplingRate;
     }
 
-    virtual i64 GetMinTeleportChunkSize() override
+    i64 GetMinTeleportChunkSize() override
     {
         if (Spec_->ForceTransform || Spec_->InputQuery) {
             return std::numeric_limits<i64>::max() / 4;
@@ -536,35 +536,35 @@ private:
             ->DesiredChunkSize;
     }
 
-    virtual EJobType GetJobType() const override
+    EJobType GetJobType() const override
     {
         return EJobType::OrderedMerge;
     }
 
-    virtual void PrepareInputQuery() override
+    void PrepareInputQuery() override
     {
         if (Spec_->InputQuery) {
             ParseInputQuery(*Spec_->InputQuery, Spec_->InputSchema);
         }
     }
 
-    virtual std::vector<TRichYPath> GetInputTablePaths() const override
+    std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec_->InputTablePaths;
     }
 
-    virtual bool IsBoundaryKeysFetchEnabled() const override
+    bool IsBoundaryKeysFetchEnabled() const override
     {
         // Required for chunk teleporting in case of sorted output.
         return OutputTables_[0]->TableUploadOptions.TableSchema->IsSorted();
     }
 
-    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
+    std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         return {Spec_->OutputTablePath};
     }
 
-    virtual void InitJobSpecTemplate() override
+    void InitJobSpecTemplate() override
     {
         JobSpecTemplate_.set_type(static_cast<int>(EJobType::OrderedMerge));
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
@@ -578,12 +578,12 @@ private:
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
     }
 
-    virtual bool IsTeleportationSupported() const override
+    bool IsTeleportationSupported() const override
     {
         return true;
     }
 
-    virtual void PrepareOutputTables() override
+    void PrepareOutputTables() override
     {
         auto& table = OutputTables_[0];
 
@@ -621,22 +621,22 @@ private:
         }
     }
 
-    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
+    TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
     {
         return TStringBuf("data_weight_per_job");
     }
 
-    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
     {
         return {EJobType::OrderedMerge};
     }
 
-    virtual TYsonSerializablePtr GetTypedSpec() const override
+    TYsonSerializablePtr GetTypedSpec() const override
     {
         return Spec_;
     }
 
-    virtual void OnOperationCompleted(bool interrupted) override
+    void OnOperationCompleted(bool interrupted) override
     {
         if (!interrupted) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables();
@@ -687,7 +687,7 @@ public:
         , Options_(options)
     { }
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         TOrderedControllerBase::Persist(context);
 
@@ -705,32 +705,32 @@ private:
     TMapOperationSpecPtr Spec_;
     TMapOperationOptionsPtr Options_;
 
-    virtual bool IsRowCountPreserved() const override
+    bool IsRowCountPreserved() const override
     {
         return false;
     }
 
-    virtual TUserJobSpecPtr GetUserJobSpec() const override
+    TUserJobSpecPtr GetUserJobSpec() const override
     {
         return Spec_->Mapper;
     }
 
-    virtual i64 GetMinTeleportChunkSize() override
+    i64 GetMinTeleportChunkSize() override
     {
         return std::numeric_limits<i64>::max() / 4;
     }
 
-    virtual EJobType GetJobType() const override
+    EJobType GetJobType() const override
     {
         return EJobType::OrderedMap;
     }
 
-    virtual TCpuResource GetCpuLimit() const override
+    TCpuResource GetCpuLimit() const override
     {
         return TCpuResource(Spec_->Mapper->CpuLimit);
     }
 
-    virtual void BuildBriefSpec(TFluentMap fluent) const override
+    void BuildBriefSpec(TFluentMap fluent) const override
     {
         TOperationControllerBase::BuildBriefSpec(fluent);
         fluent
@@ -739,43 +739,43 @@ private:
             .EndMap();
     }
 
-    virtual void CustomizeJoblet(const TJobletPtr& joblet) override
+    void CustomizeJoblet(const TJobletPtr& joblet) override
     {
         joblet->StartRowIndex = StartRowIndex_;
         StartRowIndex_ += joblet->InputStripeList->TotalRowCount;
     }
 
-    virtual std::vector<TRichYPath> GetInputTablePaths() const override
+    std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec_->InputTablePaths;
     }
 
-    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
+    std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         return Spec_->OutputTablePaths;
     }
 
-    virtual std::optional<TRichYPath> GetStderrTablePath() const override
+    std::optional<TRichYPath> GetStderrTablePath() const override
     {
         return Spec_->StderrTablePath;
     }
 
-    virtual TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const override
+    TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const override
     {
         return Spec_->StderrTableWriter;
     }
 
-    virtual std::optional<TRichYPath> GetCoreTablePath() const override
+    std::optional<TRichYPath> GetCoreTablePath() const override
     {
         return Spec_->CoreTablePath;
     }
 
-    virtual TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const override
+    TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const override
     {
         return Spec_->CoreTableWriter;
     }
 
-    virtual bool GetEnableCudaGpuCoreDump() const override
+    bool GetEnableCudaGpuCoreDump() const override
     {
         return Spec_->EnableCudaGpuCoreDump;
     }
@@ -801,46 +801,46 @@ private:
             Spec_->DebugArtifactsAccount);
     }
 
-    virtual bool IsTeleportationSupported() const override
+    bool IsTeleportationSupported() const override
     {
         return false;
     }
 
-    virtual void PrepareInputQuery() override
+    void PrepareInputQuery() override
     {
         if (Spec_->InputQuery) {
             ParseInputQuery(*Spec_->InputQuery, Spec_->InputSchema);
         }
     }
 
-    virtual ELegacyLivePreviewMode GetLegacyOutputLivePreviewMode() const override
+    ELegacyLivePreviewMode GetLegacyOutputLivePreviewMode() const override
     {
         return ToLegacyLivePreviewMode(Spec_->EnableLegacyLivePreview);
     }
 
-    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
+    TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
     {
         return TStringBuf("data_weight_per_job");
     }
 
-    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
     {
         return {EJobType::OrderedMap};
     }
 
-    virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override
+    std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override
     {
         return {Spec_->Mapper};
     }
 
-    virtual void DoInitialize() override
+    void DoInitialize() override
     {
         TOrderedControllerBase::DoInitialize();
 
         ValidateUserFileCount(Spec_->Mapper, "mapper");
     }
 
-    virtual TYsonSerializablePtr GetTypedSpec() const override
+    TYsonSerializablePtr GetTypedSpec() const override
     {
         return Spec_;
     }
@@ -879,7 +879,7 @@ public:
         , Spec_(spec)
     { }
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         TOrderedControllerBase::Persist(context);
 
@@ -892,12 +892,12 @@ private:
 
     TEraseOperationSpecPtr Spec_;
 
-    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
+    TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
     {
         YT_ABORT();
     }
 
-    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
     {
         return {};
     }
@@ -907,7 +907,7 @@ private:
         return true;
     }
 
-    virtual void BuildBriefSpec(TFluentMap fluent) const override
+    void BuildBriefSpec(TFluentMap fluent) const override
     {
         TOrderedControllerBase::BuildBriefSpec(fluent);
         fluent
@@ -916,12 +916,12 @@ private:
             .Item("table_path").Value(Spec_->TablePath);
     }
 
-    virtual bool IsRowCountPreserved() const override
+    bool IsRowCountPreserved() const override
     {
         return false;
     }
 
-    virtual i64 GetMinTeleportChunkSize() override
+    i64 GetMinTeleportChunkSize() override
     {
         if (!Spec_->CombineChunks) {
             return 0;
@@ -931,17 +931,17 @@ private:
             ->DesiredChunkSize;
     }
 
-    virtual std::vector<TRichYPath> GetInputTablePaths() const override
+    std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return {Spec_->TablePath};
     }
 
-    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
+    std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         return {Spec_->TablePath};
     }
 
-    virtual void CustomPrepare() override
+    void CustomPrepare() override
     {
         auto& path = InputTables_[0]->Path;
         auto ranges = path.GetNewRanges(InputTables_[0]->Comparator, InputTables_[0]->Schema->GetKeyColumnTypes());
@@ -972,13 +972,13 @@ private:
         }
     }
 
-    virtual bool IsBoundaryKeysFetchEnabled() const override
+    bool IsBoundaryKeysFetchEnabled() const override
     {
         // Required for chunk teleporting in case of sorted output.
         return OutputTables_[0]->TableUploadOptions.TableSchema->IsSorted();
     }
 
-    virtual void PrepareOutputTables() override
+    void PrepareOutputTables() override
     {
         auto& table = OutputTables_[0];
         table->TableUploadOptions.UpdateMode = EUpdateMode::Overwrite;
@@ -1020,7 +1020,7 @@ private:
         }
     }
 
-    virtual void InitJobSpecTemplate() override
+    void InitJobSpecTemplate() override
     {
         JobSpecTemplate_.set_type(static_cast<int>(EJobType::OrderedMerge));
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
@@ -1037,12 +1037,12 @@ private:
         }
     }
 
-    virtual EJobType GetJobType() const override
+    EJobType GetJobType() const override
     {
         return EJobType::OrderedMerge;
     }
 
-    virtual TYsonSerializablePtr GetTypedSpec() const override
+    TYsonSerializablePtr GetTypedSpec() const override
     {
         return Spec_;
     }
@@ -1082,7 +1082,7 @@ public:
         , Options_(options)
     { }
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         TOrderedControllerBase::Persist(context);
         using NYT::Persist;
@@ -1100,22 +1100,22 @@ private:
 
     IAttributeDictionaryPtr InputTableAttributes_;
 
-    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
+    TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
     {
         YT_ABORT();
     }
 
-    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
     {
         return {};
     }
 
-    virtual bool ShouldVerifySortedOutput() const override
+    bool ShouldVerifySortedOutput() const override
     {
         return false;
     }
 
-    virtual void BuildBriefSpec(TFluentMap fluent) const override
+    void BuildBriefSpec(TFluentMap fluent) const override
     {
         TOperationControllerBase::BuildBriefSpec(fluent);
         fluent
@@ -1124,12 +1124,12 @@ private:
     }
 
     // Custom bits of preparation pipeline.
-    virtual TTransactionId GetInputTransactionParentId() override
+    TTransactionId GetInputTransactionParentId() override
     {
         return {};
     }
 
-    virtual void InitializeClients() override
+    void InitializeClients() override
     {
         TOperationControllerBase::InitializeClients();
 
@@ -1137,17 +1137,17 @@ private:
         SchedulerInputClient = GetRemoteConnection()->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::SchedulerUserName));
     }
 
-    virtual std::vector<TRichYPath> GetInputTablePaths() const override
+    std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec_->InputTablePaths;
     }
 
-    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
+    std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         return {Spec_->OutputTablePath};
     }
 
-    virtual void PrepareOutputTables() override
+    void PrepareOutputTables() override
     {
         auto& table = OutputTables_[0];
 
@@ -1184,7 +1184,7 @@ private:
         }
     }
 
-    virtual void ValidateInputDataSlice(const TLegacyDataSlicePtr& dataSlice) override
+    void ValidateInputDataSlice(const TLegacyDataSlicePtr& dataSlice) override
     {
         auto errorCode = NChunkClient::EErrorCode::InvalidInputChunk;
         if (!dataSlice->IsTrivial()) {
@@ -1203,7 +1203,7 @@ private:
         }
     }
 
-    virtual void CustomMaterialize() override
+    void CustomMaterialize() override
     {
         if (Spec_->CopyAttributes) {
             if (InputTables_.size() != 1) {
@@ -1252,7 +1252,7 @@ private:
         TOrderedControllerBase::CustomMaterialize();
     }
 
-    virtual void CustomCommit() override
+    void CustomCommit() override
     {
         TOperationControllerBase::CustomCommit();
 
@@ -1283,7 +1283,7 @@ private:
         }
     }
 
-    virtual void InitJobSpecTemplate() override
+    void InitJobSpecTemplate() override
     {
         JobSpecTemplate_.set_type(static_cast<int>(EJobType::RemoteCopy));
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(
@@ -1345,32 +1345,32 @@ private:
         }
     }
 
-    virtual bool CheckParityReplicas() const override
+    bool CheckParityReplicas() const override
     {
         return true;
     }
 
-    virtual EJobType GetJobType() const override
+    EJobType GetJobType() const override
     {
         return EJobType::RemoteCopy;
     }
 
-    virtual bool IsTeleportationSupported() const override
+    bool IsTeleportationSupported() const override
     {
         return false;
     }
 
-    virtual i64 GetMinTeleportChunkSize() override
+    i64 GetMinTeleportChunkSize() override
     {
         return std::numeric_limits<i64>::max() / 4;
     }
 
-    virtual TYsonSerializablePtr GetTypedSpec() const override
+    TYsonSerializablePtr GetTypedSpec() const override
     {
         return Spec_;
     }
 
-    virtual TCpuResource GetCpuLimit() const override
+    TCpuResource GetCpuLimit() const override
     {
         return Options_->CpuLimit;
     }

@@ -38,7 +38,7 @@ class TYPathTest
 public:
     IYPathServicePtr RootService;
 
-    virtual void SetUp()
+    void SetUp() override
     {
         RootService = GetEphemeralNodeFactory()->CreateMap();
     }

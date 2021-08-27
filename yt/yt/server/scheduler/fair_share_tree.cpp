@@ -148,12 +148,12 @@ public:
         YT_LOG_INFO("Fair share tree created");
     }
 
-    virtual TFairShareStrategyTreeConfigPtr GetConfig() const override
+    TFairShareStrategyTreeConfigPtr GetConfig() const override
     {
         return Config_;
     }
 
-    virtual void UpdateConfig(const TFairShareStrategyTreeConfigPtr& config) override
+    void UpdateConfig(const TFairShareStrategyTreeConfigPtr& config) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -173,7 +173,7 @@ public:
         YT_LOG_INFO("Tree has updated with new config");
     }
 
-    virtual void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config) override
+    void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -184,7 +184,7 @@ public:
         }
     }
 
-    virtual const TSchedulingTagFilter& GetNodesFilter() const override
+    const TSchedulingTagFilter& GetNodesFilter() const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -192,14 +192,14 @@ public:
     }
 
     // NB: This function is public for scheduler simulator.
-    virtual TFuture<std::pair<IFairShareTreeSnapshotPtr, TError>> OnFairShareUpdateAt(TInstant now) override
+    TFuture<std::pair<IFairShareTreeSnapshotPtr, TError>> OnFairShareUpdateAt(TInstant now) override
     {
         return BIND(&TFairShareTree::DoFairShareUpdateAt, MakeStrong(this), now)
             .AsyncVia(GetCurrentInvoker())
             .Run();
     }
 
-    virtual void FinishFairShareUpdate() override
+    void FinishFairShareUpdate() override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -208,12 +208,12 @@ public:
         TreeSnapshotImplPrecommit_.Reset();
     }
 
-    virtual bool HasOperation(TOperationId operationId) const override
+    bool HasOperation(TOperationId operationId) const override
     {
         return static_cast<bool>(FindOperationElement(operationId));
     }
 
-    virtual bool HasRunningOperation(TOperationId operationId) const override
+    bool HasRunningOperation(TOperationId operationId) const override
     {
         if (auto element = FindOperationElement(operationId)) {
             return element->IsOperationRunningInPool();
@@ -221,12 +221,12 @@ public:
         return false;
     }
 
-    virtual int GetOperationCount() const override
+    int GetOperationCount() const override
     {
         return OperationIdToElement_.size();
     }
 
-    virtual void RegisterOperation(
+    void RegisterOperation(
         const TFairShareStrategyOperationStatePtr& state,
         const TStrategyOperationSpecPtr& spec,
         const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters) override
@@ -283,7 +283,7 @@ public:
             isRunningInPool);
     }
 
-    virtual void UnregisterOperation(const TFairShareStrategyOperationStatePtr& state) override
+    void UnregisterOperation(const TFairShareStrategyOperationStatePtr& state) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -309,7 +309,7 @@ public:
         OperationIdToFirstFoundLimitingAncestorTime_.erase(operationId);
     }
 
-    virtual void EnableOperation(const TFairShareStrategyOperationStatePtr& state) override
+    void EnableOperation(const TFairShareStrategyOperationStatePtr& state) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -321,7 +321,7 @@ public:
         operationElement->Enable();
     }
 
-    virtual void DisableOperation(const TFairShareStrategyOperationStatePtr& state) override
+    void DisableOperation(const TFairShareStrategyOperationStatePtr& state) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -330,7 +330,7 @@ public:
         operationElement->GetMutableParent()->DisableChild(operationElement);
     }
 
-    virtual void ChangeOperationPool(
+    void ChangeOperationPool(
         TOperationId operationId,
         const TFairShareStrategyOperationStatePtr& state,
         const TPoolName& newPool) override
@@ -359,7 +359,7 @@ public:
         }
     }
 
-    virtual void UpdateOperationRuntimeParameters(
+    void UpdateOperationRuntimeParameters(
         TOperationId operationId,
         const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters) override
     {
@@ -370,7 +370,7 @@ public:
         }
     }
 
-    virtual void RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& jobs) override
+    void RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& jobs) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -384,7 +384,7 @@ public:
         }
     }
 
-    virtual TError CheckOperationIsHung(
+    TError CheckOperationIsHung(
         TOperationId operationId,
         TDuration safeTimeout,
         int minScheduleJobCallAttempts,
@@ -510,7 +510,7 @@ public:
         return TError();
     }
 
-    virtual void ProcessActivatableOperations() override
+    void ProcessActivatableOperations() override
     {
         while (!ActivatableOperationIds_.empty()) {
             auto operationId = ActivatableOperationIds_.back();
@@ -519,7 +519,7 @@ public:
         }
     }
 
-    virtual void TryRunAllPendingOperations() override
+    void TryRunAllPendingOperations() override
     {
         std::vector<TOperationId> readyOperationIds;
         std::vector<std::pair<TSchedulerOperationElementPtr, TSchedulerCompositeElement*>> stillPending;
@@ -547,7 +547,7 @@ public:
         }
     }
 
-    virtual TPoolName CreatePoolName(const std::optional<TString>& poolFromSpec, const TString& user) const override
+    TPoolName CreatePoolName(const std::optional<TString>& poolFromSpec, const TString& user) const override
     {
         auto poolName = poolFromSpec.value_or(user);
 
@@ -558,7 +558,7 @@ public:
         return TPoolName(poolName, std::nullopt);
     }
 
-    virtual TPoolsUpdateResult UpdatePools(const INodePtr& poolsNode) override
+    TPoolsUpdateResult UpdatePools(const INodePtr& poolsNode) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -655,7 +655,7 @@ public:
         return {LastPoolsNodeUpdateError_, true};
     }
 
-    virtual void ValidatePoolLimits(const IOperationStrategyHost* operation, const TPoolName& poolName) const override
+    void ValidatePoolLimits(const IOperationStrategyHost* operation, const TPoolName& poolName) const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -663,7 +663,7 @@ public:
         ValidateEphemeralPoolLimit(operation, poolName);
     }
 
-    virtual void ValidatePoolLimitsOnPoolChange(const IOperationStrategyHost* operation, const TPoolName& newPoolName) const override
+    void ValidatePoolLimitsOnPoolChange(const IOperationStrategyHost* operation, const TPoolName& newPoolName) const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -671,7 +671,7 @@ public:
         ValidateAllOperationsCountsOnPoolChange(operation->GetId(), newPoolName);
     }
 
-    virtual TFuture<void> ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName) const override
+    TFuture<void> ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName) const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -680,7 +680,7 @@ public:
             .Run(operation, poolName);
     }
 
-    virtual TPersistentTreeStatePtr BuildPersistentTreeState() const override
+    TPersistentTreeStatePtr BuildPersistentTreeState() const override
     {
         auto result = New<TPersistentTreeState>();
         for (const auto& [poolId, pool] : Pools_) {
@@ -693,7 +693,7 @@ public:
         return result;
     }
 
-    virtual void InitPersistentTreeState(const TPersistentTreeStatePtr& persistentTreeState) override
+    void InitPersistentTreeState(const TPersistentTreeStatePtr& persistentTreeState) override
     {
         for (const auto& [poolName, poolState] : persistentTreeState->PoolStates) {
             auto poolIt = Pools_.find(poolName);
@@ -713,7 +713,7 @@ public:
         }
     }
 
-    virtual ESchedulingSegment InitOperationSchedulingSegment(TOperationId operationId) override
+    ESchedulingSegment InitOperationSchedulingSegment(TOperationId operationId) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -724,7 +724,7 @@ public:
         return *element->SchedulingSegment();
     }
 
-    virtual TTreeSchedulingSegmentsState GetSchedulingSegmentsState() const override
+    TTreeSchedulingSegmentsState GetSchedulingSegmentsState() const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -733,7 +733,7 @@ public:
             : TTreeSchedulingSegmentsState{};
     }
 
-    virtual TOperationIdWithDataCenterList GetOperationSchedulingSegmentDataCenterUpdates() const override
+    TOperationIdWithDataCenterList GetOperationSchedulingSegmentDataCenterUpdates() const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -749,7 +749,7 @@ public:
         return result;
     }
 
-    virtual void BuildOperationAttributes(TOperationId operationId, TFluentMap fluent) const override
+    void BuildOperationAttributes(TOperationId operationId, TFluentMap fluent) const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -760,7 +760,7 @@ public:
             .Item("pool").Value(element->GetParent()->GetId());
     }
 
-    virtual void BuildOperationProgress(TOperationId operationId, TFluentMap fluent) const override
+    void BuildOperationProgress(TOperationId operationId, TFluentMap fluent) const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -778,7 +778,7 @@ public:
         DoBuildOperationProgress(element, fluent);
     }
 
-    virtual void BuildBriefOperationProgress(TOperationId operationId, TFluentMap fluent) const override
+    void BuildBriefOperationProgress(TOperationId operationId, TFluentMap fluent) const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -797,7 +797,7 @@ public:
     }
 
 
-    virtual void BuildUserToEphemeralPoolsInDefaultPool(TFluentAny fluent) const override
+    void BuildUserToEphemeralPoolsInDefaultPool(TFluentAny fluent) const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -809,7 +809,7 @@ public:
             });
     }
 
-    virtual void BuildStaticPoolsInformation(TFluentAny fluent) const override
+    void BuildStaticPoolsInformation(TFluentAny fluent) const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -821,7 +821,7 @@ public:
             });
     }
 
-    virtual void BuildFairShareInfo(TFluentMap fluent) const override
+    void BuildFairShareInfo(TFluentMap fluent) const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -830,7 +830,7 @@ public:
             .Run()));
     }
 
-    virtual TResourceTree* GetResourceTree() override
+    TResourceTree* GetResourceTree() override
     {
         return ResourceTree_.Get();
     }
@@ -909,7 +909,7 @@ private:
             , Logger(logger)
         { }
 
-        virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override
+        TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override
         {
             return BIND(&TFairShareTree::DoScheduleJobs,
                 Tree_,
@@ -919,12 +919,12 @@ private:
                 .Run();
         }
 
-        virtual void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) override
+        void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) override
         {
             Tree_->DoPreemptJobsGracefully(schedulingContext, TreeSnapshotImpl_);
         }
 
-        virtual void ProcessUpdatedJob(
+        void ProcessUpdatedJob(
             TOperationId operationId,
             TJobId jobId,
             const TJobResources& jobResources,
@@ -959,7 +959,7 @@ private:
             }
         }
 
-        virtual void ProcessFinishedJob(TOperationId operationId, TJobId jobId) override
+        void ProcessFinishedJob(TOperationId operationId, TJobId jobId) override
         {
             // NB: Should be filtered out on large clusters.
             YT_LOG_DEBUG("Processing finished job (OperationId: %v, JobId: %v)", operationId, jobId);
@@ -969,22 +969,22 @@ private:
             }
         }
 
-        virtual bool HasOperation(TOperationId operationId) const override
+        bool HasOperation(TOperationId operationId) const override
         {
             return HasEnabledOperation(operationId) || HasDisabledOperation(operationId);
         }
 
-        virtual bool HasEnabledOperation(TOperationId operationId) const override
+        bool HasEnabledOperation(TOperationId operationId) const override
         {
             return TreeSnapshotImpl_->EnabledOperationMap().contains(operationId);
         }
 
-        virtual bool HasDisabledOperation(TOperationId operationId) const override
+        bool HasDisabledOperation(TOperationId operationId) const override
         {
             return TreeSnapshotImpl_->DisabledOperationMap().contains(operationId);
         }
 
-        virtual bool IsOperationRunningInTree(TOperationId operationId) const override
+        bool IsOperationRunningInTree(TOperationId operationId) const override
         {
             if (auto* element = TreeSnapshotImpl_->FindEnabledOperationElement(operationId)) {
                 return element->IsOperationRunningInPool();
@@ -997,27 +997,27 @@ private:
             return false;
         }
 
-        virtual void ApplyJobMetricsDelta(const THashMap<TOperationId, TJobMetrics>& jobMetricsPerOperation) override
+        void ApplyJobMetricsDelta(const THashMap<TOperationId, TJobMetrics>& jobMetricsPerOperation) override
         {
             Tree_->GetProfiler()->ApplyJobMetricsDelta(TreeSnapshotImpl_, jobMetricsPerOperation);
         }
 
-        virtual const TFairShareStrategyTreeConfigPtr& GetConfig() const override
+        const TFairShareStrategyTreeConfigPtr& GetConfig() const override
         {
             return TreeSnapshotImpl_->TreeConfig();
         }
 
-        virtual const TSchedulingTagFilter& GetNodesFilter() const override
+        const TSchedulingTagFilter& GetNodesFilter() const override
         {
             return NodesFilter_;
         }
 
-        virtual TJobResources GetTotalResourceLimits() const override
+        TJobResources GetTotalResourceLimits() const override
         {
             return TotalResourceLimits_;
         }
 
-        virtual std::optional<TSchedulerElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const override
+        std::optional<TSchedulerElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const override
         {
             if (auto* element = TreeSnapshotImpl_->FindPool(poolId)) {
                 return TSchedulerElementStateSnapshot{
@@ -1028,28 +1028,28 @@ private:
             return std::nullopt;
         }
 
-        virtual void BuildResourceMetering(TMeteringMap* meteringMap) const override
+        void BuildResourceMetering(TMeteringMap* meteringMap) const override
         {
             auto rootElement = TreeSnapshotImpl_->RootElement();
             rootElement->BuildResourceMetering(/* parentKey */ std::nullopt, meteringMap);
         }
 
-        virtual TCachedJobPreemptionStatuses GetCachedJobPreemptionStatuses() const override
+        TCachedJobPreemptionStatuses GetCachedJobPreemptionStatuses() const override
         {
             return TreeSnapshotImpl_->CachedJobPreemptionStatuses();
         }
 
-        virtual void ProfileFairShare() const override
+        void ProfileFairShare() const override
         {
             Tree_->DoProfileFairShare(TreeSnapshotImpl_);
         }
 
-        virtual void LogFairShare(NEventLog::TFluentLogEvent fluent) const override
+        void LogFairShare(NEventLog::TFluentLogEvent fluent) const override
         {
             Tree_->DoLogFairShare(TreeSnapshotImpl_, std::move(fluent));
         }
 
-        virtual void EssentialLogFairShare(NEventLog::TFluentLogEvent fluent) const override
+        void EssentialLogFairShare(NEventLog::TFluentLogEvent fluent) const override
         {
             Tree_->DoEssentialLogFairShare(TreeSnapshotImpl_, std::move(fluent));
         }

@@ -22,7 +22,7 @@ class TSortedStoreManagerTestBase
     : public TStoreManagerTestBase<TSortedDynamicStoreTestBase>
 {
 protected:
-    virtual IStoreManagerPtr CreateStoreManager(TTablet* tablet) override
+    IStoreManagerPtr CreateStoreManager(TTablet* tablet) override
     {
         YT_VERIFY(!StoreManager_);
         StoreManager_ = New<TSortedStoreManager>(
@@ -32,7 +32,7 @@ protected:
         return StoreManager_;
     }
 
-    virtual IStoreManagerPtr GetStoreManager() override
+    IStoreManagerPtr GetStoreManager() override
     {
         return StoreManager_;
     }
@@ -637,7 +637,7 @@ class TSingleLockStoreManagerTestWithStringKeys
     : public TSingleLockStoreManagerTest
 {
 protected:
-    virtual TTableSchemaPtr GetSchema() const
+    TTableSchemaPtr GetSchema() const override
     {
         // NB: Key columns must go first.
         return New<TTableSchema>(std::vector{
@@ -674,7 +674,7 @@ class TSingleLockStoreManagerTestWithCompositeKeys
     : public TSingleLockStoreManagerTest
 {
 protected:
-    virtual TTableSchemaPtr GetSchema() const
+    TTableSchemaPtr GetSchema() const override
     {
         return New<TTableSchema>(std::vector{
             TColumnSchema("k1", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
@@ -711,7 +711,7 @@ class TMultiLockStoreManagerTest
     : public TSortedStoreManagerTestBase
 {
 protected:
-    virtual TTableSchemaPtr GetSchema() const
+    TTableSchemaPtr GetSchema() const override
     {
         // NB: Key columns must go first.
         return New<TTableSchema>(std::vector{

@@ -86,17 +86,17 @@ public:
 #endif
     { }
 
-    virtual TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() override
     {
         return EncodingChunkWriter_->GetReadyEvent();
     }
 
-    virtual i64 GetRowCount() const override
+    i64 GetRowCount() const override
     {
         return RowCount_;
     }
 
-    virtual bool Write(TRange<TVersionedRow> rows) override
+    bool Write(TRange<TVersionedRow> rows) override
     {
         if (rows.Empty()) {
             return EncodingChunkWriter_->IsReady();
@@ -120,7 +120,7 @@ public:
         return EncodingChunkWriter_->IsReady();
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         // psushin@ forbids empty chunks :)
         YT_VERIFY(RowCount_ > 0);
@@ -130,38 +130,38 @@ public:
             .Run();
     }
 
-    virtual i64 GetMetaSize() const override
+    i64 GetMetaSize() const override
     {
         // Other meta parts are negligible.
         return BlockMetaExtSize_ + SamplesExtSize_;
     }
 
-    virtual bool IsCloseDemanded() const override
+    bool IsCloseDemanded() const override
     {
         return EncodingChunkWriter_->IsCloseDemanded();
     }
 
-    virtual TDeferredChunkMetaPtr GetMeta() const override
+    TDeferredChunkMetaPtr GetMeta() const override
     {
         return EncodingChunkWriter_->GetMeta();
     }
 
-    virtual TChunkId GetChunkId() const override
+    TChunkId GetChunkId() const override
     {
         return EncodingChunkWriter_->GetChunkId();
     }
 
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
         return EncodingChunkWriter_->GetDataStatistics();
     }
 
-    virtual TCodecStatistics GetCompressionStatistics() const override
+    TCodecStatistics GetCompressionStatistics() const override
     {
         return EncodingChunkWriter_->GetCompressionStatistics();
     }
 
-    virtual i64 GetDataWeight() const override
+    i64 GetDataWeight() const override
     {
         return DataWeight_;
     }
@@ -295,7 +295,7 @@ public:
         , BlockWriter_(new TSimpleVersionedBlockWriter(Schema_))
     { }
 
-    virtual i64 GetCompressedDataSize() const override
+    i64 GetCompressedDataSize() const override
     {
         return
             EncodingChunkWriter_->GetDataStatistics().compressed_data_size() +
@@ -305,7 +305,7 @@ public:
 private:
     std::unique_ptr<TSimpleVersionedBlockWriter> BlockWriter_;
 
-    virtual void DoWriteRows(TRange<TVersionedRow> rows) override
+    void DoWriteRows(TRange<TVersionedRow> rows) override
     {
         if (rows.Empty()) {
             return;
@@ -391,7 +391,7 @@ private:
         MinTimestamp_ = std::min(MinTimestamp_, BlockWriter_->GetMinTimestamp());
     }
 
-    virtual void PrepareChunkMeta() override
+    void PrepareChunkMeta() override
     {
         TVersionedChunkWriterBase::PrepareChunkMeta();
 
@@ -400,7 +400,7 @@ private:
         miscExt.set_max_timestamp(MaxTimestamp_);
     }
 
-    virtual void DoClose() override
+    void DoClose() override
     {
         if (BlockWriter_->GetRowCount() > 0) {
             FinishBlock(LastKey_.Begin(), LastKey_.End());
@@ -411,7 +411,7 @@ private:
         EncodingChunkWriter_->Close();
     }
 
-    virtual EChunkFormat GetChunkFormat() const override
+    EChunkFormat GetChunkFormat() const override
     {
         return TSimpleVersionedBlockWriter::FormatVersion;
     }
@@ -485,7 +485,7 @@ public:
         YT_VERIFY(BlockWriters_.size() > 1);
     }
 
-    virtual i64 GetCompressedDataSize() const override
+    i64 GetCompressedDataSize() const override
     {
         i64 result = EncodingChunkWriter_->GetDataStatistics().compressed_data_size();
         for (const auto& blockWriter : BlockWriters_) {
@@ -494,7 +494,7 @@ public:
         return result;
     }
 
-    virtual i64 GetMetaSize() const override
+    i64 GetMetaSize() const override
     {
         i64 metaSize = 0;
         for (const auto& valueColumnWriter : ValueColumnWriters_) {
@@ -512,7 +512,7 @@ private:
 
     i64 DataToBlockFlush_;
 
-    virtual void DoWriteRows(TRange<TVersionedRow> rows) override
+    void DoWriteRows(TRange<TVersionedRow> rows) override
     {
         int startRowIndex = 0;
         while (startRowIndex < std::ssize(rows)) {
@@ -607,7 +607,7 @@ private:
         EncodingChunkWriter_->WriteBlock(std::move(block.Data));
     }
 
-    virtual void PrepareChunkMeta() override
+    void PrepareChunkMeta() override
     {
         TVersionedChunkWriterBase::PrepareChunkMeta();
 
@@ -624,7 +624,7 @@ private:
         SetProtoExtension(meta->mutable_extensions(), columnMetaExt);
     }
 
-    virtual void DoClose() override
+    void DoClose() override
     {
         for (int i = 0; i < std::ssize(BlockWriters_); ++i) {
             if (BlockWriters_[i]->GetCurrentSize() > 0) {
@@ -637,7 +637,7 @@ private:
         EncodingChunkWriter_->Close();
     }
 
-    virtual EChunkFormat GetChunkFormat() const override
+    EChunkFormat GetChunkFormat() const override
     {
         return EChunkFormat::TableVersionedColumnar;
     }

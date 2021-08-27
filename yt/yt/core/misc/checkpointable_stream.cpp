@@ -16,7 +16,7 @@ public:
         : UnderlyingStream_(underlyingStream)
     { }
 
-    virtual void SkipToCheckpoint() override
+    void SkipToCheckpoint() override
     {
         while (true) {
             if (!EnsureBlock()) {
@@ -33,7 +33,7 @@ public:
         }
     }
 
-    virtual i64 GetOffset() const override
+    i64 GetOffset() const override
     {
         return Offset_;
     }
@@ -48,7 +48,7 @@ private:
     i64 Offset_ = 0;
 
 
-    virtual size_t DoRead(void* buf_, size_t len_) override
+    size_t DoRead(void* buf_, size_t len_) override
     {
         char* buf = reinterpret_cast<char*>(buf_);
         i64 len = static_cast<i64>(len_);
@@ -115,7 +115,7 @@ public:
         : UnderlyingStream_(underlyingStream)
     { }
 
-    virtual void MakeCheckpoint() override
+    void MakeCheckpoint() override
     {
         WritePod(*UnderlyingStream_, TCheckpointableStreamBlockHeader{TCheckpointableStreamBlockHeader::CheckpointSentinel});
     }
@@ -124,7 +124,7 @@ private:
     IOutputStream* const UnderlyingStream_;
 
 
-    virtual void DoWrite(const void* buf, size_t len_) override
+    void DoWrite(const void* buf, size_t len_) override
     {
         i64 len = static_cast<i64>(len_);
         if (len == 0) {
@@ -163,7 +163,7 @@ public:
         YT_VERIFY(BufferSize_ > 0);
     }
 
-    virtual void MakeCheckpoint() override
+    void MakeCheckpoint() override
     {
         Flush();
         UnderlyingStream_->MakeCheckpoint();
@@ -188,7 +188,7 @@ private:
     size_t BufferRemaining_;
 
 
-    virtual void DoWrite(const void* buf, size_t len) override
+    void DoWrite(const void* buf, size_t len) override
     {
         const char* current = static_cast<const char*>(buf);
         size_t remaining = len;
@@ -212,7 +212,7 @@ private:
         }
     }
 
-    virtual void DoFlush() override
+    void DoFlush() override
     {
         UnderlyingStream_->Write(BufferBegin_, BufferCurrent_ - BufferBegin_);
         BufferCurrent_ = BufferBegin_;

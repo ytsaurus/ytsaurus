@@ -49,35 +49,35 @@ public:
         NextToken();
     }
 
-    virtual void OnMyStringScalar(TStringBuf value) override
+    void OnMyStringScalar(TStringBuf value) override
     {
         OnStringValue(value);
     }
 
-    virtual void OnMyInt64Scalar(i64 value) override
+    void OnMyInt64Scalar(i64 value) override
     {
         OnValue(value);
     }
 
-    virtual void OnMyUint64Scalar(ui64 value) override
+    void OnMyUint64Scalar(ui64 value) override
     {
         OnValue(value);
     }
 
-    virtual void OnMyDoubleScalar(double value) override
+    void OnMyDoubleScalar(double value) override
     {
         OnValue(value);
     }
 
-    virtual void OnMyBooleanScalar(bool value) override
+    void OnMyBooleanScalar(bool value) override
     {
         OnValue(value);
     }
 
-    virtual void OnMyEntity() override
+    void OnMyEntity() override
     { }
 
-    virtual void OnMyBeginList() override
+    void OnMyBeginList() override
     {
         if (CurrentDepth_++ == PathDepth_) {
             switch (Expected_) {
@@ -104,7 +104,7 @@ public:
         }
     }
 
-    virtual void OnMyListItem() override
+    void OnMyListItem() override
     {
         if (CurrentDepth_ == PathDepth_) {
             if (Expected_ != EExpectedItem::ListItem) {
@@ -121,12 +121,12 @@ public:
         }
     }
 
-    virtual void OnMyEndList() override
+    void OnMyEndList() override
     {
         OnDecDepth();
     }
 
-    virtual void OnMyBeginMap() override
+    void OnMyBeginMap() override
     {
         if (CurrentDepth_++ == PathDepth_) {
             switch (Expected_) {
@@ -146,7 +146,7 @@ public:
         }
     }
 
-    virtual void OnMyKeyedItem(TStringBuf key) override
+    void OnMyKeyedItem(TStringBuf key) override
     {
         if (CurrentDepth_ == PathDepth_) {
             if (Expected_ != EExpectedItem::Key) {
@@ -159,12 +159,12 @@ public:
         }
     }
 
-    virtual void OnMyEndMap() override
+    void OnMyEndMap() override
     {
         OnDecDepth();
     }
 
-    virtual void OnMyBeginAttributes() override
+    void OnMyBeginAttributes() override
     {
         if (CurrentDepth_++ == PathDepth_) {
             switch (Expected_) {
@@ -186,12 +186,12 @@ public:
         }
     }
 
-    virtual void OnMyEndAttributes() override
+    void OnMyEndAttributes() override
     {
         OnDecDepth();
     }
 
-    virtual void OnMyRaw(TStringBuf /*yson*/, EYsonType /*type*/) override
+    void OnMyRaw(TStringBuf /*yson*/, EYsonType /*type*/) override
     { }
 
     void Parse(TStringBuf input)

@@ -15,7 +15,7 @@ class TOrderedStoreManagerTest
     : public TStoreManagerTestBase<TOrderedDynamicStoreTestBase>
 {
 protected:
-    virtual IStoreManagerPtr CreateStoreManager(TTablet* tablet) override
+    IStoreManagerPtr CreateStoreManager(TTablet* tablet) override
     {
         YT_VERIFY(!StoreManager_);
         StoreManager_ = New<TOrderedStoreManager>(
@@ -25,7 +25,7 @@ protected:
         return StoreManager_;
     }
 
-    virtual IStoreManagerPtr GetStoreManager() override
+    IStoreManagerPtr GetStoreManager() override
     {
         return StoreManager_;
     }

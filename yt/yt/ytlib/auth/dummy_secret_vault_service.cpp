@@ -9,7 +9,7 @@ class TDummySecretVaultService
     : public ISecretVaultService
 {
 public:
-    virtual TFuture<std::vector<TErrorOrSecretSubresponse>> GetSecrets(
+    TFuture<std::vector<TErrorOrSecretSubresponse>> GetSecrets(
         const std::vector<TSecretSubrequest>& subrequests) override
     {
         std::vector<TErrorOrSecretSubresponse> results;
@@ -19,7 +19,7 @@ public:
         return MakeFuture(std::move(results));
     }
 
-    virtual TFuture<TString> GetDelegationToken(TDelegationTokenRequest /*request*/) override
+    TFuture<TString> GetDelegationToken(TDelegationTokenRequest /*request*/) override
     {
         return MakeFuture<TString>(TError("Secret Vault is not configured"));
     }

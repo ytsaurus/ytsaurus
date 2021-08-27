@@ -79,7 +79,7 @@ public:
         , ClusterNodeBootstrap_(bootstrap)
     { }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         GetDynamicConfigManager()
             ->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
@@ -191,7 +191,7 @@ public:
         GetJobController()->AddHeartbeatProcessor<TMasterJobHeartbeatProcessor>(EObjectType::MasterJob, this);
     }
 
-    virtual void Run() override
+    void Run() override
     {
         SkynetHttpServer_ = NHttp::CreateServer(GetConfig()->CreateSkynetHttpServerConfig());
         SkynetHttpServer_->AddHandler(
@@ -220,42 +220,42 @@ public:
         AllyReplicaManager_->Start();
     }
 
-    virtual const TChunkStorePtr& GetChunkStore() const override
+    const TChunkStorePtr& GetChunkStore() const override
     {
         return ChunkStore_;
     }
 
-    virtual const IAllyReplicaManagerPtr& GetAllyReplicaManager() const override
+    const IAllyReplicaManagerPtr& GetAllyReplicaManager() const override
     {
         return AllyReplicaManager_;
     }
 
-    virtual const IChunkBlockManagerPtr& GetChunkBlockManager() const override
+    const IChunkBlockManagerPtr& GetChunkBlockManager() const override
     {
         return ChunkBlockManager_;
     }
 
-    virtual const TSessionManagerPtr& GetSessionManager() const override
+    const TSessionManagerPtr& GetSessionManager() const override
     {
         return SessionManager_;
     }
 
-    virtual const IMasterConnectorPtr& GetMasterConnector() const override
+    const IMasterConnectorPtr& GetMasterConnector() const override
     {
         return MasterConnector_;
     }
 
-    virtual const TMediumUpdaterPtr& GetMediumUpdater() const override
+    const TMediumUpdaterPtr& GetMediumUpdater() const override
     {
         return MediumUpdater_;
     }
 
-    virtual const IThroughputThrottlerPtr& GetThrottler(EDataNodeThrottlerKind kind) const override
+    const IThroughputThrottlerPtr& GetThrottler(EDataNodeThrottlerKind kind) const override
     {
         return Throttlers_[kind];
     }
 
-    virtual const IThroughputThrottlerPtr& GetInThrottler(const TWorkloadDescriptor& descriptor) const override
+    const IThroughputThrottlerPtr& GetInThrottler(const TWorkloadDescriptor& descriptor) const override
     {
         static const THashMap<EWorkloadCategory, EDataNodeThrottlerKind> WorkloadCategoryToThrottlerKind = {
             {EWorkloadCategory::SystemRepair,                EDataNodeThrottlerKind::RepairIn},
@@ -273,7 +273,7 @@ public:
             : Throttlers_[it->second];
     }
 
-    virtual const IThroughputThrottlerPtr& GetOutThrottler(const TWorkloadDescriptor& descriptor) const override
+    const IThroughputThrottlerPtr& GetOutThrottler(const TWorkloadDescriptor& descriptor) const override
     {
         static const THashMap<EWorkloadCategory, EDataNodeThrottlerKind> WorkloadCategoryToThrottlerKind = {
             {EWorkloadCategory::SystemRepair,                EDataNodeThrottlerKind::RepairOut},
@@ -291,32 +291,32 @@ public:
             : Throttlers_[it->second];
     }
 
-    virtual const IJournalDispatcherPtr& GetJournalDispatcher() const override
+    const IJournalDispatcherPtr& GetJournalDispatcher() const override
     {
         return JournalDispatcher_;
     }
 
-    virtual const IInvokerPtr& GetStorageLookupInvoker() const override
+    const IInvokerPtr& GetStorageLookupInvoker() const override
     {
         return StorageLookupThreadPool_->GetInvoker();
     }
 
-    virtual const IInvokerPtr& GetMasterJobInvoker() const override
+    const IInvokerPtr& GetMasterJobInvoker() const override
     {
         return MasterJobThreadPool_->GetInvoker();
     }
 
-    virtual const TBlockPeerTablePtr& GetBlockPeerTable() const override
+    const TBlockPeerTablePtr& GetBlockPeerTable() const override
     {
         return BlockPeerTable_;
     }
 
-    virtual const TP2PBlockDistributorPtr& GetP2PBlockDistributor() const override
+    const TP2PBlockDistributorPtr& GetP2PBlockDistributor() const override
     {
         return P2PBlockDistributor_;
     }
 
-    virtual const TTableSchemaCachePtr& GetTableSchemaCache() const override
+    const TTableSchemaCachePtr& GetTableSchemaCache() const override
     {
         return TableSchemaCache_;
     }

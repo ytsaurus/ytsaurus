@@ -66,7 +66,7 @@ public:
             trunkNode)
     { }
 
-    virtual TResolveResult ResolveSelf(
+    TResolveResult ResolveSelf(
         const TYPath& path,
         const IServiceContextPtr& context) override
     {
@@ -78,14 +78,14 @@ public:
         }
     }
 
-    virtual IYPathService::TResolveResult ResolveAttributes(
+    IYPathService::TResolveResult ResolveAttributes(
         const TYPath& path,
         const IServiceContextPtr& /*context*/) override
     {
         return TResolveResultThere{GetTargetProxy(), "/@" + path};
     }
 
-    virtual void DoWriteAttributesFragment(
+    void DoWriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
         const std::optional<std::vector<TString>>& attributeKeys,
         bool stable) override
@@ -113,13 +113,13 @@ public:
         : TMapNodeTypeHandlerImpl(bootstrap)
     { }
 
-    virtual EObjectType GetObjectType() const override
+    EObjectType GetObjectType() const override
     {
         return EObjectType::ClusterNodeNode;
     }
 
 private:
-    virtual ICypressNodeProxyPtr DoGetProxy(
+    ICypressNodeProxyPtr DoGetProxy(
         TMapNode* trunkNode,
         TTransaction* transaction) override
     {
@@ -155,7 +155,7 @@ public:
     { }
 
 private:
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TMapNodeProxy::ListSystemAttributes(descriptors);
 
@@ -186,7 +186,7 @@ private:
             .SetOpaque(true));
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -328,13 +328,13 @@ public:
         : TMapNodeTypeHandlerImpl(bootstrap)
     { }
 
-    virtual EObjectType GetObjectType() const override
+    EObjectType GetObjectType() const override
     {
         return EObjectType::ClusterNodeMap;
     }
 
 private:
-    virtual ICypressNodeProxyPtr DoGetProxy(
+    ICypressNodeProxyPtr DoGetProxy(
         TMapNode* trunkNode,
         TTransaction* transaction) override
     {
@@ -367,7 +367,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
+    std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
     {
         std::vector<TString> keys;
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -377,13 +377,13 @@ private:
         return keys;
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         return nodeTracker->Racks().GetSize();
     }
 
-    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* rack = nodeTracker->FindRackByName(TString(key));
@@ -423,7 +423,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
+    std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
     {
         std::vector<TString> keys;
         auto nodeTracker = Bootstrap_->GetNodeTracker();
@@ -433,13 +433,13 @@ private:
         return keys;
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         return nodeTracker->DataCenters().GetSize();
     }
 
-    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         auto* dc = nodeTracker->FindDataCenterByName(TString(key));

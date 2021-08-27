@@ -192,7 +192,7 @@ public:
         BytesAlive_.fetch_sub(stackSize, std::memory_order_relaxed);
     }
 
-    void CollectSensors(ISensorWriter* writer)
+    void CollectSensors(ISensorWriter* writer) override
     {
         writer->AddCounter("/bytes_allocated", BytesAllocated_);
         writer->AddCounter("/bytes_freed", BytesFreed_);
@@ -250,7 +250,7 @@ public:
         return &Context_;
     }
 
-    virtual void DoRunNaked() override;
+    void DoRunNaked() override;
 
 private:
     std::shared_ptr<TExecutionStack> Stack_;

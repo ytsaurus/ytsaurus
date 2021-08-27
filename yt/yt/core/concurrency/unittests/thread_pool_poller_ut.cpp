@@ -14,22 +14,22 @@ class TPollableMock
     : public IPollable
 {
 public:
-    virtual void SetCookie(IPollable::TCookiePtr cookie) override
+    void SetCookie(IPollable::TCookiePtr cookie) override
     {
         Cookie_ = std::move(cookie);
     }
 
-    virtual void* GetCookie() const override
+    void* GetCookie() const override
     {
         return static_cast<void*>(Cookie_.Get());
     }
 
-    virtual const TString& GetLoggingTag() const override
+    const TString& GetLoggingTag() const override
     {
         return LoggingTag_;
     }
 
-    virtual void OnEvent(EPollControl control) override
+    void OnEvent(EPollControl control) override
     {
         // NB: Retry is the only event we trigger in this unittest via |IPoller::Retry|.
         EXPECT_EQ(control, EPollControl::Retry);
@@ -37,7 +37,7 @@ public:
         RetryPromise_.Set();
     }
 
-    virtual void OnShutdown() override
+    void OnShutdown() override
     {
         ShutdownPromise_.Set();
     }
@@ -67,12 +67,12 @@ class TThreadPoolPollerTest
     : public ::testing::Test
 {
 public:
-    virtual void SetUp() override
+    void SetUp() override
     {
         Poller = CreateThreadPoolPoller(InitialThreadCount, "TestPoller");
     }
 
-    virtual void TearDown() override
+    void TearDown() override
     {
         Poller->Shutdown();
     }

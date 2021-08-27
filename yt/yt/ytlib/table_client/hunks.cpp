@@ -353,12 +353,12 @@ public:
         }
     }
 
-    virtual bool HasColumnarStatistics() const override
+    bool HasColumnarStatistics() const override
     {
         return ColumnIdToStatistics_.has_value();
     }
 
-    virtual TColumnarHunkChunkStatistics GetColumnarStatistics(int columnId) const override
+    TColumnarHunkChunkStatistics GetColumnarStatistics(int columnId) const override
     {
         const auto& statistics = GetOrCrash(*ColumnIdToStatistics_, columnId);
 
@@ -370,7 +370,7 @@ public:
         };
     }
 
-    virtual void UpdateColumnarStatistics(
+    void UpdateColumnarStatistics(
         int columnId,
         const TColumnarHunkChunkStatistics& newStatistics) override
     {
@@ -472,32 +472,32 @@ class THunkChunkReaderStatistics
 public:
     using THunkChunkStatisticsBase::THunkChunkStatisticsBase;
 
-    virtual const TChunkReaderStatisticsPtr& GetChunkReaderStatistics() const override
+    const TChunkReaderStatisticsPtr& GetChunkReaderStatistics() const override
     {
         return ChunkReaderStatistics_;
     }
 
-    virtual std::atomic<i64>& DataWeight() override
+    std::atomic<i64>& DataWeight() override
     {
         return DataWeight_;
     }
 
-    virtual std::atomic<i64>& SkippedDataWeight() override
+    std::atomic<i64>& SkippedDataWeight() override
     {
         return SkippedDataWeight_;
     }
 
-    virtual std::atomic<int>& InlineValueCount() override
+    std::atomic<int>& InlineValueCount() override
     {
         return InlineValueCount_;
     }
 
-    virtual std::atomic<int>& RefValueCount() override
+    std::atomic<int>& RefValueCount() override
     {
         return RefValueCount_;
     }
 
-    virtual std::atomic<int>& BackendRequestCount() override
+    std::atomic<int>& BackendRequestCount() override
     {
         return BackendRequestCount_;
     }
@@ -663,7 +663,7 @@ public:
         , HunkChunkWriterStatistics_(std::move(hunkChunkWriterStatistics))
     { }
 
-    virtual bool Write(TRange<TVersionedRow> rows) override
+    bool Write(TRange<TVersionedRow> rows) override
     {
         std::optional<TColumnarStatisticsThunk> columnarStatisticsThunk;
         if (HunkChunkWriterStatistics_ && HunkChunkWriterStatistics_->HasColumnarStatistics()) {
@@ -760,7 +760,7 @@ public:
         return ready;
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() override
     {
         std::vector<TFuture<void>> futures;
         futures.push_back(Underlying_->GetReadyEvent());
@@ -770,7 +770,7 @@ public:
         return AllSucceeded(std::move(futures));
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         Underlying_->GetMeta()->RegisterFinalizer(
             [
@@ -809,47 +809,47 @@ public:
         return openFuture.Apply(BIND(&IVersionedMultiChunkWriter::Close, Underlying_));
     }
 
-    virtual i64 GetRowCount() const override
+    i64 GetRowCount() const override
     {
         return Underlying_->GetRowCount();
     }
 
-    virtual i64 GetMetaSize() const override
+    i64 GetMetaSize() const override
     {
         return Underlying_->GetMetaSize();
     }
 
-    virtual i64 GetCompressedDataSize() const override
+    i64 GetCompressedDataSize() const override
     {
         return Underlying_->GetCompressedDataSize();
     }
 
-    virtual i64 GetDataWeight() const override
+    i64 GetDataWeight() const override
     {
         return Underlying_->IsCloseDemanded();
     }
 
-    virtual bool IsCloseDemanded() const override
+    bool IsCloseDemanded() const override
     {
         return Underlying_->IsCloseDemanded();
     }
 
-    virtual TDeferredChunkMetaPtr GetMeta() const override
+    TDeferredChunkMetaPtr GetMeta() const override
     {
         return Underlying_->GetMeta();
     }
 
-    virtual TChunkId GetChunkId() const override
+    TChunkId GetChunkId() const override
     {
         return Underlying_->GetChunkId();
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         return Underlying_->GetDataStatistics();
     }
 
-    virtual TCodecStatistics GetCompressionStatistics() const override
+    TCodecStatistics GetCompressionStatistics() const override
     {
         return Underlying_->GetCompressionStatistics();
     }
@@ -1113,27 +1113,27 @@ public:
             Options_.ReadSessionId))
     { }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         return Underlying_->GetDataStatistics();
     }
 
-    virtual TCodecStatistics GetDecompressionStatistics() const override
+    TCodecStatistics GetDecompressionStatistics() const override
     {
         return Underlying_->GetDecompressionStatistics();
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return Underlying_->IsFetchingCompleted();
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return Underlying_->GetFailedChunkIds();
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         return ReadyEvent_;
     }
@@ -1288,7 +1288,7 @@ public:
         , RowVisitor_(schema, columnFilter)
     { }
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         return this->DoRead(
             options,
@@ -1343,12 +1343,12 @@ public:
         , HunkChunkIdsToForceInline_(std::move(hunkChunkIdsToForceInline))
     { }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return this->Underlying_->Open();
     }
 
-    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         i64 skippedDataWeight = 0;
         auto batch = this->DoRead(
@@ -1417,12 +1417,12 @@ class THunkDecodingSchemalessUnversionedReaderBase
 public:
     using TBatchHunkReader<IReader, TUnversionedRow, TMutableUnversionedRow>::TBatchHunkReader;
 
-    virtual const TNameTablePtr& GetNameTable() const override
+    const TNameTablePtr& GetNameTable() const override
     {
         return this->Underlying_->GetNameTable();
     }
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         return this->DoRead(
             options,
@@ -1471,18 +1471,18 @@ public:
         THunkDecodingSchemalessUnversionedReaderBase;
 
     //! ITimingReader implementation.
-    virtual TTimingStatistics GetTimingStatistics() const override
+    TTimingStatistics GetTimingStatistics() const override
     {
         return this->Underlying_->GetTimingStatistics();
     }
 
     //! ISchemalessChunkReader implementation.
-    virtual i64 GetTableRowIndex() const override
+    i64 GetTableRowIndex() const override
     {
         return this->Underlying_->GetTableRowIndex();
     }
 
-    virtual TInterruptDescriptor GetInterruptDescriptor(
+    TInterruptDescriptor GetInterruptDescriptor(
         TRange<TUnversionedRow> unreadRows) const override
     {
         std::vector<TUnversionedRow> underlyingUnreadRows;
@@ -1502,7 +1502,7 @@ public:
         return this->Underlying_->GetInterruptDescriptor(MakeRange(underlyingUnreadRows));
     }
 
-    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
+    const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
     {
         return this->Underlying_->GetCurrentReaderDescriptor();
     }
@@ -1544,7 +1544,7 @@ public:
         Buffer_.Reserve(static_cast<i64>(Config_->DesiredBlockSize * BufferReserveFactor));
     }
 
-    virtual std::tuple<int, i64, bool> WriteHunk(TRef payload) override
+    std::tuple<int, i64, bool> WriteHunk(TRef payload) override
     {
         if (!OpenFuture_) {
             OpenFuture_ = Underlying_->Open();
@@ -1565,12 +1565,12 @@ public:
         return {blockIndex, blockOffset, ready};
     }
 
-    virtual bool HasHunks() const override
+    bool HasHunks() const override
     {
         return OpenFuture_.operator bool();
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() override
     {
         if (!OpenFuture_) {
             return VoidFuture;
@@ -1581,13 +1581,13 @@ public:
         return Underlying_->GetReadyEvent();
     }
 
-    virtual TFuture<void> GetOpenFuture() override
+    TFuture<void> GetOpenFuture() override
     {
         YT_VERIFY(OpenFuture_);
         return OpenFuture_;
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         if (!OpenFuture_) {
             return VoidFuture;
@@ -1621,17 +1621,17 @@ public:
             }));
     }
 
-    virtual TDeferredChunkMetaPtr GetMeta() const override
+    TDeferredChunkMetaPtr GetMeta() const override
     {
         return Meta_;
     }
 
-    virtual TChunkId GetChunkId() const override
+    TChunkId GetChunkId() const override
     {
         return Underlying_->GetChunkId();
     }
 
-    virtual const TDataStatistics& GetDataStatistics() const override
+    const TDataStatistics& GetDataStatistics() const override
     {
         return Underlying_->GetDataStatistics();
     }

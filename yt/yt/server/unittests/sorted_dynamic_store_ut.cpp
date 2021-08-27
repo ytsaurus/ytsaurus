@@ -14,7 +14,7 @@ class TSingleLockSortedDynamicStoreTest
     : public TSortedDynamicStoreTestBase
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     {
         TSortedDynamicStoreTestBase::SetUp();
         CreateDynamicStore();
@@ -298,7 +298,7 @@ protected:
     TClientChunkReadOptions ChunkReadOptions_;
 
 private:
-    virtual void CreateDynamicStore() override
+    void CreateDynamicStore() override
     {
         auto config = New<TTabletManagerConfig>();
         config->MaxBlockedRowWaitTime = TDuration::MilliSeconds(100);
@@ -309,7 +309,7 @@ private:
             Tablet_.get());
     }
 
-    virtual IDynamicStorePtr GetDynamicStore() override
+    IDynamicStorePtr GetDynamicStore() override
     {
         return Store_;
     }
@@ -347,7 +347,7 @@ class TSortedDynamicRowKeyComparerTest
     , public ::testing::WithParamInterface<std::tuple<const char*, const char*>>
 {
 public:
-    virtual void SetUp() override
+    void SetUp() override
     {
         TSingleLockSortedDynamicStoreTest::SetUp();
 
@@ -594,7 +594,7 @@ private:
     };
 
 protected:
-    virtual TTableSchemaPtr GetSchema() const override
+    TTableSchemaPtr GetSchema() const override
     {
         return New<TTableSchema>(std::vector{
             TColumnSchema("a", EValueType::Int64)
@@ -1510,7 +1510,7 @@ class TMultiLockSortedDynamicStoreTest
     : public TSingleLockSortedDynamicStoreTest
 {
 protected:
-    virtual TTableSchemaPtr GetSchema() const
+    TTableSchemaPtr GetSchema() const override
     {
         // NB: Key columns must go first.
         return New<TTableSchema>(std::vector{
@@ -1525,7 +1525,7 @@ protected:
     TLockMask LockMask2;
     TLockMask LockMask12;
 
-    virtual void SetUp() override
+    void SetUp() override
     {
         TSingleLockSortedDynamicStoreTest::SetUp();
         LockMask1.Set(1, ELockType::SharedWeak);
@@ -1888,7 +1888,7 @@ class TAtomicSortedDynamicStoreTest
     : public TSingleLockSortedDynamicStoreTest
 {
 protected:
-    virtual TTableSchemaPtr GetSchema() const
+    TTableSchemaPtr GetSchema() const override
     {
         // NB: Key columns must go first.
         return New<TTableSchema>(std::vector{
@@ -2015,7 +2015,7 @@ protected:
         }
     }
 
-    virtual void SetUp() override
+    void SetUp() override
     {
         TSingleLockSortedDynamicStoreTest::SetUp();
     }
@@ -2078,7 +2078,7 @@ class TNonAtomicSortedDynamicStoreTest
     : public TSingleLockSortedDynamicStoreTest
 {
 protected:
-    virtual EAtomicity GetAtomicity() const override
+    EAtomicity GetAtomicity() const override
     {
         return EAtomicity::None;
     }

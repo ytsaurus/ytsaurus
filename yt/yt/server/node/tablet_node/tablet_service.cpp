@@ -281,7 +281,7 @@ private:
     }
 
     // THydraServiceBase overrides.
-    virtual IHydraManagerPtr GetHydraManager() override
+    IHydraManagerPtr GetHydraManager() override
     {
         return Slot_->GetHydraManager();
     }

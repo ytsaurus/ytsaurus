@@ -90,7 +90,7 @@ public:
         , LogicalType_(SimpleLogicalType(simpleLogicalValueType))
     { }
 
-    virtual void InitColumn(const DB::IColumn* column) override
+    void InitColumn(const DB::IColumn* column) override
     {
         Column_ = column;
         Data_ = Column_->getDataAt(0).data;
@@ -98,7 +98,7 @@ public:
         CurrentValueIndex_ = 0;
     }
 
-    virtual void FillValueRange(TMutableRange<TUnversionedValue> values) override
+    void FillValueRange(TMutableRange<TUnversionedValue> values) override
     {
         YT_VERIFY(values.size() == Column_->size());
 
@@ -148,7 +148,7 @@ public:
         }
     }
 
-    virtual void ExtractNextValueYson(TCheckedInDebugYsonTokenWriter* writer) override
+    void ExtractNextValueYson(TCheckedInDebugYsonTokenWriter* writer) override
     {
         YT_ASSERT(CurrentValueIndex_ < std::ssize(*Column_));
 
@@ -199,7 +199,7 @@ public:
         #undef XX
     }
 
-    virtual TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr GetLogicalType() const override
     {
         return LogicalType_;
     }
@@ -224,7 +224,7 @@ public:
         : UnderlyingConverter_(std::move(underlyingConverter))
     { }
 
-    virtual void InitColumn(const DB::IColumn* column) override
+    void InitColumn(const DB::IColumn* column) override
     {
         YT_VERIFY(column->isNullable());
         auto* columnNullable = DB::checkAndGetColumn<DB::ColumnNullable>(column);
@@ -234,7 +234,7 @@ public:
         CurrentValueIndex_ = 0;
     }
 
-    virtual void FillValueRange(TMutableRange<TUnversionedValue> values) override
+    void FillValueRange(TMutableRange<TUnversionedValue> values) override
     {
         UnderlyingConverter_->FillValueRange(values);
 
@@ -247,7 +247,7 @@ public:
         }
     }
 
-    virtual void ExtractNextValueYson(TCheckedInDebugYsonTokenWriter* writer) override
+    void ExtractNextValueYson(TCheckedInDebugYsonTokenWriter* writer) override
     {
         if (!writer) {
             // Technically this can't happen since Nullable can't be enclosed in Nullable in CH.
@@ -265,7 +265,7 @@ public:
         ++CurrentValueIndex_;
     }
 
-    virtual TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr GetLogicalType() const override
     {
         return OptionalLogicalType(UnderlyingConverter_->GetLogicalType());
     }
@@ -287,7 +287,7 @@ public:
         : UnderlyingConverter_(std::move(underlyingConverter))
     { }
 
-    virtual void InitColumn(const DB::IColumn* column) override
+    void InitColumn(const DB::IColumn* column) override
     {
         auto* columnArray = DB::checkAndGetColumn<DB::ColumnArray>(column);
         Offsets_ = &columnArray->getOffsets();
@@ -295,13 +295,13 @@ public:
         UnderlyingConverter_->InitColumn(&columnArray->getData());
     }
 
-    virtual void FillValueRange(TMutableRange<TUnversionedValue> /*values*/) override
+    void FillValueRange(TMutableRange<TUnversionedValue> /*values*/) override
     {
         // We should not get here.
         YT_ABORT();
     }
 
-    virtual void ExtractNextValueYson(TCheckedInDebugYsonTokenWriter* writer) override
+    void ExtractNextValueYson(TCheckedInDebugYsonTokenWriter* writer) override
     {
         auto beginOffset = CurrentValueIndex_ > 0 ? (*Offsets_)[CurrentValueIndex_ - 1] : 0;
         auto endOffset = (*Offsets_)[CurrentValueIndex_];
@@ -327,7 +327,7 @@ public:
         ++CurrentValueIndex_;
     }
 
-    virtual TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr GetLogicalType() const override
     {
         return ListLogicalType(UnderlyingConverter_->GetLogicalType());
     }
@@ -351,7 +351,7 @@ public:
         YT_VERIFY(!ElementNames_ || ElementNames_->size() == UnderlyingConverters_.size());
     }
 
-    virtual void InitColumn(const DB::IColumn* column) override
+    void InitColumn(const DB::IColumn* column) override
     {
         auto* columnTuple = DB::checkAndGetColumn<DB::ColumnTuple>(column);
         YT_VERIFY(columnTuple->getColumns().size() == UnderlyingConverters_.size());
@@ -360,13 +360,13 @@ public:
         }
     }
 
-    virtual void FillValueRange(TMutableRange<TUnversionedValue> /*values*/) override
+    void FillValueRange(TMutableRange<TUnversionedValue> /*values*/) override
     {
         // We should not get here.
         YT_ABORT();
     }
 
-    virtual void ExtractNextValueYson(TCheckedInDebugYsonTokenWriter* writer) override
+    void ExtractNextValueYson(TCheckedInDebugYsonTokenWriter* writer) override
     {
         if (!writer) {
             for (const auto& underlyingConverter : UnderlyingConverters_) {
@@ -383,7 +383,7 @@ public:
         writer->WriteEndList();
     }
 
-    virtual TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr GetLogicalType() const override
     {
         if (!ElementNames_) {
             std::vector<TLogicalTypePtr> underlyingLogicalTypes;

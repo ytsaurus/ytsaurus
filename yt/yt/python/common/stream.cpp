@@ -125,7 +125,7 @@ public:
 
     virtual ~TOutputStreamForwarder() noexcept = default;
 
-    void DoWrite(const void* buf, size_t len)
+    void DoWrite(const void* buf, size_t len) override
     {
         TGilGuard guard;
 
@@ -157,17 +157,17 @@ public:
         , BufferedOutputStream_(UnderlyingOutputStream_.get(), 1_MB)
     { }
 
-    void DoWrite(const void* buf, size_t len)
+    void DoWrite(const void* buf, size_t len) override
     {
         BufferedOutputStream_.Write(buf, len);
     }
 
-    size_t DoNext(void** ptr)
+    size_t DoNext(void** ptr) override
     {
         return BufferedOutputStream_.Next(ptr);
     }
 
-    void DoUndo(size_t len)
+    void DoUndo(size_t len) override
     {
         BufferedOutputStream_.Undo(len);
     }

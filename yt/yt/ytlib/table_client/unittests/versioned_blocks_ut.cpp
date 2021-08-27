@@ -48,7 +48,7 @@ class TVersionedBlocksTestOneRow
     : public TVersionedBlocksTestBase
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     {
         Schema = New<TTableSchema>(std::vector{
             TColumnSchema("k1", EValueType::String).SetSortOrder(ESortOrder::Ascending),

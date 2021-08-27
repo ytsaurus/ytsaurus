@@ -39,7 +39,7 @@ public:
         UnderlyingChannel_->SubscribeTerminated(BIND(&TCachedChannel::OnTerminated, MakeWeak(this)));
     }
 
-    virtual IClientRequestControlPtr Send(
+    IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
@@ -95,14 +95,14 @@ public:
         ExpirationExecutor_->Start();
     }
 
-    virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
+    IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
     {
         return DoCreateChannel(
             addressWithNetwork.Address,
             [&] { return UnderlyingFactory_->CreateChannel(addressWithNetwork); });
     }
 
-    virtual IChannelPtr CreateChannel(const TString& address) override
+    IChannelPtr CreateChannel(const TString& address) override
     {
         return DoCreateChannel(
             address,

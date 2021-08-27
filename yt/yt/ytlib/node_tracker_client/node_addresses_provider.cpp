@@ -77,22 +77,22 @@ public:
         , NullChannel_(ChannelBuilder_({}))
     { }
 
-    virtual const TString& GetEndpointDescription() const override
+    const TString& GetEndpointDescription() const override
     {
         return GetChannel()->GetEndpointDescription();
     }
 
-    virtual const IAttributeDictionary& GetEndpointAttributes() const override
+    const IAttributeDictionary& GetEndpointAttributes() const override
     {
         return GetChannel()->GetEndpointAttributes();
     }
 
-    virtual TNetworkId GetNetworkId() const override
+    TNetworkId GetNetworkId() const override
     {
         return GetChannel()->GetNetworkId();
     }
 
-    virtual TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /* request */) override
+    TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /* request */) override
     {
         EnsureStarted();
         auto guard = Guard(Lock_);
@@ -106,7 +106,7 @@ public:
         return ChannelPromise_;
     }
 
-    virtual void Terminate(const TError& error) override
+    void Terminate(const TError& error) override
     {
         {
             auto guard = Guard(Lock_);

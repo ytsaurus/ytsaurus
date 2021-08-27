@@ -278,17 +278,17 @@ public:
         return RequestQueue_;
     }
 
-    virtual bool IsPooled() const override
+    bool IsPooled() const override
     {
         return RuntimeInfo_->Descriptor.Pooled;
     }
 
-    virtual TTcpDispatcherStatistics GetBusStatistics() const override
+    TTcpDispatcherStatistics GetBusStatistics() const override
     {
         return ReplyBus_->GetStatistics();
     }
 
-    virtual const IAttributeDictionary& GetEndpointAttributes() const override
+    const IAttributeDictionary& GetEndpointAttributes() const override
     {
         return ReplyBus_->GetEndpointAttributes();
     }
@@ -337,32 +337,32 @@ public:
         invoker->Invoke(BIND(&TServiceContext::DoRun, MakeStrong(this), handler));
     }
 
-    virtual void SubscribeCanceled(const TClosure& callback) override
+    void SubscribeCanceled(const TClosure& callback) override
     {
         CanceledList_.Subscribe(callback);
     }
 
-    virtual void UnsubscribeCanceled(const TClosure& callback) override
+    void UnsubscribeCanceled(const TClosure& callback) override
     {
         CanceledList_.Unsubscribe(callback);
     }
 
-    virtual void SubscribeReplied(const TClosure& callback) override
+    void SubscribeReplied(const TClosure& callback) override
     {
         RepliedList_.Subscribe(callback);
     }
 
-    virtual void UnsubscribeReplied(const TClosure& callback) override
+    void UnsubscribeReplied(const TClosure& callback) override
     {
         RepliedList_.Unsubscribe(callback);
     }
 
-    virtual bool IsCanceled() override
+    bool IsCanceled() override
     {
         return CanceledList_.IsFired();
     }
 
-    virtual void Cancel() override
+    void Cancel() override
     {
         if (!CanceledList_.Fire()) {
             return;
@@ -381,7 +381,7 @@ public:
         PerformanceCounters_->CanceledRequestCounter.Increment();
     }
 
-    virtual void SetComplete() override
+    void SetComplete() override
     {
         DoSetComplete();
     }
@@ -411,17 +411,17 @@ public:
         }
     }
 
-    virtual TInstant GetArriveInstant() const override
+    TInstant GetArriveInstant() const override
     {
         return CpuInstantToInstant(ArriveInstant_);
     }
 
-    virtual std::optional<TInstant> GetRunInstant() const override
+    std::optional<TInstant> GetRunInstant() const override
     {
         return RunInstant_ == 0 ? std::nullopt : std::make_optional(CpuInstantToInstant(RunInstant_));
     }
 
-    virtual std::optional<TInstant> GetFinishInstant() const override
+    std::optional<TInstant> GetFinishInstant() const override
     {
         if (ReplyInstant_ != 0) {
             return CpuInstantToInstant(ReplyInstant_);
@@ -432,22 +432,22 @@ public:
         }
     }
 
-    virtual std::optional<TDuration> GetWaitDuration() const override
+    std::optional<TDuration> GetWaitDuration() const override
     {
         return LocalWaitTime_ == TDuration::Zero() ? std::nullopt : std::make_optional(LocalWaitTime_);
     }
 
-    virtual std::optional<TDuration> GetExecutionDuration() const override
+    std::optional<TDuration> GetExecutionDuration() const override
     {
         return ExecutionTime_ == TDuration::Zero() ? std::nullopt : std::make_optional(ExecutionTime_);
     }
 
-    virtual TTraceContextPtr GetTraceContext() const override
+    TTraceContextPtr GetTraceContext() const override
     {
         return TraceContext_;
     }
 
-    virtual IAsyncZeroCopyInputStreamPtr GetRequestAttachmentsStream() override
+    IAsyncZeroCopyInputStreamPtr GetRequestAttachmentsStream() override
     {
         if (!RuntimeInfo_->Descriptor.StreamingEnabled) {
             THROW_ERROR_EXCEPTION(NRpc::EErrorCode::StreamingNotSupported, "Streaming is not supported");
@@ -456,7 +456,7 @@ public:
         return RequestAttachmentsStream_;
     }
 
-    virtual void SetResponseCodec(NCompression::ECodec codec) override
+    void SetResponseCodec(NCompression::ECodec codec) override
     {
         auto guard = Guard(StreamsLock_);
         if (ResponseAttachmentsStream_) {
@@ -465,7 +465,7 @@ public:
         TServiceContextBase::SetResponseCodec(codec);
     }
 
-    virtual IAsyncZeroCopyOutputStreamPtr GetResponseAttachmentsStream() override
+    IAsyncZeroCopyOutputStreamPtr GetResponseAttachmentsStream() override
     {
         if (!RuntimeInfo_->Descriptor.StreamingEnabled) {
             THROW_ERROR_EXCEPTION(NRpc::EErrorCode::StreamingNotSupported, "Streaming is not supported");
@@ -833,7 +833,7 @@ private:
         }
     }
 
-    virtual std::optional<TDuration> GetTraceContextTime() const override
+    std::optional<TDuration> GetTraceContextTime() const override
     {
         if (TraceContext_) {
             FlushCurrentTraceContextTime();
@@ -843,7 +843,7 @@ private:
         }
     }
 
-    virtual void DoReply() override
+    void DoReply() override
     {
         auto responseMessage = GetResponseMessage();
 
@@ -881,7 +881,7 @@ private:
         Finalize();
     }
 
-    virtual void DoFlush() override
+    void DoFlush() override
     {
         if (TraceContext_) {
             TraceContext_->Finish();
@@ -922,7 +922,7 @@ private:
     }
 
 
-    virtual void LogRequest() override
+    void LogRequest() override
     {
         TStringBuilder builder;
         builder.AppendFormat("%v.%v <- ",
@@ -946,7 +946,7 @@ private:
         YT_LOG_EVENT_WITH_ANCHOR(Logger, LogLevel_, RuntimeInfo_->RequestLoggingAnchor, logMessage);
     }
 
-    virtual void LogResponse() override
+    void LogResponse() override
     {
         TStringBuilder builder;
         builder.AppendFormat("%v.%v -> ",

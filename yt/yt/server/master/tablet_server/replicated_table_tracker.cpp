@@ -153,7 +153,7 @@ public:
     { }
 
 protected:
-    virtual TFuture<ETabletCellHealth> DoGet(
+    TFuture<ETabletCellHealth> DoGet(
         const TBundleHealthKey& key,
         bool /*isPeriodicUpdate*/) noexcept override
     {
@@ -181,7 +181,7 @@ public:
     { }
 
 protected:
-    virtual TFuture<void> DoGet(
+    TFuture<void> DoGet(
         const TClusterStateKey& key,
         bool /*isPeriodicUpdate*/) noexcept override
     {
@@ -927,7 +927,7 @@ private:
     }
 
 
-    virtual void OnLeaderActive() override
+    void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -942,7 +942,7 @@ private:
         CheckerExecutor_->Start();
     }
 
-    virtual void OnStopLeading() override
+    void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -964,7 +964,7 @@ private:
         Enabled_ = false;
     }
 
-    virtual void OnAfterSnapshotLoaded() noexcept override
+    void OnAfterSnapshotLoaded() noexcept override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

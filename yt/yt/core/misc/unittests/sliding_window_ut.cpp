@@ -12,7 +12,7 @@ class TSlidingWindowTest
     : public ::testing::Test
 {
 public:
-    virtual void SetUp() override
+    void SetUp() override
     {
         Window_ = std::make_unique<TSlidingWindow<size_t>>(Size);
     }

@@ -101,7 +101,7 @@ public:
     { }
 
 private:
-    virtual std::unique_ptr<IVersionedSegmentReader> CreateSegmentReader(int segmentIndex) override
+    std::unique_ptr<IVersionedSegmentReader> CreateSegmentReader(int segmentIndex) override
     {
         using TDirectDenseReader = TDenseVersionedSegmentReader<TDirectDenseVersionedFloatingPointValueExtractor<T>>;
         using TDirectSparseReader = TSparseVersionedSegmentReader<TDirectSparseVersionedFloatingPointValueExtractor<T>>;
@@ -196,7 +196,7 @@ public:
         static_assert(std::is_floating_point_v<T>);
     }
 
-    virtual std::pair<i64, i64> GetEqualRange(
+    std::pair<i64, i64> GetEqualRange(
         const TUnversionedValue& value,
         i64 lowerRowIndex,
         i64 upperRowIndex) override
@@ -208,7 +208,7 @@ public:
     }
 
 private:
-    virtual std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(int segmentIndex, bool /* scan */) override
+    std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(int segmentIndex, bool /* scan */) override
     {
         typedef TDenseUnversionedSegmentReader<
             EValueType::Double,

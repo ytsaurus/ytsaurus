@@ -184,12 +184,12 @@ public:
             return CompareRows(lhs, rhs);
         });
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return ReadyEvent();
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         auto dataStatistics = TChunkReaderBase::GetDataStatistics();
         dataStatistics.set_row_count(RowCount_);
@@ -283,7 +283,7 @@ public:
         SetReadyEvent(DoOpen(GetBlockSequence(), ChunkMeta_->Misc()));
     }
 
-    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         YT_VERIFY(options.MaxRowsPerRead > 0);
 
@@ -478,12 +478,12 @@ private:
             true));
     }
 
-    virtual void InitFirstBlock() override
+    void InitFirstBlock() override
     {
         InitNextBlock();
     }
 
-    virtual void InitNextBlock() override
+    void InitNextBlock() override
     {
         LoadBlock();
         YT_VERIFY(BlockReader_->SkipToKey(GetCurrentRangeLowerKey()));
@@ -529,7 +529,7 @@ public:
         SetReadyEvent(DoOpen(GetBlockSequence(), ChunkMeta_->Misc()));
     }
 
-    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         auto readGuard = AcquireReadGuard();
 
@@ -678,12 +678,12 @@ private:
         return blocks;
     }
 
-    virtual void InitFirstBlock() override
+    void InitFirstBlock() override
     {
         InitNextBlock();
     }
 
-    virtual void InitNextBlock() override
+    void InitNextBlock() override
     {
         int chunkBlockIndex = BlockIndexes_[NextBlockIndex_];
         BlockReader_.reset(new TSimpleVersionedBlockReader(
@@ -778,7 +778,7 @@ public:
         }
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         auto dataStatistics = TBase::GetDataStatistics();
         dataStatistics.set_row_count(RowCount_);
@@ -786,7 +786,7 @@ public:
         return dataStatistics;
     }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return VoidFuture;
     }
@@ -1179,7 +1179,7 @@ public:
         }
     }
 
-    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         auto readGuard = AcquireReadGuard();
 
@@ -1519,7 +1519,7 @@ public:
         SetReadyEvent(RequestFirstBlocks());
     }
 
-    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         auto readGuard = AcquireReadGuard();
 
@@ -1620,37 +1620,37 @@ public:
         , Ranges_(std::move(ranges))
     { }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         return UnderlyingReader_->GetDataStatistics();
     }
 
-    virtual TCodecStatistics GetDecompressionStatistics() const override
+    TCodecStatistics GetDecompressionStatistics() const override
     {
         return UnderlyingReader_->GetDecompressionStatistics();
     }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return UnderlyingReader_->Open();
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         return UnderlyingReader_->GetReadyEvent();
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return UnderlyingReader_->IsFetchingCompleted();
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return UnderlyingReader_->GetFailedChunkIds();
     }
 
-    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         auto comparator = [] (const TVersionedRow& lhs, const TUnversionedRow& rhs) {
             return CompareRows(lhs.BeginKeys(), lhs.EndKeys(), rhs.Begin(), rhs.End()) < 0;

@@ -9,20 +9,20 @@ class TNullMemoryUsageTracker
     : public IMemoryUsageTracker
 {
 public:
-    virtual TError TryAcquire(i64 /*size*/) override
+    TError TryAcquire(i64 /*size*/) override
     {
         return {};
     }
 
-    virtual TError TryChange(i64 /*size*/) override
+    TError TryChange(i64 /*size*/) override
     {
         return {};
     }
 
-    virtual void Acquire(i64 /*size*/) override
+    void Acquire(i64 /*size*/) override
     { }
 
-    virtual void Release(i64 /*size*/) override
+    void Release(i64 /*size*/) override
     { }
 };
 

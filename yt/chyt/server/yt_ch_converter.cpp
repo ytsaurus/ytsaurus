@@ -102,7 +102,7 @@ class TYsonExtractingConverterBase
     : public IConverter
 {
 public:
-    virtual void ConsumeUnversionedValues(TRange<TUnversionedValue> values) override
+    void ConsumeUnversionedValues(TRange<TUnversionedValue> values) override
     {
         // NB: ConsumeYson leads to at least one virtual call per-value, so iterating
         // over all unversioned values is justified here.
@@ -111,7 +111,7 @@ public:
         }
     }
 
-    virtual void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column)
+    void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column) override
     {
         // TODO(max42): this may be done without full column materialization.
 
@@ -163,21 +163,21 @@ public:
         , YsonWriter_(&YsonOutput_, settings->DefaultYsonFormat)
     { }
 
-    virtual void ConsumeYson(TYsonPullParserCursor* cursor)
+    void ConsumeYson(TYsonPullParserCursor* cursor) override
     {
         cursor->TransferComplexValue(&YsonWriter_);
 
         PushValueFromWriter();
     }
 
-    virtual void ConsumeNulls(int count)
+    void ConsumeNulls(int count) override
     {
         // If somebody called ConsumeNulls() here, we are probably inside Nullable
         // column, so the exact value here does not matter.
         Column_->insertManyDefaults(count);
     }
 
-    virtual void ConsumeUnversionedValues(TRange<TUnversionedValue> values) override
+    void ConsumeUnversionedValues(TRange<TUnversionedValue> values) override
     {
         for (const auto& value : values) {
             UnversionedValueToYson(value, &YsonWriter_);
@@ -185,17 +185,17 @@ public:
         }
     }
 
-    virtual DB::ColumnPtr FlushColumn() override
+    DB::ColumnPtr FlushColumn() override
     {
         return std::move(Column_);
     }
 
-    virtual DB::DataTypePtr GetDataType() const override
+    DB::DataTypePtr GetDataType() const override
     {
         return std::make_shared<DB::DataTypeString>();
     }
 
-    virtual void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column)
+    void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column) override
     {
         // This is the outermost converter.
         // Input column may be of concrete type in case of any upcast, so we may need to
@@ -282,7 +282,7 @@ public:
         , Column_(DataType_->createColumn())
     { }
 
-    virtual void ConsumeYson(TYsonPullParserCursor* cursor) override
+    void ConsumeYson(TYsonPullParserCursor* cursor) override
     {
         auto ysonItem = cursor->GetCurrent();
 
@@ -326,7 +326,7 @@ public:
         cursor->Next();
     }
 
-    virtual void ConsumeUnversionedValues(TRange<TUnversionedValue> values) override
+    void ConsumeUnversionedValues(TRange<TUnversionedValue> values) override
     {
         for (const auto& value : values) {
             if (value.Type == EValueType::Null) {
@@ -374,7 +374,7 @@ public:
         }
     }
 
-    virtual void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column) override
+    void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column) override
     {
         if constexpr (
             LogicalType == ESimpleLogicalValueType::Int8 ||
@@ -409,19 +409,19 @@ public:
         }
     }
 
-    virtual void ConsumeNulls(int count) override
+    void ConsumeNulls(int count) override
     {
         // If somebody called ConsumeNulls() here, we are probably inside Nullable
         // column, so the exact value here does not matter.
         Column_->insertManyDefaults(count);
     }
 
-    virtual DB::ColumnPtr FlushColumn() override
+    DB::ColumnPtr FlushColumn() override
     {
         return std::move(Column_);
     }
 
-    virtual DB::DataTypePtr GetDataType() const override
+    DB::DataTypePtr GetDataType() const override
     {
         return DataType_;
     }
@@ -484,7 +484,7 @@ public:
         }
     }
 
-    virtual void ConsumeYson(TYsonPullParserCursor* cursor) override
+    void ConsumeYson(TYsonPullParserCursor* cursor) override
     {
         int outerOptionalsFound = 0;
         while (cursor->GetCurrent().GetType() == EYsonItemType::BeginList && outerOptionalsFound < NestingLevel_ - 1) {
@@ -515,7 +515,7 @@ public:
         }
     }
 
-    virtual void ConsumeUnversionedValues(TRange<TUnversionedValue> values) override
+    void ConsumeUnversionedValues(TRange<TUnversionedValue> values) override
     {
         if constexpr (IsV1Optional) {
             // V1 optional converter always faces either Null or underlying type.
@@ -532,7 +532,7 @@ public:
         }
     }
 
-    virtual void ConsumeNulls(int count) override
+    void ConsumeNulls(int count) override
     {
         if (NullColumn_) {
             // TODO(max42): there is no efficient (in terms of virtual calls) way
@@ -544,7 +544,7 @@ public:
         UnderlyingConverter_->ConsumeNulls(count);
     }
 
-    virtual void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column)
+    void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column) override
     {
         if constexpr (IsV1Optional) {
             if (NullColumn_) {
@@ -557,7 +557,7 @@ public:
         }
     }
 
-    virtual DB::ColumnPtr FlushColumn() override
+    DB::ColumnPtr FlushColumn() override
     {
         auto underlyingColumn = UnderlyingConverter_->FlushColumn();
 
@@ -571,7 +571,7 @@ public:
         }
     }
 
-    virtual DB::DataTypePtr GetDataType() const override
+    DB::DataTypePtr GetDataType() const override
     {
         if (UnderlyingConverter_->GetDataType()->canBeInsideNullable()) {
             return std::make_shared<DB::DataTypeNullable>(UnderlyingConverter_->GetDataType());
@@ -597,7 +597,7 @@ public:
         , ColumnOffsets_(DB::ColumnVector<ui64>::create())
     { }
 
-    virtual void ConsumeYson(TYsonPullParserCursor* cursor) override
+    void ConsumeYson(TYsonPullParserCursor* cursor) override
     {
         YT_VERIFY(cursor->GetCurrent().GetType() == EYsonItemType::BeginList);
         cursor->Next();
@@ -613,7 +613,7 @@ public:
         ColumnOffsets_->insertValue(ItemCount_);
     }
 
-    virtual void ConsumeNulls(int count) override
+    void ConsumeNulls(int count) override
     {
         // Null is represented as an empty array.
 
@@ -624,13 +624,13 @@ public:
         }
     }
 
-    virtual DB::ColumnPtr FlushColumn() override
+    DB::ColumnPtr FlushColumn() override
     {
         DB::ColumnVector<ui64>::Ptr columnOffsets = std::move(ColumnOffsets_);
         return DB::ColumnArray::create(UnderlyingConverter_->FlushColumn(), columnOffsets);
     }
 
-    virtual DB::DataTypePtr GetDataType() const override
+    DB::DataTypePtr GetDataType() const override
     {
         return std::make_shared<DB::DataTypeArray>(UnderlyingConverter_->GetDataType());
     }
@@ -653,7 +653,7 @@ public:
         , ColumnOffsets_(DB::ColumnVector<ui64>::create())
     { }
 
-    virtual void ConsumeYson(TYsonPullParserCursor* cursor) override
+    void ConsumeYson(TYsonPullParserCursor* cursor) override
     {
         YT_VERIFY(cursor->GetCurrent().GetType() == EYsonItemType::BeginList);
         cursor->Next();
@@ -674,7 +674,7 @@ public:
         ColumnOffsets_->insertValue(ItemCount_);
     }
 
-    virtual void ConsumeNulls(int count) override
+    void ConsumeNulls(int count) override
     {
         // Null is represented as an empty array.
 
@@ -685,7 +685,7 @@ public:
         }
     }
 
-    virtual DB::ColumnPtr FlushColumn() override
+    DB::ColumnPtr FlushColumn() override
     {
         DB::ColumnVector<ui64>::Ptr columnOffsets = std::move(ColumnOffsets_);
         auto keyColumn = KeyConverter_->FlushColumn()->assumeMutable();
@@ -697,7 +697,7 @@ public:
         return DB::ColumnArray::create(std::move(columnTuple), columnOffsets);
     }
 
-    virtual DB::DataTypePtr GetDataType() const override
+    DB::DataTypePtr GetDataType() const override
     {
         auto tupleDataType = std::make_shared<DB::DataTypeTuple>(
             std::vector<DB::DataTypePtr>{KeyConverter_->GetDataType(), ValueConverter_->GetDataType()},
@@ -723,7 +723,7 @@ public:
         : ItemConverters_(std::move(itemConverters))
     { }
 
-    virtual void ConsumeYson(TYsonPullParserCursor* cursor) override
+    void ConsumeYson(TYsonPullParserCursor* cursor) override
     {
         YT_VERIFY(cursor->GetCurrent().GetType() == EYsonItemType::BeginList);
         cursor->Next();
@@ -736,7 +736,7 @@ public:
         cursor->Next();
     }
 
-    virtual void ConsumeNulls(int count) override
+    void ConsumeNulls(int count) override
     {
         // Null is represented as a tuple of defaults.
         for (const auto& itemConverter : ItemConverters_) {
@@ -744,7 +744,7 @@ public:
         }
     }
 
-    virtual DB::ColumnPtr FlushColumn() override
+    DB::ColumnPtr FlushColumn() override
     {
         std::vector<DB::IColumn::MutablePtr> underlyingColumns;
 
@@ -754,7 +754,7 @@ public:
         return DB::ColumnTuple::create(std::move(underlyingColumns));
     }
 
-    virtual DB::DataTypePtr GetDataType() const override
+    DB::DataTypePtr GetDataType() const override
     {
         std::vector<DB::DataTypePtr> dataTypes;
         for (const auto& itemConverter : ItemConverters_) {
@@ -782,7 +782,7 @@ public:
         }
     }
 
-    virtual void ConsumeYson(TYsonPullParserCursor* cursor) override
+    void ConsumeYson(TYsonPullParserCursor* cursor) override
     {
         if (cursor->GetCurrent().GetType() == EYsonItemType::BeginList) {
             ConsumePositional(cursor);
@@ -793,7 +793,7 @@ public:
         }
     }
 
-    virtual void ConsumeNulls(int count) override
+    void ConsumeNulls(int count) override
     {
         // Null is represented as a tuple of defaults.
         for (const auto& fieldConverter : FieldConverters_) {
@@ -801,7 +801,7 @@ public:
         }
     }
 
-    virtual DB::ColumnPtr FlushColumn() override
+    DB::ColumnPtr FlushColumn() override
     {
         std::vector<DB::IColumn::MutablePtr> underlyingColumns;
 
@@ -811,7 +811,7 @@ public:
         return DB::ColumnTuple::create(std::move(underlyingColumns));
     }
 
-    virtual DB::DataTypePtr GetDataType() const override
+    DB::DataTypePtr GetDataType() const override
     {
         std::vector<DB::DataTypePtr> dataTypes;
         for (const auto& FieldConverter : FieldConverters_) {

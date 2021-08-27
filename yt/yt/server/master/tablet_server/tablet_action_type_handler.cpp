@@ -29,19 +29,19 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::TabletAction;
     }
 
-    virtual ETypeFlags GetFlags() const override
+    ETypeFlags GetFlags() const override
     {
         return
             ETypeFlags::Creatable |
             ETypeFlags::Removable;
     }
 
-    virtual TObject* CreateObject(
+    TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
@@ -101,17 +101,17 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual TCellTagList DoGetReplicationCellTags(const TTabletAction* /*action*/) override
+    TCellTagList DoGetReplicationCellTags(const TTabletAction* /*action*/) override
     {
         return AllSecondaryCellTags();
     }
 
-    virtual IObjectProxyPtr DoGetProxy(TTabletAction* action, TTransaction* /*transaction*/) override
+    IObjectProxyPtr DoGetProxy(TTabletAction* action, TTransaction* /*transaction*/) override
     {
         return CreateTabletActionProxy(Bootstrap_, &Metadata_, action);
     }
 
-    virtual void DoDestroyObject(TTabletAction* action) override
+    void DoDestroyObject(TTabletAction* action) override
     {
         TObjectTypeHandlerWithMapBase::DoDestroyObject(action);
         const auto& tabletManager = Bootstrap_->GetTabletManager();

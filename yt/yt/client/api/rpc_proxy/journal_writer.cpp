@@ -21,7 +21,7 @@ public:
         YT_VERIFY(Request_);
     }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         ValidateNotClosed();
 
@@ -35,7 +35,7 @@ public:
         return OpenResult_;
     }
 
-    virtual TFuture<void> Write(TRange<TSharedRef> rows) override
+    TFuture<void> Write(TRange<TSharedRef> rows) override
     {
         ValidateOpened();
         ValidateNotClosed();
@@ -47,7 +47,7 @@ public:
         return Underlying_->Write(PackRefs(rows));
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         ValidateOpened();
         ValidateNotClosed();

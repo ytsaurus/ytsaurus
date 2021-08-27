@@ -45,7 +45,7 @@ public:
     { }
 
 private:
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TNonversionedObjectProxyBase::ListSystemAttributes(descriptors);
 
@@ -118,7 +118,7 @@ private:
             .SetPresent(isGood && Bootstrap_->GetMulticellManager()->IsPrimaryMaster()));
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto* node = GetThisImpl();
         auto state = node->GetLocalState();
@@ -496,7 +496,7 @@ private:
         return TNonversionedObjectProxyBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         auto* node = GetThisImpl();
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -554,7 +554,7 @@ private:
         return TNonversionedObjectProxyBase::SetBuiltinAttribute(key, value);
     }
 
-    virtual bool RemoveBuiltinAttribute(TInternedAttributeKey key) override
+    bool RemoveBuiltinAttribute(TInternedAttributeKey key) override
     {
         auto* node = GetThisImpl();
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -571,7 +571,7 @@ private:
         return false;
     }
 
-    virtual void ValidateRemoval() override
+    void ValidateRemoval() override
     {
         const auto* node = GetThisImpl();
         if (node->GetLocalState() != ENodeState::Offline) {

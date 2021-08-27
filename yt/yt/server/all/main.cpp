@@ -35,7 +35,7 @@ public:
     }
 
 private:
-    virtual void DoRun(const NLastGetopt::TOptsParseResult& /* result */) override
+    void DoRun(const NLastGetopt::TOptsParseResult& /* result */) override
     {
         YT_ABORT();
     }

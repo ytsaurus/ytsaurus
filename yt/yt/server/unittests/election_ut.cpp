@@ -119,7 +119,7 @@ protected:
     }
 
 private:
-    virtual void TearDown() override
+    void TearDown() override
     {
         Sleep();
 

@@ -27,7 +27,7 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::Tablet;
     }
@@ -35,12 +35,12 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual IObjectProxyPtr DoGetProxy(TTablet* tablet, TTransaction* /*transaction*/) override
+    IObjectProxyPtr DoGetProxy(TTablet* tablet, TTransaction* /*transaction*/) override
     {
         return CreateTabletProxy(Bootstrap_, &Metadata_, tablet);
     }
 
-    virtual void DoDestroyObject(TTablet* tablet) override
+    void DoDestroyObject(TTablet* tablet) override
     {
         TObjectTypeHandlerWithMapBase::DoDestroyObject(tablet);
         const auto& tabletManager = Bootstrap_->GetTabletManager();

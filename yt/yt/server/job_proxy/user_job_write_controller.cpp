@@ -114,7 +114,7 @@ private:
             InitializeIdToTypeMapping();
         }
 
-        virtual TFuture<void> Flush() override
+        TFuture<void> Flush() override
         {
             if (RowBuffer_->GetSize() == 0) {
                 return VoidFuture;
@@ -130,25 +130,25 @@ private:
                 .Run();
         }
 
-        virtual const TNameTablePtr& GetNameTable() const override
+        const TNameTablePtr& GetNameTable() const override
         {
             return NameTable_;
         }
 
-        virtual bool GetAllowUnknownColumns() const override
+        bool GetAllowUnknownColumns() const override
         {
             return true;
         }
 
-        virtual void OnBeginRow() override
+        void OnBeginRow() override
         { }
 
-        virtual void OnMyValue(const TUnversionedValue& value) override
+        void OnMyValue(const TUnversionedValue& value) override
         {
             RowBuilder_.AddValue(RowBuffer_->CaptureValue(value));
         }
 
-        virtual void OnEndRow() override
+        void OnEndRow() override
         {
             RowBuilder_.AddValue(TableIndexValue_);
             auto row = RowBuffer_->CaptureRow(RowBuilder_.GetRow(), /*capturevalues*/ false);

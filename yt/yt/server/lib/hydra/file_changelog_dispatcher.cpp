@@ -334,12 +334,12 @@ public:
         ActionQueue_->Shutdown();
     }
 
-    virtual IInvokerPtr GetInvoker() override
+    IInvokerPtr GetInvoker() override
     {
         return ActionQueue_->GetInvoker();
     }
 
-    virtual TFuture<IChangelogPtr> CreateChangelog(
+    TFuture<IChangelogPtr> CreateChangelog(
         const TString& path,
         const TFileChangelogConfigPtr& config) override
     {
@@ -348,7 +348,7 @@ public:
             .Run(path, config);
     }
 
-    virtual TFuture<IChangelogPtr> OpenChangelog(
+    TFuture<IChangelogPtr> OpenChangelog(
         const TString& path,
         const TFileChangelogConfigPtr& config) override
     {
@@ -357,7 +357,7 @@ public:
             .Run(path, config);
     }
 
-    virtual TFuture<void> FlushChangelogs() override
+    TFuture<void> FlushChangelogs() override
     {
         return BIND(&TFileChangelogDispatcher::DoFlushChangelogs, MakeStrong(this))
             .AsyncVia(ActionQueue_->GetInvoker())
@@ -589,17 +589,17 @@ public:
         Dispatcher_->UnregisterQueue(Queue_);
     }
 
-    virtual int GetRecordCount() const override
+    int GetRecordCount() const override
     {
         return RecordCount_;
     }
 
-    virtual i64 GetDataSize() const override
+    i64 GetDataSize() const override
     {
         return DataSize_;
     }
 
-    virtual TFuture<void> Append(TRange<TSharedRef> records) override
+    TFuture<void> Append(TRange<TSharedRef> records) override
     {
         YT_VERIFY(!Closed_ && !Truncated_);
         i64 byteSize = GetByteSize(records);
@@ -608,12 +608,12 @@ public:
         return Dispatcher_->AppendToQueue(Queue_, records, byteSize);
     }
 
-    virtual TFuture<void> Flush() override
+    TFuture<void> Flush() override
     {
         return Dispatcher_->FlushQueue(Queue_);
     }
 
-    virtual TFuture<std::vector<TSharedRef>> Read(
+    TFuture<std::vector<TSharedRef>> Read(
         int firstRecordId,
         int maxRecords,
         i64 maxBytes) const override
@@ -628,7 +628,7 @@ public:
             maxBytes);
     }
 
-    virtual TFuture<void> Truncate(int recordCount) override
+    TFuture<void> Truncate(int recordCount) override
     {
         YT_VERIFY(recordCount <= RecordCount_);
         RecordCount_ = recordCount;
@@ -639,7 +639,7 @@ public:
         return Dispatcher_->TruncateQueue(Queue_, recordCount);
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         Closed_ = true;
         // NB: See #Truncate above.
@@ -647,7 +647,7 @@ public:
         return Dispatcher_->CloseQueue(Queue_);
     }
 
-    virtual TFuture<void> Preallocate(size_t size) override
+    TFuture<void> Preallocate(size_t size) override
     {
         return Dispatcher_->PreallocateQueue(Queue_, size);
     }

@@ -51,7 +51,7 @@ class TEmptyBusHandler
     : public IMessageHandler
 {
 public:
-    virtual void HandleMessage(
+    void HandleMessage(
         TSharedRefArray message,
         IBusPtr replyBus) noexcept override
     {
@@ -64,7 +64,7 @@ class TCountingBusHandler
     : public IMessageHandler
 {
 public:
-    virtual void HandleMessage(
+    void HandleMessage(
         TSharedRefArray /*message*/,
         IBusPtr /*replyBus*/) noexcept override
     {
@@ -82,7 +82,7 @@ public:
         : NumPartsExpecting(numParts)
     { }
 
-    virtual void HandleMessage(
+    void HandleMessage(
         TSharedRefArray message,
         IBusPtr replyBus) noexcept override
     {
@@ -112,7 +112,7 @@ private:
     NConcurrency::TEvent Event_;
 
 
-    virtual void HandleMessage(
+    void HandleMessage(
         TSharedRefArray message,
         IBusPtr /*replyBus*/) noexcept override
     {

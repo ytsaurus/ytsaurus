@@ -168,162 +168,162 @@ public:
         }));
     }
 
-    virtual TOperationControllerInitializeResult InitializeClean() override
+    TOperationControllerInitializeResult InitializeClean() override
     {
         return Underlying_->InitializeClean();
     }
 
-    virtual TOperationControllerInitializeResult InitializeReviving(const TControllerTransactionIds& transactions) override
+    TOperationControllerInitializeResult InitializeReviving(const TControllerTransactionIds& transactions) override
     {
         return Underlying_->InitializeReviving(transactions);
     }
 
-    virtual TOperationControllerPrepareResult Prepare() override
+    TOperationControllerPrepareResult Prepare() override
     {
         return Underlying_->Prepare();
     }
 
-    virtual TOperationControllerMaterializeResult Materialize() override
+    TOperationControllerMaterializeResult Materialize() override
     {
         return Underlying_->Materialize();
     }
 
-    virtual void Commit() override
+    void Commit() override
     {
         Underlying_->Commit();
     }
 
-    virtual void SaveSnapshot(IOutputStream* stream) override
+    void SaveSnapshot(IOutputStream* stream) override
     {
         Underlying_->SaveSnapshot(stream);
     }
 
-    virtual TOperationControllerReviveResult Revive() override
+    TOperationControllerReviveResult Revive() override
     {
         return Underlying_->Revive();
     }
 
-    virtual void Terminate(EControllerState finalState) override
+    void Terminate(EControllerState finalState) override
     {
         Underlying_->Terminate(finalState);
     }
 
-    virtual void Cancel() override
+    void Cancel() override
     {
         Underlying_->Cancel();
     }
 
-    virtual void Complete() override
+    void Complete() override
     {
         Underlying_->Complete();
     }
 
-    virtual void Dispose() override
+    void Dispose() override
     {
         Underlying_->Dispose();
     }
 
-    virtual bool IsThrottling() const noexcept override 
+    bool IsThrottling() const noexcept override 
     {
         return Underlying_->IsThrottling();
     }
 
-    virtual void RecordScheduleJobFailure(EScheduleJobFailReason reason) noexcept override
+    void RecordScheduleJobFailure(EScheduleJobFailReason reason) noexcept override
     {
         Underlying_->RecordScheduleJobFailure(reason);
     }
 
-    virtual void UpdateRuntimeParameters(const TOperationRuntimeParametersUpdatePtr& update) override
+    void UpdateRuntimeParameters(const TOperationRuntimeParametersUpdatePtr& update) override
     {
         Underlying_->UpdateRuntimeParameters(update);
     }
 
-    virtual void OnTransactionsAborted(const std::vector<TTransactionId>& transactionIds) override
+    void OnTransactionsAborted(const std::vector<TTransactionId>& transactionIds) override
     {
         Underlying_->OnTransactionsAborted(transactionIds);
     }
 
-    virtual TCancelableContextPtr GetCancelableContext() const override
+    TCancelableContextPtr GetCancelableContext() const override
     {
         return Underlying_->GetCancelableContext();
     }
 
-    virtual IInvokerPtr GetInvoker(EOperationControllerQueue queue) const override
+    IInvokerPtr GetInvoker(EOperationControllerQueue queue) const override
     {
         return Underlying_->GetInvoker(queue);
     }
 
-    virtual IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue) const override
+    IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue) const override
     {
         return Underlying_->GetCancelableInvoker(queue);
     }
 
-    virtual IDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(EOperationControllerQueue queue) const override
+    IDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(EOperationControllerQueue queue) const override
     {
         return Underlying_->GetInvokerStatistics(queue);
     }
 
-    virtual TFuture<void> Suspend() override
+    TFuture<void> Suspend() override
     {
         return Underlying_->Suspend();
     }
 
-    virtual void Resume() override
+    void Resume() override
     {
         Underlying_->Resume();
     }
 
-    virtual int GetPendingJobCount() const override
+    int GetPendingJobCount() const override
     {
         return Underlying_->GetPendingJobCount();
     }
 
-    virtual bool IsRunning() const override
+    bool IsRunning() const override
     {
         return Underlying_->IsRunning();
     }
 
-    virtual TJobResources GetNeededResources() const override
+    TJobResources GetNeededResources() const override
     {
         return Underlying_->GetNeededResources();
     }
 
-    virtual void UpdateMinNeededJobResources() override
+    void UpdateMinNeededJobResources() override
     {
         Underlying_->UpdateMinNeededJobResources();
     }
 
-    virtual TJobResourcesWithQuotaList GetMinNeededJobResources() const override
+    TJobResourcesWithQuotaList GetMinNeededJobResources() const override
     {
         return Underlying_->GetMinNeededJobResources();
     }
 
-    virtual void OnJobStarted(std::unique_ptr<TStartedJobSummary> jobSummary) override
+    void OnJobStarted(std::unique_ptr<TStartedJobSummary> jobSummary) override
     {
         Underlying_->OnJobStarted(std::move(jobSummary));
     }
 
-    virtual void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) override
+    void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) override
     {
         Underlying_->OnJobCompleted(std::move(jobSummary));
     }
 
-    virtual void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary) override
+    void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary) override
     {
         Underlying_->OnJobFailed(std::move(jobSummary));
     }
 
-    virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary, bool byScheduler) override
+    void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary, bool byScheduler) override
     {
         Underlying_->OnJobAborted(std::move(jobSummary), byScheduler);
     }
 
-    virtual void OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary) override
+    void OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary) override
     {
         Underlying_->OnJobRunning(std::move(jobSummary));
     }
 
-    virtual TControllerScheduleJobResultPtr ScheduleJob(
+    TControllerScheduleJobResultPtr ScheduleJob(
         ISchedulingContext* context,
         const TJobResources& jobLimits,
         const TString& treeId) override
@@ -331,102 +331,102 @@ public:
         return Underlying_->ScheduleJob(context, jobLimits, treeId);
     }
 
-    virtual void UpdateConfig(const TControllerAgentConfigPtr& config) override
+    void UpdateConfig(const TControllerAgentConfigPtr& config) override
     {
         Underlying_->UpdateConfig(config);
     }
 
-    virtual bool ShouldUpdateProgress() const override
+    bool ShouldUpdateProgress() const override
     {
         return Underlying_->ShouldUpdateProgress();
     }
 
-    virtual void SetProgressUpdated() override
+    void SetProgressUpdated() override
     {
         Underlying_->SetProgressUpdated();
     }
 
-    virtual bool HasProgress() const override
+    bool HasProgress() const override
     {
         return Underlying_->HasProgress();
     }
 
-    virtual TYsonString GetProgress() const override
+    TYsonString GetProgress() const override
     {
         return Underlying_->GetProgress();
     }
 
-    virtual TYsonString GetBriefProgress() const override
+    TYsonString GetBriefProgress() const override
     {
         return Underlying_->GetBriefProgress();
     }
 
-    virtual TYsonString BuildJobYson(TJobId jobId, bool outputStatistics) const override
+    TYsonString BuildJobYson(TJobId jobId, bool outputStatistics) const override
     {
         return Underlying_->BuildJobYson(jobId, outputStatistics);
     }
 
-    virtual TSharedRef ExtractJobSpec(TJobId jobId) const override
+    TSharedRef ExtractJobSpec(TJobId jobId) const override
     {
         return Underlying_->ExtractJobSpec(jobId);
     }
 
-    virtual TOperationJobMetrics PullJobMetricsDelta(bool force) override
+    TOperationJobMetrics PullJobMetricsDelta(bool force) override
     {
         return Underlying_->PullJobMetricsDelta(force);
     }
 
-    virtual TOperationAlertMap GetAlerts() override
+    TOperationAlertMap GetAlerts() override
     {
         return Underlying_->GetAlerts();
     }
 
-    virtual TOperationInfo BuildOperationInfo() override
+    TOperationInfo BuildOperationInfo() override
     {
         return Underlying_->BuildOperationInfo();
     }
 
-    virtual TYsonString GetSuspiciousJobsYson() const override
+    TYsonString GetSuspiciousJobsYson() const override
     {
         return Underlying_->GetSuspiciousJobsYson();
     }
 
-    virtual TSnapshotCookie OnSnapshotStarted() override
+    TSnapshotCookie OnSnapshotStarted() override
     {
         return Underlying_->OnSnapshotStarted();
     }
 
-    virtual void OnSnapshotCompleted(const TSnapshotCookie& cookie) override
+    void OnSnapshotCompleted(const TSnapshotCookie& cookie) override
     {
         return Underlying_->OnSnapshotCompleted(cookie);
     }
 
-    virtual bool HasSnapshot() const override
+    bool HasSnapshot() const override
     {
         return Underlying_->HasSnapshot();
     }
 
-    virtual IYPathServicePtr GetOrchid() const override
+    IYPathServicePtr GetOrchid() const override
     {
         return Underlying_->GetOrchid();
     }
 
-    virtual TString WriteCoreDump() const override
+    TString WriteCoreDump() const override
     {
         return Underlying_->WriteCoreDump();
     }
 
-    virtual void RegisterOutputRows(i64 count, int tableIndex) override
+    void RegisterOutputRows(i64 count, int tableIndex) override
     {
         return Underlying_->RegisterOutputRows(count, tableIndex);
     }
 
-    virtual std::optional<int> GetRowCountLimitTableIndex() override
+    std::optional<int> GetRowCountLimitTableIndex() override
     {
         return Underlying_->GetRowCountLimitTableIndex();
     }
 
-    virtual void LoadSnapshot(const TOperationSnapshot& snapshot) override
+    void LoadSnapshot(const TOperationSnapshot& snapshot) override
     {
         return Underlying_->LoadSnapshot(snapshot);
     }

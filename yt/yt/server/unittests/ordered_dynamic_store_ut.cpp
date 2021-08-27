@@ -16,7 +16,7 @@ class TOrderedDynamicStoreTest
     : public TOrderedDynamicStoreTestBase
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     {
         TOrderedDynamicStoreTestBase::SetUp();
         CreateDynamicStore();
@@ -85,7 +85,7 @@ protected:
     TOrderedDynamicStorePtr Store_;
 
 private:
-    virtual void CreateDynamicStore() override
+    void CreateDynamicStore() override
     {
         auto config = New<TTabletManagerConfig>();
         Store_ = New<TOrderedDynamicStore>(
@@ -94,7 +94,7 @@ private:
             Tablet_.get());
     }
 
-    virtual IDynamicStorePtr GetDynamicStore() override
+    IDynamicStorePtr GetDynamicStore() override
     {
         return Store_;
     }
@@ -290,7 +290,7 @@ class TOrderedDynamicStoreTimestampColumnTest
     : public TOrderedDynamicStoreTest
 {
 protected:
-    virtual TTableSchemaPtr GetSchema() const override
+    TTableSchemaPtr GetSchema() const override
     {
         return New<TTableSchema>(std::vector{
             TColumnSchema("a", EValueType::Int64),

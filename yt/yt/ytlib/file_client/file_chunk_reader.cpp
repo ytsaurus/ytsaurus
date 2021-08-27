@@ -87,12 +87,12 @@ public:
             .Run();
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         return ReadyEvent_;
     }
 
-    virtual bool ReadBlock(TBlock* block) override
+    bool ReadBlock(TBlock* block) override
     {
         if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
             return true;
@@ -123,7 +123,7 @@ public:
         return true;
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         YT_VERIFY(SequentialBlockFetcher_);
         TDataStatistics dataStatistics;
@@ -132,19 +132,19 @@ public:
         return dataStatistics;
     }
 
-    virtual TCodecStatistics GetDecompressionStatistics() const override
+    TCodecStatistics GetDecompressionStatistics() const override
     {
         YT_VERIFY(SequentialBlockFetcher_);
         return TCodecStatistics().Append(SequentialBlockFetcher_->GetDecompressionTime());
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         YT_VERIFY(SequentialBlockFetcher_);
         return SequentialBlockFetcher_->IsFetchingCompleted();
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         if (ReadyEvent_.IsSet() && !ReadyEvent_.Get().IsOK()) {
             return std::vector<TChunkId>(1, ChunkReader_->GetChunkId());
@@ -323,7 +323,7 @@ public:
             MakeWeak(this)));
     }
 
-    virtual bool ReadBlock(TBlock* block) override
+    bool ReadBlock(TBlock* block) override
     {
         if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().Get().IsOK()) {
             return true;
@@ -354,27 +354,27 @@ public:
         MultiReaderManager_->Open();
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         return MultiReaderManager_->GetReadyEvent();
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         return MultiReaderManager_->GetDataStatistics();
     }
 
-    virtual TCodecStatistics GetDecompressionStatistics() const override
+    TCodecStatistics GetDecompressionStatistics() const override
     {
         return MultiReaderManager_->GetDecompressionStatistics();
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return MultiReaderManager_->IsFetchingCompleted();
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return MultiReaderManager_->GetFailedChunkIds();
     }

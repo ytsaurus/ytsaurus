@@ -50,13 +50,13 @@ private:
     const IInvokerPtr Invoker_;
 
 
-    virtual void DoShutdown() override
+    void DoShutdown() override
     {
         Queue_->Shutdown();
         TThreadPoolBase::DoShutdown();
     }
 
-    virtual TClosure MakeFinalizerCallback() override
+    TClosure MakeFinalizerCallback() override
     {
         return BIND([queue = Queue_, callback = TThreadPoolBase::MakeFinalizerCallback()] {
             callback();
@@ -64,7 +64,7 @@ private:
         });
     }
 
-    virtual TSchedulerThreadPtr SpawnThread(int index) override
+    TSchedulerThreadPtr SpawnThread(int index) override
     {
         return New<TMpmcSingleQueueSchedulerThread>(
             Queue_,

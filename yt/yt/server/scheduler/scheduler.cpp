@@ -421,14 +421,14 @@ public:
     }
 
 
-    virtual void Disconnect(const TError& error) override
+    void Disconnect(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         MasterConnector_->Disconnect(error);
     }
 
-    virtual TInstant GetConnectionTime() const override
+    TInstant GetConnectionTime() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -473,14 +473,14 @@ public:
         return operation;
     }
 
-    virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const override
+    TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return CachedExecNodeMemoryDistributionByTags_->Get(filter);
     }
 
-    virtual void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert) override
+    void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -493,7 +493,7 @@ public:
         MasterConnector_->SetSchedulerAlert(alertType, alert);
     }
 
-    virtual TFuture<void> SetOperationAlert(
+    TFuture<void> SetOperationAlert(
         TOperationId operationId,
         EOperationAlertType alertType,
         const TError& alert,
@@ -506,7 +506,7 @@ public:
             .Run();
     }
 
-    virtual void ValidatePoolPermission(
+    void ValidatePoolPermission(
         const TYPath& path,
         const TString& user,
         EPermission permission) const override
@@ -1170,7 +1170,7 @@ public:
     }
 
     // ISchedulerStrategyHost implementation
-    virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const override
+    TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1192,7 +1192,7 @@ public:
         return resourceLimits;
     }
 
-    virtual TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) const override
+    TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1204,7 +1204,7 @@ public:
         return resourceUsage;
     }
 
-    virtual void MarkOperationAsRunningInStrategy(TOperationId operationId) override
+    void MarkOperationAsRunningInStrategy(TOperationId operationId) override
     {
         auto operation = GetOperation(operationId);
 
@@ -1222,7 +1222,7 @@ public:
         TryStartOperationMaterialization(operation);
     }
 
-    virtual void AbortOperation(TOperationId operationId, const TError& error) override
+    void AbortOperation(TOperationId operationId, const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1231,7 +1231,7 @@ public:
         DoAbortOperation(operation, error);
     }
 
-    virtual void FlushOperationNode(TOperationId operationId) override
+    void FlushOperationNode(TOperationId operationId) override
     {
         auto operation = GetOperation(operationId);
 
@@ -1383,7 +1383,7 @@ public:
             .Item("operation_id").Value(operation->GetId());
     }
 
-    virtual std::vector<TNodeId> GetExecNodeIds(const TSchedulingTagFilter& filter) const override
+    std::vector<TNodeId> GetExecNodeIds(const TSchedulingTagFilter& filter) const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1397,39 +1397,39 @@ public:
         return result;
     }
 
-    virtual TString GetExecNodeAddress(NNodeTrackerClient::TNodeId nodeId) const override
+    TString GetExecNodeAddress(NNodeTrackerClient::TNodeId nodeId) const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return GetOrCrash(NodeIdToDescriptor_, nodeId).Address;
     }
 
-    virtual IInvokerPtr GetControlInvoker(EControlQueue queue) const override
+    IInvokerPtr GetControlInvoker(EControlQueue queue) const override
     {
         return Bootstrap_->GetControlInvoker(queue);
     }
 
-    virtual IInvokerPtr GetFairShareLoggingInvoker() const override
+    IInvokerPtr GetFairShareLoggingInvoker() const override
     {
         return FairShareLoggingActionQueue_->GetInvoker();
     }
 
-    virtual IInvokerPtr GetFairShareProfilingInvoker() const override
+    IInvokerPtr GetFairShareProfilingInvoker() const override
     {
         return FairShareProfilingActionQueue_->GetInvoker();
     }
 
-    virtual IInvokerPtr GetFairShareUpdateInvoker() const override
+    IInvokerPtr GetFairShareUpdateInvoker() const override
     {
         return FairShareUpdatePool_->GetInvoker();
     }
 
-    virtual IInvokerPtr GetOrchidWorkerInvoker() const override
+    IInvokerPtr GetOrchidWorkerInvoker() const override
     {
         return OrchidWorkerPool_->GetInvoker();
     }
 
-    virtual const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override
+    const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override
     {
         return CancelableNodeShardInvokers_;
     }
@@ -1448,20 +1448,20 @@ public:
         return FairShareEventLogWriterConsumer_.get();
     }
 
-    virtual IYsonConsumer* GetEventLogConsumer() override
+    IYsonConsumer* GetEventLogConsumer() override
     {
         // By default, the control thread's consumer is used.
         return GetControlEventLogConsumer();
     }
 
-    virtual const NLogging::TLogger* GetEventLogger() override
+    const NLogging::TLogger* GetEventLogger() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return &SchedulerEventLogger;
     }
 
-    virtual void LogResourceMetering(
+    void LogResourceMetering(
         const TMeteringKey& key,
         const TMeteringStatistics& statistics,
         const THashMap<TString, TString>& otherTags,
@@ -1515,13 +1515,13 @@ public:
             .Item("source_wt").Value((now - TInstant()).Seconds());
     }
 
-    virtual int GetDefaultAbcId() const override
+    int GetDefaultAbcId() const override
     {
         return Config_->ResourceMetering->DefaultAbcId;
     }
 
     // NB(eshcherbin): Separate method due to separate invoker.
-    virtual TFluentLogEvent LogFairShareEventFluently(TInstant now) override
+    TFluentLogEvent LogFairShareEventFluently(TInstant now) override
     {
         VERIFY_INVOKER_AFFINITY(GetFairShareLoggingInvoker());
 
@@ -1533,14 +1533,14 @@ public:
     }
 
     // INodeShardHost implementation
-    virtual int GetNodeShardId(TNodeId nodeId) const override
+    int GetNodeShardId(TNodeId nodeId) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return nodeId % static_cast<int>(NodeShards_.size());
     }
 
-    virtual TFuture<void> RegisterOrUpdateNode(
+    TFuture<void> RegisterOrUpdateNode(
         TNodeId nodeId,
         const TString& nodeAddress,
         const TBooleanFormulaTags& tags) override
@@ -1552,7 +1552,7 @@ public:
             .Run(nodeId, nodeAddress, tags);
     }
 
-    virtual void UnregisterNode(TNodeId nodeId, const TString& nodeAddress) override
+    void UnregisterNode(TNodeId nodeId, const TString& nodeAddress) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1689,7 +1689,7 @@ public:
         ProcessNodesWithoutPoolTreeAlert();
     }
 
-    virtual void UpdateNodesOnChangedTrees(const THashMap<TString, TSchedulingTagFilter>& treeIdToFilter) override
+    void UpdateNodesOnChangedTrees(const THashMap<TString, TSchedulingTagFilter>& treeIdToFilter) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1714,7 +1714,7 @@ public:
         ProcessNodesWithoutPoolTreeAlert();
     }
 
-    virtual const ISchedulerStrategyPtr& GetStrategy() const override
+    const ISchedulerStrategyPtr& GetStrategy() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1754,7 +1754,7 @@ public:
         return proxy;
     }
 
-    virtual int GetOperationArchiveVersion() const final
+    int GetOperationArchiveVersion() const final
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1774,12 +1774,12 @@ public:
         return *OperationBaseAcl_;
     }
 
-    virtual TString FormatResources(const TJobResourcesWithQuota& resources) const override
+    TString FormatResources(const TJobResourcesWithQuota& resources) const override
     {
         return NScheduler::FormatResources(resources);
     }
 
-    virtual TString FormatResourceUsage(
+    TString FormatResourceUsage(
         const TJobResources& usage,
         const TJobResources& limits,
         const NNodeTrackerClient::NProto::TDiskResources& diskResources) const override
@@ -1791,7 +1791,7 @@ public:
         return NScheduler::FormatResourceUsage(usage, limits, diskResources, mediumDirectory);
     }
 
-    virtual void SerializeResources(const TJobResourcesWithQuota& resources, IYsonConsumer* consumer) const override
+    void SerializeResources(const TJobResourcesWithQuota& resources, IYsonConsumer* consumer) const override
     {
         auto mediumDirectory = Bootstrap_
             ->GetMasterClient()
@@ -1800,7 +1800,7 @@ public:
         SerializeJobResourcesWithQuota(resources, mediumDirectory, consumer);
     }
 
-    virtual TString FormatHeartbeatResourceUsage(
+    TString FormatHeartbeatResourceUsage(
         const TJobResources& usage,
         const TJobResources& limits,
         const NNodeTrackerClient::NProto::TDiskResources& diskResources) const override
@@ -1829,7 +1829,7 @@ public:
             }));
     }
 
-    virtual void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState) override
+    void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState) override
     {
         MasterConnector_->InvokeStoringStrategyState(std::move(strategyState));
     }
@@ -2776,7 +2776,7 @@ private:
         }
     }
 
-    virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const override
+    TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -4347,7 +4347,7 @@ private:
         YT_LOG_DEBUG("Finished managing node scheduling segments");
     }
 
-    virtual const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override
+    const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override
     {
         return DefaultParentPoolPerUser_;
     }
@@ -4361,12 +4361,12 @@ private:
             , Scheduler_(scheduler)
         { }
 
-        virtual i64 GetSize() const override
+        i64 GetSize() const override
         {
             return Scheduler_->IdToOperationService_.size() + Scheduler_->OperationAliases_.size();
         }
 
-        virtual std::vector<TString> GetKeys(i64 limit) const override
+        std::vector<TString> GetKeys(i64 limit) const override
         {
             std::vector<TString> keys;
             keys.reserve(limit);
@@ -4385,7 +4385,7 @@ private:
             return keys;
         }
 
-        virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+        IYPathServicePtr FindItemService(TStringBuf key) const override
         {
             if (key.StartsWith(OperationAliasPrefix)) {
                 // If operation is still registered, we will return the operation service.
@@ -4429,7 +4429,7 @@ private:
             , Scheduler_(scheduler)
         { }
 
-        virtual void GetSelf(
+        void GetSelf(
             TReqGet* /*request*/,
             TRspGet* /*response*/,
             const TCtxGetPtr& context) override
@@ -4437,7 +4437,7 @@ private:
             ThrowMethodNotSupported(context->GetMethod());
         }
 
-        virtual void ListSelf(
+        void ListSelf(
             TReqList* /*request*/,
             TRspList* /*response*/,
             const TCtxListPtr& context) override
@@ -4445,17 +4445,17 @@ private:
             ThrowMethodNotSupported(context->GetMethod());
         }
 
-        virtual i64 GetSize() const override
+        i64 GetSize() const override
         {
             YT_ABORT();
         }
 
-        virtual std::vector<TString> GetKeys(i64 /*limit*/) const override
+        std::vector<TString> GetKeys(i64 /*limit*/) const override
         {
             YT_ABORT();
         }
 
-        virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+        IYPathServicePtr FindItemService(TStringBuf key) const override
         {
             auto jobId = TJobId::FromString(key);
             auto buildJobYsonCallback = BIND(&TJobsService::BuildControllerJobYson, MakeStrong(this), jobId);

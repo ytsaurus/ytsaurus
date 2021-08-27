@@ -42,7 +42,7 @@ public:
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TAccessChecker::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    virtual TError ValidateAccess(const TString& user) const override
+    TError ValidateAccess(const TString& user) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

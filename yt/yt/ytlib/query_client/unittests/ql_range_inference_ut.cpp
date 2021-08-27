@@ -139,7 +139,7 @@ class TRefineKeyRangeTest
     , public ::testing::WithParamInterface<TRefineKeyRangeTestCase>
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     { }
 
     void ExpectIsEmpty(const TKeyRange& keyRange)

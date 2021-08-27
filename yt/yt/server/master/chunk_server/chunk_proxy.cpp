@@ -70,7 +70,7 @@ public:
 private:
     using TBase = TNonversionedObjectProxyBase<TChunk>;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
@@ -195,7 +195,7 @@ private:
             .SetPresent(chunk->IsBlob()));
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -825,7 +825,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
+    TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
         auto* chunk = GetThisImpl();
 
@@ -860,7 +860,7 @@ private:
         return TBase::GetBuiltinAttributeAsync(key);
     }
 
-    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
+    bool DoInvoke(const NRpc::IServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Fetch);
         return TBase::DoInvoke(context);

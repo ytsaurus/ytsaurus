@@ -18,7 +18,7 @@ public:
         , Config(config)
     { }
 
-    virtual void ConsumeKey(TStringBuf key) override
+    void ConsumeKey(TStringBuf key) override
     {
         Consumer->OnListItem();
         Consumer->OnBeginMap();
@@ -26,13 +26,13 @@ public:
         Consumer->OnStringScalar(key);
     }
 
-    virtual void ConsumeSubkey(TStringBuf subkey) override
+    void ConsumeSubkey(TStringBuf subkey) override
     {
         Consumer->OnKeyedItem(Config->Subkey);
         Consumer->OnStringScalar(subkey);
     }
 
-    virtual void ConsumeValue(TStringBuf value) override
+    void ConsumeValue(TStringBuf value) override
     {
         Consumer->OnKeyedItem(Config->Value);
         Consumer->OnStringScalar(value);

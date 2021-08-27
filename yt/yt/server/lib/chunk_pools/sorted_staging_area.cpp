@@ -157,7 +157,7 @@ public:
         }
     }
 
-    virtual void PromoteUpperBound(TKeyBound newUpperBound) override
+    void PromoteUpperBound(TKeyBound newUpperBound) override
     {
         YT_LOG_TRACE("Promoting upper bound (NewUpperBound: %v)", newUpperBound);
 
@@ -171,7 +171,7 @@ public:
         UpperBound_ = newUpperBound;
     }
 
-    virtual void Put(TLegacyDataSlicePtr dataSlice, ESliceType sliceType) override
+    void Put(TLegacyDataSlicePtr dataSlice, ESliceType sliceType) override
     {
         YT_VERIFY(dataSlice->Tag);
 
@@ -195,13 +195,13 @@ public:
         }
     }
 
-    virtual void PutBarrier() override
+    void PutBarrier() override
     {
         auto& job = PreparedJobs_.emplace_back();
         job.SetIsBarrier(true);
     }
 
-    virtual void Flush() override
+    void Flush() override
     {
         // If we have no Main nor Solid slices, we have nothing to do.
         if (IsExhausted()) {
@@ -232,7 +232,7 @@ public:
     }
 
     //! Called at the end of processing to flush all remaining data slices into jobs.
-    virtual void Finish() override
+    void Finish() override
     {
         YT_LOG_TRACE("Finishing work in staging area");
 
@@ -245,19 +245,19 @@ public:
         }
     }
 
-    virtual std::vector<TNewJobStub>& PreparedJobs() override
+    std::vector<TNewJobStub>& PreparedJobs() override
     {
         return PreparedJobs_;
     }
 
     //! Total number of data slices in all created jobs.
     //! Used for internal bookkeeping by the outer code.
-    virtual i64 GetTotalDataSliceCount() const override
+    i64 GetTotalDataSliceCount() const override
     {
         return TotalDataSliceCount_;
     }
 
-    virtual TKeyBound GetPrimaryUpperBound() const override
+    TKeyBound GetPrimaryUpperBound() const override
     {
         TKeyBound upperBound = UpperBound_;
         for (const auto* domain : {&MainDomain_, &BufferDomain_, &SolidDomain_}) {
@@ -268,7 +268,7 @@ public:
         return upperBound;
     }
 
-    virtual TResourceVector GetForeignResourceVector() const override
+    TResourceVector GetForeignResourceVector() const override
     {
         return ForeignDomain_.Statistics;
     }

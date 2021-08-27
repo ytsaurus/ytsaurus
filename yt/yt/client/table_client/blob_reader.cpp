@@ -64,7 +64,7 @@ public:
         ColumnIndex_[EColumnType::Data] = Reader_->GetNameTable()->GetIdOrRegisterName(DataColumnName_);
     }
 
-    virtual TFuture<TSharedRef> Read() override
+    TFuture<TSharedRef> Read() override
     {
         if (!Batch_ || Index_ >= Batch_->GetRowCount()) {
             Index_ = 0;

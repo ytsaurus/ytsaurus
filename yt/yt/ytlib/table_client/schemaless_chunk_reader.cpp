@@ -126,22 +126,22 @@ public:
         }
     }
 
-    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
+    const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
     {
         return DataSliceDescriptor_;
     }
 
-    virtual const TNameTablePtr& GetNameTable() const override
+    const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
     }
 
-    virtual i64 GetTableRowIndex() const override
+    i64 GetTableRowIndex() const override
     {
         return ChunkSpec_.table_row_index() + RowIndex_;
     }
 
-    virtual TInterruptDescriptor GetInterruptDescriptor(
+    TInterruptDescriptor GetInterruptDescriptor(
         TRange<TUnversionedRow> /*unreadRows*/) const override
     {
         YT_ABORT();
@@ -369,7 +369,7 @@ public:
         const TChunkReaderMemoryManagerPtr& memoryManager,
         std::optional<i64> virtualRowIndex = std::nullopt);
 
-    virtual TDataStatistics GetDataStatistics() const override;
+    TDataStatistics GetDataStatistics() const override;
 
 protected:
     using TSchemalessChunkReaderBase::Config_;
@@ -549,19 +549,19 @@ public:
         std::optional<i64> virtualRowIndex,
         int interruptDescriptorKeyLength);
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
 
-    virtual TInterruptDescriptor GetInterruptDescriptor(TRange<TUnversionedRow> unreadRows) const override;
+    TInterruptDescriptor GetInterruptDescriptor(TRange<TUnversionedRow> unreadRows) const override;
 
 private:
     TReadRange ReadRange_;
 
     const int InterruptDescriptorKeyLength_;
 
-    virtual void DoInitializeBlockSequence() override;
+    void DoInitializeBlockSequence() override;
 
-    virtual void InitFirstBlock() override;
-    virtual void InitNextBlock() override;
+    void InitFirstBlock() override;
+    void InitNextBlock() override;
 
     void CreateBlockSequence(int beginIndex, int endIndex);
 
@@ -840,17 +840,17 @@ public:
         std::optional<int> partitionTag = std::nullopt,
         const TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
 
 private:
     const TSharedRange<TLegacyKey> Keys_;
     const TChunkReaderPerformanceCountersPtr PerformanceCounters_;
     std::vector<bool> KeyFilterTest_;
 
-    virtual void DoInitializeBlockSequence() override;
+    void DoInitializeBlockSequence() override;
 
-    virtual void InitFirstBlock() override;
-    virtual void InitNextBlock() override;
+    void InitFirstBlock() override;
+    void InitNextBlock() override;
 
 };
 
@@ -1120,7 +1120,7 @@ public:
         YT_LOG_DEBUG("Columnar reader timing statistics (TimingStatistics: %v)", TTimingReaderBase::GetTimingStatistics());
     }
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         auto readGuard = AcquireReadGuard();
 
@@ -1148,7 +1148,7 @@ public:
             : ReadNonColumnarBatch(options);
     }
 
-    virtual TInterruptDescriptor GetInterruptDescriptor(
+    TInterruptDescriptor GetInterruptDescriptor(
         TRange<TUnversionedRow> unreadRows) const override
     {
         return GetInterruptDescriptorImpl(
@@ -1161,7 +1161,7 @@ public:
             InterruptDescriptorKeyLength_);
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         auto dataStatistics = TColumnarRangeChunkReaderBase::GetDataStatistics();
         dataStatistics.set_row_count(RowCount_);
@@ -1195,12 +1195,12 @@ private:
             , RowCount_(rowCount)
         { }
 
-        virtual int GetRowCount() const override
+        int GetRowCount() const override
         {
             return RowCount_;
         }
 
-        virtual TSharedRange<TUnversionedRow> MaterializeRows() override
+        TSharedRange<TUnversionedRow> MaterializeRows() override
         {
             if (RootColumns_) {
                 THROW_ERROR_EXCEPTION("Cannot materialize batch into rows since it was already materialized into columns");
@@ -1213,7 +1213,7 @@ private:
             return Rows_;
         }
 
-        virtual TRange<const TColumn*> MaterializeColumns() override
+        TRange<const TColumn*> MaterializeColumns() override
         {
             if (Rows_) {
                 THROW_ERROR_EXCEPTION("Cannot materialize batch into columns since it was already materialized into rows");
@@ -1229,7 +1229,7 @@ private:
             return MakeRange(*RootColumns_);
         }
 
-        virtual TRange<TDictionaryId> GetRetiringDictionaryIds() const override
+        TRange<TDictionaryId> GetRetiringDictionaryIds() const override
         {
             return {};
         }
@@ -1749,7 +1749,7 @@ public:
             .Run());
     }
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         auto readGuard = AcquireReadGuard();
 
@@ -1820,7 +1820,7 @@ public:
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         auto dataStatistics = TColumnarChunkReaderBase::GetDataStatistics();
         dataStatistics.set_row_count(RowCount_);

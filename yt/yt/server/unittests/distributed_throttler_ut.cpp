@@ -38,7 +38,7 @@ class TDistributedThrottlerTest
     : public ::testing::Test
 {
 public:
-    virtual void SetUp() override
+    void SetUp() override
     {
         ChannelFactory_ = New<TStaticChannelFactory>();
         for (const auto& address : Addresses_) {
@@ -58,7 +58,7 @@ public:
         }
     }
 
-    virtual void TearDown() override
+    void TearDown() override
     {
         for (int i = 0; i < std::ssize(Addresses_); ++i) {
             DiscoveryServers_[i]->Finalize();

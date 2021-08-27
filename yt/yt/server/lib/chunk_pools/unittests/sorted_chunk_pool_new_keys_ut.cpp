@@ -55,7 +55,7 @@ class TSortedChunkPoolNewKeysTest
     : public Test
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     {
         ChunkPool_ = nullptr;
         MultiChunkPool_ = nullptr;
@@ -3709,7 +3709,7 @@ class TSortedChunkPoolNewKeysTestRandomized
 public:
     TSortedChunkPoolNewKeysTestRandomized() = default;
 
-    virtual void SetUp() override final
+    void SetUp() final
     {
         TSortedChunkPoolNewKeysTest::SetUp();
         Gen_.seed(get<0>(GetParam()));

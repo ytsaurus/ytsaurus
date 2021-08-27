@@ -51,23 +51,23 @@ public:
         : Server_(std::move(server))
     { }
 
-    virtual const TString& GetEndpointDescription() const override
+    const TString& GetEndpointDescription() const override
     {
         return EndpointDescription;
     }
 
-    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
+    const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
     {
         return *EndpointAttributes;
     }
 
-    virtual TNetworkId GetNetworkId() const override
+    TNetworkId GetNetworkId() const override
     {
         static auto localNetworkId = TDispatcher::Get()->GetNetworkId(LocalNetworkName);
         return localNetworkId;
     }
 
-    virtual IClientRequestControlPtr Send(
+    IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
@@ -121,17 +121,17 @@ public:
         return New<TClientRequestControl>(std::move(service), request->GetRequestId());
     }
 
-    virtual void Terminate(const TError& error) override
+    void Terminate(const TError& error) override
     {
         Terminated_.Fire(error);
     }
 
-    virtual void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override
+    void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override
     {
         Terminated_.Subscribe(callback);
     }
 
-    virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& callback) override
+    void UnsubscribeTerminated(const TCallback<void(const TError&)>& callback) override
     {
         Terminated_.Unsubscribe(callback);
     }
@@ -162,32 +162,32 @@ private:
             }
         }
 
-        virtual const TString& GetEndpointDescription() const override
+        const TString& GetEndpointDescription() const override
         {
             return EndpointDescription;
         }
 
-        virtual const IAttributeDictionary& GetEndpointAttributes() const override
+        const IAttributeDictionary& GetEndpointAttributes() const override
         {
             return *EndpointAttributes;
         }
 
-        virtual TTcpDispatcherStatistics GetStatistics() const override
+        TTcpDispatcherStatistics GetStatistics() const override
         {
             return {};
         }
 
-        virtual const NNet::TNetworkAddress& GetEndpointAddress() const override
+        const NNet::TNetworkAddress& GetEndpointAddress() const override
         {
             return NNet::NullNetworkAddress;
         }
 
-        virtual TFuture<void> GetReadyFuture() const override
+        TFuture<void> GetReadyFuture() const override
         {
             return VoidFuture;
         }
 
-        virtual TFuture<void> Send(TSharedRefArray message, const NBus::TSendOptions& /*options*/) override
+        TFuture<void> Send(TSharedRefArray message, const NBus::TSendOptions& /*options*/) override
         {
             NProto::TResponseHeader header;
             YT_VERIFY(TryParseResponseHeader(message, &header));
@@ -207,16 +207,16 @@ private:
             return VoidFuture;
         }
 
-        virtual void SetTosLevel(TTosLevel /*tosLevel*/) override
+        void SetTosLevel(TTosLevel /*tosLevel*/) override
         { }
 
-        virtual void Terminate(const TError& /*error*/) override
+        void Terminate(const TError& /*error*/) override
         { }
 
-        virtual void SubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/) override
+        void SubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/) override
         { }
 
-        virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/) override
+        void UnsubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/) override
         { }
 
     private:
@@ -260,18 +260,18 @@ private:
             , RequestId_(requestId)
         { }
 
-        virtual void Cancel() override
+        void Cancel() override
         {
             Service_->HandleRequestCancelation(RequestId_);
         }
 
-        virtual TFuture<void> SendStreamingPayload(const TStreamingPayload& payload) override
+        TFuture<void> SendStreamingPayload(const TStreamingPayload& payload) override
         {
             Service_->HandleStreamingPayload(RequestId_, payload);
             return VoidFuture;
         }
 
-        virtual TFuture<void> SendStreamingFeedback(const TStreamingFeedback& feedback) override
+        TFuture<void> SendStreamingFeedback(const TStreamingFeedback& feedback) override
         {
             Service_->HandleStreamingFeedback(RequestId_, feedback);
             return VoidFuture;

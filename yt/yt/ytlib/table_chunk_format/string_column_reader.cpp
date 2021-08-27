@@ -489,7 +489,7 @@ public:
     { }
 
 private:
-    virtual std::unique_ptr<IVersionedSegmentReader> CreateSegmentReader(int segmentIndex) override
+    std::unique_ptr<IVersionedSegmentReader> CreateSegmentReader(int segmentIndex) override
     {
         using TDirectDenseReader = TDenseVersionedSegmentReader<
             TDirectDenseVersionedStringValueExtractor<ValueType>>;
@@ -564,7 +564,7 @@ public:
             sortOrder)
     { }
 
-    virtual std::pair<i64, i64> GetEqualRange(
+    std::pair<i64, i64> GetEqualRange(
         const TUnversionedValue& value,
         i64 lowerRowIndex,
         i64 upperRowIndex) override
@@ -575,7 +575,7 @@ public:
             upperRowIndex);
     }
 
-    virtual i64 EstimateDataWeight(
+    i64 EstimateDataWeight(
         i64 lowerRowIndex,
         i64 upperRowIndex) override
     {
@@ -584,7 +584,7 @@ public:
     }
 
 private:
-    virtual std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(int segmentIndex, bool scan) override
+    std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(int segmentIndex, bool scan) override
     {
         typedef TDenseUnversionedSegmentReader<
             ValueType,

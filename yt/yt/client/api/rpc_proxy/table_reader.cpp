@@ -46,17 +46,17 @@ public:
         ReadyEvent_.TrySetFrom(RowsWithStatisticsFuture_);
     }
 
-    virtual i64 GetStartRowIndex() const override
+    i64 GetStartRowIndex() const override
     {
         return StartRowIndex_;
     }
 
-    virtual i64 GetTotalRowCount() const override
+    i64 GetTotalRowCount() const override
     {
         return TotalRowCount_;
     }
 
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
         auto dataStatistics = DataStatistics_;
         dataStatistics.set_row_count(RowCount_);
@@ -65,12 +65,12 @@ public:
         return dataStatistics;
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() override
     {
         return ReadyEvent_;
     }
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         StoredRows_.clear();
 
@@ -130,17 +130,17 @@ public:
             : CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
-    virtual const TNameTablePtr& GetNameTable() const override
+    const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
     }
 
-    virtual const TTableSchemaPtr& GetTableSchema() const override
+    const TTableSchemaPtr& GetTableSchema() const override
     {
         return TableSchema_;
     }
 
-    virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const override
+    const std::vector<TString>& GetOmittedInaccessibleColumns() const override
     {
         return OmittedInaccessibleColumns_;
     }

@@ -56,12 +56,12 @@ public:
         return 2;
     }
 
-    virtual bool useDefaultImplementationForNulls() const override
+    bool useDefaultImplementationForNulls() const override
     {
         return false;
     }
 
-    virtual bool useDefaultImplementationForConstants() const override
+    bool useDefaultImplementationForConstants() const override
     {
         return true;
     }

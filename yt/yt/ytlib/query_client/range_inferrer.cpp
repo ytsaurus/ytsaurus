@@ -199,22 +199,22 @@ public:
         , Lift_(std::move(lift))
     { }
 
-    virtual void Reset() override
+    void Reset() override
     {
         Underlying_.Reset();
     }
 
-    virtual TUnversionedValue Next() override
+    TUnversionedValue Next() override
     {
         return Lift_(Underlying_.Next());
     }
 
-    virtual bool Finished() const override
+    bool Finished() const override
     {
         return Underlying_.Finished();
     }
 
-    virtual ui64 Estimation() const override
+    ui64 Estimation() const override
     {
         return Underlying_.Estimation();
     }

@@ -43,7 +43,7 @@ public:
         YT_VERIFY(Config_);
     }
 
-    virtual EJobSplitterVerdict ExamineJob(TJobId jobId) override
+    EJobSplitterVerdict ExamineJob(TJobId jobId) override
     {
         auto& job = GetOrCrash(RunningJobs_, jobId);
 
@@ -130,7 +130,7 @@ public:
         return EJobSplitterVerdict::DoNothing;
     }
 
-    virtual void OnJobStarted(
+    void OnJobStarted(
         TJobId jobId,
         const TChunkStripeListPtr& inputStripeList,
         TOutputCookie cookie,
@@ -146,24 +146,24 @@ public:
         job.Update(&JobTimeTracker_, summary);
     }
 
-    virtual void OnJobFailed(const TFailedJobSummary& summary) override
+    void OnJobFailed(const TFailedJobSummary& summary) override
     {
         OnJobFinished(summary);
     }
 
-    virtual void OnJobAborted(const TAbortedJobSummary& summary) override
+    void OnJobAborted(const TAbortedJobSummary& summary) override
     {
         OnJobFinished(summary);
     }
 
-    virtual void OnJobCompleted(const TCompletedJobSummary& summary) override
+    void OnJobCompleted(const TCompletedJobSummary& summary) override
     {
         OnJobFinished(summary);
         SuccessJobPrepareDurationSum_ += summary.TimeStatistics.PrepareDuration.value_or(TDuration());
         ++SuccessJobCount_;
     }
 
-    virtual int EstimateJobCount(
+    int EstimateJobCount(
         const TCompletedJobSummary& summary,
         i64 unreadRowCount) const override
     {
@@ -224,7 +224,7 @@ public:
         return jobCount;
     }
 
-    virtual void BuildJobSplitterInfo(TFluentMap fluent) const override
+    void BuildJobSplitterInfo(TFluentMap fluent) const override
     {
         fluent
             .Item("build_time").Value(GetInstant())
@@ -249,7 +249,7 @@ public:
             .Item("can_launch_speculative_jobs").Value(CanLaunchSpeculativeJobs_);
     }
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;
 

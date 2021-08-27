@@ -131,7 +131,7 @@ private:
     IOutputStream* const Underlying_;
 
 
-    virtual void DoWrite(const void* buf, size_t len) override
+    void DoWrite(const void* buf, size_t len) override
     {
         try {
             Underlying_->Write(buf, len);
@@ -140,7 +140,7 @@ private:
         }
     }
 
-    virtual void DoWriteV(const TPart* parts, size_t count) override
+    void DoWriteV(const TPart* parts, size_t count) override
     {
         try {
             Underlying_->Write(parts, count);
@@ -149,7 +149,7 @@ private:
         }
     }
 
-    virtual void DoFlush() override
+    void DoFlush() override
     {
         try {
             Underlying_->Flush();
@@ -158,7 +158,7 @@ private:
         }
     }
 
-    virtual void DoFinish() override
+    void DoFinish() override
     {
         try {
             Underlying_->Finish();
@@ -179,57 +179,57 @@ public:
         , Underlying_(std::move(underlying))
     { }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return Check(Underlying_->Open());
     }
 
-    virtual bool WriteBlock(const TBlock& block) override
+    bool WriteBlock(const TBlock& block) override
     {
         return Underlying_->WriteBlock(block);
     }
 
-    virtual bool WriteBlocks(const std::vector<TBlock>& blocks) override
+    bool WriteBlocks(const std::vector<TBlock>& blocks) override
     {
         return Underlying_->WriteBlocks(blocks);
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() override
     {
         return Check(Underlying_->GetReadyEvent());
     }
 
-    virtual TFuture<void> Close(const NChunkClient::TDeferredChunkMetaPtr& chunkMeta) override
+    TFuture<void> Close(const NChunkClient::TDeferredChunkMetaPtr& chunkMeta) override
     {
         return Check(Underlying_->Close(chunkMeta));
     }
 
-    virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override
+    const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override
     {
         return Underlying_->GetChunkInfo();
     }
 
-    virtual TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
+    TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
     {
         return Underlying_->GetWrittenChunkReplicas();
     }
 
-    virtual TChunkId GetChunkId() const override
+    TChunkId GetChunkId() const override
     {
         return Underlying_->GetChunkId();
     }
 
-    virtual NErasure::ECodec GetErasureCodecId() const override
+    NErasure::ECodec GetErasureCodecId() const override
     {
         return Underlying_->GetErasureCodecId();
     }
 
-    virtual const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override
+    const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override
     {
         return Underlying_->GetDataStatistics();
     }
 
-    virtual bool IsCloseDemanded() const override
+    bool IsCloseDemanded() const override
     {
         return Underlying_->IsCloseDemanded();
     }
@@ -754,14 +754,14 @@ private:
     }
 
 
-    virtual i64 GetWeight(const TCachedBlobChunkPtr& chunk) const override
+    i64 GetWeight(const TCachedBlobChunkPtr& chunk) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return chunk->GetInfo().disk_space();
     }
 
-    virtual void OnAdded(const TCachedBlobChunkPtr& chunk) override
+    void OnAdded(const TCachedBlobChunkPtr& chunk) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -774,7 +774,7 @@ private:
         ChunkAdded_.Fire(chunk);
     }
 
-    virtual void OnRemoved(const TCachedBlobChunkPtr& chunk) override
+    void OnRemoved(const TCachedBlobChunkPtr& chunk) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

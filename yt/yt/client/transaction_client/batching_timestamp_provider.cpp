@@ -25,7 +25,7 @@ public:
         , BatchPeriod_(batchPeriod)
     { }
 
-    virtual TFuture<TTimestamp> GenerateTimestamps(int count) override
+    TFuture<TTimestamp> GenerateTimestamps(int count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -46,7 +46,7 @@ public:
         return result;
     }
 
-    virtual TTimestamp GetLatestTimestamp() override
+    TTimestamp GetLatestTimestamp() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

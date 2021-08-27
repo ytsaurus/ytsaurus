@@ -63,7 +63,7 @@ public:
         bundleNodeTracker->SubscribeAreaNodesChanged(BIND(&TCellBalancerProvider::OnAreaNodesChanged, MakeWeak(this)));
     }
 
-    virtual std::vector<TNodeHolder> GetNodes() override
+    std::vector<TNodeHolder> GetNodes() override
     {
         BalanceRequestTime_.reset();
 
@@ -98,24 +98,24 @@ public:
         return nodes;
     }
 
-    virtual const TReadOnlyEntityMap<TCellBundle>& CellBundles() override
+    const TReadOnlyEntityMap<TCellBundle>& CellBundles() override
     {
         return Bootstrap_->GetTamedCellManager()->CellBundles();
     }
 
-    virtual bool IsPossibleHost(const TNode* node, const TArea* area) override
+    bool IsPossibleHost(const TNode* node, const TArea* area) override
     {
         const auto& bundleNodeTracker = Bootstrap_->GetTamedCellManager()->GetBundleNodeTracker();
         return bundleNodeTracker->GetAreaNodes(area).contains(node);
     }
 
-    virtual bool IsVerboseLoggingEnabled() override
+    bool IsVerboseLoggingEnabled() override
     {
         return Bootstrap_->GetConfigManager()->GetConfig()
             ->TabletManager->TabletCellBalancer->EnableVerboseLogging;
     }
 
-    virtual bool IsBalancingRequired() override
+    bool IsBalancingRequired() override
     {
         if (!GetConfig()->EnableTabletCellSmoothing) {
             return false;

@@ -41,7 +41,7 @@ public:
             trunkNode)
     { }
 
-    virtual TResolveResult Resolve(
+    TResolveResult Resolve(
         const TYPath& path,
         const IServiceContextPtr& context) override
     {
@@ -82,7 +82,7 @@ public:
 private:
     using TBase = TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TLinkNode>;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
@@ -90,7 +90,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::Broken);
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         switch (key) {
             case EInternedAttributeKey::TargetPath: {
@@ -107,7 +107,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
+    TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
         switch (key) {
             case EInternedAttributeKey::Broken:

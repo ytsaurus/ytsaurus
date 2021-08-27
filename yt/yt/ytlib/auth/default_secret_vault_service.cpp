@@ -67,7 +67,7 @@ public:
         , FailedSubrequestCountCounter_(profiler.Counter("/failed_subrequest_count"))
     { }
 
-    virtual TFuture<std::vector<TErrorOrSecretSubresponse>> GetSecrets(
+    TFuture<std::vector<TErrorOrSecretSubresponse>> GetSecrets(
         const std::vector<TSecretSubrequest>& subrequests) override
     {
         return BIND(&TDefaultSecretVaultService::DoGetSecrets, MakeStrong(this), subrequests)
@@ -75,7 +75,7 @@ public:
             .Run();
     }
 
-    virtual TFuture<TString> GetDelegationToken(TDelegationTokenRequest request) override
+    TFuture<TString> GetDelegationToken(TDelegationTokenRequest request) override
     {
         if (request.Signature.empty() || request.SecretId.empty() || request.UserTicket.empty()) {
             return MakeFuture<TString>(TError(

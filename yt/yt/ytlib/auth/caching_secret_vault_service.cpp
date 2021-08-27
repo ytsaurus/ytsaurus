@@ -30,7 +30,7 @@ public:
         , Underlying_(std::move(underlying))
     { }
 
-    virtual TFuture<std::vector<TErrorOrSecretSubresponse>> GetSecrets(const std::vector<TSecretSubrequest>& subrequests) override
+    TFuture<std::vector<TErrorOrSecretSubresponse>> GetSecrets(const std::vector<TSecretSubrequest>& subrequests) override
     {
         std::vector<TFuture<TSecretSubresponse>> asyncResults;
         THashMap<TSecretSubrequest, TFuture<TSecretSubresponse>> subrequestToAsyncResult;
@@ -47,7 +47,7 @@ public:
         return AllSet(asyncResults);
     }
 
-    virtual TFuture<TString> GetDelegationToken(TDelegationTokenRequest request) override
+    TFuture<TString> GetDelegationToken(TDelegationTokenRequest request) override
     {
         return Underlying_->GetDelegationToken(std::move(request));
     }
@@ -55,7 +55,7 @@ public:
 private:
     const ISecretVaultServicePtr Underlying_;
 
-    virtual TFuture<TSecretSubresponse> DoGet(
+    TFuture<TSecretSubresponse> DoGet(
         const TSecretSubrequest& subrequest,
         bool /*isPeriodicUpdate*/) noexcept override
     {

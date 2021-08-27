@@ -57,7 +57,7 @@ protected:
         return original;
     }
 
-    void SetUp()
+    void SetUp() override
     {
         TDataBlockWriter blockWriter;
         auto timestampWriter = CreateTimestampWriter(&blockWriter);

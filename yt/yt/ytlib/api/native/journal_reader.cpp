@@ -72,14 +72,14 @@ public:
         }
     }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return BIND(&TJournalReader::DoOpen, MakeStrong(this))
             .AsyncVia(ReaderInvoker_)
             .Run();
     }
 
-    virtual TFuture<std::vector<TSharedRef>> Read() override
+    TFuture<std::vector<TSharedRef>> Read() override
     {
         return BIND(&TJournalReader::DoRead, MakeStrong(this))
             .AsyncVia(ReaderInvoker_)

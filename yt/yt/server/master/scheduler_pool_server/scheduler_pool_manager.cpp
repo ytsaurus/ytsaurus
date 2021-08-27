@@ -263,7 +263,7 @@ private:
 
     bool NeedRecomputeIntegralResourcesHierarchically_ = false;
 
-    virtual void OnAfterSnapshotLoaded() override
+    void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
@@ -332,7 +332,7 @@ private:
         }
     }
 
-    virtual void Clear() override
+    void Clear() override
     {
         TMasterAutomatonPart::Clear();
 
@@ -380,12 +380,12 @@ public:
         , Owner_(owner)
     { }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::SchedulerPool;
     }
 
-    virtual TObject* CreateObject(TObjectId /*hintId*/, IAttributeDictionary* attributes) override
+    TObject* CreateObject(TObjectId /*hintId*/, IAttributeDictionary* attributes) override
     {
         const auto name = attributes->GetAndRemove<TString>("name");
         const auto poolTree = attributes->GetAndRemove<TString>("pool_tree");
@@ -395,17 +395,17 @@ public:
         return CreateObjectImpl(name, parentObject, attributes);
     }
 
-    virtual void RegisterName(const TString& name, TSchedulerPool* schedulerPool) noexcept override
+    void RegisterName(const TString& name, TSchedulerPool* schedulerPool) noexcept override
     {
         Owner_->RegisterPoolName(name, schedulerPool);
     }
 
-    virtual void UnregisterName(const TString& name, TSchedulerPool* schedulerPool) noexcept override
+    void UnregisterName(const TString& name, TSchedulerPool* schedulerPool) noexcept override
     {
         Owner_->UnregisterPoolName(name, schedulerPool);
     }
 
-    virtual void ValidateObjectName(const TString& name) override
+    void ValidateObjectName(const TString& name) override
     {
         auto securityManager = Bootstrap_->GetSecurityManager();
         auto* schema = Bootstrap_->GetObjectManager()->FindSchema(EObjectType::SchedulerPool);
@@ -417,7 +417,7 @@ public:
         ValidatePoolName(name, validationLevel);
     }
 
-    virtual TString GetRootPath(const TSchedulerPool* rootPool) const override
+    TString GetRootPath(const TSchedulerPool* rootPool) const override
     {
         YT_VERIFY(rootPool && rootPool->IsRoot());
         YT_VERIFY(rootPool->GetMaybePoolTree());
@@ -425,22 +425,22 @@ public:
     }
 
 protected:
-    virtual std::optional<int> GetDepthLimit() const override
+    std::optional<int> GetDepthLimit() const override
     {
         return 30;
     }
 
-    virtual std::optional<int> GetSubtreeSizeLimit() const override
+    std::optional<int> GetSubtreeSizeLimit() const override
     {
         return Owner_->GetDynamicConfig()->MaxSchedulerPoolSubtreeSize;
     }
 
-    virtual TProxyPtr GetMapObjectProxy(TSchedulerPool* object) override
+    TProxyPtr GetMapObjectProxy(TSchedulerPool* object) override
     {
         return New<TSchedulerPoolProxy>(Owner_->Bootstrap_, &Metadata_, object);
     }
 
-    virtual std::optional<NObjectServer::TObject*> FindObjectByAttributes(
+    std::optional<NObjectServer::TObject*> FindObjectByAttributes(
         const NYTree::IAttributeDictionary* attributes) override
     {
         auto poolTree = attributes->Get<TString>("pool_tree");
@@ -451,7 +451,7 @@ protected:
         return parentObject->FindChild(name);
     }
 
-    virtual NObjectServer::TObject* DoGetParent(TSchedulerPool* object) override
+    NObjectServer::TObject* DoGetParent(TSchedulerPool* object) override
     {
         if (!object->IsRoot()) {
             return TBase::DoGetParent(object);
@@ -460,7 +460,7 @@ protected:
         return poolTreeHandler->GetParent(object->GetMaybePoolTree());
     }
 
-    virtual void DoZombifyObject(TSchedulerPool* object) override
+    void DoZombifyObject(TSchedulerPool* object) override
     {
         if (object->IsRoot()) {
             if (IsObjectAlive(object->GetMaybePoolTree())) {
@@ -487,12 +487,12 @@ public:
         , Owner_(owner)
     { }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::SchedulerPoolTree;
     }
 
-    virtual TObject* CreateObject(TObjectId /*hintId*/, IAttributeDictionary* attributes) override
+    TObject* CreateObject(TObjectId /*hintId*/, IAttributeDictionary* attributes) override
     {
         const auto name = attributes->GetAndRemove<TString>("name");
         ValidatePoolTreeCreationPermission();
@@ -500,24 +500,24 @@ public:
     }
 
 protected:
-    virtual ETypeFlags GetFlags() const override
+    ETypeFlags GetFlags() const override
     {
         return
             ETypeFlags::Creatable |
             ETypeFlags::Removable;
     }
 
-    virtual IObjectProxyPtr DoGetProxy(TSchedulerPoolTree* object, NTransactionServer::TTransaction* /*transaction*/) override
+    IObjectProxyPtr DoGetProxy(TSchedulerPoolTree* object, NTransactionServer::TTransaction* /*transaction*/) override
     {
         return New<TSchedulerPoolProxy>(Owner_->Bootstrap_, &Metadata_, object->GetRootPool());
     }
 
-    virtual NObjectServer::TObject* DoGetParent(TSchedulerPoolTree* /*object*/) override
+    NObjectServer::TObject* DoGetParent(TSchedulerPoolTree* /*object*/) override
     {
         return Bootstrap_->GetCypressManager()->ResolvePathToTrunkNode(PoolTreesRootCypressPath);
     }
 
-    virtual void DoZombifyObject(TSchedulerPoolTree* object) override
+    void DoZombifyObject(TSchedulerPoolTree* object) override
     {
         Owner_->UnregisterPoolTreeObject(object->GetTreeName());
         if (IsObjectAlive(object->GetRootPool())) {
@@ -528,7 +528,7 @@ protected:
         TBase::DoZombifyObject(object);
     }
 
-    virtual std::optional<NObjectServer::TObject*> FindObjectByAttributes(
+    std::optional<NObjectServer::TObject*> FindObjectByAttributes(
         const NYTree::IAttributeDictionary* attributes) override
     {
         auto name = attributes->Get<TString>("name");

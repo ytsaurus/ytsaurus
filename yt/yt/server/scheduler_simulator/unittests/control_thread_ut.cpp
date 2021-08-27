@@ -112,7 +112,7 @@ public:
         : EarliestTime(earliestTime)
     { }
 
-    virtual void PrintEntry(TOperationId id, TOperationStatistics stats) override
+    void PrintEntry(TOperationId id, TOperationStatistics stats) override
     {
         StatsByOperationId_.Insert(id, std::move(stats));
     }

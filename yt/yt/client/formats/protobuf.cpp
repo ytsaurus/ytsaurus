@@ -101,7 +101,7 @@ class TParserErrorCollector
     : public ::google::protobuf::io::ErrorCollector
 {
 public:
-    virtual void AddError(
+    void AddError(
         int line,
         ::google::protobuf::io::ColumnNumber column,
         const TString& message) override
@@ -127,7 +127,7 @@ class TDescriptorPoolErrorCollector
     : public DescriptorPool::ErrorCollector
 {
 public:
-    virtual void AddError(
+    void AddError(
         const TString& fileName,
         const TString& elementName,
         const Message* /*descriptor*/,

@@ -66,22 +66,22 @@ public:
         }
     }
 
-    virtual const TString& GetEndpointDescription() const override
+    const TString& GetEndpointDescription() const override
     {
         return EndpointDescription_;
     }
 
-    virtual const IAttributeDictionary& GetEndpointAttributes() const override
+    const IAttributeDictionary& GetEndpointAttributes() const override
     {
         return *EndpointAttributes_;
     }
 
-    virtual TNetworkId GetNetworkId() const override
+    TNetworkId GetNetworkId() const override
     {
         return DefaultNetworkId;
     }
 
-    virtual IClientRequestControlPtr Send(
+    IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
@@ -100,7 +100,7 @@ public:
             std::move(responseHandler));
     }
 
-    virtual void Terminate(const TError& error) override
+    void Terminate(const TError& error) override
     {
         {
             auto guard = WriterGuard(SpinLock_);
@@ -117,12 +117,12 @@ public:
         Terminated_.Fire(TerminationError_);
     }
 
-    virtual void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override
+    void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override
     {
         Terminated_.Subscribe(callback);
     }
 
-    virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& callback) override
+    void UnsubscribeTerminated(const TCallback<void(const TError&)>& callback) override
     {
         Terminated_.Unsubscribe(callback);
     }
@@ -269,7 +269,7 @@ private:
         }
 
         // TCompletionQueueTag overrides
-        virtual void Run(bool success, int /*cookie*/) override
+        void Run(bool success, int /*cookie*/) override
         {
             switch (Stage_) {
                 case EClientCallStage::SendingRequest:
@@ -290,7 +290,7 @@ private:
         }
 
         // IClientRequestControl overrides
-        virtual void Cancel() override
+        void Cancel() override
         {
             auto result = grpc_call_cancel(Call_.Unwrap(), nullptr);
             YT_VERIFY(result == GRPC_CALL_OK);
@@ -302,12 +302,12 @@ private:
                 TError(NYT::EErrorCode::Canceled, "Request canceled"));
         }
 
-        virtual TFuture<void> SendStreamingPayload(const TStreamingPayload& /*payload*/) override
+        TFuture<void> SendStreamingPayload(const TStreamingPayload& /*payload*/) override
         {
             YT_UNIMPLEMENTED();
         }
 
-        virtual TFuture<void> SendStreamingFeedback(const TStreamingFeedback& /*feedback*/) override
+        TFuture<void> SendStreamingFeedback(const TStreamingFeedback& /*feedback*/) override
         {
             YT_UNIMPLEMENTED();
         }
@@ -578,14 +578,14 @@ class TChannelFactory
     : public IChannelFactory
 {
 public:
-    virtual IChannelPtr CreateChannel(const TString& address) override
+    IChannelPtr CreateChannel(const TString& address) override
     {
         auto config = New<TChannelConfig>();
         config->Address = address;
         return CreateGrpcChannel(config);
     }
 
-    virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
+    IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
     {
         return CreateChannel(addressWithNetwork.Address);
     }

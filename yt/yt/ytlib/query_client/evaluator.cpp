@@ -65,7 +65,7 @@ public:
         : TAsyncSlruCacheBase(config->CGCache, profiler.WithPrefix("/cg_cache"))
     { }
 
-    virtual TQueryStatistics Run(
+    TQueryStatistics Run(
         const TConstBaseQueryPtr& query,
         const ISchemafulUnversionedReaderPtr& reader,
         const IUnversionedRowsetWriterPtr& writer,

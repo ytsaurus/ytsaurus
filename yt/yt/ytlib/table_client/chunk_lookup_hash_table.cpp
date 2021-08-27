@@ -21,9 +21,9 @@ class TChunkLookupHashTable
 {
 public:
     explicit TChunkLookupHashTable(size_t size);
-    virtual void Insert(TLegacyKey key, std::pair<ui16, ui32> index) override;
-    virtual SmallVector<std::pair<ui16, ui32>, 1> Find(TLegacyKey key) const override;
-    virtual size_t GetByteSize() const override;
+    void Insert(TLegacyKey key, std::pair<ui16, ui32> index) override;
+    SmallVector<std::pair<ui16, ui32>, 1> Find(TLegacyKey key) const override;
+    size_t GetByteSize() const override;
 
 private:
     TLinearProbeHashTable HashTable_;
@@ -73,7 +73,7 @@ public:
         , Blocks_(blocks)
     { }
 
-    virtual void PutBlock(
+    void PutBlock(
         const TBlockId& /*id*/,
         EBlockType /*type*/,
         const TBlock& /*block*/) override
@@ -81,7 +81,7 @@ public:
         YT_ABORT();
     }
 
-    virtual TCachedBlock FindBlock(
+    TCachedBlock FindBlock(
         const TBlockId& id,
         EBlockType type) override
     {
@@ -91,7 +91,7 @@ public:
             : TCachedBlock();
     }
 
-    virtual std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
+    std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
         const TBlockId& id,
         EBlockType type) override
     {
@@ -101,7 +101,7 @@ public:
             : CreateActiveCachedBlockCookie();
     }
 
-    virtual EBlockType GetSupportedBlockTypes() const override
+    EBlockType GetSupportedBlockTypes() const override
     {
         return EBlockType::UncompressedData;
     }

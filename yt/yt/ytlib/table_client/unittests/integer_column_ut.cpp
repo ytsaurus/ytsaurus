@@ -145,7 +145,7 @@ protected:
         return expected;
     }
 
-    virtual void Write(IValueColumnWriter* columnWriter) override
+    void Write(IValueColumnWriter* columnWriter) override
     {
         WriteSegment(columnWriter, CreateDirectDense());
         WriteSegment(columnWriter, CreateDictionaryDense());
@@ -206,12 +206,12 @@ public:
         : TVersionedIntegerColumnTest<i64>(-1234, AggregateSchema)
     { }
 
-    virtual std::unique_ptr<IVersionedColumnReader> DoCreateColumnReader() override
+    std::unique_ptr<IVersionedColumnReader> DoCreateColumnReader() override
     {
         return CreateVersionedInt64ColumnReader(ColumnMeta_, ColumnId, ColumnSchema_);
     }
 
-    virtual std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
+    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
     {
         return CreateVersionedInt64ColumnWriter(ColumnId, ColumnSchema_, blockWriter);
     }
@@ -229,12 +229,12 @@ public:
         : TVersionedIntegerColumnTest<i64>(-1234, NoAggregateSchema)
     { }
 
-    virtual std::unique_ptr<IVersionedColumnReader> DoCreateColumnReader() override
+    std::unique_ptr<IVersionedColumnReader> DoCreateColumnReader() override
     {
         return CreateVersionedInt64ColumnReader(ColumnMeta_, ColumnId, ColumnSchema_);
     }
 
-    virtual std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
+    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
     {
         return CreateVersionedInt64ColumnWriter(ColumnId, ColumnSchema_, blockWriter);
     }
@@ -252,12 +252,12 @@ public:
         : TVersionedIntegerColumnTest<ui64>(1234, AggregateSchema)
     { }
 
-    virtual std::unique_ptr<IVersionedColumnReader> DoCreateColumnReader() override
+    std::unique_ptr<IVersionedColumnReader> DoCreateColumnReader() override
     {
         return CreateVersionedUint64ColumnReader(ColumnMeta_, ColumnId, ColumnSchema_);
     }
 
-    virtual std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
+    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
     {
         return CreateVersionedUint64ColumnWriter(ColumnId, ColumnSchema_, blockWriter);
     }
@@ -275,12 +275,12 @@ public:
         : TVersionedIntegerColumnTest<ui64>(1234, NoAggregateSchema)
     { }
 
-    virtual std::unique_ptr<IVersionedColumnReader> DoCreateColumnReader() override
+    std::unique_ptr<IVersionedColumnReader> DoCreateColumnReader() override
     {
         return CreateVersionedUint64ColumnReader(ColumnMeta_, ColumnId, ColumnSchema_);
     }
 
-    virtual std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
+    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
     {
         return CreateVersionedUint64ColumnWriter(ColumnId, ColumnSchema_, blockWriter);
     }
@@ -357,7 +357,7 @@ protected:
         return data;
     }
 
-    virtual std::optional<TValue> DecodeValueFromColumn(
+    std::optional<TValue> DecodeValueFromColumn(
         const IUnversionedColumnarRowBatch::TColumn* column,
         i64 index) override
     {
@@ -377,7 +377,7 @@ protected:
         return DecodeIntegerFromColumn<TValue>(*column, index);
     }
 
-    virtual void Write(IValueColumnWriter* columnWriter) override
+    void Write(IValueColumnWriter* columnWriter) override
     {
         WriteSegment(columnWriter, CreateDirectDense());
         WriteSegment(columnWriter, CreateDirectRle());
@@ -435,12 +435,12 @@ protected:
         : TUnversionedIntegerColumnTestBase<i64>(-12340000)
     { }
 
-    virtual std::unique_ptr<IUnversionedColumnReader> DoCreateColumnReader() override
+    std::unique_ptr<IUnversionedColumnReader> DoCreateColumnReader() override
     {
         return CreateUnversionedInt64ColumnReader(ColumnMeta_, ColumnIndex, ColumnId, std::nullopt);
     }
 
-    virtual std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
+    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
     {
         return CreateUnversionedInt64ColumnWriter(
             ColumnIndex,
@@ -469,12 +469,12 @@ protected:
         : TUnversionedIntegerColumnTestBase<ui64>(1234)
     { }
 
-    virtual std::unique_ptr<IUnversionedColumnReader> DoCreateColumnReader() override
+    std::unique_ptr<IUnversionedColumnReader> DoCreateColumnReader() override
     {
         return CreateUnversionedUint64ColumnReader(ColumnMeta_, ColumnIndex, ColumnId, std::nullopt);
     }
 
-    virtual std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
+    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
     {
         return CreateUnversionedUint64ColumnWriter(
             ColumnIndex,

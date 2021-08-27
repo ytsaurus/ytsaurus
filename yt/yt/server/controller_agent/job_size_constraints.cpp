@@ -57,34 +57,34 @@ public:
         }
     }
 
-    virtual std::optional<double> GetSamplingRate() const override
+    std::optional<double> GetSamplingRate() const override
     {
         return SamplingConfig_ ? SamplingConfig_->SamplingRate : std::nullopt;
     }
 
-    virtual i64 GetSamplingDataWeightPerJob() const override
+    i64 GetSamplingDataWeightPerJob() const override
     {
         YT_VERIFY(SamplingDataWeightPerJob_);
         return *SamplingDataWeightPerJob_;
     }
 
-    virtual i64 GetSamplingPrimaryDataWeightPerJob() const override
+    i64 GetSamplingPrimaryDataWeightPerJob() const override
     {
         YT_VERIFY(SamplingPrimaryDataWeightPerJob_);
         return *SamplingPrimaryDataWeightPerJob_;
     }
 
-    virtual i64 GetMaxBuildRetryCount() const override
+    i64 GetMaxBuildRetryCount() const override
     {
         return Options_->MaxBuildRetryCount;
     }
 
-    virtual double GetDataWeightPerJobRetryFactor() const override
+    double GetDataWeightPerJobRetryFactor() const override
     {
         return Options_->DataWeightPerJobRetryFactor;
     }
 
-    virtual i64 GetInputSliceDataWeight() const override
+    i64 GetInputSliceDataWeight() const override
     {
         auto dataWeightPerJob = (SamplingConfig_ && SamplingConfig_->SamplingRate)
             ? GetSamplingDataWeightPerJob()
@@ -105,7 +105,7 @@ public:
         return std::max<i64>(1, sliceDataSize);
     }
 
-    virtual i64 GetForeignSliceDataWeight() const override
+    i64 GetForeignSliceDataWeight() const override
     {
         auto jobCount = GetJobCount();
         auto foreignDataWeightPerJob = jobCount > 0
@@ -120,29 +120,29 @@ public:
         return std::max<i64>(1, foreignSliceDataWeight);
     }
 
-    virtual i64 GetMaxDataWeightPerJob() const override
+    i64 GetMaxDataWeightPerJob() const override
     {
         return Spec_->MaxDataWeightPerJob;
     }
 
-    virtual i64 GetMaxPrimaryDataWeightPerJob() const override
+    i64 GetMaxPrimaryDataWeightPerJob() const override
     {
         return Spec_->MaxPrimaryDataWeightPerJob;
     }
 
-    virtual i64 GetInputSliceRowCount() const override
+    i64 GetInputSliceRowCount() const override
     {
         return JobCount_ > 0
             ? DivCeil(InputRowCount_, JobCount_)
             : 1;
     }
 
-    virtual int GetJobCount() const override
+    int GetJobCount() const override
     {
         return JobCount_;
     }
 
-    virtual void UpdateInputDataWeight(i64 inputDataWeight) override
+    void UpdateInputDataWeight(i64 inputDataWeight) override
     {
         YT_LOG_DEBUG("Job size constraints input data weight updated (OldInputDataWeight: %v, NewInputDataWeight: %v)",
             InputDataWeight_,
@@ -150,7 +150,7 @@ public:
         InputDataWeight_ = inputDataWeight;
     }
 
-    virtual void UpdatePrimaryInputDataWeight(i64 primaryInputDataWeight) override
+    void UpdatePrimaryInputDataWeight(i64 primaryInputDataWeight) override
     {
         YT_LOG_DEBUG("Job size constraints primary input data weight updated (OldPrimaryInputDataWeight: %v, NewPrimaryInputDataWeight: %v)",
             PrimaryInputDataWeight_,
@@ -158,7 +158,7 @@ public:
         PrimaryInputDataWeight_ = primaryInputDataWeight;
     }
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;
 
@@ -316,7 +316,7 @@ public:
         YT_VERIFY(JobCount_ >= 0);
     }
 
-    virtual bool CanAdjustDataWeightPerJob() const override
+    bool CanAdjustDataWeightPerJob() const override
     {
         if (Spec_->JobCount) {
             return false;
@@ -328,14 +328,14 @@ public:
         return true;
     }
 
-    virtual bool IsExplicitJobCount() const override
+    bool IsExplicitJobCount() const override
     {
         // If #DataWeightPerJob == 1, we guarantee #JobCount == #RowCount (if row count doesn't exceed #MaxJobCount).
         return static_cast<bool>(Spec_->JobCount) ||
             (static_cast<bool>(Spec_->DataWeightPerJob) && *Spec_->DataWeightPerJob == 1);
     }
 
-    virtual i64 GetDataWeightPerJob() const override
+    i64 GetDataWeightPerJob() const override
     {
         if (JobCount_ == 0) {
             return 1;
@@ -350,21 +350,21 @@ public:
         }
     }
 
-    virtual i64 GetPrimaryDataWeightPerJob() const override
+    i64 GetPrimaryDataWeightPerJob() const override
     {
         return JobCount_ > 0
             ? std::max<i64>(1, DivCeil(PrimaryInputDataWeight_, JobCount_))
             : 1;
     }
 
-    virtual i64 GetMaxDataSlicesPerJob() const override
+    i64 GetMaxDataSlicesPerJob() const override
     {
         return std::max<i64>(Options_->MaxDataSlicesPerJob, Spec_->JobCount && *Spec_->JobCount > 0
             ? DivCeil<i64>(InputChunkCount_, *Spec_->JobCount)
             : 1);
     }
 
-    virtual i64 GetInputSliceDataWeight() const override
+    i64 GetInputSliceDataWeight() const override
     {
         if (!SortedOperation_ || GetSamplingRate()) {
             return TJobSizeConstraintsBase::GetInputSliceDataWeight();
@@ -373,7 +373,7 @@ public:
         return TJobSizeConstraintsBase::GetSortedOperationInputSliceDataWeight();
     }
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         TJobSizeConstraintsBase::Persist(context);
 
@@ -476,7 +476,7 @@ public:
         YT_VERIFY(JobCount_ != 0 || InputDataWeight_ == 0);
     }
 
-    virtual bool CanAdjustDataWeightPerJob() const override
+    bool CanAdjustDataWeightPerJob() const override
     {
         if (Spec_->JobCount) {
             return false;
@@ -488,12 +488,12 @@ public:
         return true;
     }
 
-    virtual bool IsExplicitJobCount() const override
+    bool IsExplicitJobCount() const override
     {
         return false;
     }
 
-    virtual i64 GetDataWeightPerJob() const override
+    i64 GetDataWeightPerJob() const override
     {
         auto dataWeightPerJob = JobCount_ > 0
             ? DivCeil(InputDataWeight_, JobCount_)
@@ -502,24 +502,24 @@ public:
         return std::min(dataWeightPerJob, DivCeil<i64>(GetMaxDataWeightPerJob() , 2));
     }
 
-    virtual i64 GetPrimaryDataWeightPerJob() const override
+    i64 GetPrimaryDataWeightPerJob() const override
     {
         return GetDataWeightPerJob();
     }
 
-    virtual i64 GetMaxDataSlicesPerJob() const override
+    i64 GetMaxDataSlicesPerJob() const override
     {
         return std::max<i64>(Options_->MaxDataSlicesPerJob, Spec_->JobCount && *Spec_->JobCount > 0
             ? DivCeil<i64>(InputChunkCount_, *Spec_->JobCount)
             : 1);
     }
 
-    virtual i64 GetInputSliceRowCount() const override
+    i64 GetInputSliceRowCount() const override
     {
         return std::numeric_limits<i64>::max() / 4;
     }
 
-    virtual i64 GetInputSliceDataWeight() const override
+    i64 GetInputSliceDataWeight() const override
     {
         if (GetSamplingRate()) {
             return TJobSizeConstraintsBase::GetInputSliceDataWeight();
@@ -528,7 +528,7 @@ public:
         return TJobSizeConstraintsBase::GetSortedOperationInputSliceDataWeight();
     }
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         TJobSizeConstraintsBase::Persist(context);
 
@@ -570,39 +570,39 @@ public:
         YT_VERIFY(JobCount_ != 0 || InputDataWeight_ == 0);
     }
 
-    virtual bool CanAdjustDataWeightPerJob() const override
+    bool CanAdjustDataWeightPerJob() const override
     {
         return false;
     }
 
-    virtual bool IsExplicitJobCount() const override
+    bool IsExplicitJobCount() const override
     {
         return false;
     }
 
-    virtual i64 GetDataWeightPerJob() const override
+    i64 GetDataWeightPerJob() const override
     {
         return JobCount_ > 0
             ? DivCeil(InputDataWeight_, JobCount_)
             : 1;
     }
 
-    virtual i64 GetPrimaryDataWeightPerJob() const override
+    i64 GetPrimaryDataWeightPerJob() const override
     {
         YT_ABORT();
     }
 
-    virtual i64 GetMaxDataSlicesPerJob() const override
+    i64 GetMaxDataSlicesPerJob() const override
     {
         return Options_->MaxDataSlicesPerJob;
     }
 
-    virtual i64 GetInputSliceRowCount() const override
+    i64 GetInputSliceRowCount() const override
     {
         return std::numeric_limits<i64>::max() / 4;
     }
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         TJobSizeConstraintsBase::Persist(context);
 
@@ -687,34 +687,34 @@ public:
         JobCount_ = std::min(JobCount_, InputRowCount_);
     }
 
-    virtual bool CanAdjustDataWeightPerJob() const override
+    bool CanAdjustDataWeightPerJob() const override
     {
         return !Spec_->DataWeightPerPartitionJob && !Spec_->PartitionJobCount;
     }
 
-    virtual bool IsExplicitJobCount() const override
+    bool IsExplicitJobCount() const override
     {
         return static_cast<bool>(Spec_->PartitionJobCount);
     }
 
-    virtual i64 GetDataWeightPerJob() const override
+    i64 GetDataWeightPerJob() const override
     {
         return JobCount_ > 0
             ? DivCeil(InputDataWeight_, JobCount_)
             : 1;
     }
 
-    virtual i64 GetPrimaryDataWeightPerJob() const override
+    i64 GetPrimaryDataWeightPerJob() const override
     {
         YT_ABORT();
     }
 
-    virtual i64 GetMaxDataSlicesPerJob() const override
+    i64 GetMaxDataSlicesPerJob() const override
     {
         return Options_->MaxDataSlicesPerJob;
     }
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         TJobSizeConstraintsBase::Persist(context);
 

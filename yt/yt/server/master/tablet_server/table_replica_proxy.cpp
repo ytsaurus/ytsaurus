@@ -46,7 +46,7 @@ public:
 private:
     using TBase = TNonversionedObjectProxyBase<TTableReplica>;
 
-    virtual void ValidateRemoval() override
+    void ValidateRemoval() override
     {
         auto* replica = GetThisImpl();
         auto* table = replica->GetTable();
@@ -55,7 +55,7 @@ private:
         cypressManager->LockNode(table, nullptr, TLockRequest(ELockMode::Exclusive));
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
     {
         attributes->push_back(EInternedAttributeKey::ClusterName);
         attributes->push_back(EInternedAttributeKey::ReplicaPath);
@@ -79,7 +79,7 @@ private:
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         auto* replica = GetThisImpl();
         auto* table = replica->GetTable();
@@ -181,7 +181,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override
+    TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override
     {
         auto* replica = GetThisImpl();
         auto* table = replica->GetTable();
@@ -213,7 +213,7 @@ private:
         return TBase::SetBuiltinAttribute(key, value);
     }
 
-    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
+    bool DoInvoke(const NRpc::IServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Alter);
         return TBase::DoInvoke(context);

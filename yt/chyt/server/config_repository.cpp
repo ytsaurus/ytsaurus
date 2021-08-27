@@ -29,27 +29,27 @@ public:
         }
     }
 
-    virtual std::string getName() const override
+    std::string getName() const override
     {
         return Name_;
     }
 
-    virtual std::set<std::string> getAllLoadablesDefinitionNames() override
+    std::set<std::string> getAllLoadablesDefinitionNames() override
     {
         return Keys_;
     }
 
-    virtual bool exists(const std::string& configFile) override
+    bool exists(const std::string& configFile) override
     {
         return Dictionaries_.contains(configFile);
     }
 
-    virtual Poco::Timestamp getUpdateTime(const std::string& /* configFile */) override
+    Poco::Timestamp getUpdateTime(const std::string& /* configFile */) override
     {
         return Poco::Timestamp::TIMEVAL_MAX;
     }
 
-    virtual Poco::AutoPtr<Poco::Util::AbstractConfiguration> load(const std::string& configFile) override
+    Poco::AutoPtr<Poco::Util::AbstractConfiguration> load(const std::string& configFile) override
     {
         return ConvertToPocoConfig(BuildYsonNodeFluently()
             .BeginMap()

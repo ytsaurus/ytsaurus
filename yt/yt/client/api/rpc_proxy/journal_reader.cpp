@@ -21,7 +21,7 @@ public:
         YT_VERIFY(Request_);
     }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         if (!OpenResult_) {
             OpenResult_ = NRpc::CreateRpcClientInputStream(Request_)
@@ -33,7 +33,7 @@ public:
         return OpenResult_;
     }
 
-    virtual TFuture<std::vector<TSharedRef>> Read() override
+    TFuture<std::vector<TSharedRef>> Read() override
     {
         ValidateOpened();
 

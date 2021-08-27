@@ -155,7 +155,7 @@ public:
         ColumnarStatisticsExt_.mutable_data_weights()->Resize(ChunkNameTable_->GetSize(), 0);
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         if (RowCount_ == 0) {
             // Empty chunk.
@@ -167,60 +167,60 @@ public:
             .Run();
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() override
     {
         return EncodingChunkWriter_->GetReadyEvent();
     }
 
-    virtual i64 GetMetaSize() const override
+    i64 GetMetaSize() const override
     {
         // Other meta parts are negligible.
         return BlockMetaExtSize_ + SamplesExtSize_ + ChunkNameTable_->GetByteSize();
     }
 
-    virtual i64 GetCompressedDataSize() const override
+    i64 GetCompressedDataSize() const override
     {
         return EncodingChunkWriter_->GetDataStatistics().compressed_data_size();
     }
 
-    virtual bool IsCloseDemanded() const override
+    bool IsCloseDemanded() const override
     {
         return EncodingChunkWriter_->IsCloseDemanded();
     }
 
-    virtual TDeferredChunkMetaPtr GetMeta() const override
+    TDeferredChunkMetaPtr GetMeta() const override
     {
         return EncodingChunkWriter_->GetMeta();
     }
 
-    virtual TChunkId GetChunkId() const override
+    TChunkId GetChunkId() const override
     {
         return EncodingChunkWriter_->GetChunkId();
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         auto dataStatistics = EncodingChunkWriter_->GetDataStatistics();
         dataStatistics.set_row_count(RowCount_);
         return dataStatistics;
     }
 
-    virtual TCodecStatistics GetCompressionStatistics() const override
+    TCodecStatistics GetCompressionStatistics() const override
     {
         return EncodingChunkWriter_->GetCompressionStatistics();
     }
 
-    virtual const TNameTablePtr& GetNameTable() const override
+    const TNameTablePtr& GetNameTable() const override
     {
         return ChunkNameTable_;
     }
 
-    virtual const TTableSchemaPtr& GetSchema() const override
+    const TTableSchemaPtr& GetSchema() const override
     {
         return Schema_;
     }
 
-    virtual i64 GetDataWeight() const override
+    i64 GetDataWeight() const override
     {
         return DataWeight_;
     }
@@ -515,13 +515,13 @@ public:
         , BlockWriter_(std::make_unique<THorizontalBlockWriter>())
     { }
 
-    virtual i64 GetCompressedDataSize() const override
+    i64 GetCompressedDataSize() const override
     {
         return TUnversionedChunkWriterBase::GetCompressedDataSize() +
            (BlockWriter_ ? BlockWriter_->GetBlockSize() : 0);
     }
 
-    virtual bool Write(TRange<TUnversionedRow> rows) override
+    bool Write(TRange<TUnversionedRow> rows) override
     {
         for (auto row : rows) {
             UpdateDataWeight(row);
@@ -546,17 +546,17 @@ public:
 private:
     std::unique_ptr<THorizontalBlockWriter> BlockWriter_;
 
-    virtual EChunkFormat GetChunkFormat() const override
+    EChunkFormat GetChunkFormat() const override
     {
         return EChunkFormat::TableSchemalessHorizontal;
     }
 
-    virtual bool SupportBoundaryKeys() const override
+    bool SupportBoundaryKeys() const override
     {
         return true;
     }
 
-    virtual void DoClose() override
+    void DoClose() override
     {
         if (BlockWriter_->GetRowCount() > 0) {
             auto block = BlockWriter_->FlushBlock();
@@ -636,7 +636,7 @@ public:
         YT_VERIFY(BlockWriters_.size() > 0);
     }
 
-    virtual bool Write(TRange<TUnversionedRow> rows) override
+    bool Write(TRange<TUnversionedRow> rows) override
     {
         int startRowIndex = 0;
         while (startRowIndex < std::ssize(rows)) {
@@ -663,7 +663,7 @@ public:
         return EncodingChunkWriter_->IsReady();
     }
 
-    virtual i64 GetCompressedDataSize() const override
+    i64 GetCompressedDataSize() const override
     {
         i64 result = TUnversionedChunkWriterBase::GetCompressedDataSize();
         for (const auto& blockWriter : BlockWriters_) {
@@ -672,7 +672,7 @@ public:
         return result;
     }
 
-    virtual i64 GetMetaSize() const override
+    i64 GetMetaSize() const override
     {
         i64 metaSize = 0;
         for (const auto& valueColumnWriter : ValueColumnWriters_) {
@@ -688,12 +688,12 @@ private:
 
     i64 DataToBlockFlush_;
 
-    virtual EChunkFormat GetChunkFormat() const override
+    EChunkFormat GetChunkFormat() const override
     {
         return EChunkFormat::TableUnversionedColumnar;
     }
 
-    virtual bool SupportBoundaryKeys() const override
+    bool SupportBoundaryKeys() const override
     {
         return true;
     }
@@ -738,7 +738,7 @@ private:
         RegisterBlock(block, lastRow);
     }
 
-    virtual void DoClose() override
+    void DoClose() override
     {
         for (int i = 0; i < std::ssize(BlockWriters_); ++i) {
             if (BlockWriters_[i]->GetCurrentSize() > 0) {
@@ -749,7 +749,7 @@ private:
         TUnversionedChunkWriterBase::DoClose();
     }
 
-    virtual void PrepareChunkMeta() override
+    void PrepareChunkMeta() override
     {
         TUnversionedChunkWriterBase::PrepareChunkMeta();
 
@@ -854,19 +854,19 @@ public:
         return EncodingChunkWriter_->IsReady();
     }
 
-    virtual bool SupportBoundaryKeys() const override
+    bool SupportBoundaryKeys() const override
     {
         return false;
     }
 
-    virtual bool Write(TRange<TUnversionedRow> /*rows*/) override
+    bool Write(TRange<TUnversionedRow> /*rows*/) override
     {
         // This method is never called for partition chunks.
         // Blocks are formed in the multi chunk writer.
         YT_ABORT();
     }
 
-    virtual i64 GetCompressedDataSize() const override
+    i64 GetCompressedDataSize() const override
     {
         // Retrun uncompressed data size to make smaller chunks and better balance partition data
         // between HDDs. Also returning uncompressed data makes chunk switch deterministic,
@@ -874,12 +874,12 @@ public:
         return EncodingChunkWriter_->GetDataStatistics().uncompressed_data_size();
     }
 
-    virtual bool IsCloseDemanded() const override
+    bool IsCloseDemanded() const override
     {
         return LargestPartitionRowCount_ > PartitionRowCountLimit;
     }
 
-    virtual i64 GetMetaSize() const override
+    i64 GetMetaSize() const override
     {
         return TUnversionedChunkWriterBase::GetMetaSize() +
             // PartitionsExt.
@@ -890,12 +890,12 @@ private:
     TPartitionsExt PartitionsExt_;
     i64 LargestPartitionRowCount_ = 0;
 
-    virtual EChunkFormat GetChunkFormat() const override
+    EChunkFormat GetChunkFormat() const override
     {
         return EChunkFormat::TableSchemalessHorizontal;
     }
 
-    virtual void PrepareChunkMeta() override
+    void PrepareChunkMeta() override
     {
         TUnversionedChunkWriterBase::PrepareChunkMeta();
 
@@ -973,7 +973,7 @@ public:
         }
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() override
     {
         if (Error_.IsOK()) {
             return TNontemplateMultiChunkWriterBase::GetReadyEvent();
@@ -982,12 +982,12 @@ public:
         }
     }
 
-    virtual const TNameTablePtr& GetNameTable() const override
+    const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
     }
 
-    virtual const TTableSchemaPtr& GetSchema() const override
+    const TTableSchemaPtr& GetSchema() const override
     {
         return Schema_;
     }
@@ -1313,7 +1313,7 @@ public:
         };
     }
 
-    virtual bool Write(TRange<TUnversionedRow> rows) override
+    bool Write(TRange<TUnversionedRow> rows) override
     {
         YT_VERIFY(!SwitchingSession_);
 
@@ -1340,7 +1340,7 @@ public:
         }
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         return BIND(&TPartitionMultiChunkWriter::DoClose, MakeStrong(this))
             .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
@@ -1364,7 +1364,7 @@ private:
 
     TError Error_;
 
-    virtual IChunkWriterBasePtr CreateTemplateWriter(IChunkWriterPtr underlyingWriter) override
+    IChunkWriterBasePtr CreateTemplateWriter(IChunkWriterPtr underlyingWriter) override
     {
         CurrentWriter_ = ChunkWriterFactory_(std::move(underlyingWriter));
         // Since we form blocks outside chunk writer, we must synchronize name tables between different chunks.
@@ -1377,7 +1377,7 @@ private:
         return CurrentWriter_;
     }
 
-    virtual TNameTablePtr GetChunkNameTable() override
+    TNameTablePtr GetChunkNameTable() override
     {
         return ChunkNameTable_;
     }
@@ -1542,7 +1542,7 @@ public:
         , CreateChunkWriter_(createChunkWriter)
     { }
 
-    virtual bool Write(TRange<TUnversionedRow> rows) override
+    bool Write(TRange<TUnversionedRow> rows) override
     {
         YT_VERIFY(!SwitchingSession_);
 
@@ -1565,12 +1565,12 @@ private:
 
     ISchemalessChunkWriterPtr CurrentWriter_;
 
-    virtual TNameTablePtr GetChunkNameTable() override
+    TNameTablePtr GetChunkNameTable() override
     {
         return CurrentWriter_->GetNameTable();
     }
 
-    virtual IChunkWriterBasePtr CreateTemplateWriter(IChunkWriterPtr underlyingWriter) override
+    IChunkWriterBasePtr CreateTemplateWriter(IChunkWriterPtr underlyingWriter) override
     {
         CurrentWriter_ = CreateChunkWriter_(underlyingWriter);
         ResetIdMapping();
@@ -1618,7 +1618,7 @@ public:
         , ChunkNameTable_(TNameTable::FromSchema(*Schema_))
     { }
 
-    virtual bool Write(TRange<TUnversionedRow> rows) override
+    bool Write(TRange<TUnversionedRow> rows) override
     {
         YT_VERIFY(!SwitchingSession_);
 
@@ -1651,12 +1651,12 @@ private:
 
     IVersionedChunkWriterPtr CurrentWriter_;
 
-    virtual TNameTablePtr GetChunkNameTable() override
+    TNameTablePtr GetChunkNameTable() override
     {
         return ChunkNameTable_;
     }
 
-    virtual IChunkWriterBasePtr CreateTemplateWriter(IChunkWriterPtr underlyingWriter) override
+    IChunkWriterBasePtr CreateTemplateWriter(IChunkWriterPtr underlyingWriter) override
     {
         CurrentWriter_ = CreateChunkWriter_(underlyingWriter);
         ResetIdMapping();
@@ -1954,7 +1954,7 @@ public:
             .Run();
     }
 
-    virtual bool Write(TRange<TUnversionedRow> rows) override
+    bool Write(TRange<TUnversionedRow> rows) override
     {
         if (IsAborted()) {
             return false;
@@ -1962,7 +1962,7 @@ public:
         return UnderlyingWriter_->Write(rows);
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() override
     {
         if (IsAborted()) {
             return MakeFuture(GetAbortError());
@@ -1970,19 +1970,19 @@ public:
         return UnderlyingWriter_->GetReadyEvent();
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         return BIND(&TSchemalessTableWriter::DoClose, MakeStrong(this))
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
             .Run();
     }
 
-    virtual const TNameTablePtr& GetNameTable() const override
+    const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
     }
 
-    virtual const TTableSchemaPtr& GetSchema() const override
+    const TTableSchemaPtr& GetSchema() const override
     {
         return TableUploadOptions_.TableSchema;
     }

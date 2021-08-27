@@ -86,7 +86,7 @@ public:
 private:
     TJobProberServiceProxy JobProberProxy_;
 
-    virtual TFuture<TJobShellDescriptor> DoGet(
+    TFuture<TJobShellDescriptor> DoGet(
         const TJobShellDescriptorKey& key,
         bool /*isPeriodicUpdate*/) noexcept override
     {

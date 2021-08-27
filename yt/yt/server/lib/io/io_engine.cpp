@@ -225,7 +225,7 @@ class TIOEngineBase
     : public IIOEngine
 {
 public:
-    virtual TFuture<TIOEngineHandlePtr> Open(
+    TFuture<TIOEngineHandlePtr> Open(
         TOpenRequest request,
         i64 priority) override
     {
@@ -234,7 +234,7 @@ public:
             .Run();
     }
 
-    virtual TFuture<void> Close(
+    TFuture<void> Close(
         TCloseRequest request,
         i64 priority) override
     {
@@ -243,7 +243,7 @@ public:
             .Run();
     }
 
-    virtual TFuture<void> FlushDirectory(
+    TFuture<void> FlushDirectory(
         TFlushDirectoryRequest request,
         i64 priority) override
     {
@@ -252,7 +252,7 @@ public:
             .Run();
     }
 
-    virtual TFuture<void> Allocate(
+    TFuture<void> Allocate(
         TAllocateRequest request,
         i64 priority) override
     {
@@ -261,12 +261,12 @@ public:
             .Run();
     }
 
-    virtual bool IsSick() const override
+    bool IsSick() const override
     {
         return Sick_;
     }
 
-    virtual const IInvokerPtr& GetAuxPoolInvoker() override
+    const IInvokerPtr& GetAuxPoolInvoker() override
     {
         return AuxThreadPool_->GetInvoker();
     }
@@ -473,7 +473,7 @@ public:
         , FsyncTimer_(Profiler.Timer("/fsync_time"))
     { }
 
-    virtual TFuture<TReadResponse> Read(
+    TFuture<TReadResponse> Read(
         std::vector<TReadRequest> requests,
         i64 priority,
         EMemoryZone memoryZone,
@@ -522,7 +522,7 @@ public:
             }));
     }
 
-    virtual TFuture<void> Write(
+    TFuture<void> Write(
         TWriteRequest request,
         i64 priority) override
     {
@@ -531,7 +531,7 @@ public:
             .Run();
     }
 
-    virtual TFuture<void> FlushFile(
+    TFuture<void> FlushFile(
         TFlushFileRequest request,
         i64 priority) override
     {
@@ -1741,7 +1741,7 @@ public:
         }));
     }
 
-    virtual TFuture<TReadResponse> Read(
+    TFuture<TReadResponse> Read(
         std::vector<TReadRequest> requests,
         i64 /* priority */,
         EMemoryZone memoryZone,
@@ -1782,7 +1782,7 @@ public:
         return SubmitRequest<TReadResponse>(std::move(uringRequest));
     }
 
-    virtual TFuture<void> Write(
+    TFuture<void> Write(
         TWriteRequest request,
         i64 /* priority */) override
     {
@@ -1792,7 +1792,7 @@ public:
         return SubmitRequest<void>(std::move(uringRequest));
     }
 
-    virtual TFuture<void> FlushFile(
+    TFuture<void> FlushFile(
         TFlushFileRequest request,
         i64 /* priority */) override
     {
@@ -1802,7 +1802,7 @@ public:
         return SubmitRequest<void>(std::move(uringRequest));
     }
 
-    virtual TFuture<void> Allocate(
+    TFuture<void> Allocate(
         TAllocateRequest request,
         i64 /* priority */) override
     {

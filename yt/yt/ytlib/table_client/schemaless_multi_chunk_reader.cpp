@@ -340,24 +340,24 @@ public:
 
     ~TSchemalessMultiChunkReader();
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
 
-    virtual i64 GetSessionRowIndex() const override;
-    virtual i64 GetTotalRowCount() const override;
-    virtual i64 GetTableRowIndex() const override;
+    i64 GetSessionRowIndex() const override;
+    i64 GetTotalRowCount() const override;
+    i64 GetTableRowIndex() const override;
 
-    virtual const TNameTablePtr& GetNameTable() const override;
+    const TNameTablePtr& GetNameTable() const override;
 
-    virtual void Interrupt() override;
+    void Interrupt() override;
 
-    virtual void SkipCurrentReader() override;
+    void SkipCurrentReader() override;
 
-    virtual TInterruptDescriptor GetInterruptDescriptor(
+    TInterruptDescriptor GetInterruptDescriptor(
         TRange<TUnversionedRow> unreadRows) const override;
 
-    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override;
+    const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override;
 
-    virtual TTimingStatistics GetTimingStatistics() const override
+    TTimingStatistics GetTimingStatistics() const override
     {
         // We take wait time from multi reader manager as all ready event bookkeeping is delegated to it.
         // Read time is accounted from our own read timer (reacall that multi reader manager deals with chunk readers
@@ -368,27 +368,27 @@ public:
         return statistics;
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         return MultiReaderManager_->GetReadyEvent();
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         return MultiReaderManager_->GetDataStatistics();
     }
 
-    virtual TCodecStatistics GetDecompressionStatistics() const override
+    TCodecStatistics GetDecompressionStatistics() const override
     {
         return MultiReaderManager_->GetDecompressionStatistics();
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return MultiReaderManager_->IsFetchingCompleted();
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return MultiReaderManager_->GetFailedChunkIds();
     }
@@ -690,24 +690,24 @@ public:
         IThroughputThrottlerPtr rpsThrottler,
         IMultiReaderMemoryManagerPtr multiReaderMemoryManager);
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         return AnySet(
             std::vector{ErrorPromise_.ToFuture(), UnderlyingReader_->GetReadyEvent()},
             TFutureCombinerOptions{.CancelInputOnShortcut = false});
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         return UnderlyingReader_->GetDataStatistics();
     }
 
-    virtual TCodecStatistics GetDecompressionStatistics() const override
+    TCodecStatistics GetDecompressionStatistics() const override
     {
         return UnderlyingReader_->GetDecompressionStatistics();
     }
 
-    virtual TTimingStatistics GetTimingStatistics() const override
+    TTimingStatistics GetTimingStatistics() const override
     {
         // TODO(max42): one should make IReaderBase inherit from ITimingReader in order for this to work.
         // return UnderlyingReader_->GetTimingStatistics();
@@ -715,13 +715,13 @@ public:
         return {};
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         // TODO(psushin): every reader must implement this method eventually.
         return {};
     }
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         MemoryPool_.Clear();
 
@@ -795,7 +795,7 @@ public:
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(schemalessRows), MakeStrong(this)));
     }
 
-    virtual TInterruptDescriptor GetInterruptDescriptor(
+    TInterruptDescriptor GetInterruptDescriptor(
         TRange<TUnversionedRow> unreadRows) const override
     {
         std::vector<TDataSliceDescriptor> unreadDescriptors;
@@ -835,44 +835,44 @@ public:
         return {std::move(unreadDescriptors), std::move(readDescriptors)};
     }
 
-    virtual void Interrupt() override
+    void Interrupt() override
     {
         Interrupting_.store(true);
         ErrorPromise_.TrySet();
     }
 
-    virtual void SkipCurrentReader() override
+    void SkipCurrentReader() override
     {
         // Merging reader doesn't support sub-reader skipping.
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return false;
     }
 
-    virtual i64 GetSessionRowIndex() const override
+    i64 GetSessionRowIndex() const override
     {
         return RowIndex_;
     }
 
-    virtual i64 GetTotalRowCount() const override
+    i64 GetTotalRowCount() const override
     {
         return RowCount_;
     }
 
-    virtual const TNameTablePtr& GetNameTable() const override
+    const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
     }
 
-    virtual i64 GetTableRowIndex() const override
+    i64 GetTableRowIndex() const override
     {
         // Not supported for versioned data.
         return -1;
     }
 
-    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
+    const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
     {
         YT_ABORT();
     }

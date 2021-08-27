@@ -87,7 +87,7 @@ public:
             .SetConcurrencyLimit(10000));
     }
 
-    virtual void Reconfigure(const TCachingObjectServiceDynamicConfigPtr& config) override
+    void Reconfigure(const TCachingObjectServiceDynamicConfigPtr& config) override
     {
         MasterChannel_->Reconfigure(config);
         CacheTtlRatio_.store(config->CacheTtlRatio.value_or(Config_->CacheTtlRatio));

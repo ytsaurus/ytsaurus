@@ -18,7 +18,7 @@ public:
         , OutputTableSchema_(outputTableSchema)
     { }
 
-    virtual void AddInputTableSchema(const NYPath::TYPath& path, const TTableSchema& tableSchema, ETableSchemaMode /*schemaMode*/) override
+    void AddInputTableSchema(const NYPath::TYPath& path, const TTableSchema& tableSchema, ETableSchemaMode /*schemaMode*/) override
     {
         const auto& [compatibility, error] = CheckTableSchemaCompatibility(tableSchema, *OutputTableSchema_, /*ignoreSortOrder*/ true);
         if (compatibility != ESchemaCompatibility::FullyCompatible) {
@@ -29,12 +29,12 @@ public:
         }
     }
 
-    virtual const TTableSchemaPtr& GetOutputTableSchema() const override
+    const TTableSchemaPtr& GetOutputTableSchema() const override
     {
         return OutputTableSchema_;
     }
 
-    virtual ETableSchemaMode GetOutputTableSchemaMode() const override
+    ETableSchemaMode GetOutputTableSchemaMode() const override
     {
         return ETableSchemaMode::Strong;
     }
@@ -51,7 +51,7 @@ class TOutputSchemaInferer
     : public IOutputSchemaInferer
 {
 public:
-    virtual void AddInputTableSchema(const NYPath::TYPath& /*path*/, const TTableSchema& tableSchema, ETableSchemaMode schemaMode) override
+    void AddInputTableSchema(const NYPath::TYPath& /*path*/, const TTableSchema& tableSchema, ETableSchemaMode schemaMode) override
     {
         if (!AddedInputTables_) {
             if (schemaMode == ETableSchemaMode::Weak) {
@@ -72,12 +72,12 @@ public:
         }
     }
 
-    virtual const TTableSchemaPtr& GetOutputTableSchema() const override
+    const TTableSchemaPtr& GetOutputTableSchema() const override
     {
         return OutputTableSchema_;
     }
 
-    virtual ETableSchemaMode GetOutputTableSchemaMode() const override
+    ETableSchemaMode GetOutputTableSchemaMode() const override
     {
         return OutputTableSchemaMode_;
     }

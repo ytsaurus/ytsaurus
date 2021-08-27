@@ -84,7 +84,7 @@ public:
             .Run();
     }
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         if (NProfiling::GetCpuInstant() > ReadDeadline_) {
             THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::ReaderDeadlineExpired, "Reader deadline expired");
@@ -98,7 +98,7 @@ public:
         return Reader_->Read(options);
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() override
     {
         if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
             return ReadyEvent_;
@@ -112,37 +112,37 @@ public:
         return Reader_->GetReadyEvent();
     }
 
-    virtual i64 GetStartRowIndex() const override
+    i64 GetStartRowIndex() const override
     {
         YT_VERIFY(Reader_);
         return StartRowIndex_;
     }
 
-    virtual i64 GetTotalRowCount() const override
+    i64 GetTotalRowCount() const override
     {
         YT_VERIFY(Reader_);
         return Reader_->GetTotalRowCount();
     }
 
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
         YT_VERIFY(Reader_);
         return Reader_->GetDataStatistics();
     }
 
-    virtual const TNameTablePtr& GetNameTable() const override
+    const TNameTablePtr& GetNameTable() const override
     {
         YT_VERIFY(Reader_);
         return Reader_->GetNameTable();
     }
 
-    virtual const TTableSchemaPtr& GetTableSchema() const override
+    const TTableSchemaPtr& GetTableSchema() const override
     {
         YT_VERIFY(Reader_);
         return TableSchema_;
     }
 
-    virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const override
+    const std::vector<TString>& GetOmittedInaccessibleColumns() const override
     {
         YT_VERIFY(Reader_);
         return OmittedInaccessibleColumns_;

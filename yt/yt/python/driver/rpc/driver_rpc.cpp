@@ -73,7 +73,7 @@ public:
 
     PYCXX_DECLARE_DRIVER_METHODS(TDriverRpc)
 
-    virtual Py::Type GetDriverType() const override
+    Py::Type GetDriverType() const override
     {
         return TDriverRpc::type();
     }

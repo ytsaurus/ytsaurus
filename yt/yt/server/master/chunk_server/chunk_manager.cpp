@@ -165,46 +165,46 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    virtual void RefObject(TObject* object) override
+    void RefObject(TObject* object) override
     {
         Bootstrap_->GetObjectManager()->RefObject(object);
     }
 
-    virtual void UnrefObject(TObject* object) override
+    void UnrefObject(TObject* object) override
     {
         Bootstrap_->GetObjectManager()->UnrefObject(object);
     }
 
-    virtual int GetObjectRefCounter(TObject* object) override
+    int GetObjectRefCounter(TObject* object) override
     {
         return Bootstrap_->GetObjectManager()->GetObjectRefCounter(object);
     }
 
-    virtual TChunkList* CreateChunkList() override
+    TChunkList* CreateChunkList() override
     {
         return Bootstrap_->GetChunkManager()->CreateChunkList(EChunkListKind::Static);
     }
 
-    virtual void ClearChunkList(TChunkList* chunkList) override
+    void ClearChunkList(TChunkList* chunkList) override
     {
         Bootstrap_->GetChunkManager()->ClearChunkList(chunkList);
     }
 
-    virtual void AttachToChunkList(
+    void AttachToChunkList(
         TChunkList* chunkList,
         const std::vector<TChunkTree*>& children) override
     {
         Bootstrap_->GetChunkManager()->AttachToChunkList(chunkList, children);
     }
 
-    virtual void AttachToChunkList(
+    void AttachToChunkList(
         TChunkList* chunkList,
         TChunkTree* child) override
     {
         Bootstrap_->GetChunkManager()->AttachToChunkList(chunkList, child);
     }
 
-    virtual void AttachToChunkList(
+    void AttachToChunkList(
         TChunkList* chunkList,
         TChunkTree* const* childrenBegin,
         TChunkTree* const* childrenEnd) override
@@ -224,12 +224,12 @@ class TChunkManager::TChunkTypeHandler
 public:
     TChunkTypeHandler(TImpl* owner, EObjectType type);
 
-    virtual TObject* FindObject(TObjectId id) override
+    TObject* FindObject(TObjectId id) override
     {
         return Map_->Find(DecodeChunkId(id).Id);
     }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return Type_;
     }
@@ -238,11 +238,11 @@ private:
     TImpl* const Owner_;
     const EObjectType Type_;
 
-    virtual IObjectProxyPtr DoGetProxy(TChunk* chunk, TTransaction* transaction) override;
-    virtual void DoDestroyObject(TChunk* chunk) override;
-    virtual void DoUnstageObject(TChunk* chunk, bool recursive) override;
-    virtual void DoExportObject(TChunk* chunk, TCellTag destinationCellTag) override;
-    virtual void DoUnexportObject(TChunk* chunk, TCellTag destinationCellTag, int importRefCounter) override;
+    IObjectProxyPtr DoGetProxy(TChunk* chunk, TTransaction* transaction) override;
+    void DoDestroyObject(TChunk* chunk) override;
+    void DoUnstageObject(TChunk* chunk, bool recursive) override;
+    void DoExportObject(TChunk* chunk, TCellTag destinationCellTag) override;
+    void DoUnexportObject(TChunk* chunk, TCellTag destinationCellTag, int importRefCounter) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -253,7 +253,7 @@ class TChunkManager::TMediumTypeHandler
 public:
     explicit TMediumTypeHandler(TImpl* owner);
 
-    virtual ETypeFlags GetFlags() const override
+    ETypeFlags GetFlags() const override
     {
         return
             ETypeFlags::ReplicateCreate |
@@ -262,31 +262,31 @@ public:
             ETypeFlags::Creatable;
     }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::Medium;
     }
 
-    virtual TObject* CreateObject(
+    TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
 private:
     TImpl* const Owner_;
 
-    virtual TCellTagList DoGetReplicationCellTags(const TMedium* /*medium*/) override
+    TCellTagList DoGetReplicationCellTags(const TMedium* /*medium*/) override
     {
         return AllSecondaryCellTags();
     }
 
-    virtual TAccessControlDescriptor* DoFindAcd(TMedium* medium) override
+    TAccessControlDescriptor* DoFindAcd(TMedium* medium) override
     {
         return &medium->Acd();
     }
 
-    virtual IObjectProxyPtr DoGetProxy(TMedium* medium, TTransaction* transaction) override;
+    IObjectProxyPtr DoGetProxy(TMedium* medium, TTransaction* transaction) override;
 
-    virtual void DoZombifyObject(TMedium* medium) override;
+    void DoZombifyObject(TMedium* medium) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -297,7 +297,7 @@ class TChunkManager::TChunkListTypeHandler
 public:
     explicit TChunkListTypeHandler(TImpl* owner);
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::ChunkList;
     }
@@ -305,11 +305,11 @@ public:
 private:
     TImpl* const Owner_;
 
-    virtual IObjectProxyPtr DoGetProxy(TChunkList* chunkList, TTransaction* transaction) override;
+    IObjectProxyPtr DoGetProxy(TChunkList* chunkList, TTransaction* transaction) override;
 
-    virtual void DoDestroyObject(TChunkList* chunkList) override;
+    void DoDestroyObject(TChunkList* chunkList) override;
 
-    virtual void DoUnstageObject(TChunkList* chunkList, bool recursive) override;
+    void DoUnstageObject(TChunkList* chunkList, bool recursive) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -320,7 +320,7 @@ class TChunkManager::TChunkViewTypeHandler
 public:
     explicit TChunkViewTypeHandler(TImpl* owner);
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::ChunkView;
     }
@@ -328,11 +328,11 @@ public:
 private:
     TImpl* const Owner_;
 
-    virtual IObjectProxyPtr DoGetProxy(TChunkView* chunkView, TTransaction* transaction) override;
+    IObjectProxyPtr DoGetProxy(TChunkView* chunkView, TTransaction* transaction) override;
 
-    virtual void DoDestroyObject(TChunkView* chunkView) override;
+    void DoDestroyObject(TChunkView* chunkView) override;
 
-    virtual void DoUnstageObject(TChunkView* chunkView, bool recursive) override;
+    void DoUnstageObject(TChunkView* chunkView, bool recursive) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -343,7 +343,7 @@ class TChunkManager::TDynamicStoreTypeHandler
 public:
     TDynamicStoreTypeHandler(TImpl* owner, EObjectType type);
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return Type_;
     }
@@ -352,11 +352,11 @@ private:
     TImpl* const Owner_;
     const EObjectType Type_;
 
-    virtual IObjectProxyPtr DoGetProxy(TDynamicStore* dynamicStore, TTransaction* transaction) override;
+    IObjectProxyPtr DoGetProxy(TDynamicStore* dynamicStore, TTransaction* transaction) override;
 
-    virtual void DoDestroyObject(TDynamicStore* dynamicStore) override;
+    void DoDestroyObject(TDynamicStore* dynamicStore) override;
 
-    virtual void DoUnstageObject(TDynamicStore* dynamicStore, bool recursive) override;
+    void DoUnstageObject(TDynamicStore* dynamicStore, bool recursive) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -378,28 +378,28 @@ public:
         , JobRegistry_(std::move(jobRegistry))
     { }
 
-    virtual TNode* GetNode() const override
+    TNode* GetNode() const override
     {
         return Node_;
     }
 
-    virtual const NNodeTrackerClient::NProto::TNodeResources& GetNodeResourceUsage() const override
+    const NNodeTrackerClient::NProto::TNodeResources& GetNodeResourceUsage() const override
     {
         return *NodeResourceUsage_;
     }
 
-    virtual const NNodeTrackerClient::NProto::TNodeResources& GetNodeResourceLimits() const override
+    const NNodeTrackerClient::NProto::TNodeResources& GetNodeResourceLimits() const override
     {
         return *NodeResourceLimits_;
     }
 
-    virtual TJobId GenerateJobId() const override
+    TJobId GenerateJobId() const override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         return chunkManager->GenerateJobId();
     }
 
-    virtual void ScheduleJob(const TJobPtr& job) override
+    void ScheduleJob(const TJobPtr& job) override
     {
         JobRegistry_->RegisterJob(job);
 
@@ -413,7 +413,7 @@ public:
         return ScheduledJobs_;
     }
 
-    virtual const TJobRegistryPtr& GetJobRegistry() const override
+    const TJobRegistryPtr& GetJobRegistry() const override
     {
         return JobRegistry_;
     }
@@ -436,7 +436,7 @@ class TJobControllerCallbacks
     : public IJobControllerCallbacks
 {
 public:
-    virtual void AbortJob(const TJobPtr& job) override
+    void AbortJob(const TJobPtr& job) override
     {
         JobsToAbort_.push_back(job);
     }
@@ -3344,7 +3344,7 @@ private:
                 context.GetVersion() < EMasterReign::DropDanglingChunkViews);
     }
 
-    virtual void OnBeforeSnapshotLoaded() override
+    void OnBeforeSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
@@ -3352,7 +3352,7 @@ private:
         NeedPokeChunkViewsWithZeroRefCounter_ = false;
     }
 
-    virtual void OnAfterSnapshotLoaded() override
+    void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
@@ -3486,7 +3486,7 @@ private:
     }
 
 
-    virtual void Clear() override
+    void Clear() override
     {
         TMasterAutomatonPart::Clear();
 
@@ -3531,7 +3531,7 @@ private:
         ExpirationTracker_->Clear();
     }
 
-    virtual void SetZeroState() override
+    void SetZeroState() override
     {
         TMasterAutomatonPart::SetZeroState();
 
@@ -3798,21 +3798,21 @@ private:
         YT_LOG_INFO("Finished recomputing statistics");
     }
 
-    virtual void OnRecoveryStarted() override
+    void OnRecoveryStarted() override
     {
         TMasterAutomatonPart::OnRecoveryStarted();
 
         BufferedProducer_->SetEnabled(false);
     }
 
-    virtual void OnRecoveryComplete() override
+    void OnRecoveryComplete() override
     {
         TMasterAutomatonPart::OnRecoveryComplete();
 
         BufferedProducer_->SetEnabled(true);
     }
 
-    virtual void OnLeaderRecoveryComplete() override
+    void OnLeaderRecoveryComplete() override
     {
         TMasterAutomatonPart::OnLeaderRecoveryComplete();
 
@@ -3841,7 +3841,7 @@ private:
         ExpirationTracker_->Start();
     }
 
-    virtual void OnLeaderActive() override
+    void OnLeaderActive() override
     {
         TMasterAutomatonPart::OnLeaderActive();
 
@@ -3868,7 +3868,7 @@ private:
         }
     }
 
-    virtual void OnStopLeading() override
+    void OnStopLeading() override
     {
         TMasterAutomatonPart::OnStopLeading();
 

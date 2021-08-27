@@ -59,7 +59,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
     }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -71,7 +71,7 @@ public:
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    virtual void ScheduleHeartbeat(TCellTag cellTag, bool immediately) override
+    void ScheduleHeartbeat(TCellTag cellTag, bool immediately) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -79,7 +79,7 @@ public:
             BIND(&TMasterConnector::DoScheduleHeartbeat, MakeWeak(this), cellTag, immediately));
     }
 
-    virtual TReqHeartbeat GetHeartbeatRequest(TCellTag /*cellTag*/) const override
+    TReqHeartbeat GetHeartbeatRequest(TCellTag /*cellTag*/) const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -109,7 +109,7 @@ public:
         return heartbeatRequest;
     }
 
-    virtual void OnHeartbeatResponse(const TRspHeartbeat& response) override
+    void OnHeartbeatResponse(const TRspHeartbeat& response) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 

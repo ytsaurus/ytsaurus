@@ -61,12 +61,12 @@ protected:
             CreateThreadPoolPoller(1, "HttpPoller"));
     }
 
-    virtual void SetUp() override
+    void SetUp() override
     {
         MockHttpServer_.Start();
     }
 
-    virtual void TearDown() override
+    void TearDown() override
     {
         if (MockHttpServer_.IsStarted()) {
             MockHttpServer_.Stop();
@@ -228,7 +228,7 @@ public:
         const TString&,
         const THashMap<TString, TString>&));
 
-    virtual TErrorOr<TString> GetLogin(const NYTree::INodePtr& reply) const override
+    TErrorOr<TString> GetLogin(const NYTree::INodePtr& reply) const override
     {
         return GetByYPath<TString>(reply, "/login");
     }

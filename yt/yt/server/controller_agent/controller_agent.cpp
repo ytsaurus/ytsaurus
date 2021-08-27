@@ -102,27 +102,27 @@ public:
         , ScheduleJobSpec_(scheduleJobSpec)
     { }
 
-    virtual const TExecNodeDescriptor& GetNodeDescriptor() const override
+    const TExecNodeDescriptor& GetNodeDescriptor() const override
     {
         return NodeDescriptor_;
     }
 
-    virtual const NNodeTrackerClient::NProto::TDiskResources& DiskResources() const override
+    const NNodeTrackerClient::NProto::TDiskResources& DiskResources() const override
     {
         return DiskResources_;
     }
 
-    virtual TJobId GetJobId() const override
+    TJobId GetJobId() const override
     {
         return JobId_;
     }
 
-    virtual NProfiling::TCpuInstant GetNow() const override
+    NProfiling::TCpuInstant GetNow() const override
     {
         return NProfiling::GetCpuInstant();
     }
 
-    virtual const NScheduler::NProto::TScheduleJobSpec& GetScheduleJobSpec() const override
+    const NScheduler::NProto::TScheduleJobSpec& GetScheduleJobSpec() const override
     {
         return ScheduleJobSpec_;
     }
@@ -1877,12 +1877,12 @@ private:
             , ControllerAgent_(controllerAgent)
         { }
 
-        virtual i64 GetSize() const override
+        i64 GetSize() const override
         {
             return ControllerAgent_->IdToOperation_.size();
         }
 
-        virtual std::vector<TString> GetKeys(i64 limit) const override
+        std::vector<TString> GetKeys(i64 limit) const override
         {
             std::vector<TString> keys;
             keys.reserve(limit);
@@ -1902,7 +1902,7 @@ private:
             return keys;
         }
 
-        virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+        IYPathServicePtr FindItemService(TStringBuf key) const override
         {
             if (!ControllerAgent_->IsConnected()) {
                 return nullptr;

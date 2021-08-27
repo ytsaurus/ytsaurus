@@ -28,7 +28,7 @@ private:
     const IChannelPtr Channel_;
     const TDuration RpcTimeout_;
 
-    virtual TFuture<NTransactionClient::TTimestamp> DoGenerateTimestamps(int count) override
+    TFuture<NTransactionClient::TTimestamp> DoGenerateTimestamps(int count) override
     {
         TApiServiceProxy proxy(Channel_);
 

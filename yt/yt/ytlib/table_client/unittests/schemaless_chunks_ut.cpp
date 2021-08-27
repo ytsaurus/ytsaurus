@@ -189,7 +189,7 @@ protected:
         return rows;
     }
 
-    virtual void SetUp() override
+    void SetUp() override
     {
         auto nameTable = New<TNameTable>();
         InitNameTable(nameTable);
@@ -351,7 +351,7 @@ protected:
             "{name = c6; type = any};"
         "]")));
 
-    virtual void SetUp() override
+    void SetUp() override
     {
         auto memoryWriter = New<TMemoryWriter>();
 
@@ -652,7 +652,7 @@ protected:
             keys);
     }
 
-    virtual void SetUp() override
+    void SetUp() override
     {
         auto optimizeFor = std::get<0>(GetParam());
         Schema_ = New<TTableSchema>(std::get<1>(GetParam()));

@@ -39,7 +39,7 @@ public:
     { }
 
 protected:
-    virtual i64 GetWeight(const TSimpleCachedValuePtr& value) const override
+    i64 GetWeight(const TSimpleCachedValuePtr& value) const override
     {
         return value->Weight;
     }
@@ -62,7 +62,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, ItemCount, 0);
 
 protected:
-    virtual i64 GetWeight(const TSimpleCachedValuePtr& value) const override
+    i64 GetWeight(const TSimpleCachedValuePtr& value) const override
     {
         return value->Weight;
     }

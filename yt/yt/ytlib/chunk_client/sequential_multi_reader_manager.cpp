@@ -20,18 +20,18 @@ public:
         std::vector<IReaderFactoryPtr> readerFactories,
         IMultiReaderMemoryManagerPtr multiReaderMemoryManager);
 
-    virtual TMultiReaderManagerUnreadState GetUnreadState() const override;
+    TMultiReaderManagerUnreadState GetUnreadState() const override;
 
 private:
     int NextReaderIndex_ = 0;
     int FinishedReaderCount_ = 0;
     std::vector<TPromise<IReaderBasePtr>> NextReaders_;
 
-    virtual TFuture<void> DoOpen() override;
+    TFuture<void> DoOpen() override;
 
-    virtual void OnReaderOpened(const IReaderBasePtr& chunkReader, int chunkIndex) override;
-    virtual void OnReaderBlocked() override;
-    virtual void OnReaderFinished() override;
+    void OnReaderOpened(const IReaderBasePtr& chunkReader, int chunkIndex) override;
+    void OnReaderBlocked() override;
+    void OnReaderFinished() override;
 
     TFuture<void> WaitForNextReader();
     void OnGotNextReader(const IReaderBasePtr& reader);
