@@ -29,12 +29,13 @@ type Config struct {
 	// In that case, provided host is used for all requests and proxy discovery is disabled.
 	Proxy string
 
-	// RPCProxy configures addres of YT RPC proxy.
+	// RPCProxy pins addres of YT RPC proxy.
 	//
-	// Might be equal to cluster name. E.g. hahn or markov.
+	// If set, proxy discovery is disabled and provided value is used for all requests.
 	//
-	// Might be equal to hostname with optional port. E.g. localhost:12345.
-	// In that case, provided host is used for all requests and proxy discovery is disabled.
+	// If left empty, RPC proxies are discovered via HTTP using Proxy setting.
+	//
+	// Only relevant for RPC client.
 	RPCProxy string
 
 	// ProxyRole configures desired proxy role used by the client.

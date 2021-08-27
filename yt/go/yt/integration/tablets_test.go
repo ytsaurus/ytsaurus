@@ -47,6 +47,8 @@ func TestTabletClient(t *testing.T) {
 		{"ExecTabletTx", suite.TestExecTabletTx},
 		{"LookupColumnFilter", suite.TestLookupColumnFilter},
 		{"ReadTimestamp", suite.TestReadTimestamp},
+		{"InsertRows_empty", suite.TestInsertRows_empty},
+		{"DeleteRows_empty", suite.TestDeleteRows_empty},
 	})
 }
 
@@ -256,6 +258,28 @@ func (s *Suite) TestReadTimestamp(t *testing.T, yc yt.Client) {
 	checkReader(r)
 }
 
+func (s *Suite) TestInsertRows_empty(t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	testTable := tmpPath().Child("table")
+	require.NoError(t, migrate.Create(s.Ctx, yc, testTable, schema.MustInfer(&testRow{})))
+	require.NoError(t, migrate.MountAndWait(s.Ctx, yc, testTable))
+
+	rows := []interface{}{}
+	require.NoError(t, yc.InsertRows(s.Ctx, testTable, rows, nil))
+}
+
+func (s *Suite) TestDeleteRows_empty(t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	testTable := tmpPath().Child("table")
+	require.NoError(t, migrate.Create(s.Ctx, yc, testTable, schema.MustInfer(&testRow{})))
+	require.NoError(t, migrate.MountAndWait(s.Ctx, yc, testTable))
+
+	keys := []interface{}{&testKey{"foo"}}
+	require.NoError(t, yc.DeleteRows(s.Ctx, testTable, keys, nil))
+}
+
 type testKey struct {
 	Key string `yson:"table_key"`
 }
@@ -302,7 +326,8 @@ func TestAbortCommittedTabletTx(t *testing.T) {
 			err = tx.Abort()
 			require.Error(t, err)
 
-			err = tx.InsertRows(ctx, "//tmp", []interface{}{}, nil)
+			rows := []interface{}{&testRow{"foo", "1"}}
+			err = tx.InsertRows(ctx, "//tmp", rows, nil)
 			require.Error(t, err)
 
 			tx, err = client.BeginTabletTx(ctx, nil)
@@ -312,7 +337,7 @@ func TestAbortCommittedTabletTx(t *testing.T) {
 			err = tx.Commit()
 			require.Error(t, err)
 
-			err = tx.InsertRows(ctx, "//tmp", []interface{}{}, nil)
+			err = tx.InsertRows(ctx, "//tmp", rows, nil)
 			require.Error(t, err)
 
 			require.Empty(t, recorded.All())

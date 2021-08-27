@@ -567,6 +567,10 @@ func (e *Encoder) LockRows(
 	keys []interface{},
 	opts *yt.LockRowsOptions,
 ) (err error) {
+	if len(keys) == 0 {
+		return nil
+	}
+
 	// todo convert (lock group + type) for api_service.cpp, need table mount cache for that?
 	return xerrors.New("implement me")
 }
@@ -579,6 +583,10 @@ func (e *Encoder) InsertRows(
 ) (err error) {
 	if opts == nil {
 		opts = &yt.InsertRowsOptions{}
+	}
+
+	if len(rows) == 0 {
+		return nil
 	}
 
 	attachments, descriptor, err := encodeToWire(rows)
@@ -619,6 +627,10 @@ func (e *Encoder) DeleteRows(
 ) (err error) {
 	if opts == nil {
 		opts = &yt.DeleteRowsOptions{}
+	}
+
+	if len(keys) == 0 {
+		return nil
 	}
 
 	attachments, descriptor, err := encodeToWire(keys)

@@ -206,6 +206,10 @@ func (c *client) LockRows(
 		opts.TransactionOptions = &yt.TransactionOptions{}
 	}
 
+	if len(keys) == 0 {
+		return nil
+	}
+
 	var zero yt.TxID
 	if opts.TransactionID != zero {
 		return c.Encoder.LockRows(ctx, path, locks, lockType, keys, opts)
@@ -241,6 +245,10 @@ func (c *client) InsertRows(
 		opts.TransactionOptions = &yt.TransactionOptions{}
 	}
 
+	if len(rows) == 0 {
+		return nil
+	}
+
 	var zero yt.TxID
 	if opts.TransactionID != zero {
 		return c.Encoder.InsertRows(ctx, path, rows, opts)
@@ -274,6 +282,10 @@ func (c *client) DeleteRows(
 	}
 	if opts.TransactionOptions == nil {
 		opts.TransactionOptions = &yt.TransactionOptions{}
+	}
+
+	if len(keys) == 0 {
+		return nil
 	}
 
 	var zero yt.TxID
