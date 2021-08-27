@@ -29,7 +29,7 @@ public interface TableWriter<T> {
     TRowsetDescriptor getRowsetDescriptor();
 
     //! Returns the schema to be used for constructing rows.
-    TableSchema getTableSchema();
+    CompletableFuture<TableSchema> getTableSchema();
 
     void cancel();
 }
