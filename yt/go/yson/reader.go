@@ -402,7 +402,7 @@ func (r *Reader) readMore() error {
 		r.end = 0
 	}
 
-	if r.r != nil && r.keep != -1 && r.keep > len(r.buf)/2 {
+	if r.r != nil && r.keep != -1 && r.end-r.keep < r.keep && r.keep != 0 {
 		copy(r.buf, r.buf[r.keep:r.end])
 		r.pos -= r.keep
 		r.end -= r.keep
