@@ -255,16 +255,16 @@ public:
         }
     }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return BIND(&TErasureWriter::DoOpen, MakeStrong(this))
             .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
             .Run();
     }
 
-    virtual bool WriteBlock(const TBlock& block) override;
+    bool WriteBlock(const TBlock& block) override;
 
-    virtual bool WriteBlocks(const std::vector<TBlock>& blocks) override
+    bool WriteBlocks(const std::vector<TBlock>& blocks) override
     {
         for (const auto& block : blocks) {
             WriteBlock(block);
@@ -272,27 +272,27 @@ public:
         return ReadyEvent_.IsSet() && ReadyEvent_.Get().IsOK();
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() override
     {
         return ReadyEvent_;
     }
 
-    virtual const NProto::TChunkInfo& GetChunkInfo() const override
+    const NProto::TChunkInfo& GetChunkInfo() const override
     {
         return ChunkInfo_;
     }
 
-    virtual const NProto::TDataStatistics& GetDataStatistics() const override
+    const NProto::TDataStatistics& GetDataStatistics() const override
     {
         YT_ABORT();
     }
 
-    virtual ECodec GetErasureCodecId() const override
+    ECodec GetErasureCodecId() const override
     {
         return CodecId_;
     }
 
-    virtual TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
+    TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
     {
         TChunkReplicaWithMediumList result;
         for (int i = 0; i < std::ssize(Writers_); ++i) {
@@ -308,7 +308,7 @@ public:
         return result;
     }
 
-    virtual bool IsCloseDemanded() const override
+    bool IsCloseDemanded() const override
     {
         bool isCloseDemanded = false;
         for (const auto& writer : Writers_) {
@@ -317,9 +317,9 @@ public:
         return isCloseDemanded;
     }
 
-    virtual TFuture<void> Close(const TDeferredChunkMetaPtr& chunkMeta) override;
+    TFuture<void> Close(const TDeferredChunkMetaPtr& chunkMeta) override;
 
-    virtual TChunkId GetChunkId() const override
+    TChunkId GetChunkId() const override
     {
         return SessionId_.ChunkId;
     }

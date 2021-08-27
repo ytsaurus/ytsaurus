@@ -58,7 +58,7 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
-    virtual TFuture<TVersionedChunkMetaCacheEntryPtr> GetMeta(
+    TFuture<TVersionedChunkMetaCacheEntryPtr> GetMeta(
         const IChunkReaderPtr& chunkReader,
         const TTableSchemaPtr& schema,
         const TClientChunkReadOptions& chunkReadOptions) override
@@ -100,12 +100,12 @@ public:
         }
     }
 
-    virtual void Touch(const TVersionedChunkMetaCacheEntryPtr& entry) override
+    void Touch(const TVersionedChunkMetaCacheEntryPtr& entry) override
     {
         TAsyncSlruCacheBase::Touch(entry);
     }
 
-    virtual void Reconfigure(const TSlruCacheDynamicConfigPtr& config) override
+    void Reconfigure(const TSlruCacheDynamicConfigPtr& config) override
     {
         TAsyncSlruCacheBase::Reconfigure(config);
     }
@@ -113,7 +113,7 @@ public:
 private:
     IBootstrapBase* const Bootstrap_;
 
-    virtual i64 GetWeight(const TVersionedChunkMetaCacheEntryPtr& entry) const override
+    i64 GetWeight(const TVersionedChunkMetaCacheEntryPtr& entry) const override
     {
         return entry->Meta()->GetMemoryUsage();
     }

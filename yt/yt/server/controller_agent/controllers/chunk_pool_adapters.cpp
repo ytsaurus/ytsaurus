@@ -181,7 +181,7 @@ public:
         , TaskHost_(taskHost)
     { }
 
-    virtual TCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key) override
+    TCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key) override
     {
         YT_VERIFY(!stripe->DataSlices.empty());
         for (const auto& dataSlice : stripe->DataSlices) {
@@ -191,7 +191,7 @@ public:
         return TChunkPoolInputAdapterBase::AddWithKey(std::move(stripe), key);
     }
 
-    virtual TCookie Add(TChunkStripePtr stripe) override
+    TCookie Add(TChunkStripePtr stripe) override
     {
         return AddWithKey(stripe, TChunkStripeKey());
     }
@@ -233,14 +233,14 @@ public:
         , Task_(task)
     { }
 
-    virtual TCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key) override
+    TCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key) override
     {
         Task_->GetTaskHost()->UpdateTask(Task_);
 
         return TChunkPoolInputAdapterBase::AddWithKey(std::move(stripe), key);
     }
 
-    virtual TCookie Add(TChunkStripePtr stripe) override
+    TCookie Add(TChunkStripePtr stripe) override
     {
         return AddWithKey(stripe, TChunkStripeKey());
     }

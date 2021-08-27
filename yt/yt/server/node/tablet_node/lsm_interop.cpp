@@ -61,7 +61,7 @@ public:
         , Backend_(NLsm::CreateLsmBackend())
     { }
 
-    virtual void Start() override
+    void Start() override
     {
         const auto& slotManager = Bootstrap_->GetSlotManager();
         slotManager->SubscribeBeginSlotScan(BIND(&TLsmInterop::OnBeginSlotScan, MakeWeak(this)));

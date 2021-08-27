@@ -35,12 +35,12 @@ public:
         IteratorObject_ = pyObject;
     }
 
-    Py::Object iter()
+    Py::Object iter() override
     {
         return self();
     }
 
-    PyObject* iternext()
+    PyObject* iternext() override
     {
         auto row = PyObjectPtr(Iterator_->iternext());
         if (!row) {

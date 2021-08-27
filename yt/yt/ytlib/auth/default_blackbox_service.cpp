@@ -45,7 +45,7 @@ public:
         , BlackboxCallTime_(profiler.Timer("/blackbox_call_time"))
     { }
 
-    virtual TFuture<INodePtr> Call(
+    TFuture<INodePtr> Call(
         const TString& method,
         const THashMap<TString, TString>& params) override
     {
@@ -54,7 +54,7 @@ public:
             .Run();
     }
 
-    virtual TErrorOr<TString> GetLogin(const NYTree::INodePtr& reply) const override
+    TErrorOr<TString> GetLogin(const NYTree::INodePtr& reply) const override
     {
         if (Config_->UseLowercaseLogin) {
             return GetByYPath<TString>(reply, "/attributes/1008");

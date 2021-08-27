@@ -25,7 +25,7 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
-    virtual ICellarOccupierPtr CreateCellarOccupier(int index) override
+    ICellarOccupierPtr CreateCellarOccupier(int index) override
     {
         return CreateTabletSlot(index, Config_, Bootstrap_);
     }

@@ -21,19 +21,19 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    virtual const IInvokerPtr& GetChunkInvoker(EChunkThreadQueue queue) const override
+    const IInvokerPtr& GetChunkInvoker(EChunkThreadQueue queue) const override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         return chunkManager->GetChunkInvoker(queue);
     }
 
-    virtual const TDynamicClusterConfigPtr& GetDynamicConfig() const override
+    const TDynamicClusterConfigPtr& GetDynamicConfig() const override
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
         return configManager->GetConfig();
     }
 
-    virtual std::vector<NChunkServer::TMedium*> GetMedia() const
+    std::vector<NChunkServer::TMedium*> GetMedia() const override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& mediaMap = chunkManager->Media();
@@ -47,7 +47,7 @@ public:
         return media;
     }
 
-    virtual std::vector<NNodeTrackerServer::TDataCenter*> GetDataCenters() const
+    std::vector<NNodeTrackerServer::TDataCenter*> GetDataCenters() const override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& dataCenterMap = nodeTracker->DataCenters();
@@ -61,7 +61,7 @@ public:
         return dataCenters;
     }
 
-    virtual bool CheckThreadAffinity() const override
+    bool CheckThreadAffinity() const override
     {
         return true;
     }

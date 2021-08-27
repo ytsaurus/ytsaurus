@@ -121,7 +121,7 @@ public:
         ResetGuardedInvokers();
     }
 
-    virtual void SetOccupant(ICellarOccupantPtr occupant) override
+    void SetOccupant(ICellarOccupantPtr occupant) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(!Occupant_);
@@ -130,49 +130,49 @@ public:
         Logger = GetLogger();
     }
 
-    virtual IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) override
+    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return THood::GetAutomatonInvoker(queue);
     }
 
-    virtual IInvokerPtr GetOccupierAutomatonInvoker() override
+    IInvokerPtr GetOccupierAutomatonInvoker() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return GetAutomatonInvoker(EAutomatonThreadQueue::Default);
     }
 
-    virtual IInvokerPtr GetMutationAutomatonInvoker() override
+    IInvokerPtr GetMutationAutomatonInvoker() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return GetAutomatonInvoker(EAutomatonThreadQueue::Mutation);
     }
 
-    virtual IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) override
+    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return THood::GetEpochAutomatonInvoker(queue);
     }
 
-    virtual IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) override
+    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return THood::GetGuardedAutomatonInvoker(queue);
     }
 
-    virtual TCellId GetCellId() override
+    TCellId GetCellId() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetCellId();
     }
 
-    virtual EPeerState GetAutomatonState() override
+    EPeerState GetAutomatonState() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -180,63 +180,63 @@ public:
         return hydraManager ? hydraManager->GetAutomatonState() : EPeerState::None;
     }
 
-    virtual const TString& GetTabletCellBundleName() override
+    const TString& GetTabletCellBundleName() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetCellBundleName();
     }
 
-    virtual IDistributedHydraManagerPtr GetHydraManager() override
+    IDistributedHydraManagerPtr GetHydraManager() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetHydraManager();
     }
 
-    virtual const TCompositeAutomatonPtr& GetAutomaton() override
+    const TCompositeAutomatonPtr& GetAutomaton() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return Occupant_->GetAutomaton();
     }
 
-    virtual const THiveManagerPtr& GetHiveManager() override
+    const THiveManagerPtr& GetHiveManager() override
     {
         return Occupant_->GetHiveManager();
     }
 
-    virtual TMailbox* GetMasterMailbox() override
+    TMailbox* GetMasterMailbox() override
     {
         return Occupant_->GetMasterMailbox();
     }
 
-    virtual const TTransactionManagerPtr& GetTransactionManager() override
+    const TTransactionManagerPtr& GetTransactionManager() override
     {
         return TransactionManager_;
     }
 
-    virtual ITransactionManagerPtr GetOccupierTransactionManager() override
+    ITransactionManagerPtr GetOccupierTransactionManager() override
     {
         return GetTransactionManager();
     }
 
-    virtual const ITransactionSupervisorPtr& GetTransactionSupervisor() override
+    const ITransactionSupervisorPtr& GetTransactionSupervisor() override
     {
         return Occupant_->GetTransactionSupervisor();
     }
 
-    virtual const TTabletManagerPtr& GetTabletManager() override
+    const TTabletManagerPtr& GetTabletManager() override
     {
         return TabletManager_;
     }
 
-    virtual TObjectId GenerateId(EObjectType type) override
+    TObjectId GenerateId(EObjectType type) override
     {
         return Occupant_->GenerateId(type);
     }
 
-    virtual TCompositeAutomatonPtr CreateAutomaton() override
+    TCompositeAutomatonPtr CreateAutomaton() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -245,7 +245,7 @@ public:
             SnapshotQueue_->GetInvoker());
     }
 
-    virtual void Configure(IDistributedHydraManagerPtr hydraManager) override
+    void Configure(IDistributedHydraManagerPtr hydraManager) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -272,7 +272,7 @@ public:
         Logger = GetLogger();
     }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         TabletService_ = CreateTabletService(
             this,
@@ -281,13 +281,13 @@ public:
         TabletManager_->Initialize();
     }
 
-    virtual void RegisterRpcServices() override
+    void RegisterRpcServices() override
     {
         const auto& rpcServer = Bootstrap_->GetRpcServer();
         rpcServer->RegisterService(TabletService_);
     }
 
-    virtual void Stop() override
+    void Stop() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -298,7 +298,7 @@ public:
         ResetGuardedInvokers();
     }
 
-    virtual void Finalize() override
+    void Finalize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -313,12 +313,12 @@ public:
         }
     }
 
-    virtual ECellarType GetCellarType() override
+    ECellarType GetCellarType() override
     {
         return CellarType;
     }
 
-    virtual TCompositeMapServicePtr PopulateOrchidService(TCompositeMapServicePtr orchid) override
+    TCompositeMapServicePtr PopulateOrchidService(TCompositeMapServicePtr orchid) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -331,40 +331,40 @@ public:
             ->AddChild("tablets", TabletManager_->GetOrchidService());
     }
 
-    virtual const TRuntimeTabletCellDataPtr& GetRuntimeData() override
+    const TRuntimeTabletCellDataPtr& GetRuntimeData() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return RuntimeData_;
     }
 
-    virtual double GetUsedCpu(double cpuPerTabletSlot) override
+    double GetUsedCpu(double cpuPerTabletSlot) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return GetDynamicOptions()->CpuPerTabletSlot.value_or(cpuPerTabletSlot);
     }
 
-    virtual TDynamicTabletCellOptionsPtr GetDynamicOptions() override
+    TDynamicTabletCellOptionsPtr GetDynamicOptions() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetDynamicOptions();
     }
 
-    virtual TTabletCellOptionsPtr GetOptions() override
+    TTabletCellOptionsPtr GetOptions() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetOptions();
     }
 
-    virtual NProfiling::TProfiler GetProfiler() override
+    NProfiling::TProfiler GetProfiler() override
     {
         return TabletNodeProfiler;
     }
 
-    virtual IChunkFragmentReaderPtr CreateChunkFragmentReader(TTablet* tablet) override
+    IChunkFragmentReaderPtr CreateChunkFragmentReader(TTablet* tablet) override
     {
         return NChunkClient::CreateChunkFragmentReader(
             tablet->GetSettings().HunkReaderConfig,

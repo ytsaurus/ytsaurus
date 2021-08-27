@@ -111,7 +111,7 @@ class TRowComparerCache
 public:
     using TSyncSlruCacheBase::TSyncSlruCacheBase;
 
-    virtual TSortedDynamicRowKeyComparer Get(TKeyColumnTypes keyColumnTypes) override
+    TSortedDynamicRowKeyComparer Get(TKeyColumnTypes keyColumnTypes) override
     {
         auto cachedEvaluator = TSyncSlruCacheBase::Find(keyColumnTypes);
         if (!cachedEvaluator) {

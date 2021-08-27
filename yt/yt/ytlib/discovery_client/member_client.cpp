@@ -29,22 +29,22 @@ public:
         : Underlying_(std::move(underlying))
     { }
 
-    virtual std::vector<TString> ListKeys() const override
+    std::vector<TString> ListKeys() const override
     {
         return Underlying_->ListKeys();
     }
 
-    virtual std::vector<TKeyValuePair> ListPairs() const override
+    std::vector<TKeyValuePair> ListPairs() const override
     {
         return Underlying_->ListPairs();
     }
 
-    virtual NYson::TYsonString FindYson(TStringBuf key) const override
+    NYson::TYsonString FindYson(TStringBuf key) const override
     {
         return Underlying_->FindYson(key);
     }
 
-    virtual void SetYson(const TString& key, const NYson::TYsonString& value) override
+    void SetYson(const TString& key, const NYson::TYsonString& value) override
     {
         if (IsMemberSystemAttribute(key)) {
             THROW_ERROR_EXCEPTION("Cannot set system attribute %Qv", key);
@@ -52,7 +52,7 @@ public:
         Underlying_->SetYson(key, value);
     }
 
-    virtual bool Remove(const TString& key) override
+    bool Remove(const TString& key) override
     {
         return Underlying_->Remove(key);
     }
@@ -97,35 +97,35 @@ public:
         , ThreadSafeAttributes_(CreateThreadSafeAttributes(Attributes_.Get()))
     { }
 
-    virtual NYTree::IAttributeDictionary* GetAttributes() override
+    NYTree::IAttributeDictionary* GetAttributes() override
     {
         return ThreadSafeAttributes_.Get();
     }
 
-    virtual i64 GetPriority() override
+    i64 GetPriority() override
     {
         return Priority_.load();
     }
 
-    virtual void SetPriority(i64 value) override
+    void SetPriority(i64 value) override
     {
         Priority_ = value;
     }
 
-    virtual TFuture<void> Start() override
+    TFuture<void> Start() override
     {
         YT_LOG_INFO("Starting member client");
         PeriodicExecutor_->Start();
         return FirstSuccessPromise_;
     }
 
-    virtual TFuture<void> Stop() override
+    TFuture<void> Stop() override
     {
         YT_LOG_INFO("Stopping member client");
         return PeriodicExecutor_->Stop();
     }
 
-    virtual void Reconfigure(TMemberClientConfigPtr config) override
+    void Reconfigure(TMemberClientConfigPtr config) override
     {
         auto guard = WriterGuard(Lock_);
 

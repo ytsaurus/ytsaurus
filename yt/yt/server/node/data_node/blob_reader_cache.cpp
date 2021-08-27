@@ -64,12 +64,12 @@ public:
     { }
 
     // IBlocksExtCache implementation.
-    virtual TRefCountedBlocksExtPtr Find() override
+    TRefCountedBlocksExtPtr Find() override
     {
         return Chunk_->FindCachedBlocksExt();
     }
 
-    virtual void Put(
+    void Put(
         const TRefCountedChunkMetaPtr& chunkMeta,
         const TRefCountedBlocksExtPtr& blocksExt) override
     {
@@ -99,7 +99,7 @@ public:
         , Config_(Bootstrap_->GetConfig()->DataNode)
     { }
 
-    virtual TChunkFileReaderPtr GetReader(const TBlobChunkBasePtr& chunk) override
+    TChunkFileReaderPtr GetReader(const TBlobChunkBasePtr& chunk) override
     {
         auto key = MakeReaderCacheKey(chunk.Get());
         if (auto reader = Find(key)) {
@@ -121,7 +121,7 @@ public:
         return reader;
     }
 
-    virtual void EvictReader(TBlobChunkBase* chunk) override
+    void EvictReader(TBlobChunkBase* chunk) override
     {
         TSyncSlruCacheBase::TryRemove(MakeReaderCacheKey(chunk));
     }

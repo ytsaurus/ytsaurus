@@ -40,7 +40,7 @@ public:
         , PartitionJobSpecExt_(host->GetJobSpecHelper()->GetJobSpec().GetExtension(TPartitionJobSpecExt::partition_job_spec_ext))
     { }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         TSimpleJobBase::Initialize();
 
@@ -142,22 +142,22 @@ private:
     TNameTablePtr NameTable_;
 
 
-    virtual void InitializeReader() override
+    void InitializeReader() override
     {
         DoInitializeReader(NameTable_, TColumnFilter());
     }
 
-    virtual void InitializeWriter() override
+    void InitializeWriter() override
     {
         DoInitializeWriter(NameTable_, nullptr);
     }
 
-    virtual bool ShouldSendBoundaryKeys() const override
+    bool ShouldSendBoundaryKeys() const override
     {
         return false;
     }
 
-    virtual i64 GetTotalReaderMemoryLimit() const override
+    i64 GetTotalReaderMemoryLimit() const override
     {
         return Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader->MaxBufferSize;
     }

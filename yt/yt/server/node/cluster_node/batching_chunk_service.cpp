@@ -319,7 +319,7 @@ private:
         { }
 
     protected:
-        virtual TChunkServiceProxy::TReqLocateChunksPtr CreateBatchRequest() override
+        TChunkServiceProxy::TReqLocateChunksPtr CreateBatchRequest() override
         {
             auto req = FollowerProxy_.LocateChunks();
             req->SetRequestHeavy(true);
@@ -327,7 +327,7 @@ private:
             return req;
         }
 
-        virtual void BatchRequest(
+        void BatchRequest(
             const NChunkClient::NProto::TReqLocateChunks* request,
             NChunkClient::NProto::TReqLocateChunks* batchRequest,
             TLocateChunksState* state) override
@@ -335,7 +335,7 @@ private:
             BatchSubrequests(request->subrequests(), batchRequest->mutable_subrequests(), &state->Indexes);
         }
 
-        virtual void UnbatchResponse(
+        void UnbatchResponse(
             NChunkClient::NProto::TRspLocateChunks* response,
             const NChunkClient::NProto::TRspLocateChunks* batchResponse,
             const TLocateChunksState& state) override
@@ -345,7 +345,7 @@ private:
             response->set_revision(batchResponse->revision());
         }
 
-        virtual int GetCost(const TRequestPtr& request) const override
+        int GetCost(const TRequestPtr& request) const override
         {
             return request->subrequests_size();
         }
@@ -376,7 +376,7 @@ private:
         { }
 
     protected:
-        virtual TChunkServiceProxy::TReqLocateDynamicStoresPtr CreateBatchRequest() override
+        TChunkServiceProxy::TReqLocateDynamicStoresPtr CreateBatchRequest() override
         {
             auto req = FollowerProxy_.LocateDynamicStores();
             req->SetRequestHeavy(true);
@@ -384,7 +384,7 @@ private:
             return req;
         }
 
-        virtual void BatchRequest(
+        void BatchRequest(
             const NChunkClient::NProto::TReqLocateDynamicStores* request,
             NChunkClient::NProto::TReqLocateDynamicStores* batchRequest,
             TLocateDynamicStoresState* state) override
@@ -403,7 +403,7 @@ private:
             }
         }
 
-        virtual void UnbatchResponse(
+        void UnbatchResponse(
             NChunkClient::NProto::TRspLocateDynamicStores* response,
             const NChunkClient::NProto::TRspLocateDynamicStores* batchResponse,
             const TLocateDynamicStoresState& state) override
@@ -412,7 +412,7 @@ private:
             BuildResponseNodeDirectory(batchResponse, response);
         }
 
-        virtual int GetCost(const TRequestPtr& request) const override
+        int GetCost(const TRequestPtr& request) const override
         {
             return request->subrequests().size();
         }
@@ -443,12 +443,12 @@ private:
         { }
 
     protected:
-        virtual TChunkServiceProxy::TReqAllocateWriteTargetsPtr CreateBatchRequest() override
+        TChunkServiceProxy::TReqAllocateWriteTargetsPtr CreateBatchRequest() override
         {
             return LeaderProxy_.AllocateWriteTargets();
         }
 
-        virtual void BatchRequest(
+        void BatchRequest(
             const NChunkClient::NProto::TReqAllocateWriteTargets* request,
             NChunkClient::NProto::TReqAllocateWriteTargets* batchRequest,
             TAllocateWriteTargetsState* state) override
@@ -456,7 +456,7 @@ private:
             BatchSubrequests(request->subrequests(), batchRequest->mutable_subrequests(), &state->Indexes);
         }
 
-        virtual void UnbatchResponse(
+        void UnbatchResponse(
             NChunkClient::NProto::TRspAllocateWriteTargets* response,
             const NChunkClient::NProto::TRspAllocateWriteTargets* batchResponse,
             const TAllocateWriteTargetsState& state) override
@@ -465,7 +465,7 @@ private:
             BuildResponseNodeDirectory(batchResponse, response);
         }
 
-        virtual int GetCost(const TRequestPtr& request) const override
+        int GetCost(const TRequestPtr& request) const override
         {
             return request->subrequests_size();
         }
@@ -500,12 +500,12 @@ private:
         { }
 
     protected:
-        virtual TChunkServiceProxy::TReqExecuteBatchPtr CreateBatchRequest() override
+        TChunkServiceProxy::TReqExecuteBatchPtr CreateBatchRequest() override
         {
             return LeaderProxy_.ExecuteBatch();
         }
 
-        virtual void BatchRequest(
+        void BatchRequest(
             const NChunkClient::NProto::TReqExecuteBatch* request,
             NChunkClient::NProto::TReqExecuteBatch* batchRequest,
             TExecuteBatchState* state) override
@@ -516,7 +516,7 @@ private:
             BatchSubrequests(request->attach_chunk_trees_subrequests(), batchRequest->mutable_attach_chunk_trees_subrequests(), &state->AttachIndexes);
         }
 
-        virtual void UnbatchResponse(
+        void UnbatchResponse(
             NChunkClient::NProto::TRspExecuteBatch* response,
             const NChunkClient::NProto::TRspExecuteBatch* batchResponse,
             const TExecuteBatchState& state) override
@@ -527,7 +527,7 @@ private:
             UnbatchSubresponses(batchResponse->attach_chunk_trees_subresponses(), response->mutable_attach_chunk_trees_subresponses(), state.AttachIndexes);
         }
 
-        virtual int GetCost(const TRequestPtr& request) const override
+        int GetCost(const TRequestPtr& request) const override
         {
             return
                 request->create_chunk_subrequests_size() +

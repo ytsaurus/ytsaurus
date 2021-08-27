@@ -17,7 +17,7 @@ class TStatelessLexerTest
 public:
     std::unique_ptr<TStatelessLexer> Lexer;
 
-    virtual void SetUp()
+    void SetUp() override
     {
         Reset();
     }

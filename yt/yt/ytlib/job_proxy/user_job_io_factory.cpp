@@ -213,7 +213,7 @@ struct TUserJobIOFactoryBase
         }
     }
 
-    virtual ISchemalessMultiChunkWriterPtr CreateWriter(
+    ISchemalessMultiChunkWriterPtr CreateWriter(
         NApi::NNative::IClientPtr client,
         TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
@@ -278,7 +278,7 @@ public:
         TUserJobIOFactoryBase::Initialize();
     }
 
-    virtual ISchemalessMultiChunkReaderPtr CreateReader(
+    ISchemalessMultiChunkReaderPtr CreateReader(
         NNative::IClientPtr client,
         const TNodeDescriptor& nodeDescriptor,
         TClosure /*onNetworkReleased*/,
@@ -302,7 +302,7 @@ public:
     }
 
 protected:
-    virtual i64 GetTotalReaderMemoryLimit() const override
+    i64 GetTotalReaderMemoryLimit() const override
     {
         return JobSpecHelper_->GetJobIOConfig()->TableReader->MaxBufferSize;
     }
@@ -341,7 +341,7 @@ public:
         TUserJobIOFactoryBase::Initialize();
     }
 
-    virtual ISchemalessMultiChunkReaderPtr CreateReader(
+    ISchemalessMultiChunkReaderPtr CreateReader(
         NNative::IClientPtr client,
         const TNodeDescriptor& nodeDescriptor,
         TClosure /*onNetworkReleased*/,
@@ -449,7 +449,7 @@ public:
     }
 
 protected:
-    virtual i64 GetTotalReaderMemoryLimit() const override
+    i64 GetTotalReaderMemoryLimit() const override
     {
         auto readerMemoryLimit = JobSpecHelper_->GetJobIOConfig()->TableReader->MaxBufferSize;
         const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
@@ -489,7 +489,7 @@ public:
         TUserJobIOFactoryBase::Initialize();
     }
 
-    virtual ISchemalessMultiChunkReaderPtr CreateReader(
+    ISchemalessMultiChunkReaderPtr CreateReader(
         NNative::IClientPtr client,
         const TNodeDescriptor& nodeDescriptor,
         TClosure /*onNetworkReleased*/,
@@ -514,7 +514,7 @@ public:
             MultiReaderMemoryManager_);
     }
 
-    virtual ISchemalessMultiChunkWriterPtr CreateWriter(
+    ISchemalessMultiChunkWriterPtr CreateWriter(
         NNative::IClientPtr client,
         TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
@@ -580,7 +580,7 @@ public:
     }
 
 protected:
-    virtual i64 GetTotalReaderMemoryLimit() const override
+    i64 GetTotalReaderMemoryLimit() const override
     {
         return JobSpecHelper_->GetJobIOConfig()->TableReader->MaxBufferSize;
     }
@@ -614,7 +614,7 @@ public:
         TUserJobIOFactoryBase::Initialize();
     }
 
-    virtual ISchemalessMultiChunkReaderPtr CreateReader(
+    ISchemalessMultiChunkReaderPtr CreateReader(
         NNative::IClientPtr client,
         const TNodeDescriptor& /*nodeDescriptor*/,
         TClosure onNetworkReleased,
@@ -676,7 +676,7 @@ public:
     }
 
 protected:
-    virtual i64 GetTotalReaderMemoryLimit() const override
+    i64 GetTotalReaderMemoryLimit() const override
     {
         return JobSpecHelper_->GetJobIOConfig()->TableReader->MaxBufferSize;
     }
@@ -708,7 +708,7 @@ public:
             std::move(outRpsThrottler))
     { }
 
-    virtual ISchemalessMultiChunkReaderPtr CreateReader(
+    ISchemalessMultiChunkReaderPtr CreateReader(
         NNative::IClientPtr /*client*/,
         const TNodeDescriptor& /*nodeDescriptor*/,
         TClosure /*onNetworkReleased*/,
@@ -719,7 +719,7 @@ public:
     }
 
 protected:
-    virtual i64 GetTotalReaderMemoryLimit() const override
+    i64 GetTotalReaderMemoryLimit() const override
     {
         return 0;
     }

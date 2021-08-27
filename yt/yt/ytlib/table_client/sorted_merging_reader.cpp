@@ -35,25 +35,25 @@ public:
         TComparator reduceComparator,
         bool interruptAtKeyEdge);
 
-    virtual TDataStatistics GetDataStatistics() const override;
+    TDataStatistics GetDataStatistics() const override;
 
-    virtual TCodecStatistics GetDecompressionStatistics() const override;
+    TCodecStatistics GetDecompressionStatistics() const override;
 
-    virtual bool IsFetchingCompleted() const override;
+    bool IsFetchingCompleted() const override;
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override;
+    std::vector<TChunkId> GetFailedChunkIds() const override;
 
-    virtual const TNameTablePtr& GetNameTable() const override;
+    const TNameTablePtr& GetNameTable() const override;
 
-    virtual i64 GetTotalRowCount() const override;
-    virtual i64 GetSessionRowIndex() const override;
-    virtual i64 GetTableRowIndex() const override;
+    i64 GetTotalRowCount() const override;
+    i64 GetSessionRowIndex() const override;
+    i64 GetTableRowIndex() const override;
 
-    virtual void Interrupt() override;
+    void Interrupt() override;
 
-    virtual void SkipCurrentReader() override;
+    void SkipCurrentReader() override;
 
-    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override;
+    const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override;
 
 protected:
     struct TSession
@@ -333,9 +333,9 @@ public:
         TComparator reduceComparator,
         bool interruptAtKeyEdge);
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
 
-    virtual TInterruptDescriptor GetInterruptDescriptor(
+    TInterruptDescriptor GetInterruptDescriptor(
         TRange<TUnversionedRow> unreadRows) const override;
 
 private:
@@ -504,12 +504,12 @@ public:
         TComparator foreignComparator,
         bool interruptAtKeyEdge);
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
 
-    virtual TInterruptDescriptor GetInterruptDescriptor(
+    TInterruptDescriptor GetInterruptDescriptor(
         TRange<TUnversionedRow> unreadRows) const override;
 
-    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override;
+    const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override;
 
 private:
     const bool InterruptAtKeyEdge_;

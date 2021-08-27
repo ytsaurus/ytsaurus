@@ -239,7 +239,7 @@ public:
     { }
 
     // IBootstrap implementation.
-    virtual void Initialize() override
+    void Initialize() override
     {
         ControlActionQueue_ = New<TActionQueue>("Control");
         JobActionQueue_ = New<TActionQueue>("Job");
@@ -251,7 +251,7 @@ public:
             .ThrowOnError();
     }
 
-    virtual void Run() override
+    void Run() override
     {
         BIND(&TBootstrap::DoRun, this)
             .AsyncVia(GetControlInvoker())
@@ -262,7 +262,7 @@ public:
         Sleep(TDuration::Max());
     }
 
-    virtual void ValidateSnapshot(const TString& fileName) override
+    void ValidateSnapshot(const TString& fileName) override
     {
         BIND(&TBootstrap::DoValidateSnapshot, this, fileName)
             .AsyncVia(GetControlInvoker())
@@ -271,12 +271,12 @@ public:
             .ThrowOnError();
     }
 
-    virtual const IMasterConnectorPtr& GetMasterConnector() const override
+    const IMasterConnectorPtr& GetMasterConnector() const override
     {
         return MasterConnector_;
     }
 
-    virtual TRelativeThroughputThrottlerConfigPtr PatchRelativeNetworkThrottlerConfig(
+    TRelativeThroughputThrottlerConfigPtr PatchRelativeNetworkThrottlerConfig(
         const TRelativeThroughputThrottlerConfigPtr& config) const override
     {
         // NB: Absolute value limit suppresses relative one.
@@ -290,110 +290,110 @@ public:
         return patchedConfig;
     }
 
-    virtual void SetDecommissioned(bool decommissioned) override
+    void SetDecommissioned(bool decommissioned) override
     {
         Decommissioned_ = decommissioned;
     }
 
     // IBootstrapBase implementation.
-    virtual const TNodeMemoryTrackerPtr& GetMemoryUsageTracker() const override
+    const TNodeMemoryTrackerPtr& GetMemoryUsageTracker() const override
     {
         return MemoryUsageTracker_;
     }
 
-    virtual const TNodeResourceManagerPtr& GetNodeResourceManager() const override
+    const TNodeResourceManagerPtr& GetNodeResourceManager() const override
     {
         return NodeResourceManager_;
     }
 
-    virtual const NConcurrency::IThroughputThrottlerPtr& GetTotalInThrottler() const override
+    const NConcurrency::IThroughputThrottlerPtr& GetTotalInThrottler() const override
     {
         return TotalInThrottler_;
     }
 
-    virtual const NConcurrency::IThroughputThrottlerPtr& GetTotalOutThrottler() const override
+    const NConcurrency::IThroughputThrottlerPtr& GetTotalOutThrottler() const override
     {
         return TotalOutThrottler_;
     }
 
-    virtual const NConcurrency::IThroughputThrottlerPtr& GetReadRpsOutThrottler() const override
+    const NConcurrency::IThroughputThrottlerPtr& GetReadRpsOutThrottler() const override
     {
         return ReadRpsOutThrottler_;
     }
 
-    virtual const TClusterNodeConfigPtr& GetConfig() const override
+    const TClusterNodeConfigPtr& GetConfig() const override
     {
         return Config_;
     }
 
-    virtual const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override
+    const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override
     {
         return DynamicConfigManager_;
     }
 
-    virtual const IInvokerPtr& GetControlInvoker() const override
+    const IInvokerPtr& GetControlInvoker() const override
     {
         return ControlActionQueue_->GetInvoker();
     }
 
-    virtual const IInvokerPtr& GetJobInvoker() const override
+    const IInvokerPtr& GetJobInvoker() const override
     {
         return JobActionQueue_->GetInvoker();
     }
 
-    virtual const IInvokerPtr& GetMasterConnectionInvoker() const override
+    const IInvokerPtr& GetMasterConnectionInvoker() const override
     {
         return MasterConnector_->GetMasterConnectionInvoker();
     }
 
-    virtual const IInvokerPtr& GetStorageLightInvoker() const override
+    const IInvokerPtr& GetStorageLightInvoker() const override
     {
         return StorageLightThreadPool_->GetInvoker();
     }
 
-    virtual const IPrioritizedInvokerPtr& GetStorageHeavyInvoker() const override
+    const IPrioritizedInvokerPtr& GetStorageHeavyInvoker() const override
     {
         return StorageHeavyInvoker_;
     }
 
-    virtual const NApi::NNative::IClientPtr& GetMasterClient() const override
+    const NApi::NNative::IClientPtr& GetMasterClient() const override
     {
         return MasterClient_;
     }
 
-    virtual const NApi::NNative::IConnectionPtr& GetMasterConnection() const override
+    const NApi::NNative::IConnectionPtr& GetMasterConnection() const override
     {
         return MasterConnection_;
     }
 
-    virtual IChannelPtr GetMasterChannel(TCellTag cellTag) override
+    IChannelPtr GetMasterChannel(TCellTag cellTag) override
     {
         return MasterConnector_->GetMasterChannel(cellTag);
     }
 
-    virtual TNodeDescriptor GetLocalDescriptor() const override
+    TNodeDescriptor GetLocalDescriptor() const override
     {
         return MasterConnector_->GetLocalDescriptor();
     }
 
-    virtual TCellId GetCellId() const override
+    TCellId GetCellId() const override
     {
         return Config_->ClusterConnection->PrimaryMaster->CellId;
     }
 
-    virtual TCellId GetCellId(TCellTag cellTag) const override
+    TCellId GetCellId(TCellTag cellTag) const override
     {
         return cellTag == PrimaryMasterCellTag
             ? GetCellId()
             : ReplaceCellTagInId(GetCellId(), cellTag);
     }
 
-    virtual const TCellTagList& GetMasterCellTags() const override
+    const TCellTagList& GetMasterCellTags() const override
     {
         return MasterConnector_->GetMasterCellTags();
     }
 
-    virtual std::vector<TString> GetMasterAddressesOrThrow(TCellTag cellTag) const override
+    std::vector<TString> GetMasterAddressesOrThrow(TCellTag cellTag) const override
     {
         // TODO(babenko): handle service discovery.
         auto unwrapAddresses = [&] (const auto& optionalAddresses) {
@@ -418,49 +418,49 @@ public:
         THROW_ERROR_EXCEPTION("Master with cell tag %v is not known", cellTag);
     }
 
-    virtual const TLegacyMasterConnectorPtr& GetLegacyMasterConnector() const override
+    const TLegacyMasterConnectorPtr& GetLegacyMasterConnector() const override
     {
         return LegacyMasterConnector_;
     }
 
-    virtual bool UseNewHeartbeats() const override
+    bool UseNewHeartbeats() const override
     {
         return MasterConnector_->UseNewHeartbeats();
     }
 
-    virtual void ResetAndRegisterAtMaster() override
+    void ResetAndRegisterAtMaster() override
     {
         return MasterConnector_->ResetAndRegisterAtMaster();
     }
 
-    virtual bool IsConnected() const override
+    bool IsConnected() const override
     {
         return MasterConnector_->IsConnected();
     }
 
-    virtual TNodeId GetNodeId() const override
+    TNodeId GetNodeId() const override
     {
         return MasterConnector_->GetNodeId();
     }
 
-    virtual const TNodeDirectoryPtr& GetNodeDirectory() const override
+    const TNodeDirectoryPtr& GetNodeDirectory() const override
     {
         return MasterConnection_->GetNodeDirectory();
     }
 
-    virtual TNetworkPreferenceList GetLocalNetworks() const override
+    TNetworkPreferenceList GetLocalNetworks() const override
     {
         return Config_->Addresses.empty()
             ? DefaultNetworkPreferences
             : GetIths<0>(Config_->Addresses);
     }
 
-    virtual std::optional<TString> GetDefaultNetworkName() const override
+    std::optional<TString> GetDefaultNetworkName() const override
     {
         return Config_->BusServer->DefaultNetwork;
     }
 
-    virtual TString GetDefaultLocalAddressOrThrow() const override
+    TString GetDefaultLocalAddressOrThrow() const override
     {
         auto addressMap = GetLocalAddresses(
             Config_->Addresses,
@@ -478,129 +478,129 @@ public:
         return addressMap[*defaultNetwork];
     }
 
-    virtual const NHttp::IServerPtr& GetHttpServer() const override
+    const NHttp::IServerPtr& GetHttpServer() const override
     {
         return HttpServer_;
     }
 
-    virtual const NRpc::IServerPtr& GetRpcServer() const override
+    const NRpc::IServerPtr& GetRpcServer() const override
     {
         return RpcServer_;
     }
 
-    virtual const IBlockCachePtr& GetBlockCache() const override
+    const IBlockCachePtr& GetBlockCache() const override
     {
         return BlockCache_;
     }
 
-    virtual const IClientBlockCachePtr& GetClientBlockCache() const override
+    const IClientBlockCachePtr& GetClientBlockCache() const override
     {
         return ClientBlockCache_;
     }
 
-    virtual const IChunkMetaManagerPtr& GetChunkMetaManager() const override
+    const IChunkMetaManagerPtr& GetChunkMetaManager() const override
     {
         return ChunkMetaManager_;
     }
 
-    virtual const IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const override
+    const IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const override
     {
         return VersionedChunkMetaManager_;
     }
 
-    virtual const NYTree::IMapNodePtr& GetOrchidRoot() const override
+    const NYTree::IMapNodePtr& GetOrchidRoot() const override
     {
         return OrchidRoot_;
     }
 
-    virtual bool IsReadOnly() const override
+    bool IsReadOnly() const override
     {
         // TOOD(gritukan): Make node without dynamic config read-only after YT-12933.
         return false;
     }
 
-    virtual bool Decommissioned() const override
+    bool Decommissioned() const override
     {
         return Decommissioned_;
     }
 
-    virtual NDataNode::TNetworkStatistics& GetNetworkStatistics() const override
+    NDataNode::TNetworkStatistics& GetNetworkStatistics() const override
     {
         return *NetworkStatistics_;
     }
 
-    virtual const IChunkRegistryPtr& GetChunkRegistry() const override
+    const IChunkRegistryPtr& GetChunkRegistry() const override
     {
         return ChunkRegistry_;
     }
 
-    virtual const IBlobReaderCachePtr& GetBlobReaderCache() const override
+    const IBlobReaderCachePtr& GetBlobReaderCache() const override
     {
         return BlobReaderCache_;
     }
 
-    virtual const TJobControllerPtr& GetJobController() const override
+    const TJobControllerPtr& GetJobController() const override
     {
         return JobController_;
     }
 
-    virtual EJobEnvironmentType GetJobEnvironmentType() const override
+    EJobEnvironmentType GetJobEnvironmentType() const override
     {
         const auto& slotManagerConfig = Config_->ExecNode->SlotManager;
         return ConvertTo<EJobEnvironmentType>(slotManagerConfig->JobEnvironment->AsMap()->FindChild("type"));
     }
 
-    virtual const THashSet<ENodeFlavor>& GetFlavors() const override
+    const THashSet<ENodeFlavor>& GetFlavors() const override
     {
         return Flavors_;
     }
 
-    virtual bool IsDataNode() const override
+    bool IsDataNode() const override
     {
         return Flavors_.contains(ENodeFlavor::Data);
     }
 
-    virtual bool IsExecNode() const override
+    bool IsExecNode() const override
     {
         return Flavors_.contains(ENodeFlavor::Exec);
     }
 
-    virtual bool IsCellarNode() const override
+    bool IsCellarNode() const override
     {
         return IsTabletNode() || IsChaosNode();
     }
 
-    virtual bool IsTabletNode() const override
+    bool IsTabletNode() const override
     {
         return Flavors_.contains(ENodeFlavor::Tablet);
     }
 
-    virtual bool IsChaosNode() const override
+    bool IsChaosNode() const override
     {
         return Flavors_.contains(ENodeFlavor::Chaos);
     }
 
-    virtual NCellarNode::IBootstrap* GetCellarNodeBootstrap() const override
+    NCellarNode::IBootstrap* GetCellarNodeBootstrap() const override
     {
         return CellarNodeBootstrap_.get();
     }
 
-    virtual NDataNode::IBootstrap* GetDataNodeBootstrap() const override
+    NDataNode::IBootstrap* GetDataNodeBootstrap() const override
     {
         return DataNodeBootstrap_.get();
     }
 
-    virtual NExecNode::IBootstrap* GetExecNodeBootstrap() const override
+    NExecNode::IBootstrap* GetExecNodeBootstrap() const override
     {
         return ExecNodeBootstrap_.get();
     }
 
-    virtual NChaosNode::IBootstrap* GetChaosNodeBootstrap() const override
+    NChaosNode::IBootstrap* GetChaosNodeBootstrap() const override
     {
         return ChaosNodeBootstrap_.get();
     }
 
-    virtual NTabletNode::IBootstrap* GetTabletNodeBootstrap() const override
+    NTabletNode::IBootstrap* GetTabletNodeBootstrap() const override
     {
         return TabletNodeBootstrap_.get();
     }

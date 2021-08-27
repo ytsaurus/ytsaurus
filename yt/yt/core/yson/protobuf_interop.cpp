@@ -885,7 +885,7 @@ private:
 
     std::unique_ptr<ITreeBuilder> TreeBuilder_;
 
-    virtual void OnMyStringScalar(TStringBuf value) override
+    void OnMyStringScalar(TStringBuf value) override
     {
         WriteScalar([&] {
             const auto* field = FieldStack_.back().Field;
@@ -919,17 +919,17 @@ private:
         });
     }
 
-    virtual void OnMyInt64Scalar(i64 value) override
+    void OnMyInt64Scalar(i64 value) override
     {
         OnIntegerScalar(value);
     }
 
-    virtual void OnMyUint64Scalar(ui64 value) override
+    void OnMyUint64Scalar(ui64 value) override
     {
         OnIntegerScalar(value);
     }
 
-    virtual void OnMyDoubleScalar(double value) override
+    void OnMyDoubleScalar(double value) override
     {
         WriteScalar([&] {
             const auto* field = FieldStack_.back().Field;
@@ -955,7 +955,7 @@ private:
         });
     }
 
-    virtual void OnMyBooleanScalar(bool value) override
+    void OnMyBooleanScalar(bool value) override
     {
         WriteScalar([&] {
             const auto* field = FieldStack_.back().Field;
@@ -970,7 +970,7 @@ private:
         });
     }
 
-    virtual void OnMyEntity() override
+    void OnMyEntity() override
     {
         if (FieldStack_.empty()) {
             // This is the root.
@@ -980,7 +980,7 @@ private:
         YPathStack_.Pop();
     }
 
-    virtual void OnMyBeginList() override
+    void OnMyBeginList() override
     {
         ValidateNotRoot();
 
@@ -993,7 +993,7 @@ private:
         }
     }
 
-    virtual void OnMyListItem() override
+    void OnMyListItem() override
     {
         YT_ASSERT(!TypeStack_.empty());
         int index = FieldStack_.back().CurrentListIndex++;
@@ -1003,14 +1003,14 @@ private:
         TryWriteCustomlyConvertableType();
     }
 
-    virtual void OnMyEndList() override
+    void OnMyEndList() override
     {
         YT_ASSERT(!TypeStack_.empty());
         FieldStack_.pop_back();
         YPathStack_.Pop();
     }
 
-    virtual void OnMyBeginMap() override
+    void OnMyBeginMap() override
     {
         if (TypeStack_.empty()) {
             TypeStack_.emplace_back(RootType_);
@@ -1035,7 +1035,7 @@ private:
         }
     }
 
-    virtual void OnMyKeyedItem(TStringBuf key) override
+    void OnMyKeyedItem(TStringBuf key) override
     {
         const auto* field = FieldStack_.back().Field;
         if (field && field->IsYsonMap() && !FieldStack_.back().ParsingYsonMapFromList) {
@@ -1186,7 +1186,7 @@ private:
         });
     }
 
-    virtual void OnMyEndMap() override
+    void OnMyEndMap() override
     {
         auto& typeEntry = TypeStack_.back();
         const auto* type = typeEntry.Type;
@@ -1228,12 +1228,12 @@ private:
             << TErrorAttribute("ypath", YPathStack_.GetPath());
     }
 
-    virtual void OnMyBeginAttributes() override
+    void OnMyBeginAttributes() override
     {
         ThrowAttributesNotSupported();
     }
 
-    virtual void OnMyEndAttributes() override
+    void OnMyEndAttributes() override
     {
         ThrowAttributesNotSupported();
     }

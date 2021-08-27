@@ -38,7 +38,7 @@ private:
     IBootstrap* const Bootstrap_;
     const TLogger Logger;
 
-    virtual TFuture<void> DoGet(const TString& user, bool /*isPeriodicUpdate*/) noexcept override
+    TFuture<void> DoGet(const TString& user, bool /*isPeriodicUpdate*/) noexcept override
     {
         YT_LOG_DEBUG("Getting user ban flag (User: %v)",
             user);

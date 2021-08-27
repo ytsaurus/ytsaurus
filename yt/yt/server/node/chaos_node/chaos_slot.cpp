@@ -67,7 +67,7 @@ public:
         ResetGuardedInvokers();
     }
 
-    virtual void SetOccupant(ICellarOccupantPtr occupant) override
+    void SetOccupant(ICellarOccupantPtr occupant) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(!Occupant_);
@@ -78,14 +78,14 @@ public:
             Occupant_->GetPeerId());
     }
 
-    virtual TCellId GetCellId() const override
+    TCellId GetCellId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetCellId();
     }
 
-    virtual EPeerState GetAutomatonState() const override
+    EPeerState GetAutomatonState() const override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -93,70 +93,70 @@ public:
         return hydraManager ? hydraManager->GetAutomatonState() : EPeerState::None;
     }
 
-    virtual IDistributedHydraManagerPtr GetHydraManager() const override
+    IDistributedHydraManagerPtr GetHydraManager() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetHydraManager();
     }
 
-    virtual const TCompositeAutomatonPtr& GetAutomaton() const override
+    const TCompositeAutomatonPtr& GetAutomaton() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return Occupant_->GetAutomaton();
     }
 
-    virtual const THiveManagerPtr& GetHiveManager() const override
+    const THiveManagerPtr& GetHiveManager() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetHiveManager();
     }
 
-    virtual TMailbox* GetMasterMailbox() override
+    TMailbox* GetMasterMailbox() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         return Occupant_->GetMasterMailbox();
     }
 
-    virtual ITransactionManagerPtr GetTransactionManager() const override
+    ITransactionManagerPtr GetTransactionManager() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return TransactionManager_;
     }
 
-    virtual NHiveServer::ITransactionManagerPtr GetOccupierTransactionManager() override
+    NHiveServer::ITransactionManagerPtr GetOccupierTransactionManager() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return TransactionManager_;
     }
 
-    virtual const ITransactionSupervisorPtr& GetTransactionSupervisor() const override
+    const ITransactionSupervisorPtr& GetTransactionSupervisor() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetTransactionSupervisor();
     }
 
-    virtual const IChaosManagerPtr& GetChaosManager() const override
+    const IChaosManagerPtr& GetChaosManager() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return ChaosManager_;
     }
 
-    virtual TObjectId GenerateId(EObjectType type) override
+    TObjectId GenerateId(EObjectType type) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         return Occupant_->GenerateId(type);
     }
 
-    virtual TCompositeAutomatonPtr CreateAutomaton() override
+    TCompositeAutomatonPtr CreateAutomaton() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -165,7 +165,7 @@ public:
             SnapshotQueue_->GetInvoker());
     }
 
-    virtual void Configure(IDistributedHydraManagerPtr hydraManager) override
+    void Configure(IDistributedHydraManagerPtr hydraManager) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -188,17 +188,17 @@ public:
             Bootstrap_);
     }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         ChaosManager_->Initialize();
     }
 
-    virtual void RegisterRpcServices() override
+    void RegisterRpcServices() override
     { }
 
-    virtual void Stop() override
+    void Stop() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -206,7 +206,7 @@ public:
         ResetGuardedInvokers();
     }
 
-    virtual void Finalize() override
+    void Finalize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -227,7 +227,7 @@ public:
         CoordinatorService_.Reset();
     }
 
-    virtual TCompositeMapServicePtr PopulateOrchidService(TCompositeMapServicePtr orchid) override
+    TCompositeMapServicePtr PopulateOrchidService(TCompositeMapServicePtr orchid) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -236,39 +236,39 @@ public:
             ->AddChild("chaos", ChaosManager_->GetOrchidService());
     }
 
-    virtual NProfiling::TRegistry GetProfiler() override
+    NProfiling::TRegistry GetProfiler() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return ChaosNodeProfiler;
     }
 
-    virtual IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const override
+    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const override
     {
         return TAutomatonInvokerHood<EAutomatonThreadQueue>::GetAutomatonInvoker(queue);
     }
 
-    virtual IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const override
+    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const override
     {
         return TAutomatonInvokerHood<EAutomatonThreadQueue>::GetEpochAutomatonInvoker(queue);
     }
 
-    virtual IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const override
+    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const override
     {
         return TAutomatonInvokerHood<EAutomatonThreadQueue>::GetGuardedAutomatonInvoker(queue);
     }
 
-    virtual IInvokerPtr GetOccupierAutomatonInvoker() override
+    IInvokerPtr GetOccupierAutomatonInvoker() override
     {
         return GetAutomatonInvoker();
     }
 
-    virtual IInvokerPtr GetMutationAutomatonInvoker() override
+    IInvokerPtr GetMutationAutomatonInvoker() override
     {
         return GetAutomatonInvoker(EAutomatonThreadQueue::Mutation);
     }
 
-    virtual ECellarType GetCellarType() override
+    ECellarType GetCellarType() override
     {
         return IChaosSlot::CellarType;
     }

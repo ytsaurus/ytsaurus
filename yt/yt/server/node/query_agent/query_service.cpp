@@ -171,7 +171,7 @@ private:
     const TWeakPtr<NApi::NNative::IClient> Client_;
     const IInvokerPtr Invoker_;
 
-    virtual TFuture<double> DoGet(
+    TFuture<double> DoGet(
         const TString& poolName,
         bool /*isPeriodicUpdate*/) noexcept override
     {
@@ -262,7 +262,7 @@ public:
         , MemoryTracker_(std::move(memoryTracker))
     { }
 
-    virtual std::unique_ptr<TAllocationHolder> Allocate(size_t size, TRefCountedTypeCookie cookie) override
+    std::unique_ptr<TAllocationHolder> Allocate(size_t size, TRefCountedTypeCookie cookie) override
     {
         size_t allocated = Allocated_.load();
         do {

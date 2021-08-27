@@ -25,22 +25,22 @@ class TCodecBase
     : public ICodec
 {
 public:
-    virtual TSharedRef Compress(const TSharedRef& block) override
+    TSharedRef Compress(const TSharedRef& block) override
     {
         return Run(&TCodec::DoCompress, GetRefCountedTypeCookie<TCompressedBlockTag<TCodec>>(), block);
     }
 
-    virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
+    TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
         return Run(&TCodec::DoCompress, GetRefCountedTypeCookie<TCompressedBlockTag<TCodec>>(), blocks);
     }
 
-    virtual TSharedRef Decompress(const TSharedRef& block) override
+    TSharedRef Decompress(const TSharedRef& block) override
     {
         return Run(&TCodec::DoDecompress, GetRefCountedTypeCookie<TDecompressedBlockTag<TCodec>>(), block);
     }
 
-    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
+    TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
     {
         return Run(&TCodec::DoDecompress, GetRefCountedTypeCookie<TDecompressedBlockTag<TCodec>>(), blocks);
     }
@@ -91,27 +91,27 @@ class TNoneCodec
     : public ICodec
 {
 public:
-    virtual TSharedRef Compress(const TSharedRef& block) override
+    TSharedRef Compress(const TSharedRef& block) override
     {
         return block;
     }
 
-    virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
+    TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
         return MergeRefsToRef<TCompressedBlockTag<TNoneCodec>>(blocks);
     }
 
-    virtual TSharedRef Decompress(const TSharedRef& block) override
+    TSharedRef Decompress(const TSharedRef& block) override
     {
         return block;
     }
 
-    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
+    TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
     {
         return MergeRefsToRef<TDecompressedBlockTag<TNoneCodec>>(blocks);
     }
 
-    virtual ECodec GetId() const override
+    ECodec GetId() const override
     {
         return ECodec::None;
     }
@@ -133,7 +133,7 @@ public:
         NCompression::SnappyDecompress(source, output);
     }
 
-    virtual ECodec GetId() const override
+    ECodec GetId() const override
     {
         return ECodec::Snappy;
     }
@@ -159,7 +159,7 @@ public:
         NCompression::ZlibDecompress(source, output);
     }
 
-    virtual ECodec GetId() const override
+    ECodec GetId() const override
     {
         switch (Level_) {
 
@@ -196,7 +196,7 @@ public:
         NCompression::Lz4Decompress(source, output);
     }
 
-    virtual ECodec GetId() const override
+    ECodec GetId() const override
     {
         return HighCompression_ ? ECodec::Lz4HighCompression : ECodec::Lz4;
     }
@@ -224,7 +224,7 @@ public:
         NCompression::QuickLzDecompress(source, output);
     }
 
-    virtual ECodec GetId() const override
+    ECodec GetId() const override
     {
         return ECodec::QuickLz;
     }
@@ -250,7 +250,7 @@ public:
         NCompression::ZstdDecompress(source, output);
     }
 
-    virtual ECodec GetId() const override
+    ECodec GetId() const override
     {
         switch (Level_) {
 
@@ -287,7 +287,7 @@ public:
         NCompression::BrotliDecompress(source, output);
     }
 
-    virtual ECodec GetId() const override
+    ECodec GetId() const override
     {
         switch (Level_) {
 
@@ -322,7 +322,7 @@ public:
         NCompression::LzmaDecompress(source, output);
     }
 
-    virtual ECodec GetId() const override
+    ECodec GetId() const override
     {
         switch (Level_) {
 
@@ -357,7 +357,7 @@ public:
         NCompression::Bzip2Decompress(source, output);
     }
 
-    virtual ECodec GetId() const override
+    ECodec GetId() const override
     {
         switch (Level_) {
 

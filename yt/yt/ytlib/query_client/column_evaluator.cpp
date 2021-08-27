@@ -204,7 +204,7 @@ public:
         , Profilers_(profilers)
     { }
 
-    virtual TColumnEvaluatorPtr Find(const TTableSchemaPtr& schema) override
+    TColumnEvaluatorPtr Find(const TTableSchemaPtr& schema) override
     {
         llvm::FoldingSetNodeID id;
         Profile(schema, &id);
@@ -226,7 +226,7 @@ public:
         return cachedEvaluator->GetColumnEvaluator();
     }
 
-    virtual void Reconfigure(const TColumnEvaluatorCacheDynamicConfigPtr& config) override
+    void Reconfigure(const TColumnEvaluatorCacheDynamicConfigPtr& config) override
     {
         TSyncSlruCacheBase::Reconfigure(config->CGCache);
     }

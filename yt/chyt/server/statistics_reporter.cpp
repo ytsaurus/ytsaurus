@@ -196,7 +196,7 @@ public:
                 std::nullopt)
     { }
 
-    virtual size_t EstimateSize() const override
+    size_t EstimateSize() const override
     {
         return EstimateSizes(
             InitialQueryId_,
@@ -212,7 +212,7 @@ public:
             ProxyAddress_);
     }
 
-    virtual TUnversionedOwningRow ToRow(int /* archiveVersion */) const override
+    TUnversionedOwningRow ToRow(int /* archiveVersion */) const override
     {
         const auto& index = TDistributedQueriesTableDescirptor::Get().Index;
 
@@ -267,7 +267,7 @@ public:
         , Statistics_(ConvertToYsonString(queryContext->InstanceStatistics))
     { }
 
-    virtual size_t EstimateSize() const override
+    size_t EstimateSize() const override
     {
         return EstimateSizes(
             InitialQueryId_,
@@ -281,7 +281,7 @@ public:
             Statistics_);
     }
 
-    virtual TUnversionedOwningRow ToRow(int /* archiveVersion */) const override
+    TUnversionedOwningRow ToRow(int /* archiveVersion */) const override
     {
         const auto& index = TSecondaryQueriesTableDescirptor::Get().Index;
 
@@ -323,7 +323,7 @@ public:
         , InitialQueryId_(ToString(queryContext->InitialQueryId))
     { }
 
-    virtual size_t EstimateSize() const override
+    size_t EstimateSize() const override
     {
         return EstimateSizes(
             SecondaryQueryId_,
@@ -331,7 +331,7 @@ public:
             InitialQueryId_);
     }
 
-    virtual TUnversionedOwningRow ToRow(int /* archiveVersion */) const override
+    TUnversionedOwningRow ToRow(int /* archiveVersion */) const override
     {
         const auto& index = TAncestorQueryIdsTableDescriptor::Get().Index;
 

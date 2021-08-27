@@ -51,12 +51,12 @@ public:
         }
     }
 
-    virtual DB::Block getHeader() const override
+    DB::Block getHeader() const override
     {
         return HeaderBlock_;
     }
 
-    virtual void write(const DB::Block& block) override
+    void write(const DB::Block& block) override
     {
         YT_LOG_TRACE("Writing block (RowCount: %v, ColumnCount: %v, ByteCount: %v)", block.rows(), block.columns(), block.bytes());
 
@@ -107,7 +107,7 @@ public:
             .ValueOrThrow();
     }
 
-    virtual void writeSuffix() override
+    void writeSuffix() override
     {
         YT_LOG_INFO("Closing writer");
         WaitFor(Writer_->Close())
@@ -118,7 +118,7 @@ public:
 private:
     IUnversionedWriterPtr Writer_;
 
-    virtual void DoWriteRows(TSharedRange<TUnversionedRow> rows)
+    void DoWriteRows(TSharedRange<TUnversionedRow> rows) override
     {
         if (!Writer_->Write(rows)) {
             WaitFor(Writer_->GetReadyEvent())
@@ -152,7 +152,7 @@ private:
     TDynamicTableSettingsPtr DynamicTableSettings_;
     NNative::IClientPtr Client_;
 
-    virtual void DoWriteRows(TSharedRange<TUnversionedRow> range) override
+    void DoWriteRows(TSharedRange<TUnversionedRow> range) override
     {
         i64 rowCount = range.size();
         int rowsPerWrite = DynamicTableSettings_->MaxRowsPerWrite;

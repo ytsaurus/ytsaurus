@@ -72,12 +72,12 @@ public:
         , DefaultLocalAddress_(localAddress)
     { }
 
-    virtual size_t EstimateSize() const override
+    size_t EstimateSize() const override
     {
         return Statistics_.EstimateSize();
     }
 
-    virtual TUnversionedOwningRow ToRow(int archiveVersion) const override
+    TUnversionedOwningRow ToRow(int archiveVersion) const override
     {
         const auto& index = TJobTableDescriptor::Get().Index;
 
@@ -191,12 +191,12 @@ public:
         : Statistics_(statistics)
     { }
 
-    virtual size_t EstimateSize() const override
+    size_t EstimateSize() const override
     {
         return Statistics_.EstimateSize();
     }
 
-    virtual TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
+    TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
     {
         const auto& index = TOperationIdTableDescriptor::Get().Index;
 
@@ -223,12 +223,12 @@ public:
         : Statistics_(statistics)
     { }
 
-    virtual size_t EstimateSize() const override
+    size_t EstimateSize() const override
     {
         return Statistics_.EstimateSize();
     }
 
-    virtual TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
+    TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
     {
         const auto& index = TJobSpecTableDescriptor::Get().Index;
 
@@ -262,12 +262,12 @@ public:
         : Statistics_(statistics)
     { }
 
-    virtual size_t EstimateSize() const override
+    size_t EstimateSize() const override
     {
         return Statistics_.EstimateSize();
     }
 
-    virtual TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
+    TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
     {
         const auto& index = TJobStderrTableDescriptor::Get().Index;
 
@@ -299,12 +299,12 @@ public:
         : Statistics_(statistics)
     { }
 
-    virtual size_t EstimateSize() const override
+    size_t EstimateSize() const override
     {
         return Statistics_.EstimateSize();
     }
 
-    virtual TUnversionedOwningRow ToRow(int archiveVersion) const override
+    TUnversionedOwningRow ToRow(int archiveVersion) const override
     {
         const auto& index = TJobFailContextTableDescriptor::Get().Index;
 
@@ -336,12 +336,12 @@ public:
         : Statistics_(statistics)
     { }
 
-    virtual size_t EstimateSize() const override
+    size_t EstimateSize() const override
     {
         return Statistics_.EstimateSize();
     }
 
-    virtual TUnversionedOwningRow ToRow(int archiveVersion) const override
+    TUnversionedOwningRow ToRow(int archiveVersion) const override
     {
         const auto& index = TJobProfileTableDescriptor::Get().Index;
         const auto& profile = Statistics_.Profile();

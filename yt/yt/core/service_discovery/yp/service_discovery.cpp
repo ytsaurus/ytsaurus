@@ -189,7 +189,7 @@ public:
         , Client_(New<TServiceDiscoveryClient>(Config_))
     { }
 
-    virtual TFuture<TEndpointSet> ResolveEndpoints(
+    TFuture<TEndpointSet> ResolveEndpoints(
         const TString& cluster,
         const TString& endpointSetId) override
     {
@@ -197,7 +197,7 @@ public:
     }
 
 protected:
-    virtual TFuture<TEndpointSet> DoGet(
+    TFuture<TEndpointSet> DoGet(
         const TClusterEndpointSetIdPair& clusterEndpointSetIdPair,
         bool /* isPeriodicUpdate */) noexcept override
     {
@@ -219,7 +219,7 @@ protected:
             }));
     }
 
-    virtual void OnRemoved(const TClusterEndpointSetIdPair& key) noexcept override
+    void OnRemoved(const TClusterEndpointSetIdPair& key) noexcept override
     {
         auto guard = Guard(MostActualResponsesLock_);
 

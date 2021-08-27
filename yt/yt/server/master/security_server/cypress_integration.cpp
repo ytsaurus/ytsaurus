@@ -56,7 +56,7 @@ private:
 
     TBootstrap* const Bootstrap_;
 
-    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         std::vector<TString> names;
@@ -76,13 +76,13 @@ private:
         return names;
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         return securityManager->Accounts().GetSize();
     }
 
-    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->FindAccountByName(TString(key), false /*activeLifeStageOnly*/);
@@ -94,7 +94,7 @@ private:
         return objectManager->GetProxy(account);
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
@@ -103,7 +103,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::TotalResourceLimits);
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* rootAccount = securityManager->GetRootAccount();
@@ -159,7 +159,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
 
@@ -174,13 +174,13 @@ private:
         return keys;
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         return securityManager->AccountResourceUsageLeases().GetSize();
     }
 
-    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto accountResourceUsageLeaseId = TAccountResourceUsageLeaseId::FromString(key);
@@ -221,19 +221,19 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         return ToNames(GetValues(securityManager->Users(), sizeLimit));
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         return securityManager->Users().GetSize();
     }
 
-    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->FindUserByNameOrAlias(TString(key), false /*activeLifeStageOnly*/);
@@ -273,19 +273,19 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         return ToNames(GetValues(securityManager->Groups(), sizeLimit));
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         return securityManager->Groups().GetSize();
     }
 
-    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* group = securityManager->FindGroupByNameOrAlias(TString(key));
@@ -325,19 +325,19 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         return ToNames(GetValues(securityManager->NetworkProjects(), sizeLimit));
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         return securityManager->NetworkProjects().GetSize();
     }
 
-    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* networkProject = securityManager->FindNetworkProjectByName(static_cast<TString>(key));
@@ -380,17 +380,17 @@ private:
 
     const EObjectType Type_;
 
-    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         return ToNames(GetValues(GetProxyRoles(), sizeLimit));
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         return GetProxyRoles().size();
     }
 
-    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         const auto& proxyRoles = GetProxyRoles();
         auto proxyRolesIt = proxyRoles.find(static_cast<TString>(key));

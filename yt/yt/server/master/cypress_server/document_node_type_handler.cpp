@@ -23,18 +23,18 @@ private:
 public:
     using TBase::TBase;
 
-    virtual NObjectClient::EObjectType GetObjectType() const override
+    NObjectClient::EObjectType GetObjectType() const override
     {
         return EObjectType::Document;
     }
 
-    virtual NYTree::ENodeType GetNodeType() const override
+    NYTree::ENodeType GetNodeType() const override
     {
         return ENodeType::Entity;
     }
 
 private:
-    virtual ICypressNodeProxyPtr DoGetProxy(
+    ICypressNodeProxyPtr DoGetProxy(
         TDocumentNode* trunkNode,
         TTransaction* transaction) override
     {
@@ -45,7 +45,7 @@ private:
             trunkNode);
     }
 
-    virtual void DoBranch(
+    void DoBranch(
         const TDocumentNode* originatingNode,
         TDocumentNode* branchedNode,
         const TLockRequest& lockRequest) override
@@ -55,7 +55,7 @@ private:
         branchedNode->SetValue(CloneNode(originatingNode->GetValue()));
     }
 
-    virtual void DoMerge(
+    void DoMerge(
         TDocumentNode* originatingNode,
         TDocumentNode* branchedNode) override
     {
@@ -64,7 +64,7 @@ private:
         originatingNode->SetValue(branchedNode->GetValue());
     }
 
-    virtual void DoClone(
+    void DoClone(
         TDocumentNode* sourceNode,
         TDocumentNode* clonedTrunkNode,
         ICypressNodeFactory* factory,
@@ -76,7 +76,7 @@ private:
         clonedTrunkNode->SetValue(CloneNode(sourceNode->GetValue()));
     }
 
-    virtual bool HasBranchedChangesImpl(
+    bool HasBranchedChangesImpl(
         TDocumentNode* originatingNode,
         TDocumentNode* branchedNode) override
     {
@@ -87,7 +87,7 @@ private:
         return !AreNodesEqual(branchedNode->GetValue(), originatingNode->GetValue());
     }
 
-    virtual void DoBeginCopy(
+    void DoBeginCopy(
         TDocumentNode* node,
         TBeginCopyContext* context) override
     {
@@ -97,7 +97,7 @@ private:
         Save(*context, ConvertToYsonString(node->GetValue()));
     }
 
-    virtual void DoEndCopy(
+    void DoEndCopy(
         TDocumentNode* trunkNode,
         TEndCopyContext* context,
         ICypressNodeFactory* factory) override

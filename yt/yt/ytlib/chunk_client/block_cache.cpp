@@ -19,17 +19,17 @@ class TActiveCachedBlockCookie
     : public ICachedBlockCookie
 {
 public:
-    virtual bool IsActive() const override
+    bool IsActive() const override
     {
         return true;
     }
 
-    virtual TFuture<TCachedBlock> GetBlockFuture() const override
+    TFuture<TCachedBlock> GetBlockFuture() const override
     {
         YT_ABORT();
     }
 
-    virtual void SetBlock(TErrorOr<TCachedBlock> /* blockOrError */) override
+    void SetBlock(TErrorOr<TCachedBlock> /* blockOrError */) override
     { }
 };
 
@@ -43,17 +43,17 @@ public:
         : CachedBlock_(std::move(cachedBlock))
     { }
 
-    virtual bool IsActive() const override
+    bool IsActive() const override
     {
         return false;
     }
 
-    virtual TFuture<TCachedBlock> GetBlockFuture() const override
+    TFuture<TCachedBlock> GetBlockFuture() const override
     {
         return MakeFuture<TCachedBlock>(CachedBlock_);
     }
 
-    virtual void SetBlock(TErrorOr<TCachedBlock> /* blockOrError */) override
+    void SetBlock(TErrorOr<TCachedBlock> /* blockOrError */) override
     {
         YT_ABORT();
     }

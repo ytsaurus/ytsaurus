@@ -29,7 +29,7 @@ private:
 public:
     using TBase::TBase;
 
-    virtual void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
@@ -38,7 +38,7 @@ public:
         descriptors->push_back(EInternedAttributeKey::Value);
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         const auto* schema = GetThisImpl();
 
@@ -65,7 +65,7 @@ public:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override
+    TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override
     {
         const auto* schema = GetThisImpl();
 
@@ -80,7 +80,7 @@ public:
         return TBase::GetBuiltinAttributeAsync(key);
     }
 
-    virtual void GetSelf(TReqGet* /*request*/, TRspGet* response, const TCtxGetPtr& context) override
+    void GetSelf(TReqGet* /*request*/, TRspGet* response, const TCtxGetPtr& context) override
     {
         GetThisImpl()->AsYsonAsync().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
             if (resultOrError.IsOK()) {

@@ -33,7 +33,7 @@ public:
 private:
     using TBase = TNonversionedObjectProxyBase<TChunkView>;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
@@ -52,7 +52,7 @@ private:
             .SetPresent(chunkView->GetTransactionId().operator bool()));
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         const auto* chunkView = GetThisImpl();
         const auto& readRange = chunkView->ReadRange();
@@ -110,7 +110,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
+    TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
         auto* chunkView = GetThisImpl();
 

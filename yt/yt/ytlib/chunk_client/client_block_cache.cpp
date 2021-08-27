@@ -56,12 +56,12 @@ public:
         : Cookie_(std::move(cookie))
     { }
 
-    virtual bool IsActive() const override
+    bool IsActive() const override
     {
         return Cookie_.IsActive();
     }
 
-    virtual TFuture<TCachedBlock> GetBlockFuture() const override
+    TFuture<TCachedBlock> GetBlockFuture() const override
     {
         return Cookie_.GetValue().Apply(BIND([] (const TErrorOr<TIntrusivePtr<TAsyncBlockCacheEntry>>& entryOrError) -> TErrorOr<TCachedBlock> {
             if (entryOrError.IsOK()) {
@@ -72,7 +72,7 @@ public:
         }));
     }
 
-    virtual void SetBlock(TErrorOr<TCachedBlock> blockOrError) override
+    void SetBlock(TErrorOr<TCachedBlock> blockOrError) override
     {
         if (BlockSet_.exchange(true)) {
             return;
@@ -201,14 +201,14 @@ public:
 private:
     const EBlockType Type_;
 
-    virtual i64 GetWeight(const TAsyncBlockCacheEntryPtr& entry) const override
+    i64 GetWeight(const TAsyncBlockCacheEntryPtr& entry) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return entry->GetCachedBlock().Block.Size();
     }
 
-    virtual void OnRemoved(const TAsyncBlockCacheEntryPtr& entry) override
+    void OnRemoved(const TAsyncBlockCacheEntryPtr& entry) override
     {
         TMemoryTrackingAsyncSlruCacheBase<TBlockId, TAsyncBlockCacheEntry>::OnRemoved(entry);
 
@@ -266,7 +266,7 @@ public:
         initType(EBlockType::UncompressedData, config->UncompressedData);
     }
 
-    virtual void PutBlock(
+    void PutBlock(
         const TBlockId& id,
         EBlockType type,
         const TBlock& data) override
@@ -276,7 +276,7 @@ public:
         }
     }
 
-    virtual void PutP2PBlock(
+    void PutP2PBlock(
         const TBlockId& id,
         EBlockType type,
         const TBlock& data) override
@@ -286,7 +286,7 @@ public:
         }
     }
 
-    virtual TCachedBlock FindBlock(
+    TCachedBlock FindBlock(
         const TBlockId& id,
         EBlockType type) override
     {
@@ -294,7 +294,7 @@ public:
         return cache ? cache->FindBlock(id) : TCachedBlock();
     }
 
-    virtual std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
+    std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
         const TBlockId& id,
         EBlockType type) override
     {
@@ -304,12 +304,12 @@ public:
             : CreateActiveCachedBlockCookie();
     }
 
-    virtual EBlockType GetSupportedBlockTypes() const override
+    EBlockType GetSupportedBlockTypes() const override
     {
         return SupportedBlockTypes_;
     }
 
-    virtual std::vector<TBlockCacheEntry> GetSnapshot(EBlockType blockTypes) const override
+    std::vector<TBlockCacheEntry> GetSnapshot(EBlockType blockTypes) const override
     {
         std::vector<TBlockCacheEntry> snapshot;
         for (const auto& [blockType, cache] : PerTypeCaches_) {
@@ -322,7 +322,7 @@ public:
         return snapshot;
     }
 
-    virtual void Reconfigure(const TBlockCacheDynamicConfigPtr& config) override
+    void Reconfigure(const TBlockCacheDynamicConfigPtr& config) override
     {
         auto reconfigureType = [&] (EBlockType type, TSlruCacheDynamicConfigPtr config) {
             if (const auto& cache = FindPerTypeCache(type)) {
@@ -365,27 +365,27 @@ class TNullBlockCache
     : public IBlockCache
 {
 public:
-    virtual void PutBlock(
+    void PutBlock(
         const TBlockId& /* id */,
         EBlockType /* type */,
         const TBlock& /* data */) override
     { }
 
-    virtual TCachedBlock FindBlock(
+    TCachedBlock FindBlock(
         const TBlockId& /* id */,
         EBlockType /* type */) override
     {
         return TCachedBlock();
     }
 
-    virtual std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
+    std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
         const TBlockId& /* id */,
         EBlockType /* type */) override
     {
         return CreateActiveCachedBlockCookie();
     }
 
-    virtual EBlockType GetSupportedBlockTypes() const override
+    EBlockType GetSupportedBlockTypes() const override
     {
         return EBlockType::None;
     }

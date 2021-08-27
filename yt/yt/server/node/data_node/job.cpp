@@ -131,7 +131,7 @@ public:
         VERIFY_THREAD_AFFINITY(JobThread);
     }
 
-    virtual void Start() override
+    void Start() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -142,7 +142,7 @@ public:
             .Run();
     }
 
-    virtual void Abort(const TError& error) override
+    void Abort(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -161,68 +161,68 @@ public:
         }
     }
 
-    virtual void Fail() override
+    void Fail() override
     {
         THROW_ERROR_EXCEPTION("Failing is not supported");
     }
 
-    virtual TJobId GetId() const override
+    TJobId GetId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return JobId_;
     }
 
-    virtual TOperationId GetOperationId() const override
+    TOperationId GetOperationId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return {};
     }
 
-    virtual EJobType GetType() const override
+    EJobType GetType() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return CheckedEnumCast<EJobType>(JobSpec_.type());
     }
 
-    virtual const TJobSpec& GetSpec() const override
+    const TJobSpec& GetSpec() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return JobSpec_;
     }
 
-    virtual int GetPortCount() const override
+    int GetPortCount() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return 0;
     }
 
-    virtual EJobState GetState() const override
+    EJobState GetState() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         return JobState_;
     }
 
-    virtual EJobPhase GetPhase() const override
+    EJobPhase GetPhase() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         return JobPhase_;
     }
 
-    virtual int GetSlotIndex() const override
+    int GetSlotIndex() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         return -1;
     }
 
-    virtual TNodeResources GetResourceUsage() const override
+    TNodeResources GetResourceUsage() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -239,152 +239,152 @@ public:
         YT_ABORT();
     }
 
-    virtual void SetResourceUsage(const TNodeResources& /*newUsage*/) override
+    void SetResourceUsage(const TNodeResources& /*newUsage*/) override
     {
         YT_ABORT();
     }
 
-    virtual TJobResult GetResult() const override
+    TJobResult GetResult() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         return Result_;
     }
 
-    virtual void SetResult(const TJobResult& /*result*/) override
+    void SetResult(const TJobResult& /*result*/) override
     {
         YT_ABORT();
     }
 
-    virtual double GetProgress() const override
+    double GetProgress() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         return Progress_;
     }
 
-    virtual void SetProgress(double value) override
+    void SetProgress(double value) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         Progress_ = value;
     }
 
-    virtual i64 GetStderrSize() const override
+    i64 GetStderrSize() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         return JobStderrSize_;
     }
 
-    virtual void SetStderrSize(i64 value) override
+    void SetStderrSize(i64 value) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         JobStderrSize_ = value;
     }
 
-    virtual void SetStderr(const TString& /*value*/) override
+    void SetStderr(const TString& /*value*/) override
     {
         YT_ABORT();
     }
 
-    virtual void SetFailContext(const TString& /*value*/) override
+    void SetFailContext(const TString& /*value*/) override
     {
         YT_ABORT();
     }
 
-    virtual void SetProfile(const TJobProfile& /*value*/) override
+    void SetProfile(const TJobProfile& /*value*/) override
     {
         YT_ABORT();
     }
 
-    virtual void SetCoreInfos(TCoreInfos /*value*/) override
+    void SetCoreInfos(TCoreInfos /*value*/) override
     {
         YT_ABORT();
     }
 
-    virtual const TChunkCacheStatistics& GetChunkCacheStatistics() const override
+    const TChunkCacheStatistics& GetChunkCacheStatistics() const override
     {
         const static TChunkCacheStatistics EmptyChunkCacheStatistics;
         return EmptyChunkCacheStatistics;
     }
 
-    virtual TYsonString GetStatistics() const override
+    TYsonString GetStatistics() const override
     {
         return TYsonString();
     }
 
-    virtual void SetStatistics(const TYsonString& /*statistics*/) override
+    void SetStatistics(const TYsonString& /*statistics*/) override
     {
         YT_ABORT();
     }
 
-    virtual void BuildOrchid(NYTree::TFluentMap /*fluent*/) const override
+    void BuildOrchid(NYTree::TFluentMap /*fluent*/) const override
     { }
 
-    virtual TInstant GetStartTime() const override
+    TInstant GetStartTime() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return StartTime_;
     }
 
-    virtual NJobAgent::TTimeStatistics GetTimeStatistics() const override
+    NJobAgent::TTimeStatistics GetTimeStatistics() const override
     {
         return NJobAgent::TTimeStatistics{};
     }
 
-    virtual TInstant GetStatisticsLastSendTime() const override
+    TInstant GetStatisticsLastSendTime() const override
     {
         YT_ABORT();
     }
 
-    virtual void ResetStatisticsLastSendTime() override
+    void ResetStatisticsLastSendTime() override
     {
         YT_ABORT();
     }
 
-    virtual std::vector<TChunkId> DumpInputContext() override
+    std::vector<TChunkId> DumpInputContext() override
     {
         THROW_ERROR_EXCEPTION("Input context dumping is not supported");
     }
 
-    virtual TString GetStderr() override
+    TString GetStderr() override
     {
         THROW_ERROR_EXCEPTION("Getting stderr is not supported");
     }
 
-    virtual std::optional<TString> GetFailContext() override
+    std::optional<TString> GetFailContext() override
     {
         THROW_ERROR_EXCEPTION("Getting fail context is not supported");
     }
 
-    virtual TYsonString PollJobShell(
+    TYsonString PollJobShell(
         const NJobProberClient::TJobShellDescriptor& /*jobShellDescriptor*/,
         const TYsonString& /*parameters*/) override
     {
         THROW_ERROR_EXCEPTION("Job shell is not supported");
     }
 
-    virtual void Interrupt() override
+    void Interrupt() override
     {
         THROW_ERROR_EXCEPTION("Interrupting is not supported");
     }
 
-    virtual void OnJobProxySpawned() override
+    void OnJobProxySpawned() override
     {
         YT_ABORT();
     }
 
-    virtual void PrepareArtifact(
+    void PrepareArtifact(
         const TString& /*artifactName*/,
         const TString& /*pipePath*/) override
     {
         YT_ABORT();
     }
 
-    virtual void OnArtifactPreparationFailed(
+    void OnArtifactPreparationFailed(
         const TString& /*artifactName*/,
         const TString& /*artifactPath*/,
         const TError& /*error*/) override
@@ -392,47 +392,47 @@ public:
         YT_ABORT();
     }
 
-    virtual void OnArtifactsPrepared() override
+    void OnArtifactsPrepared() override
     {
         YT_ABORT();
     }
 
-    virtual void OnJobPrepared() override
+    void OnJobPrepared() override
     {
         YT_ABORT();
     }
 
-    virtual void HandleJobReport(TNodeJobReport&&) override
+    void HandleJobReport(TNodeJobReport&&) override
     {
         YT_ABORT();
     }
 
-    virtual void ReportSpec() override
+    void ReportSpec() override
     {
         YT_ABORT();
     }
 
-    virtual void ReportStderr() override
+    void ReportStderr() override
     {
         YT_ABORT();
     }
 
-    virtual void ReportFailContext() override
+    void ReportFailContext() override
     {
         YT_ABORT();
     }
 
-    virtual void ReportProfile() override
+    void ReportProfile() override
     {
         YT_ABORT();
     }
 
-    virtual bool GetStored() const override
+    bool GetStored() const override
     {
         return false;
     }
 
-    virtual void SetStored(bool /* value */) override
+    void SetStored(bool /* value */) override
     {
         YT_ABORT();
     }
@@ -558,7 +558,7 @@ public:
 private:
     const TRemoveChunkJobSpecExt JobSpecExt_;
 
-    virtual void DoRun() override
+    void DoRun() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -615,7 +615,7 @@ public:
 private:
     const TReplicateChunkJobSpecExt JobSpecExt_;
 
-    virtual void DoRun() override
+    void DoRun() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -865,7 +865,7 @@ private:
         return writer;
     }
 
-    virtual void DoRun() override
+    void DoRun() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -990,7 +990,7 @@ public:
 private:
     const TSealChunkJobSpecExt JobSpecExt_;
 
-    virtual void DoRun() override
+    void DoRun() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1139,7 +1139,7 @@ private:
     const TMergeChunksJobSpecExt JobSpecExt_;
     const TCellTag CellTag_;
 
-    virtual void DoRun() override
+    void DoRun() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

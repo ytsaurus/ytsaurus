@@ -47,42 +47,42 @@ public:
         : TSchedulerStrategyHostMock(std::vector<TExecNodePtr>())
     { }
 
-    virtual IInvokerPtr GetControlInvoker(EControlQueue /*queue*/) const override
+    IInvokerPtr GetControlInvoker(EControlQueue /*queue*/) const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual IInvokerPtr GetFairShareLoggingInvoker() const override
+    IInvokerPtr GetFairShareLoggingInvoker() const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual IInvokerPtr GetFairShareProfilingInvoker() const override
+    IInvokerPtr GetFairShareProfilingInvoker() const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual IInvokerPtr GetFairShareUpdateInvoker() const override
+    IInvokerPtr GetFairShareUpdateInvoker() const override
     {
         return GetCurrentInvoker();
     }
 
-    virtual IInvokerPtr GetOrchidWorkerInvoker() const override
+    IInvokerPtr GetOrchidWorkerInvoker() const override
     {
         return GetCurrentInvoker();
     }
 
-    virtual const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override
+    const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override
     {
         return NodeShardInvokers_;
     }
 
-    virtual NEventLog::TFluentLogEvent LogFairShareEventFluently(TInstant /*now*/) override
+    NEventLog::TFluentLogEvent LogFairShareEventFluently(TInstant /*now*/) override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const override
+    TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const override
     {
         TJobResources result;
         for (const auto& execNode : ExecNodes_) {
@@ -93,31 +93,31 @@ public:
         return result;
     }
 
-    virtual TJobResources GetResourceUsage(const TSchedulingTagFilter& /*filter*/) const override
+    TJobResources GetResourceUsage(const TSchedulingTagFilter& /*filter*/) const override
     {
         YT_ABORT();
     }
 
-    virtual void Disconnect(const TError& /*error*/) override
+    void Disconnect(const TError& /*error*/) override
     {
         YT_ABORT();
     }
 
-    virtual TInstant GetConnectionTime() const override
+    TInstant GetConnectionTime() const override
     {
         return TInstant();
     }
 
-    virtual void MarkOperationAsRunningInStrategy(TOperationId /*operationId*/) override
+    void MarkOperationAsRunningInStrategy(TOperationId /*operationId*/) override
     { }
 
-    virtual void AbortOperation(TOperationId /*operationId*/, const TError& /*error*/) override
+    void AbortOperation(TOperationId /*operationId*/, const TError& /*error*/) override
     { }
 
-    virtual void FlushOperationNode(TOperationId /*operationId*/) override
+    void FlushOperationNode(TOperationId /*operationId*/) override
     { }
 
-    virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const override
+    TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const override
     {
         TMemoryDistribution result;
         for (const auto& execNode : ExecNodes_) 
@@ -127,39 +127,39 @@ public:
         return result;
     }
 
-    virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(
+    TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(
         const TSchedulingTagFilter& /*filter*/) const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual void UpdateNodesOnChangedTrees(
+    void UpdateNodesOnChangedTrees(
         const THashMap<TString, NScheduler::TSchedulingTagFilter>& /*treeIdToFilter*/) override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(
+    std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(
         const TSchedulingTagFilter& /*filter*/) const override
     {
         return {};
     }
 
-    virtual TString GetExecNodeAddress(NNodeTrackerClient::TNodeId /*nodeId*/) const override
+    TString GetExecNodeAddress(NNodeTrackerClient::TNodeId /*nodeId*/) const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual void ValidatePoolPermission(
+    void ValidatePoolPermission(
         const NYPath::TYPath& /*path*/,
         const TString& /*user*/,
         NYTree::EPermission /*permission*/) const override
     { }
 
-    virtual void SetSchedulerAlert(ESchedulerAlertType /*alertType*/, const TError& /*alert*/) override
+    void SetSchedulerAlert(ESchedulerAlertType /*alertType*/, const TError& /*alert*/) override
     { }
 
-    virtual TFuture<void> SetOperationAlert(
+    TFuture<void> SetOperationAlert(
         TOperationId /*operationId*/,
         EOperationAlertType /*alertType*/,
         const TError& /*alert*/,
@@ -168,23 +168,23 @@ public:
         return VoidFuture;
     }
 
-    virtual NYson::IYsonConsumer* GetEventLogConsumer() override
+    NYson::IYsonConsumer* GetEventLogConsumer() override
     {
         return NYson::GetNullYsonConsumer();
     }
 
-    virtual const NLogging::TLogger* GetEventLogger() override
+    const NLogging::TLogger* GetEventLogger() override
     {
         return nullptr;
     }
 
-    virtual TString FormatResources(const TJobResourcesWithQuota& resources) const override
+    TString FormatResources(const TJobResourcesWithQuota& resources) const override
     {
         YT_VERIFY(MediumDirectory_);
         return NScheduler::FormatResources(resources);
     }
 
-    virtual TString FormatResourceUsage(
+    TString FormatResourceUsage(
         const TJobResources& usage,
         const TJobResources& limits,
         const NNodeTrackerClient::NProto::TDiskResources& diskResources) const override
@@ -193,12 +193,12 @@ public:
         return NScheduler::FormatResourceUsage(usage, limits, diskResources, MediumDirectory_);
     }
 
-    virtual void SerializeResources(const TJobResourcesWithQuota& /*resources*/, NYson::IYsonConsumer* /*consumer*/) const override
+    void SerializeResources(const TJobResourcesWithQuota& /*resources*/, NYson::IYsonConsumer* /*consumer*/) const override
     {
         YT_ABORT();
     }
 
-    virtual void LogResourceMetering(
+    void LogResourceMetering(
         const TMeteringKey& /*key*/,
         const TMeteringStatistics& /*statistics*/,
         const THashMap<TString, TString>& /*otherTags*/,
@@ -206,7 +206,7 @@ public:
         TInstant /*now*/) override
     { }
 
-    virtual int GetDefaultAbcId() const override
+    int GetDefaultAbcId() const override
     {
         return -1;
     }
@@ -216,10 +216,10 @@ public:
         return MediumDirectory_;
     }
 
-    virtual void InvokeStoringStrategyState(TPersistentStrategyStatePtr /* persistentStrategyState */) override
+    void InvokeStoringStrategyState(TPersistentStrategyStatePtr /* persistentStrategyState */) override
     { }
 
-    virtual const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override
+    const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override
     {
         static THashMap<TString, TString> stub;
         return stub;
@@ -250,7 +250,7 @@ public:
 
     MOCK_METHOD2(OnNonscheduledJobAborted, void(TJobId, EAbortReason));
 
-    virtual TJobResources GetNeededResources() const override
+    TJobResources GetNeededResources() const override
     {
         TJobResources totalResources;
         for (const auto& resources : JobResourcesList) {
@@ -259,10 +259,10 @@ public:
         return totalResources;
     }
 
-    virtual void UpdateMinNeededJobResources() override
+    void UpdateMinNeededJobResources() override
     { }
 
-    virtual TJobResourcesWithQuotaList GetMinNeededJobResources() const override
+    TJobResourcesWithQuotaList GetMinNeededJobResources() const override
     {
         TJobResourcesWithQuotaList minNeededResourcesList;
         for (const auto& resources : JobResourcesList) {
@@ -280,14 +280,14 @@ public:
         return minNeededResourcesList;
     }
 
-    virtual int GetPendingJobCount() const override
+    int GetPendingJobCount() const override
     {
         return JobResourcesList.size();
     }
 
     EPreemptionMode PreemptionMode = EPreemptionMode::Normal;
 
-    virtual EPreemptionMode GetPreemptionMode() const override
+    EPreemptionMode GetPreemptionMode() const override
     {
         return PreemptionMode;
     }
@@ -310,69 +310,69 @@ public:
         , Controller_(New<TOperationControllerStrategyHostMock>(jobResourcesList))
     { }
 
-    virtual EOperationType GetType() const override
+    EOperationType GetType() const override
     {
         YT_ABORT();
     }
 
-    virtual EOperationState GetState() const override
+    EOperationState GetState() const override
     {
         YT_ABORT();
     }
 
 
-    virtual std::optional<EUnschedulableReason> CheckUnschedulable() const override
+    std::optional<EUnschedulableReason> CheckUnschedulable() const override
     {
         return std::nullopt;
     }
 
-    virtual TInstant GetStartTime() const override
+    TInstant GetStartTime() const override
     {
         return StartTime_;
     }
 
-    virtual std::optional<int> FindSlotIndex(const TString& /* treeId */) const override
+    std::optional<int> FindSlotIndex(const TString& /* treeId */) const override
     {
         return 0;
     }
 
-    virtual void SetSlotIndex(const TString& /*treeId*/, int /*slotIndex*/) override
+    void SetSlotIndex(const TString& /*treeId*/, int /*slotIndex*/) override
     { }
 
-    virtual void ReleaseSlotIndex(const TString& /*treeId*/) override
+    void ReleaseSlotIndex(const TString& /*treeId*/) override
     { }
 
-    virtual TString GetAuthenticatedUser() const override
+    TString GetAuthenticatedUser() const override
     {
         return "root";
     }
 
-    virtual TOperationId GetId() const override
+    TOperationId GetId() const override
     {
         return Id_;
     }
 
-    virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override
+    IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override
     {
         return Controller_;
     }
 
-    virtual TStrategyOperationSpecPtr GetStrategySpec() const override
+    TStrategyOperationSpecPtr GetStrategySpec() const override
     {
         YT_ABORT();
     }
 
-    virtual TStrategyOperationSpecPtr GetStrategySpecForTree(const TString& /*treeId*/) const override
+    TStrategyOperationSpecPtr GetStrategySpecForTree(const TString& /*treeId*/) const override
     {
         YT_ABORT();
     }
 
-    virtual const NYson::TYsonString& GetSpecString() const override
+    const NYson::TYsonString& GetSpecString() const override
     {
         YT_ABORT();
     }
 
-    virtual TOperationRuntimeParametersPtr GetRuntimeParameters() const override
+    TOperationRuntimeParametersPtr GetRuntimeParameters() const override
     {
         YT_ABORT();
     }
@@ -382,15 +382,15 @@ public:
         return *Controller_.Get();
     }
 
-    virtual bool IsTreeErased(const TString& /*treeId*/) const override
+    bool IsTreeErased(const TString& /*treeId*/) const override
     {
         return false;
     }
 
-    virtual void EraseTrees(const std::vector<TString>& /*treeIds*/) override
+    void EraseTrees(const std::vector<TString>& /*treeIds*/) override
     { }
 
-    virtual std::optional<TJobResources> GetInitialAggregatedMinNeededResources() const override
+    std::optional<TJobResources> GetInitialAggregatedMinNeededResources() const override
     {
         return std::nullopt;
     }
@@ -412,7 +412,7 @@ public:
         : ResourceTree_(New<TResourceTree>(treeConfig, std::vector<IInvokerPtr>({GetCurrentInvoker()})))
     { }
 
-    virtual TResourceTree* GetResourceTree() override
+    TResourceTree* GetResourceTree() override
     {
         return ResourceTree_.Get();
     }

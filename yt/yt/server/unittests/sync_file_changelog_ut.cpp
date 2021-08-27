@@ -45,7 +45,7 @@ protected:
         return GetParam();
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
         TemporaryFile.reset(new TTempFile(GenerateRandomFileName("Changelog")));
         TemporaryIndexFile.reset(new TTempFile(TemporaryFile->Name() + ".index"));
@@ -54,7 +54,7 @@ protected:
         IOEngine = CreateIOEngine(NIO::EIOEngineType::ThreadPool, NYTree::INodePtr());
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         NFS::Remove(TemporaryFile->Name());
         NFS::Remove(TemporaryIndexFile->Name());

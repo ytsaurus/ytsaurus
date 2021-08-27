@@ -101,7 +101,7 @@ protected:
         return expected;
     }
 
-    virtual void Write(IValueColumnWriter* columnWriter) override
+    void Write(IValueColumnWriter* columnWriter) override
     {
         WriteSegment(columnWriter, CreateDirectDense());
         WriteSegment(columnWriter, CreateDirectSparse());
@@ -113,7 +113,7 @@ protected:
         Validate(originalRows, padding, originalRows.size() - padding, timestamp);
     }
 
-    virtual std::unique_ptr<IVersionedColumnReader> DoCreateColumnReader() override
+    std::unique_ptr<IVersionedColumnReader> DoCreateColumnReader() override
     {
         switch (GetParam()) {
             case ESimpleLogicalValueType::Float:
@@ -125,7 +125,7 @@ protected:
         }
     }
 
-    virtual std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
+    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
     {
         switch (GetParam()) {
             case ESimpleLogicalValueType::Float:
@@ -167,7 +167,7 @@ class TUnversionedFloatingPointSegmentTest
     , public ::testing::WithParamInterface<ESimpleLogicalValueType>
 {
 protected:
-    virtual std::optional<double> DecodeValueFromColumn(
+    std::optional<double> DecodeValueFromColumn(
         const IUnversionedColumnarRowBatch::TColumn* column,
         i64 index) override
     {
@@ -189,7 +189,7 @@ protected:
         }
     }
 
-    virtual void Write(IValueColumnWriter* columnWriter) override
+    void Write(IValueColumnWriter* columnWriter) override
     {
         // Segment 1 - 5 values.
         WriteSegment(columnWriter, {std::nullopt, 1.0, 2.0, 3.0, 4.0});
@@ -199,7 +199,7 @@ protected:
         WriteSegment(columnWriter, {6.0, 7.0, 8.0, 9.0});
     }
 
-    virtual std::unique_ptr<IUnversionedColumnReader> DoCreateColumnReader() override
+    std::unique_ptr<IUnversionedColumnReader> DoCreateColumnReader() override
     {
         switch (GetParam()) {
             case ESimpleLogicalValueType::Float:
@@ -211,7 +211,7 @@ protected:
         }
     }
 
-    virtual std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
+    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
     {
         switch (GetParam()) {
             case ESimpleLogicalValueType::Float:

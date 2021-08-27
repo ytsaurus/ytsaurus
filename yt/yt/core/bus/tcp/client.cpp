@@ -51,61 +51,61 @@ public:
         Connection_->Terminate(TError(NBus::EErrorCode::TransportError, "Bus terminated"));
     }
 
-    virtual const TString& GetEndpointDescription() const override
+    const TString& GetEndpointDescription() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Connection_->GetEndpointDescription();
     }
 
-    virtual const IAttributeDictionary& GetEndpointAttributes() const override
+    const IAttributeDictionary& GetEndpointAttributes() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Connection_->GetEndpointAttributes();
     }
 
-    virtual const NNet::TNetworkAddress& GetEndpointAddress() const override
+    const NNet::TNetworkAddress& GetEndpointAddress() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Connection_->GetEndpointAddress();
     }
 
-    virtual TTcpDispatcherStatistics GetStatistics() const override
+    TTcpDispatcherStatistics GetStatistics() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Connection_->GetStatistics();
     }
 
-    virtual TFuture<void> GetReadyFuture() const override
+    TFuture<void> GetReadyFuture() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Connection_->GetReadyFuture();
     }
 
-    virtual TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) override
+    TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Connection_->Send(std::move(message), options);
     }
 
-    virtual void SetTosLevel(TTosLevel tosLevel) override
+    void SetTosLevel(TTosLevel tosLevel) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Connection_->SetTosLevel(tosLevel);
     }
 
-    virtual void Terminate(const TError& error) override
+    void Terminate(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         Connection_->Terminate(error);
     }
 
-    virtual void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override
+    void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         Connection_->SubscribeTerminated(callback);
     }
 
-    virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& callback) override
+    void UnsubscribeTerminated(const TCallback<void(const TError&)>& callback) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         Connection_->UnsubscribeTerminated(callback);
@@ -137,24 +137,24 @@ public:
             .EndMap());
     }
 
-    virtual const TString& GetEndpointDescription() const override
+    const TString& GetEndpointDescription() const override
     {
         return EndpointDescription_;
     }
 
-    virtual const IAttributeDictionary& GetEndpointAttributes() const override
+    const IAttributeDictionary& GetEndpointAttributes() const override
     {
         return *EndpointAttributes_;
     }
 
-    virtual const TString& GetNetworkName() const override
+    const TString& GetNetworkName() const override
     {
         return Config_->NetworkName
             ? Config_->NetworkName.value()
             : DefaultNetworkName;
     }
 
-    virtual IBusPtr CreateBus(IMessageHandlerPtr handler) override
+    IBusPtr CreateBus(IMessageHandlerPtr handler) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

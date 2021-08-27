@@ -99,7 +99,7 @@ public:
         , Timeout_(timeout)
     { }
 
-    virtual IClientRequestControlPtr Send(
+    IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
@@ -139,13 +139,13 @@ public:
         , Timeout_(timeout)
     { }
 
-    virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
+    IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
     {
         auto underlyingChannel = UnderlyingFactory_->CreateChannel(addressWithNetwork);
         return CreateDefaultTimeoutChannel(underlyingChannel, Timeout_);
     }
 
-    virtual IChannelPtr CreateChannel(const TString& address) override
+    IChannelPtr CreateChannel(const TString& address) override
     {
         auto underlyingChannel = UnderlyingFactory_->CreateChannel(address);
         return CreateDefaultTimeoutChannel(underlyingChannel, Timeout_);
@@ -178,7 +178,7 @@ public:
         , AuthenticationIdentity_(std::move(identity))
     { }
 
-    virtual IClientRequestControlPtr Send(
+    IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
@@ -219,13 +219,13 @@ public:
         , AuthenticationIdentity_(identity)
     { }
 
-    virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
+    IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
     {
         auto underlyingChannel = UnderlyingFactory_->CreateChannel(addressWithNetwork);
         return CreateAuthenticatedChannel(underlyingChannel, AuthenticationIdentity_);
     }
 
-    virtual IChannelPtr CreateChannel(const TString& address) override
+    IChannelPtr CreateChannel(const TString& address) override
     {
         auto underlyingChannel = UnderlyingFactory_->CreateChannel(address);
         return CreateAuthenticatedChannel(underlyingChannel, AuthenticationIdentity_);
@@ -259,7 +259,7 @@ public:
         , RealmId_(realmId)
     { }
 
-    virtual IClientRequestControlPtr Send(
+    IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
@@ -296,13 +296,13 @@ public:
         , RealmId_(realmId)
     { }
 
-    virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
+    IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
     {
         auto underlyingChannel = UnderlyingFactory_->CreateChannel(addressWithNetwork);
         return CreateRealmChannel(underlyingChannel, RealmId_);
     }
 
-    virtual IChannelPtr CreateChannel(const TString& address) override
+    IChannelPtr CreateChannel(const TString& address) override
     {
         auto underlyingChannel = UnderlyingFactory_->CreateChannel(address);
         return CreateRealmChannel(underlyingChannel, RealmId_);
@@ -348,7 +348,7 @@ public:
         UnderlyingChannel_->UnsubscribeTerminated(OnTerminated_);
     }
 
-    virtual IClientRequestControlPtr Send(
+    IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
@@ -390,17 +390,17 @@ private:
             , IsError_(std::move(isError))
         { }
 
-        virtual void HandleAcknowledgement() override
+        void HandleAcknowledgement() override
         {
             UnderlyingHandler_->HandleAcknowledgement();
         }
 
-        virtual void HandleResponse(TSharedRefArray message) override
+        void HandleResponse(TSharedRefArray message) override
         {
             UnderlyingHandler_->HandleResponse(std::move(message));
         }
 
-        virtual void HandleError(const TError& error) override
+        void HandleError(const TError& error) override
         {
             if (IsError_(error)) {
                 OnFailure_.Run(Channel_, error);
@@ -408,12 +408,12 @@ private:
             UnderlyingHandler_->HandleError(error);
         }
 
-        virtual void HandleStreamingPayload(const TStreamingPayload& payload) override
+        void HandleStreamingPayload(const TStreamingPayload& payload) override
         {
             UnderlyingHandler_->HandleStreamingPayload(payload);
         }
 
-        virtual void HandleStreamingFeedback(const TStreamingFeedback& feedback) override
+        void HandleStreamingFeedback(const TStreamingFeedback& feedback) override
         {
             UnderlyingHandler_->HandleStreamingFeedback(feedback);
         }

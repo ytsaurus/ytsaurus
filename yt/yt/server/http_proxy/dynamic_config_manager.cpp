@@ -39,7 +39,7 @@ private:
 
     TAtomicObject<TString> ProxyRole_;
 
-    virtual std::vector<TString> GetInstanceTags() const override
+    std::vector<TString> GetInstanceTags() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

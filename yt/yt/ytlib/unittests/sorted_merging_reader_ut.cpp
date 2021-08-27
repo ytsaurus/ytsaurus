@@ -165,37 +165,37 @@ public:
         }
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         return VoidFuture;
     }
 
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
         YT_ABORT();
     }
 
-    virtual TCodecStatistics GetDecompressionStatistics() const override
+    TCodecStatistics GetDecompressionStatistics() const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual NTableClient::TTimingStatistics GetTimingStatistics() const override
+    NTableClient::TTimingStatistics GetTimingStatistics() const override
     {
         return {};
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return true;
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         YT_ABORT();
     }
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         Rows_.clear();
         if (Interrupted_ || RowIndex_ >= std::ssize(TableRows_)) {
@@ -212,17 +212,17 @@ public:
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
-    virtual const TNameTablePtr& GetNameTable() const override
+    const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
     }
 
-    virtual i64 GetTableRowIndex() const override
+    i64 GetTableRowIndex() const override
     {
         return RowIndex_;
     }
 
-    virtual TInterruptDescriptor GetInterruptDescriptor(TRange<TUnversionedRow> unreadRows) const override
+    TInterruptDescriptor GetInterruptDescriptor(TRange<TUnversionedRow> unreadRows) const override
     {
         std::vector<TUnversionedRow> rows(unreadRows.begin(), unreadRows.end());
         for (int rowIndex = RowIndex_; rowIndex < std::ssize(TableRows_); ++rowIndex) {
@@ -232,27 +232,27 @@ public:
         return {};
     }
 
-    virtual i64 GetSessionRowIndex() const override
+    i64 GetSessionRowIndex() const override
     {
         return RowIndex_;
     }
 
-    virtual i64 GetTotalRowCount() const override
+    i64 GetTotalRowCount() const override
     {
         return TableRows_.size();
     }
 
-    virtual void Interrupt() override
+    void Interrupt() override
     {
         Interrupted_ = true;
     }
 
-    virtual void SkipCurrentReader() override
+    void SkipCurrentReader() override
     {
         YT_ABORT();
     }
 
-    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
+    const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
     {
         YT_UNIMPLEMENTED();
     }

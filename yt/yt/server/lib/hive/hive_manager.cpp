@@ -1475,33 +1475,33 @@ private:
 
     // NB: Leader must wait until it is active before reconnecting mailboxes
     // since no commits are possible before this point.
-    virtual void OnLeaderActive() override
+    void OnLeaderActive() override
     {
         TCompositeAutomatonPart::OnLeaderRecoveryComplete();
         ReconnectMailboxes();
         PrepareLeaderMailboxes();
     }
 
-    virtual void OnStopLeading() override
+    void OnStopLeading() override
     {
         TCompositeAutomatonPart::OnStopLeading();
         ResetMailboxes();
     }
 
-    virtual void OnFollowerRecoveryComplete() override
+    void OnFollowerRecoveryComplete() override
     {
         TCompositeAutomatonPart::OnFollowerRecoveryComplete();
         ReconnectMailboxes();
     }
 
-    virtual void OnStopFollowing() override
+    void OnStopFollowing() override
     {
         TCompositeAutomatonPart::OnStopFollowing();
         ResetMailboxes();
     }
 
 
-    virtual bool ValidateSnapshotVersion(int version) override
+    bool ValidateSnapshotVersion(int version) override
     {
         return
             version == 3 ||
@@ -1509,13 +1509,13 @@ private:
             version == 5;
     }
 
-    virtual int GetCurrentSnapshotVersion() override
+    int GetCurrentSnapshotVersion() override
     {
         return 5;
     }
 
 
-    virtual void Clear() override
+    void Clear() override
     {
         TCompositeAutomatonPart::Clear();
 
@@ -1562,7 +1562,7 @@ private:
 
 
     // THydraServiceBase overrides.
-    virtual IHydraManagerPtr GetHydraManager() override
+    IHydraManagerPtr GetHydraManager() override
     {
         return HydraManager_;
     }

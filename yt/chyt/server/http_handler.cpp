@@ -76,7 +76,7 @@ public:
         }
     }
 
-    virtual void customizeContext(DB::HTTPServerRequest & /* request */, DB::ContextMutablePtr context) override
+    void customizeContext(DB::HTTPServerRequest & /* request */, DB::ContextMutablePtr context) override
     {
         YT_VERIFY(TraceContext_);
 
@@ -85,7 +85,7 @@ public:
         SetupHostContext(Host_, context, QueryId_, TraceContext_, DataLensRequestId_);
     }
 
-    virtual void handleRequest(DB::HTTPServerRequest& request, DB::HTTPServerResponse& response) override
+    void handleRequest(DB::HTTPServerRequest& request, DB::HTTPServerResponse& response) override
     {
         response.set("X-Yt-Trace-Id", ToString(TraceContext_->GetTraceId()));
 

@@ -120,33 +120,33 @@ public:
         , JobId_(jobId)
     { }
 
-    virtual TFuture<void> Throttle(i64 count) override
+    TFuture<void> Throttle(i64 count) override
     {
         auto throttlingSession = New<TThrottlingSession>(Config_, Channel_);
         return throttlingSession->Throttle(count, ThrottlerType_, Descriptor_, JobId_);
     }
 
-    virtual bool TryAcquire(i64 /*count*/) override
+    bool TryAcquire(i64 /*count*/) override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual i64 TryAcquireAvailable(i64 /*count*/) override
+    i64 TryAcquireAvailable(i64 /*count*/) override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual void Acquire(i64 /*count*/) override
+    void Acquire(i64 /*count*/) override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual bool IsOverdraft() override
+    bool IsOverdraft() override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual i64 GetQueueTotalCount() const override
+    i64 GetQueueTotalCount() const override
     {
         YT_UNIMPLEMENTED();
     }

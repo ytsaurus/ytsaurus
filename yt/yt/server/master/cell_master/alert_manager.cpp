@@ -51,21 +51,21 @@ public:
         RegisterMethod(BIND(&TAlertManager::HydraSetCellAlerts, Unretained(this)));
     }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         Bootstrap_->GetConfigManager()->SubscribeConfigChanged(BIND(&TAlertManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    virtual void RegisterAlertSource(TAlertSource alertSource) override
+    void RegisterAlertSource(TAlertSource alertSource) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         AlertSources_.push_back(alertSource);
     }
 
-    virtual std::vector<TError> GetAlerts() const override
+    std::vector<TError> GetAlerts() const override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -111,7 +111,7 @@ private:
         CellTagToAlerts_[cellTag] = std::move(alerts);
     }
 
-    virtual void OnLeaderActive() override
+    void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -120,7 +120,7 @@ private:
         UpdateAlertsExecutor_->Start();
     }
 
-    virtual void OnStopLeading() override
+    void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

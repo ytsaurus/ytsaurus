@@ -39,7 +39,7 @@ public:
         : Logger(logger)
     { }
 
-    virtual ITransactionPtr RegisterTransaction(ITransactionPtr transaction) override
+    ITransactionPtr RegisterTransaction(ITransactionPtr transaction) override
     {
         auto transactionId = transaction->GetId();
         TStickyTransactionEntry entry{
@@ -73,7 +73,7 @@ public:
         return transaction;
     }
 
-    virtual void UnregisterTransaction(TTransactionId transactionId) override
+    void UnregisterTransaction(TTransactionId transactionId) override
     {
         TStickyTransactionEntry entry;
         {
@@ -90,7 +90,7 @@ public:
             transactionId);
     }
 
-    virtual ITransactionPtr FindTransactionAndRenewLease(TTransactionId transactionId) override
+    ITransactionPtr FindTransactionAndRenewLease(TTransactionId transactionId) override
     {
         ITransactionPtr transaction;
         NConcurrency::TLease lease;

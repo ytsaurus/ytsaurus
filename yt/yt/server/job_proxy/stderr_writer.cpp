@@ -24,7 +24,7 @@ public:
     }
 
 private:
-    virtual void DoWrite(const void* /*buf*/, size_t size) override
+    void DoWrite(const void* /*buf*/, size_t size) override
     {
         Size_ += size;
     }

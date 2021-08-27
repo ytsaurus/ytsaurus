@@ -35,7 +35,7 @@ public:
         YT_VERIFY(Config_);
     }
 
-    virtual IClientRequestControlPtr Send(
+    IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
@@ -136,7 +136,7 @@ private:
                 }
             }
 
-            virtual void Cancel() override
+            void Cancel() override
             {
                 VERIFY_THREAD_AFFINITY_ANY();
 
@@ -153,14 +153,14 @@ private:
                 }
             }
 
-            virtual TFuture<void> SendStreamingPayload(const TStreamingPayload& /*payload*/) override
+            TFuture<void> SendStreamingPayload(const TStreamingPayload& /*payload*/) override
             {
                 VERIFY_THREAD_AFFINITY_ANY();
 
                 return MakeFuture<void>(TError("Retrying channel does not support streaming"));
             }
 
-            virtual TFuture<void> SendStreamingFeedback(const TStreamingFeedback& /*feedback*/) override
+            TFuture<void> SendStreamingFeedback(const TStreamingFeedback& /*feedback*/) override
             {
                 VERIFY_THREAD_AFFINITY_ANY();
 
@@ -191,7 +191,7 @@ private:
 
         // IClientResponseHandler implementation.
 
-        virtual void HandleAcknowledgement() override
+        void HandleAcknowledgement() override
         {
             YT_LOG_DEBUG("Request attempt acknowledged (RequestId: %v)",
                 Request_->GetRequestId());
@@ -199,7 +199,7 @@ private:
             // NB: The underlying handler is not notified.
         }
 
-        virtual void HandleError(const TError& error) override
+        void HandleError(const TError& error) override
         {
             YT_LOG_DEBUG(error, "Request attempt failed (RequestId: %v, Attempt: %v of %v)",
                 Request_->GetRequestId(),
@@ -215,7 +215,7 @@ private:
             Retry();
         }
 
-        virtual void HandleResponse(TSharedRefArray message) override
+        void HandleResponse(TSharedRefArray message) override
         {
             YT_LOG_DEBUG("Request attempt succeeded (RequestId: %v)",
                 Request_->GetRequestId());
@@ -223,12 +223,12 @@ private:
             ResponseHandler_->HandleResponse(message);
         }
 
-        virtual void HandleStreamingPayload(const TStreamingPayload& /*payload*/) override
+        void HandleStreamingPayload(const TStreamingPayload& /*payload*/) override
         {
             YT_UNIMPLEMENTED();
         }
 
-        virtual void HandleStreamingFeedback(const TStreamingFeedback& /*feedback*/) override
+        void HandleStreamingFeedback(const TStreamingFeedback& /*feedback*/) override
         {
             YT_UNIMPLEMENTED();
         }

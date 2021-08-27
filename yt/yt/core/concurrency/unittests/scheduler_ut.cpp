@@ -61,7 +61,7 @@ protected:
     TLazyIntrusivePtr<TActionQueue> Queue1;
     TLazyIntrusivePtr<TActionQueue> Queue2;
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (Queue1.HasValue()) {
             Queue1->Shutdown();
@@ -980,7 +980,7 @@ class TSuspendableInvokerTest
 protected:
     TLazyIntrusivePtr<TActionQueue> Queue1;
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (Queue1.HasValue()) {
             Queue1->Shutdown();

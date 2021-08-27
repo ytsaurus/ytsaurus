@@ -48,7 +48,7 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(const Poco:
             , Host_(host)
         { }
 
-        virtual void customizeContext(DB::ContextMutablePtr context) override
+        void customizeContext(DB::ContextMutablePtr context) override
         {
             auto& clientInfo = context->getClientInfo();
 

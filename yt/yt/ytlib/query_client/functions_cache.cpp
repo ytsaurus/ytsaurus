@@ -407,7 +407,7 @@ private:
     const TWeakPtr<NNative::IClient> Client_;
     const IInvokerPtr Invoker_;
 
-    virtual TFuture<TExternalFunctionSpec> DoGet(
+    TFuture<TExternalFunctionSpec> DoGet(
         const std::pair<TString, TString>& key,
         bool isPeriodicUpdate) noexcept override
     {

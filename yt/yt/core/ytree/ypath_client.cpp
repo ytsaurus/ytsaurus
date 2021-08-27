@@ -380,22 +380,22 @@ void ExecuteVerb(
             , UnderlyingContext_(std::move(underlyingContext))
         { }
 
-        virtual TTcpDispatcherStatistics GetBusStatistics() const override
+        TTcpDispatcherStatistics GetBusStatistics() const override
         {
             return UnderlyingContext_->GetBusStatistics();
         }
 
-        virtual const IAttributeDictionary& GetEndpointAttributes() const override
+        const IAttributeDictionary& GetEndpointAttributes() const override
         {
             return UnderlyingContext_->GetEndpointAttributes();
         }
 
-        virtual void SetRawRequestInfo(TString info, bool incremental) override
+        void SetRawRequestInfo(TString info, bool incremental) override
         {
             UnderlyingContext_->SetRawRequestInfo(std::move(info), incremental);
         }
 
-        virtual void SetRawResponseInfo(TString info, bool incremental) override
+        void SetRawResponseInfo(TString info, bool incremental) override
         {
             UnderlyingContext_->SetRawResponseInfo(std::move(info), incremental);
         }
@@ -404,13 +404,13 @@ void ExecuteVerb(
         const IServiceContextPtr UnderlyingContext_;
 
 
-        virtual void LogRequest() override
+        void LogRequest() override
         { }
 
-        virtual void LogResponse() override
+        void LogResponse() override
         { }
 
-        virtual void DoReply() override
+        void DoReply() override
         {
             UnderlyingContext_->Reply(GetResponseMessage());
         }

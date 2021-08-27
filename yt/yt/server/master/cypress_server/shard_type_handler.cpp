@@ -26,7 +26,7 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::CypressShard;
     }
@@ -34,7 +34,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual IObjectProxyPtr DoGetProxy(TCypressShard* shard, TTransaction* /*transaction*/) override
+    IObjectProxyPtr DoGetProxy(TCypressShard* shard, TTransaction* /*transaction*/) override
     {
         return CreateCypressShardProxy(Bootstrap_, &Metadata_, shard);
     }

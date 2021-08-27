@@ -214,23 +214,23 @@ public:
             Networks_);
     }
 
-    virtual TFuture<std::vector<TBlock>> ReadBlocks(
+    TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
         std::optional<i64> estimatedSize) override;
 
-    virtual TFuture<std::vector<TBlock>> ReadBlocks(
+    TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
         std::optional<i64> estimatedSize) override;
 
-    virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
+    TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientChunkReadOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override;
 
-    virtual TFuture<TSharedRef> LookupRows(
+    TFuture<TSharedRef> LookupRows(
         const TClientChunkReadOptions& options,
         TSharedRange<TLegacyKey> lookupKeys,
         TObjectId tableId,
@@ -245,12 +245,12 @@ public:
         bool enablePeerProbing,
         bool enableRejectsIfThrottling) override;
 
-    virtual TChunkId GetChunkId() const override
+    TChunkId GetChunkId() const override
     {
         return ChunkId_;
     }
 
-    virtual TInstant GetLastFailureTime() const override
+    TInstant GetLastFailureTime() const override
     {
         return LastFailureTime_;
     }
@@ -260,7 +260,7 @@ public:
         LastFailureTime_ = NProfiling::GetInstant();
     }
 
-    virtual void SetSlownessChecker(TCallback<TError(i64, TDuration)> slownessChecker) override
+    void SetSlownessChecker(TCallback<TError(i64, TDuration)> slownessChecker) override
     {
         SlownessChecker_ = slownessChecker;
     }
@@ -274,7 +274,7 @@ public:
         return SlownessChecker_(bytesReceived, timePassed);
     }
 
-    virtual TChunkReplicaList GetReplicas() const override
+    TChunkReplicaList GetReplicas() const override
     {
         return LastSeenReplicas_.Load();
     }
@@ -1520,12 +1520,12 @@ private:
         { }
     };
 
-    virtual bool IsCanceled() const override
+    bool IsCanceled() const override
     {
         return Promise_.IsCanceled();
     }
 
-    virtual void NextPass() override
+    void NextPass() override
     {
         if (!PrepareNextPass()) {
             return;
@@ -1936,7 +1936,7 @@ private:
         Promise_.TrySet(std::vector<TBlock>(blocks));
     }
 
-    virtual void OnSessionFailed(bool fatal) override
+    void OnSessionFailed(bool fatal) override
     {
         auto error = BuildCombinedError(TError(
             "Error fetching blocks for chunk %v",
@@ -1944,7 +1944,7 @@ private:
         OnSessionFailed(fatal, error);
     }
 
-    virtual void OnSessionFailed(bool fatal, const TError& error) override
+    void OnSessionFailed(bool fatal, const TError& error) override
     {
         YT_LOG_DEBUG(error, "Reader session failed (Fatal: %v)", fatal);
 
@@ -2037,12 +2037,12 @@ private:
 
     i64 BytesThrottled_ = 0;
 
-    virtual bool IsCanceled() const override
+    bool IsCanceled() const override
     {
         return Promise_.IsCanceled();
     }
 
-    virtual void NextPass() override
+    void NextPass() override
     {
         if (!PrepareNextPass()) {
             return;
@@ -2204,7 +2204,7 @@ private:
         Promise_.TrySet(std::vector<TBlock>(FetchedBlocks_));
     }
 
-    virtual void OnSessionFailed(bool fatal) override
+    void OnSessionFailed(bool fatal) override
     {
         auto error = BuildCombinedError(TError(
             "Error fetching blocks for chunk %v",
@@ -2212,7 +2212,7 @@ private:
         OnSessionFailed(fatal, error);
     }
 
-    virtual void OnSessionFailed(bool fatal, const TError& error) override
+    void OnSessionFailed(bool fatal, const TError& error) override
     {
         YT_LOG_DEBUG(error, "Reader session failed (Fatal: %v)", fatal);
 
@@ -2287,12 +2287,12 @@ private:
     //! Promise representing the session.
     const TPromise<TRefCountedChunkMetaPtr> Promise_ = NewPromise<TRefCountedChunkMetaPtr>();
 
-    virtual bool IsCanceled() const override
+    bool IsCanceled() const override
     {
         return Promise_.IsCanceled();
     }
 
-    virtual void NextPass() override
+    void NextPass() override
     {
         if (!PrepareNextPass()) {
             return;
@@ -2394,7 +2394,7 @@ private:
         Promise_.TrySet(New<TRefCountedChunkMeta>(std::move(chunkMeta)));
     }
 
-    virtual void OnSessionFailed(bool fatal) override
+    void OnSessionFailed(bool fatal) override
     {
         auto error = BuildCombinedError(TError(
             "Error fetching meta for chunk %v",
@@ -2402,7 +2402,7 @@ private:
         OnSessionFailed(fatal, error);
     }
 
-    virtual void OnSessionFailed(bool fatal, const TError& error) override
+    void OnSessionFailed(bool fatal, const TError& error) override
     {
         if (fatal) {
             SetReaderFailed();
@@ -2544,12 +2544,12 @@ private:
     TPeerList SinglePassCandidates_;
     THashMap<TAddressWithNetwork, double> ThrottlingRateByPeer_;
 
-    virtual bool IsCanceled() const override
+    bool IsCanceled() const override
     {
         return Promise_.IsCanceled();
     }
 
-    virtual void NextPass() override
+    void NextPass() override
     {
         // Specific bounds for lookup.
         if (PassIndex_ >= ReaderConfig_->LookupRequestPassCount) {
@@ -2577,7 +2577,7 @@ private:
         RequestRows();
     }
 
-    virtual void OnSessionFailed(bool fatal) override
+    void OnSessionFailed(bool fatal) override
     {
         auto error = BuildCombinedError(TError(
             "Error during rows lookup for chunk %v",
@@ -2585,7 +2585,7 @@ private:
         OnSessionFailed(fatal, error);
     }
 
-    virtual void OnSessionFailed(bool fatal, const TError& error) override
+    void OnSessionFailed(bool fatal, const TError& error) override
     {
         if (fatal) {
             SetReaderFailed();
@@ -2993,7 +2993,7 @@ public:
         , RpsThrottler_(std::move(rpsThrottler))
     { }
 
-    virtual TFuture<std::vector<TBlock>> ReadBlocks(
+    TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
         std::optional<i64> estimatedSize) override
@@ -3014,7 +3014,7 @@ public:
         return session->Run();
     }
 
-    virtual TFuture<std::vector<TBlock>> ReadBlocks(
+    TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
@@ -3038,7 +3038,7 @@ public:
         return session->Run();
     }
 
-    virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
+    TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientChunkReadOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override
@@ -3047,7 +3047,7 @@ public:
         return UnderlyingReader_->GetMeta(options, partitionTag, extensionTags);
     }
 
-    virtual TFuture<TSharedRef> LookupRows(
+    TFuture<TSharedRef> LookupRows(
         const TClientChunkReadOptions& options,
         TSharedRange<TLegacyKey> lookupKeys,
         TObjectId tableId,
@@ -3084,22 +3084,22 @@ public:
         return session->Run();
     }
 
-    virtual TChunkId GetChunkId() const override
+    TChunkId GetChunkId() const override
     {
         return UnderlyingReader_->GetChunkId();
     }
 
-    virtual TInstant GetLastFailureTime() const override
+    TInstant GetLastFailureTime() const override
     {
         return UnderlyingReader_->GetLastFailureTime();
     }
 
-    virtual void SetSlownessChecker(TCallback<TError(i64, TDuration)> slownessChecker) override
+    void SetSlownessChecker(TCallback<TError(i64, TDuration)> slownessChecker) override
     {
         UnderlyingReader_->SetSlownessChecker(std::move(slownessChecker));
     }
 
-    virtual TChunkReplicaList GetReplicas() const override
+    TChunkReplicaList GetReplicas() const override
     {
         return UnderlyingReader_->GetReplicas();
     }

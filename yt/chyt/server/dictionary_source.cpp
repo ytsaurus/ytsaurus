@@ -52,7 +52,7 @@ public:
         , Logger(ClickHouseYtLogger.WithTag("Path: %v", Path_))
     { }
 
-    virtual DB::BlockInputStreamPtr loadAll() override
+    DB::BlockInputStreamPtr loadAll() override
     {
         RevisionTracker_.FixCurrentRevision();
 
@@ -93,30 +93,30 @@ public:
             nullptr /* prewhereInfo */);
     }
 
-    virtual DB::BlockInputStreamPtr loadIds(const std::vector<UInt64>& /* ids */) override
+    DB::BlockInputStreamPtr loadIds(const std::vector<UInt64>& /* ids */) override
     {
         THROW_ERROR_EXCEPTION("Method loadIds not supported");
     }
 
-    virtual bool supportsSelectiveLoad() const override
+    bool supportsSelectiveLoad() const override
     {
         return false;
     }
 
-    virtual DB::BlockInputStreamPtr loadKeys(
+    DB::BlockInputStreamPtr loadKeys(
         const DB::Columns& /* keyColumns */,
         const std::vector<size_t>& /* requestedRows */) override
     {
         THROW_ERROR_EXCEPTION("Method loadKeys not supported");
     }
 
-    virtual bool isModified() const override
+    bool isModified() const override
     {
         YT_LOG_DEBUG("Checking dictionary revision (OldRevision: %llx)", RevisionTracker_.GetRevision());
         return RevisionTracker_.HasRevisionChanged();
     }
 
-    virtual DB::DictionarySourcePtr clone() const override
+    DB::DictionarySourcePtr clone() const override
     {
         return std::make_unique<TTableDictionarySource>(
             Host_,

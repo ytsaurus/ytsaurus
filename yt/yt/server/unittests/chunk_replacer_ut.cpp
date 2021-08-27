@@ -29,7 +29,7 @@ class TTestChunkReplacerCallbacks
     : public IChunkReplacerCallbacks
 {
 public:
-    virtual void AttachToChunkList(
+    void AttachToChunkList(
         TChunkList* chunkList,
         const std::vector<TChunkTree*>& children) override
     {
@@ -39,7 +39,7 @@ public:
             children.data() + children.size());
     }
 
-    virtual void AttachToChunkList(
+    void AttachToChunkList(
         TChunkList* chunkList,
         TChunkTree* child) override
     {
@@ -49,7 +49,7 @@ public:
             &child + 1);
     }
 
-    virtual void AttachToChunkList(
+    void AttachToChunkList(
         TChunkList* chunkList,
         TChunkTree* const* childrenBegin,
         TChunkTree* const* childrenEnd) override
@@ -60,7 +60,7 @@ public:
             childrenEnd);
     }
 
-    virtual bool IsMutationLoggingEnabled() override
+    bool IsMutationLoggingEnabled() override
     {
         return false;
     }

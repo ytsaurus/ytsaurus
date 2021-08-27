@@ -78,14 +78,14 @@ private:
         Instants_.push_back(mutationContext->GetTimestamp());
     }
 
-    virtual void OnLeaderActive() override
+    void OnLeaderActive() override
     {
         TMasterAutomatonPart::OnLeaderActive();
 
         StoreMutationTimeExecutor_->Start();
     }
 
-    virtual void OnStopLeading() override
+    void OnStopLeading() override
     {
         TMasterAutomatonPart::OnStopLeading();
 

@@ -86,7 +86,7 @@ public:
         : RoutineRegistry_(routineRegistry)
     { }
 
-    virtual uint64_t getSymbolAddress(const std::string& name) override
+    uint64_t getSymbolAddress(const std::string& name) override
     {
 #if defined(_msan_enabled_)
         if (name == "__emutls_get_address") {

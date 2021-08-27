@@ -123,7 +123,7 @@ public:
         : Underlying_(std::move(underlying))
     { }
 
-    virtual void HandleRequest(
+    void HandleRequest(
         const IRequestPtr& req,
         const IResponseWriterPtr& rsp) override
     {

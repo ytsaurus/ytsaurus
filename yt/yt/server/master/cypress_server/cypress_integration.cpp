@@ -27,27 +27,27 @@ public:
     { }
 
 private:
-    virtual std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
+    std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
     {
         return NYT::GetKeys(Locks(), sizeLimit);
     }
 
-    virtual bool IsValid(TObject* object) const override
+    bool IsValid(TObject* object) const override
     {
         return IsObjectAlive(object);
     }
 
-    virtual bool NeedSuppressUpstreamSync() const override
+    bool NeedSuppressUpstreamSync() const override
     {
         return false;
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         return Locks().size();
     }
 
-    virtual NYPath::TYPath GetWellKnownPath() const override
+    NYPath::TYPath GetWellKnownPath() const override
     {
         return "//sys/locks";
     }

@@ -64,7 +64,7 @@ public:
         , ProfilingTag_(profilingTag)
     { }
 
-    virtual void Invoke(TClosure callback) override
+    void Invoke(TClosure callback) override
     {
         if (auto queue = Queue_.Lock()) {
             queue->Invoke(std::move(callback), ProfilingTag_);
@@ -72,7 +72,7 @@ public:
     }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-    virtual TThreadId GetThreadId() const override
+    TThreadId GetThreadId() const override
     {
         if (auto queue = Queue_.Lock()) {
             return queue->GetThreadId();
@@ -81,7 +81,7 @@ public:
         }
     }
 
-    virtual bool CheckAffinity(const IInvokerPtr& invoker) const override
+    bool CheckAffinity(const IInvokerPtr& invoker) const override
     {
         return invoker.Get() == this;
     }

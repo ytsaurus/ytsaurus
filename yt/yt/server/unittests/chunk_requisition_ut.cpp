@@ -15,7 +15,7 @@ class TChunkRequisitionTest
     : public ::testing::Test
 {
 public:
-    virtual void SetUp() override
+    void SetUp() override
     {
         std::vector<TGuid> guids;
         guids.reserve(4);
@@ -36,7 +36,7 @@ public:
         Account4_ = TPoolAllocator::New<TAccount>(Account4Id_);
     }
 
-    virtual void TearDown() override
+    void TearDown() override
     {
         Account1_.reset();
         Account2_.reset();

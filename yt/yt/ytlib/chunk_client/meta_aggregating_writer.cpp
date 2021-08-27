@@ -65,18 +65,18 @@ public:
         }
     }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return UnderlyingWriter_->Open();
     }
 
-    virtual bool WriteBlock(const TBlock& block) override
+    bool WriteBlock(const TBlock& block) override
     {
         LargestBlockSize_ = std::max<i64>(LargestBlockSize_, block.Size());
         return UnderlyingWriter_->WriteBlock(block);
     }
 
-    virtual bool WriteBlocks(const std::vector<TBlock>& blocks) override
+    bool WriteBlocks(const std::vector<TBlock>& blocks) override
     {
         for (const auto& block : blocks) {
             LargestBlockSize_ = std::max<i64>(LargestBlockSize_, block.Size());
@@ -84,48 +84,48 @@ public:
         return UnderlyingWriter_->WriteBlocks(blocks);
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() override
     {
         return UnderlyingWriter_->GetReadyEvent();
     }
 
-    virtual TFuture<void> Close(const TDeferredChunkMetaPtr& /*chunkMeta*/ = nullptr) override
+    TFuture<void> Close(const TDeferredChunkMetaPtr& /*chunkMeta*/ = nullptr) override
     {
         FinalizeMeta();
         return UnderlyingWriter_->Close(ChunkMeta_);
     }
 
-    virtual const NProto::TChunkInfo& GetChunkInfo() const override
+    const NProto::TChunkInfo& GetChunkInfo() const override
     {
         return UnderlyingWriter_->GetChunkInfo();
     }
 
-    virtual const NProto::TDataStatistics& GetDataStatistics() const override
+    const NProto::TDataStatistics& GetDataStatistics() const override
     {
         return UnderlyingWriter_->GetDataStatistics();
     }
 
-    virtual TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
+    TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
     {
         return UnderlyingWriter_->GetWrittenChunkReplicas();
     }
 
-    virtual TChunkId GetChunkId() const override
+    TChunkId GetChunkId() const override
     {
         return UnderlyingWriter_->GetChunkId();
     }
 
-    virtual NErasure::ECodec GetErasureCodecId() const override
+    NErasure::ECodec GetErasureCodecId() const override
     {
         return UnderlyingWriter_->GetErasureCodecId();
     }
 
-    virtual bool IsCloseDemanded() const override
+    bool IsCloseDemanded() const override
     {
         return UnderlyingWriter_->IsCloseDemanded();
     }
 
-    virtual void AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChunkId chunkId) override;
+    void AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChunkId chunkId) override;
 
 private:
     const IChunkWriterPtr UnderlyingWriter_;

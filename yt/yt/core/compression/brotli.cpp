@@ -52,7 +52,7 @@ public:
 private:
     StreamSink* const Sink_;
 
-    virtual void DoWrite(const void *buf, size_t size) override
+    void DoWrite(const void *buf, size_t size) override
     {
         Sink_->Append(static_cast<const char*>(buf), size);
     }

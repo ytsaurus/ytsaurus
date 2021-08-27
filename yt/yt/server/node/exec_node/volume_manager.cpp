@@ -1115,17 +1115,17 @@ private:
 
     TCounter TmpfsCacheHitCounter_;
 
-    virtual bool IsResurrectionSupported() const override
+    bool IsResurrectionSupported() const override
     {
         return false;
     }
 
-    virtual i64 GetWeight(const TLayerPtr& layer) const override
+    i64 GetWeight(const TLayerPtr& layer) const override
     {
         return layer->GetSize();
     }
 
-    virtual void OnRemoved(const TLayerPtr& layer) override
+    void OnRemoved(const TLayerPtr& layer) override
     {
         layer->OnEvicted();
     }
@@ -1582,7 +1582,7 @@ public:
         VolumeState_->ReleaseLock();
     }
 
-    virtual const TString& GetPath() const override
+    const TString& GetPath() const override
     {
         return VolumeState_->GetPath();
     }
@@ -1637,7 +1637,7 @@ public:
         LayerCache_ = New<TLayerCache>(config, Locations_, tmpfsExecutor, bootstrap);
     }
 
-    virtual TFuture<IVolumePtr> PrepareVolume(
+    TFuture<IVolumePtr> PrepareVolume(
         const std::vector<TArtifactKey>& layers,
         const TArtifactDownloadOptions& downloadOptions) override
     {
@@ -1685,7 +1685,7 @@ public:
             .As<IVolumePtr>();
     }
 
-    virtual bool IsLayerCached(const TArtifactKey& artifactKey) const override
+    bool IsLayerCached(const TArtifactKey& artifactKey) const override
     {
         return LayerCache_->IsLayerCached(artifactKey);
     }
@@ -1704,7 +1704,7 @@ private:
         });
     }
 
-    virtual void BuildOrchidYson(NYTree::TFluentMap fluent) const override
+    void BuildOrchidYson(NYTree::TFluentMap fluent) const override
     {
         LayerCache_->BuildOrchidYson(fluent);
     }

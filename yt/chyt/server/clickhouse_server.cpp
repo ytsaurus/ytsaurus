@@ -85,7 +85,7 @@ public:
 
     // IClickHouseServer overrides:
 
-    virtual void Start() override
+    void Start() override
     {
         SetupServers();
 
@@ -96,7 +96,7 @@ public:
         }
     }
 
-    virtual void Stop() override
+    void Stop() override
     {
         Cancelled_ = true;
 
@@ -359,7 +359,7 @@ private:
 #endif
     }
 
-    void CollectSensors(NProfiling::ISensorWriter* writer)
+    void CollectSensors(NProfiling::ISensorWriter* writer) override
     {
         for (int index = 0; index < static_cast<int>(CurrentMetrics::end()); ++index) {
             const auto* name = CurrentMetrics::getName(index);

@@ -120,7 +120,7 @@ class TPipeReadWriteTest
     : public ::testing::Test
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     {
         auto pipe = TPipeFactory().Create();
 
@@ -128,7 +128,7 @@ protected:
         Writer = pipe.CreateAsyncWriter();
     }
 
-    virtual void TearDown() override
+    void TearDown() override
     { }
 
     IConnectionReaderPtr Reader;
@@ -139,14 +139,14 @@ class TNamedPipeReadWriteTest
     : public ::testing::Test
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     {
         auto pipe = TNamedPipe::Create("./namedpipe");
         Reader = pipe->CreateAsyncReader();
         Writer = pipe->CreateAsyncWriter();
     }
 
-    virtual void TearDown() override
+    void TearDown() override
     { }
 
     IConnectionReaderPtr Reader;

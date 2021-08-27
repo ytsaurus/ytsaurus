@@ -30,7 +30,7 @@ public:
     }
 
 protected:
-    virtual TFuture<int> DoGet(const int& /*key*/, bool /*isPeriodicUpdate*/) noexcept override
+    TFuture<int> DoGet(const int& /*key*/, bool /*isPeriodicUpdate*/) noexcept override
     {
         ++Count_;
 
@@ -70,7 +70,7 @@ public:
     }
 
 protected:
-    virtual TFuture<int> DoGet(const int& /*key*/, bool /*isPeriodicUpdate*/) noexcept override
+    TFuture<int> DoGet(const int& /*key*/, bool /*isPeriodicUpdate*/) noexcept override
     {
         int count = ++Count_;
         return MakeDelayedFuture(Delay_, count);

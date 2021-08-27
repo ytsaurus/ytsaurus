@@ -180,7 +180,7 @@ public:
         YT_LOG_INFO("Shell started");
     }
 
-    virtual void ResizeWindow(int height, int width) override
+    void ResizeWindow(int height, int width) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -191,7 +191,7 @@ public:
         }
     }
 
-    virtual ui64 SendKeys(const TSharedRef& keys, ui64 inputOffset) override
+    ui64 SendKeys(const TSharedRef& keys, ui64 inputOffset) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -227,7 +227,7 @@ public:
         return ConsumedOffset_;
     }
 
-    virtual TFuture<TSharedRef> Poll() override
+    TFuture<TSharedRef> Poll() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -235,7 +235,7 @@ public:
             .WithTimeout(PollTimeout);
     }
 
-    virtual void Terminate(const TError& error) override
+    void Terminate(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -252,7 +252,7 @@ public:
         YT_LOG_INFO(error, "Shell terminated");
     }
 
-    virtual TFuture<void> Shutdown(const TError& error) override
+    TFuture<void> Shutdown(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -267,17 +267,17 @@ public:
         return TerminatedPromise_;
     }
 
-    virtual TShellId GetId() const override
+    TShellId GetId() const override
     {
         return Id_;
     }
 
-    virtual int GetIndex() const override
+    int GetIndex() const override
     {
         return Index_;
     }
 
-    virtual bool Terminated() const override
+    bool Terminated() const override
     {
         return TerminatedPromise_.IsSet();
     }

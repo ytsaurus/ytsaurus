@@ -79,7 +79,7 @@ public:
     { }
 
 private:
-    virtual TFuture<TTableMountInfoPtr> DoGet(
+    TFuture<TTableMountInfoPtr> DoGet(
         const TTableMountCacheKey& key,
         bool /*isPeriodicUpdate*/) noexcept override
     {
@@ -352,7 +352,7 @@ private:
         }
     };
 
-    virtual void InvalidateTable(const TTableMountInfoPtr& tableInfo) override
+    void InvalidateTable(const TTableMountInfoPtr& tableInfo) override
     {
         Invalidate(tableInfo->Path);
 
@@ -362,7 +362,7 @@ private:
             tableInfo->SecondaryRevision});
     }
 
-    virtual void OnAdded(const TTableMountCacheKey& key) noexcept override
+    void OnAdded(const TTableMountCacheKey& key) noexcept override
     {
         YT_LOG_DEBUG("Table mount info added to cache (Path: %v, PrimaryRevision: %llx, SecondaryRevision: %llx)",
             key.Path,
@@ -370,7 +370,7 @@ private:
             key.RefreshSecondaryRevision);
     }
 
-    virtual void OnRemoved(const TTableMountCacheKey& key) noexcept override
+    void OnRemoved(const TTableMountCacheKey& key) noexcept override
     {
         YT_LOG_DEBUG("Table mount info removed from cache (Path: %v, PrimaryRevision: %llx, SecondaryRevision: %llx)",
             key.Path,

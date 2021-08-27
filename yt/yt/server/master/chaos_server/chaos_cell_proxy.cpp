@@ -35,7 +35,7 @@ public:
     using TBase = TCellProxyBase;
     using TCellProxyBase::TCellProxyBase;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
@@ -44,7 +44,7 @@ public:
         descriptors->push_back(EInternedAttributeKey::DescriptorConfigVersion);
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         const auto* cell = GetThisImpl<TChaosCell>();
         const auto& alienClusterRegistry = Bootstrap_->GetChaosManager()->GetAlienClusterRegistry();

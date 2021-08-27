@@ -60,7 +60,7 @@ public:
             BIND(&TChaosManager::SaveKeys, Unretained(this)));
     }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND(&TChaosManager::OnDynamicConfigChanged, MakeWeak(this)));
@@ -76,12 +76,12 @@ public:
         RegisterMethod(BIND(&TChaosManager::HydraUpdateAlienCellPeers, Unretained(this)));
     }
 
-    virtual const TAlienClusterRegistryPtr& GetAlienClusterRegistry() const override
+    const TAlienClusterRegistryPtr& GetAlienClusterRegistry() const override
     {
         return AlienClusterRegistry_;
     }
 
-    virtual TChaosCell* FindChaosCell(TChaosCellId cellId) const override
+    TChaosCell* FindChaosCell(TChaosCellId cellId) const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         auto* cell = cellManager->FindCell(cellId);
@@ -185,7 +185,7 @@ private:
         Load(context, *AlienClusterRegistry_);
     }
 
-    virtual void Clear() override
+    void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -194,7 +194,7 @@ private:
         AlienClusterRegistry_->Clear();
     }
 
-    virtual void OnLeaderActive() override
+    void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -208,7 +208,7 @@ private:
         }
     }
 
-    virtual void OnStopLeading() override
+    void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

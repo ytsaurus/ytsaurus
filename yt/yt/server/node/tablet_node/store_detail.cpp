@@ -378,7 +378,7 @@ public:
         , UnderlyingCache_(std::move(underlyingCache))
     { }
 
-    virtual void PutBlock(
+    void PutBlock(
         const TBlockId& id,
         EBlockType type,
         const TBlock& data) override
@@ -386,7 +386,7 @@ public:
         UnderlyingCache_->PutBlock(id, type, data);
     }
 
-    virtual TCachedBlock FindBlock(
+    TCachedBlock FindBlock(
         const TBlockId& id,
         EBlockType type) override
     {
@@ -400,7 +400,7 @@ public:
         }
     }
 
-    virtual std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
+    std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
         const TBlockId& id,
         EBlockType type) override
     {
@@ -414,7 +414,7 @@ public:
         }
     }
 
-    virtual EBlockType GetSupportedBlockTypes() const override
+    EBlockType GetSupportedBlockTypes() const override
     {
         return MapInMemoryModeToBlockType(ChunkData_->InMemoryMode);
     }

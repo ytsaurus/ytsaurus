@@ -84,7 +84,7 @@ private:
     TKeyMappingOrError KeyMapping_;
 
 private:
-    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
+    bool DoInvoke(const NRpc::IServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Get);
         DISPATCH_YPATH_SERVICE_METHOD(List);
@@ -92,7 +92,7 @@ private:
         return TSupportsAttributes::DoInvoke(context);
     }
 
-    virtual TResolveResult ResolveRecursive(const TYPath& path, const NRpc::IServiceContextPtr& context) override
+    TResolveResult ResolveRecursive(const TYPath& path, const NRpc::IServiceContextPtr& context) override
     {
         auto guard = Guard(KeyMappingSpinLock_);
         const auto& keyMapping = KeyMapping_.ValueOrThrow();
@@ -112,7 +112,7 @@ private:
     }
 
 
-    virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
+    void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
     {
         ValidateKeyMapping();
 
@@ -179,7 +179,7 @@ private:
         context->Reply();
     }
 
-    virtual void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override
+    void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override
     {
         ValidateKeyMapping();
 

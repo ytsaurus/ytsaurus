@@ -49,7 +49,7 @@ public:
         CancelableContext_->Cancel(TError("Reader destroyed"));
     }
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         bool hasPending = false;
 
@@ -114,12 +114,12 @@ public:
         return CreateEmptyUnversionedRowBatch();
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         return DoGetReadyEvent();
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         auto guard = ReaderGuard(SpinLock_);
         auto dataStatistics = DataStatistics_;
@@ -131,7 +131,7 @@ public:
         return dataStatistics;
     }
 
-    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
+    NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
     {
         auto guard = ReaderGuard(SpinLock_);
         auto result = DecompressionStatistics_;
@@ -143,7 +143,7 @@ public:
         return result;
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         auto guard = ReaderGuard(SpinLock_);
         for (const auto& session : Sessions_) {
@@ -154,7 +154,7 @@ public:
         return true;
     }
 
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
+    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
     {
         auto guard = ReaderGuard(SpinLock_);
         auto result = FailedChunkIds_;

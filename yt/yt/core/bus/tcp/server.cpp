@@ -83,17 +83,17 @@ public:
     }
 
     // IPollable implementation.
-    virtual const TString& GetLoggingTag() const override
+    const TString& GetLoggingTag() const override
     {
         return Logger.GetTag();
     }
 
-    virtual void OnEvent(EPollControl /*control*/) override
+    void OnEvent(EPollControl /*control*/) override
     {
         OnAccept();
     }
 
-    virtual void OnShutdown() override
+    void OnShutdown() override
     {
         {
             auto guard = Guard(ControlSpinLock_);
@@ -332,7 +332,7 @@ public:
     { }
 
 private:
-    virtual void CreateServerSocket() override
+    void CreateServerSocket() override
     {
         ServerSocket_ = CreateTcpServerSocket();
 
@@ -340,7 +340,7 @@ private:
         BindSocket(serverAddress, Format("Failed to bind a server socket to port %v", Config_->Port));
     }
 
-    virtual void InitClientSocket(SOCKET clientSocket) override
+    void InitClientSocket(SOCKET clientSocket) override
     {
         if (Config_->EnableNoDelay) {
             if (!TrySetSocketNoDelay(clientSocket)) {
@@ -369,7 +369,7 @@ public:
     { }
 
 private:
-    virtual void CreateServerSocket() override
+    void CreateServerSocket() override
     {
         ServerSocket_ = CreateUnixServerSocket();
 
@@ -385,7 +385,7 @@ private:
         }
     }
 
-    virtual void InitClientSocket(SOCKET /*clientSocket*/) override
+    void InitClientSocket(SOCKET /*clientSocket*/) override
     { }
 };
 
@@ -412,7 +412,7 @@ public:
         Stop();
     }
 
-    virtual void Start(IMessageHandlerPtr handler)
+    void Start(IMessageHandlerPtr handler) override
     {
         auto server = New<TServer>(
             Config_,
@@ -428,7 +428,7 @@ public:
         server->Start();
     }
 
-    virtual TFuture<void> Stop()
+    TFuture<void> Stop() override
     {
         TIntrusivePtr<TServer> server;
         {
@@ -459,14 +459,14 @@ public:
         : Servers_(servers)
     { }
 
-    virtual void Start(IMessageHandlerPtr handler) override
+    void Start(IMessageHandlerPtr handler) override
     {
         for (const auto& server : Servers_) {
             server->Start(handler);
         }
     }
 
-    virtual TFuture<void> Stop() override
+    TFuture<void> Stop() override
     {
         std::vector<TFuture<void>> asyncResults;
         for (const auto& server : Servers_) {

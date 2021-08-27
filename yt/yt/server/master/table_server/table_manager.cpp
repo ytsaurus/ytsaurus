@@ -62,27 +62,27 @@ class TTableManager::TMasterTableSchemaTypeHandler
 public:
     explicit TMasterTableSchemaTypeHandler(TImpl* owner);
 
-    virtual ETypeFlags GetFlags() const override
+    ETypeFlags GetFlags() const override
     {
         // NB: schema objects are cell-local. Different cells have differing schema sets.
         return ETypeFlags::None;
     }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::MasterTableSchema;
     }
 
-    virtual TObject* CreateObject(
+    TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
 private:
     TImpl* const Owner_;
 
-    virtual IObjectProxyPtr DoGetProxy(TMasterTableSchema* user, TTransaction* transaction) override;
+    IObjectProxyPtr DoGetProxy(TMasterTableSchema* user, TTransaction* transaction) override;
 
-    virtual void DoZombifyObject(TMasterTableSchema* user) override;
+    void DoZombifyObject(TMasterTableSchema* user) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,7 +132,7 @@ public:
         configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    virtual void OnLeaderActive() override
+    void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -150,7 +150,7 @@ public:
         }
     }
 
-    virtual void OnStopLeading() override
+    void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -161,7 +161,7 @@ public:
         }
     }
 
-    virtual void Clear() override
+    void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -454,14 +454,14 @@ public:
         }
     }
 
-    virtual void OnBeforeSnapshotLoaded() override
+    void OnBeforeSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
         NeedFixEmptyMasterTableSchemaRefCounter_ = false;
     }
 
-    virtual void OnAfterSnapshotLoaded() override
+    void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 

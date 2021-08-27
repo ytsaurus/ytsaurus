@@ -22,7 +22,7 @@ public:
         YT_VERIFY(Context_);
     }
 
-    virtual void Invoke(TClosure callback) override
+    void Invoke(TClosure callback) override
     {
         YT_ASSERT(callback);
 

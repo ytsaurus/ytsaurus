@@ -180,12 +180,12 @@ public:
             TableConsumer_.get()))
     { }
 
-    virtual void Read(TStringBuf data) override
+    void Read(TStringBuf data) override
     {
         Parser_->Read(data);
     }
 
-    virtual void Finish() override
+    void Finish() override
     {
         Parser_->Finish();
     }
@@ -486,12 +486,12 @@ public:
         : TBase(std::forward<TArgs>(args)...)
     { }
 
-    virtual void Read(TStringBuf data) override
+    void Read(TStringBuf data) override
     {
         TBase::Read(data);
     }
 
-    virtual void Finish() override
+    void Finish() override
     {
         TBase::Finish();
     }

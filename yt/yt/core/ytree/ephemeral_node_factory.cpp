@@ -28,28 +28,28 @@ public:
         : ShouldHideAttributes_(shouldHideAttributes)
     { }
 
-    virtual std::unique_ptr<ITransactionalNodeFactory> CreateFactory() const override
+    std::unique_ptr<ITransactionalNodeFactory> CreateFactory() const override
     {
         return CreateEphemeralNodeFactory(ShouldHideAttributes_);
     }
 
-    virtual ICompositeNodePtr GetParent() const override
+    ICompositeNodePtr GetParent() const override
     {
         return Parent_.Lock();
     }
 
-    virtual void SetParent(const ICompositeNodePtr& parent) override
+    void SetParent(const ICompositeNodePtr& parent) override
     {
         YT_ASSERT(!parent || Parent_.IsExpired());
         Parent_ = parent;
     }
 
-    virtual bool ShouldHideAttributes() override
+    bool ShouldHideAttributes() override
     {
         return ShouldHideAttributes_;
     }
 
-    virtual void DoWriteAttributesFragment(
+    void DoWriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
         const std::optional<std::vector<TString>>& attributeKeys,
         bool stable) override
@@ -82,7 +82,7 @@ public:
 
 protected:
     // TSupportsAttributes members
-    virtual IAttributeDictionary* GetCustomAttributes() override
+    IAttributeDictionary* GetCustomAttributes() override
     {
         return MutableAttributes();
     }
@@ -105,12 +105,12 @@ public:
         , Value_()
     { }
 
-    virtual typename NMpl::TCallTraits<TValue>::TType GetValue() const override
+    typename NMpl::TCallTraits<TValue>::TType GetValue() const override
     {
         return Value_;
     }
 
-    virtual void SetValue(typename NMpl::TCallTraits<TValue>::TType value) override
+    void SetValue(typename NMpl::TCallTraits<TValue>::TType value) override
     {
         Value_ = value;
     }
@@ -153,12 +153,12 @@ public:
         : TEphemeralNodeBase(shouldHideAttributes)
     { }
 
-    virtual TIntrusivePtr<ICompositeNode> AsComposite() override
+    TIntrusivePtr<ICompositeNode> AsComposite() override
     {
         return this;
     }
 
-    virtual TIntrusivePtr<const ICompositeNode> AsComposite() const override
+    TIntrusivePtr<const ICompositeNode> AsComposite() const override
     {
         return this;
     }
@@ -177,7 +177,7 @@ public:
         : TCompositeNodeBase<IMapNode>(shouldHideAttributes)
     { }
 
-    virtual void Clear() override
+    void Clear() override
     {
         for (const auto& [key, child] : KeyToChild_) {
             child->SetParent(nullptr);
@@ -186,17 +186,17 @@ public:
         ChildToKey_.clear();
     }
 
-    virtual int GetChildCount() const override
+    int GetChildCount() const override
     {
         return KeyToChild_.ysize();
     }
 
-    virtual std::vector< std::pair<TString, INodePtr> > GetChildren() const override
+    std::vector< std::pair<TString, INodePtr> > GetChildren() const override
     {
         return std::vector< std::pair<TString, INodePtr> >(KeyToChild_.begin(), KeyToChild_.end());
     }
 
-    virtual std::vector<TString> GetKeys() const override
+    std::vector<TString> GetKeys() const override
     {
         std::vector<TString> result;
         result.reserve(KeyToChild_.size());
@@ -206,13 +206,13 @@ public:
         return result;
     }
 
-    virtual INodePtr FindChild(const TString& key) const override
+    INodePtr FindChild(const TString& key) const override
     {
         auto it = KeyToChild_.find(key);
         return it == KeyToChild_.end() ? nullptr : it->second;
     }
 
-    virtual bool AddChild(const TString& key, const INodePtr& child) override
+    bool AddChild(const TString& key, const INodePtr& child) override
     {
         YT_ASSERT(child);
         ValidateYTreeKey(key);
@@ -226,7 +226,7 @@ public:
         }
     }
 
-    virtual bool RemoveChild(const TString& key) override
+    bool RemoveChild(const TString& key) override
     {
         auto it = KeyToChild_.find(TString(key));
         if (it == KeyToChild_.end())
@@ -240,7 +240,7 @@ public:
         return true;
     }
 
-    virtual void RemoveChild(const INodePtr& child) override
+    void RemoveChild(const INodePtr& child) override
     {
         YT_ASSERT(child);
 
@@ -255,7 +255,7 @@ public:
         YT_VERIFY(KeyToChild_.erase(key) == 1);
     }
 
-    virtual void ReplaceChild(const INodePtr& oldChild, const INodePtr& newChild) override
+    void ReplaceChild(const INodePtr& oldChild, const INodePtr& newChild) override
     {
         YT_ASSERT(oldChild);
         YT_ASSERT(newChild);
@@ -277,7 +277,7 @@ public:
         YT_VERIFY(ChildToKey_.emplace(newChild, key).second);
     }
 
-    virtual std::optional<TString> FindChildKey(const IConstNodePtr& child) override
+    std::optional<TString> FindChildKey(const IConstNodePtr& child) override
     {
         YT_ASSERT(child);
 
@@ -289,13 +289,13 @@ private:
     THashMap<TString, INodePtr> KeyToChild_;
     THashMap<INodePtr, TString> ChildToKey_;
 
-    virtual bool DoInvoke(const IServiceContextPtr& context) override
+    bool DoInvoke(const IServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(List);
         return TEphemeralNodeBase::DoInvoke(context);
     }
 
-    virtual IYPathService::TResolveResult ResolveRecursive(
+    IYPathService::TResolveResult ResolveRecursive(
         const TYPath& path,
         const IServiceContextPtr& context) override
     {
@@ -316,7 +316,7 @@ public:
         : TCompositeNodeBase<IListNode>(shouldHideAttributes)
     { }
 
-    virtual void Clear() override
+    void Clear() override
     {
         for (const auto& node : IndexToChild_) {
             node->SetParent(nullptr);
@@ -325,22 +325,22 @@ public:
         ChildToIndex_.clear();
     }
 
-    virtual int GetChildCount() const override
+    int GetChildCount() const override
     {
         return IndexToChild_.size();
     }
 
-    virtual std::vector<INodePtr> GetChildren() const override
+    std::vector<INodePtr> GetChildren() const override
     {
         return IndexToChild_;
     }
 
-    virtual INodePtr FindChild(int index) const override
+    INodePtr FindChild(int index) const override
     {
         return index >= 0 && index < std::ssize(IndexToChild_) ? IndexToChild_[index] : nullptr;
     }
 
-    virtual void AddChild(const INodePtr& child, int beforeIndex = -1) override
+    void AddChild(const INodePtr& child, int beforeIndex = -1) override
     {
         YT_ASSERT(child);
 
@@ -359,7 +359,7 @@ public:
         child->SetParent(this);
     }
 
-    virtual bool RemoveChild(int index) override
+    bool RemoveChild(int index) override
     {
         if (index < 0 || index >= std::ssize(IndexToChild_))
             return false;
@@ -377,7 +377,7 @@ public:
         return true;
     }
 
-    virtual void ReplaceChild(const INodePtr& oldChild, const INodePtr& newChild) override
+    void ReplaceChild(const INodePtr& oldChild, const INodePtr& newChild) override
     {
         YT_ASSERT(oldChild);
         YT_ASSERT(newChild);
@@ -398,7 +398,7 @@ public:
         newChild->SetParent(this);
     }
 
-    virtual void RemoveChild(const INodePtr& child) override
+    void RemoveChild(const INodePtr& child) override
     {
         YT_ASSERT(child);
 
@@ -406,7 +406,7 @@ public:
         YT_VERIFY(RemoveChild(index));
     }
 
-    virtual std::optional<int> FindChildIndex(const IConstNodePtr& child) override
+    std::optional<int> FindChildIndex(const IConstNodePtr& child) override
     {
         YT_ASSERT(child);
 
@@ -418,7 +418,7 @@ private:
     std::vector<INodePtr> IndexToChild_;
     THashMap<INodePtr, int> ChildToIndex_;
 
-    virtual TResolveResult ResolveRecursive(
+    TResolveResult ResolveRecursive(
         const TYPath& path,
         const IServiceContextPtr& context) override
     {
@@ -455,42 +455,42 @@ public:
         RollbackIfNeeded();
     }
 
-    virtual IStringNodePtr CreateString() override
+    IStringNodePtr CreateString() override
     {
         return New<TStringNode>(ShouldHideAttributes_);
     }
 
-    virtual IInt64NodePtr CreateInt64() override
+    IInt64NodePtr CreateInt64() override
     {
         return New<TInt64Node>(ShouldHideAttributes_);
     }
 
-    virtual IUint64NodePtr CreateUint64() override
+    IUint64NodePtr CreateUint64() override
     {
         return New<TUint64Node>(ShouldHideAttributes_);
     }
 
-    virtual IDoubleNodePtr CreateDouble() override
+    IDoubleNodePtr CreateDouble() override
     {
         return New<TDoubleNode>(ShouldHideAttributes_);
     }
 
-    virtual IBooleanNodePtr CreateBoolean() override
+    IBooleanNodePtr CreateBoolean() override
     {
         return New<TBooleanNode>(ShouldHideAttributes_);
     }
 
-    virtual IMapNodePtr CreateMap() override
+    IMapNodePtr CreateMap() override
     {
         return New<TMapNode>(ShouldHideAttributes_);
     }
 
-    virtual IListNodePtr CreateList() override
+    IListNodePtr CreateList() override
     {
         return New<TListNode>(ShouldHideAttributes_);
     }
 
-    virtual IEntityNodePtr CreateEntity() override
+    IEntityNodePtr CreateEntity() override
     {
         return New<TEntityNode>(ShouldHideAttributes_);
     }

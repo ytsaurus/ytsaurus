@@ -319,7 +319,7 @@ private:
         THashMap<TString, TString> GlobalTags_;
         TProfileManagerConfigPtr Config_;
 
-        virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
+        bool DoInvoke(const NRpc::IServiceContextPtr& context) override
         {
             DISPATCH_YPATH_SERVICE_METHOD(Get);
             return TYPathServiceBase::DoInvoke(context);
@@ -330,7 +330,7 @@ private:
             return value ? std::make_optional(TInstant::MicroSeconds(*value)) : std::nullopt;
         }
 
-        virtual void GetSelf(
+        void GetSelf(
             TReqGet* request,
             TRspGet* response,
             const TCtxGetPtr& context) override
@@ -401,12 +401,12 @@ private:
     private:
         TImpl* const Owner;
 
-        virtual TClosure BeginExecute() override
+        TClosure BeginExecute() override
         {
             return Owner->BeginExecute();
         }
 
-        virtual void EndExecute() override
+        void EndExecute() override
         {
             Owner->EndExecute();
         }

@@ -55,7 +55,7 @@ public:
     { }
 
     //! Returns closure that launches data transfer to given async output.
-    virtual TCallback<TFuture<void>()> PrepareJobInputTransfer(const IAsyncOutputStreamPtr& asyncOutput) override
+    TCallback<TFuture<void>()> PrepareJobInputTransfer(const IAsyncOutputStreamPtr& asyncOutput) override
     {
         const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
 
@@ -69,7 +69,7 @@ public:
         }
     }
 
-    virtual double GetProgress() const override
+    double GetProgress() const override
     {
         if (!Initialized_) {
             return 0;
@@ -85,7 +85,7 @@ public:
         return std::clamp(current / static_cast<double>(total), 0.0, 1.0);
     }
 
-    virtual TFuture<std::vector<TBlob>> GetInputContext() const override
+    TFuture<std::vector<TBlob>> GetInputContext() const override
     {
         if (!Initialized_) {
             return MakeFuture(std::vector<TBlob>());
@@ -102,12 +102,12 @@ public:
         .Run();
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return Initialized_ ? Reader_->GetFailedChunkIds() : std::vector<TChunkId>();
     }
 
-    virtual std::optional<NChunkClient::NProto::TDataStatistics> GetDataStatistics() const override
+    std::optional<NChunkClient::NProto::TDataStatistics> GetDataStatistics() const override
     {
         if (!Initialized_) {
             return std::nullopt;
@@ -115,7 +115,7 @@ public:
         return Reader_->GetDataStatistics();
     }
 
-    virtual std::optional<TCodecStatistics> GetDecompressionStatistics() const override
+    std::optional<TCodecStatistics> GetDecompressionStatistics() const override
     {
         if (!Initialized_) {
             return std::nullopt;
@@ -123,7 +123,7 @@ public:
         return Reader_->GetDecompressionStatistics();
     }
 
-    virtual std::optional<TTimingStatistics> GetTimingStatistics() const override
+    std::optional<TTimingStatistics> GetTimingStatistics() const override
     {
         if (!Initialized_) {
             return std::nullopt;
@@ -131,7 +131,7 @@ public:
         return Reader_->GetTimingStatistics();
     }
 
-    virtual void InterruptReader() override
+    void InterruptReader() override
     {
         if (!Initialized_) {
             THROW_ERROR_EXCEPTION(EErrorCode::JobNotPrepared, "Cannot interrupt uninitialized reader");
@@ -149,7 +149,7 @@ public:
         }
     }
 
-    virtual TInterruptDescriptor GetInterruptDescriptor() const override
+    TInterruptDescriptor GetInterruptDescriptor() const override
     {
         if (Interrupted_) {
             YT_VERIFY(Reader_);

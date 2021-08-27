@@ -35,14 +35,14 @@ public:
         , Underlying_(std::move(underlying))
     { }
 
-    virtual TFuture<IResponsePtr> Get(
+    TFuture<IResponsePtr> Get(
         const TString& url,
         const THeadersPtr& headers) override
     {
         return Underlying_->Get(url, headers);
     }
 
-    virtual TFuture<IResponsePtr> Post(
+    TFuture<IResponsePtr> Post(
         const TString& url,
         const TSharedRef& body,
         const THeadersPtr& headers) override
@@ -50,7 +50,7 @@ public:
         return Underlying_->Post(url, body, headers);
     }
 
-    virtual TFuture<IResponsePtr> Patch(
+    TFuture<IResponsePtr> Patch(
         const TString& url,
         const TSharedRef& body,
         const THeadersPtr& headers) override

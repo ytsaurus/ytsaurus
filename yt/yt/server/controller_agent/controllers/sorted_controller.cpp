@@ -88,7 +88,7 @@ public:
 
     // Persistence.
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         TOperationControllerBase::Persist(context);
 
@@ -146,29 +146,29 @@ protected:
             ChunkPool_->SubscribeChunkTeleported(BIND(&TSortedTaskBase::OnChunkTeleported, MakeWeak(this)));
         }
 
-        virtual TDuration GetLocalityTimeout() const override
+        TDuration GetLocalityTimeout() const override
         {
             return Controller_->IsLocalityEnabled()
                 ? Controller_->Spec_->LocalityTimeout
                 : TDuration::Zero();
         }
 
-        virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
+        TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
             return GetMergeResources(joblet->InputStripeList->GetStatistics());
         }
 
-        virtual IChunkPoolInputPtr GetChunkPoolInput() const override
+        IChunkPoolInputPtr GetChunkPoolInput() const override
         {
             return ChunkPool_;
         }
 
-        virtual IChunkPoolOutputPtr GetChunkPoolOutput() const override
+        IChunkPoolOutputPtr GetChunkPoolOutput() const override
         {
             return ChunkPool_;
         }
 
-        virtual void Persist(const TPersistenceContext& context) override
+        void Persist(const TPersistenceContext& context) override
         {
             TTask::Persist(context);
 
@@ -181,7 +181,7 @@ protected:
             ChunkPool_->SubscribeChunkTeleported(BIND(&TSortedTaskBase::OnChunkTeleported, MakeWeak(this)));
         }
 
-        virtual void OnTaskCompleted() override
+        void OnTaskCompleted() override
         {
             TTask::OnTaskCompleted();
 
@@ -195,7 +195,7 @@ protected:
             return TotalOutputRowCount_;
         }
 
-        virtual void AdjustDataSliceForPool(const TLegacyDataSlicePtr& dataSlice) const override
+        void AdjustDataSliceForPool(const TLegacyDataSlicePtr& dataSlice) const override
         {
             // Consider the following case as an example: we are running reduce over a sorted table
             // with two key columns [key, subkey] and a range >[5, foo]:<=[7, bar]. From the
@@ -241,7 +241,7 @@ protected:
             AddOutputTableSpecs(jobSpec, joblet);
         }
 
-        virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
+        TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
             return GetMergeResources(ChunkPool_->GetApproximateStripeStatistics());
         }
@@ -257,17 +257,17 @@ protected:
             return result;
         }
 
-        virtual EJobType GetJobType() const override
+        EJobType GetJobType() const override
         {
             return Controller_->GetJobType();
         }
 
-        virtual TUserJobSpecPtr GetUserJobSpec() const override
+        TUserJobSpecPtr GetUserJobSpec() const override
         {
             return Controller_->GetUserJobSpec();
         }
 
-        virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
+        void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
@@ -275,7 +275,7 @@ protected:
             BuildInputOutputJobSpec(joblet, jobSpec);
         }
 
-        virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
             TotalOutputRowCount_ += GetTotalOutputDataStatistics(*jobSummary.Statistics).row_count();
@@ -285,12 +285,12 @@ protected:
             return result;
         }
 
-        virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
+        TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
             return TTask::OnJobAborted(joblet, jobSummary);
         }
 
-        virtual void OnChunkTeleported(TInputChunkPtr teleportChunk, std::any tag) override
+        void OnChunkTeleported(TInputChunkPtr teleportChunk, std::any tag) override
         {
             TTask::OnChunkTeleported(teleportChunk, tag);
 
@@ -299,7 +299,7 @@ protected:
                 std::move(teleportChunk), /*key=*/0, /*tableIndex=*/*Controller_->GetOutputTeleportTableIndex());
         }
 
-        virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+        TJobSplitterConfigPtr GetJobSplitterConfig() const override
         {
             auto config = TaskHost_->GetJobSplitterConfigTemplate();
 
@@ -310,7 +310,7 @@ protected:
             return config;
         }
 
-        virtual bool IsJobInterruptible() const override
+        bool IsJobInterruptible() const override
         {
             if (!TTask::IsJobInterruptible()) {
                 return false;
@@ -351,12 +351,12 @@ protected:
 
     // Custom bits of preparation pipeline.
 
-    virtual bool IsCompleted() const override
+    bool IsCompleted() const override
     {
         return TOperationControllerBase::IsCompleted() && (!SortedTask_ || SortedTask_->IsCompleted());
     }
 
-    virtual i64 GetUnavailableInputChunkCount() const override
+    i64 GetUnavailableInputChunkCount() const override
     {
         if (FetcherChunkScraper_ && State == EControllerState::Preparing) {
             return FetcherChunkScraper_->GetUnavailableChunkCount();
@@ -588,7 +588,7 @@ protected:
 
     virtual i64 GetForeignInputDataWeight() const = 0;
 
-    virtual void PrepareOutputTables() override
+    void PrepareOutputTables() override
     {
         // NB: we need to do this after locking input tables but before preparing ouput tables.
         AdjustSortColumns();
@@ -596,7 +596,7 @@ protected:
 
     virtual TUserJobSpecPtr GetUserJobSpec() const = 0;
 
-    virtual void CustomMaterialize() override
+    void CustomMaterialize() override
     {
         // NB: Base member is not called intentionally.
         // TODO(max42): But why?
@@ -633,7 +633,7 @@ protected:
         FinishPreparation();
     }
 
-    virtual bool IsBoundaryKeysFetchEnabled() const override
+    bool IsBoundaryKeysFetchEnabled() const override
     {
         return true;
     }
@@ -654,12 +654,12 @@ protected:
             : Controller_(controller)
         { }
 
-        virtual IChunkSliceFetcherPtr CreateChunkSliceFetcher() override
+        IChunkSliceFetcherPtr CreateChunkSliceFetcher() override
         {
             return Controller_->CreateChunkSliceFetcher();
         }
 
-        virtual void Persist(const TPersistenceContext& context) override
+        void Persist(const TPersistenceContext& context) override
         {
             using NYT::Persist;
 
@@ -698,7 +698,7 @@ protected:
         return chunkPoolOptions;
     }
 
-    virtual void OnChunksReleased(int chunkCount) override
+    void OnChunksReleased(int chunkCount) override
     {
         TOperationControllerBase::OnChunksReleased(chunkCount);
 
@@ -707,7 +707,7 @@ protected:
         }
     }
 
-    virtual EIntermediateChunkUnstageMode GetIntermediateChunkUnstageMode() const override
+    EIntermediateChunkUnstageMode GetIntermediateChunkUnstageMode() const override
     {
         auto reducerSpec = GetUserJobSpec();
         // We could get here only if this is a sorted reduce and auto-merge is enabled.
@@ -764,23 +764,23 @@ public:
         , Spec_(spec)
     { }
 
-    virtual bool ShouldSlicePrimaryTableByKeys() const override
+    bool ShouldSlicePrimaryTableByKeys() const override
     {
         return true;
     }
 
-    virtual bool IsRowCountPreserved() const override
+    bool IsRowCountPreserved() const override
     {
         return !Spec_->Sampling->SamplingRate &&
             !Spec_->JobIO->TableReader->SamplingRate;
     }
 
-    virtual TUserJobSpecPtr GetUserJobSpec() const override
+    TUserJobSpecPtr GetUserJobSpec() const override
     {
         return nullptr;
     }
 
-    virtual i64 GetMinTeleportChunkSize() override
+    i64 GetMinTeleportChunkSize() override
     {
         if (Spec_->ForceTransform) {
             return std::numeric_limits<i64>::max() / 4;
@@ -793,7 +793,7 @@ public:
             ->DesiredChunkSize;
     }
 
-    virtual void AdjustSortColumns() override
+    void AdjustSortColumns() override
     {
         const auto& specSortColumns = Spec_->MergeBy;
         YT_LOG_INFO("Spec sort columns obtained (SortColumns: %v)",
@@ -804,32 +804,32 @@ public:
             PrimarySortColumns_);
     }
 
-    virtual bool IsKeyGuaranteeEnabled() override
+    bool IsKeyGuaranteeEnabled() override
     {
         return false;
     }
 
-    virtual EJobType GetJobType() const override
+    EJobType GetJobType() const override
     {
         return EJobType::SortedMerge;
     }
 
-    virtual TCpuResource GetCpuLimit() const override
+    TCpuResource GetCpuLimit() const override
     {
         return 1;
     }
 
-    virtual std::vector<TRichYPath> GetInputTablePaths() const override
+    std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec_->InputTablePaths;
     }
 
-    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
+    std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         return {Spec_->OutputTablePath};
     }
 
-    virtual void InitJobSpecTemplate() override
+    void InitJobSpecTemplate() override
     {
         JobSpecTemplate_.set_type(static_cast<int>(EJobType::SortedMerge));
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
@@ -843,12 +843,12 @@ public:
         ToProto(mergeJobSpecExt->mutable_sort_columns(), PrimarySortColumns_);
     }
 
-    virtual std::optional<int> GetOutputTeleportTableIndex() const override
+    std::optional<int> GetOutputTeleportTableIndex() const override
     {
         return std::make_optional(0);
     }
 
-    virtual void PrepareOutputTables() override
+    void PrepareOutputTables() override
     {
         // Check that all input tables are sorted by the same key columns.
         TSortedControllerBase::PrepareOutputTables();
@@ -901,28 +901,28 @@ public:
         }
     }
 
-    virtual i64 GetForeignInputDataWeight() const override
+    i64 GetForeignInputDataWeight() const override
     {
         return 0;
     }
 
 protected:
-    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
+    TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
     {
         return TStringBuf("data_weight_per_job");
     }
 
-    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
     {
         return {EJobType::SortedMerge};
     }
 
-    virtual TYsonSerializablePtr GetTypedSpec() const override
+    TYsonSerializablePtr GetTypedSpec() const override
     {
         return Spec_;
     }
 
-    virtual void OnOperationCompleted(bool interrupted) override
+    void OnOperationCompleted(bool interrupted) override
     {
         if (!interrupted) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables();
@@ -978,58 +978,58 @@ public:
         , Options_(std::move(options))
     { }
 
-    virtual bool IsRowCountPreserved() const override
+    bool IsRowCountPreserved() const override
     {
         return false;
     }
 
-    virtual bool AreForeignTablesSupported() const override
+    bool AreForeignTablesSupported() const override
     {
         return true;
     }
 
-    virtual TCpuResource GetCpuLimit() const override
+    TCpuResource GetCpuLimit() const override
     {
         return TCpuResource(Spec_->Reducer->CpuLimit);
     }
 
-    virtual TUserJobSpecPtr GetUserJobSpec() const override
+    TUserJobSpecPtr GetUserJobSpec() const override
     {
         return Spec_->Reducer;
     }
 
-    virtual std::vector<TRichYPath> GetInputTablePaths() const override
+    std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec_->InputTablePaths;
     }
 
-    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
+    std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         return Spec_->OutputTablePaths;
     }
 
-    virtual std::optional<int> GetOutputTeleportTableIndex() const override
+    std::optional<int> GetOutputTeleportTableIndex() const override
     {
         return OutputTeleportTableIndex_;
     }
 
-    virtual i64 GetMinTeleportChunkSize() override
+    i64 GetMinTeleportChunkSize() override
     {
         return 0;
     }
 
-    virtual void CustomizeJoblet(const TJobletPtr& joblet) override
+    void CustomizeJoblet(const TJobletPtr& joblet) override
     {
         joblet->StartRowIndex = StartRowIndex_;
         StartRowIndex_ += joblet->InputStripeList->TotalRowCount;
     }
 
-    virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override
+    std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override
     {
         return {Spec_->Reducer};
     }
 
-    virtual void InitJobSpecTemplate() override
+    void InitJobSpecTemplate() override
     {
         YT_VERIFY(!PrimarySortColumns_.empty());
 
@@ -1054,7 +1054,7 @@ public:
         reduceJobSpecExt->set_join_key_column_count(ForeignSortColumns_.size());
     }
 
-    virtual void CustomPrepare() override
+    void CustomPrepare() override
     {
         TSortedControllerBase::CustomPrepare();
 
@@ -1100,7 +1100,7 @@ public:
         }
     }
 
-    virtual void BuildBriefSpec(TFluentMap fluent) const override
+    void BuildBriefSpec(TFluentMap fluent) const override
     {
         TSortedControllerBase::BuildBriefSpec(fluent);
         fluent
@@ -1109,67 +1109,67 @@ public:
             .EndMap();
     }
 
-    virtual bool IsInputDataSizeHistogramSupported() const override
+    bool IsInputDataSizeHistogramSupported() const override
     {
         return true;
     }
 
-    virtual std::optional<TRichYPath> GetStderrTablePath() const override
+    std::optional<TRichYPath> GetStderrTablePath() const override
     {
         return Spec_->StderrTablePath;
     }
 
-    virtual TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const override
+    TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const override
     {
         return Spec_->StderrTableWriter;
     }
 
-    virtual std::optional<TRichYPath> GetCoreTablePath() const override
+    std::optional<TRichYPath> GetCoreTablePath() const override
     {
         return Spec_->CoreTablePath;
     }
 
-    virtual TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const override
+    TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const override
     {
         return Spec_->CoreTableWriter;
     }
 
-    virtual bool GetEnableCudaGpuCoreDump() const override
+    bool GetEnableCudaGpuCoreDump() const override
     {
         return Spec_->EnableCudaGpuCoreDump;
     }
 
-    virtual ELegacyLivePreviewMode GetLegacyOutputLivePreviewMode() const override
+    ELegacyLivePreviewMode GetLegacyOutputLivePreviewMode() const override
     {
         return ToLegacyLivePreviewMode(Spec_->EnableLegacyLivePreview);
     }
 
-    virtual i64 GetForeignInputDataWeight() const override
+    i64 GetForeignInputDataWeight() const override
     {
         return Spec_->ConsiderOnlyPrimarySize ? 0 : ForeignInputDataWeight;
     }
 
-    virtual TYsonSerializablePtr GetTypedSpec() const override
+    TYsonSerializablePtr GetTypedSpec() const override
     {
         return Spec_;
     }
 
-    virtual bool ShouldSlicePrimaryTableByKeys() const override
+    bool ShouldSlicePrimaryTableByKeys() const override
     {
         return *Spec_->EnableKeyGuarantee;
     }
 
-    virtual EJobType GetJobType() const override
+    EJobType GetJobType() const override
     {
         return *Spec_->EnableKeyGuarantee ? EJobType::SortedReduce : EJobType::JoinReduce;
     }
 
-    virtual bool IsKeyGuaranteeEnabled() override
+    bool IsKeyGuaranteeEnabled() override
     {
         return *Spec_->EnableKeyGuarantee;
     }
 
-    virtual void AdjustSortColumns() override
+    void AdjustSortColumns() override
     {
         YT_LOG_INFO("Adjusting sort columns (EnableKeyGuarantee: %v, ReduceBy: %v, SortBy: %v, JoinBy: %v)",
             *Spec_->EnableKeyGuarantee,
@@ -1267,7 +1267,7 @@ public:
         }
     }
 
-    virtual bool HasStaticJobDistribution() const override
+    bool HasStaticJobDistribution() const override
     {
         return
             TSortedControllerBase::HasStaticJobDistribution() ||
@@ -1286,17 +1286,17 @@ private:
 
     std::optional<int> OutputTeleportTableIndex_;
 
-    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
+    TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
     {
         return TStringBuf("data_weight_per_job");
     }
 
-    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
     {
         return {GetJobType()};
     }
 
-    virtual IChunkSliceFetcherFactoryPtr CreateChunkSliceFetcherFactory() override
+    IChunkSliceFetcherFactoryPtr CreateChunkSliceFetcherFactory() override
     {
         if (Spec_->PivotKeys.empty()) {
             return TSortedControllerBase::CreateChunkSliceFetcherFactory();
@@ -1305,7 +1305,7 @@ private:
         }
     }
 
-    virtual TSortedChunkPoolOptions GetSortedChunkPoolOptions() override
+    TSortedChunkPoolOptions GetSortedChunkPoolOptions() override
     {
         auto options = TSortedControllerBase::GetSortedChunkPoolOptions();
         options.SortedJobOptions.PivotKeys = std::vector<TLegacyKey>(Spec_->PivotKeys.begin(), Spec_->PivotKeys.end());
@@ -1314,7 +1314,7 @@ private:
         return options;
     }
 
-    virtual TError GetAutoMergeError() const override
+    TError GetAutoMergeError() const override
     {
         return TError();
     }

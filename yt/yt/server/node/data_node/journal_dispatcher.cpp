@@ -72,25 +72,25 @@ public:
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TJournalDispatcher::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    virtual TFuture<IChangelogPtr> OpenChangelog(
+    TFuture<IChangelogPtr> OpenChangelog(
         const TStoreLocationPtr& location,
         TChunkId chunkId) override;
 
-    virtual TFuture<IChangelogPtr> CreateChangelog(
+    TFuture<IChangelogPtr> CreateChangelog(
         const TStoreLocationPtr& location,
         TChunkId chunkId,
         bool enableMultiplexing,
         const TWorkloadDescriptor& workloadDescriptor) override;
 
-    virtual TFuture<void> RemoveChangelog(
+    TFuture<void> RemoveChangelog(
         const TJournalChunkPtr& chunk,
         bool enableMultiplexing) override;
 
-    virtual TFuture<bool> IsChangelogSealed(
+    TFuture<bool> IsChangelogSealed(
         const TStoreLocationPtr& location,
         TChunkId chunkId) override;
 
-    virtual TFuture<void> SealChangelog(TJournalChunkPtr chunk) override;
+    TFuture<void> SealChangelog(TJournalChunkPtr chunk) override;
 
 private:
     IBootstrap* const Bootstrap_;
@@ -104,8 +104,8 @@ private:
         TInsertCookie cookie,
         const TErrorOr<IChangelogPtr>& changelogOrError);
 
-    virtual void OnAdded(const TCachedChangelogPtr& changelog) override;
-    virtual void OnRemoved(const TCachedChangelogPtr& changelog) override;
+    void OnAdded(const TCachedChangelogPtr& changelog) override;
+    void OnRemoved(const TCachedChangelogPtr& changelog) override;
 
     void OnDynamicConfigChanged(
         const NClusterNode::TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
@@ -146,17 +146,17 @@ public:
             ChunkId_);
     }
 
-    virtual int GetRecordCount() const override
+    int GetRecordCount() const override
     {
         return UnderlyingChangelog_->GetRecordCount();
     }
 
-    virtual i64 GetDataSize() const override
+    i64 GetDataSize() const override
     {
         return UnderlyingChangelog_->GetDataSize();
     }
 
-    virtual TFuture<void> Append(TRange<TSharedRef> records) override
+    TFuture<void> Append(TRange<TSharedRef> records) override
     {
         TFuture<void> future;
         if (EnableMultiplexing_) {
@@ -174,12 +174,12 @@ public:
         return future.ToUncancelable();
     }
 
-    virtual TFuture<void> Flush() override
+    TFuture<void> Flush() override
     {
         return UnderlyingChangelog_->Flush().ToUncancelable();
     }
 
-    virtual TFuture<std::vector<TSharedRef>> Read(
+    TFuture<std::vector<TSharedRef>> Read(
         int firstRecordId,
         int maxRecords,
         i64 maxBytes) const override
@@ -187,12 +187,12 @@ public:
         return UnderlyingChangelog_->Read(firstRecordId, maxRecords, maxBytes);
     }
 
-    virtual TFuture<void> Truncate(int recordCount) override
+    TFuture<void> Truncate(int recordCount) override
     {
         return UnderlyingChangelog_->Truncate(recordCount).ToUncancelable();
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         return UnderlyingChangelog_->Close().Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
             Owner_->TryRemove(this, /* forbidResurrection */ true);
@@ -200,7 +200,7 @@ public:
         })).ToUncancelable();
     }
 
-    virtual TFuture<void> Preallocate(size_t size) override
+    TFuture<void> Preallocate(size_t size) override
     {
         return UnderlyingChangelog_->Preallocate(size).ToUncancelable();
     }

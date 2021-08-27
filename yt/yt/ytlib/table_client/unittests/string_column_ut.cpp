@@ -66,7 +66,7 @@ protected:
         return values;
     }
 
-    virtual std::optional<TString> DecodeValueFromColumn(
+    std::optional<TString> DecodeValueFromColumn(
         const IUnversionedColumnarRowBatch::TColumn* column,
         i64 index) override
     {
@@ -86,7 +86,7 @@ protected:
         return TString(DecodeStringFromColumn(*column, index));
     }
 
-    virtual void Write(IValueColumnWriter* columnWriter) override
+    void Write(IValueColumnWriter* columnWriter) override
     {
         // Rows 0 - 2.
         WriteSegment(columnWriter, CreateDirectDense());
@@ -106,12 +106,12 @@ protected:
         columnWriter->FinishCurrentSegment();
     }
 
-    virtual std::unique_ptr<IUnversionedColumnReader> DoCreateColumnReader() override
+    std::unique_ptr<IUnversionedColumnReader> DoCreateColumnReader() override
     {
         return CreateUnversionedStringColumnReader(ColumnMeta_, ColumnIndex, ColumnId, ESortOrder::Ascending);
     }
 
-    virtual std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
+    std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
     {
         return CreateUnversionedStringColumnWriter(
             ColumnIndex,

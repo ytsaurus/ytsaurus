@@ -118,7 +118,7 @@ public:
     { }
 
     // Persistence.
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         TOperationControllerBase::Persist(context);
 
@@ -561,17 +561,17 @@ protected:
             }
         }
 
-        virtual TString GetTitle() const override
+        TString GetTitle() const override
         {
             return Format("Partition(%v)", Level_);
         }
 
-        virtual TString GetVertexDescriptor() const override
+        TString GetVertexDescriptor() const override
         {
             return Format("%v(%v)", TTask::GetVertexDescriptor(), Level_);
         }
 
-        virtual void FinishInput() override
+        void FinishInput() override
         {
             // NB: we try to use the value as close to the total data weight of all extracted stripe lists as possible.
             // In particular, we do not use Controller->TotalEstimatedInputDataWeight here.
@@ -590,7 +590,7 @@ protected:
             TTask::FinishInput();
         }
 
-        virtual TDuration GetLocalityTimeout() const override
+        TDuration GetLocalityTimeout() const override
         {
             // Locality is not defined for non-root partition tasks since their inputs are shuffled.
             if (!IsRoot()) {
@@ -602,14 +602,14 @@ protected:
                 : TDuration::Zero();
         }
 
-        virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
+        TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
             auto result = Controller_->GetPartitionResources(joblet->InputStripeList->GetStatistics(), IsRoot());
             AddFootprintAndUserJobResources(result);
             return result;
         }
 
-        virtual IChunkPoolInputPtr GetChunkPoolInput() const override
+        IChunkPoolInputPtr GetChunkPoolInput() const override
         {
             if (IsRoot()) {
                 return Controller_->RootPartitionPool;
@@ -618,7 +618,7 @@ protected:
             }
         }
 
-        virtual IChunkPoolOutputPtr GetChunkPoolOutput() const override
+        IChunkPoolOutputPtr GetChunkPoolOutput() const override
         {
             if (IsRoot()) {
                 return Controller_->RootPartitionPool;
@@ -627,7 +627,7 @@ protected:
             }
         }
 
-        virtual TInputChunkMappingPtr GetChunkMapping() const override
+        TInputChunkMappingPtr GetChunkMapping() const override
         {
             if (IsRoot()) {
                 return TTask::GetChunkMapping();
@@ -636,17 +636,17 @@ protected:
             }
         }
 
-        virtual TUserJobSpecPtr GetUserJobSpec() const override
+        TUserJobSpecPtr GetUserJobSpec() const override
         {
             return Controller_->GetPartitionUserJobSpec(IsRoot());
         }
 
-        virtual EJobType GetJobType() const override
+        EJobType GetJobType() const override
         {
             return Controller_->GetPartitionJobType(IsRoot());
         }
 
-        virtual void Persist(const TPersistenceContext& context) override
+        void Persist(const TPersistenceContext& context) override
         {
             TTask::Persist(context);
 
@@ -671,7 +671,7 @@ protected:
             }
         }
 
-        virtual void PropagatePartitions(
+        void PropagatePartitions(
             const std::vector<TStreamDescriptor>& streamDescriptors,
             const TChunkStripeListPtr& inputStripeList,
             std::vector<TChunkStripePtr>* outputStripes) override
@@ -743,12 +743,12 @@ protected:
             }
         }
 
-        virtual bool CanLoseJobs() const override
+        bool CanLoseJobs() const override
         {
             return Controller_->Spec->EnableIntermediateOutputRecalculation;
         }
 
-        virtual std::optional<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context) override
+        std::optional<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context) override
         {
             // We don't have a job at hand here, let's make a guess.
             auto approximateStatistics = GetChunkPoolOutput()->GetApproximateStripeStatistics();
@@ -765,7 +765,7 @@ protected:
             return std::nullopt;
         }
 
-        virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
+        TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
             auto statistics = GetChunkPoolOutput()->GetApproximateStripeStatistics();
             auto resources = Controller_->GetPartitionResources(statistics, IsRoot());
@@ -774,7 +774,7 @@ protected:
             return resources;
         }
 
-        virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
+        void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
@@ -805,7 +805,7 @@ protected:
             AddOutputTableSpecs(jobSpec, joblet);
         }
 
-        virtual void OnJobStarted(TJobletPtr joblet) override
+        void OnJobStarted(TJobletPtr joblet) override
         {
             auto dataWeight = joblet->InputStripeList->TotalDataWeight;
             if (DataBalancer_) {
@@ -815,7 +815,7 @@ protected:
             TTask::OnJobStarted(joblet);
         }
 
-        virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             // COMPAT(gritukan, levysotsky): Remove it when nodes will be fresh enough.
             auto* jobResult = &jobSummary.Result;
@@ -871,7 +871,7 @@ protected:
             return result;
         }
 
-        virtual void OnJobLost(TCompletedJobPtr completedJob) override
+        void OnJobLost(TCompletedJobPtr completedJob) override
         {
             TTask::OnJobLost(completedJob);
 
@@ -885,7 +885,7 @@ protected:
             }
         }
 
-        virtual TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
+        TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
         {
             auto result = TTask::OnJobFailed(joblet, jobSummary);
 
@@ -896,7 +896,7 @@ protected:
             return result;
         }
 
-        virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
+        TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
             auto result = TTask::OnJobAborted(joblet, jobSummary);
 
@@ -907,7 +907,7 @@ protected:
             return result;
         }
 
-        virtual void OnTaskCompleted() override
+        void OnTaskCompleted() override
         {
             TTask::OnTaskCompleted();
 
@@ -972,7 +972,7 @@ protected:
             }
         }
 
-        virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+        TJobSplitterConfigPtr GetJobSplitterConfig() const override
         {
             auto config = TaskHost_->GetJobSplitterConfigTemplate();
 
@@ -983,7 +983,7 @@ protected:
             return config;
         }
 
-        virtual bool IsJobInterruptible() const override
+        bool IsJobInterruptible() const override
         {
             return false;
         }
@@ -1019,7 +1019,7 @@ protected:
             }
         }
 
-        virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
+        TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
             auto result = GetNeededResourcesForChunkStripe(
                 joblet->InputStripeList->GetAggregateStatistics());
@@ -1027,7 +1027,7 @@ protected:
             return result;
         }
 
-        virtual EJobType GetJobType() const override
+        EJobType GetJobType() const override
         {
             if (IsFinalSort_) {
                 return Controller_->GetFinalSortJobType();
@@ -1036,12 +1036,12 @@ protected:
             }
         }
 
-        virtual bool IsSimpleTask() const override
+        bool IsSimpleTask() const override
         {
             return false;
         }
 
-        virtual void Persist(const TPersistenceContext& context) override
+        void Persist(const TPersistenceContext& context) override
         {
             TTask::Persist(context);
 
@@ -1051,7 +1051,7 @@ protected:
             Persist(context, CurrentInputStreamIndex_);
         }
 
-        virtual void OnStripeRegistrationFailed(
+        void OnStripeRegistrationFailed(
             TError error,
             IChunkPoolInput::TCookie cookie,
             const TChunkStripePtr& stripe,
@@ -1068,7 +1068,7 @@ protected:
             descriptor.ChunkMapping->Reset(cookie, stripe);
         }
 
-        virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+        TJobSplitterConfigPtr GetJobSplitterConfig() const override
         {
             auto config = TaskHost_->GetJobSplitterConfigTemplate();
 
@@ -1078,7 +1078,7 @@ protected:
             return config;
         }
 
-        virtual bool IsJobInterruptible() const override
+        bool IsJobInterruptible() const override
         {
             return false;
         }
@@ -1093,7 +1093,7 @@ protected:
             }
         }
 
-        virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
+        TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
             auto stat = AggregateStatistics(GetChunkPoolOutput()->GetApproximateStripeStatistics());
             YT_VERIFY(stat.size() == 1);
@@ -1102,7 +1102,7 @@ protected:
             return result;
         }
 
-        virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
+        void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
@@ -1135,7 +1135,7 @@ protected:
             }
         }
 
-        virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             // COMPAT(gritukan, levysotsky): Remove it when nodes will be fresh enough.
             auto* jobResult = &jobSummary.Result;
@@ -1194,7 +1194,7 @@ protected:
             return result;
         }
 
-        virtual void OnJobLost(TCompletedJobPtr completedJob) override
+        void OnJobLost(TCompletedJobPtr completedJob) override
         {
             TTask::OnJobLost(completedJob);
 
@@ -1206,7 +1206,7 @@ protected:
             }
         }
 
-        virtual void OnTaskCompleted() override
+        void OnTaskCompleted() override
         {
             TTask::OnTaskCompleted();
 
@@ -1217,7 +1217,7 @@ protected:
             }
         }
 
-        virtual bool CanLoseJobs() const override
+        bool CanLoseJobs() const override
         {
             return Controller_->Spec->EnableIntermediateOutputRecalculation;
         }
@@ -1253,7 +1253,7 @@ protected:
             , MultiChunkPoolOutput_(CreateMultiChunkPoolOutput({}))
         { }
 
-        virtual TDuration GetLocalityTimeout() const override
+        TDuration GetLocalityTimeout() const override
         {
             // Locality for one-job partition is not important.
             if (IsFinalSort_) {
@@ -1267,7 +1267,7 @@ protected:
             return Controller_->Spec->SortLocalityTimeout;
         }
 
-        virtual i64 GetLocality(TNodeId nodeId) const override
+        i64 GetLocality(TNodeId nodeId) const override
         {
             auto localityEntry = Controller_->GetLocalityEntry(nodeId);
             if (localityEntry) {
@@ -1277,7 +1277,7 @@ protected:
             }
         }
 
-        virtual IChunkPoolOutput::TCookie ExtractCookie(TNodeId nodeId) override
+        IChunkPoolOutput::TCookie ExtractCookie(TNodeId nodeId) override
         {
             auto localityEntry = Controller_->GetLocalityEntry(nodeId);
             if (localityEntry) {
@@ -1288,22 +1288,22 @@ protected:
             }
         }
 
-        virtual IChunkPoolInputPtr GetChunkPoolInput() const override
+        IChunkPoolInputPtr GetChunkPoolInput() const override
         {
             return Controller_->ShuffleMultiChunkPoolInputs.back();
         }
 
-        virtual IChunkPoolOutputPtr GetChunkPoolOutput() const override
+        IChunkPoolOutputPtr GetChunkPoolOutput() const override
         {
             return MultiChunkPoolOutput_;
         }
 
-        virtual TUserJobSpecPtr GetUserJobSpec() const override
+        TUserJobSpecPtr GetUserJobSpec() const override
         {
             return Controller_->GetSortUserJobSpec(IsFinalSort_);
         }
 
-        virtual TInputChunkMappingPtr GetChunkMapping() const override
+        TInputChunkMappingPtr GetChunkMapping() const override
         {
             return Controller_->ShuffleMultiInputChunkMappings.back();
         }
@@ -1322,7 +1322,7 @@ protected:
             MultiChunkPoolOutput_->Finalize();
         }
 
-        virtual void Persist(const TPersistenceContext& context) override
+        void Persist(const TPersistenceContext& context) override
         {
             TSortTaskBase::Persist(context);
 
@@ -1338,17 +1338,17 @@ protected:
 
         std::vector<TPartitionPtr> Partitions_;
 
-        virtual bool IsActive() const override
+        bool IsActive() const override
         {
             return Controller_->SortStartThresholdReached || IsFinalSort_;
         }
 
-        virtual bool HasInputLocality() const override
+        bool HasInputLocality() const override
         {
             return false;
         }
 
-        virtual void OnJobStarted(TJobletPtr joblet) override
+        void OnJobStarted(TJobletPtr joblet) override
         {
             auto nodeId = joblet->NodeDescriptor.Id;
 
@@ -1367,7 +1367,7 @@ protected:
             TSortTaskBase::OnJobStarted(joblet);
         }
 
-        virtual void OnJobLost(TCompletedJobPtr completedJob) override
+        void OnJobLost(TCompletedJobPtr completedJob) override
         {
             if (!Controller_->SimpleSort) {
                 auto partitionIndex = *completedJob->InputStripe->PartitionTag;
@@ -1381,7 +1381,7 @@ protected:
             TSortTaskBase::OnJobLost(completedJob);
         }
 
-        virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             auto result = TSortTaskBase::OnJobCompleted(joblet, jobSummary);
 
@@ -1406,7 +1406,7 @@ protected:
             return result;
         }
 
-        virtual void OnTaskCompleted() override
+        void OnTaskCompleted() override
         {
             TSortTaskBase::OnTaskCompleted();
 
@@ -1433,29 +1433,29 @@ protected:
             GetChunkPoolOutput()->GetDataWeightCounter()->AddParent(Controller_->SortDataWeightCounter);
         }
 
-        virtual TDuration GetLocalityTimeout() const override
+        TDuration GetLocalityTimeout() const override
         {
             return Controller_->IsLocalityEnabled()
                 ? Controller_->Spec->SimpleSortLocalityTimeout
                 : TDuration::Zero();
         }
 
-        virtual TString GetTitle() const override
+        TString GetTitle() const override
         {
             return Format("SimpleSort");
         }
 
-        virtual IChunkPoolInputPtr GetChunkPoolInput() const override
+        IChunkPoolInputPtr GetChunkPoolInput() const override
         {
             return Controller_->SimpleSortPool;
         }
 
-        virtual IChunkPoolOutputPtr GetChunkPoolOutput() const override
+        IChunkPoolOutputPtr GetChunkPoolOutput() const override
         {
             return Controller_->SimpleSortPool;
         }
 
-        virtual void OnTaskCompleted() override
+        void OnTaskCompleted() override
         {
             TSortTaskBase::OnTaskCompleted();
 
@@ -1481,7 +1481,7 @@ protected:
             StreamDescriptors_ = Controller_->GetSortedMergeStreamDescriptors();
         }
 
-        virtual IChunkPoolOutput::TCookie ExtractCookie(TNodeId nodeId) override
+        IChunkPoolOutput::TCookie ExtractCookie(TNodeId nodeId) override
         {
             auto cookie = TSortTaskBase::ExtractCookie(nodeId);
 
@@ -1537,7 +1537,7 @@ protected:
             }
         }
 
-        virtual TDuration GetLocalityTimeout() const override
+        TDuration GetLocalityTimeout() const override
         {
             if (!Controller_->IsLocalityEnabled()) {
                 return TDuration::Zero();
@@ -1549,7 +1549,7 @@ protected:
                 : Controller_->Spec->MergeLocalityTimeout;
         }
 
-        virtual i64 GetLocality(TNodeId nodeId) const override
+        i64 GetLocality(TNodeId nodeId) const override
         {
             auto localityEntry = Controller_->GetLocalityEntry(nodeId);
             if (localityEntry) {
@@ -1559,7 +1559,7 @@ protected:
             }
         }
 
-        virtual IChunkPoolOutput::TCookie ExtractCookie(TNodeId nodeId) override
+        IChunkPoolOutput::TCookie ExtractCookie(TNodeId nodeId) override
         {
             auto localityEntry = Controller_->GetLocalityEntry(nodeId);
             if (localityEntry) {
@@ -1570,7 +1570,7 @@ protected:
             }
         }
 
-        virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
+        TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
             auto resources = Controller_->GetSortedMergeResources(
                 joblet->InputStripeList->GetStatistics());
@@ -1578,12 +1578,12 @@ protected:
             return resources;
         }
 
-        virtual IChunkPoolInputPtr GetChunkPoolInput() const override
+        IChunkPoolInputPtr GetChunkPoolInput() const override
         {
             return ChunkPoolInput_;
         }
 
-        virtual void Persist(const TPersistenceContext& context) override
+        void Persist(const TPersistenceContext& context) override
         {
             TTask::Persist(context);
 
@@ -1598,12 +1598,12 @@ protected:
             Persist(context, JobOutputs_);
         }
 
-        virtual TUserJobSpecPtr GetUserJobSpec() const override
+        TUserJobSpecPtr GetUserJobSpec() const override
         {
             return Controller_->GetSortedMergeUserJobSpec();
         }
 
-        virtual EJobType GetJobType() const override
+        EJobType GetJobType() const override
         {
             return Controller_->GetSortedMergeJobType();
         }
@@ -1673,7 +1673,7 @@ protected:
             MultiChunkPool_->Finalize();
         }
 
-        virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+        TJobSplitterConfigPtr GetJobSplitterConfig() const override
         {
             auto config = TaskHost_->GetJobSplitterConfigTemplate();
 
@@ -1684,7 +1684,7 @@ protected:
             return config;
         }
 
-        virtual bool IsJobInterruptible() const override
+        bool IsJobInterruptible() const override
         {
             return false;
         }
@@ -1734,7 +1734,7 @@ protected:
             }
         }
 
-        virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
+        TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
             auto result = Controller_->GetSortedMergeResources(
                 MultiChunkPool_->GetApproximateStripeStatistics());
@@ -1742,12 +1742,12 @@ protected:
             return result;
         }
 
-        virtual IChunkPoolOutputPtr GetChunkPoolOutput() const override
+        IChunkPoolOutputPtr GetChunkPoolOutput() const override
         {
             return MultiChunkPool_;
         }
 
-        virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
+        void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
@@ -1757,7 +1757,7 @@ protected:
             AddOutputTableSpecs(jobSpec, joblet);
         }
 
-        virtual void OnJobStarted(TJobletPtr joblet) override
+        void OnJobStarted(TJobletPtr joblet) override
         {
             TTask::OnJobStarted(joblet);
 
@@ -1765,7 +1765,7 @@ protected:
             YT_VERIFY(ActiveJoblets_[partitionIndex].insert(joblet).second);
         }
 
-        virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
@@ -1778,7 +1778,7 @@ protected:
             return result;
         }
 
-        virtual TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
+        TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
         {
             auto result = TTask::OnJobFailed(joblet, jobSummary);
 
@@ -1788,7 +1788,7 @@ protected:
             return result;
         }
 
-        virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
+        TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
             auto result = TTask::OnJobAborted(joblet, jobSummary);
 
@@ -1798,7 +1798,7 @@ protected:
             return result;
         }
 
-        virtual void OnTaskCompleted() override
+        void OnTaskCompleted() override
         {
             TTask::OnTaskCompleted();
 
@@ -1829,13 +1829,13 @@ protected:
             MultiChunkPoolOutput_->GetJobCounter()->AddParent(Controller_->UnorderedMergeJobCounter);
         }
 
-        virtual i64 GetLocality(TNodeId /*nodeId*/) const override
+        i64 GetLocality(TNodeId /*nodeId*/) const override
         {
             // Locality is unimportant.
             return 0;
         }
 
-        virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
+        TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
             auto result = Controller_->GetUnorderedMergeResources(
                 joblet->InputStripeList->GetStatistics());
@@ -1843,22 +1843,22 @@ protected:
             return result;
         }
 
-        virtual IChunkPoolInputPtr GetChunkPoolInput() const override
+        IChunkPoolInputPtr GetChunkPoolInput() const override
         {
             return Controller_->ShuffleMultiChunkPoolInputs.back();
         }
 
-        virtual IChunkPoolOutputPtr GetChunkPoolOutput() const override
+        IChunkPoolOutputPtr GetChunkPoolOutput() const override
         {
             return MultiChunkPoolOutput_;
         }
 
-        virtual EJobType GetJobType() const override
+        EJobType GetJobType() const override
         {
             return EJobType::UnorderedMerge;
         }
 
-        virtual TInputChunkMappingPtr GetChunkMapping() const override
+        TInputChunkMappingPtr GetChunkMapping() const override
         {
             return Controller_->ShuffleMultiInputChunkMappings.back();
         }
@@ -1876,7 +1876,7 @@ protected:
             MultiChunkPoolOutput_->Finalize();
         }
 
-        virtual void Persist(const TPersistenceContext& context) override
+        void Persist(const TPersistenceContext& context) override
         {
             TTask::Persist(context);
 
@@ -1895,12 +1895,12 @@ protected:
 
         std::vector<TPartitionPtr> Partitions_;
 
-        virtual bool IsActive() const override
+        bool IsActive() const override
         {
             return Controller_->MergeStartThresholdReached;
         }
 
-        virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
+        TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
             auto resources = Controller_->GetUnorderedMergeResources(
                 MultiChunkPoolOutput_->GetApproximateStripeStatistics());
@@ -1908,12 +1908,12 @@ protected:
             return resources;
         }
 
-        virtual bool HasInputLocality() const override
+        bool HasInputLocality() const override
         {
             return false;
         }
 
-        virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
+        void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
@@ -1931,7 +1931,7 @@ protected:
             }
         }
 
-        virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
@@ -1951,7 +1951,7 @@ protected:
             return result;
         }
 
-        virtual void OnTaskCompleted() override
+        void OnTaskCompleted() override
         {
             TTask::OnTaskCompleted();
 
@@ -1960,7 +1960,7 @@ protected:
             }
         }
 
-        virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+        TJobSplitterConfigPtr GetJobSplitterConfig() const override
         {
             auto config = TaskHost_->GetJobSplitterConfigTemplate();
 
@@ -1971,7 +1971,7 @@ protected:
             return config;
         }
 
-        virtual bool IsJobInterruptible() const override
+        bool IsJobInterruptible() const override
         {
             return false;
         }
@@ -2279,7 +2279,7 @@ protected:
             GetInputStreamDirectory());
     }
 
-    virtual bool IsCompleted() const override
+    bool IsCompleted() const override
     {
         return CompletedPartitionCount == std::ssize(GetFinalPartitions());
     }
@@ -2301,7 +2301,7 @@ protected:
         return false;
     }
 
-    virtual void OnOperationCompleted(bool interrupted) override
+    void OnOperationCompleted(bool interrupted) override
     {
         // This can happen if operation failed during completion.
         if (IsFinished()) {
@@ -2539,7 +2539,7 @@ protected:
     virtual TExtendedJobResources GetUnorderedMergeResources(
         const TChunkStripeStatisticsVector& statistics) const = 0;
 
-    virtual void OnExecNodesUpdated() override
+    void OnExecNodesUpdated() override
     {
         for (const auto& partitionTask : PartitionTasks) {
             partitionTask->OnExecNodesUpdated();
@@ -2844,7 +2844,7 @@ protected:
 
     virtual void InitIntermediateSchemas() = 0;
 
-    virtual void CustomMaterialize() override
+    void CustomMaterialize() override
     {
         TOperationControllerBase::CustomMaterialize();
 
@@ -3056,7 +3056,7 @@ public:
     { }
 
 protected:
-    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
+    TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
         switch (jobType) {
             case EJobType::Partition:
@@ -3068,7 +3068,7 @@ protected:
         }
     }
 
-    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
     {
         return {EJobType::Partition, EJobType::FinalSort};
     }
@@ -3083,19 +3083,19 @@ private:
 
     // Custom bits of preparation pipeline.
 
-    virtual std::vector<TRichYPath> GetInputTablePaths() const override
+    std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
+    std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         std::vector<TRichYPath> result;
         result.push_back(Spec->OutputTablePath);
         return result;
     }
 
-    virtual void PrepareOutputTables() override
+    void PrepareOutputTables() override
     {
         auto& table = OutputTables_[0];
         if (!table->Dynamic) {
@@ -3146,12 +3146,12 @@ private:
         }
     }
 
-    virtual void InitIntermediateSchemas() override
+    void InitIntermediateSchemas() override
     {
         IntermediateChunkSchema_ = OutputTables_[0]->TableUploadOptions.TableSchema->ToSorted(Spec->SortBy);
     }
 
-    virtual void CustomMaterialize() override
+    void CustomMaterialize() override
     {
         TSortControllerBase::CustomMaterialize();
 
@@ -3423,32 +3423,32 @@ private:
         UnorderedMergeJobIOConfig->TableReader = CloneYsonSerializable(Spec->SortJobIO->TableReader);
     }
 
-    virtual EJobType GetIntermediateSortJobType() const override
+    EJobType GetIntermediateSortJobType() const override
     {
         return SimpleSort ? EJobType::SimpleSort : EJobType::IntermediateSort;
     }
 
-    virtual EJobType GetFinalSortJobType() const override
+    EJobType GetFinalSortJobType() const override
     {
         return SimpleSort ? EJobType::SimpleSort : EJobType::FinalSort;
     }
 
-    virtual EJobType GetSortedMergeJobType() const override
+    EJobType GetSortedMergeJobType() const override
     {
         return EJobType::SortedMerge;
     }
 
-    virtual TUserJobSpecPtr GetPartitionUserJobSpec(bool /*isRoot*/) const override
+    TUserJobSpecPtr GetPartitionUserJobSpec(bool /*isRoot*/) const override
     {
         return nullptr;
     }
 
-    virtual TUserJobSpecPtr GetSortUserJobSpec(bool /*isFinalSort*/) const override
+    TUserJobSpecPtr GetSortUserJobSpec(bool /*isFinalSort*/) const override
     {
         return nullptr;
     }
 
-    virtual TUserJobSpecPtr GetSortedMergeUserJobSpec() const override
+    TUserJobSpecPtr GetSortedMergeUserJobSpec() const override
     {
         return nullptr;
     }
@@ -3544,22 +3544,22 @@ private:
 
     // Resource management.
 
-    virtual TCpuResource GetPartitionCpuLimit() const override
+    TCpuResource GetPartitionCpuLimit() const override
     {
         return 1;
     }
 
-    virtual TCpuResource GetSortCpuLimit() const override
+    TCpuResource GetSortCpuLimit() const override
     {
         return 1;
     }
 
-    virtual TCpuResource GetMergeCpuLimit() const override
+    TCpuResource GetMergeCpuLimit() const override
     {
         return 1;
     }
 
-    virtual TExtendedJobResources GetPartitionResources(
+    TExtendedJobResources GetPartitionResources(
         const TChunkStripeStatisticsVector& statistics,
         bool /*isRoot*/) const override
     {
@@ -3584,7 +3584,7 @@ private:
         return result;
     }
 
-    virtual TExtendedJobResources GetSimpleSortResources(const TChunkStripeStatistics& stat) const override
+    TExtendedJobResources GetSimpleSortResources(const TChunkStripeStatistics& stat) const override
     {
         TExtendedJobResources result;
         result.SetUserSlots(1);
@@ -3597,7 +3597,7 @@ private:
         return result;
     }
 
-    virtual TExtendedJobResources GetPartitionSortResources(
+    TExtendedJobResources GetPartitionSortResources(
         bool isFinalSort,
         const TChunkStripeStatistics& stat) const override
     {
@@ -3619,7 +3619,7 @@ private:
         return result;
     }
 
-    virtual TExtendedJobResources GetSortedMergeResources(
+    TExtendedJobResources GetSortedMergeResources(
         const TChunkStripeStatisticsVector& stat) const override
     {
         TExtendedJobResources result;
@@ -3629,12 +3629,12 @@ private:
         return result;
     }
 
-    virtual bool IsRowCountPreserved() const override
+    bool IsRowCountPreserved() const override
     {
         return true;
     }
 
-    virtual i64 GetUnavailableInputChunkCount() const override
+    i64 GetUnavailableInputChunkCount() const override
     {
         if (FetcherChunkScraper && State == EControllerState::Preparing) {
             return FetcherChunkScraper->GetUnavailableChunkCount();
@@ -3643,7 +3643,7 @@ private:
         return TOperationControllerBase::GetUnavailableInputChunkCount();
     }
 
-    virtual TExtendedJobResources GetUnorderedMergeResources(
+    TExtendedJobResources GetUnorderedMergeResources(
         const TChunkStripeStatisticsVector& stat) const override
     {
         TExtendedJobResources result;
@@ -3653,7 +3653,7 @@ private:
         return result;
     }
 
-    virtual bool EnableNewPartitionsHeuristic() const override
+    bool EnableNewPartitionsHeuristic() const override
     {
         if (Spec->UseNewPartitionsHeuristic) {
             return true;
@@ -3669,7 +3669,7 @@ private:
 
     // Progress reporting.
 
-    virtual TString GetLoggingProgress() const override
+    TString GetLoggingProgress() const override
     {
         const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
         return Format(
@@ -3705,7 +3705,7 @@ private:
             GetUnavailableInputChunkCount());
     }
 
-    virtual void BuildProgress(TFluentMap fluent) const override
+    void BuildProgress(TFluentMap fluent) const override
     {
         TSortControllerBase::BuildProgress(fluent);
         fluent
@@ -3723,22 +3723,22 @@ private:
             .Item("unordered_merge_jobs").Value(UnorderedMergeJobCounter);
     }
 
-    virtual EJobType GetPartitionJobType(bool /*isRoot*/) const override
+    EJobType GetPartitionJobType(bool /*isRoot*/) const override
     {
         return EJobType::Partition;
     }
 
-    virtual void CreateSortedMergeTask() override
+    void CreateSortedMergeTask() override
     {
         SortedMergeTask = New<TSortedMergeTask>(this, GetFinalStreamDescriptors(), /* enableKeyGuarantee */ false);
     }
 
-    virtual TSortColumns GetSortedMergeSortColumns() const override
+    TSortColumns GetSortedMergeSortColumns() const override
     {
         return Spec->SortBy;
     }
 
-    virtual TYsonSerializablePtr GetTypedSpec() const override
+    TYsonSerializablePtr GetTypedSpec() const override
     {
         return Spec;
     }
@@ -3777,7 +3777,7 @@ public:
         , Spec(spec)
     { }
 
-    virtual void BuildBriefSpec(TFluentMap fluent) const override
+    void BuildBriefSpec(TFluentMap fluent) const override
     {
         TSortControllerBase::BuildBriefSpec(fluent);
         fluent
@@ -3828,7 +3828,7 @@ public:
     }
 
 protected:
-    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
+    TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
         switch (jobType) {
             case EJobType::PartitionMap:
@@ -3842,7 +3842,7 @@ protected:
         }
     }
 
-    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
     {
         return {
             EJobType::PartitionMap,
@@ -3874,7 +3874,7 @@ private:
 
     // Custom bits of preparation pipeline.
 
-    virtual void DoInitialize() override
+    void DoInitialize() override
     {
         TSortControllerBase::DoInitialize();
 
@@ -3897,42 +3897,42 @@ private:
             GetColumnNames(Spec->SortBy));
     }
 
-    virtual std::vector<TRichYPath> GetInputTablePaths() const override
+    std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
+    std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         return Spec->OutputTablePaths;
     }
 
-    virtual std::optional<TRichYPath> GetStderrTablePath() const override
+    std::optional<TRichYPath> GetStderrTablePath() const override
     {
         return Spec->StderrTablePath;
     }
 
-    virtual TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const override
+    TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const override
     {
         return Spec->StderrTableWriter;
     }
 
-    virtual std::optional<TRichYPath> GetCoreTablePath() const override
+    std::optional<TRichYPath> GetCoreTablePath() const override
     {
         return Spec->CoreTablePath;
     }
 
-    virtual TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const override
+    TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const override
     {
         return Spec->CoreTableWriter;
     }
 
-    virtual bool GetEnableCudaGpuCoreDump() const override
+    bool GetEnableCudaGpuCoreDump() const override
     {
         return Spec->EnableCudaGpuCoreDump;
     }
 
-    virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override
+    std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override
     {
         std::vector<TUserJobSpecPtr> result = {Spec->Reducer};
         if (Spec->HasNontrivialMapper()) {
@@ -3995,7 +3995,7 @@ private:
         return mostGenericType;
     }
 
-    virtual void InitIntermediateSchemas() override
+    void InitIntermediateSchemas() override
     {
         if (!Spec->HasSchemafulIntermediateStreams()) {
             IntermediateStreamSchemas_ = {New<TTableSchema>()};
@@ -4046,7 +4046,7 @@ private:
         IntermediateChunkSchema_ = New<TTableSchema>(std::move(chunkSchemaColumns), /* strict */ false);
     }
 
-    virtual void CustomMaterialize() override
+    void CustomMaterialize() override
     {
         TSortControllerBase::CustomMaterialize();
 
@@ -4210,7 +4210,7 @@ private:
         SortedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
     }
 
-    virtual EJobType GetPartitionJobType(bool isRoot) const override
+    EJobType GetPartitionJobType(bool isRoot) const override
     {
         if (Spec->HasNontrivialMapper() && isRoot) {
             return EJobType::PartitionMap;
@@ -4219,32 +4219,32 @@ private:
         }
     }
 
-    virtual EJobType GetIntermediateSortJobType() const override
+    EJobType GetIntermediateSortJobType() const override
     {
         return Spec->HasNontrivialReduceCombiner() ? EJobType::ReduceCombiner : EJobType::IntermediateSort;
     }
 
-    virtual EJobType GetFinalSortJobType() const override
+    EJobType GetFinalSortJobType() const override
     {
         return EJobType::PartitionReduce;
     }
 
-    virtual EJobType GetSortedMergeJobType() const override
+    EJobType GetSortedMergeJobType() const override
     {
         return EJobType::SortedReduce;
     }
 
-    virtual TUserJobSpecPtr GetSortedMergeUserJobSpec() const override
+    TUserJobSpecPtr GetSortedMergeUserJobSpec() const override
     {
         return Spec->Reducer;
     }
 
-    virtual const std::vector<TStreamDescriptor>& GetFinalStreamDescriptors() const override
+    const std::vector<TStreamDescriptor>& GetFinalStreamDescriptors() const override
     {
         return ReducerSinkEdges_;
     }
 
-    virtual void PrepareInputQuery() override
+    void PrepareInputQuery() override
     {
         if (Spec->InputQuery) {
             ParseInputQuery(*Spec->InputQuery, Spec->InputSchema);
@@ -4377,7 +4377,7 @@ private:
         }
     }
 
-    virtual void CustomizeJoblet(const TJobletPtr& joblet) override
+    void CustomizeJoblet(const TJobletPtr& joblet) override
     {
         switch (joblet->JobType) {
             case EJobType::PartitionMap:
@@ -4396,40 +4396,40 @@ private:
         }
     }
 
-    virtual ELegacyLivePreviewMode GetLegacyOutputLivePreviewMode() const override
+    ELegacyLivePreviewMode GetLegacyOutputLivePreviewMode() const override
     {
         return ToLegacyLivePreviewMode(Spec->EnableLegacyLivePreview);
     }
 
-    virtual ELegacyLivePreviewMode GetLegacyIntermediateLivePreviewMode() const override
+    ELegacyLivePreviewMode GetLegacyIntermediateLivePreviewMode() const override
     {
         return ToLegacyLivePreviewMode(Spec->EnableLegacyLivePreview);
     }
 
-    virtual bool IsInputDataSizeHistogramSupported() const override
+    bool IsInputDataSizeHistogramSupported() const override
     {
         return true;
     }
 
     // Resource management.
 
-    virtual TCpuResource GetPartitionCpuLimit() const override
+    TCpuResource GetPartitionCpuLimit() const override
     {
         return TCpuResource(Spec->HasNontrivialMapper() ? Spec->Mapper->CpuLimit : 1);
     }
 
-    virtual TCpuResource GetSortCpuLimit() const override
+    TCpuResource GetSortCpuLimit() const override
     {
         // At least one CPU, may be more in PartitionReduce job.
         return 1;
     }
 
-    virtual TCpuResource GetMergeCpuLimit() const override
+    TCpuResource GetMergeCpuLimit() const override
     {
         return TCpuResource(Spec->Reducer->CpuLimit);
     }
 
-    virtual TExtendedJobResources GetPartitionResources(
+    TExtendedJobResources GetPartitionResources(
         const TChunkStripeStatisticsVector& statistics,
         bool isRoot) const override
     {
@@ -4459,12 +4459,12 @@ private:
         return result;
     }
 
-    virtual TExtendedJobResources GetSimpleSortResources(const TChunkStripeStatistics& /*stat*/) const override
+    TExtendedJobResources GetSimpleSortResources(const TChunkStripeStatistics& /*stat*/) const override
     {
         YT_ABORT();
     }
 
-    virtual bool IsSortedMergeNeeded(const TPartitionPtr& partition) const override
+    bool IsSortedMergeNeeded(const TPartitionPtr& partition) const override
     {
         if (Spec->ForceReduceCombiners && !partition->CachedSortedMergeNeeded) {
             partition->CachedSortedMergeNeeded = true;
@@ -4474,7 +4474,7 @@ private:
         return TSortControllerBase::IsSortedMergeNeeded(partition);
     }
 
-    virtual TUserJobSpecPtr GetSortUserJobSpec(bool isFinalSort) const override
+    TUserJobSpecPtr GetSortUserJobSpec(bool isFinalSort) const override
     {
         if (isFinalSort) {
             return Spec->Reducer;
@@ -4485,7 +4485,7 @@ private:
         }
     }
 
-    virtual TExtendedJobResources GetPartitionSortResources(
+    TExtendedJobResources GetPartitionSortResources(
         bool isFinalSort,
         const TChunkStripeStatistics& stat) const override
     {
@@ -4514,7 +4514,7 @@ private:
         return result;
     }
 
-    virtual TExtendedJobResources GetSortedMergeResources(
+    TExtendedJobResources GetSortedMergeResources(
         const TChunkStripeStatisticsVector& statistics) const override
     {
         TExtendedJobResources result;
@@ -4524,13 +4524,13 @@ private:
         return result;
     }
 
-    virtual TExtendedJobResources GetUnorderedMergeResources(
+    TExtendedJobResources GetUnorderedMergeResources(
         const TChunkStripeStatisticsVector& /*statistics*/) const override
     {
         YT_ABORT();
     }
 
-    virtual bool EnableNewPartitionsHeuristic() const override
+    bool EnableNewPartitionsHeuristic() const override
     {
         if (Spec->UseNewPartitionsHeuristic) {
             return true;
@@ -4550,7 +4550,7 @@ private:
 
     // Progress reporting.
 
-    virtual TString GetLoggingProgress() const override
+    TString GetLoggingProgress() const override
     {
         const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
         return Format(
@@ -4583,7 +4583,7 @@ private:
             GetUnavailableInputChunkCount());
     }
 
-    virtual void BuildProgress(TFluentMap fluent) const override
+    void BuildProgress(TFluentMap fluent) const override
     {
         TSortControllerBase::BuildProgress(fluent);
         fluent
@@ -4600,7 +4600,7 @@ private:
             .Item("sorted_reduce_jobs").Value(SortedMergeJobCounter);
     }
 
-    virtual TUserJobSpecPtr GetPartitionUserJobSpec(bool isRoot) const override
+    TUserJobSpecPtr GetPartitionUserJobSpec(bool isRoot) const override
     {
         if (Spec->HasNontrivialMapper() && isRoot) {
             return Spec->Mapper;
@@ -4609,19 +4609,19 @@ private:
         }
     }
 
-    virtual void CreateSortedMergeTask() override
+    void CreateSortedMergeTask() override
     {
         SortedMergeTask = New<TSortedMergeTask>(this, GetFinalStreamDescriptors(), /* enableKeyGuarantee */ true);
     }
 
-    virtual TSortColumns GetSortedMergeSortColumns() const override
+    TSortColumns GetSortedMergeSortColumns() const override
     {
         auto sortColumns = Spec->SortBy;
         sortColumns.resize(Spec->ReduceBy.size());
         return sortColumns;
     }
 
-    virtual TYsonSerializablePtr GetTypedSpec() const override
+    TYsonSerializablePtr GetTypedSpec() const override
     {
         return Spec;
     }

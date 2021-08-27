@@ -43,7 +43,7 @@ public:
         , SortJobSpecExt_(JobSpec_.GetExtension(TSortJobSpecExt::sort_job_spec_ext))
     { }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         TSimpleJobBase::Initialize();
 
@@ -127,7 +127,7 @@ public:
         };
     }
 
-    virtual double GetProgress() const override
+    double GetProgress() const override
     {
         auto total = TotalRowCount_;
         if (total == 0) {
@@ -146,17 +146,17 @@ public:
 private:
     const TSortJobSpecExt& SortJobSpecExt_;
 
-    virtual void InitializeReader() override
+    void InitializeReader() override
     {
         DoInitializeReader(nullptr, TColumnFilter());
     }
 
-    virtual void InitializeWriter() override
+    void InitializeWriter() override
     {
         DoInitializeWriter(nullptr, nullptr);
     }
 
-    virtual i64 GetTotalReaderMemoryLimit() const override
+    i64 GetTotalReaderMemoryLimit() const override
     {
         return Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader->MaxBufferSize;
     }

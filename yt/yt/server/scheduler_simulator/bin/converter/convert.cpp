@@ -41,7 +41,7 @@ public:
         , OnEntryExtracted_(onEntryExtracted)
     { }
 
-    virtual void OnMyListItem() override
+    void OnMyListItem() override
     {
         if (Builder_) {
             ExtractEntry();

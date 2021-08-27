@@ -40,7 +40,7 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
-    virtual std::vector<TTabletSnapshotPtr> GetTabletSnapshots() override
+    std::vector<TTabletSnapshotPtr> GetTabletSnapshots() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -53,14 +53,14 @@ public:
         return snapshots;
     }
 
-    virtual TTabletSnapshotPtr FindLatestTabletSnapshot(TTabletId tabletId) override
+    TTabletSnapshotPtr FindLatestTabletSnapshot(TTabletId tabletId) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return DoFindTabletSnapshot(tabletId, std::nullopt);
     }
 
-    virtual TTabletSnapshotPtr GetLatestTabletSnapshotOrThrow(
+    TTabletSnapshotPtr GetLatestTabletSnapshotOrThrow(
         TTabletId tabletId,
         TCellId cellId) override
     {
@@ -71,7 +71,7 @@ public:
         return snapshot;
     }
 
-    virtual TTabletSnapshotPtr FindTabletSnapshot(TTabletId tabletId, TRevision mountRevision) override
+    TTabletSnapshotPtr FindTabletSnapshot(TTabletId tabletId, TRevision mountRevision) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -81,7 +81,7 @@ public:
             : nullptr;
     }
 
-    virtual TTabletSnapshotPtr GetTabletSnapshotOrThrow(
+    TTabletSnapshotPtr GetTabletSnapshotOrThrow(
         TTabletId tabletId,
         TCellId cellId,
         TRevision mountRevision) override
@@ -94,7 +94,7 @@ public:
         return snapshot;
     }
 
-    virtual void ValidateTabletAccess(
+    void ValidateTabletAccess(
         const TTabletSnapshotPtr& tabletSnapshot,
         TTimestamp timestamp) override
     {
@@ -108,7 +108,7 @@ public:
         }
     }
 
-    virtual void RegisterTabletSnapshot(
+    void RegisterTabletSnapshot(
         const ITabletSlotPtr& slot,
         TTablet* tablet,
         std::optional<TLockManagerEpoch> epoch) override
@@ -142,7 +142,7 @@ public:
             slot->GetCellId());
     }
 
-    virtual void UnregisterTabletSnapshot(const ITabletSlotPtr& slot, TTablet* tablet) override
+    void UnregisterTabletSnapshot(const ITabletSlotPtr& slot, TTablet* tablet) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -168,7 +168,7 @@ public:
         // NB: It's fine not to find anything.
     }
 
-    virtual void UnregisterTabletSnapshots(const ITabletSlotPtr& slot) override
+    void UnregisterTabletSnapshots(const ITabletSlotPtr& slot) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

@@ -29,7 +29,7 @@ public:
 private:
     using TBase = TNonversionedObjectProxyBase<TNetworkProject>;
 
-    virtual void ValidateRemoval() override
+    void ValidateRemoval() override
     {
         const auto* networkProject = GetThisImpl();
         if (networkProject->IsBuiltin()) {
@@ -39,7 +39,7 @@ private:
         ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
     }
 
-    virtual void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
@@ -49,7 +49,7 @@ private:
             .SetWritable(true));
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         auto* networkProject = GetThisImpl();
 
@@ -71,7 +71,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         auto* networkProject = GetThisImpl();
 

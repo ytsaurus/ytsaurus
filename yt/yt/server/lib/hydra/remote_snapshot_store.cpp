@@ -64,12 +64,12 @@ public:
         Logger.AddTag("Path: %v", Path_);
     }
 
-    virtual ISnapshotReaderPtr CreateReader(int snapshotId) override
+    ISnapshotReaderPtr CreateReader(int snapshotId) override
     {
         return New<TReader>(this, snapshotId);
     }
 
-    virtual ISnapshotWriterPtr CreateWriter(int snapshotId, const TSnapshotMeta& meta) override
+    ISnapshotWriterPtr CreateWriter(int snapshotId, const TSnapshotMeta& meta) override
     {
         if (!PrerequisiteTransactionId_) {
             THROW_ERROR_EXCEPTION("Snapshot store is read-only");
@@ -77,7 +77,7 @@ public:
         return New<TWriter>(this, snapshotId, meta);
     }
 
-    virtual TFuture<int> GetLatestSnapshotId(int maxSnapshotId) override
+    TFuture<int> GetLatestSnapshotId(int maxSnapshotId) override
     {
         return BIND(&TRemoteSnapshotStore::DoGetLatestSnapshotId, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
@@ -106,21 +106,21 @@ private:
             Logger.AddTag("Path: %v", Path_);
         }
 
-        virtual TFuture<void> Open() override
+        TFuture<void> Open() override
         {
             return BIND(&TReader::DoOpen, MakeStrong(this))
                 .AsyncVia(GetHydraIOInvoker())
                 .Run();
         }
 
-        virtual TFuture<TSharedRef> Read() override
+        TFuture<TSharedRef> Read() override
         {
             return BIND(&TReader::DoRead, MakeStrong(this))
                 .AsyncVia(GetHydraIOInvoker())
                 .Run();
         }
 
-        virtual TSnapshotParams GetParams() const override
+        TSnapshotParams GetParams() const override
         {
             return Params_;
         }
@@ -210,28 +210,28 @@ private:
             Logger.AddTag("Path: %v", Path_);
         }
 
-        virtual TFuture<void> Open() override
+        TFuture<void> Open() override
         {
             return BIND(&TWriter::DoOpen, MakeStrong(this))
                 .AsyncVia(GetHydraIOInvoker())
                 .Run();
         }
 
-        virtual TFuture<void> Write(const TSharedRef& buffer) override
+        TFuture<void> Write(const TSharedRef& buffer) override
         {
             YT_VERIFY(Opened_ && !Closed_);
             Length_ += buffer.Size();
             return Writer_->Write(buffer);
         }
 
-        virtual TFuture<void> Close() override
+        TFuture<void> Close() override
         {
             return BIND(&TWriter::DoClose, MakeStrong(this))
                 .AsyncVia(GetHydraIOInvoker())
                 .Run();
         }
 
-        virtual TSnapshotParams GetParams() const override
+        TSnapshotParams GetParams() const override
         {
             YT_VERIFY(Closed_);
             return Params_;

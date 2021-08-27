@@ -31,14 +31,14 @@ public:
         , Invoker_(invoker)
     { }
 
-    virtual TFuture<IResponsePtr> Get(
+    TFuture<IResponsePtr> Get(
         const TString& url,
         const THeadersPtr& headers) override
     {
         return Request(EMethod::Get, url, std::nullopt, headers);
     }
 
-    virtual TFuture<IResponsePtr> Post(
+    TFuture<IResponsePtr> Post(
         const TString& url,
         const TSharedRef& body,
         const THeadersPtr& headers) override
@@ -46,7 +46,7 @@ public:
         return Request(EMethod::Post, url, TSharedRef{body}, headers);
     }
 
-    virtual TFuture<IResponsePtr> Patch(
+    TFuture<IResponsePtr> Patch(
         const TString& url,
         const TSharedRef& body,
         const THeadersPtr& headers) override

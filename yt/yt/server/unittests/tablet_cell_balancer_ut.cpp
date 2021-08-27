@@ -188,17 +188,17 @@ public:
             .ToString();
     }
 
-    virtual std::vector<TNodeHolder> GetNodes() override
+    std::vector<TNodeHolder> GetNodes() override
     {
         return NodeHolders_;
     }
 
-    virtual const NHydra::TReadOnlyEntityMap<TCellBundle>& CellBundles() override
+    const NHydra::TReadOnlyEntityMap<TCellBundle>& CellBundles() override
     {
         return CellBundleMap_;
     }
 
-    virtual bool IsPossibleHost(const NNodeTrackerServer::TNode* node, const TArea* area) override
+    bool IsPossibleHost(const NNodeTrackerServer::TNode* node, const TArea* area) override
     {
         if (auto it = FeasibilityMap_.find(node)) {
             return it->second.contains(area);
@@ -206,12 +206,12 @@ public:
         return false;
     }
 
-    virtual bool IsVerboseLoggingEnabled() override
+    bool IsVerboseLoggingEnabled() override
     {
         return true;
     }
 
-    virtual bool IsBalancingRequired() override
+    bool IsBalancingRequired() override
     {
         return true;
     }
@@ -438,7 +438,7 @@ class TCellBaseBalancerStressTest
     , public ::testing::WithParamInterface<TStressSettingParam>
 {
 public:
-    virtual void SetUp() override {
+    void SetUp() override {
         std::tie(NodesNum_, TabletSlotCount_, PeersNum_, BundlesNum_, CellsNum_) = GetParam();
 
         YT_VERIFY(NodesNum_ * TabletSlotCount_ == PeersNum_ * BundlesNum_ * CellsNum_);
@@ -474,7 +474,7 @@ public:
         }
     }
 
-    virtual void TearDown() override {
+    void TearDown() override {
         auto setting = New<TSetting>(PeersPerCell_, CellLists_, NodeFeasibility_, TabletSlotCount_, CellDistribution_);
         auto balancer = CreateCellBalancer(setting);
         for (auto& unassigned : setting->GetUnassignedPeers()) {

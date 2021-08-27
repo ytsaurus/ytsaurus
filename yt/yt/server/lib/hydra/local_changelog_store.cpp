@@ -75,17 +75,17 @@ public:
         , UnderlyingChangelog_(std::move(underlyingChangelog))
     { }
 
-    virtual int GetRecordCount() const override
+    int GetRecordCount() const override
     {
         return UnderlyingChangelog_->GetRecordCount();
     }
 
-    virtual i64 GetDataSize() const override
+    i64 GetDataSize() const override
     {
         return UnderlyingChangelog_->GetDataSize();
     }
 
-    virtual TFuture<void> Append(TRange<TSharedRef> records) override
+    TFuture<void> Append(TRange<TSharedRef> records) override
     {
         if (auto future = CheckLock()) {
             return future;
@@ -93,7 +93,7 @@ public:
         return UnderlyingChangelog_->Append(records);
     }
 
-    virtual TFuture<void> Flush() override
+    TFuture<void> Flush() override
     {
         if (auto future = CheckLock()) {
             return future;
@@ -101,7 +101,7 @@ public:
         return UnderlyingChangelog_->Flush();
     }
 
-    virtual TFuture<std::vector<TSharedRef>> Read(
+    TFuture<std::vector<TSharedRef>> Read(
         int firstRecordId,
         int maxRecords,
         i64 maxBytes) const override
@@ -109,7 +109,7 @@ public:
         return UnderlyingChangelog_->Read(firstRecordId, maxRecords, maxBytes);
     }
 
-    virtual TFuture<void> Truncate(int recordCount) override
+    TFuture<void> Truncate(int recordCount) override
     {
         if (auto future = CheckLock()) {
             return future;
@@ -117,7 +117,7 @@ public:
         return UnderlyingChangelog_->Truncate(recordCount);
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         if (auto future = CheckLock()) {
             return future;
@@ -125,7 +125,7 @@ public:
         return UnderlyingChangelog_->Close();
     }
 
-    virtual TFuture<void> Preallocate(size_t size) override
+    TFuture<void> Preallocate(size_t size) override
     {
         if (auto future = CheckLock()) {
             return future;
@@ -162,27 +162,27 @@ public:
         , UnderlyingChangelog_(std::move(underlyingChangelog))
     { }
 
-    virtual int GetRecordCount() const override
+    int GetRecordCount() const override
     {
         return UnderlyingChangelog_->GetRecordCount();
     }
 
-    virtual i64 GetDataSize() const override
+    i64 GetDataSize() const override
     {
         return UnderlyingChangelog_->GetDataSize();
     }
 
-    virtual TFuture<void> Append(TRange<TSharedRef> records) override
+    TFuture<void> Append(TRange<TSharedRef> records) override
     {
         return UnderlyingChangelog_->Append(records);
     }
 
-    virtual TFuture<void> Flush() override
+    TFuture<void> Flush() override
     {
         return UnderlyingChangelog_->Flush();
     }
 
-    virtual TFuture<std::vector<TSharedRef>> Read(
+    TFuture<std::vector<TSharedRef>> Read(
         int firstRecordId,
         int maxRecords,
         i64 maxBytes) const override
@@ -190,17 +190,17 @@ public:
         return UnderlyingChangelog_->Read(firstRecordId, maxRecords, maxBytes);
     }
 
-    virtual TFuture<void> Truncate(int recordCount) override
+    TFuture<void> Truncate(int recordCount) override
     {
         return UnderlyingChangelog_->Truncate(recordCount);
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         return UnderlyingChangelog_->Close();
     }
 
-    virtual TFuture<void> Preallocate(size_t size) override
+    TFuture<void> Preallocate(size_t size) override
     {
         return UnderlyingChangelog_->Preallocate(size);
     }
@@ -257,7 +257,7 @@ public:
             .Run(id, epoch);
     }
 
-    virtual TFuture<IChangelogStorePtr> Lock() override
+    TFuture<IChangelogStorePtr> Lock() override
     {
         return BIND(&TLocalChangelogStoreFactory::DoLock, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
@@ -406,27 +406,27 @@ public:
         , ReachableVersion_(reachableVersion)
     { }
 
-    virtual bool IsReadOnly() const override
+    bool IsReadOnly() const override
     {
         return false;
     }
 
-    virtual std::optional<TVersion> GetReachableVersion() const override
+    std::optional<TVersion> GetReachableVersion() const override
     {
         return ReachableVersion_;
     }
 
-    virtual TFuture<IChangelogPtr> CreateChangelog(int id) override
+    TFuture<IChangelogPtr> CreateChangelog(int id) override
     {
         return Factory_->CreateChangelog(id, Epoch_);
     }
 
-    virtual TFuture<IChangelogPtr> OpenChangelog(int id) override
+    TFuture<IChangelogPtr> OpenChangelog(int id) override
     {
         return Factory_->OpenChangelog(id, Epoch_);
     }
 
-    virtual void Abort() override
+    void Abort() override
     { }
 
 private:

@@ -70,30 +70,30 @@ public:
         , AddRow_(std::move(addRow))
     { }
 
-    virtual const TNameTablePtr& GetNameTable() const override
+    const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
     }
 
-    virtual bool GetAllowUnknownColumns() const override
+    bool GetAllowUnknownColumns() const override
     {
         return true;
     }
 
-    virtual void OnBeginRow() override
+    void OnBeginRow() override
     { }
 
-    virtual void OnValue(const TUnversionedValue& value) override
+    void OnValue(const TUnversionedValue& value) override
     {
         Builder_.AddValue(value);
     }
 
-    virtual void OnEndRow() override
+    void OnEndRow() override
     {
         AddRow_(Builder_.FinishRow());
     }
 
-    virtual const TTableSchemaPtr& GetSchema() const override
+    const TTableSchemaPtr& GetSchema() const override
     {
         return Schema_;
     }

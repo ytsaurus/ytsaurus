@@ -79,7 +79,7 @@ public:
         : Data_(std::move(data))
     { }
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         std::vector<TUnversionedRow> rows;
         rows.reserve(options.MaxRowsPerRead);
@@ -114,27 +114,27 @@ public:
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         return ReadyEvent_;
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         return TDataStatistics();
     }
 
-    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
+    NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
     {
         return NChunkClient::TCodecStatistics();
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return false;
     }
 
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
+    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
     {
         return {};
     }
@@ -156,7 +156,7 @@ public:
         : Data_(std::move(data))
     { }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         TPromise<void> readerReadyEvent;
         TPromise<void> writerReadyEvent;
@@ -185,7 +185,7 @@ public:
         return writerReadyEvent;
     }
 
-    virtual bool Write(TRange<TUnversionedRow> rows) override
+    bool Write(TRange<TUnversionedRow> rows) override
     {
         // Copy data (no lock).
         auto capturedRows = Data_->RowBuffer->CaptureRows(rows);
@@ -217,7 +217,7 @@ public:
         return true;
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() override
     {
         // TODO(babenko): implement backpressure from reader
         auto guard = Guard(Data_->SpinLock);

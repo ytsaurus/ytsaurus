@@ -45,7 +45,7 @@ public:
         Reset();
     }
 
-    virtual void WriteVersionedValues(TRange<TVersionedRow> rows) override
+    void WriteVersionedValues(TRange<TVersionedRow> rows) override
     {
         AddValues(
             rows,
@@ -56,7 +56,7 @@ public:
             });
     }
 
-    virtual i32 GetCurrentSegmentSize() const override
+    i32 GetCurrentSegmentSize() const override
     {
         if (ValuesPerRow_.empty()) {
             return 0;
@@ -67,7 +67,7 @@ public:
         }
     }
 
-    virtual void FinishCurrentSegment() override
+    void FinishCurrentSegment() override
     {
         if (!ValuesPerRow_.empty()) {
             DumpSegment();
@@ -122,17 +122,17 @@ public:
         Reset();
     }
 
-    virtual void WriteVersionedValues(TRange<TVersionedRow> rows) override
+    void WriteVersionedValues(TRange<TVersionedRow> rows) override
     {
         AddValues(rows);
     }
 
-    virtual void WriteUnversionedValues(TRange<TUnversionedRow> rows) override
+    void WriteUnversionedValues(TRange<TUnversionedRow> rows) override
     {
         AddValues(rows);
     }
 
-    virtual i32 GetCurrentSegmentSize() const override
+    i32 GetCurrentSegmentSize() const override
     {
         if (Values_.GetBitSize() > 0) {
             return Values_.GetByteSize() + NullBitmap_.GetByteSize();
@@ -141,7 +141,7 @@ public:
         }
     }
 
-    virtual void FinishCurrentSegment() override
+    void FinishCurrentSegment() override
     {
         if (Values_.GetBitSize() > 0) {
             DumpSegment();

@@ -51,7 +51,7 @@ public:
         , Logger(logger)
     { }
 
-    virtual void AddForeignDataSlice(const TLegacyDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie) override
+    void AddForeignDataSlice(const TLegacyDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie) override
     {
         YT_VERIFY(dataSlice->IsLegacy);
 
@@ -92,7 +92,7 @@ public:
         Endpoints_.emplace_back(rightEndpoint);
     }
 
-    virtual void AddPrimaryDataSlice(const TLegacyDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie) override
+    void AddPrimaryDataSlice(const TLegacyDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie) override
     {
         YT_VERIFY(dataSlice->IsLegacy);
 
@@ -157,7 +157,7 @@ public:
         Endpoints_.push_back(rightEndpoint);
     }
 
-    virtual std::vector<std::unique_ptr<TLegacyJobStub>> Build() override
+    std::vector<std::unique_ptr<TLegacyJobStub>> Build() override
     {
         AddPivotKeysEndpoints();
         SortEndpoints();
@@ -204,7 +204,7 @@ public:
         return std::move(Jobs_);
     }
 
-    virtual i64 GetTotalDataSliceCount() const override
+    i64 GetTotalDataSliceCount() const override
     {
         return TotalSliceCount_;
     }

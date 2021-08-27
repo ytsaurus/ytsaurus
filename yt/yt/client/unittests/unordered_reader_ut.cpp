@@ -29,12 +29,12 @@ class TSchemafulReaderMock
     : public ISchemafulUnversionedReader
 {
 public:
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& /*options*/ = {})
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& /*options*/ = {}) override
     {
         return ReadyEvent_.IsSet() ? nullptr : CreateEmptyUnversionedRowBatch();
     }
 
-    virtual TFuture<void> GetReadyEvent() const
+    TFuture<void> GetReadyEvent() const override
     {
         return ReadyEvent_;
     }
@@ -44,22 +44,22 @@ public:
         ReadyEvent_.Set(error);
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         return {};
     }
 
-    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
+    NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
     {
         return {};
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return false;
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return {};
     }

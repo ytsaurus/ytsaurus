@@ -40,7 +40,7 @@ public:
         ChunkReaderSweepExecutor_->Start();
     }
 
-    virtual IChunkPtr FindChunk(
+    IChunkPtr FindChunk(
         TChunkId chunkId,
         int mediumIndex) override
     {
@@ -68,7 +68,7 @@ public:
         return nullptr;
     }
 
-    virtual IChunkPtr GetChunkOrThrow(
+    IChunkPtr GetChunkOrThrow(
         TChunkId chunkId,
         int mediumIndex) override
     {
@@ -85,7 +85,7 @@ public:
         return chunk;
     }
 
-    virtual void ScheduleChunkReaderSweep(IChunkPtr chunk) override
+    void ScheduleChunkReaderSweep(IChunkPtr chunk) override
     {
         auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig();
         ChunkReaderSweepStack_.Enqueue({

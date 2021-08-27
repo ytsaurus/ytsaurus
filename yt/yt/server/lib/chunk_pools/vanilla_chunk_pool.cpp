@@ -37,7 +37,7 @@ public:
     //! Used only for persistence.
     TVanillaChunkPool() = default;
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         TChunkPoolOutputWithJobManagerBase::Persist(context);
 
@@ -45,14 +45,14 @@ public:
         Persist(context, RestartCompletedJobs_);
     }
 
-    virtual bool IsCompleted() const override
+    bool IsCompleted() const override
     {
         return
             JobManager_->JobCounter()->GetRunning() == 0 &&
             JobManager_->JobCounter()->GetPending() == 0;
     }
 
-    virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
+    void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
         YT_VERIFY(
             jobSummary.InterruptReason == EInterruptReason::None ||
@@ -68,7 +68,7 @@ public:
         }
     }
 
-    virtual TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie /*cookie*/) override
+    TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie /*cookie*/) override
     {
         return NullStripeList;
     }

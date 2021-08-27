@@ -104,7 +104,7 @@ public:
 
     // IChunkPoolInput implementation.
 
-    virtual IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
+    IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
     {
         YT_VERIFY(!Finished);
 
@@ -123,7 +123,7 @@ public:
         return cookie;
     }
 
-    virtual void Finish() override
+    void Finish() override
     {
         if (!Finished) {
             TChunkPoolInputBase::Finish();
@@ -133,7 +133,7 @@ public:
         CheckCompleted();
     }
 
-    virtual void Suspend(IChunkPoolInput::TCookie inputCookie) override
+    void Suspend(IChunkPoolInput::TCookie inputCookie) override
     {
         YT_VERIFY(!InputCookieIsSuspended_[inputCookie]);
         InputCookieIsSuspended_[inputCookie] = true;
@@ -161,7 +161,7 @@ public:
         JobManager_->Suspend(cookie);
     }
 
-    virtual void Resume(IChunkPoolInput::TCookie inputCookie) override
+    void Resume(IChunkPoolInput::TCookie inputCookie) override
     {
         YT_VERIFY(InputCookieIsSuspended_[inputCookie]);
         InputCookieIsSuspended_[inputCookie] = false;
@@ -193,12 +193,12 @@ public:
 
     // IChunkPoolOutput implementation.
 
-    virtual bool IsCompleted() const override
+    bool IsCompleted() const override
     {
         return IsCompleted_;
     }
 
-    virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
+    TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
     {
         if (JobManager_->JobCounter()->GetPending() > 0) {
             return JobManager_->GetApproximateStripeStatistics();
@@ -227,13 +227,13 @@ public:
         return result;
     }
 
-    virtual i64 GetLocality(TNodeId nodeId) const override
+    i64 GetLocality(TNodeId nodeId) const override
     {
         auto it = NodeIdToEntry_.find(nodeId);
         return it == NodeIdToEntry_.end() ? 0 : it->second.Locality;
     }
 
-    virtual IChunkPoolOutput::TCookie Extract(TNodeId nodeId) override
+    IChunkPoolOutput::TCookie Extract(TNodeId nodeId) override
     {
         const auto& jobCounter = GetJobCounter();
         if (jobCounter->GetPending() + jobCounter->GetBlocked() == 0) {
@@ -286,17 +286,17 @@ public:
         return cookie;
     }
 
-    virtual TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie cookie) override
+    TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie cookie) override
     {
         return JobManager_->GetStripeList(cookie);
     }
 
-    virtual int GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const override
+    int GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const override
     {
         return JobManager_->GetStripeList(cookie)->TotalChunkCount;
     }
 
-    virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
+    void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
         if (jobSummary.InterruptReason != EInterruptReason::None) {
             YT_LOG_DEBUG("Splitting job (OutputCookie: %v, InterruptReason: %v, SplitJobCount: %v)",
@@ -354,17 +354,17 @@ public:
         }
     }
 
-    virtual void Failed(IChunkPoolOutput::TCookie cookie) override
+    void Failed(IChunkPoolOutput::TCookie cookie) override
     {
         JobManager_->Failed(cookie);
     }
 
-    virtual void Aborted(IChunkPoolOutput::TCookie cookie, EAbortReason reason) override
+    void Aborted(IChunkPoolOutput::TCookie cookie, EAbortReason reason) override
     {
         JobManager_->Aborted(cookie, reason);
     }
 
-    virtual void Lost(IChunkPoolOutput::TCookie cookie) override
+    void Lost(IChunkPoolOutput::TCookie cookie) override
     {
         const auto& list = GetStripeList(cookie);
 
@@ -378,7 +378,7 @@ public:
 
     // IPersistent implementation.
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         TChunkPoolInputBase::Persist(context);
         TChunkPoolOutputWithCountersBase::Persist(context);

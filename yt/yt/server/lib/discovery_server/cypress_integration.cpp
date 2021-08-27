@@ -29,7 +29,7 @@ public:
         : GroupTree_(std::move(groupTree))
     { }
 
-    virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override
+    TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override
     {
         return TResolveResultHere{path};
     }
@@ -37,7 +37,7 @@ public:
 private:
     const TGroupTreePtr GroupTree_;
 
-    virtual bool DoInvoke(const IServiceContextPtr& context) override
+    bool DoInvoke(const IServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Exists);
         DISPATCH_YPATH_SERVICE_METHOD(List);

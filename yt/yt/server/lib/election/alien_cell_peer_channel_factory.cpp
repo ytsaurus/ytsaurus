@@ -52,31 +52,31 @@ public:
     { }
 
     //! Cf. IChannel::GetEndpointDescription.
-    virtual const TString& GetEndpointDescription() const override
+    const TString& GetEndpointDescription() const override
     {
         return EndpointDescription_;
     }
 
     //! Cf. IChannel::GetEndpointAttributes.
-    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
+    const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
     {
         return *EndpointAttributes_;
     }
 
-    virtual TNetworkId GetNetworkId() const override
+    TNetworkId GetNetworkId() const override
     {
         return DefaultNetworkId;
     }
 
     //! Returns the actual channel to be used for sending to service with
     //! a given #serviceName.
-    virtual TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /*request*/) override
+    TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /*request*/) override
     {
         return GetChannel();
     }
 
     //! Terminates the cached channels, if any.
-    virtual void Terminate(const TError& /*error*/) override
+    void Terminate(const TError& /*error*/) override
     { }
 
 private:
@@ -117,7 +117,7 @@ public:
         : CellDirectory_(std::move(cellDirectory))
     { }
 
-    virtual NRpc::IChannelPtr CreateChannel(
+    NRpc::IChannelPtr CreateChannel(
         const TString& cluster,
         TCellId cellId,
         int peerId) override

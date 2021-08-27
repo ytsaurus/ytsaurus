@@ -69,7 +69,7 @@ public:
         RegisterCustomMessageFormat(EMessageFormat::Yson, this);
     }
 
-    virtual TSharedRef ConvertFrom(const TSharedRef& message, const NYson::TProtobufMessageType* messageType, const TYsonString& /*formatOptionsYson*/) override
+    TSharedRef ConvertFrom(const TSharedRef& message, const NYson::TProtobufMessageType* messageType, const TYsonString& /*formatOptionsYson*/) override
     {
         auto ysonBuffer = PopEnvelope(message);
         TString protoBuffer;
@@ -82,7 +82,7 @@ public:
         return PushEnvelope(TSharedRef::FromString(protoBuffer));
     }
 
-    virtual TSharedRef ConvertTo(const TSharedRef& message, const NYson::TProtobufMessageType* messageType, const TYsonString& /*formatOptionsYson*/) override
+    TSharedRef ConvertTo(const TSharedRef& message, const NYson::TProtobufMessageType* messageType, const TYsonString& /*formatOptionsYson*/) override
     {
         auto protoBuffer = PopEnvelope(message);
         google::protobuf::io::ArrayInputStream stream(protoBuffer.Begin(), protoBuffer.Size());
@@ -106,7 +106,7 @@ public:
         RegisterCustomMessageFormat(EMessageFormat::Json, this);
     }
 
-    virtual TSharedRef ConvertFrom(const TSharedRef& message, const NYson::TProtobufMessageType* messageType, const TYsonString& formatOptionsYson) override
+    TSharedRef ConvertFrom(const TSharedRef& message, const NYson::TProtobufMessageType* messageType, const TYsonString& formatOptionsYson) override
     {
         auto jsonBuffer = PopEnvelope(message);
         TString protoBuffer;
@@ -123,7 +123,7 @@ public:
         return PushEnvelope(TSharedRef::FromString(protoBuffer));
     }
 
-    virtual TSharedRef ConvertTo(const TSharedRef& message, const NYson::TProtobufMessageType* messageType, const TYsonString& formatOptionsYson) override
+    TSharedRef ConvertTo(const TSharedRef& message, const NYson::TProtobufMessageType* messageType, const TYsonString& formatOptionsYson) override
     {
         auto protoBuffer = PopEnvelope(message);
         google::protobuf::io::ArrayInputStream stream(protoBuffer.Begin(), protoBuffer.Size());

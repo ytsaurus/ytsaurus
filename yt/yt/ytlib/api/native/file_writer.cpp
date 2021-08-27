@@ -77,14 +77,14 @@ public:
             Options_.TransactionId))
     { }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return BIND(&TFileWriter::DoOpen, MakeStrong(this))
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
             .Run();
     }
 
-    virtual TFuture<void> Write(const TSharedRef& data) override
+    TFuture<void> Write(const TSharedRef& data) override
     {
         try {
             ValidateAborted();
@@ -103,7 +103,7 @@ public:
         }
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         return BIND(&TFileWriter::DoClose, MakeStrong(this))
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())

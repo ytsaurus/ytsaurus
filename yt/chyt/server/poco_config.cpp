@@ -58,7 +58,7 @@ public:
         }
     }
 
-    virtual void setRaw(const std::string& key, const std::string& value)
+    void setRaw(const std::string& key, const std::string& value) override
     {
         THROW_ERROR_EXCEPTION("Poco wrapper for INode cannot be modified")
             << TErrorAttribute("key", key)

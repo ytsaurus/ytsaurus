@@ -39,12 +39,12 @@ public:
 
     TYtSubqueryTableFunction() = default;
 
-    virtual std::string getName() const override
+    std::string getName() const override
     {
         return name;
     }
 
-    const char* getStorageTypeName() const
+    const char* getStorageTypeName() const override
     {
         return "YT";
     }
@@ -84,7 +84,7 @@ public:
         return DB::ColumnsDescription(ToNamesAndTypesList(*subquerySpec.ReadSchema, queryContext->Settings->Composite));
     }
 
-    virtual StoragePtr executeImpl(
+    StoragePtr executeImpl(
         const ASTPtr& /* functionAst */,
         ContextPtr context,
         const std::string& /* tableName */,

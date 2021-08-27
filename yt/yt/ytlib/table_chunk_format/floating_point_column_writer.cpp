@@ -53,7 +53,7 @@ public:
         Reset();
     }
 
-    virtual void WriteVersionedValues(TRange<TVersionedRow> rows) override
+    void WriteVersionedValues(TRange<TVersionedRow> rows) override
     {
         AddValues(
             rows,
@@ -66,7 +66,7 @@ public:
         }
     }
 
-    virtual i32 GetCurrentSegmentSize() const override
+    i32 GetCurrentSegmentSize() const override
     {
         if (ValuesPerRow_.empty()) {
             return 0;
@@ -78,7 +78,7 @@ public:
         }
     }
 
-    virtual void FinishCurrentSegment() override
+    void FinishCurrentSegment() override
     {
         if (!ValuesPerRow_.empty()) {
             DumpSegment();
@@ -141,17 +141,17 @@ public:
         Reset();
     }
 
-    virtual void WriteVersionedValues(TRange<TVersionedRow> rows) override
+    void WriteVersionedValues(TRange<TVersionedRow> rows) override
     {
         DoWriteValues(rows);
     }
 
-    virtual void WriteUnversionedValues(TRange<TUnversionedRow> rows) override
+    void WriteUnversionedValues(TRange<TUnversionedRow> rows) override
     {
         DoWriteValues(rows);
     }
 
-    virtual i32 GetCurrentSegmentSize() const override
+    i32 GetCurrentSegmentSize() const override
     {
         if (Values_.empty()) {
             return 0;
@@ -160,7 +160,7 @@ public:
         }
     }
 
-    virtual void FinishCurrentSegment() override
+    void FinishCurrentSegment() override
     {
         if (!Values_.empty()) {
             DumpSegment();

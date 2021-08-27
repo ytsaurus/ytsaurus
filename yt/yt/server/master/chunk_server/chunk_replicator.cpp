@@ -1998,7 +1998,7 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
         const TChunkReplicatorPtr Owner_;
         TChunkList* const Root_;
 
-        virtual bool OnChunk(
+        bool OnChunk(
             TChunk* chunk,
             std::optional<i64> /*rowIndex*/,
             std::optional<int> /*tabletIndex*/,
@@ -2010,12 +2010,12 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
             return true;
         }
 
-        virtual bool OnChunkView(TChunkView* /*chunkView*/) override
+        bool OnChunkView(TChunkView* /*chunkView*/) override
         {
             return false;
         }
 
-        virtual bool OnDynamicStore(
+        bool OnDynamicStore(
             TDynamicStore* /*dynamicStore*/,
             std::optional<int> /*tabletIndex*/,
             const NChunkClient::TReadLimit& /*startLimit*/,
@@ -2024,7 +2024,7 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
             return true;
         }
 
-        virtual void OnFinish(const TError& error) override
+        void OnFinish(const TError& error) override
         {
             if (!error.IsOK()) {
                 // Try restarting.

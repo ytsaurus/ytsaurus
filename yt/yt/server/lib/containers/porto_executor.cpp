@@ -118,21 +118,21 @@ public:
         PollExecutor_->Start();
     }
 
-    virtual TFuture<void> CreateContainer(const TString& container) override
+    TFuture<void> CreateContainer(const TString& container) override
     {
         return BIND(&TPortoExecutor::DoCreateContainer, MakeStrong(this), container)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual TFuture<void> CreateContainer(const TRunnableContainerSpec& containerSpec, bool start) override
+    TFuture<void> CreateContainer(const TRunnableContainerSpec& containerSpec, bool start) override
     {
         return BIND(&TPortoExecutor::DoCreateContainerFromSpec, MakeStrong(this), containerSpec, start)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual TFuture<std::optional<TString>> GetContainerProperty(
+    TFuture<std::optional<TString>> GetContainerProperty(
         const TString& container,
         const TString& property) override
     {
@@ -150,7 +150,7 @@ public:
         .Run();
     }
 
-    virtual TFuture<THashMap<TString, TErrorOr<TString>>> GetContainerProperties(
+    TFuture<THashMap<TString, TErrorOr<TString>>> GetContainerProperties(
         const TString& container,
         const std::vector<TString>& properties) override
     {
@@ -162,7 +162,7 @@ public:
         .Run();
     }
 
-    virtual TFuture<THashMap<TString, THashMap<TString, TErrorOr<TString>>>> GetContainerProperties(
+    TFuture<THashMap<TString, THashMap<TString, TErrorOr<TString>>>> GetContainerProperties(
         const std::vector<TString>& containers,
         const std::vector<TString>& properties) override
     {
@@ -174,7 +174,7 @@ public:
         .Run();
     }
 
-    virtual TFuture<THashMap<TString, i64>> GetContainerMetrics(
+    TFuture<THashMap<TString, i64>> GetContainerMetrics(
         const std::vector<TString>& containers,
         const TString& metric) override
     {
@@ -185,7 +185,7 @@ public:
         .Run();
     }
 
-    virtual TFuture<void> SetContainerProperty(
+    TFuture<void> SetContainerProperty(
         const TString& container,
         const TString& property,
         const TString& value) override
@@ -195,35 +195,35 @@ public:
             .Run();
     }
 
-    virtual TFuture<void> DestroyContainer(const TString& container) override
+    TFuture<void> DestroyContainer(const TString& container) override
     {
         return BIND(&TPortoExecutor::DoDestroyContainer, MakeStrong(this), container)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual TFuture<void> StopContainer(const TString& container) override
+    TFuture<void> StopContainer(const TString& container) override
     {
         return BIND(&TPortoExecutor::DoStopContainer, MakeStrong(this), container)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual TFuture<void> StartContainer(const TString& container) override
+    TFuture<void> StartContainer(const TString& container) override
     {
         return BIND(&TPortoExecutor::DoStartContainer, MakeStrong(this), container)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual TFuture<void> KillContainer(const TString& container, int signal) override
+    TFuture<void> KillContainer(const TString& container, int signal) override
     {
         return BIND(&TPortoExecutor::DoKillContainer, MakeStrong(this), container, signal)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual TFuture<std::vector<TString>> ListSubcontainers(
+    TFuture<std::vector<TString>> ListSubcontainers(
         const TString& rootContainer,
         bool includeRoot) override
     {
@@ -232,31 +232,31 @@ public:
             .Run();
     }
 
-    virtual TFuture<int> PollContainer(const TString& container) override
+    TFuture<int> PollContainer(const TString& container) override
     {
         return BIND(&TPortoExecutor::DoPollContainer, MakeStrong(this), container)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual TFuture<int> WaitContainer(const TString& container) override
+    TFuture<int> WaitContainer(const TString& container) override
     {
         return BIND(&TPortoExecutor::DoWaitContainer, MakeStrong(this), container)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual void SubscribeFailed(const TCallback<void (const TError&)>& callback) override
+    void SubscribeFailed(const TCallback<void (const TError&)>& callback) override
     {
         Failed_.Subscribe(callback);
     }
 
-    virtual void UnsubscribeFailed(const TCallback<void (const TError&)>& callback) override
+    void UnsubscribeFailed(const TCallback<void (const TError&)>& callback) override
     {
         Failed_.Unsubscribe(callback);
     }
 
-    virtual TFuture<TString> CreateVolume(
+    TFuture<TString> CreateVolume(
         const TString& path,
         const THashMap<TString, TString>& properties) override
     {
@@ -265,7 +265,7 @@ public:
             .Run();
     }
 
-    virtual TFuture<void> LinkVolume(
+    TFuture<void> LinkVolume(
         const TString& path,
         const TString& name) override
     {
@@ -274,7 +274,7 @@ public:
             .Run();
     }
 
-    virtual TFuture<void> UnlinkVolume(
+    TFuture<void> UnlinkVolume(
         const TString& path,
         const TString& name) override
     {
@@ -283,35 +283,35 @@ public:
             .Run();
     }
 
-    virtual TFuture<std::vector<TString>> ListVolumePaths() override
+    TFuture<std::vector<TString>> ListVolumePaths() override
     {
         return BIND(&TPortoExecutor::DoListVolumePaths, MakeStrong(this))
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual TFuture<void> ImportLayer(const TString& archivePath, const TString& layerId, const TString& place) override
+    TFuture<void> ImportLayer(const TString& archivePath, const TString& layerId, const TString& place) override
     {
         return BIND(&TPortoExecutor::DoImportLayer, MakeStrong(this), archivePath, layerId, place)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual TFuture<void> RemoveLayer(const TString& layerId, const TString& place) override
+    TFuture<void> RemoveLayer(const TString& layerId, const TString& place) override
     {
         return BIND(&TPortoExecutor::DoRemoveLayer, MakeStrong(this), layerId, place)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual TFuture<std::vector<TString>> ListLayers(const TString& place) override
+    TFuture<std::vector<TString>> ListLayers(const TString& place) override
     {
         return BIND(&TPortoExecutor::DoListLayers, MakeStrong(this), place)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual IInvokerPtr GetInvoker() const override 
+    IInvokerPtr GetInvoker() const override 
     {
         return Queue_->GetInvoker();
     }

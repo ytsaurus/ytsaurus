@@ -58,19 +58,19 @@ public:
         , Config_(std::move(config))
     { }
 
-    virtual void Start() override
+    void Start() override
     {
         auto guard = Guard(SpinLock_);
         DoStart();
     }
 
-    virtual void Stop() override
+    void Stop() override
     {
         auto guard = Guard(SpinLock_);
         DoStop();
     }
 
-    virtual TFuture<void> Sync(bool force) override
+    TFuture<void> Sync(bool force) override
     {
         auto guard = Guard(SpinLock_);
         if (Stopped_) {
@@ -80,7 +80,7 @@ public:
         return SyncPromise_.ToFuture();
     }
 
-    virtual void Reconfigure(const TClusterDirectorySynchronizerConfigPtr& config) override
+    void Reconfigure(const TClusterDirectorySynchronizerConfigPtr& config) override
     {
         Config_.Store(config);
         SyncExecutor_->SetPeriod(config->SyncPeriod);

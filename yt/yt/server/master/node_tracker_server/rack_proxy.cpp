@@ -34,12 +34,12 @@ public:
 private:
     using TBase = TNonversionedObjectProxyBase<TRack>;
 
-    virtual void ValidateRemoval() override
+    void ValidateRemoval() override
     {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
     }
 
-    virtual void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
@@ -56,7 +56,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::Nodes);
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto* rack = GetThisImpl();
@@ -96,7 +96,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         auto* rack = GetThisImpl();
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -122,7 +122,7 @@ private:
         return TBase::SetBuiltinAttribute(key, value);
     }
 
-    virtual bool RemoveBuiltinAttribute(TInternedAttributeKey key) override {
+    bool RemoveBuiltinAttribute(TInternedAttributeKey key) override {
         auto* rack = GetThisImpl();
         auto nodeTracker = Bootstrap_->GetNodeTracker();
 

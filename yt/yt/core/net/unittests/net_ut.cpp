@@ -22,12 +22,12 @@ class TNetTest
 protected:
     IPollerPtr Poller;
 
-    virtual void SetUp() override
+    void SetUp() override
     {
         Poller = CreateThreadPoolPoller(2, "nettest");
     }
 
-    virtual void TearDown() override
+    void TearDown() override
     {
         Poller->Shutdown();
     }

@@ -140,7 +140,7 @@ private:
         }
     }
 
-    virtual std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
+    std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
     {
         if (Type_ == EObjectType::ChunkMap) {
             const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -150,7 +150,7 @@ private:
         }
     }
 
-    virtual bool IsValid(TObject* object) const override
+    bool IsValid(TObject* object) const override
     {
         auto type = object->GetType();
         if (type != EObjectType::Chunk &&
@@ -169,7 +169,7 @@ private:
         return FilteredChunksContain(chunk);
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         if (Type_ == EObjectType::ChunkMap) {
             const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -179,7 +179,7 @@ private:
         }
     }
 
-    virtual NYPath::TYPath GetWellKnownPath() const override
+    NYPath::TYPath GetWellKnownPath() const override
     {
         switch (Type_) {
             case EObjectType::ChunkMap:
@@ -240,24 +240,24 @@ public:
     { }
 
 private:
-    virtual std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
+    std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         return ToObjectIds(GetValues(chunkManager->ChunkViews(), sizeLimit));
     }
 
-    virtual bool IsValid(TObject* object) const override
+    bool IsValid(TObject* object) const override
     {
         return object->GetType() == EObjectType::ChunkView;
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         return chunkManager->ChunkViews().GetSize();
     }
 
-    virtual TYPath GetWellKnownPath() const override
+    TYPath GetWellKnownPath() const override
     {
         return "//sys/chunk_views";
     }
@@ -287,24 +287,24 @@ public:
     { }
 
 private:
-    virtual std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
+    std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         return ToObjectIds(GetValues(chunkManager->ChunkLists(), sizeLimit));
     }
 
-    virtual bool IsValid(TObject* object) const override
+    bool IsValid(TObject* object) const override
     {
         return object->GetType() == EObjectType::ChunkList;
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         return chunkManager->ChunkLists().GetSize();
     }
 
-    virtual TYPath GetWellKnownPath() const override
+    TYPath GetWellKnownPath() const override
     {
         return "//sys/chunk_lists";
     }
@@ -337,7 +337,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
+    std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
     {
         std::vector<TString> keys;
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -347,13 +347,13 @@ private:
         return keys;
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         return chunkManager->Media().GetSize();
     }
 
-    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto* medium = chunkManager->FindMediumByName(TString(key));

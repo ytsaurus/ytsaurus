@@ -33,7 +33,7 @@ public:
         NameTable_->SetEnableColumnNameValidation();
     }
 
-    virtual bool Write(TRange<TUnversionedRow> rows) override
+    bool Write(TRange<TUnversionedRow> rows) override
     {
         YT_VERIFY(!Closed_);
         YT_VERIFY(ReadyEvent_.IsSet() && ReadyEvent_.Get().IsOK());
@@ -48,12 +48,12 @@ public:
         return ReadyEvent_.IsSet() && ReadyEvent_.Get().IsOK();
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() override
     {
         return ReadyEvent_;
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         YT_VERIFY(!Closed_);
         Closed_ = true;
@@ -61,12 +61,12 @@ public:
         return Underlying_->Close();
     }
 
-    virtual const TNameTablePtr& GetNameTable() const override
+    const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
     }
 
-    virtual const TTableSchemaPtr& GetSchema() const override
+    const TTableSchemaPtr& GetSchema() const override
     {
         return Schema_;
     }

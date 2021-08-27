@@ -98,7 +98,7 @@ public:
         : Service_(std::move(service))
     { }
 
-    virtual void HandleRequest(
+    void HandleRequest(
         const IRequestPtr& req,
         const IResponseWriterPtr& rsp) override
     {

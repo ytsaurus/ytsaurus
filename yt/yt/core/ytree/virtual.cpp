@@ -391,23 +391,23 @@ public:
         : UnderlyingService_(std::move(underlyingService))
     { }
 
-    virtual std::unique_ptr<ITransactionalNodeFactory> CreateFactory() const override
+    std::unique_ptr<ITransactionalNodeFactory> CreateFactory() const override
     {
         YT_ASSERT(Parent_);
         return Parent_->CreateFactory();
     }
 
-    virtual ICompositeNodePtr GetParent() const override
+    ICompositeNodePtr GetParent() const override
     {
         return Parent_;
     }
 
-    virtual void SetParent(const ICompositeNodePtr& parent) override
+    void SetParent(const ICompositeNodePtr& parent) override
     {
         Parent_ = parent.Get();
     }
 
-    virtual TResolveResult Resolve(
+    TResolveResult Resolve(
         const TYPath& path,
         const IServiceContextPtr& /*context*/) override
     {
@@ -415,13 +415,13 @@ public:
         return TResolveResultThere{UnderlyingService_, path};
     }
 
-    virtual void DoWriteAttributesFragment(
+    void DoWriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,
         const std::optional<std::vector<TString>>& /*attributeKeys*/,
         bool /*stable*/) override
     { }
 
-    virtual bool ShouldHideAttributes() override
+    bool ShouldHideAttributes() override
     {
         return UnderlyingService_->ShouldHideAttributes();
     }
@@ -433,7 +433,7 @@ private:
 
     // TSupportsAttributes members
 
-    virtual IAttributeDictionary* GetCustomAttributes() override
+    IAttributeDictionary* GetCustomAttributes() override
     {
         return MutableAttributes();
     }

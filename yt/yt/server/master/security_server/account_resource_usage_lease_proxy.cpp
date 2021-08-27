@@ -37,12 +37,12 @@ public:
 private:
     using TBase = TNonversionedObjectProxyBase<TAccountResourceUsageLease>;
 
-    virtual void ValidateRemoval() override
+    void ValidateRemoval() override
     {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
@@ -53,7 +53,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::CreationTime);
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto* accountResourceUsageLease = GetThisImpl();
 
@@ -87,7 +87,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         auto* accountResourceUsageLease = GetThisImpl();
         const auto& securityManager = Bootstrap_->GetSecurityManager();

@@ -171,7 +171,7 @@ public:
             BIND([jobSpec = std::move(jobSpec)] () mutable { jobSpec.reset(); }));
     }
 
-    virtual void Start() override
+    void Start() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -259,7 +259,7 @@ public:
         });
     }
 
-    virtual void Abort(const TError& error) override
+    void Abort(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -306,7 +306,7 @@ public:
         }
     }
 
-    virtual void OnJobProxySpawned() override
+    void OnJobProxySpawned() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -322,7 +322,7 @@ public:
         });
     }
 
-    virtual void PrepareArtifact(
+    void PrepareArtifact(
         const TString& artifactName,
         const TString& pipePath) override
     {
@@ -382,7 +382,7 @@ public:
         });
     }
 
-    virtual void OnArtifactPreparationFailed(
+    void OnArtifactPreparationFailed(
         const TString& artifactName,
         const TString& artifactPath,
         const TError& error) override
@@ -403,7 +403,7 @@ public:
         });
     }
 
-    virtual void OnArtifactsPrepared() override
+    void OnArtifactsPrepared() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -419,7 +419,7 @@ public:
         });
     }
 
-    virtual void OnJobPrepared() override
+    void OnJobPrepared() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -433,7 +433,7 @@ public:
         });
     }
 
-    virtual void SetResult(const TJobResult& jobResult) override
+    void SetResult(const TJobResult& jobResult) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -443,63 +443,63 @@ public:
         });
     }
 
-    virtual TJobId GetId() const override
+    TJobId GetId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Id_;
     }
 
-    virtual TOperationId GetOperationId() const override
+    TOperationId GetOperationId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return OperationId_;
     }
 
-    virtual EJobType GetType() const override
+    EJobType GetType() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return static_cast<EJobType>(JobSpec_.type());
     }
 
-    virtual const TJobSpec& GetSpec() const override
+    const TJobSpec& GetSpec() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return JobSpec_;
     }
 
-    virtual int GetPortCount() const override
+    int GetPortCount() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return SchedulerJobSpecExt_->user_job_spec().port_count();
     }
 
-    virtual void SetPorts(const std::vector<int>& ports) override
+    void SetPorts(const std::vector<int>& ports) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         Ports_ = ports;
     }
 
-    virtual EJobState GetState() const override
+    EJobState GetState() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         return JobState_;
     }
 
-    virtual TInstant GetStartTime() const override
+    TInstant GetStartTime() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return StartTime_;
     }
 
-    virtual NJobAgent::TTimeStatistics GetTimeStatistics() const override
+    NJobAgent::TTimeStatistics GetTimeStatistics() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -577,14 +577,14 @@ public:
             .GpuCheckDuration = sumOptionals(getPreliminaryGpuCheckDuration(), getExtraGpuCheckDuration())};
     }
 
-    virtual EJobPhase GetPhase() const override
+    EJobPhase GetPhase() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         return JobPhase_;
     }
 
-    virtual int GetSlotIndex() const override
+    int GetSlotIndex() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -595,35 +595,35 @@ public:
         return Slot_->GetSlotIndex();
     }
 
-    virtual TNodeResources GetResourceUsage() const override
+    TNodeResources GetResourceUsage() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         return ResourceUsage_;
     }
 
-    virtual std::vector<int> GetPorts() const override
+    std::vector<int> GetPorts() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         return Ports_;
     }
 
-    virtual TJobResult GetResult() const override
+    TJobResult GetResult() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         return *JobResult_;
     }
 
-    virtual double GetProgress() const override
+    double GetProgress() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         return Progress_;
     }
 
-    virtual void SetResourceUsage(const TNodeResources& newUsage) override
+    void SetResourceUsage(const TNodeResources& newUsage) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -634,7 +634,7 @@ public:
         }
     }
 
-    virtual void SetProgress(double progress) override
+    void SetProgress(double progress) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -643,14 +643,14 @@ public:
         }
     }
 
-    virtual i64 GetStderrSize() const override
+    i64 GetStderrSize() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         return StderrSize_;
     }
 
-    virtual void SetStderrSize(i64 value) override
+    void SetStderrSize(i64 value) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -661,63 +661,63 @@ public:
         }
     }
 
-    virtual void SetStderr(const TString& value) override
+    void SetStderr(const TString& value) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         Stderr_ = value;
     }
 
-    virtual void SetFailContext(const TString& value) override
+    void SetFailContext(const TString& value) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         FailContext_ = value;
     }
 
-    virtual void SetProfile(const TJobProfile& value) override
+    void SetProfile(const TJobProfile& value) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         Profile_ = value;
     }
 
-    virtual void SetCoreInfos(TCoreInfos value) override
+    void SetCoreInfos(TCoreInfos value) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         CoreInfos_ = std::move(value);
     }
 
-    virtual const TChunkCacheStatistics& GetChunkCacheStatistics() const override
+    const TChunkCacheStatistics& GetChunkCacheStatistics() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         return ChunkCacheStatistics_;
     }
 
-    virtual TYsonString GetStatistics() const override
+    TYsonString GetStatistics() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         return StatisticsYson_;
     }
 
-    virtual TInstant GetStatisticsLastSendTime() const override
+    TInstant GetStatisticsLastSendTime() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         return StatisticsLastSendTime_;
     }
 
-    virtual void ResetStatisticsLastSendTime() override
+    void ResetStatisticsLastSendTime() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         StatisticsLastSendTime_ = TInstant::Now();
     }
 
-    virtual void SetStatistics(const TYsonString& statisticsYson) override
+    void SetStatistics(const TYsonString& statisticsYson) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -745,7 +745,7 @@ public:
         }
     }
 
-    virtual void BuildOrchid(NYTree::TFluentMap fluent) const override
+    void BuildOrchid(NYTree::TFluentMap fluent) const override
     {
         fluent
             .Item("events").Value(JobEvents_)
@@ -753,7 +753,7 @@ public:
             .Item("exec_attributes").Value(ExecAttributes_);
     }
 
-    virtual std::vector<TChunkId> DumpInputContext() override
+    std::vector<TChunkId> DumpInputContext() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
         ValidateJobRunning();
@@ -766,7 +766,7 @@ public:
         }
     }
 
-    virtual TString GetStderr() override
+    TString GetStderr() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -784,7 +784,7 @@ public:
         }
     }
 
-    virtual std::optional<TString> GetFailContext() override
+    std::optional<TString> GetFailContext() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -805,7 +805,7 @@ public:
         return CoreInfos_;
     }
 
-    virtual TYsonString PollJobShell(
+    TYsonString PollJobShell(
         const TJobShellDescriptor& jobShellDescriptor,
         const TYsonString& parameters) override
     {
@@ -826,7 +826,7 @@ public:
         }
     }
 
-    virtual void HandleJobReport(TNodeJobReport&& jobReport) override
+    void HandleJobReport(TNodeJobReport&& jobReport) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -836,7 +836,7 @@ public:
                 .JobId(GetId()));
     }
 
-    virtual void ReportSpec() override
+    void ReportSpec() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -844,7 +844,7 @@ public:
             .Spec(JobSpec_));
     }
 
-    virtual void ReportStderr() override
+    void ReportStderr() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -852,7 +852,7 @@ public:
             .Stderr(GetStderr()));
     }
 
-    virtual void ReportFailContext() override
+    void ReportFailContext() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -862,7 +862,7 @@ public:
         }
     }
 
-    virtual void ReportProfile() override
+    void ReportProfile() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -872,7 +872,7 @@ public:
         }
     }
 
-    virtual void Interrupt() override
+    void Interrupt() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -898,7 +898,7 @@ public:
         }
     }
 
-    virtual void Fail() override
+    void Fail() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
         ValidateJobRunning();
@@ -911,14 +911,14 @@ public:
         }
     }
 
-    virtual bool GetStored() const override
+    bool GetStored() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         return Stored_;
     }
 
-    virtual void SetStored(bool value) override
+    void SetStored(bool value) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 

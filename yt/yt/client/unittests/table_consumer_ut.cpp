@@ -25,28 +25,28 @@ using namespace NFormats;
 struct TEmptyValueConsumer
     : public IValueConsumer
 {
-    virtual const TNameTablePtr& GetNameTable() const override
+    const TNameTablePtr& GetNameTable() const override
     {
         return NameTable;
     }
 
-    virtual const TTableSchemaPtr& GetSchema() const override
+    const TTableSchemaPtr& GetSchema() const override
     {
         return Schema_;
     }
 
-    virtual bool GetAllowUnknownColumns() const override
+    bool GetAllowUnknownColumns() const override
     {
         return true;
     }
 
-    virtual void OnBeginRow() override
+    void OnBeginRow() override
     { }
 
-    virtual void OnValue(const TUnversionedValue& /*value*/) override
+    void OnValue(const TUnversionedValue& /*value*/) override
     { }
 
-    virtual void OnEndRow() override
+    void OnEndRow() override
     { }
 
 private:

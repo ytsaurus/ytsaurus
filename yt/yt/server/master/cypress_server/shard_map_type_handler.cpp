@@ -25,24 +25,24 @@ public:
     { }
 
 private:
-    virtual std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
+    std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         return ToObjectIds(GetValues(cypressManager->Shards(), sizeLimit));
     }
 
-    virtual bool IsValid(TObject* object) const override
+    bool IsValid(TObject* object) const override
     {
         return object->GetType() == EObjectType::CypressShard;
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         return cypressManager->Shards().GetSize();
     }
 
-    virtual NYPath::TYPath GetWellKnownPath() const override
+    NYPath::TYPath GetWellKnownPath() const override
     {
         return "//sys/cypress_shards";
     }

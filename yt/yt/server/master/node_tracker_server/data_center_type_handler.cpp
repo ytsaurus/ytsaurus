@@ -30,7 +30,7 @@ public:
         : TObjectTypeHandlerWithMapBase(bootstrap, map)
     { }
 
-    virtual ETypeFlags GetFlags() const override
+    ETypeFlags GetFlags() const override
     {
         return
             ETypeFlags::ReplicateCreate |
@@ -40,12 +40,12 @@ public:
                 ETypeFlags::Removable;
     }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::DataCenter;
     }
 
-    virtual TObject* CreateObject(
+    TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
@@ -54,17 +54,17 @@ public:
     }
 
 private:
-    virtual TCellTagList DoGetReplicationCellTags(const TDataCenter* /*dc*/) override
+    TCellTagList DoGetReplicationCellTags(const TDataCenter* /*dc*/) override
     {
         return AllSecondaryCellTags();
     }
 
-    virtual IObjectProxyPtr DoGetProxy(TDataCenter* dc, TTransaction* /*transaction*/) override
+    IObjectProxyPtr DoGetProxy(TDataCenter* dc, TTransaction* /*transaction*/) override
     {
         return CreateDataCenterProxy(Bootstrap_, &Metadata_, dc);
     }
 
-    virtual void DoZombifyObject(TDataCenter* dc) override
+    void DoZombifyObject(TDataCenter* dc) override
     {
         TObjectTypeHandlerWithMapBase::DoZombifyObject(dc);
         Bootstrap_->GetNodeTracker()->ZombifyDataCenter(dc);

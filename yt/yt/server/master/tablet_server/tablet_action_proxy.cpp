@@ -36,10 +36,10 @@ public:
 private:
     using TBase = TNonversionedObjectProxyBase<TTabletAction>;
 
-    virtual void ValidateRemoval() override
+    void ValidateRemoval() override
     { }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
     {
         const auto* action = GetThisImpl();
 
@@ -62,7 +62,7 @@ private:
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto* action = GetThisImpl();
 

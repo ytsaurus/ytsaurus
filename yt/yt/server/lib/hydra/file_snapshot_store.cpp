@@ -58,21 +58,21 @@ public:
         return SnapshotId_;
     }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return BIND(&TFileSnapshotReader::DoOpen, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
             .Run();
     }
 
-    virtual TFuture<TSharedRef> Read() override
+    TFuture<TSharedRef> Read() override
     {
         return BIND(&TFileSnapshotReader::DoRead, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
             .Run();
     }
 
-    virtual TSnapshotParams GetParams() const override
+    TSnapshotParams GetParams() const override
     {
         TSnapshotParams params;
         params.Meta = Meta_;
@@ -244,28 +244,28 @@ public:
         }
     }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return BIND(&TFileSnapshotWriter::DoOpen, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
             .Run();
     }
 
-    virtual TFuture<void> Write(const TSharedRef& buffer) override
+    TFuture<void> Write(const TSharedRef& buffer) override
     {
         return BIND(&TFileSnapshotWriter::DoWrite, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
             .Run(buffer);
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         return BIND(&TFileSnapshotWriter::DoClose, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
             .Run();
     }
 
-    virtual TSnapshotParams GetParams() const override
+    TSnapshotParams GetParams() const override
     {
         YT_VERIFY(IsClosed_);
         return Params_;

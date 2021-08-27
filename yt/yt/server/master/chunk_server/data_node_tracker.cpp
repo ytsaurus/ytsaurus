@@ -52,13 +52,13 @@ public:
         RegisterMethod(BIND(&TDataNodeTracker::HydraFullDataNodeHeartbeat, Unretained(this)));
     }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND(&TDataNodeTracker::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    virtual void ProcessFullHeartbeat(TCtxFullHeartbeatPtr context) override
+    void ProcessFullHeartbeat(TCtxFullHeartbeatPtr context) override
     {
         auto mutation = CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
@@ -68,7 +68,7 @@ public:
         CommitMutationWithSemaphore(std::move(mutation), std::move(context), FullHeartbeatSemaphore_);
     }
 
-    virtual void ProcessFullHeartbeat(
+    void ProcessFullHeartbeat(
         TNode* node,
         TReqFullHeartbeat* request,
         TRspFullHeartbeat* response) override
@@ -85,7 +85,7 @@ public:
         FullHeartbeat_.Fire(node, request, response);
     }
 
-    virtual void ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context) override
+    void ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context) override
     {
         auto mutation = CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
@@ -95,7 +95,7 @@ public:
         CommitMutationWithSemaphore(std::move(mutation), std::move(context), IncrementalHeartbeatSemaphore_);
     }
 
-    virtual void ProcessIncrementalHeartbeat(
+    void ProcessIncrementalHeartbeat(
         TNode* node,
         TReqIncrementalHeartbeat* request,
         TRspIncrementalHeartbeat* response) override

@@ -32,12 +32,12 @@ public:
         , NameTable_(std::move(nameTable))
     { }
 
-    virtual const TTableSchema& GetSchema() const override
+    const TTableSchema& GetSchema() const override
     {
         return *Schema_;
     }
 
-    virtual const TNameTablePtr& GetNameTable() const override
+    const TNameTablePtr& GetNameTable() const override
     {
         // Fast path.
         if (NameTableInitialized_.load()) {
@@ -82,7 +82,7 @@ public:
         , Rows_(std::move(rows))
     { }
 
-    virtual TRange<TRow> GetRows() const override
+    TRange<TRow> GetRows() const override
     {
         return Rows_;
     }
@@ -137,7 +137,7 @@ class TSchemafulRowsetWriter
 public:
     using TRowsetBase::TRowsetBase;
 
-    virtual TRange<TUnversionedRow> GetRows() const override
+    TRange<TUnversionedRow> GetRows() const override
     {
         return MakeRange(Rows_);
     }
@@ -147,14 +147,14 @@ public:
         return Result_.ToFuture();
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         Result_.Set(IUnversionedRowsetPtr(this));
         Result_.Reset();
         return VoidFuture;
     }
 
-    virtual bool Write(TRange<TUnversionedRow> rows) override
+    bool Write(TRange<TUnversionedRow> rows) override
     {
         for (auto row : rows) {
             Rows_.push_back(RowBuffer_->CaptureRow(row));
@@ -162,7 +162,7 @@ public:
         return true;
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() override
     {
         return VoidFuture;
     }

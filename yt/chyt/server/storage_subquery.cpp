@@ -216,7 +216,7 @@ public:
         return DB::Pipe::unitePipes(std::move(pipes));
     }
 
-    virtual DB::QueryProcessingStage::Enum getQueryProcessingStage(
+    DB::QueryProcessingStage::Enum getQueryProcessingStage(
         DB::ContextPtr /*context*/,
         DB::QueryProcessingStage::Enum /*toStage*/,
         const DB::StorageMetadataPtr&,

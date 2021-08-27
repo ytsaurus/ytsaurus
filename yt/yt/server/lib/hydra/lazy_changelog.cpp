@@ -22,7 +22,7 @@ public:
             BIND(&TLazyChangelog::OnUnderlyingChangelogReady, MakeWeak(this)));
     }
 
-    virtual int GetRecordCount() const override
+    int GetRecordCount() const override
     {
         auto guard = Guard(SpinLock_);
         return UnderlyingChangelog_
@@ -30,7 +30,7 @@ public:
             : BacklogRecords_.size();
     }
 
-    virtual i64 GetDataSize() const override
+    i64 GetDataSize() const override
     {
         auto guard = Guard(SpinLock_);
         return UnderlyingChangelog_
@@ -38,7 +38,7 @@ public:
             : BacklogDataSize_;
     }
 
-    virtual TFuture<void> Append(TRange<TSharedRef> records) override
+    TFuture<void> Append(TRange<TSharedRef> records) override
     {
         auto guard = Guard(SpinLock_);
 
@@ -57,14 +57,14 @@ public:
         }
     }
 
-    virtual TFuture<void> Flush() override
+    TFuture<void> Flush() override
     {
         return FutureChangelog_.Apply(BIND([=] (IChangelogPtr changelog) -> TFuture<void> {
             return changelog->Flush();
         }));
     }
 
-    virtual TFuture<std::vector<TSharedRef>> Read(
+    TFuture<std::vector<TSharedRef>> Read(
         int firstRecordId,
         int maxRecords,
         i64 maxBytes) const override
@@ -91,7 +91,7 @@ public:
         }
     }
 
-    virtual TFuture<void> Truncate(int recordCount) override
+    TFuture<void> Truncate(int recordCount) override
     {
         return FutureChangelog_.Apply(BIND([=] (const TErrorOr<IChangelogPtr>& changelogOrError) -> TFuture<void> {
             if (!changelogOrError.IsOK()) {
@@ -101,14 +101,14 @@ public:
         }));
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         return FutureChangelog_.Apply(BIND([=] (IChangelogPtr changelog) -> TFuture<void> {
             return changelog->Close();
         }));
     }
 
-    virtual TFuture<void> Preallocate(size_t size) override
+    TFuture<void> Preallocate(size_t size) override
     {
         return FutureChangelog_.Apply(BIND([=] (IChangelogPtr changelog) -> TFuture<void> {
             return changelog->Preallocate(size);

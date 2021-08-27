@@ -56,13 +56,13 @@ public:
 private:
     using TBase = TCellBundleProxy;
 
-    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
+    bool DoInvoke(const NRpc::IServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(BalanceTabletCells);
         return TBase::DoInvoke(context);
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
     {
         const auto* cellBundle = GetThisImpl<TTabletCellBundle>();
 
@@ -94,7 +94,7 @@ private:
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto* cellBundle = GetThisImpl<TTabletCellBundle>();
 
@@ -174,7 +174,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         auto* cellBundle = GetThisImpl<TTabletCellBundle>();
 
@@ -207,7 +207,7 @@ private:
         return TBase::SetBuiltinAttribute(key, value);
     }
 
-    virtual bool RemoveBuiltinAttribute(TInternedAttributeKey key) override
+    bool RemoveBuiltinAttribute(TInternedAttributeKey key) override
     {
         auto* cellBundle = GetThisImpl<TTabletCellBundle>();
 

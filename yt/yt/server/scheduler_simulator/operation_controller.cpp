@@ -179,37 +179,37 @@ public:
         std::optional<TDuration> scheduleJobDelay);
 
     // Lock_ must be acquired.
-    virtual void OnBucketActivated(TJobBucket* activatedBucket) override;
+    void OnBucketActivated(TJobBucket* activatedBucket) override;
 
     // Lock_ must be acquired.
-    virtual void OnBucketCompleted(TJobBucket* deactivatedBucket) override;
+    void OnBucketCompleted(TJobBucket* deactivatedBucket) override;
 
     //! Returns the number of jobs the controller still needs to start right away.
-    virtual int GetPendingJobCount() const override;
+    int GetPendingJobCount() const override;
 
     //! Returns the mode which says how to preempt jobs of this operation.
-    virtual EPreemptionMode GetPreemptionMode() const override;
+    EPreemptionMode GetPreemptionMode() const override;
 
     //! Returns the total resources that are additionally needed.
-    virtual TJobResources GetNeededResources() const override;
+    TJobResources GetNeededResources() const override;
 
-    virtual void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) override;
+    void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) override;
 
-    virtual void OnNonscheduledJobAborted(TJobId, EAbortReason) override;
+    void OnNonscheduledJobAborted(TJobId, EAbortReason) override;
 
-    virtual bool IsOperationCompleted() const override ;
+    bool IsOperationCompleted() const override ;
 
     //! Called during heartbeat processing to request actions the node must perform.
-    virtual TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
+    TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
         const ISchedulingContextPtr& context,
         const TJobResources& nodeLimits,
         const TString& /* treeId */,
         const TFairShareStrategyTreeConfigPtr& /* treeConfig */) override;
 
-    virtual void UpdateMinNeededJobResources() override;
-    virtual TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
+    void UpdateMinNeededJobResources() override;
+    TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
 
-    virtual TString GetLoggingProgress() const override;
+    TString GetLoggingProgress() const override;
 
 private:
     using TJobBuckets = THashMap<EJobType, std::unique_ptr<TJobBucket>>;

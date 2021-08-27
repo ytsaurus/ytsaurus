@@ -124,24 +124,24 @@ public:
         VERIFY_INVOKER_THREAD_AFFINITY(Occupier_->GetOccupierAutomatonInvoker(), AutomatonThread);
     }
 
-    virtual const ICellarOccupierPtr& GetOccupier() const override
+    const ICellarOccupierPtr& GetOccupier() const override
     {
         return Occupier_;
     }
 
-    virtual int GetIndex() const override
+    int GetIndex() const override
     {
         return Index_;
     }
 
-    virtual TCellId GetCellId() const override
+    TCellId GetCellId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return CellDescriptor_.CellId;
     }
 
-    virtual EPeerState GetControlState() const override
+    EPeerState GetControlState() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -166,7 +166,7 @@ public:
         return EPeerState::None;
     }
 
-    virtual EPeerState GetAutomatonState() const override
+    EPeerState GetAutomatonState() const override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -174,62 +174,62 @@ public:
         return hydraManager ? hydraManager->GetAutomatonState() : EPeerState::None;
     }
 
-    virtual TPeerId GetPeerId() const override
+    TPeerId GetPeerId() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return PeerId_;
     }
 
-    virtual const TCellDescriptor& GetCellDescriptor() const override
+    const TCellDescriptor& GetCellDescriptor() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return CellDescriptor_;
     }
 
-    virtual int GetConfigVersion() const override
+    int GetConfigVersion() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return ConfigVersion_;
     }
 
-    virtual const IDistributedHydraManagerPtr GetHydraManager() const override
+    const IDistributedHydraManagerPtr GetHydraManager() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return HydraManager_.Load();
     }
 
-    virtual const TResponseKeeperPtr& GetResponseKeeper() const override
+    const TResponseKeeperPtr& GetResponseKeeper() const override
     {
         return ResponseKeeper_;
     }
 
-    virtual const TCompositeAutomatonPtr& GetAutomaton() const override
+    const TCompositeAutomatonPtr& GetAutomaton() const override
     {
         return Automaton_;
     }
 
-    virtual const THiveManagerPtr& GetHiveManager() const override
+    const THiveManagerPtr& GetHiveManager() const override
     {
         return HiveManager_;
     }
 
-    virtual const ITransactionSupervisorPtr& GetTransactionSupervisor() const override
+    const ITransactionSupervisorPtr& GetTransactionSupervisor() const override
     {
         return TransactionSupervisor_;
     }
 
-    virtual TMailbox* GetMasterMailbox() const override
+    TMailbox* GetMasterMailbox() const override
     {
         // Create master mailbox lazily.
         auto masterCellId = Bootstrap_->GetCellId();
         return HiveManager_->GetOrCreateMailbox(masterCellId);
     }
 
-    virtual TObjectId GenerateId(EObjectType type) const override
+    TObjectId GenerateId(EObjectType type) const override
     {
         auto* mutationContext = GetCurrentMutationContext();
         auto version = mutationContext->GetVersion();
@@ -242,7 +242,7 @@ public:
             version.SegmentId);
     }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(!Initialized_);
@@ -253,14 +253,14 @@ public:
     }
 
 
-    virtual bool CanConfigure() const override
+    bool CanConfigure() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return Initialized_ && !Finalizing_;
     }
 
-    virtual void Configure(const TConfigureCellSlotInfo& configureInfo) override
+    void Configure(const TConfigureCellSlotInfo& configureInfo) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(CanConfigure());
@@ -474,21 +474,21 @@ public:
         }
     }
 
-    virtual TDynamicTabletCellOptionsPtr GetDynamicOptions() const override
+    TDynamicTabletCellOptionsPtr GetDynamicOptions() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return DynamicOptions_.Load();
     }
 
-    virtual int GetDynamicConfigVersion() const override
+    int GetDynamicConfigVersion() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return DynamicConfigVersion_;
     }
 
-    virtual void UpdateDynamicConfig(const TUpdateCellSlotInfo& updateInfo) override
+    void UpdateDynamicConfig(const TUpdateCellSlotInfo& updateInfo) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -528,7 +528,7 @@ public:
         }
     }
 
-    virtual TFuture<void> Finalize() override
+    TFuture<void> Finalize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -549,17 +549,17 @@ public:
         return FinalizeResult_;
     }
 
-    virtual const IYPathServicePtr& GetOrchidService() const override
+    const IYPathServicePtr& GetOrchidService() const override
     {
         return OrchidService_;
     }
 
-    virtual const TString& GetCellBundleName() const override
+    const TString& GetCellBundleName() const override
     {
         return CellBundleName_;
     }
 
-    virtual const TTabletCellOptionsPtr& GetOptions() const override
+    const TTabletCellOptionsPtr& GetOptions() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

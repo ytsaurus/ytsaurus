@@ -341,7 +341,7 @@ struct TDerived1
 
     int V;
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;
         Persist(context, V);
@@ -362,7 +362,7 @@ struct TDerived2
 
     double V;
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;
         Persist(context, V);
@@ -504,7 +504,7 @@ struct A
 
     virtual void Foo() = 0;
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;
         Persist(context, X);
@@ -525,10 +525,10 @@ struct B
     int Y;
     A* Z;
 
-    virtual void Foo() override
+    void Foo() override
     { }
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;
         A::Persist(context);
@@ -592,7 +592,7 @@ struct TDerived
 
     int Y;
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         TBase::Persist(context);
 

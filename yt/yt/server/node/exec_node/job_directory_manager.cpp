@@ -67,7 +67,7 @@ public:
         }
     }
 
-    virtual TFuture<void> ApplyQuota(const TString& path, const TJobDirectoryProperties& properties) override
+    TFuture<void> ApplyQuota(const TString& path, const TJobDirectoryProperties& properties) override
     {
         if (TestDiskQuota_) {
             return VoidFuture;
@@ -75,12 +75,12 @@ public:
         return DoCreateVolume(path, properties, false);
     }
 
-    virtual TFuture<void> CreateTmpfsDirectory(const TString& path, const TJobDirectoryProperties& properties) override
+    TFuture<void> CreateTmpfsDirectory(const TString& path, const TJobDirectoryProperties& properties) override
     {
         return DoCreateVolume(path, properties, true);
     }
 
-    virtual TFuture<void> CleanDirectories(const TString& pathPrefix) override
+    TFuture<void> CleanDirectories(const TString& pathPrefix) override
     {
         std::vector<TString> toRelease;
         {
@@ -200,7 +200,7 @@ public:
         }
     }
 
-    virtual TFuture<void> ApplyQuota(const TString& path, const TJobDirectoryProperties& properties) override
+    TFuture<void> ApplyQuota(const TString& path, const TJobDirectoryProperties& properties) override
     {
         if (!properties.InodeLimit && !properties.DiskSpaceLimit) {
             return VoidFuture;
@@ -219,7 +219,7 @@ public:
         .Run();
     }
 
-    virtual TFuture<void> CreateTmpfsDirectory(const TString& path, const TJobDirectoryProperties& properties) override
+    TFuture<void> CreateTmpfsDirectory(const TString& path, const TJobDirectoryProperties& properties) override
     {
         auto config = New<TMountTmpfsConfig>();
         config->Path = path;
@@ -237,7 +237,7 @@ public:
         .Run();
     }
 
-    virtual TFuture<void> CleanDirectories(const TString& pathPrefix) override
+    TFuture<void> CleanDirectories(const TString& pathPrefix) override
     {
         return BIND([=, this_ = MakeStrong(this)] () {
             std::vector<TString> toRelease;

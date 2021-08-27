@@ -30,7 +30,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         sizeLimit = std::min<i64>(GetSize(), sizeLimit);
         std::vector<TString> names;
@@ -44,12 +44,12 @@ private:
         return names;
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         return GetPoolTrees().size();
     }
 
-    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         auto* poolTree = Bootstrap_->GetSchedulerPoolManager()->FindPoolTreeObjectByName(TString(key));
         if (!IsObjectAlive(poolTree)) {

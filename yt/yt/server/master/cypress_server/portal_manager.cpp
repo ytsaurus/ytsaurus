@@ -183,7 +183,7 @@ private:
         NeedMakePortalEntrancesOpaque_ = context.GetVersion() < EMasterReign::OpaquePortalEntrances;
     }
 
-    virtual void Clear() override
+    void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -193,14 +193,14 @@ private:
         ExitNodes_.clear();
     }
 
-    virtual void OnBeforeSnapshotLoaded() override
+    void OnBeforeSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
         NeedMakePortalEntrancesOpaque_ = false;
     }
 
-    virtual void OnAfterSnapshotLoaded() override
+    void OnAfterSnapshotLoaded() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

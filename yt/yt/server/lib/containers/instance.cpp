@@ -149,92 +149,92 @@ public:
         };
     }
 
-    virtual const TString& GetName() const override 
+    const TString& GetName() const override 
     {
         return Spec_.Name;
     }
 
-    virtual bool HasRoot() const override 
+    bool HasRoot() const override 
     {
         return static_cast<bool>(Spec_.RootFS);
     }
 
-    virtual void SetStdIn(const TString& inputPath) override
+    void SetStdIn(const TString& inputPath) override
     {
         Spec_.StdinPath = inputPath;
     }
 
-    virtual void SetStdOut(const TString& outPath) override
+    void SetStdOut(const TString& outPath) override
     {
         Spec_.StdoutPath = outPath;
     }
 
-    virtual void SetStdErr(const TString& errorPath) override
+    void SetStdErr(const TString& errorPath) override
     {
         Spec_.StderrPath = errorPath;
     }
 
-    virtual void SetCwd(const TString& pwd) override
+    void SetCwd(const TString& pwd) override
     {
         Spec_.CurrentWorkingDirectory = pwd;
     }
 
-    virtual void SetCoreDumpHandler(const TString& handler) override
+    void SetCoreDumpHandler(const TString& handler) override
     {
         Spec_.CoreCommand = handler;
     }
 
-    virtual void SetRoot(const TRootFS& rootFS) override
+    void SetRoot(const TRootFS& rootFS) override
     {
         Spec_.RootFS = rootFS;
     }
 
-    virtual void SetThreadLimit(i64 threadLimit) override
+    void SetThreadLimit(i64 threadLimit) override
     {
         Spec_.ThreadLimit = threadLimit;
     }
 
-    virtual void SetDevices(const std::vector<TDevice>& devices) override
+    void SetDevices(const std::vector<TDevice>& devices) override
     {
         Spec_.Devices = devices;
     }
 
-    virtual void SetEnablePorto(EEnablePorto enablePorto) override
+    void SetEnablePorto(EEnablePorto enablePorto) override
     {
         Spec_.EnablePorto = enablePorto;
     }
 
-    virtual void SetIsolate(bool isolate) override
+    void SetIsolate(bool isolate) override
     {
         Spec_.Isolate = isolate;
     }
 
-    virtual void EnableMemoryTracking() override
+    void EnableMemoryTracking() override
     {
         Spec_.CGroupControllers.push_back("memory");   
     }
 
-    virtual void SetGroup(int groupId) override
+    void SetGroup(int groupId) override
     {
         Spec_.GroupId = groupId;
     }
 
-    virtual void SetUser(const TString& user) override
+    void SetUser(const TString& user) override
     {
         Spec_.User = user;
     }
 
-    virtual void SetIPAddresses(const std::vector<NNet::TIP6Address>& addresses) override
+    void SetIPAddresses(const std::vector<NNet::TIP6Address>& addresses) override
     {
         Spec_.IPAddresses = addresses;
     }
 
-    virtual void SetHostName(const TString& hostName) override
+    void SetHostName(const TString& hostName) override
     {
         Spec_.HostName = hostName;
     }
 
-    virtual TFuture<IInstancePtr> Launch(
+    TFuture<IInstancePtr> Launch(
         const TString& path,
         const std::vector<TString>& args,
         const THashMap<TString, TString>& env) override
@@ -298,7 +298,7 @@ public:
         return New<TPortoInstance>(name, executor);
     }
 
-    virtual void Kill(int signal) override
+    void Kill(int signal) override
     {
         auto error = WaitFor(Executor_->KillContainer(Name_, signal));
         // Killing already finished process is not an error.
@@ -313,20 +313,20 @@ public:
         }
     }
 
-    virtual void Destroy() override
+    void Destroy() override
     {
         WaitFor(Executor_->DestroyContainer(Name_))
             .ThrowOnError();
         Destroyed_ = true;
     }
 
-    virtual void Stop() override
+    void Stop() override
     {
         WaitFor(Executor_->StopContainer(Name_))
             .ThrowOnError();
     }
 
-    virtual TResourceUsage GetResourceUsage(const std::vector<EStatField>& fields) const override
+    TResourceUsage GetResourceUsage(const std::vector<EStatField>& fields) const override
     {
         std::vector<TString> properties;
         properties.push_back("absolute_name");
@@ -405,7 +405,7 @@ public:
         return result;
     }
 
-    virtual TResourceLimits GetResourceLimits() const override
+    TResourceLimits GetResourceLimits() const override
     {
         std::vector<TString> properties;
         static TString memoryLimitProperty = "memory_limit_total";
@@ -444,60 +444,60 @@ public:
         return TResourceLimits{cpuLimit, memoryLimit};
     }
 
-    virtual void SetCpuGuarantee(double cores) override
+    void SetCpuGuarantee(double cores) override
     {
         SetProperty("cpu_guarantee", ToString(cores) + "c");
     }
 
-    virtual void SetCpuLimit(double cores) override
+    void SetCpuLimit(double cores) override
     {
         SetProperty("cpu_limit", ToString(cores) + "c");
     }
 
-    virtual void SetCpuWeight(double weight) override
+    void SetCpuWeight(double weight) override
     {
         SetProperty("cpu_weight", weight);
     }
 
-    virtual void SetMemoryGuarantee(i64 memoryGuarantee) override
+    void SetMemoryGuarantee(i64 memoryGuarantee) override
     {
         SetProperty("memory_guarantee", memoryGuarantee);
     }
 
-    virtual void SetIOWeight(double weight) override
+    void SetIOWeight(double weight) override
     {
         SetProperty("io_weight", weight);
     }
 
-    virtual void SetIOThrottle(i64 operations) override
+    void SetIOThrottle(i64 operations) override
     {
         SetProperty("io_ops_limit", operations);
     }
 
-    virtual TString GetStderr() const override	
+    TString GetStderr() const override	
     {	
         return *WaitFor(Executor_->GetContainerProperty(Name_, "stderr"))	
             .ValueOrThrow();	
     }
 
-    virtual TString GetName() const override
+    TString GetName() const override
     {
         return Name_;
     }
 
-    virtual std::optional<TString> GetParentName() const override
+    std::optional<TString> GetParentName() const override
     {
         return NDetail::GetParentName(Name_);
     }
 
-    virtual pid_t GetPid() const override
+    pid_t GetPid() const override
     {
         auto pid = *WaitFor(Executor_->GetContainerProperty(Name_, "root_pid"))
             .ValueOrThrow();
         return std::stoi(pid);
     }
 
-    virtual std::vector<pid_t> GetPids() const override
+    std::vector<pid_t> GetPids() const override
     {
         auto getPidCgroup = [&] (const TString& cgroups) {
             for (TStringBuf cgroup : StringSplitter(cgroups).SplitByString("; ")) {
@@ -536,7 +536,7 @@ public:
         return pids;
     }
 
-    virtual TFuture<void> Wait() override 
+    TFuture<void> Wait() override 
     {
         return Executor_->PollContainer(Name_)
             .Apply(BIND([] (int status) {

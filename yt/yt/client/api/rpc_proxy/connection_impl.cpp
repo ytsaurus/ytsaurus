@@ -123,22 +123,22 @@ public:
         , EndpointAttributes_(MakeEndpointAttributes(config, connectionId))
     { }
 
-    virtual const TString& GetEndpointDescription() const override
+    const TString& GetEndpointDescription() const override
     {
         return EndpointDescription_;
     }
 
-    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
+    const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
     {
         return *EndpointAttributes_;
     }
 
-    virtual TNetworkId GetNetworkId() const override
+    TNetworkId GetNetworkId() const override
     {
         return DefaultNetworkId;
     }
 
-    virtual TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /*request*/) override
+    TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /*request*/) override
     {
         if (Sticky_) {
             auto guard = Guard(SpinLock_);
@@ -151,7 +151,7 @@ public:
         }
     }
 
-    virtual void Terminate(const TError& /*error*/) override
+    void Terminate(const TError& /*error*/) override
     { }
 
 private:

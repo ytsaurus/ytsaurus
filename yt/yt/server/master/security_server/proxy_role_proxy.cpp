@@ -29,7 +29,7 @@ public:
 private:
     using TBase = TNonversionedObjectProxyBase<TProxyRole>;
 
-    virtual void ValidateRemoval() override
+    void ValidateRemoval() override
     {
         const auto* proxyRole = GetThisImpl();
         if (proxyRole->IsBuiltin()) {
@@ -39,7 +39,7 @@ private:
         ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
     }
 
-    virtual void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
@@ -47,7 +47,7 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ProxyKind));
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         const auto* proxyKind = GetThisImpl();
 

@@ -94,7 +94,7 @@ public:
         SegmentPrimaryEndpoints_.resize(teleportChunks.size() + 1);
     }
 
-    virtual void AddDataSlice(const TLegacyDataSlicePtr& dataSlice) override
+    void AddDataSlice(const TLegacyDataSlicePtr& dataSlice) override
     {
         YT_VERIFY(!dataSlice->IsLegacy);
         YT_VERIFY(dataSlice->LowerLimit().KeyBound);
@@ -165,7 +165,7 @@ public:
         lastDataSlice = dataSlice;
     }
 
-    virtual std::vector<TNewJobStub> Build() override
+    std::vector<TNewJobStub> Build() override
     {
         AddPivotKeysEndpoints();
 
@@ -291,7 +291,7 @@ public:
         }
     }
 
-    virtual i64 GetTotalDataSliceCount() const override
+    i64 GetTotalDataSliceCount() const override
     {
         return TotalDataSliceCount_;
     }

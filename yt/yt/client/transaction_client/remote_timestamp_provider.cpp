@@ -75,7 +75,7 @@ private:
 
     TTimestampServiceProxy Proxy_;
 
-    virtual TFuture<TTimestamp> DoGenerateTimestamps(int count) override
+    TFuture<TTimestamp> DoGenerateTimestamps(int count) override
     {
         auto req = Proxy_.GenerateTimestamps();
         req->SetResponseHeavy(true);

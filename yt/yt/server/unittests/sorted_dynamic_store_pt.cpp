@@ -103,13 +103,13 @@ public:
     }
 
 private:
-    virtual void SetUp() override
+    void SetUp() override
     {
         TSortedDynamicStoreTestBase::SetUp();
         CreateDynamicStore();
     }
 
-    virtual void CreateDynamicStore() override
+    void CreateDynamicStore() override
     {
         auto config = New<TTabletManagerConfig>();
         Store_ = New<TSortedDynamicStore>(
@@ -118,7 +118,7 @@ private:
             Tablet_.get());
     }
 
-    virtual IDynamicStorePtr GetDynamicStore() override
+    IDynamicStorePtr GetDynamicStore() override
     {
         return Store_;
     }

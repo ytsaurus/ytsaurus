@@ -39,7 +39,7 @@ public:
         : TSimpleJobBase(host)
     { }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         TSimpleJobBase::Initialize();
 
@@ -115,17 +115,17 @@ public:
     }
 
 private:
-    virtual void InitializeReader() override
+    void InitializeReader() override
     {
         DoInitializeReader(nullptr, TColumnFilter());
     }
 
-    virtual void InitializeWriter() override
+    void InitializeWriter() override
     {
         DoInitializeWriter(nullptr, nullptr);
     }
 
-    virtual i64 GetTotalReaderMemoryLimit() const override
+    i64 GetTotalReaderMemoryLimit() const override
     {
         return Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader->MaxBufferSize;
     }

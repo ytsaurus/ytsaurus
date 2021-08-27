@@ -74,7 +74,7 @@ public:
         profiler.AddProducer("/yt_alloc", MakeStrong(this));
     }
 
-    virtual void CollectSensors(NProfiling::ISensorWriter* writer) override
+    void CollectSensors(NProfiling::ISensorWriter* writer) override
     {
         PushSystemAllocationStatistics(writer);
         PushTotalAllocationStatistics(writer);

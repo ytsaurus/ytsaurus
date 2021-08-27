@@ -49,7 +49,7 @@ private:
     const IAsyncInputStreamPtr UnderlyingStream_;
     const ESyncStreamAdapterStrategy Strategy_;
 
-    virtual size_t DoRead(void* buffer, size_t length) override
+    size_t DoRead(void* buffer, size_t length) override
     {
         auto future = UnderlyingStream_->Read(TSharedMutableRef(buffer, length, nullptr));
         return WaitForWithStrategy(std::move(future), Strategy_)
@@ -80,7 +80,7 @@ public:
         , Invoker_(std::move(invoker))
     { }
 
-    virtual TFuture<size_t> Read(const TSharedMutableRef& buffer) override
+    TFuture<size_t> Read(const TSharedMutableRef& buffer) override
     {
         return
             BIND(&TAsyncInputStreamAdapter::DoRead, MakeStrong(this), buffer)
@@ -175,7 +175,7 @@ private:
     }
 
 protected:
-    virtual void DoWrite(const void* buffer, size_t length) override
+    void DoWrite(const void* buffer, size_t length) override
     {
         if (length > SpaceLeft()) {
             DoFlush();
@@ -188,7 +188,7 @@ protected:
         }
     }
 
-    virtual void DoFlush() override
+    void DoFlush() override
     {
         if (!CurrentBufferSize_) {
             return;
@@ -229,7 +229,7 @@ public:
             bufferCapacity))
     { }
 
-    virtual void MakeCheckpoint() override
+    void MakeCheckpoint() override
     {
         DoFlush();
         TCheckpointableStreamBlockHeader sentinel{TCheckpointableStreamBlockHeader::CheckpointSentinel};
@@ -245,7 +245,7 @@ public:
     }
 
 protected:
-    virtual void DoFlush() override
+    void DoFlush() override
     {
         if (!Adapter_->BufferSize()) {
             return;
@@ -254,7 +254,7 @@ protected:
         Adapter_->Flush();
     }
 
-    virtual void DoWrite(const void* data, size_t length) override
+    void DoWrite(const void* data, size_t length) override
     {
         if (length > Adapter_->SpaceLeft()) {
             DoFlush();
@@ -303,21 +303,21 @@ public:
         , Invoker_(std::move(invoker))
     { }
 
-    virtual TFuture<void> Write(const TSharedRef& buffer) override
+    TFuture<void> Write(const TSharedRef& buffer) override
     {
         return BIND(&TFlushableAsyncOutputStreamAdapter::DoWrite, MakeStrong(this), buffer)
             .AsyncVia(Invoker_)
             .Run();
     }
 
-    virtual TFuture<void> Flush() override
+    TFuture<void> Flush() override
     {
         return BIND(&TFlushableAsyncOutputStreamAdapter::DoFlush, MakeStrong(this))
             .AsyncVia(Invoker_)
             .Run();
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         return BIND(&TFlushableAsyncOutputStreamAdapter::DoFinish, MakeStrong(this))
             .AsyncVia(Invoker_)
@@ -391,7 +391,7 @@ public:
         , BlockSize_(blockSize)
     { }
 
-    virtual TFuture<TSharedRef> Read() override
+    TFuture<TSharedRef> Read() override
     {
         struct TZeroCopyInputStreamAdapterBlockTag
         { };
@@ -470,7 +470,7 @@ public:
         YT_VERIFY(UnderlyingStream_);
     }
 
-    virtual TFuture<size_t> Read(const TSharedMutableRef& buffer) override
+    TFuture<size_t> Read(const TSharedMutableRef& buffer) override
     {
         if (CurrentBlock_) {
             // NB(psushin): no swapping here, it's a _copying_ adapter!
@@ -527,13 +527,13 @@ public:
         YT_VERIFY(UnderlyingStream_);
     }
 
-    virtual TFuture<void> Write(const TSharedRef& data) override
+    TFuture<void> Write(const TSharedRef& data) override
     {
         YT_ASSERT(data);
         return Push(data);
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         return Push(TSharedRef());
     }
@@ -644,7 +644,7 @@ public:
         YT_VERIFY(UnderlyingStream_);
     }
 
-    virtual TFuture<void> Write(const TSharedRef& buffer) override
+    TFuture<void> Write(const TSharedRef& buffer) override
     {
         struct TCopyingOutputStreamAdapterBlockTag { };
         auto block = TSharedMutableRef::Allocate<TCopyingOutputStreamAdapterBlockTag>(buffer.Size(), false);
@@ -652,7 +652,7 @@ public:
         return UnderlyingStream_->Write(block);
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         return UnderlyingStream_->Close();
     }
@@ -682,7 +682,7 @@ public:
         YT_VERIFY(WindowSize_ > 0);
     }
 
-    virtual TFuture<TSharedRef> Read() override
+    TFuture<TSharedRef> Read() override
     {
         auto guard = Guard(SpinLock_);
         if (!Error_.IsOK()) {
@@ -793,7 +793,7 @@ public:
         Buffer_ = TSharedMutableRef::Allocate<TBufferingInputStreamAdapterBufferTag>(WindowSize_, false);
     }
 
-    virtual TFuture<TSharedRef> Read() override
+    TFuture<TSharedRef> Read() override
     {
         auto guard = Guard(SpinLock_);
         if (PrefetchedSize_ == 0) {
@@ -917,7 +917,7 @@ public:
         YT_VERIFY(Timeout_ > TDuration::Zero());
     }
 
-    virtual TFuture<TSharedRef> Read() override
+    TFuture<TSharedRef> Read() override
     {
         auto guard = Guard(SpinLock_);
 
@@ -1016,7 +1016,7 @@ public:
         YT_VERIFY(UnderlyingStream_);
     }
 
-    virtual TFuture<TSharedRef> Read() override
+    TFuture<TSharedRef> Read() override
     {
         auto guard = Guard(SpinLock_);
 

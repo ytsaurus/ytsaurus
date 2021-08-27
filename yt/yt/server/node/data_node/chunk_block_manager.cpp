@@ -43,7 +43,7 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    virtual TFuture<std::vector<TBlock>> ReadBlockRange(
+    TFuture<std::vector<TBlock>> ReadBlockRange(
         TChunkId chunkId,
         int firstBlockIndex,
         int blockCount,
@@ -64,7 +64,7 @@ public:
         }
     }
 
-    virtual TFuture<std::vector<TBlock>> ReadBlockSet(
+    TFuture<std::vector<TBlock>> ReadBlockSet(
         TChunkId chunkId,
         const std::vector<int>& blockIndexes,
         const TChunkReadOptions& options) override

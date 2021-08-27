@@ -1087,22 +1087,22 @@ private:
         { }
 
         // IMultiplexedReplayerCallbacks
-        virtual std::vector<TMultiplexedChangelogDescriptor> ListMultiplexedChangelogs() override
+        std::vector<TMultiplexedChangelogDescriptor> ListMultiplexedChangelogs() override
         {
             return Impl_->MultiplexedWriter_->ListMultiplexedChangelogs();
         }
 
-        virtual IChangelogPtr OpenMultiplexedChangelog(int id) override
+        IChangelogPtr OpenMultiplexedChangelog(int id) override
         {
             return Impl_->MultiplexedWriter_->OpenMultiplexedChangelog(id);
         }
 
-        virtual void MarkMultiplexedChangelogClean(int id) override
+        void MarkMultiplexedChangelogClean(int id) override
         {
             Impl_->MultiplexedWriter_->MarkMultiplexedChangelogClean(id);
         }
 
-        virtual IChangelogPtr CreateSplitChangelog(TChunkId chunkId) override
+        IChangelogPtr CreateSplitChangelog(TChunkId chunkId) override
         {
             const auto& chunkStore = Impl_->Bootstrap_->GetChunkStore();
             if (chunkStore->FindChunk(chunkId)) {
@@ -1129,7 +1129,7 @@ private:
             return changelog;
         }
 
-        virtual IChangelogPtr OpenSplitChangelog(TChunkId chunkId) override
+        IChangelogPtr OpenSplitChangelog(TChunkId chunkId) override
         {
             const auto& chunkStore = Impl_->Bootstrap_->GetChunkStore();
             auto chunk = chunkStore->FindChunk(chunkId);
@@ -1147,7 +1147,7 @@ private:
             return changelog;
         }
 
-        virtual void FlushSplitChangelog(TChunkId chunkId) override
+        void FlushSplitChangelog(TChunkId chunkId) override
         {
             const auto& chunkStore = Impl_->Bootstrap_->GetChunkStore();
             auto chunk = chunkStore->FindChunk(chunkId);
@@ -1164,7 +1164,7 @@ private:
             journalChunk->UpdateDataSize(changelog->GetDataSize());
         }
 
-        virtual bool RemoveSplitChangelog(TChunkId chunkId) override
+        bool RemoveSplitChangelog(TChunkId chunkId) override
         {
             const auto& chunkStore = Impl_->Bootstrap_->GetChunkStore();
             auto chunk = chunkStore->FindChunk(chunkId);
@@ -1182,7 +1182,7 @@ private:
             return true;
         }
 
-        virtual bool IsSplitChangelogSealed(TChunkId chunkId) override
+        bool IsSplitChangelogSealed(TChunkId chunkId) override
         {
              return WaitFor(Impl_->IsChangelogSealed(chunkId))
                  .ValueOrThrow();

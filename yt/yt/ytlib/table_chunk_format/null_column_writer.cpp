@@ -18,22 +18,22 @@ public:
         : TColumnWriterBase(blockWriter)
     { }
 
-    virtual void WriteVersionedValues(TRange<TVersionedRow> rows) override
+    void WriteVersionedValues(TRange<TVersionedRow> rows) override
     {
         RowCount_ += rows.size();
     }
 
-    virtual void WriteUnversionedValues(TRange<TUnversionedRow> rows) override
+    void WriteUnversionedValues(TRange<TUnversionedRow> rows) override
     {
         RowCount_ += rows.size();
     }
 
-    virtual i32 GetCurrentSegmentSize() const override
+    i32 GetCurrentSegmentSize() const override
     {
         return RowCount_ == PrevRowCount_ ? 0 : 1;
     }
 
-    virtual void FinishCurrentSegment() override
+    void FinishCurrentSegment() override
     {
         if (RowCount_ > PrevRowCount_) {
             TSegmentInfo segmentInfo;

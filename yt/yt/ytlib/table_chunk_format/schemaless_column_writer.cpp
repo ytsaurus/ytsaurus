@@ -31,12 +31,12 @@ public:
         Reset();
     }
 
-    virtual void WriteVersionedValues(TRange<TVersionedRow> /*rows*/) override
+    void WriteVersionedValues(TRange<TVersionedRow> /*rows*/) override
     {
         YT_ABORT();
     }
 
-    virtual void WriteUnversionedValues(TRange<TUnversionedRow> rows) override
+    void WriteUnversionedValues(TRange<TUnversionedRow> rows) override
     {
         AddValues(rows);
         if (Offsets_.size() > MaxRowCount || DataBuffer_->GetSize() > MaxBufferSize) {
@@ -44,7 +44,7 @@ public:
         }
     }
 
-    virtual i32 GetCurrentSegmentSize() const override
+    i32 GetCurrentSegmentSize() const override
     {
         if (Offsets_.empty()) {
             return 0;
@@ -54,7 +54,7 @@ public:
         }
     }
 
-    virtual void FinishCurrentSegment() override
+    void FinishCurrentSegment() override
     {
         if (Offsets_.size() > 0) {
             DumpSegment();

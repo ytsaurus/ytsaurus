@@ -85,7 +85,7 @@ public:
             TDuration::Seconds(1)))
     { }
 
-    virtual void Start() override
+    void Start() override
     {
         auto profiler = DataNodeProfiler
             .WithPrefix("/ally_replica_manager");
@@ -105,7 +105,7 @@ public:
                 .Via(Bootstrap_->GetStorageLightInvoker()));
     }
 
-    virtual void ScheduleAnnouncements(
+    void ScheduleAnnouncements(
         TRange<const NChunkClient::NProto::TChunkReplicaAnnouncementRequest*> requests,
         NHydra::TRevision revision,
         bool onFullHeartbeat) override
@@ -192,7 +192,7 @@ public:
         }
     }
 
-    virtual void OnAnnouncementsReceived(
+    void OnAnnouncementsReceived(
         TRange<const NChunkClient::NProto::TChunkReplicaAnnouncement*> announcements,
         TNodeId sourceNodeId) override
     {
@@ -284,7 +284,7 @@ public:
         OutdatedAnnouncementsReceived_.Increment(outdatedAnnouncementsReceived);
     }
 
-    virtual std::vector<std::pair<TChunkId, NHydra::TRevision>>
+    std::vector<std::pair<TChunkId, NHydra::TRevision>>
         TakeUnconfirmedAnnouncementRequests(TCellTag cellTag) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -297,14 +297,14 @@ public:
         return std::move(it->second);
     }
 
-    virtual void SetEnableLazyAnnouncements(bool enable) override
+    void SetEnableLazyAnnouncements(bool enable) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         EnableLazyAnnouncements_ = enable;
     }
 
-    virtual TAllyReplicasInfo GetAllyReplicas(TChunkId chunkId) const override
+    TAllyReplicasInfo GetAllyReplicas(TChunkId chunkId) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -320,7 +320,7 @@ public:
         return {};
     }
 
-    virtual IYPathServicePtr GetOrchidService() const override
+    IYPathServicePtr GetOrchidService() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -330,7 +330,7 @@ public:
             ->Via(Bootstrap_->GetControlInvoker());
     }
 
-    virtual void BuildChunkOrchidYson(NYTree::TFluentMap fluent, TChunkId chunkId) const override
+    void BuildChunkOrchidYson(NYTree::TFluentMap fluent, TChunkId chunkId) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

@@ -52,14 +52,14 @@ public:
         , Logger(logger.WithTag("FetcherChunkScraperId: %v", TGuid::Create()))
     { }
 
-    virtual TFuture<void> ScrapeChunks(const THashSet<TInputChunkPtr>& chunkSpecs) override
+    TFuture<void> ScrapeChunks(const THashSet<TInputChunkPtr>& chunkSpecs) override
     {
         return BIND(&TFetcherChunkScraper::DoScrapeChunks, MakeStrong(this))
             .AsyncVia(Invoker_)
             .Run(chunkSpecs);
     }
 
-    virtual i64 GetUnavailableChunkCount() const override
+    i64 GetUnavailableChunkCount() const override
     {
         return UnavailableFetcherChunkCount_;
     }

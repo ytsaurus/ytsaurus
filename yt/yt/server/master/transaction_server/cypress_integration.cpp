@@ -42,27 +42,27 @@ private:
         return static_cast<const T*>(this)->Transactions();
     }
 
-    virtual std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
+    std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
     {
         return ToObjectIds(Transactions(), sizeLimit);
     }
 
-    virtual bool IsValid(TObject* object) const override
+    bool IsValid(TObject* object) const override
     {
         return IsObjectAlive(object);
     }
 
-    virtual bool NeedSuppressUpstreamSync() const override
+    bool NeedSuppressUpstreamSync() const override
     {
         return false;
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         return Transactions().size();
     }
 
-    virtual NYPath::TYPath GetWellKnownPath() const override
+    NYPath::TYPath GetWellKnownPath() const override
     {
         return static_cast<const T*>(this)->GetWellKnownPath();
     }
@@ -82,7 +82,7 @@ public:
         return transactionManager->NativeTopmostTransactions();
     }
 
-    NYPath::TYPath GetWellKnownPath() const
+    NYPath::TYPath GetWellKnownPath() const override
     {
         return "//sys/topmost_transactions";
     }
@@ -102,7 +102,7 @@ public:
         return transactionManager->NativeTransactions();
     }
 
-    NYPath::TYPath GetWellKnownPath() const
+    NYPath::TYPath GetWellKnownPath() const override
     {
         return "//sys/transactions";
     }

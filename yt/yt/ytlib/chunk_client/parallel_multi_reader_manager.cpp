@@ -20,7 +20,7 @@ public:
         std::vector<IReaderFactoryPtr> readerFactories,
         IMultiReaderMemoryManagerPtr multiReaderMemoryManager);
 
-    virtual TMultiReaderManagerUnreadState GetUnreadState() const override;
+    TMultiReaderManagerUnreadState GetUnreadState() const override;
 
 private:
     typedef NConcurrency::TNonblockingQueue<TMultiReaderManagerSession> TMultiReaderManagerSessionQueue;
@@ -28,11 +28,11 @@ private:
     TMultiReaderManagerSessionQueue ReadySessions_;
     int FinishedReaderCount_ = 0;
 
-    virtual TFuture<void> DoOpen() override;
+    TFuture<void> DoOpen() override;
 
-    virtual void OnReaderOpened(const IReaderBasePtr& chunkReader, int chunkIndex) override;
-    virtual void OnReaderBlocked() override;
-    virtual void OnReaderFinished() override;
+    void OnReaderOpened(const IReaderBasePtr& chunkReader, int chunkIndex) override;
+    void OnReaderBlocked() override;
+    void OnReaderFinished() override;
 
     TFuture<void> WaitForReadySession();
     void OnSessionReady(const TErrorOr<TMultiReaderManagerSession>& errorOrSession);

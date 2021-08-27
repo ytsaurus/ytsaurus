@@ -113,7 +113,7 @@ public:
         RollbackIfNeeded();
     }
 
-    virtual void Commit() noexcept override
+    void Commit() noexcept override
     {
         TTransactionalNodeFactoryBase::Commit();
 
@@ -166,99 +166,99 @@ public:
         ReleaseStagedObjects();
     }
 
-    virtual void Rollback() noexcept override
+    void Rollback() noexcept override
     {
         TTransactionalNodeFactoryBase::Rollback();
 
         ReleaseStagedObjects();
     }
 
-    virtual IStringNodePtr CreateString() override
+    IStringNodePtr CreateString() override
     {
         return CreateNode(EObjectType::StringNode)->AsString();
     }
 
-    virtual IInt64NodePtr CreateInt64() override
+    IInt64NodePtr CreateInt64() override
     {
         return CreateNode(EObjectType::Int64Node)->AsInt64();
     }
 
-    virtual IUint64NodePtr CreateUint64() override
+    IUint64NodePtr CreateUint64() override
     {
         return CreateNode(EObjectType::Uint64Node)->AsUint64();
     }
 
-    virtual IDoubleNodePtr CreateDouble() override
+    IDoubleNodePtr CreateDouble() override
     {
         return CreateNode(EObjectType::DoubleNode)->AsDouble();
     }
 
-    virtual IBooleanNodePtr CreateBoolean() override
+    IBooleanNodePtr CreateBoolean() override
     {
         return CreateNode(EObjectType::BooleanNode)->AsBoolean();
     }
 
-    virtual IMapNodePtr CreateMap() override
+    IMapNodePtr CreateMap() override
     {
         return CreateNode(EObjectType::MapNode)->AsMap();
     }
 
-    virtual IListNodePtr CreateList() override
+    IListNodePtr CreateList() override
     {
         return CreateNode(EObjectType::ListNode)->AsList();
     }
 
-    virtual IEntityNodePtr CreateEntity() override
+    IEntityNodePtr CreateEntity() override
     {
         THROW_ERROR_EXCEPTION("Entity nodes cannot be created inside Cypress");
     }
 
-    virtual NTransactionServer::TTransaction* GetTransaction() const override
+    NTransactionServer::TTransaction* GetTransaction() const override
     {
         return Transaction_;
     }
 
-    virtual bool ShouldPreserveCreationTime() const override
+    bool ShouldPreserveCreationTime() const override
     {
         return Options_.PreserveCreationTime;
     }
 
-    virtual bool ShouldPreserveModificationTime() const override
+    bool ShouldPreserveModificationTime() const override
     {
         return Options_.PreserveModificationTime;
     }
 
-    virtual bool ShouldPreserveExpirationTime() const override
+    bool ShouldPreserveExpirationTime() const override
     {
         return Options_.PreserveExpirationTime;
     }
 
-    virtual bool ShouldPreserveExpirationTimeout() const override
+    bool ShouldPreserveExpirationTimeout() const override
     {
         return Options_.PreserveExpirationTimeout;
     }
 
-    virtual bool ShouldPreserveOwner() const override
+    bool ShouldPreserveOwner() const override
     {
         return Options_.PreserveOwner;
     }
 
-    virtual bool ShouldPreserveAcl() const override
+    bool ShouldPreserveAcl() const override
     {
         return Options_.PreserveAcl;
     }
 
-    virtual TAccount* GetNewNodeAccount() const override
+    TAccount* GetNewNodeAccount() const override
     {
         return Account_;
     }
 
-    virtual TAccount* GetClonedNodeAccount(TAccount* sourceAccount) const override
+    TAccount* GetClonedNodeAccount(TAccount* sourceAccount) const override
     {
         return Options_.PreserveAccount ? sourceAccount : Account_;
     }
 
-    virtual void ValidateClonedAccount(
+    void ValidateClonedAccount(
         ENodeCloneMode mode,
         TAccount* sourceAccount,
         TClusterResources sourceResourceUsage,
@@ -287,7 +287,7 @@ public:
         }
     }
 
-    virtual ICypressNodeProxyPtr CreateNode(
+    ICypressNodeProxyPtr CreateNode(
         EObjectType type,
         IAttributeDictionary* inheritedAttributes = nullptr,
         IAttributeDictionary* explicitAttributes = nullptr) override
@@ -447,7 +447,7 @@ public:
         return cypressManager->GetNodeProxy(trunkNode, Transaction_);
     }
 
-    virtual TCypressNode* InstantiateNode(
+    TCypressNode* InstantiateNode(
         TNodeId id,
         TCellTag externalCellTag) override
     {
@@ -463,7 +463,7 @@ public:
         return node;
     }
 
-    virtual TCypressNode* CloneNode(
+    TCypressNode* CloneNode(
         TCypressNode* sourceNode,
         ENodeCloneMode mode) override
     {
@@ -498,7 +498,7 @@ public:
         return clonedNode;
     }
 
-    virtual TCypressNode* EndCopyNode(TEndCopyContext* context) override
+    TCypressNode* EndCopyNode(TEndCopyContext* context) override
     {
         // See BeginCopyCore.
         using NYT::Load;
@@ -544,7 +544,7 @@ public:
         return clonedNode;
     }
 
-    virtual TCypressNode* EndCopyNodeInplace(
+    TCypressNode* EndCopyNodeInplace(
         TCypressNode* trunkNode,
         TEndCopyContext* context) override
     {
@@ -670,23 +670,23 @@ public:
         TImpl* owner,
         INodeTypeHandlerPtr underlyingHandler);
 
-    virtual ETypeFlags GetFlags() const override
+    ETypeFlags GetFlags() const override
     {
         return UnderlyingHandler_->GetFlags();
     }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return UnderlyingHandler_->GetObjectType();
     }
 
-    virtual TObject* FindObject(TObjectId id) override
+    TObject* FindObject(TObjectId id) override
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         return cypressManager->FindNode(TVersionedNodeId(id));
     }
 
-    virtual TObject* CreateObject(
+    TObject* CreateObject(
         TObjectId /*hintId*/,
         IAttributeDictionary* /*attributes*/) override
     {
@@ -698,15 +698,15 @@ private:
     const INodeTypeHandlerPtr UnderlyingHandler_;
 
 
-    virtual TCellTagList DoGetReplicationCellTags(const TCypressNode* node) override
+    TCellTagList DoGetReplicationCellTags(const TCypressNode* node) override
     {
         auto externalCellTag = node->GetExternalCellTag();
         return externalCellTag == NotReplicatedCellTag ? TCellTagList() : TCellTagList{externalCellTag};
     }
 
-    virtual TString DoGetName(const TCypressNode* node) override;
+    TString DoGetName(const TCypressNode* node) override;
 
-    virtual IObjectProxyPtr DoGetProxy(
+    IObjectProxyPtr DoGetProxy(
         TCypressNode* node,
         TTransaction* transaction) override
     {
@@ -714,22 +714,22 @@ private:
         return cypressManager->GetNodeProxy(node, transaction);
     }
 
-    virtual TAccessControlDescriptor* DoFindAcd(TCypressNode* node) override
+    TAccessControlDescriptor* DoFindAcd(TCypressNode* node) override
     {
         return &node->GetTrunkNode()->Acd();
     }
 
-    virtual std::optional<std::vector<TString>> DoListColumns(TCypressNode* node) override
+    std::optional<std::vector<TString>> DoListColumns(TCypressNode* node) override
     {
         return UnderlyingHandler_->ListColumns(node);
     }
 
-    virtual TObject* DoGetParent(TCypressNode* node) override
+    TObject* DoGetParent(TCypressNode* node) override
     {
         return node->GetParent();
     }
 
-    virtual void DoDestroyObject(TCypressNode* node) noexcept override;
+    void DoDestroyObject(TCypressNode* node) noexcept override;
 
 };
 
@@ -741,13 +741,13 @@ class TCypressManager::TLockTypeHandler
 public:
     explicit TLockTypeHandler(TImpl* owner);
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::Lock;
     }
 
 private:
-    virtual IObjectProxyPtr DoGetProxy(
+    IObjectProxyPtr DoGetProxy(
         TLock* lock,
         TTransaction* /*transaction*/) override
     {
@@ -793,7 +793,7 @@ private:
     TRichClusterResources LocalCellResourceUsage_;
     std::vector<TFuture<TRichClusterResources>> RemoteCellResourceUsage_;
 
-    virtual void OnNode(TCypressNode* trunkNode, TTransaction* transaction) override
+    void OnNode(TCypressNode* trunkNode, TTransaction* transaction) override
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* node = cypressManager->GetVersionedNode(trunkNode, transaction);
@@ -815,14 +815,14 @@ private:
         }
     }
 
-    virtual void OnError(const TError& error) override
+    void OnError(const TError& error) override
     {
         auto wrappedError = TError("Error computing recursive resource usage")
             << error;
         Promise_.Set(wrappedError);
     }
 
-    virtual void OnCompleted() override
+    void OnCompleted() override
     {
         AllSucceeded(std::move(RemoteCellResourceUsage_))
             .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TRichClusterResources>>& resourceUsageOrError) {
@@ -2053,7 +2053,7 @@ private:
         NeedAbortStuckExternalizedTransactions_YT_12559_ = context.GetVersion() < EMasterReign::YT_12559_AbortStuckExternalizedTransactions;
     }
 
-    virtual void Clear() override
+    void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -2071,7 +2071,7 @@ private:
         RecursiveResourceUsageCache_->Clear();
     }
 
-    virtual void SetZeroState() override
+    void SetZeroState() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -2080,7 +2080,7 @@ private:
         InitBuiltins();
     }
 
-    virtual void OnBeforeSnapshotLoaded() override
+    void OnBeforeSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
@@ -2088,7 +2088,7 @@ private:
         NeedAbortStuckExternalizedTransactions_YT_12559_ = false;
     }
 
-    virtual void OnAfterSnapshotLoaded() override
+    void OnAfterSnapshotLoaded() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -2360,7 +2360,7 @@ private:
     }
 
 
-    virtual void OnRecoveryComplete() override
+    void OnRecoveryComplete() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -2369,7 +2369,7 @@ private:
         AccessTracker_->Start();
     }
 
-    virtual void OnLeaderRecoveryComplete() override
+    void OnLeaderRecoveryComplete() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -2378,7 +2378,7 @@ private:
         ExpirationTracker_->Start();
     }
 
-    virtual void OnStopLeading() override
+    void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -2388,7 +2388,7 @@ private:
         OnStopEpoch();
     }
 
-    virtual void OnStopFollowing() override
+    void OnStopFollowing() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

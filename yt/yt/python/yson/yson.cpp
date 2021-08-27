@@ -77,12 +77,12 @@ public:
         TBase::behaviors().readyType();
     }
 
-    Py::Object iter()
+    Py::Object iter() override
     {
         return TBase::self();
     }
 
-    PyObject* iternext() 
+    PyObject* iternext() override 
     {
         YT_VERIFY(InputStreamHolder_);
         YT_VERIFY(Parser_);
@@ -133,12 +133,12 @@ public:
         Parser_ = TListFragmentParser(inputStream);
     }
 
-    Py::Object iter()
+    Py::Object iter() override
     {
         return self();
     }
 
-    PyObject* iternext()
+    PyObject* iternext() override
     {
         try {
             TSharedRef item;
@@ -200,12 +200,12 @@ public:
         ObjectBuilder_.reset(new TPullObjectBuilder(Parser_.get(), alwaysCreateAttributes, encoding));
     }
 
-    Py::Object iter()
+    Py::Object iter() override
     {
         return self();
     }
 
-    PyObject* iternext()
+    PyObject* iternext() override
     {
         try {
             auto result = ObjectBuilder_->ParseObjectLazy().release();

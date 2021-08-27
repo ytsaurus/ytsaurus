@@ -19,7 +19,7 @@ public:
         : TChannelWrapper(std::move(underlyingChannel))
     { }
 
-    virtual IClientRequestControlPtr Send(
+    IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
@@ -39,7 +39,7 @@ public:
         return entry->RequestControlThunk;
     }
 
-    virtual void Terminate(const TError& /*error*/) override
+    void Terminate(const TError& /*error*/) override
     {
         YT_ABORT();
     }
@@ -67,29 +67,29 @@ private:
             , Owner_(std::move(owner))
         { }
 
-        virtual void HandleAcknowledgement() override
+        void HandleAcknowledgement() override
         {
             UnderlyingHandler_->HandleAcknowledgement();
         }
 
-        virtual void HandleResponse(TSharedRefArray message) override
+        void HandleResponse(TSharedRefArray message) override
         {
             UnderlyingHandler_->HandleResponse(std::move(message));
             Owner_->OnRequestCompleted();
         }
 
-        virtual void HandleError(const TError& error) override
+        void HandleError(const TError& error) override
         {
             UnderlyingHandler_->HandleError(error);
             Owner_->OnRequestCompleted();
         }
 
-        virtual void HandleStreamingPayload(const TStreamingPayload& payload) override
+        void HandleStreamingPayload(const TStreamingPayload& payload) override
         {
             UnderlyingHandler_->HandleStreamingPayload(payload);
         }
 
-        virtual void HandleStreamingFeedback(const TStreamingFeedback& feedback) override
+        void HandleStreamingFeedback(const TStreamingFeedback& feedback) override
         {
             UnderlyingHandler_->HandleStreamingFeedback(feedback);
         }

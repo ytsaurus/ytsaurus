@@ -26,12 +26,12 @@ class TChaosCellTypeHandler
 public:
     using TCellTypeHandlerBase::TCellTypeHandlerBase;
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::ChaosCell;
     }
 
-    virtual TObject* CreateObject(
+    TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
@@ -42,7 +42,7 @@ public:
         return DoCreateObject(std::move(holder), attributes);
     }
 
-    virtual std::unique_ptr<TObject> InstantiateObject(
+    std::unique_ptr<TObject> InstantiateObject(
         TObjectId hintId) override
     {
         return TPoolAllocator::New<TChaosCell>(hintId);
@@ -51,12 +51,12 @@ public:
 private:
     using TBase = TCellTypeHandlerBase<TChaosCell>;
 
-    virtual TString DoGetName(const TChaosCell* cell) override
+    TString DoGetName(const TChaosCell* cell) override
     {
         return Format("chaos cell %v", cell->GetId());
     }
 
-    virtual IObjectProxyPtr DoGetProxy(TChaosCell* cell, TTransaction* /*transaction*/) override
+    IObjectProxyPtr DoGetProxy(TChaosCell* cell, TTransaction* /*transaction*/) override
     {
         return CreateChaosCellProxy(Bootstrap_, &Metadata_, cell);
     }

@@ -28,12 +28,12 @@ class TChaosCellBundleTypeHandler
 public:
     using TCellBundleTypeHandlerBase::TCellBundleTypeHandlerBase;
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::ChaosCellBundle;
     }
 
-    virtual TObject* CreateObject(
+    TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
@@ -50,7 +50,7 @@ public:
         return DoCreateObject(std::move(holder), attributes, std::move(options));
     }
 
-    virtual std::unique_ptr<TObject> InstantiateObject(
+    std::unique_ptr<TObject> InstantiateObject(
         TObjectId hintId) override
     {
         return TPoolAllocator::New<TChaosCellBundle>(hintId);
@@ -59,12 +59,12 @@ public:
 private:
     using TBase = TCellBundleTypeHandlerBase<TChaosCellBundle>;
 
-    virtual TString DoGetName(const TChaosCellBundle* cellBundle) override
+    TString DoGetName(const TChaosCellBundle* cellBundle) override
     {
         return Format("chaos cell bundle %Qv", cellBundle->GetName());
     }
 
-    virtual IObjectProxyPtr DoGetProxy(TChaosCellBundle* cellBundle, TTransaction* /*transaction*/) override
+    IObjectProxyPtr DoGetProxy(TChaosCellBundle* cellBundle, TTransaction* /*transaction*/) override
     {
         return CreateChaosCellBundleProxy(Bootstrap_, &Metadata_, cellBundle);
     }

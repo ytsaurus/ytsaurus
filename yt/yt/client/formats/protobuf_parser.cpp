@@ -257,7 +257,7 @@ public:
         }
     }
 
-    virtual void Finish() override
+    void Finish() override
     {
         if (State_ != EState::InsideLength || ExpectedBytes_ != sizeof(ui32)) {
             THROW_ERROR_EXCEPTION("Unexpected end of stream");

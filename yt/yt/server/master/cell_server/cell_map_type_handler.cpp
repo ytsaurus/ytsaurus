@@ -27,7 +27,7 @@ public:
         , CellMapType_(cellMapType)
     { }
 
-    virtual EObjectType GetObjectType() const override
+    EObjectType GetObjectType() const override
     {
         return CellMapType_;
     }
@@ -36,7 +36,7 @@ private:
     const ECellarType CellarType_;
     const EObjectType CellMapType_;
 
-    virtual ICypressNodeProxyPtr DoGetProxy(
+    ICypressNodeProxyPtr DoGetProxy(
         TMapNode* trunkNode,
         TTransaction* transaction) override
     {

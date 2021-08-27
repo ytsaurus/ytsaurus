@@ -159,7 +159,7 @@ private:
     static constexpr i64 MaxBufferedSize = 64_KB;
 
 
-    virtual void OnStringScalar(TStringBuf value) override
+    void OnStringScalar(TStringBuf value) override
     {
         if (State_ != EJournalConsumerState::AtData) {
             ThrowMalformedData();
@@ -172,37 +172,37 @@ private:
         State_ = EJournalConsumerState::InsideMap;
     }
 
-    virtual void OnInt64Scalar(i64 /*value*/) override
+    void OnInt64Scalar(i64 /*value*/) override
     {
         ThrowMalformedData();
     }
 
-    virtual void OnUint64Scalar(ui64 /*value*/) override
+    void OnUint64Scalar(ui64 /*value*/) override
     {
         ThrowMalformedData();
     }
 
-    virtual void OnDoubleScalar(double /*value*/) override
+    void OnDoubleScalar(double /*value*/) override
     {
         ThrowMalformedData();
     }
 
-    virtual void OnBooleanScalar(bool /*value*/) override
+    void OnBooleanScalar(bool /*value*/) override
     {
         ThrowMalformedData();
     }
 
-    virtual void OnEntity() override
+    void OnEntity() override
     {
         ThrowMalformedData();
     }
 
-    virtual void OnBeginList() override
+    void OnBeginList() override
     {
         ThrowMalformedData();
     }
 
-    virtual void OnListItem() override
+    void OnListItem() override
     {
         if (State_ != EJournalConsumerState::Root) {
             ThrowMalformedData();
@@ -210,12 +210,12 @@ private:
         State_ = EJournalConsumerState::AtItem;
     }
 
-    virtual void OnEndList() override
+    void OnEndList() override
     {
         YT_ABORT();
     }
 
-    virtual void OnBeginMap() override
+    void OnBeginMap() override
     {
         if (State_ != EJournalConsumerState::AtItem) {
             ThrowMalformedData();
@@ -223,7 +223,7 @@ private:
         State_ = EJournalConsumerState::InsideMap;
     }
 
-    virtual void OnKeyedItem(TStringBuf key) override
+    void OnKeyedItem(TStringBuf key) override
     {
         if (State_ != EJournalConsumerState::InsideMap) {
             ThrowMalformedData();
@@ -234,7 +234,7 @@ private:
         State_ = EJournalConsumerState::AtData;
     }
 
-    virtual void OnEndMap() override
+    void OnEndMap() override
     {
         if (State_ != EJournalConsumerState::InsideMap) {
             ThrowMalformedData();
@@ -242,12 +242,12 @@ private:
         State_ = EJournalConsumerState::Root;
     }
 
-    virtual void OnBeginAttributes() override
+    void OnBeginAttributes() override
     {
         ThrowMalformedData();
     }
 
-    virtual void OnEndAttributes() override
+    void OnEndAttributes() override
     {
         YT_ABORT();
     }

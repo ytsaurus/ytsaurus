@@ -48,7 +48,7 @@ private:
             YT_VERIFY(Owner_->Refs_.fetch_sub(1, std::memory_order_release) > 0);
         }
 
-        virtual void Invoke(TClosure callback) override
+        void Invoke(TClosure callback) override
         {
             Owner_->Invoke(BIND([this_ = MakeStrong(this), callback = std::move(callback)] {
                 TCurrentInvokerGuard guard(std::move(this_));
@@ -62,12 +62,12 @@ private:
         }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-        virtual NConcurrency::TThreadId GetThreadId() const override
+        NConcurrency::TThreadId GetThreadId() const override
         {
             return Owner_->Queue_->GetThreadId();
         }
 
-        virtual bool CheckAffinity(const IInvokerPtr& invoker) const override
+        bool CheckAffinity(const IInvokerPtr& invoker) const override
         {
             return invoker->GetThreadId() == Owner_->Queue_->GetThreadId();
         }

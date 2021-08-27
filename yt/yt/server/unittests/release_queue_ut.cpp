@@ -43,7 +43,7 @@ public:
         return released;
     }
 
-    virtual void SetUp() override
+    void SetUp() override
     {
         Reset();
     }

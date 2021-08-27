@@ -201,7 +201,7 @@ public:
     { }
 
     // IPrepareCallbacks implementation.
-    virtual TFuture<TDataSplit> GetInitialSplit(
+    TFuture<TDataSplit> GetInitialSplit(
         const TYPath& path,
         TTimestamp timestamp) override
     {

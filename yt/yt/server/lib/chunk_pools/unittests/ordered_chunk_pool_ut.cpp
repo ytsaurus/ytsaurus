@@ -51,7 +51,7 @@ class TOrderedChunkPoolTest
     : public Test
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     {
         Options_.MinTeleportChunkSize = Inf64;
         Options_.MaxTotalSliceCount = Inf64;
@@ -543,7 +543,7 @@ class TOrderedChunkPoolTestRandomized
 public:
     TOrderedChunkPoolTestRandomized() = default;
 
-    virtual void SetUp() override final
+    void SetUp() final
     {
         TOrderedChunkPoolTest::SetUp();
         Gen_.seed(GetParam());

@@ -297,7 +297,7 @@ public:
 #undef REGISTER_ALL
     }
 
-    virtual TFuture<void> Execute(const TDriverRequest& request) override
+    TFuture<void> Execute(const TDriverRequest& request) override
     {
         auto it = CommandNameToEntry_.find(request.CommandName);
         if (it == CommandNameToEntry_.end()) {
@@ -338,13 +338,13 @@ public:
             .Run();
     }
 
-    virtual std::optional<TCommandDescriptor> FindCommandDescriptor(const TString& commandName) const override
+    std::optional<TCommandDescriptor> FindCommandDescriptor(const TString& commandName) const override
     {
         auto it = CommandNameToEntry_.find(commandName);
         return it == CommandNameToEntry_.end() ? std::nullopt : std::make_optional(it->second.Descriptor);
     }
 
-    virtual const std::vector<TCommandDescriptor> GetCommandDescriptors() const override
+    const std::vector<TCommandDescriptor> GetCommandDescriptors() const override
     {
         std::vector<TCommandDescriptor> result;
         result.reserve(CommandNameToEntry_.size());
@@ -354,28 +354,28 @@ public:
         return result;
     }
 
-    virtual void ClearMetadataCaches() override
+    void ClearMetadataCaches() override
     {
         ClientCache_->Clear();
         Connection_->ClearMetadataCaches();
     }
 
-    virtual IStickyTransactionPoolPtr GetStickyTransactionPool() override
+    IStickyTransactionPoolPtr GetStickyTransactionPool() override
     {
         return StickyTransactionPool_;
     }
 
-    virtual IProxyDiscoveryCachePtr GetProxyDiscoveryCache() override
+    IProxyDiscoveryCachePtr GetProxyDiscoveryCache() override
     {
         return ProxyDiscoveryCache_;
     }
 
-    virtual IConnectionPtr GetConnection() override
+    IConnectionPtr GetConnection() override
     {
         return Connection_;
     }
 
-    virtual void Terminate() override
+    void Terminate() override
     {
         // TODO(ignat): find and eliminate reference loop.
         // Reset of the connection should be sufficient to release this connection.
@@ -481,27 +481,27 @@ private:
             , Request_(request)
         { }
 
-        virtual const TDriverConfigPtr& GetConfig() override
+        const TDriverConfigPtr& GetConfig() override
         {
             return Config_;
         }
 
-        virtual const IClientPtr& GetClient() override
+        const IClientPtr& GetClient() override
         {
             return Client_;
         }
 
-        virtual const IDriverPtr& GetDriver() override
+        const IDriverPtr& GetDriver() override
         {
             return Driver_;
         }
 
-        virtual const TDriverRequest& Request() override
+        const TDriverRequest& Request() override
         {
             return Request_;
         }
 
-        virtual const TFormat& GetInputFormat() override
+        const TFormat& GetInputFormat() override
         {
             if (!InputFormat_) {
                 InputFormat_ = ConvertTo<TFormat>(Request_.Parameters->GetChildOrThrow("input_format"));
@@ -509,7 +509,7 @@ private:
             return *InputFormat_;
         }
 
-        virtual const TFormat& GetOutputFormat() override
+        const TFormat& GetOutputFormat() override
         {
             if (!OutputFormat_) {
                 OutputFormat_ = ConvertTo<TFormat>(Request_.Parameters->GetChildOrThrow("output_format"));
@@ -517,7 +517,7 @@ private:
             return *OutputFormat_;
         }
 
-        virtual TYsonString ConsumeInputValue() override
+        TYsonString ConsumeInputValue() override
         {
             YT_VERIFY(Request_.InputStream);
             auto syncInputStream = CreateSyncAdapter(Request_.InputStream);
@@ -530,7 +530,7 @@ private:
             return ConvertToYsonString(producer);
         }
 
-        virtual void ProduceOutputValue(const TYsonString& yson) override
+        void ProduceOutputValue(const TYsonString& yson) override
         {
             YT_VERIFY(Request_.OutputStream);
             auto syncOutputStream = CreateBufferedSyncAdapter(Request_.OutputStream);

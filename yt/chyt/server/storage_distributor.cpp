@@ -365,17 +365,17 @@ public:
                 , CommitCallback_(std::move(commitCallback))
             { }
 
-            virtual void consume(DB::Chunk /* chunk */) override
+            void consume(DB::Chunk /* chunk */) override
             { }
 
-            virtual void onFinish() override
+            void onFinish() override
             {
                 YT_LOG_DEBUG("All subqueries finished, calling commit callback");
                 CommitCallback_();
                 YT_LOG_DEBUG("Commit callback succeeded");
             }
 
-            virtual std::string getName() const override
+            std::string getName() const override
             {
                 return "CommitSink";
             }
@@ -727,7 +727,7 @@ public:
         }
     }
 
-    virtual void startup() override
+    void startup() override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
 
@@ -756,12 +756,12 @@ public:
         return true;
     }
 
-    virtual bool supportsIndexForIn() const override
+    bool supportsIndexForIn() const override
     {
         return Schema_->IsSorted();
     }
 
-    virtual bool mayBenefitFromIndexForIn(const DB::ASTPtr& /* queryAst */, DB::ContextPtr /* context */, const DB::StorageMetadataPtr& /* metadata_snapshot */) const override
+    bool mayBenefitFromIndexForIn(const DB::ASTPtr& /* queryAst */, DB::ContextPtr /* context */, const DB::StorageMetadataPtr& /* metadata_snapshot */) const override
     {
         return supportsIndexForIn();
     }
@@ -778,7 +778,7 @@ public:
         return result;
     }
 
-    virtual DB::QueryProcessingStage::Enum getQueryProcessingStage(
+    DB::QueryProcessingStage::Enum getQueryProcessingStage(
         DB::ContextPtr context,
         DB::QueryProcessingStage::Enum toStage,
         const DB::StorageMetadataPtr&,
@@ -842,7 +842,7 @@ public:
         }
     }
 
-    virtual DB::Pipe read(
+    DB::Pipe read(
         const DB::Names& columnNames,
         const DB::StorageMetadataPtr& metadataSnapshot,
         DB::SelectQueryInfo& queryInfo,
@@ -864,12 +864,12 @@ public:
         return DB::Pipe::unitePipes(std::move(pipes));
     }
 
-    virtual bool supportsSampling() const override
+    bool supportsSampling() const override
     {
         return true;
     }
 
-    virtual DB::BlockOutputStreamPtr write(const DB::ASTPtr& /* ptr */, const DB::StorageMetadataPtr& /*metadata_snapshot*/, DB::ContextPtr /* context */) override
+    DB::BlockOutputStreamPtr write(const DB::ASTPtr& /* ptr */, const DB::StorageMetadataPtr& /*metadata_snapshot*/, DB::ContextPtr /* context */) override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
 
@@ -913,7 +913,7 @@ public:
         }
     }
 
-    virtual DB::QueryPipelinePtr distributedWrite(const DB::ASTInsertQuery& query, DB::ContextPtr context) override
+    DB::QueryPipelinePtr distributedWrite(const DB::ASTInsertQuery& query, DB::ContextPtr context) override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
 
@@ -997,7 +997,7 @@ public:
         return std::move(pipeline);
     }
 
-    virtual std::unordered_map<std::string, DB::ColumnSize> getColumnSizes() const
+    std::unordered_map<std::string, DB::ColumnSize> getColumnSizes() const override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
 
@@ -1068,12 +1068,12 @@ public:
 
     // IStorageDistributor overrides.
 
-    virtual std::vector<TTablePtr> GetTables() const override
+    std::vector<TTablePtr> GetTables() const override
     {
         return Tables_;
     }
 
-    virtual TTableSchemaPtr GetSchema() const override
+    TTableSchemaPtr GetSchema() const override
     {
         return Schema_;
     }

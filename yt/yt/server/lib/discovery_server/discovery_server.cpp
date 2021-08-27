@@ -228,7 +228,7 @@ public:
             Config_))
     { }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         ClientService_->Initialize();
         ServerService_->Initialize();
@@ -238,7 +238,7 @@ public:
         YT_LOG_INFO("Server initialized (Addresses: %v)", Config_->ServerAddresses);
     }
 
-    virtual void Finalize() override
+    void Finalize() override
     {
         ClientService_->Finalize();
         ServerService_->Finalize();
@@ -248,7 +248,7 @@ public:
         YT_LOG_INFO("Server finalized");
     }
 
-    virtual NYTree::IYPathServicePtr GetYPathService() override
+    NYTree::IYPathServicePtr GetYPathService() override
     {
         return GroupManager_->GetYPathService();
     }

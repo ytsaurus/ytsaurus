@@ -571,13 +571,13 @@ public:
         , OrchidService_(CreateOrchidService())
     { }
 
-    virtual void Start() override
+    void Start() override
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TStoreCompactor::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    virtual void OnBeginSlotScan() override
+    void OnBeginSlotScan() override
     {
         // NB: Strictly speaking, redundant.
         auto guard = Guard(ScanSpinLock_);
@@ -589,7 +589,7 @@ public:
         CompactionCandidates_.clear(); // Though must be clear already.
     }
 
-    virtual void ProcessLsmActionBatch(
+    void ProcessLsmActionBatch(
         const ITabletSlotPtr& slot,
         const NLsm::TLsmActionBatch& batch) override
     {
@@ -658,7 +658,7 @@ public:
             slot->GetCellId());
     }
 
-    virtual void OnEndSlotScan() override
+    void OnEndSlotScan() override
     {
         // NB: Strictly speaking, redundant.
         auto guard = Guard(ScanSpinLock_);
@@ -675,7 +675,7 @@ public:
     }
 
 
-    virtual IYPathServicePtr GetOrchidService() override
+    IYPathServicePtr GetOrchidService() override
     {
         return OrchidService_;
     }

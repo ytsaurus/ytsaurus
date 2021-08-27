@@ -8,7 +8,7 @@ class TNoopAccessChecker
     : public IAccessChecker
 {
 public:
-    virtual TError ValidateAccess(const TString& /* user */) const override
+    TError ValidateAccess(const TString& /* user */) const override
     {
         return TError();
     }

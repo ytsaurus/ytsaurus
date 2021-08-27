@@ -63,54 +63,54 @@ class TCodec
     : public ICodec
 {
 public:
-    virtual ECodec GetId() const override
+    ECodec GetId() const override
     {
         return CodecId;
     }
 
-    virtual std::vector<TSharedRef> Encode(const std::vector<TSharedRef>& blocks) const override
+    std::vector<TSharedRef> Encode(const std::vector<TSharedRef>& blocks) const override
     {
         return Underlying_.Encode(blocks);
     }
 
-    virtual std::vector<TSharedRef> Decode(
+    std::vector<TSharedRef> Decode(
         const std::vector<TSharedRef>& blocks,
         const TPartIndexList& erasedIndices) const override
     {
         return Underlying_.Decode(blocks, erasedIndices);
     }
 
-    virtual bool CanRepair(const TPartIndexList& erasedIndices) const override
+    bool CanRepair(const TPartIndexList& erasedIndices) const override
     {
         return Underlying_.CanRepair(erasedIndices);
     }
 
-    virtual bool CanRepair(const TPartIndexSet& erasedIndices) const override
+    bool CanRepair(const TPartIndexSet& erasedIndices) const override
     {
         return Underlying_.CanRepair(erasedIndices);
     }
 
-    virtual std::optional<TPartIndexList> GetRepairIndices(const TPartIndexList& erasedIndices) const override
+    std::optional<TPartIndexList> GetRepairIndices(const TPartIndexList& erasedIndices) const override
     {
         return Underlying_.GetRepairIndices(erasedIndices);
     }
 
-    virtual int GetDataPartCount() const override
+    int GetDataPartCount() const override
     {
         return Underlying_.GetDataPartCount();
     }
 
-    virtual int GetParityPartCount() const override
+    int GetParityPartCount() const override
     {
         return Underlying_.GetParityPartCount();
     }
 
-    virtual int GetGuaranteedRepairablePartCount() const override
+    int GetGuaranteedRepairablePartCount() const override
     {
         return Underlying_.GetGuaranteedRepairablePartCount();
     }
 
-    virtual int GetWordSize() const override
+    int GetWordSize() const override
     {
         return Underlying_.GetWordSize();
     }

@@ -70,14 +70,14 @@ public:
         ReplicatorHintConfigFetcher_->SubscribeConfigChanged(BIND(&THintManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    virtual void Start() override
+    void Start() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         ReplicatorHintConfigFetcher_->Start();
     }
 
-    virtual bool IsReplicaClusterBanned(TStringBuf clusterName) const override
+    bool IsReplicaClusterBanned(TStringBuf clusterName) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -89,7 +89,7 @@ public:
         return BannedReplicaClusters_.contains(clusterName);
     }
 
-    virtual void UpdateSuspicionMarkTime(
+    void UpdateSuspicionMarkTime(
         TNodeId nodeId,
         TStringBuf address,
         bool suspicious,
@@ -115,7 +115,7 @@ public:
         }
     }
 
-    virtual std::vector<std::optional<TInstant>> RetrieveSuspicionMarkTimes(
+    std::vector<std::optional<TInstant>> RetrieveSuspicionMarkTimes(
         const std::vector<TNodeId>& nodeIds) const override
     {
         if (nodeIds.empty()) {
@@ -138,7 +138,7 @@ public:
         return markTimes;
     }
 
-    virtual std::vector<std::pair<TNodeId, TInstant>> RetrieveSuspiciousNodeIdsWithMarkTime(
+    std::vector<std::pair<TNodeId, TInstant>> RetrieveSuspiciousNodeIdsWithMarkTime(
         const std::vector<TNodeId>& nodeIds) const override
     {
         if (nodeIds.empty()) {
@@ -159,7 +159,7 @@ public:
         return suspiciousNodesWithMarkTime;
     }
 
-    virtual bool ShouldMarkNodeSuspicious(const TError& error) const override
+    bool ShouldMarkNodeSuspicious(const TError& error) const override
     {
         return
             error.FindMatching(NRpc::EErrorCode::TransportError) ||

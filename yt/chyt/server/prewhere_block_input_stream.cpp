@@ -129,17 +129,17 @@ public:
         , Logger(QueryContext_->Logger)
     { }
 
-    virtual std::string getName() const override
+    std::string getName() const override
     {
         return "PrewhereBlockInputStream";
     }
 
-    virtual DB::Block getHeader() const override
+    DB::Block getHeader() const override
     {
         return Header_;
     }
 
-    virtual void readPrefixImpl() override
+    void readPrefixImpl() override
     {
         i64 totalDataWeight = 0;
         for (const auto& dataSliceDescriptor : DataSliceDescriptors_) {
@@ -172,7 +172,7 @@ public:
         BlockInputStream_->readPrefixImpl();
     }
 
-    virtual void readSuffixImpl() override
+    void readSuffixImpl() override
     {
         BlockInputStream_->readSuffixImpl();
     }
@@ -192,7 +192,7 @@ private:
 
     TLogger Logger;
 
-    virtual Block readImpl() override
+    Block readImpl() override
     {
         return BlockInputStream_->read();
     }

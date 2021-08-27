@@ -569,7 +569,7 @@ public:
         : Config_(config)
     { }
 
-    virtual void CollectSensors(ISensorWriter* writer) override
+    void CollectSensors(ISensorWriter* writer) override
     {
         try {
             auto snapshotsStorageDiskSpaceStatistics = NFS::GetDiskSpaceStatistics(Config_->Snapshots->Path);

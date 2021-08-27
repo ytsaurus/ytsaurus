@@ -110,17 +110,17 @@ public:
         Impl_->Cancel();
     }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return Impl_->Open();
     }
 
-    virtual TFuture<void> Write(TRange<TSharedRef> rows) override
+    TFuture<void> Write(TRange<TSharedRef> rows) override
     {
         return Impl_->Write(rows);
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         return Impl_->Close();
     }

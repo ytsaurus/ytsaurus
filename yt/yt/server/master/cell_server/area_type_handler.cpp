@@ -23,7 +23,7 @@ class TAreaTypeHandler
 public:
     using TObjectTypeHandlerWithMapBase::TObjectTypeHandlerWithMapBase;
 
-    virtual ETypeFlags GetFlags() const override
+    ETypeFlags GetFlags() const override
     {
         return
             ETypeFlags::ReplicateCreate |
@@ -33,12 +33,12 @@ public:
             ETypeFlags::Removable;
     }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::Area;
     }
 
-    virtual TObject* CreateObject(
+    TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
@@ -52,17 +52,17 @@ public:
     }
 
 private:
-    virtual TCellTagList DoGetReplicationCellTags(const TArea* /*area*/) override
+    TCellTagList DoGetReplicationCellTags(const TArea* /*area*/) override
     {
         return AllSecondaryCellTags();
     }
 
-    virtual IObjectProxyPtr DoGetProxy(TArea* area, TTransaction* /*transaction*/) override
+    IObjectProxyPtr DoGetProxy(TArea* area, TTransaction* /*transaction*/) override
     {
         return CreateAreaProxy(Bootstrap_, &Metadata_, area);
     }
 
-    virtual void DoZombifyObject(TArea* area) override
+    void DoZombifyObject(TArea* area) override
     {
         TObjectTypeHandlerWithMapBase::DoZombifyObject(area);
         const auto& cellManager = Bootstrap_->GetTamedCellManager();

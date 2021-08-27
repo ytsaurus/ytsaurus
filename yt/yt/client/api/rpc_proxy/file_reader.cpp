@@ -28,17 +28,17 @@ public:
         YT_VERIFY(Underlying_);
     }
 
-    virtual TFuture<TSharedRef> Read() override
+    TFuture<TSharedRef> Read() override
     {
         return Underlying_->Read();
     }
 
-    virtual NObjectClient::TObjectId GetId() const override
+    NObjectClient::TObjectId GetId() const override
     {
         return Id_;
     }
 
-    virtual NHydra::TRevision GetRevision() const override
+    NHydra::TRevision GetRevision() const override
     {
         return Revision_;
     }

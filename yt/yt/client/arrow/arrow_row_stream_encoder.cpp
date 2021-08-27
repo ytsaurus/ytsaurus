@@ -653,7 +653,7 @@ public:
         return ArrowDictionaryIds_;
     }
 
-    virtual TSharedRef Encode(
+    TSharedRef Encode(
         const IUnversionedRowBatchPtr& batch,
         const NApi::NRpcProxy::NProto::TRowsetStatistics* statistics) override;
 

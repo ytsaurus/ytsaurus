@@ -69,12 +69,12 @@ public:
         Value_.InitNull();
     }
 
-    virtual void SetSegmentData(const NProto::TSegmentMeta& meta, const char* data, TTmpBuffers* tmpBuffers) override
+    void SetSegmentData(const NProto::TSegmentMeta& meta, const char* data, TTmpBuffers* tmpBuffers) override
     {
         DoReadSegment(&Value_, this, meta, data, tmpBuffers);
     }
 
-    virtual ui32 ReadRows(
+    ui32 ReadRows(
         TUnversionedValue** keys,
         TRange<TReadSpan> spans,
         ui32 position,
@@ -155,12 +155,12 @@ public:
     { }
 
     // Skip is allowed till SegmentRowLimit.
-    virtual void SetSegmentData(const NProto::TSegmentMeta& meta, const char* data, TTmpBuffers* tmpBuffers) override
+    void SetSegmentData(const NProto::TSegmentMeta& meta, const char* data, TTmpBuffers* tmpBuffers) override
     {
         DoReadSegment(meta, data, tmpBuffers);
     }
 
-    virtual ui32 ReadAllValues(
+    ui32 ReadAllValues(
         TVersionedValue** values,
         const TTimestamp** timestamps,
         TRange<TReadSpan> spans,
@@ -176,7 +176,7 @@ public:
         return position;
     }
 
-    virtual ui32 ReadValues(
+    ui32 ReadValues(
         TValueProducerInfo* values,
         TRange<TReadSpan> spans,
         ui32 position,
@@ -397,7 +397,7 @@ public:
         : TVersionedRowsetBuilder(keyTypes, valueSchema)
     { }
 
-    virtual void ReadRows(
+    void ReadRows(
         TMutableVersionedRow* rows,
         TRange<TReadSpan> spans,
         TDataWeightStatistics* statistics) override
@@ -501,7 +501,7 @@ public:
         , ProduceAll_(produceAll)
     { }
 
-    virtual void ReadRows(
+    void ReadRows(
         TMutableVersionedRow* rows,
         TRange<TReadSpan> spans,
         TDataWeightStatistics* statistics) override

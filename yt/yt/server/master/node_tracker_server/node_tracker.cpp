@@ -1434,7 +1434,7 @@ private:
     }
 
 
-    virtual void Clear() override
+    void Clear() override
     {
         TMasterAutomatonPart::Clear();
 
@@ -1461,7 +1461,7 @@ private:
         }
     }
 
-    virtual void OnAfterSnapshotLoaded() override
+    void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
@@ -1539,7 +1539,7 @@ private:
         }
     }
 
-    virtual void OnRecoveryStarted() override
+    void OnRecoveryStarted() override
     {
         TMasterAutomatonPart::OnRecoveryStarted();
 
@@ -1550,14 +1550,14 @@ private:
         BufferedProducer_->SetEnabled(false);
     }
 
-    virtual void OnRecoveryComplete() override
+    void OnRecoveryComplete() override
     {
         TMasterAutomatonPart::OnRecoveryComplete();
 
         BufferedProducer_->SetEnabled(true);
     }
 
-    virtual void OnLeaderActive() override
+    void OnLeaderActive() override
     {
         TMasterAutomatonPart::OnLeaderActive();
 
@@ -1590,7 +1590,7 @@ private:
         }
     }
 
-    virtual void OnStopLeading() override
+    void OnStopLeading() override
     {
         TMasterAutomatonPart::OnStopLeading();
 

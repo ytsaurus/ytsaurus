@@ -44,7 +44,7 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    virtual void Start() override
+    void Start() override
     {
         const auto& slotManager = Bootstrap_->GetSlotManager();
         slotManager->SubscribeScanSlot(BIND(&THunkChunkSweeper::OnScanSlot, MakeStrong(this)));

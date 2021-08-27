@@ -131,7 +131,7 @@ public:
             BIND(&TTransactionSupervisor::SaveValues, Unretained(this)));
     }
 
-    virtual std::vector<IServicePtr> GetRpcServices() override
+    std::vector<IServicePtr> GetRpcServices() override
     {
         return std::vector<IServicePtr>{
             TransactionSupervisorService_,
@@ -139,7 +139,7 @@ public:
         };
     }
 
-    virtual TFuture<void> CommitTransaction(TTransactionId transactionId) override
+    TFuture<void> CommitTransaction(TTransactionId transactionId) override
     {
         return MessageToError(
             CoordinatorCommitTransaction(
@@ -156,7 +156,7 @@ public:
                 /*prerequisiteTransactionIds*/ {}));
     }
 
-    virtual TFuture<void> AbortTransaction(
+    TFuture<void> AbortTransaction(
         TTransactionId transactionId,
         bool force) override
     {
@@ -167,14 +167,14 @@ public:
                 force));
     }
 
-    virtual void Decommission() override
+    void Decommission() override
     {
         YT_LOG_DEBUG("Decommissioning transaction supervisor");
 
         Decommissioned_ = true;
     }
 
-    virtual bool IsDecommissioned() const override
+    bool IsDecommissioned() const override
     {
         return Decommissioned_ && PersistentCommitMap_.empty();
     }
@@ -613,7 +613,7 @@ private:
         const TWeakPtr<TTransactionSupervisor> Owner_;
         const IHydraManagerPtr HydraManager_;
 
-        virtual IHydraManagerPtr GetHydraManager() override
+        IHydraManagerPtr GetHydraManager() override
         {
             return HydraManager_;
         }
@@ -2050,7 +2050,7 @@ private:
     }
 
 
-    virtual bool ValidateSnapshotVersion(int version) override
+    bool ValidateSnapshotVersion(int version) override
     {
         return
             version ==  5 || // babenko
@@ -2061,13 +2061,13 @@ private:
             version == 10;   // babenko: YTINCIDENTS-56: Add CellIdsToSyncWithBeforePrepare
     }
 
-    virtual int GetCurrentSnapshotVersion() override
+    int GetCurrentSnapshotVersion() override
     {
         return 10;
     }
 
 
-    virtual void OnLeaderActive() override
+    void OnLeaderActive() override
     {
         TCompositeAutomatonPart::OnLeaderActive();
 
@@ -2083,7 +2083,7 @@ private:
         }
     }
 
-    virtual void OnStopLeading() override
+    void OnStopLeading() override
     {
         TCompositeAutomatonPart::OnStopLeading();
 
@@ -2109,7 +2109,7 @@ private:
     }
 
 
-    virtual void Clear() override
+    void Clear() override
     {
         TCompositeAutomatonPart::Clear();
 

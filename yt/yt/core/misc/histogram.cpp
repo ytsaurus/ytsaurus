@@ -23,7 +23,7 @@ public:
         : MaxBuckets_(defaultBuckets * HistogramViewReserveFactor)
     { }
 
-    virtual void AddValue(i64 value, i64 count) override
+    void AddValue(i64 value, i64 count) override
     {
         YT_VERIFY(value >= 0);
 
@@ -35,7 +35,7 @@ public:
         }
     }
 
-    virtual void RemoveValue(i64 value, i64 count) override
+    void RemoveValue(i64 value, i64 count) override
     {
         Items_.emplace_back(TItem{value, -count});
         if (IsValid() && HasBucket(value)) {
@@ -43,14 +43,14 @@ public:
         }
     }
 
-    virtual void BuildHistogramView() override
+    void BuildHistogramView() override
     {
         if (Items_.size() > 1 && !IsValid()) {
             RebuildView();
         }
     }
 
-    virtual THistogramView GetHistogramView() const override
+    THistogramView GetHistogramView() const override
     {
         THistogramView result;
         if (Items_.empty()) {
@@ -72,7 +72,7 @@ public:
         return result;
     }
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;
         Persist(context, MaxBuckets_);

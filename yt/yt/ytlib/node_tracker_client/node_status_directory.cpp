@@ -8,26 +8,26 @@ class TTrivialNodeStatusDirectory
     : public INodeStatusDirectory
 {
 public:
-    virtual void UpdateSuspicionMarkTime(
+    void UpdateSuspicionMarkTime(
         TNodeId /*nodeId*/,
         TStringBuf /*address*/,
         bool /*suspicious*/,
-        std::optional<TInstant> /*previousMarkTime*/)
+        std::optional<TInstant> /*previousMarkTime*/) override
     { }
 
-    virtual std::vector<std::optional<TInstant>> RetrieveSuspicionMarkTimes(
-        const std::vector<TNodeId>& nodeIds) const
+    std::vector<std::optional<TInstant>> RetrieveSuspicionMarkTimes(
+        const std::vector<TNodeId>& nodeIds) const override
     {
         return std::vector<std::optional<TInstant>>(nodeIds.size(), std::nullopt);
     }
 
-    virtual std::vector<std::pair<TNodeId, TInstant>> RetrieveSuspiciousNodeIdsWithMarkTime(
-        const std::vector<TNodeId>& /*nodeIds*/) const
+    std::vector<std::pair<TNodeId, TInstant>> RetrieveSuspiciousNodeIdsWithMarkTime(
+        const std::vector<TNodeId>& /*nodeIds*/) const override
     {
         return {};
     }
 
-    virtual bool ShouldMarkNodeSuspicious(const TError& /*error*/) const
+    bool ShouldMarkNodeSuspicious(const TError& /*error*/) const override
     {
         return false;
     }

@@ -89,7 +89,7 @@ public:
         Shutdown();
     }
 
-    virtual void Shutdown() override
+    void Shutdown() override
     {
         bool expected = false;
         if (!ShutdownFlag_.compare_exchange_strong(expected, true)) {
@@ -105,7 +105,7 @@ public:
         FinalizerInvoker_.Reset();
     }
 
-    virtual const IInvokerPtr& GetInvoker(int index) const override
+    const IInvokerPtr& GetInvoker(int index) const override
     {
         YT_ASSERT(0 <= index && index < static_cast<int>(QueueIndexToBucketIndex_.size()));
 
@@ -115,7 +115,7 @@ public:
             QueueIndexToBucketQueueIndex_[index]);
     }
 
-    virtual void Reconfigure(const THashMap<TString, double>& newBucketWeights) override
+    void Reconfigure(const THashMap<TString, double>& newBucketWeights) override
     {
         std::vector<double> weights(BucketNames_.size());
         for (int bucketIndex = 0; bucketIndex < std::ssize(BucketNames_); ++bucketIndex) {

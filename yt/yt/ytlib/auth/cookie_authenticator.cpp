@@ -73,7 +73,7 @@ public:
         , BlackboxService_(std::move(blackboxService))
     { }
 
-    virtual TFuture<TAuthenticationResult> Authenticate(
+    TFuture<TAuthenticationResult> Authenticate(
         const TCookieCredentials& credentials) override
     {
         auto sessionIdMD5 = TMD5Hasher().Append(credentials.SessionId).GetHexDigestUpper();
@@ -211,7 +211,7 @@ public:
         , UnderlyingAuthenticator_(std::move(underlying))
     { }
 
-    virtual TFuture<TAuthenticationResult> Authenticate(const TCookieCredentials& credentials) override
+    TFuture<TAuthenticationResult> Authenticate(const TCookieCredentials& credentials) override
     {
         return Get(TCookieAuthenticatorCacheKey{credentials}, credentials.UserIP);
     }
@@ -219,7 +219,7 @@ public:
 private:
     const ICookieAuthenticatorPtr UnderlyingAuthenticator_;
 
-    virtual TFuture<TAuthenticationResult> DoGet(
+    TFuture<TAuthenticationResult> DoGet(
         const TCookieAuthenticatorCacheKey& key,
         const NNet::TNetworkAddress& userIP) noexcept override
     {
@@ -250,7 +250,7 @@ public:
         : Underlying_(std::move(underlying))
     { }
 
-    virtual TFuture<NRpc::TAuthenticationResult> Authenticate(
+    TFuture<NRpc::TAuthenticationResult> Authenticate(
         const NRpc::TAuthenticationContext& context) override
     {
         if (!context.Header->HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {

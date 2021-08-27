@@ -106,7 +106,7 @@ class TTestYTCHConversion
     : public ::testing::Test
 {
 public:
-    virtual void SetUp() override
+    void SetUp() override
     {
         Settings_ = New<TCompositeSettings>();
     }

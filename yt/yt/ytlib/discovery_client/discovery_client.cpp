@@ -38,7 +38,7 @@ public:
         , Config_(std::move(config))
     { }
 
-    virtual TFuture<std::vector<TMemberInfo>> ListMembers(
+    TFuture<std::vector<TMemberInfo>> ListMembers(
         const TString& groupId,
         const TListMembersOptions& options) override
     {
@@ -54,7 +54,7 @@ public:
             ->Run();
     }
 
-    virtual TFuture<TGroupMeta> GetGroupMeta(const TString& groupId) override
+    TFuture<TGroupMeta> GetGroupMeta(const TString& groupId) override
     {
         auto guard = ReaderGuard(Lock_);
 
@@ -67,7 +67,7 @@ public:
             ->Run();
     }
 
-    virtual void Reconfigure(TDiscoveryClientConfigPtr config) override
+    void Reconfigure(TDiscoveryClientConfigPtr config) override
     {
         auto guard = WriterGuard(Lock_);
 

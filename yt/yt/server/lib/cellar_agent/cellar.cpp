@@ -51,7 +51,7 @@ public:
         , OrchidService_(TOrchidService::Create(MakeWeak(this), Bootstrap_->GetControlInvoker()))
     { }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         Occupants_.resize(Config_->Size);
 
@@ -60,35 +60,35 @@ public:
             Config_->Size);
     }
 
-    virtual void Reconfigure(const TCellarDynamicConfigPtr& config) override
+    void Reconfigure(const TCellarDynamicConfigPtr& config) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         SetCellarSize(config->Size.value_or(Config_->Size));
     }
 
-    virtual int GetAvailableSlotCount() const override
+    int GetAvailableSlotCount() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return Occupants_.size() - OccupantCount_;
     }
 
-    virtual int GetOccupantCount() const override
+    int GetOccupantCount() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return OccupantCount_;
     }
 
-    virtual const std::vector<ICellarOccupantPtr>& Occupants() const override
+    const std::vector<ICellarOccupantPtr>& Occupants() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return Occupants_;
     }
 
-    virtual ICellarOccupantPtr FindOccupant(TCellId id) const override
+    ICellarOccupantPtr FindOccupant(TCellId id) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -97,7 +97,7 @@ public:
         return it == CellIdToOccupant_.end() ? nullptr : it->second;
     }
 
-    virtual ICellarOccupantPtr GetOccupantOrCrash(TCellId id) const override
+    ICellarOccupantPtr GetOccupantOrCrash(TCellId id) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -106,7 +106,7 @@ public:
         return occupant;
     }
 
-    virtual void CreateOccupant(const TCreateCellSlotInfo& createInfo) override
+    void CreateOccupant(const TCreateCellSlotInfo& createInfo) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -132,7 +132,7 @@ public:
             index);
     }
 
-    virtual void ConfigureOccupant(
+    void ConfigureOccupant(
         const ICellarOccupantPtr& occupant,
         const TConfigureCellSlotInfo& configureInfo) override
     {
@@ -141,7 +141,7 @@ public:
         occupant->Configure(configureInfo);
     }
 
-    virtual void UpdateOccupant(
+    void UpdateOccupant(
         const ICellarOccupantPtr& occupant,
         const TUpdateCellSlotInfo& updateInfo) override
     {
@@ -152,7 +152,7 @@ public:
         UpdateOccupant_.Fire();
     }
 
-    virtual TFuture<void> RemoveOccupant(const ICellarOccupantPtr& occupant) override
+    TFuture<void> RemoveOccupant(const ICellarOccupantPtr& occupant) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -177,7 +177,7 @@ public:
             }).Via(Bootstrap_->GetControlInvoker()));
     }
 
-    virtual void RegisterOccupierProvider(ICellarOccupierProviderPtr provider) override
+    void RegisterOccupierProvider(ICellarOccupierProviderPtr provider) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -190,7 +190,7 @@ public:
         OccupierProvider_ = std::move(provider);
     }
 
-    virtual IYPathServicePtr GetOrchidService() const override
+    IYPathServicePtr GetOrchidService() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -208,7 +208,7 @@ private:
                 ->Via(invoker);
         }
 
-        virtual std::vector<TString> GetKeys(i64 limit) const override
+        std::vector<TString> GetKeys(i64 limit) const override
         {
             std::vector<TString> keys;
             if (auto owner = Owner_.Lock()) {
@@ -224,7 +224,7 @@ private:
             return keys;
         }
 
-        virtual i64 GetSize() const override
+        i64 GetSize() const override
         {
             if (auto owner = Owner_.Lock()) {
                 return owner->GetOccupantCount();
@@ -232,7 +232,7 @@ private:
             return 0;
         }
 
-        virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+        IYPathServicePtr FindItemService(TStringBuf key) const override
         {
             if (auto owner = Owner_.Lock()) {
                 if (auto occupant = owner->FindOccupant(TCellId::FromString(key))) {

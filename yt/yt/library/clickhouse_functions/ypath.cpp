@@ -72,17 +72,17 @@ class TYPathFunctionBase : public IFunction
 public:
     static constexpr auto name = TName::Name;
 
-    virtual std::string getName() const override
+    std::string getName() const override
     {
         return name;
     }
 
-    virtual size_t getNumberOfArguments() const override
+    size_t getNumberOfArguments() const override
     {
         return 2;
     }
 
-    virtual DataTypePtr getReturnTypeImpl(const DataTypes& arguments) const override
+    DataTypePtr getReturnTypeImpl(const DataTypes& arguments) const override
     {
         if (!isString(removeNullable(arguments[0])) && !WhichDataType(removeNullable(arguments[0])).isNothing()) {
             throw Exception(
@@ -102,12 +102,12 @@ public:
         }
     }
 
-    virtual bool useDefaultImplementationForNulls() const override
+    bool useDefaultImplementationForNulls() const override
     {
         return false;
     }
 
-    virtual bool useDefaultImplementationForConstants() const override
+    bool useDefaultImplementationForConstants() const override
     {
         return true;
     }
@@ -278,17 +278,17 @@ class TFunctionYPathRawImpl : public IFunction
 public:
     static constexpr auto name = TName::Name;
 
-    virtual std::string getName() const override
+    std::string getName() const override
     {
         return name;
     }
 
-    virtual bool isVariadic() const override
+    bool isVariadic() const override
     {
         return true;
     }
 
-    virtual size_t getNumberOfArguments() const override
+    size_t getNumberOfArguments() const override
     {
         return 0;
     }
@@ -298,7 +298,7 @@ public:
         return std::make_shared<TFunctionYPathRawImpl>();
     }
 
-    virtual DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName& arguments) const override
+    DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName& arguments) const override
     {
         if (arguments.size() < 2) {
             throw Exception(
@@ -337,12 +337,12 @@ public:
         }
     }
 
-    virtual bool useDefaultImplementationForNulls() const override
+    bool useDefaultImplementationForNulls() const override
     {
         return false;
     }
 
-    virtual bool useDefaultImplementationForConstants() const override
+    bool useDefaultImplementationForConstants() const override
     {
         return true;
     }
@@ -437,12 +437,12 @@ class TFunctionYPathExtractImpl : public IFunction
 public:
     static constexpr auto name = TName::Name;
 
-    virtual std::string getName() const override
+    std::string getName() const override
     {
         return name;
     }
 
-    virtual size_t getNumberOfArguments() const override
+    size_t getNumberOfArguments() const override
     {
         return 3;
     }
@@ -452,7 +452,7 @@ public:
         return std::make_shared<TFunctionYPathExtractImpl>();
     }
 
-    virtual DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName& arguments) const override
+    DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName& arguments) const override
     {
         if (!isString(removeNullable(arguments[0].type)) && !WhichDataType(removeNullable(arguments[0].type)).isNothing()) {
             throw Exception(
@@ -476,17 +476,17 @@ public:
         return DataTypeFactory::instance().get(typeConst->getValue<String>());
     }
 
-    virtual bool useDefaultImplementationForNulls() const override
+    bool useDefaultImplementationForNulls() const override
     {
         return false;
     }
 
-    virtual bool useDefaultImplementationForConstants() const override
+    bool useDefaultImplementationForConstants() const override
     {
         return true;
     }
 
-    virtual ColumnPtr executeImpl(const ColumnsWithTypeAndName& arguments, const DataTypePtr & returnType, size_t inputRowCount) const override
+    ColumnPtr executeImpl(const ColumnsWithTypeAndName& arguments, const DataTypePtr & returnType, size_t inputRowCount) const override
     {
         const IColumn* columnYsonOrNull = arguments[0].column.get();
         const IColumn* columnYson = columnYsonOrNull;

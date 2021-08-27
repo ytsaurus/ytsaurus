@@ -52,7 +52,7 @@ public:
         , ClusterNodeBootstrap_(bootstrap)
     { }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         GetDynamicConfigManager()
             ->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
@@ -141,7 +141,7 @@ public:
         ChunkCache_->Initialize();
     }
 
-    virtual void Run() override
+    void Run() override
     {
         SetNodeByYPath(
             GetOrchidRoot(),
@@ -161,47 +161,47 @@ public:
         SchedulerConnector_->Start();
     }
 
-    virtual const TGpuManagerPtr& GetGpuManager() const override
+    const TGpuManagerPtr& GetGpuManager() const override
     {
         return GpuManager_;
     }
 
-    virtual const TSlotManagerPtr& GetSlotManager() const override
+    const TSlotManagerPtr& GetSlotManager() const override
     {
         return SlotManager_;
     }
 
-    virtual const TJobReporterPtr& GetJobReporter() const override
+    const TJobReporterPtr& GetJobReporter() const override
     {
         return JobReporter_;
     }
 
-    virtual const TJobProxyConfigPtr& GetJobProxyConfigTemplate() const override
+    const TJobProxyConfigPtr& GetJobProxyConfigTemplate() const override
     {
         return JobProxyConfigTemplate_;
     }
 
-    virtual const TChunkCachePtr& GetChunkCache() const override
+    const TChunkCachePtr& GetChunkCache() const override
     {
         return ChunkCache_;
     }
 
-    virtual bool IsSimpleEnvironment() const override
+    bool IsSimpleEnvironment() const override
     {
         return GetJobEnvironmentType() == EJobEnvironmentType::Simple;
     }
 
-    virtual const IMasterConnectorPtr& GetMasterConnector() const override
+    const IMasterConnectorPtr& GetMasterConnector() const override
     {
         return MasterConnector_;
     }
 
-    virtual const IThroughputThrottlerPtr& GetThrottler(EExecNodeThrottlerKind kind) const override
+    const IThroughputThrottlerPtr& GetThrottler(EExecNodeThrottlerKind kind) const override
     {
         return Throttlers_[kind];
     }
 
-    virtual const TSolomonExporterPtr& GetJobProxySolomonExporter() const override
+    const TSolomonExporterPtr& GetJobProxySolomonExporter() const override
     {
         return JobProxySolomonExporter_;
     }

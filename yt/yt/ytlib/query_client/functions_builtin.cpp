@@ -65,7 +65,7 @@ public:
         }
     }
 
-    virtual TCodegenExpression Profile(
+    TCodegenExpression Profile(
         TCGVariables* /*variables*/,
         std::vector<size_t> argIds,
         std::unique_ptr<bool[]> /*literalArgs*/,
@@ -86,7 +86,7 @@ public:
         };
     }
 
-    virtual bool IsNullable(const std::vector<bool>& nullableArgs) const override
+    bool IsNullable(const std::vector<bool>& nullableArgs) const override
     {
         YT_VERIFY(nullableArgs.size() == 3);
         return nullableArgs[0] || nullableArgs[1] || nullableArgs[2];
@@ -142,7 +142,7 @@ class TIsNullCodegen
     : public IFunctionCodegen
 {
 public:
-    virtual TCodegenExpression Profile(
+    TCodegenExpression Profile(
         TCGVariables* /*variables*/,
         std::vector<size_t> argIds,
         std::unique_ptr<bool[]> /*literalArgs*/,
@@ -176,7 +176,7 @@ public:
         };
     }
 
-    virtual bool IsNullable(const std::vector<bool>& /*nullableArgs*/) const override
+    bool IsNullable(const std::vector<bool>& /*nullableArgs*/) const override
     {
         return false;
     }
@@ -187,7 +187,7 @@ class TIfNullCodegen
     : public IFunctionCodegen
 {
 public:
-    virtual TCodegenExpression Profile(
+    TCodegenExpression Profile(
         TCGVariables* /*variables*/,
         std::vector<size_t> argIds,
         std::unique_ptr<bool[]> /*literalArgs*/,
@@ -232,7 +232,7 @@ public:
         };
     }
 
-    virtual bool IsNullable(const std::vector<bool>& nullableArgs) const override
+    bool IsNullable(const std::vector<bool>& nullableArgs) const override
     {
         YT_VERIFY(nullableArgs.size() == 2);
         return nullableArgs[1];
@@ -244,7 +244,7 @@ class TIsNaNCodegen
     : public IFunctionCodegen
 {
 public:
-    virtual TCodegenExpression Profile(
+    TCodegenExpression Profile(
         TCGVariables* /*variables*/,
         std::vector<size_t> argIds,
         std::unique_ptr<bool[]> /*literalArgs*/,
@@ -281,7 +281,7 @@ public:
         };
     }
 
-    virtual bool IsNullable(const std::vector<bool>& /*nullableArgs*/) const override
+    bool IsNullable(const std::vector<bool>& /*nullableArgs*/) const override
     {
         return false;
     }
@@ -296,7 +296,7 @@ public:
     TUserCastCodegen()
     { }
 
-    virtual TCodegenExpression Profile(
+    TCodegenExpression Profile(
         TCGVariables* /*variables*/,
         std::vector<size_t> argIds,
         std::unique_ptr<bool[]> /*literalArgs*/,
@@ -370,7 +370,7 @@ public:
         }
     }
 
-    virtual bool IsNullable(const std::vector<bool>& nullableArgs) const override
+    bool IsNullable(const std::vector<bool>& nullableArgs) const override
     {
         YT_VERIFY(nullableArgs.size() == 1);
         return nullableArgs[0];
@@ -389,7 +389,7 @@ public:
 
     TString Function;
 
-    virtual TCodegenAggregate Profile(
+    TCodegenAggregate Profile(
         EValueType argumentType,
         EValueType stateType,
         EValueType /*resultType*/,
@@ -626,7 +626,7 @@ public:
         return codegenAggregate;
     }
 
-    virtual bool IsFirst() const override
+    bool IsFirst() const override
     {
         return false;
     }

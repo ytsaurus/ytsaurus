@@ -42,7 +42,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         return ConvertToStrings(GetValues(cellManager->Areas(), sizeLimit), TObjectIdFormatter());
@@ -53,13 +53,13 @@ private:
         return object->GetType() == EObjectType::Area;
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         return std::ssize(cellManager->Areas());
     }
 
-    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         auto* area = cellManager->Areas().Find(TAreaId::FromString(key));
@@ -93,7 +93,7 @@ class TCellNodeProxy
 public:
     using TMapNodeProxy::TMapNodeProxy;
 
-    virtual TResolveResult ResolveSelf(
+    TResolveResult ResolveSelf(
         const TYPath& path,
         const IServiceContextPtr& context) override
     {
@@ -105,14 +105,14 @@ public:
         }
     }
 
-    virtual IYPathService::TResolveResult ResolveAttributes(
+    IYPathService::TResolveResult ResolveAttributes(
         const TYPath& path,
         const IServiceContextPtr& /*context*/) override
     {
         return TResolveResultThere{GetTargetProxy(), "/@" + path};
     }
 
-    virtual void DoWriteAttributesFragment(
+    void DoWriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
         const std::optional<std::vector<TString>>& attributeKeys,
         bool stable) override
@@ -142,13 +142,13 @@ class TCellNodeTypeHandler
 public:
     using TMapNodeTypeHandler::TMapNodeTypeHandlerImpl;
 
-    virtual EObjectType GetObjectType() const override
+    EObjectType GetObjectType() const override
     {
         return EObjectType::TabletCellNode;
     }
 
 private:
-    virtual ICypressNodeProxyPtr DoGetProxy(
+    ICypressNodeProxyPtr DoGetProxy(
         TMapNode* trunkNode,
         TTransaction* transaction) override
     {
@@ -180,19 +180,19 @@ private:
     TBootstrap* const Bootstrap_;
     const ECellarType CellarType_;
 
-    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         return ToNames(GetItems(cellManager->CellBundles(CellarType_), sizeLimit));
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         return std::ssize(cellManager->CellBundles(CellarType_));
     }
 
-    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         auto* cellBundle = cellManager->FindCellBundleByName(TString(key), CellarType_, false /*activeLifeStageOnly*/);

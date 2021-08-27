@@ -210,19 +210,19 @@ public:
         CancelWriter();
     }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return BIND(&TReplicationWriter::DoOpen, MakeStrong(this))
             .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
             .Run();
     }
 
-    virtual bool WriteBlock(const TBlock& block) override
+    bool WriteBlock(const TBlock& block) override
     {
         return WriteBlocks({block});
     }
 
-    virtual bool WriteBlocks(const std::vector<TBlock>& blocks) override
+    bool WriteBlocks(const std::vector<TBlock>& blocks) override
     {
         YT_VERIFY(State_.load() == EReplicationWriterState::Open);
 
@@ -237,7 +237,7 @@ public:
         return WindowSlots_->IsReady();
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    TFuture<void> GetReadyEvent() override
     {
         YT_VERIFY(State_.load() == EReplicationWriterState::Open);
 
@@ -248,7 +248,7 @@ public:
         return promise.ToFuture();
     }
 
-    virtual TFuture<void> Close(const TDeferredChunkMetaPtr& chunkMeta) override
+    TFuture<void> Close(const TDeferredChunkMetaPtr& chunkMeta) override
     {
         YT_VERIFY(State_.load() == EReplicationWriterState::Open);
         YT_VERIFY(chunkMeta || IsJournalChunkId(DecodeChunkId(SessionId_.ChunkId).Id));
@@ -273,21 +273,21 @@ public:
         return ClosePromise_.ToFuture();
     }
 
-    virtual const TChunkInfo& GetChunkInfo() const override
+    const TChunkInfo& GetChunkInfo() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return ChunkInfo_;
     }
 
-    virtual const TDataStatistics& GetDataStatistics() const override
+    const TDataStatistics& GetDataStatistics() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         YT_ABORT();
     }
 
-    virtual TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
+    TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -300,21 +300,21 @@ public:
         return chunkReplicas;
     }
 
-    virtual TChunkId GetChunkId() const override
+    TChunkId GetChunkId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return SessionId_.ChunkId;
     }
 
-    virtual NErasure::ECodec GetErasureCodecId() const override
+    NErasure::ECodec GetErasureCodecId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return NErasure::ECodec::None;
     }
 
-    virtual bool IsCloseDemanded() const override
+    bool IsCloseDemanded() const override
     {
         return CloseDemanded_;
     }

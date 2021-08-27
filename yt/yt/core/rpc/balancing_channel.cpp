@@ -155,24 +155,24 @@ public:
             .EndMap()))
     { }
 
-    virtual const TString& GetEndpointDescription() const override
+    const TString& GetEndpointDescription() const override
     {
         return EndpointDescription_;
     }
 
-    virtual const IAttributeDictionary& GetEndpointAttributes() const override
+    const IAttributeDictionary& GetEndpointAttributes() const override
     {
         return *EndpointAttributes_;
     }
 
-    virtual TNetworkId GetNetworkId() const override
+    TNetworkId GetNetworkId() const override
     {
         // NB(psushin): Assume that balanced channels always use default network.
         // This is important for setting ToS level.
         return DefaultNetworkId;
     }
 
-    virtual TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& request) override
+    TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& request) override
     {
         if (Config_->Addresses && Config_->Addresses->size() == 1) {
             // Disable discovery and balancing when just one address is given.
@@ -184,7 +184,7 @@ public:
         }
     }
 
-    virtual void Terminate(const TError& error) override
+    void Terminate(const TError& error) override
     {
         std::vector<TBalancingChannelSubproviderPtr> subproviders;
         {

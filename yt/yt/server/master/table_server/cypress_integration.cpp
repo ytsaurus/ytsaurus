@@ -27,24 +27,24 @@ public:
     using TVirtualMulticellMapBase::TVirtualMulticellMapBase;
 
 private:
-    virtual std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
+    std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
     {
         const auto& tableManager = Bootstrap_->GetTableManager();
         return NYT::GetKeys(tableManager->MasterTableSchemas(), sizeLimit);
     }
 
-    virtual bool IsValid(TObject* object) const override
+    bool IsValid(TObject* object) const override
     {
         return IsObjectAlive(object);
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         const auto& tableManager = Bootstrap_->GetTableManager();
         return tableManager->MasterTableSchemas().GetSize();
     }
 
-    virtual NYPath::TYPath GetWellKnownPath() const override
+    NYPath::TYPath GetWellKnownPath() const override
     {
         return "//sys/master_table_schemas";
     }

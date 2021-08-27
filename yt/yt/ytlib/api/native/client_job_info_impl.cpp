@@ -141,7 +141,7 @@ public:
         }));
     }
 
-    virtual TFuture<TSharedRef> Read() override
+    TFuture<TSharedRef> Read() override
     {
         return AsyncStreamPipe_->Read();
     }

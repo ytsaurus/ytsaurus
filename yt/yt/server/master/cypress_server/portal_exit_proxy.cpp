@@ -40,7 +40,7 @@ private:
         return TNontemplateCypressNodeProxyBase::GetThisImpl<TPortalExitNode>();
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
@@ -49,7 +49,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::EntranceNodeId);
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto* node = GetThisImpl();
         switch (key) {

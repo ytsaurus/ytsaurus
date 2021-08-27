@@ -33,7 +33,7 @@ public:
         asyncChannel.Subscribe(BIND(&TRoamingRequestControl::OnGotChannel, MakeStrong(this)));
     }
 
-    virtual void Cancel() override
+    void Cancel() override
     {
         if (!TryAcquireSemaphore()) {
             TClientRequestControlThunk::Cancel();
@@ -107,22 +107,22 @@ public:
         : Provider_(std::move(provider))
     { }
 
-    virtual const TString& GetEndpointDescription() const override
+    const TString& GetEndpointDescription() const override
     {
         return Provider_->GetEndpointDescription();
     }
 
-    virtual const IAttributeDictionary& GetEndpointAttributes() const override
+    const IAttributeDictionary& GetEndpointAttributes() const override
     {
         return Provider_->GetEndpointAttributes();
     }
 
-    virtual TNetworkId GetNetworkId() const override
+    TNetworkId GetNetworkId() const override
     {
         return Provider_->GetNetworkId();
     }
 
-    virtual IClientRequestControlPtr Send(
+    IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
@@ -154,15 +154,15 @@ public:
             options);
     }
 
-    virtual void Terminate(const TError& error) override
+    void Terminate(const TError& error) override
     {
         Provider_->Terminate(error);
     }
 
-    virtual void SubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/) override
+    void SubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/) override
     { }
 
-    virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/) override
+    void UnsubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/) override
     { }
 
 private:

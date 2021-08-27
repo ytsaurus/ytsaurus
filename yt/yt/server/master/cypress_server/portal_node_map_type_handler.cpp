@@ -38,7 +38,7 @@ private:
 
     const THashMap<TNodeId, TNode*>* const Nodes_;
 
-    virtual std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
+    std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
     {
         std::vector<TObjectId> result;
         result.reserve(std::min<i64>(sizeLimit, Nodes_->size()));
@@ -55,17 +55,17 @@ private:
         return result;
     }
 
-    virtual bool IsValid(TObject* /*object*/) const override
+    bool IsValid(TObject* /*object*/) const override
     {
         return true;
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         return Nodes_->size();
     }
 
-    virtual TYPath GetWellKnownPath() const override
+    TYPath GetWellKnownPath() const override
     {
         if constexpr(std::is_same_v<TNode, TPortalEntranceNode>) {
             return "//sys/portal_entrances";

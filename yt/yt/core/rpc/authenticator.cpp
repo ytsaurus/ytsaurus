@@ -14,7 +14,7 @@ public:
         : Authenticators_(std::move(authenticators))
     { }
 
-    virtual TFuture<TAuthenticationResult> Authenticate(
+    TFuture<TAuthenticationResult> Authenticate(
         const TAuthenticationContext& context) override
     {
         for (const auto& authenticator : Authenticators_) {
@@ -44,7 +44,7 @@ class TNoopAuthenticator
     : public IAuthenticator
 {
 public:
-    virtual TFuture<TAuthenticationResult> Authenticate(
+    TFuture<TAuthenticationResult> Authenticate(
         const TAuthenticationContext& context) override
     {
         static const auto Realm = TString("noop");

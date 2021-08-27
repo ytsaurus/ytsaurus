@@ -36,19 +36,19 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::TableReplica;
     }
 
-    virtual ETypeFlags GetFlags() const override
+    ETypeFlags GetFlags() const override
     {
         return
             ETypeFlags::Creatable |
             ETypeFlags::Removable;
     }
 
-    virtual TObject* CreateObject(
+    TObject* CreateObject(
         TObjectId /*hintId*/,
         IAttributeDictionary* attributes) override
     {
@@ -92,12 +92,12 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual IObjectProxyPtr DoGetProxy(TTableReplica* replica, TTransaction* /*transaction*/) override
+    IObjectProxyPtr DoGetProxy(TTableReplica* replica, TTransaction* /*transaction*/) override
     {
         return CreateTableReplicaProxy(Bootstrap_, &Metadata_, replica);
     }
 
-    virtual void DoZombifyObject(TTableReplica* replica) override
+    void DoZombifyObject(TTableReplica* replica) override
     {
         TObjectTypeHandlerWithMapBase::DoZombifyObject(replica);
         const auto& tabletManager = Bootstrap_->GetTabletManager();

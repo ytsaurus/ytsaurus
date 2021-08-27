@@ -145,62 +145,62 @@ public:
         Invoker_->Invoke(BIND(&TTlsConnection::DoRun, MakeStrong(this)));
     }
 
-    virtual int GetHandle() const override
+    int GetHandle() const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual i64 GetReadByteCount() const override
+    i64 GetReadByteCount() const override
     {
         return Underlying_->GetReadByteCount();
     }
 
-    virtual TConnectionStatistics GetReadStatistics() const override
+    TConnectionStatistics GetReadStatistics() const override
     {
         return Underlying_->GetReadStatistics();
     }
 
-    virtual i64 GetWriteByteCount() const override
+    i64 GetWriteByteCount() const override
     {
         return Underlying_->GetWriteByteCount();
     }
 
-    virtual const TNetworkAddress& LocalAddress() const override
+    const TNetworkAddress& LocalAddress() const override
     {
         return Underlying_->LocalAddress();
     }
 
-    virtual const TNetworkAddress& RemoteAddress() const override
+    const TNetworkAddress& RemoteAddress() const override
     {
         return Underlying_->RemoteAddress();
     }
 
-    virtual TConnectionStatistics GetWriteStatistics() const override
+    TConnectionStatistics GetWriteStatistics() const override
     {
         return Underlying_->GetWriteStatistics();
     }
 
-    virtual void SetReadDeadline(std::optional<TInstant> deadline) override
+    void SetReadDeadline(std::optional<TInstant> deadline) override
     {
         Underlying_->SetReadDeadline(deadline);
     }
 
-    virtual void SetWriteDeadline(std::optional<TInstant> deadline) override
+    void SetWriteDeadline(std::optional<TInstant> deadline) override
     {
         Underlying_->SetWriteDeadline(deadline);
     }
 
-    virtual bool SetNoDelay() override
+    bool SetNoDelay() override
     {
         return Underlying_->SetNoDelay();
     }
 
-    virtual bool SetKeepAlive() override
+    bool SetKeepAlive() override
     {
         return Underlying_->SetKeepAlive();
     }
 
-    virtual TFuture<size_t> Read(const TSharedMutableRef& buffer) override
+    TFuture<size_t> Read(const TSharedMutableRef& buffer) override
     {
         auto promise = NewPromise<size_t>();
         ++ActiveIOCount_;
@@ -216,12 +216,12 @@ public:
         return promise.ToFuture();
     }
 
-    virtual TFuture<void> Write(const TSharedRef& buffer) override
+    TFuture<void> Write(const TSharedRef& buffer) override
     {
         return WriteV(TSharedRefArray(buffer));
     }
 
-    virtual TFuture<void> WriteV(const TSharedRefArray& buffer) override
+    TFuture<void> WriteV(const TSharedRefArray& buffer) override
     {
         auto promise = NewPromise<void>();
         ++ActiveIOCount_;
@@ -237,19 +237,19 @@ public:
         return promise.ToFuture();
     }
 
-    virtual TFuture<void> CloseRead() override
+    TFuture<void> CloseRead() override
     {
         // TLS does not support half-open connection state.
         return Close();
     }
 
-    virtual TFuture<void> CloseWrite() override
+    TFuture<void> CloseWrite() override
     {
         // TLS does not support half-open connection state.
         return Close();
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         ++ActiveIOCount_;
         return BIND([this, this_ = MakeStrong(this)] () {
@@ -261,12 +261,12 @@ public:
             .Run();
     }
 
-    virtual bool IsIdle() const override
+    bool IsIdle() const override
     {
         return ActiveIOCount_ == 0 && !Failed_;
     }
 
-    virtual TFuture<void> Abort() override
+    TFuture<void> Abort() override
     {
         return BIND([this, this_ = MakeStrong(this)] () {
             if (Error_.IsOK()) {
@@ -278,7 +278,7 @@ public:
             .Run();
     }
 
-    virtual void SubscribePeerDisconnect(TCallback<void ()> cb) override
+    void SubscribePeerDisconnect(TCallback<void ()> cb) override
     {
         return Underlying_->SubscribePeerDisconnect(std::move(cb));
     }
@@ -495,7 +495,7 @@ public:
         , Poller_(std::move(poller))
     { }
 
-    virtual TFuture<IConnectionPtr> Dial(const TNetworkAddress& remote) override
+    TFuture<IConnectionPtr> Dial(const TNetworkAddress& remote) override
     {
         return Underlying_->Dial(remote).Apply(BIND([ctx = Ctx_, poller = Poller_] (const IConnectionPtr& underlying) -> IConnectionPtr {
             auto connection = New<TTlsConnection>(ctx, poller, underlying);
@@ -530,7 +530,7 @@ public:
         return Underlying_->GetAddress();
     }
 
-    virtual TFuture<IConnectionPtr> Accept() override
+    TFuture<IConnectionPtr> Accept() override
     {
         return Underlying_->Accept().Apply(
             BIND([ctx = Ctx_, poller = Poller_] (const IConnectionPtr& underlying) -> IConnectionPtr {
@@ -540,7 +540,7 @@ public:
             }));
     }
 
-    virtual void Shutdown() override
+    void Shutdown() override
     {
         Underlying_->Shutdown();
     }

@@ -80,7 +80,7 @@ public:
             , CancelableControlInvoker_(owner->CancelableControlInvoker_)
         { }
 
-        virtual void OnStartLeading(NElection::TEpochContextPtr epochContext) override
+        void OnStartLeading(NElection::TEpochContextPtr epochContext) override
         {
             CancelableControlInvoker_->Invoke(BIND(
                 &TDistributedHydraManager::OnElectionStartLeading,
@@ -88,7 +88,7 @@ public:
                 epochContext));
         }
 
-        virtual void OnStopLeading(const TError& error) override
+        void OnStopLeading(const TError& error) override
         {
             CancelableControlInvoker_->Invoke(BIND(
                 &TDistributedHydraManager::OnElectionStopLeading,
@@ -96,7 +96,7 @@ public:
                 error));
         }
 
-        virtual void OnStartFollowing(NElection::TEpochContextPtr epochContext) override
+        void OnStartFollowing(NElection::TEpochContextPtr epochContext) override
         {
             CancelableControlInvoker_->Invoke(BIND(
                 &TDistributedHydraManager::OnElectionStartFollowing,
@@ -104,7 +104,7 @@ public:
                 epochContext));
         }
 
-        virtual void OnStopFollowing(const TError& error) override
+        void OnStopFollowing(const TError& error) override
         {
             CancelableControlInvoker_->Invoke(BIND(
                 &TDistributedHydraManager::OnElectionStopFollowing,
@@ -112,7 +112,7 @@ public:
                 error));
         }
 
-        virtual void OnStopVoting(const TError& error) override
+        void OnStopVoting(const TError& error) override
         {
             CancelableControlInvoker_->Invoke(BIND(
                 &TDistributedHydraManager::OnElectionStopVoting,
@@ -120,7 +120,7 @@ public:
                 error));
         }
 
-        virtual TPeerPriority GetPriority() override
+        TPeerPriority GetPriority() override
         {
             auto owner = Owner_.Lock();
             if (!owner) {
@@ -129,7 +129,7 @@ public:
             return owner->GetElectionPriority();
         }
 
-        virtual TString FormatPriority(TPeerPriority priority) override
+        TString FormatPriority(TPeerPriority priority) override
         {
             auto version = TVersion::FromRevision(priority / 2);
             return Format("%v%v",
@@ -212,7 +212,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPeerState));
     }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -231,7 +231,7 @@ public:
         Participate();
     }
 
-    virtual TFuture<void> Finalize() override
+    TFuture<void> Finalize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -263,77 +263,77 @@ public:
             .Run();
     }
 
-    virtual IElectionCallbacksPtr GetElectionCallbacks() override
+    IElectionCallbacksPtr GetElectionCallbacks() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return ElectionCallbacks_;
     }
 
-    virtual EPeerState GetControlState() const override
+    EPeerState GetControlState() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return ControlState_;
     }
 
-    virtual EPeerState GetAutomatonState() const override
+    EPeerState GetAutomatonState() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return DecoratedAutomaton_->GetState();
     }
 
-    virtual TVersion GetAutomatonVersion() const override
+    TVersion GetAutomatonVersion() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return DecoratedAutomaton_->GetAutomatonVersion();
     }
 
-    virtual IInvokerPtr CreateGuardedAutomatonInvoker(IInvokerPtr underlyingInvoker) override
+    IInvokerPtr CreateGuardedAutomatonInvoker(IInvokerPtr underlyingInvoker) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return DecoratedAutomaton_->CreateGuardedUserInvoker(underlyingInvoker);
     }
 
-    virtual bool IsActiveLeader() const override
+    bool IsActiveLeader() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return DecoratedAutomaton_->GetState() == EPeerState::Leading && LeaderRecovered_ && LeaderLease_->IsValid();
     }
 
-    virtual bool IsActiveFollower() const override
+    bool IsActiveFollower() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return DecoratedAutomaton_->GetState() == EPeerState::Following && FollowerRecovered_;
     }
 
-    virtual bool IsMutationLoggingEnabled() const override
+    bool IsMutationLoggingEnabled() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return !IsRecovery() || Config_->ForceMutationLogging;
     }
 
-    virtual TCancelableContextPtr GetControlCancelableContext() const override
+    TCancelableContextPtr GetControlCancelableContext() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return ControlEpochContext_ ? ControlEpochContext_->CancelableContext : nullptr;
     }
 
-    virtual TCancelableContextPtr GetAutomatonCancelableContext() const override
+    TCancelableContextPtr GetAutomatonCancelableContext() const override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         return AutomatonEpochContext_ ? AutomatonEpochContext_->CancelableContext : nullptr;
     }
 
-    virtual TFuture<int> BuildSnapshot(bool setReadOnly, bool waitForSnapshotCompletion) override
+    TFuture<int> BuildSnapshot(bool setReadOnly, bool waitForSnapshotCompletion) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -374,12 +374,12 @@ public:
         }
     }
 
-    virtual void ValidateSnapshot(IAsyncZeroCopyInputStreamPtr reader) override
+    void ValidateSnapshot(IAsyncZeroCopyInputStreamPtr reader) override
     {
         DecoratedAutomaton_->ValidateSnapshot(reader);
     }
 
-    virtual TYsonProducer GetMonitoringProducer() override
+    TYsonProducer GetMonitoringProducer() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -407,14 +407,14 @@ public:
         });
     }
 
-    virtual TPeerIdSet GetAlivePeerIds() override
+    TPeerIdSet GetAlivePeerIds() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         return AutomatonEpochContext_ ? AutomatonEpochContext_->AlivePeerIds.Load() : TPeerIdSet();
     }
 
-    virtual TFuture<void> SyncWithLeader() override
+    TFuture<void> SyncWithLeader() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -433,7 +433,7 @@ public:
         return epochContext->LeaderSyncBatcher->Run();
     }
 
-    virtual TFuture<TMutationResponse> CommitMutation(TMutationRequest&& request) override
+    TFuture<TMutationResponse> CommitMutation(TMutationRequest&& request) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -495,26 +495,26 @@ public:
         }
     }
 
-    virtual TReign GetCurrentReign() override
+    TReign GetCurrentReign() override
     {
         return DecoratedAutomaton_->GetCurrentReign();
     }
 
-    virtual bool GetReadOnly() const override
+    bool GetReadOnly() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return ReadOnly_;
     }
 
-    virtual TDistributedHydraManagerDynamicOptions GetDynamicOptions() const override
+    TDistributedHydraManagerDynamicOptions GetDynamicOptions() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return DynamicOptions_.Load();
     }
 
-    virtual void SetDynamicOptions(const TDistributedHydraManagerDynamicOptions& options) override
+    void SetDynamicOptions(const TDistributedHydraManagerDynamicOptions& options) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -2257,7 +2257,7 @@ private:
 
 
     // THydraServiceBase overrides.
-    virtual IHydraManagerPtr GetHydraManager() override
+    IHydraManagerPtr GetHydraManager() override
     {
         return this;
     }

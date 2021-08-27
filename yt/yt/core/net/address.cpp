@@ -896,7 +896,7 @@ private:
 
     TDnsResolver DnsResolver_;
 
-    virtual TFuture<TNetworkAddress> DoGet(const TString& hostName, bool isPeriodicUpdate) noexcept override;
+    TFuture<TNetworkAddress> DoGet(const TString& hostName, bool isPeriodicUpdate) noexcept override;
 
     const std::vector<TNetworkAddress>& GetLocalAddresses();
 };

@@ -151,7 +151,7 @@ public:
         slotManager->SubscribeScanSlot(BIND(&TInMemoryManager::ScanSlot, MakeWeak(this)));
     }
 
-    virtual TInMemoryChunkDataPtr EvictInterceptedChunkData(TChunkId chunkId) override
+    TInMemoryChunkDataPtr EvictInterceptedChunkData(TChunkId chunkId) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -172,7 +172,7 @@ public:
         return chunkData;
     }
 
-    virtual void FinalizeChunk(
+    void FinalizeChunk(
         TChunkId chunkId,
         TInMemoryChunkDataPtr data,
         const TRefCountedChunkMetaPtr& chunkMeta,
@@ -651,7 +651,7 @@ public:
         , HeavyRpcTimeout_(heavyRpcTimeout)
     { }
 
-    virtual void PutBlock(
+    void PutBlock(
         const TBlockId& id,
         EBlockType type,
         const TBlock& data) override
@@ -683,26 +683,26 @@ public:
         }
     }
 
-    virtual TCachedBlock FindBlock(
+    TCachedBlock FindBlock(
         const TBlockId& /* id */,
         EBlockType /* type */) override
     {
         return TCachedBlock();
     }
 
-    virtual std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
+    std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
         const TBlockId& /* id */,
         EBlockType /* type */) override
     {
         return CreateActiveCachedBlockCookie();
     }
 
-    virtual EBlockType GetSupportedBlockTypes() const override
+    EBlockType GetSupportedBlockTypes() const override
     {
         return MapInMemoryModeToBlockType(InMemoryMode_);
     }
 
-    virtual TFuture<void> Finish(const std::vector<TChunkInfo>& chunkInfos) override
+    TFuture<void> Finish(const std::vector<TChunkInfo>& chunkInfos) override
     {
         bool expected = false;
         if (Sending_.compare_exchange_strong(expected, true)) {
@@ -850,32 +850,32 @@ class TDummyInMemoryBlockCache
     : public IRemoteInMemoryBlockCache
 {
 public:
-    virtual void PutBlock(
+    void PutBlock(
         const TBlockId& /*id*/,
         EBlockType /*type*/,
         const TBlock& /*data*/) override
     { }
 
-    virtual TCachedBlock FindBlock(
+    TCachedBlock FindBlock(
         const TBlockId& /* id */,
         EBlockType /* type */) override
     {
         return TCachedBlock();
     }
 
-    virtual std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
+    std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
         const TBlockId& /*id*/,
         EBlockType /*type*/) override
     {
         return CreateActiveCachedBlockCookie();
     }
 
-    virtual EBlockType GetSupportedBlockTypes() const override
+    EBlockType GetSupportedBlockTypes() const override
     {
         return EBlockType::None;
     }
 
-    virtual TFuture<void> Finish(const std::vector<TChunkInfo>& /*chunkInfos*/) override
+    TFuture<void> Finish(const std::vector<TChunkInfo>& /*chunkInfos*/) override
     {
         return VoidFuture;
     }

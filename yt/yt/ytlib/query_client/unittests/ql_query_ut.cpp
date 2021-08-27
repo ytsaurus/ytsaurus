@@ -66,12 +66,12 @@ class TQueryPrepareTest
     : public ::testing::Test
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     {
         ActionQueue_ = New<TActionQueue>("PrepareTest");
     }
 
-    virtual void TearDown() override
+    void TearDown() override
     {
         ActionQueue_->Shutdown();
     }
@@ -806,7 +806,7 @@ class TQueryCoordinateTest
     : public ::testing::Test
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     {
         EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
             .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
@@ -1098,7 +1098,7 @@ class TQueryEvaluateTest
     : public ::testing::Test
 {
 protected:
-    virtual void SetUp() override
+    void SetUp() override
     {
         ActionQueue_ = New<TActionQueue>("Test");
 
@@ -1164,7 +1164,7 @@ protected:
             ECallingConvention::Simple);
     }
 
-    virtual void TearDown() override
+    void TearDown() override
     {
         ActionQueue_->Shutdown();
     }

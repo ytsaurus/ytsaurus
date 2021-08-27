@@ -40,17 +40,17 @@ public:
         , Options_(options)
     { }
 
-    virtual TCellId GetCellId() const override
+    TCellId GetCellId() const override
     {
         return CellId_;
     }
 
-    virtual const ITimestampProviderPtr& GetTimestampProvider() const override
+    const ITimestampProviderPtr& GetTimestampProvider() const override
     {
         return TimestampProvider_;
     }
 
-    virtual ETransactionParticipantState GetState() const override
+    ETransactionParticipantState GetState() const override
     {
         if (CellDirectory_->IsCellUnregistered(CellId_)) {
             return ETransactionParticipantState::Unregistered;
@@ -61,7 +61,7 @@ public:
         return ETransactionParticipantState::Valid;
     }
 
-    virtual TFuture<void> PrepareTransaction(
+    TFuture<void> PrepareTransaction(
         TTransactionId transactionId,
         TTimestamp prepareTimestamp,
         const std::vector<TCellId>& cellIdsToSyncWith,
@@ -79,7 +79,7 @@ public:
             });
     }
 
-    virtual TFuture<void> CommitTransaction(
+    TFuture<void> CommitTransaction(
         TTransactionId transactionId,
         TTimestamp commitTimestamp,
         const NRpc::TAuthenticationIdentity& identity) override
@@ -95,7 +95,7 @@ public:
             });
     }
 
-    virtual TFuture<void> AbortTransaction(
+    TFuture<void> AbortTransaction(
         TTransactionId transactionId,
         const NRpc::TAuthenticationIdentity& identity) override
     {
@@ -110,7 +110,7 @@ public:
             });
     }
 
-    virtual TFuture<void> CheckAvailability() override
+    TFuture<void> CheckAvailability() override
     {
         return GetChannel().Apply(BIND([=, this_ = MakeStrong(this)] (const NRpc::IChannelPtr& channel) {
             THydraServiceProxy proxy(channel);

@@ -294,11 +294,11 @@ private:
     void LoadKeys(NCellMaster::TLoadContext& context);
     void LoadValues(NCellMaster::TLoadContext& context);
 
-    virtual void OnRecoveryStarted() override;
-    virtual void OnRecoveryComplete() override;
-    virtual void Clear() override;
-    virtual void OnLeaderActive() override;
-    virtual void OnStopLeading() override;
+    void OnRecoveryStarted() override;
+    void OnRecoveryComplete() override;
+    void Clear() override;
+    void OnLeaderActive() override;
+    void OnStopLeading() override;
 
     static TString MakeCodicilData(const TAuthenticationIdentity& identity);
     void HydraExecuteLeader(
@@ -356,12 +356,12 @@ public:
         , ForwardedCellTag_(forwardedCellTag)
     { }
 
-    virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override
+    TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override
     {
         return TResolveResultHere{path};
     }
 
-    virtual void Invoke(const IServiceContextPtr& context) override
+    void Invoke(const IServiceContextPtr& context) override
     {
         auto* mutationContext = TryGetCurrentMutationContext();
         if (mutationContext) {
@@ -533,7 +533,7 @@ public:
             }).Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService)));
     }
 
-    virtual void DoWriteAttributesFragment(
+    void DoWriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,
         const std::optional<std::vector<TString>>& /*attributeKeys*/,
         bool /*stable*/) override
@@ -541,7 +541,7 @@ public:
         YT_ABORT();
     }
 
-    virtual bool ShouldHideAttributes() override
+    bool ShouldHideAttributes() override
     {
         return false;
     }
@@ -562,7 +562,7 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& context) override
+    TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& context) override
     {
         if (IsRequestMutating(context->RequestHeader()) && !HasMutationContext()) {
             // Nested call or recovery.
@@ -572,7 +572,7 @@ public:
         }
     }
 
-    virtual void Invoke(const IServiceContextPtr& context) override
+    void Invoke(const IServiceContextPtr& context) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto mutation = objectManager->CreateExecuteMutation(context, context->GetAuthenticationIdentity());
@@ -587,7 +587,7 @@ public:
             }));
     }
 
-    virtual void DoWriteAttributesFragment(
+    void DoWriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,
         const std::optional<std::vector<TString>>& /*attributeKeys*/,
         bool /*stable*/) override
@@ -595,7 +595,7 @@ public:
         YT_ABORT();
     }
 
-    virtual bool ShouldHideAttributes() override
+    bool ShouldHideAttributes() override
     {
         YT_ABORT();
     }

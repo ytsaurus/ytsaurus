@@ -38,12 +38,12 @@ public:
         : ChannelFactory_(std::move(channelFactory))
     { }
 
-    virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override
+    TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override
     {
         return TResolveResultHere{path};
     }
 
-    virtual void Invoke(const IServiceContextPtr& context) override
+    void Invoke(const IServiceContextPtr& context) override
     {
         if (IsRequestMutating(context->RequestHeader())) {
             THROW_ERROR_EXCEPTION("Orchid nodes are read-only");
@@ -87,7 +87,7 @@ public:
             method));
     }
 
-    virtual void DoWriteAttributesFragment(
+    void DoWriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,
         const std::optional<std::vector<TString>>& /*attributeKeys*/,
         bool /*stable*/) override
@@ -95,7 +95,7 @@ public:
         YT_ABORT();
     }
 
-    virtual bool ShouldHideAttributes() override
+    bool ShouldHideAttributes() override
     {
         YT_ABORT();
     }
@@ -177,7 +177,7 @@ public:
 private:
     const INodePtr OwningNode_;
 
-    virtual TOrchidManifestPtr LoadManifest() const override
+    TOrchidManifestPtr LoadManifest() const override
     {
         auto manifest = New<TOrchidManifest>();
         auto manifestNode = ConvertToNode(OwningNode_->Attributes());
@@ -205,7 +205,7 @@ public:
 private:
     TOrchidManifestPtr Manifest_;
 
-    virtual TOrchidManifestPtr LoadManifest() const override
+    TOrchidManifestPtr LoadManifest() const override
     {
         return Manifest_;
     }

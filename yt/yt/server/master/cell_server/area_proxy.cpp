@@ -35,7 +35,7 @@ public:
 private:
     using TBase = TNonversionedObjectProxyBase<TArea>;
 
-    virtual void ValidateRemoval() override
+    void ValidateRemoval() override
     {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
 
@@ -47,7 +47,7 @@ private:
         }
     }
 
-    virtual void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
         const auto* area = GetThisImpl();
@@ -70,7 +70,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::Nodes);
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         const auto* area = GetThisImpl();
 
@@ -129,7 +129,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         auto* area = GetThisImpl();
         const auto& cellManager = Bootstrap_->GetTamedCellManager();

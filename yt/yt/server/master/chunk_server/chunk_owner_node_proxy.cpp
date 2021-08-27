@@ -369,7 +369,7 @@ private:
         RpcContext_->Reply(error);
     }
 
-    virtual bool OnChunk(
+    bool OnChunk(
         TChunk* chunk,
         std::optional<i64> rowIndex,
         std::optional<int> tabletIndex,
@@ -418,7 +418,7 @@ private:
         return true;
     }
 
-    virtual bool OnChunkView(TChunkView* /*chunkView*/) override
+    bool OnChunkView(TChunkView* /*chunkView*/) override
     {
         if (FetchContext_.ThrowOnChunkViews) {
             THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::InvalidInputChunk,
@@ -428,7 +428,7 @@ private:
         return false;
     }
 
-    virtual bool OnDynamicStore(
+    bool OnDynamicStore(
         TDynamicStore* dynamicStore,
         std::optional<int> tabletIndex,
         const TReadLimit& lowerLimit,
@@ -484,7 +484,7 @@ private:
         return true;
     }
 
-    virtual void OnFinish(const TError& error) override
+    void OnFinish(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

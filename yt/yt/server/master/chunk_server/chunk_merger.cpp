@@ -72,21 +72,21 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    virtual void AttachToChunkList(
+    void AttachToChunkList(
         TChunkList* chunkList,
         const std::vector<TChunkTree*>& children) override
     {
         Bootstrap_->GetChunkManager()->AttachToChunkList(chunkList, children);
     }
 
-    virtual void AttachToChunkList(
+    void AttachToChunkList(
         TChunkList* chunkList,
         TChunkTree* child) override
     {
         Bootstrap_->GetChunkManager()->AttachToChunkList(chunkList, child);
     }
 
-    virtual void AttachToChunkList(
+    void AttachToChunkList(
         TChunkList* chunkList,
         TChunkTree* const* childrenBegin,
         TChunkTree* const* childrenEnd) override
@@ -94,7 +94,7 @@ public:
         Bootstrap_->GetChunkManager()->AttachToChunkList(chunkList, childrenBegin, childrenEnd);
     }
 
-    virtual bool IsMutationLoggingEnabled() override
+    bool IsMutationLoggingEnabled() override
     {
         return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsMutationLoggingEnabled();
     }
@@ -151,7 +151,7 @@ private:
     i64 CurrentUncompressedDataSize_ = 0;
 
 
-    virtual bool OnChunk(
+    bool OnChunk(
         TChunk* chunk,
         std::optional<i64> /*rowIndex*/,
         std::optional<int> /*tabletIndex*/,
@@ -174,12 +174,12 @@ private:
         return true;
     }
 
-    virtual bool OnChunkView(TChunkView*) override
+    bool OnChunkView(TChunkView*) override
     {
         return false;
     }
 
-    virtual bool OnDynamicStore(
+    bool OnDynamicStore(
         TDynamicStore*,
         std::optional<int>,
         const NChunkClient::TReadLimit&,
@@ -188,7 +188,7 @@ private:
         return false;
     }
 
-    virtual void OnFinish(const TError& error) override
+    void OnFinish(const TError& error) override
     {
         auto chunkVisitorHost = ChunkVisitorHost_.Lock();
         if (!chunkVisitorHost) {

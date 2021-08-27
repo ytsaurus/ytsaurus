@@ -55,12 +55,12 @@ protected:
             CreateThreadPoolPoller(1, "HttpPoller"));
     }
 
-    virtual void SetUp() override
+    void SetUp() override
     {
         MockHttpServer_.Start();
     }
 
-    virtual void TearDown() override
+    void TearDown() override
     {
         if (MockHttpServer_.IsStarted()) {
             MockHttpServer_.Stop();
@@ -89,17 +89,17 @@ private:
         : public ITvmService
     {
     public:
-        virtual ui32 GetSelfTvmId() override
+        ui32 GetSelfTvmId() override
         {
             return 100500;
         }
 
-        virtual TString GetServiceTicket(const TString& serviceId) override
+        TString GetServiceTicket(const TString& serviceId) override
         {
             return Format("ticket:%v", serviceId);
         }
 
-        virtual TParsedTicket ParseUserTicket(const TString& /*ticket*/) override
+        TParsedTicket ParseUserTicket(const TString& /*ticket*/) override
         {
             THROW_ERROR_EXCEPTION("Not implemented");
         }

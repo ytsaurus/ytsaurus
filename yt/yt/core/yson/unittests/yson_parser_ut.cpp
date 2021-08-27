@@ -596,7 +596,7 @@ TEST(TYsonTest, ContextInExceptions_ContextAtTheVeryBeginning)
         : public TNullYsonConsumer
     {
     public:
-        virtual void OnBeginAttributes() override
+        void OnBeginAttributes() override
         {
             THROW_ERROR_EXCEPTION("I don't like attributes");
         }

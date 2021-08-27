@@ -30,7 +30,7 @@ public:
         , JobId_(jobId)
     { }
 
-    virtual std::vector<TChunkId> DumpInputContext() override
+    std::vector<TChunkId> DumpInputContext() override
     {
         auto* proxy = GetOrCreateJobProberProxy();
 
@@ -44,7 +44,7 @@ public:
         return FromProto<std::vector<TChunkId>>(rsp->chunk_ids());
     }
 
-    virtual TYsonString PollJobShell(
+    TYsonString PollJobShell(
         const TJobShellDescriptor& jobShellDescriptor,
         const TYsonString& parameters) override
     {
@@ -61,7 +61,7 @@ public:
         return TYsonString(rsp->result());
     }
 
-    virtual TString GetStderr() override
+    TString GetStderr() override
     {
         auto* proxy = GetOrCreateJobProberProxy();
 
@@ -75,7 +75,7 @@ public:
         return rsp->stderr_data();
     }
 
-    virtual void Interrupt() override
+    void Interrupt() override
     {
         auto* proxy = GetOrCreateJobProberProxy();
 
@@ -86,7 +86,7 @@ public:
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
     }
 
-    virtual void Fail() override
+    void Fail() override
     {
         auto* proxy = GetOrCreateJobProberProxy();
 
@@ -97,7 +97,7 @@ public:
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
     }
 
-    virtual TSharedRef DumpSensors() override
+    TSharedRef DumpSensors() override
     {
         auto* proxy = GetOrCreateJobProberProxy();
 

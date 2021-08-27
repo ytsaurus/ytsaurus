@@ -73,7 +73,7 @@ public:
         return ThrottlerConfig_.Load();
     }
 
-    virtual TFuture<void> Throttle(i64 count) override
+    TFuture<void> Throttle(i64 count) override
     {
         auto config = Config_.Load();
 
@@ -103,7 +103,7 @@ public:
         return future;
     }
 
-    virtual bool TryAcquire(i64 count) override
+    bool TryAcquire(i64 count) override
     {
         YT_VERIFY(Config_.Load()->Mode != EDistributedThrottlerMode::Precise);
 
@@ -114,7 +114,7 @@ public:
         return result;
     }
 
-    virtual i64 TryAcquireAvailable(i64 count) override
+    i64 TryAcquireAvailable(i64 count) override
     {
         YT_VERIFY(Config_.Load()->Mode != EDistributedThrottlerMode::Precise);
 
@@ -125,7 +125,7 @@ public:
         return result;
     }
 
-    virtual void Acquire(i64 count) override
+    void Acquire(i64 count) override
     {
         YT_VERIFY(Config_.Load()->Mode != EDistributedThrottlerMode::Precise);
 
@@ -133,21 +133,21 @@ public:
         Underlying_->Acquire(count);
     }
 
-    virtual bool IsOverdraft() override
+    bool IsOverdraft() override
     {
         YT_VERIFY(Config_.Load()->Mode != EDistributedThrottlerMode::Precise);
 
         return Underlying_->IsOverdraft();
     }
 
-    virtual i64 GetQueueTotalCount() const override
+    i64 GetQueueTotalCount() const override
     {
         YT_VERIFY(Config_.Load()->Mode != EDistributedThrottlerMode::Precise);
 
         return Underlying_->GetQueueTotalCount();
     }
 
-    virtual void Reconfigure(TThroughputThrottlerConfigPtr config) override
+    void Reconfigure(TThroughputThrottlerConfigPtr config) override
     {
         if (Config_.Load()->Mode == EDistributedThrottlerMode::Precise) {
             Underlying_->Reconfigure(std::move(config));
@@ -156,7 +156,7 @@ public:
         }
     }
 
-    virtual void SetLimit(std::optional<double> limit) override
+    void SetLimit(std::optional<double> limit) override
     {
         Underlying_->SetLimit(limit);
     }
@@ -740,7 +740,7 @@ public:
         MemberClient_->SetPriority(TInstant::Now().Seconds());
     }
 
-    virtual IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(
+    IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(
         const TString& throttlerId,
         TThroughputThrottlerConfigPtr throttlerConfig,
         TDuration throttleRpcTimeout) override
@@ -790,7 +790,7 @@ public:
         }
     }
 
-    virtual void Reconfigure(TDistributedThrottlerConfigPtr config) override
+    void Reconfigure(TDistributedThrottlerConfigPtr config) override
     {
         MemberClient_->Reconfigure(config->MemberClient);
         DiscoveryClient_->Reconfigure(config->DiscoveryClient);
@@ -820,7 +820,7 @@ public:
         Config_.Store(std::move(config));
     }
 
-    virtual void Start() override
+    void Start() override
     {
         MemberClient_->Start();
 
@@ -828,7 +828,7 @@ public:
         UpdateLeaderExecutor_->Start();
     }
 
-    virtual void Stop() override
+    void Stop() override
     {
         MemberClient_->Stop();
 

@@ -26,7 +26,7 @@ public:
 
     TLogDigest() = default;
 
-    virtual void AddSample(double value) override
+    void AddSample(double value) override
     {
         double bucketId = log(value / LowerBound_) / LogStep_;
         if (std::isnan(bucketId) || bucketId < std::numeric_limits<i32>::min() || bucketId > std::numeric_limits<i32>::max()) {
@@ -37,7 +37,7 @@ public:
         ++SampleCount_;
     }
 
-    virtual double GetQuantile(double alpha) const override
+    double GetQuantile(double alpha) const override
     {
         if (SampleCount_ == 0) {
             return DefaultValue_;
@@ -54,7 +54,7 @@ public:
         return UpperBound_;
     }
 
-    virtual void Persist(const TPersistenceContext& context) override
+    void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;
         Persist(context, Step_);

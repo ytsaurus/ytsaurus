@@ -165,7 +165,7 @@ class TSecurityManager::TAccountTypeHandler
 public:
     explicit TAccountTypeHandler(TImpl* owner);
 
-    virtual ETypeFlags GetFlags() const override
+    ETypeFlags GetFlags() const override
     {
         return
             TBase::GetFlags() |
@@ -176,27 +176,27 @@ public:
             ETypeFlags::TwoPhaseRemoval;
     }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::Account;
     }
 
-    virtual TObject* CreateObject(
+    TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
-    virtual std::unique_ptr<TObject> InstantiateObject(TObjectId id) override;
+    std::unique_ptr<TObject> InstantiateObject(TObjectId id) override;
 
-    virtual std::optional<TObject*> FindObjectByAttributes(
+    std::optional<TObject*> FindObjectByAttributes(
         const NYTree::IAttributeDictionary* attributes) override;
 
-    virtual void RegisterName(const TString& name, TAccount* account) noexcept override;
-    virtual void UnregisterName(const TString& name, TAccount* account) noexcept override;
+    void RegisterName(const TString& name, TAccount* account) noexcept override;
+    void UnregisterName(const TString& name, TAccount* account) noexcept override;
 
-    virtual TString GetRootPath(const TAccount* rootAccount) const override;
+    TString GetRootPath(const TAccount* rootAccount) const override;
 
 protected:
-    virtual TCellTagList DoGetReplicationCellTags(const TAccount* /*account*/) override
+    TCellTagList DoGetReplicationCellTags(const TAccount* /*account*/) override
     {
         return TObjectTypeHandlerBase<TAccount>::AllSecondaryCellTags();
     }
@@ -206,16 +206,16 @@ private:
 
     TImpl* const Owner_;
 
-    virtual std::optional<int> GetDepthLimit() const override
+    std::optional<int> GetDepthLimit() const override
     {
         return AccountTreeDepthLimit;
     }
 
-    virtual std::optional<int> GetSubtreeSizeLimit() const override;
+    std::optional<int> GetSubtreeSizeLimit() const override;
 
-    virtual TProxyPtr GetMapObjectProxy(TAccount* account) override;
+    TProxyPtr GetMapObjectProxy(TAccount* account) override;
 
-    virtual void DoZombifyObject(TAccount* account) override;
+    void DoZombifyObject(TAccount* account) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -226,18 +226,18 @@ class TSecurityManager::TAccountResourceUsageLeaseTypeHandler
 public:
     explicit TAccountResourceUsageLeaseTypeHandler(TImpl* owner);
 
-    virtual ETypeFlags GetFlags() const override
+    ETypeFlags GetFlags() const override
     {
         return
             ETypeFlags::Creatable |
             ETypeFlags::Removable;
     }
 
-    virtual TObject* CreateObject(
+    TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::AccountResourceUsageLease;
     }
@@ -247,14 +247,14 @@ private:
 
     TImpl* const Owner_;
 
-    virtual IObjectProxyPtr DoGetProxy(
+    IObjectProxyPtr DoGetProxy(
         TAccountResourceUsageLease* accountResourceUsageLease,
         TTransaction* /*transaction*/) override
     {
         return CreateAccountResourceUsageLeaseProxy(Bootstrap_, &Metadata_, accountResourceUsageLease);
     }
 
-    virtual void DoZombifyObject(TAccountResourceUsageLease* accountResourceUsageLease) override;
+    void DoZombifyObject(TAccountResourceUsageLease* accountResourceUsageLease) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -265,7 +265,7 @@ class TSecurityManager::TUserTypeHandler
 public:
     explicit TUserTypeHandler(TImpl* owner);
 
-    virtual ETypeFlags GetFlags() const override
+    ETypeFlags GetFlags() const override
     {
         return
             ETypeFlags::ReplicateCreate |
@@ -277,30 +277,30 @@ public:
             ETypeFlags::TwoPhaseRemoval;
     }
 
-    virtual TCellTagList DoGetReplicationCellTags(const TUser* /*object*/) override
+    TCellTagList DoGetReplicationCellTags(const TUser* /*object*/) override
     {
         return AllSecondaryCellTags();
     }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::User;
     }
 
-    virtual TObject* CreateObject(
+    TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
 private:
     TImpl* const Owner_;
 
-    virtual TAccessControlDescriptor* DoFindAcd(TUser* user) override
+    TAccessControlDescriptor* DoFindAcd(TUser* user) override
     {
         return &user->Acd();
     }
 
-    virtual IObjectProxyPtr DoGetProxy(TUser* user, TTransaction* transaction) override;
-    virtual void DoZombifyObject(TUser* user) override;
+    IObjectProxyPtr DoGetProxy(TUser* user, TTransaction* transaction) override;
+    void DoZombifyObject(TUser* user) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -311,7 +311,7 @@ class TSecurityManager::TGroupTypeHandler
 public:
     explicit TGroupTypeHandler(TImpl* owner);
 
-    virtual ETypeFlags GetFlags() const override
+    ETypeFlags GetFlags() const override
     {
         return
             ETypeFlags::ReplicateCreate |
@@ -321,30 +321,30 @@ public:
             ETypeFlags::Removable;
     }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::Group;
     }
 
-    virtual TObject* CreateObject(
+    TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
 private:
     TImpl* const Owner_;
 
-    virtual TCellTagList DoGetReplicationCellTags(const TGroup* /*group*/) override
+    TCellTagList DoGetReplicationCellTags(const TGroup* /*group*/) override
     {
         return AllSecondaryCellTags();
     }
 
-    virtual TAccessControlDescriptor* DoFindAcd(TGroup* group) override
+    TAccessControlDescriptor* DoFindAcd(TGroup* group) override
     {
         return &group->Acd();
     }
 
-    virtual IObjectProxyPtr DoGetProxy(TGroup* group, TTransaction* transaction) override;
-    virtual void DoZombifyObject(TGroup* group) override;
+    IObjectProxyPtr DoGetProxy(TGroup* group, TTransaction* transaction) override;
+    void DoZombifyObject(TGroup* group) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -355,23 +355,23 @@ class TSecurityManager::TNetworkProjectTypeHandler
 public:
     explicit TNetworkProjectTypeHandler(TImpl* owner);
 
-    virtual ETypeFlags GetFlags() const override
+    ETypeFlags GetFlags() const override
     {
         return
             ETypeFlags::Creatable |
             ETypeFlags::Removable;
     }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::NetworkProject;
     }
 
-    virtual TObject* CreateObject(
+    TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
-    virtual TAccessControlDescriptor* DoFindAcd(TNetworkProject* networkProject) override
+    TAccessControlDescriptor* DoFindAcd(TNetworkProject* networkProject) override
     {
         return &networkProject->Acd();
     }
@@ -379,8 +379,8 @@ public:
 private:
     TImpl* const Owner_;
 
-    virtual IObjectProxyPtr DoGetProxy(TNetworkProject* networkProject, TTransaction* transaction) override;
-    virtual void DoZombifyObject(TNetworkProject* networkProject) override;
+    IObjectProxyPtr DoGetProxy(TNetworkProject* networkProject, TTransaction* transaction) override;
+    void DoZombifyObject(TNetworkProject* networkProject) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -391,23 +391,23 @@ class TSecurityManager::TProxyRoleTypeHandler
 public:
     explicit TProxyRoleTypeHandler(TImpl* owner);
 
-    virtual ETypeFlags GetFlags() const override
+    ETypeFlags GetFlags() const override
     {
         return
             ETypeFlags::Creatable |
             ETypeFlags::Removable;
     }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::ProxyRole;
     }
 
-    virtual TObject* CreateObject(
+    TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
-    virtual TAccessControlDescriptor* DoFindAcd(TProxyRole* proxyRole) override
+    TAccessControlDescriptor* DoFindAcd(TProxyRole* proxyRole) override
     {
         return &proxyRole->Acd();
     }
@@ -415,8 +415,8 @@ public:
 private:
     TImpl* const Owner_;
 
-    virtual IObjectProxyPtr DoGetProxy(TProxyRole* proxyRoles, TTransaction* transaction) override;
-    virtual void DoZombifyObject(TProxyRole* proxyRole) override;
+    IObjectProxyPtr DoGetProxy(TProxyRole* proxyRoles, TTransaction* transaction) override;
+    void DoZombifyObject(TProxyRole* proxyRole) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2837,7 +2837,7 @@ private:
         }
     }
 
-    virtual void OnAfterSnapshotLoaded() override
+    void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
@@ -3128,7 +3128,7 @@ private:
         YT_LOG_INFO("Finished recomputing account master memory usage");
     }
 
-    virtual void Clear() override
+    void Clear() override
     {
         TMasterAutomatonPart::Clear();
 
@@ -3180,7 +3180,7 @@ private:
         ResetAuthenticatedUser();
     }
 
-    virtual void SetZeroState() override
+    void SetZeroState() override
     {
         TMasterAutomatonPart::SetZeroState();
 
@@ -3445,14 +3445,14 @@ private:
     }
 
 
-    virtual void OnRecoveryComplete() override
+    void OnRecoveryComplete() override
     {
         TMasterAutomatonPart::OnRecoveryComplete();
 
         RequestTracker_->Start();
     }
 
-    virtual void OnLeaderActive() override
+    void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -3474,7 +3474,7 @@ private:
         AccountMasterMemoryUsageUpdateExecutor_->Start();
     }
 
-    virtual void OnStopLeading() override
+    void OnStopLeading() override
     {
         TMasterAutomatonPart::OnStopLeading();
 
@@ -3496,7 +3496,7 @@ private:
         }
     }
 
-    virtual void OnStopFollowing() override
+    void OnStopFollowing() override
     {
         TMasterAutomatonPart::OnStopFollowing();
 

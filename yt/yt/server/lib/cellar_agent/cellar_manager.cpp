@@ -31,7 +31,7 @@ public:
         , Bootstrap_(std::move(bootstrap))
     { }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -42,7 +42,7 @@ public:
         }
     }
 
-    virtual ICellarPtr GetCellar(ECellarType type) override
+    ICellarPtr GetCellar(ECellarType type) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -51,7 +51,7 @@ public:
         return cellar;
     }
 
-    virtual ICellarPtr FindCellar(ECellarType type) override
+    ICellarPtr FindCellar(ECellarType type) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -62,7 +62,7 @@ public:
         return nullptr;
     }
 
-    virtual void Reconfigure(TCellarManagerDynamicConfigPtr config) override
+    void Reconfigure(TCellarManagerDynamicConfigPtr config) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 

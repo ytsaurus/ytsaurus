@@ -369,7 +369,7 @@ public:
         return IdlePromise_.ToFuture();
     }
 
-    virtual void CollectSensors(NProfiling::ISensorWriter* writer) override
+    void CollectSensors(NProfiling::ISensorWriter* writer) override
     {
         TProcessListSnapshot snapshot;
         {

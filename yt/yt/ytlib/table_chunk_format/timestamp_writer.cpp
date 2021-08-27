@@ -26,7 +26,7 @@ public:
         BlockWriter_->RegisterColumnWriter(this);
     }
 
-    virtual void WriteTimestamps(TRange<TVersionedRow> rows) override
+    void WriteTimestamps(TRange<TVersionedRow> rows) override
     {
         for (const auto row : rows) {
             WriteTimestampCounts_.push_back((WriteTimestampCounts_.empty()
@@ -50,7 +50,7 @@ public:
         TryDumpSegment();
     }
 
-    virtual void FinishBlock(int blockIndex) override
+    void FinishBlock(int blockIndex) override
     {
         FinishCurrentSegment();
 
@@ -64,7 +64,7 @@ public:
         CurrentBlockSegments_.clear();
     }
 
-    virtual void FinishCurrentSegment() override
+    void FinishCurrentSegment() override
     {
         if (!WriteTimestampCounts_.empty()) {
             DumpSegment();
@@ -75,7 +75,7 @@ public:
     }
 
     // Size currently occupied.
-    virtual i32 GetCurrentSegmentSize() const override
+    i32 GetCurrentSegmentSize() const override
     {
         if (UniqueTimestamps_.empty()) {
             return 0;
@@ -97,22 +97,22 @@ public:
         return dictionarySize + idsSize + indexesSize;
     }
 
-    virtual const NProto::TColumnMeta& ColumnMeta() const override
+    const NProto::TColumnMeta& ColumnMeta() const override
     {
         return ColumnMeta_;
     }
 
-    virtual TTimestamp GetMinTimestamp() const override
+    TTimestamp GetMinTimestamp() const override
     {
         return MinTimestamp_;
     }
 
-    virtual TTimestamp GetMaxTimestamp() const override
+    TTimestamp GetMaxTimestamp() const override
     {
         return MaxTimestamp_;
     }
 
-    virtual i64 GetMetaSize() const override
+    i64 GetMetaSize() const override
     {
         return MetaSize_;
     }

@@ -64,29 +64,29 @@ public:
         : ChunkLists_(chunkLists)
     { }
 
-    virtual void RefObject(NObjectServer::TObject* object) override
+    void RefObject(NObjectServer::TObject* object) override
     {
         object->RefObject();
     }
 
-    virtual void UnrefObject(NObjectServer::TObject* object) override
+    void UnrefObject(NObjectServer::TObject* object) override
     {
         object->UnrefObject();
     }
 
-    virtual int GetObjectRefCounter(NObjectServer::TObject* object) override
+    int GetObjectRefCounter(NObjectServer::TObject* object) override
     {
         return object->GetObjectRefCounter();
     }
 
-    virtual TChunkList* CreateChunkList() override
+    TChunkList* CreateChunkList() override
     {
         auto chunkList = TPoolAllocator::New<TChunkList>(GenerateChunkListId());
         ChunkLists_->push_back(std::move(chunkList));
         return ChunkLists_->back().get();
     }
 
-    virtual void ClearChunkList(TChunkList* chunkList) override
+    void ClearChunkList(TChunkList* chunkList) override
     {
         for (auto* child : chunkList->Children()) {
             ResetChunkTreeParent(chunkList, child);
@@ -96,7 +96,7 @@ public:
         ResetChunkListStatistics(chunkList);
     }
 
-    virtual void AttachToChunkList(
+    void AttachToChunkList(
         TChunkList* chunkList,
         const std::vector<TChunkTree*>& children) override
     {
@@ -106,7 +106,7 @@ public:
             children.data() + children.size());
     }
 
-    virtual void AttachToChunkList(
+    void AttachToChunkList(
         TChunkList* chunkList,
         TChunkTree* child) override
     {
@@ -116,7 +116,7 @@ public:
             &child + 1);
     }
 
-    virtual void AttachToChunkList(
+    void AttachToChunkList(
         TChunkList* chunkList,
         TChunkTree* const* childrenBegin,
         TChunkTree* const* childrenEnd) override

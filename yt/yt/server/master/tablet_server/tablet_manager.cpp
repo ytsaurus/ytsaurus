@@ -4239,7 +4239,7 @@ private:
         }
     }
 
-    virtual void OnBeforeSnapshotLoaded() override
+    void OnBeforeSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
@@ -4247,7 +4247,7 @@ private:
         FixTablesWithNullTabletCellBundle_ = false;
     }
 
-    virtual void OnAfterSnapshotLoaded() override
+    void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
@@ -4348,7 +4348,7 @@ private:
         }
     }
 
-    virtual void Clear() override
+    void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -4361,7 +4361,7 @@ private:
         DefaultTabletCellBundle_ = nullptr;
     }
 
-    virtual void SetZeroState() override
+    void SetZeroState() override
     {
         InitBuiltins();
     }
@@ -6143,7 +6143,7 @@ private:
         }
     }
 
-    virtual void OnLeaderActive() override
+    void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -6174,7 +6174,7 @@ private:
         ProfilingExecutor_->Start();
     }
 
-    virtual void OnStopLeading() override
+    void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

@@ -43,7 +43,7 @@ public:
         callback.Run();
     }
 
-    virtual void Invoke(TClosure callback) override;
+    void Invoke(TClosure callback) override;
 
     void Drain()
     {
@@ -51,12 +51,12 @@ public:
     }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-    virtual NConcurrency::TThreadId GetThreadId() const override
+    NConcurrency::TThreadId GetThreadId() const override
     {
         return InvalidThreadId;
     }
 
-    virtual bool CheckAffinity(const IInvokerPtr& invoker) const override
+    bool CheckAffinity(const IInvokerPtr& invoker) const override
     {
         return invoker.Get() == this;
     }
@@ -215,7 +215,7 @@ public:
         BucketCounter_.Update(TagToBucket_.size());
     }
 
-    virtual void Shutdown() override
+    void Shutdown() override
     {
         Drain();
     }
@@ -460,12 +460,12 @@ protected:
 
     TEnqueuedAction CurrentAction;
 
-    virtual TClosure BeginExecute() override
+    TClosure BeginExecute() override
     {
         return Queue_->BeginExecute(&CurrentAction, Index_);
     }
 
-    virtual void EndExecute() override
+    void EndExecute() override
     {
         Queue_->EndExecute(&CurrentAction, Index_);
     }
@@ -496,18 +496,18 @@ public:
         Shutdown();
     }
 
-    virtual void Configure(int threadCount) override
+    void Configure(int threadCount) override
     {
         TThreadPoolBase::Configure(threadCount);
     }
 
-    virtual IInvokerPtr GetInvoker(const TFairShareThreadPoolTag& tag) override
+    IInvokerPtr GetInvoker(const TFairShareThreadPoolTag& tag) override
     {
         EnsureStarted();
         return Queue_->GetInvoker(tag);
     }
 
-    virtual void Shutdown() override
+    void Shutdown() override
     {
         TThreadPoolBase::Shutdown();
     }
@@ -517,13 +517,13 @@ private:
     const TFairShareQueuePtr Queue_;
 
 
-    virtual void DoShutdown() override
+    void DoShutdown() override
     {
         Queue_->Shutdown();
         TThreadPoolBase::DoShutdown();
     }
 
-    virtual TClosure MakeFinalizerCallback() override
+    TClosure MakeFinalizerCallback() override
     {
         return BIND([queue = Queue_, callback = TThreadPoolBase::MakeFinalizerCallback()] {
             callback();
@@ -531,13 +531,13 @@ private:
         });
     }
 
-    virtual void DoConfigure(int threadCount) override
+    void DoConfigure(int threadCount) override
     {
         Queue_->Configure(threadCount);
         TThreadPoolBase::DoConfigure(threadCount);
     }
 
-    virtual TSchedulerThreadPtr SpawnThread(int index) override
+    TSchedulerThreadPtr SpawnThread(int index) override
     {
         return New<TFairShareThread>(
             Queue_,

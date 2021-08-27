@@ -36,14 +36,14 @@ public:
         std::unique_ptr<TSchemafulRowMerger> rowMerger,
         std::function<IVersionedReaderPtr()> readerFactory);
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
-    virtual TFuture<void> GetReadyEvent() const override;
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
+    TFuture<void> GetReadyEvent() const override;
 
-    virtual TDataStatistics GetDataStatistics() const override;
-    virtual TCodecStatistics GetDecompressionStatistics() const override;
+    TDataStatistics GetDataStatistics() const override;
+    TCodecStatistics GetDecompressionStatistics() const override;
 
-    virtual bool IsFetchingCompleted() const override;
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
+    bool IsFetchingCompleted() const override;
+    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
 
 private:
     struct TSession
@@ -717,7 +717,7 @@ public:
         return this_;
     }
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         std::vector<TUnversionedRow> rows;
         rows.reserve(options.MaxRowsPerRead);
@@ -727,27 +727,27 @@ public:
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         return DoGetReadyEvent();
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         return DoGetDataStatistics();
     }
 
-    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
+    NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
     {
         return DoGetDecompressionStatistics();
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return DoIsFetchingCompleted();
     }
 
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
+    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
     {
         return DoGetFailedChunkIds();
     }
@@ -808,12 +808,12 @@ public:
             minConcurrency)
     { }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open() override
     {
         return DoOpen();
     }
 
-    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         std::vector<TVersionedRow> rows;
         rows.reserve(options.MaxRowsPerRead);
@@ -823,27 +823,27 @@ public:
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         return DoGetReadyEvent();
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    TDataStatistics GetDataStatistics() const override
     {
         return DoGetDataStatistics();
     }
 
-    virtual TCodecStatistics GetDecompressionStatistics() const override
+    TCodecStatistics GetDecompressionStatistics() const override
     {
         return DoGetDecompressionStatistics();
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return DoIsFetchingCompleted();
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return DoGetFailedChunkIds();
     }

@@ -48,7 +48,7 @@ class TFlsTest
     : public ::testing::Test
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         TMyValue<int>::Reset();
         TMyValue<TString>::Reset();
@@ -56,7 +56,7 @@ protected:
 
     TActionQueuePtr ActionQueue = New<TActionQueue>();
 
-    virtual void TearDown()
+    void TearDown() override
     {
         ActionQueue->Shutdown();
     }

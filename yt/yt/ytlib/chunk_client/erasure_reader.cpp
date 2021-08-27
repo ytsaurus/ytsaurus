@@ -50,18 +50,18 @@ public:
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override;
 
-    virtual TFuture<std::vector<TBlock>> ReadBlocks(
+    TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
         std::optional<i64> estimatedSize) override;
 
-    virtual TFuture<std::vector<TBlock>> ReadBlocks(
+    TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
         std::optional<i64> estimatedSize) override;
 
-    virtual TInstant GetLastFailureTime() const override;
+    TInstant GetLastFailureTime() const override;
 
     void UpdateBannedPartIndices();
     TPartIndexSet GetBannedPartIndices();
@@ -486,7 +486,7 @@ public:
         }
     }
 
-    virtual TFuture<std::vector<TBlock>> ReadBlocks(
+    TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
         std::optional<i64> estimatedSize) override
@@ -507,7 +507,7 @@ public:
             }));
     }
 
-    virtual TFuture<std::vector<TBlock>> ReadBlocks(
+    TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
@@ -521,7 +521,7 @@ public:
             estimatedSize);
     }
 
-    virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
+    TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientChunkReadOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override
@@ -529,12 +529,12 @@ public:
         return UnderlyingReader_->GetMeta(options, partitionTag, extensionTags);
     }
 
-    virtual TChunkId GetChunkId() const override
+    TChunkId GetChunkId() const override
     {
         return UnderlyingReader_->GetChunkId();
     }
 
-    virtual TInstant GetLastFailureTime() const override
+    TInstant GetLastFailureTime() const override
     {
         return UnderlyingReader_->GetLastFailureTime();
     }

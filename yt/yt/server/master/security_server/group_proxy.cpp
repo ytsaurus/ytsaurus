@@ -30,7 +30,7 @@ public:
 private:
     using TBase = TSubjectProxy<TGroup>;
 
-    virtual void ValidateRemoval() override
+    void ValidateRemoval() override
     {
         const auto* group = GetThisImpl();
         if (group->IsBuiltin()) {
@@ -39,14 +39,14 @@ private:
         }
     }
 
-    virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
         descriptors->push_back(EInternedAttributeKey::Members);
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         const auto* group = GetThisImpl();
 
@@ -66,7 +66,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
+    bool DoInvoke(const NRpc::IServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(AddMember);
         DISPATCH_YPATH_SERVICE_METHOD(RemoveMember);

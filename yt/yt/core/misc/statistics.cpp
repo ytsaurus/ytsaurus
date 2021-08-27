@@ -326,7 +326,7 @@ class TStatisticsBuildingConsumer
     , public IBuildingYsonConsumer<TStatistics>
 {
 public:
-    virtual void OnStringScalar(TStringBuf value) override
+    void OnStringScalar(TStringBuf value) override
     {
         if (!AtAttributes_) {
             THROW_ERROR_EXCEPTION("String scalars are not allowed for statistics");
@@ -334,7 +334,7 @@ public:
         Statistics_.SetTimestamp(ConvertTo<TInstant>(value));
     }
 
-    virtual void OnInt64Scalar(i64 value) override
+    void OnInt64Scalar(i64 value) override
     {
         if (AtAttributes_) {
             THROW_ERROR_EXCEPTION("Timestamp should have string type");
@@ -361,42 +361,42 @@ public:
         }
     }
 
-    virtual void OnUint64Scalar(ui64 /*value*/) override
+    void OnUint64Scalar(ui64 /*value*/) override
     {
         THROW_ERROR_EXCEPTION("Uint64 scalars are not allowed for statistics");
     }
 
-    virtual void OnDoubleScalar(double /*value*/) override
+    void OnDoubleScalar(double /*value*/) override
     {
         THROW_ERROR_EXCEPTION("Double scalars are not allowed for statistics");
     }
 
-    virtual void OnBooleanScalar(bool /*value*/) override
+    void OnBooleanScalar(bool /*value*/) override
     {
         THROW_ERROR_EXCEPTION("Boolean scalars are not allowed for statistics");
     }
 
-    virtual void OnEntity() override
+    void OnEntity() override
     {
         THROW_ERROR_EXCEPTION("Entities are not allowed for statistics");
     }
 
-    virtual void OnBeginList() override
+    void OnBeginList() override
     {
         THROW_ERROR_EXCEPTION("Lists are not allowed for statistics");
     }
 
-    virtual void OnListItem() override
+    void OnListItem() override
     {
         THROW_ERROR_EXCEPTION("Lists are not allowed for statistics");
     }
 
-    virtual void OnEndList() override
+    void OnEndList() override
     {
         THROW_ERROR_EXCEPTION("Lists are not allowed for statistics");
     }
 
-    virtual void OnBeginMap() override
+    void OnBeginMap() override
     {
         // If we are here, we are either:
         // * at the root (then do nothing)
@@ -413,7 +413,7 @@ public:
         }
     }
 
-    virtual void OnKeyedItem(TStringBuf key) override
+    void OnKeyedItem(TStringBuf key) override
     {
         if (AtAttributes_) {
             if (key != "timestamp") {
@@ -424,7 +424,7 @@ public:
         }
     }
 
-    virtual void OnEndMap() override
+    void OnEndMap() override
     {
         if (AtSummaryMap_) {
             int requiredFilledSummaryFields = FilledSummaryFields_ - (LastFound_ ? 1 : 0);
@@ -448,7 +448,7 @@ public:
         }
     }
 
-    virtual void OnBeginAttributes() override
+    void OnBeginAttributes() override
     {
         if (!CurrentPath_.empty()) {
             THROW_ERROR_EXCEPTION("Attributes are not allowed for statistics");
@@ -456,12 +456,12 @@ public:
         AtAttributes_ = true;
     }
 
-    virtual void OnEndAttributes() override
+    void OnEndAttributes() override
     {
         AtAttributes_ = false;
     }
 
-    virtual TStatistics Finish() override
+    TStatistics Finish() override
     {
         return Statistics_;
     }

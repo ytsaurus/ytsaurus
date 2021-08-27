@@ -72,7 +72,7 @@ public:
         Compressor_.reset();
     }
 
-    virtual TFuture<void> Write(const TSharedRef& buffer) override
+    TFuture<void> Write(const TSharedRef& buffer) override
     {
         Holder_ = buffer;
 
@@ -86,13 +86,13 @@ public:
         return VoidFuture;
     }
 
-    virtual TFuture<void> Flush() override
+    TFuture<void> Flush() override
     {
         Compressor_->Flush();
         return VoidFuture;
     }
 
-    virtual TFuture<void> Close() override
+    TFuture<void> Close() override
     {
         if (!Finished_) {
             Finished_ = true;
@@ -167,7 +167,7 @@ private:
             << TErrorAttribute("content_encoding", ToString(ContentEncoding_));
     }
 
-    virtual void DoWrite(const void* buf, size_t len) override
+    void DoWrite(const void* buf, size_t len) override
     {
         if (Destroying_) {
             return;
@@ -177,10 +177,10 @@ private:
             .ThrowOnError();
     }
 
-    virtual void DoFlush() override
+    void DoFlush() override
     { }
 
-    virtual void DoFinish() override
+    void DoFinish() override
     {
         if (Destroying_) {
             return;
@@ -207,7 +207,7 @@ public:
         , ContentEncoding_(contentEncoding)
     { }
 
-    virtual TFuture<size_t> Read(const TSharedMutableRef& buffer) override
+    TFuture<size_t> Read(const TSharedMutableRef& buffer) override
     {
         CreateDecompressor();
         return MakeFuture<size_t>(Decompressor_->Read(buffer.Begin(), buffer.Size()));
@@ -221,7 +221,7 @@ private:
     TSharedRef LastRead_;
     bool IsEnd_ = false;
 
-    virtual size_t DoRead(void* buf, size_t len) override
+    size_t DoRead(void* buf, size_t len) override
     {
         if (IsEnd_) {
             return 0;

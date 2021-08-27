@@ -97,7 +97,7 @@ public:
         WriterConfig_->EnableBlockReordering = false;
     }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         WriterOptionsTemplate_ = ConvertTo<TTableWriterOptionsPtr>(
             TYsonString(SchedulerJobSpecExt_.output_table_specs(0).table_writer_options()));
@@ -171,7 +171,7 @@ public:
         AttachChunksToChunkList(outputChunkIds);
     }
 
-    virtual TJobResult Run() override
+    TJobResult Run() override
     {
         Host_->OnPrepared();
 
@@ -193,36 +193,36 @@ public:
         return result;
     }
 
-    virtual void Cleanup() override
+    void Cleanup() override
     { }
 
-    virtual void PrepareArtifacts() override
+    void PrepareArtifacts() override
     { }
 
-    virtual double GetProgress() const override
+    double GetProgress() const override
     {
         // Caution: progress calculated approximately (assuming all chunks have equal size).
         double currentProgress = TotalSize_ > 0 ? static_cast<double>(CopiedSize_) / TotalSize_ : 0.0;
         return (CopiedChunkCount_ + currentProgress) / TotalChunkCount_;
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return FailedChunkIds_;
     }
 
-    virtual TInterruptDescriptor GetInterruptDescriptor() const override
+    TInterruptDescriptor GetInterruptDescriptor() const override
     {
         return { };
     }
 
-    virtual void Interrupt() override
+    void Interrupt() override
     {
         THROW_ERROR_EXCEPTION("Interrupting is not supported for this type of jobs")
             << TErrorAttribute("job_type", EJobType::RemoteCopy);
     }
 
-    virtual TStatistics GetStatistics() const override
+    TStatistics GetStatistics() const override
     {
         TStatistics result;
         result.AddSample("/data/input", DataStatistics_);

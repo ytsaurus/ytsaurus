@@ -29,7 +29,7 @@ public:
         : TObjectTypeHandlerWithMapBase(bootstrap, map)
     { }
 
-    virtual ETypeFlags GetFlags() const override
+    ETypeFlags GetFlags() const override
     {
         return
             ETypeFlags::ReplicateDestroy |
@@ -37,12 +37,12 @@ public:
             ETypeFlags::Removable;
     }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::ClusterNode;
     }
 
-    virtual TObject* FindObject(TObjectId id) override
+    TObject* FindObject(TObjectId id) override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->FindNode(NodeIdFromObjectId(id));
@@ -56,17 +56,17 @@ public:
     }
 
 private:
-    virtual TCellTagList DoGetReplicationCellTags(const TNode* /*node*/) override
+    TCellTagList DoGetReplicationCellTags(const TNode* /*node*/) override
     {
         return AllSecondaryCellTags();
     }
 
-    virtual IObjectProxyPtr DoGetProxy(TNode* node, TTransaction* /*transaction*/) override
+    IObjectProxyPtr DoGetProxy(TNode* node, TTransaction* /*transaction*/) override
     {
         return CreateClusterNodeProxy(Bootstrap_, &Metadata_, node);
     }
 
-    virtual void DoZombifyObject(TNode* node) override
+    void DoZombifyObject(TNode* node) override
     {
         Bootstrap_->GetNodeTracker()->ZombifyNode(node);
     }

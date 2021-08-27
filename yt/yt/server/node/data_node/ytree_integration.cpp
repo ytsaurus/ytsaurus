@@ -43,7 +43,7 @@ private:
     const TIntrusivePtr<TCollection> Collection_;
     const IAllyReplicaManagerPtr AllyReplicaManager_;
 
-    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         auto chunks = Collection_->GetChunks();
         std::vector<TString> keys;
@@ -56,12 +56,12 @@ private:
         return keys;
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         return Collection_->GetChunkCount();
     }
 
-    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         auto id = TChunkId::FromString(key);
         auto chunk = Collection_->FindChunk(id);

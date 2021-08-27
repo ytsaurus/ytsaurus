@@ -39,7 +39,7 @@ public:
         ExpectedBytesPerRow_ = metaExt.expected_bytes_per_row();
     }
 
-    virtual void SkipToRowIndex(i64 rowIndex) override
+    void SkipToRowIndex(i64 rowIndex) override
     {
         YT_VERIFY(GetSegmentRowIndex(rowIndex) >= SegmentRowIndex_);
         SegmentRowIndex_ = GetSegmentRowIndex(rowIndex);
@@ -129,13 +129,13 @@ public:
         , IdMapping_(idMapping)
     { }
 
-    virtual void ReadValues(TMutableRange<TMutableUnversionedRow> rows) override
+    void ReadValues(TMutableRange<TMutableUnversionedRow> rows) override
     {
         EnsureCurrentSegmentReader();
         CurrentRowIndex_ += SegmentReader_->ReadValues(rows);
     }
 
-    virtual void ReadValueCounts(TMutableRange<ui32> valueCounts) override
+    void ReadValueCounts(TMutableRange<ui32> valueCounts) override
     {
         EnsureCurrentSegmentReader();
         SegmentReader_->ReadValueCounts(valueCounts);
@@ -146,17 +146,17 @@ private:
     std::vector<TColumnIdMapping> IdMapping_;
 
 
-    virtual ISegmentReaderBase* GetCurrentSegmentReader() const override
+    ISegmentReaderBase* GetCurrentSegmentReader() const override
     {
         return SegmentReader_.get();
     }
 
-    virtual void ResetCurrentSegmentReader() override
+    void ResetCurrentSegmentReader() override
     {
         SegmentReader_.reset();
     }
 
-    virtual void CreateCurrentSegmentReader() override
+    void CreateCurrentSegmentReader() override
     {
         SegmentReader_ = std::make_unique<TSchemalessSegmentReader>(
             TRef(Block_.Begin() + CurrentSegmentMeta().offset(), CurrentSegmentMeta().size()),

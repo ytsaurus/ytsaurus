@@ -31,26 +31,26 @@ public:
         , Underlying_(std::move(underlying))
     { }
 
-    virtual void AddHandler(
+    void AddHandler(
         const TString& pattern,
         const IHttpHandlerPtr& handler) override
     {
         Underlying_->AddHandler(pattern, handler);
     }
 
-    virtual const TNetworkAddress& GetAddress() const override
+    const TNetworkAddress& GetAddress() const override
     {
         return Underlying_->GetAddress();
     }
 
     //! Starts the server.
-    virtual void Start() override
+    void Start() override
     {
         Underlying_->Start();
     }
 
     //! Stops the server.
-    virtual void Stop() override
+    void Stop() override
     {
         Underlying_->Stop();
     }

@@ -37,7 +37,7 @@ protected:
     NIO::IIOEnginePtr IOEngine_;
 
 public:
-    virtual void SetUp() override
+    void SetUp() override
     {
         const auto& args = GetParam();
         const auto& type = std::get<0>(args);

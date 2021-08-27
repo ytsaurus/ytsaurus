@@ -65,7 +65,7 @@ private:
     int ValueId_;
 
     // ISchemalessFormatWriter override.
-    virtual void DoWrite(TRange<TUnversionedRow> rows) override
+    void DoWrite(TRange<TUnversionedRow> rows) override
     {
         TableIndexWasWritten_ = false;
 

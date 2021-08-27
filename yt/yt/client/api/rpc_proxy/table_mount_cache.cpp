@@ -36,7 +36,7 @@ public:
     { }
 
 private:
-    virtual TFuture<TTableMountInfoPtr> DoGet(const TTableMountCacheKey& key, bool /*isPeriodicUpdate*/) noexcept override
+    TFuture<TTableMountInfoPtr> DoGet(const TTableMountCacheKey& key, bool /*isPeriodicUpdate*/) noexcept override
     {
         const auto& path = key.Path;
 
@@ -114,7 +114,7 @@ private:
     const IChannelPtr Channel_;
     const TDuration Timeout_;
 
-    virtual void InvalidateTable(const TTableMountInfoPtr& tableInfo) override
+    void InvalidateTable(const TTableMountInfoPtr& tableInfo) override
     {
         Invalidate(tableInfo->Path);
     }

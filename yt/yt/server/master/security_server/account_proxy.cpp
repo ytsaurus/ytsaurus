@@ -52,19 +52,19 @@ public:
     { }
 
 protected:
-    virtual std::unique_ptr<TNonversionedMapObjectFactoryBase<TAccount>> CreateObjectFactory() const override
+    std::unique_ptr<TNonversionedMapObjectFactoryBase<TAccount>> CreateObjectFactory() const override
     {
         return std::make_unique<TAccountFactory>(Bootstrap_);
     }
 
-    virtual TBasePtr ResolveNameOrThrow(const TString& name) override
+    TBasePtr ResolveNameOrThrow(const TString& name) override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->GetAccountByNameOrThrow(name, true /*activeLifeStageOnly*/);
         return GetProxy(account);
     }
 
-    virtual void ValidateBeforeAttachChild(
+    void ValidateBeforeAttachChild(
         const TString& key,
         const TIntrusivePtr<TNonversionedMapObjectProxyBase<TAccount>>& child) override
     {
@@ -87,7 +87,7 @@ private:
         { }
 
     protected:
-        virtual TAccount* DoCreateObject(IAttributeDictionary* attributes) override
+        TAccount* DoCreateObject(IAttributeDictionary* attributes) override
         {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             auto hintId = attributes->GetAndRemove("hint_id", NullObjectId);
@@ -95,7 +95,7 @@ private:
         }
     };
 
-    virtual void ValidateRemoval() override
+    void ValidateRemoval() override
     {
         const auto* account = GetThisImpl();
         if (account->IsBuiltin()) {
@@ -106,7 +106,7 @@ private:
         TBase::ValidateRemoval();
     }
 
-    virtual void ValidateChildNameAvailability(const TString& childName) override
+    void ValidateChildNameAvailability(const TString& childName) override
     {
         TNonversionedMapObjectProxyBase::ValidateChildNameAvailability(childName);
 
@@ -124,7 +124,7 @@ private:
         return GetThisImpl() == securityManager->GetRootAccount();
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         const auto* account = GetThisImpl();
         TBase::ListSystemAttributes(descriptors);
@@ -174,7 +174,7 @@ private:
             .SetPresent(account->GetFolderId().has_value()));
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         const auto* account = GetThisImpl();
@@ -321,7 +321,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const NYson::TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const NYson::TYsonString& value) override
     {
         auto* account = GetThisImpl();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -380,7 +380,7 @@ private:
         return TBase::SetBuiltinAttribute(key, value);
     }
 
-    virtual bool RemoveBuiltinAttribute(TInternedAttributeKey key) override
+    bool RemoveBuiltinAttribute(TInternedAttributeKey key) override
     {
         auto* account = GetThisImpl();
 
@@ -402,7 +402,7 @@ private:
         return TBase::RemoveBuiltinAttribute(key);
     }
 
-    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
+    bool DoInvoke(const NRpc::IServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(TransferAccountResources);
         return TBase::DoInvoke(context);

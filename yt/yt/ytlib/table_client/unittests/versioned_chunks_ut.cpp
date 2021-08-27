@@ -96,7 +96,7 @@ protected:
         , OptimizeFor(optimizeFor)
     { }
 
-    virtual void SetUp() override
+    void SetUp() override
     {
         MemoryWriter = New<TMemoryWriter>();
 

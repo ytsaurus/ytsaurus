@@ -19,30 +19,30 @@ namespace {
 struct TTestMetricConsumer
     : public NMonitoring::IMetricConsumer
 {
-    virtual void OnStreamBegin() override
+    void OnStreamBegin() override
     { }
 
-    virtual void OnStreamEnd() override
+    void OnStreamEnd() override
     { }
 
-    virtual void OnCommonTime(TInstant) override
+    void OnCommonTime(TInstant) override
     { }
 
-    virtual void OnMetricBegin(NMonitoring::EMetricType) override
+    void OnMetricBegin(NMonitoring::EMetricType) override
     { }
 
-    virtual void OnMetricEnd() override
+    void OnMetricEnd() override
     { }
 
-    virtual void OnLabelsBegin() override
+    void OnLabelsBegin() override
     {
         Labels.clear();
     }
 
-    virtual void OnLabelsEnd() override
+    void OnLabelsEnd() override
     { }
 
-    virtual void OnLabel(TStringBuf name, TStringBuf value)
+    void OnLabel(TStringBuf name, TStringBuf value) override
     {
         if (name == "sensor") {
             Name = value;
@@ -51,34 +51,34 @@ struct TTestMetricConsumer
         }
     }
 
-    virtual void OnLabel(ui32 name, ui32 value) override
+    void OnLabel(ui32 name, ui32 value) override
     {
         OnLabel(LabelsCache[name], LabelsCache[value]);
     }
 
-    std::pair<ui32, ui32> PrepareLabel(const TStringBuf name, const TStringBuf value)
+    std::pair<ui32, ui32> PrepareLabel(const TStringBuf name, const TStringBuf value) override
     {
         LabelsCache.emplace_back(name);
         LabelsCache.emplace_back(value);
         return {LabelsCache.size() - 2, LabelsCache.size() - 1};
     }
 
-    virtual void OnDouble(TInstant, double value)
+    void OnDouble(TInstant, double value) override
     {
         Cerr << FormatName() << " " << value << Endl;
         Gauges[FormatName()] = value;
     }
 
-    virtual void OnUint64(TInstant, ui64)
+    void OnUint64(TInstant, ui64) override
     { }
 
-    virtual void OnInt64(TInstant, i64 value)
+    void OnInt64(TInstant, i64 value) override
     {
         Cerr << FormatName() << " " << value << Endl;
         Counters[FormatName()] = value;
     }
 
-    virtual void OnHistogram(TInstant, NMonitoring::IHistogramSnapshotPtr value) override
+    void OnHistogram(TInstant, NMonitoring::IHistogramSnapshotPtr value) override
     {
         Cerr << FormatName() << " historgram{";
         for (size_t i = 0; i < value->Count(); ++i) {
@@ -91,10 +91,10 @@ struct TTestMetricConsumer
         Histograms[FormatName()] = value;
     }
 
-    virtual void OnLogHistogram(TInstant, NMonitoring::TLogHistogramSnapshotPtr) override
+    void OnLogHistogram(TInstant, NMonitoring::TLogHistogramSnapshotPtr) override
     { }
 
-    virtual void OnSummaryDouble(TInstant, NMonitoring::ISummaryDoubleSnapshotPtr snapshot) override
+    void OnSummaryDouble(TInstant, NMonitoring::ISummaryDoubleSnapshotPtr snapshot) override
     {
         Cerr << FormatName() << " summary{"
             << "min: " << snapshot->GetMin()
@@ -486,7 +486,7 @@ struct TDebugProducer
     virtual ~TDebugProducer()
     { }
 
-    virtual void CollectSensors(ISensorWriter* writer) override
+    void CollectSensors(ISensorWriter* writer) override
     {
         Buffer.WriteTo(writer);
     }
@@ -642,7 +642,7 @@ struct TCounterProducer
 {
     int i = 0;
 
-    virtual void CollectSensors(ISensorWriter* writer)
+    void CollectSensors(ISensorWriter* writer) override
     {
         writer->AddCounter("/counter", ++i);
     }
@@ -674,7 +674,7 @@ DECLARE_REFCOUNTED_STRUCT(TBadProducer)
 struct TBadProducer
     : public ISensorProducer
 {
-    virtual void CollectSensors(ISensorWriter*)
+    void CollectSensors(ISensorWriter*) override
     {
         THROW_ERROR_EXCEPTION("Unavailable");
     }

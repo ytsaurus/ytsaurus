@@ -256,10 +256,10 @@ public:
         }
     }
 
-    virtual void Initialize() override
+    void Initialize() override
     { }
 
-    virtual TJobResult Run() override
+    TJobResult Run() override
     {
         YT_LOG_DEBUG("Starting job process");
 
@@ -385,7 +385,7 @@ public:
         return result;
     }
 
-    virtual void Cleanup() override
+    void Cleanup() override
     {
         bool expected = true;
         if (Prepared_.compare_exchange_strong(expected, false)) {
@@ -394,7 +394,7 @@ public:
         }
     }
 
-    virtual void PrepareArtifacts() override
+    void PrepareArtifacts() override
     {
         YT_LOG_INFO("Started preparing artifacts");
 
@@ -484,12 +484,12 @@ public:
         }
     }
 
-    virtual double GetProgress() const override
+    double GetProgress() const override
     {
         return UserJobReadController_->GetProgress();
     }
 
-    virtual i64 GetStderrSize() const override
+    i64 GetStderrSize() const override
     {
         if (!Prepared_) {
             return 0;
@@ -501,12 +501,12 @@ public:
         return result.Value();
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return UserJobReadController_->GetFailedChunkIds();
     }
 
-    virtual TInterruptDescriptor GetInterruptDescriptor() const override
+    TInterruptDescriptor GetInterruptDescriptor() const override
     {
         return UserJobReadController_->GetInterruptDescriptor();
     }
@@ -774,7 +774,7 @@ private:
         }
     }
 
-    virtual std::vector<TChunkId> DumpInputContext() override
+    std::vector<TChunkId> DumpInputContext() override
     {
         ValidatePrepared();
 
@@ -821,14 +821,14 @@ private:
         return result;
     }
 
-    virtual std::optional<TString> GetFailContext() override
+    std::optional<TString> GetFailContext() override
     {
         ValidatePrepared();
 
         return FailContext_;
     }
 
-    virtual TString GetStderr() override
+    TString GetStderr() override
     {
         ValidatePrepared();
 
@@ -839,12 +839,12 @@ private:
         return result.Value();
     }
 
-    virtual const TCoreInfos& GetCoreInfos() const override
+    const TCoreInfos& GetCoreInfos() const override
     {
         return CoreInfos_;
     }
 
-    virtual std::optional<TJobProfile> GetProfile() override
+    std::optional<TJobProfile> GetProfile() override
     {
         ValidatePrepared();
         if (!ProfileOutput_) {
@@ -861,7 +861,7 @@ private:
         };
     }
 
-    virtual TYsonString PollJobShell(
+    TYsonString PollJobShell(
         const TJobShellDescriptor& jobShellDescriptor,
         const TYsonString& parameters) override
     {
@@ -873,7 +873,7 @@ private:
         return ShellManager_->PollJobShell(jobShellDescriptor, parameters);
     }
 
-    virtual void Interrupt() override
+    void Interrupt() override
     {
         ValidatePrepared();
 
@@ -898,7 +898,7 @@ private:
         UserJobReadController_->InterruptReader();
     }
 
-    virtual void Fail() override
+    void Fail() override
     {
         auto error = TError("Job failed by external request");
         JobErrorPromise_.TrySet(error);
@@ -1167,7 +1167,7 @@ private:
         }
     }
 
-    virtual TStatistics GetStatistics() const override
+    TStatistics GetStatistics() const override
     {
         TStatistics statistics;
         {
@@ -1281,7 +1281,7 @@ private:
         return statistics;
     }
 
-    virtual TCpuStatistics GetCpuStatistics() const override
+    TCpuStatistics GetCpuStatistics() const override
     {
         return UserJobEnvironment_->GetCpuStatistics();
     }

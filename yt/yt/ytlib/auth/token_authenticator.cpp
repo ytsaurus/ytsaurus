@@ -43,7 +43,7 @@ public:
         TokenScopeCheckErrors_ = profiler.Counter("/scope_check_errors");
     }
 
-    virtual TFuture<TAuthenticationResult> Authenticate(
+    TFuture<TAuthenticationResult> Authenticate(
         const TTokenCredentials& credentials) override
     {
         const auto& token = credentials.Token;
@@ -186,7 +186,7 @@ public:
         , Client_(std::move(client))
     { }
 
-    virtual TFuture<TAuthenticationResult> Authenticate(
+    TFuture<TAuthenticationResult> Authenticate(
         const TTokenCredentials& credentials) override
     {
         const auto& token = credentials.Token;
@@ -283,7 +283,7 @@ public:
         , TokenAuthenticator_(std::move(tokenAuthenticator))
     { }
 
-    virtual TFuture<TAuthenticationResult> Authenticate(const TTokenCredentials& credentials) override
+    TFuture<TAuthenticationResult> Authenticate(const TTokenCredentials& credentials) override
     {
         return Get(credentials.Token, credentials.UserIP);
     }
@@ -291,7 +291,7 @@ public:
 private:
     const ITokenAuthenticatorPtr TokenAuthenticator_;
 
-    virtual TFuture<TAuthenticationResult> DoGet(
+    TFuture<TAuthenticationResult> DoGet(
         const TString& token,
         const NNet::TNetworkAddress& userIP) noexcept override
     {
@@ -320,7 +320,7 @@ public:
         : Authenticators_(std::move(authenticators))
     { }
 
-    virtual TFuture<TAuthenticationResult> Authenticate(
+    TFuture<TAuthenticationResult> Authenticate(
         const TTokenCredentials& credentials) override
     {
         return New<TAuthenticationSession>(this, credentials)->GetResult();
@@ -390,7 +390,7 @@ class TNoopTokenAuthenticator
     : public ITokenAuthenticator
 {
 public:
-    virtual TFuture<TAuthenticationResult> Authenticate(const TTokenCredentials& /*credentials*/) override
+    TFuture<TAuthenticationResult> Authenticate(const TTokenCredentials& /*credentials*/) override
     {
         static const auto Realm = TString("noop");
         static const auto UserTicket = TString("");
@@ -414,7 +414,7 @@ public:
         : Underlying_(std::move(underlying))
     { }
 
-    virtual TFuture<NRpc::TAuthenticationResult> Authenticate(
+    TFuture<NRpc::TAuthenticationResult> Authenticate(
         const NRpc::TAuthenticationContext& context) override
     {
         if (!context.Header->HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {

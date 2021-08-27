@@ -57,37 +57,37 @@ public:
         }
     }
 
-    virtual NJobTrackerClient::EJobType GetJobType() const override
+    NJobTrackerClient::EJobType GetJobType() const override
     {
         return EJobType(JobSpec_.type());
     }
 
-    virtual const NJobTrackerClient::NProto::TJobSpec& GetJobSpec() const override
+    const NJobTrackerClient::NProto::TJobSpec& GetJobSpec() const override
     {
         return JobSpec_;
     }
 
-    virtual NScheduler::TJobIOConfigPtr GetJobIOConfig() const override
+    NScheduler::TJobIOConfigPtr GetJobIOConfig() const override
     {
         return JobIOConfig_;
     }
 
-    virtual TNodeDirectoryPtr GetInputNodeDirectory() const override
+    TNodeDirectoryPtr GetInputNodeDirectory() const override
     {
         return InputNodeDirectory_;
     }
 
-    virtual const TSchedulerJobSpecExt& GetSchedulerJobSpecExt() const override
+    const TSchedulerJobSpecExt& GetSchedulerJobSpecExt() const override
     {
         return JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     }
 
-    virtual const TDataSourceDirectoryPtr& GetDataSourceDirectory() const override
+    const TDataSourceDirectoryPtr& GetDataSourceDirectory() const override
     {
         return DataSourceDirectory_;
     }
 
-    virtual int GetKeySwitchColumnCount() const override
+    int GetKeySwitchColumnCount() const override
     {
         switch (GetJobType()) {
             case NScheduler::EJobType::Map:
@@ -116,7 +116,7 @@ public:
         }
     }
 
-    virtual bool IsReaderInterruptionSupported() const override
+    bool IsReaderInterruptionSupported() const override
     {
         switch (GetJobType()) {
             case NScheduler::EJobType::Map:

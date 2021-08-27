@@ -13,20 +13,20 @@ class TProxyCoordinator
     : public IProxyCoordinator
 {
 public:
-    virtual bool SetBannedState(bool banned) override;
-    virtual bool GetBannedState() const override;
+    bool SetBannedState(bool banned) override;
+    bool GetBannedState() const override;
 
-    virtual void SetBanMessage(const TString& message) override;
-    virtual TString GetBanMessage() const override;
+    void SetBanMessage(const TString& message) override;
+    TString GetBanMessage() const override;
 
-    virtual void SetProxyRole(const std::optional<TString>& role) override;
-    virtual std::optional<TString> GetProxyRole() const override;
+    void SetProxyRole(const std::optional<TString>& role) override;
+    std::optional<TString> GetProxyRole() const override;
 
-    virtual bool SetAvailableState(bool available) override;
-    virtual bool GetAvailableState() const override;
+    bool SetAvailableState(bool available) override;
+    bool GetAvailableState() const override;
 
-    virtual bool GetOperableState() const override;
-    virtual void ValidateOperable() const override;
+    bool GetOperableState() const override;
+    void ValidateOperable() const override;
 
     DEFINE_SIGNAL_OVERRIDE(void(const std::optional<TString>&), OnProxyRoleChanged);
 

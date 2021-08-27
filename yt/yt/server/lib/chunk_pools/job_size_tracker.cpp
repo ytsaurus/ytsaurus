@@ -39,7 +39,7 @@ public:
         (void)InputSliceDataWeight_;
     }
 
-    virtual void AccountSlice(TResourceVector vector) override
+    void AccountSlice(TResourceVector vector) override
     {
         LocalVector_ += vector;
         CumulativeVector_ += vector;
@@ -49,7 +49,7 @@ public:
             CumulativeVector_);
     }
 
-    virtual double SuggestRowSplitFraction(TResourceVector vector) override
+    double SuggestRowSplitFraction(TResourceVector vector) override
     {
         auto combinedGap = GetCombinedGap();
 
@@ -71,7 +71,7 @@ public:
         bool IsLocal;
     };
 
-    virtual std::optional<std::any> CheckOverflow(TResourceVector extraVector) override
+    std::optional<std::any> CheckOverflow(TResourceVector extraVector) override
     {
         std::optional<TOverflowToken> result;
         if (auto localViolatedResources = extraVector.ViolatedResources(GetLocalGap()); !localViolatedResources.empty()) {
@@ -118,7 +118,7 @@ public:
         return std::nullopt;
     }
 
-    virtual void Flush(std::optional<std::any> overflowToken) override
+    void Flush(std::optional<std::any> overflowToken) override
     {
         std::optional<TOverflowToken> typedToken;
         if (overflowToken) {

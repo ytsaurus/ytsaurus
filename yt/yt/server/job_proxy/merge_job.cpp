@@ -45,7 +45,7 @@ public:
         YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
     }
 
-    virtual void Initialize() override
+    void Initialize() override
     {
         TSimpleJobBase::Initialize();
 
@@ -140,18 +140,18 @@ private:
 
     TNameTablePtr NameTable_;
 
-    virtual void InitializeReader() override
+    void InitializeReader() override
     {
         DoInitializeReader(NameTable_, TColumnFilter());
     }
 
-    virtual void InitializeWriter() override
+    void InitializeWriter() override
     {
         // NB. WriterFactory_ ignores schema argument and uses schema of output table.
         DoInitializeWriter(NameTable_, nullptr);
     }
 
-    virtual i64 GetTotalReaderMemoryLimit() const override
+    i64 GetTotalReaderMemoryLimit() const override
     {
         return Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader->MaxBufferSize;
     }

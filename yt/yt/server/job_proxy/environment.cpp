@@ -62,7 +62,7 @@ public:
         , UpdatePeriod_(updatePeriod)
     { }
 
-    virtual TCpuStatistics GetCpuStatistics() const override
+    TCpuStatistics GetCpuStatistics() const override
     {
         return GetStatistics(
             CachedCpuStatistics_,
@@ -82,7 +82,7 @@ public:
             });
     }
 
-    virtual TBlockIOStatistics GetBlockIOStatistics() const override
+    TBlockIOStatistics GetBlockIOStatistics() const override
     {
         return GetStatistics(
             CachedBlockIOStatistics_,
@@ -231,7 +231,7 @@ public:
         }
     }
 
-    virtual TCpuStatistics GetCpuStatistics() const override
+    TCpuStatistics GetCpuStatistics() const override
     {
         if (auto resourceTracker = ResourceTracker_.Load()) {
             return resourceTracker->GetCpuStatistics();
@@ -240,7 +240,7 @@ public:
         }
     }
 
-    virtual TBlockIOStatistics GetBlockIOStatistics() const override
+    TBlockIOStatistics GetBlockIOStatistics() const override
     {
         if (auto resourceTracker = ResourceTracker_.Load()) {
             return resourceTracker->GetBlockIOStatistics();
@@ -249,12 +249,12 @@ public:
         }
     }
 
-    virtual TDuration GetBlockIOWatchdogPeriod() const override
+    TDuration GetBlockIOWatchdogPeriod() const override
     {
         return Config_->BlockIOWatchdogPeriod;
     }
 
-    virtual void CleanProcesses() override
+    void CleanProcesses() override
     {
         try {
             if (auto instance = GetUserJobInstance()) {
@@ -265,14 +265,14 @@ public:
         }
     }
 
-    virtual void SetIOThrottle(i64 operations) override
+    void SetIOThrottle(i64 operations) override
     {
         if (auto instance = GetUserJobInstance()) {
             instance->SetIOThrottle(operations);    
         }
     }
 
-    virtual std::optional<TMemoryStatistics> GetMemoryStatistics() const override
+    std::optional<TMemoryStatistics> GetMemoryStatistics() const override
     {
         auto resourceTracker = ResourceTracker_.Load();
         if (Options_.EnablePortoMemoryTracking && resourceTracker) {
@@ -282,7 +282,7 @@ public:
         }
     }
 
-    virtual TFuture<void> SpawnUserProcess(
+    TFuture<void> SpawnUserProcess(
         const TString& path,
         const std::vector<TString>& arguments,
         const TString& workingDirectory) override
@@ -420,7 +420,7 @@ public:
         return finishedFuture;
     }
 
-    virtual IInstancePtr GetUserJobInstance() const override
+    IInstancePtr GetUserJobInstance() const override
     {
         return Instance_.Load();
     }
@@ -471,29 +471,29 @@ public:
         PortoExecutor_->SubscribeFailed(BIND(&TPortoJobProxyEnvironment::OnFatalError, MakeWeak(this)));
     }
 
-    virtual TCpuStatistics GetCpuStatistics() const override
+    TCpuStatistics GetCpuStatistics() const override
     {
         return ResourceTracker_->GetCpuStatistics();
     }
 
-    virtual TBlockIOStatistics GetBlockIOStatistics() const override
+    TBlockIOStatistics GetBlockIOStatistics() const override
     {
         return ResourceTracker_->GetBlockIOStatistics();
     }
 
-    virtual void SetCpuGuarantee(double value) override
+    void SetCpuGuarantee(double value) override
     {
         WaitFor(PortoExecutor_->SetContainerProperty(SlotContainerName_, "cpu_guarantee", ToString(value) + "c"))
             .ThrowOnError();
     }
 
-    virtual void SetCpuLimit(double value) override
+    void SetCpuLimit(double value) override
     {
         WaitFor(PortoExecutor_->SetContainerProperty(SlotContainerName_, "cpu_limit", ToString(value) + "c"))
             .ThrowOnError();
     }
 
-    virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(
+    IUserJobEnvironmentPtr CreateUserJobEnvironment(
         TGuid jobId, 
         const TUserJobEnvironmentOptions& options) override
     {  
@@ -534,40 +534,40 @@ class TSimpleUserJobEnvironment
     : public IUserJobEnvironment
 {
 public:
-    virtual TDuration GetBlockIOWatchdogPeriod() const override
+    TDuration GetBlockIOWatchdogPeriod() const override
     {
         // No IO watchdog for simple job environment.
         return TDuration::Max();
     }
 
-    virtual std::optional<TMemoryStatistics> GetMemoryStatistics() const override
+    std::optional<TMemoryStatistics> GetMemoryStatistics() const override
     {
         return std::nullopt;
     }
 
-    virtual TCpuStatistics GetCpuStatistics() const override
+    TCpuStatistics GetCpuStatistics() const override
     {
         return {};
     }
 
-    virtual TBlockIOStatistics GetBlockIOStatistics() const override
+    TBlockIOStatistics GetBlockIOStatistics() const override
     {
         return {};
     }
 
-    virtual void CleanProcesses() override 
+    void CleanProcesses() override 
     {
         if (auto process = Process_.Load()) {
             process->Kill(9);
         }
     }
 
-    virtual void SetIOThrottle(i64 /* operations */) override
+    void SetIOThrottle(i64 /* operations */) override
     {
         // Noop.
     }
 
-    virtual TFuture<void> SpawnUserProcess(
+    TFuture<void> SpawnUserProcess(
         const TString& path,
         const std::vector<TString>& arguments,
         const TString& workingDirectory) override
@@ -579,12 +579,12 @@ public:
         return process->Spawn();
     }
 
-    virtual NContainers::IInstancePtr GetUserJobInstance() const override
+    NContainers::IInstancePtr GetUserJobInstance() const override
     {
         return nullptr;
     }
 
-    virtual std::vector<pid_t> GetJobPids() const override
+    std::vector<pid_t> GetJobPids() const override
     {
         if (auto process = Process_.Load()) {
             auto pid = process->GetProcessId();
@@ -595,7 +595,7 @@ public:
     }
 
     //! Returns the list of environment-specific environment variables in key=value format.
-    virtual const std::vector<TString>& GetEnvironmentVariables() const override
+    const std::vector<TString>& GetEnvironmentVariables() const override
     {
         static std::vector<TString> emptyEnvironment;
         return emptyEnvironment;
@@ -614,27 +614,27 @@ class TSimpleJobProxyEnvironment
     : public IJobProxyEnvironment
 {
 public:
-    virtual void SetCpuGuarantee(double /* value */) override
+    void SetCpuGuarantee(double /* value */) override
     {
         YT_LOG_WARNING("Cpu guarantees are not supported in simple job environment");
     }
     
-    virtual void SetCpuLimit(double /* value */) override
+    void SetCpuLimit(double /* value */) override
     {
         YT_LOG_WARNING("Cpu limits are not supported in simple job environment");
     }
 
-    virtual TCpuStatistics GetCpuStatistics() const override
+    TCpuStatistics GetCpuStatistics() const override
     {
         return {};
     }
 
-    virtual TBlockIOStatistics GetBlockIOStatistics() const override
+    TBlockIOStatistics GetBlockIOStatistics() const override
     {
         return {};
     }
 
-    virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(
+    IUserJobEnvironmentPtr CreateUserJobEnvironment(
         TGuid /* jobId */,
         const TUserJobEnvironmentOptions& options) override
     {

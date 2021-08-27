@@ -638,12 +638,12 @@ private:
     private:
         TImpl* const Owner_;
 
-        virtual TClosure BeginExecute() override
+        TClosure BeginExecute() override
         {
             return Owner_->BeginExecute();
         }
 
-        virtual void EndExecute() override
+        void EndExecute() override
         {
             Owner_->EndExecute();
         }
@@ -1016,7 +1016,7 @@ private:
         return it->second;
     }
 
-    void CollectSensors(ISensorWriter* writer)
+    void CollectSensors(ISensorWriter* writer) override
     {
         auto writtenEvents = WrittenEvents_.load();
         auto enqueuedEvents = EnqueuedEvents_.load();

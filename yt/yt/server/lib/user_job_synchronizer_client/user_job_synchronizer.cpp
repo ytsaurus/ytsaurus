@@ -34,7 +34,7 @@ public:
         ControlServiceProxy_.reset(new TUserJobSynchronizerServiceProxy(channel));
     }
 
-    virtual void NotifyExecutorPrepared() override
+    void NotifyExecutorPrepared() override
     {
         auto req = ControlServiceProxy_->ExecutorPrepared();
         WaitFor(req->Invoke())

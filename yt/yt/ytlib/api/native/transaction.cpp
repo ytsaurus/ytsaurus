@@ -90,53 +90,53 @@ public:
     { }
 
 
-    virtual NApi::IConnectionPtr GetConnection() override
+    NApi::IConnectionPtr GetConnection() override
     {
         return Client_->GetConnection();
     }
 
-    virtual NApi::IClientPtr GetClient() const override
+    NApi::IClientPtr GetClient() const override
     {
         return Client_;
     }
 
-    virtual NTransactionClient::ETransactionType GetType() const override
+    NTransactionClient::ETransactionType GetType() const override
     {
         return Transaction_->GetType();
     }
 
-    virtual TTransactionId GetId() const override
+    TTransactionId GetId() const override
     {
         return Transaction_->GetId();
     }
 
-    virtual TTimestamp GetStartTimestamp() const override
+    TTimestamp GetStartTimestamp() const override
     {
         return Transaction_->GetStartTimestamp();
     }
 
-    virtual EAtomicity GetAtomicity() const override
+    EAtomicity GetAtomicity() const override
     {
         return Transaction_->GetAtomicity();
     }
 
-    virtual EDurability GetDurability() const override
+    EDurability GetDurability() const override
     {
         return Transaction_->GetDurability();
     }
 
-    virtual TDuration GetTimeout() const override
+    TDuration GetTimeout() const override
     {
         return Transaction_->GetTimeout();
     }
 
 
-    virtual TFuture<void> Ping(const TTransactionPingOptions& options = {}) override
+    TFuture<void> Ping(const TTransactionPingOptions& options = {}) override
     {
         return Transaction_->Ping(options);
     }
 
-    virtual TFuture<TTransactionCommitResult> Commit(const TTransactionCommitOptions& options) override
+    TFuture<TTransactionCommitResult> Commit(const TTransactionCommitOptions& options) override
     {
         bool needsFlush;
         {
@@ -159,7 +159,7 @@ public:
             .Run(options, needsFlush);
     }
 
-    virtual TFuture<void> Abort(const TTransactionAbortOptions& options = {}) override
+    TFuture<void> Abort(const TTransactionAbortOptions& options = {}) override
     {
         auto guard = Guard(SpinLock_);
 
@@ -174,7 +174,7 @@ public:
         return DoAbort(&guard, options);
     }
 
-    virtual void Detach() override
+    void Detach() override
     {
         auto guard = Guard(SpinLock_);
 
@@ -184,7 +184,7 @@ public:
         }
     }
 
-    virtual TFuture<TTransactionFlushResult> Flush() override
+    TFuture<TTransactionFlushResult> Flush() override
     {
         {
             auto guard = Guard(SpinLock_);
@@ -215,7 +215,7 @@ public:
             .Run();
     }
 
-    virtual void AddAction(TCellId cellId, const TTransactionActionData& data) override
+    void AddAction(TCellId cellId, const TTransactionActionData& data) override
     {
         auto guard = Guard(SpinLock_);
 
@@ -249,7 +249,7 @@ public:
     }
 
 
-    virtual void RegisterAlienTransaction(const NApi::ITransactionPtr& transaction) override
+    void RegisterAlienTransaction(const NApi::ITransactionPtr& transaction) override
     {
         {
             auto guard = Guard(SpinLock_);
@@ -286,29 +286,29 @@ public:
     }
 
 
-    virtual void SubscribeCommitted(const TCommittedHandler& callback) override
+    void SubscribeCommitted(const TCommittedHandler& callback) override
     {
         Transaction_->SubscribeCommitted(callback);
     }
 
-    virtual void UnsubscribeCommitted(const TCommittedHandler& callback) override
+    void UnsubscribeCommitted(const TCommittedHandler& callback) override
     {
         Transaction_->UnsubscribeCommitted(callback);
     }
 
 
-    virtual void SubscribeAborted(const TAbortedHandler& callback) override
+    void SubscribeAborted(const TAbortedHandler& callback) override
     {
         Transaction_->SubscribeAborted(callback);
     }
 
-    virtual void UnsubscribeAborted(const TAbortedHandler& callback) override
+    void UnsubscribeAborted(const TAbortedHandler& callback) override
     {
         Transaction_->UnsubscribeAborted(callback);
     }
 
 
-    virtual TFuture<ITransactionPtr> StartNativeTransaction(
+    TFuture<ITransactionPtr> StartNativeTransaction(
         ETransactionType type,
         const TTransactionStartOptions& options) override
     {
@@ -319,14 +319,14 @@ public:
             adjustedOptions);
     }
 
-    virtual TFuture<NApi::ITransactionPtr> StartTransaction(
+    TFuture<NApi::ITransactionPtr> StartTransaction(
         ETransactionType type,
         const TTransactionStartOptions& options) override
     {
         return StartNativeTransaction(type, options).As<NApi::ITransactionPtr>();
     }
 
-    virtual void ModifyRows(
+    void ModifyRows(
         const TYPath& path,
         TNameTablePtr nameTable,
         TSharedRange<TRowModification> modifications,

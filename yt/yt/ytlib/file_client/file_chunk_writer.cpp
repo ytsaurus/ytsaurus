@@ -39,24 +39,24 @@ public:
         IChunkWriterPtr chunkWriter,
         NChunkClient::IBlockCachePtr blockCache);
 
-    virtual bool Write(TRef data) override;
+    bool Write(TRef data) override;
 
-    virtual TFuture<void> GetReadyEvent() override;
+    TFuture<void> GetReadyEvent() override;
 
-    virtual TFuture<void> Close() override;
+    TFuture<void> Close() override;
 
-    virtual i64 GetMetaSize() const override;
-    virtual i64 GetCompressedDataSize() const override;
+    i64 GetMetaSize() const override;
+    i64 GetCompressedDataSize() const override;
 
-    virtual i64 GetDataWeight() const override;
+    i64 GetDataWeight() const override;
 
-    virtual bool IsCloseDemanded() const override;
+    bool IsCloseDemanded() const override;
 
-    virtual TDeferredChunkMetaPtr GetMeta() const override;
-    virtual TChunkId GetChunkId() const override;
+    TDeferredChunkMetaPtr GetMeta() const override;
+    TChunkId GetChunkId() const override;
 
-    virtual TDataStatistics GetDataStatistics() const override;
-    virtual TCodecStatistics GetCompressionStatistics() const override;
+    TDataStatistics GetDataStatistics() const override;
+    TCodecStatistics GetCompressionStatistics() const override;
 
 private:
     const NLogging::TLogger Logger;

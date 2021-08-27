@@ -50,12 +50,12 @@ public:
         ValidateKeyBounds();
     }
 
-    virtual int GetPartitionCount() override
+    int GetPartitionCount() override
     {
         return PartitionLowerBounds_.size();
     }
 
-    virtual int GetPartitionIndex(TUnversionedRow row) override
+    int GetPartitionIndex(TUnversionedRow row) override
     {
         auto key = TKey::FromRow(row, Comparator_.GetLength());
 
@@ -117,12 +117,12 @@ public:
         , Salt_(FarmHash(salt))
     { }
 
-    virtual int GetPartitionCount() override
+    int GetPartitionCount() override
     {
         return PartitionCount_;
     }
 
-    virtual int GetPartitionIndex(TUnversionedRow row) override
+    int GetPartitionIndex(TUnversionedRow row) override
     {
         auto rowHash = GetHash(row, KeyColumnCount_);
         if (Salt_ != 0) {

@@ -25,7 +25,7 @@ class TComputedColumnPredicatePopulationTest
     , public ::testing::WithParamInterface<std::tuple<TTableSchemaPtr, TString, TString, TString>>
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         GlobalContext_ = DB::Context::createGlobal(SharedContext.get());
     }

@@ -23,27 +23,27 @@ using namespace NCellMaster;
 struct TReplicatorStateProxy
     : public IReplicatorStateProxy
 {
-    virtual const IInvokerPtr& GetChunkInvoker(EChunkThreadQueue /*queue*/) const override
+    const IInvokerPtr& GetChunkInvoker(EChunkThreadQueue /*queue*/) const override
     {
         return Queue->GetInvoker();
     }
 
-    virtual const TDynamicClusterConfigPtr& GetDynamicConfig() const override
+    const TDynamicClusterConfigPtr& GetDynamicConfig() const override
     {
         return DynamicConfig;
     }
 
-    virtual std::vector<NChunkServer::TMedium*> GetMedia() const override
+    std::vector<NChunkServer::TMedium*> GetMedia() const override
     {
         return Media;
     }
 
-    virtual std::vector<NNodeTrackerServer::TDataCenter*> GetDataCenters() const override
+    std::vector<NNodeTrackerServer::TDataCenter*> GetDataCenters() const override
     {
         return DataCenters;
     }
 
-    virtual bool CheckThreadAffinity() const override
+    bool CheckThreadAffinity() const override
     {
         return false;
     }
@@ -66,7 +66,7 @@ protected:
 
     IReplicatorStatePtr ReplicatorState_;
 
-    virtual void SetUp() override
+    void SetUp() override
     {
         auto proxy = std::make_unique<TReplicatorStateProxy>();
         Proxy_ = proxy.get();

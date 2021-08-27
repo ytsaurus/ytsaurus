@@ -51,7 +51,7 @@ private:
             , ObjectId_(objectId)
         { }
 
-        virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& context) override
+        TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& context) override
         {
             const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
             if (ypathExt.mutating()) {
@@ -63,7 +63,7 @@ private:
             return TResolveResultHere{path};
         }
 
-        virtual void Invoke(const IServiceContextPtr& context) override
+        void Invoke(const IServiceContextPtr& context) override
         {
             auto requestMessage = context->GetRequestMessage();
             auto requestHeader = context->RequestHeader();
@@ -78,7 +78,7 @@ private:
             context->ReplyFrom(std::move(asyncResponseMessage));
         }
 
-        virtual void DoWriteAttributesFragment(
+        void DoWriteAttributesFragment(
             NYson::IAsyncYsonConsumer* /*consumer*/,
             const std::optional<std::vector<TString>>& /*attributeKeys*/,
             bool /*stable*/) override
@@ -86,7 +86,7 @@ private:
             YT_ABORT();
         }
 
-        virtual bool ShouldHideAttributes() override
+        bool ShouldHideAttributes() override
         {
             return false;
         }
@@ -101,17 +101,17 @@ private:
         return "//sys/estimated_creation_time";
     }
 
-    virtual std::vector<TString> GetKeys(i64 /*limit*/) const override
+    std::vector<TString> GetKeys(i64 /*limit*/) const override
     {
         return {};
     }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         return std::numeric_limits<i64>::max();
     }
 
-    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         TObjectId objectId;
         if (!TObjectId::FromString(key, &objectId)) {
