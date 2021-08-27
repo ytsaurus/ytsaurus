@@ -60,6 +60,7 @@ struct IStoreManager
     virtual bool IsPeriodicRotationNeeded() const = 0;
     virtual bool IsRotationPossible() const = 0;
     virtual bool IsForcedRotationPossible() const = 0;
+    virtual std::optional<TInstant> GetPeriodicRotationMilestone() const = 0;
     virtual bool IsRotationScheduled() const = 0;
     virtual bool IsFlushNeeded() const = 0;
     virtual void InitializeRotation() = 0;

@@ -18,12 +18,19 @@ class TTablet
 public:
     DEFINE_BYVAL_RW_PROPERTY(TTabletId, Id);
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellId, CellId);
+    DEFINE_BYREF_RW_PROPERTY(TString, TabletCellBundle);
     DEFINE_BYVAL_RW_PROPERTY(bool, PhysicallySorted);
     DEFINE_BYVAL_RW_PROPERTY(bool, Mounted);
     DEFINE_BYVAL_RW_PROPERTY(TTableMountConfigPtr, MountConfig);
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, MountRevision);
     DEFINE_BYVAL_RW_PROPERTY(NTabletNode::IPerTabletStructuredLoggerPtr, StructuredLogger);
     DEFINE_BYVAL_RW_PROPERTY(TString, LoggingTag);
+
+    DEFINE_BYVAL_RW_PROPERTY(bool, IsRotationPossible);
+    DEFINE_BYVAL_RW_PROPERTY(bool, IsForcedRotationPossible);
+    DEFINE_BYVAL_RW_PROPERTY(bool, IsOverflowRotationNeeded);
+    DEFINE_BYVAL_RW_PROPERTY(bool, IsPeriodicRotationNeeded);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, PeriodicRotationMilestone);
 
     // Sorted.
     DEFINE_BYREF_RW_PROPERTY(std::vector<std::unique_ptr<TPartition>>, Partitions);
@@ -37,6 +44,7 @@ public:
     // Ordered.
     DEFINE_BYREF_RW_PROPERTY(std::vector<std::unique_ptr<TStore>>, Stores);
 
+    TStore* FindActiveStore() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTablet)

@@ -13,6 +13,7 @@
 #include "sorted_dynamic_comparer.h"
 #include "store_compactor.h"
 #include "store_flusher.h"
+#include "store_rotator.h"
 #include "store_trimmer.h"
 #include "structured_logger.h"
 #include "tablet_cell_service.h"
@@ -128,11 +129,12 @@ public:
 
         StoreCompactor_ = CreateStoreCompactor(this);
         StoreFlusher_ = CreateStoreFlusher(this);
+        StoreRotator_ = CreateStoreRotator(this);
         StoreTrimmer_ = CreateStoreTrimmer(this);
         HunkChunkSweeper_ = CreateHunkChunkSweeper(this);
         PartitionBalancer_ = CreatePartitionBalancer(this);
         BackingStoreCleaner_ = CreateBackingStoreCleaner(this);
-        LsmInterop_ = CreateLsmInterop(this, StoreCompactor_, PartitionBalancer_);
+        LsmInterop_ = CreateLsmInterop(this, StoreCompactor_, PartitionBalancer_, StoreRotator_);
 
         GetRpcServer()->RegisterService(CreateTabletCellService(this));
         GetRpcServer()->RegisterService(CreateQueryService(GetConfig()->QueryAgent, this));
@@ -329,6 +331,7 @@ private:
 
     IStoreCompactorPtr StoreCompactor_;
     IStoreFlusherPtr StoreFlusher_;
+    IStoreRotatorPtr StoreRotator_;
     IStoreTrimmerPtr StoreTrimmer_;
     IHunkChunkSweeperPtr HunkChunkSweeper_;
     IPartitionBalancerPtr PartitionBalancer_;

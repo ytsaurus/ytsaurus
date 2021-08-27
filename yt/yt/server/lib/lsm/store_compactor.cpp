@@ -21,27 +21,19 @@ const static auto& Logger = NTabletNode::TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EStoreCompactionReason,
-    (None)
-    (ForcedCompaction)
-    (PeriodicCompaction)
-    (StoreOutOfTabletRange)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
-
 class TStoreCompactor
     : public ILsmBackend
 {
 public:
-    virtual void SetLsmBackendState(const TLsmBackendState& state) override
+    virtual void StartNewRound(const TLsmBackendState& state) override
     {
         CurrentTimestamp_ = state.CurrentTimestamp;
         Config_ = state.TabletNodeConfig;
     }
 
-    virtual TLsmActionBatch BuildLsmActions(const std::vector<TTabletPtr>& tablets) override
+    virtual TLsmActionBatch BuildLsmActions(
+        const std::vector<TTabletPtr>& tablets,
+        const TString& /*bundleName*/) override
     {
         YT_LOG_DEBUG("Started building store compactor action batch");
 
@@ -53,6 +45,11 @@ public:
         YT_LOG_DEBUG("Finished building store compactor action batch");
 
         return batch;
+    }
+
+    virtual TLsmActionBatch BuildOverallLsmActions() override
+    {
+        return {};
     }
 
 private:

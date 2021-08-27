@@ -2,6 +2,7 @@
 
 #include "store_compactor.h"
 #include "partition_balancer.h"
+#include "store_rotator.h"
 
 #include <yt/yt/server/lib/tablet_node/private.h>
 
@@ -21,17 +22,20 @@ void TLsmActionBatch::MergeWith(TLsmActionBatch&& other)
     DoMerge(other, &TLsmActionBatch::Samplings);
     DoMerge(other, &TLsmActionBatch::Splits);
     DoMerge(other, &TLsmActionBatch::Merges);
+
+    DoMerge(other, &TLsmActionBatch::Rotations);
 }
 
 TString TLsmActionBatch::GetStatsLoggingString() const
 {
     return Format("Compactions: %v, Partitionings: %v, Samplings: %v, "
-        "Splits: %v, Merges: %v",
+        "Splits: %v, Merges: %v, Rotations: %v",
         Compactions.size(),
         Partitionings.size(),
         Samplings.size(),
         Splits.size(),
-        Merges.size());
+        Merges.size(),
+        Rotations.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,29 +48,47 @@ public:
         : Backends_({
             CreateStoreCompactor(),
             CreatePartitionBalancer(),
+            CreateStoreRotator(),
         })
     {
         YT_LOG_DEBUG("Created LSM backend (BackendCount: %v)",
             Backends_.size());
     }
 
-    virtual void SetLsmBackendState(const TLsmBackendState& state) override
+    virtual void StartNewRound(const TLsmBackendState& state) override
     {
         for (const auto& backend : Backends_) {
-            backend->SetLsmBackendState(state);
+            backend->StartNewRound(state);
         }
     }
 
-    virtual TLsmActionBatch BuildLsmActions(const std::vector<TTabletPtr>& tablets) override
+    virtual TLsmActionBatch BuildLsmActions(
+        const std::vector<TTabletPtr>& tablets,
+        const TString& bundleName) override
     {
         YT_LOG_DEBUG("Started building LSM action batch");
 
         TLsmActionBatch batch;
         for (const auto& backend : Backends_) {
-            batch.MergeWith(backend->BuildLsmActions(tablets));
+            batch.MergeWith(backend->BuildLsmActions(tablets, bundleName));
         }
 
         YT_LOG_DEBUG("Finished building LSM action batch (%v)",
+            batch.GetStatsLoggingString());
+
+        return batch;
+    }
+
+    virtual TLsmActionBatch BuildOverallLsmActions() override
+    {
+        YT_LOG_DEBUG("Started building overall LSM action batch");
+
+        TLsmActionBatch batch;
+        for (const auto& backend : Backends_) {
+            batch.MergeWith(backend->BuildOverallLsmActions());
+        }
+
+        YT_LOG_DEBUG("Finished building overall LSM action batch (%v)",
             batch.GetStatsLoggingString());
 
         return batch;
