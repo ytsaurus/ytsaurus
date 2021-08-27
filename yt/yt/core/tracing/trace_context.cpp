@@ -207,18 +207,19 @@ void TTraceContext::AddTag(const TString& tagKey, const TString& tagValue)
     Tags_.emplace_back(tagKey, tagValue);
 }
 
-void TTraceContext::AddAsyncChild(const TTraceId& traceId)
+bool TTraceContext::AddAsyncChild(const TTraceId& traceId)
 {
     if (!IsRecorded()) {
-        return;
+        return false;
     }
 
     if (Finished_.load()) {
-        return;
+        return false;
     }
 
     auto guard = Guard(Lock_);
     AsyncChildren_.push_back(traceId);
+    return true;
 }
 
 void TTraceContext::AddErrorTag()

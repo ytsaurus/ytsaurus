@@ -43,25 +43,20 @@ std::pair<TTraceContextPtr, bool> TAsyncQueueTrace::StartSpan(i64 startIndex, co
     bool sampled = false;
     if (!Lazy_) {
         sampled = true;
-        traceContext->SetSampled(true);
     }
 
     auto guard = Guard(Lock_);
 
-    if (Lazy_ && !Blocked_.empty()) {
-        sampled = true;
-        traceContext->SetSampled(true);
+    for (const auto& [queueIndex, client] : Blocked_) {
+        // If startIndex > queueIndex, client is not blocked by this span.
+        if (queueIndex >= startIndex && client->AddAsyncChild(traceContext->GetTraceId())) {
+            sampled = true;
+        }
     }
 
     if (sampled) {
         Background_[traceContext] = startIndex;
-
-        for (const auto& [queueIndex, client] : Blocked_) {
-            // If startIndex > queueIndex, client is not blocked by this span.
-            if (queueIndex >= startIndex) {
-                client->AddAsyncChild(traceContext->GetTraceId());
-            }
-        }
+        traceContext->SetSampled();
     }
 
     return {traceContext, sampled};

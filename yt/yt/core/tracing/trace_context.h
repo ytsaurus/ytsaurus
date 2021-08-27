@@ -133,7 +133,7 @@ public:
 
     using TAsyncChildrenList = SmallVector<TTraceId, 4>;
     TAsyncChildrenList GetAsyncChildren() const;
-    void AddAsyncChild(const TTraceId& traceId);
+    bool AddAsyncChild(const TTraceId& traceId);
 
     void IncrementElapsedCpuTime(NProfiling::TCpuDuration delta);
     NProfiling::TCpuDuration GetElapsedCpuTime() const;
