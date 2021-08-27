@@ -44,9 +44,16 @@ class TestChunkMerger(YTEnvSetup):
     DELTA_MASTER_CONFIG = {
         "chunk_manager": {
             "allow_multiple_erasure_parts_per_node": True,
+        }
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
             "chunk_merger": {
-                "max_chunks_to_merge": 5,
-                "session_finalization_period": 500
+                "max_chunk_count": 5,
+                "create_chunks_period": 100,
+                "schedule_period": 100,
+                "session_finalization_period": 100,
             }
         }
     }
@@ -249,25 +256,17 @@ class TestChunkMerger(YTEnvSetup):
             create("table", "//tmp/t", attributes={"erasure_codec": "lrc_12_2_2"})
         else:
             create("table", "//tmp/t")
+
         write_table("<append=true>//tmp/t", {"a": "b"})
         write_table("<append=true>//tmp/t", {"b": "c"})
         write_table("<append=true>//tmp/t", {"c": "d"})
-        assert get("//tmp/t/@resource_usage/chunk_count") > 1
-        rows = read_table("//tmp/t")
 
         set("//tmp/t/@enable_chunk_merger", True)
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
 
-        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
-        assert read_table("//tmp/t") == rows
-
-        for i in range(15):
+        for i in range(3):
             write_table("<append=true>//tmp/t", {str(2 * i): str(2 * i)})
-            write_table("<append=true>//tmp/t", {str(2 * i + 1): str(2 * i + 1)})
-            rows = read_table("//tmp/t")
-
             wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
-            assert read_table("//tmp/t") == rows
 
     @authors("aleksandra-zh")
     def test_merge_does_not_overwrite_data(self):
@@ -667,6 +666,7 @@ class TestChunkMerger(YTEnvSetup):
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_alter_schema(self, optimize_for):
         set("//sys/@config/chunk_manager/chunk_merger/enable", True)
+        set("//sys/@config/chunk_manager/chunk_merger/max_chunk_count", 10)
 
         schema1 = make_schema(
             [
