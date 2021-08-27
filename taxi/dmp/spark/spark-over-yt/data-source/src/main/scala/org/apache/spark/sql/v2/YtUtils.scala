@@ -43,17 +43,15 @@ object YtUtils {
     implicit val client: CompoundClient = YtClientProvider.ytClient(ytClientConfiguration(sparkSession))
     val (_, schema) = files.foldLeft((Set.empty[String], Option.empty[StructType])) {
       case ((curSet, curSchema), fileStatus) =>
-        val pathString = fileStatus.getPath.toString
-        if (curSet.contains(pathString)) {
+        val path = getFilePath(fileStatus)
+        if (curSet.contains(path)) {
           (curSet, curSchema)
         } else {
           val schemaHint = SchemaConverter.schemaHint(parameters)
-          val path = getFilePath(fileStatus)
           val schemaTree = YtWrapper.attribute(path, "schema")
           val sparkSchema = SchemaConverter.sparkSchema(schemaTree, schemaHint)
           val compatibleSchema = getCompatibleSchema(sparkSession, sparkSchema)
-          (curSet + pathString,
-            curSchema.map(_.merge(compatibleSchema)).orElse(Some(compatibleSchema)))
+          (curSet + path, curSchema.map(_.merge(compatibleSchema)).orElse(Some(compatibleSchema)))
         }
     }
     schema
