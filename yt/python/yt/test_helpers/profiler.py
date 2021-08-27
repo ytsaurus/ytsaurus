@@ -125,6 +125,8 @@ class Profiler(object):
         except YtResponseError as err:
             if err.is_resolve_error():
                 value = default
+            else:
+                raise
         if value is not None:
             value = postprocessor(value)
         if verbose:
