@@ -281,6 +281,10 @@ public:
     DEFINE_SIGNAL(void(TDataCenter*), DataCenterCreated);
     DEFINE_SIGNAL(void(TDataCenter*), DataCenterRenamed);
     DEFINE_SIGNAL(void(TDataCenter*), DataCenterDestroyed);
+    DEFINE_SIGNAL(void(TRack*), RackCreated);
+    DEFINE_SIGNAL(void(TRack*), RackRenamed);
+    DEFINE_SIGNAL(void(TRack*, TDataCenter*), RackDataCenterChanged);
+    DEFINE_SIGNAL(void(TRack*), RackDestroyed);
 
 
     void ZombifyNode(TNode* node)
@@ -532,6 +536,8 @@ public:
         // Make the fake reference.
         YT_VERIFY(rack->RefObject() == 1);
 
+        RackCreated_.Fire(rack);
+
         return rack;
     }
 
@@ -545,6 +551,8 @@ public:
         // Remove rack from maps.
         YT_VERIFY(NameToRackMap_.erase(rack->GetName()) == 1);
         FreeRackIndex(rack->GetIndex());
+
+        RackDestroyed_.Fire(rack);
     }
 
     void RenameRack(TRack* rack, const TString& newName)
@@ -571,6 +579,8 @@ public:
             node->RebuildTags();
             UpdateNodeCounters(node, +1);
         }
+
+        RackRenamed_.Fire(rack);
     }
 
     TRack* FindRackByName(const TString& name)
@@ -609,6 +619,8 @@ public:
             YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Rack data center changed (Rack: %v, DataCenter: %v)",
                 std::make_optional(rack->GetName()),
                 dataCenter ? std::make_optional(dataCenter->GetName()) : std::nullopt);
+
+            RackDataCenterChanged_.Fire(rack, oldDataCenter);
 
             for (auto* node : nodes) {
                 NodeDataCenterChanged_.Fire(node, oldDataCenter);
@@ -2484,6 +2496,10 @@ DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TDataCenter*), NodeDataCenterChanged,
 DELEGATE_SIGNAL(TNodeTracker, void(TDataCenter*), DataCenterCreated, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TDataCenter*), DataCenterRenamed, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TDataCenter*), DataCenterDestroyed, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TRack*), RackCreated, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TRack*), RackRenamed, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TRack*, TDataCenter*), RackDataCenterChanged, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TRack*), RackDestroyed, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

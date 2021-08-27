@@ -29,6 +29,11 @@ struct IReplicatorState
     virtual void DestroyDataCenter(TDataCenterId dataCenterId) = 0;
     virtual void RenameDataCenter(TDataCenterId dataCenterId, const TString& newName) = 0;
 
+    virtual void CreateRack(NNodeTrackerServer::TRack* rack) = 0;
+    virtual void DestroyRack(TRackId rackId) = 0;
+    virtual void RenameRack(TRackId rackId, const TString& newName) = 0;
+    virtual void SetRackDataCenter(TRackId rackId, TDataCenterId newDataCenterId) = 0;
+
     // Dual state.
     virtual const NCellMaster::TDynamicClusterConfigPtr& GetDynamicConfig() const = 0;
 
@@ -58,6 +63,21 @@ struct IReplicatorState
 
     //! Returns the data center with a given name (|nullptr| if none).
     virtual TDataCenter* FindDataCenterByName(const TString& name) const = 0;
+
+    //! Returns the map with all racks.
+    virtual const THashMap<TRackId, std::unique_ptr<TRack>>& Racks() const = 0;
+
+    //! Returns the rack with a given id (|nullptr| if none).
+    virtual TRack* FindRack(TRackId rackId) const = 0;
+
+    //! Returns the rack with a given id (fails if none).
+    virtual TRack* GetRack(TRackId rackId) const = 0;
+
+    //! Returns the rack with a given index (|nullptr| if none).
+    virtual TRack* FindRackByIndex(TRackIndex rackIndex) const = 0;
+
+    //! Returns the rack with a given name (|nullptr| if none).
+    virtual TRack* FindRackByName(const TString& name) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IReplicatorState)

@@ -531,6 +531,10 @@ public:
         nodeTracker->SubscribeDataCenterCreated(BIND(&TImpl::OnDataCenterCreated, MakeWeak(this)));
         nodeTracker->SubscribeDataCenterRenamed(BIND(&TImpl::OnDataCenterRenamed, MakeWeak(this)));
         nodeTracker->SubscribeDataCenterDestroyed(BIND(&TImpl::OnDataCenterDestroyed, MakeWeak(this)));
+        nodeTracker->SubscribeRackCreated(BIND(&TImpl::OnRackCreated, MakeWeak(this)));
+        nodeTracker->SubscribeRackRenamed(BIND(&TImpl::OnRackRenamed, MakeWeak(this)));
+        nodeTracker->SubscribeRackDataCenterChanged(BIND(&TImpl::OnRackDataCenterChanged, MakeWeak(this)));
+        nodeTracker->SubscribeRackDestroyed(BIND(&TImpl::OnRackDestroyed, MakeWeak(this)));
 
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
         dataNodeTracker->SubscribeFullHeartbeat(BIND(&TImpl::OnFullDataNodeHeartbeat, MakeWeak(this)));
@@ -2690,6 +2694,37 @@ private:
         }
         if (ReplicatorState_) {
             ReplicatorState_->DestroyDataCenter(dataCenter->GetId());
+        }
+    }
+
+    void OnRackCreated(TRack* rack)
+    {
+        if (ReplicatorState_) {
+            ReplicatorState_->CreateRack(rack);
+        }
+    }
+
+    void OnRackRenamed(TRack* rack)
+    {
+        if (ReplicatorState_) {
+            ReplicatorState_->RenameRack(rack->GetId(), rack->GetName());
+        }
+    }
+
+    void OnRackDataCenterChanged(TRack* rack, TDataCenter* /*oldDataCenter*/)
+    {
+        if (ReplicatorState_) {
+            auto newDataCenterId = rack->GetDataCenter()
+                ? rack->GetDataCenter()->GetId()
+                : TDataCenterId();
+            ReplicatorState_->SetRackDataCenter(rack->GetId(), newDataCenterId);
+        }
+    }
+
+    void OnRackDestroyed(TRack* rack)
+    {
+        if (ReplicatorState_) {
+            ReplicatorState_->DestroyRack(rack->GetId());
         }
     }
 

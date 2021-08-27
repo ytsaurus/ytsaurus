@@ -3,12 +3,16 @@
 #include "private.h"
 #include "data_center.h"
 #include "medium.h"
+#include "rack.h"
 
 #include <yt/yt/server/master/cell_master/config.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/config.h>
 #include <yt/yt/server/master/chunk_server/medium.h>
+
+#include <yt/yt/server/master/node_tracker_server/data_center.h>
+#include <yt/yt/server/master/node_tracker_server/rack.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
@@ -62,6 +66,17 @@ public:
             auto dualDataCenter = TDataCenter::FromPrimary(primaryDataCenter);
             YT_VERIFY(DataCenters_.emplace(dataCenterId, std::move(dualDataCenter)).second);
             RegisterDataCenterInMaps(dataCenterId);
+        }
+
+        for (auto* primaryRack : Proxy_->GetRacks()) {
+            auto rackId = primaryRack->GetId();
+            auto dualRack = TRack::FromPrimary(primaryRack);
+            auto* dataCenter = primaryRack->GetDataCenter()
+                ? FindDataCenter(primaryRack->GetDataCenter()->GetId())
+                : nullptr;
+            dualRack->SetDataCenter(dataCenter);
+            YT_VERIFY(Racks_.emplace(rackId, std::move(dualRack)).second);
+            RegisterRackInMaps(rackId);
         }
 
         CheckThreadAffinity_ = true;
@@ -163,6 +178,59 @@ public:
                 name));
     }
 
+    void CreateRack(NNodeTrackerServer::TRack* rack) override
+    {
+        VerifyAutomatonThread();
+
+        auto dataCenterId = rack->GetDataCenter()
+            ? rack->GetDataCenter()->GetId()
+            : TDataCenterId();
+
+        auto dualRack = TRack::FromPrimary(rack);
+
+        DualMutationInvoker_->Invoke(
+            BIND(
+                &TReplicatorState::DoCreateRack,
+                MakeWeak(this),
+                Passed(std::move(dualRack)),
+                dataCenterId));
+    }
+
+    void DestroyRack(TRackId rackId) override
+    {
+        VerifyAutomatonThread();
+
+        DualMutationInvoker_->Invoke(
+            BIND(
+                &TReplicatorState::DoDestroyRack,
+                MakeWeak(this),
+                rackId));
+    }
+
+    void RenameRack(TRackId rackId, const TString& newName) override
+    {
+        VerifyAutomatonThread();
+
+        DualMutationInvoker_->Invoke(
+            BIND(
+                &TReplicatorState::DoRenameRack,
+                MakeWeak(this),
+                rackId,
+                newName));
+    }
+
+    void SetRackDataCenter(TRackId rackId, TDataCenterId newDataCenterId) override
+    {
+        VerifyAutomatonThread();
+
+        DualMutationInvoker_->Invoke(
+            BIND(
+                &TReplicatorState::DoSetRackDataCenter,
+                MakeWeak(this),
+                rackId,
+                newDataCenterId));
+    }
+
     const TDynamicClusterConfigPtr& GetDynamicConfig() const override
     {
         VerifyChunkThread();
@@ -253,6 +321,53 @@ public:
         }
     }
 
+    const THashMap<TRackId, std::unique_ptr<TRack>>& Racks() const override
+    {
+        VerifyChunkThread();
+
+        return Racks_;
+    }
+
+    TRack* FindRack(TRackId rackId) const override
+    {
+        VerifyChunkThread();
+
+        if (auto rackIt = Racks_.find(rackId); rackIt != Racks_.end()) {
+            return rackIt->second.get();
+        } else {
+            return nullptr;
+        }
+    }
+
+    TRack* GetRack(TRackId rackId) const override
+    {
+        VerifyChunkThread();
+
+        return GetOrCrash(Racks_, rackId).get();
+    }
+
+    TRack* FindRackByIndex(TRackIndex rackIndex) const override
+    {
+        VerifyChunkThread();
+
+        if (auto rackIt = RackIndexToRack_.find(rackIndex); rackIt != RackIndexToRack_.end()) {
+            return rackIt->second;
+        } else {
+            return nullptr;
+        }
+    }
+
+    TRack* FindRackByName(const TString& name) const override
+    {
+        VerifyChunkThread();
+
+        if (auto rackIt = RackNameToRack_.find(name); rackIt != RackNameToRack_.end()) {
+            return rackIt->second;
+        } else {
+            return nullptr;
+        }
+    }
+
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(ChunkThread);
@@ -269,6 +384,10 @@ private:
 
     THashMap<TDataCenterId, std::unique_ptr<TDataCenter>> DataCenters_;
     THashMap<TString, TDataCenter*> DataCenterNameToDataCenter_;
+
+    THashMap<TRackId, std::unique_ptr<TRack>> Racks_;
+    THashMap<TRackIndex, TRack*> RackIndexToRack_;
+    THashMap<TString, TRack*> RackNameToRack_;
 
     bool CheckThreadAffinity_ = true;
 
@@ -383,6 +502,14 @@ private:
         auto* dataCenter = GetDataCenter(dataCenterId);
         auto dataCenterName = dataCenter->Name();
         UnregisterDataCenterFromMaps(dataCenterId);
+
+        // Unbind racks with removed data center.
+        for (const auto& [rackId, rack] : Racks_) {
+            if (rack->GetDataCenter() == dataCenter) {
+                rack->SetDataCenter(nullptr);
+            }
+        }
+
         // TODO(gritukan): Use helpers from Max.
         YT_VERIFY(DataCenters_.erase(dataCenterId) > 0);
 
@@ -426,6 +553,98 @@ private:
 
         // TODO(gritukan): Use helpers from Max.
         YT_VERIFY(DataCenterNameToDataCenter_.erase(dataCenter->Name()) > 0);
+    }
+
+    void DoCreateRack(std::unique_ptr<TRack> rack, TDataCenterId dataCenterId)
+    {
+        VerifyChunkThread();
+
+        auto* dataCenter = dataCenterId ? GetDataCenter(dataCenterId) : nullptr;
+        rack->SetDataCenter(dataCenter);
+
+        auto rackId = rack->GetId();
+        auto rackPtr = rack.get();
+        YT_VERIFY(Racks_.emplace(rackId, std::move(rack)).second);
+        RegisterRackInMaps(rackId);
+
+        YT_LOG_DEBUG("Rack created (RackId: %v, RackIndex: %v, RackName: %v, DataCenterId: %v)",
+            rackId,
+            rackPtr->GetIndex(),
+            rackPtr->Name(),
+            dataCenterId);
+    }
+
+    void DoDestroyRack(TRackId rackId)
+    {
+        VerifyChunkThread();
+
+        auto* rack = GetRack(rackId);
+        auto rackName = rack->Name();
+        auto rackIndex = rack->GetIndex();
+        UnregisterRackFromMaps(rackId);
+        YT_VERIFY(Racks_.erase(rackId) > 0);
+
+        YT_LOG_DEBUG("Rack destroyed (RackId: %v, RackIndex: %v, RackName: %v)",
+            rackId,
+            rackIndex,
+            rackName);
+    }
+
+    void DoRenameRack(TRackId rackId, const TString& newName)
+    {
+        VerifyChunkThread();
+
+        auto* rack = GetRack(rackId);
+        auto oldName = rack->Name();
+        UnregisterRackFromMaps(rackId);
+        rack->Name() = newName;
+        RegisterRackInMaps(rackId);
+
+        YT_LOG_DEBUG("Rack renamed (RackId: %v, RackIndex: %v, RackName: %v -> %v)",
+            rackId,
+            rack->GetIndex(),
+            oldName,
+            newName);
+    }
+
+    void DoSetRackDataCenter(TRackId rackId, TDataCenterId newDataCenterId)
+    {
+        VerifyChunkThread();
+
+        auto* rack = GetRack(rackId);
+        auto oldDataCenterId = rack->GetDataCenter()
+            ? rack->GetDataCenter()->GetId()
+            : TDataCenterId();
+        auto* newDataCenter = newDataCenterId ? GetDataCenter(newDataCenterId) : nullptr;
+        rack->SetDataCenter(newDataCenter);
+
+        YT_LOG_DEBUG("Rack data center updated (RackId: %v, RackIndex: %v, DataCenterId: %v -> %v)",
+            rackId,
+            rack->GetIndex(),
+            oldDataCenterId,
+            newDataCenterId);
+    }
+
+    void RegisterRackInMaps(TRackId rackId)
+    {
+        VerifyChunkThread();
+
+        auto* rack = GetRack(rackId);
+
+        // TODO(gritukan): Use helpers from Max.
+        YT_VERIFY(RackIndexToRack_.emplace(rack->GetIndex(), rack).second);
+        YT_VERIFY(RackNameToRack_.emplace(rack->Name(), rack).second);
+    }
+
+    void UnregisterRackFromMaps(TRackId rackId)
+    {
+        VerifyChunkThread();
+
+        auto* rack = GetRack(rackId);
+
+        // TODO(gritukan): Use helpers from Max.
+        YT_VERIFY(RackIndexToRack_.erase(rack->GetIndex()) > 0);
+        YT_VERIFY(RackNameToRack_.erase(rack->Name()) > 0);
     }
 };
 

@@ -18,6 +18,7 @@ struct IReplicatorStateProxy
 
     virtual std::vector<NChunkServer::TMedium*> GetMedia() const = 0;
     virtual std::vector<NNodeTrackerServer::TDataCenter*> GetDataCenters() const = 0;
+    virtual std::vector<NNodeTrackerServer::TRack*> GetRacks() const = 0;
 
     virtual bool CheckThreadAffinity() const = 0;
 };
