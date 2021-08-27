@@ -263,6 +263,13 @@ void DoSnapshotJobs(const std::vector<TBuildSnapshotJob> jobs)
 
 void TSnapshotBuilder::RunChild()
 {
+    // TODO(babenko): We have to prevent readers from dying here since once descriptors are closed below
+    // the poller will crash. One must come up with a more robust approach.
+    static std::vector<NConcurrency::IAsyncInputStreamPtr> readers;
+    for (const auto& job : Jobs_) {
+        readers.push_back(job->Reader);
+    }
+
     std::vector<int> descriptors = {2};
     for (const auto& job : Jobs_) {
         descriptors.push_back(int(job->OutputFile->GetHandle()));
