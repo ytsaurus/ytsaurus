@@ -23,17 +23,20 @@ void TBatchTrace::Join(const TTraceContextPtr& context)
 std::pair<TTraceContextPtr, bool> TBatchTrace::StartSpan(const TString& spanName)
 {
     auto traceContext = TTraceContext::NewRoot(spanName);
-    if (Clients_.empty()) {
-        return {traceContext, false};
-    }
 
-    traceContext->SetSampled();
+    bool hasBlockedClient = false;
     for (const auto& client : Clients_) {
-        client->AddAsyncChild(traceContext->GetTraceId());
+        if (client->AddAsyncChild(traceContext->GetTraceId())) {
+            hasBlockedClient = true;
+        }
     }
     Clients_.clear();
 
-    return {traceContext, true};
+    if (hasBlockedClient) {
+        traceContext->SetSampled();
+    }
+
+    return {traceContext, hasBlockedClient};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
