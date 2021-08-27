@@ -19,7 +19,8 @@ DEFINE_REFCOUNTED_TYPE(ILsmInterop)
 ILsmInteropPtr CreateLsmInterop(
     IBootstrap* bootstrap,
     const IStoreCompactorPtr& storeCompactor,
-    const IPartitionBalancerPtr& partitionBalancer);
+    const IPartitionBalancerPtr& partitionBalancer,
+    const IStoreRotatorPtr& storeRotator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

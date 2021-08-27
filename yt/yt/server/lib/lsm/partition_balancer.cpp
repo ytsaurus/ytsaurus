@@ -24,12 +24,14 @@ class TPartitionBalancer
     : public ILsmBackend
 {
 public:
-    virtual void SetLsmBackendState(const TLsmBackendState& state) override
+    virtual void StartNewRound(const TLsmBackendState& state) override
     {
         ResamplingPeriod_ = state.TabletNodeConfig->PartitionBalancer->ResamplingPeriod;
     }
 
-    virtual TLsmActionBatch BuildLsmActions(const std::vector<TTabletPtr>& tablets) override
+    virtual TLsmActionBatch BuildLsmActions(
+        const std::vector<TTabletPtr>& tablets,
+        const TString& /*bundleName*/) override
     {
         YT_LOG_DEBUG("Started building partition balancer action batch");
 
@@ -41,6 +43,11 @@ public:
         YT_LOG_DEBUG("Finished building partition balancer action batch");
 
         return batch;
+    }
+
+    virtual TLsmActionBatch BuildOverallLsmActions() override
+    {
+        return {};
     }
 
 private:

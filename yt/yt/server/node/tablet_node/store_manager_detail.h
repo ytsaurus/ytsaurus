@@ -80,6 +80,7 @@ public:
     virtual bool IsPeriodicRotationNeeded() const override;
     virtual bool IsRotationPossible() const override;
     virtual bool IsForcedRotationPossible() const override;
+    virtual std::optional<TInstant> GetPeriodicRotationMilestone() const override;
 
     virtual ISortedStoreManagerPtr AsSorted() override;
     virtual IOrderedStoreManagerPtr AsOrdered() override;

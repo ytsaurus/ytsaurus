@@ -41,4 +41,20 @@ class TStore;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EStoreCompactionReason,
+    (None)
+    (ForcedCompaction)
+    (PeriodicCompaction)
+    (StoreOutOfTabletRange)
+);
+
+DEFINE_ENUM(EStoreRotationReason,
+    (None)
+    (Forced)
+    (Periodic)
+    (Overflow)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NLsm

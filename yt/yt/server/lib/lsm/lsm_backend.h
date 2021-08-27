@@ -42,6 +42,12 @@ struct TMergePartitionsRequest
     std::vector<TPartitionId> PartitionIds;
 };
 
+struct TRotateStoreRequest
+{
+    TTabletPtr Tablet = nullptr;
+    EStoreRotationReason Reason = EStoreRotationReason::None;
+};
+
 struct TLsmActionBatch
 {
     std::vector<TCompactionRequest> Compactions;
@@ -50,6 +56,8 @@ struct TLsmActionBatch
     std::vector<TSamplePartitionRequest> Samplings;
     std::vector<TSplitPartitionRequest> Splits;
     std::vector<TMergePartitionsRequest> Merges;
+
+    std::vector<TRotateStoreRequest> Rotations;
 
     void MergeWith(TLsmActionBatch&& other);
 
@@ -60,11 +68,25 @@ private:
     void DoMerge(TLsmActionBatch& other, std::vector<TRequest> TLsmActionBatch::* member);
 };
 
+struct TTabletCellBundleState
+{
+    double ForcedRotationMemoryRatio = 0;
+    bool EnableForcedRotationBackingMemoryAccounting = true;
+    bool EnablePerBundleMemoryLimit = true;
+    i64 DynamicMemoryLimit = 0;
+    i64 DynamicMemoryUsage = 0;
+};
+
 struct TLsmBackendState
 {
     TTimestamp CurrentTimestamp;
     NTabletNode::TTabletNodeConfigPtr TabletNodeConfig;
     NTabletNode::TTabletNodeDynamicConfigPtr TabletNodeDynamicConfig;
+
+    i64 DynamicMemoryLimit = 0;
+    i64 DynamicMemoryUsage = 0;
+
+    THashMap<TString, TTabletCellBundleState> Bundles;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,11 +94,14 @@ struct TLsmBackendState
 /*!
  *    Entry point for all LSM stuff: compaction, partition balancing etc.
  *
- *    Each run consists of two parts. First, |SetLsmBackendState| could (but not
- *  necessarily must)  be called. Its purpose is to set global variables used by
- *  the algorithm, e.g. current timestamp. Then |BuildLsmActions| should be called.
- *  There may be several concurrent calls to the latter, each of them working on
- *  an independent set of tablets.
+ *    Each round consists of three parts.
+ *    First, |StartNewRound| should be called. Its purpose is to reset the state and
+ *  set global variables used by the algorithm, e.g. current timestamp.
+ *    Second, |BuildLsmActions| should be called. There may be several concurrent
+ *  calls to the latter, each of them working on an independent set of tablets.
+ *  Each of these calls may return some actions.
+ *    Finally, |BuildOverallLsmActions| should be called. This call returns
+ *  a set of actions that require knowing all tablets at the node to be built.
  *
  *    Particular parts of the algorithm (e.g. store compactor) also implement this
  *  interface and follow the aforementioned conventions.
@@ -86,13 +111,22 @@ struct ILsmBackend
 {
     //! Sets global state.
     //!
-    //! NB: Should not be called concurrently with |BuildLsmActions|.
-    virtual void SetLsmBackendState(const TLsmBackendState& state) = 0;
+    //! NB: Should not be called concurrently with |Build(Overall)LsmActions|.
+    virtual void StartNewRound(const TLsmBackendState& state) = 0;
 
     //! Returns a set of actions (e.g. compaction requests) for a set of tablets.
+    //! May be called concurrently.
     //!
     //! NB: Context switches are possible.
-    virtual TLsmActionBatch BuildLsmActions(const std::vector<TTabletPtr>& tablets) = 0;
+    virtual TLsmActionBatch BuildLsmActions(
+        const std::vector<TTabletPtr>& tablets,
+        const TString& tabletCellBundle) = 0;
+
+    //! Returns a set of actions built after all tablets were seen.
+    //! Should be called once per round.
+    //!
+    //! NB: Context switches are possible.
+    virtual TLsmActionBatch BuildOverallLsmActions() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ILsmBackend)

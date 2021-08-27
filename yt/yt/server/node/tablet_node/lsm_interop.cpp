@@ -1,16 +1,17 @@
 #include "lsm_interop.h"
 
 #include "bootstrap.h"
+#include "partition_balancer.h"
 #include "private.h"
 #include "slot_manager.h"
+#include "slot_manager.h"
 #include "store.h"
+#include "store_compactor.h"
+#include "store_manager.h"
+#include "store_rotator.h"
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
-#include "store_manager.h"
-#include "store_compactor.h"
-#include "partition_balancer.h"
-#include "slot_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -27,6 +28,8 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
@@ -49,10 +52,12 @@ public:
     TLsmInterop(
         IBootstrap* bootstrap,
         const IStoreCompactorPtr& storeCompactor,
-        const IPartitionBalancerPtr& partitionBalancer)
+        const IPartitionBalancerPtr& partitionBalancer,
+        const IStoreRotatorPtr& storeRotator)
         : Bootstrap_(bootstrap)
         , StoreCompactor_(storeCompactor)
         , PartitionBalancer_(partitionBalancer)
+        , StoreRotator_(storeRotator)
         , Backend_(NLsm::CreateLsmBackend())
     { }
 
@@ -68,11 +73,12 @@ private:
     IBootstrap* const Bootstrap_;
     const IStoreCompactorPtr StoreCompactor_;
     const IPartitionBalancerPtr PartitionBalancer_;
+    const IStoreRotatorPtr StoreRotator_;
     const NLsm::ILsmBackendPtr Backend_;
 
     void OnBeginSlotScan()
     {
-        YT_LOG_DEBUG("LSM interop begins slot scan ");
+        YT_LOG_DEBUG("LSM interop begins slot scan");
 
         StoreCompactor_->OnBeginSlotScan();
 
@@ -81,6 +87,10 @@ private:
 
     void OnScanSlot(const ITabletSlotPtr& slot)
     {
+        if (slot->GetAutomatonState() != NHydra::EPeerState::Leading) {
+            return;
+        }
+
         YT_LOG_DEBUG("LSM interop scans slot (CellId: %v)", slot->GetCellId());
 
         std::vector<NLsm::TTabletPtr> lsmTablets;
@@ -93,14 +103,18 @@ private:
             slot->GetCellId(),
             lsmTablets.size());
 
-        auto actions = Backend_->BuildLsmActions(lsmTablets);
+        auto actions = Backend_->BuildLsmActions(lsmTablets, slot->GetTabletCellBundleName());
         StoreCompactor_->ProcessLsmActionBatch(slot, actions);
         PartitionBalancer_->ProcessLsmActionBatch(slot, actions);
+        StoreRotator_->ProcessLsmActionBatch(slot, actions);
     }
 
     void OnEndSlotScan()
     {
         StoreCompactor_->OnEndSlotScan();
+
+        auto actions = Backend_->BuildOverallLsmActions();
+        StoreRotator_->ProcessLsmActionBatch(/*slot*/ nullptr, actions);
     }
 
     void SetBackendState()
@@ -116,20 +130,66 @@ private:
         backendState.TabletNodeConfig = Bootstrap_->GetConfig()->TabletNode;
         backendState.TabletNodeDynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode;
 
-        Backend_->SetLsmBackendState(backendState);
+
+        const auto& memoryTracker = Bootstrap_->GetMemoryUsageTracker();
+        const auto& cellar = Bootstrap_->GetCellarManager()->GetCellar(NCellarClient::ECellarType::Tablet);
+        for (const auto& occupant : cellar->Occupants()) {
+            if (!occupant) {
+                continue;
+            }
+
+            auto occupier = occupant->GetTypedOccupier<ITabletSlot>();
+            if (!occupier) {
+                continue;
+            }
+
+            const auto& bundleName = occupier->GetTabletCellBundleName();
+            if (backendState.Bundles.contains(bundleName)) {
+                continue;
+            }
+
+            const auto& options = occupier->GetDynamicOptions();
+
+            NLsm::TTabletCellBundleState bundleState{
+                .ForcedRotationMemoryRatio = options->ForcedRotationMemoryRatio,
+                .EnableForcedRotationBackingMemoryAccounting =
+                    options->EnableForcedRotationBackingMemoryAccounting,
+                .EnablePerBundleMemoryLimit = options->EnableTabletDynamicMemoryLimit,
+                .DynamicMemoryLimit =
+                    memoryTracker->GetLimit(EMemoryCategory::TabletDynamic, bundleName),
+                .DynamicMemoryUsage =
+                    memoryTracker->GetUsed(EMemoryCategory::TabletDynamic, bundleName),
+            };
+
+            backendState.Bundles[bundleName] = bundleState;
+        }
+
+        backendState.DynamicMemoryLimit = memoryTracker->GetLimit(EMemoryCategory::TabletDynamic);
+        backendState.DynamicMemoryUsage = memoryTracker->GetUsed(EMemoryCategory::TabletDynamic);
+
+        Backend_->StartNewRound(backendState);
     }
 
     NLsm::TTabletPtr ScanTablet(const ITabletSlotPtr& slot, TTablet* tablet) const
     {
+        const auto& storeManager = tablet->GetStoreManager();
+
         auto lsmTablet = New<NLsm::TTablet>();
         lsmTablet->SetId(tablet->GetId());
         lsmTablet->SetCellId(slot->GetCellId());
+        lsmTablet->TabletCellBundle() = slot->GetTabletCellBundleName();
         lsmTablet->SetPhysicallySorted(tablet->IsPhysicallySorted());
         lsmTablet->SetMounted(tablet->GetState() == ETabletState::Mounted);
         lsmTablet->SetMountConfig(tablet->GetSettings().MountConfig);
         lsmTablet->SetMountRevision(tablet->GetMountRevision());
         lsmTablet->SetStructuredLogger(tablet->GetStructuredLogger());
         lsmTablet->SetLoggingTag(tablet->GetLoggingTag());
+
+        lsmTablet->SetIsRotationPossible(storeManager->IsRotationPossible());
+        lsmTablet->SetIsForcedRotationPossible(storeManager->IsForcedRotationPossible());
+        lsmTablet->SetIsOverflowRotationNeeded(storeManager->IsOverflowRotationNeeded());
+        lsmTablet->SetIsPeriodicRotationNeeded(storeManager->IsPeriodicRotationNeeded());
+        lsmTablet->SetPeriodicRotationMilestone(storeManager->GetPeriodicRotationMilestone());
 
         if (tablet->IsPhysicallySorted()) {
             lsmTablet->Eden() = ScanPartition(tablet->GetEden(), lsmTablet.Get());
@@ -193,6 +253,7 @@ private:
             lsmStore->SetFlushState(dynamicStore->GetFlushState());
             lsmStore->SetLastFlushAttemptTimestamp(
                 dynamicStore->GetLastFlushAttemptTimestamp());
+            lsmStore->SetDynamicMemoryUsage(dynamicStore->GetDynamicMemoryUsage());
         }
 
         if (store->IsChunk()) {
@@ -202,6 +263,10 @@ private:
             lsmStore->SetIsCompactable(storeManager->IsStoreCompactable(store));
             lsmStore->SetCreationTime(chunkStore->GetCreationTime());
             lsmStore->SetLastCompactionTimestamp(chunkStore->GetLastCompactionTimestamp());
+
+            if (auto backingStore = chunkStore->GetBackingStore()) {
+                lsmStore->SetBackingStoreMemoryUsage(backingStore->GetDynamicMemoryUsage());
+            }
         }
 
         if (store->IsSorted()) {
@@ -219,9 +284,10 @@ private:
 ILsmInteropPtr CreateLsmInterop(
     IBootstrap* bootstrap,
     const IStoreCompactorPtr& storeCompactor,
-    const IPartitionBalancerPtr& partitionBalancer)
+    const IPartitionBalancerPtr& partitionBalancer,
+    const IStoreRotatorPtr& storeRotator)
 {
-    return New<TLsmInterop>(bootstrap, storeCompactor, partitionBalancer);
+    return New<TLsmInterop>(bootstrap, storeCompactor, partitionBalancer, storeRotator);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

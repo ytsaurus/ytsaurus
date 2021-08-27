@@ -28,6 +28,7 @@ public:
     // Dynamic stores.
     DEFINE_BYVAL_RW_PROPERTY(EStoreFlushState, FlushState);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastFlushAttemptTimestamp);
+    DEFINE_BYVAL_RW_PROPERTY(i64, DynamicMemoryUsage);
 
     // Chunk stores.
     DEFINE_BYVAL_RW_PROPERTY(EStorePreloadState, PreloadState);
@@ -35,6 +36,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, IsCompactable);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CreationTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastCompactionTimestamp);
+    DEFINE_BYVAL_RW_PROPERTY(i64, BackingStoreMemoryUsage);
 
     // Sorted stores.
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TLegacyOwningKey, MinKey);

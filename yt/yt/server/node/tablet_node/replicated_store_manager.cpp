@@ -126,6 +126,11 @@ bool TReplicatedStoreManager::IsRotationPossible() const
     return LogStoreManager_->IsRotationPossible();
 }
 
+std::optional<TInstant> TReplicatedStoreManager::GetPeriodicRotationMilestone() const
+{
+    return LogStoreManager_->GetPeriodicRotationMilestone();
+}
+
 bool TReplicatedStoreManager::IsForcedRotationPossible() const
 {
     return LogStoreManager_->IsForcedRotationPossible();

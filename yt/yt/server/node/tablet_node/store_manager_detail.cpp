@@ -644,6 +644,11 @@ bool TStoreManagerBase::IsForcedRotationPossible() const
     return true;
 }
 
+std::optional<TInstant> TStoreManagerBase::GetPeriodicRotationMilestone() const
+{
+    return PeriodicRotationMilestone_;
+}
+
 ISortedStoreManagerPtr TStoreManagerBase::AsSorted()
 {
     YT_ABORT();
