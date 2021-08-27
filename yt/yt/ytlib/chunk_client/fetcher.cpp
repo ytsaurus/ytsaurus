@@ -338,10 +338,15 @@ void TFetcherBase::StartFetchingRound()
             }
         }
 
-        // Send the request, if not empty.
-        if (!chunkIndexes.empty()) {
-            asyncResults.push_back(FetchFromNode(it->first, std::move(chunkIndexes)));
+        if (std::ssize(chunkIndexes) > Config_->MaxChunksPerNodeFetch) {
+            chunkIndexes.resize(Config_->MaxChunksPerNodeFetch);
         }
+
+        if (chunkIndexes.empty()) {
+            continue;
+        }
+
+        asyncResults.push_back(FetchFromNode(it->first, std::move(chunkIndexes)));
     }
 
     bool backoff = asyncResults.empty();

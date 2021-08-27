@@ -46,6 +46,8 @@ public:
     //! Time to sleep before next fetching round if no requests were performed.
     TDuration BackoffTime;
 
+    int MaxChunksPerNodeFetch;
+
     TFetcherConfig()
     {
         RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
@@ -56,6 +58,9 @@ public:
 
         RegisterParameter("backoff_time", BackoffTime)
             .Default(TDuration::MilliSeconds(100));
+
+        RegisterParameter("max_chunks_per_node_fetch", MaxChunksPerNodeFetch)
+            .Default(300);
     }
 };
 
