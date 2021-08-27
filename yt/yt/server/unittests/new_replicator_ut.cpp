@@ -4,8 +4,11 @@
 
 #include <yt/yt/server/master/chunk_server/medium.h>
 
+#include <yt/yt/server/master/chunk_server/new_replicator/data_center.h>
 #include <yt/yt/server/master/chunk_server/new_replicator/medium.h>
 #include <yt/yt/server/master/chunk_server/new_replicator/replicator_state.h>
+
+#include <yt/yt/server/master/node_tracker_server/data_center.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -35,6 +38,11 @@ struct TReplicatorStateProxy
         return Media;
     }
 
+    virtual std::vector<NNodeTrackerServer::TDataCenter*> GetDataCenters() const override
+    {
+        return DataCenters;
+    }
+
     virtual bool CheckThreadAffinity() const override
     {
         return false;
@@ -45,6 +53,7 @@ struct TReplicatorStateProxy
     TDynamicClusterConfigPtr DynamicConfig = New<TDynamicClusterConfig>();
 
     std::vector<NChunkServer::TMedium*> Media;
+    std::vector<NNodeTrackerServer::TDataCenter*> DataCenters;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,6 +86,16 @@ protected:
         medium->Config() = config;
 
         return medium;
+    }
+
+    static std::unique_ptr<NNodeTrackerServer::TDataCenter> CreateDataCenter(
+        TDataCenterId dataCenterId,
+        const TString& name)
+    {
+        auto dataCenter = TPoolAllocator::New<NNodeTrackerServer::TDataCenter>(dataCenterId);
+        dataCenter->SetName(name);
+
+        return dataCenter;
     }
 };
 
@@ -123,6 +142,9 @@ TEST_F(TReplicatorTest, TestMediumReplication)
     EXPECT_EQ(ReplicatorState_->FindMediumByName("ssd"), dualMedium);
     EXPECT_EQ(ReplicatorState_->FindMediumByName("hdd"), nullptr);
 
+    EXPECT_EQ(ReplicatorState_->FindMedium(medium->GetId()), dualMedium);
+    EXPECT_EQ(ReplicatorState_->FindMedium(TGuid::Create()), nullptr);
+
     const auto& mediaMap = ReplicatorState_->Media();
     EXPECT_EQ(std::ssize(mediaMap), 1);
     EXPECT_EQ(GetOrCrash(mediaMap, medium->GetId()).get(), dualMedium);
@@ -150,6 +172,9 @@ TEST_F(TReplicatorTest, TestCreateMedium)
 
     EXPECT_EQ(ReplicatorState_->FindMediumByName("ssd"), dualMedium);
     EXPECT_EQ(ReplicatorState_->FindMediumByName("hdd"), nullptr);
+
+    EXPECT_EQ(ReplicatorState_->FindMedium(medium->GetId()), dualMedium);
+    EXPECT_EQ(ReplicatorState_->FindMedium(TGuid::Create()), nullptr);
 
     const auto& mediaMap = ReplicatorState_->Media();
     EXPECT_EQ(std::ssize(mediaMap), 1);
@@ -198,6 +223,79 @@ TEST_F(TReplicatorTest, TestUpdateMediumConfig)
     ReplicatorState_->SyncWithUpstream();
 
     EXPECT_EQ(dualMedium->Config()->MaxReplicasPerRack, 10);
+}
+
+TEST_F(TReplicatorTest, TestDataCenterReplication)
+{
+    auto dataCenter = CreateDataCenter(/*dataCenterId*/ TGuid::Create(), "N");
+    Proxy_->DataCenters.push_back(dataCenter.get());
+
+    ReplicatorState_->Load();
+
+    auto* dualDataCenter = ReplicatorState_->FindDataCenter(dataCenter->GetId());
+    EXPECT_EQ(dualDataCenter->GetId(), dataCenter->GetId());
+    EXPECT_EQ(dualDataCenter->Name(), "N");
+
+    EXPECT_EQ(ReplicatorState_->FindDataCenter(dataCenter->GetId()), dualDataCenter);
+    EXPECT_EQ(ReplicatorState_->FindDataCenter(TGuid::Create()), nullptr);
+
+    EXPECT_EQ(ReplicatorState_->FindDataCenterByName("N"), dualDataCenter);
+    EXPECT_EQ(ReplicatorState_->FindDataCenterByName("M"), nullptr);
+
+    const auto& dataCenterMap = ReplicatorState_->DataCenters();
+    EXPECT_EQ(std::ssize(dataCenterMap), 1);
+    EXPECT_EQ(GetOrCrash(dataCenterMap, dataCenter->GetId()).get(), dualDataCenter);
+}
+
+TEST_F(TReplicatorTest, TestCreateDestroyDataCenter)
+{
+    auto dataCenter = CreateDataCenter(/*dataCenterId*/ TGuid::Create(), "N");
+    Proxy_->DataCenters.push_back(dataCenter.get());
+
+    ReplicatorState_->CreateDataCenter(dataCenter.get());
+    ReplicatorState_->SyncWithUpstream();
+
+    auto* dualDataCenter = ReplicatorState_->FindDataCenter(dataCenter->GetId());
+    EXPECT_EQ(dualDataCenter->GetId(), dataCenter->GetId());
+    EXPECT_EQ(dualDataCenter->Name(), "N");
+
+    EXPECT_EQ(ReplicatorState_->FindDataCenter(dataCenter->GetId()), dualDataCenter);
+    EXPECT_EQ(ReplicatorState_->FindDataCenter(TGuid::Create()), nullptr);
+
+    EXPECT_EQ(ReplicatorState_->FindDataCenterByName("N"), dualDataCenter);
+    EXPECT_EQ(ReplicatorState_->FindDataCenterByName("M"), nullptr);
+
+    const auto& dataCenterMap = ReplicatorState_->DataCenters();
+    EXPECT_EQ(std::ssize(dataCenterMap), 1);
+    EXPECT_EQ(GetOrCrash(dataCenterMap, dataCenter->GetId()).get(), dualDataCenter);
+
+    ReplicatorState_->DestroyDataCenter(dataCenter->GetId());
+    ReplicatorState_->SyncWithUpstream();
+
+    EXPECT_EQ(ReplicatorState_->FindDataCenter(dataCenter->GetId()), nullptr);
+    EXPECT_EQ(ReplicatorState_->FindDataCenterByName("N"), nullptr);
+    EXPECT_TRUE(dataCenterMap.empty());
+}
+
+TEST_F(TReplicatorTest, TestRenameDataCenter)
+{
+    auto dataCenter = CreateDataCenter(/*dataCenterId*/ TGuid::Create(), "N");
+    Proxy_->DataCenters.push_back(dataCenter.get());
+
+    ReplicatorState_->CreateDataCenter(dataCenter.get());
+    ReplicatorState_->SyncWithUpstream();
+
+    auto* dualDataCenter = ReplicatorState_->FindDataCenter(dataCenter->GetId());
+
+    EXPECT_EQ(ReplicatorState_->FindDataCenterByName("N"), dualDataCenter);
+    EXPECT_EQ(ReplicatorState_->FindDataCenterByName("M"), nullptr);
+
+    ReplicatorState_->RenameDataCenter(dataCenter->GetId(), "M");
+    ReplicatorState_->SyncWithUpstream();
+
+    EXPECT_EQ(dualDataCenter->Name(), "M");
+    EXPECT_EQ(ReplicatorState_->FindDataCenterByName("N"), nullptr);
+    EXPECT_EQ(ReplicatorState_->FindDataCenterByName("M"), dualDataCenter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

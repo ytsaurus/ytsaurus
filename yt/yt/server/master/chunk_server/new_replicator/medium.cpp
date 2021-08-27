@@ -3,8 +3,6 @@
 #include <yt/yt/server/master/chunk_server/config.h>
 #include <yt/yt/server/master/chunk_server/medium.h>
 
-#include <yt/yt/core/misc/pool_allocator.h>
-
 namespace NYT::NChunkServer::NReplicator {
 
 using namespace NYTree;

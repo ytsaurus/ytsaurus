@@ -25,6 +25,10 @@ struct IReplicatorState
     virtual void RenameMedium(TMediumId mediumId, const TString& newName) = 0;
     virtual void UpdateMediumConfig(TMediumId mediumId, const TMediumConfigPtr& newConfig) = 0;
 
+    virtual void CreateDataCenter(NNodeTrackerServer::TDataCenter* dataCenter) = 0;
+    virtual void DestroyDataCenter(TDataCenterId dataCenterId) = 0;
+    virtual void RenameDataCenter(TDataCenterId dataCenterId, const TString& newName) = 0;
+
     // Dual state.
     virtual const NCellMaster::TDynamicClusterConfigPtr& GetDynamicConfig() const = 0;
 
@@ -42,6 +46,18 @@ struct IReplicatorState
 
     //! Returns the medium with a given name (|nullptr| if none).
     virtual TMedium* FindMediumByName(const TString& name) const = 0;
+
+    //! Returns the map with all data centers.
+    virtual const THashMap<TDataCenterId, std::unique_ptr<TDataCenter>>& DataCenters() const = 0;
+
+    //! Returns the data center with a given id (|nullptr| if none).
+    virtual TDataCenter* FindDataCenter(TDataCenterId dataCenterId) const = 0;
+
+    //! Returns the data center with a given id (fails if none).
+    virtual TDataCenter* GetDataCenter(TDataCenterId dataCenterId) const = 0;
+
+    //! Returns the data center with a given name (|nullptr| if none).
+    virtual TDataCenter* FindDataCenterByName(const TString& name) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IReplicatorState)

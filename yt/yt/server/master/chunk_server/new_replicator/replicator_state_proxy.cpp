@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 
+#include <yt/yt/server/master/node_tracker_server/node_tracker.h>
+
 namespace NYT::NChunkServer::NReplicator {
 
 using namespace NCellMaster;
@@ -38,11 +40,25 @@ public:
 
         std::vector<NChunkServer::TMedium*> media;
         media.reserve(mediaMap.size());
-        for (const auto& [mediumId, medium] : chunkManager->Media()) {
+        for (const auto& [mediumId, medium] : mediaMap) {
             media.push_back(medium);
         }
 
         return media;
+    }
+
+    virtual std::vector<NNodeTrackerServer::TDataCenter*> GetDataCenters() const
+    {
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& dataCenterMap = nodeTracker->DataCenters();
+
+        std::vector<NNodeTrackerServer::TDataCenter*> dataCenters;
+        dataCenters.reserve(dataCenterMap.size());
+        for (const auto& [dataCenterId, dataCenter] : dataCenterMap) {
+            dataCenters.push_back(dataCenter);
+        }
+
+        return dataCenters;
     }
 
     virtual bool CheckThreadAffinity() const override
