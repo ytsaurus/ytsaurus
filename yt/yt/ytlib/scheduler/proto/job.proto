@@ -96,10 +96,10 @@ message TUserJobSpec
     required string shell_command = 2;
 
     // Input format description (in YSON).
-    required string input_format = 3 [(NYT.NYson.NProto.yson_string) = true];
+    required bytes input_format = 3 [(NYT.NYson.NProto.yson_string) = true];
 
     // Output format description (in YSON).
-    required string output_format = 4 [(NYT.NYson.NProto.yson_string) = true];
+    required bytes output_format = 4 [(NYT.NYson.NProto.yson_string) = true];
 
     // Environment strings (K=V format) for starting user process.
     repeated string environment = 5;
@@ -233,10 +233,10 @@ message TTableOutputSpec
     required NYT.NProto.TGuid chunk_list_id = 2;
 
     // YSON-serialized writer options obtained from table attributes.
-    required string table_writer_options = 6 [(NYT.NYson.NProto.yson_string) = true];
+    required bytes table_writer_options = 6 [(NYT.NYson.NProto.yson_string) = true];
 
     // YSON-serialized writer config obtained from table attributes.
-    optional string table_writer_config = 9 [(NYT.NYson.NProto.yson_string) = true];
+    optional bytes table_writer_config = 9 [(NYT.NYson.NProto.yson_string) = true];
 
     // Timestamp for rows.
     optional int64 timestamp = 10 [default = 0];
@@ -270,7 +270,7 @@ message TSchedulerJobSpecExt
     optional NYT.NProto.TGuid output_transaction_id = 2;
 
     // Job input.
-    optional string table_reader_options = 19 [(NYT.NYson.NProto.yson_string) = true];
+    optional bytes table_reader_options = 19 [(NYT.NYson.NProto.yson_string) = true];
     repeated TTableInputSpec input_table_specs = 3;
     repeated TTableInputSpec foreign_input_table_specs = 15;
 
@@ -308,9 +308,9 @@ message TSchedulerJobSpecExt
 
     optional bool abort_job_if_account_limit_exceeded = 20;
 
-    optional string acl = 21 [(NYT.NYson.NProto.yson_string) = true];
+    optional bytes acl = 21 [(NYT.NYson.NProto.yson_string) = true];
 
-    optional string job_cpu_monitor_config = 22 [(NYT.NYson.NProto.yson_string) = true];
+    optional bytes job_cpu_monitor_config = 22 [(NYT.NYson.NProto.yson_string) = true];
 
     optional int64 waiting_job_timeout = 23;
 

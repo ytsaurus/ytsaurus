@@ -33,7 +33,7 @@ message TLiteralExpression
     optional int64 int64_value = 1;
     optional uint64 uint64_value = 2;
     optional double double_value = 3;
-    optional string string_value = 4;
+    optional bytes string_value = 4;
     optional bool boolean_value = 5;
 }
 

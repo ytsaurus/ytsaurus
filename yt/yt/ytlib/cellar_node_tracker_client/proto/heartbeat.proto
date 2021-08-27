@@ -22,7 +22,7 @@ message TCreateCellSlotInfo
     required NYT.NProto.TGuid cell_id = 1;
     required int32 peer_id = 2;
     required bytes options = 3; // NTabletClient::TTabletCellOptions
-    optional string cell_bundle = 4 [default = ""];
+    optional string cell_bundle = 4;
 }
 
 message TConfigureCellSlotInfo
