@@ -52,7 +52,7 @@ message TJobStatus
     optional double progress = 6;
     optional TJobResult result = 7;
     optional NNodeTrackerClient.NProto.TNodeResources resource_usage = 8;
-    optional string statistics = 9;
+    optional bytes statistics = 9;
     optional int64 stderr_size = 13;
 
     required TTimeStatistics time_statistics = 15;

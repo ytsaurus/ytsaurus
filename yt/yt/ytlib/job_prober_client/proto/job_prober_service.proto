@@ -24,7 +24,7 @@ message TReqGetStderr
 
 message TRspGetStderr
 {
-    required string stderr_data = 1;
+    required bytes stderr_data = 1;
 }
 
 message TReqGetSpec

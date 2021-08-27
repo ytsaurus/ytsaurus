@@ -60,7 +60,7 @@ message TReqMultiread
     // TODO(kiselyovp) move codecs to header
     required int32 request_codec = 1; // ECodec
     required int32 response_codec = 2; // ECodec
-    optional string retention_config = 3;
+    optional bytes retention_config = 3;
     required uint64 timestamp = 4;
     repeated NYT.NProto.TGuid tablet_ids = 5;
     // COMPAT(babenko): legacy clients may omit this field.
