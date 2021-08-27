@@ -103,7 +103,7 @@ DEFINE_REFCOUNTED_TYPE(ISlot)
 ////////////////////////////////////////////////////////////////////////////////
 
 ISlotPtr CreateSlot(
-    int slotIndex,
+    TSlotManager* slotManager,
     TSlotLocationPtr location,
     IJobEnvironmentPtr environment,
     IVolumeManagerPtr volumeManager,

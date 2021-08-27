@@ -1,8 +1,10 @@
 #include "slot.h"
+
 #include "chunk_cache.h"
 #include "private.h"
 #include "job_environment.h"
 #include "slot_location.h"
+#include "slot_manager.h"
 #include "volume_manager.h"
 
 #include <yt/yt/server/lib/exec_node/config.h>
@@ -37,15 +39,16 @@ class TSlot
 {
 public:
     TSlot(
-        int slotIndex,
+        TSlotManager* slotManager,
         TSlotLocationPtr location,
         IJobEnvironmentPtr environment,
         IVolumeManagerPtr volumeManager,
         const TString& nodeTag)
-        : SlotIndex_(slotIndex)
-        , JobEnvironment_(std::move(environment))
+        : JobEnvironment_(std::move(environment))
         , Location_(std::move(location))
         , VolumeManager_(std::move(volumeManager))
+        , SlotGuard_(slotManager->AcquireSlot())
+        , SlotIndex_(SlotGuard_->GetSlotIndex())
         , NodeTag_(nodeTag)
         , JobProxyUnixDomainSocketPath_(GetJobProxyUnixDomainSocketPath())
     {
@@ -239,10 +242,12 @@ public:
     }
 
 private:
-    const int SlotIndex_;
     const IJobEnvironmentPtr JobEnvironment_;
     const TSlotLocationPtr Location_;
     const IVolumeManagerPtr VolumeManager_;
+
+    std::unique_ptr<TSlotManager::TSlotGuard> SlotGuard_;
+    const int SlotIndex_;
 
     //! Uniquely identifies a node process on the current host.
     //! Used for unix socket name generation, to communicate between node and job proxies.
@@ -281,14 +286,14 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ISlotPtr CreateSlot(
-    int slotIndex,
+    TSlotManager* slotManager,
     TSlotLocationPtr location,
     IJobEnvironmentPtr environment,
     IVolumeManagerPtr volumeManager,
     const TString& nodeTag)
 {
     auto slot = New<TSlot>(
-        slotIndex,
+        slotManager,
         std::move(location),
         std::move(environment),
         std::move(volumeManager),
