@@ -56,7 +56,19 @@ public:
     //! Acquires a free slot, thows on error.
     ISlotPtr AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest);
 
-    void ReleaseSlot(int slotIndex);
+    class TSlotGuard
+    {
+    public:
+        explicit TSlotGuard(TSlotManagerPtr slotManager);
+        ~TSlotGuard();
+
+        int GetSlotIndex() const;
+
+    private:
+        const TSlotManagerPtr SlotManager_;
+        const int SlotIndex_;
+    };
+    std::unique_ptr<TSlotGuard> AcquireSlot();
 
     int GetSlotCount() const;
     int GetUsedSlotCount() const;
@@ -131,6 +143,9 @@ private:
     bool HasSlotDisablingAlert() const;
 
     void AsyncInitialize();
+
+    int DoAcquireSlot();
+    void ReleaseSlot(int slotIndex);
 
     /*!
      *  \note

@@ -159,22 +159,18 @@ ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest)
             << TErrorAttribute("skipped_by_medium", skippedByMedium);
     }
 
-    YT_VERIFY(!FreeSlots_.empty());
-    int slotIndex = *FreeSlots_.begin();
-    FreeSlots_.erase(slotIndex);
-
     if (diskRequest.disk_space() > 0) {
         bestLocation->AcquireDiskSpace(diskRequest.disk_space());
     }
 
-    return CreateSlot(slotIndex, std::move(bestLocation), JobEnvironment_, RootVolumeManager_, NodeTag_);
+    return CreateSlot(this, std::move(bestLocation), JobEnvironment_, RootVolumeManager_, NodeTag_);
 }
 
-void TSlotManager::ReleaseSlot(int slotIndex)
+std::unique_ptr<TSlotManager::TSlotGuard> TSlotManager::AcquireSlot()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    YT_VERIFY(FreeSlots_.insert(slotIndex).second);
+    return std::make_unique<TSlotManager::TSlotGuard>(this);
 }
 
 int TSlotManager::GetSlotCount() const
@@ -458,6 +454,37 @@ void TSlotManager::AsyncInitialize()
     YT_LOG_INFO("Exec slot manager initialized");
 }
 
+int TSlotManager::DoAcquireSlot()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    auto slotIt = FreeSlots_.begin();
+    YT_VERIFY(slotIt != FreeSlots_.end());
+    auto slotIndex = *slotIt;
+    FreeSlots_.erase(slotIt);
+
+    YT_LOG_DEBUG("Exec slot acquired (SlotIndex: %v)",
+        slotIndex);
+
+    return slotIndex;
+}
+
+void TSlotManager::ReleaseSlot(int slotIndex)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    const auto& jobInvoker = Bootstrap_->GetJobInvoker();
+    jobInvoker->Invoke(
+        BIND([this, this_ = MakeStrong(this), slotIndex] {
+            VERIFY_THREAD_AFFINITY(JobThread);
+
+            YT_VERIFY(FreeSlots_.insert(slotIndex).second);
+
+            YT_LOG_DEBUG("Exec slot released (SlotIndex: %v)",
+                slotIndex);
+        }));
+}
+
 NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskResources()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -485,6 +512,23 @@ NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskResources()
     }
 
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSlotManager::TSlotGuard::TSlotGuard(TSlotManagerPtr slotManager)
+    : SlotManager_(std::move(slotManager))
+    , SlotIndex_(SlotManager_->DoAcquireSlot())
+{ }
+
+TSlotManager::TSlotGuard::~TSlotGuard()
+{
+    SlotManager_->ReleaseSlot(SlotIndex_);
+}
+
+int TSlotManager::TSlotGuard::GetSlotIndex() const
+{
+    return SlotIndex_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

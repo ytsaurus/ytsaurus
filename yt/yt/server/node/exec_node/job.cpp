@@ -1643,11 +1643,11 @@ private:
                     // Errors during cleanup phase do not affect job outcome.
                     YT_LOG_ERROR(ex, "Failed to clean sandbox (SlotIndex: %v)", Slot_->GetSlotIndex());
                 }
-                Bootstrap_->GetSlotManager()->ReleaseSlot(Slot_->GetSlotIndex());
             } else {
                 YT_LOG_WARNING("Sandbox cleanup is disabled by environment variable %v; should be used for testing purposes only",
                     DisableSandboxCleanupEnv);
             }
+            Slot_.Reset();
         }
 
         // NB: we should disable slot here to give scheduler information about job failure.
