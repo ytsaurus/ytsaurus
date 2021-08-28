@@ -866,11 +866,18 @@ private:
             IncrementReadThrottlingCounter(context);
         }
 
-        std::vector<TChunkReadGuard> chunkReadGuards;
-        chunkReadGuards.reserve(request->subrequests_size());
+        THashMap<TLocation*, int> locationToLocationIndex;
+        std::vector<std::pair<TLocation*, int>> requestedLocations;
+
+        struct TChunkRequestInfo
+        {
+            TChunkReadGuard Guard;
+            int LocationIndex;
+        };
+        std::vector<TChunkRequestInfo> chunkRequestInfos;
+        chunkRequestInfos.reserve(request->subrequests_size());
 
         std::vector<TFuture<void>> prepareReaderFutures;
-        prepareReaderFutures.reserve(request->subrequests_size());
 
         const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
         {
@@ -887,23 +894,35 @@ private:
 
                 bool chunkAvailable = false;
                 if (chunk) {
-                    if (auto guard = TChunkReadGuard::TryAcquire(chunk)) {
+                    if (auto guard = TChunkReadGuard::TryAcquire(std::move(chunk))) {
+                        auto* location = guard.GetChunk()->GetLocation().Get();
+                        auto [it, emplaced] = locationToLocationIndex.try_emplace(
+                            location,
+                            std::ssize(locationToLocationIndex));
+                        if (emplaced) {
+                            requestedLocations.emplace_back(location, 0);
+                        }
+                        requestedLocations[it->second].second += subrequest.fragments_size();
+
                         TClientChunkReadOptions options{
                             .WorkloadDescriptor = workloadDescriptor,
                             .ReadSessionId = readSessionId
                         };
                         if (auto future = guard.PrepareToReadChunkFragments(options)) {
                             YT_LOG_DEBUG("Will wait for chunk reader to become prepared (ChunkId: %v)",
-                                chunk->GetId());
+                                guard.GetChunk()->GetId());
                             prepareReaderFutures.push_back(std::move(future));
                         }
-                        chunkReadGuards.push_back(std::move(guard));
+                        chunkRequestInfos.push_back({
+                            .Guard = std::move(guard),
+                            .LocationIndex = it->second
+                        });
                         chunkAvailable = true;
                     }
                 }
 
                 if (!chunkAvailable) {
-                    chunkReadGuards.push_back(TChunkReadGuard());
+                    chunkRequestInfos.emplace_back();
                 }
 
                 subresponse->set_has_complete_chunk(chunkAvailable);
@@ -914,32 +933,34 @@ private:
             [
                 =,
                 this_ = MakeStrong(this),
-                chunkReadGuards = std::move(chunkReadGuards)
+                &netThrottler,
+                requestedLocations = std::move(requestedLocations),
+                chunkRequestInfos = std::move(chunkRequestInfos)
             ] (const TError& error) mutable {
                 if (!error.IsOK()) {
                     context->Reply(error);
                     return;
                 }
 
+                std::vector<std::vector<int>> locationFragmentIndices(requestedLocations.size());
+                std::vector<std::vector<IIOEngine::TReadRequest>> locationRequests(requestedLocations.size());
+                for (auto [_, locationRequestCount] : requestedLocations) {
+                    locationFragmentIndices.reserve(locationRequestCount);
+                    locationRequests.reserve(locationRequestCount);
+                }
+
                 int fragmentIndex = 0;
-                struct TLocationRequests {
-                    std::vector<int> FragmentIndices;
-                    std::vector<IIOEngine::TReadRequest> Requests;
-                };
-                THashMap<TLocation*, TLocationRequests> locationToReadRequests;
                 {
                     for (int subrequestIndex = 0; subrequestIndex < request->subrequests_size(); ++subrequestIndex) {
                         const auto& subrequest = request->subrequests(subrequestIndex);
-                        const auto& chunkReadGuard = chunkReadGuards[subrequestIndex];
-                        const auto& chunk = chunkReadGuard.GetChunk();
+                        const auto& chunkRequestInfo = chunkRequestInfos[subrequestIndex];
+                        const auto& chunk = chunkRequestInfo.Guard.GetChunk();
                         if (!chunk) {
                             fragmentIndex += subrequest.fragments().size();
                             continue;
                         }
 
-                        auto* location = chunk->GetLocation().Get();
-                        auto& locationRequests = locationToReadRequests[location];
-
+                        auto locationIndex = chunkRequestInfo.LocationIndex;
                         for (const auto& fragment : subrequest.fragments()) {
                             auto readRequest = chunk->MakeChunkFragmentReadRequest(
                                 TChunkFragmentDescriptor{
@@ -947,8 +968,8 @@ private:
                                     .BlockIndex = fragment.block_index(),
                                     .BlockOffset = fragment.block_offset()
                                 });
-                            locationRequests.Requests.push_back(std::move(readRequest));
-                            locationRequests.FragmentIndices.push_back(fragmentIndex);
+                            locationRequests[locationIndex].push_back(std::move(readRequest));
+                            locationFragmentIndices[locationIndex].push_back(fragmentIndex);
                             ++fragmentIndex;
                         }
                     }
@@ -956,61 +977,60 @@ private:
 
                 response->Attachments().resize(fragmentIndex);
 
-                struct TLocationResult {
-                    std::vector<int> FragmentIndices;
-                    IIOEngine::TReadResponse Response;
-                };
+                std::vector<TFuture<IIOEngine::TReadResponse>> readFutures;
+                readFutures.reserve(requestedLocations.size());
 
-                std::vector<TFuture<TLocationResult>> readFutures;
-                readFutures.reserve(locationToReadRequests.size());
-
-                for (auto&& [location, requests] : locationToReadRequests) {
+                for (int index = 0; index < std::ssize(requestedLocations); ++index) {
+                    auto [location, locationRequestCount] = requestedLocations[index];
+                    YT_VERIFY(locationRequestCount == std::ssize(locationRequests[index]));
                     YT_LOG_DEBUG("Reading block fragments (LocationId: %v, FragmentCount: %v)",
                         location->GetId(),
-                        requests.Requests.size());
+                        locationRequestCount);
                     const auto& ioEngine = location->GetIOEngine();
 
                     struct TChunkFragmentBuffer
                     { };
                     readFutures.push_back(
-                        ioEngine->Read<TChunkFragmentBuffer>(std::move(requests.Requests))
-                        .ApplyUnique(BIND(
-                            [fragmentIndices = std::move(requests.FragmentIndices)]
-                            (IIOEngine::TReadResponse&& readResponse)
-                            {
-                                YT_VERIFY(readResponse.OutputBuffers.size() == fragmentIndices.size());
-                                return TLocationResult{
-                                    .FragmentIndices = std::move(fragmentIndices),
-                                    .Response = std::move(readResponse)
-                                };
-                            })));
+                        ioEngine->Read<TChunkFragmentBuffer>(std::move(locationRequests[index])));
                 }
 
                 AllSucceeded(std::move(readFutures))
-                    .Subscribe(BIND(
+                    .SubscribeUnique(BIND(
                         [
                             =,
                             this_ = MakeStrong(this),
-                            chunkReadGuards = std::move(chunkReadGuards)
-                        ] (const TErrorOr<std::vector<TLocationResult>>& results) {
-                            if (!results.IsOK()) {
-                                context->Reply(results);
+                            &netThrottler,
+                            chunkRequestInfos = std::move(chunkRequestInfos),
+                            locationFragmentIndices = std::move(locationFragmentIndices)
+                        ] (TErrorOr<std::vector<IIOEngine::TReadResponse>>&& resultsOrError) {
+                            if (!resultsOrError.IsOK()) {
+                                context->Reply(resultsOrError);
                                 return;
                             }
 
                             i64 dataBytesReadFromDisk = 0;
-                            for (const auto& result : results.Value()) {
-                                for (int index = 0; index < std::ssize(result.Response.OutputBuffers); ++index) {
-                                    int fragmentIndex = result.FragmentIndices[index];
-                                    response->Attachments()[fragmentIndex] = result.Response.OutputBuffers[index];
+                            auto& results = resultsOrError.Value();
+                            YT_VERIFY(results.size() == locationFragmentIndices.size());
+
+                            for (int resultIndex = 0; resultIndex < std::ssize(results); ++resultIndex) {
+                                auto& result = results[resultIndex];
+                                const auto& fragmentIndices = locationFragmentIndices[resultIndex];
+                                YT_VERIFY(result.OutputBuffers.size() == fragmentIndices.size());
+                                for (int index = 0; index < std::ssize(fragmentIndices); ++index) {
+                                    response->Attachments()[fragmentIndices[index]] = std::move(result.OutputBuffers[index]);
                                 }
-                                dataBytesReadFromDisk += result.Response.PhysicalBytesRead;
+                                dataBytesReadFromDisk += result.PhysicalBytesRead;
                             }
 
                             response->mutable_chunk_reader_statistics()->set_data_bytes_read_from_disk(dataBytesReadFromDisk);
 
                             context->SetComplete();
-                            context->ReplyFrom(netThrottler->Throttle(totalFragmentSize));
+                            if (netThrottler->IsOverdraft()) {
+                                context->ReplyFrom(netThrottler->Throttle(totalFragmentSize));
+                            } else {
+                                netThrottler->Acquire(totalFragmentSize);
+                                context->Reply();
+                            }
                         }));
             };
 
