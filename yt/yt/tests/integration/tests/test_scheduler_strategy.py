@@ -5071,6 +5071,46 @@ class TestIntegralGuarantees(YTEnvSetup):
         volume_path = scheduler_orchid_pool_path("acceptable_pool") + "/accumulated_resource_volume/cpu"
         wait(lambda: get(volume_path) == 86400.)
 
+    def test_volume_overflow_distribution_with_deep_paths(self):
+        create_pool("ancestor", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "none",
+                "resource_flow": {"cpu": 10**10 + 1},
+            },
+        })
+        create_pool("overflow_ancestor", parent_name="ancestor", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "none",
+                "resource_flow": {"cpu": 10**10},
+            },
+        })
+        create_pool("overflow_pool", parent_name="overflow_ancestor", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "relaxed",
+                "resource_flow": {"cpu": 10**10},
+            },
+        })
+        create_pool("acceptable_ancestor", parent_name="ancestor", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "none",
+                "resource_flow": {"cpu": 1},
+            },
+        })
+        create_pool("acceptable_pool", parent_name="acceptable_ancestor", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "relaxed",
+                "resource_flow": {"cpu": 1},
+            },
+        })
+
+        time.sleep(1)  # Wait a bit to accumulate some volume in overflow_pool.
+
+        set("//sys/pools/ancestor/overflow_ancestor/overflow_pool/@integral_guarantees/resource_flow/cpu", 10**5)
+        # With 10**5 cpu flow overflow_pool is already full and will fill sibling acceptable_pool in one second.
+
+        volume_path = scheduler_orchid_pool_path("acceptable_pool") + "/accumulated_resource_volume/cpu"
+        wait(lambda: get(volume_path) == 86400.)
+
     def test_volume_overflow_distribution_if_pool_does_not_accept_it(self):
         set("//sys/pool_trees/default/@config", {"should_distribute_free_volume_among_children": True})
 
