@@ -479,7 +479,6 @@ public:
         EMemoryZone memoryZone,
         TRefCountedTypeCookie tagCookie) override
     {
-
         std::vector<TFuture<void>> futures;
         futures.reserve(requests.size());
 
