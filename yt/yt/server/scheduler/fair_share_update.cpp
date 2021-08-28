@@ -838,6 +838,7 @@ void TCompositeElement::DistributeFreeVolume()
 
         struct TChildAttributes {
             int Index;
+            double Weight;
             TSchedulableAttributes* Attributes;
             double AcceptableVolumeToWeightRatio;
         };
@@ -852,9 +853,12 @@ void TCompositeElement::DistributeFreeVolume()
                 auto* child = GetChild(childIndex);
                 if (child->Attributes().AcceptableVolume.*resourceDataMember > 0) {
                     // Resource flow is taken as weight.
-                    auto weight = child->Attributes().ResourceFlowRatio;
+                    auto weight = child->Attributes().TotalResourceFlowRatio;
+                    // |AcceptableVolume| > 0 => |PoolCapacity| of self or children > 0 => |TotalResourceFlowRatio| > 0.
+                    YT_VERIFY(weight > RatioComputationPrecision);
                     hungryChildren.push_back(TChildAttributes{
                         .Index = childIndex,
+                        .Weight = weight,
                         .Attributes = &child->Attributes(),
                         .AcceptableVolumeToWeightRatio = static_cast<double>(child->Attributes().AcceptableVolume.*resourceDataMember) / weight,
                     });
@@ -873,19 +877,19 @@ void TCompositeElement::DistributeFreeVolume()
             auto it = hungryChildren.begin();
             // First we provide free volume to the pools that cannot fully consume the suggested volume.
             for (; it != hungryChildren.end(); ++it) {
-                const auto suggestedFreeVolume = freeVolume.*resourceDataMember * it->Attributes->ResourceFlowRatio / weightSum;
+                const auto suggestedFreeVolume = freeVolume.*resourceDataMember * it->Weight / weightSum;
                 const auto acceptableVolume = it->Attributes->AcceptableVolume.*resourceDataMember;
                 if (suggestedFreeVolume < acceptableVolume) {
                     break;
                 }
                 it->Attributes->AcceptedFreeVolume.*resourceDataMember = acceptableVolume;
                 freeVolume.*resourceDataMember -= acceptableVolume;
-                weightSum -= static_cast<double>(it->Attributes->ResourceFlowRatio);
+                weightSum -= it->Weight;
             }
 
             // Then we provide free volume to remaining pools that will fully consume the suggested volume.
             for (; it != hungryChildren.end(); ++it) {
-                auto suggestedFreeVolume = freeVolume.*resourceDataMember * it->Attributes->ResourceFlowRatio / weightSum;
+                auto suggestedFreeVolume = freeVolume.*resourceDataMember * it->Weight / weightSum;
                 it->Attributes->AcceptedFreeVolume.*resourceDataMember = suggestedFreeVolume;
             }
         });
