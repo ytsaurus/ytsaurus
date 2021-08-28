@@ -221,6 +221,10 @@ TDnsResolver::TImpl::TImpl(
     Options_.sock_state_cb_data = this;
     mask |= ARES_OPT_SOCK_STATE_CB;
 
+    // Disable lookups from /etc/hosts file. Otherwise, cares re-reads file on every dns query.
+    // That causes issues with memory management, because c-areas uses fopen(), and fopen() calls mmap().
+    Options_.lookups = const_cast<char*>("b");
+
     YT_VERIFY(ares_init_options(&Channel_, &Options_, mask) == ARES_SUCCESS);
 
     ares_set_socket_callback(Channel_, &TDnsResolver::TImpl::OnSocketCreated, this);
