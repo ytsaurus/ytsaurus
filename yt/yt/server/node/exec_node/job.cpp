@@ -1324,12 +1324,15 @@ private:
 
         YT_LOG_INFO("Running %lv GPU check commands", gpuCheckType);
 
+        int checkIndex = 0;
         switch (gpuCheckType) {
             case EGpuCheckType::Preliminary:
                 PreliminaryGpuCheckStartTime_ = TInstant::Now();
+                checkIndex = 1;
                 break;
             case EGpuCheckType::Extra:
                 ExtraGpuCheckStartTime_ = TInstant::Now();
+                checkIndex = 2;
                 break;
             default:
                 Y_UNREACHABLE();
@@ -1387,7 +1390,7 @@ private:
             MakeWritableRootFS(),
             Config_->JobController->SetupCommandUser,
             devices,
-            /*startIndex*/ SetupCommandsCount_ + 1);
+            /*startIndex*/ SetupCommandsCount_ + checkIndex);
     }
 
     void OnGpuCheckCommandFinished(const TError& error)
