@@ -490,9 +490,10 @@ private:
         return AllocateWriteTargets(
             Client_,
             SessionId_,
-            UploadReplicationFactor_ - activeTargets,
-            std::max(MinUploadReplicationFactor_ - activeTargets, 1),
-            UploadReplicationFactor_,
+            /*desiredTargetCount*/ UploadReplicationFactor_ - activeTargets,
+            /*minTargetCount*/ std::max(MinUploadReplicationFactor_ - activeTargets, 1),
+            /*maxReplicasPerRack*/ std::max(UploadReplicationFactor_ - 1, 1),
+            /*replicationFactorOverride*/ UploadReplicationFactor_,
             Config_->PreferLocalHost,
             forbiddenAddresses,
             NodeDirectory_,

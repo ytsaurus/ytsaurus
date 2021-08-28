@@ -95,6 +95,9 @@ message TReqAllocateWriteTargets
         // An override for chunk replication factor;
         // used when one wants to upload fewer replicas but still guarantee placement safety.
         optional int32 replication_factor_override = 6;
+
+        // Maximum number of replicas to place in the same rack.
+        optional int32 max_replicas_per_rack = 7;
     }
 
     repeated TSubrequest subrequests = 1;

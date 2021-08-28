@@ -578,6 +578,7 @@ private:
             WriterConfig_,
             New<TRemoteWriterOptions>(),
             outputSessionId,
+            erasureCodec,
             New<TNodeDirectory>(),
             Host_->GetClient(),
             erasedPartIndicies,
