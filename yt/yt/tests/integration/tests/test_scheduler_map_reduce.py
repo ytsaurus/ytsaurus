@@ -488,7 +488,7 @@ print "x={0}\ty={1}".format(x, y)
             out="//tmp/t_out",
             reduce_by="x",
             sort_by="x",
-            reducer_command='if [ " $YT_TASK_JOB_INDEX " == "0" ]; then sleep 1000; else cat; fi',
+            reducer_command='if [ " $YT_TASK_JOB_INDEX " <= "5" ]; then sleep 1000; else cat; fi',
             spec={
                 "partition_count": 2,
                 "data_size_per_map_job": 1,
