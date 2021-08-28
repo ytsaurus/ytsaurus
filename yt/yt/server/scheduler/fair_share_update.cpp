@@ -963,11 +963,6 @@ void TPool::UpdateAccumulatedResourceVolume(TFairShareUpdateContext* context)
         attributes.AcceptableVolume);
 }
 
-bool TPool::ShouldDistributeFreeVolumeAmongChildren()
-{
-    return true;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TRootElement::DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context)
@@ -1036,11 +1031,6 @@ void TRootElement::ValidateAndAdjustSpecifiedGuarantees(TFairShareUpdateContext*
     }
 
     AdjustStrongGuarantees(context);
-}
-
-bool TRootElement::ShouldDistributeFreeVolumeAmongChildren()
-{
-    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

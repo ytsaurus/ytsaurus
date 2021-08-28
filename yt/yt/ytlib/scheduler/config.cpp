@@ -1766,6 +1766,9 @@ TPoolIntegralGuaranteesConfig::TPoolIntegralGuaranteesConfig()
 
     RegisterParameter("can_accept_free_volume", CanAcceptFreeVolume)
         .Default(true);
+    
+    RegisterParameter("should_distribute_free_volume_among_children", ShouldDistributeFreeVolumeAmongChildren)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -307,6 +307,10 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("cached_job_preemption_statuses_update_period", CachedJobPreemptionStatusesUpdatePeriod)
         .Default(TDuration::Seconds(15));
 
+    RegisterParameter("should_distribute_free_volume_among_children", ShouldDistributeFreeVolumeAmongChildren)
+        // TODO(renadeen): temporarily disabled.
+        .Default(false);
+
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive starvation satisfaction threshold must be less than starvation satisfaction threshold")

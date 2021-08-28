@@ -291,6 +291,8 @@ public:
     //! How often to update job preemption statuses snapshot.
     TDuration CachedJobPreemptionStatusesUpdatePeriod;
 
+    bool ShouldDistributeFreeVolumeAmongChildren;
+
     TFairShareStrategyTreeConfig();
 };
 
