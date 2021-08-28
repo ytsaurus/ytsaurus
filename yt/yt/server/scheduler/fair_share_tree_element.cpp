@@ -1155,6 +1155,7 @@ TFairShareScheduleJobResult TSchedulerCompositeElement::ScheduleJob(TScheduleJob
 
         bestLeafDescendant = attributes.BestLeafDescendant;
         if (!bestLeafDescendant->IsAlive()) {
+            context->DynamicAttributesFor(bestLeafDescendant).Active = false;
             UpdateDynamicAttributes(&context->DynamicAttributesList(), context->ChildHeapMap());
             bestLeafDescendant = nullptr;
             continue;
