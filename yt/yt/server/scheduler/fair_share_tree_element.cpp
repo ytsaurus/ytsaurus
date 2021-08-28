@@ -1865,6 +1865,12 @@ bool TSchedulerPoolElement::CanAcceptFreeVolume() const
     return Config_->IntegralGuarantees->CanAcceptFreeVolume;
 }
 
+bool TSchedulerPoolElement::ShouldDistributeFreeVolumeAmongChildren() const
+{
+    return Config_->IntegralGuarantees->ShouldDistributeFreeVolumeAmongChildren.value_or(
+        TreeConfig_->ShouldDistributeFreeVolumeAmongChildren);
+}
+
 bool TSchedulerPoolElement::AreDetailedLogsEnabled() const
 {
     return Config_->EnableDetailedLogs;
@@ -3810,6 +3816,11 @@ bool TSchedulerRootElement::ShouldTruncateUnsatisfiedChildFairShareInFifoPool() 
 bool TSchedulerRootElement::CanAcceptFreeVolume() const
 {
     // This value is not used.
+    return false;
+}
+
+bool TSchedulerRootElement::ShouldDistributeFreeVolumeAmongChildren() const
+{
     return false;
 }
 

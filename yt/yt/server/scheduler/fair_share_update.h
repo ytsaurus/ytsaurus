@@ -191,7 +191,7 @@ public:
 
     virtual bool ShouldTruncateUnsatisfiedChildFairShareInFifoPool() const = 0;
     virtual bool CanAcceptFreeVolume() const = 0;
-    virtual bool ShouldDistributeFreeVolumeAmongChildren() = 0;
+    virtual bool ShouldDistributeFreeVolumeAmongChildren() const = 0;
 
 private:
     using TChildSuggestions = std::vector<double>;
@@ -254,7 +254,6 @@ private:
     virtual void InitIntegralPoolLists(TFairShareUpdateContext* context) override;
 
     void UpdateAccumulatedResourceVolume(TFairShareUpdateContext* context);
-    virtual bool ShouldDistributeFreeVolumeAmongChildren() override;
 
     friend class TFairShareUpdateExecutor;
 };
@@ -273,7 +272,6 @@ public:
 private:
     virtual void DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context) override;
     virtual void UpdateCumulativeAttributes(TFairShareUpdateContext* context) override;
-    virtual bool ShouldDistributeFreeVolumeAmongChildren() override;
 
     void ValidateAndAdjustSpecifiedGuarantees(TFairShareUpdateContext* context);
 

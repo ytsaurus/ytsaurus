@@ -431,6 +431,7 @@ public:
         TreeConfig_->MinChildHeapSize = 3;
         TreeConfig_->EnableConditionalPreemption = true;
         TreeConfig_->UseResourceUsageWithPrecommit = false;
+        TreeConfig_->ShouldDistributeFreeVolumeAmongChildren = true;
     }
 
 protected:
