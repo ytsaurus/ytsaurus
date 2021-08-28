@@ -25,7 +25,7 @@ import time
 
 
 class TestSchedulerReduceCommands(YTEnvSetup):
-    NUM_TEST_PARTITIONS = 4
+    NUM_TEST_PARTITIONS = 5
 
     NUM_MASTERS = 1
     NUM_NODES = 5
