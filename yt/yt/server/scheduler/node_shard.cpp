@@ -1831,6 +1831,11 @@ void TNodeShard::LogOngoingJobsAt(TInstant now, const TExecNodePtr& node, const 
     auto cachedJobPreemptionStatuses =
         Host_->GetStrategy()->GetCachedJobPreemptionStatusesForNode(node->GetDefaultAddress(), node->Tags());
     auto getJobPreemptionStatus = [&] (const TJobPtr& job) -> std::optional<EJobPreemptionStatus> {
+        if (!cachedJobPreemptionStatuses.Value) {
+            // Tree snapshot is missing.
+            return {};
+        }
+
         auto operationIt = cachedJobPreemptionStatuses.Value->find(job->GetOperationId());
         if (operationIt == cachedJobPreemptionStatuses.Value->end()) {
             return {};
