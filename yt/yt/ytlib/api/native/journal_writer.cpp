@@ -700,11 +700,17 @@ private:
             TChunkReplicaWithMediumList replicas;
             try {
                 TEventTimerGuard timingGuard(Counters_.AllocateWriteTargetsTimer);
+
+                // #ReadQuorum replicas are required to read journal chunk, so no more
+                // than #ReplicaCount - #ReadQuorum replicas can be placed in the same rack.
+                auto maxReplicasPerRack = ReplicaCount_ - ReadQuorum_;
+
                 replicas = AllocateWriteTargets(
                     Client_,
                     session->Id,
                     ReplicaCount_,
                     ReplicaCount_,
+                    maxReplicasPerRack,
                     std::nullopt,
                     Config_->PreferLocalHost,
                     GetBannedNodes(),
