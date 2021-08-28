@@ -5072,6 +5072,7 @@ class TestIntegralGuarantees(YTEnvSetup):
         wait(lambda: get(volume_path) == 86400.)
 
     def test_volume_overflow_distribution_with_deep_paths(self):
+        set("//sys/pool_trees/default/@config", {"should_distribute_free_volume_among_children": True})
         create_pool("ancestor", attributes={
             "integral_guarantees": {
                 "guarantee_type": "none",
