@@ -877,7 +877,7 @@ void TCompositeElement::DistributeFreeVolume()
             auto it = hungryChildren.begin();
             // First we provide free volume to the pools that cannot fully consume the suggested volume.
             for (; it != hungryChildren.end(); ++it) {
-                const auto suggestedFreeVolume = freeVolume.*resourceDataMember * it->Weight / weightSum;
+                const auto suggestedFreeVolume = static_cast<double>(freeVolume.*resourceDataMember) * (it->Weight / weightSum);
                 const auto acceptableVolume = it->Attributes->AcceptableVolume.*resourceDataMember;
                 if (suggestedFreeVolume < acceptableVolume) {
                     break;
@@ -889,8 +889,8 @@ void TCompositeElement::DistributeFreeVolume()
 
             // Then we provide free volume to remaining pools that will fully consume the suggested volume.
             for (; it != hungryChildren.end(); ++it) {
-                auto suggestedFreeVolume = freeVolume.*resourceDataMember * it->Weight / weightSum;
-                it->Attributes->AcceptedFreeVolume.*resourceDataMember = suggestedFreeVolume;
+                auto suggestedFreeVolume = static_cast<double>(freeVolume.*resourceDataMember) * (it->Weight / weightSum);
+                it->Attributes->AcceptedFreeVolume.*resourceDataMember = static_cast<std::remove_reference_t<decltype(freeVolume.*resourceDataMember)>>(suggestedFreeVolume);
             }
         });
     }
