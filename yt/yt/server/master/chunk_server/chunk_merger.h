@@ -200,7 +200,7 @@ private:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
-    void OnAfterSnapshotLoaded();
+    void OnAfterSnapshotLoaded() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkMerger)
