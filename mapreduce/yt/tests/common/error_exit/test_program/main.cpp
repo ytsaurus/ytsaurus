@@ -25,7 +25,7 @@ private:
 
 private:
     OBJECT_METHODS(TFailingMap);
-    SAVELOAD(SleepSeconds);
+    SAVELOAD_OVERRIDE_WITHOUT_BASE(SleepSeconds);
 };
 
 REGISTER_SAVELOAD_CLASS(0x73BC2B28, TFailingMap);
