@@ -156,6 +156,28 @@ auto& GetOrCrash(TMap& map, const TKey& key)
     return it->second;
 }
 
+template <class TMap, class TKey>
+void EraseOrCrash(TMap& map, const TKey& key)
+{
+    YT_VERIFY(map.erase(key) > 0);
+}
+
+template <class TContainer, class TArg>
+auto InsertOrCrash(TContainer& container, TArg&& arg)
+{
+    auto [it, inserted] = container.insert(std::forward<TArg>(arg));
+    YT_VERIFY(inserted);
+    return it;
+}
+
+template <class TContainer, class... TArgs>
+auto EmplaceOrCrash(TContainer& container, TArgs&&... args)
+{
+    auto [it, emplaced] = container.emplace(std::forward<TArgs>(args)...);
+    YT_VERIFY(emplaced);
+    return it;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <size_t Index, class... Ts>

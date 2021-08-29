@@ -38,17 +38,46 @@ bool ShrinkHashTable(T* collection);
 template <class TSource, class TTarget>
 void MergeFrom(TTarget* target, const TSource& source);
 
-// This function is supposed to replace frequent pattern
-///    auto it = map.find(key);
-///    YT_VERIFY(it != map.end());
-///    use it->second;
-// with
-///    use GetOrCrash(map, key);
+/*!
+ * This function is supposed to replace a frequent pattern
+ *    auto it = map.find(key);
+ *    YT_VERIFY(it != map.end());
+ *    use it->second;
+ * with
+ *    use GetOrCrash(map, key);
+ */
 template <class TMap, class TKey>
 const auto& GetOrCrash(const TMap& map, const TKey& key);
 
 template <class TMap, class TKey>
 auto& GetOrCrash(TMap& map, const TKey& key);
+
+/*!
+ * This function is supposed to replace a frequent pattern
+ *    YT_VERIFY(map.erase(key) > 0);
+ * with
+ *    EraseOrCrash(map, key);
+ */
+template <class TMap, class TKey>
+void EraseOrCrash(const TMap& map, const TKey& key);
+
+/*!
+ * This function is supposed to replace a frequent pattern
+ *    YT_VERIFY(map.insert(pair).second);
+ * with
+ *    InsertOrCrash(map, pair);
+ */
+template <class TContainer, class TArg>
+auto InsertOrCrash(TContainer& container, TArg&& arg);
+
+/*!
+ * This function is supposed to replace a frequent pattern
+ *    YT_VERIFY(map.emplace(key, value).second);
+ * with
+ *    EmplaceOrCrash(map, key, value);
+ */
+template <class TContainer, class... TArgs>
+auto EmplaceOrCrash(TContainer& container, TArgs&&... args);
 
 template <class... Ts>
 auto MakeArray(
