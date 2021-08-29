@@ -74,7 +74,7 @@ public:
         Y_VERIFY(State_ == EWriterState::Finished);
     }
 
-    void Abort()
+    void Abort() override
     {
         Transaction_->Abort();
         Rows_.Stop();
