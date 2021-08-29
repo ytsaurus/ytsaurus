@@ -374,6 +374,9 @@ private:
 #if defined(HAVE_TIMERFD)
     void ScheduleImmediateWakeup()
     {
+        if (WakeupScheduled_.load(std::memory_order_relaxed)) {
+            return;
+        }
         if (!WakeupScheduled_.exchange(true)) {
             WakeupHandle_.Raise();
         }
