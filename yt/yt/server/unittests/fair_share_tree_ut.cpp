@@ -2403,6 +2403,46 @@ TEST_F(TFairShareTreeTest, TestVolumeOverflowDistributionSimple)
     }
 }
 
+TEST_F(TFairShareTreeTest, TestVolumeOverflowDistributionWithMinimalVolumeShares)
+{
+    auto host = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(host.Get());
+    auto ancestor = CreateTestPool(host.Get(), "ancestor", CreateIntegralPoolConfig(
+        EIntegralGuaranteeType::None,
+        /*flowCpu*/ 100,
+        /*burstCpu*/ 100));
+    ancestor->AttachParent(rootElement.Get());
+
+    auto acceptablePool = CreateTestPool(host.Get(), "acceptablePool", CreateRelaxedPoolConfig(/*flowCpu*/ 1));  // 1% of cluster.
+    acceptablePool->AttachParent(ancestor.Get());
+
+    auto overflowedPool = CreateTestPool(host.Get(), "overflowedPool", CreateRelaxedPoolConfig(/*flowCpu*/ 10));  // 10% of cluster.
+    overflowedPool->AttachParent(ancestor.Get());
+
+    acceptablePool->InitAccumulatedResourceVolume(TResourceVolume());
+    overflowedPool->InitAccumulatedResourceVolume(GetHugeVolume());
+    {
+        // Volume overflow will be very small due to 1 millisecond interval.
+        auto updateTime = TInstant::Now();
+        DoFairShareUpdate(
+            host.Get(),
+            rootElement,
+            /*now*/ updateTime,
+            /*previousUpdateTime*/ updateTime - TDuration::MilliSeconds(1));
+
+        auto selfVolume = TResourceVolume(OneHundredthOfCluster(), TDuration::MilliSeconds(1));  // 1% of cluster for 1 millisecond.
+        auto overflowedVolume = TResourceVolume(OneHundredthOfCluster() * 10., TDuration::MilliSeconds(1));  // 10% of cluster for 1 millisecond.
+        auto expectedVolume = selfVolume + overflowedVolume;
+        auto actualVolume = acceptablePool->GetAccumulatedResourceVolume() ;
+
+        EXPECT_EQ(expectedVolume.GetCpu(), actualVolume.GetCpu());
+        EXPECT_NEAR(expectedVolume.GetMemory(), actualVolume.GetMemory(), 1);
+        EXPECT_NEAR(expectedVolume.GetUserSlots(), actualVolume.GetUserSlots(), 1E-6);
+        EXPECT_NEAR(expectedVolume.GetNetwork(), actualVolume.GetNetwork(), 1E-6);
+        EXPECT_NEAR(expectedVolume.GetGpu(), actualVolume.GetGpu(), 1E-6);
+    }
+}
+
 TEST_F(TFairShareTreeTest, TestVolumeOverflowDistributionIfPoolDoesNotAcceptIt)
 {
     auto host = CreateHostWith10NodesAnd10Cpu();
