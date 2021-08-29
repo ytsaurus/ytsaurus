@@ -26,7 +26,7 @@ public:
     MOCK_METHOD(void, Resume, (TCookie), (override));
     MOCK_METHOD(void, Reset, (TCookie, TChunkStripePtr, TInputChunkMappingPtr), (override));
     MOCK_METHOD(void, Finish, (), (override));
-    MOCK_METHOD(bool, IsFinished, (), (const override));
+    MOCK_METHOD(bool, IsFinished, (), (const, override));
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkPoolInputMock)
@@ -38,7 +38,7 @@ class TChunkPoolJobSplittingHostMock
     , public virtual TDummyPersistent
 {
 public:
-    MOCK_METHOD(bool, IsSplittable, (TOutputCookie cookie), (const override));
+    MOCK_METHOD(bool, IsSplittable, (TOutputCookie cookie), (const, override));
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkPoolJobSplittingHostMock)
@@ -50,18 +50,18 @@ class TChunkPoolOutputMockBase
     , public virtual TDummyPersistent
 {
 public:
-    DEFINE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
-    DEFINE_SIGNAL(void(), Completed);
-    DEFINE_SIGNAL(void(), Uncompleted);
+    DEFINE_SIGNAL_OVERRIDE(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
+    DEFINE_SIGNAL_OVERRIDE(void(), Completed);
+    DEFINE_SIGNAL_OVERRIDE(void(), Uncompleted);
 
 public:
-    MOCK_METHOD(TOutputOrderPtr, GetOutputOrder, (), (const override));
-    MOCK_METHOD(i64, GetLocality, (NNodeTrackerClient::TNodeId), (const override));
-    MOCK_METHOD(TChunkStripeStatisticsVector, GetApproximateStripeStatistics, (), (const override));
+    MOCK_METHOD(TOutputOrderPtr, GetOutputOrder, (), (const, override));
+    MOCK_METHOD(i64, GetLocality, (NNodeTrackerClient::TNodeId), (const, override));
+    MOCK_METHOD(TChunkStripeStatisticsVector, GetApproximateStripeStatistics, (), (const, override));
     MOCK_METHOD(TCookie, Extract, (NNodeTrackerClient::TNodeId), (override));
     MOCK_METHOD(TChunkStripeListPtr, GetStripeList, (TCookie cookie), (override));
-    MOCK_METHOD(bool, IsCompleted, (), (const override));
-    MOCK_METHOD(int, GetStripeListSliceCount, (TCookie), (const override));
+    MOCK_METHOD(bool, IsCompleted, (), (const, override));
+    MOCK_METHOD(int, GetStripeListSliceCount, (TCookie), (const, override));
     MOCK_METHOD(void, Completed, (TCookie, const NControllerAgent::TCompletedJobSummary&), (override));
     MOCK_METHOD(void, Failed, (TCookie), (override));
     MOCK_METHOD(void, Aborted, (TCookie, NScheduler::EAbortReason), (override));
