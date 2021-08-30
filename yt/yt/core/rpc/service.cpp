@@ -49,6 +49,17 @@ void IServiceContext::ReplyFrom(TFuture<void> asyncError)
     }));
 }
 
+void IServiceContext::ReplyFrom(TFuture<void> asyncError, const IInvokerPtr& invoker)
+{
+    asyncError.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+        Reply(error);
+    })
+        .Via(invoker));
+    SubscribeCanceled(BIND([asyncError = std::move(asyncError)] {
+        asyncError.Cancel(MakeCanceledError());
+    }));
+}
+
 namespace NDetail {
 
 bool IsClientFeatureSupported(const IServiceContext* context, int featureId)
