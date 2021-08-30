@@ -18,6 +18,8 @@ class TAttributeKeys;
 class TYsonSerializableLite;
 class TYsonSerializable;
 
+struct IYsonStructMeta;
+
 DECLARE_REFCOUNTED_STRUCT(INode)
 typedef TIntrusivePtr<const INode> IConstNodePtr;
 DECLARE_REFCOUNTED_STRUCT(ICompositeNode)
@@ -65,7 +67,8 @@ const i64 DefaultVirtualChildLimit = 1000;
 //! NB: Changing this value will invalidate all changelogs!
 static const int MaxYPathResolveIterations = 256;
 
-DECLARE_REFCOUNTED_CLASS(TYsonSerializable);
+DECLARE_REFCOUNTED_CLASS(TYsonSerializable)
+DECLARE_REFCOUNTED_CLASS(TYsonStruct)
 
 ////////////////////////////////////////////////////////////////////////////////
 

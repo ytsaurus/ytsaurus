@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "node.h"
+#include "yson_serialize_common.h"
 
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/mpl.h>
@@ -13,20 +14,6 @@
 #include <functional>
 
 namespace NYT::NYTree {
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EMergeStrategy,
-    (Default)
-    (Overwrite)
-    (Combine)
-);
-
-DEFINE_ENUM(EUnrecognizedStrategy,
-    (Drop)
-    (Keep)
-    (KeepRecursive)
-);
 
 ////////////////////////////////////////////////////////////////////////////////
 
