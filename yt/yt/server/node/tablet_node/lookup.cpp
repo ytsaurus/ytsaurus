@@ -497,7 +497,7 @@ private:
                 if (UseLookupCache_) {
                     versionedRows.push_back(row);
 
-                    // Do not add values from active dynamic store.
+                    // Do not add values from active dynamic store. Add only key.
                     auto upperTimestampLimit = excludedStoreIndex == sessionIndex
                         ? MinTimestamp
                         : MaxTimestamp;
