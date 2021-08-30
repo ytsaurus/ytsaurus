@@ -322,11 +322,10 @@ private:
             if (!error.IsOK()) {
                 return;
             }
-
             location->GetPerformanceCounters().PutBlocksWallTime.Record(timer.GetElapsedTime());
         }));
 
-        context->ReplyFrom(result);
+        context->ReplyFrom(result, Bootstrap_->GetStorageLightInvoker());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, SendBlocks)

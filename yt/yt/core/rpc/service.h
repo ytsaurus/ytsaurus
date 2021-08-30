@@ -244,6 +244,9 @@ struct IServiceContext
     //! Replies with a given error when the latter is set.
     void ReplyFrom(TFuture<void> asyncError);
 
+    //! Replies with a given error when the latter is set via the #invoker.
+    void ReplyFrom(TFuture<void> asyncError, const IInvokerPtr& invoker);
+
     template <class E>
     bool IsClientFeatureSupported(E featureId) const;
     template <class E>
