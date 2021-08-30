@@ -38,7 +38,6 @@ ui32 TRowCache::GetFlushIndex() const
 
 void TRowCache::SetFlushIndex(ui32 storeFlushIndex)
 {
-    // Discard cached rows with revision not greater than lastStoreTimestamp.
     auto currentFlushIndex = FlushIndex_.load(std::memory_order_acquire);
     // Check that stores are flushed in proper order.
     // Revisions are equal if retrying flush.
