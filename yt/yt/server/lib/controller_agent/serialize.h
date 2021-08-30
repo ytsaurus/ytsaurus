@@ -34,7 +34,8 @@ DEFINE_ENUM(ESnapshotVersion,
     ((InputOutputTableSchemaId)             (300611))
     ((MainResourceConsumptionPerTree)       (300612))
     ((AccountInDiskRequest)                 (300613))
-    ((AddShallowMerge)                      (300614))
+    ((ReadyExhaustTimers)                   (300614))
+    ((AddShallowMerge)                      (300615))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
