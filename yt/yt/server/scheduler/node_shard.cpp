@@ -2466,6 +2466,18 @@ void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
                     .Counter("/jobs/completed_job_count")).first;
         }
         it->second.Increment(value);
+    } else if (job->GetState() == EJobState::Failed) {
+        auto key = std::make_tuple(job->GetType(), job->GetState());
+        auto it = FailedJobCounter_.find(key);
+        if (it == FailedJobCounter_.end()) {
+            it = FailedJobCounter_.emplace(
+                key,
+                SchedulerProfiler
+                    .WithTag("job_type", FormatEnum(job->GetType()))
+                    .WithTag(ProfilingPoolTreeKey, job->GetTreeId())
+                    .Counter("/jobs/failed_job_count")).first;
+        }
+        it->second.Increment(value);
     } else {
         auto key = std::make_tuple(job->GetType(), job->GetState());
         auto it = JobCounter_.find(key);
