@@ -93,12 +93,22 @@ struct TRefCountedWrapperWithCookie final
 
 namespace NDetail {
 
+Y_FORCE_INLINE void CustomInitialize(...)
+{ }
+
+template <class T>
+Y_FORCE_INLINE auto CustomInitialize(T* ptr) -> decltype(&T::InitializeRefCounted, void())
+{
+    ptr->InitializeRefCounted();
+}
+
 template <class T, class... As>
 Y_FORCE_INLINE T* NewEpilogue(void* ptr, As&& ... args)
 {
     try {
         auto* instance = static_cast<T*>(ptr);
         new (instance) T(std::forward<As>(args)...);
+        CustomInitialize(instance);
         return instance;
     } catch (const std::exception& ex) {
         // Do not forget to free the memory.
@@ -120,7 +130,9 @@ struct TConstructHelper
     {
         auto* refCounter = reinterpret_cast<TRefCounter*>(static_cast<char*>(ptr) + RefCounterOffset);
         new (refCounter) TRefCounter();
-        return new (reinterpret_cast<T*>(refCounter + 1)) T(std::forward<As>(args)...);
+        auto* result = new(reinterpret_cast<T*>(refCounter + 1)) T(std::forward<As>(args)...);
+        CustomInitialize(result);
+        return result;
     }
 };
 
@@ -134,7 +146,9 @@ struct TConstructHelper<T, true>
     Y_FORCE_INLINE static TRefCountedWrapper<T>* Construct(void* ptr, As&&... args)
     {
         using TDerived = TRefCountedWrapper<T>;
-        return new (static_cast<TDerived*>(ptr)) TDerived(std::forward<As>(args)...);
+        auto* result = new(static_cast<TDerived*>(ptr)) TDerived(std::forward<As>(args)...);
+        CustomInitialize(result);
+        return result;
     }
 };
 

@@ -1,6 +1,6 @@
 #include "serialize.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/tree_visitor.h>
 
 #include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/cast.h>
