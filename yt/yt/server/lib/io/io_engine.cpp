@@ -96,6 +96,7 @@ class TIOEngineConfigBase
 {
 public:
     int AuxThreadCount;
+    int FsyncThreadCount;
 
     bool EnableSync;
 
@@ -115,6 +116,9 @@ public:
     TIOEngineConfigBase()
     {
         RegisterParameter("aux_thread_count", AuxThreadCount)
+            .GreaterThanOrEqual(1)
+            .Default(1);
+        RegisterParameter("fsync_thread_count", FsyncThreadCount)
             .GreaterThanOrEqual(1)
             .Default(1);
 
@@ -239,7 +243,7 @@ public:
         i64 priority) override
     {
         return BIND(&TIOEngineBase::DoClose, MakeStrong(this), std::move(request))
-            .AsyncVia(CreateFixedPriorityInvoker(AuxInvoker_, priority))
+            .AsyncVia(CreateFixedPriorityInvoker(FsyncInvoker_, priority))
             .Run();
     }
 
@@ -248,7 +252,7 @@ public:
         i64 priority) override
     {
         return BIND(&TIOEngineBase::DoFlushDirectory, MakeStrong(this), std::move(request))
-            .AsyncVia(CreateFixedPriorityInvoker(AuxInvoker_, priority))
+            .AsyncVia(CreateFixedPriorityInvoker(FsyncInvoker_, priority))
             .Run();
     }
 
@@ -289,7 +293,9 @@ protected:
         , Profiler(std::move(profiler))
         , Config_(std::move(config))
         , AuxThreadPool_(New<TThreadPool>(Config_->AuxThreadCount, Format("IOA:%v", LocationId_)))
+        , FsyncThreadPool_(New<TThreadPool>(Config_->FsyncThreadCount, Format("IOS:%v", LocationId_)))
         , AuxInvoker_(CreatePrioritizedInvoker(AuxThreadPool_->GetInvoker()))
+        , FsyncInvoker_(CreatePrioritizedInvoker(FsyncThreadPool_->GetInvoker()))
     {
         Profiler.AddFuncGauge("/sick", MakeStrong(this), [this] {
             return Sick_.load();
@@ -397,7 +403,9 @@ private:
     const TConfigPtr Config_;
 
     const TThreadPoolPtr AuxThreadPool_;
+    const TThreadPoolPtr FsyncThreadPool_;
     const IPrioritizedInvokerPtr AuxInvoker_;
+    const IPrioritizedInvokerPtr FsyncInvoker_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, ReadWaitLock_);
     std::optional<TInstant> SickReadWaitStart_;
