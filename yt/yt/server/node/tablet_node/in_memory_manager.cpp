@@ -747,6 +747,7 @@ private:
         std::vector<TFuture<TInMemoryServiceProxy::TRspPutBlocksPtr>> asyncResults;
         for (const auto& node : Nodes_) {
             auto req = node->Proxy.PutBlocks();
+            req->SetResponseHeavy(true);
             req->SetTimeout(HeavyRpcTimeout_);
             req->SetMemoryZone(EMemoryZone::Undumpable);
             ToProto(req->mutable_session_id(), node->SessionId);
