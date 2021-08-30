@@ -242,6 +242,7 @@ void TJobProxy::LogJobSpec(TJobSpec jobSpec)
         TRANSFORM_TO_PRETTY_YSON(schedulerJobSpecExt, table_reader_options);
         TRANSFORM_TO_PRETTY_YSON(schedulerJobSpecExt, acl);
         TRANSFORM_TO_PRETTY_YSON(schedulerJobSpecExt, job_cpu_monitor_config);
+        TRANSFORM_TO_PRETTY_YSON(schedulerJobSpecExt, testing_options);
 
         // Input table specs may be large, so we print them separately.
         NProtoBuf::RepeatedPtrField<TTableInputSpec> primaryInputTableSpecs;
@@ -684,6 +685,10 @@ TJobResult TJobProxy::DoRun()
     job->PrepareArtifacts();
     OnArtifactsPrepared();
 
+    if (GetJobSpecHelper()->GetJobTestingOptions()->FailBeforeJobStart) {
+        THROW_ERROR_EXCEPTION("Fail before job started");
+    }
+
     MemoryWatchdogExecutor_->Start();
     HeartbeatExecutor_->Start();
     CpuMonitor_->Start();
@@ -1089,6 +1094,7 @@ void TJobProxy::EnsureStderrResult(TJobResult* jobResult)
         auto* stderrBoundaryKeys = schedulerJobResultExt->mutable_stderr_table_boundary_keys();
         stderrBoundaryKeys->set_sorted(true);
         stderrBoundaryKeys->set_unique_keys(true);
+        stderrBoundaryKeys->set_empty(true);
     }
 }
 

@@ -2181,3 +2181,32 @@ class TestArtifactInvalidFormat(YTEnvSetup):
         bad_web_json_format = '<field_weight_limit = -42>web_json'
         with raises_yt_error(yt_error_codes.InvalidFormat):
             self._run_map_with_format(bad_web_json_format)
+
+
+##################################################################
+
+
+class TestJobProxyFailBeforeStart(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    @authors("alexkolodezny")
+    def test_job_proxy_fail_before_start(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        create("table", "//tmp/t_stderr")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        op = map(
+            in_="//tmp/t_in",
+            out=["//tmp/t_out"],
+            command="cat",
+            spec={
+                "stderr_table_path": "//tmp/t_stderr",
+                "job_testing_options": {"fail_before_job_start": True}
+            },
+            track=False)
+
+        with raises_yt_error("Fail before job started"):
+            op.track()
