@@ -612,6 +612,32 @@ class TestMedia(YTEnvSetup):
         chunk_ids = get("//tmp/t/@chunk_ids")
         assert get("#{0}/@requisition/0/medium".format(chunk_ids[0])) == another_primary_medium
 
+    @authors("aleksandra-zh")
+    def test_merge_chunks_with_two_media(self):
+        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
+
+        create("table", "//tmp/t")
+
+        tbl_media = get("//tmp/t/@media")
+        tbl_media[TestMedia.NON_DEFAULT_MEDIUM] = {
+            "replication_factor": 2,
+            "data_parts_only": False
+        }
+        set("//tmp/t/@media", tbl_media)
+
+        write_table("<append=true>//tmp/t", {"a": "b"})
+        write_table("<append=true>//tmp/t", {"a": "c"})
+        write_table("<append=true>//tmp/t", {"a": "d"})
+
+        set("//tmp/t/@enable_chunk_merger", True)
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+
+        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        requisitions = get("#{0}/@requisition".format(chunk_ids[0]))
+        assert [r["medium"] for r in requisitions] == ["default", TestMedia.NON_DEFAULT_MEDIUM]
+
 
 ################################################################################
 
