@@ -114,7 +114,7 @@ bool TFiberScheduler:: OnLoop(TEventCount::TCookie* cookie)
     TFiberContext fiberContext;
 
     fiberContext.WaitingFibersCounter = New<TRefCountedGauge>(
-        NProfiling::TRegistry{"/action_queue"}.WithTag("thread", ThreadGroupName_));
+        NProfiling::TRegistry{"/action_queue"}.WithTag("thread", ThreadGroupName_).WithHot());
 
     CurrentThread = this;
     FiberContext = &fiberContext;

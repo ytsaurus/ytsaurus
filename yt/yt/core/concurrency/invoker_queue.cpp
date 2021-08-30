@@ -309,7 +309,7 @@ IInvokerPtr TInvokerQueue<TQueueImpl>::GetProfilingTagSettingInvoker(int profili
 template <class TQueueImpl>
 typename TInvokerQueue<TQueueImpl>::TCountersPtr TInvokerQueue<TQueueImpl>::CreateCounters(const TTagSet& tagSet)
 {
-    auto profiler = TProfiler("/action_queue").WithTags(tagSet);
+    auto profiler = TProfiler("/action_queue").WithTags(tagSet).WithHot();
 
     auto counters = std::make_unique<TCounters>();
     counters->EnqueuedCounter = profiler.Counter("/enqueued");
