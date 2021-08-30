@@ -48,6 +48,11 @@ public:
     {
         const auto& schedulerJobSpecExt = jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         JobIOConfig_ = ConvertTo<TJobIOConfigPtr>(TYsonString(schedulerJobSpecExt.io_config()));
+        if (schedulerJobSpecExt.has_testing_options()) {
+            JobTestingOptions_ = ConvertTo<TJobTestingOptionsPtr>(TYsonString(schedulerJobSpecExt.testing_options()));
+        } else {
+            JobTestingOptions_ = New<TJobTestingOptions>();
+        }
         InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
         InputNodeDirectory_->MergeFrom(schedulerJobSpecExt.input_node_directory());
         auto dataSourceDirectoryExt = FindProtoExtension<TDataSourceDirectoryExt>(GetSchedulerJobSpecExt().extensions());
@@ -70,6 +75,11 @@ public:
     NScheduler::TJobIOConfigPtr GetJobIOConfig() const override
     {
         return JobIOConfig_;
+    }
+
+    TJobTestingOptionsPtr GetJobTestingOptions() const override
+    {
+        return JobTestingOptions_;
     }
 
     TNodeDirectoryPtr GetInputNodeDirectory() const override
@@ -141,6 +151,7 @@ private:
     TJobIOConfigPtr JobIOConfig_;
     TNodeDirectoryPtr InputNodeDirectory_;
     TDataSourceDirectoryPtr DataSourceDirectory_;
+    TJobTestingOptionsPtr JobTestingOptions_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

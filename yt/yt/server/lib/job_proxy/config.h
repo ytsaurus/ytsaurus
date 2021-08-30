@@ -306,6 +306,23 @@ DEFINE_REFCOUNTED_TYPE(TJobProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobTestingOptions
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool FailBeforeJobStart;
+
+    TJobTestingOptions()
+    {
+        RegisterParameter("fail_before_job_start", FailBeforeJobStart)
+            .Default(false);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobTestingOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobProxyDynamicConfig
     : public NYTree::TYsonSerializable
 {

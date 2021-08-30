@@ -4377,6 +4377,8 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
     schedulerJobSpecExt->set_yt_alloc_min_large_unreclaimable_bytes(GetYTAllocMinLargeUnreclaimableBytes());
     schedulerJobSpecExt->set_yt_alloc_max_large_unreclaimable_bytes(GetYTAllocMaxLargeUnreclaimableBytes());
 
+    schedulerJobSpecExt->set_testing_options(ConvertToYsonString(Spec_->JobTestingOptions).ToString());
+
     if (OutputTransaction) {
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
     }

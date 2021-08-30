@@ -860,6 +860,8 @@ public:
     //! If true, operation is suspended when job failed.
     bool SuspendOnJobFailure;
 
+    NYTree::IMapNodePtr JobTestingOptions;
+
     TOperationSpecBase();
 
 private:

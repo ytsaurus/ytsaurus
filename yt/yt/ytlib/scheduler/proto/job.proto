@@ -327,6 +327,8 @@ message TSchedulerJobSpecExt
     optional string authenticated_user = 29 [default = "unknown"];
 
     optional bool is_traced = 30 [default = false];
+
+    optional bytes testing_options = 31 [(NYT.NYson.NProto.yson_string) = true];
 }
 
 message TSchedulerJobResultExt

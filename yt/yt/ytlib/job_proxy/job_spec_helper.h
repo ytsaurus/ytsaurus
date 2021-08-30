@@ -9,6 +9,8 @@
 #include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/public.h>
 
+#include <yt/yt/server/lib/job_proxy/config.h>
+
 namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,6 +27,7 @@ struct IJobSpecHelper
     virtual const NChunkClient::TDataSourceDirectoryPtr& GetDataSourceDirectory() const = 0;
     virtual int GetKeySwitchColumnCount() const = 0;
     virtual bool IsReaderInterruptionSupported() const = 0;
+    virtual TJobTestingOptionsPtr GetJobTestingOptions() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobSpecHelper)

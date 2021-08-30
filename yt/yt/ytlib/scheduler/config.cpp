@@ -614,6 +614,9 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("suspend_on_job_failure", SuspendOnJobFailure)
         .Default(false);
 
+    RegisterParameter("job_testing_options", JobTestingOptions)
+        .Default();
+
     RegisterPostprocessor([&] {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
