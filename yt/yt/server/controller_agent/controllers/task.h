@@ -194,6 +194,8 @@ public:
 
     void FinalizeFeatures();
 
+    void StopTiming();
+
 protected:
     NLogging::TLogger Logger;
 
@@ -394,7 +396,6 @@ private:
     TDuration GetWallTime() const;
     TDuration GetReadyTime() const;
     TDuration GetExhaustTime() const;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TTask)

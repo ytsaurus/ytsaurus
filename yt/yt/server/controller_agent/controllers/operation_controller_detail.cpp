@@ -4825,7 +4825,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
         State = EControllerState::Failed;
 
         for (const auto& task : Tasks) {
-            task->ForceComplete();
+            task->StopTiming();
         }
 
         BuildAndSaveProgress();
