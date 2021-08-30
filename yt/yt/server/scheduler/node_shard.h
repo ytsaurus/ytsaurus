@@ -253,6 +253,7 @@ private:
 
     TJobCounter JobCounter_;
     TAbortedJobCounter AbortedJobCounter_;
+    TFailedJobCounter FailedJobCounter_;
     TCompletedJobCounter CompletedJobCounter_;
 
     NProfiling::TCounter HardConcurrentHeartbeatLimitReachedCounter_;
