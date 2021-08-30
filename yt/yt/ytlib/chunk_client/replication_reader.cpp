@@ -1627,20 +1627,25 @@ private:
         const auto& blockCache = reader->BlockCache_;
         for (int blockIndex : blockIndexes) {
             TBlockId blockId(ChunkId_, blockIndex);
-            if (reader->Config_->UseAsyncBlockCache) {
-                auto cookie = blockCache->GetBlockCookie(blockId, EBlockType::CompressedData);
-                if (cookie->IsActive()) {
-                    uncachedBlocks.push_back(TBlockWithCookie(blockIndex, std::move(cookie)));
+            const auto& readerConfig = reader->Config_;
+            if (readerConfig->UseBlockCache) {
+                if (reader->Config_->UseAsyncBlockCache) {
+                    auto cookie = blockCache->GetBlockCookie(blockId, EBlockType::CompressedData);
+                    if (cookie->IsActive()) {
+                        uncachedBlocks.push_back(TBlockWithCookie(blockIndex, std::move(cookie)));
+                    } else {
+                        cachedBlocks.push_back(TBlockWithCookie(blockIndex, std::move(cookie)));
+                    }
                 } else {
-                    cachedBlocks.push_back(TBlockWithCookie(blockIndex, std::move(cookie)));
+                    auto block = blockCache->FindBlock(blockId, EBlockType::CompressedData);
+                    if (block.Block) {
+                        cachedBlocks.push_back(TBlockWithCookie(blockIndex, CreatePresetCachedBlockCookie(block)));
+                    } else {
+                        uncachedBlocks.push_back(TBlockWithCookie(blockIndex, /*cookie*/ nullptr));
+                    }
                 }
             } else {
-                auto block = blockCache->FindBlock(blockId, EBlockType::CompressedData);
-                if (block.Block) {
-                    cachedBlocks.push_back(TBlockWithCookie(blockIndex, CreatePresetCachedBlockCookie(block)));
-                } else {
-                    uncachedBlocks.push_back(TBlockWithCookie(blockIndex, nullptr));
-                }
+                uncachedBlocks.push_back(TBlockWithCookie(blockIndex, /*cookie*/ nullptr));
             }
         }
 
@@ -1854,7 +1859,7 @@ private:
             if (cookie) {
                 TCachedBlock cachedBlock(block);
                 cookie->SetBlock(cachedBlock);
-            } else {
+            } else if (reader->Config_->UseBlockCache) {
                 reader->BlockCache_->PutBlock(blockId, EBlockType::CompressedData, block);
             }
 

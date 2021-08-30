@@ -243,6 +243,9 @@ public:
     //! synchronous interface will be used.
     bool UseAsyncBlockCache;
 
+    //! If |true| replication reader will try to fetch blocks from local block cache.
+    bool UseBlockCache;
+
     //! Will locate new replicas from master
     //! if node was suspicious for at least the period (unless null).
     std::optional<TDuration> SuspiciousNodeGracePeriod;
@@ -331,6 +334,8 @@ public:
             .Default(5);
         RegisterParameter("use_async_block_cache", UseAsyncBlockCache)
             .Default(false);
+        RegisterParameter("use_block_cache", UseBlockCache)
+            .Default(true);
         RegisterParameter("suspicious_node_grace_period", SuspiciousNodeGracePeriod)
             .Default();
         RegisterParameter("prolonged_discard_seeds_delay", ProlongedDiscardSeedsDelay)
@@ -401,6 +406,9 @@ public:
     //! Maximum amount of data to be transfered via a single RPC request.
     i64 GroupSize;
 
+    //! If |True| block fetcher will try to fetch block from local uncompressed block cache.
+    bool UseUncompressedBlockCache;
+
     TBlockFetcherConfig()
     {
         RegisterParameter("window_size", WindowSize)
@@ -410,7 +418,10 @@ public:
             .Default(15_MB)
             .GreaterThan(0);
 
-        RegisterPostprocessor([&] () {
+        RegisterParameter("use_uncompressed_block_cache", UseUncompressedBlockCache)
+            .Default(true);
+
+        RegisterPostprocessor([&] {
             if (GroupSize > WindowSize) {
                 THROW_ERROR_EXCEPTION("\"group_size\" cannot be larger than \"window_size\"");
             }
