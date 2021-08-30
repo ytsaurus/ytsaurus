@@ -254,6 +254,8 @@ TAutoMergeConfig::TAutoMergeConfig()
         .GreaterThanOrEqual(1);
     RegisterParameter("mode", Mode)
         .Default(EAutoMergeMode::Disabled);
+    RegisterParameter("enable_shallow_merge", EnableShallowMerge)
+        .Default(false);
 
     RegisterParameter("use_intermediate_data_account", UseIntermediateDataAccount)
         .Default(false);
@@ -349,7 +351,7 @@ TDiskRequestConfig::TDiskRequestConfig()
         .Default(std::nullopt);
     RegisterParameter("account", Account)
         .Default(std::nullopt);
-    
+
     RegisterPostprocessor([&] {
         if (Account && !MediumName) {
             THROW_ERROR_EXCEPTION("\"medium_name\" is required in disk request if account is specified");

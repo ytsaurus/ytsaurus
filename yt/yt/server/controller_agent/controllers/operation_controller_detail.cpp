@@ -352,11 +352,6 @@ TExtendedJobResources TOperationControllerBase::GetAutoMergeResources(
     return result;
 }
 
-const TJobSpec& TOperationControllerBase::GetAutoMergeJobSpecTemplate(int tableIndex) const
-{
-    return AutoMergeJobSpecTemplates_[tableIndex];
-}
-
 void TOperationControllerBase::SleepInInitialize()
 {
     if (auto delay = Spec_->TestingOperationOptions->DelayInsideInitialize) {
@@ -1576,8 +1571,6 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
 
 bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
 {
-    InitAutoMergeJobSpecTemplates();
-
     const auto& autoMergeSpec = Spec_->AutoMerge;
     auto mode = autoMergeSpec->Mode;
 
@@ -8900,16 +8893,6 @@ i64 TOperationControllerBase::GetFinalIOMemorySize(
     return result;
 }
 
-NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateTableReaderOptions(TJobIOConfigPtr ioConfig)
-{
-    auto options = New<TTableReaderOptions>();
-    options->EnableRowIndex = ioConfig->ControlAttributes->EnableRowIndex;
-    options->EnableTableIndex = ioConfig->ControlAttributes->EnableTableIndex;
-    options->EnableRangeIndex = ioConfig->ControlAttributes->EnableRangeIndex;
-    options->EnableTabletIndex = ioConfig->ControlAttributes->EnableTabletIndex;
-    return options;
-}
-
 void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const TString& operation)
 {
     if (std::ssize(spec->FilePaths) > Config->MaxUserFileCount) {
@@ -9182,7 +9165,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, FailedJobCount_);
     Persist(context, Sink_);
     Persist(context, AutoMergeTask_);
-    Persist(context, AutoMergeJobSpecTemplates_);
     Persist<TUniquePtrSerializer<>>(context, AutoMergeDirector_);
     Persist(context, DataFlowGraph_);
     Persist(context, AvailableExecNodesObserved_);
@@ -9197,7 +9179,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, AutoMergeEnabled_);
     Persist(context, InputHasOrderedDynamicStores_);
     Persist(context, StandardStreamDescriptors_);
-    
+
     if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::MainResourceConsumptionPerTree) {
         Persist(context, MainResourceConsumptionPerTree_);
     }
@@ -9210,36 +9192,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
         }
         InitUpdatingTables();
         InitializeOrchid();
-    }
-}
-
-void TOperationControllerBase::InitAutoMergeJobSpecTemplates()
-{
-    // TODO(max42): should this really belong to TOperationControllerBase?
-    // We can possibly move it to TAutoMergeTask itself.
-
-    AutoMergeJobSpecTemplates_.resize(OutputTables_.size());
-    for (int tableIndex = 0; tableIndex < std::ssize(OutputTables_); ++tableIndex) {
-        AutoMergeJobSpecTemplates_[tableIndex].set_type(static_cast<int>(EJobType::UnorderedMerge));
-        auto* schedulerJobSpecExt = AutoMergeJobSpecTemplates_[tableIndex]
-            .MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        schedulerJobSpecExt->set_table_reader_options(
-            ConvertToYsonString(CreateTableReaderOptions(Spec_->AutoMerge->JobIO)).ToString());
-
-        auto dataSourceDirectory = New<TDataSourceDirectory>();
-        // NB: chunks read by auto-merge jobs have table index set to output table index,
-        // so we need to specify several unused data sources before actual one.
-        dataSourceDirectory->DataSources().resize(tableIndex);
-        dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
-            GetIntermediatePath(tableIndex),
-            OutputTables_[tableIndex]->TableUploadOptions.TableSchema,
-            /* columns */ std::nullopt,
-            /* omittedInaccessibleColumns */ {}));
-
-        NChunkClient::NProto::TDataSourceDirectoryExt dataSourceDirectoryExt;
-        ToProto(&dataSourceDirectoryExt, dataSourceDirectory);
-        SetProtoExtension(schedulerJobSpecExt->mutable_extensions(), dataSourceDirectoryExt);
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(Spec_->AutoMerge->JobIO).ToString());
     }
 }
 
@@ -9692,6 +9644,16 @@ TJobSplitterConfigPtr TOperationControllerBase::GetJobSplitterConfigTemplate() c
 const TInputTablePtr& TOperationControllerBase::GetInputTable(int tableIndex) const
 {
     return InputTables_[tableIndex];
+}
+
+const TOutputTablePtr& TOperationControllerBase::GetOutputTable(int tableIndex) const
+{
+    return OutputTables_[tableIndex];
+}
+
+int TOperationControllerBase::GetOutputTableCount() const
+{
+    return std::ssize(OutputTables_);
 }
 
 std::vector<TTaskPtr> TOperationControllerBase::GetTopologicallyOrderedTasks() const

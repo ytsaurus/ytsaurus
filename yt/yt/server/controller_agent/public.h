@@ -6,6 +6,11 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EMergeJobType,
+    (Deep)
+    (Shallow)
+);
+
 DEFINE_ENUM(EOperationControllerQueue,
     (Default)
     (GetJobSpec)

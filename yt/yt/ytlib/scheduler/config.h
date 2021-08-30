@@ -155,7 +155,7 @@ public:
 
     // Specifies guaranteed resources in absolute values.
     TJobResourcesConfigPtr StrongGuaranteeResources;
-    
+
     TBooleanFormula SchedulingTagFilter;
 
     TSchedulableConfig();
@@ -576,6 +576,10 @@ public:
 
     //! Whether intermediate chunks should be allocated in intermediate data account.
     bool UseIntermediateDataAccount;
+
+    //! Whether shallow merge is enabled. Shallow merge optimizes merging output
+    //! tables, as it doesn't require serializing and deserializing data to do it.
+    bool EnableShallowMerge;
 
     TAutoMergeConfig();
 };

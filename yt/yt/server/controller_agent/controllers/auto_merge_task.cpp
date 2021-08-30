@@ -10,6 +10,8 @@
 
 #include <yt/yt/server/lib/chunk_pools/multi_chunk_pool.h>
 
+#include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
+
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 namespace NYT::NControllerAgent::NControllers {
@@ -138,6 +140,7 @@ TAutoMergeTask::TAutoMergeTask(
     i64 maxDataWeightPerJob,
     std::vector<TStreamDescriptor> streamDescriptors)
     : TTask(taskHost, std::move(streamDescriptors))
+    , EnableShallowMerge_(taskHost->GetSpec()->AutoMerge->EnableShallowMerge)
 {
     ChunkPools_.reserve(StreamDescriptors_.size());
     CurrentChunkCounts_.resize(StreamDescriptors_.size(), 0);
@@ -182,6 +185,8 @@ TAutoMergeTask::TAutoMergeTask(
 
     // Tentative trees are not allowed for auto-merge jobs since they are genuinely IO-bound.
     TentativeTreeEligibility_.Disable();
+
+    InitAutoMergeJobSpecTemplates();
 }
 
 TString TAutoMergeTask::GetTitle() const
@@ -229,7 +234,8 @@ void TAutoMergeTask::BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::
     VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
     auto poolIndex = *joblet->InputStripeList->PartitionTag;
-    jobSpec->CopyFrom(TaskHost_->GetAutoMergeJobSpecTemplate(GetTableIndex(poolIndex)));
+    const auto mergeType = EnableShallowMerge_.load() ? EMergeJobType::Shallow : EMergeJobType::Deep;
+    jobSpec->CopyFrom(GetJobSpecTemplate(GetTableIndex(poolIndex), mergeType));
     AddSequentialInputSpec(jobSpec, joblet);
     AddOutputTableSpecs(jobSpec, joblet);
 }
@@ -273,6 +279,12 @@ TJobFinishedResult TAutoMergeTask::OnJobAborted(TJobletPtr joblet, const TAborte
 
     int poolIndex = *joblet->InputStripeList->PartitionTag;
     CurrentChunkCounts_[poolIndex] += joblet->InputStripeList->TotalChunkCount;
+
+    if (jobSummary.AbortReason == EAbortReason::ShallowMergeFailed) {
+        if (EnableShallowMerge_.exchange(false)) {
+            YT_LOG_DEBUG("Shallow merge failed; switching to deep merge (JobId: %v)", jobSummary.Id);
+        }
+    }
 
     TaskHost_->GetAutoMergeDirector()->OnMergeJobFinished(0 /* unregisteredIntermediateChunkCount */);
 
@@ -327,6 +339,8 @@ void TAutoMergeTask::Persist(const TPersistenceContext& context)
     Persist(context, ChunkPools_);
     Persist(context, ChunkPool_);
     Persist(context, CurrentChunkCounts_);
+    Persist(context, JobSpecTemplates_);
+    Persist(context, EnableShallowMerge_);
 
     ChunkPool_->SubscribeChunkTeleported(BIND(&TAutoMergeTask::OnChunkTeleported, MakeWeak(this)));
 }
@@ -361,6 +375,51 @@ TJobSplitterConfigPtr TAutoMergeTask::GetJobSplitterConfig() const
     config->EnableJobSplitting = false;
 
     return config;
+}
+
+const NJobTrackerClient::NProto::TJobSpec& TAutoMergeTask::GetJobSpecTemplate(
+    int tableIndex,
+    EMergeJobType type) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return JobSpecTemplates_[tableIndex][type];
+}
+
+void TAutoMergeTask::InitAutoMergeJobSpecTemplates()
+{
+    const auto tableCount = TaskHost_->GetOutputTableCount();
+    JobSpecTemplates_.resize(tableCount);
+    for (int tableIndex = 0; tableIndex < tableCount; ++tableIndex) {
+        TJobSpec jobSpecTemplate;
+        jobSpecTemplate.set_type(static_cast<int>(EJobType::UnorderedMerge));
+        auto* schedulerJobSpecExt = jobSpecTemplate
+            .MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        schedulerJobSpecExt->set_table_reader_options(
+            ConvertToYsonString(
+                CreateTableReaderOptions(TaskHost_->GetSpec()->AutoMerge->JobIO)).ToString());
+
+        auto dataSourceDirectory = New<TDataSourceDirectory>();
+        // NB: chunks read by auto-merge jobs have table index set to output table index,
+        // so we need to specify several unused data sources before actual one.
+        dataSourceDirectory->DataSources().resize(tableIndex);
+        dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
+            GetIntermediatePath(tableIndex),
+            TaskHost_->GetOutputTable(tableIndex)->TableUploadOptions.TableSchema,
+            /*columns*/ std::nullopt,
+            /*omittedInaccessibleColumns*/ {}));
+
+        NChunkClient::NProto::TDataSourceDirectoryExt dataSourceDirectoryExt;
+        ToProto(&dataSourceDirectoryExt, dataSourceDirectory);
+        SetProtoExtension(schedulerJobSpecExt->mutable_extensions(), dataSourceDirectoryExt);
+        schedulerJobSpecExt->set_io_config(
+            ConvertToYsonString(TaskHost_->GetSpec()->AutoMerge->JobIO).ToString());
+
+        // TODO(gepardo): Make the templates for shallow merge and deep merge different when the
+        // support for shallow jobs will appear in job proxy.
+        JobSpecTemplates_[tableIndex][EMergeJobType::Shallow] = jobSpecTemplate;
+        JobSpecTemplates_[tableIndex][EMergeJobType::Deep] = std::move(jobSpecTemplate);
+    }
 }
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TAutoMergeTask);

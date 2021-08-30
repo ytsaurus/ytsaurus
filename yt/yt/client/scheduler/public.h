@@ -97,6 +97,7 @@ DEFINE_ENUM(EAbortReason,
     ((NodeSchedulingSegmentChanged)    ( 19))
     ((NodeFairShareTreeChanged)        ( 20))
     ((JobOnUnexpectedNode)             ( 21))
+    ((ShallowMergeFailed)              ( 22))
     ((SchedulingFirst)                 (100))
     ((SchedulingTimeout)               (101))
     ((SchedulingResourceOvercommit)    (102))
