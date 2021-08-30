@@ -1953,7 +1953,7 @@ void TOperationControllerBase::CommitFeatures()
         .Item("experiment_assignment_names").DoListFor(
             ExperimentAssignments_,
             [] (TFluentList fluent, const TExperimentAssignmentPtr& experiment) {
-                fluent.Item().Value(experiment->Experiment);
+                fluent.Item().Value(experiment->GetName());
             })
         .Item("tags").BeginMap()
             .Item("operation_type").Value(GetOperationType())
