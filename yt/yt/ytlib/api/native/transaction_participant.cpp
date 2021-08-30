@@ -70,6 +70,7 @@ public:
         return SendRequest<TTransactionParticipantServiceProxy::TReqPrepareTransaction>(
             [=] (TTransactionParticipantServiceProxy* proxy) {
                 auto req = proxy->PrepareTransaction();
+                req->SetResponseHeavy(true);
                 PrepareRequest(req);
                 NRpc::SetAuthenticationIdentity(req, identity);
                 ToProto(req->mutable_transaction_id(), transactionId);
@@ -87,6 +88,7 @@ public:
         return SendRequest<TTransactionParticipantServiceProxy::TReqCommitTransaction>(
             [=] (TTransactionParticipantServiceProxy* proxy) {
                 auto req = proxy->CommitTransaction();
+                req->SetResponseHeavy(true);
                 PrepareRequest(req);
                 NRpc::SetAuthenticationIdentity(req, identity);
                 ToProto(req->mutable_transaction_id(), transactionId);
