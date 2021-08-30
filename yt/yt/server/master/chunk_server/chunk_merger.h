@@ -149,7 +149,8 @@ private:
     virtual void OnLeaderActive() override;
     virtual void OnStopLeading() override;
 
-    bool RegisterSession(TChunkOwnerBase* chunkOwner);
+    void RegisterSession(TChunkOwnerBase* chunkOwner);
+    void RegisterSessionTransient(TChunkOwnerBase* chunkOwner);
     void FinalizeJob(NCypressClient::TObjectId nodeId, TJobId jobId, EMergeSessionResult result);
 
     virtual void RegisterJobAwaitingChunkCreation(
@@ -173,8 +174,6 @@ private:
     void StartMergeTransaction();
 
     void OnTransactionAborted(NTransactionServer::TTransaction* transaction);
-
-    void DoScheduleMerge(TChunkOwnerBase* chunkOwner);
 
     void ProcessTouchedNodes();
 
@@ -200,7 +199,6 @@ private:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
-    void OnAfterSnapshotLoaded() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkMerger)

@@ -323,36 +323,7 @@ void TChunkMerger::ScheduleMerge(TChunkOwnerBase* trunkNode)
         return;
     }
 
-    DoScheduleMerge(trunkNode);
-}
-
-void TChunkMerger::DoScheduleMerge(TChunkOwnerBase* chunkOwner)
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YT_VERIFY(HasMutationContext());
-
-    if (!RegisterSession(chunkOwner)) {
-        return;
-    };
-
-    auto* account = chunkOwner->GetAccount();
-    YT_LOG_DEBUG_IF(
-        IsMutationLoggingEnabled(),
-        "Scheduling merge (NodeId: %v, Account: %v)",
-        chunkOwner->GetId(),
-        account->GetName());
-
-    if (IsLeader()) {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-
-        auto [it, inserted] = AccountToNodeQueue_.emplace(account, TNodeQueue());
-        if (inserted) {
-            objectManager->EphemeralRefObject(account);
-        }
-
-        auto& queue = it->second;
-        queue.push(chunkOwner->GetId());
-    }
+    RegisterSession(trunkNode);
 }
 
 bool TChunkMerger::IsNodeBeingMerged(TObjectId nodeId) const
@@ -484,6 +455,19 @@ void TChunkMerger::OnLeaderActive()
         BIND(&TChunkMerger::FinalizeSessions, MakeWeak(this)),
         config->SessionFinalizationPeriod);
     FinalizeSessionExecutor_->Start();
+
+    for (auto nodeId : NodesBeingMerged_) {
+        auto* node = FindChunkOwner(nodeId);
+        if (!CanScheduleMerge(node)) {
+            SessionsAwaitingFinalizaton_.push({
+                .NodeId = nodeId,
+                .Result = EMergeSessionResult::PermanentFailure
+            });
+            continue;
+        }
+
+        RegisterSessionTransient(node);
+    }
 }
 
 void TChunkMerger::OnStopLeading()
@@ -588,14 +572,14 @@ void TChunkMerger::OnTransactionAborted(TTransaction* transaction)
     }
 }
 
-bool TChunkMerger::RegisterSession(TChunkOwnerBase* chunkOwner)
+void TChunkMerger::RegisterSession(TChunkOwnerBase* chunkOwner)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(HasMutationContext());
 
     if (NodesBeingMerged_.contains(chunkOwner->GetId())) {
         chunkOwner->SetUpdatedSinceLastMerge(true);
-        return false;
+        return;
     }
 
     if (chunkOwner->GetUpdatedSinceLastMerge()) {
@@ -609,10 +593,33 @@ bool TChunkMerger::RegisterSession(TChunkOwnerBase* chunkOwner)
     YT_VERIFY(NodesBeingMerged_.insert(chunkOwner->GetId()).second);
 
     if (IsLeader()) {
-        YT_LOG_DEBUG("Starting new merge job session (NodeId: %v)", chunkOwner->GetId());
-        YT_VERIFY(RunningSessions_.emplace(chunkOwner->GetId(), TChunkMergerSession()).second);
+        RegisterSessionTransient(chunkOwner);
     }
-    return true;
+}
+
+void TChunkMerger::RegisterSessionTransient(TChunkOwnerBase* chunkOwner)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_VERIFY(IsLeader());
+
+    auto nodeId = chunkOwner->GetId();
+    auto* account = chunkOwner->GetAccount();
+
+    YT_LOG_DEBUG("Starting new merge job session (NodeId: %v, Account: %v)",
+        nodeId,
+        account->GetName());
+    YT_VERIFY(RunningSessions_.emplace(nodeId, TChunkMergerSession()).second);
+
+
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+
+    auto [it, inserted] = AccountToNodeQueue_.emplace(account, TNodeQueue());
+    if (inserted) {
+        objectManager->EphemeralRefObject(account);
+    }
+
+    auto& queue = it->second;
+    queue.push(chunkOwner->GetId());
 }
 
 void TChunkMerger::FinalizeJob(TObjectId nodeId, TJobId jobId, EMergeSessionResult result)
@@ -1277,24 +1284,6 @@ void TChunkMerger::Load(NCellMaster::TLoadContext& context)
     Load(context, PreviousTransactionId_);
     if (context.GetVersion() >= EMasterReign::PersistNodesBeingMerged) {
         Load(context, NodesBeingMerged_);
-    }
-}
-
-void TChunkMerger::OnAfterSnapshotLoaded()
-{
-    TMasterAutomatonPart::OnAfterSnapshotLoaded();
-
-    auto nodesBeingMerged = std::move(NodesBeingMerged_);
-    NodesBeingMerged_.clear();
-
-    for (auto nodeId : nodesBeingMerged) {
-        auto* node = FindChunkOwner(nodeId);
-        if (!IsObjectAlive(node)) {
-            continue;
-        }
-
-        node->SetUpdatedSinceLastMerge(false);
-        ScheduleMerge(node);
     }
 }
 
