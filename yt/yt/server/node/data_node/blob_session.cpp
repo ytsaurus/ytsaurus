@@ -256,7 +256,7 @@ private:
                     time);
 
                 auto& performanceCounters = Location_->GetPerformanceCounters();
-                performanceCounters.BlobChunkWriterOpenTime.Record(time);
+                performanceCounters.BlobChunkWriterCloseTime.Record(time);
             }));
     }
 
