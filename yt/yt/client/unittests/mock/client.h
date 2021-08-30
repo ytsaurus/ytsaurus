@@ -28,395 +28,394 @@ public:
     // IClientBase
     IConnectionPtr Connection;
 
-    virtual IConnectionPtr GetConnection() override
+    IConnectionPtr GetConnection() override
     {
         return Connection;
     }
 
-    MOCK_METHOD2(StartTransaction, TFuture<ITransactionPtr>(
+    MOCK_METHOD(TFuture<ITransactionPtr>, StartTransaction, (
         NTransactionClient::ETransactionType type,
-        const TTransactionStartOptions& options));
+        const TTransactionStartOptions& options), (override));
 
-    MOCK_METHOD4(LookupRows, TFuture<IUnversionedRowsetPtr>(
+    MOCK_METHOD(TFuture<IUnversionedRowsetPtr>, LookupRows, (
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
-        const TLookupRowsOptions& options));
+        const TLookupRowsOptions& options), (override));
 
-    MOCK_METHOD4(VersionedLookupRows, TFuture<IVersionedRowsetPtr>(
+    MOCK_METHOD(TFuture<IVersionedRowsetPtr>, VersionedLookupRows, (
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
-        const TVersionedLookupRowsOptions& options));
+        const TVersionedLookupRowsOptions& options), (override));
 
-    MOCK_METHOD2(MultiLookup, TFuture<std::vector<IUnversionedRowsetPtr>>(
+    MOCK_METHOD(TFuture<std::vector<IUnversionedRowsetPtr>>, MultiLookup, (
         const std::vector<TMultiLookupSubrequest>& subrequests,
-        const TMultiLookupOptions& options));
+        const TMultiLookupOptions& options), (override));
 
-    MOCK_METHOD2(SelectRows, TFuture<TSelectRowsResult>(
+    MOCK_METHOD(TFuture<TSelectRowsResult>, SelectRows, (
         const TString& query,
-        const TSelectRowsOptions& options));
+        const TSelectRowsOptions& options), (override));
 
-    MOCK_METHOD2(ExplainQuery, TFuture<NYson::TYsonString>(
+    MOCK_METHOD(TFuture<NYson::TYsonString>, ExplainQuery, (
         const TString& query,
-        const TExplainQueryOptions& options));
+        const TExplainQueryOptions& options), (override));
 
-    MOCK_METHOD2(CreateTableReader, TFuture<ITableReaderPtr>(
+    MOCK_METHOD(TFuture<ITableReaderPtr>, CreateTableReader, (
         const NYPath::TRichYPath& path,
-        const TTableReaderOptions& options));
+        const TTableReaderOptions& options), (override));
 
-    MOCK_METHOD2(CreateTableWriter, TFuture<ITableWriterPtr>(
+    MOCK_METHOD(TFuture<ITableWriterPtr>, CreateTableWriter, (
         const NYPath::TRichYPath& path,
-        const TTableWriterOptions& options));
+        const TTableWriterOptions& options), (override));
 
-    MOCK_METHOD2(GetNode, TFuture<NYson::TYsonString>(
+    MOCK_METHOD(TFuture<NYson::TYsonString>, GetNode, (
         const NYPath::TYPath& path,
-        const TGetNodeOptions& options));
+        const TGetNodeOptions& options), (override));
 
-    MOCK_METHOD3(SetNode, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, SetNode, (
         const NYPath::TYPath& path,
         const NYson::TYsonString& value,
-        const TSetNodeOptions& options));
+        const TSetNodeOptions& options), (override));
 
-    MOCK_METHOD3(MultisetAttributesNode, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, MultisetAttributesNode, (
         const NYPath::TYPath& path,
         const NYTree::IMapNodePtr& attributes,
-        const TMultisetAttributesNodeOptions& options));
+        const TMultisetAttributesNodeOptions& options), (override));
 
-    MOCK_METHOD2(RemoveNode, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, RemoveNode, (
         const NYPath::TYPath& path,
-        const TRemoveNodeOptions& options));
+        const TRemoveNodeOptions& options), (override));
 
-    MOCK_METHOD2(ListNode, TFuture<NYson::TYsonString>(
+    MOCK_METHOD(TFuture<NYson::TYsonString>, ListNode, (
         const NYPath::TYPath& path,
-        const TListNodeOptions& options));
+        const TListNodeOptions& options), (override));
 
-    MOCK_METHOD3(CreateNode, TFuture<NCypressClient::TNodeId>(
+    MOCK_METHOD(TFuture<NCypressClient::TNodeId>, CreateNode, (
         const NYPath::TYPath& path,
         NObjectClient::EObjectType type,
-        const TCreateNodeOptions& options));
+        const TCreateNodeOptions& options), (override));
 
-    MOCK_METHOD3(LockNode, TFuture<TLockNodeResult>(
+    MOCK_METHOD(TFuture<TLockNodeResult>, LockNode, (
         const NYPath::TYPath& path,
         NCypressClient::ELockMode mode,
-        const TLockNodeOptions& options));
+        const TLockNodeOptions& options), (override));
 
-    MOCK_METHOD2(UnlockNode, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, UnlockNode, (
         const NYPath::TYPath& path,
-        const TUnlockNodeOptions& options));
+        const TUnlockNodeOptions& options), (override));
 
-    MOCK_METHOD3(CopyNode, TFuture<NCypressClient::TNodeId>(
+    MOCK_METHOD(TFuture<NCypressClient::TNodeId>, CopyNode, (
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
-        const TCopyNodeOptions& options));
+        const TCopyNodeOptions& options), (override));
 
-    MOCK_METHOD3(MoveNode, TFuture<NCypressClient::TNodeId>(
+    MOCK_METHOD(TFuture<NCypressClient::TNodeId>, MoveNode, (
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
-        const TMoveNodeOptions& options));
+        const TMoveNodeOptions& options), (override));
 
-    MOCK_METHOD3(LinkNode, TFuture<NCypressClient::TNodeId>(
+    MOCK_METHOD(TFuture<NCypressClient::TNodeId>, LinkNode, (
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
-        const TLinkNodeOptions& options));
+        const TLinkNodeOptions& options), (override));
 
-    MOCK_METHOD3(ConcatenateNodes, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, ConcatenateNodes, (
         const std::vector<NYPath::TRichYPath>& srcPaths,
         const NYPath::TRichYPath& dstPath,
-        const TConcatenateNodesOptions& options));
+        const TConcatenateNodesOptions& options), (override));
 
-    MOCK_METHOD3(ExternalizeNode, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, ExternalizeNode, (
         const NYPath::TYPath& path,
         NObjectClient::TCellTag cellTag,
-        const TExternalizeNodeOptions& options));
+        const TExternalizeNodeOptions& options), (override));
 
-    MOCK_METHOD2(InternalizeNode, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, InternalizeNode, (
         const NYPath::TYPath& path,
-        const TInternalizeNodeOptions& options));
+        const TInternalizeNodeOptions& options), (override));
 
-    MOCK_METHOD2(NodeExists, TFuture<bool>(
+    MOCK_METHOD(TFuture<bool>, NodeExists, (
         const NYPath::TYPath& path,
-        const TNodeExistsOptions& options));
+        const TNodeExistsOptions& options), (override));
 
-    MOCK_METHOD2(CreateObject, TFuture<NObjectClient::TObjectId>(
+    MOCK_METHOD(TFuture<NObjectClient::TObjectId>, CreateObject, (
         NObjectClient::EObjectType type,
-        const TCreateObjectOptions& options));
+        const TCreateObjectOptions& options), (override));
 
-    MOCK_METHOD2(CreateFileReader, TFuture<IFileReaderPtr>(
+    MOCK_METHOD(TFuture<IFileReaderPtr>, CreateFileReader, (
         const NYPath::TYPath& path,
-        const TFileReaderOptions& options));
+        const TFileReaderOptions& options), (override));
 
-    MOCK_METHOD2(CreateFileWriter, IFileWriterPtr(
+    MOCK_METHOD(IFileWriterPtr, CreateFileWriter, (
         const NYPath::TRichYPath& path,
-        const TFileWriterOptions& options));
+        const TFileWriterOptions& options), (override));
 
-    MOCK_METHOD2(CreateJournalReader, IJournalReaderPtr(
+    MOCK_METHOD(IJournalReaderPtr, CreateJournalReader, (
         const NYPath::TYPath& path,
-        const TJournalReaderOptions& options));
+        const TJournalReaderOptions& options), (override));
 
-    MOCK_METHOD2(CreateJournalWriter, IJournalWriterPtr(
+    MOCK_METHOD(IJournalWriterPtr, CreateJournalWriter, (
         const NYPath::TYPath& path,
-        const TJournalWriterOptions& options));
+        const TJournalWriterOptions& options), (override));
 
-    MOCK_METHOD1(BuildSnapshot, TFuture<int>(
-        const TBuildSnapshotOptions& options));
+    MOCK_METHOD(TFuture<int>, BuildSnapshot, (const TBuildSnapshotOptions& options), (override));
 
-    MOCK_METHOD1(BuildMasterSnapshots, TFuture<TCellIdToSnapshotIdMap>(
-        const TBuildMasterSnapshotsOptions& options));
+    MOCK_METHOD(TFuture<TCellIdToSnapshotIdMap>, BuildMasterSnapshots, (
+        const TBuildMasterSnapshotsOptions& options), (override));
 
-    MOCK_METHOD3(SwitchLeader, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, SwitchLeader, (
         NHydra::TCellId cellId,
         const TString& newLeaderAddress,
-        const TSwitchLeaderOptions& options));
+        const TSwitchLeaderOptions& options), (override));
 
-    MOCK_METHOD1(GCCollect, TFuture<void>(
-        const TGCCollectOptions& options));
+    MOCK_METHOD(TFuture<void>, GCCollect, (
+        const TGCCollectOptions& options), (override));
 
-    MOCK_METHOD2(KillProcess, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, KillProcess, (
         const TString& address,
-        const TKillProcessOptions& options));
+        const TKillProcessOptions& options), (override));
 
-    MOCK_METHOD2(WriteCoreDump, TFuture<TString>(
+    MOCK_METHOD(TFuture<TString>, WriteCoreDump, (
         const TString& address,
-        const TWriteCoreDumpOptions& options));
+        const TWriteCoreDumpOptions& options), (override));
 
-    MOCK_METHOD2(WriteOperationControllerCoreDump, TFuture<TString>(
+    MOCK_METHOD(TFuture<TString>, WriteOperationControllerCoreDump, (
         NJobTrackerClient::TOperationId operationId,
-        const TWriteOperationControllerCoreDumpOptions& options));
+        const TWriteOperationControllerCoreDumpOptions& options), (override));
 
-    MOCK_METHOD2(RepairExecNode, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, RepairExecNode, (
         const TString& address,
-        const TRepairExecNodeOptions& options));
+        const TRepairExecNodeOptions& options), (override));
 
     // IClient
     NTabletClient::ITableMountCachePtr TableMountCache;
     NTransactionClient::ITimestampProviderPtr TimestampProvider;
 
-    MOCK_METHOD0(Terminate, void());
+    MOCK_METHOD(void, Terminate, (), (override));
 
-    virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() override
+    const NTabletClient::ITableMountCachePtr& GetTableMountCache() override
     {
         return TableMountCache;
     }
-    virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override
+    const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override
     {
         return TimestampProvider;
     }
 
-    MOCK_METHOD2(AttachTransaction, ITransactionPtr(
+    MOCK_METHOD(ITransactionPtr, AttachTransaction, (
         NTransactionClient::TTransactionId transactionId,
-        const TTransactionAttachOptions& options));
+        const TTransactionAttachOptions& options), (override));
 
-    MOCK_METHOD2(MountTable, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, MountTable, (
         const NYPath::TYPath& path,
-        const TMountTableOptions& options));
+        const TMountTableOptions& options), (override));
 
-    MOCK_METHOD2(UnmountTable, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, UnmountTable, (
         const NYPath::TYPath& path,
-        const TUnmountTableOptions& options));
+        const TUnmountTableOptions& options), (override));
 
-    MOCK_METHOD2(RemountTable, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, RemountTable, (
         const NYPath::TYPath& path,
-        const TRemountTableOptions& options));
+        const TRemountTableOptions& options), (override));
 
-    MOCK_METHOD2(FreezeTable, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, FreezeTable, (
         const NYPath::TYPath& path,
-        const TFreezeTableOptions& options));
+        const TFreezeTableOptions& options), (override));
 
-    MOCK_METHOD2(UnfreezeTable, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, UnfreezeTable, (
         const NYPath::TYPath& path,
-        const TUnfreezeTableOptions& options));
+        const TUnfreezeTableOptions& options), (override));
 
-    MOCK_METHOD3(ReshardTable, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, ReshardTable, (
         const NYPath::TYPath& path,
         const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
-        const TReshardTableOptions& options));
+        const TReshardTableOptions& options), (override));
 
-    MOCK_METHOD3(ReshardTable, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, ReshardTable, (
         const NYPath::TYPath& path,
         int tabletCount,
-        const TReshardTableOptions& options));
+        const TReshardTableOptions& options), (override));
 
-    MOCK_METHOD2(ReshardTableAutomatic, TFuture<std::vector<NTabletClient::TTabletActionId>>(
+    MOCK_METHOD(TFuture<std::vector<NTabletClient::TTabletActionId>>, ReshardTableAutomatic, (
         const NYPath::TYPath& path,
-        const TReshardTableAutomaticOptions& options));
+        const TReshardTableAutomaticOptions& options), (override));
 
-    MOCK_METHOD4(TrimTable, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, TrimTable, (
         const NYPath::TYPath& path,
         int tabletIndex,
         i64 trimmedRowCount,
-        const TTrimTableOptions& options));
+        const TTrimTableOptions& options), (override));
 
-    MOCK_METHOD2(AlterTable, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, AlterTable, (
         const NYPath::TYPath& path,
-        const TAlterTableOptions& options));
+        const TAlterTableOptions& options), (override));
 
-    MOCK_METHOD2(AlterTableReplica, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, AlterTableReplica, (
         NTabletClient::TTableReplicaId replicaId,
-        const TAlterTableReplicaOptions& options));
+        const TAlterTableReplicaOptions& options), (override));
 
-    MOCK_METHOD2(GetTablePivotKeys, TFuture<NYson::TYsonString>(
+    MOCK_METHOD(TFuture<NYson::TYsonString>, GetTablePivotKeys, (
         const NYPath::TYPath& path,
-        const TGetTablePivotKeysOptions& options));
+        const TGetTablePivotKeysOptions& options), (override));
 
-    MOCK_METHOD4(GetInSyncReplicas, TFuture<std::vector<NTabletClient::TTableReplicaId>>(
+    MOCK_METHOD(TFuture<std::vector<NTabletClient::TTableReplicaId>>, GetInSyncReplicas, (
         const NYPath::TYPath& path,
         const NTableClient::TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
-        const TGetInSyncReplicasOptions& options));
+        const TGetInSyncReplicasOptions& options), (override));
 
-    MOCK_METHOD2(GetInSyncReplicas, TFuture<std::vector<NTabletClient::TTableReplicaId>>(
+    MOCK_METHOD(TFuture<std::vector<NTabletClient::TTableReplicaId>>, GetInSyncReplicas, (
         const NYPath::TYPath& path,
-        const TGetInSyncReplicasOptions& options));
+        const TGetInSyncReplicasOptions& options), (override));
 
-    MOCK_METHOD3(GetTabletInfos, TFuture<std::vector<TTabletInfo>>(
+    MOCK_METHOD(TFuture<std::vector<TTabletInfo>>, GetTabletInfos, (
         const NYPath::TYPath& path,
         const std::vector<int>& tabletIndexes,
-        const TGetTabletsInfoOptions& options));
+        const TGetTabletsInfoOptions& options), (override));
 
-    MOCK_METHOD3(BalanceTabletCells, TFuture<std::vector<NTabletClient::TTabletActionId>>(
+    MOCK_METHOD(TFuture<std::vector<NTabletClient::TTabletActionId>>, BalanceTabletCells, (
         const TString& tabletCellBundle,
         const std::vector<NYPath::TYPath>& movableTables,
-        const TBalanceTabletCellsOptions& options));
+        const TBalanceTabletCellsOptions& options), (override));
 
-    MOCK_METHOD2(LocateSkynetShare, TFuture<TSkynetSharePartsLocationsPtr>(
+    MOCK_METHOD(TFuture<TSkynetSharePartsLocationsPtr>, LocateSkynetShare, (
         const NYPath::TRichYPath& path,
-        const TLocateSkynetShareOptions& options));
+        const TLocateSkynetShareOptions& options), (override));
 
-    MOCK_METHOD2(GetColumnarStatistics, TFuture<std::vector<NTableClient::TColumnarStatistics>>(
+    MOCK_METHOD(TFuture<std::vector<NTableClient::TColumnarStatistics>>, GetColumnarStatistics, (
         const std::vector<NYPath::TRichYPath>& path,
-        const TGetColumnarStatisticsOptions& options));
+        const TGetColumnarStatisticsOptions& options), (override));
 
-    MOCK_METHOD3(TruncateJournal, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, TruncateJournal, (
         const NYPath::TYPath& path,
         i64 rowCount,
-        const TTruncateJournalOptions& options));
+        const TTruncateJournalOptions& options), (override));
 
-    MOCK_METHOD2(GetFileFromCache, TFuture<TGetFileFromCacheResult>(
+    MOCK_METHOD(TFuture<TGetFileFromCacheResult>, GetFileFromCache, (
         const TString& md5,
-        const TGetFileFromCacheOptions& options));
+        const TGetFileFromCacheOptions& options), (override));
 
-    MOCK_METHOD3(PutFileToCache, TFuture<TPutFileToCacheResult>(
+    MOCK_METHOD(TFuture<TPutFileToCacheResult>, PutFileToCache, (
         const NYPath::TYPath& path,
         const TString& expectedMD5,
-        const TPutFileToCacheOptions& options));
+        const TPutFileToCacheOptions& options), (override));
 
-    MOCK_METHOD3(AddMember, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, AddMember, (
         const TString& group,
         const TString& member,
-        const TAddMemberOptions& options));
+        const TAddMemberOptions& options), (override));
 
-    MOCK_METHOD3(RemoveMember, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, RemoveMember, (
         const TString& group,
         const TString& member,
-        const TRemoveMemberOptions& options));
+        const TRemoveMemberOptions& options), (override));
 
-    MOCK_METHOD4(CheckPermission, TFuture<TCheckPermissionResponse>(
+    MOCK_METHOD(TFuture<TCheckPermissionResponse>, CheckPermission, (
         const TString& user,
         const NYPath::TYPath& path,
         NYTree::EPermission permission,
-        const TCheckPermissionOptions& options));
+        const TCheckPermissionOptions& options), (override));
 
-    MOCK_METHOD4(CheckPermissionByAcl, TFuture<TCheckPermissionByAclResult>(
+    MOCK_METHOD(TFuture<TCheckPermissionByAclResult>, CheckPermissionByAcl, (
         const std::optional<TString>& user,
         NYTree::EPermission permission,
         NYTree::INodePtr acl,
-        const TCheckPermissionByAclOptions& options));
+        const TCheckPermissionByAclOptions& options), (override));
 
-    MOCK_METHOD4(TransferAccountResources, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, TransferAccountResources, (
         const TString& srcAccount,
         const TString& dstAccount,
         NYTree::INodePtr resourceDelta,
-        const TTransferAccountResourcesOptions& options));
+        const TTransferAccountResourcesOptions& options), (override));
 
-    MOCK_METHOD3(StartOperation, TFuture<NScheduler::TOperationId>(
+    MOCK_METHOD(TFuture<NScheduler::TOperationId>, StartOperation, (
         NScheduler::EOperationType type,
         const NYson::TYsonString& spec,
-        const TStartOperationOptions& options));
+        const TStartOperationOptions& options), (override));
 
-    MOCK_METHOD2(AbortOperation, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, AbortOperation, (
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        const TAbortOperationOptions& options));
+        const TAbortOperationOptions& options), (override));
 
-    MOCK_METHOD2(SuspendOperation, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, SuspendOperation, (
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        const TSuspendOperationOptions& options));
+        const TSuspendOperationOptions& options), (override));
 
-    MOCK_METHOD2(ResumeOperation, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, ResumeOperation, (
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        const TResumeOperationOptions& options));
+        const TResumeOperationOptions& options), (override));
 
-    MOCK_METHOD2(CompleteOperation, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, CompleteOperation, (
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        const TCompleteOperationOptions& options));
+        const TCompleteOperationOptions& options), (override));
 
-    MOCK_METHOD3(UpdateOperationParameters, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, UpdateOperationParameters, (
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const NYson::TYsonString& parameters,
-        const TUpdateOperationParametersOptions& options));
+        const TUpdateOperationParametersOptions& options), (override));
 
-    MOCK_METHOD2(GetOperation, TFuture<TOperation>(
+    MOCK_METHOD(TFuture<TOperation>, GetOperation, (
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        const TGetOperationOptions& options));
+        const TGetOperationOptions& options), (override));
 
-    MOCK_METHOD3(DumpJobContext, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, DumpJobContext, (
         NJobTrackerClient::TJobId jobId,
         const NYPath::TYPath& path,
-        const TDumpJobContextOptions& options));
+        const TDumpJobContextOptions& options), (override));
 
-    MOCK_METHOD2(GetJobInput, TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr>(
+    MOCK_METHOD(TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr>, GetJobInput, (
         NJobTrackerClient::TJobId jobId,
-        const TGetJobInputOptions& options));
+        const TGetJobInputOptions& options), (override));
 
-    MOCK_METHOD2(GetJobInputPaths, TFuture<NYson::TYsonString>(
+    MOCK_METHOD(TFuture<NYson::TYsonString>, GetJobInputPaths, (
         NJobTrackerClient::TJobId jobId,
-        const TGetJobInputPathsOptions& options));
+        const TGetJobInputPathsOptions& options), (override));
 
-    MOCK_METHOD2(GetJobSpec, TFuture<NYson::TYsonString>(
+    MOCK_METHOD(TFuture<NYson::TYsonString>, GetJobSpec, (
         NJobTrackerClient::TJobId jobId,
-        const TGetJobSpecOptions& options));
+        const TGetJobSpecOptions& options), (override));
 
-    MOCK_METHOD3(GetJobStderr, TFuture<TSharedRef>(
+    MOCK_METHOD(TFuture<TSharedRef>, GetJobStderr, (
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NJobTrackerClient::TJobId jobId,
-        const TGetJobStderrOptions& options));
+        const TGetJobStderrOptions& options), (override));
 
-    MOCK_METHOD3(GetJobFailContext, TFuture<TSharedRef>(
+    MOCK_METHOD(TFuture<TSharedRef>, GetJobFailContext, (
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NJobTrackerClient::TJobId jobId,
-        const TGetJobFailContextOptions& options));
+        const TGetJobFailContextOptions& options), (override));
 
-    MOCK_METHOD1(ListOperations, TFuture<TListOperationsResult>(
-        const TListOperationsOptions& options));
+    MOCK_METHOD(TFuture<TListOperationsResult>, ListOperations, (
+        const TListOperationsOptions& options), (override));
 
-    MOCK_METHOD2(ListJobs, TFuture<TListJobsResult>(
+    MOCK_METHOD(TFuture<TListJobsResult>, ListJobs, (
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        const TListJobsOptions& options));
+        const TListJobsOptions& options), (override));
 
-    MOCK_METHOD3(GetJob, TFuture<NYson::TYsonString>(
+    MOCK_METHOD(TFuture<NYson::TYsonString>, GetJob, (
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NJobTrackerClient::TJobId jobId,
-        const TGetJobOptions& options));
+        const TGetJobOptions& options), (override));
 
-    MOCK_METHOD2(AbandonJob, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, AbandonJob, (
         NJobTrackerClient::TJobId jobId,
-        const TAbandonJobOptions& options));
+        const TAbandonJobOptions& options), (override));
 
-    MOCK_METHOD4(PollJobShell, TFuture<NYson::TYsonString>(
+    MOCK_METHOD(TFuture<NYson::TYsonString>, PollJobShell, (
         NJobTrackerClient::TJobId jobId,
         const std::optional<TString>& shellName,
         const NYson::TYsonString& parameters,
-        const TPollJobShellOptions& options));
+        const TPollJobShellOptions& options), (override));
 
-    MOCK_METHOD2(AbortJob, TFuture<void>(
+    MOCK_METHOD(TFuture<void>, AbortJob, (
         NJobTrackerClient::TJobId jobId,
-        const TAbortJobOptions& options));
+        const TAbortJobOptions& options), (override));
 
-    MOCK_METHOD1(GetClusterMeta, TFuture<TClusterMeta>(
-        const TGetClusterMetaOptions& options));
+    MOCK_METHOD(TFuture<TClusterMeta>, GetClusterMeta, (
+        const TGetClusterMetaOptions& options), (override));
 
-    MOCK_METHOD1(CheckClusterLiveness, TFuture<void>(
-        const TCheckClusterLivenessOptions& options));
+    MOCK_METHOD(TFuture<void>, CheckClusterLiveness, (
+        const TCheckClusterLivenessOptions& options), (override));
 };
 
 DEFINE_REFCOUNTED_TYPE(TMockClient)
