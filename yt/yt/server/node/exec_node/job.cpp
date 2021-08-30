@@ -1324,15 +1324,15 @@ private:
 
         YT_LOG_INFO("Running %lv GPU check commands", gpuCheckType);
 
-        int checkIndex = 0;
+        int checkStartIndex = 0;
         switch (gpuCheckType) {
             case EGpuCheckType::Preliminary:
                 PreliminaryGpuCheckStartTime_ = TInstant::Now();
-                checkIndex = 1;
+                checkStartIndex = SetupCommandsCount_;
                 break;
             case EGpuCheckType::Extra:
                 ExtraGpuCheckStartTime_ = TInstant::Now();
-                checkIndex = 2;
+                checkStartIndex = SetupCommandsCount_ + 2;
                 break;
             default:
                 Y_UNREACHABLE();
@@ -1349,7 +1349,7 @@ private:
                 MakeWritableRootFS(),
                 Config_->JobController->SetupCommandUser,
                 /*devices*/ std::nullopt,
-                /*startIndex*/ SetupCommandsCount_));
+                /*startIndex*/ checkStartIndex));
 
             if (!testFileError.IsOK()) {
                 THROW_ERROR_EXCEPTION(EErrorCode::GpuCheckCommandIncorrect, "Path to GPU check binary is not a file")
@@ -1390,7 +1390,7 @@ private:
             MakeWritableRootFS(),
             Config_->JobController->SetupCommandUser,
             devices,
-            /*startIndex*/ SetupCommandsCount_ + checkIndex);
+            /*startIndex*/ checkStartIndex + 1);
     }
 
     void OnGpuCheckCommandFinished(const TError& error)
