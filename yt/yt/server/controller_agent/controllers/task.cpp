@@ -1008,10 +1008,19 @@ void TTask::OnStripeRegistrationFailed(
 
 void TTask::OnTaskCompleted()
 {
+    StopTiming();
+    YT_LOG_DEBUG("Task completed");
+}
+
+void TTask::StopTiming()
+{
+    if (CompletionTime_) {
+        return;
+    }
+
     ReadyTimer_.Stop();
     ExhaustTimer_.Stop();
     CompletionTime_ = TInstant::Now();
-    YT_LOG_DEBUG("Task completed");
 }
 
 std::optional<EScheduleJobFailReason> TTask::GetScheduleFailReason(ISchedulingContext* /*context*/)
