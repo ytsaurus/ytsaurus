@@ -224,9 +224,9 @@ class TMockBlackboxService
     : public IBlackboxService
 {
 public:
-    MOCK_METHOD2(Call, TFuture<INodePtr>(
+    MOCK_METHOD(TFuture<INodePtr>, Call, (
         const TString&,
-        const THashMap<TString, TString>&));
+        (const THashMap<TString, TString>&)), (override));
 
     TErrorOr<TString> GetLogin(const NYTree::INodePtr& reply) const override
     {

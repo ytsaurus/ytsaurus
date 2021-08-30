@@ -25,9 +25,9 @@ public:
         InitializeIdToTypeMapping();
     }
 
-    MOCK_METHOD0(OnBeginRow, void());
-    MOCK_METHOD1(OnMyValue, void(const TUnversionedValue& value));
-    MOCK_METHOD0(OnEndRow, void());
+    MOCK_METHOD(void, OnBeginRow, (), (override));
+    MOCK_METHOD(void, OnMyValue, (const TUnversionedValue& value), (override));
+    MOCK_METHOD(void, OnEndRow, (), (override));
 
     virtual const TNameTablePtr& GetNameTable() const override
     {
