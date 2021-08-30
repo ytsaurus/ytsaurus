@@ -1024,8 +1024,8 @@ private:
 
                             response->mutable_chunk_reader_statistics()->set_data_bytes_read_from_disk(dataBytesReadFromDisk);
 
-                            context->SetComplete();
                             if (netThrottler->IsOverdraft()) {
+                                context->SetComplete();
                                 context->ReplyFrom(netThrottler->Throttle(totalFragmentSize));
                             } else {
                                 netThrottler->Acquire(totalFragmentSize);
