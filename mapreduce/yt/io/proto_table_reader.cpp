@@ -15,6 +15,18 @@ using ::google::protobuf::Descriptor;
 using ::google::protobuf::FieldDescriptor;
 using ::google::protobuf::EnumValueDescriptor;
 
+const TString& GetFieldColumnName(const FieldDescriptor* fieldDesc) {
+    const auto& columnName = fieldDesc->options().GetExtension(column_name);
+    if (!columnName.empty()) {
+        return columnName;
+    }
+    const auto& keyColumnName = fieldDesc->options().GetExtension(key_column_name);
+    if (!keyColumnName.empty()) {
+        return keyColumnName;
+    }
+    return fieldDesc->name();
+}
+
 void ReadMessageFromNode(const TNode& node, Message* row)
 {
     auto* descriptor = row->GetDescriptor();
@@ -24,11 +36,7 @@ void ReadMessageFromNode(const TNode& node, Message* row)
     for (int i = 0; i < count; ++i) {
         auto* fieldDesc = descriptor->field(i);
 
-        TString columnName = fieldDesc->options().GetExtension(column_name);
-        if (columnName.empty()) {
-            const auto& keyColumnName = fieldDesc->options().GetExtension(key_column_name);
-            columnName = keyColumnName.empty() ? fieldDesc->name() : keyColumnName;
-        }
+        const auto& columnName = GetFieldColumnName(fieldDesc);
 
         const auto& nodeMap = node.AsMap();
         auto it = nodeMap.find(columnName);
@@ -98,7 +106,7 @@ void ReadMessageFromNode(const TNode& node, Message* row)
                 checkType(columnType, actualType);
 
                 const EnumValueDescriptor* valueDesc = nullptr;
-                TString stringValue = "";
+                TString stringValue;
                 if (columnType == TNode::String) {
                     const auto& value = it->second.AsString();
                     valueDesc = fieldDesc->enum_type()->FindValueByName(value);
