@@ -1040,6 +1040,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
     for (const auto& node : selectedNodes) {
         TDataNodeServiceProxy proxy(node->Channel);
         auto req = proxy.PutBlocks();
+        req->SetResponseHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
         req->SetTimeout(writer->Config_->NodeRpcTimeout);
         ToProto(req->mutable_session_id(), writer->SessionId_);
