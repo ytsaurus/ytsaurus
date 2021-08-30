@@ -122,6 +122,16 @@ void Serialize(const TControllerFeatures& features, NYson::IYsonConsumer* consum
     .EndMap();
 }
 
+NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(const NScheduler::TJobIOConfigPtr& ioConfig)
+{
+    auto options = New<TTableReaderOptions>();
+    options->EnableRowIndex = ioConfig->ControlAttributes->EnableRowIndex;
+    options->EnableTableIndex = ioConfig->ControlAttributes->EnableTableIndex;
+    options->EnableRangeIndex = ioConfig->ControlAttributes->EnableRangeIndex;
+    options->EnableTabletIndex = ioConfig->ControlAttributes->EnableTabletIndex;
+    return options;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent::NControllers

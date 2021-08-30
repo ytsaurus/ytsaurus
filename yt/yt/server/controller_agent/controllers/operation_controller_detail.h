@@ -313,7 +313,6 @@ public:
 
     virtual NScheduler::TExtendedJobResources GetAutoMergeResources(
         const NChunkPools::TChunkStripeStatisticsVector& statistics) const override;
-    virtual const NJobTrackerClient::NProto::TJobSpec& GetAutoMergeJobSpecTemplate(int tableIndex) const override;
     virtual TAutoMergeDirector* GetAutoMergeDirector() override;
 
     virtual const TChunkListPoolPtr& GetOutputChunkListPool() const override;
@@ -395,6 +394,8 @@ public:
     virtual TJobSplitterConfigPtr GetJobSplitterConfigTemplate() const override;
 
     virtual const TInputTablePtr& GetInputTable(int tableIndex) const override;
+    virtual const TOutputTablePtr& GetOutputTable(int tableIndex) const override;
+    virtual int GetOutputTableCount() const override;
 
     virtual NLogging::TLogger GetLogger() const override;
 
@@ -914,8 +915,6 @@ protected:
         NScheduler::TJobIOConfigPtr ioConfig,
         const NChunkPools::TChunkStripeStatisticsVector& stripeStatistics) const;
 
-    static NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(NScheduler::TJobIOConfigPtr ioConfig);
-
     void ValidateUserFileCount(NScheduler::TUserJobSpecPtr spec, const TString& operation);
 
     const TExecNodeDescriptorMap& GetExecNodeDescriptors();
@@ -1135,8 +1134,6 @@ private:
 
     NChunkPools::IChunkPoolInputPtr Sink_;
 
-    std::vector<NJobTrackerClient::NProto::TJobSpec> AutoMergeJobSpecTemplates_;
-
     std::unique_ptr<TAutoMergeDirector> AutoMergeDirector_;
 
     //! Release queue of job ids that were completed after the latest snapshot was built.
@@ -1285,8 +1282,6 @@ private:
     void BuildTestingState(NYTree::TFluentAny fluent) const;
 
     void ProcessFinishedJobResult(std::unique_ptr<TJobSummary> summary, bool suggestCreateJobNodeByStatus);
-
-    void InitAutoMergeJobSpecTemplates();
 
     void BuildJobAttributes(
         const TJobInfoPtr& job,

@@ -113,6 +113,8 @@ protected:
     virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override;
 
 private:
+    using TJobSpec = NJobTrackerClient::NProto::TJobSpec;
+
     DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeTask, 0x4ef99f1a);
 
     std::vector<TIntrusivePtr<TAutoMergeChunkPoolAdapter>> ChunkPools_;
@@ -123,9 +125,16 @@ private:
     //! Output chunk pool index -> number of the intermediate chunks in it.
     std::vector<int> CurrentChunkCounts_;
 
+    std::vector<TEnumIndexedVector<EMergeJobType, TJobSpec>> JobSpecTemplates_;
+
+    std::atomic<bool> EnableShallowMerge_;
+
     void UpdateSelf();
 
     int GetTableIndex(int poolIndex) const;
+
+    const TJobSpec& GetJobSpecTemplate(int tableIndex, EMergeJobType type) const;
+    void InitAutoMergeJobSpecTemplates();
 };
 
 DEFINE_REFCOUNTED_TYPE(TAutoMergeTask);

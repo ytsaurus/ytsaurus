@@ -115,7 +115,6 @@ struct ITaskHost
 
     virtual NScheduler::TExtendedJobResources GetAutoMergeResources(
         const NChunkPools::TChunkStripeStatisticsVector& statistics) const = 0;
-    virtual const NJobTrackerClient::NProto::TJobSpec& GetAutoMergeJobSpecTemplate(int tableIndex) const = 0;
     virtual TAutoMergeDirector* GetAutoMergeDirector() = 0;
 
     virtual void Persist(const TPersistenceContext& context) = 0;
@@ -158,6 +157,8 @@ struct ITaskHost
     virtual TJobSplitterConfigPtr GetJobSplitterConfigTemplate() const = 0;
 
     virtual const TInputTablePtr& GetInputTable(int tableIndex) const = 0;
+    virtual const TOutputTablePtr& GetOutputTable(int tableIndex) const = 0;
+    virtual int GetOutputTableCount() const = 0;
 
     virtual NLogging::TLogger GetLogger() const = 0;
 };

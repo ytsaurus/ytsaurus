@@ -44,6 +44,10 @@ void Serialize(const TControllerFeatures& features, NYson::IYsonConsumer* consum
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(const NScheduler::TJobIOConfigPtr& ioConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent::NControllers
 
 #define HELPERS_INL_H
