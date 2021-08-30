@@ -747,8 +747,11 @@ void TTask::Persist(const TPersistenceContext& context)
 
     Persist(context, Logger);
 
-    Persist(context, ReadyTimer_);
-    Persist(context, ExhaustTimer_);
+    // COMPAT(alexkolodezny)
+    if (context.GetVersion() >= ESnapshotVersion::ReadyExhaustTimers) {
+        Persist(context, ReadyTimer_);
+        Persist(context, ExhaustTimer_);
+    }
 }
 
 void TTask::OnJobStarted(TJobletPtr joblet)
