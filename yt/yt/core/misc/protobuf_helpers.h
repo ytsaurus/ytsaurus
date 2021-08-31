@@ -380,6 +380,11 @@ google::protobuf::Timestamp GetProtoNow();
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! This macro may be used to extract std::optional<T> from protobuf message field of type T.
+#define YT_PROTO_OPTIONAL(message, field) (((message).has_##field()) ? std::make_optional((message).field()) : std::nullopt)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 #define PROTOBUF_HELPERS_INL_H_

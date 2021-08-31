@@ -93,8 +93,13 @@ public:
     static TLogManagerConfigPtr CreateDefault();
     static TLogManagerConfigPtr CreateQuiet();
     static TLogManagerConfigPtr CreateSilent();
-    //! Create logging config a-la YT server config: ./#componentName{,.debug,.error}.log.
-    static TLogManagerConfigPtr CreateYtServer(const TString& componentName, const TString& directory = ".");
+    //! Create logging config a-la YT server config: #directory/#componentName{,.debug,.error}.log.
+    //! Also allows adding structured logs. For example, pair ("RpcProxyStructuredMain", "main") would
+    //! make structured messages with RpcProxyStructuredMain category go to #directory/#componentName.yson.main.log.
+    static TLogManagerConfigPtr CreateYtServer(
+        const TString& componentName,
+        const TString& directory = ".",
+        const THashMap<TString, TString>& structuredCategoryToWriterName = {});
     static TLogManagerConfigPtr CreateFromFile(const TString& file, const NYPath::TYPath& path = "");
     static TLogManagerConfigPtr CreateFromNode(NYTree::INodePtr node, const NYPath::TYPath& path = "");
     static TLogManagerConfigPtr TryCreateFromEnv();

@@ -237,7 +237,7 @@ TLogManagerConfigPtr TLogManagerConfig::CreateSilent()
     return config;
 }
 
-TLogManagerConfigPtr TLogManagerConfig::CreateYtServer(const TString& componentName, const TString& directory)
+TLogManagerConfigPtr TLogManagerConfig::CreateYtServer(const TString& componentName, const TString& directory, const THashMap<TString, TString>& structuredCategoryToWriterName)
 {
     auto config = New<TLogManagerConfig>();
 
@@ -269,22 +269,24 @@ TLogManagerConfigPtr TLogManagerConfig::CreateYtServer(const TString& componentN
         config->Writers.emplace(ToString(logLevel), fileWriterConfig);
     }
 
-    {
+    for (const auto& [category, writerName] : structuredCategoryToWriterName) {
         auto rule = New<TRuleConfig>();
         rule->MinLevel = ELogLevel::Info;
-        rule->Writers.emplace_back("yson");
+        rule->Writers.emplace_back(writerName);
         rule->Family = ELogFamily::Structured;
+        rule->IncludeCategories = {category};
 
         auto fileWriterConfig = New<TWriterConfig>();
         fileWriterConfig->Type = EWriterType::File;
         fileWriterConfig->FileName = Format(
-            "%v/%v.yson.log",
+            "%v/%v.yson.%v.log",
             directory,
-            componentName);
+            componentName,
+            writerName);
         fileWriterConfig->Format = ELogFormat::Yson;
 
         config->Rules.push_back(rule);
-        config->Writers.emplace("yson", fileWriterConfig);
+        config->Writers.emplace(writerName, fileWriterConfig);
     }
 
     return config;

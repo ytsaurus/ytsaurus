@@ -83,7 +83,10 @@ protected:
             auto defaultConfig = New<NRpcProxy::TProxyConfig>();
             defaultConfig->SetDefaults();
             defaultConfig->RpcPort = 9013;
-            defaultConfig->Logging = NLogging::TLogManagerConfig::CreateYtServer("rpc_proxy" /* componentName */);
+            defaultConfig->Logging = NLogging::TLogManagerConfig::CreateYtServer(
+                /*componentName*/ "rpc_proxy",
+                /*directory*/ ".",
+                /*structuredCategoryToWriterName*/ {{"RpcProxyStructuredMain", "main"}, {"RpcProxyStructuredError", "error"}});
             // One may disable authentication at all via config, but by default it is better
             // to require authentication. Even YT developers may unintentionally do something
             // harmful, in which case we do not want to see requests under root in cluster logs.

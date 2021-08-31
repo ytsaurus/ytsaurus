@@ -35,6 +35,30 @@ DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStructuredLoggingTopicConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    //! Global switch for enabling or disabling paritcular structured logging topic.
+    bool Enable;
+
+    //! List of methods for which structured logging is not emitted.
+    THashSet<TString> SuppressedMethods;
+
+    TStructuredLoggingTopicConfig(THashSet<TString> defaultSuppressedMethods = {})
+    {
+        RegisterParameter("enable", Enable)
+            .Default(true);
+
+        RegisterParameter("suppressed_methods", SuppressedMethods)
+            .Default(std::move(defaultSuppressedMethods));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TStructuredLoggingTopicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TApiServiceConfig
     : public virtual NYTree::TYsonSerializable
 {
@@ -49,6 +73,9 @@ public:
     i64 ReadBufferDataWeight;
 
     TSecurityManagerConfigPtr SecurityManager;
+
+    TStructuredLoggingTopicConfigPtr StructuredLoggingMainTopic;
+    TStructuredLoggingTopicConfigPtr StructuredLoggingErrorTopic;
 
     TApiServiceConfig()
     {
@@ -65,6 +92,10 @@ public:
         RegisterParameter("read_buffer_data_weight", ReadBufferDataWeight)
             .Default(16_MB);
         RegisterParameter("security_manager", SecurityManager)
+            .DefaultNew();
+        RegisterParameter("structured_logging_main_topic", StructuredLoggingMainTopic)
+            .DefaultNew(THashSet<TString>{"ModifyRows", "BatchModifyRows", "LookupRows", "VersionedLookupRows"});
+        RegisterParameter("structured_logging_error_topic", StructuredLoggingErrorTopic)
             .DefaultNew();
     }
 };

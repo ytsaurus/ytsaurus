@@ -16,6 +16,7 @@
 #include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
 #include <contrib/libs/grpc/include/grpc/grpc_security.h>
@@ -29,6 +30,7 @@ using namespace NBus;
 using namespace NYTree;
 using namespace NConcurrency;
 using namespace NNet;
+using namespace NYson;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -190,6 +192,10 @@ private:
             : Handler_(MakeWeak(handler))
             , PeerAddress_(handler->PeerAddress_)
             , PeerAddressString_(handler->PeerAddressString_)
+            , EndpointAttributes_(ConvertToAttributes(BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("address").Value(PeerAddressString_)
+                .EndMap()))
         { }
 
         // IBus overrides
@@ -200,7 +206,7 @@ private:
 
         const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
         {
-            YT_ABORT();
+            return *EndpointAttributes_;
         }
 
         TTcpDispatcherStatistics GetStatistics() const override
@@ -242,6 +248,7 @@ private:
         const TWeakPtr<TCallHandler> Handler_;
         const TNetworkAddress PeerAddress_;
         const TString PeerAddressString_;
+        const IAttributeDictionaryPtr EndpointAttributes_;
     };
 
     class TCallHandler

@@ -210,7 +210,7 @@ void TServiceContextBase::SubscribeReplied(const TClosure& /*callback*/)
 void TServiceContextBase::UnsubscribeReplied(const TClosure& /*callback*/)
 { }
 
-bool TServiceContextBase::IsCanceled()
+bool TServiceContextBase::IsCanceled() const
 {
     return false;
 }
@@ -579,7 +579,7 @@ void TServiceContextWrapper::UnsubscribeReplied(const TClosure& callback)
     UnderlyingContext_->UnsubscribeReplied(callback);
 }
 
-bool TServiceContextWrapper::IsCanceled()
+bool TServiceContextWrapper::IsCanceled() const
 {
     return UnderlyingContext_->IsCanceled();
 }

@@ -2,10 +2,18 @@
 
 #include <yt/yt/core/crypto/crypto.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
+
 #include <library/cpp/string_utils/quote/quote.h>
 #include <library/cpp/string_utils/url/url.h>
 
 namespace NYT::NAuth {
+
+using namespace NYson;
+using namespace NYTree;
+using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,6 +97,25 @@ TString TSafeUrlBuilder::FlushRealUrl()
 TString TSafeUrlBuilder::FlushSafeUrl()
 {
     return SafeUrl_.Flush();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+THashedCredentials HashCredentials(const NRpc::NProto::TCredentialsExt& credentialsExt)
+{
+    THashedCredentials result;
+    if (credentialsExt.has_token()) {
+        result.TokenHash = GetCryptoHash(credentialsExt.token());
+    }
+    return result;
+}
+
+void Serialize(const THashedCredentials& hashedCredentials, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .OptionalItem("token_hash", hashedCredentials.TokenHash)
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

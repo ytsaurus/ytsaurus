@@ -192,7 +192,7 @@ TServiceBase::TMethodPerformanceCounters::TMethodPerformanceCounters(
     , RequestMessageAttachmentSizeCounter(profiler.Counter("/request_message_attachment_bytes"))
     , ResponseMessageBodySizeCounter(profiler.Counter("/response_message_body_bytes"))
     , ResponseMessageAttachmentSizeCounter(profiler.Counter("/response_message_attachment_bytes"))
-{   
+{
     if (histogramConfig && histogramConfig->CustomBounds) {
         const auto &customBounds = *histogramConfig->CustomBounds;
         ExecutionTimeCounter = profiler.Histogram("/request_time_histogram/execution", customBounds);
@@ -357,7 +357,7 @@ public:
         RepliedList_.Unsubscribe(callback);
     }
 
-    bool IsCanceled() override
+    bool IsCanceled() const override
     {
         return CanceledList_.IsFired();
     }
@@ -1972,6 +1972,9 @@ void TServiceBase::DecrementActiveRequestCount()
     }
 }
 
+void TServiceBase::InitContext(IServiceContextPtr /*context*/)
+{ }
+
 TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
 {
     ValidateInactive();
@@ -2030,7 +2033,7 @@ void TServiceBase::DoConfigure(
         EnablePerUserProfiling_.store(config->EnablePerUserProfiling.value_or(configDefaults->EnablePerUserProfiling));
         AuthenticationQueueSizeLimit_.store(config->AuthenticationQueueSizeLimit.value_or(DefaultAuthenticationQueueSizeLimit));
         PendingPayloadsTimeout_.store(config->PendingPayloadsTimeout.value_or(DefaultPendingPayloadsTimeout));
-        
+
         {
             THistogramConfigPtr finalConfig = nullptr;
             if (config->HistogramTimerProfiling) {

@@ -69,7 +69,7 @@ public:
     virtual void SubscribeReplied(const TClosure& callback) override;
     virtual void UnsubscribeReplied(const TClosure& callback) override;
 
-    virtual bool IsCanceled() override;
+    virtual bool IsCanceled() const override;
     virtual void Cancel() override;
 
     virtual const TError& GetError() const override;
@@ -202,7 +202,7 @@ public:
     virtual void SubscribeReplied(const TClosure& callback) override;
     virtual void UnsubscribeReplied(const TClosure& callback) override;
 
-    virtual bool IsCanceled() override;
+    virtual bool IsCanceled() const override;
     virtual void Cancel() override;
 
     virtual const TError& GetError() const override;

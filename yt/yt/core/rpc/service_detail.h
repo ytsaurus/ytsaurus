@@ -348,7 +348,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DEFINE_RPC_SERVICE_METHOD_THUNK_VIA_MESSAGES(requestMessage, responseMessage, method) \
-    using TCtx##method = ::NYT::NRpc::TTypedServiceContext<requestMessage, responseMessage>; \
+    using TCtx##method = TTypedServiceContextImpl<requestMessage, responseMessage>; \
     using TCtx##method##Ptr = ::NYT::TIntrusivePtr<TCtx##method>; \
     using TReq##method = typename TCtx##method::TTypedRequest; \
     using TRsp##method = typename TCtx##method::TTypedResponse; \
@@ -361,6 +361,7 @@ protected:
         if (!typedContext->DeserializeRequest()) { \
             return; \
         } \
+        InitContext(typedContext); \
         auto* request = &typedContext->Request(); \
         auto* response = &typedContext->Response(); \
         this->method(request, response, typedContext); \
@@ -379,6 +380,7 @@ protected:
                 const ::NYT::NRpc::IServiceContextPtr&, \
                 const ::NYT::NRpc::THandlerInvocationOptions&) \
             { \
+                InitContext(typedContext); \
                 auto* request = &typedContext->Request(); \
                 auto* response = &typedContext->Response(); \
                 this->method(request, response, typedContext); \
@@ -438,11 +440,26 @@ public:
         const TStreamingFeedback& feedback) override;
 
 protected:
+    const NLogging::TLogger Logger;
+
     using TLiteHandler = TCallback<void(const IServiceContextPtr&, const THandlerInvocationOptions&)>;
     using THeavyHandler = TCallback<TLiteHandler(const IServiceContextPtr&, const THandlerInvocationOptions&)>;
 
     class TServiceContext;
     using TServiceContextPtr = TIntrusivePtr<TServiceContext>;
+
+    //! This alias provides an option to replace default typed service context class
+    //! with a custom one which may be richer in some way. If a init-like procedure
+    //! is needed to customize specific service context before invoking method handler,
+    //! one may use #InitContext method below.
+    //! See api_service.cpp for an example.
+    template <class TRequestMessage, class TResponseMessage>
+    using TTypedServiceContextImpl = TTypedServiceContext<TRequestMessage, TResponseMessage>;
+
+    //! By default, this method does nothing. You may hide this method by a custom implementation
+    //! (possibly switching argument type to a proper typed context class) in order to customize
+    //! specific service context before invoking method handler.
+    void InitContext(IServiceContextPtr context);
 
     class TRequestQueue;
 
@@ -755,9 +772,6 @@ protected:
     void DoConfigure(
         const TServiceCommonConfigPtr& configDefaults,
         const TServiceConfigPtr& config);
-
-protected:
-    const NLogging::TLogger Logger;
 
 private:
     const IInvokerPtr DefaultInvoker_;

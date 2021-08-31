@@ -14,6 +14,9 @@ DECLARE_REFCOUNTED_CLASS(TSecurityManagerConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IAccessChecker)
 DECLARE_REFCOUNTED_STRUCT(IProxyCoordinator)
+
+DECLARE_REFCOUNTED_CLASS(TStructuredLoggingTopicConfig)
+
 struct IBootstrap;
 
 ////////////////////////////////////////////////////////////////////////////////

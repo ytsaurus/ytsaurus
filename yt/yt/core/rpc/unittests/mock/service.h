@@ -192,7 +192,7 @@ public:
         bool,
         IsCanceled,
         (),
-        (override)
+        (const, override)
     );
 
     MOCK_METHOD(
