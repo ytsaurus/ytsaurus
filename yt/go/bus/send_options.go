@@ -10,6 +10,7 @@ import (
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/proto/core/misc"
 	"a.yandex-team.ru/yt/go/proto/core/rpc"
+	"a.yandex-team.ru/yt/go/proto/core/tracing"
 )
 
 type SendOption interface {
@@ -189,6 +190,32 @@ func WithRequestID(id guid.GUID) *sendOption {
 		Before: func(req *clientReq) {
 			req.id = id
 			req.reqHeader.RequestId = misc.NewProtoFromGUID(id)
+		},
+		After: func(req *clientReq) {},
+	}
+}
+
+const (
+	flagSampled = 1
+	flagDebug   = 2
+)
+
+func WithTracing(traceID guid.GUID, spanID uint64, flags byte) *sendOption {
+	sampled := (flags & flagSampled) != 0
+	debug := (flags & flagDebug) != 0
+
+	return &sendOption{
+		Before: func(req *clientReq) {
+			_ = proto.SetExtension(
+				req.reqHeader,
+				rpc.E_TRequestHeader_TracingExt,
+				&tracing.TTracingExt{
+					TraceId: misc.NewProtoFromGUID(traceID),
+					SpanId:  ptr.Uint64(spanID),
+					Sampled: &sampled,
+					Debug:   &debug,
+				},
+			)
 		},
 		After: func(req *clientReq) {},
 	}
