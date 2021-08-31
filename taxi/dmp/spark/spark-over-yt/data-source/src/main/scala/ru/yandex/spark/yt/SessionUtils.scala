@@ -1,14 +1,16 @@
 package ru.yandex.spark.yt
 
-import java.util.UUID
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.internal.SQLConf.FILES_MAX_PARTITION_BYTES
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
 import ru.yandex.yt.ytclient.proxy.CompoundClient
+
+import java.util.UUID
 
 object SessionUtils {
   private val log = LoggerFactory.getLogger(getClass)
@@ -45,6 +47,12 @@ object SessionUtils {
         if (!res.contains(key)) res.set(key, value) else res
       }
     }
+
+    def setIfEquals(key: String, expectedValue: String, newValue: String): SparkConf = {
+      if (conf.getOption(key).forall(_ == expectedValue)) {
+        conf.set(key, newValue)
+      } else conf
+    }
   }
 
   private def parseEnablers(conf: Map[String, String]): Set[String] = {
@@ -71,6 +79,7 @@ object SessionUtils {
         .setAllNoOverride(remoteVersionConfig)
         .setAllNoOverride(remoteGlobalConfig)
         .setEnablers(enablers, remoteClusterConfig)
+        .setIfEquals(FILES_MAX_PARTITION_BYTES.key, "5000000", "512Mb") // backward compatibility of SPYT-48
     } finally {
       YtClientProvider.close(id)
     }

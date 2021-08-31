@@ -19,7 +19,7 @@ class YtVectorizedReader(split: YtInputSplit,
   private var _batchIdx = 0
 
   private val batchReader: BatchReader = {
-    val totalRowCount = split.file.length
+    val totalRowCount = split.getLength
     if (split.schema.nonEmpty) {
       val path = split.ytPath
       if (arrowEnabled) {

@@ -1,6 +1,5 @@
 package ru.yandex.spark.yt.fs
 
-import java.io.FileNotFoundException
 import org.apache.hadoop.fs._
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
@@ -10,6 +9,7 @@ import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.cypress.PathType
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
+import java.io.FileNotFoundException
 import scala.language.postfixOps
 
 @SerialVersionUID(1L)

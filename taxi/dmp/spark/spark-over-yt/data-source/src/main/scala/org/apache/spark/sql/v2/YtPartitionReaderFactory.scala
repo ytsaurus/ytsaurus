@@ -9,7 +9,7 @@ import org.apache.spark.sql.connector.read.{InputPartition, PartitionReader}
 import org.apache.spark.sql.execution.datasources.PartitionedFile
 import org.apache.spark.sql.execution.datasources.v2.{FilePartitionReaderFactory, PartitionReaderWithPartitionValues}
 import org.apache.spark.sql.internal.SQLConf
-import org.apache.spark.sql.types.{AtomicType, DataType, DateType, StructType, TimestampType}
+import org.apache.spark.sql.types._
 import org.apache.spark.sql.vectorized.{ColumnarBatch, YtVectorizedReader}
 import org.apache.spark.util.SerializableConfiguration
 import org.slf4j.LoggerFactory
@@ -80,6 +80,8 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
 
         new PartitionReaderWithPartitionValues(fileReader, readDataSchema,
           partitionSchema, file.partitionValues)
+      case _ =>
+        throw new IllegalArgumentException(s"Partitions of type ${file.getClass.getSimpleName} are not supported")
     }
   }
 

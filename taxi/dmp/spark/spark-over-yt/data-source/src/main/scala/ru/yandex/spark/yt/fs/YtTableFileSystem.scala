@@ -1,6 +1,5 @@
 package ru.yandex.spark.yt.fs
 
-import java.io.FileNotFoundException
 import org.apache.hadoop.fs._
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
@@ -13,6 +12,7 @@ import ru.yandex.spark.yt.wrapper.cypress.PathType
 import ru.yandex.spark.yt.wrapper.table.TableType
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
+import java.io.FileNotFoundException
 import scala.language.postfixOps
 
 @SerialVersionUID(1L)
@@ -33,10 +33,10 @@ class YtTableFileSystem extends YtFileSystemBase {
       ))
       case PathType.Table =>
         YtWrapper.tableType(attributes) match {
-          case TableType.Static => listStaticTableAsFiles(f, path, transaction, attributes)
+          case TableType.Static => listStaticTableAsFiles(f, attributes)
           case TableType.Dynamic =>
             if (!isDriver) throw new IllegalStateException("Listing dynamic tables on executors is not supported")
-            listDynamicTableAsFiles(f, path, transaction, attributes)
+            listDynamicTableAsFiles(f, path, attributes)
         }
       case PathType.Directory => listYtDirectory(f, path, transaction)
       case pathType => throw new IllegalArgumentException(s"Can't list $pathType")
@@ -47,24 +47,24 @@ class YtTableFileSystem extends YtFileSystemBase {
     SparkSession.getDefaultSession.nonEmpty
   }
 
-  private def listStaticTableAsFiles(f: Path,
-                                     path: String,
-                                     transaction: Option[String],
-                                     attributes: Map[String, YTreeNode])
+  private def listStaticTableAsFiles(f: Path, attributes: Map[String, YTreeNode])
                                     (implicit yt: CompoundClient): Array[FileStatus] = {
     val rowCount = YtWrapper.rowCount(attributes)
     val optimizeMode = YtWrapper.optimizeMode(attributes)
-    val chunksCount = GlobalTableSettings.getFilesCount(path).getOrElse(YtWrapper.chunkCount(attributes))
-    GlobalTableSettings.removeFilesCount(path)
-    val filesCount = if (chunksCount > 0) chunksCount else 1
+    val chunkCount = YtWrapper.chunkCount(attributes)
+    val tableSize = YtWrapper.dataWeight(attributes)
+    val approximateRowSize = tableSize / rowCount
+
+    val filesCount = if (chunkCount > 0) chunkCount else 1
     val result = new Array[FileStatus](filesCount)
-    for (chunkIndex <- 0 until chunksCount) {
-      val chunkStart = chunkIndex * rowCount / chunksCount
-      val chunkRowCount = (chunkIndex + 1) * rowCount / chunksCount - chunkStart
+    for (chunkIndex <- 0 until chunkCount) {
+      val chunkStart = chunkIndex * rowCount / chunkCount
+      val chunkRowCount = (chunkIndex + 1) * rowCount / chunkCount - chunkStart
       val chunkPath = YtStaticPath(f, optimizeMode, chunkStart, chunkRowCount)
-      result(chunkIndex) = new YtFileStatus(chunkPath, rowCount / chunksCount + 1)
+      result(chunkIndex) = new YtFileStatus(chunkPath, approximateRowSize)
     }
-    if (chunksCount == 0) {
+
+    if (chunkCount == 0) {
       // add path for schema resolving
       val chunkPath = YtStaticPath(f, optimizeMode, 0, 0)
       result(0) = new YtFileStatus(chunkPath, 1)
@@ -74,16 +74,18 @@ class YtTableFileSystem extends YtFileSystemBase {
 
   private def listDynamicTableAsFiles(f: Path,
                                       path: String,
-                                      transaction: Option[String],
                                       attributes: Map[String, YTreeNode])
                                      (implicit yt: CompoundClient): Array[FileStatus] = {
     val pivotKeys = YtWrapper.pivotKeys(path) :+ YtWrapper.emptyPivotKey
     val keyColumns = YtWrapper.keyColumns(attributes)
     val result = new Array[FileStatus](pivotKeys.length - 1)
+    val tableSize = YtWrapper.dataWeight(attributes)
+    val approximateChunkSize = if (result.length > 0) tableSize / result.length else 1
+
     pivotKeys.sliding(2).zipWithIndex.foreach {
       case (Seq(startKey, endKey), i) =>
         val chunkPath = YtDynamicPath(f, startKey, endKey, i.toString, keyColumns)
-        result(i) = new YtFileStatus(chunkPath, 1)
+        result(i) = new YtFileStatus(chunkPath, approximateChunkSize)
     }
     result
   }

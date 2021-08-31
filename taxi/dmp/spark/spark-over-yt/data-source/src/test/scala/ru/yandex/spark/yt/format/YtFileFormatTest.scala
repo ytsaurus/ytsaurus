@@ -4,6 +4,7 @@ import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.execution.InputAdapter
 import org.apache.spark.sql.internal.SQLConf
+import org.apache.spark.sql.internal.SQLConf._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{AnalysisException, Row, SaveMode}
 import org.mockito.scalatest.MockitoSugar
@@ -15,14 +16,12 @@ import ru.yandex.spark.yt.serializers.YtLogicalType
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
-import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
-import org.apache.spark.sql.internal.SQLConf.PARALLEL_PARTITION_DISCOVERY_THRESHOLD
 import ru.yandex.type_info.TiType
+import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 
 import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, Paths}
 import java.sql.{Date, Timestamp}
-import java.time.{Instant, LocalDate, ZoneId}
+import java.time.LocalDate
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
@@ -236,9 +235,21 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
       """{a = 2; b = "b"; c = 0.5}"""
     ), tmpPath, atomicSchema)
 
-    val res = spark.read.yt(tmpPath)
+    val res = spark.read.yt(tmpPath).count()
 
-    res.count() shouldEqual 2
+    res shouldEqual 2
+  }
+
+  it should "count all partitions" in {
+    writeTableFromYson(Seq.fill(100)(
+      """{a = 1; b = "a"; c = 0.3}"""
+    ), tmpPath, atomicSchema)
+
+    val res = withConf(FILES_MAX_PARTITION_BYTES, "1Kb") {
+      spark.read.yt(tmpPath).count()
+    }
+
+    res shouldEqual 100
   }
 
   it should "optimize table for scan" in {
@@ -266,35 +277,6 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
       spark.sqlContext.setConf("spark.yt.write.timeout", "120")
       Logger.getRootLogger.setLevel(Level.WARN)
     }
-  }
-
-  it should "delete failed task results" ignore {
-    import spark.implicits._
-    spark.sqlContext.setConf("spark.yt.write.batchSize", "2")
-    spark.sqlContext.setConf("spark.yt.write.miniBatchSize", "2")
-    spark.sqlContext.setConf("spark.task.maxFailures", "4")
-
-    (1 to 10).toDS.repartition(1).write.yt("/home/sashbel/test/test")
-
-    spark.read.yt("/home/sashbel/test/test").as[Long].map { i =>
-      Counter.counter += 1
-      if (Counter.counter > 5) {
-        val tmpFilePath = "/tmp/retry"
-        if (!Files.exists(Paths.get(tmpFilePath))) {
-          println("THROW!!!!!!!!!!")
-          Files.createFile(Paths.get(tmpFilePath))
-          throw new RuntimeException("Write failed")
-        }
-      }
-      i
-    }.show()
-
-    //.write.mode(SaveMode.Overwrite).yt(s"/home/sashbel/test-2")
-
-    spark.read.yt("/home/sashbel/test-2").as[Long].map { i =>
-      val tmpFilePath = "/tmp/retry"
-      Files.deleteIfExists(Paths.get(tmpFilePath))
-    }.show()
   }
 
   it should "read int32" in {
@@ -352,27 +334,23 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
 
   it should "read many tables" in {
     YtWrapper.createDir(tmpPath)
-    spark.conf.set(PARALLEL_PARTITION_DISCOVERY_THRESHOLD.key, 2)
-    try {
-      val tableCount = 3
-      (1 to tableCount).foreach(i =>
-        writeTableFromYson(Seq(
-          """{a = 1; b = "a"; c = 0.3}""",
-          """{a = 2; b = "b"; c = 0.5}"""
-        ), s"$tmpPath/$i", atomicSchema)
-      )
+    val tableCount = 3
+    (1 to tableCount).foreach(i =>
+      writeTableFromYson(Seq(
+        """{a = 1; b = "a"; c = 0.3}""",
+        """{a = 2; b = "b"; c = 0.5}"""
+      ), s"$tmpPath/$i", atomicSchema)
+    )
 
-      val res = spark.read.yt((1 to tableCount).map(i => s"$tmpPath/$i"): _*)
-
-      res.columns should contain theSameElementsAs Seq("a", "b", "c")
-      res.select("a", "b", "c").collect() should contain theSameElementsAs (1 to tableCount).flatMap(_ => Seq(
-        Row(1, "a", 0.3),
-        Row(2, "b", 0.5)
-      ))
-    } finally {
-      spark.conf.set(PARALLEL_PARTITION_DISCOVERY_THRESHOLD.key,
-        PARALLEL_PARTITION_DISCOVERY_THRESHOLD.defaultValue.get)
+    val res = withConf(PARALLEL_PARTITION_DISCOVERY_THRESHOLD, "2") {
+      spark.read.yt((1 to tableCount).map(i => s"$tmpPath/$i"): _*)
     }
+
+    res.columns should contain theSameElementsAs Seq("a", "b", "c")
+    res.select("a", "b", "c").collect() should contain theSameElementsAs (1 to tableCount).flatMap(_ => Seq(
+      Row(1, "a", 0.3),
+      Row(2, "b", 0.5)
+    ))
   }
 
   it should "read csv" in {
@@ -622,6 +600,28 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     a[SparkException] shouldBe thrownBy {
       spark.read.yt(table1, table2)
     }
+  }
+
+  it should "split large chunks in reading plan" in {
+    val data = (1 to 10).toDF().coalesce(1)
+    data.write.yt(tmpPath)
+
+    val partitions = withConf(FILES_MAX_PARTITION_BYTES, "4B") {
+      spark.read.yt(tmpPath).rdd.partitions
+    }
+
+    partitions.length shouldEqual 10
+  }
+
+  it should "merge small chunks in reading plan" in {
+    val data = (1 to 1000).toDF().repartition(1000)
+    data.write.yt(tmpPath)
+
+    val partitions = withConf(FILES_OPEN_COST_IN_BYTES, "1") {
+      spark.read.yt(tmpPath).rdd.partitions
+    }
+
+    partitions.length shouldEqual defaultParallelism +- 1
   }
 }
 

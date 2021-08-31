@@ -33,7 +33,7 @@ lazy val `spark-launcher` = (project in file("spark-launcher"))
   )
 
 lazy val `spark-submit` = (project in file("spark-submit"))
-  .dependsOn(`yt-wrapper`)
+  .dependsOn(`yt-wrapper` % Provided)
   .settings(
     libraryDependencies ++= scaldingArgs,
     libraryDependencies ++= py4j,
@@ -73,6 +73,11 @@ lazy val `data-source` = (project in file("data-source"))
         YtPublishFile(zip.value, publishDir, proxy = None)
       )
     },
+    assembly / assemblyShadeRules ++= Seq(
+      ShadeRule.rename(
+        "ru.yandex.spark.yt.wrapper.**" -> "shadeddatasource.ru.yandex.spark.yt.wrapper.@1",
+      ).inAll
+    ),
     assembly / test := {}
   )
 
@@ -102,7 +107,7 @@ lazy val `file-system` = (project in file("file-system"))
   )
 
 lazy val `client` = (project in file("client"))
-  .enablePlugins(SparkPackagePlugin, DebianPackagePlugin, PythonPlugin)
+  .enablePlugins(SparkPackagePlugin, PythonPlugin)
   .settings(
     sparkAdditionalJars := Seq(
       (`file-system` / assembly).value,
@@ -111,40 +116,6 @@ lazy val `client` = (project in file("client"))
     sparkAdditionalPython := Seq(
       (`data-source` / sourceDirectory).value / "main" / "python"
     )
-  )
-  .settings(
-    debPackagePrefixPath := "/usr/lib/yandex",
-    debPackagePublishRepo := "yandex-taxi-common",
-    debPackageVersion := {
-      val debBuildNumber = Option(System.getProperty("build")).getOrElse("")
-      val beta = if ((ThisBuild / version).value.contains("SNAPSHOT")) s"~beta1-${sys.env("USER")}" else ""
-      s"$sparkVersion-${(ThisBuild / version).value.takeWhile(_ != '-')}$beta+yandex$debBuildNumber"
-    },
-    version := debPackageVersion.value,
-    packageSummary := "Spark over YT Client Debian Package",
-    packageDescription := "Client spark libraries and Spark over YT binaries",
-    linuxPackageMappings ++= {
-      val sparkDist = sparkPackage.value
-      val sparkBasePath = s"${debPackagePrefixPath.value}/spark"
-      Seq(
-        createPackageMapping(sparkDist, sparkBasePath),
-        LinuxPackageMapping(Map(
-          (Compile / resourceDirectory).value / "log4j.local.properties" -> s"$sparkBasePath/conf/log4j.properties"
-        ))
-      )
-    },
-    linuxPackageSymlinks ++= {
-      val sparkBasePath = s"${debPackagePrefixPath.value}/spark"
-      Seq(
-        LinuxSymlink("/usr/local/bin/spark-shell", s"$sparkBasePath/bin/spark-shell"),
-        LinuxSymlink("/usr/local/bin/find-spark-home", s"$sparkBasePath/bin/find-spark-home"),
-        LinuxSymlink("/usr/local/bin/spark-class", s"$sparkBasePath/bin/spark-class"),
-        LinuxSymlink("/usr/local/bin/spark-submit", s"$sparkBasePath/bin/spark-submit"),
-        LinuxSymlink("/usr/local/bin/spark-shell-yt", s"$sparkBasePath/bin/spark-shell-yt"),
-        LinuxSymlink("/usr/local/bin/spark-submit-yt", s"$sparkBasePath/bin/spark-submit-yt"),
-        LinuxSymlink("/usr/local/bin/spark-launch-yt", s"$sparkBasePath/bin/spark-launch-yt")
-      )
-    }
   )
   .settings(
     tarArchiveMapping += sparkPackage.value -> "spark",
@@ -158,6 +129,14 @@ lazy val `client` = (project in file("client"))
   .settings(
     pythonSetupName := "setup-yandex.py",
     pythonBuildDir := sparkHome.value / "python"
+  )
+  .settings(
+    debPackageVersion := {
+      val debBuildNumber = Option(System.getProperty("build")).getOrElse("")
+      val beta = if ((ThisBuild / version).value.contains("SNAPSHOT")) s"~beta1-${sys.env("USER")}" else ""
+      s"$sparkVersion-${(ThisBuild / version).value.takeWhile(_ != '-')}$beta+yandex$debBuildNumber"
+    },
+    version := debPackageVersion.value
   )
 
 // benchmark and test ----

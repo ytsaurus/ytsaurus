@@ -450,7 +450,7 @@ case class YtSourceScanExec(
       selectedPartitions: Array[PartitionDirectory],
       fsRelation: HadoopFsRelation): RDD[InternalRow] = {
     val maxSplitBytes = YtFilePartition.maxSplitBytes(fsRelation.sparkSession, selectedPartitions,
-      fsRelation.options.get("maxSplitRows").map(_.toLong))
+      fsRelation.options.get("readParallelism").map(_.toInt))
     val files = selectedPartitions.flatMap { partition =>
       partition.files.flatMap { file =>
         // getPath() is very expensive so we only want to call it once in this block:

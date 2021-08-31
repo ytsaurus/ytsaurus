@@ -301,6 +301,11 @@ def connect(num_executors=5,
     shs_url = _shs_url(discovery_path, spark)
     if shs_url is not None:
         logger.info("SHS link: {}".format(shs_url))
+
+    # backward compatibility of SPYT-48
+    if spark.conf.get("spark.sql.files.maxPartitionBytes") == "5000000":
+        spark.conf.set("spark.sql.files.maxPartitionBytes", "512Mb")
+
     return spark
 
 def _shs_url(discovery_path, spark):

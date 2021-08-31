@@ -8,13 +8,14 @@ class YtPartitionedFile(val path: String,
                         val endKey: Array[Byte],
                         val beginRow: Long,
                         val endRow: Long,
+                        val byteSize: Long,
                         val isDynamic: Boolean,
                         val keyColumns: Seq[String])
   extends PartitionedFile(
     partitionValues = YtPartitionedFile.emptyInternalRow,
     filePath = path,
     start = beginRow,
-    length = endRow - beginRow
+    length = byteSize
   )
 
 object YtPartitionedFile {
