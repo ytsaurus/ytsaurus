@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
@@ -119,8 +120,13 @@ public class ApiServiceClient extends TransactionalClient {
             @Nonnull RpcOptions options,
             @Nonnull Executor heavyExecutor
     ) {
+        Optional<OutageController> outageControllerOptional = options.getOutageController();
+        if (client != null && outageControllerOptional.isPresent()) {
+            this.rpcClient = new OutageRpcClient(client, outageControllerOptional.get());
+        } else {
+            this.rpcClient = client;
+        }
         this.heavyExecutor = Objects.requireNonNull(heavyExecutor);
-        this.rpcClient = client;
         this.rpcOptions = options;
     }
 
@@ -800,6 +806,7 @@ public class ApiServiceClient extends TransactionalClient {
                 req.getWindowSize(),
                 req.getPacketSize(),
                 req.getSerializer());
+
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableWriter);
         CompletableFuture<TableWriter<T>> result = streamControlFuture
                 .thenCompose(control -> tableWriter.startUpload());
@@ -862,6 +869,7 @@ public class ApiServiceClient extends TransactionalClient {
                 consumer,
                 builder.getOptions()
         );
+
         return CompletableFuture.completedFuture(control);
     }
 

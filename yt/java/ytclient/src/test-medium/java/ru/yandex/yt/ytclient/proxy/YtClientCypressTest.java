@@ -26,6 +26,33 @@ import static org.hamcrest.Matchers.is;
 public class YtClientCypressTest extends YtClientTestBase {
     int defaultFutureTimeoutSeconds = 2000;
 
+    @Test
+    public void testOutageExistsNode() throws Exception {
+        OutageController outageController = new OutageController();
+
+        var ytFixture = createYtFixture(new RpcOptions().setOutageController(outageController));
+        var tablePath = ytFixture.testDirectory.child("static-table");
+        var yt = ytFixture.yt;
+
+        yt.existsNode(tablePath.toString()).get(2, TimeUnit.SECONDS);
+
+        outageController.addFails("ExistsNode", 2, new RuntimeException("some error"));
+        outageController.addFails("OtherQuery", 2, new RuntimeException("some error"));
+
+        int errorsCount = 0;
+        for (int retryId = 0; retryId < 3; ++retryId) {
+            try {
+                yt.existsNode(tablePath.toString()).get(2, TimeUnit.SECONDS);
+            } catch (Exception ex) {
+                ++errorsCount;
+            }
+        }
+
+        yt.existsNode(tablePath.toString()).get(2, TimeUnit.SECONDS);
+
+        assertThat(errorsCount, is(2));
+    }
+
     @Test(timeout = 1000000)
     public void testBanningProxyReadingWritingTable() throws Exception {
         var ytFixture = createYtFixture();
@@ -46,6 +73,7 @@ public class YtClientCypressTest extends YtClientTestBase {
         var writer = yt.writeTable(
                 new WriteTable<>(tablePath.toString(), YTreeObjectSerializerFactory.forClass(TableRow.class))
         ).get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
+
         try {
             // Write first half of the data.
             writer.readyEvent().get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
