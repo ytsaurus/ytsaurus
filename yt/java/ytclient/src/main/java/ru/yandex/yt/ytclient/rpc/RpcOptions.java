@@ -2,10 +2,12 @@ package ru.yandex.yt.ytclient.rpc;
 
 import java.time.Duration;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ThreadFactory;
 
 import javax.annotation.Nullable;
 
+import ru.yandex.yt.ytclient.proxy.OutageController;
 import ru.yandex.yt.ytclient.proxy.internal.DiscoveryMethod;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolder;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolderImpl;
@@ -55,6 +57,8 @@ public class RpcOptions {
     private boolean traceEnabled = false;
     private boolean traceSampled = false;
     private boolean traceDebug = false;
+
+    private Optional<OutageController> outageController = Optional.empty();
 
     private DiscoveryMethod preferableDiscoveryMethod = DiscoveryMethod.RPC;
 
@@ -110,6 +114,21 @@ public class RpcOptions {
     public RpcOptions setDefaultRequestAck(boolean defaultRequestAck) {
         this.defaultRequestAck = defaultRequestAck;
         return this;
+    }
+
+    /**
+     * Allows to simulate rpc errors using controller.
+     */
+    public RpcOptions setOutageController(OutageController controller) {
+        this.outageController = Optional.of(Objects.requireNonNull(controller));
+        return this;
+    }
+
+    /**
+     * Returns controller if the client wants to enable the ability to have programmable errors.
+     */
+    public Optional<OutageController> getOutageController() {
+        return outageController;
     }
 
     public boolean getUseClientsCache() {

@@ -44,7 +44,8 @@ public interface RpcClient extends AutoCloseable {
             RpcClient sender,
             RpcRequest<?> request,
             RpcClientResponseHandler handler,
-            RpcOptions options);
+            RpcOptions options
+    );
 
     RpcClientStreamControl startStream(
             RpcClient sender,

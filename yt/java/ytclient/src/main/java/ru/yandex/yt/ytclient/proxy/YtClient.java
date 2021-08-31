@@ -10,6 +10,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
@@ -152,10 +153,17 @@ public class YtClient extends CompoundClient {
         this.isBusConnectorOwner = builder.builder.isBusConnectorOwner;
         this.executor = busConnector.executorService();
 
-        final RpcClientFactory rpcClientFactory = new RpcClientFactoryImpl(
-                busConnector,
-                builder.credentials,
-                builder.builder.compression);
+        Optional<OutageController> outageControllerOptional = builder.builder.options.getOutageController();
+
+        final RpcClientFactory rpcClientFactory =
+                outageControllerOptional.isPresent()
+                        ? new OutageRpcClientFactoryImpl(
+                                busConnector, builder.credentials, builder.builder.compression,
+                                outageControllerOptional.get())
+                        : new RpcClientFactoryImpl(
+                            busConnector,
+                            builder.credentials,
+                            builder.builder.compression);
 
         if (builder.builder.options.isNewDiscoveryServiceEnabled()) {
             poolProvider = new NewClientPoolProvider(
