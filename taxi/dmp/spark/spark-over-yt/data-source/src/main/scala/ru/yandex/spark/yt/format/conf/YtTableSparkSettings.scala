@@ -58,6 +58,7 @@ object YtTableSparkSettings {
         case conf if conf.name == key => conf.get(str)
       }.getOrElse(str)
     }
+
     val excludeOptions: Set[String] = Set(SortColumns, Schema, Path).map(_.name)
   }
 

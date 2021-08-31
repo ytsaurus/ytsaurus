@@ -76,7 +76,7 @@ object LocalYt extends DockerCompose {
   override def dockerContainers: List[DockerContainer] = {
     List(ytDocker, ytInterfaceDocker)
       .map(_.withNetworkMode(networkName))
-      .filter(container => !reuseDocker || !isContainerRunning(container.name.get)) ++ super.dockerContainers
+      .filter(container => !reuseDocker || !isRunning(container.name.get)) ++ super.dockerContainers
   }
 }
 

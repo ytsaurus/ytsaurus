@@ -1,9 +1,9 @@
 package ru.yandex.spark.yt.format.batch
 
 import org.apache.arrow.memory.{BufferAllocator, RootAllocator}
-import org.apache.arrow.vector.{FieldVector, VectorSchemaRoot}
 import org.apache.arrow.vector.dictionary.Dictionary
 import org.apache.arrow.vector.ipc.ArrowStreamReader
+import org.apache.arrow.vector.{FieldVector, VectorSchemaRoot}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.vectorized.{ColumnVector, ColumnarBatch}
 import org.slf4j.LoggerFactory

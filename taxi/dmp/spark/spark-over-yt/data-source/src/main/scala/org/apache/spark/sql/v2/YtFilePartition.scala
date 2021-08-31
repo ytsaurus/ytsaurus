@@ -6,14 +6,14 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.datasources.{PartitionDirectory, PartitionedFile}
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.format.YtPartitionedFile
-import ru.yandex.spark.yt.fs.{YtDynamicPath, YtFileStatus, YtPath, YtStaticPath}
+import ru.yandex.spark.yt.fs.{YtDynamicPath, YtPath, YtStaticPath}
 
 object YtFilePartition {
   @transient private val log = LoggerFactory.getLogger(getClass)
 
   def maxSplitBytes(sparkSession: SparkSession,
                     selectedPartitions: Seq[PartitionDirectory],
-                    optionMaxSplitBytes: Option[Long]): Long = {
+                    maybeReadParallelism: Option[Int]): Long = {
     val defaultMaxSplitBytes =
       sparkSession.sessionState.conf.filesMaxPartitionBytes
     val openCostInBytes = sparkSession.sessionState.conf.filesOpenCostInBytes
@@ -21,14 +21,9 @@ object YtFilePartition {
     val totalBytes = selectedPartitions.flatMap(_.files.map(_.getLen + openCostInBytes)).sum
     val bytesPerCore = totalBytes / defaultParallelism
 
-    val maxSplitBytes = optionMaxSplitBytes
-      .orElse {
-        selectedPartitions.flatMap { part =>
-          part.files.flatMap {
-            case f: YtFileStatus => Some(f.avgChunkSize)
-            case f => YtStaticPath.fromPath(f.getPath).map(_.rowCount)
-          }.reduceOption(_ max _)
-        }.reduceOption(_ max _)
+    val maxSplitBytes = maybeReadParallelism
+      .map { readParallelism =>
+        totalBytes / readParallelism + 1
       }
       .getOrElse {
         Math.min(defaultMaxSplitBytes, Math.max(openCostInBytes, bytesPerCore))
@@ -46,12 +41,18 @@ object YtFilePartition {
                          partitionValues: InternalRow): PartitionedFile = {
     YtPath.fromPath(file.getPath) match {
       case yp: YtDynamicPath =>
-        new YtPartitionedFile(yp.stringPath, yp.beginKey, yp.endKey, 0, 1, isDynamic = true, yp.keyColumns)
-      case yp: YtStaticPath =>
-        new YtPartitionedFile(yp.stringPath, Array.empty, Array.empty, yp.beginRow + offset,
-          yp.beginRow + offset + size, isDynamic = false, Nil)
-      case p => PartitionedFile(partitionValues, p.toUri.toString, offset, size, Array.empty)
+        new YtPartitionedFile(yp.stringPath, yp.beginKey, yp.endKey, 0, 1, file.getLen, isDynamic = true, yp.keyColumns)
+      case p =>
+        PartitionedFile(partitionValues, p.toUri.toString, offset, size, Array.empty)
     }
+  }
+
+  def getPartitionedFile(path: YtStaticPath,
+                         rowOffset: Long,
+                         rowCount: Long,
+                         byteSize: Long): PartitionedFile = {
+    new YtPartitionedFile(path.stringPath, Array.empty, Array.empty, path.beginRow + rowOffset,
+      path.beginRow + rowOffset + rowCount, byteSize, isDynamic = false, Nil)
   }
 
   def splitFiles(sparkSession: SparkSession,
@@ -60,12 +61,28 @@ object YtFilePartition {
                  isSplitable: Boolean,
                  maxSplitBytes: Long,
                  partitionValues: InternalRow): Seq[PartitionedFile] = {
-    if (isSplitable) {
-      (0L until file.getLen by maxSplitBytes).map { offset =>
-        val remaining = file.getLen - offset
-        val size = if (remaining > maxSplitBytes) maxSplitBytes else remaining
-        getPartitionedFile(file, offset, size, partitionValues)
+    def split(length: Long, splitSize: Long)
+             (f: (Long, Long) => PartitionedFile): Seq[PartitionedFile] = {
+      (0L until length by splitSize).map { offset =>
+        val remaining = length - offset
+        val size = if (remaining > splitSize) splitSize else remaining
+        f(offset, size)
       }
+    }
+
+    if (isSplitable) {
+      YtPath.fromPath(file.getPath) match {
+        case yp: YtStaticPath =>
+          val maxSplitRows = Math.max(1, Math.ceil(maxSplitBytes.toDouble / file.getLen  * yp.rowCount).toLong)
+          split(yp.rowCount, maxSplitRows) { case (offset, size) =>
+            getPartitionedFile(yp, offset, size, size * file.getBlockSize)
+          }
+        case _ =>
+          split(file.getLen, maxSplitBytes) { case (offset, size) =>
+            getPartitionedFile(file, offset, size, partitionValues)
+          }
+      }
+
     } else {
       Seq(getPartitionedFile(file, 0, file.getLen, partitionValues))
     }

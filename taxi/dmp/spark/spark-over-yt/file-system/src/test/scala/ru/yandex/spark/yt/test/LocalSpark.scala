@@ -3,8 +3,10 @@ package ru.yandex.spark.yt.test
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanExec
 import org.apache.spark.sql.execution.{SparkPlan, SparkStrategy}
-import org.apache.spark.sql.internal.SQLConf.FILE_COMMIT_PROTOCOL_CLASS
+import org.apache.spark.sql.internal.SQLConf.{FILES_OPEN_COST_IN_BYTES, FILE_COMMIT_PROTOCOL_CLASS}
 import org.apache.spark.sql.{DataFrame, SparkSession, Strategy}
+import org.apache.spark.yt.test.Utils
+import org.apache.spark.yt.test.Utils.SparkConfigEntry
 import org.scalatest.TestSuite
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter._
 import ru.yandex.spark.yt.wrapper.client.{YtClientProvider, YtRpcClient}
@@ -72,4 +74,22 @@ trait LocalSpark extends LocalYtClient {
 
     inner(Seq(plan), Seq(plan))
   }
+
+  def withConf[T, R](entry: SparkConfigEntry[T], value: String)(f: => R): R = {
+    withConf(entry.key, value, Some(entry.defaultValueString))(f)
+  }
+
+  def withConf[R](key: String, value: String, default: Option[String] = None)(f: => R): R = {
+    spark.conf.set(key, value)
+    try {
+      f
+    } finally {
+      default match {
+        case Some(value) => spark.conf.set(key, value)
+        case None => spark.conf.unset(key)
+      }
+    }
+  }
+
+  def defaultParallelism: Int = Utils.defaultParallelism(spark)
 }

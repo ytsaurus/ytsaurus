@@ -1,7 +1,5 @@
 package org.apache.spark.sql.v2
 
-import java.util.Locale
-
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.spark.internal.config.IO_WARNING_LARGEFILETHRESHOLD
@@ -15,6 +13,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.util.SerializableConfiguration
 
+import java.util.Locale
 import scala.collection.JavaConverters._
 
 case class YtScan(sparkSession: SparkSession,
@@ -53,9 +52,7 @@ case class YtScan(sparkSession: SparkSession,
   override def withFilters(partitionFilters: Seq[Expression], dataFilters: Seq[Expression]): FileScan =
     this.copy(partitionFilters = partitionFilters, dataFilters = dataFilters)
 
-  private val optionMaxSplitBytes = if (options.containsKey("maxSplitRows")) {
-    Some(options.get("maxSplitRows").toLong)
-  } else None
+  private val maybeReadParallelism = Option(options.get("readParallelism")).map(_.toInt)
 
   private val isCaseSensitive = sparkSession.sessionState.conf.caseSensitiveAnalysis
 
@@ -69,14 +66,15 @@ case class YtScan(sparkSession: SparkSession,
 
   override protected def partitions: Seq[FilePartition] = {
     val selectedPartitions = fileIndex.listFiles(partitionFilters, dataFilters)
-    val maxSplitBytes = YtFilePartition.maxSplitBytes(sparkSession, selectedPartitions, optionMaxSplitBytes)
+    val maxSplitBytes = YtFilePartition.maxSplitBytes(sparkSession, selectedPartitions, maybeReadParallelism)
     val partitionAttributes = fileIndex.partitionSchema.toAttributes
     val attributeMap = partitionAttributes.map(a => normalizeName(a.name) -> a).toMap
     val readPartitionAttributes = readPartitionSchema.map { readField =>
-      attributeMap.get(normalizeName(readField.name)).getOrElse {
+      attributeMap.getOrElse(
+        normalizeName(readField.name),
         throw new AnalysisException(s"Can't find required partition column ${readField.name} " +
           s"in partition schema ${fileIndex.partitionSchema}")
-      }
+      )
     }
     lazy val partitionValueProject =
       GenerateUnsafeProjection.generate(readPartitionAttributes, partitionAttributes)
@@ -101,8 +99,8 @@ case class YtScan(sparkSession: SparkSession,
     }
 
     if (splitFiles.length == 1) {
-      val path = new Path(splitFiles(0).filePath)
-      if (!isSplitable(path) && splitFiles(0).length >
+      val path = new Path(splitFiles.head.filePath)
+      if (!isSplitable(path) && splitFiles.head.length >
         sparkSession.sparkContext.getConf.get(IO_WARNING_LARGEFILETHRESHOLD)) {
         logWarning(s"Loading one large unsplittable file ${path.toString} with only one " +
           s"partition, the reason is: ${getFileUnSplittableReason(path)}")

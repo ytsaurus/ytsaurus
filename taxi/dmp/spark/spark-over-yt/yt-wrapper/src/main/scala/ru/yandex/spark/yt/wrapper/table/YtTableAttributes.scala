@@ -46,4 +46,8 @@ trait YtTableAttributes {
   def tableType(attrs: Map[String, YTreeNode]): TableType = {
     tableType(attrs(YtAttributes.dynamic))
   }
+
+  def dataWeight(attrs: Map[String, YTreeNode]): Long = {
+   attrs(YtAttributes.dataWeight).longValue()
+  }
 }

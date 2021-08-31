@@ -26,14 +26,14 @@ trait DockerCompose extends DockerKit {
   protected def shutdownHook(): Unit = {}
 
   protected def cleanPrevEnvironment(): Unit = {
-    deleteNetwork(networkName)
+    if (!reuseDocker) deleteNetwork(networkName)
   }
 
   @volatile private var initialized = false
 
   protected val reuseDocker: Boolean = readConfig("reuseDocker").flatMap(_.asBoolean).getOrElse(false)
 
-  private def runningContainers: Seq[Container] = docker.client.listContainersCmd().exec().asScala
+  private def allContainers: Seq[Container] = docker.client.listContainersCmd().withShowAll(true).exec().asScala
 
   private def runningNetworks: Seq[Network] = docker.client.listNetworksCmd().exec().asScala
 
@@ -51,7 +51,7 @@ trait DockerCompose extends DockerKit {
   def init(): Unit = synchronized {
     if (!initialized) {
       val ts = System.currentTimeMillis()
-      if (!reuseDocker) cleanPrevEnvironment() // if previous run was killed and didn't stop containers and network
+      cleanPrevEnvironment() // if previous run was killed and didn't stop containers and network
       log.info(s"Cleaned previous docker env in ${System.currentTimeMillis() - ts}ms")
       val ts2 = System.currentTimeMillis()
       startAllOrFail()
@@ -120,24 +120,35 @@ trait DockerCompose extends DockerKit {
     }
   }
 
-  protected def isContainerRunning(name: String): Boolean = {
-    runningContainers.exists(_.getNames.contains(s"/$name"))
+  protected def isRunning(c: Container): Boolean = {
+    !c.getStatus.startsWith("Exited")
   }
+
+  protected def isRunning(name: String): Boolean = {
+    allContainers.find(hasName(_, name)).exists(isRunning)
+  }
+
+  private def hasName(c: Container, name: String): Boolean = c.getNames.contains(s"/$name")
 
   private def networkRunning(name: String): Option[Network] = {
     runningNetworks.find(_.getName == name)
   }
 
   protected def stopAndRmContainer(name: String): Unit = {
-    if (isContainerRunning(name)) {
-      docker.client
-        .stopContainerCmd(name)
-        .exec()
-      log.info(s"Stopped container $name")
-      docker.client
-        .removeContainerCmd(name)
-        .exec()
-      log.info(s"Removed container $name")
+    allContainers.find(hasName(_, name)).foreach { c =>
+      if (isRunning(c) && !reuseDocker) {
+        docker.client
+          .stopContainerCmd(name)
+          .exec()
+        log.info(s"Stopped container $name")
+      }
+
+      if (!isRunning(c)) {
+        docker.client
+          .removeContainerCmd(name)
+          .exec()
+        log.info(s"Removed container $name")
+      }
     }
   }
 }

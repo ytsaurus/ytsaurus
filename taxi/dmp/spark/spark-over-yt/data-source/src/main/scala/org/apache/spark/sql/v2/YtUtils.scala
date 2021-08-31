@@ -11,8 +11,6 @@ import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
-import scala.collection.mutable
-
 object YtUtils {
   private def getFilePath(fileStatus: FileStatus): String = {
     fileStatus.getPath match {
