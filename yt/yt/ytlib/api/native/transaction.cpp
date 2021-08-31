@@ -1532,7 +1532,9 @@ private:
                 }
 
                 return transaction;
-            }) /* serialization intentionally omitted */);
+                // NB: Serialized invoker below is needed since DoRegisterSyncReplicaAlienTransaction acquires
+                // a spinlock and in the worst will deadlock with ModifyRows.
+            }).AsyncVia(SerializedInvoker_));
     }
 
 
