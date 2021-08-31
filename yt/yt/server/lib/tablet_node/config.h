@@ -1155,14 +1155,15 @@ public:
             // Instantiate default throttler configs.
             Throttlers[ETabletNodeThrottlerKind::StaticStorePreloadIn] = New<NConcurrency::TRelativeThroughputThrottlerConfig>(100_MB);
             Throttlers[ETabletNodeThrottlerKind::DynamicStoreReadOut] = New<NConcurrency::TRelativeThroughputThrottlerConfig>(100_MB);
+        });
+
+        RegisterPostprocessor([&] {
             for (auto kind : TEnumTraits<ETabletNodeThrottlerKind>::GetDomainValues()) {
                 if (!Throttlers[kind]) {
                     Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>();
                 }
             }
-        });
 
-        RegisterPostprocessor([&] {
             if (InMemoryManager->PreloadThrottler) {
                 Throttlers[ETabletNodeThrottlerKind::StaticStorePreloadIn] = InMemoryManager->PreloadThrottler;
             }
