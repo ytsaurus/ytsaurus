@@ -830,16 +830,21 @@ class TestPendingTimeFeatures(YTEnvSetup):
             spec={
                 "tasks": {
                     "task1": {
-                        "job_count": 2,
-                        "command": "sleep 4",
+                        "job_count": 1,
+                        "command": with_breakpoint("sleep 2; BREAKPOINT; sleep 2;"),
                     },
                 },
             },
             track=False,
         )
-        time.sleep(2)
+        wait_breakpoint()
+        op.wait_for_fresh_snapshot()
+
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
-            time.sleep(2)
+            time.sleep(10)
+
+        op.ensure_running()
+        release_breakpoint()
 
         op.track()
 
@@ -857,9 +862,10 @@ class TestPendingTimeFeatures(YTEnvSetup):
 
         ready_time, exhaust_time, wall_time = get_time(op)
 
-        assert ready_time > 500
-        assert exhaust_time > 500
-        assert wall_time > 8000
+        assert ready_time < 500
+        assert exhaust_time > 4000
+        assert exhaust_time < 17000
+        assert wall_time > 14000
 
         op = vanilla(
             spec={
