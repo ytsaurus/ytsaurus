@@ -161,6 +161,8 @@ func (c *client) invoke(
 		opts = append(opts, bus.WithAttachments(call.Attachments...))
 	}
 
+	c.injectTracing(ctx, &opts)
+
 	conn, err := c.getConn(ctx, addr)
 	if err != nil {
 		return err
@@ -188,6 +190,19 @@ func (c *client) startCall() *Call {
 	return &Call{
 		Backoff: bf,
 	}
+}
+
+func (c *client) injectTracing(ctx context.Context, opts *[]bus.SendOption) {
+	if c.conf.TraceFn == nil {
+		return
+	}
+
+	traceID, spanID, flags, ok := c.conf.TraceFn(ctx)
+	if !ok {
+		return
+	}
+
+	*opts = append(*opts, bus.WithTracing(traceID, spanID, flags))
 }
 
 // LockRows wraps encoder's implementation with transaction.
