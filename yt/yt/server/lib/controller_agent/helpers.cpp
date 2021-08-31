@@ -7,6 +7,7 @@
 
 #include <util/generic/cast.h>
 
+// TODO(max42): this whole file must be moved to server/lib/job_tracker_client.
 namespace NYT::NJobTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
