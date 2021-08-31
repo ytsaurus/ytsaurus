@@ -16,6 +16,7 @@ class TReqDiscover;
 class TRspDiscover;
 class TRequestHeader;
 class TResponseHeader;
+class TCredentialsExt;
 
 } // namespace NProto
 

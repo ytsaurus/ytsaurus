@@ -4,7 +4,12 @@
 
 #include <yt/yt/core/misc/format.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 namespace NYT::NRpc {
+
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,6 +28,18 @@ bool TAuthenticationIdentity::operator==(const TAuthenticationIdentity& other) c
 bool TAuthenticationIdentity::operator!=(const TAuthenticationIdentity& other) const
 {
     return !(*this == other);
+}
+
+void Serialize(const TAuthenticationIdentity& identity, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("user").Value(identity.User)
+            .DoIf(!identity.UserTag.empty() && identity.UserTag != identity.User, [&] (TFluentMap fluent) {
+                fluent
+                    .Item("user_tag").Value(identity.UserTag);
+            })
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

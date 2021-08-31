@@ -5,6 +5,7 @@
 #include "config.h"
 #include "proxy_coordinator.h"
 #include "security_manager.h"
+#include "private.h"
 
 #include <yt/yt/server/lib/misc/format_manager.h>
 
@@ -13,6 +14,7 @@
 #include <yt/yt/ytlib/auth/config.h>
 #include <yt/yt/ytlib/auth/cookie_authenticator.h>
 #include <yt/yt/ytlib/auth/token_authenticator.h>
+#include <yt/yt/ytlib/auth/helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/client_cache.h>
@@ -62,9 +64,12 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
+#include <yt/yt/core/logging/fluent_log.h>
+
 #include <yt/yt/core/misc/cast.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/mpl.h>
 
 #include <yt/yt/core/profiling/profiler.h>
 
@@ -92,6 +97,7 @@ using namespace NScheduler;
 using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NProfiling;
+using namespace NLogging;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -105,6 +111,8 @@ namespace {
 
 using NYT::FromProto;
 using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
 
 TError MakeCanceledError()
 {
@@ -331,6 +339,129 @@ struct TDetailedTableProfilingCounters
     NProfiling::TEventTimer SelectDuration;
 };
 
+//! This context extends standard typed service context. By this moment it is used for structured
+//! logging reasons.
+template <class TRequestMessage, class TResponseMessage>
+class TApiServiceContext
+    : public TTypedServiceContext<TRequestMessage, TResponseMessage>
+{
+public:
+    // For most cases the most important request field is "path". If it is present in request message,
+    // we want to see it in the structured log.
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, RequestPath);
+
+public:
+    using TTypedServiceContext<TRequestMessage, TResponseMessage>::TTypedServiceContext;
+
+    void SetupMainMessage(TYsonString requestYson)
+    {
+        EmitMain_ = true;
+        RequestYson_ = std::move(requestYson);
+    }
+
+    void SetupErrorMessage()
+    {
+        EmitError_ = true;
+    }
+
+    void LogStructured() const
+    {
+        if (EmitMain_) {
+            DoEmitMain();
+        }
+        if (EmitError_) {
+            DoEmitError();
+        }
+    }
+
+private:
+    //! True if message should be emitted to main topic.
+    bool EmitMain_ = false;
+    // YSON-serialized request body. This field may be really heavy.
+    std::optional<TYsonString> RequestYson_;
+
+    //! True if message should be emitted to error topic provided that request indeed resulted in error.
+    bool EmitError_ = false;
+
+    TError GetFinalError() const
+    {
+        return this->IsCanceled() ? MakeCanceledError() : this->GetError();
+    }
+
+    void DoEmitMain() const
+    {
+        // This topic is a complete verbose structured logging, similar to HTTP proxy structured logging.
+        // Note that message contains full request body encoded in YSON, so messages may be really heavy.
+        // At production clusters, messages from this topic should not be emitted for the most frequently
+        // invoked methods like LookupRows or ModifyRows.
+
+        const auto& header = this->GetRequestHeader();
+        const auto& credentialsExt = header.GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
+        auto hashedCredentials = NAuth::HashCredentials(credentialsExt);
+        const auto& traceContext = this->GetTraceContext();
+
+        LogStructuredEventFluently(RpcProxyStructuredLoggerMain, ELogLevel::Info)
+            .Item("request_id").Value(this->GetRequestId())
+            .Item("endpoint").Value(this->GetEndpointAttributes())
+            .Item("method").Value(this->GetMethod())
+            .OptionalItem("path", RequestPath_)
+            .Item("request").Value(RequestYson_)
+            .Item("identity").Value(this->GetAuthenticationIdentity())
+            .Item("credentials").Value(hashedCredentials)
+            .Item("is_retry").Value(this->IsRetry())
+            .OptionalItem("mutation_id", this->GetMutationId())
+            .OptionalItem("realm_id", this->GetRealmId())
+            // Zero-value corresponds to default tos level, so OptionalItem works reasonably,
+            // producing item only if tos level is different from default one.
+            .OptionalItem("tos_level", header.tos_level())
+            .DoIf(static_cast<bool>(traceContext), [&] (auto fluent) {
+                fluent
+                    .Item("trace_id").Value(traceContext->GetTraceId());
+            })
+            .Item("error").Value(GetFinalError())
+            .OptionalItem("user_agent", YT_PROTO_OPTIONAL(header, user_agent))
+            .OptionalItem("request_body_size", GetMessageBodySize(this->GetRequestMessage()))
+            .OptionalItem("request_attachment_total_size", GetTotalMessageAttachmentSize(this->GetRequestMessage()))
+            .DoIf(!this->IsCanceled(), [&] (auto fluent) {
+                fluent
+                    .OptionalItem("response_body_size", GetMessageBodySize(this->GetResponseMessage()))
+                    .OptionalItem("response_attachment_total_size", GetTotalMessageAttachmentSize(this->GetResponseMessage()));
+            })
+            .OptionalItem("client_start_time", this->GetStartTime())
+            .OptionalItem("timeout", this->GetTimeout())
+            .Item("arrive_instant").Value(this->GetArriveInstant())
+            .Item("wait_time").Value(this->GetWaitDuration())
+            .Item("execution_time").Value(this->GetExecutionDuration())
+            .Item("finish_instant").Value(this->GetFinishInstant())
+            .OptionalItem("cpu_time", this->GetTraceContextTime());
+            // TODO(max42): bundles and table paths for dynamic table transactional commands.
+    }
+
+    void DoEmitError() const
+    {
+        // This topic is designated for (primarily dyntable) error analytics reasons.
+        // It is expected to be significantly lighter than main topic, so it is enabled
+        // for all methods by default. Messages are emitted only for requests resulted
+        // in errors.
+
+        auto error = GetFinalError();
+        if (error.IsOK()) {
+            return;
+        }
+
+        LogStructuredEventFluently(RpcProxyStructuredLoggerError, ELogLevel::Info)
+            .Item("request_id").Value(this->GetRequestId())
+            .Item("endpoint").Value(this->GetEndpointAttributes())
+            .Item("method").Value(this->GetMethod())
+            .OptionalItem("path", RequestPath_)
+            .Item("identity").Value(this->GetAuthenticationIdentity())
+            .Item("error").Value(error);
+            // TODO(max42): YT-15042. Add error skeleton.
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -341,6 +472,9 @@ class TApiService
     : public TServiceBase
 {
 public:
+    template <class TRequestMessage, class TResponseMessage>
+    using TTypedServiceContextImpl = TApiServiceContext<TRequestMessage, TResponseMessage>;
+
     TApiService(
         IBootstrap* bootstrap,
         NLogging::TLogger logger,
@@ -525,6 +659,47 @@ private:
             if (identity.UserTag != identity.User) {
                 traceContext->AddTag("user_tag", identity.UserTag);
             }
+        }
+    }
+
+    template <class TRequestMessage, class TResponseMessage>
+    void InitContext(const TIntrusivePtr<TApiServiceContext<TRequestMessage, TResponseMessage>>& context)
+    {
+        using TContext = NYT::NRpcProxy::TApiServiceContext<TRequestMessage, TResponseMessage>;
+
+        // First, recover request path from the typed request context using the incredible power of C++20 concepts.
+        std::optional<TString> requestPath;
+        if constexpr (requires { context->Request().path(); }) {
+            requestPath.emplace(context->Request().path());
+        }
+
+        context->SetRequestPath(std::move(requestPath));
+
+        // Then, connect it to the typed context using subscriptions for reply and cancel signals.
+        context->SubscribeReplied(BIND(&TContext::LogStructured, MakeWeak(context)));
+        context->SubscribeCanceled(BIND(&TContext::LogStructured, MakeWeak(context)));
+
+        // Finally, setup structured logging messages to be emitted.
+
+        auto shouldEmit = [method = context->GetMethod()] (const TStructuredLoggingTopicConfigPtr& config) {
+            return config->Enable && !config->SuppressedMethods.contains(method);
+        };
+
+        // NB: we try to do heavy work only if we are actually going to omit corresponding message. Conserve priceless CPU time.
+        if (shouldEmit(Config_->StructuredLoggingMainTopic)) {
+            TString requestYson;
+            TStringOutput requestOutput(requestYson);
+            TYsonWriter requestYsonWriter(&requestOutput, EYsonFormat::Text);
+            TProtobufParserOptions parserOptions{
+                .SkipUnknownFields = true,
+            };
+            WriteProtobufMessage(&requestYsonWriter, context->Request(), parserOptions);
+
+            context->SetupMainMessage(TYsonString(std::move(requestYson)));
+        }
+
+        if (shouldEmit(Config_->StructuredLoggingErrorTopic)) {
+            context->SetupErrorMessage();
         }
     }
 

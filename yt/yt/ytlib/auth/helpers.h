@@ -9,6 +9,8 @@
 
 #include <yt/yt/core/net/public.h>
 
+#include <yt/yt/core/rpc/public.h>
+
 #include <yt/yt/client/api/public.h>
 
 namespace NYT::NAuth {
@@ -49,6 +51,18 @@ private:
     TStringBuilder SafeUrl_;
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct THashedCredentials
+{
+    std::optional<TString> TokenHash;
+    // TODO(max42): add remaining fields from TCredentialsExt when needed.
+};
+
+THashedCredentials HashCredentials(const NRpc::NProto::TCredentialsExt& credentialsExt);
+
+void Serialize(const THashedCredentials& hashedCredentials, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
