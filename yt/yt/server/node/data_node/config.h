@@ -1119,14 +1119,16 @@ public:
             RepairReader->PopulateCache = false;
             RepairReader->RetryTimeout = TDuration::Minutes(15);
             SealReader->PopulateCache = false;
-
-            // Instantiate default throttler configs.
-            for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
-                Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>();
-            }
         });
 
         RegisterPostprocessor([&] {
+            // Instantiate default throttler configs.
+            for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
+                if (!Throttlers[kind]) {
+                    Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>();
+                }
+            }
+
             // COMPAT(gritukan)
             if (!MasterConnector->IncrementalHeartbeatPeriod) {
                 MasterConnector->IncrementalHeartbeatPeriod = IncrementalHeartbeatPeriod;
