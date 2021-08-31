@@ -60,8 +60,12 @@ public class CreateNode extends MutatePath<CreateNode> implements HighLevelReque
         setAttributes(attributes);
     }
 
-    public CreateNode(YPath path, CypressNodeType type, Map<String, YTreeNode> attributes) {
+    public CreateNode(YPath path, CypressNodeType type) {
         this(path, ObjectType.from(type));
+    }
+
+    public CreateNode(YPath path, CypressNodeType type, Map<String, YTreeNode> attributes) {
+        this(path, type);
         setAttributes(attributes);
     }
 
