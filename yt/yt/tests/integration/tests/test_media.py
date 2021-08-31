@@ -635,8 +635,10 @@ class TestMedia(YTEnvSetup):
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
 
         chunk_ids = get("//tmp/t/@chunk_ids")
-        requisitions = get("#{0}/@requisition".format(chunk_ids[0]))
-        assert [r["medium"] for r in requisitions] == ["default", TestMedia.NON_DEFAULT_MEDIUM]
+        def are_requisitions_correct():
+            requisitions = get("#{0}/@requisition".format(chunk_ids[0]))
+            return [r["medium"] for r in requisitions] == ["default", TestMedia.NON_DEFAULT_MEDIUM]
+        wait(are_requisitions_correct)
 
 
 ################################################################################
