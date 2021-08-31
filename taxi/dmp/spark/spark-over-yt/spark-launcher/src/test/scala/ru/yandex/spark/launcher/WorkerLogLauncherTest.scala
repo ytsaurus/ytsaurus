@@ -36,7 +36,8 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
     tablesPath = tablesDir,
     updateInterval = 20 seconds,
     bufferSize = 1000,
-    ytTableRowLimit = 500
+    ytTableRowLimit = 500,
+    tableTTL = 20 seconds
   )
 
   private def createLocalDir(path: String): Unit = {

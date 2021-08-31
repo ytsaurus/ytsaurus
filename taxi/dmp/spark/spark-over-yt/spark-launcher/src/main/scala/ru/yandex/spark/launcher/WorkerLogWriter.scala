@@ -12,7 +12,6 @@ import scala.collection.mutable.ArrayBuffer
 class WorkerLogWriter(workerLogConfig: WorkerLogConfig)(implicit yt: CompoundClient) extends LogLazy {
   private val log = LoggerFactory.getLogger(getClass)
   private val buffer = new ArrayBuffer[WorkerLogBlock](workerLogConfig.bufferSize)
-
   def write(block: WorkerLogBlock): Int = {
     if (buffer.length == workerLogConfig.bufferSize) {
       flush()
@@ -48,7 +47,8 @@ class WorkerLogWriter(workerLogConfig: WorkerLogConfig)(implicit yt: CompoundCli
 
   private def uploadOneTable(date: LocalDate, logArray: Seq[WorkerLogBlock]): Unit = {
     import scala.collection.JavaConverters._
-    YtWrapper.createDynTableAndMount(s"${workerLogConfig.tablesPath}/$date", schema)
+    YtWrapper.createDynTableAndMount(s"${workerLogConfig.tablesPath}/$date", schema,
+      Map("expiration_time" -> (System.currentTimeMillis() + workerLogConfig.tableTTL.toMillis)))
     YtWrapper.insertRows(
       s"${workerLogConfig.tablesPath}/$date",
       schema,
