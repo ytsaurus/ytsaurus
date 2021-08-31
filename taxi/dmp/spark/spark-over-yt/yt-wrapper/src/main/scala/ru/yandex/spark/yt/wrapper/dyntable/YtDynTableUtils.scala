@@ -105,25 +105,23 @@ trait YtDynTableUtils {
     exists(path) && tabletState(path) == TabletState.Mounted
   }
 
-  def createDynTableAndMount(path: String, schema: TableSchema, ignoreExisting: Boolean = true)(implicit yt: CompoundClient): Unit = {
+  def createDynTableAndMount(path: String, schema: TableSchema, settings: Map[String, Any] = Map.empty, ignoreExisting: Boolean = true)(implicit yt: CompoundClient): Unit = {
     if (isDynTablePrepared(path) && !ignoreExisting) {
       throw new RuntimeException("Table already exists")
     }
     if (!exists(path)) {
-      createDynTable(path, schema)
+      createDynTable(path, schema, settings)
     }
     if (tabletState(path) == TabletState.Unmounted) {
       mountAndWait(path)
     }
   }
 
-  def createDynTable(path: String, schema: TableSchema)(implicit yt: CompoundClient): Unit = {
+  def createDynTable(path: String, schema: TableSchema, settings: Map[String, Any] = Map.empty)(implicit yt: CompoundClient): Unit = {
     createTable(path, new YtTableSettings {
       override def ytSchema: YTreeNode = schema.toYTree
 
-      override def optionsAny: Map[String, Any] = Map(
-        "dynamic" -> "true"
-      )
+      override def optionsAny: Map[String, Any] = settings + ("dynamic" -> "true")
     })
   }
 

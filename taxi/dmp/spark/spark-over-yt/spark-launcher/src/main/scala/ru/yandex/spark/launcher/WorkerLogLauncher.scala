@@ -25,7 +25,9 @@ object WorkerLogLauncher extends VanillaLauncher {
                              tablesPath: String,
                              updateInterval: Duration,
                              bufferSize: Int,
-                             ytTableRowLimit: Int)
+                             ytTableRowLimit: Int,
+                             tableTTL: Duration
+                            )
 
   object WorkerLogConfig {
     val minimalInterval: Duration = 1 minute
@@ -79,7 +81,9 @@ object WorkerLogLauncher extends VanillaLauncher {
             .map(_.toInt).getOrElse(100),
           ytTableRowLimit = args.optional("wlog-yttable-row-limit")
             .orElse(sparkConf.get("spark.hadoop.yt.dynTable.rowSize"))
-            .map(_.toInt).getOrElse(16777216)
+            .map(_.toInt).getOrElse(16777216),
+          tableTTL = sparkConf.get("spark.workerLog.tableTTL")
+          .map(parseDuration).getOrElse(7 days)
         ))
       }
     }
