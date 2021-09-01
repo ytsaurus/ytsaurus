@@ -32,7 +32,7 @@ public:
             .WillByDefault(ReturnArg<0>());
     }
 
-    MOCK_METHOD2(F, bool(bool passThrough, const char* comment));
+    MOCK_METHOD(bool, F, (bool passThrough, const char* comment), (override));
 };
 
 TEST(TVerifyDeathTest, DISABLED_NoCrashForTruthExpression)

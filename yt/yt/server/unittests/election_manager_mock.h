@@ -12,16 +12,16 @@ class TElectionCallbacksMock
     : public IElectionCallbacks
 {
 public:
-    MOCK_METHOD1(OnStartLeading, void(TEpochContextPtr epochContext));
-    MOCK_METHOD1(OnStopLeading, void(const TError&));
+    MOCK_METHOD(void, OnStartLeading, (TEpochContextPtr epochContext), (override));
+    MOCK_METHOD(void, OnStopLeading, (const TError&), (override));
 
-    MOCK_METHOD1(OnStartFollowing, void(TEpochContextPtr epochContext));
-    MOCK_METHOD1(OnStopFollowing, void(const TError&));
+    MOCK_METHOD(void, OnStartFollowing, (TEpochContextPtr epochContext), (override));
+    MOCK_METHOD(void, OnStopFollowing, (const TError&), (override));
 
-    MOCK_METHOD1(OnStopVoting, void(const TError&));
+    MOCK_METHOD(void, OnStopVoting, (const TError&), (override));
 
-    MOCK_METHOD0(GetPriority, TPeerPriority());
-    MOCK_METHOD1(FormatPriority, TString(TPeerPriority priority));
+    MOCK_METHOD(TPeerPriority, GetPriority, (), (override));
+    MOCK_METHOD(TString, FormatPriority, (TPeerPriority priority), (override));
 };
 
 ////////////////////////////////////////////////////////////////////////////////

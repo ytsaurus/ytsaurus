@@ -225,7 +225,7 @@ TEST_F(TFutureTest, SetAndTryGet)
 class TMock
 {
 public:
-    MOCK_METHOD1(Tacke, void(int));
+    MOCK_METHOD(void, Tacke, (int), ());
 };
 
 TEST_F(TFutureTest, Subscribe)

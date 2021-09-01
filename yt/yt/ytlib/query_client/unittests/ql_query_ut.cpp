@@ -915,21 +915,21 @@ class TReaderMock
     : public ISchemafulUnversionedReader
 {
 public:
-    MOCK_METHOD1(Read, IUnversionedRowBatchPtr(const TRowBatchReadOptions& options));
-    MOCK_CONST_METHOD0(GetReadyEvent, TFuture<void>());
-    MOCK_CONST_METHOD0(IsFetchingCompleted, bool());
-    MOCK_CONST_METHOD0(GetFailedChunkIds, std::vector<NChunkClient::TChunkId>());
-    MOCK_CONST_METHOD0(GetDataStatistics, TDataStatistics());
-    MOCK_CONST_METHOD0(GetDecompressionStatistics, NChunkClient::TCodecStatistics());
+    MOCK_METHOD(IUnversionedRowBatchPtr, Read, (const TRowBatchReadOptions& options), (override));
+    MOCK_METHOD(TFuture<void>, GetReadyEvent, (), (const, override));
+    MOCK_METHOD(bool, IsFetchingCompleted, (), (const, override));
+    MOCK_METHOD(std::vector<NChunkClient::TChunkId>, GetFailedChunkIds, (), (const, override));
+    MOCK_METHOD(TDataStatistics, GetDataStatistics, (), (const, override));
+    MOCK_METHOD(NChunkClient::TCodecStatistics, GetDecompressionStatistics, (), (const, override));
 };
 
 class TWriterMock
     : public IUnversionedRowsetWriter
 {
 public:
-    MOCK_METHOD0(Close, TFuture<void>());
-    MOCK_METHOD1(Write, bool(TRange<TUnversionedRow>));
-    MOCK_METHOD0(GetReadyEvent, TFuture<void>());
+    MOCK_METHOD(TFuture<void>, Close, (), (override));
+    MOCK_METHOD(bool, Write, (TRange<TUnversionedRow>), (override));
+    MOCK_METHOD(TFuture<void>, GetReadyEvent, (), (override));
 };
 
 TOwningRow YsonToRow(

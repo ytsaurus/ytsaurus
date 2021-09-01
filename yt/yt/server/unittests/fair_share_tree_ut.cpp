@@ -242,13 +242,13 @@ public:
         : JobResourcesList(std::move(jobResourcesList))
     { }
 
-    MOCK_METHOD4(ScheduleJob, TFuture<TControllerScheduleJobResultPtr>(
+    MOCK_METHOD(TFuture<TControllerScheduleJobResultPtr>, ScheduleJob, (
         const ISchedulingContextPtr& context,
         const TJobResources& jobLimits,
         const TString& treeId,
-        const TFairShareStrategyTreeConfigPtr& treeConfig));
+        const TFairShareStrategyTreeConfigPtr& treeConfig), (override));
 
-    MOCK_METHOD2(OnNonscheduledJobAborted, void(TJobId, EAbortReason));
+    MOCK_METHOD(void, OnNonscheduledJobAborted, (TJobId, EAbortReason), (override));
 
     TJobResources GetNeededResources() const override
     {
