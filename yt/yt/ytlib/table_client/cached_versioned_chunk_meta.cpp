@@ -177,7 +177,9 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
 
 i64 TCachedVersionedChunkMeta::GetMemoryUsage() const
 {
-    return TColumnarChunkMeta::GetMemoryUsage();
+    return TColumnarChunkMeta::GetMemoryUsage()
+        + MinKey_.GetSpaceUsed()
+        + MaxKey_.GetSpaceUsed();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
