@@ -87,6 +87,18 @@ TEST(TMemoryUsageTrackerTest, NoCategoryLimit)
     EXPECT_EQ(tracker->GetUsed(ECategory::Foo), 5000);
 }
 
+TEST(TMemoryUsageTrackerTest, ForbidZeroTryAcquireWhenOvercommit)
+{
+    auto tracker = CreateTracker(3000, {1000, 1000, 1000});
+
+    tracker->Acquire(ECategory::Foo, 1000);
+    EXPECT_EQ(tracker->GetFree(ECategory::Foo), 0);
+    EXPECT_TRUE(tracker->TryAcquire(ECategory::Foo, 0).IsOK());
+    tracker->Acquire(ECategory::Foo, 1);
+    EXPECT_EQ(tracker->GetFree(ECategory::Foo), 0);
+    EXPECT_FALSE(tracker->TryAcquire(ECategory::Foo, 0).IsOK());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

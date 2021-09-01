@@ -191,10 +191,10 @@ i64 TMemoryUsageTracker<ECategory, TPoolTag>::DoGetUsed(ECategory category, cons
 template <class ECategory, class TPoolTag>
 i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetFree(ECategory category, const std::optional<TPoolTag>& poolTag) const
 {
-    auto result = DoGetFree(category);
+    auto freeMemory = std::max(static_cast<i64>(0), DoGetFree(category));
 
     if (!poolTag) {
-        return result;
+        return freeMemory;
     }
 
     auto guard = Guard(SpinLock_);
@@ -205,7 +205,8 @@ i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetFree(ECategory category, const 
         return 0;
     }
 
-    return std::min(result, DoGetFree(category, pool));
+    auto poolFreeMemory = std::max(static_cast<i64>(0), DoGetFree(category, pool));
+    return std::min(freeMemory, poolFreeMemory);
 }
 
 template <class ECategory, class TPoolTag>
@@ -213,7 +214,7 @@ i64 TMemoryUsageTracker<ECategory, TPoolTag>::DoGetFree(ECategory category) cons
 {
     auto limit = DoGetLimit(category);
     auto used = DoGetUsed(category);
-    return std::clamp(limit - used, static_cast<i64>(0), GetTotalFree());
+    return std::min(limit - used, GetTotalFree());
 }
 
 template <class ECategory, class TPoolTag>
@@ -221,7 +222,7 @@ i64 TMemoryUsageTracker<ECategory, TPoolTag>::DoGetFree(ECategory category, cons
 {
     auto limit = DoGetLimit(category, pool);
     auto used = DoGetUsed(category, pool);
-    return std::clamp(limit - used, static_cast<i64>(0), GetTotalFree());
+    return std::min(limit - used, GetTotalFree());
 }
 
 template <class ECategory, class TPoolTag>
@@ -341,12 +342,12 @@ TError TMemoryUsageTracker<ECategory, TPoolTag>::TryChange(ECategory category, i
     auto* pool = GetOrRegisterPool(poolTag);
 
     auto currentSize = DoGetUsed(category, pool);
-    if (size >= currentSize) {
+    if (size > currentSize) {
         return DoTryAcquire(category, size - currentSize, pool);
-    } else {
+    } else if (size < currentSize) {
         DoRelease(category, currentSize - size, pool);
-        return {};
     }
+    return {};
 }
 
 template <class ECategory, class TPoolTag>
@@ -355,23 +356,23 @@ TError TMemoryUsageTracker<ECategory, TPoolTag>::DoTryAcquire(ECategory category
     YT_VERIFY(size >= 0);
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
-    auto free = DoGetFree(category);
-    if (size > free) {
+    auto freeMemory = DoGetFree(category);
+    if (size > freeMemory) {
         return TError(
             "Not enough memory to serve %Qlv acquisition request",
             category)
-            << TErrorAttribute("bytes_free", free)
+            << TErrorAttribute("bytes_free", freeMemory)
             << TErrorAttribute("bytes_requested", size);
     }
 
     if (pool) {
-        auto poolFree = DoGetFree(category, pool);
-        if (size > poolFree) {
+        auto poolFreeMemory = DoGetFree(category, pool);
+        if (size > poolFreeMemory) {
             return TError(
                 "Not enough memory to serve %Qlv request in pool %Qv",
                 category,
                 pool->Tag)
-                << TErrorAttribute("bytes_free", poolFree)
+                << TErrorAttribute("bytes_free", poolFreeMemory)
                 << TErrorAttribute("bytes_requested", size);
         }
     }
