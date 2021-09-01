@@ -291,7 +291,7 @@ class TablePath(YPathSupportingAppend):
     Supported attributes:
 
     * append -- append to table or overwrite.
-    * columns -- list of string (column) or string pairs (column range).
+    * columns -- list of string (column).
     * exact_key, lower_key, upper_key -- tuple of strings to identify range of rows.
     * exact_index, start_index, end_index -- tuple of indexes to identify range of rows.
     * ranges -- list of dicts, allows to specify arbitrary ranges on the table, see more details in the docs.
