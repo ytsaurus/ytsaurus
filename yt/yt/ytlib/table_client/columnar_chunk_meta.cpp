@@ -147,12 +147,17 @@ void TColumnarChunkMeta::RenameColumns(const TColumnRenameDescriptors& renameDes
 
 i64 TColumnarChunkMeta::GetMemoryUsage() const
 {
+    // We use SpaceUsed() protobuf method to estimate memory consumption.
+    // That method does not account for internal allocator fragmentation and
+    // misses some internal protobuf data structures.
+    const auto metaMemoryFactor = 2;
+
     return
         BlockLastKeysSize_ +
-        sizeof(TKey) * BlockLastKeys_.Size() +
-        sizeof (Misc_) +
-        BlockMeta_->GetSize() +
-        (ColumnMeta_ ? ColumnMeta_->GetSize() : 0) +
+        sizeof (TKey) * BlockLastKeys_.Size() +
+        Misc_.SpaceUsedLong() +
+        BlockMeta_->GetSize() * metaMemoryFactor +
+        (ColumnMeta_ ? ColumnMeta_->GetSize() * metaMemoryFactor : 0) +
         ChunkSchema_->GetMemoryUsage();
 }
 
