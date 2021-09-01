@@ -11,6 +11,7 @@ object Utils {
       case regex(amount, "m") => amount.toInt.minutes
       case regex(amount, "min") => amount.toInt.minutes
       case regex(amount, "h") => amount.toInt.hours
+      case regex(amount, "d") => amount.toInt.days
       case regex(_, unit) => throw new IllegalArgumentException(s"Unknown time unit: $unit")
       case _ => throw new IllegalArgumentException(s"Illegal time format: $s")
     }
