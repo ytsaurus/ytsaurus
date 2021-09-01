@@ -31,11 +31,11 @@ class TObject
 public:
     TObject() = default;
 
-    MOCK_METHOD0(VoidMethod0, void());
-    MOCK_CONST_METHOD0(VoidConstMethod0, void());
+    MOCK_METHOD(void, VoidMethod0, (), ());
+    MOCK_METHOD(void, VoidConstMethod0, (), (const));
 
-    MOCK_METHOD0(IntMethod0, int());
-    MOCK_CONST_METHOD0(IntConstMethod0, int());
+    MOCK_METHOD(int, IntMethod0, (), ());
+    MOCK_METHOD(int, IntConstMethod0, (), (const));
 
 private:
     // Explicitly non-copyable and non-movable.
@@ -54,8 +54,8 @@ class TObjectWithRC
 public:
     TObjectWithRC() = default;
 
-    MOCK_CONST_METHOD0(Ref, void());
-    MOCK_CONST_METHOD0(Unref, void());
+    MOCK_METHOD(void, Ref, (), (const));
+    MOCK_METHOD(void, Unref, (), (const));
 
 private:
     // Explicitly non-copyable and non-movable.

@@ -61,7 +61,7 @@ namespace NYT::NRpc {
 
 #define MOCK_RPC_SERVICE_METHOD(ns, method) \
     DEFINE_RPC_SERVICE_METHOD_THUNK(ns, method) \
-    MOCK_METHOD3(method, void (TReq##method*, TRsp##method*, TCtx##method##Ptr))
+    MOCK_METHOD(void, method, (TReq##method*, TRsp##method*, TCtx##method##Ptr))
 
 ////////////////////////////////////////////////////////////////////////////////
 

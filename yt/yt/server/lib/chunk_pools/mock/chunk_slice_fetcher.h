@@ -18,12 +18,12 @@ class TMockChunkSliceFetcher
     : public IChunkSliceFetcher
 {
 public:
-    MOCK_METHOD1(AddChunk, void(NChunkClient::TInputChunkPtr));
-    MOCK_METHOD4(AddDataSliceForSlicing, void(NChunkClient::TLegacyDataSlicePtr, const TComparator& comparator, i64, bool));
-    MOCK_CONST_METHOD0(GetChunkCount, int());
-    MOCK_METHOD0(Fetch, TFuture<void>());
-    MOCK_METHOD0(GetChunkSlices, std::vector<NChunkClient::TInputChunkSlicePtr>());
-    MOCK_METHOD1(SetCancelableContext, void(TCancelableContextPtr));
+    MOCK_METHOD(void, AddChunk, (NChunkClient::TInputChunkPtr), (override));
+    MOCK_METHOD(void, AddDataSliceForSlicing, (NChunkClient::TLegacyDataSlicePtr, const TComparator& comparator, i64, bool), (override));
+    MOCK_METHOD(int, GetChunkCount, (), (const, override));
+    MOCK_METHOD(TFuture<void>, Fetch, (), (override));
+    MOCK_METHOD(std::vector<NChunkClient::TInputChunkSlicePtr>, GetChunkSlices, (), (override));
+    MOCK_METHOD(void, SetCancelableContext, (TCancelableContextPtr), (override));
 };
 
 using TStrictMockChunkSliceFetcherPtr = TIntrusivePtr<::testing::StrictMock<TMockChunkSliceFetcher>>;

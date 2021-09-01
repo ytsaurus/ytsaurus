@@ -58,9 +58,9 @@ class TPrepareCallbacksMock
     : public IPrepareCallbacks
 {
 public:
-    MOCK_METHOD2(GetInitialSplit, TFuture<TDataSplit>(
+    MOCK_METHOD(TFuture<TDataSplit>, GetInitialSplit, (
         const TYPath&,
-        TTimestamp));
+        TTimestamp), (override));
 };
 
 MATCHER_P(HasCounter, expectedCounter, "")

@@ -17,7 +17,7 @@ using namespace testing;
 class TChunkMetaFetcherMock
 {
 public:
-    MOCK_METHOD1(Fetch, TFuture<TRefCountedChunkMetaPtr>(const std::optional<std::vector<int>>&));
+    MOCK_METHOD(TFuture<TRefCountedChunkMetaPtr>, Fetch, (const std::optional<std::vector<int>>&), ());
 };
 
 TRefCountedChunkMetaPtr CreateFakeChunkMeta(const std::optional<std::vector<int>>& extensionTags)
@@ -68,7 +68,7 @@ TEST(TCachedChunkMetaTest, Simple)
 
     TChunkMetaFetcherMock fetcherMock;
     auto fetchFunc = BIND(&TChunkMetaFetcherMock::Fetch, &fetcherMock);
-    
+
     ON_CALL(fetcherMock, Fetch(_))
         .WillByDefault(Invoke(CreateFakeChunkMetaFuture));
 
@@ -103,7 +103,7 @@ TEST(TCachedChunkMetaTest, StuckRequests)
 {
     const auto chunkId = TChunkId(0, 0);
     auto cachedChunkMeta = CreateCachedChunkMeta(chunkId, CreateFakeChunkMeta(std::vector<int>{}));
-    
+
     TChunkMetaFetcherMock fetcherMock;
     auto fetchFunc = BIND(&TChunkMetaFetcherMock::Fetch, &fetcherMock);
 
