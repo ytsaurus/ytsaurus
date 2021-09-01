@@ -1823,6 +1823,7 @@ echo {v = 2} >&7
                 },
                 "data_size_per_job": 256 * 1024 * 1024,
                 "enable_job_splitting": False,
+                "max_speculative_job_count_per_task": 0,
             },
             **kwargs
         )
