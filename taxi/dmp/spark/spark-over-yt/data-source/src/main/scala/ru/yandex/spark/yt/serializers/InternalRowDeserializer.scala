@@ -5,7 +5,7 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.yson.YsonType
+import org.apache.spark.sql.yson.{UInt64Type, YsonType}
 import org.apache.spark.unsafe.types.{CalendarInterval, UTF8String}
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer
@@ -13,6 +13,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.YsonDecoder
 import ru.yandex.yt.ytclient.`object`.{WireRowDeserializer, WireValueDeserializer}
 import ru.yandex.yt.ytclient.tables.ColumnValueType
 
+import java.math.BigInteger
 import java.sql.{Date, Timestamp}
 import java.util.concurrent.TimeUnit
 import scala.collection.mutable
@@ -69,6 +70,7 @@ class InternalRowDeserializer(schema: StructType) extends WireRowDeserializer[In
         case DateType => addValue(value.toInt)
         case TimestampType => addValue(value)
         case YsonType => addValue(toYsonBytes(value))
+        case UInt64Type => addValue(value)
       }
     }
   }

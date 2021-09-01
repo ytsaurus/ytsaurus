@@ -213,6 +213,8 @@ class ArrowColumnVector(dataType: IndexedDataType,
 
   private case class UInt8Accessor(keys: Option[IntVector], values: UInt8Vector) extends ArrowVectorAccessor {
     override final def getLong(rowId: Int): Long = values.get(id(rowId))
+
+    override final def getBinary(rowId: Int): Array[Byte] = values.getObjectNoOverflow(id(rowId)).toByteArray
   }
 
   private case class FloatAccessor(keys: Option[IntVector], values: Float4Vector) extends ArrowVectorAccessor {
