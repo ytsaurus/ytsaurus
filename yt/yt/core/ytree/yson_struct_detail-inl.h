@@ -331,19 +331,6 @@ struct IsYsonStructPtr<TIntrusivePtr<T>, typename std::enable_if<std::is_convert
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Initialize only those parameters and preprocessors that are registered just in TStruct (not in its ancestors).
-template <class TStruct>
-void TYsonStructMeta<TStruct>::SetTopLevelDefaultsOfUninitializedStruct(TYsonStructLite* target) const
-{
-    for (const auto& [_, parameter] : TopLevelParameters_) {
-        parameter->SetDefaultsUninitialized(target);
-    }
-
-    for (const auto& preprocessor : TopLevelPreprocessors_) {
-        preprocessor(target);
-    }
-}
-
 template <class TStruct>
 void TYsonStructMeta<TStruct>::SetDefaultsOfInitializedStruct(TYsonStructBase* target) const
 {
@@ -508,14 +495,12 @@ IMapNodePtr TYsonStructMeta<TStruct>::GetRecursiveUnrecognized(const TYsonStruct
 template <class TStruct>
 void TYsonStructMeta<TStruct>::RegisterParameter(TString key, IYsonStructParameterPtr parameter)
 {
-    YT_VERIFY(TopLevelParameters_.template emplace(key, parameter).second);
     YT_VERIFY(Parameters_.template emplace(std::move(key), std::move(parameter)).second);
 }
 
 template <class TStruct>
 void TYsonStructMeta<TStruct>::RegisterPreprocessor(std::function<void(TYsonStructBase*)> preprocessor)
 {
-    TopLevelPreprocessors_.push_back(preprocessor);
     Preprocessors_.push_back(std::move(preprocessor));
 }
 
@@ -529,13 +514,6 @@ template <class TStruct>
 void TYsonStructMeta<TStruct>::SetUnrecognizedStrategy(EUnrecognizedStrategy strategy)
 {
     MetaUnrecognizedStrategy_ = strategy;
-}
-
-template <class TStruct>
-void TYsonStructMeta<TStruct>::OnNextClassInHierarchy()
-{
-    TopLevelParameters_.clear();
-    TopLevelPreprocessors_.clear();
 }
 
 template <class TStruct>
@@ -566,11 +544,9 @@ TYsonFieldAccessor<TStruct, TValue>::TYsonFieldAccessor(TYsonStructField<TStruct
 { };
 
 template <class TStruct, class TValue>
-TValue& TYsonFieldAccessor<TStruct, TValue>::GetValue(const TYsonStructBase* source, bool useDynamicCastCache)
+TValue& TYsonFieldAccessor<TStruct, TValue>::GetValue(const TYsonStructBase* source)
 {
-    return useDynamicCastCache
-        ? TYsonStructRegistry::Get()->template CachedDynamicCast<TStruct>(source)->*Field_
-        : dynamic_cast<TStruct*>(const_cast<TYsonStructBase*>(source))->*Field_;
+    return TYsonStructRegistry::Get()->template CachedDynamicCast<TStruct>(source)->*Field_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -640,26 +616,6 @@ void TYsonStructParameter<TValue>::Postprocess(const TYsonStructBase* self, cons
         [] (TIntrusivePtr<TYsonStruct> obj, const NYPath::TYPath& subpath) {
             if (obj) {
                 obj->Postprocess(subpath);
-            }
-        });
-}
-
-template <class TValue>
-void TYsonStructParameter<TValue>::SetDefaultsUninitialized(TYsonStructBase* self)
-{
-    // We cannot cache dynamic cast of object under construction as compiler hides actual constructing type.
-    // See comments for TYsonStructRegistry::CachedDynamicCast.
-    // This method is called in constructor of self.
-    TValue& value = FieldAccessor_->GetValue(self, /*useDynamicCastCache*/ false);
-    if (DefaultConstructor_) {
-        value = (*DefaultConstructor_)();
-    }
-
-    NPrivate::InvokeForComposites(
-        &value,
-        [] (TIntrusivePtr<TYsonStruct> obj) {
-            if (obj) {
-                obj->SetDefaults();
             }
         });
 }

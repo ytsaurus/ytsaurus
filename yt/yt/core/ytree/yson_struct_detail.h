@@ -35,7 +35,6 @@ struct IYsonStructParameter
 
     virtual void Postprocess(const TYsonStructBase* self, const NYPath::TYPath& path) const = 0;
 
-    virtual void SetDefaultsUninitialized(TYsonStructBase* self) = 0;
     virtual void SetDefaultsInitialized(TYsonStructBase* self) = 0;
 
     virtual bool CanOmitValue(const TYsonStructBase* self) const = 0;
@@ -70,12 +69,6 @@ struct IYsonStructMeta
 
     virtual IMapNodePtr GetRecursiveUnrecognized(const TYsonStructBase* target) const = 0;
 
-    //! Signal that we are about to initialize next class in hierarchy.
-    /*! When we initialize meta and traverse through type hierarchy
-     * we call this method before starting initialization of each class in hierarchy.
-     */
-    virtual void OnNextClassInHierarchy() = 0;
-
     virtual void RegisterParameter(TString key, IYsonStructParameterPtr parameter) = 0;
     virtual void RegisterPreprocessor(std::function<void(TYsonStructBase*)> preprocessor) = 0;
     virtual void RegisterPostprocessor(std::function<void(TYsonStructBase*)> postprocessor) = 0;
@@ -91,7 +84,6 @@ class TYsonStructMeta
     : public IYsonStructMeta
 {
 public:
-    void SetTopLevelDefaultsOfUninitializedStruct(TYsonStructLite* target) const;
     virtual void SetDefaultsOfInitializedStruct(TYsonStructBase* target) const override;
 
     virtual const THashMap<TString, IYsonStructParameterPtr>& GetParameterMap() const override;
@@ -117,8 +109,6 @@ public:
     virtual void RegisterPostprocessor(std::function<void(TYsonStructBase*)> postprocessor) override;
     virtual void SetUnrecognizedStrategy(EUnrecognizedStrategy strategy) override;
 
-    virtual void OnNextClassInHierarchy() override;
-
     void FinishInitialization();
 
 private:
@@ -126,13 +116,9 @@ private:
 
     THashMap<TString, IYsonStructParameterPtr> Parameters_;
     std::vector<std::pair<TString, IYsonStructParameterPtr>> SortedParameters_;
-    // It contains only those parameters that are registered just in TStruct (without ancestor's parameters).
-    THashMap<TString, IYsonStructParameterPtr> TopLevelParameters_;
     THashSet<TString> RegisteredKeys_;
 
     std::vector<std::function<void(TYsonStructBase*)>> Preprocessors_;
-    // Same as `TopLevelParameters`.
-    std::vector<std::function<void(TYsonStructBase*)>> TopLevelPreprocessors_;
     std::vector<std::function<void(TYsonStructBase*)>> Postprocessors_;
 
     EUnrecognizedStrategy MetaUnrecognizedStrategy_;
@@ -148,7 +134,7 @@ private:
 template <class TValue>
 struct IYsonFieldAccessor
 {
-    virtual TValue& GetValue(const TYsonStructBase* source, bool useDynamicCastCache = true) = 0;
+    virtual TValue& GetValue(const TYsonStructBase* source) = 0;
     virtual ~IYsonFieldAccessor() = default;
 };
 
@@ -160,7 +146,7 @@ class TYsonFieldAccessor
 {
 public:
     explicit TYsonFieldAccessor(TYsonStructField<TStruct, TValue> field);
-    virtual TValue& GetValue(const TYsonStructBase* source, bool useDynamicCastCache) override;
+    virtual TValue& GetValue(const TYsonStructBase* source) override;
 
 private:
     TYsonStructField<TStruct, TValue> Field_;
@@ -190,7 +176,6 @@ public:
         const TLoadParameterOptions& options,
         const std::function<void()>& validate) override;
     virtual void Postprocess(const TYsonStructBase* self, const NYPath::TYPath& path) const override;
-    virtual void SetDefaultsUninitialized(TYsonStructBase* self) override;
     virtual void SetDefaultsInitialized(TYsonStructBase* self) override;
     virtual void Save(const TYsonStructBase* self, NYson::IYsonConsumer* consumer) const override;
     virtual bool CanOmitValue(const TYsonStructBase* self) const override;
