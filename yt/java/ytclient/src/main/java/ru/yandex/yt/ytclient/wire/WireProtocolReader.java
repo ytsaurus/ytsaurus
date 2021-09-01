@@ -174,6 +174,9 @@ public class WireProtocolReader {
             case ANY:
                 limit = WireProtocol.MAX_ANY_VALUE_LENGTH;
                 break;
+            case COMPOSITE:
+                limit = WireProtocol.MAX_COMPOSITE_VALUE_LENGTH;
+                break;
             default:
                 break;
         }
