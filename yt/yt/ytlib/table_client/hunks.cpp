@@ -20,6 +20,7 @@
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/core/misc/chunked_memory_pool.h>
+#include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/variant.h>
 
 #include <yt/yt/core/yson/consumer.h>
@@ -926,6 +927,21 @@ IVersionedChunkWriterPtr CreateHunkEncodingVersionedWriter(
 
 namespace {
 
+TRef GetAndValidateHunkPayload(TRef fragment, const IChunkFragmentReader::TChunkFragmentRequest& request)
+{
+    YT_VERIFY(fragment.Size() >= sizeof(THunkPayloadHeader));
+    auto* header = reinterpret_cast<const THunkPayloadHeader*>(fragment.Begin());
+    auto payload = fragment.Slice(sizeof(THunkPayloadHeader), fragment.Size());
+    if (GetChecksum(payload) != header->Checksum) {
+        THROW_ERROR_EXCEPTION("Hunk fragment checksum mismatch")
+            << TErrorAttribute("chunk_id", request.ChunkId)
+            << TErrorAttribute("block_index", request.BlockIndex)
+            << TErrorAttribute("block_offset", request.BlockOffset)
+            << TErrorAttribute("length", request.Length);
+    }
+    return payload;
+}
+
 TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
     IChunkFragmentReaderPtr chunkFragmentReader,
     TClientChunkReadOptions options,
@@ -967,7 +983,7 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                 }
                 requests.push_back({
                     .ChunkId = globalRefHunkValue.ChunkId,
-                    .Length = globalRefHunkValue.Length,
+                    .Length = static_cast<i64>(sizeof(THunkPayloadHeader)) + globalRefHunkValue.Length,
                     .BlockIndex = globalRefHunkValue.BlockIndex,
                     .BlockOffset = globalRefHunkValue.BlockOffset
                 });
@@ -990,21 +1006,26 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
         columnarStatisticsThunk->MergeTo(hunkChunkReaderStatistics);
     }
 
-    return chunkFragmentReader
-        ->ReadFragments(std::move(options), std::move(requests))
-        .ApplyUnique(BIND([
+    auto fragmentsFuture = chunkFragmentReader->ReadFragments(std::move(options), requests);
+    return fragmentsFuture.ApplyUnique(BIND([
             =,
+            requests = std::move(requests),
             values = std::move(values),
             requestedValues = std::move(requestedValues),
             hunkChunkReaderStatistics = std::move(hunkChunkReaderStatistics)
         ] (IChunkFragmentReader::TReadFragmentsResponse&& response) {
             YT_VERIFY(response.Fragments.size() == requestedValues.size());
+
             for (int index = 0; index < std::ssize(response.Fragments); ++index) {
-                setValuePayload(requestedValues[index], response.Fragments[index]);
+                const auto& fragment = response.Fragments[index];
+                auto payload = GetAndValidateHunkPayload(fragment, requests[index]);
+                setValuePayload(requestedValues[index], payload);
             }
+
             if (hunkChunkReaderStatistics) {
                 hunkChunkReaderStatistics->BackendRequestCount() += response.BackendRequestCount;
             }
+
             return MakeSharedRange(values, values, std::move(response.Fragments));
         }));
 }
@@ -1550,7 +1571,7 @@ public:
             OpenFuture_ = Underlying_->Open();
         }
 
-        auto [blockIndex, blockOffset] = AppendPayloadToBuffer(payload);
+        auto [blockIndex, blockOffset, dataSize] = AppendPayloadToBuffer(payload);
 
         bool ready = true;
         if (!OpenFuture_.IsSet()) {
@@ -1561,6 +1582,7 @@ public:
 
         HunkCount_ += 1;
         TotalHunkLength_ += std::ssize(payload);
+        TotalDataSize_ += dataSize;
 
         return {blockIndex, blockOffset, ready};
     }
@@ -1605,8 +1627,8 @@ public:
                     NChunkClient::NProto::TMiscExt ext;
                     ext.set_compression_codec(ToProto<int>(NCompression::ECodec::None));
                     ext.set_data_weight(TotalHunkLength_);
-                    ext.set_uncompressed_data_size(TotalHunkLength_);
-                    ext.set_compressed_data_size(TotalHunkLength_);
+                    ext.set_uncompressed_data_size(TotalDataSize_);
+                    ext.set_compressed_data_size(TotalDataSize_);
                     SetProtoExtension(Meta_->mutable_extensions(), ext);
                 }
 
@@ -1646,6 +1668,7 @@ private:
     i64 BlockOffset_ = 0;
     i64 HunkCount_ = 0;
     i64 TotalHunkLength_ = 0;
+    i64 TotalDataSize_ = 0;
 
     const TDeferredChunkMetaPtr Meta_ = New<TDeferredChunkMeta>();
 
@@ -1666,14 +1689,23 @@ private:
         return Buffer_.Begin() + oldSize;
     }
 
-    //! Returns |(blockIndex, blockOffset)|.
-    std::tuple<int, i64> AppendPayloadToBuffer(TRef payload)
+    //! Returns |(blockIndex, blockOffset, dataSize)|.
+    std::tuple<int, i64, i64> AppendPayloadToBuffer(TRef payload)
     {
-        auto* ptr = BeginWriteToBuffer(payload.Size());
+        auto dataSize = sizeof(THunkPayloadHeader) + payload.Size();
+        auto* ptr = BeginWriteToBuffer(dataSize);
+
+        // Write header.
+        auto* header = reinterpret_cast<THunkPayloadHeader*>(ptr);
+        header->Checksum = GetChecksum(payload);
+        ptr += sizeof(THunkPayloadHeader);
+
+        // Write payload.
         ::memcpy(ptr, payload.Begin(), payload.Size());
+
         auto offset = BlockOffset_;
-        BlockOffset_ += payload.Size();
-        return {BlockIndex_, offset};
+        BlockOffset_ += dataSize;
+        return {BlockIndex_, offset, dataSize};
     }
 
     bool FlushBuffer()

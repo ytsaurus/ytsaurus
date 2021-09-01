@@ -38,6 +38,15 @@ TString ToString(const THunkChunkRef& ref);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Every hunk written to a hunk chunk is prepended with this header.
+//! Its size is not accounted in hunk ref length.
+struct THunkPayloadHeader
+{
+    TChecksum Checksum;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 /*
  * These are per-column hunk chunk-related statistics that are profiled
  * when hunk columnar profiling of a table is enabled.
