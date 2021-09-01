@@ -1,27 +1,31 @@
 package ru.yandex.spark.yt.format
 
+import org.apache.hadoop.fs.Path
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.execution.InputAdapter
-import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.internal.SQLConf
-import org.apache.spark.sql.internal.SQLConf._
+import org.apache.spark.sql.internal.SQLConf.{PARALLEL_PARTITION_DISCOVERY_THRESHOLD, _}
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.v2.YtUtils
+import org.apache.spark.sql.yson.UInt64Long.{fromStringUdf, toStringUdf}
+import org.apache.spark.sql.yson.{UInt64Long, UInt64Type}
 import org.apache.spark.sql.{AnalysisException, Row, SaveMode}
+import org.mockito.Mockito
 import org.mockito.scalatest.MockitoSugar
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.spark.yt._
+import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
+import ru.yandex.spark.yt.fs.YtTableFileSystem
 import ru.yandex.spark.yt.serializers.YtLogicalType
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
+import ru.yandex.spark.yt.wrapper.client.YtClientProvider
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
-import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
-import org.apache.spark.sql.internal.SQLConf.PARALLEL_PARTITION_DISCOVERY_THRESHOLD
-import org.apache.spark.sql.yson.UInt64Long.{fromStringUdf, toStringUdf}
-import org.apache.spark.sql.yson.{UInt64Long, UInt64Type}
 import ru.yandex.type_info.TiType
+import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 
 import java.nio.charset.StandardCharsets
@@ -657,7 +661,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     )
   }
 
-  it should "read joined different tables" in {
+  it should "read tables with different schemas when mergeSchema is enabled in read's option" in {
     YtWrapper.createDir(tmpPath)
     val table1 = s"$tmpPath/t1"
     val table2 = s"$tmpPath/t2"
@@ -673,7 +677,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
       .build()
     )
 
-    val df = spark.read.yt(table1, table2)
+    val df = spark.read.option("mergeSchema", "true").yt(table1, table2)
 
     df.columns should contain theSameElementsAs Seq("a", "b", "c", "d")
     df.select("a", "b", "c", "d").collect() should contain theSameElementsAs Seq(
@@ -682,7 +686,33 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     )
   }
 
-  it should "fail when incompatible tables joined" in {
+  it should "read tables with different schemas when mergeSchema is enabled in spark conf" in {
+    YtWrapper.createDir(tmpPath)
+    val table1 = s"$tmpPath/t1"
+    val table2 = s"$tmpPath/t2"
+    writeTableFromYson(Seq(
+      """{a = 1; b = "a"; c = 0.3}"""
+    ), table1, atomicSchema)
+    writeTableFromYson(Seq(
+      """{c = 2.0; d = "t"}"""
+    ), table2, new TableSchema.Builder()
+      .setUniqueKeys(false)
+      .addValue("c", ColumnValueType.DOUBLE)
+      .addValue("d", ColumnValueType.STRING)
+      .build()
+    )
+    val df = withConf("spark.sql.yt.mergeSchema", "true") {
+      spark.read.yt(table1, table2)
+    }
+
+    df.columns should contain theSameElementsAs Seq("a", "b", "c", "d")
+    df.select("a", "b", "c", "d").collect() should contain theSameElementsAs Seq(
+      Row(1, "a", 0.3, null),
+      Row(null, null, 2.0, "t")
+    )
+  }
+
+  it should "fail reading tables with incompatible schemas" in {
     YtWrapper.createDir(tmpPath)
     val table1 = s"$tmpPath/t1"
     val table2 = s"$tmpPath/t2"
@@ -694,6 +724,26 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     ), table2, new TableSchema.Builder()
       .setUniqueKeys(false)
       .addValue("c", ColumnValueType.STRING)
+      .build()
+    )
+
+    a[SparkException] shouldBe thrownBy {
+      spark.read.option("mergeSchema", "true").yt(table1, table2)
+    }
+  }
+
+  it should "fail reading tables with different schemas when mergeSchema is disabled" in {
+    YtWrapper.createDir(tmpPath)
+    val table1 = s"$tmpPath/t1"
+    val table2 = s"$tmpPath/t2"
+    writeTableFromYson(Seq(
+      """{a = 1; b = "a"; c = 0.3}"""
+    ), table1, atomicSchema)
+    writeTableFromYson(Seq(
+      """{c = 0.2}"""
+    ), table2, new TableSchema.Builder()
+      .setUniqueKeys(false)
+      .addValue("c", ColumnValueType.DOUBLE)
       .build()
     )
 
@@ -722,6 +772,29 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     }
 
     partitions.length shouldEqual defaultParallelism +- 1
+  }
+
+  it should "infer table's schema one time" in {
+    YtWrapper.createDir(tmpPath)
+    val filesCount = 3
+    val tables = (1 to filesCount).map(x => s"$tmpPath/t$x")
+    tables.foreach {
+      table => List(1, 2, 3, 4, 5).toDF().repartition(2).write.yt(table)
+    }
+
+    val fs = new YtTableFileSystem
+    fs.initialize(new Path("/").toUri, spark.sparkContext.hadoopConfiguration)
+    fs.setConf(spark.sparkContext.hadoopConfiguration)
+
+    val filesStatus = tables.flatMap(x => fs.listStatus(new Path(s"ytTable:/$x")))
+
+    val mockYt: CompoundClient = Mockito.spy(YtClientProvider.ytClient(ytClientConfiguration(spark)))
+    YtUtils.inferSchema(spark, Map.empty, filesStatus)(mockYt)
+
+    // getNode invoked in YtWrapper.attribute(path, "schema"), that might be invoked for every chunk in inferSchema
+    // schema should be asked exactly 1 time for every file
+    verify(mockYt, times(tables.length)).getNode(any)
+    Mockito.reset(mockYt)
   }
 }
 

@@ -1,6 +1,7 @@
 package org.apache.spark.sql.v2
 
 import org.apache.hadoop.fs.FileStatus
+import org.apache.spark.SparkException
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types.{BinaryType, StructType}
 import org.apache.spark.sql.yson.YsonType
@@ -35,23 +36,48 @@ object YtUtils {
     }
   }
 
+  private def getSchema(sparkSession: SparkSession, path: String, parameters: Map[String, String])
+                       (implicit client: CompoundClient): StructType = {
+    val schemaHint = SchemaConverter.schemaHint(parameters)
+    val schemaTree = YtWrapper.attribute(path, "schema")
+    val sparkSchema = SchemaConverter.sparkSchema(schemaTree, schemaHint)
+    getCompatibleSchema(sparkSession, sparkSchema)
+  }
+
+  private def getClient(sparkSession: SparkSession): CompoundClient = {
+    YtClientProvider.ytClient(ytClientConfiguration(sparkSession))
+  }
+
+  private case class FileWithSchema(file: FileStatus, schema: StructType)
+
   def inferSchema(sparkSession: SparkSession,
                   parameters: Map[String, String],
-                  files: Seq[FileStatus]): Option[StructType] = {
-    implicit val client: CompoundClient = YtClientProvider.ytClient(ytClientConfiguration(sparkSession))
-    val (_, schema) = files.foldLeft((Set.empty[String], Option.empty[StructType])) {
-      case ((curSet, curSchema), fileStatus) =>
+                  files: Seq[FileStatus])
+                 (implicit client: CompoundClient = getClient(sparkSession)): Option[StructType] = {
+    val enableMerge = parameters.get("mergeschema")
+      .orElse(sparkSession.conf.getOption("spark.sql.yt.mergeSchema")).exists(_.toBoolean)
+    val (_, allSchemas) = files.foldLeft((Set.empty[String], List.empty[FileWithSchema])) {
+      case ((curSet, schemas), fileStatus) =>
         val path = getFilePath(fileStatus)
         if (curSet.contains(path)) {
-          (curSet, curSchema)
+          (curSet, schemas)
         } else {
-          val schemaHint = SchemaConverter.schemaHint(parameters)
-          val schemaTree = YtWrapper.attribute(path, "schema")
-          val sparkSchema = SchemaConverter.sparkSchema(schemaTree, schemaHint)
-          val compatibleSchema = getCompatibleSchema(sparkSession, sparkSchema)
-          (curSet + path, curSchema.map(_.merge(compatibleSchema)).orElse(Some(compatibleSchema)))
+          (curSet + path, FileWithSchema(fileStatus, getSchema(sparkSession, path, parameters)) +: schemas)
         }
     }
-    schema
+    if (enableMerge) {
+      allSchemas.map(_.schema).reduceOption((x, y) => x.merge(y))
+    } else {
+      val firstDifferent = allSchemas.find(_.schema != allSchemas.head.schema)
+      firstDifferent match {
+        case None => allSchemas.headOption.map(_.schema)
+        case Some(FileWithSchema(file, schema)) => throw new SparkException(
+          s"Schema merging is turned off but given tables have different schemas:\n" +
+            s"${file.getPath}: ${schema.fields.map(x => s"${x.name}[${x.dataType.simpleString}]").mkString(",")}\n" +
+            s"${allSchemas.head.file.getPath}: ${allSchemas.head.schema.fields.map(x => s"${x.name}[${x.dataType.simpleString}]").mkString(",")}\n" +
+            "Merging can be enabled by `mergeschema` option or `spark.sql.yt.mergeSchema` spark setting"
+        )
+      }
+    }
   }
 }
