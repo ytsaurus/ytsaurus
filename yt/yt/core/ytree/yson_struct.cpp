@@ -130,7 +130,7 @@ TYsonStructBase::TForbidCachedDynamicCastGuard::~TForbidCachedDynamicCastGuard()
 void TYsonStruct::InitializeRefCounted()
 {
     if (!TYsonStructRegistry::InitializationInProgress()) {
-        Meta_->SetDefaultsOfInitializedStruct(this);
+        SetDefaults();
     }
 }
 

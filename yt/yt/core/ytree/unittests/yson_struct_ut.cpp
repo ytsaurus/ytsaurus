@@ -629,7 +629,7 @@ public:
     TString MyString;
     std::optional<i64> NullableInt;
 
-    REGISTER_YSON_STRUCT(TTestConfigLite);
+    REGISTER_YSON_STRUCT_LITE(TTestConfigLite);
 
     static void Register(TRegistrar registrar)
     {
@@ -640,7 +640,7 @@ public:
 
 TEST(TYsonStructTest, SaveLite)
 {
-    TTestConfigLite config;
+    TTestConfigLite config = TTestConfigLite::Create();
 
     config.MyString = "hello!";
     config.NullableInt = 42;
@@ -672,7 +672,7 @@ public:
     int MyInt;
     TTestSubconfigPtr Subconfig;
 
-    REGISTER_YSON_STRUCT(TTestLiteWithDefaults);
+    REGISTER_YSON_STRUCT_LITE(TTestLiteWithDefaults);
 
     static void Register(TRegistrar registrar)
     {
@@ -688,7 +688,7 @@ public:
 
 TEST(TYsonStructTest, NewLiteInitedWithDefaults)
 {
-    TTestLiteWithDefaults config;
+    TTestLiteWithDefaults config = TTestLiteWithDefaults::Create();
     EXPECT_EQ(config.MyString, "y");
     EXPECT_EQ(config.MyInt, 10);
     EXPECT_TRUE(config.Subconfig != nullptr);
@@ -806,7 +806,7 @@ public:
     std::unordered_map<TString, int> UnorderedMap;
     std::unordered_multiset<size_t> UnorderedMultiSet;
 
-    REGISTER_YSON_STRUCT(TTestConfigWithContainers);
+    REGISTER_YSON_STRUCT_LITE(TTestConfigWithContainers);
 
     static void Register(TRegistrar registrar)
     {
@@ -833,7 +833,8 @@ public:
 
 TEST(TYsonStructTest, ParameterTuplesAndContainers)
 {
-    TTestConfigWithContainers original, deserialized;
+    TTestConfigWithContainers original = TTestConfigWithContainers::Create();
+    TTestConfigWithContainers deserialized = TTestConfigWithContainers::Create();
 
     original.Vector = { "fceswf", "sadfcesa" };
     original.Array = {{ "UYTUY", ":LL:a", "78678678" }};

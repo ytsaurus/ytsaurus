@@ -57,8 +57,6 @@ void TYsonStructRegistry::Initialize(TStruct* target)
 {
     // It takes place only inside special constructor call inside lambda below.
     if (CurrentlyInitializingMeta_) {
-        // Inform meta that we switch to initialization of next class in type hierarchy.
-        CurrentlyInitializingMeta_->OnNextClassInHierarchy();
         // Call initialization method that is provided by user.
         TStruct::Register(TYsonStructRegistrar<TStruct>(CurrentlyInitializingMeta_));
         return;
@@ -90,12 +88,6 @@ void TYsonStructRegistry::Initialize(TStruct* target)
 
     static TYsonStructMeta<TStruct>* meta = metaConstructor();
     target->Meta_ = meta;
-    // Initialization of TYsonStructLite's fields takes place here inside constructor.
-    // Initialize only parameters that are registered in TStruct (not in ancestors)
-    // cause this method will be called separately for each class of hierarchy.
-    if constexpr (std::is_base_of_v<TYsonStructLite, TStruct>) {
-        meta->SetTopLevelDefaultsOfUninitializedStruct(target);
-    }
 }
 
 template <class TTargetStruct>
@@ -145,23 +137,9 @@ TYsonStructParameter<TValue>& TYsonStructRegistrar<TStruct>::BaseClassParameter(
 template <class TStruct>
 void TYsonStructRegistrar<TStruct>::Preprocessor(std::function<void(TStruct*)> preprocessor)
 {
-    if constexpr (std::is_base_of_v<TYsonStructLite, TStruct>) {
-        Meta_->RegisterPreprocessor([preprocessor = std::move(preprocessor)] (TYsonStructBase* target) {
-            // NB: Preprocessors of TYsonStructLite are called in constructor.
-            // We cannot use dynamic cast cache for object under construction
-            // since object layout depends on actual class under construction (most derived)
-            // and in base class constructor it's impossible to determine which class is constructed.
-            // https://en.cppreference.com/w/cpp/language/typeid
-            // "If typeid is used on an object under construction or destruction ...
-            // then the std::type_info object referred to by this typeid represents the class
-            // that is being constructed or destroyed even if it is not the most-derived class."
-            preprocessor(dynamic_cast<TStruct*>(target));
-        });
-    } else {
-        Meta_->RegisterPreprocessor([preprocessor = std::move(preprocessor)] (TYsonStructBase* target) {
-            preprocessor(TYsonStructRegistry::Get()->template CachedDynamicCast<TStruct>(target));
-        });
-    }
+    Meta_->RegisterPreprocessor([preprocessor = std::move(preprocessor)] (TYsonStructBase* target) {
+        preprocessor(TYsonStructRegistry::Get()->template CachedDynamicCast<TStruct>(target));
+    });
 }
 
 template <class TStruct>
