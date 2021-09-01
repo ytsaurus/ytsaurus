@@ -293,6 +293,8 @@ public:
 
     bool ShouldDistributeFreeVolumeAmongChildren;
 
+    bool UseUserDefaultParentPoolMap;
+
     TFairShareStrategyTreeConfig();
 };
 
