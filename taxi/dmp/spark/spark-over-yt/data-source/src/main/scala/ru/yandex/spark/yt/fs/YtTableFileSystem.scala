@@ -53,7 +53,7 @@ class YtTableFileSystem extends YtFileSystemBase {
     val optimizeMode = YtWrapper.optimizeMode(attributes)
     val chunkCount = YtWrapper.chunkCount(attributes)
     val tableSize = YtWrapper.dataWeight(attributes)
-    val approximateRowSize = tableSize / rowCount
+    val approximateRowSize = if (rowCount > 0) tableSize / rowCount else 0
 
     val filesCount = if (chunkCount > 0) chunkCount else 1
     val result = new Array[FileStatus](filesCount)
@@ -67,7 +67,7 @@ class YtTableFileSystem extends YtFileSystemBase {
     if (chunkCount == 0) {
       // add path for schema resolving
       val chunkPath = YtStaticPath(f, optimizeMode, 0, 0)
-      result(0) = new YtFileStatus(chunkPath, 1)
+      result(0) = new YtFileStatus(chunkPath, approximateRowSize)
     }
     result
   }
@@ -80,7 +80,7 @@ class YtTableFileSystem extends YtFileSystemBase {
     val keyColumns = YtWrapper.keyColumns(attributes)
     val result = new Array[FileStatus](pivotKeys.length - 1)
     val tableSize = YtWrapper.dataWeight(attributes)
-    val approximateChunkSize = if (result.length > 0) tableSize / result.length else 1
+    val approximateChunkSize = if (result.length > 0) tableSize / result.length else 0
 
     pivotKeys.sliding(2).zipWithIndex.foreach {
       case (Seq(startKey, endKey), i) =>
