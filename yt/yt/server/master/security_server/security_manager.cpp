@@ -2825,7 +2825,7 @@ private:
         RecomputeAccountResourceUsage_ = context.GetVersion() < EMasterReign::YT_15179;
 
         // COMPAT(aleksandra-zh)
-        MustInitializeChunkHostMasterMemoryLimits_ = context.GetVersion() < EMasterReign::InitializeAccountChunkHostMasterMemory;
+        MustInitializeChunkHostMasterMemoryLimits_ = context.GetVersion() < EMasterReign::InitializeAccountChunkHostMasterMemory2;
 
         // COMPAT(gritukan)
         if (context.GetVersion() >= EMasterReign::ProxyRoles) {
@@ -2929,7 +2929,7 @@ private:
                 while (!accounts.empty()) {
                     account = accounts.top();
                     auto resourceLimits = account->ClusterResourceLimits();
-                    resourceLimits.MasterMemory().Total = 100_GB;
+                    resourceLimits.MasterMemory().ChunkHost = 100_GB;
 
                     TrySetResourceLimits(account, resourceLimits);
                     accounts.pop();
