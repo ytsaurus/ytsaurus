@@ -4,7 +4,7 @@ import io.circe.parser._
 import io.circe.syntax._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.v2.YtTable
-import org.apache.spark.sql.yson.YsonType
+import org.apache.spark.sql.yson.{UInt64Type, YsonType}
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType.StructFieldMeta
@@ -95,6 +95,7 @@ object SchemaConverter {
     case _: MapType => YtLogicalType.Any
     case YsonType => YtLogicalType.Any
     case BinaryType => YtLogicalType.String
+    case UInt64Type => YtLogicalType.Uint64
   }
 
   def ytLogicalSchema(sparkSchema: StructType, sortColumns: Seq[String], hint: Map[String, YtLogicalType]): YTreeNode = {

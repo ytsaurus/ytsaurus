@@ -1,7 +1,7 @@
 package ru.yandex.spark.yt.serializers
 
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.yson.YsonType
+import org.apache.spark.sql.yson.{UInt64Type, YsonType}
 import ru.yandex.yt.ytclient.tables.ColumnValueType
 
 sealed abstract class YtLogicalType(val name: String,
@@ -14,7 +14,7 @@ object YtLogicalType {
   case object Null extends YtLogicalType("null", 0x02, ColumnValueType.NULL, NullType)
 
   case object Int64 extends YtLogicalType("int64", 0x03, ColumnValueType.INT64, LongType)
-  case object Uint64 extends YtLogicalType("uint64", 0x04, ColumnValueType.INT64, LongType)
+  case object Uint64 extends YtLogicalType("uint64", 0x04, ColumnValueType.UINT64, UInt64Type)
   case object Double extends YtLogicalType("double", 0x05, ColumnValueType.DOUBLE, DoubleType)
   case object Boolean extends YtLogicalType("boolean", 0x06, ColumnValueType.BOOLEAN, BooleanType)
 

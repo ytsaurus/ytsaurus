@@ -1,13 +1,12 @@
 package ru.yandex.spark.yt.serializers
 
 import java.util.concurrent.{Executors, TimeUnit}
-
 import org.apache.spark.metrics.yt.YtMetricsRegister
 import org.apache.spark.metrics.yt.YtMetricsRegister.ytMetricsSource._
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.yson.YsonType
+import org.apache.spark.sql.yson.{UInt64Type, YsonType}
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.YsonEncoder
 import ru.yandex.spark.yt.wrapper.LogLazy
@@ -73,6 +72,7 @@ class InternalRowSerializer(schema: StructType, schemaHint: Map[String, YtLogica
               case BooleanType => writeable.onBoolean(row.getBoolean(i))
               case FloatType => writeable.onDouble(row.getFloat(i))
               case DoubleType => writeable.onDouble(row.getDouble(i))
+              case UInt64Type => writeable.onInteger(row.getLong(i))
             }
         }
       }
