@@ -618,7 +618,7 @@ public:
                     } else {
                         pool->SetDefaultConfig();
 
-                        auto defaultParent = GetDefaultParentPool();
+                        auto defaultParent = GetDefaultParentPoolForUser(updatePoolAction.Name);
                         if (pool->GetId() == defaultParent->GetId()) {  // Someone is deleting default pool.
                             defaultParent = RootElement_;
                         }
@@ -2145,18 +2145,16 @@ private:
         return path;
     }
 
-    TSchedulerCompositeElementPtr GetDefaultParentPool() const
-    {
-        return CheckAndGetDefaultParentPool(Config_->DefaultParentPool);
-    }
-
     TSchedulerCompositeElementPtr GetDefaultParentPoolForUser(const TString& userName) const
     {
-        const auto& defaultUserPools = StrategyHost_->GetUserDefaultParentPoolMap();
-        auto it = defaultUserPools.find(userName);
-        auto defaultParentPoolName = it != defaultUserPools.end()
-            ? it->second
-            : Config_->DefaultParentPool;
+        auto defaultParentPoolName = Config_->DefaultParentPool;
+        if (Config_->UseUserDefaultParentPoolMap) {
+            const auto& defaultUserPools = StrategyHost_->GetUserDefaultParentPoolMap();
+            auto it = defaultUserPools.find(userName);
+            if (it != defaultUserPools.end()) {
+                defaultParentPoolName = it->second;
+            }
+        }
 
         return CheckAndGetDefaultParentPool(defaultParentPoolName);
     }

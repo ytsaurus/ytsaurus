@@ -311,6 +311,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
         // TODO(renadeen): temporarily disabled.
         .Default(false);
 
+    RegisterParameter("use_user_default_parent_pool_map", UseUserDefaultParentPoolMap)
+        .Default(false);
+
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive starvation satisfaction threshold must be less than starvation satisfaction threshold")

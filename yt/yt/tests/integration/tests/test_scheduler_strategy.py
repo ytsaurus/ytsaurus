@@ -2417,6 +2417,12 @@ class TestEphemeralPools(YTEnvSetup):
     def teardown(self):
         remove("//sys/scheduler/user_to_default_pool", force=True)
 
+    def wait_pool_exists(self, pool):
+        wait(lambda: exists(scheduler_orchid_pool_path(pool)), sleep_backoff=0.1)
+
+    def get_pool_parent(self, pool):
+        return get(scheduler_orchid_pool_path(pool) + "/parent")
+
     @authors("ignat")
     def test_default_parent_pool(self):
         create_pool("default_pool")
@@ -2454,6 +2460,7 @@ class TestEphemeralPools(YTEnvSetup):
         create_user("u")
         create_pool("default_for_u")
 
+        set("//sys/pool_trees/default/@config/use_user_default_parent_pool_map", True)
         create("document", "//sys/scheduler/user_to_default_pool", attributes={"value": {"u": "default_for_u"}})
         time.sleep(0.2)
 
@@ -2467,6 +2474,7 @@ class TestEphemeralPools(YTEnvSetup):
         create_user("u")
         create_pool("default_for_u")
 
+        set("//sys/pool_trees/default/@config/use_user_default_parent_pool_map", True)
         create("document", "//sys/scheduler/user_to_default_pool", attributes={"value": {"u": "default_for_u"}})
         time.sleep(0.2)
 
@@ -2580,6 +2588,42 @@ class TestEphemeralPools(YTEnvSetup):
         wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root"))
         pool_info = get(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root")
         assert pool_info["resource_limits"]["cpu"] == 1.0
+
+    @authors("renadeen")
+    def test_ephemeral_to_explicit_pool_transformation(self):
+        create_pool("default_pool", wait_for_orchid=False)
+        set("//sys/pool_trees/default/@config/default_parent_pool", "default_pool")
+        self.wait_pool_exists("default_pool")
+
+        run_sleeping_vanilla(spec={"pool": "test_pool"})
+        self.wait_pool_exists("test_pool")
+
+        create_pool("test_pool")
+
+        wait(lambda: self.get_pool_parent("test_pool") == "<Root>")
+        ephemeral_pools = scheduler_orchid_path() + "/scheduler/scheduling_info_per_pool_tree/default/user_to_ephemeral_pools/root"
+
+        wait(lambda: get(ephemeral_pools) == [])
+        wait(lambda: not get(scheduler_orchid_pool_path("<Root>") + "/is_ephemeral", default=False))
+
+    @authors("renadeen")
+    def test_explicit_to_ephemeral_pool_transformation_with_user_default_parent_pool_map(self):
+        create_user("u")
+        create_pool("u")
+        create_pool("default_parent_for_u")
+
+        set("//sys/pool_trees/default/@config/use_user_default_parent_pool_map", True)
+        create("document", "//sys/scheduler/user_to_default_pool", attributes={"value": {"u": "default_parent_for_u"}})
+        time.sleep(0.2)
+
+        op = run_sleeping_vanilla(authenticated_user="u")
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/pool", default="") == "u")
+        wait(lambda: self.get_pool_parent("u") == "<Root>")
+
+        remove("//sys/pools/u")
+
+        wait(lambda: self.get_pool_parent("u") == "default_parent_for_u")
+        wait(lambda: get(scheduler_orchid_pool_path("u") + "/is_ephemeral", default=False))
 
     @authors("ignat")
     def test_ephemeral_pools_limit(self):
@@ -2852,23 +2896,6 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
         set("//sys/pools/parent/child/@max_running_operation_count", 0)
         release_breakpoint()
         running_op.track()
-
-    @authors("renadeen", "ignat")
-    def test_ephemeral_to_explicit_pool_transformation(self):
-        create_pool("default_pool", wait_for_orchid=False)
-        set("//sys/pool_trees/default/@config/default_parent_pool", "default_pool")
-        self.wait_pool_exists("default_pool")
-
-        run_sleeping_vanilla(spec={"pool": "test_pool"})
-        self.wait_pool_exists("test_pool")
-
-        create_pool("test_pool")
-
-        wait(lambda: self.get_pool_parent("test_pool") == "<Root>")
-        ephemeral_pools = (
-            "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/user_to_ephemeral_pools/root"
-        )
-        wait(lambda: get(ephemeral_pools) == [])
 
     def wait_pool_exists(self, pool):
         wait(lambda: exists(self.orchid_pools + "/" + pool), sleep_backoff=0.1)
