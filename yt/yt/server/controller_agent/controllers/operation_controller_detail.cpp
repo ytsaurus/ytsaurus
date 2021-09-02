@@ -5024,9 +5024,6 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
         return;
     }
 
-    // XXX(ignat): decrease account resource usage
-    // AccountResourceUsage()
-
     bool shouldRetainJob =
         (requestJobNodeCreation && RetainedJobCount_ < Config->MaxJobNodesPerOperation) ||
         (hasStderr && RetainedJobWithStderrCount_ < Spec_->MaxStderrCount) ||
