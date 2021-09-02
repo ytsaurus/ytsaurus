@@ -125,6 +125,9 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
     if (options.Attributes) {
         ToProto(req->mutable_attributes(), *options.Attributes);
     }
+    if (options.StartTimestamp != NullTimestamp) {
+        req->set_start_timestamp(options.StartTimestamp);
+    }
 
     return req->Invoke().Apply(BIND(
         [

@@ -19,6 +19,8 @@
 
 #include <yt/yt/client/table_client/helpers.h>
 
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,6 +53,21 @@ TEST_F(TApiTestBase, TestDuplicateTransactionId)
 
     WaitFor(transaction1->Commit())
         .ValueOrThrow();
+}
+
+TEST_F(TApiTestBase, TestStartTimestamp)
+{
+    auto timestamp = WaitFor(Client_->GetTimestampProvider()->GenerateTimestamps())
+        .ValueOrThrow();
+
+    TTransactionStartOptions options{
+        .StartTimestamp = timestamp
+    };
+
+    auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet, options))
+        .ValueOrThrow();
+
+    EXPECT_EQ(timestamp, transaction->GetStartTimestamp());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -174,4 +191,3 @@ TEST_F(TMultiLookupTest, TestMultiLookup)
 } // namespace
 } // namespace NCppTests
 } // namespace NYT
-
