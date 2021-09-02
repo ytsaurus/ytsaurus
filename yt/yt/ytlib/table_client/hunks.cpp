@@ -932,12 +932,16 @@ TRef GetAndValidateHunkPayload(TRef fragment, const IChunkFragmentReader::TChunk
     YT_VERIFY(fragment.Size() >= sizeof(THunkPayloadHeader));
     auto* header = reinterpret_cast<const THunkPayloadHeader*>(fragment.Begin());
     auto payload = fragment.Slice(sizeof(THunkPayloadHeader), fragment.Size());
-    if (GetChecksum(payload) != header->Checksum) {
+    auto actualChecksum = GetChecksum(payload);
+    if (actualChecksum != header->Checksum) {
         THROW_ERROR_EXCEPTION("Hunk fragment checksum mismatch")
             << TErrorAttribute("chunk_id", request.ChunkId)
             << TErrorAttribute("block_index", request.BlockIndex)
             << TErrorAttribute("block_offset", request.BlockOffset)
-            << TErrorAttribute("length", request.Length);
+            << TErrorAttribute("length", request.Length)
+            << TErrorAttribute("expected_checksum", header->Checksum)
+            << TErrorAttribute("actual_checksum", actualChecksum)
+            << TErrorAttribute("recalculated_checksum", GetChecksum(payload));
     }
     return payload;
 }
