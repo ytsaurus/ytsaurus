@@ -446,8 +446,8 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         nodeId,
         descriptor.GetDefaultAddress(),
         Host_->FormatHeartbeatResourceUsage(
-            TJobResources(resourceUsage),
-            TJobResources(resourceLimits),
+            ToJobResources(resourceUsage),
+            ToJobResources(resourceLimits),
             request->disk_resources()
         ),
         request->jobs().size(),
@@ -477,8 +477,8 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         // when node becomes online.
         UpdateNodeResources(
             node,
-            request->resource_limits(),
-            request->resource_usage(),
+            ToJobResources(request->resource_limits()),
+            ToJobResources(request->resource_usage()),
             request->disk_resources());
     }
 
@@ -2220,7 +2220,7 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
         auto* startInfo = response->add_jobs_to_start();
         ToProto(startInfo->mutable_job_id(), job->GetId());
         ToProto(startInfo->mutable_operation_id(), job->GetOperationId());
-        *startInfo->mutable_resource_limits() = job->ResourceUsage().ToNodeResources();
+        *startInfo->mutable_resource_limits() = ToNodeResources(job->ResourceUsage());
         ToProto(startInfo->mutable_spec_service_addresses(), agent->GetAgentAddresses());
     }
 
@@ -2266,7 +2266,7 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status, bool shoul
     }
     job->SetRunningJobUpdateDeadline(now + DurationToCpuDuration(Config_->RunningJobsUpdatePeriod));
 
-    job->ResourceUsage() = status->resource_usage();
+    job->ResourceUsage() = ToJobResources(status->resource_usage());
 
     YT_VERIFY(Dominates(job->ResourceUsage(), TJobResources()));
 

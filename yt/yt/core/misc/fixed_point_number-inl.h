@@ -45,6 +45,18 @@ TFixedPointNumber<U, P>::operator double () const
 }
 
 template <typename U, int P>
+U TFixedPointNumber<U, P>::GetUnderlyingValue() const
+{
+    return Value_;
+}
+
+template <typename U, int P>
+void TFixedPointNumber<U, P>::SetUnderlyingValue(U value)
+{
+    Value_ = value;
+}
+
+template <typename U, int P>
 TFixedPointNumber<U, P>& TFixedPointNumber<U, P>::operator += (const TFixedPointNumber& rhs)
 {
     Value_ += rhs.Value_;
@@ -75,40 +87,10 @@ TFixedPointNumber<U, P>& TFixedPointNumber<U, P>::operator /= (const T& value)
 }
 
 template <typename U, int P>
-void TFixedPointNumber<U, P>::Persist(const NYT::TStreamPersistenceContext& context)
-{
-    using NYT::Persist;
-
-    Persist(context, Value_);
-}
-
-template <typename U, int P>
 TFixedPointNumber<U, P>& TFixedPointNumber<U, P>::operator *= (const double& value)
 {
     Value_ = std::round(Value_ * value);
     return *this;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <typename U, int P>
-void Serialize(const TFixedPointNumber<U, P>& number, NYson::IYsonConsumer* consumer)
-{
-    NYTree::Serialize(static_cast<double>(number), consumer);
-}
-
-template <typename U, int P>
-void Deserialize(TFixedPointNumber<U, P>& number, NYTree::INodePtr node)
-{
-    double doubleValue;
-    Deserialize(doubleValue, std::move(node));
-    number = TFixedPointNumber<U, P>(doubleValue);
-}
-
-template <typename U, int P>
-TString ToString(const TFixedPointNumber<U, P>& number)
-{
-    return ToString(static_cast<double>(number));
 }
 
 template <typename U, int P>

@@ -29,7 +29,7 @@
 
 #include <yt/yt/ytlib/event_log/event_log.h>
 
-#include <yt/yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 #include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/helpers.h>
 

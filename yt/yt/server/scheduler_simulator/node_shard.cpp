@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
-#include <yt/yt/ytlib/scheduler/job_resources_serialize.h>
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 

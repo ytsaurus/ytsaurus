@@ -20,7 +20,7 @@
 #include <yt/yt/server/lib/scheduler/scheduling_tag.h>
 #include <yt/yt/server/lib/scheduler/resource_metering.h>
 
-#include <yt/yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
 #include <yt/yt/core/concurrency/spinlock.h>
 

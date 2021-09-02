@@ -13,8 +13,7 @@
 #include <yt/yt/server/lib/scheduler/helpers.h>
 #include <yt/yt/server/lib/scheduler/resource_metering.h>
 
-#include <yt/yt/ytlib/scheduler/job_resources.h>
-#include <yt/yt/ytlib/scheduler/job_resources_serialize.h>
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/client/security_client/acl.h>
 

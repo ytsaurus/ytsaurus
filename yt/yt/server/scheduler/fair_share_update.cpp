@@ -1,8 +1,10 @@
 #include "fair_share_update.h"
 #include "piecewise_linear_function_helpers.h"
+#include "resource_helpers.h"
 
 // NB: Used to create errors with TJobResources.
-#include <yt/yt/ytlib/scheduler/job_resources_serialize.h>
+// TODO(ignat): migrate on separate error class.
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/library/numeric/binary_search.h>
 

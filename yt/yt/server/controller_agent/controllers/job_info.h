@@ -3,6 +3,7 @@
 #include "private.h"
 
 #include "data_flow_graph.h"
+#include "extended_job_resources.h"
 
 #include <yt/yt/server/controller_agent/controller_agent.h>
 
@@ -100,7 +101,7 @@ public:
 
     TFuture<TSharedRef> JobSpecProtoFuture;
 
-    NScheduler::TExtendedJobResources EstimatedResourceUsage;
+    TExtendedJobResources EstimatedResourceUsage;
     std::optional<double> JobProxyMemoryReserveFactor;
     std::optional<double> UserJobMemoryReserveFactor;
     // TODO(ignat): use TJobResourcesWithQuota.

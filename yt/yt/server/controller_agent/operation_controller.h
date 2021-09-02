@@ -21,7 +21,7 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
-#include <yt/yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
 #include <yt/yt/client/security_client/public.h>
 

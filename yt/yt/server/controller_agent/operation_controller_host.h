@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/lib/scheduler/message_queue.h>
 
-#include <yt/yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
 #include <yt/yt/core/ytree/public.h>
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/core/ytree/serialize.h>
+#include <util/system/defaults.h>
 
 #include <type_traits>
 #include <cmath>
@@ -35,6 +35,9 @@ public:
 
     explicit operator i64 () const;
     explicit operator double () const;
+
+    Underlying GetUnderlyingValue() const;
+    void SetUnderlyingValue(Underlying value);
 
     TFixedPointNumber& operator += (const TFixedPointNumber& rhs);
     TFixedPointNumber& operator -= (const TFixedPointNumber& rhs);
@@ -109,23 +112,10 @@ public:
         return lhs.Value_ >= rhs.Value_;
     }
 
-    void Persist(const NYT::TStreamPersistenceContext& context);
-
 private:
     Underlying Value_;
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <typename U, int P>
-void Serialize(const TFixedPointNumber<U, P>& number, NYson::IYsonConsumer* consumer);
-
-template <typename U, int P>
-void Deserialize(TFixedPointNumber<U, P>& number, NYTree::INodePtr node);
-
-template <typename U, int P>
-TString ToString(const TFixedPointNumber<U, P>& number);
 
 template <typename U, int P>
 NYT::TFixedPointNumber<U, P> round(const NYT::TFixedPointNumber<U, P>& number);

@@ -112,54 +112,7 @@ TResourceVolume operator * (const TResourceVolume& lhs, double rhs)
     return result;
 }
 
-void ProfileResourceVolume(
-    NProfiling::ISensorWriter* writer,
-    const TResourceVolume& volume,
-    const TString& prefix)
-{
-    #define XX(name, Name) writer->AddGauge(prefix + "/" #name, static_cast<double>(volume.Get##Name()));
-    ITERATE_JOB_RESOURCES(XX)
-    #undef XX
-}
-
-void Serialize(const TResourceVolume& volume, NYson::IYsonConsumer* consumer)
-{
-    NYTree::BuildYsonFluently(consumer)
-        .BeginMap()
-            #define XX(name, Name) .Item(#name).Value(volume.Get##Name())
-            ITERATE_JOB_RESOURCES(XX)
-            #undef XX
-        .EndMap();
-}
-
-void Deserialize(TResourceVolume& volume, NYTree::INodePtr node)
-{
-    auto mapNode = node->AsMap();
-    #define XX(name, Name) \
-        if (auto child = mapNode->FindChild(#name)) { \
-            auto value = volume.Get##Name(); \
-            Deserialize(value, child); \
-            volume.Set##Name(value); \
-        }
-    ITERATE_JOB_RESOURCES(XX)
-    #undef XX
-}
-
-void FormatValue(TStringBuilderBase* builder, const TResourceVolume& volume, TStringBuf /* format */)
-{
-    builder->AppendFormat(
-        "{UserSlots: %.2f, Cpu: %v, Gpu: %.2f, Memory: %.2fMBs, Network: %.2f}",
-        volume.GetUserSlots(),
-        volume.GetCpu(),
-        volume.GetGpu(),
-        volume.GetMemory() / 1_MB,
-        volume.GetNetwork());
-}
-
-TString ToString(const TResourceVolume& volume)
-{
-    return ToStringViaBuilder(volume);
-}
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
 

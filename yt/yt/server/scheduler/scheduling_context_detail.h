@@ -3,7 +3,7 @@
 #include "scheduling_context.h"
 #include "exec_node.h"
 
-#include <yt/yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
 namespace NYT::NScheduler {
 

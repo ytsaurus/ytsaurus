@@ -7,6 +7,7 @@
 #include "job_splitter.h"
 #include "task_host.h"
 #include "helpers.h"
+#include "extended_job_resources.h"
 
 #include <yt/yt/server/controller_agent/chunk_list_pool.h>
 #include <yt/yt/server/controller_agent/tentative_tree_eligibility.h>
@@ -45,7 +46,7 @@
 
 #include <yt/yt/ytlib/query_client/public.h>
 
-#include <yt/yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/value_consumer.h>
@@ -311,7 +312,7 @@ public:
     virtual bool IsRowCountPreserved() const override;
     virtual bool ShouldSkipSanityCheck() override;
 
-    virtual NScheduler::TExtendedJobResources GetAutoMergeResources(
+    virtual TExtendedJobResources GetAutoMergeResources(
         const NChunkPools::TChunkStripeStatisticsVector& statistics) const override;
     virtual TAutoMergeDirector* GetAutoMergeDirector() override;
 

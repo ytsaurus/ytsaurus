@@ -1,6 +1,8 @@
 #include "controller_agent.h"
 #include "private.h"
 
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
+
 #include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>

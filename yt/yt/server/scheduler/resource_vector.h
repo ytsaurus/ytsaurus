@@ -102,14 +102,6 @@ inline TJobResources operator*(const TJobResources& lhs, const TResourceVector& 
     return result;
 }
 
-void FormatValue(TStringBuilderBase* builder, const TResourceVector& resourceVector, TStringBuf format);
-
-void ProfileResourceVector(
-    NProfiling::ISensorWriter* writer,
-    const THashSet<EJobResourceType>& resourceTypes,
-    const TResourceVector& resourceVector,
-    const TString& prefix);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 using TVectorPiecewiseSegment = TPiecewiseSegment<TResourceVector>;

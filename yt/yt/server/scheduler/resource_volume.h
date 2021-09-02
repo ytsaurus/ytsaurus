@@ -49,16 +49,7 @@ TResourceVolume operator + (const TResourceVolume& lhs, const TResourceVolume& r
 TResourceVolume operator - (const TResourceVolume& lhs, const TResourceVolume& rhs);
 TResourceVolume operator * (const TResourceVolume& lhs, double rhs);
 
-void ProfileResourceVolume(
-    NProfiling::ISensorWriter* writer,
-    const TResourceVolume& volume,
-    const TString& prefix);
-
-void Serialize(const TResourceVolume& volume, NYson::IYsonConsumer* consumer);
-void Deserialize(TResourceVolume& volume, NYTree::INodePtr node);
-
-void FormatValue(TStringBuilderBase* builder, const TResourceVolume& volume, TStringBuf /* format */);
-TString ToString(const TResourceVolume& volume);
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
 

@@ -6,6 +6,7 @@
 #include "data_flow_graph.h"
 #include "job_splitter.h"
 #include "helpers.h"
+#include "extended_job_resources.h"
 
 #include <yt/yt/server/controller_agent/tentative_tree_eligibility.h>
 
@@ -19,8 +20,7 @@
 #include <yt/yt/server/lib/controller_agent/serialize.h>
 #include <yt/yt/server/lib/controller_agent/read_range_registry.h>
 
-#include <yt/yt/ytlib/scheduler/job_resources.h>
-#include <yt/yt/ytlib/scheduler/public.h>
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/ytlib/table_client/helpers.h>
 
@@ -158,7 +158,7 @@ public:
 
     virtual void SetupCallbacks();
 
-    virtual NScheduler::TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const = 0;
+    virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const = 0;
 
     virtual NChunkPools::IChunkPoolInputPtr GetChunkPoolInput() const = 0;
     virtual NChunkPools::IChunkPoolOutputPtr GetChunkPoolOutput() const = 0;
@@ -274,7 +274,7 @@ protected:
         const std::vector<NChunkClient::TChunkTreeId>& chunkTreeIds,
         google::protobuf::RepeatedPtrField<NScheduler::NProto::TOutputResult> boundaryKeys);
 
-    void AddFootprintAndUserJobResources(NScheduler::TExtendedJobResources& jobResources) const;
+    void AddFootprintAndUserJobResources(TExtendedJobResources& jobResources) const;
 
     //! This method is called for each input data slice before adding it to the chunk pool input.
     //! It transforms data slices into new mode, adapts them for using in corresponding chunk pool
@@ -309,7 +309,7 @@ protected:
     //! task->SetInputVertex(this->GetJobType());
     void FinishTaskInput(const TTaskPtr& task);
 
-    virtual NScheduler::TExtendedJobResources GetMinNeededResourcesHeavy() const = 0;
+    virtual TExtendedJobResources GetMinNeededResourcesHeavy() const = 0;
 
     /*!
      *  \note Invoker affinity: JobSpecBuildInvoker.
@@ -331,7 +331,7 @@ private:
     std::vector<std::optional<i64>> MaximumUsedTmpfsSizes_;
 
     TJobResources CachedTotalNeededResources_;
-    mutable std::optional<NScheduler::TExtendedJobResources> CachedMinNeededResources_;
+    mutable std::optional<TExtendedJobResources> CachedMinNeededResources_;
 
     bool CompletedFired_ = false;
 
@@ -370,7 +370,7 @@ private:
     THashSet<NChunkPools::IChunkPoolOutput::TCookie> ResourceOverdraftedOutputCookies_;
 
     NScheduler::TJobResources ApplyMemoryReserve(
-        const NScheduler::TExtendedJobResources& jobResources,
+        const TExtendedJobResources& jobResources,
         double jobProxyMemoryReserveFactor,
         std::optional<double> userJobMemoryReserveFactor) const;
 

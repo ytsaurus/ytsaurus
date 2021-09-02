@@ -2,6 +2,7 @@
 
 #include "private.h"
 
+#include "extended_job_resources.h"
 #include "chunk_pool_adapters.h"
 #include "task.h"
 
@@ -79,7 +80,7 @@ public:
     virtual TString GetTitle() const override;
     virtual TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const override;
 
-    virtual NScheduler::TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override;
+    virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override;
 
     virtual NChunkPools::IChunkPoolInputPtr GetChunkPoolInput() const override;
 
@@ -101,7 +102,7 @@ public:
     void Persist(const TPersistenceContext& context) override;
 
 protected:
-    NScheduler::TExtendedJobResources GetMinNeededResourcesHeavy() const override;
+    TExtendedJobResources GetMinNeededResourcesHeavy() const override;
 
     void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) override;
     bool IsJobInterruptible() const override;
