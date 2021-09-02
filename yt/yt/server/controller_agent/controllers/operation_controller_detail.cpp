@@ -1987,6 +1987,15 @@ void TOperationControllerBase::FinalizeFeatures()
         task->FinalizeFeatures();
     }
 
+    ControllerFeatures_.AddTag("authenticated_user", GetAuthenticatedUser());
+    ControllerFeatures_.AddTag("operation_type", GetOperationType());
+    ControllerFeatures_.AddTag("total_estimated_input_data_weight", TotalEstimatedInputDataWeight);
+    ControllerFeatures_.AddTag("total_estimated_input_row_count", TotalEstimatedInputRowCount);
+    ControllerFeatures_.AddTag("total_estimated_input_chunk_count", TotalEstimatedInputChunkCount);
+    ControllerFeatures_.AddTag("total_estimated_input_compressed_data_size", TotalEstimatedInputCompressedDataSize);
+    ControllerFeatures_.AddTag("total_estimated_input_uncompressed_data_size", TotalEstimatedInputUncompressedDataSize);
+    ControllerFeatures_.AddTag("total_job_count", GetTotalJobCount());
+
     ControllerFeatures_.AddSingular("operation_count", 1);
     ControllerFeatures_.AddSingular("wall_time", (FinishTime_ - StartTime_).MilliSeconds());
     ControllerFeatures_.AddSingular("peak_controller_memory_usage", PeakMemoryUsage_);
