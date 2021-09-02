@@ -109,6 +109,9 @@ public:
     // Minimum number of completed jobs after which alert can be set.
     i64 ShortJobsAlertMinJobCount;
 
+    // Minimum allowed ratio of operation duration to max job duration.
+    double ShortJobsAlertMinAllowedOperationDurationToMaxJobDurationRatio;
+
     // Minimum partition size to enable data skew check.
     i64 IntermediateDataSkewAlertMinPartitionSize;
 
