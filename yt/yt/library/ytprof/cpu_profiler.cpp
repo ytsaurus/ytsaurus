@@ -1,11 +1,10 @@
 #include "cpu_profiler.h"
 #include "symbolize.h"
+#include "backtrace.h"
 
 #include <link.h>
 
 #include <util/system/yield.h>
-
-#include <contrib/libs/libunwind/include/libunwind.h>
 
 #include <csignal>
 
@@ -129,85 +128,6 @@ void TCpuProfiler::Stop()
     BackgroundThread_.join();
 }
 
-class TUWCursor
-{
-public:
-    TUWCursor()
-    {
-        if (unw_getcontext(&Context_) != 0) {
-            End_ = true;
-            return;
-        }
-
-        if (unw_init_local(&Cursor_, &Context_) != 0) {
-            End_ = true;
-            return;
-        }
-
-        ReadIP();
-    }
-
-    bool IsEnd()
-    {
-        return End_;
-    }
-
-    bool Next()
-    {
-        if (End_) {
-            return false;
-        }
-
-        StepReturnValue_ = unw_step(&Cursor_);
-        if (StepReturnValue_ <= 0) {
-            End_ = true;
-            return false;
-        }
-
-        ReadIP();
-        return !End_;
-    }
-
-    void* GetIP()
-    {
-        return IP_;
-    }
-
-    void* GetStartIP()
-    {
-        return StartIP_;
-    }
-
-private:
-    unw_context_t Context_;
-    unw_cursor_t Cursor_;
-    bool End_ = false;
-    int StepReturnValue_;
-
-    void* StartIP_ = nullptr;
-    void* IP_ = nullptr;
-
-    void ReadIP()
-    {
-        unw_word_t ip = 0;
-        int rv = unw_get_reg(&Cursor_, UNW_REG_IP, &ip);
-        if (rv < 0) {
-            End_ = true;
-            return;
-        }
-
-        IP_ = reinterpret_cast<void*>(ip);
-
-        unw_proc_info_t procInfo;
-        if (unw_get_proc_info(&Cursor_, &procInfo) < 0) {
-            StartIP_ = nullptr;
-        } else {
-            StartIP_ = reinterpret_cast<void*>(procInfo.start_ip);
-        }
-    }
-};
-
-
 void TCpuProfiler::OnSigProf(siginfo_t* info, ucontext_t* ucontext)
 {
     SignalOverruns_ += info->si_overrun;
@@ -239,10 +159,19 @@ void TCpuProfiler::OnSigProf(siginfo_t* info, ucontext_t* ucontext)
             return {cursor.GetStartIP(), !cursor.IsEnd()};
         } else {
             startIP = true;
-            count++;
 
             auto ip = cursor.GetIP();
+
+            if (count != 0) {
+                // First IP points to next executing instruction.
+                // All other IP's are return addresses.
+                // Substract 1 to get accurate line information for profiler.
+                ip = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(ip) - 1);
+            }
+
             cursor.Next();
+            count++;
+
             return {ip, true};
         }
     });
