@@ -66,6 +66,9 @@ TOperationAlertsConfig::TOperationAlertsConfig()
     RegisterParameter("short_jobs_alert_min_job_count", ShortJobsAlertMinJobCount)
         .Default(1000);
 
+    RegisterParameter("short_jobs_alert_min_allowed_operation_duration_to_max_job_duration_ratio", ShortJobsAlertMinAllowedOperationDurationToMaxJobDurationRatio)
+        .Default(2.0);
+
     RegisterParameter("intermediate_data_skew_alert_min_partition_size", IntermediateDataSkewAlertMinPartitionSize)
         .Default(10_GB)
         .GreaterThan(0);

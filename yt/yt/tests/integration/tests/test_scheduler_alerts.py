@@ -208,6 +208,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "intermediate_data_skew_alert_min_partition_size": 50,
                 "short_jobs_alert_min_job_count": 3,
                 "short_jobs_alert_min_job_duration": 5000,
+                "short_jobs_alert_min_allowed_operation_duration_to_max_job_duration_ratio": 1.0,
                 "operation_too_long_alert_min_wall_time": 0,
                 "operation_too_long_alert_estimate_duration_threshold": 5000,
                 "queue_average_wait_time_threshold": 1500,

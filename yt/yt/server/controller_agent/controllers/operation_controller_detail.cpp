@@ -4054,7 +4054,7 @@ void TOperationControllerBase::AnalyzeJobsDuration()
         auto avgJobDuration = TDuration::MilliSeconds(completedJobsSummary->GetSum() / completedJobCount);
 
         if (completedJobCount > Config->OperationAlerts->ShortJobsAlertMinJobCount &&
-            operationDuration > maxJobDuration * 2 &&
+            operationDuration > maxJobDuration * Config->OperationAlerts->ShortJobsAlertMinAllowedOperationDurationToMaxJobDurationRatio &&
             avgJobDuration < Config->OperationAlerts->ShortJobsAlertMinJobDuration &&
             GetDataWeightParameterNameForJob(jobType))
         {
