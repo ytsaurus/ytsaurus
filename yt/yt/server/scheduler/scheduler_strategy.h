@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include "scheduler_tree.h"
+#include "resource_helpers.h"
 
 #include <yt/yt/server/lib/scheduler/event_log.h>
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
@@ -11,7 +12,8 @@
 
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
-#include <yt/yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/ytlib/security_client/public.h>
 

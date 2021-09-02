@@ -7,8 +7,6 @@
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/structs.h>
 
-#include <yt/yt/ytlib/scheduler/job_resources.h>
-
 #include <yt/yt/client/node_tracker_client/helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>

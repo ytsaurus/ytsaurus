@@ -10,7 +10,7 @@
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/scheduler/proto/scheduler_service.pb.h>
-#include <yt/yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
 #include <yt/yt/core/concurrency/lease_manager.h>
 #include <yt/yt/core/concurrency/spinlock.h>

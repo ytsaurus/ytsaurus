@@ -24,7 +24,7 @@
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
-#include <yt/yt/ytlib/scheduler/job_resources_serialize.h>
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 

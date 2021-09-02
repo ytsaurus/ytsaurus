@@ -10,6 +10,7 @@
 #include <yt/yt/ytlib/controller_agent/controller_agent_service_proxy.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 namespace NYT::NControllerAgent {
 

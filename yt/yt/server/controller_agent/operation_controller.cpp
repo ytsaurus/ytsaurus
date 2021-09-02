@@ -14,6 +14,7 @@
 #include <yt/yt/ytlib/object_client/public.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/core/profiling/timing.h>

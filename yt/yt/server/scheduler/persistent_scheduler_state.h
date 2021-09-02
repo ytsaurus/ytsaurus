@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "resource_helpers.h"
 #include "resource_volume.h"
 
 #include <yt/yt/ytlib/scheduler/job_resources.h>

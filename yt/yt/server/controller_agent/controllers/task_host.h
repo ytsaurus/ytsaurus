@@ -4,6 +4,7 @@
 
 #include "data_flow_graph.h"
 #include "table.h"
+#include "extended_job_resources.h"
 
 #include <yt/yt/server/controller_agent/operation_controller.h>
 
@@ -18,7 +19,7 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 namespace NYT::NControllerAgent::NControllers {
 
@@ -113,7 +114,7 @@ struct ITaskHost
         const TCompletedJobPtr& completedJob,
         const NChunkPools::TChunkStripePtr& stripe) = 0;
 
-    virtual NScheduler::TExtendedJobResources GetAutoMergeResources(
+    virtual TExtendedJobResources GetAutoMergeResources(
         const NChunkPools::TChunkStripeStatisticsVector& statistics) const = 0;
     virtual TAutoMergeDirector* GetAutoMergeDirector() = 0;
 

@@ -1,6 +1,6 @@
 #include "serialize.h"
 
-#include <yt/yt/ytlib/scheduler/job_resources_serialize.h>
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 namespace NYT {
 

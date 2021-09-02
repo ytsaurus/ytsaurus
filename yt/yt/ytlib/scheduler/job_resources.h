@@ -1,76 +1,92 @@
 #pragma once
 
-#include "public.h"
+// TODO(ignat): migrate to enum class
+#include <library/cpp/ytalloc/core/misc/enum.h>
 
-#include <yt/yt/ytlib/chunk_client/medium_directory.h>
-
-#include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
-
+#include <yt/yt/core/misc/public.h>
 #include <yt/yt/core/misc/fixed_point_number.h>
-#include <yt/yt/core/misc/small_vector.h>
-
-#include <yt/yt/library/profiling/producer.h>
 
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// For each memory capacity gives the number of nodes with this much memory.
-using TMemoryDistribution = THashMap<i64, int>;
-
 // Uses precision of 2 decimal digits.
 using TCpuResource = TFixedPointNumber<i64, 2>;
+
+void PersistCpuResource(const TStreamPersistenceContext& context, TCpuResource& cpu);
+
+////////////////////////////////////////////////////////////////////////////////
 
 // Implementation detail.
 class TEmptyJobResourcesBase
 { };
 
-class TExtendedJobResources
-{
-public:
-    DEFINE_BYVAL_RW_PROPERTY(i64, UserSlots);
-    DEFINE_BYVAL_RW_PROPERTY(TCpuResource, Cpu);
-    DEFINE_BYVAL_RW_PROPERTY(int, Gpu);
-    DEFINE_BYVAL_RW_PROPERTY(i64, JobProxyMemory);
-    DEFINE_BYVAL_RW_PROPERTY(i64, UserJobMemory);
-    DEFINE_BYVAL_RW_PROPERTY(i64, FootprintMemory);
-    DEFINE_BYVAL_RW_PROPERTY(i64, Network);
-
-    void SetCpu(double cpu)
-    {
-        Cpu_ = TCpuResource(cpu);
-    }
-
-public:
-    i64 GetMemory() const;
-
-    void Persist(const TStreamPersistenceContext& context);
-};
-
 class TJobResources
     : public TEmptyJobResourcesBase
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(i64, UserSlots);
-    DEFINE_BYVAL_RW_PROPERTY(TCpuResource, Cpu);
-    DEFINE_BYVAL_RW_PROPERTY(int, Gpu);
-    DEFINE_BYVAL_RW_PROPERTY(i64, Memory);
-    DEFINE_BYVAL_RW_PROPERTY(i64, Network);
-
-    void SetCpu(double cpu)
+    inline i64 GetUserSlots() const
+    {
+        return UserSlots_;
+    }
+    inline void SetUserSlots(i64 slots)
+    {
+        UserSlots_ = slots;
+    }
+    
+    inline TCpuResource GetCpu() const
+    {
+        return Cpu_;
+    }
+    inline void SetCpu(TCpuResource cpu)
+    {
+        Cpu_ = cpu;
+    }
+    inline void SetCpu(double cpu)
     {
         Cpu_ = TCpuResource(cpu);
     }
-
+    
+    inline int GetGpu() const
+    {
+        return Gpu_;
+    }
+    void SetGpu(int gpu)
+    {
+        Gpu_ = gpu;
+    }
+    
+    inline i64 GetMemory() const
+    {
+        return Memory_;
+    }
+    void SetMemory(i64 memory)
+    {
+        Memory_ = memory;
+    }
+    
+    inline i64 GetNetwork() const
+    {
+        return Network_;
+    }
+    void SetNetwork(i64 network)
+    {
+        Network_ = network;
+    }
+    
 public:
     TJobResources() = default;
-    TJobResources(const NNodeTrackerClient::NProto::TNodeResources& nodeResources);
 
     static TJobResources Infinite();
 
-    NNodeTrackerClient::NProto::TNodeResources ToNodeResources() const;
-
     void Persist(const TStreamPersistenceContext& context);
+
+private:
+    i64 UserSlots_{};
+    TCpuResource Cpu_{};
+    int Gpu_{};
+    i64 Memory_{};
+    i64 Network_{};
 };
 
 #define ITERATE_JOB_RESOURCES(XX) \
@@ -88,91 +104,6 @@ DEFINE_ENUM(EJobResourceType,
     (Memory)
     (Network)
 );
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TDiskQuota
-{
-    SmallDenseMap<int, i64> DiskSpacePerMedium = SmallDenseMap<int, i64>{1};
-
-    std::optional<i64> DiskSpaceWithoutMedium;
-
-    operator bool() const;
-
-    void Persist(const TStreamPersistenceContext& context);
-};
-
-
-void FormatValue(TStringBuilderBase* builder, const TDiskQuota& diskQuota, TStringBuf /* format */);
-
-TDiskQuota CreateDiskQuota(i32 mediumIndex, i64 diskSpace);
-TDiskQuota CreateDiskQuotaWithoutMedium(i64 diskSpace);
-
-TDiskQuota  operator -  (const TDiskQuota& quota);
-
-TDiskQuota  operator +  (const TDiskQuota& lhs, const TDiskQuota& rhs);
-TDiskQuota& operator += (TDiskQuota& lhs, const TDiskQuota& rhs);
-
-TDiskQuota  operator -  (const TDiskQuota& lhs, const TDiskQuota& rhs);
-TDiskQuota& operator -= (TDiskQuota& lhs, const TDiskQuota& rhs);
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TJobResourcesWithQuota
-    : public TJobResources
-{
-public:
-    DEFINE_BYVAL_RW_PROPERTY(TDiskQuota, DiskQuota)
-
-public:
-    TJobResourcesWithQuota() = default;
-    TJobResourcesWithQuota(const TJobResources& jobResources);
-
-    static TJobResourcesWithQuota Infinite();
-
-    TJobResources ToJobResources() const;
-
-    void Persist(const TStreamPersistenceContext& context);
-};
-
-using TJobResourcesWithQuotaList = SmallVector<TJobResourcesWithQuota, 8>;
-
-TString FormatResourceUsage(
-    const TJobResources& usage,
-    const TJobResources& limits);
-TString FormatResourceUsage(
-    const TJobResources& usage,
-    const TJobResources& limits,
-    const NNodeTrackerClient::NProto::TDiskResources& diskResources,
-    const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
-TString FormatResources(const TJobResources& resources);
-
-TString FormatResources(const TJobResourcesWithQuota& resources);
-TString FormatResources(const TExtendedJobResources& resources);
-
-void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TStringBuf /* format */);
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TJobResourcesProfiler
-{
-public:
-    void Init(const NProfiling::TProfiler& profiler);
-    void Reset();
-    void Update(const TJobResources& resources);
-
-private:
-#define XX(name, Name) NProfiling::TGauge Name;
-    ITERATE_JOB_RESOURCES(XX)
-#undef XX
-};
-
-void ProfileResources(
-    NProfiling::ISensorWriter* writer,
-    const TJobResources& resources,
-    const TString& prefix);
-
-////////////////////////////////////////////////////////////////////////////////
 
 EJobResourceType GetDominantResource(
     const TJobResources& demand,
@@ -199,11 +130,6 @@ double GetMaxResourceRatio(
     const TJobResources& nominator,
     const TJobResources& denominator);
 
-TJobResources GetAdjustedResourceLimits(
-    const TJobResources& demand,
-    const TJobResources& limits,
-    const TMemoryDistribution& execNodeMemoryDistribution);
-
 TJobResources  operator +  (const TJobResources& lhs, const TJobResources& rhs);
 TJobResources& operator += (TJobResources& lhs, const TJobResources& rhs);
 
@@ -221,40 +147,9 @@ bool operator == (const TJobResources& lhs, const TJobResources& rhs);
 bool operator != (const TJobResources& lhs, const TJobResources& rhs);
 
 bool Dominates(const TJobResources& lhs, const TJobResources& rhs);
-bool Dominates(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs);
 
 TJobResources Max(const TJobResources& lhs, const TJobResources& rhs);
 TJobResources Min(const TJobResources& lhs, const TJobResources& rhs);
-
-bool CanSatisfyDiskQuotaRequest(
-    const NNodeTrackerClient::NProto::TDiskResources& diskResources,
-    TDiskQuota diskQuotaRequest);
-
-bool CanSatisfyDiskQuotaRequests(
-    const NNodeTrackerClient::NProto::TDiskResources& diskResources,
-    const std::vector<TDiskQuota>& diskQuotaRequests);
-
-////////////////////////////////////////////////////////////////////////////////
-
-// For testing purposes.
-bool CanSatisfyDiskQuotaRequests(
-    std::vector<i64> availableDiskSpacePerLocation,
-    std::vector<i64> diskSpaceRequests);
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NProto {
-
-void ToProto(NScheduler::NProto::TDiskQuota* protoDiskQuota, const NScheduler::TDiskQuota& diskQuota);
-void FromProto(NScheduler::TDiskQuota* diskQuota, const NScheduler::NProto::TDiskQuota& protoDiskQuota);
-
-void ToProto(NScheduler::NProto::TJobResources* protoResources, const NScheduler::TJobResources& resources);
-void FromProto(NScheduler::TJobResources* resources, const NScheduler::NProto::TJobResources& protoResources);
-
-void ToProto(NScheduler::NProto::TJobResourcesWithQuota* protoResources, const NScheduler::TJobResourcesWithQuota& resources);
-void FromProto(NScheduler::TJobResourcesWithQuota* resources, const NScheduler::NProto::TJobResourcesWithQuota& protoResources);
-
-} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

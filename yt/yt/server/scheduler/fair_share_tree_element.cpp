@@ -6,7 +6,7 @@
 #include "resource_tree_element.h"
 #include "scheduling_context.h"
 
-#include <yt/yt/ytlib/scheduler/job_resources_serialize.h>
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/core/profiling/profiler.h>
 #include <yt/yt/core/profiling/profile_manager.h>

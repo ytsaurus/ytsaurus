@@ -12,7 +12,7 @@
 
 #include <yt/yt/server/lib/scheduler/event_log.h>
 
-#include <yt/yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
 #include <yt/yt/core/misc/numeric_helpers.h>
 
