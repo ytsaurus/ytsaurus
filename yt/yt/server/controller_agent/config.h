@@ -529,6 +529,29 @@ DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMemoryWatchdogConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::optional<i64> TotalControllerMemoryLimit;
+
+    //! Memory limit (in bytes) for operation controller. If controller exceeds this limit,
+    //! operations fails.
+    i64 OperationControllerMemoryLimit;
+
+    //! Memory threshold (in bytes) for operation controller.
+    //! Operation controller that exceeds this threshold may fail if total controller memory limit is exceeded.
+    i64 OperationControllerMemoryOverconsumptionThreshold;
+
+    TDuration MemoryUsageCheckPeriod;
+
+    TMemoryWatchdogConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TMemoryWatchdogConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TControllerAgentConfig
     : public NChunkClient::TChunkTeleporterConfig
     , public TSingletonsDynamicConfig
@@ -911,13 +934,9 @@ public:
     //! List of the tags assigned to controller agent.
     std::vector<TString> Tags;
 
-    //! Memory limit (in bytes) for operation controller. If controller exceeds this limit,
-    //! operations fails.
-    i64 OperationControllerMemoryLimit;
-
-    TDuration MemoryUsageCheckPeriod;
-
     TUserJobMonitoringConfigPtr UserJobMonitoring;
+
+    TMemoryWatchdogConfigPtr MemoryWatchdog;
 
     //! List of medium that requires specifying of account and disk space limit.
     THashSet<TString> ObligatoryAccountMediums;

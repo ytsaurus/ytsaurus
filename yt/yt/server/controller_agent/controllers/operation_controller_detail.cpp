@@ -285,10 +285,10 @@ TOperationControllerBase::TOperationControllerBase(
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         BIND(&TThis::UpdateCachedMaxAvailableExecNodeResources, MakeWeak(this)),
         Config->MaxAvailableExecNodeResourcesUpdatePeriod))
-    , MemoryUsageCheckExecutor(New<TPeriodicExecutor>(
+    , PeakMemoryUsageUpdateExecutor(New<TPeriodicExecutor>(
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
-        BIND(&TThis::CheckMemoryUsage, MakeWeak(this)),
-        Config->MemoryUsageCheckPeriod))
+        BIND(&TThis::UpdatePeakMemoryUsage, MakeWeak(this)),
+        Config->MemoryWatchdog->MemoryUsageCheckPeriod))
     , EventLogConsumer_(Host->GetEventLogWriter()->CreateConsumer())
     , LogProgressBackoff(DurationToCpuDuration(Config->OperationLogProgressBackoff))
     , ProgressBuildExecutor_(New<TPeriodicExecutor>(
@@ -1004,7 +1004,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
     TOperationControllerMaterializeResult result;
 
     try {
-        MemoryUsageCheckExecutor->Start();
+        PeakMemoryUsageUpdateExecutor->Start();
 
         FetchInputTables();
         FetchUserFiles();
@@ -7858,6 +7858,8 @@ TOperationInfo TOperationControllerBase::BuildOperationInfo()
 
 i64 TOperationControllerBase::GetMemoryUsage() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return GetMemoryUsageForTag(MemoryTag_);
 }
 
@@ -9349,6 +9351,8 @@ void TOperationControllerBase::FinishTaskInput(const TTaskPtr& task)
 
 void TOperationControllerBase::SetOperationAlert(EOperationAlertType alertType, const TError& alert)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto guard = Guard(AlertsLock_);
 
     auto& existingAlert = Alerts_[alertType];
@@ -9702,27 +9706,28 @@ void TOperationControllerBase::AccountExternalScheduleJobFailures() const
     }
 }
 
-void TOperationControllerBase::CheckMemoryUsage()
+void TOperationControllerBase::UpdatePeakMemoryUsage()
 {
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
     auto memoryUsage = GetMemoryUsage();
     PeakMemoryUsage_ = std::max(memoryUsage, PeakMemoryUsage_);
+}
 
-    YT_LOG_DEBUG("Checking operation controller memory usage (MemoryUsage: %v, MemoryLimit: %v)",
-        memoryUsage,
-        Config->OperationControllerMemoryLimit);
+void TOperationControllerBase::OnMemoryLimitExceeded(const TError& error)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    if (memoryUsage > Config->OperationControllerMemoryLimit) {
-        auto error = TError(EErrorCode::OperationControllerMemoryLimitExceeded,
-            "Operation controller memory usage exceeds memory limit, probably input of the operation "
-            "is too large, try to split operation into a smaller ones")
-            << TErrorAttribute("operation_controller_memory_usage", memoryUsage)
-            << TErrorAttribute("operation_controller_memory_limit", Config->OperationControllerMemoryLimit)
-            << TErrorAttribute("operation_id", OperationId);
+    MemoryLimitExceeded_ = true;
 
-        OnOperationFailed(error);
-    }
+    GetInvoker()->Invoke(BIND(&TOperationControllerBase::OnOperationFailed, MakeWeak(this), error, /*flush*/ true));
+}
+
+bool TOperationControllerBase::IsMemoryLimitExceeded() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return MemoryLimitExceeded_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

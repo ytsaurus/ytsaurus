@@ -6,9 +6,11 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, print_debug, wait, wait_breakpoint, with_breakpoint, create, ls, get,
+    authors, print_debug, release_breakpoint, wait, wait_breakpoint, with_breakpoint, create, ls, get,
     set, exists,
     write_table, map, reduce, map_reduce, merge, erase, run_sleeping_vanilla, run_test_vanilla, get_operation, raises_yt_error)
+
+from yt.common import YtError
 
 import yt_error_codes
 
@@ -205,6 +207,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "tagged_memory_statistics_update_period": 100,
+            "memory_watchdog": {},
         }
     }
 
@@ -217,7 +220,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
         cls.controller_agent_counter += 1
         if cls.controller_agent_counter > 2:
             cls.controller_agent_counter -= 2
-        config["controller_agent"]["total_controller_memory_limit"] = cls.controller_agent_counter * 50 * 1024 ** 2
+        config["controller_agent"]["memory_watchdog"] = {"total_controller_memory_limit": cls.controller_agent_counter * 50 * 1024 ** 2}
 
     @authors("ignat")
     @flaky(max_runs=5)
@@ -531,7 +534,9 @@ class TestOperationControllerLimit(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "tagged_memory_statistics_update_period": 100,
-            "operation_controller_memory_limit": 100
+            "memory_watchdog": {
+                "operation_controller_memory_limit": 100
+            },
         }
     }
 
@@ -541,3 +546,201 @@ class TestOperationControllerLimit(YTEnvSetup):
         op = run_test_vanilla("sleep 60", job_count=1)
         with raises_yt_error(yt_error_codes.ControllerMemoryLimitExceeded):
             op.track()
+
+
+##################################################################
+
+
+@pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
+class TestMemoryOverconsumptionThreshold(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "tagged_memory_statistics_update_period": 100,
+            "memory_watchdog": {
+                "memory_usage_check_period": 100,
+                "operation_controller_memory_overconsumption_threshold": 100,
+            },
+        }
+    }
+
+    @authors("alexkolodezny")
+    def test_memory_overconsumption_threshold(self):
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1)
+
+        wait(lambda: "memory_overconsumption" in op.get_alerts())
+
+        wait_breakpoint()
+
+
+@pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
+class TestTotalControllerMemoryLimit(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "tagged_memory_statistics_update_period": 100,
+            "memory_watchdog": {
+                "memory_usage_check_period": 100,
+                "operation_controller_memory_overconsumption_threshold": 100,
+                "total_controller_memory_limit": 1000,
+            },
+        },
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "controller_agent_tracker": {
+                "min_agent_available_memory": 100,
+            },
+        },
+    }
+
+    @authors("alexkolodezny")
+    def test_total_controller_memory_limit(self):
+        op = run_test_vanilla("sleep 1", track=False)
+
+        with raises_yt_error(yt_error_codes.ControllerMemoryLimitExceeded):
+            op.track()
+
+
+@pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
+class TestControllerAgentMemoryAlert(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "tagged_memory_statistics_update_period": 100,
+            "memory_watchdog": {
+                "memory_usage_check_period": 100,
+                "total_controller_memory_limit": 150 * 1024 * 1024,
+                "operation_controller_memory_overconsumption_threshold": 150 * 1024 * 1024,
+            },
+        },
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "controller_agent_tracker": {
+                "min_agent_available_memory": 100,
+            },
+        },
+    }
+
+    @authors("alexkolodezny")
+    def test_controller_agent_memory_alert(self):
+        controller_agents = ls("//sys/controller_agents/instances")
+        assert len(controller_agents) == 1
+        agent_alerts_path = "//sys/controller_agents/instances/{}/@alerts".format(
+            controller_agents[0]
+        )
+
+        def get_agent_alerts():
+            return get(agent_alerts_path)
+        op1 = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            spec={
+                "testing": {
+                    "allocation_size": 100 * 1024 * 1024,
+                },
+            },
+            track=False,
+        )
+        op2 = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            spec={
+                "testing": {
+                    "allocation_size": 100 * 1024 * 1024,
+                },
+            },
+            track=False,
+        )
+        op3 = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            spec={
+                "testing": {
+                    "allocation_size": 200 * 1024 * 1024,
+                },
+            },
+            track=False,
+        )
+
+        wait(lambda: len(get_agent_alerts()) == 1)
+
+        assert "Total controller memory usage of running operations exceeds limit" in str(get_agent_alerts()[0])
+
+        release_breakpoint()
+        op1.track()
+        op2.track()
+        with raises_yt_error(yt_error_codes.ControllerMemoryLimitExceeded):
+            op3.track()
+
+
+@pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
+class TestMemoryWatchdog(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "tagged_memory_statistics_update_period": 100,
+            "memory_watchdog": {
+                "memory_usage_check_period": 100,
+                "total_controller_memory_limit": 1000 * 1024 * 1024,
+                "operation_controller_memory_overconsumption_threshold": 100 * 1024 * 1024,
+            },
+        }
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "controller_agent_tracker": {
+                "min_agent_available_memory": 100,
+            },
+        },
+    }
+
+    @authors("alexkolodezny")
+    def test_memory_watchdog(self):
+        small_ops = []
+        for _ in range(2):
+            small_ops.append(run_test_vanilla(
+                "sleep 1",
+                spec={
+                    "testing": {
+                        "allocation_size": 150 * 1024 * 1024,
+                    },
+                },
+                track=False,
+            ))
+        big_ops = []
+        for _ in range(5):
+            big_ops.append(run_test_vanilla(
+                "sleep 1",
+                spec={
+                    "testing": {
+                        "allocation_size": 200 * 1024 * 1024,
+                    },
+                },
+                track=False,
+            ))
+
+        for op in small_ops:
+            op.track()
+
+        failed = 0
+        for op in big_ops:
+            try:
+                op.track()
+            except YtError as err:
+                assert err.contains_code(yt_error_codes.ControllerMemoryLimitExceeded)
+                failed += 1
+        assert failed == 2

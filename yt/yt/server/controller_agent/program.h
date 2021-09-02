@@ -99,7 +99,7 @@ protected:
             defaultConfig->ControllerAgent->EnableSnapshotLoading = false;
             defaultConfig->ControllerAgent->EnableSnapshotLoadingDisabledAlert = false;
             // Scheduler will not work with controller agent without memory limit.
-            defaultConfig->ControllerAgent->TotalControllerMemoryLimit = 100_GB;
+            defaultConfig->ControllerAgent->MemoryWatchdog->TotalControllerMemoryLimit = 100_GB;
             // Dump it into node and apply patch from config file (if present).
             configNode = NYTree::ConvertToNode(defaultConfig);
             if (auto configNodePatch = GetConfigNode(true /* returnNullIfNotSupplied */)) {

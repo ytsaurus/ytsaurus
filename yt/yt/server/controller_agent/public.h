@@ -64,6 +64,9 @@ DECLARE_REFCOUNTED_CLASS(TOperationControllerHost)
 
 DECLARE_REFCOUNTED_CLASS(TMemoryTagQueue)
 
+DECLARE_REFCOUNTED_CLASS(TMemoryWatchdog)
+DECLARE_REFCOUNTED_CLASS(TMemoryWatchdogConfig)
+
 DECLARE_REFCOUNTED_CLASS(TOperation)
 using TOperationIdToOperationMap = THashMap<TOperationId, TOperationPtr>;
 

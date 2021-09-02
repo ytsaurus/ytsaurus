@@ -399,6 +399,17 @@ public:
 
     virtual NLogging::TLogger GetLogger() const override;
 
+    virtual void SetOperationAlert(EOperationAlertType type, const TError& alert) override;
+
+    virtual void OnMemoryLimitExceeded(const TError& error) override;
+
+    virtual bool IsMemoryLimitExceeded() const override;
+
+    virtual i64 GetMemoryUsage() const override;
+
+    //! Returns |true| when operation completion event is scheduled to control invoker.
+    virtual bool IsFinished() const override;
+
 protected:
     const IOperationControllerHostPtr Host;
     TControllerAgentConfigPtr Config;
@@ -824,9 +835,6 @@ protected:
     //! Returns |true| as long as the operation is waiting for jobs abort events.
     bool IsFailing() const;
 
-    //! Returns |true| when operation completion event is scheduled to control invoker.
-    bool IsFinished() const;
-
     // Unsorted helpers.
 
     //! Enables verification that the output is sorted.
@@ -950,8 +958,6 @@ protected:
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const override;
 
     void FinishTaskInput(const TTaskPtr& task);
-
-    void SetOperationAlert(EOperationAlertType type, const TError& alert);
 
     void AbortAllJoblets();
 
@@ -1088,7 +1094,7 @@ private:
 
     //! Periodically checks operation controller memory usage.
     //! If memory usage exceeds the limit, operation fails.
-    NConcurrency::TPeriodicExecutorPtr MemoryUsageCheckExecutor;
+    NConcurrency::TPeriodicExecutorPtr PeakMemoryUsageUpdateExecutor;
 
     //! Exec node count do not consider scheduling tag.
     //! But descriptors do.
@@ -1179,6 +1185,8 @@ private:
 
     bool InputHasOrderedDynamicStores_ = false;
 
+    std::atomic<bool> MemoryLimitExceeded_ = false;
+
     //! Error that lead to operation failure.
     TError Error_;
 
@@ -1216,8 +1224,6 @@ private:
     void AccountExternalScheduleJobFailures() const;
 
     void InitializeOrchid();
-
-    i64 GetMemoryUsage() const;
 
     void BuildAndSaveProgress();
 
@@ -1340,7 +1346,7 @@ private:
     //! ordered according to topological order of data flow graph.
     std::vector<TTaskPtr> GetTopologicallyOrderedTasks() const;
 
-    void CheckMemoryUsage();
+    void UpdatePeakMemoryUsage();
 
     void BuildFeatureYson(NYTree::TFluentAny fluent) const;
 
