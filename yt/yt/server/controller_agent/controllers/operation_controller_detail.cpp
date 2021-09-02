@@ -1787,6 +1787,11 @@ void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot
 
     NPhoenix::TSerializer::InplaceLoad(context, this);
 
+    for (const auto& task : Tasks) {
+        task->Initialize();
+    }
+    InitializeOrchid();
+
     YT_LOG_INFO("Finished loading snapshot");
 }
 
@@ -9195,11 +9200,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already initialized.
     if (context.IsLoad()) {
-        for (const auto& task : Tasks) {
-            task->Initialize();
-        }
         InitUpdatingTables();
-        InitializeOrchid();
     }
 }
 
