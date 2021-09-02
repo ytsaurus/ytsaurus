@@ -10,6 +10,7 @@
 #include "bootstrap.h"
 #include "helpers.h"
 #include "job_monitoring_index_manager.h"
+#include "memory_watchdog.h"
 
 #include <yt/yt/server/lib/job_agent/job_reporter.h>
 
@@ -414,6 +415,10 @@ public:
         EventLogWriter_->UpdateConfig(Config_->EventLog);
 
         ReconfigurableJobSpecSliceThrottler_->Reconfigure(Config_->JobSpecSliceThrottler);
+
+        if (MemoryWatchdog_) {
+            MemoryWatchdog_->UpdateConfig(Config_->MemoryWatchdog);
+        }
 
         if (HeartbeatExecutor_) {
             HeartbeatExecutor_->SetPeriod(Config_->SchedulerHeartbeatPeriod);
@@ -1049,6 +1054,8 @@ private:
 
     INodePtr OperationsEffectiveAcl_;
 
+    TMemoryWatchdogPtr MemoryWatchdog_;
+
     YT_DECLARE_SPINLOCK(TSpinLock, JobMonitoringIndexManagerLock_);
     TJobMonitoringIndexManager JobMonitoringIndexManager_;
 
@@ -1204,6 +1211,10 @@ private:
             ControllerAgentLogger.WithTag("Kind: SchedulerToAgentScheduleJobRequests, IncarnationId: %v",
                 IncarnationId_));
 
+        MemoryWatchdog_ = New<TMemoryWatchdog>(
+            Config_->MemoryWatchdog,
+            Bootstrap_);
+
         HeartbeatExecutor_ = New<TPeriodicExecutor>(
             CancelableControlInvoker_,
             BIND(&TControllerAgent::TImpl::SendHeartbeat, MakeWeak(this)),
@@ -1261,6 +1272,8 @@ private:
             HeartbeatExecutor_->Stop();
             HeartbeatExecutor_.Reset();
         }
+
+        MemoryWatchdog_.Reset();
 
         OperationEventsOutbox_.Reset();
         JobEventsOutbox_.Reset();
@@ -1459,8 +1472,8 @@ private:
 
         request->set_exec_nodes_requested(preparedRequest.ExecNodesRequested);
 
-        if (Config_->TotalControllerMemoryLimit) {
-            request->set_controller_memory_limit(*Config_->TotalControllerMemoryLimit);
+        if (auto controllerMemoryLimit = Config_->MemoryWatchdog->TotalControllerMemoryLimit) {
+            request->set_controller_memory_limit(*controllerMemoryLimit);
             request->set_controller_memory_usage(MemoryTagQueue_->GetTotalUsage());
         }
 

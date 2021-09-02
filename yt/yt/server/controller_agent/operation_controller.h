@@ -601,6 +601,16 @@ struct IOperationController
     virtual std::optional<int> GetRowCountLimitTableIndex() = 0;
 
     virtual void LoadSnapshot(const TOperationSnapshot& snapshot) = 0;
+
+    virtual i64 GetMemoryUsage() const = 0;
+
+    virtual void SetOperationAlert(EOperationAlertType type, const TError& alert) = 0;
+
+    virtual void OnMemoryLimitExceeded(const TError& error) = 0;
+
+    virtual bool IsMemoryLimitExceeded() const = 0;
+
+    virtual bool IsFinished() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

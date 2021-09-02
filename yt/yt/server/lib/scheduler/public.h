@@ -72,6 +72,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((NoTablesWithEnabledDynamicStoreRead)         (24))
     ((UnusedMemory)                                (25))
     ((UserJobMonitoringLimited)                    (26))
+    ((MemoryOverconsumption)                       (27))
 );
 
 DEFINE_ENUM(EAgentToSchedulerOperationEventType,

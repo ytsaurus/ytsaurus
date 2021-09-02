@@ -431,6 +431,31 @@ public:
         return Underlying_->LoadSnapshot(snapshot);
     }
 
+    virtual i64 GetMemoryUsage() const override
+    {
+        return Underlying_->GetMemoryUsage();
+    }
+
+    virtual void SetOperationAlert(EOperationAlertType type, const TError& alert) override
+    {
+        return Underlying_->SetOperationAlert(type, alert);
+    }
+
+    virtual void OnMemoryLimitExceeded(const TError& error) override
+    {
+        return Underlying_->OnMemoryLimitExceeded(error);
+    }
+
+    virtual bool IsMemoryLimitExceeded() const override
+    {
+        return Underlying_->IsMemoryLimitExceeded();
+    }
+
+    virtual bool IsFinished() const override
+    {
+        return Underlying_->IsFinished();
+    }
+
 private:
     const TOperationId Id_;
     const IOperationControllerPtr Underlying_;

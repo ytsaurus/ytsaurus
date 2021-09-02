@@ -31,6 +31,7 @@ DEFINE_ENUM(EControllerAgentAlertType,
     (SnapshotLoadingDisabled)
     (UserJobMonitoringLimited)
     (SnapshotBuildingDisabled)
+    (ControllerMemoryOverconsumption)
 );
 
 DEFINE_ENUM(EControllerState,

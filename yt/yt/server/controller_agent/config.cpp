@@ -385,6 +385,20 @@ TUserJobMonitoringConfig::TUserJobMonitoringConfig()
         .GreaterThanOrEqual(0);
 }
 
+TMemoryWatchdogConfig::TMemoryWatchdogConfig()
+{
+    RegisterParameter("total_controller_memory_limit", TotalControllerMemoryLimit)
+        .Default();
+
+    RegisterParameter("operation_controller_memory_limit", OperationControllerMemoryLimit)
+        .Default(50_GB);
+    RegisterParameter("operation_controller_memory_overconsumption_threshold", OperationControllerMemoryOverconsumptionThreshold)
+        .Default(30_GB);
+
+    RegisterParameter("memory_usage_check_period", MemoryUsageCheckPeriod)
+        .Default(TDuration::Seconds(5));
+}
+
 TControllerAgentConfig::TControllerAgentConfig()
 {
     SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -819,17 +833,14 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("tags", Tags)
         .Default(std::vector<TString>({"default"}));
 
-    RegisterParameter("operation_controller_memory_limit", OperationControllerMemoryLimit)
-        .Default(50_GB);
-
-    RegisterParameter("memory_usage_check_period", MemoryUsageCheckPeriod)
-        .Default(TDuration::Seconds(5));
-
     RegisterParameter("user_job_monitoring", UserJobMonitoring)
         .DefaultNew();
     
     RegisterParameter("obligatory_account_mediums", ObligatoryAccountMediums)
         .Default();
+
+    RegisterParameter("memory_watchdog", MemoryWatchdog)
+        .DefaultNew();
 
     RegisterPreprocessor([&] {
         EventLog->MaxRowWeight = 128_MB;
@@ -873,6 +884,10 @@ TControllerAgentConfig::TControllerAgentConfig()
                          customJobMetricDescription.ProfilingName);
                 }
             }
+        }
+
+        if (TotalControllerMemoryLimit) {
+            MemoryWatchdog->TotalControllerMemoryLimit = TotalControllerMemoryLimit;
         }
     });
 }
