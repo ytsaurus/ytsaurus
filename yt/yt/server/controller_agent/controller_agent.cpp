@@ -153,6 +153,9 @@ public:
         if (!Config_->Enable) {
             return;
         }
+
+        YT_LOG_INFO("Operation orchid saved in zombie orchids queue (OperationId: %v)", id);
+
         auto [iterator, inserted] = IdToOrchid_.emplace(id, std::move(orchid));
         YT_VERIFY(inserted);
         Queue_.emplace(TInstant::Now(), iterator);
@@ -201,9 +204,14 @@ private:
 
     void QueuePop()
     {
+        auto iterator = Queue_.front().second;
+        auto operationId = iterator->first;
+
         YT_VERIFY(!Queue_.empty());
-        IdToOrchid_.erase(Queue_.front().second);
+        IdToOrchid_.erase(iterator);
         Queue_.pop();
+
+        YT_LOG_INFO("Operation orchid removed from zombie orchids queue (OperationId: %v)", operationId);
     }
 };
 
