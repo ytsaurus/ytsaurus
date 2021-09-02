@@ -7,7 +7,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
+    authors, map_reduce, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
     create, ls,
     get, set, remove, exists, create_user, create_pool, create_pool_tree, abort_transaction, read_table,
     write_table, map, vanilla, run_test_vanilla, suspend_op,
@@ -493,6 +493,41 @@ class TestControllerAgentReconnection(YTEnvSetup):
             command="sleep 1000",
             in_=["//tmp/t_in"],
             out="//tmp/t_out",
+            spec={
+                "testing": {
+                    "delay_inside_revive": 10000,
+                }
+            },
+            track=False,
+        )
+        self._wait_for_state(op, "running")
+
+        snapshot_path = op.get_path() + "/snapshot"
+        wait(lambda: exists(snapshot_path))
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        with pytest.raises(YtError):
+            op.complete()
+
+        self._wait_for_state(op, "running")
+        op.complete()
+
+        self._wait_for_state(op, "completed")
+
+    @authors("alexkolodezny")
+    def test_complete_map_reduce_operation_on_controller_agent_connection(self):
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        op = map_reduce(
+            map_command="sleep 1000",
+            reduce_command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            sort_by=["foo"],
             spec={
                 "testing": {
                     "delay_inside_revive": 10000,
