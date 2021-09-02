@@ -694,17 +694,27 @@ class TestControllerFeatures(YTEnvSetup):
             },
         )
 
-        def get_operation_features(op):
+        def get_features(op):
             features = get(op.get_path() + "/@controller_features")
-            operation = features[0]
-            task = features[1]
-            if "task_name" in operation["tags"]:
-                task, operation = operation, task
-            return operation["features"]
+            operation_features = features[0]
+            task_features = features[1]
+            if "task_name" in operation_features["tags"]:
+                task_features, operation_features = operation_features, task_features
+            return operation_features, task_features
 
-        operation = get_operation_features(op)
-        assert operation["operation_count"] == 1.0
-        assert operation["job_count.completed.non-interrupted"] == 1.0
+        operation_features, task_features = get_features(op)
+        assert operation_features["features"]["operation_count"] == 1.0
+        assert operation_features["features"]["job_count.completed.non-interrupted"] == 1.0
+        assert operation_features["tags"]["operation_type"] == "map"
+        assert operation_features["tags"]["total_job_count"] == 1
+        assert "total_estimated_input_data_weight" in operation_features["tags"]
+        assert "total_estimated_input_row_count" in operation_features["tags"]
+        assert "authenticated_user" in operation_features["tags"]
+        assert "authenticated_user" in task_features["tags"]
+        assert "total_input_data_weight" in task_features["tags"]
+        assert "total_input_row_count" in task_features["tags"]
+        assert task_features["tags"]["total_job_count"] == 1
+        assert task_features["tags"]["task_name"] == "map"
 
         op = map(
             in_=["//tmp/t_in"],
@@ -719,9 +729,10 @@ class TestControllerFeatures(YTEnvSetup):
         with raises_yt_error("Process exited with code 1"):
             op.track()
 
-        operation = get_operation_features(op)
-        assert operation["operation_count"] == 1.0
-        assert operation["job_count.failed"] == 1.0
+        operation_features = get_features(op)[0]
+        assert operation_features["features"]["operation_count"] == 1.0
+        assert operation_features["features"]["job_count.failed"] == 1.0
+        assert operation_features["tags"]["total_job_count"] == 1
 
         op = map(
             in_=["//tmp/t_in"],
@@ -742,9 +753,10 @@ class TestControllerFeatures(YTEnvSetup):
 
         op.track()
 
-        operation = get_operation_features(op)
-        assert operation["operation_count"] == 1.0
-        assert operation["job_count.aborted.scheduled.user_request"] == 1.0
+        operation_features = get_features(op)[0]
+        assert operation_features["features"]["operation_count"] == 1.0
+        assert operation_features["features"]["job_count.aborted.scheduled.user_request"] == 1.0
+        assert operation_features["tags"]["total_job_count"] == 1
 
 
 class TestListOperationFilterExperiments(YTEnvSetup):

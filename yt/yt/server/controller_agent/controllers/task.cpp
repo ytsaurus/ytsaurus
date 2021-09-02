@@ -1774,6 +1774,10 @@ void TTask::BuildFeatureYson(TFluentAny fluent) const
 
 void TTask::FinalizeFeatures()
 {
+    ControllerFeatures_.AddTag("authenticated_user", TaskHost_->GetAuthenticatedUser());
+    ControllerFeatures_.AddTag("total_input_data_weight", GetChunkPoolOutput()->GetDataWeightCounter()->GetTotal());
+    ControllerFeatures_.AddTag("total_input_row_count", GetChunkPoolOutput()->GetRowCounter()->GetTotal());
+    ControllerFeatures_.AddTag("total_job_count", GetChunkPoolOutput()->GetJobCounter()->GetTotal());
     ControllerFeatures_.AddTag("task_name", GetVertexDescriptor());
     ControllerFeatures_.AddSingular("job_counter", BuildYsonNodeFluently().Value(GetJobCounter()));
     ControllerFeatures_.AddSingular("ready_time", GetReadyTime().MilliSeconds());
