@@ -953,10 +953,13 @@ private:
             options.Attributes = NYTree::FromProto(request->attributes());
         }
         options.PrerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
+        if (request->has_start_timestamp()) {
+            options.StartTimestamp = request->start_timestamp();
+        }
 
         context->SetRequestInfo("TransactionType: %v, TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
             "Timeout: %v, Deadline: %v, AutoAbort: %v, "
-            "Sticky: %v, Ping: %v, PingAncestors: %v, Atomicity: %v, Durability: %v",
+            "Sticky: %v, Ping: %v, PingAncestors: %v, Atomicity: %v, Durability: %v, StartTimestamp: %v",
             transactionType,
             options.Id,
             options.ParentId,
@@ -968,7 +971,8 @@ private:
             options.Ping,
             options.PingAncestors,
             options.Atomicity,
-            options.Durability);
+            options.Durability,
+            options.StartTimestamp);
 
         ExecuteCall(
             context,
