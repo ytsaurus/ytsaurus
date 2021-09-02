@@ -656,6 +656,35 @@ test_generate_timestamp()
     [ $ts -gt 0 ] || die "generated timestamp should be positive, got '$ts'"
 }
 
+test_sort_order()
+{
+    local in_table="//home/wrapper_test/in_table_to_sort"
+    local out_table="//home/wrapper_test/out_table_to_sort"
+
+    $YT create table "$in_table" --attributes '{schema=[{name=a;type=int64;};{name=b;type=int64;};{name=c;type=int64;}];}'
+    {
+        echo -ne "a=2\tb=1\tc=3\n"
+        echo -ne "a=1\tb=2\tc=2\n"
+        echo -ne "a=2\tb=2\tc=4\n"
+        echo -ne "a=1\tb=1\tc=1\n"
+    } | $YT write-table "$in_table" --format "<enable_string_to_all_conversion=%true>dsv"
+
+    $YT sort --src "$in_table" --dst "$out_table" --sort-by c
+    check "c=1\nc=2\nc=3\nc=4\n" "$($YT read-table "$out_table" --format dsv | cut -f 1)"
+
+    $YT sort --src "$in_table" --dst "$out_table" --sort-by "{name=c; sort_order=descending;}"
+    check "c=4\nc=3\nc=2\nc=1\n" "$($YT read-table "$out_table" --format dsv | cut -f 1)"
+
+    $YT sort --src "$in_table" --dst "$out_table" --sort-by "{name=a; sort_order=descending;}" --sort-by b
+    check "c=3\nc=4\nc=1\nc=2\n" "$($YT read-table "$out_table" --format dsv | cut -f 3)"
+
+    $YT sort --src "$in_table" --dst "$out_table" --sort-by b --sort-by a
+    check "c=1\nc=3\nc=2\nc=4\n" "$($YT read-table "$out_table" --format dsv | cut -f 3)"
+
+    $YT sort --src "$in_table" --dst "$out_table" --sort-by b --sort-by "{name=a; sort_order=descending;}"
+    check "c=3\nc=1\nc=4\nc=2\n" "$($YT read-table "$out_table" --format dsv | cut -f 3)"
+}
+
 tear_down
 run_test test_cypress_commands
 run_test test_list_long_format
@@ -686,3 +715,4 @@ run_test test_ping_ancestor_transactions_in_operations
 run_test test_operation_and_job_commands
 run_test test_check_permissions
 run_test test_transfer_account_resources
+run_test test_sort_order
