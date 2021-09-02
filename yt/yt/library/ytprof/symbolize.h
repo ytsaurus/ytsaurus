@@ -8,7 +8,7 @@ namespace NYT::NYTProf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Symbolize(NProto::Profile* profile);
+void Symbolize(NProto::Profile* profile, bool filesOnly = false);
 
 std::pair<void*, void*> GetVdsoRange();
 
