@@ -77,7 +77,6 @@ TStoreBase::TStoreBase(
     TStoreId id,
     TTablet* tablet)
     : Config_(std::move(config))
-    , ReaderConfig_(tablet->GetSettings().StoreReaderConfig)
     , StoreId_(id)
     , Tablet_(tablet)
     , PerformanceCounters_(Tablet_->PerformanceCounters())
@@ -455,6 +454,7 @@ TChunkStoreBase::TChunkStoreBase(
     , ChunkMeta_(New<TRefCountedChunkMeta>())
     , ChunkId_(chunkId)
     , ChunkTimestamp_(chunkTimestamp)
+    , ReaderConfig_(Tablet_->GetSettings().StoreReaderConfig)
 {
     /* If store is over chunk, chunkId == storeId.
      * If store is over chunk view, chunkId and storeId are different,
@@ -702,7 +702,7 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(
                 chunk,
                 ChunkBlockManager_,
                 DoGetBlockCache(),
-                /*blockkMetaCache*/ nullptr));
+                /*blockMetaCache*/ nullptr));
 
         YT_LOG_DEBUG("Local chunk reader created and cached");
     };
@@ -727,7 +727,7 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(
                 Client_,
                 Client_->GetNativeConnection()->GetNodeDirectory(),
                 LocalDescriptor_,
-                std::nullopt,
+                /*localNodeId*/ std::nullopt,
                 DoGetBlockCache(),
                 /*chunkMetaCache*/ nullptr,
                 /*trafficMeter*/ nullptr,
@@ -811,11 +811,20 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(
     }
 }
 
-void TChunkStoreBase::InvalidateCachedReaders()
+TTabletStoreReaderConfigPtr TChunkStoreBase::GetReaderConfig()
+{
+    auto guard = ReaderGuard(ReaderLock_);
+
+    return ReaderConfig_;
+}
+
+void TChunkStoreBase::InvalidateCachedReaders(const TTableSettings& settings)
 {
     auto guard = WriterGuard(ReaderLock_);
 
     DoInvalidateCachedReaders();
+
+    ReaderConfig_ = settings.StoreReaderConfig;
 }
 
 void TChunkStoreBase::DoInvalidateCachedReaders()

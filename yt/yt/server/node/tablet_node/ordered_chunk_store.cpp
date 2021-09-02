@@ -260,7 +260,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
     auto underlyingReader = CreateSchemafulChunkReader(
         chunkState,
         chunkMeta,
-        ReaderConfig_,
+        GetReaderConfig(),
         std::move(chunkReader),
         chunkReadOptions,
         readSchema,
@@ -318,7 +318,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::TryCreateCacheBasedReader(
     auto underlyingReader = CreateSchemafulChunkReader(
         chunkState,
         chunkState->ChunkMeta,
-        ReaderConfig_,
+        GetReaderConfig(),
         std::move(chunkReader),
         chunkReadOptions,
         readSchema,

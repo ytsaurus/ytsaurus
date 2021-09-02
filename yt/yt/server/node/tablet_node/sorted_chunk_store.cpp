@@ -330,7 +330,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             Schema_,
             columnFilter,
             chunkState->BlockCache,
-            ReaderConfig_,
+            GetReaderConfig(),
             chunkReader,
             chunkState->PerformanceCounters,
             chunkReadOptions,
@@ -340,7 +340,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     // Reader can handle chunk timestamp itself if needed, no need to wrap with
     // timestamp resetting adapter.
     return CreateVersionedChunkReader(
-        ReaderConfig_,
+        GetReaderConfig(),
         std::move(chunkReader),
         chunkState,
         chunkState->ChunkMeta,
@@ -473,7 +473,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             Schema_,
             columnFilter,
             chunkState->BlockCache,
-            ReaderConfig_,
+            GetReaderConfig(),
             readers.ChunkReader,
             chunkState->PerformanceCounters,
             chunkReadOptions,
@@ -482,7 +482,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     }
 
     auto reader = CreateVersionedChunkReader(
-        ReaderConfig_,
+        GetReaderConfig(),
         std::move(readers.ChunkReader),
         chunkState,
         chunkState->ChunkMeta,

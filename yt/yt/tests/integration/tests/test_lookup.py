@@ -534,6 +534,42 @@ class TestLookup(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):
             lookup_rows("//tmp/t{key}", [{"key": 1}])
 
+    @authors("akozhikhov")
+    def test_reconfigure_reader_upon_remount(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(0, 10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        def _check(local_cache):
+            bytes_transmitted = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+                name="lookup/chunk_reader_statistics/data_bytes_transmitted")
+            row_count = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+                name="lookup/row_count")
+
+            assert_items_equal(
+                lookup_rows("//tmp/t", [{"key": i} for i in xrange(0, 10)]),
+                rows)
+
+            wait(lambda: row_count.get_delta() > 0)
+
+            if local_cache:
+                return bytes_transmitted.get_delta() == 0
+            else:
+                return bytes_transmitted.get_delta() > 0
+
+        assert _check(False)
+        assert _check(True)
+
+        set("//tmp/t/@chunk_reader", {"use_block_cache": False, "use_uncompressed_block_cache": False})
+        remount_table("//tmp/t")
+
+        wait(lambda: _check(False))
+        assert _check(False)
+
 
 class TestDataNodeLookup(TestSortedDynamicTablesBase):
     NUM_TEST_PARTITIONS = 2

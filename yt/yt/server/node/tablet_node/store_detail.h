@@ -59,7 +59,6 @@ public:
 
 protected:
     const TTabletManagerConfigPtr Config_;
-    const TTabletStoreReaderConfigPtr ReaderConfig_;
     const TStoreId StoreId_;
     TTablet* const Tablet_;
 
@@ -229,7 +228,8 @@ public:
     virtual IChunkStorePtr AsChunk() override;
 
     virtual TReaders GetReaders(std::optional<EWorkloadCategory> workloadCategory) override;
-    virtual void InvalidateCachedReaders() override;
+    virtual TTabletStoreReaderConfigPtr GetReaderConfig() override;
+    virtual void InvalidateCachedReaders(const TTableSettings& settings) override;
 
     virtual NTabletClient::EInMemoryMode GetInMemoryMode() const override;
     virtual void SetInMemoryMode(NTabletClient::EInMemoryMode mode) override;
@@ -267,13 +267,6 @@ protected:
     EStoreCompactionState CompactionState_ = EStoreCompactionState::None;
     TInstant LastCompactionTimestamp_;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, ReaderLock_);
-    NProfiling::TCpuInstant ChunkReaderEvictionDeadline_ = 0;
-    TReaders CachedReaders_;
-    THashMap<std::optional<EWorkloadCategory>, TReaders> CachedRemoteReaderAdapters_;
-    bool CachedReadersLocal_ = false;
-    TWeakPtr<NDataNode::IChunk> CachedWeakChunk_;
-
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, VersionedChunkMetaLock_);
     TWeakPtr<TVersionedChunkMetaCacheEntry> CachedWeakVersionedChunkMeta_;
 
@@ -300,6 +293,14 @@ protected:
     virtual NTableClient::TKeyComparer GetKeyComparer() = 0;
 
 private:
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, ReaderLock_);
+    NProfiling::TCpuInstant ChunkReaderEvictionDeadline_ = 0;
+    TReaders CachedReaders_;
+    THashMap<std::optional<EWorkloadCategory>, TReaders> CachedRemoteReaderAdapters_;
+    bool CachedReadersLocal_ = false;
+    TWeakPtr<NDataNode::IChunk> CachedWeakChunk_;
+    TTabletStoreReaderConfigPtr ReaderConfig_;
+
     IDynamicStorePtr BackingStore_;
 
     NChunkClient::IBlockCachePtr DoGetBlockCache();
