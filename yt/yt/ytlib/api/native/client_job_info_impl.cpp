@@ -436,7 +436,7 @@ void TClient::ValidateOperationAccess(
     }
 
     NScheduler::ValidateOperationAccess(
-        /* user */ std::nullopt,
+        Options_.GetAuthenticatedUser(),
         operationId,
         jobId,
         permissions,
@@ -906,8 +906,6 @@ TSharedRef TClient::DoGetJobStderrFromArchive(
     TOperationId operationId,
     TJobId jobId)
 {
-    ValidateOperationAccess(operationId, jobId, EPermissionSet(EPermission::Read));
-
     try {
         TJobStderrTableDescriptor tableDescriptor;
 
@@ -972,6 +970,8 @@ TSharedRef TClient::DoGetJobStderr(
             operationId = ResolveOperationAlias(alias, options, deadline);
         });
 
+    ValidateOperationAccess(operationId, jobId, EPermissionSet(EPermission::Read));
+
     auto stderrRef = DoGetJobStderrFromNode(operationId, jobId);
     if (stderrRef) {
         return stderrRef;
@@ -998,8 +998,6 @@ TSharedRef TClient::DoGetJobFailContextFromArchive(
     TOperationId operationId,
     TJobId jobId)
 {
-    ValidateOperationAccess(operationId, jobId, EPermissionSet(EPermission::Read));
-
     try {
         TJobFailContextTableDescriptor tableDescriptor;
 
@@ -1111,6 +1109,8 @@ TSharedRef TClient::DoGetJobFailContext(
         [&] (const TString& alias) {
             operationId = ResolveOperationAlias(alias, options, deadline);
         });
+
+    ValidateOperationAccess(operationId, jobId, EPermissionSet(EPermission::Read));
 
     if (auto failContextRef = DoGetJobFailContextFromCypress(operationId, jobId)) {
         return failContextRef;
@@ -1972,7 +1972,7 @@ TListJobsResult TClient::DoListJobs(
         controllerAgentAddress,
         deadline,
         options);
-    
+
     auto operationInfo = DoGetOperation(operationId, TGetOperationOptions{
         .Attributes = {{"state"}},
         .IncludeRuntime = true,
@@ -2155,7 +2155,7 @@ std::optional<TJob> TClient::DoGetJobFromControllerAgent(
     proxy.SetDefaultTimeout(deadline - Now());
     auto batchReq = proxy.ExecuteBatch();
 
-    auto operationStatePath = 
+    auto operationStatePath =
         GetControllerAgentOrchidOperationPath(*controllerAgentAddress, operationId) + "/state";
     batchReq->AddRequest(TYPathProxy::Get(operationStatePath), "get_controller_state");
 
@@ -2271,7 +2271,7 @@ TYsonString TClient::DoGetJob(
             jobId,
             operationId);
     }
-    
+
     job.IsStale = IsJobStale(job.ControllerAgentState, job.ArchiveState);
 
     if (attributes.contains("pool")) {

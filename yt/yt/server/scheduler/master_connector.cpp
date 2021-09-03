@@ -172,12 +172,11 @@ public:
                         .Do(BIND(&BuildMinimalOperationAttributes, operation))
                         .Item("opaque").Value(true)
                         .Item("runtime_parameters").Value(operation->GetRuntimeParameters())
+                        .Item("acl").Value(MakeOperationArtifactAcl(operation->GetRuntimeParameters()->Acl))
                     .EndAttributes()
                     .BeginMap()
                         .Item("jobs").BeginAttributes()
                             .Item("opaque").Value(true)
-                            .Item("acl").Value(MakeOperationArtifactAcl(operation->GetRuntimeParameters()->Acl))
-                            .Item("inherit_acl").Value(false)
                         .EndAttributes()
                         .BeginMap().EndMap()
                     .EndMap()
@@ -1614,7 +1613,7 @@ private:
             // Set "jobs" node ACL.
             if (operation->GetShouldFlushAcl()) {
                 auto aclBatchReq = StartObjectBatchRequest();
-                auto req = TYPathProxy::Set(GetJobsPath(operation->GetId()) + "/@acl");
+                auto req = TYPathProxy::Set(GetOperationPath(operation->GetId()) + "/@acl");
                 auto operationNodeAcl = MakeOperationArtifactAcl(operation->GetRuntimeParameters()->Acl);
                 req->set_value(ConvertToYsonString(operationNodeAcl).ToString());
                 aclBatchReq->AddRequest(req, "set_acl");
