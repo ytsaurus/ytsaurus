@@ -4,6 +4,8 @@
 
 namespace NYT::NComplexTypes {
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TestBidirectionalTextYqlUuidConversion(TStringBuf bytes, TStringBuf text)
 {
     std::array<char, UuidYqlTextSize> bytesToText;
@@ -56,5 +58,7 @@ TEST(UuidConverter, Guid)
     EXPECT_EQ(guid.Parts32[2], 0x40506070U);
     EXPECT_EQ(guid.Parts32[3], 0x01102030U);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NComplexTypes
