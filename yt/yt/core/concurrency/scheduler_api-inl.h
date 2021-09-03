@@ -4,7 +4,7 @@
 // For the sake of sane code completion.
 #include "scheduler_api.h"
 #endif
-#undef THREAD_AFFINITY_INL_H_
+#undef SCHEDULER_API_INL_H_
 
 namespace NYT::NConcurrency {
 

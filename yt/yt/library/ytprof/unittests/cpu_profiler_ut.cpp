@@ -181,6 +181,28 @@ TEST(TCpuProfiler, VDSO)
     }, false);
 }
 
+TEST(TCpuProfiler, ProfilerTags)
+{
+    auto userTag = NewStringTag("user", "prime");
+    auto intTag = NewIntTag("block_size", 1024);
+
+    RunUnderProfiler("tags.pb.gz", [&] {
+        {
+            TCpuProfilerTagGuard guard(userTag);
+            BurnCpu<0>();
+        }
+        {
+            TCpuProfilerTagGuard guard(intTag);
+            BurnCpu<1>();
+        }
+        {
+            TCpuProfilerTagGuard guard(userTag);
+            TCpuProfilerTagGuard secondGuard(intTag);
+            BurnCpu<2>();
+        }
+    });
+}
+
 TEST(TCpuProfiler, MultipleProfilers)
 {
     TCpuProfiler profiler, secondProfiler;

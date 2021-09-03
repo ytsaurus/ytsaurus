@@ -3,6 +3,8 @@
 #include <thread>
 #include <array>
 
+#include <sys/types.h>
+
 #include <yt/yt/library/ytprof/profile.pb.h>
 
 #include <util/generic/hash.h>
@@ -14,8 +16,45 @@ namespace NYT::NYTProf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+typedef uint64_t TCpuProfilerTag;
+
+// NB: Tag allocation leaks memory by design.
+TCpuProfilerTag NewStringTag(const TString& name, const TString& value);
+TCpuProfilerTag NewIntTag(const TString& name, const ui64 value);
+
+////////////////////////////////////////////////////////////////////////////////
+
+const int MaxActiveTags = 4;
+
+// Do not access this field directly. It is exposed here for YT fiber scheduler.
+extern thread_local std::array<volatile TCpuProfilerTag, MaxActiveTags> CpuProfilerTags;
+
+class TCpuProfilerTagGuard
+{
+public:
+    explicit TCpuProfilerTagGuard(TCpuProfilerTag tag);
+    ~TCpuProfilerTagGuard();
+
+    TCpuProfilerTagGuard(TCpuProfilerTagGuard&& other);
+    TCpuProfilerTagGuard(const TCpuProfilerTagGuard& other) = delete;
+
+    TCpuProfilerTagGuard& operator = (TCpuProfilerTagGuard&& other);
+    TCpuProfilerTagGuard& operator = (const TCpuProfilerTagGuard& other) = delete;
+
+private:
+    int TagIndex_ = -1;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCpuTagImpl;
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCpuSample
 {
+    size_t Tid = 0;
+    std::vector<TCpuTagImpl*> Tags;
     std::vector<std::pair<void*, void*>> Backtrace;
 
     bool operator == (const TCpuSample& other) const = default;
@@ -78,3 +117,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTProf
+
+#define CPU_PROFILER_INL_H_
+#include "cpu_profiler-inl.h"
+#undef CPU_PROFILER_INL_H_
