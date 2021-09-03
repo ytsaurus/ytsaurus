@@ -11,7 +11,10 @@
 #include <dlfcn.h>
 #include <link.h>
 #include <elf.h>
+
+#ifndef YT_NO_AUXV
 #include <sys/auxv.h>
+#endif
 
 #include <exception>
 #include <cxxabi.h>
@@ -711,8 +714,11 @@ private:
 
 static int OnPhdr(struct dl_phdr_info *info, size_t /* size */, void *data)
 {
+#ifndef YT_NO_AUXV
     auto vdso = (uintptr_t) getauxval(AT_SYSINFO_EHDR);
-
+#else
+    uintptr_t vdso = 0;
+#endif
     auto vdsoRange = reinterpret_cast<std::pair<void*, void*>*>(data);
     if (info->dlpi_addr == vdso) {
         auto range = GetExecutableRange(info);
@@ -726,7 +732,7 @@ static int OnPhdr(struct dl_phdr_info *info, size_t /* size */, void *data)
 
 std::pair<void*, void*> GetVdsoRange()
 {
-    std::pair<void*, void*> vdsoRange;
+    std::pair<void*, void*> vdsoRange = {0, 0};
     dl_iterate_phdr(OnPhdr, &vdsoRange);
     return vdsoRange;
 }
