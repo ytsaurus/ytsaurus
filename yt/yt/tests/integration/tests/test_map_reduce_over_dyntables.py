@@ -1,7 +1,6 @@
 from yt_env_setup import YTEnvSetup, parametrize_external
 from yt_commands import (
-    authors, print_debug, wait, create, get, set, copy, insert_rows,
-    delete_rows, trim_rows,
+    authors, print_debug, wait, create, get, set, copy, insert_rows, trim_rows,
     alter_table, write_file, read_table, write_table, map, map_reduce, generate_timestamp,
     sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_freeze_table, sync_unfreeze_table, sync_reshard_table, sync_flush_table, sync_compact_table,
@@ -244,83 +243,24 @@ class TestMapOnDynamicTables(YTEnvSetup):
             )
 
     @authors("ifsmirnov")
-    def test_retention_timestamp(self):
+    def test_retention_timestamp_map(self):
         sync_create_cells(1)
-        self._create_simple_dynamic_table(
-            "//tmp/t",
-            schema=make_schema(
-                [
-                    {"name": "k", "type": "int64", "sort_order": "ascending"},
-                    {"name": "u", "type": "string"},
-                    {"name": "v", "type": "string"},
-                ],
-                unique_keys=True,
-            ),
-        )
+        self._create_simple_dynamic_table("//tmp/t")
 
         sync_mount_table("//tmp/t")
 
-        insert_rows("//tmp/t", [{"k": 1, "u": "u1", "v": "v1"}])
+        insert_rows("//tmp/t", [{"key": 1, "value": "a"}])
         ts2 = generate_timestamp()
-        insert_rows("//tmp/t", [{"k": 1, "u": "u2"}], update=True)
-        insert_rows("//tmp/t", [{"k": 2, "v": "v3"}])
+        insert_rows("//tmp/t", [{"key": 2, "value": "b"}])
         ts3 = generate_timestamp()
-
-        sync_unmount_table("//tmp/t")
-
-        expected1 = [
-            {"k": 1, "u": "u2", "v": "v1"},
-            {"k": 2, "u": yson.YsonEntity(), "v": "v3"},
-        ]
-        expected2 = [
-            {"k": 1, "u": "u2", "v": yson.YsonEntity()},
-            {"k": 2, "u": yson.YsonEntity(), "v": "v3"},
-        ]
-
-        assert read_table("//tmp/t") == expected1
-        assert read_table("<retention_timestamp={}>//tmp/t".format(ts2)) == expected2
-        assert read_table("<retention_timestamp={}>//tmp/t".format(ts3)) == []
+        insert_rows("//tmp/t", [{"key": 3, "value": "c"}])
 
         create("table", "//tmp/t_out")
         map(
-            in_="<retention_timestamp={}>//tmp/t".format(ts2),
+            in_="<timestamp={};retention_timestamp={}>//tmp/t".format(ts3, ts2),
             out="//tmp/t_out",
-            command="cat",
-        )
-
-        assert read_table("//tmp/t_out") == expected2
-
-    @authors("ifsmirnov")
-    def test_retention_timestamp_bounds(self):
-        sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t")
-        sync_mount_table("//tmp/t")
-        sync_unmount_table("//tmp/t")
-        ts1 = generate_timestamp()
-        ts2 = generate_timestamp()
-        with pytest.raises(YtError):
-            read_table("<timestamp={};retention_timestamp={}>//tmp/t".format(ts1, ts2))
-        with pytest.raises(YtError):
-            read_table("<timestamp={};retention_timestamp={}>//tmp/t".format(ts1, ts1))
-
-    @authors("ifsmirnov")
-    def test_retention_timestamp_with_timestamp(self):
-        sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t")
-        sync_mount_table("//tmp/t")
-
-        insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
-        insert_rows("//tmp/t", [{"key": 2, "value": "2"}])
-        delete_rows("//tmp/t", [{"key": 2}])
-        ts1 = generate_timestamp()
-        insert_rows("//tmp/t", [{"key": 2, "value": "2"}])
-        ts2 = generate_timestamp()
-        insert_rows("//tmp/t", [{"key": 3, "value": "3"}])
-
-        sync_unmount_table("//tmp/t")
-
-        actual = read_table("<timestamp={};retention_timestamp={}>//tmp/t".format(ts2, ts1))
-        assert actual == [{"key": 2, "value": "2"}]
+            command="cat")
+        assert read_table("//tmp/t_out") == [{"key": 2, "value": "b"}]
 
     @authors("savrus")
     @parametrize_external

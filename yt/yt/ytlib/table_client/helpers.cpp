@@ -310,8 +310,8 @@ void ValidateDynamicTableTimestamp(
 
     if (auto nullableRetention = path.GetRetentionTimestamp()) {
         auto retention = *nullableRetention;
-        if (retention >= requested) {
-            THROW_ERROR_EXCEPTION("Retention timestamp for table %v should be less than read timestamp",
+        if (retention > requested) {
+            THROW_ERROR_EXCEPTION("Retention timestamp for table %v should not be greater than read timestamp",
                 path.GetPath())
                 << TErrorAttribute("read_timestamp", requested)
                 << TErrorAttribute("retention_timestamp", retention);

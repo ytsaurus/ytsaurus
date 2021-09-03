@@ -463,8 +463,11 @@ struct TTabletReadOptionsBase
     NHydra::EPeerKind ReadFrom = NHydra::EPeerKind::Leader;
     std::optional<TDuration> RpcHedgingDelay;
     std::optional<TDuration> CachedSyncReplicasTimeout;
+
     //! Ignored when queried via transaction.
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
+
+    NTransactionClient::TTimestamp RetentionTimestamp = NTransactionClient::NullTimestamp;
 };
 
 struct TTabletReadOptions

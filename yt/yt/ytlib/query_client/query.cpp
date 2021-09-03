@@ -792,7 +792,8 @@ void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized)
 
 void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
 {
-    serialized->set_timestamp(original.Timestamp);
+    serialized->set_timestamp(original.TimestampRange.Timestamp);
+    serialized->set_retention_timestamp(original.TimestampRange.RetentionTimestamp);
     serialized->set_verbose_logging(original.VerboseLogging);
     serialized->set_max_subqueries(original.MaxSubqueries);
     serialized->set_enable_code_cache(original.EnableCodeCache);
@@ -811,7 +812,8 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
 
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
 {
-    original->Timestamp = serialized.timestamp();
+    original->TimestampRange.Timestamp = serialized.timestamp();
+    original->TimestampRange.RetentionTimestamp = serialized.retention_timestamp();
     original->VerboseLogging = serialized.verbose_logging();
     original->MaxSubqueries = serialized.max_subqueries();
     original->EnableCodeCache = serialized.enable_code_cache();

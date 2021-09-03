@@ -142,7 +142,9 @@ protected:
             TWireProtocolWriter writer;
             LookupRows(
                 Tablet_->BuildSnapshot(nullptr),
-                timestamp,
+                TReadTimestampRange{
+                    .Timestamp = timestamp,
+                },
                 false,
                 ChunkReadOptions_,
                 &reader,

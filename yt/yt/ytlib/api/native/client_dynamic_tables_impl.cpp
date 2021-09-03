@@ -425,6 +425,10 @@ IVersionedRowsetPtr TClient::DoVersionedLookupRows(
         retentionConfig = ConvertToYsonString(options.RetentionConfig).ToString();
     }
 
+    if (options.RetentionTimestamp) {
+        THROW_ERROR_EXCEPTION("Versioned lookup does not support retention timestamp");
+    }
+
     return CallAndRetryIfMetadataCacheIsInconsistent([&] () {
         return DoLookupRowsOnce<IVersionedRowsetPtr, TVersionedRow>(
             path,
@@ -499,6 +503,12 @@ TRowset TClient::DoLookupRowsOnce(
 {
     if (options.EnablePartialResult && options.KeepMissingRows) {
         THROW_ERROR_EXCEPTION("Options \"enable_partial_result\" and \"keep_missing_rows\" cannot be used together");
+    }
+
+    if (options.RetentionTimestamp > options.Timestamp) {
+        THROW_ERROR_EXCEPTION("Retention timestamp cannot be greater than read timestmap")
+            << TErrorAttribute("retention_timestamp", options.RetentionTimestamp)
+            << TErrorAttribute("timestamp", options.Timestamp);
     }
 
     const auto& tableMountCache = Connection_->GetTableMountCache();
@@ -721,6 +731,7 @@ TRowset TClient::DoLookupRowsOnce(
         req->set_request_codec(ToProto<int>(Connection_->GetConfig()->LookupRowsRequestCodec));
         req->set_response_codec(ToProto<int>(Connection_->GetConfig()->LookupRowsResponseCodec));
         req->set_timestamp(options.Timestamp);
+        req->set_retention_timestamp(options.RetentionTimestamp);
         req->set_enable_partial_result(options.EnablePartialResult);
         req->set_use_lookup_cache(options.UseLookupCache);
 
@@ -818,6 +829,12 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     const TString& queryString,
     const TSelectRowsOptions& options)
 {
+    if (options.RetentionTimestamp > options.Timestamp) {
+        THROW_ERROR_EXCEPTION("Retention timestamp cannot be greater than read timestmap")
+            << TErrorAttribute("retention_timestamp", options.RetentionTimestamp)
+            << TErrorAttribute("timestamp", options.Timestamp);
+    }
+
     auto parsedQuery = ParseSource(queryString, EParseMode::Query);
     auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
     auto optionalClusterName = PickInSyncClusterAndPatchQuery(options, astQuery);
@@ -928,7 +945,8 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     }
 
     TQueryOptions queryOptions;
-    queryOptions.Timestamp = options.Timestamp;
+    queryOptions.TimestampRange.Timestamp = options.Timestamp;
+    queryOptions.TimestampRange.RetentionTimestamp = options.RetentionTimestamp;
     queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
     queryOptions.VerboseLogging = options.VerboseLogging;
     queryOptions.EnableCodeCache = options.EnableCodeCache;

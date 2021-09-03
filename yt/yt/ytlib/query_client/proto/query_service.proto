@@ -62,6 +62,7 @@ message TReqMultiread
     required int32 response_codec = 2; // ECodec
     optional bytes retention_config = 3;
     required uint64 timestamp = 4;
+    optional uint64 retention_timestamp = 10;
     repeated NYT.NProto.TGuid tablet_ids = 5;
     // COMPAT(babenko): legacy clients may omit this field.
     repeated NYT.NProto.TGuid cell_ids = 9;

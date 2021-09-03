@@ -348,7 +348,7 @@ public:
                         source.ObjectId,
                         source.CellId,
                         source.MountRevision,
-                        QueryOptions_.Timestamp,
+                        QueryOptions_.TimestampRange.Timestamp,
                         QueryOptions_.SuppressAccessTracking);
                     break;
                 default:
@@ -1024,7 +1024,7 @@ private:
                     columnFilter,
                     TLegacyOwningKey(range.first),
                     TLegacyOwningKey(range.second),
-                    QueryOptions_.Timestamp,
+                    QueryOptions_.TimestampRange,
                     ChunkReadOptions_,
                     ETabletDistributedThrottlerKind::Select,
                     /*workloadCategory*/ std::nullopt);
@@ -1036,7 +1036,7 @@ private:
                 std::move(tabletSnapshot),
                 columnFilter,
                 bounds,
-                QueryOptions_.Timestamp,
+                QueryOptions_.TimestampRange,
                 ChunkReadOptions_,
                 ETabletDistributedThrottlerKind::Select,
                 /*workloadCategory*/ std::nullopt);
@@ -1062,7 +1062,7 @@ private:
             std::move(tabletSnapshot),
             columnFilter,
             keys,
-            QueryOptions_.Timestamp,
+            QueryOptions_.TimestampRange,
             ChunkReadOptions_,
             ETabletDistributedThrottlerKind::Select,
             /*workloadCategory*/ std::nullopt);
@@ -1091,7 +1091,7 @@ TQueryStatistics ExecuteSubquery(
     TQueryOptions queryOptions,
     TServiceProfilerGuard& profilerGuard)
 {
-    ValidateReadTimestamp(queryOptions.Timestamp);
+    ValidateReadTimestamp(queryOptions.TimestampRange.Timestamp);
 
     auto execution = New<TQueryExecution>(
         config,

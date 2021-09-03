@@ -131,6 +131,8 @@ TReadOnlyTabletCommandBase<
         .Optional();
     this->RegisterParameter("timestamp", this->Options.Timestamp)
         .Optional();
+    this->RegisterParameter("retention_timestamp", this->Options.RetentionTimestamp)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
