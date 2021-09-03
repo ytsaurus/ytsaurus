@@ -721,7 +721,8 @@ class TestChunkMerger(YTEnvSetup):
         wait(lambda: get("//tmp/d/t/@resource_usage/chunk_count") == 1)
         assert read_table("//tmp/d/t") == info
 
-    @authors("cookiedoth")
+    @authors("aleksandra-zh")
+    @pytest.mark.skip(reason="aleksandra-zh@ is working on it, be careful!")
     def test_merge_jobs_inter_dc_edge_consumption(self):
         create_data_center("d1")
         create_data_center("d2")
