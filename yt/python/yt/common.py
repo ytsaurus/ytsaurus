@@ -234,6 +234,10 @@ class YtResponseError(YtError):
         """Request rate limit exceeded."""
         return self.contains_code(904)
 
+    def is_safe_mode_enabled(self):
+        """Safe mode enabled."""
+        return self.contains_code(906)
+
     def is_request_queue_size_limit_exceeded(self):
         """Request rate limit exceeded."""
         return self.contains_code(108) or self.contains_code(904)
