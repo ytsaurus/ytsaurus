@@ -655,7 +655,11 @@ bool TNode::AddDestroyedReplica(const TChunkIdWithIndexes& replica)
 bool TNode::RemoveDestroyedReplica(const TChunkIdWithIndexes& replica)
 {
     if (!DestroyedReplicas_.empty() && *DestroyedReplicasIterator_ == replica) {
-        AdvanceDestroyedReplicasIterator();
+        if (DestroyedReplicas_.size() == 1) {
+            DestroyedReplicasIterator_ = DestroyedReplicas_.end();
+        } else {
+            AdvanceDestroyedReplicasIterator();
+        }
     }
     return DestroyedReplicas_.erase(replica) > 0;
 }
