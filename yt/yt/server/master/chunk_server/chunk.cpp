@@ -2,6 +2,7 @@
 #include "chunk_list.h"
 #include "chunk_tree_statistics.h"
 #include "medium.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -13,6 +14,8 @@
 #include <yt/yt/server/master/security_server/account.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+
+#include <yt/yt/ytlib/journal_client/helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -29,11 +32,14 @@ using namespace NObjectServer;
 using namespace NObjectClient;
 using namespace NSecurityServer;
 using namespace NCellMaster;
+using namespace NJournalClient;
 
 using NYT::ToProto;
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = ChunkServerLogger;
 
 const TChunk::TCachedReplicas TChunk::EmptyCachedReplicas;
 const TChunk::TEmptyChunkReplicasData TChunk::EmptyChunkReplicasData = {};
@@ -406,6 +412,19 @@ void TChunk::SetOverlayed(bool value)
     Flags_.Overlayed = value;
 }
 
+void TChunk::SetRowCount(i64 rowCount)
+{
+    auto miscExt = ChunkMeta_->GetExtension<TMiscExt>();
+    miscExt.set_row_count(rowCount);
+
+    NChunkClient::NProto::TChunkMeta protoMeta;
+    ToProto(&protoMeta, ChunkMeta_);
+    SetProtoExtension(protoMeta.mutable_extensions(), miscExt);
+    ChunkMeta_ = FromProto<TImmutableChunkMetaPtr>(protoMeta);
+
+    OnMiscExtUpdated(miscExt);
+}
+
 bool TChunk::IsConfirmed() const
 {
     return ChunkMeta_->GetType() != EChunkType::Unknown;
@@ -472,7 +491,7 @@ void TChunk::SetSealed(bool value)
 i64 TChunk::GetPhysicalSealedRowCount() const
 {
     YT_VERIFY(Flags_.Sealed);
-    return PhysicalRowCount_;
+    return GetPhysicalChunkRowCount(GetRowCount(), GetOverlayed());
 }
 
 void TChunk::Seal(const TChunkSealInfo& info)
@@ -482,7 +501,6 @@ void TChunk::Seal(const TChunkSealInfo& info)
     YT_VERIFY(GetRowCount() == 0);
     YT_VERIFY(GetUncompressedDataSize() == 0);
     YT_VERIFY(GetCompressedDataSize() == 0);
-    YT_VERIFY(GetPhysicalRowCount() == 0);
     YT_VERIFY(GetDiskSpace() == 0);
 
     auto miscExt = ChunkMeta_->GetExtension<TMiscExt>();
@@ -493,7 +511,7 @@ void TChunk::Seal(const TChunkSealInfo& info)
     miscExt.set_row_count(info.row_count());
     miscExt.set_uncompressed_data_size(info.uncompressed_data_size());
     miscExt.set_compressed_data_size(info.compressed_data_size());
-    miscExt.set_physical_row_count(info.physical_row_count());
+
     NChunkClient::NProto::TChunkMeta protoMeta;
     ToProto(&protoMeta, ChunkMeta_);
     SetProtoExtension(protoMeta.mutable_extensions(), miscExt);
@@ -624,22 +642,26 @@ EChunkFormat TChunk::GetChunkFormat() const
 
 void TChunk::OnMiscExtUpdated(const TMiscExt& miscExt)
 {
-    SetRowCount(miscExt.row_count());
-    // COMPAT(gritukan)
-    if (IsJournal() && IsSealed()) {
-        YT_VERIFY(miscExt.has_physical_row_count());
-    }
-    SetPhysicalRowCount(miscExt.physical_row_count());
-    SetCompressedDataSize(miscExt.compressed_data_size());
-    SetUncompressedDataSize(miscExt.uncompressed_data_size());
-    SetDataWeight(miscExt.data_weight());
+    RowCount_ = miscExt.row_count();
+    CompressedDataSize_ = miscExt.compressed_data_size();
+    UncompressedDataSize_ = miscExt.uncompressed_data_size();
+    DataWeight_ = miscExt.data_weight();
     auto firstOverlayedRowIndex = miscExt.has_first_overlayed_row_index()
         ? std::make_optional(miscExt.first_overlayed_row_index())
         : std::nullopt;
     SetFirstOverlayedRowIndex(firstOverlayedRowIndex);
-    SetMaxBlockSize(miscExt.max_block_size());
-    SetCompressionCodec(FromProto<NCompression::ECodec>(miscExt.compression_codec()));
+    MaxBlockSize_ = miscExt.max_block_size();
+    CompressionCodec_ = FromProto<NCompression::ECodec>(miscExt.compression_codec());
     SetSealed(miscExt.sealed());
+
+    if (miscExt.has_physical_row_count()) {
+        auto physicalRowCount = GetPhysicalSealedRowCount();
+        YT_LOG_FATAL_IF(
+            physicalRowCount != miscExt.physical_row_count(),
+            "Calculated physical row count does not match the one in misc (CalculatedPhysicalRowCount: %v, MiscPhysicalRowCount: %v)",
+            physicalRowCount,
+            miscExt.physical_row_count());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

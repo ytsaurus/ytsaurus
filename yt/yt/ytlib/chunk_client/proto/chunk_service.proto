@@ -181,6 +181,7 @@ message TChunkSealInfo
     required int64 row_count = 2;
     required int64 uncompressed_data_size = 3;
     required int64 compressed_data_size = 4;
+    // COMPAT(aleksandra-zh): YT-15138
     optional int64 physical_row_count = 5;
 }
 

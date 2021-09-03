@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, is_asan_build
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE, is_asan_build
 
 from yt_commands import (
     authors, wait, create, get, set, copy, move, remove,
@@ -279,6 +279,30 @@ class TestJournals(YTEnvSetup):
 
         assert get("//tmp/j/@sealed")
         assert get("//tmp/j/@quorum_row_count") == 30
+
+    @authors("aleksandra-zh")
+    @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
+    def test_truncate_restart(self, enable_chunk_preallocation):
+        if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
+            pytest.skip("Chunk preallocation is not available without 20.3+ masters")
+
+        create("journal", "//tmp/j")
+        self._write_and_wait_until_sealed(
+            "//tmp/j",
+            self.DATA,
+            enable_chunk_preallocation=enable_chunk_preallocation,
+        )
+
+        row_count = 7
+        self._truncate_and_check("//tmp/j", row_count)
+
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass
+
+        assert get("//tmp/j/@quorum_row_count") == row_count
+
+        chunk_ids = get("//tmp/j/@chunk_ids")
+        assert get("#{}/@row_count".format(chunk_ids[0])) == row_count
 
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])

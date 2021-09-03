@@ -1133,6 +1133,7 @@ private:
                 req->mutable_info()->set_row_count(session->QuorumFlushedRowCount);
                 req->mutable_info()->set_uncompressed_data_size(session->QuorumFlushedDataSize);
                 req->mutable_info()->set_compressed_data_size(session->QuorumFlushedDataSize);
+                // COMPAT(aleksandra-zh): YT-15138
                 req->mutable_info()->set_physical_row_count(GetPhysicalChunkRowCount(session->QuorumFlushedRowCount, Options_.EnableChunkPreallocation));
                 // COMPAT(babenko): YT-14089
                 req->mutable_misc()->set_sealed(true);
@@ -1823,6 +1824,7 @@ private:
                 req->mutable_info()->set_row_count(session->QuorumFlushedRowCount);
                 req->mutable_info()->set_uncompressed_data_size(session->QuorumFlushedDataSize);
                 req->mutable_info()->set_compressed_data_size(session->QuorumFlushedDataSize);
+                // COMPAT(aleksandra-zh): YT-15138
                 req->mutable_info()->set_physical_row_count(GetPhysicalChunkRowCount(session->QuorumFlushedRowCount, Options_.EnableChunkPreallocation));
             }
 

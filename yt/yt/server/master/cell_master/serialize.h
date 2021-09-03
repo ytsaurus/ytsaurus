@@ -184,8 +184,9 @@ DEFINE_ENUM(EMasterReign,
     ((PersistNodesBeingMerged)                                      (1657))  // aleksandra-zh
     ((RescheduleMergeOnLeaderActive)                                (1658))  // aleksandra-zh
     ((InitializeAccountChunkHostMasterMemory2)                      (1659))  // aleksandra-zh
+    ((JournalTruncateFixes)                                         (1660))  // aleksandra-zh
     // 21.3 starts here.
-    ((DropPoolTreeInternedAttributes)                               (1700))  // ignat
+    ((DropPoolTreeInternedAttributes)                               (1800))  // ignat
 );
 
 ////////////////////////////////////////////////////////////////////////////////

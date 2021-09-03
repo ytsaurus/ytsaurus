@@ -464,7 +464,6 @@ private:
             req->mutable_info()->set_row_count(sealedRowCount);
             req->mutable_info()->set_uncompressed_data_size(quorumInfo.UncompressedDataSize);
             req->mutable_info()->set_compressed_data_size(quorumInfo.CompressedDataSize);
-            req->mutable_info()->set_physical_row_count(GetPhysicalChunkRowCount(sealedRowCount, overlayed));
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(
