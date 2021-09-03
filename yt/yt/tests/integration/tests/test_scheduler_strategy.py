@@ -1578,7 +1578,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         assert get(scheduler_orchid_pool_path("guaranteed_pool") + "/starvation_status") != "non_starving"
 
         set("//sys/pool_trees/default/@config/enable_conditional_preemption", True)
-        wait(lambda: get(scheduler_orchid_operation_path(starving_op.id) + "/resource_usage/cpu") == 0.5, iter=20)
+        wait(lambda: get(scheduler_orchid_operation_path(starving_op.id) + "/resource_usage/cpu") == 0.5)
         wait(lambda: get(scheduler_orchid_operation_path(donor_op.id) + "/resource_usage/cpu") == 1.0)
         wait(lambda: get(scheduler_orchid_pool_path("blocking_pool") + "/resource_usage/cpu") == 1.5)
 

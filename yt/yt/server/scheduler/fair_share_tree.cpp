@@ -1589,10 +1589,7 @@ private:
 
         context->SchedulingStatistics().ScheduledDuringPreemption = startedAfterPreemption - startedBeforePreemption;
 
-        // Reset discounts.
-        context->SchedulingContext()->ResetUsageDiscounts();
-        context->LocalUnconditionalUsageDiscountMap().clear();
-
+        // Collect conditionally preemptable jobs.
         TNonOwningJobSet conditionallyPreemptableJobs;
         if (jobStartedUsingPreemption) {
             auto* operationElement = treeSnapshotImpl->FindEnabledOperationElement(jobStartedUsingPreemption->GetOperationId());
@@ -1611,6 +1608,11 @@ private:
 
         std::vector<TJobPtr> preemptableJobs = std::move(unconditionallyPreemptableJobs);
         preemptableJobs.insert(preemptableJobs.end(), conditionallyPreemptableJobs.begin(), conditionallyPreemptableJobs.end());
+
+        // Reset discounts.
+        context->SchedulingContext()->ResetUsageDiscounts();
+        context->LocalUnconditionalUsageDiscountMap().clear();
+        context->ConditionallyPreemptableJobSetMap().clear();
 
         // Preempt jobs if needed.
         std::sort(
