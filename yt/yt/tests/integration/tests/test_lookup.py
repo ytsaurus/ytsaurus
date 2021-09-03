@@ -536,6 +536,7 @@ class TestLookup(TestSortedDynamicTablesBase):
 
     @authors("akozhikhov")
     def test_reconfigure_reader_upon_remount(self):
+        self._separate_tablet_and_data_nodes()
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
