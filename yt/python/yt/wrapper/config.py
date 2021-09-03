@@ -107,6 +107,10 @@ class Config(types.ModuleType, client_state.ClientState):
     def get_total_request_timeout(self, client):
         return self.get_single_request_timeout(client) * self.get_request_retry_count(client)
 
+    def get_transaction_timeout(self, client):
+        config = self.get_config(client)
+        return config["transaction_timeout"]
+
     def __getitem__(self, key):
         return self.config[key]
 

@@ -1,4 +1,4 @@
-from .config import (get_option, set_option, get_config, get_total_request_timeout,
+from .config import (get_option, set_option, get_config, get_total_request_timeout, get_transaction_timeout,
                      get_request_retry_count, get_command_param, set_command_param, del_command_param,
                      get_backend_type)
 from .common import get_value
@@ -96,7 +96,10 @@ class Transaction(object):
     def __init__(self, timeout=None, deadline=None, attributes=None, ping=None, interrupt_on_failed=True,
                  transaction_id=None, ping_ancestor_transactions=None, type="master", acquire=None,
                  client=None):
-        timeout = get_value(timeout, get_total_request_timeout(client))
+        timeout = get_value(
+            timeout,
+            max(get_total_request_timeout(client), get_transaction_timeout(client))
+        )
         if transaction_id == null_transaction_id:
             ping = False
             acquire = False
