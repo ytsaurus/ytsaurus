@@ -692,10 +692,8 @@ class TestGetJobStderr(YTEnvSetup):
             wait(lambda: len(get_other_job_ids()) == 1)
             other_job_id = list(get_other_job_ids())[0]
 
-            res = get_job_stderr(op.id, job_id, authenticated_user="u")
-            assert res == "STDERR-OUTPUT\n"
-
-            get_job_stderr(op.id, job_id, authenticated_user="other")
+            assert "STDERR-OUTPUT\n" == get_job_stderr(op.id, job_id, authenticated_user="other")
+            assert "STDERR-OUTPUT\n" == get_job_stderr(op.id, job_id, authenticated_user="u")
 
             clean_operations()
 
