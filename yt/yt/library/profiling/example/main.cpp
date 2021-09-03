@@ -21,6 +21,7 @@
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/solomon/exporter.h>
 #include <yt/yt/library/profiling/solomon/registry.h>
+#include <yt/yt/library/profiling/tcmalloc/profiler.h>
 
 #include <util/stream/output.h>
 #include <util/system/compiler.h>
@@ -34,6 +35,8 @@ using namespace NYT::NProfiling;
 
 int main(int argc, char* argv[])
 {
+    EnableTCMallocProfiler();
+
     try {
         if (argc != 2 && argc != 3) {
             throw yexception() << "usage: " << argv[0] << " PORT [--fast]";
