@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
+#include <yt/yt/ytlib/tablet_client/helpers.h>
+
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/client/misc/workload.h>
@@ -120,7 +122,10 @@ struct TQueryBaseOptions
 struct TQueryOptions
     : public TQueryBaseOptions
 {
-    NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
+    NTabletClient::TReadTimestampRange TimestampRange{
+        .Timestamp = NTransactionClient::SyncLastCommittedTimestamp,
+        .RetentionTimestamp = NTransactionClient::NullTimestamp,
+    };
     bool VerboseLogging = false;
     int MaxSubqueries = std::numeric_limits<int>::max();
     ui64 RangeExpansionLimit = 0;

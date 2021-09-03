@@ -411,9 +411,9 @@ private:
             TColumnFilter(),
             MakeRowBound(rowIndex),
             MakeRowBound(rowIndex + 1),
-            NullTimestamp,
+            /*timestampRange*/ {},
             chunkReadOptions,
-            /* tabletThrottlerKind */ std::nullopt,
+            /*tabletThrottlerKind*/ std::nullopt,
             WorkloadCategory_);
 
         TRowBatchReadOptions readOptions{
@@ -530,9 +530,9 @@ private:
             TColumnFilter(),
             MakeRowBound(startRowIndex),
             MakeRowBound(std::numeric_limits<i64>::max()),
-            NullTimestamp,
+            /*timestampRange*/ {},
             chunkReadOptions,
-            /* tabletThrottlerKind */ std::nullopt,
+            /*tabletThrottlerKind*/ std::nullopt,
             WorkloadCategory_);
 
         int timestampCount = 0;

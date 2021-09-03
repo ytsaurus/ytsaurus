@@ -34,6 +34,7 @@ namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
 using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -212,11 +213,12 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     const TTabletSnapshotPtr& tabletSnapshot,
     const TColumnFilter& columnFilter,
     const TSharedRange<TRowRange>& bounds,
-    TTimestamp timestamp,
+    TReadTimestampRange timestampRange,
     const TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     std::optional<EWorkloadCategory> workloadCategory)
 {
+    auto timestamp = timestampRange.Timestamp;
     ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
     YT_VERIFY(bounds.Size() > 0);
     auto lowerBound = bounds[0].first;
@@ -292,7 +294,8 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
         tabletSnapshot->QuerySchema->GetColumnCount(),
         tabletSnapshot->QuerySchema->GetKeyColumnCount(),
         columnFilter,
-        tabletSnapshot->ColumnEvaluator);
+        tabletSnapshot->ColumnEvaluator,
+        timestampRange.RetentionTimestamp);
 
     std::vector<TLegacyOwningKey> boundaries;
     boundaries.reserve(stores.size());
@@ -340,7 +343,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     const TColumnFilter& columnFilter,
     TLegacyOwningKey lowerBound,
     TLegacyOwningKey upperBound,
-    TTimestamp /*timestamp*/,
+    TReadTimestampRange /*timestampRange*/,
     const TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     std::optional<EWorkloadCategory> workloadCategory)
@@ -473,7 +476,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
     const TColumnFilter& columnFilter,
     TLegacyOwningKey lowerBound,
     TLegacyOwningKey upperBound,
-    TTimestamp timestamp,
+    TReadTimestampRange timestampRange,
     const TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     std::optional<EWorkloadCategory> workloadCategory)
@@ -483,7 +486,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
             tabletSnapshot,
             columnFilter,
             MakeSingletonRowRange(lowerBound, upperBound),
-            timestamp,
+            timestampRange,
             chunkReadOptions,
             tabletThrottlerKind,
             workloadCategory);
@@ -493,7 +496,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
             columnFilter,
             std::move(lowerBound),
             std::move(upperBound),
-            timestamp,
+            timestampRange,
             chunkReadOptions,
             tabletThrottlerKind,
             workloadCategory);
@@ -509,11 +512,12 @@ ISchemafulUnversionedReaderPtr CreateSchemafulPartitionReader(
     const TColumnFilter& columnFilter,
     const TPartitionSnapshotPtr& partitionSnapshot,
     const TSharedRange<TLegacyKey>& keys,
-    TTimestamp timestamp,
+    TReadTimestampRange timestampRange,
     const TClientChunkReadOptions& chunkReadOptions,
     TRowBufferPtr rowBuffer,
     std::optional<EWorkloadCategory> workloadCategory)
 {
+    auto timestamp = timestampRange.Timestamp;
     auto minKey = *keys.Begin();
     auto maxKey = *(keys.End() - 1);
     std::vector<ISortedStorePtr> stores;
@@ -545,7 +549,8 @@ ISchemafulUnversionedReaderPtr CreateSchemafulPartitionReader(
         tabletSnapshot->QuerySchema->GetColumnCount(),
         tabletSnapshot->QuerySchema->GetKeyColumnCount(),
         columnFilter,
-        tabletSnapshot->ColumnEvaluator);
+        tabletSnapshot->ColumnEvaluator,
+        timestampRange.RetentionTimestamp);
 
     return CreateSchemafulOverlappingLookupReader(
         std::move(rowMerger),
@@ -575,11 +580,12 @@ ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
     const TTabletSnapshotPtr& tabletSnapshot,
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keys,
-    TTimestamp timestamp,
+    TReadTimestampRange timestampRange,
     const TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     std::optional<EWorkloadCategory> workloadCategory)
 {
+    auto timestamp = timestampRange.Timestamp;
     ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
 
     tabletSnapshot->WaitOnLocks(timestamp);
@@ -628,7 +634,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
                 columnFilter,
                 partitions[index],
                 partitionedKeys[index],
-                timestamp,
+                timestampRange,
                 chunkReadOptions,
                 rowBuffer,
                 workloadCategory);

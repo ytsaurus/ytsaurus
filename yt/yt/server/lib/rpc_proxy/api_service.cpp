@@ -2790,6 +2790,8 @@ private:
     // TABLES (TRANSACTIONAL)
     ////////////////////////////////////////////////////////////////////////////////
 
+    DEFINE_MPL_MEMBER_DETECTOR(retention_timestamp);
+
     template <class TContext, class TRequest, class TOptions>
     static void LookupRowsPrelude(
         const TIntrusivePtr<TContext>& context,
@@ -2803,6 +2805,10 @@ private:
         SetTimeoutOptions(options, context.Get());
 
         options->Timestamp = request->timestamp();
+
+        if constexpr (THasretention_timestampMember<TRequest>::Value) {
+            options->RetentionTimestamp = request->retention_timestamp();
+        }
 
         if (request->has_multiplexing_band()) {
             options->MultiplexingBand = CheckedEnumCast<EMultiplexingBand>(request->multiplexing_band());
@@ -3153,6 +3159,9 @@ private:
         }
         if (request->has_enable_code_cache()) {
             options.EnableCodeCache = request->enable_code_cache();
+        }
+        if (request->has_retention_timestamp()) {
+            options.RetentionTimestamp = request->retention_timestamp();
         }
         // TODO: Support WorkloadDescriptor
         if (request->has_memory_limit_per_node()) {

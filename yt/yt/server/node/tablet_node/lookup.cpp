@@ -814,7 +814,7 @@ void DoLookupRows(
 
 void LookupRows(
     const TTabletSnapshotPtr& tabletSnapshot,
-    TTimestamp timestamp,
+    TReadTimestampRange timestampRange,
     bool useLookupCache,
     const TClientChunkReadOptions& chunkReadOptions,
     TWireProtocolReader* reader,
@@ -836,11 +836,12 @@ void LookupRows(
         tabletSnapshot->PhysicalSchema->GetColumnCount(),
         tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
         columnFilter,
-        tabletSnapshot->ColumnEvaluator);
+        tabletSnapshot->ColumnEvaluator,
+        timestampRange.RetentionTimestamp);
 
     DoLookupRows(
         tabletSnapshot,
-        timestamp,
+        timestampRange.Timestamp,
         /*produceAllVersions*/ false,
         useLookupCache,
         columnFilter,
@@ -902,7 +903,7 @@ void VersionedLookupRows(
 
 void ExecuteSingleRead(
     TTabletSnapshotPtr tabletSnapshot,
-    TTimestamp timestamp,
+    TReadTimestampRange timestampRange,
     bool useLookupCache,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const TRetentionConfigPtr& retentionConfig,
@@ -914,7 +915,7 @@ void ExecuteSingleRead(
         case EWireProtocolCommand::LookupRows:
             LookupRows(
                 tabletSnapshot,
-                timestamp,
+                timestampRange,
                 useLookupCache,
                 chunkReadOptions,
                 reader,
@@ -922,9 +923,13 @@ void ExecuteSingleRead(
             break;
 
         case EWireProtocolCommand::VersionedLookupRows:
+            if (timestampRange.RetentionTimestamp != NullTimestamp) {
+                THROW_ERROR_EXCEPTION("Versioned lookup does not support retention timestamp");
+            }
+
             VersionedLookupRows(
                 tabletSnapshot,
-                timestamp,
+                timestampRange.Timestamp,
                 useLookupCache,
                 chunkReadOptions,
                 std::move(retentionConfig),
@@ -940,7 +945,7 @@ void ExecuteSingleRead(
 
 void LookupRead(
     const TTabletSnapshotPtr& tabletSnapshot,
-    TTimestamp timestamp,
+    TReadTimestampRange timestampRange,
     bool useLookupCache,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const TRetentionConfigPtr& retentionConfig,
@@ -949,6 +954,7 @@ void LookupRead(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    auto timestamp = timestampRange.Timestamp;
     ValidateReadTimestamp(timestamp);
     ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
 
@@ -957,7 +963,7 @@ void LookupRead(
     while (!reader->IsFinished()) {
         ExecuteSingleRead(
             tabletSnapshot,
-            timestamp,
+            timestampRange,
             useLookupCache,
             chunkReadOptions,
             retentionConfig,

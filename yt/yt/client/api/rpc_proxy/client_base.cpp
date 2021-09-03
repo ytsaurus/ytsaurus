@@ -721,6 +721,7 @@ TFuture<IUnversionedRowsetPtr> TClientBase::LookupRows(
         }
     }
     req->set_timestamp(options.Timestamp);
+    req->set_retention_timestamp(options.RetentionTimestamp);
     req->set_keep_missing_rows(options.KeepMissingRows);
     req->set_enable_partial_result(options.EnablePartialResult);
     req->set_use_lookup_cache(options.UseLookupCache);
@@ -829,6 +830,7 @@ TFuture<std::vector<IUnversionedRowsetPtr>> TClientBase::MultiLookup(
     }
 
     req->set_timestamp(options.Timestamp);
+    req->set_retention_timestamp(options.RetentionTimestamp);
     req->set_multiplexing_band(static_cast<NProto::EMultiplexingBand>(options.MultiplexingBand));
     ToProto(req->mutable_tablet_read_options(), options);
 
@@ -878,6 +880,8 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
     req->set_query(query);
 
     FillRequestBySelectRowsOptionsBase(options, req);
+    // TODO(ifsmirnov): retention timestamp in explain_query.
+    req->set_retention_timestamp(options.RetentionTimestamp);
     // TODO(lukyan): Move to FillRequestBySelectRowsOptionsBase
     req->SetTimeout(options.Timeout.value_or(GetRpcProxyConnection()->GetConfig()->DefaultSelectRowsTimeout));
 

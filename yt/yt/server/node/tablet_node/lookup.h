@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/yt/ytlib/tablet_client/public.h>
+#include <yt/yt/ytlib/tablet_client/helpers.h>
 
 #include <yt/yt/core/actions/public.h>
 
@@ -14,7 +15,7 @@ namespace NYT::NTabletNode {
 //! response is written into #writer.
 void LookupRows(
     const TTabletSnapshotPtr& tabletSnapshot,
-    TTimestamp timestamp,
+    NTabletClient::TReadTimestampRange timestampRange,
     bool useLookupCache,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     NTableClient::TWireProtocolReader* reader,
@@ -22,8 +23,7 @@ void LookupRows(
 
 void VersionedLookupRows(
     const TTabletSnapshotPtr& tabletSnapshot,
-    TTimestamp timestamp,
-    bool useLookupCache,
+    TTimestamp timestampRange,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const NTableClient::TRetentionConfigPtr& retentionConfig,
     NTableClient::TWireProtocolReader* reader,
@@ -31,7 +31,7 @@ void VersionedLookupRows(
 
 void LookupRead(
     const TTabletSnapshotPtr& tabletSnapshot,
-    TTimestamp timestamp,
+    NTabletClient::TReadTimestampRange timestampRange,
     bool useLookupCache,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const NTableClient::TRetentionConfigPtr& retentionConfig,

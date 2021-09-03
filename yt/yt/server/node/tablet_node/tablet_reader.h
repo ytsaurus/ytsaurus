@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/table_client/public.h>
 
+#include <yt/yt/ytlib/tablet_client/helpers.h>
+
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
@@ -32,7 +34,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     const TTabletSnapshotPtr& tabletSnapshot,
     const TColumnFilter& columnFilter,
     const TSharedRange<NTableClient::TRowRange>& bounds,
-    TTimestamp timestamp,
+    NTabletClient::TReadTimestampRange timestampRange,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     std::optional<EWorkloadCategory> workloadCategory);
@@ -46,7 +48,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     const TColumnFilter& columnFilter,
     TLegacyOwningKey lowerBound,
     TLegacyOwningKey upperBound,
-    TTimestamp timestamp,
+    NTabletClient::TReadTimestampRange timestampRange,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     std::optional<EWorkloadCategory> workloadCategory);
@@ -60,7 +62,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
     const TColumnFilter& columnFilter,
     TLegacyOwningKey lowerBound,
     TLegacyOwningKey upperBound,
-    TTimestamp timestamp,
+    NTabletClient::TReadTimestampRange timestampRange,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     std::optional<EWorkloadCategory> workloadCategory);
@@ -75,7 +77,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
     const TTabletSnapshotPtr& tabletSnapshot,
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keys,
-    TTimestamp timestamp,
+    NTabletClient::TReadTimestampRange timestampRange,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     std::optional<EWorkloadCategory> workloadCategory);

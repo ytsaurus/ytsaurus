@@ -552,6 +552,7 @@ private:
         auto requestCodecId = CheckedEnumCast<NCompression::ECodec>(request->request_codec());
         auto responseCodecId = CheckedEnumCast<NCompression::ECodec>(request->response_codec());
         auto timestamp = FromProto<TTimestamp>(request->timestamp());
+        auto retentionTimestamp = FromProto<TTimestamp>(request->retention_timestamp());
 
         // TODO(sandello): Extract this out of RPC request.
         TClientChunkReadOptions chunkReadOptions{
@@ -583,19 +584,20 @@ private:
         const auto& requestHeaderExt = context->RequestHeader().GetExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
         auto inMemoryMode = FromProto<EInMemoryMode>(requestHeaderExt.in_memory_mode());
 
-        context->SetRequestInfo("TabletIds: %v, Timestamp: %llx, RequestCodec: %v, ResponseCodec: %v, "
+        context->SetRequestInfo("TabletIds: %v, Timestamp: %llx, RetentionTimestamp: %llx, RequestCodec: %v, ResponseCodec: %v, "
             "ReadSessionId: %v, InMemoryMode: %v, RetentionConfig: %v",
             MakeFormattableView(request->tablet_ids(), [] (auto* builder, const auto& protoTabletId) {
                 FormatValue(builder, FromProto<TTabletId>(protoTabletId), TStringBuf());
             }),
             timestamp,
+            retentionTimestamp,
             requestCodecId,
             responseCodecId,
             chunkReadOptions.ReadSessionId,
             inMemoryMode,
             retentionConfig);
 
-        // COMAPT(babenko)
+        // COMPAT(babenko)
         if (request->cell_ids_size() == 0 && request->tablet_ids_size() > 0) {
             YT_LOG_DEBUG("Missing cell id in QueryService.Multiread request (RequestId: %v, User: %v)",
                 context->GetRequestId(),
@@ -666,7 +668,10 @@ private:
 
                             LookupRead(
                                 tabletSnapshot,
-                                timestamp,
+                                TReadTimestampRange{
+                                    .Timestamp = timestamp,
+                                    .RetentionTimestamp = retentionTimestamp
+                                },
                                 useLookupCache,
                                 chunkReadOptions,
                                 retentionConfig,
@@ -728,7 +733,7 @@ private:
                 FormatValue(builder, FromProto<TTabletId>(protoTabletId), TStringBuf());
             }));
 
-        // COMAPT(babenko)
+        // COMPAT(babenko)
         if (request->cell_ids_size() == 0 && request->tablet_ids_size() > 0) {
             YT_LOG_DEBUG("Missing cell id in QueryService.GetTabletInfo request (RequestId: %v, User: %v)",
                 context->GetRequestId(),
