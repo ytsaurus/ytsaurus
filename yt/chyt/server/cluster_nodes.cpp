@@ -13,23 +13,31 @@ class TClusterNode
 {
 private:
     TClusterNodeName Name;
+    int Cookie;
     bool Local;
     DB::ConnectionPoolWithFailoverPtr Connection;
 
 public:
     TClusterNode(
         const TClusterNodeName name,
+        int cookie,
         bool local,
         DB::ConnectionPoolWithFailoverPtr connection)
         : Name(name)
+        , Cookie(cookie)
         , Local(local)
         , Connection(std::move(connection))
     {
     }
 
-    TClusterNodeName GetName() const override
+    const TClusterNodeName& GetName() const override
     {
         return Name;
+    }
+
+    int GetCookie() const override
+    {
+        return Cookie;
     }
 
     bool IsLocal() const override
@@ -45,7 +53,11 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IClusterNodePtr CreateClusterNode(TClusterNodeName name, const DB::Settings& settings, bool isLocal)
+IClusterNodePtr CreateClusterNode(
+    TClusterNodeName name,
+    int cookie,
+    const DB::Settings& settings,
+    bool isLocal)
 {
     if (!name.Host.empty() && name.Host.front() == '[' && name.Host.back() == ']') {
         name.Host = name.Host.substr(1, name.Host.size() - 2);
@@ -76,6 +88,7 @@ IClusterNodePtr CreateClusterNode(TClusterNodeName name, const DB::Settings& set
 
     return std::make_shared<TClusterNode>(
         name,
+        cookie,
         isLocal,
         std::move(connection));
 }

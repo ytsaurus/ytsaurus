@@ -500,3 +500,214 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query("select k, t1.v v1, t2.v v2 from `//tmp/t1` t1 join `//tmp/t2` t2 using k") == [
                 {"k": 3, "v1": "a3", "v2": "b3"}, {"k": 7, "v1": "a7", "v2": "b7"},
             ]
+
+    @authors("dakovalkov")
+    def test_filter_joined_subquery(self):
+        create(
+            "table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]}
+        )
+        create(
+            "table", "//tmp/t2", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]}
+        )
+        for i in range(3):
+            write_table("<append=%true>//tmp/t1", [{"key": i}])
+            write_table("<append=%true>//tmp/t2", [{"key": i}])
+
+        patch = {
+            "yt": {
+                "subquery": {
+                    "min_data_weight_per_thread": 1,
+                },
+            },
+        }
+
+        with Clique(3, config_patch=patch) as clique:
+            expected_result = [{"key": i} for i in range(3)]
+
+            settings = {
+                # Disable limit explicitly.
+                "chyt.execution.min_data_weight_per_secondary_query": 0,
+                "chyt.execution.filter_joined_subquery_by_sort_key": 0,
+                # This optimization is required to propagate where condition from subquery to table.
+                "enable_optimize_predicate_expression": 1,
+            }
+
+            query = 'select * from "//tmp/t1" as a join "//tmp/t2" as b using key order by key'
+
+            # Two yt table sorted join. Secondary query reads 1 row from left and 1 row from right table.
+            assert clique.make_query_and_validate_row_count(query, exact=6, settings=settings) == expected_result
+
+            query = 'select * from "//tmp/t1" as a join (select * from "//tmp/t2") as b using key order by key'
+
+            # Without bound conditions. Secondary query reads 1 row from left table and the whole right table (3 row).
+            assert clique.make_query_and_validate_row_count(query, exact=12, settings=settings) == expected_result
+
+            # With bound conditions. Secondary query reads only 1 row from left and 1 row from right table.
+            settings["chyt.execution.filter_joined_subquery_by_sort_key"] = 1
+            assert clique.make_query_and_validate_row_count(query, exact=6, settings=settings) == expected_result
+
+    @authors("dakovalkov")
+    def test_complex_join_key(self):
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={
+                "schema": [
+                    {"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
+                    {"name": "subkey", "type": "int64", "required": True, "sort_order": "ascending"},
+                    {"name": "subkey2", "type": "int64", "required": True, "sort_order": "ascending"},
+                    {"name": "lvalue", "type": "string", "required": True},
+                ]
+            },
+        )
+        create(
+            "table",
+            "//tmp/t2",
+            attributes={
+                "schema": [
+                    {"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
+                    {"name": "subkey", "type": "int64", "required": True, "sort_order": "ascending"},
+                    {"name": "subkey2", "type": "int64", "required": True, "sort_order": "ascending"},
+                    {"name": "rvalue", "type": "string", "required": True},
+                ]
+            },
+        )
+        lhs_rows = [
+            {"key": 0, "subkey": 0, "subkey2": 0, "lvalue": "value0"},
+            {"key": 5, "subkey": 5, "subkey2": 5, "lvalue": "value5"},
+        ]
+        rhs_rows = [
+            {"key": 0, "subkey": 0, "subkey2": 0, "rvalue": "value0"},
+            {"key": 5, "subkey": 5, "subkey2": 5, "rvalue": "value5"},
+        ]
+
+        for row in lhs_rows:
+            write_table("<append=%true>//tmp/t1", [row])
+        for row in rhs_rows:
+            write_table("<append=%true>//tmp/t2", [row])
+
+        patch = {
+            "yt": {
+                "subquery": {
+                    "min_data_weight_per_thread": 1,
+                },
+            },
+        }
+
+        with Clique(2, config_patch=patch) as clique:
+            query = 'select key from "//tmp/t1" join "//tmp/t2" using key, subkey2 order by key'
+            assert clique.make_query(query) == [{"key": 0}, {"key": 5}]
+
+            query = 'select key from "//tmp/t1" a join "//tmp/t2" b on a.key=b.key and a.subkey=b.subkey2 order by key'
+            assert clique.make_query(query) == [{"key": 0}, {"key": 5}]
+
+            query = 'select key from "//tmp/t1" a join "//tmp/t2" b on a.lvalue=b.rvalue and a.key=b.key order by key'
+            assert clique.make_query(query) == [{"key": 0}, {"key": 5}]
+
+            # Not a key prefix.
+            query = 'select key from "//tmp/t1" join "//tmp/t2" using subkey, subkey2 order by key'
+            with raises_yt_error(QueryFailedError):
+                clique.make_query(query)
+
+            # Same subkey twice, but not a key prefix.
+            query = 'select key from "//tmp/t1" join "//tmp/t2" using subkey, subkey order by key'
+            with raises_yt_error(QueryFailedError):
+                clique.make_query(query)
+
+            # Expressions.
+            query = '''select key from "//tmp/t1" a join "//tmp/t2" b
+                       on a.key = b.key and abs(a.subkey * 10 + 25) = abs(b.subkey * 20 - 25)
+                       order by key'''
+            assert clique.make_query(query) == [{"key": 0}, {"key": 5}]
+
+            query = 'select key from "//tmp/t1" a join "//tmp/t2" b on a.key=b.subkey and a.subkey=b.key'
+            with raises_yt_error(QueryFailedError):
+                clique.make_query(query)
+
+            query = '''select key from "//tmp/t1" a
+                       full join "//tmp/t2" b
+                       on a.key = (intDiv(b.subkey, 5) * 5)
+                       order by key'''
+            with raises_yt_error(QueryFailedError):
+                clique.make_query(query)
+
+            query = '''select key from "//tmp/t1" a
+                       full join (select * from "//tmp/t2") b
+                       on a.key = (intDiv(b.subkey, 5) * 5)
+                       order by key'''
+            assert clique.make_query(query) == [{"key": 0}, {"key": 5}]
+
+    @authors("dakovalkov")
+    def test_nulls_in_right_and_full_join(self):
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "subkey", "type": "int64", "sort_order": "ascending"},
+                    {"name": "lvalue", "type": "string"},
+                ]
+            },
+        )
+        create(
+            "table",
+            "//tmp/t2",
+            attributes={
+                "schema": [
+                    {"name": "key", "type": "int64"},
+                    {"name": "subkey", "type": "int64"},
+                    {"name": "rvalue", "type": "string"},
+                ]
+            },
+        )
+
+        lhs_rows = [
+            {"key": None, "subkey": 0, "lvalue": "value0"},
+            {"key": 2, "subkey": 2, "lvalue": "value1"},
+            {"key": 4, "subkey": None, "lvalue": "value2"},
+            {"key": 6, "subkey": 6, "lvalue": "value3"},
+        ]
+        rhs_rows = [
+            {"key": None, "subkey": 0, "rvalue": "value0"},
+            {"key": 2, "subkey": 2, "rvalue": "value1"},
+            {"key": 4, "subkey": None, "rvalue": "value2"},
+            {"key": 6, "subkey": 6, "rvalue": "value3"},
+        ]
+
+        for row in lhs_rows:
+            write_table("<append=%true>//tmp/t1", [row])
+        for row in rhs_rows:
+            write_table("<append=%true>//tmp/t2", [row])
+
+        patch = {
+            "yt": {
+                "subquery": {
+                    "min_data_weight_per_thread": 1,
+                },
+            },
+        }
+
+        with Clique(2, config_patch=patch) as clique:
+            expected_right = [
+                {"key": 2, "subkey": 2, "lvalue": "value1", "rvalue": "value1"},
+                {"key": 4, "subkey": None, "lvalue": None, "rvalue": "value2"},
+                {"key": 6, "subkey": 6, "lvalue": "value3", "rvalue": "value3"},
+                {"key": None, "subkey": 0, "lvalue": None, "rvalue": "value0"},
+            ]
+            expected_full = [
+                {"key": 2, "subkey": 2, "lvalue": "value1", "rvalue": "value1"},
+                {"key": 4, "subkey": None, "lvalue": "value2", "rvalue": None},
+                {"key": 4, "subkey": None, "lvalue": None, "rvalue": "value2"},
+                {"key": 6, "subkey": 6, "lvalue": "value3", "rvalue": "value3"},
+                {"key": None, "subkey": 0, "lvalue": "value0", "rvalue": None},
+                {"key": None, "subkey": 0, "lvalue": None, "rvalue": "value0"},
+            ]
+
+            query = '''select * from "//tmp/t1"
+                       {} join (select * from "//tmp/t2") as b
+                       using key, subkey
+                       order by key, subkey, lvalue, rvalue'''
+
+            assert clique.make_query(query.format("right")) == expected_right
+            assert clique.make_query(query.format("full")) == expected_full

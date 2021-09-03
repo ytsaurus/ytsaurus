@@ -26,10 +26,15 @@ struct TQueryAnalysisResult
     EPoolKind PoolKind;
 };
 
-class TQueryAnalyzer : DB::WithContext
+class TQueryAnalyzer
+    : public DB::WithContext
 {
 public:
-    TQueryAnalyzer(DB::ContextPtr context, const TStorageContext* storageContext, const DB::SelectQueryInfo& queryInfo, const NLogging::TLogger& logger);
+    TQueryAnalyzer(
+        DB::ContextPtr context,
+        const TStorageContext* storageContext,
+        const DB::SelectQueryInfo& queryInfo,
+        const NLogging::TLogger& logger);
 
     DB::ASTPtr RewriteQuery(
         const TRange<TSubquery> subqueries,
@@ -37,6 +42,8 @@ public:
         const THashMap<NChunkClient::TChunkId, NChunkClient::TRefCountedMiscExtPtr>& miscExtMap,
         int subqueryIndex,
         bool isLastSubquery);
+
+    DB::QueryProcessingStage::Enum GetOptimizedQueryProcessingStage();
 
     TQueryAnalysisResult Analyze();
 
@@ -47,7 +54,7 @@ private:
     std::vector<DB::ASTTableExpression*> TableExpressions_;
     int YtTableCount_ = 0;
     std::vector<DB::ASTPtr*> TableExpressionPtrs_;
-    std::vector<std::shared_ptr<IStorageDistributor>> Storages_;
+    std::vector<IStorageDistributorPtr> Storages_;
     //! If the query contains any kind of join.
     bool Join_ = false;
     //! If the query contains global join.
@@ -60,16 +67,25 @@ private:
     bool TwoYTTableJoin_ = false;
 
     int KeyColumnCount_ = 0;
+    bool JoinedByKeyColumns_ = false;
+
+    std::optional<DB::QueryProcessingStage::Enum> OptimizedQueryProcessingStage_;
+
+    std::vector<DB::ASTPtr> JoinKeyRightExpressions_;
 
     NTableClient::TOwningKeyBound PreviousUpperBound_;
 
     std::vector<std::pair<DB::ASTPtr*, DB::ASTPtr>> Modifications_;
 
+    void DoAnalyze();
     void ParseQuery();
+    // Infer longest possible key prefix used in ON/USING clauses.
+    // Throws an error if sorted pool is required, but key prefix is empty.
+    void InferSortedJoinKeyColumns(bool needSortedPool);
 
-    void ValidateKeyColumns();
+    void OptimizeQueryProcessingStage();
 
-    std::shared_ptr<IStorageDistributor> GetStorage(const DB::ASTTableExpression* tableExpression) const;
+    IStorageDistributorPtr GetStorage(const DB::ASTTableExpression* tableExpression) const;
 
     //! Apply modification to query part which can be later rolled back by calling RollbackModifications().
     void ApplyModification(DB::ASTPtr* queryPart, DB::ASTPtr newValue);
@@ -79,7 +95,7 @@ private:
     void RollbackModifications();
 
     void ReplaceTableExpressions(std::vector<DB::ASTPtr> newTableExpressions);
-    void AppendWhereCondition(
+    void AddBoundConditionToJoinedSubquery(
         NTableClient::TOwningKeyBound lowerBound,
         NTableClient::TOwningKeyBound upperBound);
 };

@@ -344,7 +344,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
     @authors("evgenstf")
     def test_subquery_data_weight_limit_exceeded(self):
-        with Clique(1, config_patch={"yt": {"subquery": {"max_data_weight_per_subquery": 0}}}) as clique:
+        with Clique(1, config_patch={"yt": {"subquery": {"max_data_weight_per_subquery": 1}}}) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
             write_table("//tmp/t", [{"a": "2012-12-12 20:00:00"}])
             with raises_yt_error(QueryFailedError):

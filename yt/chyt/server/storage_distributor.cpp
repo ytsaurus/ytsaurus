@@ -30,6 +30,7 @@
 
 #include <yt/yt/core/misc/numeric_helpers.h>
 
+#include <Core/QueryProcessingStage.h>
 #include <DataStreams/materializeBlock.h>
 #include <DataStreams/MaterializingBlockInputStream.h>
 #include <DataStreams/RemoteBlockInputStream.h>
@@ -221,6 +222,64 @@ void ValidateReadPermissions(
     queryContext->Host->ValidateReadPermissions(tablePathsWithColumns, queryContext->User);
 }
 
+TClusterNodes GetNodesToDistribute(TQueryContext* queryContext, size_t distributionSeed, bool isDistributedJoin)
+{
+    // Should we distribute query or process it on local node only?
+    bool distribute = true;
+    // How many nodes we should use to distribute query.
+    // By default, we distribute to all available cluster nodes, but behavior can be overriden via settings.
+    i64 nodesToChoose = queryContext->GetClusterNodesSnapshot().size();
+
+    if (nodesToChoose == 0) {
+        THROW_ERROR_EXCEPTION("There are no instances available through discovery");
+    }
+
+    auto settings = queryContext->Settings->Execution;
+
+    if (isDistributedJoin) {
+        if (settings->JoinNodeLimit > 0) {
+            nodesToChoose = std::min(nodesToChoose, settings->JoinNodeLimit);
+        }
+    } else {
+        if (settings->SelectNodeLimit > 0) {
+            nodesToChoose = std::min(nodesToChoose, settings->SelectNodeLimit);
+        }
+        switch (settings->SelectPolicy) {
+            case ESelectPolicy::Local:
+                distribute = false;
+                break;
+            case ESelectPolicy::DistributeInitial:
+                distribute = (queryContext->QueryKind == EQueryKind::InitialQuery);
+                break;
+            case ESelectPolicy::Distribute:
+                distribute = true;
+                break;
+        }
+    }
+
+    // Process on local node only, do not need to choose anything.
+    if (!distribute) {
+        return {queryContext->Host->GetLocalNode(),};
+    }
+
+    auto candidates = queryContext->GetClusterNodesSnapshot();
+
+    auto candidateComporator = [distributionSeed] (const IClusterNodePtr& lhs, const IClusterNodePtr& rhs) {
+        auto lhash = CombineHashes(distributionSeed, THash<int>()(lhs->GetCookie()));
+        auto rhash = CombineHashes(distributionSeed, THash<int>()(rhs->GetCookie()));
+        return lhash < rhash;
+    };
+    // NB: this is important to distribute query deterministically across the cluster.
+    std::sort(candidates.begin(), candidates.end(), candidateComporator);
+
+    YT_VERIFY(nodesToChoose > 0);
+    YT_VERIFY(nodesToChoose <= std::ssize(candidates));
+
+    candidates.resize(nodesToChoose);
+
+    return candidates;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! This class is extracted for better encapsulation of distributed query call context.
@@ -258,7 +317,7 @@ public:
 
         const auto& executionSettings = StorageContext_->Settings->Execution;
 
-        if (executionSettings->QueryDepthLimit != -1 && QueryContext_->QueryDepth >= executionSettings->QueryDepthLimit) {
+        if (executionSettings->QueryDepthLimit > 0 && QueryContext_->QueryDepth >= executionSettings->QueryDepthLimit) {
             THROW_ERROR_EXCEPTION("Query depth limit exceeded; consider optimizing query or changing the limit")
                 << TErrorAttribute("query_depth_limit", executionSettings->QueryDepthLimit);
         }
@@ -431,6 +490,10 @@ private:
 
     void RemoveJoinFromQuery()
     {
+        if (!hasJoin(QueryInfo_.query->as<DB::ASTSelectQuery&>())) {
+            return;
+        }
+
         QueryInfo_.query = QueryInfo_.query->clone();
         auto& select = QueryInfo_.query->as<DB::ASTSelectQuery&>();
 
@@ -511,58 +574,23 @@ private:
 
     void ChooseNodesToDistribute()
     {
-        auto candidates = QueryContext_->Host->GetNodes();
-        if (candidates.empty()) {
-            THROW_ERROR_EXCEPTION("There are no instances available through discovery");
+        const auto& settings = StorageContext_->Settings->Execution;
+        const auto& select = QueryInfo_.query->as<DB::ASTSelectQuery&>();
+        bool isDistributedJoin = hasJoin(select);
+
+        auto nodes = GetNodesToDistribute(QueryContext_, DistributionSeed_, isDistributedJoin);
+
+        // This limit can only be applied after fetching chunk specs.
+        // That's why we do it here and not in GetNodesToDistribute.
+        if (settings->MinDataWeightPerSecondaryQuery > 0) {
+            i64 nodeLimit = DivCeil(InputStripeList_->TotalDataWeight, settings->MinDataWeightPerSecondaryQuery);
+            nodeLimit = std::clamp<i64>(1, nodes.size(), nodeLimit);
+            nodes.resize(nodeLimit);
         }
 
-        i64 nodeCount = candidates.size();
+        CliqueNodes_ = std::move(nodes);
 
-        const auto& executionSettings = StorageContext_->Settings->Execution;
-
-        if (executionSettings->MinDataWeightPerSecondaryQuery != 0) {
-            nodeCount = std::min(nodeCount, DivCeil(InputStripeList_->TotalDataWeight, executionSettings->MinDataWeightPerSecondaryQuery));
-        }
-
-        if (hasJoin(QueryInfo_.query->as<DB::ASTSelectQuery&>())) {
-            if (executionSettings->DistributedJoinNodeLimit != -1) {
-                nodeCount = std::min(nodeCount, executionSettings->DistributedJoinNodeLimit);
-            }
-            if (executionSettings->DistributedJoinDepthLimit != -1 &&
-                executionSettings->DistributedJoinDepthLimit <= QueryContext_->QueryDepth)
-            {
-                nodeCount = 1;
-                // Force local node to be chosen.
-                candidates = {QueryContext_->Host->GetLocalNode()};
-            }
-        } else {
-            if (executionSettings->DistributedSelectNodeLimit != -1) {
-                nodeCount = std::min(nodeCount, executionSettings->DistributedSelectNodeLimit);
-            }
-            if (executionSettings->DistributedSelectDepthLimit != -1 &&
-                executionSettings->DistributedSelectDepthLimit <= QueryContext_->QueryDepth)
-            {
-                nodeCount = 1;
-                candidates = {QueryContext_->Host->GetLocalNode()};
-            }
-        }
-
-        // We always should have at least one node to distribute.
-        nodeCount = std::max<i64>(nodeCount, 1);
-
-        // NB: this is important for queries to distribute deterministically across the cluster.
-        std::sort(candidates.begin(), candidates.end(), [seed = DistributionSeed_] (const IClusterNodePtr& lhs, const IClusterNodePtr& rhs) {
-            auto lhash = CombineHashes(seed, THash<TString>()(lhs->GetName().ToString()));
-            auto rhash = CombineHashes(seed, THash<TString>()(rhs->GetName().ToString()));
-            return lhash < rhash;
-        });
-
-        YT_VERIFY(static_cast<size_t>(nodeCount) <= candidates.size());
-        candidates.resize(nodeCount);
-
-        CliqueNodes_ = std::move(candidates);
-
-        YT_LOG_DEBUG("Distribution nodes chosen (NodeCount: %v)", nodeCount);
+        YT_LOG_DEBUG("Distribution nodes chosen (NodeCount: %v)", CliqueNodes_.size());
 
         for (const auto& cliqueNode : CliqueNodes_) {
             YT_LOG_DEBUG("Clique node (Host: %v, Port: %v, IsLocal: %v)",
@@ -585,7 +613,7 @@ private:
         YT_LOG_TRACE("Preparing StorageDistributor for query (Query: %v)", *QueryInfo_.query);
 
         i64 inputStreamsPerSecondaryQuery = QueryContext_->Settings->Execution->InputStreamsPerSecondaryQuery;
-        if (inputStreamsPerSecondaryQuery == 0) {
+        if (inputStreamsPerSecondaryQuery <= 0) {
             inputStreamsPerSecondaryQuery = Context_->getSettings().max_threads;
         }
         NTracing::GetCurrentTraceContext()->AddTag(
@@ -616,7 +644,7 @@ private:
         }
 
         i64 maxDataWeightPerSubquery = QueryContext_->Host->GetConfig()->Subquery->MaxDataWeightPerSubquery;
-        if (maxDataWeightPerSubquery != -1) {
+        if (maxDataWeightPerSubquery > 0) {
             for (const auto& subquery : ThreadSubqueries_) {
                 if (subquery.StripeList->TotalDataWeight > maxDataWeightPerSubquery) {
                     THROW_ERROR_EXCEPTION(
@@ -674,7 +702,7 @@ private:
                 SpecTemplate_,
                 MiscExtMap_,
                 index,
-                index + 1 == secondaryQueryCount /* isLastSubquery */);
+                index + 1 == secondaryQueryCount /*isLastSubquery*/);
 
             YT_LOG_DEBUG(
                 "Secondary query prepared (ThreadSubqueryCount: %v, QueryIndex: %v, SecondaryQueryCount: %v)",
@@ -778,68 +806,106 @@ public:
         return result;
     }
 
+    /*
+     * There are different stages in query processing.
+     * All table engines should at least read columns, but in some cases they can process query up to higher stages.
+     *
+     * Read columns -> Join table -> Apply Prewhere/Where conditions -> Aggregate -> Apply Having/OrderBy/Limit
+     *
+     * Query stages in CH:
+     *
+     * FetchColumns - table engine only needs to read columns.
+     * It can use where/prewhere conditions to filter data, but it's not nessesary.
+     * Join/Distinct/GroupBy/Limit/OrderBy will be processed by CH itself on the initiator.
+     *
+     * WithMergableState - table engine should process Join and do aggregation locally (distinct/group by/limit by).
+     * It returns "mergable state", which allows to aggregate data from several streams.
+     * ClickHouse will complete aggregation and apply Having/Limit/OrderBy clauses on the initiator.
+     *
+     * WithMergeableStateAfterAggregation - Some legacy stage, do not use it.
+     *
+     * WithMergeableStateAfterAggregationAndLimit - Everything is done on remote servers.
+     * But coordinator may need to apply Limit clause again and merge several sorted stream.
+     *
+     * Complete - everything is processed on instances locally. Coordinator works as a proxy.
+     */
+    //! Calculate the maximum possible queryStage, the engine can proccess to.
     DB::QueryProcessingStage::Enum getQueryProcessingStage(
         DB::ContextPtr context,
         DB::QueryProcessingStage::Enum toStage,
-        const DB::StorageMetadataPtr&,
+        const DB::StorageMetadataPtr& /*inMemoryMetadata*/,
         DB::SelectQueryInfo& queryInfo) const override
     {
         auto* queryContext = GetQueryContext(context);
         auto* storageContext = queryContext->GetOrRegisterStorageContext(this, context);
         const auto& executionSettings = storageContext->Settings->Execution;
+        const auto& chSettings = context->getSettingsRef();
+        const auto& select = queryInfo.query->as<DB::ASTSelectQuery&>();
 
-        // Stage FetchColumns means that we will only read columns from storage, join will not be distributed across the clique.
-        if (hasJoin(queryInfo.query->as<DB::ASTSelectQuery&>())) {
-            switch (storageContext->Settings->Execution->JoinPolicy) {
+        // I cannot imagine why CH can ask us to process query to some intermediate stage.
+        // It makes sense for its native Distributed engine, because underlying table can
+        // also be distributed, but it's not our case.
+        if (toStage != DB::QueryProcessingStage::Complete) {
+            THROW_ERROR_EXCEPTION(
+                "Unexpected query processing stage: %v; "
+                "it's a bug; please, fill a ticket in CHYT queue",
+                toString(toStage));
+        }
+
+        bool isDistributedJoin = DB::hasJoin(select);
+
+        if (isDistributedJoin) {
+            bool distributeJoin = true;
+
+            switch (executionSettings->JoinPolicy) {
                 case EJoinPolicy::Local:
-                    return DB::QueryProcessingStage::FetchColumns;
-
+                    distributeJoin = false;
+                    break;
                 case EJoinPolicy::DistributeInitial:
-                    if (queryContext->QueryKind != EQueryKind::InitialQuery) {
-                        return DB::QueryProcessingStage::FetchColumns;
-                    }
+                    distributeJoin = (queryContext->QueryKind == EQueryKind::InitialQuery);
                     break;
+                case EJoinPolicy::Distribute:
+                    distributeJoin = true;
+                    break;
+            }
 
-                case EJoinPolicy::DistributeSecondary:
-                    break;
+            if (!distributeJoin) {
+                // We will only do first query stage (reading columns).
+                // Join/Group by and so on will be mady by ClickHouse itself.
+                return DB::QueryProcessingStage::FetchColumns;
             }
         }
 
-        int estimatedNodeCount = queryContext->Host->GetNodes().size();
-
-        if (hasJoin(queryInfo.query->as<DB::ASTSelectQuery&>())) {
-            if (executionSettings->DistributedJoinNodeLimit != -1) {
-                estimatedNodeCount = std::min<int>(estimatedNodeCount, executionSettings->DistributedJoinNodeLimit);
-            }
-            if (executionSettings->DistributedJoinDepthLimit != -1 &&
-                executionSettings->DistributedJoinDepthLimit <= queryContext->QueryDepth)
-            {
-                estimatedNodeCount = 1;
-            }
-        } else {
-            if (executionSettings->DistributedSelectNodeLimit != -1) {
-                estimatedNodeCount = std::min<int>(estimatedNodeCount, executionSettings->DistributedSelectNodeLimit);
-            }
-            if (executionSettings->DistributedSelectDepthLimit != -1 &&
-                executionSettings->DistributedSelectDepthLimit <= queryContext->QueryDepth)
-            {
-                estimatedNodeCount = 1;
+        // Handle some CH-native options.
+        // We do not really need them, but it's not difficult to mimic the original behaviour.
+        if (chSettings.distributed_group_by_no_merge) {
+            // DISTRIBUTED_GROUP_BY_NO_MERGE_AFTER_AGGREGATION = 2
+            if (chSettings.distributed_group_by_no_merge == 2) {
+                if (chSettings.distributed_push_down_limit) {
+                    return DB::QueryProcessingStage::WithMergeableStateAfterAggregationAndLimit;
+                } else {
+                    return DB::QueryProcessingStage::WithMergeableStateAfterAggregation;
+                }
+            } else {
+                return DB::QueryProcessingStage::Complete;
             }
         }
 
-        if (context->getSettings().distributed_group_by_no_merge) {
+        auto nodes = GetNodesToDistribute(queryContext, DistributionSeed_, isDistributedJoin);
+        // If there is only one node, then its result is final, since
+        // we do not need to merge aggregation states from different streams.
+        if (nodes.size() == 1) {
             return DB::QueryProcessingStage::Complete;
         }
 
-        if (toStage == DB::QueryProcessingStage::WithMergeableState) {
-            return DB::QueryProcessingStage::WithMergeableState;
+        // Try to process query up to advanced stages.
+        if (executionSettings->OptimizeQueryProcessingStage) {
+            TQueryAnalyzer analyzer(context, storageContext, queryInfo, Logger);
+            return analyzer.GetOptimizedQueryProcessingStage();
         }
 
-        if (estimatedNodeCount == 1) {
-            return DB::QueryProcessingStage::Complete;
-        } else {
-            return DB::QueryProcessingStage::WithMergeableState;
-        }
+        // Default stage. It's always possible to process up to this stage.
+        return DB::QueryProcessingStage::WithMergeableState;
     }
 
     DB::Pipe read(
@@ -848,8 +914,8 @@ public:
         DB::SelectQueryInfo& queryInfo,
         DB::ContextPtr context,
         DB::QueryProcessingStage::Enum processedStage,
-        size_t /* maxBlockSize */,
-        unsigned /* numStreams */) override
+        size_t /*maxBlockSize*/,
+        unsigned /*numStreams*/) override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
 
@@ -869,7 +935,10 @@ public:
         return true;
     }
 
-    DB::BlockOutputStreamPtr write(const DB::ASTPtr& /* ptr */, const DB::StorageMetadataPtr& /*metadata_snapshot*/, DB::ContextPtr /* context */) override
+    DB::BlockOutputStreamPtr write(
+        const DB::ASTPtr& /*ptr*/,
+        const DB::StorageMetadataPtr& /*metadata_snapshot*/,
+        DB::ContextPtr /*context*/) override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
 
@@ -884,7 +953,7 @@ public:
             THROW_ERROR_EXCEPTION("Overriding dynamic tables is not supported");
         }
 
-        auto dataTypes = ToDataTypes(*table->Schema, QueryContext_->Settings->Composite, /* enableReadOnlyConversions */ false);
+        auto dataTypes = ToDataTypes(*table->Schema, QueryContext_->Settings->Composite, /*enableReadOnlyConversions*/ false);
         YT_LOG_DEBUG(
             "Inferred ClickHouse data types from YT schema (Schema: %v, DataTypes: %v)",
             table->Schema,
@@ -901,7 +970,7 @@ public:
                 QueryContext_->Logger);
         } else {
             // Set append if it is not set.
-            path.SetAppend(path.GetAppend(true /* defaultValue */));
+            path.SetAppend(path.GetAppend(true /*defaultValue*/));
             return CreateStaticTableBlockOutputStream(
                 path,
                 table->Schema,
@@ -920,6 +989,8 @@ public:
         // First, validate if SELECT part is suitable for distributed INSERT SELECT.
 
         auto queryContext = GetQueryContext(context);
+        auto* storageContext = queryContext->GetOrRegisterStorageContext(this, context);
+        const auto& executionSettings = storageContext->Settings->Execution;
 
         if (queryContext->QueryKind == EQueryKind::SecondaryQuery) {
             // The query was already distributed.
@@ -958,6 +1029,12 @@ public:
             return nullptr;
         }
 
+        auto distributedStage = executionSettings->DistributedInsertStage;
+
+        if (distributedStage == EDistributedInsertStage::None) {
+            return nullptr;
+        }
+
         // Then, prepare distributed query; we need to interpret SELECT part in order to obtain some additional information
         // for preparer (like required columns or select query info).
 
@@ -965,9 +1042,22 @@ public:
         selectInterpreter.execute();
         auto selectQueryInfo = selectInterpreter.getQueryInfo();
 
+        auto queryProcessingStage = getQueryProcessingStage(
+            context,
+            DB::QueryProcessingStage::Complete,
+            /*inMemoryMetadata*/ nullptr,
+            selectQueryInfo);
+
+        int distributedInsertStageRank = GetDistributedInsertStageRank(distributedStage);
+        int queryProcessingStageRank = GetQueryProcessingStageRank(queryProcessingStage);
+
+        if (queryProcessingStageRank < distributedInsertStageRank) {
+            return nullptr;
+        }
+
         auto preparer = sourceStorage->BuildPreparer(
             selectInterpreter.getRequiredColumns(),
-            /* metadataSnapshot */ nullptr,
+            /*metadataSnapshot*/ nullptr,
             selectQueryInfo,
             DB::Context::createCopy(context),
             DB::QueryProcessingStage::Complete);

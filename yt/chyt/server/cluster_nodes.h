@@ -68,7 +68,8 @@ class IClusterNode
 public:
     virtual ~IClusterNode() = default;
 
-    virtual TClusterNodeName GetName() const = 0;
+    virtual const TClusterNodeName& GetName() const = 0;
+    virtual int GetCookie() const = 0;
     virtual bool IsLocal() const = 0;
     virtual DB::ConnectionPoolWithFailoverPtr GetConnection() = 0;
 };
@@ -81,6 +82,7 @@ using TClusterNodes = std::vector<IClusterNodePtr>;
 
 IClusterNodePtr CreateClusterNode(
     TClusterNodeName name,
+    int cookie,
     const DB::Settings& settings,
     bool isLocal = false);
 

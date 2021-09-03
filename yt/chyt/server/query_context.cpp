@@ -248,6 +248,14 @@ TStorageContext* TQueryContext::GetOrRegisterStorageContext(const DB::IStorage* 
     }
 }
 
+const TClusterNodes& TQueryContext::GetClusterNodesSnapshot()
+{
+    if (!ClusterNodesSnapshot) {
+        ClusterNodesSnapshot = Host->GetNodes(/*alwaysIncludeLocal*/ true);
+    }
+    return *ClusterNodesSnapshot;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void Serialize(const TQueryContext& queryContext, IYsonConsumer* consumer, const DB::QueryStatusInfo* queryStatusInfo)

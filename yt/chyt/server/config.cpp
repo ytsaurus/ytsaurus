@@ -61,35 +61,47 @@ TExecutionSettings::TExecutionSettings()
 {
     RegisterParameter("query_depth_limit", QueryDepthLimit)
         .GreaterThanOrEqual(-1)
-        .Default(-1);
+        .Default(0);
 
     RegisterParameter("min_data_weight_per_secondary_query", MinDataWeightPerSecondaryQuery)
-        .GreaterThanOrEqual(0)
-        .Default();
+        .GreaterThanOrEqual(-1)
+        .Default(0);
 
-    RegisterParameter("distributed_join_node_limit", DistributedJoinNodeLimit)
+    RegisterParameter("join_node_limit", JoinNodeLimit)
         .GreaterThanOrEqual(-1)
-        .Default(-1);
-    RegisterParameter("distributed_select_node_limit", DistributedSelectNodeLimit)
+        .Default(0);
+    RegisterParameter("select_node_limit", SelectNodeLimit)
         .GreaterThanOrEqual(-1)
-        .Default(-1);
-
-    RegisterParameter("distributed_join_depth_limit", DistributedJoinDepthLimit)
-        .GreaterThanOrEqual(-1)
-        .Default(-1);
-    RegisterParameter("distributed_select_depth_limit", DistributedSelectDepthLimit)
-        .GreaterThanOrEqual(-1)
-        .Default(-1);
+        .Default(0);
 
     RegisterParameter("join_policy", JoinPolicy)
-        .Default(EJoinPolicy::DistributeSecondary);
+        .Default(EJoinPolicy::DistributeInitial);
+
+    RegisterParameter("select_policy", SelectPolicy)
+        .Default(ESelectPolicy::DistributeInitial);
 
     RegisterParameter("distribution_seed", DistributionSeed)
         .Default(42);
 
     RegisterParameter("input_streams_per_secondary_query", InputStreamsPerSecondaryQuery)
-        .GreaterThanOrEqual(0)
+        .GreaterThanOrEqual(-1)
         .Default(0);
+
+    RegisterParameter("optimize_query_processing_stage", OptimizeQueryProcessingStage)
+        .Default(true);
+    RegisterParameter("filter_joined_subquery_by_sort_key", FilterJoinedSubqueryBySortKey)
+        .Default(true);
+
+    RegisterParameter("allow_switch_to_sorted_pool", AllowSwitchToSortedPool)
+        .Default(true);
+    RegisterParameter("allow_key_truncating", AllowKeyTruncating)
+        .Default(true);
+
+    RegisterParameter("keep_nulls_in_right_or_full_join", KeepNullsInRightOrFullJoin)
+        .Default(true);
+
+    RegisterParameter("distributed_insert_stage", DistributedInsertStage)
+        .Default(EDistributedInsertStage::WithMergeableState);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

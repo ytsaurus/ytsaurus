@@ -437,6 +437,41 @@ THashMap<TString, size_t> GetBriefProfileCounters(const ProfileEvents::Counters&
 
 ////////////////////////////////////////////////////////////////////////////////
 
+int GetQueryProcessingStageRank(DB::QueryProcessingStage::Enum stage)
+{
+    switch (stage) {
+        case DB::QueryProcessingStage::FetchColumns:
+            return 0;
+        case DB::QueryProcessingStage::WithMergeableState:
+            return 1;
+        case DB::QueryProcessingStage::WithMergeableStateAfterAggregation:
+        case DB::QueryProcessingStage::WithMergeableStateAfterAggregationAndLimit:
+            return 2;
+        case DB::QueryProcessingStage::Complete:
+            return 3;
+
+        default:
+            THROW_ERROR_EXCEPTION("Unexpected query processing stage (Stage: %v)",
+                toString(stage));
+    }
+}
+
+int GetDistributedInsertStageRank(EDistributedInsertStage stage)
+{
+    switch (stage) {
+        case EDistributedInsertStage::WithMergeableState:
+            return 1;
+        case EDistributedInsertStage::AfterAggregation:
+            return 2;
+        case EDistributedInsertStage::Complete:
+            return 3;
+        case EDistributedInsertStage::None:
+            return 4;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NClickHouseServer
 
 namespace DB {
