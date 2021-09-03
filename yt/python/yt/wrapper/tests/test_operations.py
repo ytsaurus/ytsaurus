@@ -375,6 +375,7 @@ import yt.wrapper as yt
 import sys
 
 input, output = sys.argv[1:3]
+yt.config["transaction_timeout"] = 5000
 yt.config["proxy"]["request_timeout"] = 5000
 yt.config["proxy"]["retries"]["count"] = 1
 yt.config["detached"] = False
@@ -1591,7 +1592,7 @@ class TestOperationsTmpfs(object):
             table_file_object = yt.FilePath(table_file, attributes={"format": "json", "disk_size": 1000})
             op = yt.run_map(foo, table, table, local_files=[local_file.name], yt_files=[file, table_file_object])
             disk_size = next(yt.read_table(table))["size"]
-        
+
             job_infos = get_jobs_with_error_or_stderr(op.id, False)
             for job_info in job_infos:
                 print("Operation job_info:", job_info, file=sys.stderr)

@@ -107,6 +107,7 @@ class TestTableCommands(object):
         yt.write_table(table, [{"x": "a" * (2 * 10**5)}] * 10)
         client = yt.YtClient(config=deepcopy(yt.config.config))
         with set_config_option("read_parallel/max_thread_count", 2), \
+                set_config_option("transaction_timeout", 3000), \
                 set_config_option("proxy/request_timeout", 1000), \
                 set_config_option("proxy/retries/count", 3), \
                 set_config_option("read_buffer_size", 10):
