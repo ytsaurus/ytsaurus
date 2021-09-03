@@ -28,6 +28,21 @@ TStore* TTablet::FindActiveStore() const
     return nullptr;
 }
 
+void TTablet::CopyMetaFrom(const TTablet* tablet)
+{
+    Id_ = tablet->Id_;
+    CellId_ = tablet->CellId_;
+    PhysicallySorted_ = tablet->PhysicallySorted_;
+    Mounted_ = tablet->Mounted_;
+    MountConfig_ = tablet->MountConfig_;
+    MountRevision_ = tablet->MountRevision_;
+    LoggingTag_ = tablet->LoggingTag_;
+
+    OverlappingStoreCount_ = tablet->OverlappingStoreCount_;
+    EdenOverlappingStoreCount_ = tablet->EdenOverlappingStoreCount_;
+    CriticalPartitionCount_ = tablet->CriticalPartitionCount_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NLsm

@@ -87,6 +87,8 @@ struct TLsmBackendState
     i64 DynamicMemoryUsage = 0;
 
     THashMap<TString, TTabletCellBundleState> Bundles;
+
+    TInstant CurrentTime;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

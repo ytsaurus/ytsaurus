@@ -2,8 +2,6 @@
 
 #include <yt/yt/client/table_client/key.h>
 
-#include <yt/yt/server/node/tablet_node/public.h>
-
 #include "public.h"
 #include "store.h"
 #include "partition.h"
@@ -23,7 +21,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Mounted);
     DEFINE_BYVAL_RW_PROPERTY(TTableMountConfigPtr, MountConfig);
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, MountRevision);
-    DEFINE_BYVAL_RW_PROPERTY(NTabletNode::IPerTabletStructuredLoggerPtr, StructuredLogger);
     DEFINE_BYVAL_RW_PROPERTY(TString, LoggingTag);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, IsRotationPossible);
@@ -45,6 +42,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<std::unique_ptr<TStore>>, Stores);
 
     TStore* FindActiveStore() const;
+
+    void CopyMetaFrom(const TTablet* tablet);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTablet)

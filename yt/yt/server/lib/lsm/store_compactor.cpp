@@ -29,6 +29,7 @@ public:
     {
         CurrentTimestamp_ = state.CurrentTimestamp;
         Config_ = state.TabletNodeConfig;
+        CurrentTime_ = state.CurrentTime;
     }
 
     TLsmActionBatch BuildLsmActions(
@@ -53,8 +54,11 @@ public:
     }
 
 private:
+    // Hydra timestamp. Crucial for consistency.
     TTimestamp CurrentTimestamp_;
     TTabletNodeConfigPtr Config_;
+    // System time. Used for imprecise activities like periodic compaction.
+    TInstant CurrentTime_;
 
     TLsmActionBatch ScanTablet(TTablet* tablet)
     {
@@ -461,7 +465,7 @@ private:
         return revision <= forcedCompactionRevision.value_or(NHydra::NullRevision);
     }
 
-    static bool IsStorePeriodicCompactionNeeded(const TStore* store)
+    bool IsStorePeriodicCompactionNeeded(const TStore* store) const
     {
         const auto& mountConfig = store->GetTablet()->GetMountConfig();
         if (!mountConfig->AutoCompactionPeriod) {
@@ -471,7 +475,7 @@ private:
         auto splayRatio = mountConfig->AutoCompactionPeriodSplayRatio *
             store->GetId().Parts32[0] / std::numeric_limits<ui32>::max();
         auto effectivePeriod = *mountConfig->AutoCompactionPeriod * (1 + splayRatio);
-        if (TInstant::Now() < store->GetCreationTime() + effectivePeriod) {
+        if (CurrentTime_ < store->GetCreationTime() + effectivePeriod) {
             return false;
         }
 
@@ -492,7 +496,7 @@ private:
         return false;
     }
 
-    static EStoreCompactionReason GetStoreCompactionReason(const TStore* store)
+    EStoreCompactionReason GetStoreCompactionReason(const TStore* store) const
     {
         if (IsStoreCompactionForced(store)) {
             return EStoreCompactionReason::ForcedCompaction;

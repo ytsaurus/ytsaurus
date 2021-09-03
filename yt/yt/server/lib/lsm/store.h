@@ -26,14 +26,14 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTablet*, Tablet);
 
     // Dynamic stores.
-    DEFINE_BYVAL_RW_PROPERTY(EStoreFlushState, FlushState);
+    DEFINE_BYVAL_RW_PROPERTY(EStoreFlushState, FlushState, EStoreFlushState::None);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastFlushAttemptTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(i64, DynamicMemoryUsage);
 
     // Chunk stores.
-    DEFINE_BYVAL_RW_PROPERTY(EStorePreloadState, PreloadState);
-    DEFINE_BYVAL_RW_PROPERTY(EStoreCompactionState, CompactionState);
-    DEFINE_BYVAL_RW_PROPERTY(bool, IsCompactable);
+    DEFINE_BYVAL_RW_PROPERTY(EStorePreloadState, PreloadState, EStorePreloadState::Complete);
+    DEFINE_BYVAL_RW_PROPERTY(EStoreCompactionState, CompactionState, EStoreCompactionState::None);
+    DEFINE_BYVAL_RW_PROPERTY(bool, IsCompactable, false);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CreationTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastCompactionTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(i64, BackingStoreMemoryUsage);

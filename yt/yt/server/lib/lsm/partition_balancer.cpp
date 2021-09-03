@@ -27,6 +27,7 @@ public:
     void StartNewRound(const TLsmBackendState& state) override
     {
         ResamplingPeriod_ = state.TabletNodeConfig->PartitionBalancer->ResamplingPeriod;
+        CurrentTime_ = state.CurrentTime;
     }
 
     TLsmActionBatch BuildLsmActions(
@@ -52,6 +53,8 @@ public:
 
 private:
     TDuration ResamplingPeriod_;
+    // System time. Used for imprecise activities like periodic compaction.
+    TInstant CurrentTime_;
 
     TLsmActionBatch ScanTablet(TTablet* tablet)
     {
@@ -209,7 +212,7 @@ private:
     {
         const auto* tablet = partition->GetTablet();
 
-        if (!immediateSplit && TInstant::Now() < partition->GetAllowedSplitTime()) {
+        if (!immediateSplit && CurrentTime_ < partition->GetAllowedSplitTime()) {
             return false;
         }
 
@@ -304,7 +307,7 @@ private:
     std::optional<TSamplePartitionRequest> ScanPartitionToSample(TPartition* partition)
     {
         if (partition->GetSamplingRequestTime() > partition->GetSamplingTime() &&
-            partition->GetSamplingTime() < TInstant::Now() - ResamplingPeriod_)
+            partition->GetSamplingTime() < CurrentTime_ - ResamplingPeriod_)
         {
             auto* tablet = partition->GetTablet();
             return TSamplePartitionRequest{
