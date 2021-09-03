@@ -90,6 +90,25 @@ void ProfileAbortedJobErrors(const TJobPtr& job, const TError& error)
     checkErrorCode(NNet::EErrorCode::ResolveTimedOut);
 }
 
+std::optional<EJobPreemptionStatus> GetJobPreemptionStatus(
+    const TJobPtr& job,
+    const TCachedJobPreemptionStatuses& jobPreemptionStatuses)
+{
+    if (!jobPreemptionStatuses.Value) {
+        // Tree snapshot is missing.
+        return {};
+    }
+
+    auto operationIt = jobPreemptionStatuses.Value->find(job->GetOperationId());
+    if (operationIt == jobPreemptionStatuses.Value->end()) {
+        return {};
+    }
+
+    const auto& jobIdToStatus = operationIt->second;
+    auto jobIt = jobIdToStatus.find(job->GetId());
+    return jobIt != jobIdToStatus.end() ? std::make_optional(jobIt->second) : std::nullopt;
+};
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1652,6 +1671,8 @@ void TNodeShard::ProcessHeartbeatJobs(
     std::vector<TJobPtr>* runningJobs,
     bool* hasWaitingJobs)
 {
+    YT_VERIFY(runningJobs->empty());
+
     auto now = GetCpuInstant();
 
     bool shouldLogOngoingJobs = false;
@@ -1669,6 +1690,15 @@ void TNodeShard::ProcessHeartbeatJobs(
     {
         checkMissingJobs = true;
         node->SetLastCheckMissingJobsTime(now);
+    }
+
+    bool shouldUpdateRunningJobStatistics = false;
+    auto lastRunningJobStatisticsUpdateTime = node->GetLastRunningJobStatisticsUpdateTime();
+    if (!lastRunningJobStatisticsUpdateTime ||
+        now > *lastRunningJobStatisticsUpdateTime + DurationToCpuDuration(Config_->RunningJobStatisticsUpdatePeriod))
+    {
+        shouldUpdateRunningJobStatistics = true;
+        node->SetLastRunningJobStatisticsUpdateTime(now);
     }
 
     const auto& nodeId = node->GetId();
@@ -1721,7 +1751,6 @@ void TNodeShard::ProcessHeartbeatJobs(
     TJobStateToJobList ongoingJobsByJobState;
     std::vector<TJobId> recentlyFinishedJobIdsToLog;
     size_t totalJobStatisticsSize{};
-    TRunningJobStatistics runningJobStatistics;
     for (auto& jobStatus : *request->mutable_jobs()) {
         YT_VERIFY(jobStatus.has_job_type());
         auto jobType = EJobType(jobStatus.job_type());
@@ -1746,10 +1775,6 @@ void TNodeShard::ProcessHeartbeatJobs(
                 case EJobState::Running: {
                     runningJobs->push_back(job);
                     ongoingJobsByJobState[job->GetState()].push_back(job);
-                    // Update running job statistics.
-                    auto execDurationSeconds = job->GetExecDuration().SecondsFloat();
-                    runningJobStatistics.TotalCpuTime += static_cast<double>(job->ResourceLimits().GetCpu()) * execDurationSeconds;
-                    runningJobStatistics.TotalGpuTime += job->ResourceLimits().GetGpu() * execDurationSeconds;
                     break;
                 }
                 case EJobState::Waiting:
@@ -1775,7 +1800,9 @@ void TNodeShard::ProcessHeartbeatJobs(
     HeartbeatStatisticBytes_.Increment(totalJobStatisticsSize);
     HeartbeatCount_.Increment();
 
-    node->SetRunningJobStatistics(runningJobStatistics);
+    if (shouldUpdateRunningJobStatistics) {
+        UpdateRunningJobStatistics(node, *runningJobs);
+    }
 
     YT_LOG_DEBUG_UNLESS(
         recentlyFinishedJobIdsToLog.empty(),
@@ -1826,26 +1853,32 @@ void TNodeShard::ProcessHeartbeatJobs(
     }
 }
 
+void TNodeShard::UpdateRunningJobStatistics(const TExecNodePtr& node, const std::vector<TJobPtr>& runningJobs)
+{
+    auto cachedJobPreemptionStatuses =
+        Host_->GetStrategy()->GetCachedJobPreemptionStatusesForNode(node->GetDefaultAddress(), node->Tags());
+    TRunningJobStatistics runningJobStatistics;
+    for (const auto& job : runningJobs) {
+        auto execDurationSeconds = job->GetExecDuration().SecondsFloat();
+        auto jobCpuTime = static_cast<double>(job->ResourceLimits().GetCpu()) * execDurationSeconds;
+        auto jobGpuTime = job->ResourceLimits().GetGpu() * execDurationSeconds;
+
+        runningJobStatistics.TotalCpuTime += jobCpuTime;
+        runningJobStatistics.TotalGpuTime += jobGpuTime;
+
+        if (GetJobPreemptionStatus(job, cachedJobPreemptionStatuses) == EJobPreemptionStatus::Preemptable) {
+            runningJobStatistics.PreemptableCpuTime += jobCpuTime;
+            runningJobStatistics.PreemptableGpuTime += jobGpuTime;
+        }
+    }
+
+    node->SetRunningJobStatistics(runningJobStatistics);
+}
+
 void TNodeShard::LogOngoingJobsAt(TInstant now, const TExecNodePtr& node, const TJobStateToJobList& ongoingJobsByJobState) const
 {
     auto cachedJobPreemptionStatuses =
         Host_->GetStrategy()->GetCachedJobPreemptionStatusesForNode(node->GetDefaultAddress(), node->Tags());
-    auto getJobPreemptionStatus = [&] (const TJobPtr& job) -> std::optional<EJobPreemptionStatus> {
-        if (!cachedJobPreemptionStatuses.Value) {
-            // Tree snapshot is missing.
-            return {};
-        }
-
-        auto operationIt = cachedJobPreemptionStatuses.Value->find(job->GetOperationId());
-        if (operationIt == cachedJobPreemptionStatuses.Value->end()) {
-            return {};
-        }
-
-        const auto& jobIdToStatus = operationIt->second;
-        auto jobIt = jobIdToStatus.find(job->GetId());
-        return jobIt != jobIdToStatus.end() ? std::make_optional(jobIt->second) : std::nullopt;
-    };
-
     for (auto jobState : TEnumTraits<EJobState>::GetDomainValues()) {
         const auto& jobs = ongoingJobsByJobState[jobState];
 
@@ -1856,7 +1889,7 @@ void TNodeShard::LogOngoingJobsAt(TInstant now, const TExecNodePtr& node, const 
         TEnumIndexedVector<EJobPreemptionStatus, std::vector<TJobId>> jobIdsByPreemptionStatus;
         std::vector<TJobId> unknownStatusJobIds;
         for (const auto& job : jobs) {
-            if (auto status = getJobPreemptionStatus(job)) {
+            if (auto status = GetJobPreemptionStatus(job, cachedJobPreemptionStatuses)) {
                 jobIdsByPreemptionStatus[*status].push_back(job->GetId());
             } else {
                 unknownStatusJobIds.push_back(job->GetId());

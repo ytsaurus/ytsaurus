@@ -25,13 +25,16 @@ struct TRunningJobStatistics
 {
     //! In CPU*seconds.
     double TotalCpuTime = 0.0;
+    double PreemptableCpuTime = 0.0;
 
     //! In GPU*seconds.
     double TotalGpuTime = 0.0;
+    double PreemptableGpuTime = 0.0;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TRunningJobStatistics& statistics, TStringBuf /* format */);
 TString ToString(const TRunningJobStatistics& statistics);
+void Serialize(const TRunningJobStatistics& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

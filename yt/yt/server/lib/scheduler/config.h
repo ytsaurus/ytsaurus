@@ -605,6 +605,8 @@ public:
     //! not more often then this period.
     TDuration RunningJobsUpdatePeriod;
 
+    TDuration RunningJobStatisticsUpdatePeriod;
+
     //! Missing jobs are checked not more often then this period.
     TDuration MissingJobsCheckPeriod;
 

@@ -3464,13 +3464,7 @@ class TestSchedulingSegments(YTEnvSetup):
             return job["address"]
 
         expected_node = get_first_job_node(blocking_op2)
-        wait(
-            lambda: get(
-                scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(expected_node),
-                default="",
-            )
-            == "large_gpu"
-        )
+        wait(lambda: get(scheduler_orchid_node_path(expected_node) + "/scheduling_segment", default=None) == "large_gpu")
 
         new_op = run_sleeping_vanilla(
             job_count=8,
@@ -3482,13 +3476,65 @@ class TestSchedulingSegments(YTEnvSetup):
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op2.id), 0.0))
         actual_node = get_first_job_node(new_op)
         assert actual_node == expected_node
+        wait(lambda: get(scheduler_orchid_node_path(expected_node) + "/scheduling_segment", default=None) == "default")
+
+    @authors("eshcherbin")
+    def test_rebalancing_heuristic_choose_node_with_preemptable_job(self):
+        set("//sys/pool_trees/default/large_gpu/@cached_job_preemption_statuses_update_period", 100)
+        set("//sys/pool_trees/default/large_gpu/@strong_guarantee_resources", {"gpu": 72})
+        set("//sys/pool_trees/default/small_gpu/@strong_guarantee_resources", {"gpu": 8})
+        create_pool("guaranteed_large", parent_name="large_gpu", attributes={"strong_guarantee_resources": {"gpu": 72}})
+        create_pool("research_large", parent_name="large_gpu")
+
+        blocking_op1 = run_sleeping_vanilla(
+            spec={"pool": "research_large"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op1.id), 0.1))
+
+        # Need to spend some time to ensure the nodes where blocking_op1's jobs are running won't be moved.
+        time.sleep(3.0)
+
+        blocking_op2 = run_sleeping_vanilla(
+            job_count=9,
+            spec={"pool": "guaranteed_large"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op2.id), 0.9))
+
+        def get_first_job_node(op):
+            wait(lambda: len(op.get_running_jobs()) >= 1)
+            jobs = op.get_running_jobs()
+            job = jobs[list(jobs)[0]]
+            return job["address"]
+
+        expected_node = get_first_job_node(blocking_op1)
+        wait(lambda: get(scheduler_orchid_node_path(expected_node) + "/scheduling_segment", default=None) == "large_gpu")
+
+        timeout_attribute_path = "/scheduling_segments/unsatisfied_segments_rebalancing_timeout"
+        set("//sys/pool_trees/default/@config" + timeout_attribute_path, 1000000000)
+        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + timeout_attribute_path) == 1000000000)
+
+        new_op = run_sleeping_vanilla(
+            job_count=8,
+            spec={"pool": "small_gpu"},
+            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+        )
+
         wait(
             lambda: get(
-                scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(actual_node),
-                default="",
+                scheduler_orchid_node_path(expected_node) + "/running_job_statistics/preemptable_gpu_time", default=0.0
             )
-            == "default"
+            > 0.0
         )
+        set("//sys/pool_trees/default/@config" + timeout_attribute_path, 1000)
+
+        wait(lambda: are_almost_equal(self._get_usage_ratio(new_op.id), 0.1))
+
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op1.id), 0.0))
+        actual_node = get_first_job_node(new_op)
+        assert actual_node == expected_node
+        wait(lambda: get(scheduler_orchid_node_path(expected_node) + "/scheduling_segment", default=None) == "default")
 
     @authors("eshcherbin")
     def test_mixed_operation(self):

@@ -29,7 +29,29 @@ struct TManageNodeSchedulingSegmentsContext
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TChangeNodeSegmentPenaltyFunction = std::function<double(const TExecNodeDescriptor&)>;
+struct TNodeMovePenalty
+{
+    double PriorityPenalty = 0.0;
+    double RegularPenalty = 0.0;
+};
+
+bool operator <(const TNodeMovePenalty& lhs, const TNodeMovePenalty& rhs);
+TNodeMovePenalty& operator +=(TNodeMovePenalty& lhs, const TNodeMovePenalty& rhs);
+
+void FormatValue(TStringBuilderBase* builder, const TNodeMovePenalty& penalty, TStringBuf /*format*/);
+TString ToString(const TNodeMovePenalty& penalty);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TNodeWithMovePenalty
+{
+    const TExecNodeDescriptor* Descriptor = nullptr;
+    TNodeMovePenalty MovePenalty;
+};
+
+using TNodeWithMovePenaltyList = std::vector<TNodeWithMovePenalty>;
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TNodeSchedulingSegmentManager
 {
@@ -70,7 +92,8 @@ private:
         const TString& treeId,
         TSegmentToResourceAmount currentResourceAmountPerSegment);
 
-    TChangeNodeSegmentPenaltyFunction CreatePenaltyFunction(
+    TNodeMovePenalty GetMovePenaltyForNode(
+        const TExecNodeDescriptor& nodeDescriptor,
         TManageNodeSchedulingSegmentsContext* context,
         const TString& treeId) const;
 
@@ -78,8 +101,8 @@ private:
         TManageNodeSchedulingSegmentsContext *context,
         const TString& treeId,
         const TSegmentToResourceAmount& currentResourceAmountPerSegment,
-        THashMap<TDataCenter, std::vector<TExecNodeDescriptor>>* movableNodesPerDataCenter,
-        THashMap<TDataCenter, std::vector<TExecNodeDescriptor>>* aggressivelyMovableNodesPerDataCenter);
+        THashMap<TDataCenter, TNodeWithMovePenaltyList>* movableNodesPerDataCenter,
+        THashMap<TDataCenter, TNodeWithMovePenaltyList>* aggressivelyMovableNodesPerDataCenter);
 
     std::pair<TSchedulingSegmentMap<bool>, bool> FindUnsatisfiedSegmentsInTree(
         TManageNodeSchedulingSegmentsContext *context,

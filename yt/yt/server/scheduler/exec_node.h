@@ -65,6 +65,9 @@ public:
     //! Last time when missing jobs were checked on this node.
     DEFINE_BYVAL_RW_PROPERTY(std::optional<NProfiling::TCpuInstant>, LastCheckMissingJobsTime);
 
+    //! Last time when running job statistics were updated.
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<NProfiling::TCpuInstant>, LastRunningJobStatisticsUpdateTime);
+
     //! Last time when heartbeat from node was processed.
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
 
