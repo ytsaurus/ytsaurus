@@ -315,7 +315,7 @@ public:
                 auto chunkAndOldMediumIndex = *jt;
                 auto kt = delta->ReportedChangedMedium.find(chunkAndOldMediumIndex);
                 if (kt != delta->ReportedChangedMedium.end()) {
-                    delta->ReportedChangedMedium.erase(chunkAndOldMediumIndex);
+                    delta->ChangedMediumSinceLastSuccess.erase(chunkAndOldMediumIndex);
                 }
             }
             delta->ReportedChangedMedium.clear();
@@ -450,8 +450,10 @@ private:
             delta->State = EMasterConnectorState::Offline;
             delta->ReportedAdded.clear();
             delta->ReportedRemoved.clear();
+            delta->ReportedChangedMedium.clear();
             delta->AddedSinceLastSuccess.clear();
             delta->RemovedSinceLastSuccess.clear();
+            delta->ChangedMediumSinceLastSuccess.clear();
 
             auto* cellTagData = GetCellTagData(cellTag);
             cellTagData->ScheduledDataNodeHeartbeatCount = 0;
