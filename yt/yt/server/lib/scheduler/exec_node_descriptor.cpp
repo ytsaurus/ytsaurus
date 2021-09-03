@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 namespace NYT::NScheduler {
 
 using namespace NNodeTrackerClient;
@@ -13,14 +15,27 @@ using namespace NConcurrency;
 
 void FormatValue(TStringBuilderBase* builder, const TRunningJobStatistics& statistics, TStringBuf /* format */)
 {
-    builder->AppendFormat("{TotalCpuTime: %v, TotalGpuTime: %v}",
+    builder->AppendFormat("{TotalCpuTime: %v, PreemptableCpuTime: %v, TotalGpuTime: %v, PreemptableGpuTime: %v}",
         statistics.TotalCpuTime,
-        statistics.TotalGpuTime);
+        statistics.PreemptableCpuTime,
+        statistics.TotalGpuTime,
+        statistics.PreemptableGpuTime);
 }
 
 TString ToString(const TRunningJobStatistics& statistics)
 {
     return ToStringViaBuilder(statistics);
+}
+
+void Serialize(const TRunningJobStatistics& statistics, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("total_cpu_time").Value(statistics.TotalCpuTime)
+            .Item("preemptable_cpu_time").Value(statistics.PreemptableCpuTime)
+            .Item("total_gpu_time").Value(statistics.TotalGpuTime)
+            .Item("preemptable_gpu_time").Value(statistics.PreemptableGpuTime)
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -19,6 +19,8 @@ static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 double GetNodeResourceLimit(const TExecNodeDescriptor& node, EJobResourceType resourceType)
 {
     return node.Online
@@ -26,9 +28,45 @@ double GetNodeResourceLimit(const TExecNodeDescriptor& node, EJobResourceType re
         : 0.0;
 }
 
+void SortByPenalty(TNodeWithMovePenaltyList& nodeWithPenaltyList)
+{
+    SortBy(nodeWithPenaltyList, [] (const TNodeWithMovePenalty& node) { return node.MovePenalty; });
+}
+
 TLogger CreateTreeLogger(const TString& treeId)
 {
     return Logger.WithTag("TreeId: %v", treeId);
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool operator <(const TNodeMovePenalty& lhs, const TNodeMovePenalty& rhs)
+{
+    if (lhs.PriorityPenalty != rhs.PriorityPenalty) {
+        return lhs.PriorityPenalty < rhs.PriorityPenalty;
+    }
+    return lhs.RegularPenalty < rhs.RegularPenalty;
+}
+
+TNodeMovePenalty& operator +=(TNodeMovePenalty& lhs, const TNodeMovePenalty& rhs)
+{
+    lhs.PriorityPenalty += rhs.PriorityPenalty;
+    lhs.RegularPenalty += rhs.RegularPenalty;
+    return lhs;
+}
+
+void FormatValue(TStringBuilderBase* builder, const TNodeMovePenalty& penalty, TStringBuf /*format*/)
+{
+    builder->AppendFormat("{PriorityPenalty: %.3f, RegularPenalty: %.3f}",
+        penalty.PriorityPenalty,
+        penalty.RegularPenalty);
+}
+
+TString ToString(const TNodeMovePenalty& penalty)
+{
+    return ToStringViaBuilder(penalty);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -267,17 +305,16 @@ void TNodeSchedulingSegmentManager::RebalanceSegmentsInTree(
     const auto& strategyTreeState = context->StrategySegmentsState.TreeStates[treeId];
     auto keyResource = GetSegmentBalancingKeyResource(strategyTreeState.Mode);
 
-    auto getPenalty = CreatePenaltyFunction(context, treeId);
     TSchedulingSegmentMap<int> addedNodeCountPerSegment;
     TSchedulingSegmentMap<int> removedNodeCountPerSegment;
-    double totalPenalty = 0.0;
+    TNodeMovePenalty totalPenalty;
     int totalMovedNodeCount = 0;
 
     auto trySatisfySegment = [&] (
         ESchedulingSegment segment,
         double& currentResourceAmount,
         double fairResourceAmount,
-        std::vector<TExecNodeDescriptor>& availableNodes)
+        TNodeWithMovePenaltyList& availableNodes)
     {
         while (currentResourceAmount < fairResourceAmount) {
             if (availableNodes.empty()) {
@@ -285,20 +322,20 @@ void TNodeSchedulingSegmentManager::RebalanceSegmentsInTree(
             }
 
             // NB(eshcherbin): |availableNodes| is sorted in order of decreasing penalty.
-            auto nextAvailableNode = availableNodes.back();
+            auto [nextAvailableNode, nextAvailableNodeMovePenalty] = availableNodes.back();
             availableNodes.pop_back();
 
-            auto resourceAmountOnNode = GetNodeResourceLimit(nextAvailableNode, keyResource);
-            auto oldSegment = nextAvailableNode.SchedulingSegment;
+            auto resourceAmountOnNode = GetNodeResourceLimit(*nextAvailableNode, keyResource);
+            auto oldSegment = nextAvailableNode->SchedulingSegment;
 
-            auto nodeShardId = context->NodeShardHost->GetNodeShardId(nextAvailableNode.Id);
+            auto nodeShardId = context->NodeShardHost->GetNodeShardId(nextAvailableNode->Id);
             context->MovedNodesPerNodeShard[nodeShardId].push_back(TSetNodeSchedulingSegmentOptions{
-                .NodeId = nextAvailableNode.Id,
+                .NodeId = nextAvailableNode->Id,
                 .Segment = segment});
             ++totalMovedNodeCount;
-            totalPenalty += getPenalty(nextAvailableNode);
+            totalPenalty += nextAvailableNodeMovePenalty;
 
-            const auto& dataCenter = nextAvailableNode.DataCenter;
+            const auto& dataCenter = nextAvailableNode->DataCenter;
             currentResourceAmount += resourceAmountOnNode;
             if (IsDataCenterAwareSchedulingSegment(segment)) {
                 ++addedNodeCountPerSegment.At(segment).MutableAt(dataCenter);
@@ -322,8 +359,8 @@ void TNodeSchedulingSegmentManager::RebalanceSegmentsInTree(
     // In addition, the rest of the nodes are called aggressively movable if the current segment is not cross-DC.
     // The intuition is that we should be able to compensate for a loss of such a node from one DC by moving
     // a node from another DC to the segment.
-    THashMap<TDataCenter, std::vector<TExecNodeDescriptor>> movableNodesPerDataCenter;
-    THashMap<TDataCenter, std::vector<TExecNodeDescriptor>> aggressivelyMovableNodesPerDataCenter;
+    THashMap<TDataCenter, TNodeWithMovePenaltyList> movableNodesPerDataCenter;
+    THashMap<TDataCenter, TNodeWithMovePenaltyList> aggressivelyMovableNodesPerDataCenter;
     GetMovableNodesInTree(
         context,
         treeId,
@@ -347,11 +384,11 @@ void TNodeSchedulingSegmentManager::RebalanceSegmentsInTree(
         }
     }
 
-    std::vector<TExecNodeDescriptor> movableNodes;
+    TNodeWithMovePenaltyList movableNodes;
     for (const auto& [_, movableNodesAtDataCenter] : movableNodesPerDataCenter) {
         std::move(movableNodesAtDataCenter.begin(), movableNodesAtDataCenter.end(), std::back_inserter(movableNodes));
     }
-    SortBy(movableNodes, getPenalty);
+    SortByPenalty(movableNodes);
 
     // Second, we try to satisfy all other segments using the remaining movable nodes.
     // Note that some segments might have become unsatisfied during the first phase
@@ -386,12 +423,11 @@ void TNodeSchedulingSegmentManager::GetMovableNodesInTree(
     TManageNodeSchedulingSegmentsContext* context,
     const TString& treeId,
     const TSegmentToResourceAmount& currentResourceAmountPerSegment,
-    THashMap<TDataCenter, std::vector<TExecNodeDescriptor>>* movableNodesPerDataCenter,
-    THashMap<TDataCenter, std::vector<TExecNodeDescriptor>>* aggressivelyMovableNodesPerDataCenter)
+    THashMap<TDataCenter, TNodeWithMovePenaltyList>* movableNodesPerDataCenter,
+    THashMap<TDataCenter, TNodeWithMovePenaltyList>* aggressivelyMovableNodesPerDataCenter)
 {
     const auto& strategyTreeState = context->StrategySegmentsState.TreeStates[treeId];
     auto keyResource = GetSegmentBalancingKeyResource(strategyTreeState.Mode);
-    auto getPenalty = CreatePenaltyFunction(context, treeId);
 
     TSchedulingSegmentMap<std::vector<TNodeId>> nodeIdsPerSegment;
     for (auto nodeId : context->NodeIdsPerTree[treeId]) {
@@ -405,25 +441,29 @@ void TNodeSchedulingSegmentManager::GetMovableNodesInTree(
     }
 
     auto collectMovableNodes = [&] (double currentResourceAmount, double fairResourceAmount, const std::vector<TNodeId>& nodeIds) {
-        std::vector<TExecNodeDescriptor> segmentNodes;
+        TNodeWithMovePenaltyList segmentNodes;
         segmentNodes.reserve(nodeIds.size());
         for (auto nodeId : nodeIds) {
-            segmentNodes.push_back(GetOrCrash(*context->ExecNodeDescriptors, nodeId));
+            const auto& node = GetOrCrash(*context->ExecNodeDescriptors, nodeId);
+            segmentNodes.push_back(TNodeWithMovePenalty{
+                .Descriptor = &node,
+                .MovePenalty = GetMovePenaltyForNode(node, context, treeId)});
         }
 
-        SortBy(segmentNodes, getPenalty);
+        SortByPenalty(segmentNodes);
 
-        for (const auto& node : segmentNodes) {
-            if (node.SchedulingSegmentFrozen) {
+        for (const auto& nodeWithMovePenalty : segmentNodes) {
+            auto* node = nodeWithMovePenalty.Descriptor;
+            if (node->SchedulingSegmentFrozen) {
                 continue;
             }
 
-            auto resourceAmountOnNode = GetNodeResourceLimit(node, keyResource);
+            auto resourceAmountOnNode = GetNodeResourceLimit(*node, keyResource);
             currentResourceAmount -= resourceAmountOnNode;
             if (currentResourceAmount >= fairResourceAmount) {
-                (*movableNodesPerDataCenter)[node.DataCenter].push_back(node);
-            } else if (!IsDataCenterAwareSchedulingSegment(node.SchedulingSegment)) {
-                (*aggressivelyMovableNodesPerDataCenter)[node.DataCenter].push_back(node);
+                (*movableNodesPerDataCenter)[node->DataCenter].push_back(nodeWithMovePenalty);
+            } else if (!IsDataCenterAwareSchedulingSegment(node->SchedulingSegment)) {
+                (*aggressivelyMovableNodesPerDataCenter)[node->DataCenter].push_back(nodeWithMovePenalty);
             }
         }
     };
@@ -449,7 +489,7 @@ void TNodeSchedulingSegmentManager::GetMovableNodesInTree(
 
     auto sortAndReverseMovableNodes = [&] (auto& movableNodes) {
         for (const auto& dataCenter : strategyTreeState.DataCenters) {
-            SortBy(movableNodes[dataCenter], getPenalty);
+            SortByPenalty(movableNodes[dataCenter]);
             std::reverse(movableNodes[dataCenter].begin(), movableNodes[dataCenter].end());
         }
     };
@@ -457,7 +497,8 @@ void TNodeSchedulingSegmentManager::GetMovableNodesInTree(
     sortAndReverseMovableNodes(*aggressivelyMovableNodesPerDataCenter);
 }
 
-TChangeNodeSegmentPenaltyFunction TNodeSchedulingSegmentManager::CreatePenaltyFunction(
+TNodeMovePenalty TNodeSchedulingSegmentManager::GetMovePenaltyForNode(
+    const TExecNodeDescriptor& node,
     TManageNodeSchedulingSegmentsContext* context,
     const TString& treeId) const
 {
@@ -465,9 +506,13 @@ TChangeNodeSegmentPenaltyFunction TNodeSchedulingSegmentManager::CreatePenaltyFu
     auto keyResource = GetSegmentBalancingKeyResource(strategyTreeState.Mode);
     switch (keyResource) {
         case EJobResourceType::Gpu:
-            return [] (const TExecNodeDescriptor& node) { return node.RunningJobStatistics.TotalGpuTime; };
+            return TNodeMovePenalty{
+                .PriorityPenalty = node.RunningJobStatistics.TotalGpuTime - node.RunningJobStatistics.PreemptableGpuTime,
+                .RegularPenalty = node.RunningJobStatistics.TotalGpuTime};
         default:
-            return [] (const TExecNodeDescriptor& node) { return node.RunningJobStatistics.TotalCpuTime; };
+            return TNodeMovePenalty{
+                .PriorityPenalty = node.RunningJobStatistics.TotalCpuTime - node.RunningJobStatistics.PreemptableCpuTime,
+                .RegularPenalty = node.RunningJobStatistics.TotalCpuTime};
     }
 }
 

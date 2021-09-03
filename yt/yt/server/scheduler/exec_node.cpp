@@ -115,10 +115,7 @@ void TExecNode::BuildAttributes(TFluentMap fluent)
         .Item("data_center").Value(NodeDescriptor_.GetDataCenter())
         .Item("last_non_preemptive_heartbeat_statistics").Value(LastNonPreemptiveHeartbeatStatistics_)
         .Item("last_preemptive_heartbeat_statistics").Value(LastPreemptiveHeartbeatStatistics_)
-        .Item("running_job_statistics").BeginMap()
-            .Item("total_cpu_time").Value(RunningJobStatistics_.TotalCpuTime)
-            .Item("total_gpu_time").Value(RunningJobStatistics_.TotalGpuTime)
-        .EndMap();
+        .Item("running_job_statistics").Value(RunningJobStatistics_);
 }
 
 

@@ -634,6 +634,8 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Seconds(30));
     RegisterParameter("running_jobs_update_period", RunningJobsUpdatePeriod)
         .Default(TDuration::Seconds(10));
+    RegisterParameter("running_job_statistics_update_period", RunningJobStatisticsUpdatePeriod)
+        .Default(TDuration::Seconds(1));
     RegisterParameter("missing_jobs_check_period", MissingJobsCheckPeriod)
         .Default(TDuration::Seconds(10));
     RegisterParameter("transient_operation_queue_scan_period", TransientOperationQueueScanPeriod)
