@@ -21,7 +21,7 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<std::unique_ptr<TStore>>, Stores);
 
-    DEFINE_BYVAL_RW_PROPERTY(EPartitionState, State);
+    DEFINE_BYVAL_RW_PROPERTY(EPartitionState, State, EPartitionState::Normal);
 
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CompactionTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, AllowedSplitTime);
@@ -32,6 +32,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(i64, CompressedDataSize);
     DEFINE_BYVAL_RW_PROPERTY(i64, UncompressedDataSize);
+
+    void CopyMetaFrom(const TPartition* partition);
 
 public:
     bool IsEden() const

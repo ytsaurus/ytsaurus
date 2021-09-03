@@ -130,7 +130,6 @@ private:
         backendState.TabletNodeConfig = Bootstrap_->GetConfig()->TabletNode;
         backendState.TabletNodeDynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode;
 
-
         const auto& memoryTracker = Bootstrap_->GetMemoryUsageTracker();
         const auto& cellar = Bootstrap_->GetCellarManager()->GetCellar(NCellarClient::ECellarType::Tablet);
         for (const auto& occupant : cellar->Occupants()) {
@@ -167,6 +166,8 @@ private:
         backendState.DynamicMemoryLimit = memoryTracker->GetLimit(EMemoryCategory::TabletDynamic);
         backendState.DynamicMemoryUsage = memoryTracker->GetUsed(EMemoryCategory::TabletDynamic);
 
+        backendState.CurrentTime = TInstant::Now();
+
         Backend_->StartNewRound(backendState);
     }
 
@@ -182,7 +183,6 @@ private:
         lsmTablet->SetMounted(tablet->GetState() == ETabletState::Mounted);
         lsmTablet->SetMountConfig(tablet->GetSettings().MountConfig);
         lsmTablet->SetMountRevision(tablet->GetMountRevision());
-        lsmTablet->SetStructuredLogger(tablet->GetStructuredLogger());
         lsmTablet->SetLoggingTag(tablet->GetLoggingTag());
 
         lsmTablet->SetIsRotationPossible(storeManager->IsRotationPossible());
