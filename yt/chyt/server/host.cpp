@@ -323,20 +323,33 @@ public:
         return TableAttributeCache_;
     }
 
-    TClusterNodes GetNodes() const
+    TClusterNodes GetNodes(bool alwaysIncludeLocal) const
     {
         auto nodeList = Discovery_->List();
         TClusterNodes result;
         result.reserve(nodeList.size());
+
+        bool resultIncludesLocal = false;
+
         for (const auto& [_, attributes] : nodeList) {
             auto host = attributes->Get<TString>("host");
             auto tcpPort = attributes->Get<i64>("tcp_port");
+            auto cookie = attributes->Get<i64>("job_cookie");
             bool isLocal = (host == Config_->Address) && (tcpPort == Ports_.Tcp);
+
             result.push_back(CreateClusterNode(
                 TClusterNodeName{host, tcpPort},
+                cookie,
                 getContext()->getSettingsRef(),
                 isLocal));
+
+            resultIncludesLocal |= isLocal;
         }
+
+        if (!resultIncludesLocal && alwaysIncludeLocal) {
+            result.push_back(GetLocalNode());
+        }
+
         return result;
     }
 
@@ -344,6 +357,7 @@ public:
     {
         return CreateClusterNode(
             TClusterNodeName{*Config_->Address, Ports_.Tcp},
+            GetInstanceCookie(),
             getContext()->getSettingsRef(),
             /*isLocal*/ true);
     }
@@ -807,9 +821,9 @@ const IInvokerPtr& THost::GetClickHouseFetcherInvoker() const
     return Impl_->GetClickHouseFetcherInvoker();
 }
 
-TClusterNodes THost::GetNodes() const
+TClusterNodes THost::GetNodes(bool alwaysIncludeLocal) const
 {
-    return Impl_->GetNodes();
+    return Impl_->GetNodes(alwaysIncludeLocal);
 }
 
 IClusterNodePtr THost::GetLocalNode() const

@@ -91,32 +91,58 @@ class TExecutionSettings
     : public NYTree::TYsonSerializable
 {
 public:
-    //! Hard limit. Query will be aborted after reaching this.
-    //! -1 means unlimited.
+    //! Hard limit for query depth. Query will be aborted after reaching this.
+    //! If |value| <= 0,  the limit is disabled.
     i64 QueryDepthLimit;
-    // i64 TotalSecondaryQueryLimit;
+    // TODO(dakovalkov): i64 TotalSecondaryQueryLimit;
 
-    //! Do not distribute small tables!
     i64 MinDataWeightPerSecondaryQuery;
 
-    //! -1 means unlimited.
-    i64 DistributedJoinNodeLimit;
-    //! -1 means unlimited.
-    i64 DistributedSelectNodeLimit;
-
-    //! Soft limits. After reaching, queries will be processed with local node only.
-    //! -1 means unlimited.
-    i64 DistributedJoinDepthLimit;
-    //! -1 means unlimited.
-    i64 DistributedSelectDepthLimit;
+    //! Limit for number of nodes which can be used in distributed join.
+    //! If |value| <= 0, the limit is disabled.
+    i64 JoinNodeLimit;
+    //! Limit for number of nodes which can be used in distributed select.
+    //! If |value| <= 0, the limit is disabled.
+    i64 SelectNodeLimit;
 
     EJoinPolicy JoinPolicy;
+    ESelectPolicy SelectPolicy;
 
-    //! To distribute queries deterministically.
+    //! Seed for choosing instances to distribute queries deterministically.
     size_t DistributionSeed;
 
-    //! if 0, the max_threads is used.
+    //! Number of input streams to read queries in parallel.
+    //! Larger number of input streams can increase query performance,
+    //! but it leads to higher memory usage.
+    //! It makes sense to lower number of input streams if the clique is
+    //! overloaded by many concurrent queries.
+    //! if |value| <= 0, the max_threads is used.
     i64 InputStreamsPerSecondaryQuery;
+
+    //! Allow query processing up to advanced stages (e.g. AfterAggregation) on workers.
+    //! Can change distribution sort key if it helps to process query up to higher stage.
+    //! Higher query stage on workers lowers amount of work on coordinator.
+    //! Optimized query processing stage also allows to enable distributed insert
+    //! automatically for simple queries.
+    bool OptimizeQueryProcessingStage;
+    //! Add bound conditions for second table expression if the main table is sorted by join key.
+    //! Useless without AllowSwitchToSortedPool.
+    //! Prefiltering right table lowers memory usage in distirbuted join and can improve performance.
+    bool FilterJoinedSubqueryBySortKey;
+
+    //! Allow StorageDistributor to use sorted pool to optimize aggregation and joins.
+    bool AllowSwitchToSortedPool;
+    //! Allow StorageDistributor to truncate sort key to optimize aggregation.
+    bool AllowKeyTruncating;
+
+    //! If |true|, distributed RIGHT and FULL JOINs work in a usual way. (default)
+    //! If |false|, rows from right table expression with null values in join key
+    //! are discarded. This is not a standard behavior, but it's a little bit more
+    //! efficient, because it avoids 'or isNull(column)' expressions.
+    bool KeepNullsInRightOrFullJoin;
+
+    //! The minimum query stage to enable distributed insert.
+    EDistributedInsertStage DistributedInsertStage;
 
     TExecutionSettings();
 };

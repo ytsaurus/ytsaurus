@@ -3,6 +3,7 @@
 #include "private.h"
 
 #include "conversion.h"
+#include "cluster_nodes.h"
 
 #include <yt/yt/ytlib/api/native/client_cache.h>
 
@@ -74,6 +75,11 @@ public:
     std::optional<TString> HttpUserAgent;
     std::optional<TString> DataLensRequestId;
 
+    // TODO(dakovalkov): It also make sense to save snapshots for attributes in query context.
+    // Access through GetClusterNodesSnapshot
+    //! Snapshot of the cluster nodes to avoid races.
+    std::optional<TClusterNodes> ClusterNodesSnapshot;
+
     // Fields for a statistics reporter.
     std::vector<TString> SelectQueries;
     std::vector<TString> SecondaryQueryIds;
@@ -115,6 +121,8 @@ public:
 
     TStorageContext* FindStorageContext(const DB::IStorage* storage);
     TStorageContext* GetOrRegisterStorageContext(const DB::IStorage* storage, DB::ContextPtr context);
+
+    const TClusterNodes& GetClusterNodesSnapshot();
 
 private:
     TInstant StartTime_;

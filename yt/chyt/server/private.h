@@ -97,6 +97,9 @@ struct TSubquery;
 struct TQueryAnalysisResult;
 class TClickHouseIndexBuilder;
 
+struct IStorageDistributor;
+using IStorageDistributorPtr = std::shared_ptr<IStorageDistributor>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! This enum corresponds to DB::ClientInfo::QueryKind.
@@ -130,9 +133,36 @@ DEFINE_ENUM(EDeducedStatementMode,
 );
 
 DEFINE_ENUM(EJoinPolicy,
-    ((Local)               (0))
-    ((DistributeInitial)   (1))
-    ((DistributeSecondary) (2))
+    // Always execute join localy.
+    // Both left and right tables will be read according to SelectPolicy.
+    ((Local)             (0))
+    // Distribute join in Initial Queries, but execute it localy in Secondary Queries
+    // to avoid exponential number of the secondary queries.
+    ((DistributeInitial) (1))
+    // Always distribute join.
+    ((Distribute)        (2))
+);
+
+DEFINE_ENUM(ESelectPolicy,
+    // Always read tables on local node only.
+    ((Local)             (0))
+    // Distribute select in initial queries, but read tables localy in secondary queries.
+    ((DistributeInitial) (1))
+    // Always distribute select queries.
+    ((Distribute)        (2))
+);
+
+DEFINE_ENUM(EDistributedInsertStage,
+    // Never distribute.
+    ((None)               (0))
+    // Always distribute, even if aggregation is not completed.
+    ((WithMergeableState) (1))
+    // Distribute queries if aggregation can be done localy.
+    // Limit/OrderBy statements are processed localy, but the whole result is not sorted
+    // and can contain up to (instance count) * (N limit) rows.
+    ((AfterAggregation)   (2))
+    // Distribute only when query can be fully processed on workers.
+    ((Complete)           (3))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

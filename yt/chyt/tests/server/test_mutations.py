@@ -432,3 +432,185 @@ class TestMutations(ClickHouseTestBase):
             assert get_schema_from_description(clique.make_query('describe "//tmp/t"')) == [
                 {"name": "b", "type": "String"}
             ]
+
+    @authors("dakvalkov")
+    def test_automatic_distributed_insert_simple(self):
+        schema = [
+            {"name": "a", "type": "int64", "required": False},
+        ]
+        create("table", "//tmp/in", attributes={"schema": schema})
+        create("table", "//tmp/out", attributes={"schema": schema})
+
+        chunks = [
+            [{"a": 1}, {"a": 1}, {"a": 2}],
+            [{"a": 2}, {"a": 3}, {"a": 3}],
+        ]
+        for chunk in chunks:
+            write_table("<append=%true>//tmp/in", chunk)
+
+        patch = {
+            "yt": {
+                "subquery": {
+                    "min_data_weight_per_thread": 1,
+                },
+            },
+        }
+
+        with Clique(2, config_patch=patch) as clique:
+            def get_settings(distributed_insert_stage):
+                settings = {
+                    "parallel_distributed_insert_select": 1,
+                    "chyt.execution.optimize_query_processing_stage": 1,
+                    "chyt.execution.distributed_insert_stage": distributed_insert_stage,
+                }
+                return settings
+
+            def check_output_table(expected_rows, expected_chunk_count):
+                assert get("//tmp/out/@chunk_count") == expected_chunk_count
+                rows = read_table("//tmp/out")
+                assert sorted(rows) == sorted(expected_rows)
+
+            expected_rows = [{"a": 1}, {"a": 1}, {"a": 2}, {"a": 2}, {"a": 3}, {"a": 3}]
+            expected_distinct_rows = [{"a": 1}, {"a": 2}, {"a": 3}]
+            expected_partially_distinct_rows = [{"a": 1}, {"a": 2}, {"a": 2}, {"a": 3}]
+
+            # Simple.
+            simple_query = 'insert into "<append=%false>//tmp/out" select * from "//tmp/in"'
+
+            clique.make_query(simple_query, settings=get_settings('none'))
+            check_output_table(expected_rows, 1)
+
+            clique.make_query(simple_query, settings=get_settings('complete'))
+            check_output_table(expected_rows, 2)
+
+            # Join.
+            join_query = '''insert into "<append=%false>//tmp/out"
+                select * from "//tmp/in" as x left any join (select * from "//tmp/in") as y using a'''
+
+            clique.make_query(join_query, settings=get_settings('none'))
+            check_output_table(expected_rows, 1)
+
+            clique.make_query(join_query, settings=get_settings('complete'))
+            check_output_table(expected_rows, 2)
+
+            # Order by.
+            order_by_query = 'insert into "<append=%false>//tmp/out" select * from "//tmp/in" order by a'
+
+            clique.make_query(order_by_query, settings=get_settings('complete'))
+            check_output_table(expected_rows, 1)
+
+            clique.make_query(order_by_query, settings=get_settings('after_aggregation'))
+            check_output_table(expected_rows, 2)
+
+            # Limit.
+            limit_query = 'insert into "<append=%false>//tmp/out" select * from "//tmp/in" limit 10'
+
+            clique.make_query(limit_query, settings=get_settings('complete'))
+            check_output_table(expected_rows, 1)
+
+            clique.make_query(limit_query, settings=get_settings('after_aggregation'))
+            check_output_table(expected_rows, 2)
+
+            # Distinct.
+            distinct_query = 'insert into "<append=%false>//tmp/out" select distinct * from "//tmp/in"'
+
+            clique.make_query(distinct_query, settings=get_settings('after_aggregation'))
+            check_output_table(expected_distinct_rows, 1)
+
+            clique.make_query(distinct_query, settings=get_settings('with_mergeable_state'))
+            check_output_table(expected_partially_distinct_rows, 2)
+
+            # Group by.
+            group_by_query = 'insert into "<append=%false>//tmp/out" select * from "//tmp/in" group by *'
+
+            clique.make_query(group_by_query, settings=get_settings('after_aggregation'))
+            check_output_table(expected_distinct_rows, 1)
+
+            clique.make_query(group_by_query, settings=get_settings('with_mergeable_state'))
+            check_output_table(expected_partially_distinct_rows, 2)
+
+            # Limit by.
+            limit_by_query = 'insert into "<append=%false>//tmp/out" select * from "//tmp/in" limit 1 by *'
+
+            clique.make_query(limit_by_query, settings=get_settings('after_aggregation'))
+            check_output_table(expected_distinct_rows, 1)
+
+            clique.make_query(limit_by_query, settings=get_settings('with_mergeable_state'))
+            check_output_table(expected_partially_distinct_rows, 2)
+
+            # Simple aggregation.
+            simple_aggregation_query = 'insert into "<append=%false>//tmp/out" select sum(a) as a from "//tmp/in"'
+
+            clique.make_query(simple_aggregation_query, settings=get_settings('after_aggregation'))
+            check_output_table([{"a": 12}], 1)
+
+            clique.make_query(simple_aggregation_query, settings=get_settings('with_mergeable_state'))
+            check_output_table([{"a": 4}, {"a": 8}], 2)
+
+    @authors("dakovalkov")
+    def test_automatic_distributed_insert_ordered_table(self):
+        input_schema = [
+            {"name": "a", "type": "int64", "sort_order": "ascending", "required": False},
+            {"name": "b", "type": "int64", "sort_order": "ascending", "required": False},
+            # {"name": "c", "type": "int64", "sort_order": "ascending", "required": False},
+            # {"name": "d", "type": "int64", "required": False},
+        ]
+        output_schema = [
+            {"name": "a", "type": "int64", "required": False},
+            # {"name": "b", "type": "int64", "required": False},
+            # {"name": "c", "type": "int64", "required": False},
+            # {"name": "d", "type": "int64", "required": False},
+        ]
+        create("table", "//tmp/in", attributes={"schema": input_schema})
+        create("table", "//tmp/out", attributes={"schema": output_schema})
+
+        chunks = [
+            [{"a": 1, "b": 1}, {"a": 1, "b": 1}, {"a": 2, "b": 2}],
+            [{"a": 2, "b": 2}, {"a": 3, "b": 3}, {"a": 3, "b": 3}],
+        ]
+        for chunk in chunks:
+            write_table("<append=%true>//tmp/in", chunk)
+
+        patch = {
+            "yt": {
+                "subquery": {
+                    "min_data_weight_per_thread": 1,
+                },
+            },
+        }
+
+        with Clique(2, config_patch=patch) as clique:
+            def get_settings(distributed_insert_stage):
+                settings = {
+                    "parallel_distributed_insert_select": 1,
+                    "chyt.execution.optimize_query_processing_stage": 1,
+                    "chyt.execution.allow_switch_to_sorted_pool": 1,
+                    "chyt.execution.allow_key_truncating": 1,
+                    "chyt.execution.distributed_insert_stage": distributed_insert_stage,
+                }
+                return settings
+
+            def check_output_table(expected_rows, expected_chunk_count):
+                assert get("//tmp/out/@chunk_count") == expected_chunk_count
+                rows = read_table("//tmp/out")
+                assert sorted(rows) == sorted(expected_rows)
+
+            expected_distinct_rows = [{"a": 1}, {"a": 2}, {"a": 3}]
+
+            group_by_key_column_query = 'insert into "<append=%false>//tmp/out" select a from "//tmp/in" group by a'
+            clique.make_query(group_by_key_column_query, settings=get_settings('complete'))
+            check_output_table(expected_distinct_rows, 2)
+
+            group_by_subkey_column_query = 'insert into "<append=%false>//tmp/out" select b as a from "//tmp/in" group by b'
+            clique.make_query(group_by_subkey_column_query, settings=get_settings('complete'))
+            check_output_table(expected_distinct_rows, 1)
+
+            group_by_long_key_query = 'insert into "<append=%false>//tmp/out" select a from "//tmp/in" group by a, b'
+            clique.make_query(group_by_long_key_query, settings=get_settings('complete'))
+            check_output_table(expected_distinct_rows, 2)
+
+            group_by_with_join_query = '''insert into "<append=%false>//tmp/out"
+                select a from "//tmp/in" as x join "//tmp/in" as y using a, b
+                group by a'''
+            clique.make_query(group_by_with_join_query, settings=get_settings('complete'))
+            check_output_table(expected_distinct_rows, 2)

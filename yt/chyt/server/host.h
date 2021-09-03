@@ -71,7 +71,11 @@ public:
     NApi::NNative::IClientPtr GetRootClient() const;
     NApi::NNative::IClientPtr CreateClient(const TString& user);
 
-    TClusterNodes GetNodes() const;
+    //! Return nodes available through discovery service.
+    //! In some cases local node can be out of discovery protocol
+    //! (e.g. the instance is in 'interrupting' state or not started yet).
+    //! |alwaysIncludeLocal| controls the behavior in such cases.
+    TClusterNodes GetNodes(bool alwaysIncludeLocal = false) const;
     IClusterNodePtr GetLocalNode() const;
 
     int GetInstanceCookie() const;

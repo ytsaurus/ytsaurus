@@ -17,6 +17,7 @@
 #include <Core/Field.h>
 #include <Core/Block.h>
 #include <Core/Settings.h>
+#include <Core/QueryProcessingStage.h>
 #include <Storages/ColumnsDescription.h>
 
 namespace NYT::NClickHouseServer {
@@ -71,6 +72,12 @@ NTableClient::TTableSchemaPtr InferCommonSchema(const std::vector<TTablePtr>& ta
 
 //! Leaves only some of the "significant" profile counters.
 THashMap<TString, size_t> GetBriefProfileCounters(const ProfileEvents::Counters& profileCounters);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Helpers to compare query processing stage.
+int GetQueryProcessingStageRank(DB::QueryProcessingStage::Enum stage);
+int GetDistributedInsertStageRank(EDistributedInsertStage stage);
 
 ////////////////////////////////////////////////////////////////////////////////
 
