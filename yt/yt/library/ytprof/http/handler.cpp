@@ -135,6 +135,19 @@ public:
     }
 };
 
+class TTCMallocStatHandler
+    : public IHttpHandler
+{
+public:
+    void HandleRequest(const IRequestPtr& /* req */, const IResponseWriterPtr& rsp) override
+    {
+        auto stat = tcmalloc::MallocExtension::GetStats();
+        rsp->SetStatus(EStatusCode::OK);
+        WaitFor(rsp->WriteBody(TSharedRef::FromString(TString{stat})))
+            .ThrowOnError();
+    }
+};
+
 void Register(const IServerPtr& server, const TString& prefix)
 {
     server->AddHandler(prefix + "/cpu", New<TCpuProfilerHandler>());
@@ -142,6 +155,7 @@ void Register(const IServerPtr& server, const TString& prefix)
     server->AddHandler(prefix + "/peak", New<TTCMallocSnapshotProfilerHandler>(tcmalloc::ProfileType::kPeakHeap));
     server->AddHandler(prefix + "/fragmentation", New<TTCMallocSnapshotProfilerHandler>(tcmalloc::ProfileType::kFragmentation));
     server->AddHandler(prefix + "/allocations", New<TTCMallocAllocationProfilerHandler>());
+    server->AddHandler(prefix + "/tcmalloc", New<TTCMallocStatHandler>());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
