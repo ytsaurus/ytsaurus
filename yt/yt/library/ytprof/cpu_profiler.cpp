@@ -3,6 +3,7 @@
 #include "backtrace.h"
 
 #include <link.h>
+#include <sys/syscall.h>
 
 #include <util/system/yield.h>
 
@@ -14,9 +15,40 @@ namespace NYT::NYTProf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCpuTagImpl
+{
+    TString Name;
+    std::optional<TString> StringValue;
+    std::optional<ui64> IntValue;
+};
+
+TCpuProfilerTag NewStringTag(const TString& name, const TString& value)
+{
+    auto tag = new TCpuTagImpl{
+        .Name = name,
+        .StringValue = value,
+    };
+
+    return reinterpret_cast<TCpuProfilerTag>(tag);
+}
+
+TCpuProfilerTag NewIntTag(const TString& name, const ui64 value)
+{
+    auto tag = new TCpuTagImpl{
+        .Name = name,
+        .IntValue = value,
+    };
+
+    return reinterpret_cast<TCpuProfilerTag>(tag);
+}
+
+thread_local std::array<volatile TCpuProfilerTag, MaxActiveTags> CpuProfilerTags;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCpuSample::operator size_t() const
 {
-    size_t hash = 0;
+    size_t hash = Tid;
     for (auto [startIP, ip] : Backtrace) {
         hash ^= reinterpret_cast<size_t>(startIP);
         hash = (hash << 1) | (hash >> 63);
@@ -25,10 +57,20 @@ TCpuSample::operator size_t() const
         hash = (hash << 1) | (hash >> 63);
     }
 
+    for (auto tag : Tags) {
+        hash ^= reinterpret_cast<size_t>(tag);
+        hash = (hash << 1) | (hash >> 63);
+    }
+
     return hash;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+size_t GetTid()
+{
+    return static_cast<size_t>(::syscall(SYS_gettid));
+}
 
 TCpuProfiler::TCpuProfiler(TCpuProfilerOptions options)
     : Options_(options)
@@ -149,7 +191,21 @@ void TCpuProfiler::OnSigProf(siginfo_t* info, ucontext_t* ucontext)
 
     int count = 0;
     bool startIP = true;
+    bool pushTid = false;
+    int tagIndex = 0;
+
     auto ok = Queue_.TryPush([&] () -> std::pair<void*, bool> {
+        if (!pushTid) {
+            pushTid = true;
+            return {reinterpret_cast<void*>(GetTid()), true};
+        }
+
+        if (tagIndex < MaxActiveTags) {
+            auto tag = CpuProfilerTags[tagIndex];
+            tagIndex++;
+            return {reinterpret_cast<void*>(tag), true};
+        }
+
         if (count > Options_.MaxBacktraceSize) {
             return {nullptr, false};
         }
@@ -189,9 +245,27 @@ void TCpuProfiler::DequeueSamples()
 
         while (true) {
             sample.Backtrace.clear();
+            sample.Tags.clear();
+
+            std::optional<size_t> tid;
 
             bool startIP = true;
+            int tagIndex = 0;
             bool ok = Queue_.TryPop([&] (void* ip) {
+                if (!tid) {
+                    tid = reinterpret_cast<size_t>(ip);
+                    return;
+                }
+
+                if (tagIndex < MaxActiveTags) {
+                    auto tag = reinterpret_cast<TCpuTagImpl*>(ip);
+                    if (tag) {
+                        sample.Tags.push_back(tag);
+                    }
+                    tagIndex++;
+                    return;
+                }
+
                 if (startIP) {
                     sample.Backtrace.push_back({ip, nullptr});
                     startIP = false;
@@ -205,6 +279,7 @@ void TCpuProfiler::DequeueSamples()
                 break;
             }
 
+            sample.Tid = *tid;
             Counters_[sample]++;
         }
     }
@@ -219,6 +294,7 @@ NProto::Profile TCpuProfiler::ReadProfile()
     profile.add_string_table("microseconds");
     profile.add_string_table("sample");
     profile.add_string_table("count");
+    profile.add_string_table("tid");
 
     auto sampleType = profile.add_sample_type();
     sampleType->set_type(3);
@@ -234,6 +310,9 @@ NProto::Profile TCpuProfiler::ReadProfile()
 
     profile.set_period(1000000 / Options_.SamplingFrequency);
 
+    THashMap<TCpuTagImpl*, ui64> tagNames;
+    THashMap<TCpuTagImpl*, ui64> tagValues;
+
     THashMap<void*, ui64> locations;
     THashMap<void*, ui64> functions;
 
@@ -241,6 +320,38 @@ NProto::Profile TCpuProfiler::ReadProfile()
         auto sample = profile.add_sample();
         sample->add_value(count);
         sample->add_value(count * profile.period());
+
+        auto label = sample->add_label();
+        label->set_key(5); // tid
+        label->set_num(backtrace.Tid);
+
+        for (auto tag : backtrace.Tags) {
+            auto label = sample->add_label();
+
+            if (auto it = tagNames.find(tag); it != tagNames.end()) {
+                label->set_key(it->second);
+            } else {
+                auto nameId = profile.string_table_size();
+                profile.add_string_table(tag->Name);
+                tagNames[tag] = nameId;
+                label->set_key(nameId);
+            }
+
+            if (tag->IntValue) {
+                label->set_num(*tag->IntValue);
+            }
+
+            if (tag->StringValue) {
+                if (auto it = tagValues.find(tag); it != tagValues.end()) {
+                    label->set_str(it->second);
+                } else {
+                    auto valueId = profile.string_table_size();
+                    profile.add_string_table(*tag->StringValue);
+                    tagValues[tag] = valueId;
+                    label->set_key(valueId);
+                }
+            }
+        }
 
         for (auto [startIP, ip] : backtrace.Backtrace) {
             auto it = locations.find(ip);
