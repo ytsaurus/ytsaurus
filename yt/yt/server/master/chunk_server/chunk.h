@@ -100,13 +100,12 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(i64, DiskSpace);
 
     //! Some TMiscExt fields extracted for effective access.
-    DEFINE_BYVAL_RW_PROPERTY(i64, RowCount);
-    DEFINE_BYVAL_RW_PROPERTY(i64, PhysicalRowCount);
-    DEFINE_BYVAL_RW_PROPERTY(i64, CompressedDataSize);
-    DEFINE_BYVAL_RW_PROPERTY(i64, UncompressedDataSize);
-    DEFINE_BYVAL_RW_PROPERTY(i64, DataWeight);
-    DEFINE_BYVAL_RW_PROPERTY(i64, MaxBlockSize);
-    DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, CompressionCodec);
+    DEFINE_BYVAL_RO_PROPERTY(i64, RowCount);
+    DEFINE_BYVAL_RO_PROPERTY(i64, CompressedDataSize);
+    DEFINE_BYVAL_RO_PROPERTY(i64, UncompressedDataSize);
+    DEFINE_BYVAL_RO_PROPERTY(i64, DataWeight);
+    DEFINE_BYVAL_RO_PROPERTY(i64, MaxBlockSize);
+    DEFINE_BYVAL_RO_PROPERTY(NCompression::ECodec, CompressionCodec);
 
     DEFINE_BYVAL_RW_PROPERTY(NErasure::ECodec, ErasureCodec);
 
@@ -172,6 +171,8 @@ public:
 
     bool GetOverlayed() const;
     void SetOverlayed(bool value);
+
+    void SetRowCount(i64 rowCount);
 
     bool IsConfirmed() const;
 
@@ -270,7 +271,6 @@ public:
 
     void SetSealed(bool value);
 
-    //! Returns the number of rows in a sealed chunk.
     i64 GetPhysicalSealedRowCount() const;
 
     //! Marks the chunk as sealed, i.e. sets its ultimate row count, data size etc.
