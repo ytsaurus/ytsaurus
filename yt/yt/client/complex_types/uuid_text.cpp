@@ -9,6 +9,8 @@
 
 namespace NYT::NComplexTypes {
 
+////////////////////////////////////////////////////////////////////////////////
+
 static void CheckUuidSize(TStringBuf bytes)
 {
     if (bytes.size() != UuidBinarySize) {
@@ -117,5 +119,7 @@ TGuid GuidFromBytes(TStringBuf bytes)
 
     return TGuid(HostToLittle(low), HostToLittle(high));
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 }
