@@ -540,6 +540,17 @@ private:
             return false;
         }
 
+        bool versionedSlicesPresent = false;
+        for (const auto& endpoint : endpoints) {
+            if (endpoint.DataSlice->Type == EDataSourceType::VersionedTable) {
+                versionedSlicesPresent = true;
+            }
+        }
+
+        if (versionedSlicesPresent) {
+            return false;
+        }
+
         auto stagedUpperBound = StagingArea_->GetPrimaryUpperBound();
         auto currentLowerBound = endpoints[0].KeyBound;
 
