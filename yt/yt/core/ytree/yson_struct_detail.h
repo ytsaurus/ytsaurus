@@ -90,17 +90,17 @@ public:
     virtual const std::vector<std::pair<TString, IYsonStructParameterPtr>>& GetParameterSortedList() const override;
     virtual const THashSet<TString>& GetRegisteredKeys() const override;
 
-    virtual IYsonStructParameterPtr GetParameter(const TString& keyOrAlias) const;
+    IYsonStructParameterPtr GetParameter(const TString& keyOrAlias) const override;
     virtual void LoadParameter(TYsonStructBase* target, const TString& key, const NYTree::INodePtr& node, EMergeStrategy mergeStrategy) const override;
 
     virtual void Postprocess(TYsonStructBase* target, const TYPath& path) const override;
 
-    virtual void LoadStruct(
+    void LoadStruct(
         TYsonStructBase* target,
         INodePtr node,
         bool postprocess,
         bool setDefaults,
-        const TYPath& path) const;
+        const TYPath& path) const override;
 
     virtual IMapNodePtr GetRecursiveUnrecognized(const TYsonStructBase* target) const override;
 
