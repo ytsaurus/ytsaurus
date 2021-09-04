@@ -17,6 +17,9 @@ except ImportError:
 def sudo_rmtree(path):
     subprocess.check_call(["sudo", "rm", "-rf", path])
 
+def sudo_move(src_path, dst_path):
+    subprocess.check_call(["sudo", "mv", src_path, dst_path])
+
 def is_inside_arcadia(inside_arcadia):
     if inside_arcadia is None:
         inside_arcadia = int(yatest_common.get_param("inside_arcadia", True))
@@ -242,7 +245,8 @@ def save_sandbox(sandbox_path, output_subpath):
             sandbox_path.strip("/").endswith(output_subpath.strip("/")):
         return
 
-    shutil.move(sandbox_path, output_path)
+    os.makedirs(output_path)
+    sudo_move(sandbox_path, output_path)
 
 def get_gdb_path():
     if yatest_common is None:
