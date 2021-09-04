@@ -128,9 +128,9 @@ namespace NTesting {
         MOCK_METHOD(TTableWriterPtr<::google::protobuf::Message>, CreateTableWriter, (const TRichYPath& path, const ::google::protobuf::Descriptor& descriptor, const TTableWriterOptions& options), (override));
         MOCK_METHOD(TRawTableReaderPtr, CreateRawReader, (const TRichYPath& path, const TFormat& format, const TTableReaderOptions& options), (override));
         MOCK_METHOD(TRawTableWriterPtr, CreateRawWriter, (const TRichYPath& path, const TFormat& format, const TTableWriterOptions& options), (override));
-        MOCK_METHOD3(CreateBlobTableReader, IFileReaderPtr(const TYPath&, const TKey&, const TBlobTableReaderOptions&));
-        MOCK_METHOD2(CreateNodeReader, ::TIntrusivePtr<INodeReaderImpl>(const TRichYPath&, const TTableReaderOptions&));
-        MOCK_METHOD2(CreateYaMRReader, ::TIntrusivePtr<IYaMRReaderImpl>(const TRichYPath&, const TTableReaderOptions&));
+        MOCK_METHOD(IFileReaderPtr, CreateBlobTableReader, (const TYPath&, const TKey&, const TBlobTableReaderOptions&), (override));
+        MOCK_METHOD(::TIntrusivePtr<INodeReaderImpl>, CreateNodeReader, (const TRichYPath&, const TTableReaderOptions&), (override));
+        MOCK_METHOD(::TIntrusivePtr<IYaMRReaderImpl>, CreateYaMRReader, (const TRichYPath&, const TTableReaderOptions&), (override));
         MOCK_METHOD3(CreateProtoReader, ::TIntrusivePtr<IProtoReaderImpl>(const TRichYPath&, const TTableReaderOptions&, const ::google::protobuf::Message*));
         MOCK_METHOD2(CreateNodeWriter, ::TIntrusivePtr<INodeWriterImpl>(const TRichYPath&, const TTableWriterOptions&));
         MOCK_METHOD2(CreateYaMRWriter, ::TIntrusivePtr<IYaMRWriterImpl>(const TRichYPath&, const TTableWriterOptions&));
@@ -145,9 +145,9 @@ namespace NTesting {
         MOCK_METHOD1(CheckOperation, EOperationBriefState(const TOperationId&));
         MOCK_METHOD3(DoMap, IOperationPtr(const TMapOperationSpec&, const IStructuredJob&, const TOperationOptions&));
         MOCK_METHOD3(RawMap, IOperationPtr(const TRawMapOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
-        MOCK_METHOD3(DoReduce, IOperationPtr(const TReduceOperationSpec&, const IStructuredJob&, const TOperationOptions&));
-        MOCK_METHOD3(RawReduce, IOperationPtr(const TRawReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
-        MOCK_METHOD3(DoJoinReduce, IOperationPtr(const TJoinReduceOperationSpec&, const IStructuredJob&, const TOperationOptions&));
+        MOCK_METHOD(IOperationPtr, DoReduce, (const TReduceOperationSpec&, const IStructuredJob&, const TOperationOptions&), (override));
+        MOCK_METHOD(IOperationPtr, RawReduce, (const TRawReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&), (override));
+        MOCK_METHOD(IOperationPtr, DoJoinReduce, (const TJoinReduceOperationSpec&, const IStructuredJob&, const TOperationOptions&), (override));
         MOCK_METHOD3(RawJoinReduce, IOperationPtr(const TRawJoinReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
         MOCK_METHOD5(DoMapReduce, IOperationPtr(const TMapReduceOperationSpec&, const IStructuredJob*, const IStructuredJob*, const IStructuredJob&, const TOperationOptions&));
         MOCK_METHOD5(RawMapReduce, IOperationPtr(const TRawMapReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, ::TIntrusivePtr<IRawJob>, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
