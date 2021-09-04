@@ -62,6 +62,7 @@ public:
         auto* obj = FreeList_.Extract();
         if (Y_LIKELY(obj)) {
             AllocatedItems.Increment();
+            AliveItems.Update(GetRefCounter(this)->GetRefCount() + 1);
             // Fast path.
             return obj;
         }
@@ -72,6 +73,7 @@ public:
     void Free(void* obj)
     {
         FreedItems.Increment();
+        AliveItems.Update(GetRefCounter(this)->GetRefCount() - 1);
         FreeList_.Put(static_cast<TFreeListItem*>(obj));
         Unref(this);
     }
@@ -191,7 +193,8 @@ private:
         ++SegmentCount_;
 
         AllocatedItems.Increment();
-        ArenaSize.Update(SegmentCount_.load() * totalSize);
+        AliveItems.Update(refCount + 1);
+        ArenaSize.Update((segmentCount + 1) * totalSize);
 
         auto [head, tail] = BuildFreeList(static_cast<char*>(ptr) + sizeof(TFreeListItem));
 
@@ -221,10 +224,13 @@ public:
         if (!TryAcquireMemory(size)) {
             return nullptr;
         }
-        ++RefCount_;
+        auto itemCount = ++RefCount_;
         auto ptr = NYTAlloc::Allocate(size);
         auto allocatedSize = NYTAlloc::GetAllocationSize(ptr);
         YT_VERIFY(allocatedSize == size);
+        AllocatedItems.Increment();
+        AliveItems.Update(itemCount);
+
         return ptr;
     }
 
@@ -233,6 +239,8 @@ public:
         auto allocatedSize = NYTAlloc::GetAllocationSize(ptr);
         ReleaseMemory(allocatedSize);
         NYTAlloc::Free(ptr);
+        FreedItems.Increment();
+        AliveItems.Update(RefCount_.load() - 1);
         Unref();
     }
 
@@ -258,6 +266,8 @@ public:
                 auto result = MemoryTracker_->TryAcquire(targetAcquire);
                 if (result.IsOK()) {
                     OverheadMemory_.fetch_add(targetAcquire - size);
+                    auto arenaSize = AcquiredMemory_.fetch_add(targetAcquire) + targetAcquire;
+                    ArenaSize.Update(arenaSize);
                     return true;
                 } else {
                     return false;
@@ -279,7 +289,11 @@ public:
         while (overheadMemory + size > TSlabAllocator::AcquireMemoryGranularity) {
             auto halfMemoryGranularity = TSlabAllocator::AcquireMemoryGranularity / 2;
             if (OverheadMemory_.compare_exchange_weak(overheadMemory, halfMemoryGranularity)) {
-                MemoryTracker_->Release(overheadMemory + size - halfMemoryGranularity);
+                auto releasedMemory = overheadMemory + size - halfMemoryGranularity;
+                MemoryTracker_->Release(releasedMemory);
+                auto arenaSize = AcquiredMemory_.fetch_sub(releasedMemory) - releasedMemory;
+                ArenaSize.Update(arenaSize);
+
                 return;
             }
         }
@@ -292,6 +306,7 @@ private:
     // One ref from allocator plus refs from allocated objects.
     std::atomic<size_t> RefCount_ = 1;
     std::atomic<size_t> OverheadMemory_ = 0;
+    std::atomic<size_t> AcquiredMemory_ = 0;
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -366,8 +381,6 @@ void* TSlabAllocator::Allocate(size_t size)
         ptr = arena->Allocate();
         if (ptr) {
             auto* arenaPtr = arena.Release();
-            arenaPtr->AliveItems.Update(GetRefCounter(arenaPtr)->GetRefCount());
-
             tag = MakeTagFromArena(arenaPtr);
         }
     } else {
@@ -423,7 +436,6 @@ void TSlabAllocator::Free(void* ptr)
     } else {
         auto* arenaPtr = GetSmallArenaFromTag(tag);
         arenaPtr->Free(header);
-        arenaPtr->AliveItems.Update(GetRefCounter(arenaPtr)->GetRefCount());
     }
 }
 
