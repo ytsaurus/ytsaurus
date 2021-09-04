@@ -119,9 +119,8 @@ int TLegacyDataSlice::GetRangeIndex() const
 
 TInputChunkPtr TLegacyDataSlice::GetSingleUnversionedChunkOrThrow() const
 {
-    if (!IsTrivial()) {
-        THROW_ERROR_EXCEPTION("Dynamic table cannot be used in this context");
-    }
+    YT_VERIFY(IsTrivial());
+
     return ChunkSlices[0]->GetInputChunk();
 }
 

@@ -64,7 +64,7 @@ protected:
         CreatedUnversionedPrimaryDataSlices_.clear();
         CreatedUnversionedForeignDataSlices_.clear();
         ActiveChunks_.clear();
-        InputCookieToChunkId_.clear();
+        InputCookieToChunkIds_.clear();
         RowBuffer_ = New<TRowBuffer>();
         InputTables_.clear();
         OutputCookies_.clear();
@@ -404,7 +404,9 @@ protected:
         auto stripe = New<TChunkStripe>();
         for (const auto& dataSlice : dataSlices) {
             stripe->DataSlices.emplace_back(dataSlice);
-            ActiveChunks_.insert(dataSlice->GetSingleUnversionedChunkOrThrow()->GetChunkId());
+            for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                ActiveChunks_.insert(chunkSlice->GetInputChunk()->GetChunkId());
+            }
         }
         return stripe;
     }
@@ -445,7 +447,9 @@ protected:
     {
         auto stripe = CreateStripe({dataSlice});
         auto cookie = ChunkPool_->Add(std::move(stripe));
-        InputCookieToChunkId_[cookie] = dataSlice->GetSingleUnversionedChunkOrThrow()->GetChunkId();
+        for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+            InputCookieToChunkIds_[cookie].push_back(chunkSlice->GetInputChunk()->GetChunkId());
+        }
         return cookie;
     }
 
@@ -457,6 +461,9 @@ protected:
         int sliceIndex = -1)
     {
         auto dataSlice = CreateDataSlice(chunk, lowerBound, upperBound);
+        dataSlice->Type = InputTables_[chunk->GetTableIndex()].IsVersioned()
+            ? EDataSourceType::VersionedTable
+            : EDataSourceType::UnversionedTable;
         if (dataWeight != -1) {
             dataSlice->ChunkSlices[0]->OverrideSize(dataSlice->GetRowCount(), dataWeight);
         }
@@ -468,27 +475,31 @@ protected:
 
     void SuspendDataSlice(IChunkPoolInput::TCookie cookie)
     {
-        auto chunkId = InputCookieToChunkId_[cookie];
-        YT_VERIFY(chunkId);
-        YT_VERIFY(ActiveChunks_.erase(chunkId));
+        for (auto chunkId : InputCookieToChunkIds_[cookie]) {
+            YT_VERIFY(chunkId);
+            YT_VERIFY(ActiveChunks_.erase(chunkId));
+        }
         ChunkPool_->Suspend(cookie);
     }
 
     void ResumeDataSlice(IChunkPoolInput::TCookie cookie)
     {
-        auto chunkId = InputCookieToChunkId_[cookie];
-        YT_VERIFY(chunkId);
-        ActiveChunks_.insert(chunkId);
+        for (auto chunkId: InputCookieToChunkIds_[cookie]) {
+            YT_VERIFY(chunkId);
+            ActiveChunks_.insert(chunkId);
+        }
         ChunkPool_->Resume(cookie);
     }
 
     void ResetDataSlice(IChunkPoolInput::TCookie cookie, const TLegacyDataSlicePtr& dataSlice)
     {
-        const auto& oldChunkId = InputCookieToChunkId_[cookie];
-        YT_VERIFY(oldChunkId);
+        YT_VERIFY(!InputCookieToChunkIds_[cookie].empty());
         dataSlice->InputStreamIndex = dataSlice->GetTableIndex();
         ChunkPool_->Reset(cookie, New<TChunkStripe>(dataSlice), IdentityChunkMapping);
-        InputCookieToChunkId_[cookie] = dataSlice->GetSingleUnversionedChunkOrThrow()->GetChunkId();
+        InputCookieToChunkIds_[cookie].clear();
+        for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+            InputCookieToChunkIds_[cookie].push_back(chunkSlice->GetInputChunk()->GetChunkId());
+        }
     }
 
     void ExtractOutputCookiesWhilePossible()
@@ -884,7 +895,7 @@ protected:
     //! Set containing all chunks that are added to the pool without being suspended.
     THashSet<TChunkId> ActiveChunks_;
 
-    THashMap<IChunkPoolInput::TCookie, TChunkId> InputCookieToChunkId_;
+    THashMap<IChunkPoolInput::TCookie, std::vector<TChunkId>> InputCookieToChunkIds_;
 
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
@@ -2209,6 +2220,39 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCriteria2)
     EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_LE(90u, stripeLists.size());
     EXPECT_LE(stripeLists.size(), 110u);
+
+    CheckEverything(stripeLists);
+}
+
+TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCriteria2Dynamic)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false} /* isForeign */,
+        {false, false} /* isTeleportable */,
+        {false, true}  /* isVersioned */
+    );
+    InitPrimaryComparator(1);
+    DataSizePerJob_ = 10_KB;
+    InputSliceDataWeight_ = 1;
+    InitJobConstraints();
+
+    auto chunkA = CreateChunk(BuildRow({2}), BuildRow({4}), 0, 1_KB);
+    // This slice must not be further sliced because it corresponds to a dynamic table.
+    auto chunkB = CreateChunk(BuildRow({3}), BuildRow({3}), 1, 1_MB);
+
+    CreateChunkPool();
+
+    AddDataSlice(chunkA);
+    AddDataSlice(chunkB);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
+    EXPECT_LE(stripeLists.size(), 3u);
 
     CheckEverything(stripeLists);
 }
@@ -3900,7 +3944,7 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
         resumedCookies.insert(cookie);
         resumedChunks.insert(chunkId);
         pendingChunks.insert(chunkId);
-        InputCookieToChunkId_[cookie] = chunkId;
+        InputCookieToChunkIds_[cookie] = {chunkId};
     };
 
     for (const auto& stripe : stripesByPoolIndex[0]) {
@@ -4004,7 +4048,7 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
             if (auto randomElement = chooseRandomElement(resumedCookies)) {
                 auto cookie = *randomElement;
                 Cdebug << Format("Suspending cookie %v", cookie);
-                auto chunkId = InputCookieToChunkId_[cookie];
+                auto chunkId = InputCookieToChunkIds_[cookie].front();
                 YT_VERIFY(chunkId);
                 Cdebug << Format(" that corresponds to a chunk %v", chunkId) << Endl;
                 ASSERT_TRUE(resumedCookies.erase(cookie));
@@ -4017,7 +4061,7 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
             if (auto randomElement = chooseRandomElement(suspendedCookies)) {
                 auto cookie = *randomElement;
                 Cdebug << Format("Resuming cookie %v", cookie);
-                auto chunkId = InputCookieToChunkId_[cookie];
+                auto chunkId = InputCookieToChunkIds_[cookie].front();
                 YT_VERIFY(chunkId);
                 Cdebug << Format(" that corresponds to a chunk %v", chunkId) << Endl;
                 ASSERT_TRUE(suspendedCookies.erase(cookie));
@@ -4030,7 +4074,7 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
             if (auto randomElement = chooseRandomElement(suspendedCookies)) {
                 auto cookie = *randomElement;
                 Cdebug << Format("Resetting cookie %v", cookie);
-                auto chunkId = InputCookieToChunkId_[cookie];
+                auto chunkId = InputCookieToChunkIds_[cookie].front();
                 YT_VERIFY(chunkId);
                 Cdebug << Format(" that corresponds to a chunk %v", chunkId) << Endl;
                 // TODO(max42): reset to something different.
