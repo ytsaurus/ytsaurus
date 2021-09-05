@@ -131,9 +131,9 @@ namespace NTesting {
         MOCK_METHOD(IFileReaderPtr, CreateBlobTableReader, (const TYPath&, const TKey&, const TBlobTableReaderOptions&), (override));
         MOCK_METHOD(::TIntrusivePtr<INodeReaderImpl>, CreateNodeReader, (const TRichYPath&, const TTableReaderOptions&), (override));
         MOCK_METHOD(::TIntrusivePtr<IYaMRReaderImpl>, CreateYaMRReader, (const TRichYPath&, const TTableReaderOptions&), (override));
-        MOCK_METHOD3(CreateProtoReader, ::TIntrusivePtr<IProtoReaderImpl>(const TRichYPath&, const TTableReaderOptions&, const ::google::protobuf::Message*));
-        MOCK_METHOD2(CreateNodeWriter, ::TIntrusivePtr<INodeWriterImpl>(const TRichYPath&, const TTableWriterOptions&));
-        MOCK_METHOD2(CreateYaMRWriter, ::TIntrusivePtr<IYaMRWriterImpl>(const TRichYPath&, const TTableWriterOptions&));
+        MOCK_METHOD(::TIntrusivePtr<IProtoReaderImpl>, CreateProtoReader, (const TRichYPath&, const TTableReaderOptions&, const ::google::protobuf::Message*), (override));
+        MOCK_METHOD(::TIntrusivePtr<INodeWriterImpl>, CreateNodeWriter, (const TRichYPath&, const TTableWriterOptions&), (override));
+        MOCK_METHOD(::TIntrusivePtr<IYaMRWriterImpl>, CreateYaMRWriter, (const TRichYPath&, const TTableWriterOptions&), (override));
         MOCK_METHOD3(CreateProtoWriter, ::TIntrusivePtr<IProtoWriterImpl>(const TRichYPath&, const TTableWriterOptions&, const ::google::protobuf::Message*));
 
         MOCK_METHOD2(Sort, IOperationPtr(const TSortOperationSpec&, const TOperationOptions&));
@@ -151,10 +151,10 @@ namespace NTesting {
         MOCK_METHOD3(RawJoinReduce, IOperationPtr(const TRawJoinReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
         MOCK_METHOD5(DoMapReduce, IOperationPtr(const TMapReduceOperationSpec&, const IStructuredJob*, const IStructuredJob*, const IStructuredJob&, const TOperationOptions&));
         MOCK_METHOD5(RawMapReduce, IOperationPtr(const TRawMapReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, ::TIntrusivePtr<IRawJob>, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
-        MOCK_METHOD2(RunVanilla, IOperationPtr(const TVanillaOperationSpec&, const TOperationOptions&));
-        MOCK_METHOD1(AttachOperation, IOperationPtr(const TOperationId&));
+        MOCK_METHOD(IOperationPtr, RunVanilla, (const TVanillaOperationSpec&, const TOperationOptions&), (override));
+        MOCK_METHOD(IOperationPtr, AttachOperation, (const TOperationId&), (override));
 
-        MOCK_METHOD1(StartTransaction, ITransactionPtr(const TStartTransactionOptions&));
+        MOCK_METHOD(ITransactionPtr, StartTransaction, (const TStartTransactionOptions&), (override));
         MOCK_METHOD2(AlterTable, void(const TYPath&, const TAlterTableOptions&));
 
         MOCK_CONST_METHOD0(GetId, const TTransactionId&());
