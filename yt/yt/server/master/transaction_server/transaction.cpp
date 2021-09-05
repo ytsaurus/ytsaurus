@@ -135,7 +135,9 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
         Load(context, NativeCommitMutationRevision_);
     }
     // COMPAT(ignat)
-    if (context.GetVersion() >= EMasterReign::AccountResourceUsageLease) {
+    if (context.GetVersion() >= EMasterReign::AccountResourceUsageLease ||
+        (context.GetVersion() >= EMasterReign::AccountResourceUsageLease_20_3 && IsEpoch_20_3(context.GetVersion())))
+    {
         Load(context, AccountResourceUsageLeases_);
     }
 }

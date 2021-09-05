@@ -2805,7 +2805,9 @@ private:
             ProxyRoleMap_.LoadKeys(context);
         }
         // COMPAT(ignat)
-        if (context.GetVersion() >= EMasterReign::AccountResourceUsageLease) {
+        if (context.GetVersion() >= EMasterReign::AccountResourceUsageLease || 
+            (context.GetVersion() >= EMasterReign::AccountResourceUsageLease_20_3 && IsEpoch_20_3(context.GetVersion())))
+        {
             AccountResourceUsageLeaseMap_.LoadKeys(context);
         }
     }
@@ -2832,7 +2834,9 @@ private:
             ProxyRoleMap_.LoadValues(context);
         }
         // COMPAT(ignat)
-        if (context.GetVersion() >= EMasterReign::AccountResourceUsageLease) {
+        if (context.GetVersion() >= EMasterReign::AccountResourceUsageLease ||
+            (context.GetVersion() >= EMasterReign::AccountResourceUsageLease_20_3 && IsEpoch_20_3(context.GetVersion())))
+        {
             AccountResourceUsageLeaseMap_.LoadValues(context);
         }
     }

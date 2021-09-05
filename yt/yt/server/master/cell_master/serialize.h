@@ -99,6 +99,8 @@ DEFINE_ENUM(EMasterReign,
     ((ProperRowCountInJournalChunkTree)                             (1465))  // gritukan
     ((EvenBetterRowCountInJournalChunkTree)                         (1466))  // gritukan
     ((DropDanglingChunkViews20_3)                                   (1467))  // ifsmirnov
+    ((AccountResourceUsageLease_20_3)                               (1468))  // ignat
+
     // 21.1 starts here.
     ((SlotLocationStatisticsInNodeNode)                             (1500))  // gritukan
     ((EnableDescendingSortOrder)                                    (1501))  // max42
@@ -188,6 +190,10 @@ DEFINE_ENUM(EMasterReign,
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1800))  // ignat
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsEpoch_20_3(EMasterReign reign);
 
 ////////////////////////////////////////////////////////////////////////////////
 
