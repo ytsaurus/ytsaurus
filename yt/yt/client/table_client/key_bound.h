@@ -178,3 +178,20 @@ void PrintTo(const TOwningKeyBound& key, ::std::ostream* os);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
+
+//! A hasher for TUnversionedRow.
+template <>
+struct THash<NYT::NTableClient::TKeyBound>
+{
+    inline size_t operator()(const NYT::NTableClient::TKeyBound& keyBound) const
+    {
+        using NYT::HashCombine;
+
+        size_t result = 0;
+        HashCombine(result, keyBound.Prefix);
+        HashCombine(result, keyBound.IsInclusive);
+        HashCombine(result, keyBound.IsUpper);
+
+        return result;
+    }
+};
