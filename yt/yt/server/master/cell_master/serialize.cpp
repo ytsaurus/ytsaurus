@@ -39,6 +39,13 @@ EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsEpoch_20_3(EMasterReign reign)
+{
+    return reign < EMasterReign::SlotLocationStatisticsInNodeNode;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEntitySerializationKey TSaveContext::RegisterInternedYsonString(NYson::TYsonString str)
 {
     TYsonStringMap::insert_ctx context;
