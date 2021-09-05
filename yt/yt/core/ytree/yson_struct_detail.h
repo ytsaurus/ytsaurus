@@ -104,7 +104,7 @@ public:
 
     virtual IMapNodePtr GetRecursiveUnrecognized(const TYsonStructBase* target) const override;
 
-    virtual void RegisterParameter(TString key, IYsonStructParameterPtr parameter);
+    void RegisterParameter(TString key, IYsonStructParameterPtr parameter) override;
     virtual void RegisterPreprocessor(std::function<void(TYsonStructBase*)> preprocessor) override;
     virtual void RegisterPostprocessor(std::function<void(TYsonStructBase*)> postprocessor) override;
     virtual void SetUnrecognizedStrategy(EUnrecognizedStrategy strategy) override;
