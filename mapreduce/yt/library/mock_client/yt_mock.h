@@ -142,22 +142,22 @@ namespace NTesting {
         MOCK_METHOD(void, AbortOperation, (const TOperationId&), (override));
         MOCK_METHOD(void, CompleteOperation, (const TOperationId&), (override));
         MOCK_METHOD(void, WaitForOperation, (const TOperationId&), (override));
-        MOCK_METHOD1(CheckOperation, EOperationBriefState(const TOperationId&));
-        MOCK_METHOD3(DoMap, IOperationPtr(const TMapOperationSpec&, const IStructuredJob&, const TOperationOptions&));
-        MOCK_METHOD3(RawMap, IOperationPtr(const TRawMapOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
+        MOCK_METHOD(EOperationBriefState, CheckOperation, (const TOperationId&), (override));
+        MOCK_METHOD(IOperationPtr, DoMap, (const TMapOperationSpec&, const IStructuredJob&, const TOperationOptions&), (override));
+        MOCK_METHOD(IOperationPtr, RawMap, (const TRawMapOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&), (override));
         MOCK_METHOD(IOperationPtr, DoReduce, (const TReduceOperationSpec&, const IStructuredJob&, const TOperationOptions&), (override));
         MOCK_METHOD(IOperationPtr, RawReduce, (const TRawReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&), (override));
         MOCK_METHOD(IOperationPtr, DoJoinReduce, (const TJoinReduceOperationSpec&, const IStructuredJob&, const TOperationOptions&), (override));
-        MOCK_METHOD3(RawJoinReduce, IOperationPtr(const TRawJoinReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
-        MOCK_METHOD5(DoMapReduce, IOperationPtr(const TMapReduceOperationSpec&, const IStructuredJob*, const IStructuredJob*, const IStructuredJob&, const TOperationOptions&));
-        MOCK_METHOD5(RawMapReduce, IOperationPtr(const TRawMapReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, ::TIntrusivePtr<IRawJob>, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
+        MOCK_METHOD(IOperationPtr, RawJoinReduce, (const TRawJoinReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&), (override));
+        MOCK_METHOD(IOperationPtr, DoMapReduce, (const TMapReduceOperationSpec&, const IStructuredJob*, const IStructuredJob*, const IStructuredJob&, const TOperationOptions&), (override));
+        MOCK_METHOD(IOperationPtr, RawMapReduce, (const TRawMapReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, ::TIntrusivePtr<IRawJob>, ::TIntrusivePtr<IRawJob>, const TOperationOptions&), (override));
         MOCK_METHOD(IOperationPtr, RunVanilla, (const TVanillaOperationSpec&, const TOperationOptions&), (override));
         MOCK_METHOD(IOperationPtr, AttachOperation, (const TOperationId&), (override));
 
         MOCK_METHOD(ITransactionPtr, StartTransaction, (const TStartTransactionOptions&), (override));
-        MOCK_METHOD2(AlterTable, void(const TYPath&, const TAlterTableOptions&));
+        MOCK_METHOD(void, AlterTable, (const TYPath&, const TAlterTableOptions&), (override));
 
-        MOCK_CONST_METHOD0(GetId, const TTransactionId&());
+        MOCK_METHOD(const TTransactionId&, GetId, (), (const, override));
 
         MOCK_METHOD(ILockPtr, Lock, (const TYPath& path, ELockMode mode, const TLockOptions& options), (override));
         MOCK_METHOD(void, Unlock, (const TYPath& path, const TUnlockOptions& options), (override));
