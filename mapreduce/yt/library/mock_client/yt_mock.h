@@ -134,10 +134,10 @@ namespace NTesting {
         MOCK_METHOD(::TIntrusivePtr<IProtoReaderImpl>, CreateProtoReader, (const TRichYPath&, const TTableReaderOptions&, const ::google::protobuf::Message*), (override));
         MOCK_METHOD(::TIntrusivePtr<INodeWriterImpl>, CreateNodeWriter, (const TRichYPath&, const TTableWriterOptions&), (override));
         MOCK_METHOD(::TIntrusivePtr<IYaMRWriterImpl>, CreateYaMRWriter, (const TRichYPath&, const TTableWriterOptions&), (override));
-        MOCK_METHOD3(CreateProtoWriter, ::TIntrusivePtr<IProtoWriterImpl>(const TRichYPath&, const TTableWriterOptions&, const ::google::protobuf::Message*));
+        MOCK_METHOD(::TIntrusivePtr<IProtoWriterImpl>, CreateProtoWriter, (const TRichYPath&, const TTableWriterOptions&, const ::google::protobuf::Message*), (override));
 
-        MOCK_METHOD2(Sort, IOperationPtr(const TSortOperationSpec&, const TOperationOptions&));
-        MOCK_METHOD2(Merge, IOperationPtr(const TMergeOperationSpec&, const TOperationOptions&));
+        MOCK_METHOD(IOperationPtr, Sort, (const TSortOperationSpec&, const TOperationOptions&), (override));
+        MOCK_METHOD(IOperationPtr, Merge, (const TMergeOperationSpec&, const TOperationOptions&), (override));
         MOCK_METHOD2(Erase, IOperationPtr(const TEraseOperationSpec&, const TOperationOptions&));
         MOCK_METHOD1(AbortOperation, void(const TOperationId&));
         MOCK_METHOD1(CompleteOperation, void(const TOperationId&));
@@ -160,10 +160,10 @@ namespace NTesting {
         MOCK_CONST_METHOD0(GetId, const TTransactionId&());
 
         MOCK_METHOD3(Lock, ILockPtr(const TYPath& path, ELockMode mode, const TLockOptions& options));
-        MOCK_METHOD2(Unlock, void(const TYPath& path, const TUnlockOptions& options));
+        MOCK_METHOD(void, Unlock, (const TYPath& path, const TUnlockOptions& options), (override));
 
-        MOCK_METHOD0(Commit, void());
-        MOCK_METHOD0(Abort, void());
+        MOCK_METHOD(void, Commit, (), (override));
+        MOCK_METHOD(void, Abort, (), (override));
         MOCK_METHOD0(Ping, void());
 
         MOCK_METHOD0(GetParentClient, IClientPtr());
