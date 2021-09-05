@@ -138,10 +138,10 @@ namespace NTesting {
 
         MOCK_METHOD(IOperationPtr, Sort, (const TSortOperationSpec&, const TOperationOptions&), (override));
         MOCK_METHOD(IOperationPtr, Merge, (const TMergeOperationSpec&, const TOperationOptions&), (override));
-        MOCK_METHOD2(Erase, IOperationPtr(const TEraseOperationSpec&, const TOperationOptions&));
-        MOCK_METHOD1(AbortOperation, void(const TOperationId&));
-        MOCK_METHOD1(CompleteOperation, void(const TOperationId&));
-        MOCK_METHOD1(WaitForOperation, void(const TOperationId&));
+        MOCK_METHOD(IOperationPtr, Erase, (const TEraseOperationSpec&, const TOperationOptions&), (override));
+        MOCK_METHOD(void, AbortOperation, (const TOperationId&), (override));
+        MOCK_METHOD(void, CompleteOperation, (const TOperationId&), (override));
+        MOCK_METHOD(void, WaitForOperation, (const TOperationId&), (override));
         MOCK_METHOD1(CheckOperation, EOperationBriefState(const TOperationId&));
         MOCK_METHOD3(DoMap, IOperationPtr(const TMapOperationSpec&, const IStructuredJob&, const TOperationOptions&));
         MOCK_METHOD3(RawMap, IOperationPtr(const TRawMapOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
@@ -159,14 +159,14 @@ namespace NTesting {
 
         MOCK_CONST_METHOD0(GetId, const TTransactionId&());
 
-        MOCK_METHOD3(Lock, ILockPtr(const TYPath& path, ELockMode mode, const TLockOptions& options));
+        MOCK_METHOD(ILockPtr, Lock, (const TYPath& path, ELockMode mode, const TLockOptions& options), (override));
         MOCK_METHOD(void, Unlock, (const TYPath& path, const TUnlockOptions& options), (override));
 
         MOCK_METHOD(void, Commit, (), (override));
         MOCK_METHOD(void, Abort, (), (override));
-        MOCK_METHOD0(Ping, void());
+        MOCK_METHOD(void, Ping, (), (override));
 
-        MOCK_METHOD0(GetParentClient, IClientPtr());
+        MOCK_METHOD(IClientPtr, GetParentClient, (), (override));
     };
 
     class TLockMock : public ILock {
