@@ -205,12 +205,7 @@ def parse_args(parser=None, parser_arguments=None):
     args.discovery_path = args.discovery_path or args.discovery_dir or default_discovery_dir()
     return args, unknown_args
 
-
+# backward compatibility
 def tuple(element_types):
-    """
-    :param element_types: List[DataType]
-    :return: StructType
-    """
-    from pyspark.sql.types import StructType, StructField
-    struct_fields = [StructField("_{}".format(i + 1), element_type) for i, element_type in enumerate(element_types)]
-    return StructType(struct_fields)
+    from .types import tuple_type
+    return tuple_type(element_types)

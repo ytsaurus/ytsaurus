@@ -25,6 +25,7 @@ case class YtEventLogFileMeta(rowSize: Int,
 
 object YtEventLogFileMeta {
   def apply(node: YTreeNode): YtEventLogFileMeta = {
+    import ru.yandex.spark.yt.wrapper.YtJavaConverters._
     val mp = node.asMap()
 
     YtEventLogFileMeta(

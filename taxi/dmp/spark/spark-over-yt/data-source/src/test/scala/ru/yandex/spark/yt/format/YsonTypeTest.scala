@@ -12,10 +12,12 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.format.tmp.Test
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
+import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
 
 class YsonTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir with TestUtils {
+
   import spark.implicits._
 
   def collectBytes(path: String): Seq[Array[Byte]] = {
@@ -24,29 +26,30 @@ class YsonTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir wi
       .as[Array[Byte]].collect()
   }
 
-  def typeV3(path: String, fieldName: String): String = {
+  def schema(path: String, fieldName: String): java.util.Map[String, YTreeNode] = {
+    import scala.collection.JavaConverters._
+
     val schema = YtWrapper.attribute(path, "schema")
     schema.asList()
+      .asScala
       .find((t: YTreeNode) => t.asMap().getOrThrow("name").stringValue() == fieldName)
-      .get().asMap()
+      .get.asMap()
+  }
+
+  def typeV3(path: String, fieldName: String): String = {
+    schema(path, fieldName)
       .getOrThrow("type_v3").asMap()
       .getOrThrow("item").stringValue()
   }
 
   def typeV2(path: String, fieldName: String): String = {
-    val schema = YtWrapper.attribute(path, "schema")
-    schema.asList()
-      .find((t: YTreeNode) => t.asMap().getOrThrow("name").stringValue() == fieldName)
-      .get().asMap()
+    schema(path, fieldName)
       .getOrThrow("type_v2").asMap()
       .getOrThrow("element").stringValue()
   }
 
   def typeV1(path: String, fieldName: String): String = {
-    val schema = YtWrapper.attribute(path, "schema")
-    schema.asList()
-      .find((t: YTreeNode) => t.asMap().getOrThrow("name").stringValue() == fieldName)
-      .get().asMap()
+    schema(path, fieldName)
       .getOrThrow("type").stringValue()
   }
 
@@ -165,7 +168,7 @@ class YsonTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir wi
 
   it should "validate binary cast to yson" in {
     Logger.getRootLogger.setLevel(Level.OFF)
-    an [Exception] should be thrownBy {
+    an[Exception] should be thrownBy {
       Seq(
         Array[Byte](4, 5, 6),
         Array[Byte](7, 8, 9)
@@ -187,7 +190,7 @@ class YsonTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir wi
       .select("key", "value1", "value2")
       .as[(Int, Array[Long], String)]
       .collect()
-      .map{case (k, v1, v2) => (k, v1.toList, v2)}
+      .map { case (k, v1, v2) => (k, v1.toList, v2) }
 
     res should contain theSameElementsAs Seq(
       (1, Seq(1L, 2L, 3L), "a"),
@@ -199,19 +202,19 @@ class YsonTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir wi
   it should "prohibit yson type in complex types" in {
     Seq(1 -> Seq(1, 2, 3), 2 -> Seq(4, 5, 6)).toDF("key", "value1").coalesce(1).write.yt(s"$tmpPath/1")
 
-    an [Exception] should be thrownBy {
+    an[Exception] should be thrownBy {
       spark.read.yt(s"$tmpPath/1")
         .withColumn("value2", struct('key, 'value1))
         .write.yt(s"$tmpPath/2")
     }
 
-    an [Exception] should be thrownBy {
+    an[Exception] should be thrownBy {
       spark.read.yt(s"$tmpPath/1")
         .withColumn("value2", map('key, 'value1))
         .write.yt(s"$tmpPath/2")
     }
 
-    an [Exception] should be thrownBy {
+    an[Exception] should be thrownBy {
       spark.read.yt(s"$tmpPath/1")
         .withColumn("value2", array('value1))
         .write.yt(s"$tmpPath/2")

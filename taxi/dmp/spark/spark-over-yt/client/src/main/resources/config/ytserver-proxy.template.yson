@@ -11,11 +11,6 @@
         "use_tvm" = %$TVM_ENABLED;
     };
     "blackbox_token_authenticator" = {
-        "cache" = {
-            "expire_after_access_time" = 21600000;
-            "expire_after_successful_update_time" = 21600000;
-            "refresh_time" = 60000;
-        };
         "scope" = "yt:api";
     };
     "cluster_connection" = {
@@ -36,23 +31,8 @@
             "verify_checksums" = %false;
         };
     };
-    "cypress_token_authenticator" = {
-        "secure" = %true;
-    };
     "discovery_service" = {
         "enable" = %false;
-    };
-    "tvm_service" = {
-        "client_self_id" = $TVM_CLIENT_ID;
-        "client_self_secret" = "$TVM_CLIENT_SECRET";
-        "client_dst_map" = {
-            "blackbox" = 223;
-        };
-        "client_enable_user_ticket_checking" = %$TVM_ENABLE_USER_TICKET_CHECKING;
-        "client_enable_service_ticket_fetching" = %$TVM_ENABLE_SERVICE_TICKET_FETCHING;
-        "port" = $TVM_PORT;
-        "host" = "$TVM_HOST";
-        "token" = "$TVM_CLIENT_SECRET";
     };
     "logging" = {
         "check_space_period" = 5000;
@@ -163,5 +143,17 @@
             "cookie" = "$YT_JOB_COOKIE";
             "operation_alias" = "$YT_OPERATION_ALIAS";
         };
+    };
+    "tvm_service" = {
+        "client_self_id" = $TVM_CLIENT_ID;
+        "client_self_secret" = "$TVM_CLIENT_SECRET";
+        "client_dst_map" = {
+            "blackbox" = 223;
+        };
+        "client_enable_user_ticket_checking" = %$TVM_ENABLE_USER_TICKET_CHECKING;
+        "client_enable_service_ticket_fetching" = %$TVM_ENABLE_SERVICE_TICKET_FETCHING;
+        "port" = $TVM_PORT;
+        "host" = "$TVM_HOST";
+        "token" = "$TVM_CLIENT_SECRET";
     };
 }

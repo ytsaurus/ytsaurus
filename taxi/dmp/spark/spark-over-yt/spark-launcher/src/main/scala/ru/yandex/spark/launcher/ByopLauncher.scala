@@ -32,13 +32,13 @@ trait ByopLauncher extends SidecarLauncher {
         val replacedAliases = templateContent
           .replaceAll("\\$SPARK_YT_BYOP_PORT", c.port.toString)
           .replaceAll("\\$SPARK_YT_BYOP_MONITORING_PORT", c.monitoringPort.toString)
-          .replaceAll("\\$TVM_ENABLED", c.tvm_enabled.toString)
-          .replaceAll("\\$TVM_CLIENT_ID", c.tvm_client_id.toString)
-          .replaceAll("\\$TVM_CLIENT_SECRET", c.tvm_client_secret)
-          .replaceAll("\\$TVM_ENABLE_USER_TICKET_CHECKING", c.tvm_enable_user_ticket_checking.toString)
-          .replaceAll("\\$TVM_ENABLE_SERVICE_TICKET_FETCHING", c.tvm_client_enable_service_ticket_fetching.toString)
-          .replaceAll("\\$TVM_HOST", c.tvm_host)
-          .replaceAll("\\$TVM_PORT", c.tvm_port.toString)
+          .replaceAll("\\$TVM_ENABLED", c.tvmEnabled.toString)
+          .replaceAll("\\$TVM_CLIENT_ID", c.tvmClientId.toString)
+          .replaceAll("\\$TVM_CLIENT_SECRET", c.tvmClientSecret)
+          .replaceAll("\\$TVM_ENABLE_USER_TICKET_CHECKING", c.tvmEnableUserTicketChecking.toString)
+          .replaceAll("\\$TVM_ENABLE_SERVICE_TICKET_FETCHING", c.tvmClientEnableServiceTicketFetching.toString)
+          .replaceAll("\\$TVM_HOST", c.tvmHost)
+          .replaceAll("\\$TVM_PORT", c.tvmPort.toString)
 
         val is = new ByteArrayInputStream(replacedAliases.getBytes(StandardCharsets.UTF_8))
         val ysonConfigTry = Try(YTreeTextSerializer.deserialize(is).asInstanceOf[YTreeMapNode])
@@ -50,6 +50,7 @@ trait ByopLauncher extends SidecarLauncher {
         ytRpc.close()
 
         ByopLauncher.update(ysonConfig, remoteClusterConnection.get, "cluster_connection")
+        if (!c.tvmEnabled) ysonConfig.remove("tvm_service")
         YTreeTextSerializer.serialize(ysonConfig)
     }
   }
@@ -66,7 +67,7 @@ trait ByopLauncher extends SidecarLauncher {
 object ByopLauncher {
   private[launcher] def update(node: YTreeMapNode, patch: YTreeNode, key: String): Unit = {
     val emptyMapNode = new YTreeBuilder().beginMap().endMap().build()
-    val updateNode = node.get(key).getOrElse(emptyMapNode)
+    val updateNode = node.get(key).orElseGet(() => emptyMapNode)
     node.put(key, update(updateNode, patch))
   }
 
@@ -111,13 +112,13 @@ object ByopLauncher {
                         ytJobCookie: String,
                         ytConf: YtClientConfiguration,
                         timeout: Duration,
-                        tvm_enabled: Boolean,
-                        tvm_host: String,
-                        tvm_port: Int,
-                        tvm_client_id: Int,
-                        tvm_client_secret: String,
-                        tvm_enable_user_ticket_checking: Boolean,
-                        tvm_client_enable_service_ticket_fetching: Boolean) extends SidecarConfig {
+                        tvmEnabled: Boolean,
+                        tvmHost: String,
+                        tvmPort: Int,
+                        tvmClientId: Int,
+                        tvmClientSecret: String,
+                        tvmEnableUserTicketChecking: Boolean,
+                        tvmClientEnableServiceTicketFetching: Boolean) extends SidecarConfig {
     override def host: String = "localhost"
 
     override def serviceName: String = "BYOP"
@@ -156,14 +157,14 @@ object ByopLauncher {
           ytJobCookie = args.optional("job-cookie").getOrElse(sys.env("YT_JOB_COOKIE")),
           ytConf = ytConf,
           timeout = timeout,
-          tvm_enabled = tvmEnabled,
-          tvm_host = optionArg("tvm-host").getOrElse("localhost"),
-          tvm_port = optionArg("tvm-port").map(_.toInt).getOrElse(13000),
-          tvm_client_id = sys.env.get("YT_SECURE_VAULT_SPARK_TVM_ID").map(_.toInt).getOrElse(0),
-          tvm_client_secret = sys.env.getOrElse("YT_SECURE_VAULT_SPARK_TVM_SECRET", ""),
-          tvm_enable_user_ticket_checking = optionArg("tvm-enable-user-ticket-checking")
+          tvmEnabled = tvmEnabled,
+          tvmHost = optionArg("tvm-host").getOrElse("localhost"),
+          tvmPort = optionArg("tvm-port").map(_.toInt).getOrElse(13000),
+          tvmClientId = sys.env.get("YT_SECURE_VAULT_SPARK_TVM_ID").map(_.toInt).getOrElse(0),
+          tvmClientSecret = sys.env.getOrElse("YT_SECURE_VAULT_SPARK_TVM_SECRET", ""),
+          tvmEnableUserTicketChecking = optionArg("tvm-enable-user-ticket-checking")
             .map(_.toBoolean).getOrElse(tvmEnabled),
-          tvm_client_enable_service_ticket_fetching = optionArg("tvm-enable-service-ticket-checking")
+          tvmClientEnableServiceTicketFetching = optionArg("tvm-enable-service-ticket-checking")
             .map(_.toBoolean).getOrElse(tvmEnabled),
         ))
       } else None

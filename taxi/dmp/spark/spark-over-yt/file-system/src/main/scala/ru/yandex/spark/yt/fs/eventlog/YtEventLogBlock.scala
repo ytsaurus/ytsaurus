@@ -22,6 +22,7 @@ case class YtEventLogBlock(id: String,
 
 object YtEventLogBlock {
   def apply(node: YTreeNode): YtEventLogBlock = {
+    import ru.yandex.spark.yt.wrapper.YtJavaConverters._
     val mp = node.asMap()
 
     new YtEventLogBlock(

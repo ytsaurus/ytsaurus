@@ -1,5 +1,4 @@
 import Dependencies._
-import com.typesafe.sbt.packager.linux.{LinuxPackageMapping, LinuxSymlink}
 import sbtrelease.ReleasePlugin.autoImport.releaseProcess
 import spyt.DebianPackagePlugin.autoImport._
 import spyt.PythonPlugin.autoImport._
@@ -11,12 +10,15 @@ import spyt.ZipPlugin.autoImport._
 import spyt._
 
 lazy val `yt-wrapper` = (project in file("yt-wrapper"))
+  .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= circe,
     libraryDependencies ++= sttp,
     libraryDependencies ++= yandexIceberg,
     libraryDependencies ++= logging.map(_ % Provided),
-    libraryDependencies ++= testDeps
+    libraryDependencies ++= testDeps,
+    buildInfoKeys := Seq[BuildInfoKey](version, BuildInfoKey.constant(("ytClientVersion", yandexIcebergVersion))),
+    buildInfoPackage := "ru.yandex.spark.yt"
   )
 
 lazy val `spark-launcher` = (project in file("spark-launcher"))
@@ -37,7 +39,7 @@ lazy val `spark-submit` = (project in file("spark-submit"))
   .settings(
     libraryDependencies ++= scaldingArgs,
     libraryDependencies ++= py4j,
-    libraryDependencies ++= commonDependencies,
+    libraryDependencies ++= yandexIceberg.map(_ % Provided) ++ spark ++ circe.map(_ % Provided) ++ logging.map(_ % Provided),
     assembly / assemblyJarName := s"spark-yt-submit.jar"
   )
 
@@ -45,7 +47,7 @@ lazy val `submit-client` = (project in file("submit-client"))
   .dependsOn(`spark-submit`, `file-system`)
   .settings(
     libraryDependencies ++= sparkFork,
-    libraryDependencies ++= logging
+    libraryDependencies ++= yandexIceberg ++ circe ++ logging
   )
 
 lazy val commonDependencies = yandexIceberg ++ spark ++ circe ++ logging.map(_ % Provided)
@@ -76,6 +78,11 @@ lazy val `data-source` = (project in file("data-source"))
     assembly / assemblyShadeRules ++= Seq(
       ShadeRule.rename(
         "ru.yandex.spark.yt.wrapper.**" -> "shadeddatasource.ru.yandex.spark.yt.wrapper.@1",
+        "ru.yandex.yt.**" -> "shadeddatasource.ru.yandex.yt.@1",
+        "ru.yandex.inside.**" -> "shadeddatasource.ru.yandex.inside.@1",
+        "org.objenesis.**" -> "shadeddatasource.org.objenesis.@1",
+        "com.google.protobuf.**" -> "shadeddatasource.com.google.protobuf.@1",
+        "NYT.**" -> "shadeddatasource.NYT.@1"
       ).inAll
     ),
     assembly / test := {}
@@ -100,7 +107,10 @@ lazy val `file-system` = (project in file("file-system"))
         "ru.yandex.spark.yt.fs.eventlog.YtEventLogFileSystem" -> "ru.yandex.spark.yt.fs.eventlog.YtEventLogFileSystem",
         "ru.yandex.misc.log.**" -> "ru.yandex.misc.log.@1",
         "ru.yandex.**" -> "shadedyandex.ru.yandex.@1",
-        "org.asynchttpclient.**" -> "shadedyandex.org.asynchttpclient.@1"
+        "org.asynchttpclient.**" -> "shadedyandex.org.asynchttpclient.@1",
+        "org.objenesis.**" -> "shadedyandex.org.objenesis.@1",
+        "com.google.protobuf.**" -> "shadedyandex.com.google.protobuf.@1",
+        "NYT.**" -> "shadedyandex.NYT.@1"
       ).inAll
     ),
     assembly / test := {}

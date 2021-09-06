@@ -2,7 +2,6 @@ package ru.yandex.spark.launcher
 
 import io.circe.parser.decode
 import io.circe.{Decoder, HCursor}
-import ru.yandex.bolts.collection.MapF
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.launcher.WorkerLogBlock.formatter
 import ru.yandex.spark.yt.wrapper.model.WorkerLogSchema.Key._
@@ -73,18 +72,8 @@ object WorkerLogBlockInner {
     )
   }
 
-  implicit class RichMapF(map: MapF[String, YTreeNode]) {
-    def getOptionString(key: String): Option[String] = {
-      val res = map.getOrThrow(key)
-      if (res.isEntityNode) {
-        None
-      } else {
-        Some(res.stringValue())
-      }
-    }
-  }
-
   def apply(node: YTreeNode): WorkerLogBlockInner = {
+    import ru.yandex.spark.yt.wrapper.YtJavaConverters._
     val mp = node.asMap()
     val dt = mp.getOrThrow(DATE).stringValue()
 

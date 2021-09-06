@@ -4,8 +4,8 @@ import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.model.WorkerLogSchema.Key._
 
-import java.time.{LocalDate, LocalDateTime}
 import java.time.format.DateTimeFormatter
+import java.time.{LocalDate, LocalDateTime}
 import java.util
 
 case class WorkerLogBlock(appDriver: String,
@@ -33,7 +33,7 @@ object WorkerLogBlock {
   val formatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
 
   def fromJson(json: String, stream: String, appDriver: String, executorId: String,
-                rowId: Long, fileCreationTime: LocalDateTime): WorkerLogBlock = {
+               rowId: Long, fileCreationTime: LocalDateTime): WorkerLogBlock = {
     WorkerLogBlock(appDriver, executorId, stream, rowId, WorkerLogBlockInner.fromJson(json, fileCreationTime))
   }
 
@@ -43,6 +43,7 @@ object WorkerLogBlock {
   }
 
   def apply(node: YTreeNode): WorkerLogBlock = {
+    import ru.yandex.spark.yt.wrapper.YtJavaConverters._
     val mp = node.asMap()
 
     new WorkerLogBlock(

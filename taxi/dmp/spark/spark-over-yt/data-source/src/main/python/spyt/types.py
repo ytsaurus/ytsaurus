@@ -79,3 +79,13 @@ def string_to_uint64(number):
 
 uint64_to_string_udf = udf(uint64_to_string, StringType())
 string_to_uint64_udf = udf(string_to_uint64, UInt64Type())
+
+def tuple_type(element_types):
+    """
+    :param element_types: List[DataType]
+    :return: StructType
+    """
+    from pyspark.sql.types import StructType, StructField
+    struct_fields = [StructField("_{}".format(i + 1), element_type) for i, element_type in enumerate(element_types)]
+    return StructType(struct_fields)
+

@@ -1,7 +1,6 @@
 package ru.yandex.spark.yt.wrapper.client
 
 import org.slf4j.LoggerFactory
-import ru.yandex.inside.yt.kosher.Yt
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
@@ -26,10 +25,6 @@ object YtClientProvider {
     log.info(s"Create YtClient for id $id")
     YtWrapper.createRpcClient(id, conf)
   })
-
-  def httpClient: Yt = {
-    YtWrapper.createHttpClient(conf.get())
-  }
 
   def close(): Unit = {
     log.info(s"Close all YT Clients")

@@ -122,7 +122,7 @@ class YtOutputWriterTest extends FlatSpec with TmpDir with LocalSpark with Match
 
         override def getRowsetDescriptor: TRowsetDescriptor = writer.getRowsetDescriptor
 
-        override def getTableSchema: TableSchema = writer.getTableSchema
+        override def getTableSchema: CompletableFuture[TableSchema] = writer.getTableSchema
 
         override def cancel(): Unit = writer.cancel()
       }
