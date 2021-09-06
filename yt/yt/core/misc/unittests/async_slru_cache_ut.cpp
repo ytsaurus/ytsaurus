@@ -75,6 +75,7 @@ protected:
     void OnRemoved(const TSimpleCachedValuePtr& /*value*/) override
     {
         --ItemCount_;
+        EXPECT_GE(ItemCount_, 0);
     }
 };
 
@@ -350,6 +351,49 @@ TEST(TAsyncSrluCacheTest, AddRemoveWithResurrection)
             EXPECT_EQ(cache->GetItemCount(), 2);
             EXPECT_EQ(cache->GetItemCount(), cache->GetSize());
         }
+    }
+}
+
+TEST(TAsyncSrluCacheTest, AddThenImmediatelyRemove)
+{
+    constexpr int cacheSize = 1;
+    auto config = CreateCacheConfig(cacheSize);
+    auto cache = New<TCountingSlruCache>(std::move(config));
+
+    auto persistentValue = New<TSimpleCachedValue>(
+        /* key */ 0,
+        /* value */ 42,
+        /* weight */ 100);
+
+    {
+        auto cookie = cache->BeginInsert(0);
+        cookie.EndInsert(persistentValue);
+        EXPECT_EQ(cache->GetItemCount(), 0);
+    }
+
+    {
+        auto cookie = cache->BeginInsert(1);
+        auto temporaryValue = New<TSimpleCachedValue>(
+            /* key */ 1,
+            /* value */ 43,
+            /* weight */ 100);
+        cookie.EndInsert(temporaryValue);
+        temporaryValue.Reset();
+        EXPECT_EQ(cache->GetItemCount(), 0);
+    }
+
+    {
+        auto value = cache->Lookup(0)
+            .Get()
+            .ValueOrThrow();
+        EXPECT_EQ(cache->GetItemCount(), 0);
+        EXPECT_EQ(value->Value, 42);
+    }
+
+    {
+        auto value = cache->Lookup(1);
+        EXPECT_EQ(cache->GetItemCount(), 0);
+        ASSERT_FALSE(static_cast<bool>(value));
     }
 }
 

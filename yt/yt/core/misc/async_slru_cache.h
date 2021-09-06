@@ -205,6 +205,11 @@ private:
 
     void DoTryRemove(const TKey& key, const TValuePtr& value, bool forbidResurrection);
 
+    std::vector<TValuePtr> DoTrim(TShard* shard);
+    void FinishInsertAndTrim(
+        TShard* shard,
+        NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard,
+        const TValuePtr& insertedItem);
     void Trim(TShard* shard, NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard);
 
     void EndInsert(TValuePtr value);
