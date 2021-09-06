@@ -5,7 +5,7 @@ from yt_commands import (
     create_medium, create_account, read_table,
     write_table, map,
     start_transaction, abort_transaction,
-    create_account_resource_usage_lease)
+    create_account_resource_usage_lease, update_controller_agent_config)
 
 from yt.common import YtError, update
 
@@ -997,3 +997,48 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
         # Check that second operation failed due to lack of space.
         with pytest.raises(YtError):
             start_op("ssd", "my_account", 768 * 1024, track=True)
+
+    @authors("ignat")
+    def test_disabled_accounting(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "bar"}])
+        create("table", "//tmp/out")
+
+        create_account("my_account")
+        set("//sys/accounts/my_account/@resource_limits/disk_space_per_medium/ssd", 1024 * 1024)
+
+        update_controller_agent_config("enable_master_resource_usage_accounting", False)
+
+        def start_op(medium_type, account, disk_space, track, sleep_seconds=100):
+            disk_request = {"disk_space": disk_space}
+            if medium_type is not None:
+                disk_request["medium_name"] = medium_type
+                if account is not None:
+                    disk_request["account"] = account
+
+            return map(
+                command="cat; echo $(pwd) >&2; sleep {}".format(sleep_seconds),
+                in_="//tmp/in",
+                out="//tmp/out",
+                spec={
+                    "mapper": {
+                        "disk_request": disk_request
+                    },
+                    "max_failed_job_count": 1,
+                },
+                track=track,
+            )
+
+        # Check that account is obligatory for ssd medium
+        with pytest.raises(YtError):
+            start_op("ssd", None, 1024 * 1024, track=True)
+
+        start_op("ssd", "my_account", 1024 * 1024, track=True, sleep_seconds=1)
+
+        # Artificially take some space from account.
+        tx = start_transaction(timeout=60000)
+        lease_id = create_account_resource_usage_lease(account="my_account", transaction_id=tx)
+        set("#{}/@resource_usage".format(lease_id), {"disk_space_per_medium": {"ssd": 1024}})
+
+        # Check that operation is successful since accounting is disabled.
+        start_op("ssd", "my_account", 1024 * 1024, track=True)

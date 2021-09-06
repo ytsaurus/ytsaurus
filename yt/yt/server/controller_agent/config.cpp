@@ -839,6 +839,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("obligatory_account_mediums", ObligatoryAccountMediums)
         .Default();
 
+    RegisterParameter("enable_master_resource_usage_accounting", EnableMasterResourceUsageAccounting)
+        .Default(true);
+
     RegisterParameter("memory_watchdog", MemoryWatchdog)
         .DefaultNew();
 
