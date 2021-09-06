@@ -55,6 +55,9 @@ std::pair<TConstExpressionPtr, TConstExpressionPtr> SplitPredicateByColumnSubset
     TConstExpressionPtr root,
     const TTableSchema& tableSchema);
 
+// Wrapper around CompareRowValues that checks that its arguments are not nan.
+int CompareRowValuesCheckingNan(const NTableClient::TUnversionedValue& lhs, const NTableClient::TUnversionedValue& rhs);
+
 template <class TIter>
 TIter MergeOverlappingRanges(TIter begin, TIter end)
 {

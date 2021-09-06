@@ -67,14 +67,15 @@ TEST(TUnversionedValueTest, CompareNaN)
 {
     auto nanValue = MakeUnversionedDoubleValue(std::numeric_limits<double>::quiet_NaN());
     auto doubleValue = MakeUnversionedDoubleValue(3.14);
+    EXPECT_EQ(CompareRowValues(nanValue, nanValue), 0);
+    EXPECT_EQ(CompareRowValues(nanValue, doubleValue), 1);
+    EXPECT_EQ(CompareRowValues(doubleValue, nanValue), -1);
+
     static const char* stringValueData = "foo";
     auto stringValue = MakeUnversionedStringValue(stringValueData);
-    EXPECT_THROW(CompareRowValues(nanValue, nanValue), std::exception);
-    EXPECT_THROW(CompareRowValues(nanValue, doubleValue), std::exception);
-    EXPECT_THROW(CompareRowValues(doubleValue, nanValue), std::exception);
-    EXPECT_THROW(CompareRowValues(nanValue, stringValue), std::exception);
-    EXPECT_THROW(CompareRowValues(stringValue, nanValue), std::exception);
-    EXPECT_NO_THROW(CompareRowValues(stringValue, doubleValue));
+
+    EXPECT_NO_THROW(CompareRowValues(nanValue, stringValue));
+    EXPECT_NO_THROW(CompareRowValues(stringValue, nanValue));
 }
 
 TEST(TUnversionedValueTest, CompareComposite)
