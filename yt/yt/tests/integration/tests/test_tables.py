@@ -7,10 +7,11 @@ from yt_commands import (
     write_table, read_blob_table, map, map_reduce, merge,
     sort, remote_copy, get_first_chunk_id,
     get_singular_chunk_id, get_chunk_replication_factor, set_banned_flag,
-    get_recursive_disk_space, get_chunk_owner_disk_space, raises_yt_error)
+    get_recursive_disk_space, get_chunk_owner_disk_space, raises_yt_error
+)
 
 from yt_helpers import skip_if_no_descending
-from yt_type_helpers import make_schema, normalize_schema
+from yt_type_helpers import make_schema, normalize_schema, list_type
 import yt_error_codes
 
 from yt.environment.helpers import assert_items_equal
@@ -2746,8 +2747,6 @@ class TestTablesMulticell(TestTables):
     @authors("ermolovd")
     def test_nan_values_operations(self):
         create("table", "//tmp/input")
-        create("table", "//tmp/failed_sort")
-        create("table", "//tmp/failed_mapreduce")
         create("table", "//tmp/sorted")
         create("table", "//tmp/map_reduce")
 
@@ -2761,36 +2760,62 @@ class TestTablesMulticell(TestTables):
             ],
         )
 
-        with pytest.raises(YtError):
-            sort(in_="//tmp/input", out="//tmp/failed_sort", sort_by=["foo"])
+        sort(in_="//tmp/input", out="//tmp/sorted", sort_by=["foo"])
 
-        with pytest.raises(YtError):
-            map_reduce(
-                in_="//tmp/input",
-                out="//tmp/failed_map_reduce",
-                mapper_command="cat",
-                reducer_command="cat",
-                sort_by=["foo"],
-            )
-
-        sort(in_="//tmp/input", out="//tmp/sorted", sort_by=["bar"])
+        # check no errors
         map_reduce(
             in_="//tmp/input",
             out="//tmp/map_reduce",
             mapper_command="cat",
             reducer_command="cat",
-            sort_by=["bar"],
+            sort_by=["foo"],
         )
 
-        def check_table(table_name):
-            for row in read_table(table_name):
-                if row["bar"] in "bd":
-                    assert math.isnan(row["foo"])
-                else:
-                    assert not math.isnan(row["foo"])
+        rows = read_table("//tmp/sorted")
+        for r in rows:
+            # N.B. Python cannot compare NaN values correctly so we cast them to strings
+            if math.isnan(r["foo"]):
+                r["foo"] = "nan"
 
-        check_table("//tmp/sorted")
-        check_table("//tmp/map_reduce")
+        assert rows == [
+            {"foo": 1.0, "bar": "a"},
+            {"foo": 2.0, "bar": "c"},
+            {"foo": "nan", "bar": "b"},
+            {"foo": "nan", "bar": "d"},
+        ]
+
+        create("table", "//tmp/composite_input", attributes={
+            "schema": [
+                {"name": "foo", "type_v3": list_type("double")},
+                {"name": "bar", "type_v3": "string"},
+            ]
+        })
+        create("table", "//tmp/composite_sorted")
+
+        write_table(
+            "//tmp/composite_input",
+            [
+                {"foo": [float(1)], "bar": "a"},
+                {"foo": [float("nan")], "bar": "b"},
+                {"foo": [float("nan"), float("nan")], "bar": "d"},
+                {"foo": [float(2)], "bar": "c"},
+            ],
+        )
+        sort(in_="//tmp/composite_input", out="//tmp/composite_sorted", sort_by=["foo"])
+
+        rows = read_table("//tmp/composite_sorted")
+        for r in rows:
+            # N.B. Python cannot compare NaN values correctly so we cast them to strings
+            for i in range(len(r["foo"])):
+                if math.isnan(r["foo"][i]):
+                    r["foo"][i] = "nan"
+
+        assert rows == [
+            {"foo": [1.0], "bar": "a"},
+            {"foo": [2.0], "bar": "c"},
+            {"foo": ["nan"], "bar": "b"},
+            {"foo": ["nan", "nan"], "bar": "d"},
+        ]
 
     @authors("ermolovd", "kiselyovp")
     def test_nan_values_sorted_write(self):
@@ -2823,13 +2848,12 @@ class TestTablesMulticell(TestTables):
             ],
         )
 
-        with pytest.raises(YtError):
-            write_table(
-                "<append=%true>//tmp/input",
-                [
-                    {"foo": float("nan"), "bar": "e"},
-                ],
-            )
+        write_table(
+            "<append=%true>//tmp/input",
+            [
+                {"foo": float("nan"), "bar": "e"},
+            ],
+        )
         self._wait_until_unlocked("//tmp/input")
 
     @authors("gritukan")

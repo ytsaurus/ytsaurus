@@ -285,7 +285,7 @@ namespace {
 int CompareRow(TRow lhs, TRow rhs, const std::vector<size_t>& mapping)
 {
     for (auto index : mapping) {
-        int result = CompareRowValues(lhs.Begin()[index], rhs.Begin()[index]);
+        int result = CompareRowValuesCheckingNan(lhs.Begin()[index], rhs.Begin()[index]);
 
         if (result != 0) {
             return result;
@@ -782,6 +782,17 @@ std::pair<TConstExpressionPtr, TConstExpressionPtr> SplitPredicateByColumnSubset
     }
 
     return std::make_pair(projected, remaining);
+}
+
+// Wrapper around CompareRowValues that checks that its arguments are not nan.
+int CompareRowValuesCheckingNan(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
+{
+    if (lhs.Type == rhs.Type && lhs.Type == EValueType::Double &&
+        (std::isnan(lhs.Data.Double) || std::isnan(rhs.Data.Double)))
+    {
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::InvalidDoubleValue, "NaN value is not comparable");
+    }
+    return CompareRowValues(lhs, rhs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

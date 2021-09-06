@@ -632,27 +632,27 @@ std::optional<TUnversionedValue> FoldConstants(
                 break;
             case EBinaryOp::Equal:
                 checkTypeIfNotNull();
-                return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) == 0);
+                return MakeUnversionedBooleanValue(CompareRowValuesCheckingNan(lhs, rhs) == 0);
                 break;
             case EBinaryOp::NotEqual:
                 checkTypeIfNotNull();
-                return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) != 0);
+                return MakeUnversionedBooleanValue(CompareRowValuesCheckingNan(lhs, rhs) != 0);
                 break;
             case EBinaryOp::Less:
                 checkTypeIfNotNull();
-                return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) < 0);
+                return MakeUnversionedBooleanValue(CompareRowValuesCheckingNan(lhs, rhs) < 0);
                 break;
             case EBinaryOp::Greater:
                 checkTypeIfNotNull();
-                return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) > 0);
+                return MakeUnversionedBooleanValue(CompareRowValuesCheckingNan(lhs, rhs) > 0);
                 break;
             case EBinaryOp::LessOrEqual:
                 checkTypeIfNotNull();
-                return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) <= 0);
+                return MakeUnversionedBooleanValue(CompareRowValuesCheckingNan(lhs, rhs) <= 0);
                 break;
             case EBinaryOp::GreaterOrEqual:
                 checkTypeIfNotNull();
-                return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) >= 0);
+                return MakeUnversionedBooleanValue(CompareRowValuesCheckingNan(lhs, rhs) >= 0);
                 break;
             default:
                 break;
