@@ -12,6 +12,7 @@
 #include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/library/phdr_cache/phdr_cache.h>
+#include <yt/yt/library/mlock/mlock.h>
 
 #include <yt/yt/core/ytalloc/bindings.h>
 
@@ -96,7 +97,7 @@ private:
         NYTAlloc::EnableYTProfiling();
         NYTAlloc::InitializeLibunwindInterop();
         NYTAlloc::EnableStockpile();
-        NYTAlloc::MlockFileMappings();
+        NYT::MlockFileMappings();
 
         if (HandleSetsidOptions()) {
             return;

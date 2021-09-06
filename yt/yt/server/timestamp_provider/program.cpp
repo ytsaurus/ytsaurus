@@ -3,6 +3,7 @@
 #include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/library/phdr_cache/phdr_cache.h>
+#include <yt/yt/library/mlock/mlock.h>
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
@@ -40,7 +41,7 @@ void TTimestampProviderProgram::DoRun(const NLastGetopt::TOptsParseResult& /*par
     NYTAlloc::InitializeLibunwindInterop();
     NYTAlloc::SetEnableEagerMemoryRelease(false);
     NYTAlloc::EnableStockpile();
-    NYTAlloc::MlockFileMappings();
+    NYT::MlockFileMappings();
 
     if (HandleSetsidOptions()) {
         return;

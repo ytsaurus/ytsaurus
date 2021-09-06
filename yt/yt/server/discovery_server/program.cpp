@@ -12,6 +12,7 @@
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
 #include <yt/yt/library/phdr_cache/phdr_cache.h>
+#include <yt/yt/library/mlock/mlock.h>
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
@@ -40,7 +41,7 @@ void TClusterDiscoveryServerProgram::DoRun(const NLastGetopt::TOptsParseResult& 
     NYTAlloc::InitializeLibunwindInterop();
     NYTAlloc::SetEnableEagerMemoryRelease(false);
     NYTAlloc::EnableStockpile();
-    NYTAlloc::MlockFileMappings();
+    NYT::MlockFileMappings();
 
     if (HandleSetsidOptions()) {
         return;
