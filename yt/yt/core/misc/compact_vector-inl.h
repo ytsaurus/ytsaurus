@@ -515,10 +515,24 @@ void TCompactVector<T, N>::assign(const TCompactVector<T, OtherN>& other)
     auto otherBegin = other.begin();
 
     if (capacity() >= otherSize) {
+        const auto* src = other.begin();
         auto* dst = begin();
-        Copy(otherBegin, otherBegin + otherSize, dst);
-        dst += otherSize;
-        Destroy(dst, end());
+
+        auto thisSize = size();
+        auto copySize = std::min(thisSize, otherSize);
+        Copy(src, src + copySize, dst);
+        src += copySize;
+        dst += copySize;
+
+        auto uninitializedCopySize = otherSize - copySize;
+        UninitializedCopy(src, src + uninitializedCopySize, dst);
+        // NB: src += uninitializedCopySize is not needed.
+        dst += uninitializedCopySize;
+
+        if (thisSize > otherSize) {
+            Destroy(dst, end());
+        }
+
         SetSize(otherSize);
         return;
     }

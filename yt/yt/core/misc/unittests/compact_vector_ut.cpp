@@ -1058,6 +1058,26 @@ TEST(CompactVectorTest, InitializerList) {
   EXPECT_TRUE(makeArrayRef(V2).equals({4, 5, 3, 2}));
 }
 
+TEST(CompactVectorTest, AssignToShorter) {
+  TCompactVector<TString, 4> lhs;
+  TCompactVector<TString, 4> rhs;
+  rhs.emplace_back("foo");
+  lhs = rhs;
+  EXPECT_EQ(1U, lhs.size());
+  EXPECT_EQ("foo", lhs[0]);
+}
+
+TEST(CompactVectorTest, AssignToLonger) {
+  TCompactVector<TString, 4> lhs;
+  lhs.emplace_back("bar");
+  lhs.emplace_back("baz");
+  TCompactVector<TString, 4> rhs;
+  rhs.emplace_back("foo");
+  lhs = rhs;
+  EXPECT_EQ(1U, lhs.size());
+  EXPECT_EQ("foo", lhs[0]);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
