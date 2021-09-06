@@ -205,7 +205,7 @@ class ParseStructuredData(Action):
 class ParseAppendStructuredDataOrString(Action):
     def __call__(self, parser, namespace, values, option_string=None):
         parsed_value = values
-        if parsed_value.startswith('{'):
+        if parsed_value.startswith("{"):
             parsed_value = parse_arguments(values)
         value = getattr(namespace, self.dest) or []
         value.append(parsed_value)
