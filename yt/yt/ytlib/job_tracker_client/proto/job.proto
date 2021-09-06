@@ -56,6 +56,7 @@ message TJobStatus
     optional int64 stderr_size = 13;
 
     required TTimeStatistics time_statistics = 15;
+    optional int64 status_timestamp = 16;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,6 +1,7 @@
 #include "bootstrap.h"
 
 #include "chunk_cache.h"
+#include "controller_agent_connector.h"
 #include "exec_node_admin_service.h"
 #include "gpu_manager.h"
 #include "job.h"
@@ -70,6 +71,8 @@ public:
 
         SchedulerConnector_ = New<TSchedulerConnector>(GetConfig()->ExecNode->SchedulerConnector, this);
 
+        ControllerAgentConnectorPtr_ = New<TControllerAgentConnector>(GetConfig()->ExecNode->ControllerAgentConnector, this);
+
         BuildJobProxyConfigTemplate();
 
         ChunkCache_ = New<TChunkCache>(GetConfig()->DataNode, this);
@@ -98,36 +101,39 @@ public:
             Throttlers_[kind] = throttler;
         }
 
-        auto createExecJob = BIND([this] (
-                TJobId jobId,
-                TOperationId operationId,
-                const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-                NJobTrackerClient::NProto::TJobSpec&& jobSpec) ->
-                NJobAgent::IJobPtr
-            {
-                return CreateUserJob(
-                    jobId,
-                    operationId,
-                    resourceLimits,
-                    std::move(jobSpec),
-                    this);
-            });
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::Map, createExecJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::PartitionMap, createExecJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::SortedMerge, createExecJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::OrderedMerge, createExecJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::UnorderedMerge, createExecJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::Partition, createExecJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::SimpleSort, createExecJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::IntermediateSort, createExecJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::FinalSort, createExecJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::SortedReduce, createExecJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::PartitionReduce, createExecJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::ReduceCombiner, createExecJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::RemoteCopy, createExecJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::OrderedMap, createExecJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::JoinReduce, createExecJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::Vanilla, createExecJob);
+        auto createSchedulerJob = BIND([this] (
+            TJobId jobId,
+            TOperationId operationId,
+            const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+            NJobTrackerClient::NProto::TJobSpec&& jobSpec,
+            const TControllerAgentDescriptor& agentDescriptor) ->
+            NJobAgent::IJobPtr
+        {
+            return CreateSchedulerJob(
+                jobId,
+                operationId,
+                resourceLimits,
+                std::move(jobSpec),
+                this,
+                agentDescriptor);
+        });
+
+        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::Map, createSchedulerJob);
+        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::PartitionMap, createSchedulerJob);
+        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::SortedMerge, createSchedulerJob);
+        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::OrderedMerge, createSchedulerJob);
+        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::UnorderedMerge, createSchedulerJob);
+        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::Partition, createSchedulerJob);
+        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::SimpleSort, createSchedulerJob);
+        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::IntermediateSort, createSchedulerJob);
+        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::FinalSort, createSchedulerJob);
+        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::SortedReduce, createSchedulerJob);
+        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::PartitionReduce, createSchedulerJob);
+        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::ReduceCombiner, createSchedulerJob);
+        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::RemoteCopy, createSchedulerJob);
+        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::OrderedMap, createSchedulerJob);
+        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::JoinReduce, createSchedulerJob);
+        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::Vanilla, createSchedulerJob);
 
         GetJobController()->AddHeartbeatProcessor<TSchedulerJobHeartbeatProcessor>(EObjectType::SchedulerJob, ClusterNodeBootstrap_);
 
@@ -206,6 +212,11 @@ public:
         return JobProxySolomonExporter_;
     }
 
+    virtual const TControllerAgentConnectorPtr& GetControllerAgentConnector() const override
+    {
+        return ControllerAgentConnectorPtr_;
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -227,6 +238,8 @@ private:
 
     TEnumIndexedVector<EExecNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> RawThrottlers_;
     TEnumIndexedVector<EExecNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
+
+    TControllerAgentConnectorPtr ControllerAgentConnectorPtr_;
 
     void BuildJobProxyConfigTemplate()
     {

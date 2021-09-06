@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
+#include <yt/yt/server/node/exec_node/job.h>
+
 #include <yt/yt/server/job_proxy/public.h>
 
 #include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
@@ -48,10 +50,15 @@ public:
 
     void Initialize();
 
-    //! Registers a factory for a given job type.
-    void RegisterJobFactory(
+    //! Registers a factory for a given scheduer job type.
+    void RegisterSchedulerJobFactory(
         EJobType type,
-        TJobFactory factory);
+        TSchedulerJobFactory factory);
+    
+    //! Registers a factory for a given master job type.
+    void RegisterMasterJobFactory(
+        EJobType type,
+        TMasterJobFactory factory);
 
     //! Finds the job by its id, returns |nullptr| if no job is found.
     /*
@@ -126,7 +133,7 @@ public:
         bool NeedTotalConfirmation();
         TFuture<void> RequestJobSpecsAndStartJobs(
             std::vector<NJobTrackerClient::NProto::TJobStartInfo> jobStartInfos);
-        IJobPtr CreateJob(
+        IJobPtr CreateMasterJob(
             TJobId jobId,
             TOperationId operationId,
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
@@ -136,6 +143,9 @@ public:
 
         void PrepareHeartbeatCommonRequestPart(const TReqHeartbeatPtr& request);
         void ProcessHeartbeatCommonResponsePart(const TRspHeartbeatPtr& response);
+
+        TErrorOr<NExecNode::TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
+            const NJobTrackerClient::NProto::TControllerAgentDescriptor& proto) const;
 
         TJobController* const JobController_;
         NClusterNode::IBootstrapBase* const Bootstrap_;

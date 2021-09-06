@@ -1949,6 +1949,51 @@ void TOperationControllerBase::BuildFeatureYson(TFluentAny fluent) const
     .EndList();
 }
 
+void TOperationControllerBase::UpdateRunningJobStatistics(
+    TJobletPtr joblet,
+    std::unique_ptr<TRunningJobSummary> jobSummary)
+{
+    if (static_cast<bool>(jobSummary->LastStatusUpdateTime) &&
+        jobSummary->LastStatusUpdateTime <= joblet->LastStatisticsUpdateTime)
+    {
+        YT_LOG_DEBUG(
+            "Stale statistics were ignored (LastStatisticsUpdateTime: %v, StatisticsUpdateTime: %v)",
+            joblet->LastStatisticsUpdateTime,
+            jobSummary->LastStatusUpdateTime);
+        return;
+    }
+
+    if (jobSummary->StatisticsYson) {
+        joblet->LastStatisticsUpdateTime = jobSummary->LastStatusUpdateTime;
+    }
+
+    joblet->Progress = jobSummary->Progress;
+    joblet->StderrSize = jobSummary->StderrSize;
+
+    if (jobSummary->StatisticsYson) {
+        ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->LastUpdateTime);
+        joblet->StatisticsYson = jobSummary->StatisticsYson;
+        joblet->LastUpdateTime = TInstant::Now();
+
+        UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ false);
+    }
+
+    joblet->Task->UpdateRunningJobStatistics(joblet, *jobSummary);
+
+    if (jobSummary->StatisticsYson) {
+        auto statisticsFuture = BIND(&BuildBriefStatistics, Passed(std::move(jobSummary)))
+            .AsyncVia(Host->GetControllerThreadPoolInvoker())
+            .Run();
+
+        statisticsFuture.Subscribe(BIND(
+            &TOperationControllerBase::AnalyzeBriefStatistics,
+            MakeWeak(this),
+            joblet,
+            Config->SuspiciousJobs)
+            .Via(GetCancelableInvoker()));
+    }
+}
+
 void TOperationControllerBase::CommitFeatures()
 {
     LogStructuredEventFluently(ControllerFeatureStructuredLogger, NLogging::ELogLevel::Info)
@@ -3049,31 +3094,7 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
 
     auto joblet = GetJoblet(jobSummary->Id);
 
-    joblet->Progress = jobSummary->Progress;
-    joblet->StderrSize = jobSummary->StderrSize;
-
-    if (jobSummary->StatisticsYson) {
-        ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->LastUpdateTime);
-        joblet->StatisticsYson = jobSummary->StatisticsYson;
-        joblet->LastUpdateTime = TInstant::Now();
-
-        UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ false);
-    }
-
-    joblet->Task->OnJobRunning(joblet, *jobSummary);
-
-    if (jobSummary->StatisticsYson) {
-        auto asyncResult = BIND(&BuildBriefStatistics, Passed(std::move(jobSummary)))
-            .AsyncVia(Host->GetControllerThreadPoolInvoker())
-            .Run();
-
-        asyncResult.Subscribe(BIND(
-            &TOperationControllerBase::AnalyzeBriefStatistics,
-            MakeStrong(this),
-            joblet,
-            Config->SuspiciousJobs)
-            .Via(GetCancelableInvoker()));
-    }
+    UpdateRunningJobStatistics(std::move(joblet), std::move(jobSummary));
 }
 
 void TOperationControllerBase::FinalizeJoblet(

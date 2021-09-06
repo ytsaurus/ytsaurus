@@ -16,6 +16,8 @@ class TJobProxyResources;
 
 } // namespace NProto
 
+struct TControllerAgentDescriptor;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IBootstrap;
@@ -51,6 +53,7 @@ DECLARE_REFCOUNTED_STRUCT(IJobDirectoryManager)
 
 DECLARE_REFCOUNTED_STRUCT(ISlot)
 
+DECLARE_REFCOUNTED_CLASS(TControllerAgentConnector)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnector)
 
 DECLARE_REFCOUNTED_STRUCT(IJobEnvironment)

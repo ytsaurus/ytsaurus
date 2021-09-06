@@ -1,5 +1,6 @@
 #include "job_heartbeat_processor.h"
 #include "bootstrap.h"
+#include "job_detail.h"
 #include "private.h"
 #include "slot_manager.h"
 
@@ -26,7 +27,28 @@ void TSchedulerJobHeartbeatProcessor::ProcessResponse(
 {
     ProcessHeartbeatCommonResponsePart(response);
 
-    auto jobIdsToConfirm = FromProto<std::vector<TJobId>>(response->jobs_to_confirm());
+    std::vector<TJobId> jobIdsToConfirm;
+    jobIdsToConfirm.reserve(response->jobs_to_confirm_size());
+    for (auto& jobInfo : *response->mutable_jobs_to_confirm()) {
+        auto jobId = FromProto<TJobId>(jobInfo.job_id());
+        auto agentInfoOrError = TryParseControllerAgentDescriptor(*jobInfo.mutable_controller_agent_descriptor());
+        if (!agentInfoOrError.IsOK()) {
+            YT_LOG_WARNING(
+                agentInfoOrError.Wrap(),
+                "Skip job to confirm since no suitable controller agent address exists (JobId: %v)",
+                jobId);
+            continue;
+        }
+
+        const auto job = JobController_->FindJob(jobId);
+
+        if (job) {
+            static_cast<TJob&>(*job).UpdateControllerAgentDescriptor(std::move(agentInfoOrError.Value()));
+        }
+
+        jobIdsToConfirm.push_back(jobId);
+    }
+    
     JobIdsToConfirm_.clear();
     if (!std::empty(jobIdsToConfirm)) {
         JobIdsToConfirm_.insert(std::cbegin(jobIdsToConfirm), std::cend(jobIdsToConfirm));

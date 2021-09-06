@@ -33,6 +33,8 @@ struct TJobSummary
     TJobSummary() = default;
     TJobSummary(TJobId id, EJobState state);
     explicit TJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
+    explicit TJobSummary(NJobTrackerClient::NProto::TJobStatus* status);
+
     virtual ~TJobSummary() = default;
 
     void Persist(const TPersistenceContext& context);
@@ -52,6 +54,8 @@ struct TJobSummary
     bool LogAndProfile = false;
 
     NJobTrackerClient::TReleaseJobFlags ReleaseFlags;
+
+    TInstant LastStatusUpdateTime;
 };
 
 struct TCompletedJobSummary
@@ -86,6 +90,7 @@ struct TRunningJobSummary
     : public TJobSummary
 {
     explicit TRunningJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
+    explicit TRunningJobSummary(NJobTrackerClient::NProto::TJobStatus* status);
 
     double Progress = 0;
     i64 StderrSize = 0;

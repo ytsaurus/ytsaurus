@@ -959,7 +959,7 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
     return result;
 }
 
-void TTask::OnJobRunning(TJobletPtr joblet, const TRunningJobSummary& jobSummary)
+void TTask::UpdateRunningJobStatistics(TJobletPtr joblet, const TRunningJobSummary& jobSummary)
 {
     auto jobId = joblet->JobId;
 

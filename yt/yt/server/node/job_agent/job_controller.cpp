@@ -15,6 +15,8 @@
 #include <yt/yt/server/node/exec_node/chunk_cache.h>
 #include <yt/yt/server/node/exec_node/gpu_manager.h>
 #include <yt/yt/server/node/exec_node/slot_manager.h>
+#include <yt/yt/server/node/exec_node/controller_agent_connector.h>
+#include <yt/yt/server/node/exec_node/job.h>
 
 #include <yt/yt/server/node/tablet_node/slot_manager.h>
 
@@ -24,6 +26,8 @@
 
 #include <yt/yt/server/lib/job_agent/gpu_helpers.h>
 #include <yt/yt/server/lib/job_agent/job_reporter.h>
+
+#include <yt/yt/server/lib/scheduler/public.h>
 
 #include <yt/yt/ytlib/job_tracker_client/helpers.h>
 #include <yt/yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
@@ -75,9 +79,11 @@ using namespace NNet;
 using NJobTrackerClient::NProto::TJobResult;
 using NJobTrackerClient::NProto::TJobSpec;
 using NJobTrackerClient::NProto::TJobStatus;
+using NJobTrackerClient::NProto::TJobStartInfo;
 using NNodeTrackerClient::NProto::TNodeResources;
 using NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides;
 using NNodeTrackerClient::NProto::TDiskResources;
+using NExecNode::TControllerAgentDescriptor;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -106,9 +112,12 @@ public:
 
     void Initialize();
 
-    void RegisterJobFactory(
+    void RegisterSchedulerJobFactory(
         EJobType type,
-        TJobFactory factory);
+        TSchedulerJobFactory factory);
+    void RegisterMasterJobFactory(
+        EJobType type,
+        TMasterJobFactory factory);
 
     void RegisterHeartbeatProcessor(
         EObjectType type,
@@ -137,7 +146,7 @@ public:
     NYTree::IYPathServicePtr GetOrchidService();
 
     TFuture<void> RequestJobSpecsAndStartJobs(
-        std::vector<NJobTrackerClient::NProto::TJobStartInfo> jobStartInfos);
+        std::vector<TJobStartInfo> jobStartInfos);
 
     bool IsJobProxyProfilingDisabled() const;
     NJobProxy::TJobProxyDynamicConfigPtr GetJobProxyDynamicConfig() const;
@@ -150,7 +159,8 @@ private:
 
     TAtomicObject<TJobControllerDynamicConfigPtr> DynamicConfig_ = New<TJobControllerDynamicConfig>();
 
-    THashMap<EJobType, TJobFactory> JobFactoryMap_;
+    THashMap<EJobType, TSchedulerJobFactory> SchedulerJobFactoryMap_;
+    THashMap<EJobType, TMasterJobFactory> MasterJobFactoryMap_;
     THashMap<EObjectType, TJobHeartbeatProcessorBasePtr> JobHeartbeatProcessors_;
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, JobMapLock_);
@@ -224,16 +234,29 @@ private:
     void ProcessHeartbeatCommonResponsePart(const TRspHeartbeatPtr& response);
 
     void OnJobSpecsReceived(
-        std::vector<NJobTrackerClient::NProto::TJobStartInfo> startInfos,
-        const TAddressWithNetwork& addressWithNetwork,
+        std::vector<TJobStartInfo> startInfos,
+        const TControllerAgentDescriptor& addressWithNetwork,
         const TJobSpecServiceProxy::TErrorOrRspGetJobSpecsPtr& rspOrError);
 
-    //! Starts a new job.
-    IJobPtr CreateJob(
+    //! Starts a new scheduler job.
+    IJobPtr CreateSchedulerJob(
+        TJobId jobId,
+        TOperationId operationId,
+        const TNodeResources& resourceLimits,
+        TJobSpec&& jobSpec,
+        const TControllerAgentDescriptor& controllerAgentDescriptor);
+
+    //! Starts a new master job.
+    IJobPtr CreateMasterJob(
         TJobId jobId,
         TOperationId operationId,
         const TNodeResources& resourceLimits,
         TJobSpec&& jobSpec);
+    
+    void RegisterAndStartJob(
+        TJobId jobId,
+        const IJobPtr& jobPtr,
+        TDuration waitingJobTimeout);
 
     //! Stops a job.
     /*!
@@ -259,7 +282,8 @@ private:
 
     std::vector<IJobPtr> GetRunningSchedulerJobsSortedByStartTime() const;
 
-    TJobFactory GetFactory(EJobType type) const;
+    TSchedulerJobFactory GetSchedulerJobFactory(EJobType type) const;
+    TMasterJobFactory GetMasterJobFactory(EJobType type) const;
 
     void ScheduleStart();
 
@@ -303,6 +327,11 @@ private:
 
     void BuildJobProxyBuildInfo(NYTree::TFluentAny fluent) const;
     void UpdateJobProxyBuildInfo();
+
+    TErrorOr<TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
+        const NJobTrackerClient::NProto::TControllerAgentDescriptor& proto) const;
+    TErrorOr<TAddressWithNetwork> TryParseControllerAgentAddress(
+        const NNodeTrackerClient::NProto::TAddressMap& proto) const;
 
     TDuration GetTotalConfirmationPeriod() const;
     TDuration GetMemoryOverdraftTimeout() const;
@@ -389,9 +418,14 @@ void TJobController::TImpl::Initialize()
     dynamicConfigManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
-void TJobController::TImpl::RegisterJobFactory(EJobType type, TJobFactory factory)
+void TJobController::TImpl::RegisterSchedulerJobFactory(EJobType type, TSchedulerJobFactory factory)
 {
-    YT_VERIFY(JobFactoryMap_.emplace(type, factory).second);
+    YT_VERIFY(SchedulerJobFactoryMap_.emplace(type, factory).second);
+}
+
+void TJobController::TImpl::RegisterMasterJobFactory(EJobType type, TMasterJobFactory factory)
+{
+    YT_VERIFY(MasterJobFactoryMap_.emplace(type, factory).second);
 }
 
 void TJobController::TImpl::RegisterHeartbeatProcessor(EObjectType type, TJobHeartbeatProcessorBasePtr heartbeatProcessor)
@@ -399,11 +433,18 @@ void TJobController::TImpl::RegisterHeartbeatProcessor(EObjectType type, TJobHea
     YT_VERIFY(JobHeartbeatProcessors_.emplace(type, std::move(heartbeatProcessor)).second);
 }
 
-TJobFactory TJobController::TImpl::GetFactory(EJobType type) const
+TSchedulerJobFactory TJobController::TImpl::GetSchedulerJobFactory(EJobType type) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return GetOrCrash(JobFactoryMap_, type);
+    return GetOrCrash(SchedulerJobFactoryMap_, type);
+}
+
+TMasterJobFactory TJobController::TImpl::GetMasterJobFactory(EJobType type) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return GetOrCrash(MasterJobFactoryMap_, type);
 }
 
 IJobPtr TJobController::TImpl::FindJob(TJobId jobId) const
@@ -877,20 +918,23 @@ void TJobController::TImpl::StartWaitingJobs()
     StartScheduled_ = false;
 }
 
-IJobPtr TJobController::TImpl::CreateJob(
+IJobPtr TJobController::TImpl::CreateSchedulerJob(
     TJobId jobId,
     TOperationId operationId,
     const TNodeResources& resourceLimits,
-    TJobSpec&& jobSpec)
+    TJobSpec&& jobSpec,
+    const TControllerAgentDescriptor& controllerAgentDescriptor)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     auto type = CheckedEnumCast<EJobType>(jobSpec.type());
-    auto factory = GetFactory(type);
+    auto factory = GetSchedulerJobFactory(type);
 
     auto extensionId = NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext;
     TDuration waitingJobTimeout = Config_->WaitingJobsTimeout;
-    if (jobSpec.HasExtension(extensionId)) {
+    YT_VERIFY(jobSpec.HasExtension(extensionId));
+
+    {
         const auto& extension = jobSpec.GetExtension(extensionId);
         if (extension.has_waiting_job_timeout()) {
             waitingJobTimeout = FromProto<TDuration>(extension.waiting_job_timeout());
@@ -901,26 +945,64 @@ IJobPtr TJobController::TImpl::CreateJob(
         jobId,
         operationId,
         resourceLimits,
-        std::move(jobSpec));
+        std::move(jobSpec),
+        controllerAgentDescriptor);
 
-    YT_LOG_INFO("Job created (JobId: %v, OperationId: %v, JobType: %v)",
+    YT_LOG_INFO("Scheduler job created (JobId: %v, OperationId: %v, JobType: %v)",
         jobId,
         operationId,
         type);
 
+    RegisterAndStartJob(jobId, job, waitingJobTimeout);
+
+    return job;
+}
+
+IJobPtr TJobController::TImpl::CreateMasterJob(
+    TJobId jobId,
+    TOperationId operationId,
+    const TNodeResources& resourceLimits,
+    TJobSpec&& jobSpec)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    auto type = CheckedEnumCast<EJobType>(jobSpec.type());
+    auto factory = GetMasterJobFactory(type);
+
+    auto extensionId = NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext;
+    YT_VERIFY(!jobSpec.HasExtension(extensionId));
+
+    auto job = factory.Run(
+        jobId,
+        operationId,
+        resourceLimits,
+        std::move(jobSpec));
+
+    YT_LOG_INFO("Master job created (JobId: %v, OperationId: %v, JobType: %v)",
+        jobId,
+        operationId,
+        type);
+    
+    TDuration waitingJobTimeout = Config_->WaitingJobsTimeout;
+
+    RegisterAndStartJob(jobId, job, waitingJobTimeout);
+
+    return job;
+}
+
+void TJobController::TImpl::RegisterAndStartJob(const TJobId jobId, const IJobPtr& jobPtr, const TDuration waitingJobTimeout)
+{
     {
         auto guard = WriterGuard(JobMapLock_);
-        YT_VERIFY(JobMap_.emplace(jobId, job).second);
+        YT_VERIFY(JobMap_.emplace(jobId, jobPtr).second);
     }
 
     ScheduleStart();
 
     // Use #Apply instead of #Subscribe to match #OnWaitingJobTimeout signature.
     TDelayedExecutor::MakeDelayed(waitingJobTimeout)
-        .Apply(BIND(&TImpl::OnWaitingJobTimeout, MakeWeak(this), MakeWeak(job), waitingJobTimeout)
+        .Apply(BIND(&TImpl::OnWaitingJobTimeout, MakeWeak(this), MakeWeak(jobPtr), waitingJobTimeout)
         .Via(Bootstrap_->GetJobInvoker()));
-
-    return job;
 }
 
 void TJobController::TImpl::OnWaitingJobTimeout(const TWeakPtr<IJob>& weakJob, TDuration waitingJobTimeout)
@@ -1331,44 +1413,50 @@ NJobProxy::TJobProxyDynamicConfigPtr TJobController::TImpl::GetJobProxyDynamicCo
     return config ? config->JobProxy : New<NJobProxy::TJobProxyDynamicConfig>();
 }
 
-TFuture<void> TJobController::TImpl::RequestJobSpecsAndStartJobs(std::vector<NJobTrackerClient::NProto::TJobStartInfo> jobStartInfos)
+TFuture<void> TJobController::TImpl::RequestJobSpecsAndStartJobs(std::vector<TJobStartInfo> jobStartInfos)
 {
-    THashMap<TAddressWithNetwork, std::vector<NJobTrackerClient::NProto::TJobStartInfo>> groupedStartInfos;
+    THashMap<TControllerAgentDescriptor, std::vector<TJobStartInfo>> groupedStartInfos;
 
     for (auto& startInfo : jobStartInfos) {
-        auto operationId = FromProto<TJobId>(startInfo.operation_id());
+        auto operationId = FromProto<TOperationId>(startInfo.operation_id());
         auto jobId = FromProto<TJobId>(startInfo.job_id());
+
         auto addresses = FromProto<NNodeTrackerClient::TAddressMap>(startInfo.spec_service_addresses());
 
-        std::optional<TAddressWithNetwork> addressWithNetwork;
-        try {
-            addressWithNetwork = GetAddressWithNetworkOrThrow(addresses, Bootstrap_->GetLocalNetworks());
-        } catch (const std::exception& ex) {
-            YT_VERIFY(SpecFetchFailedJobIds_.insert({jobId, operationId}).second);
-            YT_LOG_DEBUG(ex, "Job spec cannot be requested since no suitable network address exists (OperationId: %v, JobId: %v, SpecServiceAddresses: %v)",
-                operationId,
-                jobId,
-                GetValues(addresses));
+        TErrorOr<TControllerAgentDescriptor> agentDescriptorOrError;
+        // COMPAT(pogorelov)
+        if (startInfo.has_controller_agent_descriptor()) {
+            agentDescriptorOrError = TryParseControllerAgentDescriptor(startInfo.controller_agent_descriptor());
+        } else {
+            YT_VERIFY(startInfo.has_spec_service_addresses());
+            auto controllerAgentAddressWithNetworkOrError = TryParseControllerAgentAddress(
+                startInfo.spec_service_addresses());
+            
+            if (!controllerAgentAddressWithNetworkOrError.IsOK()) {
+                agentDescriptorOrError = TError{std::move(controllerAgentAddressWithNetworkOrError)};
+            }
+
+            agentDescriptorOrError = TControllerAgentDescriptor{std::move(controllerAgentAddressWithNetworkOrError.Value()), {}};
         }
 
-        if (addressWithNetwork) {
+        if (agentDescriptorOrError.IsOK()) {
+            auto& agentDescriptor = agentDescriptorOrError.Value();
             YT_LOG_DEBUG("Job spec will be requested (OperationId: %v, JobId: %v, SpecServiceAddress: %v)",
                 operationId,
                 jobId,
-                addressWithNetwork->Address);
-            groupedStartInfos[*addressWithNetwork].push_back(startInfo);
+                agentDescriptor.Address.Address);
+            groupedStartInfos[std::move(agentDescriptor)].push_back(startInfo);
+        } else {
+            YT_LOG_DEBUG(agentDescriptorOrError, "Job spec cannot be requested (OperationId: %v, JobId: %v)",
+                operationId,
+                jobId);
+            YT_VERIFY(SpecFetchFailedJobIds_.insert({jobId, operationId}).second);
         }
     }
 
-    auto getSpecServiceChannel = [&] (const auto& addressWithNetwork) {
-        const auto& client = Bootstrap_->GetMasterClient();
-        const auto& channelFactory = client->GetNativeConnection()->GetChannelFactory();
-        return channelFactory->CreateChannel(addressWithNetwork);
-    };
-
     std::vector<TFuture<void>> asyncResults;
-    for (auto& [addressWithNetwork, startInfos] : groupedStartInfos) {
-        auto channel = getSpecServiceChannel(addressWithNetwork);
+    for (auto& [agentDescriptor, startInfos] : groupedStartInfos) {
+        const auto& channel = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnector()->GetChannel(agentDescriptor);
         TJobSpecServiceProxy jobSpecServiceProxy(channel);
 
         auto dynamicConfig = DynamicConfig_.Load();
@@ -1386,7 +1474,7 @@ TFuture<void> TJobController::TImpl::RequestJobSpecsAndStartJobs(std::vector<NJo
         }
 
         YT_LOG_DEBUG("Requesting job specs (SpecServiceAddress: %v, Count: %v)",
-            addressWithNetwork,
+            agentDescriptor.Address,
             startInfos.size());
 
         auto asyncResult = jobSpecRequest->Invoke().Apply(
@@ -1394,7 +1482,7 @@ TFuture<void> TJobController::TImpl::RequestJobSpecsAndStartJobs(std::vector<NJo
                 &TJobController::TImpl::OnJobSpecsReceived,
                 MakeStrong(this),
                 Passed(std::move(startInfos)),
-                addressWithNetwork)
+                agentDescriptor)
             .AsyncVia(Bootstrap_->GetJobInvoker()));
         asyncResults.push_back(asyncResult);
     }
@@ -1403,13 +1491,13 @@ TFuture<void> TJobController::TImpl::RequestJobSpecsAndStartJobs(std::vector<NJo
 }
 
 void TJobController::TImpl::OnJobSpecsReceived(
-    std::vector<NJobTrackerClient::NProto::TJobStartInfo> startInfos,
-    const TAddressWithNetwork& addressWithNetwork,
+    std::vector<TJobStartInfo> startInfos,
+    const TControllerAgentDescriptor& controllerAgentDescriptor,
     const TJobSpecServiceProxy::TErrorOrRspGetJobSpecsPtr& rspOrError)
 {
     if (!rspOrError.IsOK()) {
         YT_LOG_DEBUG(rspOrError, "Error getting job specs (SpecServiceAddress: %v)",
-            addressWithNetwork);
+            controllerAgentDescriptor.Address);
         for (const auto& startInfo : startInfos) {
             auto jobId = FromProto<TJobId>(startInfo.job_id());
             auto operationId = FromProto<TOperationId>(startInfo.operation_id());
@@ -1418,7 +1506,7 @@ void TJobController::TImpl::OnJobSpecsReceived(
         return;
     }
 
-    YT_LOG_DEBUG("Job specs received (SpecServiceAddress: %v)", addressWithNetwork);
+    YT_LOG_DEBUG("Job specs received (SpecServiceAddress: %v)", controllerAgentDescriptor.Address);
 
     const auto& rsp = rspOrError.Value();
     YT_VERIFY(rsp->responses_size() == std::ssize(startInfos));
@@ -1444,7 +1532,12 @@ void TJobController::TImpl::OnJobSpecsReceived(
 
         const auto& resourceLimits = startInfo.resource_limits();
 
-        CreateJob(jobId, operationId, resourceLimits, std::move(spec));
+        // COMPAT(pogorelov)
+        TControllerAgentDescriptor agentDescriptor = controllerAgentDescriptor.IncarnationId.IsEmpty()
+            ? TControllerAgentDescriptor{}
+            : controllerAgentDescriptor;
+
+        CreateSchedulerJob(jobId, operationId, resourceLimits, std::move(spec), std::move(agentDescriptor));
     }
 }
 
@@ -1715,6 +1808,35 @@ TCounter* TJobController::TImpl::GetJobFinalStateCounter(EJobState state, EJobOr
     return &it->second;
 }
 
+TErrorOr<TControllerAgentDescriptor> TJobController::TImpl::TryParseControllerAgentDescriptor(
+    const NJobTrackerClient::NProto::TControllerAgentDescriptor& proto) const
+{
+    const auto incarnationId = FromProto<NScheduler::TIncarnationId>(proto.incarnation_id());
+
+    auto addressWithNetworkOrError = TryParseControllerAgentAddress(proto.addresses());
+
+    if (!addressWithNetworkOrError.IsOK()) {
+        return TError{std::move(addressWithNetworkOrError)};
+    }
+
+    return TControllerAgentDescriptor{std::move(addressWithNetworkOrError.Value()), incarnationId};
+}
+
+TErrorOr<TAddressWithNetwork> TJobController::TImpl::TryParseControllerAgentAddress(
+    const NNodeTrackerClient::NProto::TAddressMap& proto) const
+{
+    const auto addresses = FromProto<NNodeTrackerClient::TAddressMap>(proto);
+
+    TAddressWithNetwork addressWithNetwork;
+    try {
+        return GetAddressWithNetworkOrThrow(addresses, Bootstrap_->GetLocalNetworks());
+    } catch (const std::exception& ex) {
+        return TError{
+            "No suitable controller agent address exists (SpecServiceAddresses: %v)",
+            GetValues(addresses)} << TError{ex};
+    }
+}
+
 TDuration TJobController::TImpl::GetTotalConfirmationPeriod() const
 {
     auto dynamicConfig = DynamicConfig_.Load();
@@ -1764,11 +1886,18 @@ void TJobController::Initialize()
     Impl_->Initialize();
 }
 
-void TJobController::RegisterJobFactory(
+void TJobController::RegisterSchedulerJobFactory(
     EJobType type,
-    TJobFactory factory)
+    TSchedulerJobFactory factory)
 {
-    Impl_->RegisterJobFactory(type, std::move(factory));
+    Impl_->RegisterSchedulerJobFactory(type, std::move(factory));
+}
+
+void TJobController::RegisterMasterJobFactory(
+    EJobType type,
+    TMasterJobFactory factory)
+{
+    Impl_->RegisterMasterJobFactory(type, std::move(factory));
 }
 
 IJobPtr TJobController::FindJob(TJobId jobId) const
@@ -1867,18 +1996,18 @@ bool TJobController::TJobHeartbeatProcessorBase::NeedTotalConfirmation()
 }
 
 TFuture<void> TJobController::TJobHeartbeatProcessorBase::RequestJobSpecsAndStartJobs(
-    std::vector<NJobTrackerClient::NProto::TJobStartInfo> jobStartInfos)
+    std::vector<TJobStartInfo> jobStartInfos)
 {
     return JobController_->Impl_->RequestJobSpecsAndStartJobs(std::move(jobStartInfos));
 }
 
-IJobPtr TJobController::TJobHeartbeatProcessorBase::CreateJob(
+IJobPtr TJobController::TJobHeartbeatProcessorBase::CreateMasterJob(
     TJobId jobId,
     TOperationId operationId,
     const TNodeResources& resourceLimits,
     TJobSpec&& jobSpec)
 {
-    return JobController_->Impl_->CreateJob(jobId, operationId, resourceLimits, std::move(jobSpec));
+    return JobController_->Impl_->CreateMasterJob(jobId, operationId, resourceLimits, std::move(jobSpec));
 }
 
 const THashMap<TJobId, TOperationId>& TJobController::TJobHeartbeatProcessorBase::GetSpecFetchFailedJobIds()
@@ -1899,6 +2028,12 @@ void TJobController::TJobHeartbeatProcessorBase::PrepareHeartbeatCommonRequestPa
 void TJobController::TJobHeartbeatProcessorBase::ProcessHeartbeatCommonResponsePart(const TRspHeartbeatPtr& response)
 {
     JobController_->Impl_->ProcessHeartbeatCommonResponsePart(response);
+}
+
+TErrorOr<TControllerAgentDescriptor> TJobController::TJobHeartbeatProcessorBase::TryParseControllerAgentDescriptor(
+    const NJobTrackerClient::NProto::TControllerAgentDescriptor& proto) const
+{
+    return JobController_->Impl_->TryParseControllerAgentDescriptor(proto);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

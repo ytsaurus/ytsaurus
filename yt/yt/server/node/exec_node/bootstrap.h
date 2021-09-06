@@ -41,6 +41,8 @@ struct IBootstrap
     virtual const NConcurrency::IThroughputThrottlerPtr& GetThrottler(EExecNodeThrottlerKind kind) const = 0;
 
     virtual const NProfiling::TSolomonExporterPtr& GetJobProxySolomonExporter() const = 0;
+
+    virtual const TControllerAgentConnectorPtr& GetControllerAgentConnector() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

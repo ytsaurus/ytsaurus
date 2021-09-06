@@ -1351,6 +1351,8 @@ private:
 
     void BuildFeatureYson(NYTree::TFluentAny fluent) const;
 
+    void UpdateRunningJobStatistics(TJobletPtr joblet, std::unique_ptr<TRunningJobSummary> jobStatus);
+
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink
         : public NChunkPools::IChunkPoolInput

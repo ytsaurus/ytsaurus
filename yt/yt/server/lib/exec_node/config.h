@@ -236,7 +236,7 @@ DEFINE_REFCOUNTED_TYPE(TSlotManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchedulerConnectorConfig
+class THeartbeatReporterConfigBase
     : public NYTree::TYsonSerializable
 {
 public:
@@ -255,7 +255,7 @@ public:
     //! Backoff mulitplier for sending the next heartbeat after a failure.
     double FailedHeartbeatBackoffMultiplier;
 
-    TSchedulerConnectorConfig()
+    THeartbeatReporterConfigBase()
     {
         RegisterParameter("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
@@ -273,7 +273,33 @@ public:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchedulerConnectorConfig
+    : public THeartbeatReporterConfigBase
+{
+    using THeartbeatReporterConfigBase::THeartbeatReporterConfigBase;
+};
+
 DEFINE_REFCOUNTED_TYPE(TSchedulerConnectorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TControllerAgentConnectorConfig
+    : public THeartbeatReporterConfigBase
+{
+public:
+    TDuration OutdatedIncarnationScanPeriod;
+
+    TControllerAgentConnectorConfig()
+        : THeartbeatReporterConfigBase()
+    {
+        RegisterParameter("outdated_incarnation_scan_period", OutdatedIncarnationScanPeriod)
+            .Default(TDuration::Minutes(10));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -371,6 +397,7 @@ public:
     TSlotManagerConfigPtr SlotManager;
     NJobAgent::TJobControllerConfigPtr JobController;
     NJobAgent::TJobReporterConfigPtr JobReporter;
+    TControllerAgentConnectorConfigPtr ControllerAgentConnector;
     TSchedulerConnectorConfigPtr SchedulerConnector;
 
     NLogging::TLogManagerConfigPtr JobProxyLogging;
@@ -429,6 +456,9 @@ public:
             .DefaultNew();
         RegisterParameter("job_reporter", JobReporter)
             .Alias("statistics_reporter")
+            .DefaultNew();
+        
+        RegisterParameter("controller_agent_connector", ControllerAgentConnector)
             .DefaultNew();
         RegisterParameter("scheduler_connector", SchedulerConnector)
             .DefaultNew();

@@ -6,7 +6,11 @@ namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FillJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, IJobPtr job)
+using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FillJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, const IJobPtr& job)
 {
     auto jobType = EJobType(job->GetSpec().type());
     ToProto(jobStatus->mutable_job_id(), job->GetId());
@@ -20,6 +24,8 @@ void FillJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, IJobPtr job
     if (stderrSize > 0) {
         jobStatus->set_stderr_size(stderrSize);
     }
+
+    jobStatus->set_status_timestamp(ToProto<ui64>(TInstant::Now()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
