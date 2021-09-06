@@ -25,7 +25,7 @@ object SessionUtils {
 
   private def parseRemoteConfig(path: String, yt: CompoundClient): Map[String, String] = {
     import scala.collection.JavaConverters._
-    val remoteConfig = toOption(YtWrapper.readDocument(path)(yt).asMap().getO("spark_conf"))
+    val remoteConfig = YtWrapper.readDocument(path)(yt).asMap().getOption("spark_conf")
     remoteConfig.map { config =>
       config.asMap().asScala.toMap.mapValues(_.stringValue())
     }.getOrElse(Map.empty)

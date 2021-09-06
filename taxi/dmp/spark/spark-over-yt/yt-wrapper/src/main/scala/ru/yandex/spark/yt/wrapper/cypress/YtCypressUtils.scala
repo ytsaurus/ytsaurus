@@ -41,12 +41,10 @@ trait YtCypressUtils {
 
   def listDir(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Array[String] = {
     log.debug(s"List directory: $path, transaction $transaction")
-    val response = yt.listNode(new ListNode(formatPath(path)).optionalTransaction(transaction)).join().asList()
-    val array = new Array[String](response.length())
-    response.zipWithIndex().forEach((t: YTreeNode, i: java.lang.Integer) => {
-      array(i) = t.stringValue()
-    })
-    array
+    import scala.collection.JavaConverters._
+    val request = new ListNode(formatPath(path)).optionalTransaction(transaction)
+    val response = yt.listNode(request).join().asList()
+    response.asScala.view.map(_.stringValue()).toArray
   }
 
   def move(src: String, dst: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Unit = {
@@ -103,7 +101,7 @@ trait YtCypressUtils {
   }
 
   def attributes(path: String, transaction: Option[String] = None, attrNames: Set[String] = Set.empty)
-               (implicit yt: CompoundClient): Map[String, YTreeNode] = {
+                (implicit yt: CompoundClient): Map[String, YTreeNode] = {
     import scala.collection.JavaConverters._
     log.debug(s"Get attributes: $path/@$attrNames, transaction $transaction")
     val request = new GetNode(s"${formatPath(path)}/@").optionalTransaction(transaction)

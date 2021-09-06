@@ -125,6 +125,7 @@ class YsonDecoderTest extends FlatSpec with Matchers with ScalaCheckPropertyChec
   }
 
   it should "decode long from bytes" in {
+    import ru.yandex.spark.yt.wrapper.YtJavaConverters._
     val bytes = readBytes("bytes-long")
 
     val expected = YTreeBinarySerializer.deserialize(new ByteArrayInputStream(bytes)).asMap()

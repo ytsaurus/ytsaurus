@@ -5,8 +5,6 @@ import java.util.{ArrayList => JArrayList}
 import com.google.common.net.HostAndPort
 import io.netty.channel.nio.NioEventLoopGroup
 import org.slf4j.LoggerFactory
-import ru.yandex.inside.yt.kosher.Yt
-import ru.yandex.inside.yt.kosher.impl.{YtUtils => InsideYtUtils}
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.system.SystemUtils
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector
@@ -179,10 +177,6 @@ trait YtClientUtils {
     )
 
     initYtClient(client)
-  }
-
-  def createHttpClient(config: YtClientConfiguration): Yt = {
-    InsideYtUtils.http(s"${config.fullProxy}:${config.port}", config.token)
   }
 
   implicit class RichRpcOptions(options: RpcOptions) {

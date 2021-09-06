@@ -5,18 +5,14 @@ import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.mapreduce.{JobContext, TaskAttemptContext}
 import org.apache.spark.internal.io.FileCommitProtocol
 import org.slf4j.LoggerFactory
-import ru.yandex.inside.yt.kosher.Yt
 import ru.yandex.spark.yt.format.conf.YtTableSparkSettings._
 import ru.yandex.spark.yt.format.conf.{SparkYtConfiguration, YtTableSparkSettings}
+import ru.yandex.spark.yt.fs.GlobalTableSettings
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
 import ru.yandex.spark.yt.fs.conf._
-import ru.yandex.spark.yt.fs.GlobalTableSettings
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
 import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient}
-
-import scala.concurrent.ExecutionContext
-import scala.util.Success
 
 class YtOutputCommitter(jobId: String,
                         outputPath: String,
@@ -111,7 +107,6 @@ class YtOutputCommitter(jobId: String,
 
   private def mergeSortedTables(conf: Configuration, transaction: String): Unit = {
     implicit val yt: CompoundClient = YtClientProvider.ytClient(ytClientConfiguration(conf))
-    implicit val ytHttp: Yt = YtClientProvider.httpClient
     val mergeSpec = conf.getYtSpecConf("merge")
     YtWrapper.mergeTables(tmpPath, path, sorted = true, Some(transaction), mergeSpec)
     YtWrapper.removeDir(tmpPath, recursive = true, Some(transaction))

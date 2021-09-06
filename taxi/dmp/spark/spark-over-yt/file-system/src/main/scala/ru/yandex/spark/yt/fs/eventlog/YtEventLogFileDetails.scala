@@ -22,6 +22,7 @@ case class YtEventLogFileDetails(fileName: String,
 
 object YtEventLogFileDetails {
   def apply(node: YTreeNode): YtEventLogFileDetails = {
+    import ru.yandex.spark.yt.wrapper.YtJavaConverters._
     val mp = node.asMap()
 
     YtEventLogFileDetails(

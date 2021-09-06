@@ -1,6 +1,5 @@
 package ru.yandex.spark.yt.serializers
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{GenericRowWithSchema, UnsafeArrayData, UnsafeMapData, UnsafeRow}
@@ -18,6 +17,7 @@ import ru.yandex.yson.YsonConsumer
 import ru.yandex.yt.ytclient.proxy.TableWriter
 import ru.yandex.yt.ytclient.tables.ColumnValueType
 
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import scala.annotation.tailrec
 import scala.collection.mutable
 
@@ -112,11 +112,12 @@ class YsonRowConverter(schema: StructType, skipNulls: Boolean) extends YTreeSeri
   }
 
   override def deserialize(node: YTreeNode): Row = {
+    import ru.yandex.spark.yt.wrapper.YtJavaConverters._
     val map = node.asMap()
     val values = new Array[Any](schema.fields.length)
     indexedFields.foreach { case (field, index) =>
       val name = field.name
-      val node = map.getOrElse(name, entityNode)
+      val node = map.getOption(name).getOrElse(entityNode)
       values(index) = YsonRowConverter.deserializeValue(node, field.dataType)
     }
     new GenericRowWithSchema(values, schema)

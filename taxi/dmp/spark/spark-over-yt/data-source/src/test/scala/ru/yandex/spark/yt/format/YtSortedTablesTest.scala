@@ -50,15 +50,12 @@ class YtSortedTablesTest extends FlatSpec with Matchers with LocalSpark with Tmp
     YtWrapper.attribute(path, "sorted_by").asList().asScala.map(_.stringValue())
   }
 
-  def option(map: MapF[String, YTreeNode], name: String): Option[String] = {
-    YtJavaConverters.toOption(map.getOptional(name)).map(_.stringValue())
-  }
-
   def ytSchema(path: String): Seq[Map[String, Option[String]]] = {
+    import ru.yandex.spark.yt.wrapper.YtJavaConverters._
     val schemaFields = Seq("name", "type", "sort_order")
     YtWrapper.attribute(path, "schema").asList().asScala.map { field =>
       val map = field.asMap()
-      schemaFields.map(n => n -> option(map, n)).toMap
+      schemaFields.map(n => n -> map.getOption(n).map(_.stringValue())).toMap
     }
   }
 

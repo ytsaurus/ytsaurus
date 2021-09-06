@@ -46,8 +46,6 @@ object CommonPlugin extends AutoPlugin {
           .inLibrary("org.apache.logging.log4j" % "log4j-core" % "2.11.0"),
         ShadeRule.rename("com.google.common.**" -> "shaded_spyt.com.google.common.@1")
           .inAll,
-        ShadeRule.rename("com.google.common.**" -> "shaded_spyt.com.google.common.@1")
-          .inAll,
         ShadeRule.rename("io.netty.**" -> "shaded_spyt.io.netty.@1")
           .inAll
       )

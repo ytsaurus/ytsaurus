@@ -1,21 +1,15 @@
 package ru.yandex.spark.yt.wrapper.table
 
-import java.nio.ByteBuffer
-import java.nio.file.Paths
-
 import org.slf4j.LoggerFactory
-import ru.yandex.inside.yt.kosher.Yt
 import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.inside.yt.kosher.cypress.YPath
-import ru.yandex.inside.yt.kosher.impl.YtConfiguration
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
-import ru.yandex.inside.yt.kosher.operations.OperationStatus
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.misc.io.exec.ProcessUtils
 import ru.yandex.misc.net.HostnameUtils
-import ru.yandex.spark.yt.wrapper.YtJavaConverters
 import ru.yandex.spark.yt.wrapper.cypress.YtCypressUtils
+import ru.yandex.spark.yt.wrapper.operation.OperationStatus
 import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
 import ru.yandex.yt.rpcproxy.{EOperationType, ERowsetFormat}
 import ru.yandex.yt.ytclient.`object`.WireRowDeserializer
@@ -23,6 +17,8 @@ import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentByteBufferReader
 import ru.yandex.yt.ytclient.proxy.request._
 
+import java.nio.ByteBuffer
+import java.nio.file.Paths
 import scala.annotation.tailrec
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -88,13 +84,14 @@ trait YtTableUtils {
   }
 
   private def startedBy(builder: YTreeBuilder): YTreeBuilder = {
+    import ru.yandex.spark.yt.BuildInfo
     builder
       .beginMap
       .key("user").value(System.getProperty("user.name"))
       .key("command").beginList.value("command").endList
       .key("hostname").value(HostnameUtils.localHostname)
       .key("pid").value(ProcessUtils.getPid)
-      .key("wrapper_version").value(YtConfiguration.getVersion)
+      .key("wrapper_version").value(BuildInfo.ytClientVersion)
       .endMap
   }
 
@@ -112,14 +109,15 @@ trait YtTableUtils {
 
   private def operationResult(guid: GUID)(implicit yt: CompoundClient): String = {
     val info = yt.getOperation(new GetOperation(guid)).join()
-    YtJavaConverters.toOption(info.asMap().getOptional("result"))
+    Option(info.asMap().get("result"))
       .map(YTreeTextSerializer.serialize).getOrElse("unknown")
   }
 
   @tailrec
   private def awaitOperation(guid: GUID)(implicit yt: CompoundClient): OperationStatus = {
+    import ru.yandex.spark.yt.wrapper.YtJavaConverters._
     val info = yt.getOperation(new GetOperation(guid)).join()
-    val status = OperationStatus.R.valueOfOrUnknown(info.asMap().getOrThrow("state").stringValue())
+    val status = OperationStatus.getByName(info.asMap().getOrThrow("state").stringValue())
     if (status.isFinished) {
       status
     } else {
