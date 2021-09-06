@@ -21,7 +21,8 @@ def reproduce_transaction_loss(
     wait_time=3.0,
     proxy_request_timeout=0.1,
 ):
-    with set_config_option("proxy/request_timeout", int(proxy_request_timeout * 1000)):
+    with set_config_option("proxy/request_timeout", int(proxy_request_timeout * 1000)), \
+        set_config_option("transaction_timeout", int(proxy_request_timeout * 1000)):
         tx_context_manager = yt.YtClient(token=yt.config["token"], config=yt.config.config).Transaction()
         tx = tx_context_manager.__enter__()
         time.sleep(delay_time)
