@@ -1962,7 +1962,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         if ((operation && !operation->JobsReady) ||
             WaitingForRegisterOperationIds_.find(operationId) != std::cend(WaitingForRegisterOperationIds_))
         {
-            if (!operation->OperationUnreadyLoggedJobIds.contains(jobId)) {
+            if (operation && !operation->OperationUnreadyLoggedJobIds.contains(jobId)) {
                 YT_LOG_DEBUG("Job is skipped since operation jobs are not ready yet");
                 operation->OperationUnreadyLoggedJobIds.insert(jobId);
             }
