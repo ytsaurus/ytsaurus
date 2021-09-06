@@ -9,6 +9,7 @@
 #include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/library/phdr_cache/phdr_cache.h>
+#include <yt/yt/library/mlock/mlock.h>
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
@@ -46,7 +47,7 @@ protected:
         NYTAlloc::InitializeLibunwindInterop();
         NYTAlloc::SetEnableEagerMemoryRelease(false);
         NYTAlloc::EnableStockpile();
-        NYTAlloc::MlockFileMappings();
+        NYT::MlockFileMappings();
 
         if (HandleSetsidOptions()) {
             return;
