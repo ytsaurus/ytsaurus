@@ -118,7 +118,7 @@ func PrepareBinaries(destination string) error {
 	// Attempt to reimplement sudo fixup.
 	var ytSudoFixup = yatest.BuildPath("yt/yt/tools/yt_sudo_fixup/yt-sudo-fixup")
 	var sudoWrapper = `#!/bin/sh
-	
+
 	exec sudo -En %v %v %v %v "$@"`
 	var sudoWrapperBinaries = []string{
 		"job-proxy",
@@ -145,7 +145,7 @@ func PrepareBinaries(destination string) error {
 	return nil
 }
 
-func GetPythonPaths() []string {
+func GetPythonPaths(pythonVersion string) []string {
 	var contribPaths = []string{
 		"contrib/python/pytest",
 		"contrib/python/pytest-timeout",
@@ -161,9 +161,16 @@ func GetPythonPaths() []string {
 		"contrib/python/pathlib2",
 		"contrib/python/funcsigs",
 		"contrib/python/scandir",
-		"contrib/python/importlib-metadata",
 		"contrib/python/contextlib2",
 		"contrib/python/configparser",
+	}
+
+	var contribPathsPy2 = []string{
+		"contrib/python/importlib-metadata/py2",
+	}
+
+	var contribPathsPy3 = []string{
+		"contrib/python/importlib-metadata/py3",
 	}
 
 	var sharedLibraries = []string{
@@ -178,6 +185,15 @@ func GetPythonPaths() []string {
 	}
 	for _, p := range sharedLibraries {
 		pythonPaths = append(pythonPaths, yatest.BuildPath(p))
+	}
+	if pythonVersion == "2" {
+		for _, p := range contribPathsPy2 {
+			pythonPaths = append(pythonPaths, yatest.SourcePath(p))
+		}
+	} else { // "3"
+		for _, p := range contribPathsPy3 {
+			pythonPaths = append(pythonPaths, yatest.SourcePath(p))
+		}
 	}
 	return pythonPaths
 }
@@ -220,11 +236,14 @@ func PreparePython(preparedPythonPath string, t *testing.T) error {
 
 func TestPyTest(t *testing.T) {
 	var err error
+	var pythonVersion string
 
 	useSystemPython, ok := yatest.BuildFlag("USE_SYSTEM_PYTHON")
 	if !ok || useSystemPython == "" {
 		t.Skipf("You should specify USE_SYSTEM_PYTHON")
 		return
+	} else {
+		pythonVersion = useSystemPython[:1]
 	}
 
 	testsRoot := os.Getenv("TESTS_SANDBOX")
@@ -246,7 +265,7 @@ func TestPyTest(t *testing.T) {
 
 	sandboxDir := filepath.Join(testsRoot, "sandbox")
 
-	pythonPaths := GetPythonPaths()
+	pythonPaths := GetPythonPaths(pythonVersion)
 	pythonPaths = append(pythonPaths, preparedPythonPath)
 
 	testPathsFilePath := path.Join(preparedPythonPath, "yt/wrapper/new_system_python_tests/test_paths.txt")
