@@ -4720,7 +4720,7 @@ void TOperationControllerBase::IncreaseAccountResourceUsageLease(const std::opti
 {
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
-    if (!account) {
+    if (!account || !Config->EnableMasterResourceUsageAccounting) {
         return;
     }
 

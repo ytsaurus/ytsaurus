@@ -941,6 +941,8 @@ public:
     //! List of medium that requires specifying of account and disk space limit.
     THashSet<TString> ObligatoryAccountMediums;
 
+    bool EnableMasterResourceUsageAccounting;
+
     TControllerAgentConfig();
 
 private:
