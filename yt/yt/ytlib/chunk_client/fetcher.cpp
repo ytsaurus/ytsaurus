@@ -291,6 +291,7 @@ void TFetcherBase::StartFetchingRound()
                 unavailableChunks.insert(chunk);
             } else {
                 Promise_.Set(TError(
+                    EErrorCode::ChunkUnavailable,
                     "Unable to fetch info for chunk %v from any of nodes %v",
                     chunkId,
                     MakeFormattableView(replicas, TChunkReplicaAddressFormatter(NodeDirectory_))));
