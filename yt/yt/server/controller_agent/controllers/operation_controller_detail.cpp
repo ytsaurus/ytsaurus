@@ -6922,8 +6922,8 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
 
             if (Config->ObligatoryAccountMediums.contains(mediumName)) {
                 if (!diskRequest->Account) {
-                    THROW_ERROR_EXCEPTION("Account must be specified for disk request with given medium (MediumName: %v)",
-                        mediumName);
+                    THROW_ERROR_EXCEPTION("Account must be specified for disk request with given medium")
+                        << TErrorAttribute("medium_name", mediumName);
                 }
             }
             if (diskRequest->Account) {
