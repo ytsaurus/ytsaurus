@@ -9,6 +9,7 @@
 
 #include <yt/yt/server/lib/job_agent/job_reporter.h>
 
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/exec_node/slot_manager.h>
@@ -82,7 +83,7 @@ void TSchedulerConnector::SendHeartbeat()
     }
 
     if (TInstant::Now() < std::max(LastFailedHeartbeatTime_, LastThrottledHeartbeatTime_) + FailedHeartbeatBackoffTime_) {
-        YT_LOG_INFO("Skipping heartbeat");
+        YT_LOG_INFO("Skipping scheduler heartbeat");
         return;
     }
 

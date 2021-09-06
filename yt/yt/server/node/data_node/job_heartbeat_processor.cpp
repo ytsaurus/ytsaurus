@@ -36,7 +36,7 @@ void TMasterJobHeartbeatProcessor::ProcessResponse(
 
         const auto& resourceLimits = startInfo.resource_limits();
 
-        CreateJob(jobId, operationId, resourceLimits, std::move(spec));
+        CreateMasterJob(jobId, operationId, resourceLimits, std::move(spec));
 
         ++attachmentIndex;
     }

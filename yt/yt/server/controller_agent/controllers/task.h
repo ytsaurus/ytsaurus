@@ -119,7 +119,7 @@ public:
     virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary);
     virtual TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary);
     virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary);
-    virtual void OnJobRunning(TJobletPtr joblet, const TRunningJobSummary& jobSummary);
+    virtual void UpdateRunningJobStatistics(TJobletPtr joblet, const TRunningJobSummary& jobSummary);
     virtual void OnJobLost(TCompletedJobPtr completedJob);
 
     virtual void OnStripeRegistrationFailed(

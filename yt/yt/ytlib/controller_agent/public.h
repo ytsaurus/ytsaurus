@@ -93,6 +93,7 @@ DEFINE_ENUM(EErrorCode,
     ((NoOnlineNodeToScheduleJob)                  (4410))
     ((MaterializationFailed)                      (4415))
     ((OperationControllerMemoryLimitExceeded)     (4416))
+    ((IncarnationMismatch)                       (4417))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

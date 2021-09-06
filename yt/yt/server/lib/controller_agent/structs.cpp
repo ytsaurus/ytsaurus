@@ -48,6 +48,26 @@ TJobSummary::TJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
     if (status->has_phase()) {
         Phase = static_cast<EJobPhase>(status->phase());
     }
+
+    if (status->has_status_timestamp()) {
+        LastStatusUpdateTime = FromProto<TInstant>(status->status_timestamp());
+    }
+}
+
+TJobSummary::TJobSummary(NJobTrackerClient::NProto::TJobStatus* status)
+    : Id(FromProto<TJobId>(status->job_id()))
+    , State(CheckedEnumCast<EJobState>(status->state()))
+{
+    Result.Swap(status->mutable_result());
+    TimeStatistics = FromProto<NJobAgent::TTimeStatistics>(status->time_statistics());
+    if (status->has_statistics()) {
+        StatisticsYson = TYsonString(status->statistics());
+    }
+    if (status->has_phase()) {
+        Phase = CheckedEnumCast<EJobPhase>(status->phase());
+    }
+
+    LastStatusUpdateTime = FromProto<TInstant>(status->status_timestamp());
 }
 
 void TJobSummary::Persist(const TPersistenceContext& context)
@@ -124,6 +144,12 @@ TRunningJobSummary::TRunningJobSummary(NScheduler::NProto::TSchedulerToAgentJobE
     : TJobSummary(event)
     , Progress(event->status().progress())
     , StderrSize(event->status().stderr_size())
+{ }
+
+TRunningJobSummary::TRunningJobSummary(NJobTrackerClient::NProto::TJobStatus* status)
+    : TJobSummary(status)
+    , Progress(status->progress())
+    , StderrSize(status->stderr_size())
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/node/exec_node/public.h>
+
 #include <yt/yt/server/lib/job_agent/job_report.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
@@ -132,15 +134,22 @@ struct IJob
 
 DEFINE_REFCOUNTED_TYPE(IJob)
 
-using TJobFactory = TCallback<IJobPtr(
+using TMasterJobFactory = TCallback<IJobPtr(
     TJobId jobId,
     TOperationId operationId,
     const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
     NJobTrackerClient::NProto::TJobSpec&& jobSpec)>;
 
+using TSchedulerJobFactory = TCallback<IJobPtr(
+    TJobId jobid,
+    TOperationId operationId,
+    const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+    NJobTrackerClient::NProto::TJobSpec&& jobSpec,
+    const NExecNode::TControllerAgentDescriptor& agentInfo)>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-void FillJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, IJobPtr job);
+void FillJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, const IJobPtr& job);
 
 ////////////////////////////////////////////////////////////////////////////////
 

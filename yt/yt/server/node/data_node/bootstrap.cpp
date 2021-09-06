@@ -182,11 +182,11 @@ public:
                 GetConfig()->DataNode,
                 this);
         });
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::RemoveChunk, createMasterJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::ReplicateChunk, createMasterJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::RepairChunk, createMasterJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::SealChunk, createMasterJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::MergeChunks, createMasterJob);
+        GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::RemoveChunk, createMasterJob);
+        GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::ReplicateChunk, createMasterJob);
+        GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::RepairChunk, createMasterJob);
+        GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::SealChunk, createMasterJob);
+        GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::MergeChunks, createMasterJob);
 
         GetJobController()->AddHeartbeatProcessor<TMasterJobHeartbeatProcessor>(EObjectType::MasterJob, this);
     }

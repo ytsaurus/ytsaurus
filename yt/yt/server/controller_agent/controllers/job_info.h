@@ -84,6 +84,8 @@ public:
     TJoblet();
     TJoblet(TTask* task, int jobIndex, int taskJobIndex, const TString& treeId, bool treeIsTentative);
 
+    TInstant LastStatisticsUpdateTime;
+
     // Controller encapsulates lifetime of both, tasks and joblets.
     TTask* Task;
     int JobIndex;

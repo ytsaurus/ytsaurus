@@ -109,6 +109,12 @@ std::optional<EJobPreemptionStatus> GetJobPreemptionStatus(
     return jobIt != jobIdToStatus.end() ? std::make_optional(jobIt->second) : std::nullopt;
 };
 
+void SetControllerAgentInfo(const TControllerAgentPtr& agent, auto proto)
+{
+    ToProto(proto->mutable_addresses(), agent->GetAgentAddresses());
+    ToProto(proto->mutable_incarnation_id(), agent->GetIncarnationId());
+}
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1708,10 +1714,27 @@ void TNodeShard::ProcessHeartbeatJobs(
         YT_LOG_DEBUG("Requesting node to include stored jobs in the next heartbeat (NodeId: %v, NodeAddress: %v)",
             nodeId,
             nodeAddress);
-        ToProto(response->mutable_jobs_to_confirm(), node->UnconfirmedJobIds());
+        ToProto(response->mutable_old_jobs_to_confirm(), node->UnconfirmedJobIds());
         // If it is a first time we get the heartbeat from a given node,
         // there will definitely be some jobs that are missing. No need to abort
         // them.
+
+        for (const auto& jobId : node->UnconfirmedJobIds()) {
+            const auto jobPtr = FindJob(jobId, node);
+            auto* operationState = FindOperationState(jobPtr->GetOperationId());
+
+            auto agent = operationState->Controller->FindAgent();
+            if (!agent) {
+                YT_LOG_DEBUG("Cannot send unconfirmed job since agent is no longer known (JobId: %v, OperationId: %v)",
+                    jobPtr->GetId(),
+                    jobPtr->GetOperationId());
+                continue;
+            }
+
+            auto* jobToConfirm = response->add_jobs_to_confirm();
+            ToProto(jobToConfirm->mutable_job_id(), jobId);
+            SetControllerAgentInfo(agent, jobToConfirm->mutable_controller_agent_descriptor());
+        }
     }
 
     for (const auto& job : node->Jobs()) {
@@ -2255,6 +2278,8 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
         ToProto(startInfo->mutable_operation_id(), job->GetOperationId());
         *startInfo->mutable_resource_limits() = ToNodeResources(job->ResourceUsage());
         ToProto(startInfo->mutable_spec_service_addresses(), agent->GetAgentAddresses());
+
+        SetControllerAgentInfo(agent, startInfo->mutable_controller_agent_descriptor());
     }
 
     for (const auto& preemptedJob : schedulingContext->PreemptedJobs()) {

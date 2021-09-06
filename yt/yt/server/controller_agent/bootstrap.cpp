@@ -3,6 +3,7 @@
 #include "job_spec_service.h"
 #include "controller_agent_service.h"
 #include "controller_agent.h"
+#include "job_tracker_service.h"
 #include "private.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
@@ -180,6 +181,7 @@ void TBootstrap::DoRun()
         GetControlInvoker()));
     RpcServer_->RegisterService(CreateJobSpecService(this));
     RpcServer_->RegisterService(CreateControllerAgentService(this));
+    RpcServer_->RegisterService(CreateJobTrackerService(this));
 
     YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
     HttpServer_->Start();
