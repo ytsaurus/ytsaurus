@@ -332,9 +332,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::DoLookup(TShard* shard, const TKey& ke
         SyncHitCounter_.Increment();
 
         // NB: Releases the lock.
-        Trim(shard, writerGuard);
-
-        OnAdded(value);
+        FinishInsertAndTrim(shard, writerGuard, value);
 
         return valueFuture;
     }
@@ -411,9 +409,7 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
             SyncHitCounter_.Increment();
 
             // NB: Releases the lock.
-            Trim(shard, guard);
-
-            OnAdded(value);
+            FinishInsertAndTrim(shard, guard, value);
 
             return TInsertCookie(
                 key,
@@ -457,11 +453,9 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value)
     AsyncHitWeightCounter_.Increment(weight * item->AsyncHitCount.load());
 
     // NB: Releases the lock.
-    Trim(shard, guard);
+    FinishInsertAndTrim(shard, guard, value);
 
     promise.Set(value);
-
-    OnAdded(value);
 }
 
 template <class TKey, class TValue, class THash>
@@ -752,7 +746,8 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Pop(TShard* shard, TItem* item)
 }
 
 template <class TKey, class TValue, class THash>
-void TAsyncSlruCacheBase<TKey, TValue, THash>::Trim(TShard* shard, NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard)
+std::vector<typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValuePtr>
+TAsyncSlruCacheBase<TKey, TValue, THash>::DoTrim(TShard* shard)
 {
     // Move from older to younger.
     auto capacity = Capacity_.load();
@@ -790,10 +785,39 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Trim(TShard* shard, NConcurrency:
         delete item;
     }
 
+    return evictedValues;
+}
+
+template <class TKey, class TValue, class THash>
+void TAsyncSlruCacheBase<TKey, TValue, THash>::Trim(TShard* shard, NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard)
+{
+    auto evictedValues = DoTrim(shard);
     guard.Release();
 
     for (const auto& value : evictedValues) {
         OnRemoved(value);
+    }
+}
+
+template <class TKey, class TValue, class THash>
+void TAsyncSlruCacheBase<TKey, TValue, THash>::FinishInsertAndTrim(
+        TShard* shard,
+        NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard,
+        const TValuePtr& insertedValue)
+{
+    auto evictedValues = DoTrim(shard);
+    guard.Release();
+
+    bool immediatelyRemoved = false;
+    for (const auto& value : evictedValues) {
+        if (value == insertedValue) {
+            immediatelyRemoved = true;
+            continue;
+        }
+        OnRemoved(value);
+    }
+    if (!immediatelyRemoved) {
+        OnAdded(insertedValue);
     }
 }
 
