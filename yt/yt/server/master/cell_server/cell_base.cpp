@@ -35,6 +35,21 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(savrus)
+class TTabletCellConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::vector<std::optional<TString>> Addresses;
+
+    TTabletCellConfig()
+    {
+        RegisterParameter("addresses", Addresses);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCellStatus::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -94,7 +109,6 @@ void TCellBase::TPeer::Persist(const NCellMaster::TPersistenceContext& context)
 
 TCellBase::TCellBase(TTamedCellId id)
     : TNonversionedObjectBase(id)
-    , Config_(New<TTamedCellConfig>())
 { }
 
 void TCellBase::Save(TSaveContext& context) const
@@ -105,7 +119,6 @@ void TCellBase::Save(TSaveContext& context) const
     Save(context, LeadingPeerId_);
     Save(context, Peers_);
     Save(context, ConfigVersion_);
-    Save(context, *Config_);
     Save(context, PrerequisiteTransaction_);
     Save(context, CellBundle_);
     Save(context, Area_);
@@ -123,7 +136,11 @@ void TCellBase::Load(TLoadContext& context)
     Load(context, LeadingPeerId_);
     Load(context, Peers_);
     Load(context, ConfigVersion_);
-    Load(context, *Config_);
+    // COMPAT(savurs)
+    if (context.GetVersion() < EMasterReign::RemoveTabletCellConfig) {
+        auto tmp = New<TTabletCellConfig>();
+        Load(context, *tmp);
+    }
     Load(context, PrerequisiteTransaction_);
     Load(context, CellBundle_);
     if (context.GetVersion() >= EMasterReign::Areas) {

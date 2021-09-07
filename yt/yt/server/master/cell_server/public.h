@@ -36,8 +36,6 @@ using NTabletClient::NullTabletCellId;
 using NTabletClient::TypicalPeerCount;
 using TAreaId = NObjectClient::TObjectId;
 
-using TTamedCellConfig = NTabletClient::TTabletCellConfig;
-using TTamedCellConfigPtr = NTabletClient::TTabletCellConfigPtr;
 using NTabletClient::TTabletCellOptions;
 using NTabletClient::TTabletCellOptionsPtr;
 using NTabletClient::TDynamicTabletCellOptions;

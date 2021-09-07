@@ -96,20 +96,4 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTabletCellOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletCellConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    std::vector<std::optional<TString>> Addresses;
-
-    TTabletCellConfig()
-    {
-        RegisterParameter("addresses", Addresses);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TTabletCellConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NTabletClient

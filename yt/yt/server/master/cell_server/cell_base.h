@@ -74,7 +74,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, LeadingPeerId);
 
     DEFINE_BYVAL_RW_PROPERTY(int, ConfigVersion);
-    DEFINE_BYVAL_RW_PROPERTY(TTamedCellConfigPtr, Config);
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, PrerequisiteTransaction);
 

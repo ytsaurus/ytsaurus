@@ -188,6 +188,7 @@ DEFINE_ENUM(EMasterReign,
     ((InitializeAccountChunkHostMasterMemory2)                      (1659))  // aleksandra-zh
     ((JournalTruncateFixes)                                         (1660))  // aleksandra-zh
     ((PreloadPendingStoreCountBulkInsert)                           (1661))  // ifsmirnov
+    ((RemoveTabletCellConfig)                                       (1662))  // savrus
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1800))  // ignat
 );
