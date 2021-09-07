@@ -87,7 +87,7 @@ message TReqOnJobFinished
 {
     required NYT.NProto.TGuid job_id = 1;
     required NJobTrackerClient.NProto.TJobResult result = 2;
-    required string statistics = 3;
+    required bytes statistics = 3; // YSON
     optional uint64 start_time = 4;
     optional uint64 finish_time = 5;
     optional bytes job_stderr = 6;
@@ -109,7 +109,7 @@ message TReqOnJobProgress
 {
     required NYT.NProto.TGuid job_id = 1;
     required double progress = 2;
-    required string statistics = 3;
+    required bytes statistics = 3; // YSON
     optional uint64 stderr_size = 4;
 }
 
