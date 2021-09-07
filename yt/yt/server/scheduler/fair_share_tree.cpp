@@ -301,7 +301,7 @@ public:
 
         UnregisterSchedulingTagFilter(operationElement->GetSchedulingTagFilterIndex());
 
-        YT_VERIFY(OperationIdToElement_.erase(operationId) == 1);
+        EraseOrCrash(OperationIdToElement_, operationId);
 
         // Operation can be missing in these maps.
         OperationIdToActivationTime_.erase(operationId);
@@ -633,7 +633,7 @@ public:
                     if (pool->GetUserName()) {
                         const auto& userName = pool->GetUserName().value();
                         if (pool->IsEphemeralInDefaultParentPool()) {
-                            YT_VERIFY(UserToEphemeralPoolsInDefaultPool_[userName].erase(pool->GetId()) == 1);
+                            EraseOrCrash(UserToEphemeralPoolsInDefaultPool_[userName], pool->GetId());
                         }
                         pool->SetUserName(std::nullopt);
                     }
@@ -1800,20 +1800,21 @@ private:
 
         auto userName = pool->GetUserName();
         if (userName && pool->IsEphemeralInDefaultParentPool()) {
-            YT_VERIFY(UserToEphemeralPoolsInDefaultPool_[*userName].erase(pool->GetId()) == 1);
+            EraseOrCrash(UserToEphemeralPoolsInDefaultPool_[*userName], pool->GetId());
         }
 
         UnregisterSchedulingTagFilter(pool->GetSchedulingTagFilterIndex());
 
-        YT_VERIFY(PoolToMinUnusedSlotIndex_.erase(pool->GetId()) == 1);
-
-        YT_VERIFY(PoolToSpareSlotIndices_.erase(pool->GetId()) <= 1);
+        EraseOrCrash(PoolToMinUnusedSlotIndex_, pool->GetId());
+        
+        // Pool may be not presented in this map.
+        PoolToSpareSlotIndices_.erase(pool->GetId());
 
         TreeProfiler_->UnregisterPool(pool);
 
         // We cannot use pool after erase because Pools may contain last alive reference to it.
         auto extractedPool = std::move(Pools_[pool->GetId()]);
-        YT_VERIFY(Pools_.erase(pool->GetId()) == 1);
+        EraseOrCrash(Pools_, pool->GetId());
 
         extractedPool->SetNonAlive();
         auto parent = extractedPool->GetParent();

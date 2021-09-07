@@ -210,7 +210,7 @@ void TFairShareTreeProfiler::CleanupPoolProfilingEntries()
     }
 
     for (const auto& poolName : poolNamesToRemove) {
-        YT_VERIFY(PoolNameToProfilingEntry_.erase(poolName));
+        EraseOrCrash(PoolNameToProfilingEntry_, poolName);
         JobMetricsMap_.erase(poolName);
     }
 }

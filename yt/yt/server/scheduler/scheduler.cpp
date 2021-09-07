@@ -710,7 +710,7 @@ public:
             auto wrappedError = TError("Operation has failed to start")
                 << ex;
             operation->SetStarted(wrappedError);
-            YT_VERIFY(IdToStartingOperation_.erase(operationId) == 1);
+            EraseOrCrash(IdToStartingOperation_, operationId);
             THROW_ERROR(wrappedError);
         }
 
@@ -1563,7 +1563,7 @@ public:
                 if (it == NodeIdToDescriptor_.end()) {
                     YT_LOG_WARNING("Node is not registered at scheduler (Address: %v)", nodeAddress);
                 } else {
-                    YT_VERIFY(NodeAddresses_.erase(nodeAddress) == 1);
+                    EraseOrCrash(NodeAddresses_, nodeAddress);
                     NodeIdToDescriptor_.erase(it);
                     YT_LOG_INFO("Node unregistered from scheduler (Address: %v)", nodeAddress);
                 }
@@ -2865,7 +2865,7 @@ private:
                     OperationAliases_.erase(it);
                 }
 
-                YT_VERIFY(IdToStartingOperation_.erase(operation->GetId()) == 1);
+                EraseOrCrash(IdToStartingOperation_, operation->GetId());
 
                 auto wrappedError = TError("Operation has failed to start")
                     << ex;
@@ -2873,7 +2873,7 @@ private:
                 return;
             }
 
-            YT_VERIFY(IdToStartingOperation_.erase(operation->GetId()) == 1);
+            EraseOrCrash(IdToStartingOperation_, operation->GetId());
 
             ValidateOperationState(operation, EOperationState::Starting);
 
@@ -3222,8 +3222,8 @@ private:
 
     void UnregisterOperation(const TOperationPtr& operation)
     {
-        YT_VERIFY(IdToOperation_.erase(operation->GetId()) == 1);
-        YT_VERIFY(IdToOperationService_.erase(operation->GetId()) == 1);
+        EraseOrCrash(IdToOperation_, operation->GetId());
+        EraseOrCrash(IdToOperationService_, operation->GetId());
         if (operation->Alias()) {
             auto& alias = GetOrCrash(OperationAliases_, *operation->Alias());
             YT_LOG_DEBUG("Alias now corresponds to an unregistered operation (Alias: %v, OperationId: %v)",
@@ -3821,7 +3821,7 @@ private:
         }
 
         for (const auto& filter : toRemove) {
-            YT_VERIFY(CachedResourceLimitsByTags_.erase(filter) == 1);
+            EraseOrCrash(CachedResourceLimitsByTags_, filter);
         }
     }
 

@@ -2489,7 +2489,7 @@ void TNodeShard::SubmitJobsToStrategy()
                     operationState->JobsToSubmitToStrategy.erase(jobId);
                 }
 
-                YT_VERIFY(JobsToSubmitToStrategy_.erase(jobId) == 1);
+                EraseOrCrash(JobsToSubmitToStrategy_, jobId);
             }
         }
         SubmitToStrategyJobCount_.store(JobsToSubmitToStrategy_.size());
@@ -2594,8 +2594,8 @@ void TNodeShard::UnregisterJob(const TJobPtr& job, bool enableLogging)
     auto* operationState = FindOperationState(job->GetOperationId());
     const auto& node = job->GetNode();
 
-    YT_VERIFY(node->Jobs().erase(job) == 1);
-    YT_VERIFY(node->IdToJob().erase(job->GetId()) == 1);
+    EraseOrCrash(node->Jobs(), job);
+    EraseOrCrash(node->IdToJob(), job->GetId());
     --ActiveJobCount_;
 
     ResetJobWaitingForConfirmation(job);
