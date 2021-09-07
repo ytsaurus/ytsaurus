@@ -251,7 +251,7 @@ public:
             return;
         }
 
-        YT_VERIFY(agent->Operations().erase(operation) == 1);
+        EraseOrCrash(agent->Operations(), operation);
 
         YT_LOG_DEBUG("Operation unregistered from agent (AgentId: %v, OperationId: %v)",
             agent->GetId(),
@@ -844,7 +844,7 @@ private:
                     agent->GetIncarnationId());
 
                 agent->SetState(EControllerAgentState::Unregistered);
-                YT_VERIFY(IdToAgent_.erase(agent->GetId()) == 1);
+                EraseOrCrash(IdToAgent_, agent->GetId());
             })
             .Via(GetCancelableControlInvoker()));
     }

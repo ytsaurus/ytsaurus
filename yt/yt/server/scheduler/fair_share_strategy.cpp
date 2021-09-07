@@ -203,7 +203,7 @@ public:
             DoUnregisterOperationFromTree(state, treeId);
         }
 
-        YT_VERIFY(OperationIdToOperationState_.erase(operation->GetId()) == 1);
+        EraseOrCrash(OperationIdToOperationState_, operation->GetId());
     }
 
     void UnregisterOperationFromTree(TOperationId operationId, const TString& treeId) override
@@ -216,7 +216,7 @@ public:
 
         DoUnregisterOperationFromTree(state, treeId);
 
-        YT_VERIFY(state->TreeIdToPoolNameMap().erase(treeId) == 1);
+        EraseOrCrash(state->TreeIdToPoolNameMap(), treeId);
 
         YT_LOG_INFO("Operation removed from a tree (OperationId: %v, TreeId: %v)", operationId, treeId);
     }
@@ -1552,10 +1552,10 @@ private:
             for (auto operationId : it->second) {
                 const auto& state = GetOperationState(operationId);
                 GetTree(treeId)->UnregisterOperation(state);
-                YT_VERIFY(state->TreeIdToPoolNameMap().erase(treeId) == 1);
+                EraseOrCrash(state->TreeIdToPoolNameMap(), treeId);
 
                 auto& treeSet = GetOrCrash(operationIdToTreeSet, operationId);
-                YT_VERIFY(treeSet.erase(treeId) == 1);
+                EraseOrCrash(treeSet, treeId);
             }
         }
 

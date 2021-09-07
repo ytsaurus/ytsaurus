@@ -344,7 +344,7 @@ void TOperation::SetSlotIndex(const TString& treeId, int value)
 
 void TOperation::ReleaseSlotIndex(const TString& treeId)
 {
-    YT_VERIFY(TreeIdToSlotIndex_.erase(treeId) == 1);
+    EraseOrCrash(TreeIdToSlotIndex_, treeId);
 }
 
 std::optional<int> TOperation::FindSlotIndex(const TString& treeId) const
@@ -518,7 +518,7 @@ void TOperation::EraseTrees(const std::vector<TString>& treeIds)
     }
     for (const auto& treeId : treeIds) {
         RuntimeParameters_->ErasedTrees.push_back(treeId);
-        YT_VERIFY(RuntimeParameters_->SchedulingOptionsPerPoolTree.erase(treeId));
+        EraseOrCrash(RuntimeParameters_->SchedulingOptionsPerPoolTree, treeId);
     }
 }
 

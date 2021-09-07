@@ -314,7 +314,7 @@ void TResourceTree::PerformPostponedActions()
             FormatResources(element->GetResourceUsageWithPrecommit()));
         YT_VERIFY(element->GetResourceUsageWithPrecommit() == TJobResources());
         element->Parent_ = nullptr;
-        YT_VERIFY(AliveElements_.erase(element) == 1);
+        EraseOrCrash(AliveElements_, element);
     }
 }
 
