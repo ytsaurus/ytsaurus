@@ -399,7 +399,9 @@ public class RpcOptions {
     public RpcOptions setRpcProxySelector(@Nullable ProxySelector rpcProxySelector) {
         if (rpcProxySelector == null) {
             this.rpcProxySelector = ProxySelector.random();
+            return this;
         }
+        this.rpcProxySelector = rpcProxySelector;
         return this;
     }
 }
