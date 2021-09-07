@@ -390,7 +390,14 @@ private:
             ToProto(updateTabletStoresReq.add_stores_to_remove()->mutable_store_id(), store->GetId());
             updateTabletStoresReq.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Flush));
 
-            if (tabletSnapshot->Settings.MountConfig->EnableDynamicStoreRead) {
+            // If dynamic stores for an ordered tablet are requested both with flush and
+            // via AllocateDynamicStore, reordering is possible and dynamic stores will
+            // occur in different order at master and at node.
+            // See YT-15197.
+            bool shouldRequestDynamicStoreId = tabletSnapshot->Settings.MountConfig->EnableDynamicStoreRead &&
+                tabletSnapshot->PhysicalSchema->IsSorted();
+
+            if (shouldRequestDynamicStoreId) {
                 int potentialDynamicStoreCount = tablet->DynamicStoreIdPool().size() + tablet->ComputeDynamicStoreCount();
 
                 // NB: Race is possible here. Consider a tablet with an active store, two passive
