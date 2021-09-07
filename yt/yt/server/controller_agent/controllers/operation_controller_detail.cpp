@@ -1542,7 +1542,9 @@ void TOperationControllerBase::InitInputChunkScraper()
 {
     THashSet<TChunkId> chunkIds;
     for (const auto& [chunkId, chunkDescriptor] : InputChunkMap) {
-        chunkIds.insert(chunkId);
+        if (!IsDynamicTabletStoreType(TypeFromId(chunkId))) {
+            chunkIds.insert(chunkId);
+        }
     }
 
     YT_VERIFY(!InputChunkScraper);

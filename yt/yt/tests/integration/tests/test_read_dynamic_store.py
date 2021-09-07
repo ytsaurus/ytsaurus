@@ -10,7 +10,8 @@ from yt_commands import (
     commit_transaction, lock, insert_rows, read_table, write_table, map, reduce, map_reduce, merge, sort,
     unmount_table, remount_table,
     generate_timestamp, get_tablet_leader_address, sync_create_cells, sync_mount_table, sync_unmount_table,
-    sync_freeze_table, sync_unfreeze_table, sync_flush_table)
+    sync_freeze_table, sync_unfreeze_table, sync_flush_table,
+    get_singular_chunk_id)
 
 from yt.common import YtError
 import yt.yson as yson
@@ -437,6 +438,30 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         op.track()
 
         assert read_table("//tmp/t_out") == rows
+
+    def test_dynamic_store_not_scraped(self):
+        cell_id = sync_create_cells(1)[0]
+        cell_node = get("#{}/@peers/0/address".format(cell_id))
+        set("//sys/cluster_nodes/{}/@disable_write_sessions".format(cell_node), True)
+
+        self._prepare_simple_table(
+            "//tmp/t_in",
+            enable_store_rotation=False,
+            replication_factor=1)
+        chunk_id = get_singular_chunk_id("//tmp/t_in")
+        stored_replicas = get("#{}/@stored_replicas".format(chunk_id))
+        assert len(stored_replicas) == 1
+        chunk_node = stored_replicas[0]
+        assert chunk_node != cell_node
+
+        set("//sys/cluster_nodes/{}/@banned".format(chunk_node), True)
+
+        create("table", "//tmp/t_out")
+        op = merge(in_="//tmp/t_in", out="//tmp/t_out", mode="ordered", track=False)
+        wait(lambda: op.get_state() == "materializing")
+
+        set("//sys/cluster_nodes/{}/@banned".format(chunk_node), False)
+        op.track()
 
 
 class TestReadSortedDynamicTablesMulticell(TestReadSortedDynamicTables):
