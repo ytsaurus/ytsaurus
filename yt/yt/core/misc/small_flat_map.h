@@ -1,8 +1,8 @@
 #pragma once
 
-#include "public.h"
-
 #include "small_vector.h"
+
+#include <util/system/yassert.h>
 
 namespace NYT {
 

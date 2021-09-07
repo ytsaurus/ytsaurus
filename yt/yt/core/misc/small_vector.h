@@ -12,8 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include "public.h"
-#include "mpl.h"
 
 #include <util/system/defaults.h>
 
@@ -370,8 +368,20 @@ public:
 /// This class consists of common code factored out of the SmallVector class to
 /// reduce code duplication based on the SmallVector 'N' template parameter.
 template <typename T>
-class SmallVectorImpl : public SmallVectorTemplateBase<T, NMpl::TIsPod<T>::value> {
-  typedef SmallVectorTemplateBase<T, NMpl::TIsPod<T>::value > SuperClass;
+class SmallVectorImpl : 
+  public SmallVectorTemplateBase<
+    T, 
+    std::integral_constant<
+      bool,
+      std::is_trivially_move_constructible<T>::value && std::is_standard_layout<T>::value
+    >::value
+  >
+{
+  static constexpr bool IsPodType = std::integral_constant<
+    bool,
+    std::is_trivially_move_constructible<T>::value && std::is_standard_layout<T>::value
+  >::value;
+  typedef SmallVectorTemplateBase<T, IsPodType> SuperClass;
 
   SmallVectorImpl(const SmallVectorImpl&) = delete;
 public:
@@ -381,7 +391,7 @@ public:
 protected:
   // Default ctor - Initialize to empty.
   explicit SmallVectorImpl(unsigned N)
-    : SmallVectorTemplateBase<T, NMpl::TIsPod<T>::value>(N*sizeof(T)) {
+    : SmallVectorTemplateBase<T, IsPodType>(N*sizeof(T)) {
   }
 
 public:
