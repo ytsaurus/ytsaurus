@@ -157,7 +157,7 @@ std::pair<typename TSmallFlatMap<K, V, N>::iterator, typename TSmallFlatMap<K, V
 TSmallFlatMap<K, V, N>::EqualRange(const K& k)
 {
     auto result = std::equal_range(Storage_.begin(), Storage_.end(), k, TKeyComparer());
-    YT_ASSERT(std::distance(result.first, result.second) <= 1);
+    Y_VERIFY_DEBUG(std::distance(result.first, result.second) <= 1);
     return result;
 }
 
@@ -166,7 +166,7 @@ std::pair<typename TSmallFlatMap<K, V, N>::const_iterator, typename TSmallFlatMa
 TSmallFlatMap<K, V, N>::EqualRange(const K& k) const
 {
     auto result = std::equal_range(Storage_.begin(), Storage_.end(), k, TKeyComparer());
-    YT_ASSERT(std::distance(result.first, result.second) <= 1);
+    Y_VERIFY_DEBUG(std::distance(result.first, result.second) <= 1);
     return result;
 }
 
