@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.proxy;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
@@ -9,15 +10,20 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import ru.yandex.yt.ytclient.DC;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
+import ru.yandex.yt.ytclient.rpc.RpcClient;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.oneOf;
 import static ru.yandex.yt.testlib.FutureUtils.getError;
@@ -341,6 +347,28 @@ public class ClientPoolTest extends ClientPoolTestBase {
         assertThat(client1.isDone(), is(true));
         assertThat(client1.join().getAddressString(), is("localhost:2"));
     }
+
+    @Test
+    public void testProxySelector() {
+        ClientPool clientPool = newClientPool(ProxySelector.pessimizing(DC.MAN));
+
+        waitOkResult(
+                clientPool.updateClients(
+                        List.of(
+                                HostPort.parse("man-host:2"),
+                                HostPort.parse("sas-host:3"),
+                                HostPort.parse("vla-host:4"),
+                                HostPort.parse("iva-host:5")
+                        )),
+                100
+        );
+
+        List<String> selectedClients = Arrays.stream(clientPool.getAliveClients())
+                .map(RpcClient::getAddressString)
+                .collect(Collectors.toList());
+
+        assertThat(selectedClients, not(hasItem("man-host:2")));
+    }
 }
 
 class ClientPoolTestBase {
@@ -365,5 +393,15 @@ class ClientPoolTestBase {
                 mockRpcClientFactory,
                 executorService,
                 new Random());
+    }
+
+    ClientPool newClientPool(ProxySelector proxySelector) {
+        return new ClientPool(
+                "testDc",
+                3,
+                mockRpcClientFactory,
+                executorService,
+                new Random(),
+                proxySelector);
     }
 }
