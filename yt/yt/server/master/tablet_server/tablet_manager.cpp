@@ -4564,16 +4564,17 @@ private:
                 }
             }
 
+            auto timeDelta = std::max(1.0, (now - tablet->PerformanceCounters().Timestamp).SecondsFloat());
+            auto exp10 = std::exp(-timeDelta / (60 * 10 / 2));
+            auto exp60 = std::exp(-timeDelta / (60 * 60 / 2));
+
             auto updatePerformanceCounter = [&] (TTabletPerformanceCounter* counter, i64 curValue) {
                 i64 prevValue = counter->Count;
-                auto timeDelta = std::max(1.0, (now - tablet->PerformanceCounters().Timestamp).SecondsFloat());
                 auto valueDelta = std::max(curValue, prevValue) - prevValue;
                 auto rate = valueDelta / timeDelta;
                 counter->Count = curValue;
                 counter->Rate = rate;
-                auto exp10 = std::exp(-timeDelta / (60 * 10 / 2));
                 counter->Rate10 = rate * (1 - exp10) + counter->Rate10 * exp10;
-                auto exp60 = std::exp(-timeDelta / (60 * 60 / 2));
                 counter->Rate60 = rate * (1 - exp60) + counter->Rate60 * exp60;
             };
 
