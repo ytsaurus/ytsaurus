@@ -187,6 +187,7 @@ DEFINE_ENUM(EMasterReign,
     ((RescheduleMergeOnLeaderActive)                                (1658))  // aleksandra-zh
     ((InitializeAccountChunkHostMasterMemory2)                      (1659))  // aleksandra-zh
     ((JournalTruncateFixes)                                         (1660))  // aleksandra-zh
+    ((PreloadPendingStoreCountBulkInsert)                           (1661))  // ifsmirnov
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1800))  // ignat
 );

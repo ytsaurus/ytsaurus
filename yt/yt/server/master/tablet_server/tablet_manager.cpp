@@ -1574,6 +1574,15 @@ public:
                 }
             }
 
+            if (originatingNode->GetInMemoryMode() != EInMemoryMode::None &&
+                tablet->GetState() != ETabletState::Unmounted)
+            {
+                auto& nodeStatistics = tablet->NodeStatistics();
+                nodeStatistics.set_preload_pending_store_count(
+                    nodeStatistics.preload_pending_store_count() +
+                        ssize(appendChunkList->Children()));
+            }
+
             auto newStatistics = GetTabletStatistics(tablet);
             originatingNode->AccountTabletStatistics(newStatistics);
 
