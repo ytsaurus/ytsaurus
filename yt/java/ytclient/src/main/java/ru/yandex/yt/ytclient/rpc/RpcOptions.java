@@ -8,6 +8,7 @@ import java.util.concurrent.ThreadFactory;
 import javax.annotation.Nullable;
 
 import ru.yandex.yt.ytclient.proxy.OutageController;
+import ru.yandex.yt.ytclient.proxy.ProxySelector;
 import ru.yandex.yt.ytclient.proxy.internal.DiscoveryMethod;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolder;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolderImpl;
@@ -65,6 +66,8 @@ public class RpcOptions {
     private boolean newDiscoveryServiceEnabled = false;
 
     private ThreadFactory discoveryThreadFactory;
+
+    private ProxySelector rpcProxySelector = ProxySelector.random();
 
     public RpcOptions() {
         // nothing
@@ -378,6 +381,25 @@ public class RpcOptions {
 
     public RpcOptions setDiscoveryThreadFactory(ThreadFactory discoveryThreadFactory) {
         this.discoveryThreadFactory = discoveryThreadFactory;
+        return this;
+    }
+
+    /**
+     * Get current {@link ProxySelector}
+     * @see ProxySelector
+     */
+    public ProxySelector getRpcProxySelector() {
+        return rpcProxySelector;
+    }
+
+    /**
+     * Set {@link ProxySelector} for ranking of a proxy list
+     * @see ProxySelector for a list of available implementations
+     */
+    public RpcOptions setRpcProxySelector(@Nullable ProxySelector rpcProxySelector) {
+        if (rpcProxySelector == null) {
+            this.rpcProxySelector = ProxySelector.random();
+        }
         return this;
     }
 }

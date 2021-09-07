@@ -2,7 +2,6 @@ package ru.yandex.yt.ytclient.proxy;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -268,7 +267,8 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
                         httpBuilder.options
                 ),
                 Objects.requireNonNull(httpBuilder.eventLoop),
-                Objects.requireNonNull(httpBuilder.random)
+                Objects.requireNonNull(httpBuilder.random),
+                Objects.requireNonNull(httpBuilder.options.getRpcProxySelector())
         );
         AsyncHttpClient asyncHttpClient = asyncHttpClient(
                 new DefaultAsyncHttpClientConfig.Builder()
@@ -298,7 +298,8 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
                         Objects.requireNonNull(rpcBuilder.clientFactory),
                         rpcBuilder.options),
                 Objects.requireNonNull(rpcBuilder.eventLoop),
-                Objects.requireNonNull(rpcBuilder.random)
+                Objects.requireNonNull(rpcBuilder.random),
+                Objects.requireNonNull(rpcBuilder.options.getRpcProxySelector())
         );
 
         proxyGetter = new RpcProxyGetter(
@@ -496,6 +497,7 @@ class ClientPool implements DataCenterRpcClientPool {
     private final ExecutorService unsafeExecutorService;
     private final SerializedExecutorService safeExecutorService;
     private final Random random;
+    private final ProxySelector proxySelector;
 
     // Healthy clients.
     private final Map<GUID, PooledRpcClient> activeClients = new HashMap<>();
@@ -513,12 +515,24 @@ class ClientPool implements DataCenterRpcClientPool {
             ExecutorService executorService,
             Random random
     ) {
+        this(dataCenterName, maxSize, clientFactory, executorService, random, ProxySelector.random());
+    }
+
+    ClientPool(
+            String dataCenterName,
+            int maxSize,
+            SelfCheckingClientFactory clientFactory,
+            ExecutorService executorService,
+            Random random,
+            ProxySelector proxySelector
+    ) {
         this.dataCenterName = dataCenterName;
         this.unsafeExecutorService = executorService;
         this.safeExecutorService = new SerializedExecutorService(executorService);
         this.random = random;
         this.maxSize = maxSize;
         this.clientFactory = clientFactory;
+        this.proxySelector = proxySelector;
     }
 
     @Override
@@ -661,7 +675,7 @@ class ClientPool implements DataCenterRpcClientPool {
         }
 
         ArrayList<HostPort> remainingProxies = new ArrayList<>(proxies);
-        Collections.shuffle(remainingProxies, random);
+        proxySelector.rank(remainingProxies);
 
         for (HostPort hostPort : remainingProxies) {
             if (activeClients.size() >= maxSize) {
