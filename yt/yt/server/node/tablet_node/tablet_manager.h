@@ -37,6 +37,7 @@ public:
     ~TTabletManager();
 
     void Initialize();
+    void Finalize();
 
     void Write(
         TTabletSnapshotPtr tabletSnapshot,

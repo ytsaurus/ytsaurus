@@ -222,6 +222,11 @@ public:
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUpdateTabletStores, MakeStrong(this))));
     }
 
+    void Finalize()
+    {
+        DistributedThrottlerManager_->Finalize();
+    }
+
 
     TTablet* GetTabletOrThrow(TTabletId id)
     {
@@ -4261,6 +4266,11 @@ TTabletManager::~TTabletManager() = default;
 void TTabletManager::Initialize()
 {
     Impl_->Initialize();
+}
+
+void TTabletManager::Finalize()
+{
+    Impl_->Finalize();
 }
 
 TTablet* TTabletManager::GetTabletOrThrow(TTabletId id)
