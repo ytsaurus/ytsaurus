@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/misc/small_vector.h>
 
+#include <optional>
+
 namespace NYT::NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,6 +16,7 @@ struct TTimestampMap
 {
     SmallVector<std::pair<NObjectClient::TCellTag, TTimestamp>, 4> Timestamps;
 
+    std::optional<TTimestamp> FindTimestamp(NObjectClient::TCellTag) const;
     TTimestamp GetTimestamp(NObjectClient::TCellTag) const;
 
     void Persist(const TStreamPersistenceContext& context);

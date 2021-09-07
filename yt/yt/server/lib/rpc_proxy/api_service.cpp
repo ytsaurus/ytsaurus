@@ -1050,9 +1050,10 @@ private:
             [] (const auto& context, const TTransactionCommitResult& result) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_commit_timestamps(), result.CommitTimestamps);
+                response->set_primary_commit_timestamp(result.PrimaryCommitTimestamp);
 
-                context->SetResponseInfo("CommitTimestamps: %v",
-                    result.CommitTimestamps);
+                context->SetResponseInfo("PrimaryCommitTimestamp: %llx, CommitTimestamps: %v",
+                    result.PrimaryCommitTimestamp, result.CommitTimestamps);
             });
     }
 

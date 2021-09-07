@@ -1023,6 +1023,9 @@ private:
         const auto& rsp = rspOrError.Value();
         TTransactionCommitResult result;
         result.CommitTimestamps = FromProto<TTimestampMap>(rsp->commit_timestamps());
+        if (auto primaryTimestamp = result.CommitTimestamps.FindTimestamp(Owner_->PrimaryCellTag_)) {
+            result.PrimaryCommitTimestamp = *primaryTimestamp;
+        }
         auto error = SetCommitted(result);
         if (!error.IsOK()) {
             return error;

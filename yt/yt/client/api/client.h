@@ -444,6 +444,9 @@ struct TTransactionPingOptions
 
 struct TTransactionCommitResult
 {
+    //! NullTimestamp for all cases when CommitTimestamps are empty.
+    //! NullTimestamp when the primary cell did not participate in to transaction.
+    NHiveClient::TTimestamp PrimaryCommitTimestamp = NHiveClient::NullTimestamp;
     //! Empty for non-atomic transactions (timestamps are fake).
     //! Empty for empty tablet transactions (since the commit is essentially no-op).
     //! May contain multiple items for cross-cluster commit.
