@@ -626,6 +626,7 @@ protected:
     virtual void PrepareInputTables();
     bool HasDiskRequestsWithSpecifiedAccount() const;
     void InitAccountResourceUsageLeases();
+    void ValidateSecureVault();
 
     // Preparation.
     void RegisterInputChunk(const NChunkClient::TInputChunkPtr& inputChunk);
