@@ -129,13 +129,18 @@ $ yt map-reduce --mapper "python my_mapper.py" --map-local-file "~/my_mapper.py"
 --reduce-by "column_one" --reduce-by "column_two"
 >> [...] operation 5-6-7-8 initializing [...]
 
+Sort the table.
+$ yt sort --src //project/some_existing_table --dst //tmp/sepulki --sort-by "column-one"
+
+Sort the table in descending order.
+$ yt sort --src //project/some_existing_table --dst //tmp/sepulki --sort-by "{name=column-one; sort_order=descending;}"
+
 Note! Without modification `append=true` destination table is overwritten.
 Note! Specify paths to user scripts!
 
 Lookup rows from dynamic table.
 $ echo '{host=abc.com}' | yt lookup-rows //my/dynamic/table
 >> {"host"="abc.com";"last_seen_time": "2017-04-10T12:35:10"}
-
 
 See also:
     YT CLI client           https://doc.yt.yandex.net/api/cli/cli.html
@@ -220,6 +225,8 @@ class ParseMemoryLimit(Action):
 def add_argument(parser, name, help, description, aliases=[], **kwargs):
     if description:
         if help:
+            if help.endswith("."):
+                help = help[:-1]
             help = "".join([help, ". ", description])
         else:
             help = description
@@ -294,6 +301,10 @@ def add_read_from_arguments(parser):
     parser.add_argument("--read-from", help='Can be set to "cache" to enable reads from system cache')
     parser.add_argument("--cache-sticky-group-size", type=int,
                         help='Size of sticky group size for read_from="cache" mode')
+
+def add_sort_order_argument(parser, name, help, required):
+    DESCRIPTION = "In order to choose descending sort order, provide a map of form '{name=foo; sort_order=descending}'"
+    add_argument(parser, name, help, DESCRIPTION, action=ParseAppendStructuredDataOrString, required=required)
 
 @copy_docstring_from(yt.exists)
 def exists(**kwargs):
@@ -1070,7 +1081,7 @@ def add_sort_parser(add_parser):
     parser = add_parser("sort", operation_handler(yt.run_sort))
     add_src_arg(parser)
     parser.add_argument("--dst", required=True, dest="destination_table")
-    parser.add_argument("--sort-by", action=ParseAppendStructuredDataOrString, required=True, help="Columns to sort by.")
+    add_sort_order_argument(parser, "--sort-by", "Columns to sort by.", required=True)
     add_operation_handler_related_args(parser)
     add_structured_argument(parser, "--spec")
 
@@ -1088,9 +1099,9 @@ def add_reduce_parser(add_parser):
                "Note, source tables must be sorted! "
                "For reducing not sorted table use map-reduce command without --mapper")
     operation_args(parser)
-    parser.add_argument("--reduce-by", action=ParseAppendStructuredDataOrString, required=False, help="Columns to reduce by.")
-    parser.add_argument("--sort-by", action=ParseAppendStructuredDataOrString, required=False, help="Columns to sort by.")
-    parser.add_argument("--join-by", action=ParseAppendStructuredDataOrString, required=False, help="Columns to join by.")
+    add_sort_order_argument(parser, "--reduce-by", help="Columns to reduce by.", required=False)
+    add_sort_order_argument(parser, "--sort-by", help="Columns to sort by.", required=False)
+    add_sort_order_argument(parser, "--join-by", help="Columns to join by.", required=False)
 
 def add_join_reduce_parser(add_parser):
     parser = add_parser(
@@ -1098,7 +1109,7 @@ def add_join_reduce_parser(add_parser):
         operation_handler(yt.run_join_reduce),
         epilog="See also yt map-reduce --help for brief options description.\n Note, source tables must be sorted!")
     operation_args(parser)
-    parser.add_argument("--join-by", action=ParseAppendStructuredDataOrString, required=True, help="Columns to join by.")
+    add_sort_order_argument(parser, "--join-by", help="Columns to join by.", required=True)
 
 def add_remote_copy_parser(add_parser):
     parser = add_parser("remote-copy", operation_handler(yt.run_remote_copy))
@@ -1175,10 +1186,9 @@ For append mode in destination table add <append=true> modificator to path.
     parser.add_argument("--mapper-memory-limit", "--map-memory-limit", type=int, action=ParseMemoryLimit, help="in MB")
     parser.add_argument("--reducer-memory-limit", "--reduce-memory-limit", type=int, action=ParseMemoryLimit, help="in MB")
     parser.add_argument("--reduce-combiner-memory-limit", type=int, action=ParseMemoryLimit, help="in MB")
-    parser.add_argument("--reduce-by", action=ParseAppendStructuredDataOrString, required=True, help="Columns to reduce by.")
-    parser.add_argument("--sort-by", action=ParseAppendStructuredDataOrString,
-                        help="Columns to sort by. Must be superset of reduce-by columns. "
-                             "By default is equal to --reduce-by option.")
+    add_sort_order_argument(parser, "--reduce-by", help="Columns to reduce by.", required=True)
+    add_sort_order_argument(parser, "--sort-by", help="Columns to sort by. Must be superset of reduce-by columns. "
+                                                      "By default is equal to --reduce-by option.", required=False)
     add_structured_argument(parser, "--spec")
     add_format_argument(parser)
     parser.add_argument("--map-input-format", action=ParseFormat, help="see --format help")
