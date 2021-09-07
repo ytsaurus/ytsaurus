@@ -13,7 +13,7 @@ from yt_commands import (
     sync_create_cells, get_singular_chunk_id, multicell_sleep,
     update_nodes_dynamic_config, set_node_banned, check_all_stderrs, get_statistics,
     repair_exec_node,
-    make_random_string, raises_yt_error)
+    make_random_string, raises_yt_error, update_controller_agent_config)
 
 
 import yt_error_codes
@@ -1822,6 +1822,31 @@ class TestSecureVault(YTEnvSetup):
                 spec={"secure_vault": {"x" * (2 ** 16 + 1): 42}},
                 command="cat",
             )
+
+    @authors("gepardo")
+    def test_secure_vault_limit(self):
+        secure_vault_len = len(yson.dumps(self.secure_vault))
+
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out")
+
+        update_controller_agent_config("secure_vault_length_limit", secure_vault_len - 1)
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                spec={"secure_vault": self.secure_vault},
+                command="cat",
+            )
+
+        update_controller_agent_config("secure_vault_length_limit", secure_vault_len)
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"secure_vault": self.secure_vault},
+            command="cat",
+        )
 
 
 ##################################################################

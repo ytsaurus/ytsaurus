@@ -553,12 +553,26 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     return result;
 }
 
+void TOperationControllerBase::ValidateSecureVault()
+{
+    if (!SecureVault) {
+        return;
+    }
+    i64 length = ConvertToYsonString(SecureVault, EYsonFormat::Text).AsStringBuf().size();
+    YT_LOG_DEBUG("Operation secure vault size detected (Size: %v)", length);
+    if (length > Config->SecureVaultLengthLimit) {
+        THROW_ERROR_EXCEPTION("Secure vault YSON text representation is too long")
+            << TErrorAttribute("size_limit", Config->SecureVaultLengthLimit);
+    }
+}
+
 TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
 {
     YT_LOG_INFO("Initializing operation for clean start (Title: %v)",
         Spec_->Title);
 
     auto initializeAction = BIND([this_ = MakeStrong(this), this] () {
+        ValidateSecureVault();
         InitializeClients();
         StartTransactions();
         InitializeStructures();

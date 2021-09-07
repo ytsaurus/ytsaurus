@@ -835,7 +835,7 @@ TControllerAgentConfig::TControllerAgentConfig()
 
     RegisterParameter("user_job_monitoring", UserJobMonitoring)
         .DefaultNew();
-    
+
     RegisterParameter("obligatory_account_mediums", ObligatoryAccountMediums)
         .Default();
 
@@ -844,6 +844,9 @@ TControllerAgentConfig::TControllerAgentConfig()
 
     RegisterParameter("memory_watchdog", MemoryWatchdog)
         .DefaultNew();
+
+    RegisterParameter("secure_vault_length_limit", SecureVaultLengthLimit)
+        .Default(64_MB);
 
     RegisterPreprocessor([&] {
         EventLog->MaxRowWeight = 128_MB;
