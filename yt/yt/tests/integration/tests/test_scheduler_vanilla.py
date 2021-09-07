@@ -323,7 +323,13 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             jobs = list(op.get_running_jobs())
             assert len(jobs) == 1
             job_id = jobs[0]
-            interrupt_job(job_id)
+            try:
+                interrupt_job(job_id)
+            except YtError() as e:
+                # Sometimes job proxy may finish before it manages to send Interrupt reply.
+                # This is not an error.
+                socket_was_closed_error_code = 100
+                assert e.contains_code(socket_was_closed_error_code)
 
         exit_code = 17
         command = """(trap "exit {}" SIGINT; BREAKPOINT; trap "exit 0" SIGINT; sleep 100)""".format(exit_code)

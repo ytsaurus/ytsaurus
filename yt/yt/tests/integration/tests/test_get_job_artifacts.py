@@ -36,13 +36,16 @@ OPERATION_JOB_SPEC_ARCHIVE_TABLE = "//sys/operations_archive/job_specs"
 OPERATION_IDS_ARCHIVE_TABLE = "//sys/operations_archive/operation_ids"
 
 
-def get_job_rows_for_operation(operation_id):
-    hash_pair = uuid_hash_pair(operation_id)
-    return select_rows(
+def get_job_rows_for_operation(operation_id, job_ids):
+    op_hash_pair = uuid_hash_pair(operation_id)
+    rows = select_rows(
         "* from [{0}] where operation_id_lo = {1}u and operation_id_hi = {2}u".format(
-            OPERATION_JOB_ARCHIVE_TABLE, hash_pair.lo, hash_pair.hi
+            OPERATION_JOB_ARCHIVE_TABLE, op_hash_pair.lo, op_hash_pair.hi
         )
     )
+
+    job_hash_pairs = [uuid_hash_pair(job_id) for job_id in job_ids]
+    return [r for r in rows if (r['job_id_lo'], r['job_id_hi']) in job_hash_pairs]
 
 
 def generate_job_key(job_id):
@@ -59,7 +62,7 @@ def get_job_spec_rows_for_jobs(job_ids):
 
 def wait_for_data_in_job_archive(op_id, job_ids):
     print_debug("Waiting for jobs to appear in archive: ", job_ids)
-    wait(lambda: len(get_job_rows_for_operation(op_id)) == len(job_ids))
+    wait(lambda: len(get_job_rows_for_operation(op_id, job_ids)) == len(job_ids))
     wait(lambda: len(get_job_spec_rows_for_jobs(job_ids)) == len(job_ids))
 
 
