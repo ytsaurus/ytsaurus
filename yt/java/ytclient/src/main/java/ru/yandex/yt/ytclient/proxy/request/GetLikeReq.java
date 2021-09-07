@@ -69,6 +69,7 @@ public abstract class GetLikeReq<T extends GetLikeReq<T>> extends TransactionalR
                 .apply(super::toTree)
                 .key("path").apply(path::toTree)
                 .when(masterReadOptions != null, b -> b.key("read_from").apply(masterReadOptions::toTree))
-                .when(attributes != null, b2 -> b2.key("attributes").apply(attributes::toTree));
+                .when(attributes != null && attributes.isPresent(),
+                        b2 -> b2.key("attributes").apply(attributes::toTree));
     }
 }
