@@ -40,8 +40,6 @@ using NTabletClient::TTableReplicaId;
 using NTabletClient::TTabletActionId;
 using NTabletClient::TTableReplicaId;
 
-using NTabletClient::TTabletCellConfig;
-using NTabletClient::TTabletCellConfigPtr;
 using NTabletClient::TTabletCellOptions;
 using NTabletClient::TTabletCellOptionsPtr;
 using NTabletClient::TDynamicTabletCellOptions;

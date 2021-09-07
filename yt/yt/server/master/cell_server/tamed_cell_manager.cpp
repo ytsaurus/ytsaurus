@@ -1928,19 +1928,6 @@ private:
     {
         cell->SetConfigVersion(cell->GetConfigVersion() + 1);
 
-        auto config = cell->GetConfig();
-        config->Addresses.clear();
-        for (TPeerId peerId = 0; peerId < static_cast<TPeerId>(cell->Peers().size()); ++peerId) {
-            const auto& peer = cell->Peers()[peerId];
-            if (cell->IsAlienPeer(peerId)) {
-                config->Addresses.push_back(std::nullopt);
-            } else if (peer.Descriptor.IsNull()) {
-                config->Addresses.push_back(std::nullopt);
-            } else {
-                config->Addresses.push_back(peer.Descriptor.GetAddressOrThrow(Bootstrap_->GetConfig()->Networks));
-            }
-        }
-
         YT_LOG_DEBUG_IF(
             IsMutationLoggingEnabled(),
             "Tablet cell reconfigured (CellId: %v, Version: %v)",
