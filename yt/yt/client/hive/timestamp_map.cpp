@@ -10,14 +10,21 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTimestamp TTimestampMap::GetTimestamp(TCellTag cellTag) const
+std::optional<TTimestamp> TTimestampMap::FindTimestamp(TCellTag cellTag) const
 {
     for (auto [someCellTag, someTimestamp] : Timestamps) {
         if (someCellTag == cellTag) {
             return someTimestamp;
         }
     }
-    YT_ABORT();
+    return std::nullopt;
+}
+
+TTimestamp TTimestampMap::GetTimestamp(TCellTag cellTag) const
+{
+    auto timestamp = FindTimestamp(cellTag);
+    YT_VERIFY(timestamp);
+    return *timestamp;
 }
 
 void TTimestampMap::Persist(const TStreamPersistenceContext& context)

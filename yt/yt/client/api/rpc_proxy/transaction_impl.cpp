@@ -329,6 +329,7 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
 
                 const auto& rsp = rspOrError.Value();
                 TTransactionCommitResult result{
+                    .PrimaryCommitTimestamp = rsp->primary_commit_timestamp(),
                     .CommitTimestamps = FromProto<NHiveClient::TTimestampMap>(rsp->commit_timestamps())
                 };
 
