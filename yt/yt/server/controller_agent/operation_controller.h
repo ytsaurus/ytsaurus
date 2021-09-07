@@ -144,16 +144,6 @@ struct TOperationSnapshot
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCreateJobNodeRequest
-{
-    TJobId JobId;
-    NYson::TYsonString Attributes;
-    NChunkClient::TChunkId StderrChunkId;
-    NChunkClient::TChunkId FailContextChunkId;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 /*!
  *  \note Thread affinity: Cancelable controller invoker
  */
@@ -181,7 +171,6 @@ struct IOperationControllerHost
 
     virtual TFuture<void> FlushOperationNode() = 0;
     virtual TFuture<void> UpdateInitializedOperationNode() = 0;
-    virtual void CreateJobNode(const TCreateJobNodeRequest& request) = 0;
 
     virtual TFuture<void> AttachChunkTreesToLivePreview(
         NTransactionClient::TTransactionId transactionId,

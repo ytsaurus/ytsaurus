@@ -125,18 +125,6 @@ public:
         OperationNodesAndArchiveUpdateExecutor_->RemoveUpdate(operationId);
     }
 
-    void CreateJobNode(TOperationId operationId, const TCreateJobNodeRequest& request)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YT_VERIFY(IsConnected());
-
-        CancelableControlInvoker_->Invoke(BIND(
-            &TImpl::DoCreateJobNode,
-            MakeStrong(this),
-            operationId,
-            request));
-    }
-
     TFuture<void> UpdateInitializedOperationNode(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -297,8 +285,6 @@ private:
         { }
 
         TOperationId OperationId;
-
-        std::vector<TCreateJobNodeRequest> JobRequests;
 
         TTransactionId LivePreviewTransactionId;
         std::vector<TLivePreviewRequest> LivePreviewRequests;
@@ -671,7 +657,6 @@ private:
 
         auto operationId = operation->GetId();
 
-        std::vector<TCreateJobNodeRequest> jobRequests;
         std::vector<TLivePreviewRequest> livePreviewRequests;
         TTransactionId livePreviewTransactionId;
         {
@@ -680,77 +665,15 @@ private:
                 return;
             }
 
-            if (Config_->EnableCypressJobNodes) {
-                std::swap(jobRequests, update->JobRequests);
-            } else {
-                update->JobRequests.clear();
-            }
-
             std::swap(livePreviewRequests, update->LivePreviewRequests);
             livePreviewTransactionId = update->LivePreviewTransactionId;
         }
 
-        YT_LOG_DEBUG("Started updating operation node (OperationId: %v, JobRequestCount: %v, "
+        YT_LOG_DEBUG("Started updating operation node (OperationId: %v, "
             "LivePreviewTransactionId: %v, LivePreviewRequestCount: %v)",
             operationId,
-            jobRequests.size(),
             livePreviewTransactionId,
             livePreviewRequests.size());
-
-        if (Config_->EnableCypressJobNodes)
-        {
-            std::vector<TCreateJobNodeRequest> successfulJobRequests;
-            try {
-                successfulJobRequests = CreateJobNodes(operation, jobRequests);
-            } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Error creating job nodes (OperationId: %v)",
-                    operationId);
-                auto error = TError("Error creating job nodes for operation %v",
-                    operationId)
-                    << ex;
-                if (!error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
-                    THROW_ERROR error;
-                }
-            }
-
-            try {
-                std::vector<TJobFile> files;
-                for (const auto& request : successfulJobRequests) {
-                    if (request.StderrChunkId) {
-                        auto path = GetJobPath(
-                            operationId,
-                            request.JobId,
-                            "stderr");
-
-                        files.push_back({
-                            request.JobId,
-                            path,
-                            request.StderrChunkId,
-                            "stderr"
-                        });
-                    }
-                    if (request.FailContextChunkId) {
-                        auto path = GetJobPath(
-                            operationId,
-                            request.JobId,
-                            "fail_context");
-
-                        files.push_back({
-                            request.JobId,
-                            path,
-                            request.FailContextChunkId,
-                            "fail_context"
-                        });
-                    }
-                }
-                SaveJobFiles(operationId, files);
-            } catch (const std::exception& ex) {
-                // NB: Don' treat this as a critical error.
-                // Some of these chunks could go missing for a number of reasons.
-                YT_LOG_WARNING(ex, "Error saving job files (OperationId: %v)",
-                    operationId);
-            }
-        }
 
         try {
             AttachLivePreviewChunks(operationId, livePreviewTransactionId, livePreviewRequests);
@@ -785,8 +708,7 @@ private:
 
         auto controller = operation->GetController();
 
-        if (update->JobRequests.empty() &&
-            update->LivePreviewRequests.empty() &&
+        if (update->LivePreviewRequests.empty() &&
             !controller->ShouldUpdateProgress())
         {
             return {};
@@ -910,67 +832,6 @@ private:
 
         YT_LOG_DEBUG("Operation progress in Cypress updated (OperationId: %v)",
             operationId);
-    }
-
-    std::vector<TCreateJobNodeRequest> CreateJobNodes(
-        const TOperationPtr& operation,
-        const std::vector<TCreateJobNodeRequest>& requests)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (requests.empty()) {
-            return {};
-        }
-
-        auto batchReq = StartObjectBatchRequestWithPrerequisites();
-
-        for (const auto& request : requests) {
-            auto jobId = request.JobId;
-
-            auto path = GetJobPath(operation->GetId(), jobId);
-            auto attributes = ConvertToAttributes(request.Attributes);
-
-            auto req = TCypressYPathProxy::Create(path);
-            GenerateMutationId(req);
-            req->set_type(static_cast<int>(EObjectType::MapNode));
-            req->set_force(true);
-            ToProto(req->mutable_node_attributes(), *attributes);
-            batchReq->AddRequest(req, "create_" + ToString(jobId));
-        }
-
-        auto batchRsp = WaitFor(batchReq->Invoke())
-            .ValueOrThrow();
-
-        std::vector<TCreateJobNodeRequest> successfulRequests;
-        for (const auto& request : requests) {
-            auto jobId = request.JobId;
-            auto rspsOrError = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create_" + ToString(jobId));
-            bool allOK = true;
-            for (const auto& rspOrError : rspsOrError) {
-                if (rspOrError.IsOK()) {
-                    continue;
-                }
-                allOK = false;
-                if (rspOrError.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
-                    YT_LOG_ERROR(rspOrError, "Account limit exceeded while creating job node (JobId: %v)",
-                        jobId);
-                } else {
-                    THROW_ERROR_EXCEPTION("Failed to create job node")
-                        << TErrorAttribute("job_id", jobId)
-                        << rspOrError;
-                }
-            }
-            if (allOK) {
-                successfulRequests.push_back(request);
-            }
-        }
-
-        YT_LOG_INFO("Job nodes created (TotalCount: %v, SuccessCount: %v, OperationId: %v)",
-            requests.size(),
-            successfulRequests.size(),
-            operation->GetId());
-
-        return successfulRequests;
     }
 
     void AttachLivePreviewChunks(
@@ -1196,27 +1057,6 @@ private:
             THROW_ERROR_EXCEPTION("Error downloading snapshot") << ex;
         }
         return snapshot;
-    }
-
-    void DoCreateJobNode(TOperationId operationId, const TCreateJobNodeRequest& request)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto* update = OperationNodesAndArchiveUpdateExecutor_->FindUpdate(operationId);
-        if (!update) {
-            YT_LOG_DEBUG("Requested to create a job node for an unknown operation (OperationId: %v, JobId: %v)",
-                operationId,
-                request.JobId);
-            return;
-        }
-
-        YT_LOG_DEBUG("Job node creation scheduled (OperationId: %v, JobId: %v, StderrChunkId: %v, FailContextChunkId: %v)",
-            operationId,
-            request.JobId,
-            request.StderrChunkId,
-            request.FailContextChunkId);
-
-        update->JobRequests.emplace_back(request);
     }
 
     void DoRemoveSnapshot(TOperationId operationId)
@@ -1525,11 +1365,6 @@ void TMasterConnector::RegisterOperation(TOperationId operationId)
 void TMasterConnector::UnregisterOperation(TOperationId operationId)
 {
     Impl_->UnregisterOperation(operationId);
-}
-
-void TMasterConnector::CreateJobNode(TOperationId operationId, const TCreateJobNodeRequest& request)
-{
-    Impl_->CreateJobNode(operationId, request);
 }
 
 TFuture<void> TMasterConnector::FlushOperationNode(TOperationId operationId)

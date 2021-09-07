@@ -4,13 +4,13 @@ from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE
 from yt_commands import (
     authors, print_debug, wait, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
     events_on_fs, create,
-    ls, get, set, remove, link, exists, create_account, create_network_project, create_tmpdir,
-    create_user, make_ace, start_transaction, lock, read_file,
+    ls, get, set, remove, link, exists, create_network_project, create_tmpdir,
+    create_user, make_ace, start_transaction, lock,
     write_file, read_table,
     write_table, map,
     vanilla, run_test_vanilla, abort_job,
     list_jobs, get_job, get_job_stderr,
-    sync_create_cells, get_singular_chunk_id, multicell_sleep,
+    sync_create_cells, get_singular_chunk_id,
     update_nodes_dynamic_config, set_node_banned, check_all_stderrs, get_statistics,
     repair_exec_node,
     make_random_string, raises_yt_error, update_controller_agent_config)
@@ -74,9 +74,10 @@ class TestSandboxTmpfs(YTEnvSetup):
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        content = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr")
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        content = op.read_stderr(job_ids[0])
+
         words = content.strip().split()
         assert ["file", "content"] == words
 
@@ -98,9 +99,9 @@ class TestSandboxTmpfs(YTEnvSetup):
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        content = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr")
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        content = op.read_stderr(job_ids[0])
         words = content.strip().split()
         assert ["file", "content"] == words
 
@@ -152,9 +153,9 @@ class TestSandboxTmpfs(YTEnvSetup):
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        content = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr")
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        content = op.read_stderr(job_ids[0])
         words = content.strip().split()
         assert ["file", "content"] == words
 
@@ -517,9 +518,9 @@ time.sleep(10)
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        content = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr")
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        content = op.read_stderr(job_ids[0])
         words = content.strip().split()
         assert ["file", "content_1", "file", "content_2"] == words
 
@@ -636,9 +637,9 @@ time.sleep(10)
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        content = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr")
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        content = op.read_stderr(job_ids[0])
         words = content.strip().split()
         assert ["file", "content_1", "file", "content_2"] == words
 
@@ -834,9 +835,9 @@ class TestDisabledSandboxTmpfs(YTEnvSetup):
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        content = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr")
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        content = op.read_stderr(job_ids[0])
         words = content.strip().split()
         assert ["file", "content"] == words
 
@@ -1262,10 +1263,9 @@ class TestJobStderr(YTEnvSetup):
             spec={"max_failed_job_count": 1, "mapper": {"max_stderr_size": 1000000}},
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        stderr_path = "{0}/{1}/stderr".format(jobs_path, ls(jobs_path)[0])
-        stderr = read_file(stderr_path, verbose=False).strip()
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        stderr = op.read_stderr(job_ids[0]).strip()
 
         # Stderr buffer size is equal to 1000000, we should add it to limit
         assert len(stderr) <= 4000000
@@ -1348,50 +1348,6 @@ class TestJobStderr(YTEnvSetup):
         # The default number of stderr is 10. We check that we have 11-st stderr of failed job,
         # that is last one.
         check_all_stderrs(op, "stderr\n", 11)
-
-    @authors("ignat")
-    def test_stderr_with_missing_tmp_quota(self):
-        create_account("test_account")
-
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"foo": "bar"} for _ in xrange(5)])
-
-        op = map(
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            command="cat > /dev/null; echo 'stderr' >&2;",
-            spec={"max_failed_job_count": 1, "debug_artifacts_account": "test_account"},
-        )
-        check_all_stderrs(op, "stderr\n", 1)
-
-        multicell_sleep()
-        resource_usage = get("//sys/accounts/test_account/@resource_usage")
-        assert resource_usage["node_count"] >= 2
-        assert resource_usage["chunk_count"] >= 1
-        assert resource_usage["disk_space_per_medium"].get("default", 0) > 0
-
-        jobs = ls(op.get_path() + "/jobs")
-        get(op.get_path() + "/jobs/{}".format(jobs[0]))
-        get(op.get_path() + "/jobs/{}/stderr".format(jobs[0]))
-        recursive_resource_usage = get(op.get_path() + "/jobs/{0}/@recursive_resource_usage".format(jobs[0]))
-
-        assert recursive_resource_usage["chunk_count"] == resource_usage["chunk_count"]
-        assert (
-            recursive_resource_usage["disk_space_per_medium"]["default"]
-            == resource_usage["disk_space_per_medium"]["default"]
-        )
-        assert recursive_resource_usage["node_count"] == resource_usage["node_count"]
-
-        set("//sys/accounts/test_account/@resource_limits/chunk_count", 0)
-        set("//sys/accounts/test_account/@resource_limits/node_count", 0)
-        op = map(
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            command="cat > /dev/null; echo 'stderr' >&2;",
-            spec={"max_failed_job_count": 1, "debug_artifacts_account": "test_account"},
-        )
-        check_all_stderrs(op, "stderr\n", 0)
 
 
 class TestJobStderrMulticell(TestJobStderr):
@@ -2123,8 +2079,8 @@ class TestArtifactInvalidFormat(YTEnvSetup):
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"first": "second"})
         create("table", "//tmp/table")
-        write_table("//tmp/table",  [{"key_first": "value_first", "key_second": 42},
-                                     {"key_first": "Value_second", "key_second": 43}])
+        write_table("//tmp/table", [{"key_first": "value_first", "key_second": 42},
+                                    {"key_first": "Value_second", "key_second": 43}])
 
     def _run_map_with_format(self, fmt):
         map(

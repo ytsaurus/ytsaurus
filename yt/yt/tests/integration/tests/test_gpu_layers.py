@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import (
     authors, wait, create, ls, get, set,
     start_transaction, commit_transaction,
-    read_file, write_file, read_table, write_table,
+    write_file, read_table, write_table,
     map, vanilla, update_nodes_dynamic_config,
     sync_create_cells, get_job)
 
@@ -77,9 +77,9 @@ class TestGpuJobSetup(YTEnvSetup):
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        job_id = ls(jobs_path)[0]
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
 
         res = op.read_stderr(job_id)
         assert res == "SETUP-OUTPUT\n"
@@ -97,9 +97,9 @@ class TestGpuJobSetup(YTEnvSetup):
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        job_id = ls(jobs_path)[0]
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
 
         res = op.read_stderr(job_id)
         assert res == "SETUP-GPU-OUTPUT\n"
@@ -164,9 +164,9 @@ class TestSkipGpuJobSetup(YTEnvSetup):
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        job_id = ls(jobs_path)[0]
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
 
         res = op.read_stderr(job_id)
         assert res == "SETUP-OUTPUT\n"
@@ -268,9 +268,9 @@ class TestGpuLayer(YTEnvSetup):
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        job_id = ls(jobs_path)[0]
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
 
         res = op.read_stderr(job_id)
         assert res == "SETUP-OUTPUT\n"
@@ -368,9 +368,9 @@ class TestGpuLayerUpdate(YTEnvSetup):
                 },
             )
 
-            jobs_path = op.get_path() + "/jobs"
-            assert get(jobs_path + "/@count") == 1
-            job_id = ls(jobs_path)[0]
+            job_ids = op.list_jobs()
+            assert len(job_ids) == 1
+            job_id = job_ids[0]
 
             res = op.read_stderr(job_id)
             return res == content
@@ -468,9 +468,9 @@ class TestCudaLayer(YTEnvSetup):
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        job_id = ls(jobs_path)[0]
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
 
         res = op.read_stderr(job_id)
         assert res == "SETUP-OUTPUT\n"
@@ -508,9 +508,9 @@ class TestCudaLayer(YTEnvSetup):
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        job_id = ls(jobs_path)[0]
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
 
         res = op.read_stderr(job_id)
         assert res == "SETUP-OUTPUT\n"
@@ -616,9 +616,9 @@ class TestForceCudaLayer(YTEnvSetup):
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        job_id = ls(jobs_path)[0]
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
 
         res = op.read_stderr(job_id)
         assert res == "SETUP-OUTPUT\n"
@@ -687,9 +687,9 @@ class TestSetupUser(YTEnvSetup):
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        job_id = ls(jobs_path)[0]
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
 
         res = op.read_stderr(job_id)
         assert res == "2019\n"
@@ -737,10 +737,8 @@ class TestRootFS(YTEnvSetup):
         table_stderrs = read_table("//tmp/stderr")
         table_stderrs_per_task = Counter(row["data"] for row in table_stderrs)
 
-        job_ids = ls(op.get_path() + "/jobs")
-        cypress_stderrs_per_task = Counter(
-            read_file(op.get_path() + "/jobs/{0}/stderr".format(job_id)) for job_id in job_ids
-        )
+        job_ids = op.list_jobs()
+        cypress_stderrs_per_task = Counter(op.read_stderr(job_id) for job_id in job_ids)
 
         assert dict(table_stderrs_per_task) == {"task_a\n": 1, "task_b\n": 1}
         assert dict(cypress_stderrs_per_task) == {"task_a\n": 1, "task_b\n": 1}
@@ -854,9 +852,9 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        job_id = ls(jobs_path)[0]
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
 
         res = op.read_stderr(job_id)
         assert res == "AAA\n"
@@ -892,9 +890,9 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
 
         wait(lambda: op.get_state() == "failed")
 
-        jobs_path = op.get_path() + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        job_id = ls(jobs_path)[0]
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
 
         events = get_job(op.id, job_id)["events"]
         phases = [event["phase"] for event in events if "phase" in event]

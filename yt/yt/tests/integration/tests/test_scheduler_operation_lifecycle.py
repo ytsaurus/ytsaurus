@@ -10,9 +10,9 @@ from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     ls, get,
     set, remove, exists, create_account, create_tmpdir, create_user, create_pool, start_transaction, abort_transaction,
-    read_file, read_table, write_table, map, sort,
+    read_table, write_table, map, sort,
     run_test_vanilla, run_sleeping_vanilla,
-    abort_job, get_job,
+    abort_job, get_job, get_job_fail_context,
     abandon_job, get_operation_cypress_path, sync_create_cells, update_controller_agent_config, update_scheduler_config,
     set_banned_flag, PrepareTables, get_statistics)
 
@@ -350,15 +350,12 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         )
 
         wait(lambda: op.get_state() == "failed")
+        wait(lambda: op.list_jobs())
 
-        jobs_path = op.get_path() + "/jobs"
-        wait(lambda: ls(jobs_path))
-
-        jobs = ls(jobs_path)
-        assert len(jobs) > 0
+        jobs = op.list_jobs()
 
         for job_id in jobs:
-            assert len(read_file(jobs_path + "/" + job_id + "/fail_context")) > 0
+            assert len(get_job_fail_context(op.id, job_id)) > 0
 
     # Test is flaky by the next reason: schedule job may fail by some reason (chunk list demand is not met, et.c)
     # and in this case we can successfully schedule job for the next operation in queue.
@@ -575,9 +572,8 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         with pytest.raises(YtError):
             op.track()
 
-        jobs_path = op.get_path() + "/jobs"
-        for job_id in ls(jobs_path):
-            inner_errors = get(jobs_path + "/" + job_id + "/@error/inner_errors")
+        for job_id in op.list_jobs():
+            inner_errors = get_job(op.id, job_id)["error"]["inner_errors"]
             assert "Job time limit exceeded" in inner_errors[0]["message"]
 
     @authors("ignat")

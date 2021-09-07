@@ -228,9 +228,12 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         const auto& result = request->result();
         auto error = FromProto<TError>(result.error());
-        context->SetRequestInfo("JobId: %v, Error: %v",
+        context->SetRequestInfo("JobId: %v, Error: %v, HasStatistics: %v, HasStderr: %v, HasFailedContext: %v",
             jobId,
-            error);
+            error,
+            request->has_statistics(),
+            request->has_job_stderr(),
+            request->has_fail_context());
 
         const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);

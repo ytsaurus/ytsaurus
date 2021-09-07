@@ -619,12 +619,6 @@ public:
     //! Maximum number of chunk trees to attach per request.
     int MaxChildrenPerAttachRequest;
 
-    //! Enables creation of job nodes (including stderr and fail_context nodes) in cypress.
-    bool EnableCypressJobNodes;
-
-    //! Enables retaining of some jobs in controller orchid (under "retained_finished_jobs" key).
-    bool EnableRetainedFinishedJobs;
-
     //! Limits the rate (measured in chunks) of location requests issued by all active chunk scrapers.
     NConcurrency::TThroughputThrottlerConfigPtr ChunkLocationThrottler;
 
@@ -718,8 +712,8 @@ public:
 
     TZombieOperationOrchidsConfigPtr ZombieOperationOrchids;
 
-    //! Maximum number of job nodes per operation.
-    int MaxJobNodesPerOperation;
+    // Maximum number of jobs to save as retained in operation orchid.
+    int MaxRetainedJobsPerOperation;
 
     //! Maximum number of job specs in archive per operation.
     int MaxArchivedJobSpecCountPerOperation;

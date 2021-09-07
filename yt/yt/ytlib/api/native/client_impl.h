@@ -1066,9 +1066,6 @@ private:
     TSharedRef DoGetJobStderrFromNode(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId);
-    TSharedRef DoGetJobStderrFromCypress(
-        NScheduler::TOperationId operationId,
-        NScheduler::TJobId jobId);
     TSharedRef DoGetJobStderrFromArchive(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId);
@@ -1077,10 +1074,10 @@ private:
         NScheduler::TJobId jobId,
         const TGetJobStderrOptions& options);
 
-    TSharedRef DoGetJobFailContextFromArchive(
+    TSharedRef DoGetJobFailContextFromNode(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId);
-    TSharedRef DoGetJobFailContextFromCypress(
+    TSharedRef DoGetJobFailContextFromArchive(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId);
     TSharedRef DoGetJobFailContext(

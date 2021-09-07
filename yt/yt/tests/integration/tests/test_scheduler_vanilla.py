@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
     create, ls,
-    get, read_file, write_file, read_table, write_table, vanilla, run_test_vanilla, abort_job, abandon_job,
+    get, write_file, read_table, write_table, vanilla, run_test_vanilla, abort_job, abandon_job,
     interrupt_job, dump_job_context)
 
 from yt_helpers import skip_if_no_descending
@@ -197,10 +197,8 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         table_stderrs = read_table("//tmp/stderr")
         table_stderrs_per_task = Counter(row["data"] for row in table_stderrs)
 
-        job_ids = ls(op.get_path() + "/jobs")
-        cypress_stderrs_per_task = Counter(
-            read_file(op.get_path() + "/jobs/{0}/stderr".format(job_id)) for job_id in job_ids
-        )
+        job_ids = op.list_jobs()
+        cypress_stderrs_per_task = Counter(op.read_stderr(job_id) for job_id in job_ids)
 
         assert dict(table_stderrs_per_task) == {"task_a\n": 3, "task_b\n": 2}
         assert dict(cypress_stderrs_per_task) == {"task_a\n": 3, "task_b\n": 2}

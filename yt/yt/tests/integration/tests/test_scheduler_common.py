@@ -8,12 +8,12 @@ from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     ls, get,
     set, copy, move, remove, exists, concatenate, create_user, create_pool, create_pool_tree, make_ace,
-    add_member, start_transaction, abort_transaction, lock, read_file,
-    read_table, write_table,
+    add_member, start_transaction, abort_transaction,
+    read_table, write_table, read_file,
     map, reduce,
-    map_reduce, merge, sort,
+    map_reduce, merge, sort, get_job,
     run_test_vanilla, get_job_fail_context, dump_job_context,
-    complete_op, get_singular_chunk_id, PrepareTables,
+    get_singular_chunk_id, PrepareTables,
     raises_yt_error,
     get_statistics)
 
@@ -114,10 +114,11 @@ class TestSchedulerCommon(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
-        for job_desc in ls(op.get_path() + "/jobs", attributes=["error"]):
-            print_debug(job_desc.attributes)
-            print_debug(job_desc.attributes["error"]["inner_errors"][0]["message"])
-            assert "Process exited with code " in job_desc.attributes["error"]["inner_errors"][0]["message"]
+        for job_id in op.list_jobs():
+            job_desc = get_job(op.id, job_id)
+            if job_desc["state"] == "running":
+                continue
+            assert "Process exited with code " in job_desc["error"]["inner_errors"][0]["message"]
 
     @authors("ignat")
     def test_job_progress(self):
@@ -223,10 +224,9 @@ class TestSchedulerCommon(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
-        jobs_path = op.get_path() + "/jobs"
-        for job_id in ls(jobs_path):
-            assert len(read_file(jobs_path + "/" + job_id + "/fail_context")) > 0
-            assert read_file(jobs_path + "/" + job_id + "/fail_context") == get_job_fail_context(op.id, job_id)
+        for job_id in op.list_jobs():
+            fail_context = get_job_fail_context(op.id, job_id)
+            assert len(fail_context) > 0
 
     @authors("ignat")
     def test_dump_job_context(self):
@@ -322,13 +322,9 @@ class TestSchedulerCommon(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
-        jobs_path = op.get_path() + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        for job_id in ls(jobs_path):
-            assert (
-                read_file(jobs_path + "/" + job_id + "/stderr")
-                == "/bin/bash: /non_existed_command: No such file or directory\n"
-            )
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        assert op.read_stderr(job_ids[0]) == "/bin/bash: /non_existed_command: No such file or directory\n"
 
     @authors("ignat")
     def test_pipe_statistics(self):
@@ -1669,196 +1665,6 @@ class TestSchedulerJobStatistics(YTEnvSetup):
 
 
 ##################################################################
-
-
-class DISABLED_TestSchedulerOperationStorage(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 5
-    NUM_SCHEDULERS = 1
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"snapshot_period": 500}}
-
-    @authors("asaitgalin")
-    def test_revive(self):
-        create("table", "//tmp/t_input")
-        write_table("//tmp/t_input", [{"x": "y"}, {"a": "b"}])
-
-        cmd = """
-if [ "$YT_JOB_INDEX" == "0"  ]; then
-    exit 1
-else
-    sleep 1000; cat
-fi
-"""
-
-        ops = []
-        for i in xrange(2):
-            create("table", "//tmp/t_output_" + str(i))
-
-            op = map(
-                command=cmd,
-                in_="//tmp/t_input",
-                out="//tmp/t_output_" + str(i),
-                spec={"data_size_per_job": 1, "enable_compatible_storage_mode": i == 0},
-                track=False,
-            )
-
-            state_path = "//sys/scheduler/orchid/scheduler/operations/{0}/state".format(op.id)
-            wait(lambda: get(state_path) == "running")
-
-            ops.append(op)
-
-        for op in ops:
-            wait(lambda: op.get_job_count("failed") == 1)
-
-        for op in ops:
-            op.wait_for_fresh_snapshot()
-
-        with Restarter(self.Env, SCHEDULERS_SERVICE):
-            pass
-
-        for op in ops:
-            wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(op.id)) == "running")
-            wait(lambda: get(op.get_path() + "/@state") == "running")
-            assert op.get_job_count("failed") == 1
-
-    @authors("asaitgalin")
-    @pytest.mark.parametrize("use_owners", [False, True])
-    def test_attributes(self, use_owners):
-        create_user("u")
-        create("table", "//tmp/t_input")
-        write_table("//tmp/t_input", [{"x": "y"}, {"a": "b"}])
-
-        create("table", "//tmp/t_output")
-
-        cmd = """
-if [ "$YT_JOB_INDEX" == "0"  ]; then
-    exit 1
-else
-    sleep 1000; cat
-fi
-"""
-
-        spec = {"data_size_per_job": 1}
-        if use_owners:
-            spec["owners"] = ["u"]
-        else:
-            spec["acl"] = [make_ace("allow", "u", ["read", "manage"])]
-
-        op = map(
-            command=cmd,
-            in_="//tmp/t_input",
-            out="//tmp/t_output",
-            spec=spec,
-            track=False,
-        )
-
-        state_path = "//sys/scheduler/orchid/scheduler/operations/{0}/state".format(op.id)
-        wait(lambda: get(state_path) == "running", ignore_exceptions=True)
-        time.sleep(1.0)  # Give scheduler some time to dump attributes to cypress.
-
-        assert get(op.get_path() + "/@state") == "running"
-        assert get("//sys/operations/" + op.id + "/@state") == "running"
-        complete_op(op.id, authenticated_user="u")
-        # NOTE: This attribute is moved to hash buckets unconditionally in all modes.
-        assert not exists("//sys/operations/" + op.id + "/@committed")
-        assert exists(op.get_path() + "/@committed")
-
-    @authors("asaitgalin")
-    def test_inner_operation_nodes(self):
-        create("table", "//tmp/t_input")
-        write_table("<append=%true>//tmp/t_input", [{"key": "value"} for i in xrange(2)])
-        create("table", "//tmp/t_output")
-
-        cmd = """
-if [ "$YT_JOB_INDEX" == "0"  ]; then
-    python -c "import os; os.read(0, 1)"
-    echo "Oh no!" >&2
-    exit 1
-else
-    echo "abacaba"
-    sleep 1000
-fi
-"""
-
-        def _run_op():
-            op = map(
-                command=cmd,
-                in_="//tmp/t_input",
-                out="//tmp/t_output",
-                spec={"data_size_per_job": 1},
-                track=False,
-            )
-
-            wait(lambda: op.get_job_count("failed") == 1 and op.get_job_count("running") >= 1)
-
-            time.sleep(1.0)
-
-            return op
-
-        get_async_scheduler_tx_path = lambda op: "//sys/operations/" + op.id + "/@async_scheduler_transaction_id"
-        get_async_scheduler_tx_path_new = lambda op: op.get_path() + "/@async_scheduler_transaction_id"
-
-        get_output_path_new = lambda op: op.get_path() + "/output_0"
-
-        get_stderr_path = lambda op, job_id: "//sys/operations/" + op.id + "/jobs/" + job_id + "/stderr"
-        get_stderr_path_new = lambda op, job_id: op.get_path() + "/jobs/" + job_id + "/stderr"
-
-        get_fail_context_path = lambda op, job_id: "//sys/operations/" + op.id + "/jobs/" + job_id + "/fail_context"
-        get_fail_context_path_new = lambda op, job_id: op.get_path() + "/jobs/" + job_id + "/fail_context"
-
-        # Compatible mode or simple hash buckets mode.
-        op = _run_op()
-        assert exists(get_async_scheduler_tx_path(op))
-        assert exists(get_async_scheduler_tx_path_new(op))
-        async_tx_id = get(get_async_scheduler_tx_path(op))
-        assert exists(get_output_path_new(op), tx=async_tx_id)
-
-        jobs = ls("//sys/operations/" + op.id + "/jobs")
-        assert len(jobs) == 1
-        assert exists(get_fail_context_path_new(op, jobs[0]))
-        assert exists(get_fail_context_path(op, jobs[0]))
-        assert read_file(get_stderr_path(op, jobs[0])) == "Oh no!\n"
-        assert read_file(get_stderr_path_new(op, jobs[0])) == "Oh no!\n"
-
-    @authors("ignat")
-    def test_rewrite_operation_path(self):
-        get_stderr_path = lambda op, job_id: "//sys/operations/" + op.id + "/jobs/" + job_id + "/stderr"
-
-        create("table", "//tmp/t_input")
-        write_table("//tmp/t_input", [{"x": "y"}, {"a": "b"}])
-
-        create("table", "//tmp/t_output")
-
-        op = map(
-            command="echo 'XYZ' >&2",
-            in_="//tmp/t_input",
-            out="//tmp/t_output",
-            spec={
-                "enable_compatible_storage_mode": False,
-            },
-        )
-
-        assert not exists("//sys/operations/" + op.id + "/@")
-        assert exists("//sys/operations/" + op.id + "/@", rewrite_operation_path=True)
-        assert get("//sys/operations/" + op.id + "/@id", rewrite_operation_path=True) == get(
-            op.get_path() + "/@id", rewrite_operation_path=True
-        )
-
-        tx = start_transaction()
-        assert lock(
-            "//sys/operations/" + op.id,
-            rewrite_operation_path=True,
-            mode="snapshot",
-            tx=tx,
-        )
-
-        jobs = ls("//sys/operations/" + op.id + "/jobs", rewrite_operation_path=True)
-        assert read_file(get_stderr_path(op, jobs[0]), rewrite_operation_path=True) == "XYZ\n"
-
-
-##################################################################
-
 
 class TestNewLivePreview(YTEnvSetup):
     NUM_SCHEDULERS = 1

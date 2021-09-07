@@ -27,6 +27,16 @@ message TRspGetStderr
     required bytes stderr_data = 1;
 }
 
+message TReqGetFailContext
+{
+    required NYT.NProto.TGuid job_id = 2;
+}
+
+message TRspGetFailContext
+{
+    required bytes fail_context_data = 1;
+}
+
 message TReqGetSpec
 {
     required NYT.NProto.TGuid job_id = 1;

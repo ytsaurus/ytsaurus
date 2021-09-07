@@ -301,15 +301,6 @@ TFuture<void> TOperationControllerHost::UpdateInitializedOperationNode()
         .Run(OperationId_);
 }
 
-void TOperationControllerHost::CreateJobNode(const TCreateJobNodeRequest& request)
-{
-    CancelableControlInvoker_->Invoke(BIND(
-        &NControllerAgent::TMasterConnector::CreateJobNode,
-        Bootstrap_->GetControllerAgent()->GetMasterConnector(),
-        OperationId_,
-        request));
-}
-
 TFuture<void> TOperationControllerHost::AttachChunkTreesToLivePreview(
     NTransactionClient::TTransactionId transactionId,
     NCypressClient::TNodeId tableId,

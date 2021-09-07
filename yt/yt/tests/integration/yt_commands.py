@@ -1175,32 +1175,38 @@ class Operation(object):
                 return {}
             raise
 
+    def list_jobs(self, **kwargs):
+        return [job_info["id"] for job_info in list_jobs(self.id, **kwargs)["jobs"]]
+
     def read_stderr(self, job_id):
-        return read_file(self.get_path() + "/jobs/{}/stderr".format(job_id))
+        return get_job_stderr(self.id, job_id)
 
     def get_error(self):
         state = self.get_state(verbose=False)
         if state == "failed":
             error = get(self.get_path() + "/@result/error", verbose=False)
-            jobs_path = self.get_path() + "/jobs"
-            jobs = get(jobs_path, verbose=False)
+            job_ids = self.list_jobs(with_stderr=True)
             job_errors = []
-            for job in jobs:
-                job_error_path = jobs_path + "/{0}/@error".format(job)
-                job_stderr_path = jobs_path + "/{0}/stderr".format(job)
-                if exists(job_error_path, verbose=False):
-                    job_error = get(job_error_path, verbose=False)
-                    message = job_error["message"]
-                    if "stderr" in jobs[job]:
-                        message = message + "\n" + read_file(job_stderr_path, verbose=False)
-                    job_errors.append(
-                        YtError(
-                            message=message,
-                            code=job_error.get("code", 1),
-                            attributes=job_error.get("attributes"),
-                            inner_errors=job_error.get("inner_errors"),
-                        )
+            for job_id in job_ids:
+                job_info = get_job(self.id, job_id)
+                if job_info["state"] not in ("completed", "failed", "aborted"):
+                    continue
+                if not job_info.get("error"):
+                    continue
+
+                job_error = job_info["error"]
+                message = job_info["error"]["message"]
+                stderr = self.read_stderr(job_id)
+                if stderr:
+                    message += "\n" + stderr
+                job_errors.append(
+                    YtError(
+                        message=message,
+                        code=job_error.get("code", 1),
+                        attributes=job_error.get("attributes"),
+                        inner_errors=job_error.get("inner_errors"),
                     )
+                )
             inner_errors = error.get("inner_errors", [])
             if len(job_errors) > 0:
                 inner_errors.append(YtError(message="Some of the jobs have failed", inner_errors=job_errors))
@@ -1975,17 +1981,20 @@ def get_statistics(statistics, complex_key):
 
 
 def check_all_stderrs(op, expected_content, expected_count, substring=False):
-    jobs_path = op.get_path() + "/jobs"
-    assert get(jobs_path + "/@count") == expected_count
-    for job_id in ls(jobs_path):
-        stderr_path = "{0}/{1}/stderr".format(jobs_path, job_id)
-        content = read_file(stderr_path)
-        assert get(stderr_path + "/@uncompressed_data_size") == len(content)
+    job_infos = list_jobs(op.id, with_stderr=True)["jobs"]
+    job_with_stderr_count = 0
+    for job_info in job_infos:
+        if job_info["state"] == "running":
+            continue
+
+        job_with_stderr_count += 1
+        job_id = job_info["id"]
+        content = op.read_stderr(job_id)
         if substring:
             assert expected_content in content
         else:
             assert content == expected_content
-
+    assert job_with_stderr_count == expected_count
 
 ##################################################################
 

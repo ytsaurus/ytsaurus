@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, link,
-    read_file, write_file, write_table,
+    write_file, write_table,
     map, wait_for_nodes)
 
 from yt.common import YtError
@@ -114,11 +114,10 @@ class TestLayers(YTEnvSetup):
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        for job_id in ls(jobs_path):
-            stderr_path = "{0}/{1}/stderr".format(jobs_path, job_id)
-            assert "static-bin" in read_file(stderr_path)
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        for job_id in job_ids:
+            assert "static-bin" in op.read_stderr(job_id)
 
     @authors("psushin")
     def test_two_layers(self):
@@ -141,11 +140,10 @@ class TestLayers(YTEnvSetup):
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        for job_id in ls(jobs_path):
-            stderr_path = "{0}/{1}/stderr".format(jobs_path, job_id)
-            stderr = read_file(stderr_path)
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        for job_id in job_ids:
+            stderr = op.read_stderr(job_id)
             assert "static-bin" in stderr
             assert "test" in stderr
 
@@ -240,11 +238,10 @@ class TestTmpfsLayerCache(YTEnvSetup):
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        for job_id in ls(jobs_path):
-            stderr_path = "{0}/{1}/stderr".format(jobs_path, job_id)
-            assert "static-bin" in read_file(stderr_path)
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        for job_id in job_ids:
+            assert "static-bin" in op.read_stderr(job_id)
 
         remove("//tmp/cached_layers/layer1")
         for node in ls("//sys/cluster_nodes"):
@@ -304,9 +301,9 @@ class TestJobSetup(YTEnvSetup):
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        job_id = ls(jobs_path)[0]
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
 
         res = op.read_stderr(job_id)
         assert res == "SETUP-OUTPUT\n"

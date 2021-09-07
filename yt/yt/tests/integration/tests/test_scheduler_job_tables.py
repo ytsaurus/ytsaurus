@@ -9,8 +9,8 @@ from yt_env_setup import (
 from yt_commands import (
     authors, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs, create,
     ls, get,
-    set, create_account, read_file, read_table, write_table, map, reduce, map_reduce, vanilla,
-    select_rows, list_jobs, clean_operations, get_operation_cypress_path, sync_create_cells,
+    set, create_account, read_table, write_table, map, reduce, map_reduce, vanilla,
+    select_rows, list_jobs, clean_operations, sync_create_cells,
     set_account_disk_space_limit, raises_yt_error)
 
 import yt_error_codes
@@ -43,13 +43,11 @@ def get_stderr_spec(stderr_file):
     }
 
 
-def get_stderr_dict_from_cypress(operation_id):
-    jobs_path = get_operation_cypress_path(operation_id) + "/jobs"
+def get_stderr_dict_from_api(op):
     result = {}
-    for job_id, job_content in get(jobs_path).iteritems():
-        if "stderr" in job_content:
-            stderr_path = "{0}/{1}/stderr".format(jobs_path, job_id)
-            result[job_id] = read_file(stderr_path)
+    for job_id in op.list_jobs(with_stderr=True):
+        stderr = op.read_stderr(job_id)
+        result[job_id] = stderr
     return result
 
 
@@ -64,8 +62,8 @@ def get_stderr_dict_from_table(table_path):
     return result
 
 
-def compare_stderr_table_and_files(stderr_table_path, operation_id):
-    assert get_stderr_dict_from_table("//tmp/t_stderr") == get_stderr_dict_from_cypress(operation_id)
+def compare_stderr_table_and_files(stderr_table_path, op):
+    assert get_stderr_dict_from_table("//tmp/t_stderr") == get_stderr_dict_from_api(op)
 
 
 def expect_to_find_in_stderr_table(stderr_table_path, content):
@@ -108,7 +106,7 @@ class TestStderrTable(YTEnvSetup):
         )
 
         expect_to_find_in_stderr_table("//tmp/t_stderr", ["GG\n"])
-        compare_stderr_table_and_files("//tmp/t_stderr", op.id)
+        compare_stderr_table_and_files("//tmp/t_stderr", op)
 
     @authors("ermolovd")
     def test_aborted_operation(self):
@@ -137,7 +135,7 @@ class TestStderrTable(YTEnvSetup):
         op.abort()
 
         expect_to_find_in_stderr_table("//tmp/t_stderr", ["GG\n"])
-        compare_stderr_table_and_files("//tmp/t_stderr", op.id)
+        compare_stderr_table_and_files("//tmp/t_stderr", op)
 
     @authors("ermolovd")
     def test_ordered_map(self):
@@ -155,7 +153,7 @@ class TestStderrTable(YTEnvSetup):
         )
 
         expect_to_find_in_stderr_table("//tmp/t_stderr", ["GG\n"])
-        compare_stderr_table_and_files("//tmp/t_stderr", op.id)
+        compare_stderr_table_and_files("//tmp/t_stderr", op)
 
     @authors("ermolovd")
     def test_reduce(self):
@@ -173,7 +171,7 @@ class TestStderrTable(YTEnvSetup):
         )
 
         expect_to_find_in_stderr_table("//tmp/t_stderr", ["REDUCE\n"])
-        compare_stderr_table_and_files("//tmp/t_stderr", op.id)
+        compare_stderr_table_and_files("//tmp/t_stderr", op)
 
     @authors("ermolovd")
     def test_join_reduce(self):
@@ -208,7 +206,7 @@ class TestStderrTable(YTEnvSetup):
         )
 
         expect_to_find_in_stderr_table("//tmp/t_stderr", ["REDUCE\n"])
-        compare_stderr_table_and_files("//tmp/t_stderr", op.id)
+        compare_stderr_table_and_files("//tmp/t_stderr", op)
 
     @authors("ermolovd")
     def test_map_reduce(self):
@@ -227,7 +225,7 @@ class TestStderrTable(YTEnvSetup):
         )
 
         expect_to_find_in_stderr_table("//tmp/t_stderr", ["FOO\n", "BAR\n"])
-        compare_stderr_table_and_files("//tmp/t_stderr", op.id)
+        compare_stderr_table_and_files("//tmp/t_stderr", op)
 
     @authors("ermolovd")
     def test_map_reduce_no_map(self):
@@ -245,7 +243,7 @@ class TestStderrTable(YTEnvSetup):
         )
 
         expect_to_find_in_stderr_table("//tmp/t_stderr", ["BAR\n"])
-        compare_stderr_table_and_files("//tmp/t_stderr", op.id)
+        compare_stderr_table_and_files("//tmp/t_stderr", op)
 
     @authors("ermolovd")
     def test_map_reduce_only_reduce(self):
@@ -263,7 +261,7 @@ class TestStderrTable(YTEnvSetup):
         )
 
         expect_to_find_in_stderr_table("//tmp/t_stderr", ["BAZ\n"])
-        compare_stderr_table_and_files("//tmp/t_stderr", op.id)
+        compare_stderr_table_and_files("//tmp/t_stderr", op)
 
     @authors("ermolovd")
     def test_map_combine_reduce(self):
@@ -292,7 +290,7 @@ class TestStderrTable(YTEnvSetup):
             "//tmp/t_stderr",
             ["MAPPER\n", "MAPPER\n", "COMBINER\n", "COMBINER\n", "REDUCER\n"],
         )
-        compare_stderr_table_and_files("//tmp/t_stderr", op.id)
+        compare_stderr_table_and_files("//tmp/t_stderr", op)
 
     @authors("ermolovd")
     def test_failed_jobs(self):
@@ -698,8 +696,8 @@ class TestCoreTable(YTEnvSetup):
         return thread
 
     def _get_core_infos(self, op):
-        jobs = get(op.get_path() + "/jobs", attributes=["core_infos"])
-        return {job_id: value.attributes["core_infos"] for job_id, value in jobs.iteritems()}
+        jobs = list_jobs(op.id)["jobs"]
+        return {job["id"]: job["core_infos"] for job in jobs if job["core_infos"]}
 
     def _decompress_sparse_core_dump(self, core_dump):
         PAGE_SIZE = 65536
