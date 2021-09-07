@@ -4,7 +4,7 @@ from yt_commands import (
     authors, wait, create, get, set, copy, move, remove,
     exists, create_medium,
     read_journal, write_journal, truncate_journal, wait_until_sealed, get_singular_chunk_id,
-    set_node_banned, set_banned_flag,
+    set_node_banned, set_banned_flag, start_transaction, commit_transaction,
     get_account_disk_space, get_account_committed_disk_space, get_chunk_owner_disk_space)
 
 import yt.yson as yson
@@ -76,14 +76,14 @@ class TestJournals(YTEnvSetup):
                 return False
         wait(check)
 
-    def _truncate_and_check(self, path, row_count):
+    def _truncate_and_check(self, path, row_count, prerequisite_transaction_ids=[]):
         rows = read_journal(path)
         original_row_count = len(rows)
 
         assert get(path + "/@quorum_row_count") == original_row_count
         assert get(path + "/@sealed")
 
-        truncate_journal(path, row_count)
+        truncate_journal(path, row_count, prerequisite_transaction_ids=prerequisite_transaction_ids)
 
         assert get(path + "/@sealed")
 
@@ -283,9 +283,6 @@ class TestJournals(YTEnvSetup):
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     def test_truncate_restart(self, enable_chunk_preallocation):
-        if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
-            pytest.skip("Chunk preallocation is not available without 20.3+ masters")
-
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed(
             "//tmp/j",
@@ -303,6 +300,31 @@ class TestJournals(YTEnvSetup):
 
         chunk_ids = get("//tmp/j/@chunk_ids")
         assert get("#{}/@row_count".format(chunk_ids[0])) == row_count
+
+    @authors("aleksandra-zh")
+    @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
+    def test_truncate_prerequisites(self, enable_chunk_preallocation):
+        if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
+            pytest.skip("Chunk preallocation is not available without 20.3+ masters")
+
+        create("journal", "//tmp/j")
+        self._write_and_wait_until_sealed(
+            "//tmp/j",
+            self.DATA,
+            enable_chunk_preallocation=enable_chunk_preallocation,
+        )
+
+        assert get("//tmp/j/@sealed")
+        assert get("//tmp/j/@quorum_row_count") == 10
+
+        tx = start_transaction()
+        self._truncate_and_check("//tmp/j", 7, prerequisite_transaction_ids=[tx])
+
+        commit_transaction(tx)
+        with pytest.raises(YtError):
+            self._truncate_and_check("//tmp/j", 5, prerequisite_transaction_ids=[tx])
+
+        self._truncate_and_check("//tmp/j", 5)
 
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])

@@ -3860,9 +3860,9 @@ private:
             context,
             [=] {
                 return client->TruncateJournal(
-                path,
-                rowCount,
-                options);
+                    path,
+                    rowCount,
+                    options);
             });
     }
 
