@@ -56,6 +56,7 @@ private:
             case Poco::Message::PRIO_DEBUG:
                 return ELogLevel::Debug;
             case Poco::Message::PRIO_TRACE:
+            case Poco::Message::PRIO_TEST:
                 return ELogLevel::Trace;
         }
     }
