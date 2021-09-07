@@ -657,7 +657,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IVersionedReaderPtr CreateVersionedTabletReader(
+IVersionedReaderPtr CreateCompactionTabletReader(
     const TTabletSnapshotPtr& tabletSnapshot,
     std::vector<ISortedStorePtr> stores,
     TLegacyOwningKey lowerBound,
@@ -666,7 +666,8 @@ IVersionedReaderPtr CreateVersionedTabletReader(
     TTimestamp majorTimestamp,
     const TClientChunkReadOptions& chunkReadOptions,
     int minConcurrency,
-    std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
+    ETabletDistributedThrottlerKind tabletThrottlerKind,
+    IThroughputThrottlerPtr perTabletThrottler,
     std::optional<EWorkloadCategory> workloadCategory)
 {
     if (!tabletSnapshot->PhysicalSchema->IsSorted()) {
@@ -676,8 +677,23 @@ IVersionedReaderPtr CreateVersionedTabletReader(
 
     tabletSnapshot->WaitOnLocks(majorTimestamp);
 
-    if (tabletThrottlerKind) {
-        ThrowUponThrottlerOverdraft(*tabletThrottlerKind, tabletSnapshot, chunkReadOptions);
+    auto throttler = perTabletThrottler;
+
+    if (const auto& distributedThrottler = tabletSnapshot->DistributedThrottlers[tabletThrottlerKind]) {
+        throttler = NConcurrency::CreateCombinedThrottler({
+            perTabletThrottler,
+            distributedThrottler
+        });
+    }
+
+    auto asyncResult = throttler->Throttle(1);
+    if (asyncResult.IsSet()) {
+        asyncResult.Get().ThrowOnError();
+    } else {
+        YT_LOG_DEBUG("Started waiting for compaction inbound throughput throttler");
+        WaitFor(asyncResult)
+            .ThrowOnError();
+        YT_LOG_DEBUG("Finished waiting for compaction inbound throughput throttler");
     }
 
     YT_LOG_DEBUG(
@@ -742,10 +758,13 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         },
         minConcurrency);
 
-    return MaybeWrapWithThrottlerAwareReader<TThrottlerAwareVersionedReader>(
-        tabletThrottlerKind,
-        tabletSnapshot,
-        std::move(reader));
+    if (throttler) {
+        return New<TThrottlerAwareVersionedReader>(
+            std::move(reader),
+            std::move(throttler));
+    } else {
+        return reader;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

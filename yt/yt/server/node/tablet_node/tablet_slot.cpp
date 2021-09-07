@@ -302,6 +302,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        TabletManager_->Finalize();
         TabletManager_.Reset();
 
         TransactionManager_.Reset();

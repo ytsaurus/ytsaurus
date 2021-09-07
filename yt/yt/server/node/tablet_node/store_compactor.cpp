@@ -131,8 +131,6 @@ protected:
     TTabletHunkWriterConfigPtr HunkWriterConfig_;
     TTabletHunkWriterOptionsPtr HunkWriterOptions_;
 
-    IThroughputThrottlerPtr Throttler_;
-
     IChunkWriterPtr HunkChunkWriter_;
     IHunkChunkPayloadWriterPtr HunkChunkPayloadWriter_;
 
@@ -191,7 +189,7 @@ protected:
             CellTagFromId(TabletSnapshot_->TabletId),
             Transaction_->GetId(),
             /*parentChunkListId*/ {},
-            Throttler_,
+            Bootstrap_->GetOutThrottler(WorkloadCategory_),
             BlockCache_);
         Writers_.push_back(writer);
         return writer;
@@ -226,11 +224,6 @@ private:
         HunkWriterOptions_->ValidateResourceUsageIncrease = false;
         HunkWriterOptions_->ConsistentChunkReplicaPlacementHash = TabletSnapshot_->ConsistentChunkReplicaPlacementHash;
 
-        Throttler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-            Bootstrap_->GetOutThrottler(WorkloadCategory_),
-            TabletSnapshot_->CompactionThrottler
-        });
-
         HunkChunkWriterStatistics_ = CreateHunkChunkWriterStatistics(
             TabletSnapshot_->Settings.MountConfig->EnableHunkColumnarProfiling,
             TabletSnapshot_->PhysicalSchema);
@@ -245,7 +238,7 @@ private:
             Bootstrap_->GetMasterClient(),
             GetNullBlockCache(),
             /*trafficMeter*/ nullptr,
-            Throttler_);
+            Bootstrap_->GetOutThrottler(WorkloadCategory_));
 
         HunkChunkPayloadWriter_ = CreateHunkChunkPayloadWriter(
             HunkWriterConfig_,
@@ -1418,6 +1411,7 @@ private:
                 currentTimestamp,
                 // NB: No major compaction during Eden partitioning.
                 /*majorTimestamp*/ MinTimestamp,
+                tabletSnapshot->PartitioningThrottler,
                 Logger);
 
             auto transaction = StartPartitioningTransaction(tabletSnapshot, &Logger);
@@ -1763,6 +1757,7 @@ private:
                 chunkReadOptions,
                 currentTimestamp,
                 majorTimestamp,
+                tabletSnapshot->CompactionThrottler,
                 Logger);
 
             auto transaction = StartCompactionTransaction(tabletSnapshot, &Logger);
@@ -1935,11 +1930,12 @@ private:
         const TClientChunkReadOptions& chunkReadOptions,
         TTimestamp currentTimestamp,
         TTimestamp majorTimestamp,
+        IThroughputThrottlerPtr inboundThrottler,
         const NLogging::TLogger& logger)
     {
         return CreateHunkInliningVersionedReader(
             tablet->GetSettings().HunkReaderConfig,
-            CreateVersionedTabletReader(
+            CreateCompactionTabletReader(
                 tabletSnapshot,
                 std::vector<ISortedStorePtr>(stores.begin(), stores.end()),
                 tablet->GetPivotKey(),
@@ -1949,6 +1945,7 @@ private:
                 chunkReadOptions,
                 stores.size(),
                 ETabletDistributedThrottlerKind::CompactionRead,
+                std::move(inboundThrottler),
                 chunkReadOptions.WorkloadDescriptor.Category),
             tablet->GetChunkFragmentReader(),
             tablet->GetPhysicalSchema(),

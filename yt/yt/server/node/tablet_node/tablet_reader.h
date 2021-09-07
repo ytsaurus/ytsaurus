@@ -88,7 +88,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
  *  Can only handle sorted tables.
  *  Does not decode hunks, intentionally.
  */
-NTableClient::IVersionedReaderPtr CreateVersionedTabletReader(
+NTableClient::IVersionedReaderPtr CreateCompactionTabletReader(
     const TTabletSnapshotPtr& tabletSnapshot,
     std::vector<ISortedStorePtr> stores,
     TLegacyOwningKey lowerBound,
@@ -97,7 +97,8 @@ NTableClient::IVersionedReaderPtr CreateVersionedTabletReader(
     TTimestamp majorTimestamp,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     int minConcurrency,
-    std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
+    ETabletDistributedThrottlerKind tabletThrottlerKind,
+    NConcurrency::IThroughputThrottlerPtr perTabletThrottler,
     std::optional<EWorkloadCategory> workloadCategory);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,11 +2,15 @@
 #include "bootstrap.h"
 #include "private.h"
 
+#include <yt/yt/server/node/cluster_node/config.h>
+
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/discovery_client/config.h>
 
 #include <yt/yt/ytlib/distributed_throttler/distributed_throttler.h>
+
+#include <yt/yt/core/net/local_address.h>
 
 namespace NYT::NTabletNode {
 
@@ -15,6 +19,7 @@ using namespace NConcurrency;
 using namespace NDistributedThrottler;
 using namespace NObjectClient;
 using namespace NYPath;
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,16 +62,17 @@ public:
                 auto factoryName = MakeFactoryName(tablePath, mode);
 
                 YT_LOG_DEBUG("Creating distributed throttler factory "
-                    "(TablePath: %v, ThrottlerMode: %v, GroupId: %v)",
+                    "(TablePath: %v, ThrottlerMode: %v, RpcTimeout: %v, GroupId: %v)",
                     tablePath,
                     mode,
                     rpcTimeout,
                     factoryName);
 
                 factory = DoCreateFactory(factoryName, cellTag, mode);
+                factory->Start();
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR(ex, "Failed to create distributed throttler factory "
-                    "(TablePath: %v, ThrottlerMode: %v)",
+                    "(TablePath: %v, ThrottlerMode: %v, RpcTimeout: %v)",
                     tablePath,
                     mode,
                     rpcTimeout);
@@ -78,6 +84,13 @@ public:
         }
 
         return factory->GetOrCreateThrottler(throttlerId, config, rpcTimeout);
+    }
+
+    void Finalize() override
+    {
+        for (const auto& [key, factory] : Factories_) {
+            factory->Stop();
+        }
     }
 
 private:
@@ -115,8 +128,6 @@ private:
         // TODO(ifsmirnov,aleksandra-zh): YT-13318, reconfigure factories on the fly
         // via dynamic node config.
 
-        auto address = Bootstrap_->GetDefaultLocalAddressOrThrow();
-
         return CreateDistributedThrottlerFactory(
             config,
             Bootstrap_->GetMasterConnection()->GetChannelFactory(),
@@ -124,7 +135,7 @@ private:
             factoryName,
             MemberId_,
             Bootstrap_->GetRpcServer(),
-            address,
+            BuildServiceAddress(GetLocalHostName(), Bootstrap_->GetConfig()->RpcPort),
             TabletNodeLogger);
     }
 };
