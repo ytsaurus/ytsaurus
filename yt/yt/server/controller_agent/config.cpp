@@ -460,12 +460,6 @@ TControllerAgentConfig::TControllerAgentConfig()
         .Default(10000)
         .GreaterThan(0);
 
-    RegisterParameter("enable_cypress_job_nodes", EnableCypressJobNodes)
-        .Default(true);
-
-    RegisterParameter("enable_retained_finished_jobs", EnableRetainedFinishedJobs)
-        .Default(true);
-
     RegisterParameter("chunk_location_throttler", ChunkLocationThrottler)
         .DefaultNew();
 
@@ -561,10 +555,11 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("zombie_operation_orchids", ZombieOperationOrchids)
         .DefaultNew();
 
-    RegisterParameter("max_job_nodes_per_operation", MaxJobNodesPerOperation)
+    RegisterParameter("max_retained_jobs_per_operation", MaxRetainedJobsPerOperation)
+        .Alias("max_job_nodes_per_operation")
         .Default(200)
         .GreaterThanOrEqual(0)
-        .LessThanOrEqual(250);
+        .LessThanOrEqual(1000);
 
     RegisterParameter("max_archived_job_spec_count_per_operation", MaxArchivedJobSpecCountPerOperation)
         .Default(500)

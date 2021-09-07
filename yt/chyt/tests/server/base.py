@@ -1,7 +1,7 @@
 from helpers import get_scheduling_options
 
 from yt_commands import (create, write_file, ls, start_op, get, exists, update_op_parameters, abort_job, create_user,
-                         sync_create_cells, print_debug, read_file)
+                         sync_create_cells, print_debug)
 
 from yt.clickhouse import get_clique_spec_builder
 from yt.clickhouse.test_helpers import get_host_paths, get_clickhouse_server_config
@@ -372,8 +372,7 @@ class Clique(object):
                     ) != "running"
                 )
                 print_debug("Instance {} has failed".format(str(instance)))
-                wait(lambda: exists(self.op.get_path() + "/jobs/" + str(instance) + "/stderr"))
-                stderr = read_file(self.op.get_path() + "/jobs/" + str(instance) + "/stderr", verbose=False)
+                stderr = self.op.read_stderr(str(instance))
                 if verbose:
                     print_debug("Stderr:\n" + stderr)
             except YtError as err2:

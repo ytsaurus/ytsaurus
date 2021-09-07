@@ -7,7 +7,7 @@ from yt_env_setup import (
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     ls, get,
-    set, exists, create_user, make_ace, alter_table, read_file, write_file, read_table, write_table,
+    set, exists, create_user, make_ace, alter_table, write_file, read_table, write_table,
     map, merge, sort, interrupt_job, get_first_chunk_id,
     get_singular_chunk_id, check_all_stderrs,
     create_test_tables, get_statistics)
@@ -1362,7 +1362,7 @@ print row + table_index
             spec={"data_size_per_job": 1},
         )
 
-        assert get(op.get_path() + "/jobs/@count") == 10
+        assert len(op.list_jobs()) == 10
         assert read_table("//tmp/t_output") == original_data
 
     @authors("max42", "savrus")
@@ -1407,8 +1407,7 @@ print row + table_index
             spec={"job_count": 10, "consider_only_primary_size": True},
         )
 
-        jobs = get(op.get_path() + "/jobs/@count")
-        assert jobs == 10
+        assert len(op.list_jobs()) == 10
 
     @authors("klyachin")
     @pytest.mark.parametrize("ordered", [False, True])
@@ -1612,10 +1611,9 @@ done
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        job_ids = ls(jobs_path)
+        job_ids = op.list_jobs()
         assert len(job_ids) == 1
-        stderr_bytes = read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0]))
+        stderr_bytes = op.read_stderr(job_ids[0])
 
         assert (
             stderr_bytes

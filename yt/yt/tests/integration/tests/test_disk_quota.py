@@ -304,7 +304,7 @@ class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
 
         assert read_table("//tmp/out") == [{"foo": "bar"}]
 
-        jobs = ls(op.get_path() + "/jobs")
+        jobs = op.list_jobs()
         assert len(jobs) == 1
         assert op.read_stderr(jobs[0]).startswith(self.fake_ssd_disk_path)
 

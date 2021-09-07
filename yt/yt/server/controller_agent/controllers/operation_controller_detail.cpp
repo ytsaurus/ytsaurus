@@ -2853,7 +2853,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         optionalRowCount = FindNumericValue(statistics, Format("/data/output/%v/row_count", *RowCountLimitTableIndex));
     }
 
-    ProcessFinishedJobResult(std::move(jobSummary), /* requestJobNodeCreation */ false);
+    ProcessFinishedJobResult(std::move(jobSummary), /*retainJob*/ false);
 
     UnregisterJoblet(joblet);
 
@@ -2862,7 +2862,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     LogProgress();
 
     if (IsCompleted()) {
-        OnOperationCompleted(/* interrupted */ false);
+        OnOperationCompleted(/*interrupted*/ false);
         return;
     }
 
@@ -2926,7 +2926,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     jobSummary->ReleaseFlags.ArchiveJobSpec = true;
 
-    ProcessFinishedJobResult(std::move(jobSummary), /*requestJobNodeCreation*/ true);
+    ProcessFinishedJobResult(std::move(jobSummary), /*retainJob*/ true);
 
     UnregisterJoblet(joblet);
 
@@ -3035,8 +3035,8 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
         MaybeBanInTentativeTree(treeId);
     }
 
-    bool requestJobNodeCreation = (abortReason == EAbortReason::UserRequest);
-    ProcessFinishedJobResult(std::move(jobSummary), requestJobNodeCreation);
+    bool retainJob = (abortReason == EAbortReason::UserRequest);
+    ProcessFinishedJobResult(std::move(jobSummary), retainJob);
 
     UnregisterJoblet(joblet);
 
@@ -5056,7 +5056,7 @@ TString TOperationControllerBase::GetStatisticsSuffix(const TTask* task, EJobSta
     return Format("/$/%lv/%lv", state, task->GetVertexDescriptor());
 }
 
-void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSummary> summary, bool requestJobNodeCreation)
+void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSummary> summary, bool retainJob)
 {
     auto jobId = summary->Id;
 
@@ -5076,7 +5076,7 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     }
 
     bool shouldRetainJob =
-        (requestJobNodeCreation && RetainedJobCount_ < Config->MaxJobNodesPerOperation) ||
+        (retainJob && RetainedJobCount_ < Config->MaxRetainedJobsPerOperation) ||
         (hasStderr && RetainedJobWithStderrCount_ < Spec_->MaxStderrCount) ||
         (coreInfoCount > 0 && RetainedJobsCoreInfoCount_ + coreInfoCount <= Spec_->MaxCoreInfoCount);
 
@@ -5118,22 +5118,12 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
         })
         .Finish();
 
-    if (Config->EnableRetainedFinishedJobs) {
+    {
         auto attributes = BuildYsonStringFluently()
             .DoMap([&] (TFluentMap fluent) {
                 fluent.GetConsumer()->OnRaw(attributesFragment);
             });
         RetainedFinishedJobs_.emplace_back(jobId, std::move(attributes));
-    }
-
-    {
-        TCreateJobNodeRequest request;
-        request.JobId = jobId;
-        request.Attributes = std::move(attributesFragment);
-        request.StderrChunkId = stderrChunkId;
-        request.FailContextChunkId = failContextChunkId;
-
-        Host->CreateJobNode(std::move(request));
     }
 
     if (hasStderr) {

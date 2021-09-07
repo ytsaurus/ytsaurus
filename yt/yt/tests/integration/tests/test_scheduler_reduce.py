@@ -2,8 +2,7 @@ from yt_env_setup import YTEnvSetup, parametrize_external
 
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
-    ls, get,
-    set, exists, insert_rows, alter_table, read_file, write_file, read_table, write_table, reduce,
+    get, set, exists, insert_rows, alter_table, write_file, read_table, write_table, reduce,
     erase, interrupt_job, sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_reshard_table, sync_flush_table, check_all_stderrs,
     create_dynamic_table)
@@ -849,10 +848,9 @@ echo {v = 2} >&7
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        job_ids = ls(jobs_path)
+        job_ids = op.list_jobs()
         assert len(job_ids) == 1
-        stderr_bytes = read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0]))
+        stderr_bytes = op.read_stderr(job_ids[0])
 
         assert stderr_bytes.encode("hex") == "010000006100000000" "feffffff" "010000006200000000" "010000006200000000"
 
@@ -887,10 +885,9 @@ echo {v = 2} >&7
 
         assert not get("//tmp/out/@sorted")
 
-        jobs_path = op.get_path() + "/jobs"
-        job_ids = ls(jobs_path)
+        job_ids = op.list_jobs()
         assert len(job_ids) == 1
-        stderr_bytes = read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0]))
+        stderr_bytes = op.read_stderr(job_ids[0])
 
         assert (
             stderr_bytes
@@ -1351,10 +1348,9 @@ echo {v = 2} >&7
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        job_ids = ls(jobs_path)
+        job_ids = op.list_jobs()
         assert len(job_ids) == 1
-        stderr_bytes = read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0]))
+        stderr_bytes = op.read_stderr(job_ids[0])
 
         assert (
             stderr_bytes
@@ -1718,9 +1714,9 @@ echo {v = 2} >&7
             },
         )
 
-        job_ids = ls(op.get_path() + "/jobs")
+        job_ids = op.list_jobs()
         assert len(job_ids) == 1
-        output = read_file(op.get_path() + "/jobs/{}/stderr".format(job_ids[0]))
+        output = op.read_stderr(job_ids[0])
         assert (
             output
             == """<"table_index"=0;>#;

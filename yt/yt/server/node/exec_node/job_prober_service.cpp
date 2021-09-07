@@ -35,6 +35,7 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStderr));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetFailContext));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSpec));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PollJobShell)
             .SetInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
@@ -80,6 +81,24 @@ private:
         auto stderrData = job->GetStderr();
 
         response->set_stderr_data(stderrData);
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, GetFailContext)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        auto jobId = FromProto<TJobId>(request->job_id());
+        context->SetRequestInfo("JobId: %v", jobId);
+
+        auto job = Bootstrap_->GetJobController()->FindRecentlyRemovedJob(jobId);
+        if (!job) {
+            job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
+        }
+
+        auto failContextData = job->GetFailContext();
+
+        response->set_fail_context_data(failContextData.value_or(TString()));
         context->Reply();
     }
 

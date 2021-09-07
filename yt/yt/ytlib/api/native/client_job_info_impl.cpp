@@ -95,6 +95,7 @@ static const THashSet<TString> DefaultListJobsAttributes = {
     "pool",
     "pool_tree",
     "monitoring_descriptor",
+    "core_infos",
 };
 
 static const auto DefaultGetJobAttributes = [] {
@@ -854,54 +855,6 @@ TSharedRef TClient::DoGetJobStderrFromNode(
     return TSharedRef::FromString(rsp->stderr_data());
 }
 
-TSharedRef TClient::DoGetJobStderrFromCypress(
-    TOperationId operationId,
-    TJobId jobId)
-{
-    auto createFileReader = [&] (const NYPath::TYPath& path) {
-        return WaitFor(static_cast<IClientBase*>(this)->CreateFileReader(path));
-    };
-
-    try {
-        auto fileReader = createFileReader(NScheduler::GetStderrPath(operationId, jobId))
-            .ValueOrThrow();
-
-        std::vector<TSharedRef> blocks;
-        while (true) {
-            auto block = WaitFor(fileReader->Read())
-                .ValueOrThrow();
-
-            if (!block) {
-                break;
-            }
-
-            blocks.push_back(std::move(block));
-        }
-
-        i64 size = GetByteSize(blocks);
-        YT_VERIFY(size);
-        auto stderrFile = TSharedMutableRef::Allocate(size);
-        auto memoryOutput = TMemoryOutput(stderrFile.Begin(), size);
-
-        for (const auto& block : blocks) {
-            memoryOutput.Write(block.Begin(), block.Size());
-        }
-
-        return stderrFile;
-    } catch (const TErrorException& exception) {
-        auto matchedError = exception.Error().FindMatching(NYTree::EErrorCode::ResolveError);
-
-        if (!matchedError) {
-            THROW_ERROR_EXCEPTION("Failed to get job stderr from Cypress")
-                << TErrorAttribute("operation_id", operationId)
-                << TErrorAttribute("job_id", jobId)
-                << exception.Error();
-        }
-    }
-
-    return TSharedRef();
-}
-
 TSharedRef TClient::DoGetJobStderrFromArchive(
     TOperationId operationId,
     TJobId jobId)
@@ -977,11 +930,6 @@ TSharedRef TClient::DoGetJobStderr(
         return stderrRef;
     }
 
-    stderrRef = DoGetJobStderrFromCypress(operationId, jobId);
-    if (stderrRef) {
-        return stderrRef;
-    }
-
     stderrRef = DoGetJobStderrFromArchive(operationId, jobId);
     if (stderrRef) {
         return stderrRef;
@@ -993,6 +941,45 @@ TSharedRef TClient::DoGetJobStderr(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TSharedRef TClient::DoGetJobFailContextFromNode(
+    TOperationId operationId,
+    TJobId jobId)
+{
+    auto nodeChannelOrError = TryCreateChannelToJobNode(operationId, jobId, EPermissionSet(EPermission::Read));
+    if (!nodeChannelOrError.IsOK()) {
+        return TSharedRef();
+    }
+    auto nodeChannel = std::move(nodeChannelOrError).Value();
+
+    NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(std::move(nodeChannel));
+    jobProberServiceProxy.SetDefaultTimeout(Connection_->GetConfig()->JobProberRpcTimeout);
+
+    auto rspOrError = RetryJobIsNotRunning(
+        operationId,
+        jobId,
+        [&] {
+            auto req = jobProberServiceProxy.GetFailContext();
+            req->SetMultiplexingBand(EMultiplexingBand::Heavy);
+            ToProto(req->mutable_job_id(), jobId);
+            return WaitFor(req->Invoke());
+        },
+        Logger);
+
+    if (!rspOrError.IsOK()) {
+        if (IsNoSuchJobOrOperationError(rspOrError) ||
+            rspOrError.FindMatching(NJobProberClient::EErrorCode::JobIsNotRunning))
+        {
+            return TSharedRef();
+        }
+        THROW_ERROR_EXCEPTION("Failed to get job job fail context from node")
+            << TErrorAttribute("operation_id", operationId)
+            << TErrorAttribute("job_id", jobId)
+            << std::move(rspOrError);
+    }
+    auto rsp = rspOrError.Value();
+    return TSharedRef::FromString(rsp->fail_context_data());
+}
 
 TSharedRef TClient::DoGetJobFailContextFromArchive(
     TOperationId operationId,
@@ -1045,54 +1032,6 @@ TSharedRef TClient::DoGetJobFailContextFromArchive(
     return TSharedRef();
 }
 
-TSharedRef TClient::DoGetJobFailContextFromCypress(
-    TOperationId operationId,
-    TJobId jobId)
-{
-    auto createFileReader = [&] (const NYPath::TYPath& path) {
-        return WaitFor(static_cast<IClientBase*>(this)->CreateFileReader(path));
-    };
-
-    try {
-        auto fileReader = createFileReader(NScheduler::GetFailContextPath(operationId, jobId))
-            .ValueOrThrow();
-
-        std::vector<TSharedRef> blocks;
-        while (true) {
-            auto block = WaitFor(fileReader->Read())
-                .ValueOrThrow();
-
-            if (!block) {
-                break;
-            }
-
-            blocks.push_back(std::move(block));
-        }
-
-        i64 size = GetByteSize(blocks);
-        YT_VERIFY(size);
-        auto failContextFile = TSharedMutableRef::Allocate(size);
-        auto memoryOutput = TMemoryOutput(failContextFile.Begin(), size);
-
-        for (const auto& block : blocks) {
-            memoryOutput.Write(block.Begin(), block.Size());
-        }
-
-        return failContextFile;
-    } catch (const TErrorException& exception) {
-        auto matchedError = exception.Error().FindMatching(NYTree::EErrorCode::ResolveError);
-
-        if (!matchedError) {
-            THROW_ERROR_EXCEPTION("Failed to get job fail context from Cypress")
-                << TErrorAttribute("operation_id", operationId)
-                << TErrorAttribute("job_id", jobId)
-                << exception.Error();
-        }
-    }
-
-    return TSharedRef();
-}
-
 TSharedRef TClient::DoGetJobFailContext(
     const TOperationIdOrAlias& operationIdOrAlias,
     TJobId jobId,
@@ -1112,7 +1051,7 @@ TSharedRef TClient::DoGetJobFailContext(
 
     ValidateOperationAccess(operationId, jobId, EPermissionSet(EPermission::Read));
 
-    if (auto failContextRef = DoGetJobFailContextFromCypress(operationId, jobId)) {
+    if (auto failContextRef = DoGetJobFailContextFromNode(operationId, jobId)) {
         return failContextRef;
     }
     if (auto failContextRef = DoGetJobFailContextFromArchive(operationId, jobId)) {
@@ -1547,6 +1486,7 @@ static void ParseJobsFromControllerAgentResponse(
     auto needHasCompetitors = attributes.contains("has_competitors");
     auto needError = attributes.contains("error");
     auto needTaskName = attributes.contains("task_name");
+    auto needCoreInfos = attributes.contains("core_infos");
 
     for (const auto& [jobIdString, jobNode] : jobNodes) {
         if (!filter(jobNode)) {
@@ -1613,6 +1553,11 @@ static void ParseJobsFromControllerAgentResponse(
         if (needTaskName) {
             if (auto child = jobMapNode->FindChild("task_name")) {
                 job.TaskName = ConvertTo<TString>(child);
+            }
+        }
+        if (needCoreInfos) {
+            if (auto child = jobMapNode->FindChild("core_infos")) {
+                job.CoreInfos = ConvertToYsonString(child);
             }
         }
     }
@@ -2247,7 +2192,10 @@ TYsonString TClient::DoGetJob(
         controllerAgentError = exception.Error();
     }
 
-    auto archiveJob = DoGetJobFromArchive(operationId, jobId, deadline, attributes);
+    std::optional<TJob> archiveJob;
+    if (DoesOperationsArchiveExist()) {
+        archiveJob = DoGetJobFromArchive(operationId, jobId, deadline, attributes);
+    }
 
     auto operationInfo = WaitFor(operationInfoFuture).ValueOrThrow();
 

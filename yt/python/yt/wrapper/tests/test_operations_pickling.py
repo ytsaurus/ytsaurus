@@ -259,13 +259,10 @@ if __name__ == "__main__":
                 time.sleep(0.2)
             assert yt.get(op_path + "/@state") == "failed"
 
-            job_id = yt.list(op_path + "/jobs", attributes=["error"])[0]
-            stderr_path = os.path.join(op_path, "jobs", job_id, "stderr")
-
-            while not yt.exists(stderr_path):
-                time.sleep(0.2)
-
-            assert b"Did you forget to surround" in yt.read_file(stderr_path).read()
+            job_infos = yt.list_jobs(op_id, with_stderr=True, job_state="failed")["jobs"]
+            assert len(job_infos) == 1
+            for job_info in job_infos:
+                assert b"Did you forget to surround" in yt.get_job_stderr(op_id, job_info["id"]).read()
 
     @authors("ignat")
     def test_python_operations_pickling(self, yt_env_with_increased_memory):

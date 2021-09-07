@@ -32,10 +32,6 @@ public:
     void RegisterOperation(TOperationId operationId);
     void UnregisterOperation(TOperationId operationId);
 
-    void CreateJobNode(
-        TOperationId operationId,
-        const TCreateJobNodeRequest& request);
-
     TFuture<void> FlushOperationNode(TOperationId operationId);
 
     TFuture<void> UpdateInitializedOperationNode(TOperationId operationId);

@@ -199,7 +199,7 @@ class TestPoolMetrics(YTEnvSetup):
         wait(lambda: custom_metric_max_sensor.get() == 20)
         wait(lambda: custom_metric_sum_sensor.get() == 110)
 
-        jobs_11 = ls(op11.get_path() + "/jobs")
+        jobs_11 = op11.list_jobs()
         assert len(jobs_11) >= 2
 
     @authors("ignat")

@@ -2,9 +2,9 @@ from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, NODES_SERVIC
 
 from yt_commands import (
     authors, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create, ls,
-    get, set,
-    remove, exists, create_pool, create_pool_tree, read_table, write_table, map, abort_job, get_operation_cypress_path,
-    set_banned_flag)
+    get, set, remove, exists,
+    create_pool, create_pool_tree, read_table, write_table, map, abort_job, get_job, list_jobs,
+    get_operation_cypress_path, set_banned_flag)
 
 from yt.common import YtError, YtResponseError
 
@@ -301,10 +301,10 @@ class TestSchedulingTags(YTEnvSetup):
         )
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
 
-        job_ids = ls(op.get_path() + "/jobs")
+        job_ids = op.list_jobs()
         assert len(job_ids) == 1
         for job_id in job_ids:
-            job_addr = get(op.get_path() + "/jobs/{}/@address".format(job_id))
+            job_addr = get_job(op.id, job_id)["address"]
             assert "tagA" in get("//sys/cluster_nodes/{0}/@user_tags".format(job_addr))
 
         # We do not support detection of the fact that no node satisfies pool scheduling tag filter.
@@ -554,6 +554,6 @@ class TestOperationNodeBan(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
-        jobs = ls(op.get_path() + "/jobs", attributes=["state", "address"])
-        assert all(job.attributes["state"] == "failed" for job in jobs)
-        assert len(__builtin__.set(job.attributes["address"] for job in jobs)) == 3
+        jobs = list_jobs(op.id)["jobs"]
+        assert all(job["state"] == "failed" for job in jobs)
+        assert len(__builtin__.set(job["address"] for job in jobs)) == 3

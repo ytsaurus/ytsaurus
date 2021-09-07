@@ -3,8 +3,8 @@ from yt_env_setup import YTEnvSetup, is_asan_build
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     ls, get,
-    set, exists, create_pool, read_file, write_file, read_table, write_table, map,
-    update_nodes_dynamic_config)
+    set, create_pool, write_file, read_table, write_table, map,
+    get_job, update_nodes_dynamic_config)
 
 from yt_scheduler_helpers import scheduler_orchid_pool_path
 
@@ -24,9 +24,8 @@ This test only works when suid bit is set.
 
 
 def check_memory_limit(op):
-    jobs_path = op.get_path() + "/jobs"
-    for job_id in ls(jobs_path):
-        inner_errors = get(jobs_path + "/" + job_id + "/@error/inner_errors")
+    for job_id in op.list_jobs():
+        inner_errors = get_job(op.id, job_id)["error"]["inner_errors"]
         assert "Memory limit exceeded" in inner_errors[0]["message"]
 
 
@@ -577,7 +576,7 @@ class TestPorts(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-        stderr = read_file(op.get_path() + "/jobs/" + jobs[0] + "/stderr")
+        stderr = op.read_stderr(jobs[0])
         assert "FAILED" not in stderr
         ports = __builtin__.map(int, stderr.split())
         assert len(ports) == 2
@@ -597,12 +596,10 @@ class TestPorts(YTEnvSetup):
             },
         )
 
-        jobs_path = op.get_path() + "/jobs"
-        assert exists(jobs_path)
-        jobs = ls(jobs_path)
+        jobs = op.list_jobs()
         assert len(jobs) == 1
 
-        stderr = read_file(op.get_path() + "/jobs/" + jobs[0] + "/stderr")
+        stderr = op.read_stderr(jobs[0])
         assert "FAILED" not in stderr
         ports = __builtin__.map(int, stderr.split())
         assert len(ports) == 2

@@ -19,6 +19,7 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NJobProberClient::NProto, DumpInputContext);
     DEFINE_RPC_PROXY_METHOD(NJobProberClient::NProto, GetStderr);
+    DEFINE_RPC_PROXY_METHOD(NJobProberClient::NProto, GetFailContext);
     DEFINE_RPC_PROXY_METHOD(NJobProberClient::NProto, GetSpec);
     DEFINE_RPC_PROXY_METHOD(NJobProberClient::NProto, PollJobShell);
     DEFINE_RPC_PROXY_METHOD(NJobProberClient::NProto, Interrupt);
