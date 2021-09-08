@@ -58,12 +58,14 @@ public:
 
     TFuture<IChannelPtr> GetRandomChannel()
     {
-        return GetChannel(nullptr);
+        return GetChannel(nullptr, std::nullopt);
     }
 
-    TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& request)
+    TFuture<IChannelPtr> GetChannel(
+        const IClientRequestPtr& request,
+        const std::optional<THedgingChannelOptions>& hedgingOptions)
     {
-        if (auto channel = PickViableChannel(request)) {
+        if (auto channel = PickViableChannel(request, hedgingOptions)) {
             return MakeFuture(channel);
         }
 
@@ -77,7 +79,7 @@ public:
             ? session->GetFinished()
             : session->GetFirstPeerDiscovered();
         return future.Apply(
-            BIND(&TImpl::GetChannelAfterDiscovery, MakeStrong(this), request));
+            BIND(&TImpl::GetChannelAfterDiscovery, MakeStrong(this), request, hedgingOptions));
     }
 
     void SetPeers(std::vector<TString> addresses)
@@ -432,11 +434,13 @@ private:
         return balancingExt.enable_stickiness();
     }
 
-    IChannelPtr PickViableChannel(const IClientRequestPtr& request)
+    IChannelPtr PickViableChannel(
+        const IClientRequestPtr& request,
+        const std::optional<THedgingChannelOptions>& hedgingOptions)
     {
         return IsRequestSticky(request)
             ? PickStickyViableChannel(request)
-            : PickRandomViableChannel(request);
+            : PickRandomViableChannel(request, hedgingOptions);
     }
 
     IChannelPtr PickStickyViableChannel(const IClientRequestPtr& request)
@@ -486,7 +490,9 @@ private:
         return it->second;
     }
 
-    IChannelPtr PickRandomViableChannel(const IClientRequestPtr& request)
+    IChannelPtr PickRandomViableChannel(
+        const IClientRequestPtr& request,
+        const std::optional<THedgingChannelOptions>& hedgingOptions)
     {
         auto guard = ReaderGuard(SpinLock_);
 
@@ -495,13 +501,32 @@ private:
         }
 
         auto peerIndex = RandomNumber<size_t>(ViablePeers_.size());
-        const auto& peer = ViablePeers_[peerIndex];
 
-        YT_LOG_DEBUG("Random peer selected (RequestId: %v, Address: %v)",
-            request ? request->GetRequestId() : TRequestId(),
-            peer.Address);
+        IChannelPtr channel;
+        if (hedgingOptions && std::ssize(ViablePeers_) > 1) {
+            const auto& primaryPeer = ViablePeers_[peerIndex];
+            const auto& backupPeer = peerIndex + 1 == ViablePeers_.size()
+                ? ViablePeers_[0]
+                : ViablePeers_[peerIndex + 1];
+            channel = CreateHedgingChannel(
+                primaryPeer.Channel,
+                backupPeer.Channel,
+                *hedgingOptions);
 
-        return peer.Channel;
+            YT_LOG_DEBUG("Random peers selected (RequestId: %v, PrimaryAddress: %v, BackupAddress: %v)",
+                request ? request->GetRequestId() : TRequestId(),
+                primaryPeer.Address,
+                backupPeer.Address);
+        } else {
+            const auto& peer = ViablePeers_[peerIndex];
+            channel = peer.Channel;
+
+            YT_LOG_DEBUG("Random peer selected (RequestId: %v, Address: %v)",
+                request ? request->GetRequestId() : TRequestId(),
+                peer.Address);
+        }
+
+        return channel;
     }
 
 
@@ -563,9 +588,11 @@ private:
             << error;
     }
 
-    IChannelPtr GetChannelAfterDiscovery(const IClientRequestPtr& request)
+    IChannelPtr GetChannelAfterDiscovery(
+        const IClientRequestPtr& request,
+        const std::optional<THedgingChannelOptions>& hedgingOptions)
     {
-        auto channel = PickViableChannel(request);
+        auto channel = PickViableChannel(request, hedgingOptions);
         if (!channel) {
             // Not very likely but possible in theory.
             THROW_ERROR MakeNoAlivePeersError();
@@ -862,9 +889,11 @@ TFuture<IChannelPtr> TDynamicChannelPool::GetRandomChannel()
     return Impl_->GetRandomChannel();
 }
 
-TFuture<IChannelPtr> TDynamicChannelPool::GetChannel(const IClientRequestPtr& request)
+TFuture<IChannelPtr> TDynamicChannelPool::GetChannel(
+    const IClientRequestPtr& request,
+    const std::optional<THedgingChannelOptions>& hedgingOptions)
 {
-    return Impl_->GetChannel(request);
+    return Impl_->GetChannel(request, hedgingOptions);
 }
 
 void TDynamicChannelPool::SetPeers(const std::vector<TString>& addresses)

@@ -81,7 +81,7 @@ public:
             SendOptions_);
 
         // NB: No locking is needed
-        RequestControls_.push_back(requestControl);
+        RequestControls_.push_back(std::move(requestControl));
 
         if (HedgingOptions_.Delay == TDuration::Zero()) {
             OnDeadlineReached(false);
@@ -261,7 +261,7 @@ private:
 
         {
             auto guard = Guard(SpinLock_);
-            RequestControls_.push_back(requestControl);
+            RequestControls_.push_back(std::move(requestControl));
         }
     }
 };

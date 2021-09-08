@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "hedging_channel.h"
 
 #include <yt/yt/core/actions/callback.h>
 
@@ -28,7 +29,9 @@ public:
     ~TDynamicChannelPool();
 
     TFuture<IChannelPtr> GetRandomChannel();
-    TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& request);
+    TFuture<IChannelPtr> GetChannel(
+        const IClientRequestPtr& request,
+        const std::optional<THedgingChannelOptions>& hedgingOptions = std::nullopt);
 
     void SetPeers(const std::vector<TString>& addresses);
     void SetPeerDiscoveryError(const TError& error);

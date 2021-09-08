@@ -133,8 +133,7 @@ public:
         auto asyncChannel = Provider_->GetChannel(request);
 
         // NB: Optimize for the typical case of sync channel acquisition.
-        auto channelOrError = asyncChannel.TryGet();
-        if (channelOrError) {
+        if (auto channelOrError = asyncChannel.TryGet()) {
             if (channelOrError->IsOK()) {
                 const auto& channel = channelOrError->Value();
                 return channel->Send(

@@ -43,6 +43,7 @@ public:
             TNullTraceContextGuard nullTraceContextGuard;
             MaybeScheduleSendGenerateRequest(guard);
         }
+
         return result;
     }
 

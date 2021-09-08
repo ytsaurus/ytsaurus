@@ -37,7 +37,7 @@ private:
         req->set_count(count);
 
         return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGenerateTimestampsPtr& rsp) {
-            return static_cast<NTransactionClient::TTimestamp>(rsp->timestamp());
+            return rsp->timestamp();
         }));
     }
 };
