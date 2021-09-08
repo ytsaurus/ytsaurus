@@ -30,6 +30,17 @@ static const auto& Logger = ClusterNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! These categories have limits that are defined externally in relation to the resource manager and its config.
+//! Resource manager simply skips them while updating limits.
+static const THashSet<EMemoryCategory> ExternalMemoryCategories = {
+    EMemoryCategory::BlockCache,
+    EMemoryCategory::ChunkMeta,
+    EMemoryCategory::ChunkBlockMeta,
+    EMemoryCategory::VersionedChunkMeta
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TNodeResourceManager::TNodeResourceManager(IBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
     , UpdateExecutor_(New<TPeriodicExecutor>(
@@ -141,7 +152,11 @@ void TNodeResourceManager::UpdateMemoryLimits()
     }
 
     for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
-        auto oldLimit = memoryUsageTracker->GetLimit(category);
+        if (ExternalMemoryCategories.contains(category)) {
+            continue;
+        }
+
+        auto oldLimit = memoryUsageTracker->GetExplicitLimit(category);
         auto newLimit = newLimits[category];
 
         if (std::abs(oldLimit - newLimit) > config->MemoryAccountingTolerance) {

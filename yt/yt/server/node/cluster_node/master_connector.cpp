@@ -127,7 +127,7 @@ public:
         for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
             auto* protoCategory = protoMemory->add_categories();
             protoCategory->set_type(static_cast<int>(category));
-            auto limit = tracker->GetLimit(category);
+            auto limit = tracker->GetExplicitLimit(category);
             if (limit < std::numeric_limits<i64>::max()) {
                 protoCategory->set_limit(limit);
             }

@@ -88,7 +88,7 @@ struct IColumnEvaluatorCache
 {
     virtual TColumnEvaluatorPtr Find(const TTableSchemaPtr& schema) = 0;
 
-    virtual void Reconfigure(const TColumnEvaluatorCacheDynamicConfigPtr& config) = 0;
+    virtual void Configure(const TColumnEvaluatorCacheDynamicConfigPtr& config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IColumnEvaluatorCache)

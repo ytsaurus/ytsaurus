@@ -282,7 +282,7 @@ IYPathServicePtr TObjectServiceCache::GetOrchidService()
     return IYPathService::FromProducer(producer);
 }
 
-void TObjectServiceCache::Reconfigure(const TObjectServiceCacheDynamicConfigPtr& config)
+void TObjectServiceCache::Configure(const TObjectServiceCacheDynamicConfigPtr& config)
 {
     TMemoryTrackingAsyncSlruCacheBase::Reconfigure(config);
     TopEntryByteRateThreshold_.store(config->TopEntryByteRateThreshold.value_or(

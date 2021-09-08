@@ -369,7 +369,7 @@ private:
         TabletFetchThreadPool_->Configure(
             newConfig->QueryAgent->FetchThreadPoolSize.value_or(GetConfig()->QueryAgent->FetchThreadPoolSize));
 
-        ColumnEvaluatorCache_->Reconfigure(newConfig->TabletNode->ColumnEvaluatorCache);
+        ColumnEvaluatorCache_->Configure(newConfig->TabletNode->ColumnEvaluatorCache);
     }
 };
 

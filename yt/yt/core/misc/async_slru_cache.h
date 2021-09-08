@@ -94,6 +94,7 @@ public:
     };
 
     int GetSize() const;
+    i64 GetCapacity() const;
     std::vector<TValuePtr> GetAll();
 
     TValuePtr Find(const TKey& key);
@@ -108,7 +109,7 @@ public:
     void UpdateWeight(const TKey& key);
     void UpdateWeight(const TValuePtr& value);
 
-    void Reconfigure(const TSlruCacheDynamicConfigPtr& config);
+    virtual void Reconfigure(const TSlruCacheDynamicConfigPtr& config);
 
 protected:
     const TSlruCacheConfigPtr Config_;
@@ -232,6 +233,9 @@ public:
         TSlruCacheConfigPtr config,
         IMemoryUsageTrackerPtr memoryTracker,
         const NProfiling::TProfiler& profiler = {});
+    ~TMemoryTrackingAsyncSlruCacheBase();
+
+    void Reconfigure(const TSlruCacheDynamicConfigPtr& config) override;
 
 protected:
     using TValuePtr = typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValuePtr;
@@ -240,7 +244,7 @@ protected:
     virtual void OnRemoved(const TValuePtr& value) override;
 
 private:
-    IMemoryUsageTrackerPtr MemoryTracker_;
+    const IMemoryUsageTrackerPtr MemoryTracker_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

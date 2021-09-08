@@ -191,6 +191,15 @@ class TestNodeTracker(YTEnvSetup):
         wait(lambda: 10 * 1024 * 1024 <= get_max_slot_space_usage() <= 12 * 1024 * 1024)
         op.abort()
 
+    @authors("akozhikhov")
+    def test_memory_category_limits(self):
+        node = ls("//sys/cluster_nodes")[0]
+
+        memory_statistics = get("//sys/cluster_nodes/{}/@statistics/memory".format(node))
+        assert "limit" not in memory_statistics["alloc_fragmentation"]
+        assert memory_statistics["block_cache"]["limit"] == 2000000
+
+
 ##################################################################
 
 

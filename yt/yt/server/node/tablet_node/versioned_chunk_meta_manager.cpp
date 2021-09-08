@@ -56,7 +56,13 @@ public:
             std::move(config),
             TabletNodeProfiler.WithPrefix("/versioned_chunk_meta_cache"))
         , Bootstrap_(bootstrap)
-    { }
+        , MemoryUsageTracker_(Bootstrap_
+            ->GetMemoryUsageTracker()
+            ->WithCategory(EMemoryCategory::VersionedChunkMeta))
+    {
+        // TODO(akozhikhov): Employ memory tracking cache.
+        MemoryUsageTracker_->SetLimit(GetCapacity());
+    }
 
     TFuture<TVersionedChunkMetaCacheEntryPtr> GetMeta(
         const IChunkReaderPtr& chunkReader,
@@ -76,9 +82,7 @@ public:
                 chunkReadOptions,
                 schema,
                 {} /* columnRenameDescriptors */,
-                Bootstrap_
-                    ->GetMemoryUsageTracker()
-                    ->WithCategory(EMemoryCategory::VersionedChunkMeta))
+                MemoryUsageTracker_)
                 .ApplyUnique(BIND(
                     [cookie = std::move(cookie), key]
                     (TErrorOr<TCachedVersionedChunkMetaPtr>&& metaOrError) mutable
@@ -90,7 +94,7 @@ public:
                         cookie.EndInsert(result);
                         return result;
                     }
-                
+
                     cookie.Cancel(metaOrError);
                     metaOrError.ValueOrThrow();
                     YT_ABORT();
@@ -108,10 +112,12 @@ public:
     void Reconfigure(const TSlruCacheDynamicConfigPtr& config) override
     {
         TAsyncSlruCacheBase::Reconfigure(config);
+        MemoryUsageTracker_->SetLimit(GetCapacity());
     }
 
 private:
     IBootstrapBase* const Bootstrap_;
+    const IMemoryUsageTrackerPtr MemoryUsageTracker_;
 
     i64 GetWeight(const TVersionedChunkMetaCacheEntryPtr& entry) const override
     {

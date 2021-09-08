@@ -120,7 +120,7 @@ public:
 
     NYTree::IYPathServicePtr GetOrchidService();
 
-    void Reconfigure(const TObjectServiceCacheDynamicConfigPtr& config);
+    void Configure(const TObjectServiceCacheDynamicConfigPtr& config);
 
 private:
     const TObjectServiceCacheConfigPtr Config_;

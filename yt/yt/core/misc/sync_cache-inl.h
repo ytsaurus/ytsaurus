@@ -420,7 +420,9 @@ TMemoryTrackingSyncSlruCacheBase<TKey, TValue, THash>::TMemoryTrackingSyncSlruCa
         std::move(config),
         profiler)
     , MemoryTracker_(std::move(memoryTracker))
-{ }
+{
+    MemoryTracker_->SetLimit(this->Capacity_.load());
+}
 
 template <class TKey, class TValue, class THash>
 void TMemoryTrackingSyncSlruCacheBase<TKey, TValue, THash>::OnAdded(const TValuePtr& value)
@@ -432,6 +434,15 @@ template <class TKey, class TValue, class THash>
 void TMemoryTrackingSyncSlruCacheBase<TKey, TValue, THash>::OnRemoved(const TValuePtr& value)
 {
     MemoryTracker_->Release(this->GetWeight(value));
+}
+
+template <class TKey, class TValue, class THash>
+void TMemoryTrackingSyncSlruCacheBase<TKey, TValue, THash>::Reconfigure(const TSlruCacheDynamicConfigPtr& config)
+{
+    if (auto newCapacity = config->Capacity) {
+        MemoryTracker_->SetLimit(*newCapacity);
+    }
+    TSyncSlruCacheBase<TKey, TValue, THash>::Reconfigure(config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
