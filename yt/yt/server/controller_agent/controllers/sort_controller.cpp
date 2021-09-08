@@ -2756,19 +2756,31 @@ protected:
         const auto& finalPartitions = GetFinalPartitions();
         {
             for (int i = 0; i < std::ssize(finalPartitions); ++i) {
-                sizes[i] = GetFinalPartitions()[i]->ChunkPoolOutput->GetDataWeightCounter()->GetTotal();
+                if (const auto& chunkPoolOutput = GetFinalPartitions()[i]->ChunkPoolOutput) {
+                    sizes[i] = chunkPoolOutput->GetDataWeightCounter()->GetTotal();
+                } else {
+                    sizes[i] = 0;
+                }
             }
             result.Total = AggregateValues(sizes, MaxProgressBuckets);
         }
         {
             for (int i = 0; i < std::ssize(finalPartitions); ++i) {
-                sizes[i] = GetFinalPartitions()[i]->ChunkPoolOutput->GetDataWeightCounter()->GetRunning();
+                if (const auto& chunkPoolOutput = GetFinalPartitions()[i]->ChunkPoolOutput) {
+                    sizes[i] = chunkPoolOutput->GetDataWeightCounter()->GetRunning();
+                } else {
+                    sizes[i] = 0;
+                }
             }
             result.Runnning = AggregateValues(sizes, MaxProgressBuckets);
         }
         {
             for (int i = 0; i < std::ssize(finalPartitions); ++i) {
-                sizes[i] = GetFinalPartitions()[i]->ChunkPoolOutput->GetDataWeightCounter()->GetCompletedTotal();
+                if (const auto& chunkPoolOutput = GetFinalPartitions()[i]->ChunkPoolOutput) {
+                    sizes[i] = chunkPoolOutput->GetDataWeightCounter()->GetCompletedTotal();
+                } else {
+                    sizes[i] = 0;
+                }
             }
             result.Completed = AggregateValues(sizes, MaxProgressBuckets);
         }
