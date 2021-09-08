@@ -118,7 +118,13 @@ IThroughputThrottlerPtr CreateNamedUnlimitedThroughputThrottler(
 IThroughputThrottlerPtr CreateCombinedThrottler(
     const std::vector<IThroughputThrottlerPtr>& throttlers);
 
+//! Constructs combined throttler that allows #stealer throttler to steal bandwidth from #underlying one.
+//! Effectively that means that #stealer throttler is used as-is, and
+//! #underlying throttler is always acquired unconditionally and may face overdraft.
+IThroughputThrottlerPtr CreateStealingThrottler(
+    IThroughputThrottlerPtr stealer,
+    IThroughputThrottlerPtr underlying);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency
-

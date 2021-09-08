@@ -1027,7 +1027,7 @@ private:
                     QueryOptions_.TimestampRange,
                     ChunkReadOptions_,
                     ETabletDistributedThrottlerKind::Select,
-                    /*workloadCategory*/ std::nullopt);
+                    ChunkReadOptions_.WorkloadDescriptor.Category);
             };
 
             reader = CreateUnorderedSchemafulReader(std::move(bottomSplitReaderGenerator), 1);
@@ -1039,7 +1039,7 @@ private:
                 QueryOptions_.TimestampRange,
                 ChunkReadOptions_,
                 ETabletDistributedThrottlerKind::Select,
-                /*workloadCategory*/ std::nullopt);
+                ChunkReadOptions_.WorkloadDescriptor.Category);
         }
 
         return New<TProfilingReaderWrapper>(
@@ -1065,7 +1065,7 @@ private:
             QueryOptions_.TimestampRange,
             ChunkReadOptions_,
             ETabletDistributedThrottlerKind::Select,
-            /*workloadCategory*/ std::nullopt);
+            ChunkReadOptions_.WorkloadDescriptor.Category);
 
         return New<TProfilingReaderWrapper>(
             reader,

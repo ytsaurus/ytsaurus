@@ -1053,6 +1053,13 @@ protected:
             }).AsyncVia(SessionInvoker_));
     }
 
+    bool ShouldThrottle(const TAddressWithNetwork& address, bool condition) const
+    {
+        return
+            (!IsAddressLocal(address.Address) && condition) ||
+            ReaderConfig_->EnableLocalThrottling;
+    }
+
 private:
     //! Errors collected by the session.
     std::vector<TError> InnerErrors_;
@@ -1755,7 +1762,7 @@ private:
             return true;
         }
 
-        if (!IsAddressLocal(peers[0].AddressWithNetwork.Address) && BytesThrottled_ == 0 && EstimatedSize_) {
+        if (ShouldThrottle(peers[0].AddressWithNetwork, BytesThrottled_ == 0 && EstimatedSize_)) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
             // In order not to throttle twice, we use BandwidthThrottled_ flag.
             // Still it protects us from bursty incoming traffic on the host.
@@ -1889,7 +1896,7 @@ private:
             rsp->peer_descriptors_size(),
             invalidBlockCount);
 
-        if (!IsAddressLocal(respondedPeer.AddressWithNetwork.Address) && TotalBytesReceived_ > BytesThrottled_) {
+        if (ShouldThrottle(respondedPeer.AddressWithNetwork, TotalBytesReceived_ > BytesThrottled_)) {
             auto delta = TotalBytesReceived_ - BytesThrottled_;
             BytesThrottled_ = TotalBytesReceived_;
             if (!SyncThrottle(BandwidthThrottler_, delta)) {
@@ -2095,7 +2102,7 @@ private:
             EstimatedSize_,
             BytesThrottled_);
 
-        if (!IsAddressLocal(peerAddressWithNetwork.Address) && BytesThrottled_ == 0 && EstimatedSize_) {
+        if (ShouldThrottle(peerAddressWithNetwork, BytesThrottled_ == 0 && EstimatedSize_)) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
             // In order not to throttle twice, we use BandwidthThrottled_ flag.
             // Still it protects us from bursty incoming traffic on the host.
@@ -2185,7 +2192,7 @@ private:
             FirstBlockIndex_ + blocksReceived - 1,
             bytesReceived);
 
-        if (!IsAddressLocal(peerAddressWithNetwork.Address) && TotalBytesReceived_ > BytesThrottled_) {
+        if (ShouldThrottle(peerAddressWithNetwork, TotalBytesReceived_ > BytesThrottled_)) {
             auto delta = TotalBytesReceived_ - BytesThrottled_;
             BytesThrottled_ = TotalBytesReceived_;
             if (!SyncThrottle(BandwidthThrottler_, delta)) {
@@ -2705,7 +2712,7 @@ private:
             SinglePassCandidates_.size(),
             SinglePassIterationCount_);
 
-        if (!IsAddressLocal(peerAddressWithNetwork.Address) && BytesThrottled_ == 0 && BytesToThrottle_) {
+        if (ShouldThrottle(peerAddressWithNetwork, BytesThrottled_ == 0 && BytesToThrottle_)) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
             // In order not to throttle twice, we use BandwidthThrottled_ flag.
             // Still it protects us from bursty incoming traffic on the host.
@@ -2894,7 +2901,7 @@ private:
 
         ProcessAttachedVersionedRowset(response);
 
-        if (!IsAddressLocal(peerAddressWithNetwork.Address) && BytesToThrottle_) {
+        if (ShouldThrottle(peerAddressWithNetwork, BytesToThrottle_ > 0)) {
             BytesThrottled_ += BytesToThrottle_;
             BandwidthThrottler_->Acquire(BytesToThrottle_);
             BytesToThrottle_ = 0;

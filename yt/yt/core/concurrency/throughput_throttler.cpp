@@ -545,4 +545,71 @@ IThroughputThrottlerPtr CreateCombinedThrottler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStealingThrottler
+    : public IThroughputThrottler
+{
+public:
+    TStealingThrottler(
+        IThroughputThrottlerPtr stealer,
+        IThroughputThrottlerPtr underlying)
+        : Stealer_(std::move(stealer))
+        , Underlying_(std::move(underlying))
+    { }
+
+    virtual TFuture<void> Throttle(i64 count) override
+    {
+        Underlying_->Acquire(count);
+        return Stealer_->Throttle(count);
+    }
+
+    virtual bool TryAcquire(i64 count) override
+    {
+        if (Stealer_->TryAcquire(count)) {
+            Underlying_->Acquire(count);
+            return true;
+        }
+
+        return false;
+    }
+
+    virtual i64 TryAcquireAvailable(i64 count) override
+    {
+        auto result = Stealer_->TryAcquireAvailable(count);
+        Underlying_->Acquire(result);
+
+        return result;
+    }
+
+    virtual void Acquire(i64 count) override
+    {
+        Stealer_->Acquire(count);
+        Underlying_->Acquire(count);
+    }
+
+    virtual bool IsOverdraft() override
+    {
+        return Stealer_->IsOverdraft();
+    }
+
+    virtual i64 GetQueueTotalCount() const override
+    {
+        return Stealer_->GetQueueTotalCount();
+    }
+
+private:
+    const IThroughputThrottlerPtr Stealer_;
+    const IThroughputThrottlerPtr Underlying_;
+};
+
+IThroughputThrottlerPtr CreateStealingThrottler(
+    IThroughputThrottlerPtr stealer,
+    IThroughputThrottlerPtr underlying)
+{
+    return New<TStealingThrottler>(
+        std::move(stealer),
+        std::move(underlying));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NConcurrency
