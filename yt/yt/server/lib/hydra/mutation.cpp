@@ -78,7 +78,7 @@ void TMutation::SetTraceContext(NTracing::TTraceContextPtr traceContext)
 {
     if (traceContext && traceContext->IsRecorded()) {
         traceContext = traceContext->CreateChild(ConcatToString(TStringBuf("HydraMutation:"), Request_.Type));
-        
+
         if (Request_.MutationId) {
             traceContext->AddTag("mutation_id", ToString(Request_.MutationId));
         }

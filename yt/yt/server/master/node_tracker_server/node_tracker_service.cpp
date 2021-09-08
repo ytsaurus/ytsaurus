@@ -42,8 +42,10 @@ public:
             EAutomatonThreadQueue::NodeTrackerService,
             NodeTrackerServerLogger)
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterNode)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat)
+            .SetHeavy(true));
 
         // Legacy heartbeats.
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FullHeartbeat)

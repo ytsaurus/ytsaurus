@@ -1874,8 +1874,12 @@ private:
         NRpc::IServiceContextPtr context,
         const TAsyncSemaphorePtr& semaphore)
     {
-        auto handler = BIND([mutation = std::move(mutation), context = std::move(context)] (TAsyncSemaphoreGuard) {
+        auto handler = BIND([mutation = std::move(mutation), context = std::move(context)] (TAsyncSemaphoreGuard) mutable {
             Y_UNUSED(WaitFor(mutation->CommitAndReply(context)));
+
+            // Offload mutation destruction to another thread.
+            NRpc::TDispatcher::Get()->GetHeavyInvoker()
+                ->Invoke(BIND([mutation = std::move(mutation)] { }));
         });
 
         semaphore->AsyncAcquire(handler, EpochAutomatonInvoker_);

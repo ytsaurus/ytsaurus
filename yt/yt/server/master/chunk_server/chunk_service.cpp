@@ -84,13 +84,15 @@ public:
             ? chunkManager->GetChunkInvoker(EChunkThreadQueue::ChunkReplicaAllocator)
             : GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkReplicaAllocator);
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AllocateWriteTargets)
-            .SetInvoker(allocateWriteTargetsInvoker));
+            .SetInvoker(allocateWriteTargetsInvoker)
+            .SetHeavy(true));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExportChunks)
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ImportChunks)
             .SetHeavy(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkOwningNodes));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkOwningNodes)
+            .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExecuteBatch)
             .SetHeavy(true)
             .SetQueueSizeLimit(10000)

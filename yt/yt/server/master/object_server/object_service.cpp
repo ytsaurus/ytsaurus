@@ -165,9 +165,12 @@ public:
             .SetConcurrencyLimit(100000)
             .SetCancelable(true)
             .SetInvoker(GetRpcInvoker())
+            // NB: Execute request is always replied in heavy RPC invoker, so it should not be
+            // marked as heavy.
             // Execute request handler needs request to remain alive after Reply call.
             .SetPooled(false));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect)
+            .SetHeavy(true));
 
         DeclareServerFeature(EMasterFeature::OverlayedJournals);
 

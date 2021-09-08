@@ -23,4 +23,3 @@ NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative
-
