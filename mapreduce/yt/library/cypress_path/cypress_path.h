@@ -22,6 +22,10 @@ public:
     TCypressPath(TString path);
     TCypressPath(TStringBuf path);
     TCypressPath(const char* path);
+    TCypressPath(std::string path)
+        : TCypressPath(TStringBuf(path))
+    {
+    }
 
     inline operator const TString&() const noexcept
     {
@@ -96,6 +100,11 @@ inline TCypressPath operator/(TCypressPath lhs, const TStringBuf& rhs)
 inline TCypressPath operator/(TCypressPath lhs, const TString& rhs)
 {
     return lhs /= rhs;
+}
+
+inline TCypressPath operator/(TCypressPath lhs, const std::string& rhs)
+{
+    return lhs /= TStringBuf(rhs);
 }
 
 inline TCypressPath operator/(TCypressPath lhs, const char* rhs)
