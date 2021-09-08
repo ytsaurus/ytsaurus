@@ -93,11 +93,11 @@ TClient::TClient(
     }
 
     auto wrapChannel = [&] (IChannelPtr channel) {
-        channel = CreateAuthenticatedChannel(channel, options.GetAuthenticationIdentity());
+        channel = CreateAuthenticatedChannel(std::move(channel), options.GetAuthenticationIdentity());
         return channel;
     };
     auto wrapChannelFactory = [&] (IChannelFactoryPtr factory) {
-        factory = CreateAuthenticatedChannelFactory(factory, options.GetAuthenticationIdentity());
+        factory = CreateAuthenticatedChannelFactory(std::move(factory), options.GetAuthenticationIdentity());
         return factory;
     };
 

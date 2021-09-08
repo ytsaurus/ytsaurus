@@ -5,6 +5,7 @@
 #include "roaming_channel.h"
 #include "dynamic_channel_pool.h"
 #include "dispatcher.h"
+#include "hedging_channel.h"
 
 #include <yt/yt/core/service_discovery/service_discovery.h>
 
@@ -67,7 +68,15 @@ public:
 
     TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& request)
     {
-        return Pool_->GetChannel(request);
+        auto hedgingOptions = Config_->HedgingDelay
+            ? std::make_optional(
+                THedgingChannelOptions{
+                    .Delay = *Config_->HedgingDelay,
+                    .CancelPrimary = Config_->CancelPrimaryRequestOnHedging
+                })
+            : std::nullopt;
+
+        return Pool_->GetChannel(request, hedgingOptions);
     }
 
     void Terminate(const TError& error)

@@ -152,6 +152,10 @@ TBalancingChannelConfig::TBalancingChannelConfig()
         .Optional();
     RegisterParameter("endpoints", Endpoints)
         .Optional();
+    RegisterParameter("hedging_delay", HedgingDelay)
+        .Optional();
+    RegisterParameter("cancel_primary_request_on_hedging", CancelPrimaryRequestOnHedging)
+        .Default(false);
 
     RegisterPostprocessor([&] {
         int endpointConfigCount = 0;

@@ -227,6 +227,12 @@ public:
     //! Second option: SD endpoints.
     TServiceDiscoveryEndpointsConfigPtr Endpoints;
 
+    //! Delay before sending a hedged request. If null then hedging is disabled.
+    std::optional<TDuration> HedgingDelay;
+
+    //! Whether to cancel the primary request when backup one is sent.
+    bool CancelPrimaryRequestOnHedging;
+
     TBalancingChannelConfig();
 };
 
