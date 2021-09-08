@@ -19,11 +19,6 @@
 
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
-#include <library/cpp/yson/json_writer.h>
-
-#include <library/cpp/json/json_writer.h>
-#include <library/cpp/json/json_reader.h>
-
 #include <util/random/random.h>
 #include <util/stream/file.h>
 #include <util/stream/str.h>

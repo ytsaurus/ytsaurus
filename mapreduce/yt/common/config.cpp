@@ -11,7 +11,7 @@
 #include <library/cpp/yson/node/node_builder.h>
 #include <library/cpp/yson/node/node_io.h>
 
-#include <library/cpp/yson/yson2json_adapter.h>
+#include <library/cpp/yson/json/yson2json_adapter.h>
 
 #include <util/string/strip.h>
 #include <util/folder/dirut.h>

@@ -10,7 +10,6 @@
 
 #include <library/cpp/yson/parser.h>
 #include <library/cpp/yson/writer.h>
-#include <library/cpp/yson/json_writer.h>
 
 #include <library/cpp/json/json_reader.h>
 #include <library/cpp/json/json_value.h>
