@@ -40,6 +40,18 @@ DEFINE_ENUM(EPrimaryEndpointType,
     (Primary)
 );
 
+DEFINE_ENUM(ERowSliceabilityDecision,
+    (SliceByRows)
+    // All decisions below lead to slicing by keys.
+    (KeyGuaranteeDisabled)
+    (NoJobSizeTracker)
+    (VersionedSlicesPresent)
+    (NonSingletonSliceCountIsAtLeastTwo)
+    (NextPrimaryLowerBoundTooClose)
+    (OverlapsWithStagedDataSlice)
+    (TooMuchForeignData)
+)
+
 class TNewSortedJobBuilder
     : public INewSortedJobBuilder
 {
@@ -613,18 +625,18 @@ private:
 
     //! Decide if range of slices defned by their left endpoints must be added as a whole, or if it
     //! May be added one by one with row slicing.
-    bool DecideRowSliceability(TRange<TPrimaryEndpoint> endpoints, TKeyBound nextPrimaryLowerBound)
+    ERowSliceabilityDecision DecideRowSliceability(TRange<TPrimaryEndpoint> endpoints, TKeyBound nextPrimaryLowerBound)
     {
         YT_VERIFY(!endpoints.empty());
 
         // With key guarantee there is no row slicing at all.
         if (Options_.EnableKeyGuarantee) {
-            return false;
+            return ERowSliceabilityDecision::KeyGuaranteeDisabled;
         }
 
         // No job size tracker means present pivot keys, also no row slicing.
         if (!JobSizeTracker_) {
-            return false;
+            return ERowSliceabilityDecision::NoJobSizeTracker;
         }
 
         bool versionedSlicesPresent = false;
@@ -635,7 +647,7 @@ private:
         }
 
         if (versionedSlicesPresent) {
-            return false;
+            return ERowSliceabilityDecision::VersionedSlicesPresent;
         }
 
         auto stagedUpperBound = StagingArea_->GetPrimaryUpperBound();
@@ -664,14 +676,14 @@ private:
         // TODO(max42): actually we may still slice singleton data slices in this case, but I already
         // spent too much time on this logic... maybe next time.
         if (nonSingletonCount >= 2) {
-            return false;
+            return ERowSliceabilityDecision::NonSingletonSliceCountIsAtLeastTwo;
         }
 
         // If next primary data slice is too close to us, we also cannot use row slicing.
         if (nextPrimaryLowerBound &&
             !PrimaryComparator_.IsInteriorEmpty(nextPrimaryLowerBound, maxUpperBound))
         {
-            return false;
+            return ERowSliceabilityDecision::NextPrimaryLowerBoundTooClose;
         }
 
         // Finally, if some of the already staged data slices overlaps with us, we also discard row slicing.
@@ -679,7 +691,7 @@ private:
             !PrimaryComparator_.IsInteriorEmpty(currentLowerBound, stagedUpperBound) &&
             !PrimaryComparator_.IsInteriorEmpty(currentLowerBound, maxUpperBound))
         {
-            return false;
+            return ERowSliceabilityDecision::OverlapsWithStagedDataSlice;
         }
 
         // Now goes the tricky moment. If the range defined by the only wide enough primary data slice
@@ -695,10 +707,10 @@ private:
             foreignVector += TResourceVector::FromDataSlice(dataSlice, /*isPrimary*/ false);
         }
         if (LimitVector_.GetDataWeight() < foreignVector.GetDataWeight()) {
-            return false;
+            return ERowSliceabilityDecision::TooMuchForeignData;
         }
 
-        return true;
+        return ERowSliceabilityDecision::SliceByRows;
     }
 
     // Flush job size tracker (if it is present) and staging area.
@@ -729,6 +741,18 @@ private:
         }
     }
 
+    //! Partition data slices into singletons and long data slices keeping their original order among each input stream.
+    void PartitionSingletonAndLongDataSlices(TKeyBound lowerBound, std::deque<TLegacyDataSlicePtr>& dataSlices)
+    {
+        std::stable_sort(dataSlices.begin(), dataSlices.end(), [=] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
+            // bool lhsToEnd = lhs->InputStreamIndex == longSliceStreamIndex;
+            // bool rhsToEnd = rhs->InputStreamIndex == longSliceStreamIndex;
+            bool lhsToEnd = !PrimaryComparator_.IsInteriorEmpty(lowerBound, lhs->UpperLimit().KeyBound);
+            bool rhsToEnd = !PrimaryComparator_.IsInteriorEmpty(lowerBound, rhs->UpperLimit().KeyBound);
+            return lhsToEnd < rhsToEnd;
+        });
+    }
+
     //! Stage several data slices using row slicing for better job size constraints meeting.
     void StageRangeWithRowSlicing(TRange<TPrimaryEndpoint> endpoints)
     {
@@ -749,23 +773,7 @@ private:
             dataSlices.push_back(endpoint.DataSlice);
         }
 
-        auto longSliceIterator = dataSlices.end();
-        for (auto iterator = dataSlices.begin(); iterator != dataSlices.end(); ++iterator) {
-            if (PrimaryComparator_.IsInteriorEmpty(lowerBound, (*iterator)->UpperLimit().KeyBound)) {
-                continue;
-            }
-            YT_VERIFY(longSliceIterator == dataSlices.end());
-            longSliceIterator = iterator;
-        }
-
-        if (longSliceIterator != dataSlices.end()) {
-            auto longSliceStreamIndex = (*longSliceIterator)->InputStreamIndex;
-            std::stable_sort(dataSlices.begin(), dataSlices.end(), [=] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
-                bool lhsToEnd = lhs->InputStreamIndex == longSliceStreamIndex;
-                bool rhsToEnd = rhs->InputStreamIndex == longSliceStreamIndex;
-                return lhsToEnd < rhsToEnd;
-            });
-        }
+        PartitionSingletonAndLongDataSlices(lowerBound, dataSlices);
 
         // We consider data slices one by one, adding them into the staging area.
         // Data slices are being added into staging area in solid manner meaning that
@@ -837,14 +845,51 @@ private:
     }
 
     //! Stage several data slices without row slicing "atomically".
-    void StageRangeWithoutRowSlicing(TRange<TPrimaryEndpoint> endpoints, TKeyBound nextPrimaryLowerBound)
+    void StageRangeWithoutRowSlicing(
+        TRange<TPrimaryEndpoint> endpoints,
+        TKeyBound nextPrimaryLowerBound,
+        ERowSliceabilityDecision decision)
     {
-        YT_LOG_TRACE("Processing endpoint range without row slicing (EndpointCount: %v)", endpoints.size());
+        YT_LOG_TRACE(
+            "Processing endpoint range without row slicing (EndpointCount: %v, Decision: %v)",
+            endpoints.size(),
+            decision);
 
         // Note that data slices may still be sliced by key in staging area.
 
+        auto lowerBound = endpoints[0].KeyBound;
+
+        std::deque<TLegacyDataSlicePtr> dataSlices;
+
         for (const auto& endpoint : endpoints) {
-            Stage(endpoint.DataSlice, ESliceType::Buffer);
+            dataSlices.push_back(endpoint.DataSlice);
+        }
+
+        PartitionSingletonAndLongDataSlices(lowerBound, dataSlices);
+
+        bool inLong = Options_.EnableKeyGuarantee;
+        bool haveSolids = false;
+
+        for (const auto& dataSlice : dataSlices) {
+            if (!PrimaryComparator_.IsInteriorEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound)) {
+                inLong = true;
+                if (haveSolids) {
+                    StagingArea_->Flush();
+                    haveSolids = false;
+                }
+            }
+            if (!inLong) {
+                auto vector = TResourceVector::FromDataSlice(dataSlice, /*isPrimary*/ true);
+                auto overflowToken = JobSizeTracker_->CheckOverflow(vector);
+                if (overflowToken) {
+                    Flush(overflowToken);
+                    haveSolids = false;
+                }
+                Stage(dataSlice, ESliceType::Solid);
+                haveSolids = true;
+            } else {
+                Stage(dataSlice, ESliceType::Buffer);
+            }
         }
 
         if (!nextPrimaryLowerBound) {
@@ -948,10 +993,11 @@ private:
                 ? TKeyBound()
                 : endpoints[nextPrimaryIndex].KeyBound;
 
-            if (DecideRowSliceability(primaryEndpoints, nextPrimaryLowerBound)) {
+            auto decision = DecideRowSliceability(primaryEndpoints, nextPrimaryLowerBound);
+            if (decision == ERowSliceabilityDecision::SliceByRows) {
                 StageRangeWithRowSlicing(primaryEndpoints);
             } else {
-                StageRangeWithoutRowSlicing(primaryEndpoints, nextPrimaryLowerBound);
+                StageRangeWithoutRowSlicing(primaryEndpoints, nextPrimaryLowerBound, decision);
             }
         }
 

@@ -1468,7 +1468,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeSimpleWithGenericInputStreamDirec
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, SlicingManiacs)
+TEST_F(TSortedChunkPoolNewKeysTest, SlicingManiacs1)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1498,6 +1498,56 @@ TEST_F(TSortedChunkPoolNewKeysTest, SlicingManiacs)
     for (const auto& dataSliceB : maniacDataSlicesB) {
         AddDataSlice(dataSliceB);
     }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
+
+    // In an ideal world we would've split all this stuff into (100 + 2) / 3 == 34 jobs.
+    // Since our implementation is not perfect, we ensure that there is at least 34 jobs
+    // and at most 100 / 2 + 2
+    EXPECT_LE((100u + 2u) / 3u, stripeLists.size());
+    EXPECT_LE(stripeLists.size(), 100u / 2u + 2u);
+
+    CheckEverything(stripeLists);
+}
+
+TEST_F(TSortedChunkPoolNewKeysTest, SlicingManiacs2)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false} /* isForeign */,
+        {true, true} /* isTeleportable */,
+        {false, false} /* isVersioned */
+        );
+    InitPrimaryComparator(1);
+    MaxDataSlicesPerJob_ = 3;
+    InitJobConstraints();
+    PrepareNewMock();
+
+    auto chunkA = CreateChunk(BuildRow({1}), BuildRow({5}), 0);
+    auto dataSliceA = CreateDataSlice(chunkA);
+    CurrentMock().RegisterTriviallySliceableUnversionedDataSlice(dataSliceA);
+    std::vector<TInputChunkPtr> maniacDataSlicesB;
+    for (int i = 0; i < 100; i++) {
+        auto maniacChunkB = CreateChunk(BuildRow({3}), BuildRow({3}), 1);
+        auto dataSliceB = CreateDataSlice(maniacChunkB);
+        maniacDataSlicesB.emplace_back(maniacChunkB);
+        CurrentMock().RegisterTriviallySliceableUnversionedDataSlice(dataSliceB);
+    }
+    auto dataSliceBTail = CreateDataSlice(CreateChunk(BuildRow({3}), BuildRow({4}), 1));
+    CurrentMock().RegisterTriviallySliceableUnversionedDataSlice(dataSliceBTail);
+
+    CreateChunkPool();
+
+    AddDataSlice(dataSliceA);
+    for (const auto& dataSliceB : maniacDataSlicesB) {
+        AddDataSlice(dataSliceB);
+    }
+    AddDataSlice(dataSliceBTail);
 
     ChunkPool_->Finish();
 

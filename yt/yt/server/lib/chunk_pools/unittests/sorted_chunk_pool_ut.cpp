@@ -1254,7 +1254,7 @@ TEST_F(TSortedChunkPoolTest, SortedMergeSimpleWithGenericInputStreamDirectory)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolTest, SlicingManiacs)
+TEST_F(TSortedChunkPoolTest, SlicingManiacs1)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1281,6 +1281,54 @@ TEST_F(TSortedChunkPoolTest, SlicingManiacs)
     for (const auto& chunkB : maniacChunksB) {
         AddChunk(chunkB);
     }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
+
+    // In an ideal world we would've split all this stuff into (100 + 2) / 3 == 34 jobs.
+    // Since our implementation is not perfect, we ensure that there is at least 34 jobs
+    // and at most 100 / 2 + 2
+    EXPECT_LE((100 + 2) / 3, std::ssize(stripeLists));
+    EXPECT_LE(std::ssize(stripeLists), 100 / 2 + 2);
+
+    CheckEverything(stripeLists);
+}
+
+TEST_F(TSortedChunkPoolTest, SlicingManiacs2)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false} /* isForeign */,
+        {true, true} /* isTeleportable */,
+        {false, false} /* isVersioned */
+        );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    MaxDataSlicesPerJob_ = 3;
+    InitJobConstraints();
+    PrepareNewMock();
+
+    auto chunkA = CreateChunk(BuildRow({1}), BuildRow({5}), 0);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA);
+    std::vector<TInputChunkPtr> maniacChunksB;
+    for (int i = 0; i < 100; i++) {
+        maniacChunksB.emplace_back(CreateChunk(BuildRow({3}), BuildRow({3}), 1));
+        CurrentMock().RegisterTriviallySliceableUnversionedChunk(maniacChunksB.back());
+    }
+
+    auto chunkBTail = CreateChunk(BuildRow({3}), BuildRow({4}), 1);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkBTail);
+
+    CreateChunkPool();
+
+    AddChunk(chunkA);
+    for (const auto& chunkB : maniacChunksB) {
+        AddChunk(chunkB);
+    }
+    AddChunk(chunkBTail);
 
     ChunkPool_->Finish();
 
