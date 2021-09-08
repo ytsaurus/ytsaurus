@@ -135,6 +135,11 @@ func (l *LoggingInterceptor) Write(ctx context.Context, call *Call, invoke Write
 		return
 	}
 
-	w = &loggingWriter{ctx: ctx, l: l, w: w, call: call}
+	lw := &loggingWriter{ctx: ctx, l: l, w: w, call: call}
+	if call.RowBatch != nil {
+		lw.byteCount = int64(call.RowBatch.Len())
+	}
+
+	w = lw
 	return
 }

@@ -548,6 +548,23 @@ func (e *Encoder) InsertRows(
 	return e.writeRows(w, rows)
 }
 
+func (e *Encoder) InsertRowBatch(
+	ctx context.Context,
+	path ypath.Path,
+	batch yt.RowBatch,
+	options *yt.InsertRowsOptions,
+) (err error) {
+	call := e.newCall(NewInsertRowsParams(path, options))
+	call.RowBatch = batch
+
+	w, err := e.InvokeWriteRow(ctx, call)
+	if err != nil {
+		return err
+	}
+
+	return w.Commit()
+}
+
 func (e *Encoder) LockRows(
 	ctx context.Context,
 	path ypath.Path,

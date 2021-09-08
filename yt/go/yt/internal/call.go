@@ -27,6 +27,7 @@ type Call struct {
 	CallID guid.GUID
 
 	YSONValue []byte
+	RowBatch  yt.RowBatch
 
 	RequestedProxy string
 	SelectedProxy  string

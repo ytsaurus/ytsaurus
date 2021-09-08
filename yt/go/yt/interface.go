@@ -997,6 +997,16 @@ type TabletClient interface {
 		options *InsertRowsOptions,
 	) (err error)
 
+	// InsertRowBatch is API optimized for performance.
+	//
+	// It works just like InsertRows, but allows serializing rows ahead of time.
+	InsertRowBatch(
+		ctx context.Context,
+		path ypath.Path,
+		rowBatch RowBatch,
+		options *InsertRowsOptions,
+	) (err error)
+
 	// http:verb:"delete_rows"
 	// http:params:"path"
 	// http:extra
@@ -1138,6 +1148,8 @@ type Client interface {
 		keys []interface{},
 		options *GetInSyncReplicasOptions,
 	) (ids []NodeID, err error)
+
+	NewRowBatchWriter() RowBatchWriter
 
 	// Stop() cancels and waits for completion of all background activity associated with this client.
 	//

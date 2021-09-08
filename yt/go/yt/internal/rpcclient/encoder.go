@@ -575,28 +575,23 @@ func (e *Encoder) LockRows(
 	return xerrors.New("implement me")
 }
 
-func (e *Encoder) InsertRows(
+func (e *Encoder) InsertRowBatch(
 	ctx context.Context,
 	path ypath.Path,
-	rows []interface{},
+	batch yt.RowBatch,
 	opts *yt.InsertRowsOptions,
 ) (err error) {
+	b := batch.(*rowBatch)
+	if b.rowCount == 0 {
+		return nil
+	}
+
 	if opts == nil {
 		opts = &yt.InsertRowsOptions{}
 	}
 
-	if len(rows) == 0 {
-		return nil
-	}
-
-	attachments, descriptor, err := encodeToWire(rows)
-	if err != nil {
-		err = xerrors.Errorf("unable to encode request into wire format: %w", err)
-		return
-	}
-
-	modificationTypes := make([]rpc_proxy.ERowModificationType, 0, len(rows))
-	for i := 0; i < len(rows); i++ {
+	modificationTypes := make([]rpc_proxy.ERowModificationType, 0, b.rowCount)
+	for i := 0; i < b.rowCount; i++ {
 		modificationTypes = append(modificationTypes, rpc_proxy.ERowModificationType_RMT_WRITE)
 	}
 
@@ -609,14 +604,28 @@ func (e *Encoder) InsertRows(
 		RowLocks:             nil, // todo
 		RequireSyncReplica:   opts.RequireSyncReplica,
 		UpstreamReplicaId:    nil, // todo
-		RowsetDescriptor:     descriptor,
+		RowsetDescriptor:     b.descriptor,
 	}
 
-	call := e.newCall(MethodModifyRows, NewInsertRowsRequest(req), attachments)
+	call := e.newCall(MethodModifyRows, NewInsertRowsRequest(req), b.attachments)
 	var rsp rpc_proxy.TRspModifyRows
 	err = e.Invoke(ctx, call, &rsp)
 
 	return
+}
+
+func (e *Encoder) InsertRows(
+	ctx context.Context,
+	path ypath.Path,
+	rows []interface{},
+	opts *yt.InsertRowsOptions,
+) (err error) {
+	batch, err := buildBatch(rows)
+	if err != nil {
+		return err
+	}
+
+	return e.InsertRowBatch(ctx, path, batch, opts)
 }
 
 func (e *Encoder) DeleteRows(

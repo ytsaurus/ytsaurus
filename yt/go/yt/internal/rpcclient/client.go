@@ -13,6 +13,7 @@ import (
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/xerrors"
 	"a.yandex-team.ru/yt/go/bus"
+	"a.yandex-team.ru/yt/go/proto/client/api/rpc_proxy"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yt/internal"
@@ -246,11 +247,89 @@ func (c *client) LockRows(
 	return tx.Commit()
 }
 
+type rowBatch struct {
+	rows        []interface{}
+	rowCount    int
+	attachments [][]byte
+	descriptor  *rpc_proxy.TRowsetDescriptor
+}
+
+func (b *rowBatch) Write(row interface{}) error {
+	b.rows = append(b.rows, row)
+	b.rowCount++
+	return nil
+}
+
+func (b *rowBatch) Commit() error {
+	if len(b.rows) == 0 {
+		return nil
+	}
+
+	var err error
+	b.attachments, b.descriptor, err = encodeToWire(b.rows)
+	b.rows = nil
+	return err
+}
+
+func (b *rowBatch) Rollback() error {
+	return nil
+}
+
+func (b *rowBatch) Len() int {
+	var l int
+	for _, b := range b.attachments {
+		l += len(b)
+	}
+	return l
+}
+
+func (b *rowBatch) Batch() yt.RowBatch {
+	if b.rows != nil {
+		panic("reading unfinished batch")
+	}
+
+	return b
+}
+
+func (c *client) NewRowBatchWriter() yt.RowBatchWriter {
+	return &rowBatch{}
+}
+
+func buildBatch(rows []interface{}) (yt.RowBatch, error) {
+	var b rowBatch
+	if len(rows) == 0 {
+		return &b, nil
+	}
+
+	var err error
+	b.attachments, b.descriptor, err = encodeToWire(rows)
+	b.rowCount = len(rows)
+	return &b, err
+}
+
 // InsertRows wraps encoder's implementation with transaction.
 func (c *client) InsertRows(
 	ctx context.Context,
 	path ypath.Path,
 	rows []interface{},
+	opts *yt.InsertRowsOptions,
+) (err error) {
+	if len(rows) == 0 {
+		return nil
+	}
+
+	batch, err := buildBatch(rows)
+	if err != nil {
+		return err
+	}
+
+	return c.InsertRowBatch(ctx, path, batch, opts)
+}
+
+func (c *client) InsertRowBatch(
+	ctx context.Context,
+	path ypath.Path,
+	rowBatch yt.RowBatch,
 	opts *yt.InsertRowsOptions,
 ) (err error) {
 	if opts == nil {
@@ -260,13 +339,9 @@ func (c *client) InsertRows(
 		opts.TransactionOptions = &yt.TransactionOptions{}
 	}
 
-	if len(rows) == 0 {
-		return nil
-	}
-
 	var zero yt.TxID
 	if opts.TransactionID != zero {
-		return c.Encoder.InsertRows(ctx, path, rows, opts)
+		return c.Encoder.InsertRowBatch(ctx, path, rowBatch, opts)
 	}
 
 	tx, err := c.BeginTabletTx(ctx, nil)
@@ -277,7 +352,7 @@ func (c *client) InsertRows(
 
 	opts.TransactionID = tx.ID()
 
-	err = tx.InsertRows(ctx, path, rows, opts)
+	err = tx.InsertRowBatch(ctx, path, rowBatch, opts)
 	if err != nil {
 		return err
 	}
