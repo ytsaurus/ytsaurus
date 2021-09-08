@@ -89,6 +89,8 @@ bool IsTrivial(const TInputSliceLimit& limit);
 
 void ToProto(NProto::TReadLimit* protoLimit, const TInputSliceLimit& limit);
 
+void Serialize(const TInputSliceLimit& limit, NYson::IYsonConsumer* consumer);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TInputChunkSlice

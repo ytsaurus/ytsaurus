@@ -25,6 +25,7 @@ using namespace NQueryClient;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -231,6 +232,15 @@ void TInputSliceLimit::Persist(const TPersistenceContext& context)
 
     Persist(context, RowIndex);
     Persist(context, KeyBound);
+}
+
+void Serialize(const TInputSliceLimit& limit, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .OptionalItem("key_bound", limit.KeyBound)
+            .OptionalItem("row_index", limit.RowIndex)
+        .EndMap();
 }
 
 TString ToString(const TInputSliceLimit& limit)

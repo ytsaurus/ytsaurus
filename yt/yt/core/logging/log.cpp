@@ -180,6 +180,11 @@ const TString& TLogger::GetTag() const
     return Tag_;
 }
 
+const TLogger::TStructuredTags& TLogger::GetStructuredTags() const
+{
+    return StructuredTags_;
+}
+
 void TLogger::Save(TStreamSaveContext& context) const
 {
     using NYT::Save;
@@ -194,6 +199,7 @@ void TLogger::Save(TStreamSaveContext& context) const
     Save(context, Essential_);
     Save(context, MinLevel_);
     Save(context, Tag_);
+    TVectorSerializer<TTupleSerializer<TStructuredTag, 2>>::Save(context, StructuredTags_);
 }
 
 void TLogger::Load(TStreamLoadContext& context)
@@ -215,6 +221,11 @@ void TLogger::Load(TStreamLoadContext& context)
     Load(context, Essential_);
     Load(context, MinLevel_);
     Load(context, Tag_);
+
+    // COMPAT(max42); 300616 is a version for StructuredTagsInLogger in CA snapshot.
+    if (context.GetVersion() >= 300616) {
+        TVectorSerializer<TTupleSerializer<TStructuredTag, 2>>::Load(context, StructuredTags_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

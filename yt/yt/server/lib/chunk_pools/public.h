@@ -2,6 +2,8 @@
 
 #include <yt/yt/core/misc/common.h>
 
+#include <yt/yt/core/logging/log.h>
+
 namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,6 +34,8 @@ DEFINE_ENUM(EErrorCode,
 );
 
 constexpr double ApproximateSizesBoostFactor = 1.3;
+
+extern const NLogging::TLogger ChunkPoolStructuredLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

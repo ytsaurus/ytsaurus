@@ -20,7 +20,11 @@ TOneShotFluentLogEventImpl<TParent>::TOneShotFluentLogEventImpl(
     , State_(std::move(state))
     , Logger_(&logger)
     , Level_(level)
-{ }
+{
+    for (const auto& [key, value] : logger.GetStructuredTags()) {
+        (*this).Item(key).Value(value);
+    }
+}
 
 template <class TParent>
 NYTree::TFluentYsonBuilder::TAny<TOneShotFluentLogEventImpl<TParent>&&> TOneShotFluentLogEventImpl<TParent>::Item(TStringBuf key)
