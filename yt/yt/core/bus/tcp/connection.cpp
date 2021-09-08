@@ -3,6 +3,7 @@
 #include "server.h"
 #include "dispatcher_impl.h"
 
+#include <unistd.h>
 #include <yt/yt/core/misc/enum.h>
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
@@ -21,6 +22,10 @@
 #include <util/system/error.h>
 #include <util/system/guard.h>
 
+#ifdef __linux__
+#include <netinet/tcp.h>
+#endif
+
 #include <cerrno>
 
 namespace NYT::NBus {
@@ -31,6 +36,7 @@ using namespace NNet;
 using namespace NYTree;
 using namespace NYson;
 using namespace NYTAlloc;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +49,8 @@ static constexpr size_t WriteBufferSize = 16_KB;
 static constexpr size_t MaxBatchWriteSize = 64_KB;
 static constexpr size_t MaxWriteCoalesceSize = 1_KB;
 static constexpr auto WriteTimeWarningThreshold = TDuration::MilliSeconds(100);
+
+static constexpr auto TcpStatisticsUpdatePeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,6 +144,7 @@ void TTcpConnection::Close()
                 Poller_->Unarm(Socket_, this);
                 UpdateConnectionCount(-1);
             }
+            UpdateTcpStatistics(true);
             CloseSocket(Socket_);
             Socket_ = INVALID_SOCKET;
         }
@@ -946,6 +955,7 @@ void TTcpConnection::OnSocketWrite()
         }
     }
 
+    UpdateTcpStatistics(false);
     YT_LOG_TRACE("Finished serving write request (BytesWrittenTotal: %v)", bytesWrittenTotal);
 }
 
@@ -1312,6 +1322,34 @@ void TTcpConnection::InitSocketTosLevel(TTosLevel tosLevel)
     } else {
         YT_LOG_DEBUG("Failed to set socket TOS level");
     }
+}
+
+void TTcpConnection::UpdateTcpStatistics(bool force)
+{
+    if (!force) {
+        auto now = GetCpuInstant();
+        if (CpuDurationToDuration(now - LastTcpStatisticsUpdate_) < TcpStatisticsUpdatePeriod) {
+            return;
+        }
+
+        LastTcpStatisticsUpdate_ = now;
+    }
+
+#ifdef _linux_
+    tcp_info info;
+    socklen_t len = sizeof(info);
+    int ret = ::getsockopt(Socket_, IPPROTO_TCP, TCP_INFO, &info, &len);
+    if (ret == 0) {
+        // Handle counter overflow.
+        if (info.tcpi_total_retrans < LastRetransmitCount_) {
+            Counters_->Retransmits += info.tcpi_total_retrans + (Max<ui32>() - LastRetransmitCount_);
+        } else {
+            Counters_->Retransmits += info.tcpi_total_retrans - LastRetransmitCount_;
+        }
+
+        LastRetransmitCount_ = info.tcpi_total_retrans;
+    }
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////

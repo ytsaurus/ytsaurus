@@ -29,6 +29,8 @@ struct TTcpDispatcherCounters
     std::atomic<i64> ReadErrors = 0;
     std::atomic<i64> WriteErrors = 0;
 
+    std::atomic<i64> Retransmits = 0;
+
     std::atomic<i64> EncoderErrors = 0;
     std::atomic<i64> DecoderErrors = 0;
 
