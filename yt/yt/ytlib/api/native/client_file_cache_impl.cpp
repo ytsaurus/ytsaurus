@@ -23,9 +23,12 @@ using namespace NSecurityClient;
 namespace {
 
 constexpr int FileCacheHashDigitCount = 2;
+constexpr int MD5HashDigitCount = 32;
 
 TYPath GetFilePathInCache(const TString& md5, const TYPath& cachePath)
 {
+    YT_VERIFY(std::size(md5) == MD5HashDigitCount);
+
     auto lastDigits = md5.substr(md5.size() - FileCacheHashDigitCount);
     return cachePath + "/" + lastDigits + "/" + md5;
 }
@@ -66,6 +69,13 @@ TGetFileFromCacheResult TClient::DoGetFileFromCache(
     const TGetFileFromCacheOptions& options)
 {
     TGetFileFromCacheResult result;
+
+    if (std::ssize(md5) != MD5HashDigitCount) {
+        YT_LOG_DEBUG("MD5 hash is invalid (MD5: %v)",
+            md5);
+        return result;
+    }
+
     auto destination = GetFilePathInCache(md5, options.CachePath);
 
     auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
