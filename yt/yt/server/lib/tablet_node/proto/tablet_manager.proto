@@ -194,6 +194,7 @@ message TReqRotateStore
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required int64 mount_revision = 2;
+    optional int32 reason = 3; // EStoreRotationReason
 }
 
 message TReqSplitPartition

@@ -31,6 +31,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NObjectClient;
 using namespace NTableClient;
+using namespace NLsm;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -170,6 +171,118 @@ TQueryServiceCounters::TQueryServiceCounters(const TProfiler& profiler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TStoreRotationCounters::TStoreRotationCounters(const TProfiler& profiler)
+    : RotationCount(profiler.Counter("/rotation_count"))
+    , RotatedRowCount(profiler.Summary("/rotated_row_count"))
+    , RotatedMemoryUsage(profiler.Summary("/rotated_memory_usage"))
+{ }
+
+TStoreCompactionCounters::TStoreCompactionCounters(const TProfiler& profiler)
+    : InDataWeight(profiler.Counter("/in_data_weight"))
+    , OutDataWeight(profiler.Counter("/out_data_weight"))
+    , InStoreCount(profiler.Counter("/in_store_count"))
+    , OutStoreCount(profiler.Counter("/out_store_count"))
+{ }
+
+TPartitionBalancingCounters::TPartitionBalancingCounters(const TProfiler& profiler)
+    : PartitionSplits(profiler.Counter("/partition_splits"))
+    , PartitionMerges(profiler.Counter("/partition_merges"))
+{ }
+
+TLsmCounters::TLsmCounters(const TProfiler& originalProfiler)
+{
+    auto chilledProfiler = originalProfiler.WithHot(false).WithSparse();
+
+    for (auto reason : TEnumTraits<EStoreRotationReason>::GetDomainValues()) {
+        if (reason == EStoreRotationReason::None) {
+            continue;
+        }
+
+        RotationCounters_[reason] = TStoreRotationCounters(
+            chilledProfiler
+                .WithPrefix("/store_rotator")
+                .WithTag("reason", FormatEnum(reason)));
+    }
+
+    for (auto reason : TEnumTraits<EStoreCompactionReason>::GetDomainValues()) {
+        if (reason == EStoreCompactionReason::None) {
+            continue;
+        }
+
+        for (int eden = 0; eden <= 1; ++eden) {
+            for (auto activity : TEnumTraits<EStoreCompactorActivityKind>::GetDomainValues()) {
+                if (activity == EStoreCompactorActivityKind::Partitioning) {
+                    if (!eden || reason == EStoreCompactionReason::DiscardByTtl) {
+                        continue;
+                    }
+                }
+                CompactionCounters_[reason][eden][activity] = TStoreCompactionCounters(
+                    chilledProfiler
+                        .WithPrefix("/store_compactor")
+                        .WithTag("reason", FormatEnum(reason))
+                        .WithTag("eden", eden ? "true" : "false")
+                        .WithTag("activity", FormatEnum(activity)));
+            }
+        }
+    }
+
+    PartitionBalancingCounters_ = TPartitionBalancingCounters(
+        chilledProfiler
+            .WithPrefix("/partition_balancer"));
+}
+
+void TLsmCounters::ProfileRotation(EStoreRotationReason reason, i64 rowCount, i64 memoryUsage)
+{
+    auto& counters = RotationCounters_[reason];
+    counters.RotationCount.Increment();
+    counters.RotatedRowCount.Record(rowCount);
+    counters.RotatedMemoryUsage.Record(memoryUsage);
+}
+
+void TLsmCounters::ProfileCompaction(
+    EStoreCompactionReason reason,
+    bool isEden,
+    const NChunkClient::NProto::TDataStatistics readerStatistics,
+    const NChunkClient::NProto::TDataStatistics writerStatistics)
+{
+    auto& counters = CompactionCounters_
+        [reason][isEden ? 1 : 0][EStoreCompactorActivityKind::Compaction];
+    DoProfileCompaction(&counters, readerStatistics, writerStatistics);
+}
+
+void TLsmCounters::ProfilePartitioning(
+    EStoreCompactionReason reason,
+    const NChunkClient::NProto::TDataStatistics readerStatistics,
+    const NChunkClient::NProto::TDataStatistics writerStatistics)
+{
+    auto& counters = CompactionCounters_
+        [reason][/*isEden*/ 1][EStoreCompactorActivityKind::Partitioning];
+    DoProfileCompaction(&counters, readerStatistics, writerStatistics);
+}
+
+void TLsmCounters::ProfilePartitionSplit()
+{
+    PartitionBalancingCounters_.PartitionSplits.Increment();
+}
+
+void TLsmCounters::ProfilePartitionMerge()
+{
+    PartitionBalancingCounters_.PartitionMerges.Increment();
+}
+
+void TLsmCounters::DoProfileCompaction(
+    TStoreCompactionCounters* counters,
+    const NChunkClient::NProto::TDataStatistics readerStatistics,
+    const NChunkClient::NProto::TDataStatistics writerStatistics)
+{
+    counters->InDataWeight.Increment(readerStatistics.data_weight());
+    counters->InStoreCount.Increment(readerStatistics.chunk_count());
+    counters->OutDataWeight.Increment(writerStatistics.data_weight());
+    counters->OutStoreCount.Increment(writerStatistics.chunk_count());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TWriterProfiler::Profile(
     const TTabletSnapshotPtr& tabletSnapshot,
     EChunkWriteProfilingMethod method,
@@ -181,7 +294,7 @@ void TWriterProfiler::Profile(
         DataStatistics_,
         CodecStatistics_,
         tabletSnapshot->Settings.StoreWriterOptions->ReplicationFactor);
-    
+
     counters->HunkChunkWriterCounters.Increment(
         HunkChunkWriterStatistics_,
         HunkChunkDataStatistics_,
@@ -432,7 +545,7 @@ TCounter* TTableProfiler::TUserTaggedCounter<TCounter>::Get(
         static TCounter counter;
         return &counter;
     }
- 
+
     return Counters.FindOrInsert(userTag, [&] {
         if (userTag) {
             return TCounter(profiler.WithTag("user", *userTag), schema);
@@ -482,6 +595,8 @@ TTableProfiler::TTableProfiler(
         ThrottlerCounters_[kind] = profiler.Counter(
             "/tablet/throttled_" + CamelCaseToUnderscoreCase(ToString(kind)) + "_count");
     }
+
+    LsmCounters_ = TLsmCounters(Profiler_);
 }
 
 TTableProfilerPtr TTableProfiler::GetDisabled()
@@ -560,6 +675,11 @@ TEventTimer* TTableProfiler::GetThrottlerTimer(ETabletDistributedThrottlerKind k
 TCounter* TTableProfiler::GetThrottlerCounter(ETabletDistributedThrottlerKind kind)
 {
     return &ThrottlerCounters_[kind];
+}
+
+TLsmCounters* TTableProfiler::GetLsmCounters()
+{
+    return &LsmCounters_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -234,7 +234,7 @@ public:
      *  Per-CPU implementation:
      *    4160 bytes - Counter, TimeCounter, Gauge, Timer, Summary
      */
-    TProfiler WithHot() const;
+    TProfiler WithHot(bool value = true) const;
 
     //! Counter is used to measure rate of events.
     TCounter Counter(const TString& name) const;

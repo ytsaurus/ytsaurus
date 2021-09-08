@@ -151,9 +151,9 @@ void TReplicatedStoreManager::InitializeRotation()
     LogStoreManager_->InitializeRotation();
 }
 
-void TReplicatedStoreManager::ScheduleRotation()
+void TReplicatedStoreManager::ScheduleRotation(NLsm::EStoreRotationReason reason)
 {
-    LogStoreManager_->ScheduleRotation();
+    LogStoreManager_->ScheduleRotation(reason);
 }
 
 void TReplicatedStoreManager::UnscheduleRotation()
@@ -161,9 +161,9 @@ void TReplicatedStoreManager::UnscheduleRotation()
     LogStoreManager_->UnscheduleRotation();
 }
 
-void TReplicatedStoreManager::Rotate(bool createNewStore)
+void TReplicatedStoreManager::Rotate(bool createNewStore, NLsm::EStoreRotationReason reason)
 {
-    LogStoreManager_->Rotate(createNewStore);
+    LogStoreManager_->Rotate(createNewStore, reason);
 }
 
 void TReplicatedStoreManager::AddStore(IStorePtr store, bool onMount)

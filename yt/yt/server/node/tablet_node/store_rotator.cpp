@@ -36,9 +36,10 @@ private:
         const ITabletSlotPtr& slot,
         const NLsm::TLsmActionBatch& batch) override
     {
-        THashMap<TCellId, std::vector<NLsm::TTabletPtr>> tabletsByCellId;
+        THashMap<TCellId, std::vector<NLsm::TRotateStoreRequest>> requestsByCellId;
 
-        auto scheduleRotation = [] (const auto& tabletManager, const auto& lsmTablet) {
+        auto scheduleRotation = [] (const auto& tabletManager, const auto& request) {
+            const auto& lsmTablet = request.Tablet;
             auto* tablet = tabletManager->FindTablet(lsmTablet->GetId());
             if (!tablet) {
                 YT_LOG_DEBUG("Tablet is missing, aborting rotation (TabletId: %v)",
@@ -63,7 +64,7 @@ private:
                     activeStoreId);
             }
 
-            tabletManager->ScheduleStoreRotation(tablet);
+            tabletManager->ScheduleStoreRotation(tablet, request.Reason);
         };
 
         for (const auto& action : batch.Rotations) {
@@ -71,14 +72,14 @@ private:
 
             if (slot) {
                 const auto& tabletManager = slot->GetTabletManager();
-                scheduleRotation(tabletManager, lsmTablet);
+                scheduleRotation(tabletManager, action);
             } else {
-                tabletsByCellId[lsmTablet->GetCellId()].push_back(lsmTablet);
+                requestsByCellId[lsmTablet->GetCellId()].push_back(action);
             }
         }
 
         const auto& slotManager = Bootstrap_->GetSlotManager();
-        for (const auto& [cellId, tablets] : tabletsByCellId) {
+        for (const auto& [cellId, requests] : requestsByCellId) {
             auto slot = slotManager->FindSlot(cellId);
             if (!slot) {
                 YT_LOG_DEBUG("Tablet cell is missing, aborting rotation (CellId: %v)",
@@ -89,7 +90,7 @@ private:
             auto invoker = slot->GetGuardedAutomatonInvoker();
             invoker->Invoke(BIND([
                 slot = std::move(slot),
-                tablets = std::move(tablets),
+                requests = std::move(requests),
                 scheduleRotation
             ] {
                 if (slot->GetAutomatonState() != EPeerState::Leading) {
@@ -97,8 +98,8 @@ private:
                 }
 
                 const auto& tabletManager = slot->GetTabletManager();
-                for (const auto& lsmTablet : tablets) {
-                    scheduleRotation(tabletManager, lsmTablet);
+                for (const auto& request : requests) {
+                    scheduleRotation(tabletManager, request);
                 }
             }));
         }

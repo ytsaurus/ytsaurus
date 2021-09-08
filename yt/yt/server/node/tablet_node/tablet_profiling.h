@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
+#include <yt/yt/server/lib/lsm/public.h>
+
 #include <yt/yt/ytlib/table_client/hunks.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 
@@ -211,6 +213,85 @@ struct TQueryServiceCounters
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TStoreRotationCounters
+{
+    TStoreRotationCounters() = default;
+
+    explicit TStoreRotationCounters(const NProfiling::TProfiler& profiler);
+
+    NProfiling::TCounter RotationCount;
+    NProfiling::TSummary RotatedRowCount;
+    NProfiling::TSummary RotatedMemoryUsage;
+};
+
+struct TStoreCompactionCounters
+{
+    TStoreCompactionCounters() = default;
+
+    explicit TStoreCompactionCounters(const NProfiling::TProfiler& profiler);
+
+    NProfiling::TCounter InDataWeight;
+    NProfiling::TCounter OutDataWeight;
+    NProfiling::TCounter InStoreCount;
+    NProfiling::TCounter OutStoreCount;
+};
+
+struct TPartitionBalancingCounters
+{
+    TPartitionBalancingCounters() = default;
+
+    explicit TPartitionBalancingCounters(const NProfiling::TProfiler& profiler);
+
+    NProfiling::TCounter PartitionSplits;
+    NProfiling::TCounter PartitionMerges;
+};
+
+class TLsmCounters
+{
+public:
+    TLsmCounters() = default;
+
+    explicit TLsmCounters(const NProfiling::TProfiler& profiler);
+
+    void ProfileRotation(NLsm::EStoreRotationReason reason, i64 rowCount, i64 memoryUsage);
+
+    void ProfileCompaction(
+        NLsm::EStoreCompactionReason reason,
+        bool isEden,
+        const NChunkClient::NProto::TDataStatistics readerStatistics,
+        const NChunkClient::NProto::TDataStatistics writerStatistics);
+
+    void ProfilePartitioning(
+        NLsm::EStoreCompactionReason reason,
+        const NChunkClient::NProto::TDataStatistics readerStatistics,
+        const NChunkClient::NProto::TDataStatistics writerStatistics);
+
+    void ProfilePartitionSplit();
+    void ProfilePartitionMerge();
+
+private:
+    TEnumIndexedVector<
+        NLsm::EStoreRotationReason,
+        TStoreRotationCounters> RotationCounters_;
+
+    // Counters[reason][eden][compaction/partitioning].
+    TEnumIndexedVector<
+        NLsm::EStoreCompactionReason,
+        std::array<
+            TEnumIndexedVector<
+                NLsm::EStoreCompactorActivityKind,
+                TStoreCompactionCounters>, 2>> CompactionCounters_;
+
+    TPartitionBalancingCounters PartitionBalancingCounters_;
+
+    void DoProfileCompaction(
+        TStoreCompactionCounters* counters,
+        const NChunkClient::NProto::TDataStatistics readerStatistics,
+        const NChunkClient::NProto::TDataStatistics writerStatistics);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTableProfilerPtr CreateTableProfiler(
     EDynamicTableProfilingMode profilingMode,
     const TString& tabletCellBundle,
@@ -268,6 +349,7 @@ public:
     TChunkReadCounters* GetReadCounters(EChunkReadProfilingMethod method, bool failed);
     NProfiling::TEventTimer* GetThrottlerTimer(ETabletDistributedThrottlerKind kind);
     NProfiling::TCounter* GetThrottlerCounter(ETabletDistributedThrottlerKind kind);
+    TLsmCounters* GetLsmCounters();
 
 private:
     const bool Disabled_ = true;
@@ -302,6 +384,7 @@ private:
     TChunkReadCountersVector ChunkReadCounters_;
     TTabletDistributedThrottlerTimersVector ThrottlerWaitTimers_;
     TTabletDistributedThrottlerCounters ThrottlerCounters_;
+    TLsmCounters LsmCounters_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableProfiler)

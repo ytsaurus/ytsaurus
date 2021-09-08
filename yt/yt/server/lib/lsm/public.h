@@ -43,9 +43,11 @@ class TStore;
 
 DEFINE_ENUM(EStoreCompactionReason,
     (None)
-    (ForcedCompaction)
-    (PeriodicCompaction)
+    (Regular)
+    (Forced)
+    (Periodic)
     (StoreOutOfTabletRange)
+    (DiscardByTtl)
 );
 
 DEFINE_ENUM(EStoreRotationReason,
@@ -53,6 +55,11 @@ DEFINE_ENUM(EStoreRotationReason,
     (Forced)
     (Periodic)
     (Overflow)
+);
+
+DEFINE_ENUM(EStoreCompactorActivityKind,
+    (Compaction)
+    (Partitioning)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -309,14 +309,14 @@ TProfiler TProfiler::WithRenameDisabled() const
     return TProfiler(Prefix_, Namespace_, Tags_, Impl_, opts);
 }
 
-TProfiler TProfiler::WithHot() const
+TProfiler TProfiler::WithHot(bool value) const
 {
     if (!Enabled_) {
         return {};
     }
 
     auto opts = Options_;
-    opts.Hot = true;
+    opts.Hot = value;
     return TProfiler(Prefix_, Namespace_, Tags_, Impl_, opts);
 }
 

@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/hydra/public.h>
 
+#include <yt/yt/server/lib/lsm/public.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -32,7 +34,7 @@ public:
 
     virtual void InitializeRotation() override;
     virtual bool IsRotationScheduled() const override;
-    virtual void ScheduleRotation() override;
+    virtual void ScheduleRotation(NLsm::EStoreRotationReason reason) override;
     virtual void UnscheduleRotation() override;
 
     virtual void AddStore(IStorePtr store, bool onMount) override;
@@ -70,7 +72,7 @@ public:
         const NTabletNode::NProto::TMountHint& mountHint) override;
     virtual void Remount(const TTableSettings& settings) override;
 
-    virtual void Rotate(bool createNewStore) override;
+    virtual void Rotate(bool createNewStore, NLsm::EStoreRotationReason reason) override;
 
     virtual bool IsStoreLocked(IStorePtr store) const override;
     virtual std::vector<IStorePtr> GetLockedStores() const override;

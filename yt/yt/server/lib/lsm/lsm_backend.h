@@ -16,6 +16,7 @@ struct TCompactionRequest
     int Slack = 0;
     int Effect = 0;
     bool DiscardStores = false;
+    EStoreCompactionReason Reason = EStoreCompactionReason::None;
 };
 
 struct TSamplePartitionRequest

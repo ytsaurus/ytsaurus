@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
+#include <yt/yt/server/lib/lsm/public.h>
+
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
@@ -56,7 +58,7 @@ public:
         TTabletSnapshotPtr tabletSnapshot,
         i64 trimmedRowCount);
 
-    void ScheduleStoreRotation(TTablet* tablet);
+    void ScheduleStoreRotation(TTablet* tablet, NLsm::EStoreRotationReason reason);
 
     TFuture<void> CommitTabletStoresUpdateTransaction(
         TTablet* tablet,

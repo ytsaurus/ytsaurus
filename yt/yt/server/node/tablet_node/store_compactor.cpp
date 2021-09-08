@@ -723,6 +723,7 @@ private:
         TString TabletLoggingTag;
         TPartitionId PartitionId;
         std::vector<TStoreId> StoreIds;
+        NLsm::EStoreCompactionReason Reason;
 
         // True if the all chunks should be discarded. The task does not
         // require reading and writing chunks.
@@ -755,7 +756,8 @@ private:
             ITabletSlot* slot,
             const TTablet* tablet,
             TPartitionId partitionId,
-            std::vector<TStoreId> stores)
+            std::vector<TStoreId> stores,
+            NLsm::EStoreCompactionReason reason)
             : Slot(slot)
             , Invoker(tablet->GetEpochAutomatonInvoker())
             , TabletId(tablet->GetId())
@@ -763,6 +765,7 @@ private:
             , TabletLoggingTag(tablet->GetLoggingTag())
             , PartitionId(partitionId)
             , StoreIds(std::move(stores))
+            , Reason(reason)
         { }
 
         ~TTask()
@@ -797,7 +800,8 @@ private:
                 .Item("slack").Value(Slack)
                 .Item("effect").Value(Effect)
                 .Item("future_effect").Value(FutureEffect)
-                .Item("random").Value(Random);
+                .Item("random").Value(Random)
+                .Item("reason").Value(Reason);
         }
 
         static inline bool Comparer(
@@ -881,6 +885,7 @@ private:
                 , Effect(task.Effect)
                 , FutureEffect(task.FutureEffect)
                 , Random(task.Random)
+                , Reason(task.Reason)
             { }
 
             TTabletId TabletId;
@@ -893,6 +898,7 @@ private:
             int Effect;
             int FutureEffect;
             ui64 Random;
+            NLsm::EStoreCompactionReason Reason;
 
             auto GetStoreCount()
             {
@@ -915,6 +921,7 @@ private:
                             .Item("effect").Value(Effect)
                             .Item("random").Value(Random)
                         .EndMap()
+                    .Item("reason").Value(Reason)
                  .EndMap();
             }
         };
@@ -992,7 +999,8 @@ private:
             slot,
             tablet,
             request.PartitionId,
-            request.Stores);
+            request.Stores,
+            request.Reason);
         task->Slack = request.Slack;
         task->Effect = request.Effect;
         task->DiscardStores = request.DiscardStores;
@@ -1512,13 +1520,16 @@ private:
             failed = true;
         }
 
+        NChunkClient::NProto::TDataStatistics writerDataStatistics;
         for (const auto& [writer, _] : partitioningResult.PartitionStoreWriters) {
+            writerDataStatistics += writer->GetDataStatistics();
             writerProfiler->Update(writer);
         }
+
         writerProfiler->Update(
             partitioningResult.HunkWriter,
             partitioningResult.HunkWriterStatistics);
- 
+
         readerProfiler->Update(
             reader,
             chunkReadOptions.ChunkReaderStatistics,
@@ -1526,6 +1537,13 @@ private:
 
         writerProfiler->Profile(tabletSnapshot, EChunkWriteProfilingMethod::Partitioning, failed);
         readerProfiler->Profile(tabletSnapshot, EChunkReadProfilingMethod::Partitioning, failed);
+
+        if (!failed) {
+            tabletSnapshot->TableProfiler->GetLsmCounters()->ProfilePartitioning(
+                task->Reason,
+                reader->GetDataStatistics(),
+                writerDataStatistics);
+        }
 
         eden->CheckedSetState(EPartitionState::Partitioning, EPartitionState::Normal);
     }
@@ -1732,6 +1750,7 @@ private:
                 .Item("partition_id").Value(partition->GetId())
                 .Item("store_ids").Value(task->StoreIds)
                 .Item("current_timestamp").Value(currentTimestamp)
+                .Item("reason").Value(task->Reason)
                 // NB: deducible.
                 .Item("major_timestamp").Value(majorTimestamp)
                 .Item("retained_timestamp").Value(retainedTimestamp);
@@ -1846,7 +1865,7 @@ private:
         writerProfiler->Update(
             compactionResult.HunkWriter,
             compactionResult.HunkWriterStatistics);
- 
+
         readerProfiler->Update(
             reader,
             chunkReadOptions.ChunkReaderStatistics,
@@ -1854,6 +1873,14 @@ private:
 
         writerProfiler->Profile(tabletSnapshot, EChunkWriteProfilingMethod::Compaction, failed);
         readerProfiler->Profile(tabletSnapshot, EChunkReadProfilingMethod::Compaction, failed);
+
+        if (!failed) {
+            tabletSnapshot->TableProfiler->GetLsmCounters()->ProfileCompaction(
+                task->Reason,
+                partition->IsEden(),
+                reader->GetDataStatistics(),
+                compactionResult.StoreWriter->GetDataStatistics());
+        }
 
         partition->CheckedSetState(EPartitionState::Compacting, EPartitionState::Normal);
     }

@@ -48,9 +48,9 @@ public:
     virtual bool IsRotationScheduled() const override;
     virtual bool IsFlushNeeded() const override;
     virtual void InitializeRotation() override;
-    virtual void ScheduleRotation() override;
+    virtual void ScheduleRotation(NLsm::EStoreRotationReason reason) override;
     virtual void UnscheduleRotation() override;
-    virtual void Rotate(bool createNewStore) override;
+    virtual void Rotate(bool createNewStore, NLsm::EStoreRotationReason reason) override;
 
     virtual void AddStore(IStorePtr store, bool onMount) override;
     virtual void BulkAddStores(TRange<IStorePtr> stores, bool onMount) override;

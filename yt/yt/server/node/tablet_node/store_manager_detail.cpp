@@ -29,6 +29,7 @@ using namespace NTransactionClient;
 using namespace NCypressClient;
 
 using NTabletNode::NProto::TAddStoreDescriptor;
+using NLsm::EStoreRotationReason;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -147,14 +148,24 @@ bool TStoreManagerBase::IsRotationScheduled() const
     return RotationScheduled_;
 }
 
-void TStoreManagerBase::ScheduleRotation()
+void TStoreManagerBase::ScheduleRotation(EStoreRotationReason reason)
 {
     if (RotationScheduled_)
         return;
 
     RotationScheduled_ = true;
 
-    YT_LOG_INFO("Tablet store rotation scheduled");
+    YT_LOG_INFO("Tablet store rotation scheduled (Reason: %v)", reason);
+
+    auto* activeStore = GetActiveStore();
+    if (reason == EStoreRotationReason::None || !activeStore) {
+        return;
+    }
+
+    Tablet_->GetTableProfiler()->GetLsmCounters()->ProfileRotation(
+        reason,
+        activeStore->GetRowCount(),
+        activeStore->GetDynamicMemoryUsage());
 }
 
 void TStoreManagerBase::UnscheduleRotation()
@@ -478,7 +489,7 @@ void TStoreManagerBase::Remount(const TTableSettings& settings)
     }
 }
 
-void TStoreManagerBase::Rotate(bool createNewStore)
+void TStoreManagerBase::Rotate(bool createNewStore, EStoreRotationReason reason)
 {
     RotationScheduled_ = false;
     PeriodicRotationMilestone_ = std::nullopt;
@@ -489,9 +500,10 @@ void TStoreManagerBase::Rotate(bool createNewStore)
         activeStore->SetStoreState(EStoreState::PassiveDynamic);
         StructuredLogger_->OnStoreStateChanged(activeStore);
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Rotating store (StoreId: %v, DynamicMemoryUsage: %v)",
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Rotating store (StoreId: %v, DynamicMemoryUsage: %v, Reason: %v)",
             activeStore->GetId(),
-            activeStore->GetDynamicMemoryUsage());
+            activeStore->GetDynamicMemoryUsage(),
+            reason);
 
         if (activeStore->GetLockCount() > 0) {
             YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Active store is locked and will be kept (StoreId: %v, LockCount: %v)",
