@@ -38,7 +38,9 @@ func (w *tableWriter) Rollback() error {
 	//
 	// Synchronous Rollback() should be implemented by the high level table writer.
 
-	w.cancelFunc()
+	if w.cancelFunc != nil {
+		w.cancelFunc()
+	}
 	return nil
 }
 
@@ -52,6 +54,8 @@ func (w *tableWriter) Commit() error {
 	}
 
 	w.err = w.raw.Close()
-	w.cancelFunc()
+	if w.cancelFunc != nil {
+		w.cancelFunc()
+	}
 	return w.err
 }

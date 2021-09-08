@@ -326,14 +326,27 @@ func (w *pipeWrapper) Close() error {
 }
 
 func (c *httpClient) doWrite(ctx context.Context, call *internal.Call) (w io.WriteCloser, err error) {
-	pr, pw := io.Pipe()
-
 	errChan := make(chan error, 1)
 	readStarted := make(chan struct{})
 
-	req, err := c.newHTTPRequest(ctx, call, &pipeWrapper{pr, readStarted})
-	if err != nil {
-		return nil, err
+	var (
+		req *http.Request
+		pr  *io.PipeReader
+		pw  *io.PipeWriter
+	)
+
+	if call.RowBatch == nil {
+		pr, pw = io.Pipe()
+		req, err = c.newHTTPRequest(ctx, call, &pipeWrapper{pr, readStarted})
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		req, err = c.newHTTPRequest(ctx, call, bytes.NewBuffer(call.RowBatch.(*rowBatch).buf.Bytes()))
+		if err != nil {
+			return nil, err
+		}
+		close(readStarted)
 	}
 
 	switch c.config.GetClientCompressionCodec() {
@@ -388,28 +401,33 @@ func (c *httpClient) doWrite(ctx context.Context, call *internal.Call) (w io.Wri
 	case <-readStarted:
 	}
 
-	hw := &httpWriter{w: pw, c: pw, errChan: errChan}
-	w = hw
+	if call.RowBatch == nil {
+		hw := &httpWriter{w: pw, c: pw, errChan: errChan}
+		w = hw
 
-	switch c.config.GetClientCompressionCodec() {
-	case yt.ClientCodecGZIP, yt.ClientCodecNone:
-		// do nothing
-	default:
-		block, ok := c.config.GetClientCompressionCodec().BlockCodec()
-		if !ok {
-			err = fmt.Errorf("unsupported compression codec %d", c.config.GetClientCompressionCodec())
-			return
+		switch c.config.GetClientCompressionCodec() {
+		case yt.ClientCodecGZIP, yt.ClientCodecNone:
+			// do nothing
+		default:
+			block, ok := c.config.GetClientCompressionCodec().BlockCodec()
+			if !ok {
+				err = fmt.Errorf("unsupported compression codec %d", c.config.GetClientCompressionCodec())
+				return
+			}
+
+			codec := blockcodecs.FindCodecByName(block)
+			if codec == nil {
+				err = fmt.Errorf("unsupported compression codec %q", block)
+				return
+			}
+
+			encoder := blockcodecs.NewEncoder(hw.w, codec)
+			hw.w = encoder
+			hw.c = &compressorCloser{enc: encoder, pw: pw}
 		}
-
-		codec := blockcodecs.FindCodecByName(block)
-		if codec == nil {
-			err = fmt.Errorf("unsupported compression codec %q", block)
-			return
-		}
-
-		encoder := blockcodecs.NewEncoder(hw.w, codec)
-		hw.w = encoder
-		hw.c = &compressorCloser{enc: encoder, pw: pw}
+	} else {
+		hw := &httpWriter{errChan: errChan}
+		w = hw
 	}
 
 	return
@@ -420,12 +438,20 @@ type compressorCloser struct {
 	pw  io.Closer
 }
 
+func (c *compressorCloser) Write(p []byte) (int, error) {
+	return c.enc.Write(p)
+}
+
 func (c *compressorCloser) Close() error {
 	if err := c.enc.Close(); err != nil {
 		return err
 	}
 
-	return c.pw.Close()
+	if c.pw != nil {
+		return c.pw.Close()
+	}
+
+	return nil
 }
 
 func (c *httpClient) doWriteRow(ctx context.Context, call *internal.Call) (w yt.TableWriter, err error) {

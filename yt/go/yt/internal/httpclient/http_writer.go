@@ -25,7 +25,9 @@ func (w *httpWriter) Close() error {
 	}
 
 	if w.err == nil {
-		w.err = w.c.Close()
+		if w.c != nil {
+			w.err = w.c.Close()
+		}
 	}
 
 	if w.err == nil {

@@ -49,6 +49,7 @@ func TestTabletClient(t *testing.T) {
 		{"ReadTimestamp", suite.TestReadTimestamp},
 		{"InsertRows_empty", suite.TestInsertRows_empty},
 		{"DeleteRows_empty", suite.TestDeleteRows_empty},
+		{"InsertRowsBatch", suite.TestInsertRowsBatch},
 	})
 }
 
@@ -267,6 +268,10 @@ func (s *Suite) TestInsertRows_empty(t *testing.T, yc yt.Client) {
 
 	rows := []interface{}{}
 	require.NoError(t, yc.InsertRows(s.Ctx, testTable, rows, nil))
+
+	bw := yc.NewRowBatchWriter()
+	require.NoError(t, bw.Commit())
+	require.NoError(t, yc.InsertRowBatch(s.Ctx, testTable, bw.Batch(), nil))
 }
 
 func (s *Suite) TestDeleteRows_empty(t *testing.T, yc yt.Client) {
@@ -278,6 +283,42 @@ func (s *Suite) TestDeleteRows_empty(t *testing.T, yc yt.Client) {
 
 	keys := []interface{}{&testKey{"foo"}}
 	require.NoError(t, yc.DeleteRows(s.Ctx, testTable, keys, nil))
+}
+
+func (s *Suite) TestInsertRowsBatch(t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	testTable := tmpPath().Child("table")
+	require.NoError(t, migrate.Create(s.Ctx, yc, testTable, schema.MustInfer(&testRow{})))
+	require.NoError(t, migrate.MountAndWait(s.Ctx, yc, testTable))
+
+	bw := yc.NewRowBatchWriter()
+	require.NoError(t, bw.Write(testRow{"a", "b"}))
+	require.NoError(t, bw.Write(testRow{"c", "d"}))
+	require.NoError(t, bw.Commit())
+
+	require.NoError(t, yc.InsertRowBatch(s.Ctx, testTable, bw.Batch(), nil))
+
+	keys := []interface{}{
+		&testKey{"a"},
+		&testKey{"c"},
+	}
+
+	r, err := yc.LookupRows(s.Ctx, testTable, keys, nil)
+	require.NoError(t, err)
+	defer r.Close()
+
+	var row testRow
+	require.True(t, r.Next())
+	require.NoError(t, r.Scan(&row))
+	require.Equal(t, row, testRow{"a", "b"})
+
+	require.True(t, r.Next())
+	require.NoError(t, r.Scan(&row))
+	require.Equal(t, row, testRow{"c", "d"})
+
+	require.False(t, r.Next())
+	require.NoError(t, r.Err())
 }
 
 type testKey struct {
