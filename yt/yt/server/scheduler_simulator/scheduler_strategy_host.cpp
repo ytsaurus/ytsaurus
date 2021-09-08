@@ -274,10 +274,4 @@ void TSchedulerStrategyHost::CloseEventLogger()
     }
 }
 
-const THashMap<TString, TString>& TSchedulerStrategyHost::GetUserDefaultParentPoolMap() const
-{
-    static THashMap<TString, TString> stub;
-    return stub;
-}
-
 } // namespace NYT::NSchedulerSimulator

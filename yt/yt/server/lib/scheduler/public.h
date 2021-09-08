@@ -42,7 +42,7 @@ DEFINE_ENUM(ESchedulerAlertType,
     ((SchedulerCannotConnect)                       (10))
     ((InvalidPoolTreeTemplateConfigSet)             (11))
     ((TooFewControllerAgentsAlive)                  (12))
-    ((UpdateDefaultUserPoolsFailed)                 (13))
+    ((UpdateUserToDefaultPoolMap)                   (13))
 );
 
 DEFINE_ENUM(EOperationAlertType,

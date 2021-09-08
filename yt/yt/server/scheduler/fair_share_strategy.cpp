@@ -354,6 +354,25 @@ public:
 
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
+    
+    void UpdateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        std::vector<TError> errors;
+        for (const auto& [treeId, tree] : IdToTree_) {
+            auto error = tree->UpdateUserToDefaultPoolMap(userToDefaultPoolMap);
+            if (!error.IsOK()) {
+                errors.push_back(error);
+            }
+        }
+        
+        if (!errors.empty()) {
+            auto error = TError("Error updating mapping from user to default parent pool")
+                << std::move(errors);
+            Host->SetSchedulerAlert(ESchedulerAlertType::UpdateUserToDefaultPoolMap, error);
+        }
+    }
 
     bool IsInitialized() override
     {

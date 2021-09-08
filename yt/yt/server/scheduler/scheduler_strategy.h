@@ -90,8 +90,6 @@ struct ISchedulerStrategyHost
     virtual int GetDefaultAbcId() const = 0;
 
     virtual void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState) = 0;
-
-    virtual const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -230,6 +228,8 @@ struct ISchedulerStrategy
     virtual void ApplyJobMetricsDelta(TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics) = 0;
 
     virtual void UpdatePoolTrees(const NYTree::INodePtr& poolTreesNode, const TPersistentStrategyStatePtr& persistentStrategyState) = 0;
+
+    virtual void UpdateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;
 
     virtual bool IsInitialized() = 0;
 
