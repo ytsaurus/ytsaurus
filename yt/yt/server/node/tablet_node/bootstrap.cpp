@@ -112,6 +112,9 @@ public:
             ETabletNodeThrottlerKind::ReplicationOut,
             ETabletNodeThrottlerKind::DynamicStoreReadOut
         };
+        static const THashSet<ETabletNodeThrottlerKind> InStealingTabletNodeThrottlerKinds = {
+            ETabletNodeThrottlerKind::UserBackendIn,
+        };
         for (auto kind : TEnumTraits<ETabletNodeThrottlerKind>::GetDomainValues()) {
             auto throttler = IThroughputThrottlerPtr(RawThrottlers_[kind]);
             if (InCombinedTabletNodeThrottlerKinds.contains(kind)) {
@@ -119,6 +122,9 @@ public:
             }
             if (OutCombinedTabletNodeThrottlerKinds.contains(kind)) {
                 throttler = CreateCombinedThrottler({GetTotalOutThrottler(), throttler});
+            }
+            if (InStealingTabletNodeThrottlerKinds.contains(kind)) {
+                throttler = CreateStealingThrottler(throttler, GetTotalInThrottler());
             }
             Throttlers_[kind] = throttler;
         }
@@ -241,9 +247,12 @@ public:
             {EWorkloadCategory::SystemTabletCompaction,      ETabletNodeThrottlerKind::StoreCompactionAndPartitioningIn},
             {EWorkloadCategory::SystemTabletPartitioning,    ETabletNodeThrottlerKind::StoreCompactionAndPartitioningIn},
             {EWorkloadCategory::SystemTabletPreload,         ETabletNodeThrottlerKind::StaticStorePreloadIn},
+            // NB: |UserBatch| is intentionally not accounted in |UserBackendIn|.
+            {EWorkloadCategory::UserInteractive,             ETabletNodeThrottlerKind::UserBackendIn},
+            {EWorkloadCategory::UserRealtime,                ETabletNodeThrottlerKind::UserBackendIn},
         };
         auto it = WorkloadCategoryToThrottlerKind.find(category);
-        return it ==  WorkloadCategoryToThrottlerKind.end()
+        return it == WorkloadCategoryToThrottlerKind.end()
             ? GetTotalInThrottler()
             : Throttlers_[it->second];
     }
@@ -258,7 +267,7 @@ public:
             {EWorkloadCategory::UserDynamicStoreRead,        ETabletNodeThrottlerKind::DynamicStoreReadOut}
         };
         auto it = WorkloadCategoryToThrottlerKind.find(category);
-        return it ==  WorkloadCategoryToThrottlerKind.end()
+        return it == WorkloadCategoryToThrottlerKind.end()
             ? GetTotalOutThrottler()
             : Throttlers_[it->second];
     }

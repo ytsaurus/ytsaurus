@@ -278,6 +278,9 @@ DEFINE_ENUM(ETabletNodeThrottlerKind,
     (StaticStorePreloadIn)
     //! Controls outcoming bandwidth used by dynamic store remote reads.
     (DynamicStoreReadOut)
+    //! Controls incoming bandwidth used by lookups and selects
+    //! that corresponds to tablet and data node interaction.
+    (UserBackendIn)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

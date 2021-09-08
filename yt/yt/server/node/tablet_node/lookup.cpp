@@ -422,7 +422,7 @@ private:
                 UseLookupCache_ || ProduceAllVersions_,
                 UseLookupCache_ ? TColumnFilter::MakeUniversal() : ColumnFilter_,
                 ChunkReadOptions_,
-                /*workloadCategory*/ std::nullopt);
+                ChunkReadOptions_.WorkloadDescriptor.Category);
             auto future = reader->Open();
             if (auto optionalError = future.TryGet()) {
                 optionalError->ThrowOnError();

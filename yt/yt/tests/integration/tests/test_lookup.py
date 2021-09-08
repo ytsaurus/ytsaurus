@@ -4,7 +4,7 @@ from yt.test_helpers.profiler import Profiler
 
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, insert_rows,
-    lookup_rows, delete_rows,
+    lookup_rows, delete_rows, select_rows,
     alter_table, read_table, write_table, remount_table, generate_timestamp,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_reshard_table,
     sync_flush_table, sync_compact_table, update_nodes_dynamic_config, set_banned_flag, WaitFailed)
@@ -841,7 +841,7 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
             assert lookup_rows("//tmp/t", all_keys, use_lookup_cache=use_lookup_cache) == all_rows
 
 
-class TestLookupFromSuspiciousNodes(TestSortedDynamicTablesBase):
+class TestLookupFromRemoteNode(TestSortedDynamicTablesBase):
     DELTA_NODE_CONFIG = {
         "data_node": {
             "block_cache": {
@@ -885,6 +885,69 @@ class TestLookupFromSuspiciousNodes(TestSortedDynamicTablesBase):
         # Node shall not be suspicious anymore.
         assert lookup_rows("//tmp/t", [{"key": 1}]) == row
 
+    @authors("akozhikhov")
+    def test_stealing_network_throttler(self):
+        self._separate_tablet_and_data_nodes()
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t", chunk_reader={"enable_local_throttling": True})
+        sync_mount_table("//tmp/t")
+
+        row = [{"key": 1, "value": "1"}]
+        insert_rows("//tmp/t", row)
+        sync_flush_table("//tmp/t")
+
+        def _lookup_time():
+            start_time = time.time()
+            assert lookup_rows("//tmp/t", [{"key": 1}]) == row
+            return time.time() - start_time
+
+        def _select_time():
+            start_time = time.time()
+            assert select_rows("* from [//tmp/t]") == row
+            return time.time() - start_time
+
+        def _batch_select_time():
+            start_time = time.time()
+            assert select_rows("* from [//tmp/t]", workload_descriptor={"category": "batch"}) == row
+            return time.time() - start_time
+
+        assert _lookup_time() < 0.5
+        assert _select_time() < 0.5
+        assert _batch_select_time() < 0.5
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "throttlers": {
+                    "total_in": {
+                        "limit": 50,
+                    }
+                }
+            },
+            "tablet_node": {
+                "throttlers": {
+                    "user_backend_in": {
+                        "limit": 70,
+                    }
+                }
+            }
+        })
+
+        # Check that user_in is limited for lookups.
+        assert _lookup_time() < 0.5
+        assert _lookup_time() > 0.5
+        time.sleep(1)
+
+        # Check that total_in was affected via prioritizing throttler.
+        assert _batch_select_time() > 0.5
+
+        # Same for selects.
+        assert _select_time() < 0.5
+        assert _select_time() > 0.5
+        time.sleep(1)
+
+        assert _batch_select_time() > 0.5
+
 
 class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
     NUM_NODES = 2
@@ -921,7 +984,7 @@ class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
 
         def _check():
             start_time = time.time()
-            for i in range(3):
+            for _ in range(3):
                 assert lookup_rows("//tmp/t", [{"key": 1}]) == row
             return time.time() - start_time
 

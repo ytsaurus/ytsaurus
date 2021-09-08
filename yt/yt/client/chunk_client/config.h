@@ -261,6 +261,10 @@ public:
     //! If |true| reader will retain a set of peers that will be banned for every session. 
     bool BanPeersPermanently;
 
+    //! For testing purposes.
+    //! If |true| network throttlers will be applied even in case of requests to local host. 
+    bool EnableLocalThrottling;
+
     TReplicationReaderConfig()
     {
         RegisterParameter("block_rpc_timeout", BlockRpcTimeout)
@@ -344,6 +348,8 @@ public:
             .Default(true);
         RegisterParameter("ban_peers_permanently", BanPeersPermanently)
             .Default(true);
+        RegisterParameter("enable_local_throttling", EnableLocalThrottling)
+            .Default(false);
 
         RegisterPostprocessor([&] {
             // Seems unreasonable to make backoff greater than half of total session timeout.

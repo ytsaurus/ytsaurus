@@ -204,7 +204,7 @@ private:
 
     const IInvokerPtr CompressionInvoker_;
 
-    TAsyncSemaphorePtr PreloadSemaphore_;
+    const TAsyncSemaphorePtr PreloadSemaphore_;
 
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, InterceptedDataSpinLock_);
     THashMap<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
