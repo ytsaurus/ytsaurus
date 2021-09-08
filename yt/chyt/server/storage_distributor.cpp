@@ -2,6 +2,7 @@
 
 #include "block_output_stream.h"
 #include "config.h"
+#include "conversion.h"
 #include "format.h"
 #include "helpers.h"
 #include "host.h"
@@ -10,10 +11,10 @@
 #include "query_analyzer.h"
 #include "query_context.h"
 #include "query_registry.h"
-#include "conversion.h"
+#include "schema_inference.h"
+#include "secondary_query_header.h"
 #include "storage_base.h"
 #include "subquery.h"
-#include "secondary_query_header.h"
 #include "table.h"
 
 #include <yt/yt/server/lib/chunk_pools/chunk_stripe.h>
@@ -34,28 +35,28 @@
 #include <DataStreams/materializeBlock.h>
 #include <DataStreams/MaterializingBlockInputStream.h>
 #include <DataStreams/RemoteBlockInputStream.h>
+#include <DataStreams/RemoteQueryExecutor.h>
+#include <DataTypes/DataTypeFactory.h>
+#include <DataTypes/DataTypeNullable.h>
 #include <Interpreters/getHeaderForProcessingStage.h>
 #include <Interpreters/IdentifierSemantic.h>
 #include <Interpreters/InterpreterSelectQuery.h>
-#include <Interpreters/ProcessList.h>
 #include <Interpreters/JoinedTables.h>
-#include <DataTypes/DataTypeFactory.h>
-#include <DataTypes/DataTypeNullable.h>
-#include <DataStreams/RemoteQueryExecutor.h>
-#include <Storages/MergeTree/MergeTreeData.h>
-#include <Storages/StorageFactory.h>
-#include <Storages/SelectQueryInfo.h>
-#include <Parsers/ASTLiteral.h>
-#include <Parsers/ASTIdentifier.h>
-#include <Parsers/ASTSelectQuery.h>
-#include <Parsers/ASTInsertQuery.h>
+#include <Interpreters/ProcessList.h>
 #include <Parsers/ASTCreateQuery.h>
+#include <Parsers/ASTIdentifier.h>
+#include <Parsers/ASTInsertQuery.h>
+#include <Parsers/ASTLiteral.h>
 #include <Parsers/ASTSampleRatio.h>
+#include <Parsers/ASTSelectQuery.h>
 #include <Parsers/queryToString.h>
-#include <Processors/Sources/SourceFromInputStream.h>
-#include <Processors/Sources/RemoteSource.h>
-#include <Processors/ResizeProcessor.h>
 #include <Processors/NullSink.h>
+#include <Processors/ResizeProcessor.h>
+#include <Processors/Sources/RemoteSource.h>
+#include <Processors/Sources/SourceFromInputStream.h>
+#include <Storages/MergeTree/MergeTreeData.h>
+#include <Storages/SelectQueryInfo.h>
+#include <Storages/StorageFactory.h>
 
 #include <library/cpp/iterator/functools.h>
 
@@ -1319,7 +1320,15 @@ DB::StoragePtr CreateStorageDistributor(
 
     auto* queryContext = GetQueryContext(context);
 
-    auto commonSchema = InferCommonSchema(tables, queryContext->Logger);
+    const auto& Logger = queryContext->Logger;
+
+    auto commonSchema = InferCommonTableSchema(
+        tables,
+        queryContext->Settings->ConcatTables);
+
+    YT_LOG_DEBUG("Common table schema inferred (TableCount: %v, Schema: %v)",
+        tables.size(),
+        commonSchema);
 
     auto storage = std::make_shared<TStorageDistributor>(
         context,

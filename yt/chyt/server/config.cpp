@@ -141,6 +141,9 @@ TQuerySettings::TQuerySettings()
     RegisterParameter("execution", Execution)
         .DefaultNew();
 
+    RegisterParameter("concat_tables", ConcatTables)
+        .DefaultNew();
+
     RegisterParameter("table_reader", TableReader)
         .DefaultNew();
 
@@ -278,6 +281,18 @@ TInvokerLivenessCheckerConfig::TInvokerLivenessCheckerConfig()
         .Default(TDuration::Seconds(30));
     RegisterParameter("timeout", Timeout)
         .Default(TDuration::Seconds(5));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TConcatTablesSettings::TConcatTablesSettings()
+{
+    RegisterParameter("missing_column_mode", MissingColumnMode)
+        .Default(EMissingColumnMode::ReadAsNull);
+    RegisterParameter("type_mismatch_mode", TypeMismatchMode)
+        .Default(ETypeMismatchMode::Throw);
+    RegisterParameter("allow_empty_schema_intersection", AllowEmptySchemaIntersection)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
