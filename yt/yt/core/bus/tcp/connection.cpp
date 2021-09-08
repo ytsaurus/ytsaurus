@@ -1349,6 +1349,8 @@ void TTcpConnection::UpdateTcpStatistics(bool force)
 
         LastRetransmitCount_ = info.tcpi_total_retrans;
     }
+#else
+    Y_UNUSED(LastRetransmitCount_);
 #endif
 }
 
