@@ -536,6 +536,8 @@ public:
         RegisterParameter("min_upload_replication_factor", MinUploadReplicationFactor)
             .Default(2)
             .GreaterThanOrEqual(1);
+        RegisterParameter("direct_upload_node_count", DirectUploadNodeCount)
+            .Default();
         RegisterParameter("prefer_local_host", PreferLocalHost)
             .Default(true);
         RegisterParameter("node_ping_interval", NodePingPeriod)
