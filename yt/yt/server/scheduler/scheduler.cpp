@@ -242,9 +242,8 @@ public:
             BIND(&TImpl::HandleClusterName, Unretained(this)));
 
         MasterConnector_->AddCommonWatcher(
-            BIND(&TImpl::RequestDefaultUserPools, Unretained(this)),
-            BIND(&TImpl::HandleDefaultUserPools, Unretained(this)),
-            ESchedulerAlertType::UpdateDefaultUserPoolsFailed);
+            BIND(&TImpl::RequestUserToDefaultPoolMap, Unretained(this)),
+            BIND(&TImpl::HandleUserToDefaultPoolMap, Unretained(this)));
 
         MasterConnector_->SubscribeMasterConnecting(BIND(
             &TImpl::OnMasterConnecting,
@@ -1950,9 +1949,6 @@ private:
 
     TNodeSchedulingSegmentManager NodeSchedulingSegmentManager_;
 
-    using TUserToDefaultParentPoolMap = THashMap<TString, TString>;
-    TUserToDefaultParentPoolMap DefaultParentPoolPerUser_;
-
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     void DoAttachJobContext(
@@ -2685,14 +2681,14 @@ private:
         ClusterName_ = ConvertTo<TString>(TYsonString(rspOrError.Value()->value()));
     }
 
-    void RequestDefaultUserPools(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    void RequestUserToDefaultPoolMap(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         YT_LOG_DEBUG("Requesting mapping from user to default pool");
 
         batchReq->AddRequest(TYPathProxy::Get(GetUserToDefaultPoolMapPath()), "get_user_to_default_pool");
     }
 
-    void HandleDefaultUserPools(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    void HandleUserToDefaultPoolMap(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_user_to_default_pool");
         if (!rspOrError.IsOK() && rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
@@ -2701,7 +2697,8 @@ private:
         }
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting mapping from user to default pool");
 
-        DefaultParentPoolPerUser_ = ConvertTo<THashMap<TString, TString>>(TYsonString(rspOrError.Value()->value()));
+        Strategy_->UpdateUserToDefaultPoolMap(
+            ConvertTo<THashMap<TString, TString>>(TYsonString(rspOrError.Value()->value())));
     }
 
     void UpdateExecNodeDescriptors()
@@ -4344,11 +4341,6 @@ private:
         }
 
         YT_LOG_DEBUG("Finished managing node scheduling segments");
-    }
-
-    const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override
-    {
-        return DefaultParentPoolPerUser_;
     }
 
     class TOperationsService

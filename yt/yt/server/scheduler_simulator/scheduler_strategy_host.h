@@ -104,8 +104,6 @@ public:
 
     virtual void InvokeStoringStrategyState(NScheduler::TPersistentStrategyStatePtr persistentStrategyState) override;
 
-    virtual const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override;
-
     void CloseEventLogger();
 
 private:

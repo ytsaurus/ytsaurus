@@ -219,12 +219,6 @@ public:
     void InvokeStoringStrategyState(TPersistentStrategyStatePtr /* persistentStrategyState */) override
     { }
 
-    const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override
-    {
-        static THashMap<TString, TString> stub;
-        return stub;
-    }
-
 private:
     std::vector<IInvokerPtr> NodeShardInvokers_;
     std::vector<TExecNodePtr> ExecNodes_;

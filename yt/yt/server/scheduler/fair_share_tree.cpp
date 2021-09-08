@@ -653,6 +653,30 @@ public:
 
         return {LastPoolsNodeUpdateError_, true};
     }
+    
+    virtual TError UpdateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) override
+    {
+        if (!Config_->UseUserDefaultParentPoolMap) {
+            UserToDefaultPoolMap_.clear();
+            return TError();
+        }
+
+        THashSet<TString> uniquePoolNames;
+        for (const auto& [userName, poolName] : userToDefaultPoolMap) {
+            uniquePoolNames.insert(poolName);
+        }
+
+        for (const auto& poolName : uniquePoolNames) {
+            if (!FindPool(poolName)) {
+                return TError("User default parent pool is missing in pool tree")
+                    << TErrorAttribute("pool", poolName)
+                    << TErrorAttribute("pool_tree", TreeId_);
+            }
+        }
+
+        UserToDefaultPoolMap_ = userToDefaultPoolMap;
+        return TError();
+    }
 
     void ValidatePoolLimits(const IOperationStrategyHost* operation, const TPoolName& poolName) const override
     {
@@ -858,6 +882,8 @@ private:
     const NLogging::TLogger Logger;
 
     TPoolElementMap Pools_;
+
+    THashMap<TString, TString> UserToDefaultPoolMap_;
 
     std::optional<TInstant> LastFairShareUpdateTime_;
 
@@ -1806,7 +1832,7 @@ private:
         UnregisterSchedulingTagFilter(pool->GetSchedulingTagFilterIndex());
 
         EraseOrCrash(PoolToMinUnusedSlotIndex_, pool->GetId());
-        
+
         // Pool may be not presented in this map.
         PoolToSpareSlotIndices_.erase(pool->GetId());
 
@@ -2149,30 +2175,31 @@ private:
 
     TSchedulerCompositeElementPtr GetDefaultParentPoolForUser(const TString& userName) const
     {
-        auto defaultParentPoolName = Config_->DefaultParentPool;
         if (Config_->UseUserDefaultParentPoolMap) {
-            const auto& defaultUserPools = StrategyHost_->GetUserDefaultParentPoolMap();
-            auto it = defaultUserPools.find(userName);
-            if (it != defaultUserPools.end()) {
-                defaultParentPoolName = it->second;
+            auto it = UserToDefaultPoolMap_.find(userName);
+            if (it != UserToDefaultPoolMap_.end()) {
+                const auto& userDefaultParentPoolName = it->second;
+                if (auto pool = FindPool(userDefaultParentPoolName)) {
+                    return pool;
+                } else {
+                    YT_LOG_INFO("User default parent pool is not registered in tree (PoolName: %v, UserName: %v)",
+                        userDefaultParentPoolName,
+                        userName);
+                }
             }
         }
 
-        return CheckAndGetDefaultParentPool(defaultParentPoolName);
-    }
-
-    TSchedulerCompositeElementPtr CheckAndGetDefaultParentPool(const TString& parentPoolName) const
-    {
-        auto defaultPool = FindPool(parentPoolName);
-        if (!defaultPool) {
-            if (parentPoolName != RootPoolName) {
-                auto error = TError("Default parent pool %Qv in tree %Qv is not registered", parentPoolName, TreeId_);
-                StrategyHost_->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
-            }
-            return RootElement_;
+        auto defaultParentPoolName = Config_->DefaultParentPool;
+        if (auto pool = FindPool(defaultParentPoolName)) {
+            return pool;
+        } else {
+            YT_LOG_INFO("Default parent pool is not registered in tree (PoolName: %v)",
+                defaultParentPoolName);
         }
 
-        return defaultPool;
+        YT_LOG_INFO("Using %v as default parent pool", RootPoolName);
+
+        return RootElement_;
     }
 
     TSchedulerCompositeElementPtr GetPoolOrParent(const TPoolName& poolName, const TString& userName) const
