@@ -1721,6 +1721,7 @@ private:
         auto block = TSharedRef::MakeCopy<TBlockTag>(Buffer_.ToRef());
         Buffer_.Clear();
         ++BlockIndex_;
+        BlockOffset_ = 0;
         return Underlying_->WriteBlock(TBlock(std::move(block)));
     }
 };
