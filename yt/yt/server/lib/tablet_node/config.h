@@ -1151,16 +1151,27 @@ public:
 
         RegisterPreprocessor([&] {
             HydraManager->MaxCommitBatchDelay = TDuration::MilliSeconds(5);
-
-            // Instantiate default throttler configs.
-            Throttlers[ETabletNodeThrottlerKind::StaticStorePreloadIn] = New<NConcurrency::TRelativeThroughputThrottlerConfig>(100_MB);
-            Throttlers[ETabletNodeThrottlerKind::DynamicStoreReadOut] = New<NConcurrency::TRelativeThroughputThrottlerConfig>(100_MB);
         });
 
         RegisterPostprocessor([&] {
+            // Instantiate default throttler configs.
             for (auto kind : TEnumTraits<ETabletNodeThrottlerKind>::GetDomainValues()) {
-                if (!Throttlers[kind]) {
-                    Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>();
+                if (Throttlers[kind]) {
+                    continue;
+                }
+
+                switch (kind) {
+                    case ETabletNodeThrottlerKind::StaticStorePreloadIn:
+                    case ETabletNodeThrottlerKind::DynamicStoreReadOut:
+                        Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>(100_MB);
+                        break;
+
+                    case ETabletNodeThrottlerKind::UserBackendIn:
+                        Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>(500_MB);
+                        break;
+
+                    default:
+                        Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>();
                 }
             }
 
