@@ -1235,7 +1235,7 @@ private:
 
         DstObject_.Type = TypeFromId(DstObject_.ObjectId);
 
-        // For virtual tables object types cannot be infered from object ids.
+        // For virtual tables object types cannot be inferred from object ids.
         bool needToFetchSourceObjectTypes = false;
         for (auto& srcObject : SrcObjects_) {
             srcObject.Type = TypeFromId(srcObject.ObjectId);

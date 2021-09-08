@@ -90,6 +90,7 @@ DECLARE_REFCOUNTED_CLASS(TGossipConfig);
 DECLARE_REFCOUNTED_CLASS(TInvokerLivenessCheckerConfig);
 DECLARE_REFCOUNTED_CLASS(TSecondaryQueryHeader);
 DECLARE_REFCOUNTED_CLASS(TInvokerLivenessChecker);
+DECLARE_REFCOUNTED_CLASS(TConcatTablesSettings);
 
 struct TValue;
 class TSubquerySpec;
@@ -163,6 +164,20 @@ DEFINE_ENUM(EDistributedInsertStage,
     ((AfterAggregation)   (2))
     // Distribute only when query can be fully processed on workers.
     ((Complete)           (3))
+);
+
+// For concatYtTables.
+DEFINE_ENUM(EMissingColumnMode,
+    ((Throw)      (0))
+    ((Drop)       (1))
+    ((ReadAsNull) (2))
+);
+
+// For concatYtTables.
+DEFINE_ENUM(ETypeMismatchMode,
+    ((Throw)     (0))
+    ((Drop)      (1))
+    ((ReadAsAny) (2))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

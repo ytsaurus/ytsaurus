@@ -1167,7 +1167,7 @@ void TTask::AddChunksToInputSpec(
             // present on the input table.
             if (IsInput_) {
                 const auto& inputTable = TaskHost_->GetInputTable(dataSlice->GetTableIndex());
-                // For input tasks comparator is infered from the input table schema.
+                // For input tasks comparator is inferred from the input table schema.
                 // For non-input tasks comparator is passed from the controller. Actually
                 // it's now used for sorted merge task in sort controller only.
                 comparator = inputTable->Comparator;

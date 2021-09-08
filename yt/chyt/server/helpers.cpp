@@ -1,7 +1,6 @@
 #include "helpers.h"
 
 #include "conversion.h"
-#include "table.h"
 #include "config.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -33,16 +32,16 @@
 
 namespace NYT::NClickHouseServer {
 
-using namespace NTableClient;
-using namespace NYPath;
-using namespace NYTree;
+using namespace NApi;
+using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NCypressClient;
 using namespace NLogging;
 using namespace NObjectClient;
-using namespace NCypressClient;
-using namespace NChunkClient;
-using namespace NApi;
-using namespace NConcurrency;
+using namespace NTableClient;
+using namespace NYPath;
 using namespace NYson;
+using namespace NYTree;
 
 using NYT::ToProto;
 
@@ -317,87 +316,6 @@ TQuerySettingsPtr ParseCustomSettings(
         ConvertToYsonString(result->GetUnrecognizedRecursively(), EYsonFormat::Text));
 
     return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTableSchemaPtr InferCommonSchema(const std::vector<TTablePtr>& tables, const TLogger& logger)
-{
-    THashSet<TTableSchema> schemas;
-    for (const auto& table : tables) {
-        schemas.emplace(*table->Schema);
-    }
-
-    if (schemas.empty()) {
-        return New<TTableSchema>();
-    }
-
-    if (schemas.size() == 1) {
-        return New<TTableSchema>(*schemas.begin());
-    }
-
-    const auto& Logger = logger;
-
-    const auto& firstSchema = schemas.begin();
-
-    THashMap<TString, TColumnSchema> nameToColumn;
-    THashMap<TString, size_t> nameCounter;
-
-    for (const auto& column : firstSchema->Columns()) {
-        auto [it, _] = nameToColumn.emplace(column.Name(), column);
-        // We will set sorted order for key columns later.
-        it->second.SetSortOrder(std::nullopt);
-    }
-
-    for (const auto& schema : schemas) {
-        for (const auto& column : schema.Columns()) {
-            if (auto it = nameToColumn.find(column.Name()); it != nameToColumn.end()) {
-                if (it->second.CastToV1Type() == column.CastToV1Type()) {
-                    ++nameCounter[column.Name()];
-                    if (!column.Required() && it->second.Required()) {
-                        // If at least in one schema the column isn't required, the result common column isn't required too.
-                        it->second.SetLogicalType(OptionalLogicalType(it->second.LogicalType()));
-                    }
-                }
-            }
-        }
-    }
-
-    std::vector<TColumnSchema> resultColumns;
-    resultColumns.reserve(firstSchema->GetColumnCount());
-    for (const auto& column : firstSchema->Columns()) {
-        if (nameCounter[column.Name()] == schemas.size()) {
-            resultColumns.push_back(nameToColumn[column.Name()]);
-        }
-    }
-
-    for (size_t index = 0; index < resultColumns.size(); ++index) {
-        bool isKeyColumn = true;
-        for (const auto& schema : schemas) {
-            if (schema.Columns().size() <= index) {
-                isKeyColumn = false;
-                break;
-            }
-            const auto& column = schema.Columns()[index];
-            if (column.Name() != resultColumns[index].Name() || !column.SortOrder()) {
-                isKeyColumn = false;
-                break;
-            }
-        }
-        if (!isKeyColumn) {
-            // Key columns are the prefix of all columns, so all following collumns aren't key.
-            break;
-        }
-        resultColumns[index].SetSortOrder(ESortOrder::Ascending);
-    }
-
-    auto commonSchema = New<TTableSchema>(std::move(resultColumns));
-
-    YT_LOG_INFO("Common schema inferred (Schemas: %v, CommonSchema: %v)",
-        schemas,
-        *commonSchema);
-
-    return commonSchema;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -52,10 +52,10 @@ protected:
     //! Sort columns of the read result.
     TSortColumns SortColumns_;
 
-    //! Comparator infered from #ChunkSortColumns_;
+    //! Comparator inferred from #ChunkSortColumns_;
     TComparator ChunkComparator_;
 
-    //! Comparator infered from #SortColumns_;
+    //! Comparator inferred from #SortColumns_;
     TComparator Comparator_;
 
     TBernoulliSampler Sampler_;

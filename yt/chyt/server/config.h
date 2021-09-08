@@ -151,6 +151,24 @@ DEFINE_REFCOUNTED_TYPE(TExecutionSettings);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TConcatTablesSettings
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! What to do if a column is missing in some tables (Drop / Throw / ReadAsNull).
+    EMissingColumnMode MissingColumnMode;
+    //! What to do if types of the column in diffrent tables do not match (Drop / Throw / ReadAsAny).
+    ETypeMismatchMode TypeMismatchMode;
+    //! Disable user-friendly check when there are no columns present in every input table.
+    bool AllowEmptySchemaIntersection;
+
+    TConcatTablesSettings();
+};
+
+DEFINE_REFCOUNTED_TYPE(TConcatTablesSettings)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! This class will be accessible either via settings or via default_settings.
 class TQuerySettings
     : public NYTree::TYsonSerializable
@@ -177,6 +195,8 @@ public:
     TTestingSettingsPtr Testing;
 
     TExecutionSettingsPtr Execution;
+
+    TConcatTablesSettingsPtr ConcatTables;
 
     NTableClient::TTableReaderConfigPtr TableReader;
 
