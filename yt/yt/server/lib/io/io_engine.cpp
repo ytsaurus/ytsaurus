@@ -991,7 +991,7 @@ struct TReadUringRequest
     {
         IIOEngine::TReadResponse response{
             .PhysicalBytesRead = PhysicalBytesRead,
-            .OutputBuffers = ReadRequestCombiner.GetOutputBuffers()
+            .OutputBuffers = std::move(ReadRequestCombiner.ReleaseOutputBuffers())
         };
         if (Promise.TrySet(std::move(response))) {
             YT_LOG_TRACE("Request succeeded (Request: %p)",
@@ -1038,12 +1038,6 @@ private:
     // NB: -1 is reserved for LIBURING_UDATA_TIMEOUT.
     static constexpr intptr_t StopNotificationUserData = -2;
     static constexpr intptr_t RequestNotificationUserData = -3;
-
-    struct TPooledDirectIOReadBufferTag
-    { };
-
-    struct TLargeDirectIOReadBufferTag
-    { };
 
     class TUringThread
     {
@@ -1763,12 +1757,12 @@ public:
 
         auto uringRequest = std::make_unique<TReadUringRequest>();
 
-        uringRequest->ReadRequestCombiner.Combine(
+        auto [handles, ioRequests] = uringRequest->ReadRequestCombiner.Combine(
             std::move(requests),
             Config_->DirectIOPageSize,
             memoryZone,
             tagCookie);
-        const auto& ioRequests = uringRequest->ReadRequestCombiner.GetIORequests();
+        YT_VERIFY(handles.size() == ioRequests.size());
 
         uringRequest->Type = EUringRequestType::Read;
         uringRequest->ReadSubrequests.reserve(ioRequests.size());
@@ -1777,7 +1771,7 @@ public:
 
         for (int index = 0; index < std::ssize(ioRequests); ++index) {
             uringRequest->ReadSubrequests.push_back({
-                .Handle = ioRequests[index].Handle,
+                .Handle = std::move(handles[index]),
                 .Offset = ioRequests[index].Offset,
                 .Size = ioRequests[index].Size
             });

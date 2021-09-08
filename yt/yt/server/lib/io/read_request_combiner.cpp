@@ -11,27 +11,19 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReadRequestCombiner::TIORequest AlignRequest(
-    TReadRequestCombiner::TIORequest request,
+void AlignRequest(
+    TReadRequestCombiner::TIORequest* request,
     i64 pageSize)
 {
-    if (request.Handle->IsOpenForDirectIO()) {
-        i64 offset = AlignDown(request.Offset, pageSize);
-        request.Size = AlignUp(request.Offset + request.Size, pageSize) - offset;
-        request.Offset = offset;
-    }
-    return request;
+    i64 offset = AlignDown(request->Offset, pageSize);
+    request->Size = AlignUp(request->Offset + request->Size, pageSize) - offset;
+    request->Offset = offset;
 }
 
 bool TryCollapseRequest(
     TReadRequestCombiner::TIORequest* collapsed,
     const TReadRequestCombiner::TIORequest& current)
 {
-    YT_VERIFY(collapsed);
-    if (collapsed->Handle != current.Handle) {
-        return false;
-    }
-
     YT_VERIFY(collapsed->Offset <= current.Offset);
     if (collapsed->Offset + collapsed->Size < current.Offset) {
         return false;
@@ -47,52 +39,67 @@ bool TryCollapseRequest(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TReadRequestCombiner::Combine(
-    const std::vector<IIOEngine::TReadRequest>& requests,
+TReadRequestCombiner::TCombineResult TReadRequestCombiner::Combine(
+    std::vector<IIOEngine::TReadRequest> requests,
     i64 pageSize,
     EMemoryZone memoryZone,
     TRefCountedTypeCookie tagCookie)
 {
     if (requests.empty()) {
-        return;
+        return {};
     }
 
-    IORequests_.reserve(requests.size());
+    std::vector<TIORequest> ioRequests;
+    ioRequests.reserve(requests.size());
+
     for (int index = 0; index < std::ssize(requests); ++index) {
-        IORequests_.push_back({
-            .Handle = requests[index].Handle,
+        ioRequests.push_back({
             .Offset = requests[index].Offset,
             .Size = requests[index].Size,
-            .Index = index,
+            .Index = index
         });
+
+        if (requests[index].Handle->IsOpenForDirectIO()) {
+            AlignRequest(&ioRequests.back(), pageSize);
+        }
     }
 
     std::sort(
-        IORequests_.begin(),
-        IORequests_.end(),
-        [] (const TIORequest& lhs, const TIORequest& rhs) {
-            if (lhs.Handle == rhs.Handle) {
+        ioRequests.begin(),
+        ioRequests.end(),
+        [&] (const TIORequest& lhs, const TIORequest& rhs) {
+            const auto& lhsHandle = requests[lhs.Index].Handle;
+            const auto& rhsHandle = requests[rhs.Index].Handle;
+
+            if (lhsHandle == rhsHandle) {
                 return lhs.Offset < rhs.Offset;
-            } else if (lhs.Handle->IsOpenForDirectIO() != rhs.Handle->IsOpenForDirectIO()) {
+            } else if (lhsHandle->IsOpenForDirectIO() != rhsHandle->IsOpenForDirectIO()) {
                 // Make sure direct IO requests precede non-direct IO to make alignment simpler.
-                return lhs.Handle->IsOpenForDirectIO() > rhs.Handle->IsOpenForDirectIO();
+                return lhsHandle->IsOpenForDirectIO() > rhsHandle->IsOpenForDirectIO();
             } else {
-                return lhs.Handle < rhs.Handle;
+                return lhsHandle < rhsHandle;
             }
         });
 
     i64 totalSize = 0;
+    int collapsedRequestCount = 0;
     {
         TIORequest collapsed;
-        for (const auto& current : IORequests_) {
-            auto aligned = AlignRequest(current, pageSize);
-            if (!TryCollapseRequest(&collapsed, aligned)) {
+        for (const auto& current : ioRequests) {
+            if (requests[collapsed.Index].Handle != requests[current.Index].Handle ||
+                !TryCollapseRequest(&collapsed, current))
+            {
                 totalSize += collapsed.Size;
-                collapsed = aligned;
+                collapsed = current;
+                ++collapsedRequestCount;
             }
         }
         totalSize += collapsed.Size;
+        ++collapsedRequestCount;
     }
+
+    std::vector<TIOEngineHandlePtr> handles;
+    handles.reserve(collapsedRequestCount);
 
     {
         TSharedMutableRef buffer;
@@ -100,36 +107,55 @@ void TReadRequestCombiner::Combine(
             TMemoryZoneGuard zoneGuard(memoryZone);
             buffer = TSharedMutableRef::AllocatePageAligned(totalSize, false, tagCookie);
         }
-        OutputRefs_.resize(IORequests_.size());
+
+        OutputRefs_.resize(ioRequests.size());
 
         TIORequest collapsed;
         int outIndex = -1;
-        for (const auto& current : IORequests_) {
-            auto aligned = AlignRequest(current, pageSize);
-            if (outIndex < 0) {
-                collapsed = aligned;
+        i64 globalBufferOffset = 0;
+        for (const auto& current : ioRequests) {
+            if (outIndex == -1) {
+                collapsed = current;
                 outIndex = 0;
-            } else if (!TryCollapseRequest(&collapsed, aligned)) {
-                collapsed.ResultBuffer = buffer.Slice(0, collapsed.Size);
-                IORequests_[outIndex] = collapsed;
+            } else if (
+                requests[collapsed.Index].Handle != requests[current.Index].Handle ||
+                !TryCollapseRequest(&collapsed, current))
+            {
+                collapsed.ResultBuffer = TMutableRef(buffer).Slice(
+                    globalBufferOffset,
+                    globalBufferOffset + collapsed.Size);
+                ioRequests[outIndex] = collapsed;
                 ++outIndex;
-                buffer = buffer.Slice(collapsed.Size, buffer.Size());
-                collapsed = aligned;
+                handles.push_back(std::move(requests[collapsed.Index].Handle));
+                globalBufferOffset += collapsed.Size;
+                collapsed = current;
             }
 
-            i64 bufferOffset = current.Offset - collapsed.Offset;
-            auto outputRef = buffer.Slice(bufferOffset, bufferOffset + current.Size);
-            OutputRefs_[current.Index] = outputRef;
+            i64 bufferOffset = globalBufferOffset + requests[current.Index].Offset - collapsed.Offset;
+            auto outputBuffer = buffer.Slice(
+                bufferOffset,
+                bufferOffset + requests[current.Index].Size);
 
 // Workaround for memory sanitizer as it does not seem to play well with buffers filled by uring.
 #ifdef _msan_enabled_
-            std::fill(outputRef.Begin(), outputRef.End(), 0);
+            std::fill(outputBuffer.Begin(), outputBuffer.End(), 0);
 #endif // _msan_enabled_
+
+            OutputRefs_[current.Index] = std::move(outputBuffer);
         }
-        collapsed.ResultBuffer = buffer.Slice(0, collapsed.Size);
-        IORequests_[outIndex] = collapsed;
-        IORequests_.resize(outIndex + 1);
+
+        collapsed.ResultBuffer = TMutableRef(buffer).Slice(
+            globalBufferOffset,
+            globalBufferOffset + collapsed.Size);
+        ioRequests[outIndex] = collapsed;
+        ioRequests.resize(outIndex + 1);
+        handles.push_back(std::move(requests[collapsed.Index].Handle));
     }
+
+    return {
+        std::move(handles),
+        std::move(ioRequests)
+    };
 }
 
 TError TReadRequestCombiner::CheckEOF(const TMutableRef& bufferTail)
@@ -152,14 +178,9 @@ TError TReadRequestCombiner::CheckEOF(const TMutableRef& bufferTail)
     return TError(NFS::EErrorCode::IOError, "Unexpected end-of-file in read request");
 }
 
-const std::vector<TReadRequestCombiner::TIORequest>& TReadRequestCombiner::GetIORequests()
+std::vector<TSharedRef>&& TReadRequestCombiner::ReleaseOutputBuffers()
 {
-    return IORequests_;
-}
-
-const std::vector<TSharedRef>& TReadRequestCombiner::GetOutputBuffers()
-{
-    return OutputRefs_;
+    return std::move(OutputRefs_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
