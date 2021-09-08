@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, print_debug, wait, release_breakpoint, with_breakpoint, events_on_fs, create,
+    authors, print_debug, wait, release_breakpoint, wait_breakpoint, with_breakpoint, events_on_fs, create,
     ls, get,
     set, remove, exists, create_user, make_ace, start_transaction, commit_transaction, write_file, read_table,
     write_table, map, reduce, map_reduce, sort,
@@ -488,7 +488,7 @@ print "x={0}\ty={1}".format(x, y)
             out="//tmp/t_out",
             reduce_by="x",
             sort_by="x",
-            reducer_command='if [ " $YT_TASK_JOB_INDEX " <= "5" ]; then sleep 1000; else cat; fi',
+            reducer_command=with_breakpoint("BREAKPOINT; cat"),
             spec={
                 "partition_count": 2,
                 "data_size_per_map_job": 1,
@@ -497,6 +497,9 @@ print "x={0}\ty={1}".format(x, y)
             },
             track=False,
         )
+
+        some_job = wait_breakpoint()[0]
+        release_breakpoint(job_id=some_job)
 
         def get_completed_reduce_job_count():
             path = op.get_path() + "/@progress/data_flow_graph/vertices/sorted_reduce/job_counter"
