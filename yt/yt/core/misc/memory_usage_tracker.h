@@ -13,6 +13,7 @@ struct IMemoryUsageTracker
     virtual TError TryChange(i64 size) = 0;
     virtual void Acquire(i64 size) = 0;
     virtual void Release(i64 size) = 0;
+    virtual void SetLimit(i64 size) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMemoryUsageTracker)

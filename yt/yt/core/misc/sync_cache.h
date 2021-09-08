@@ -51,7 +51,7 @@ public:
     bool TryRemove(const TValuePtr& value);
     void Clear();
 
-    void Reconfigure(const TSlruCacheDynamicConfigPtr& config);
+    virtual void Reconfigure(const TSlruCacheDynamicConfigPtr& config);
 
 protected:
     const TSlruCacheConfigPtr Config_;
@@ -129,6 +129,8 @@ public:
         IMemoryUsageTrackerPtr memoryTracker,
         const NProfiling::TProfiler& profiler = {});
 
+    void Reconfigure(const TSlruCacheDynamicConfigPtr& config) override;
+
 protected:
     using TValuePtr = typename TSyncSlruCacheBase<TKey, TValue, THash>::TValuePtr;
 
@@ -136,7 +138,7 @@ protected:
     virtual void OnRemoved(const TValuePtr& value) override;
 
 private:
-    IMemoryUsageTrackerPtr MemoryTracker_;
+    const IMemoryUsageTrackerPtr MemoryTracker_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

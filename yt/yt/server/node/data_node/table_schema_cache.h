@@ -78,7 +78,7 @@ public:
 
     TCachedTableSchemaWrapperPtr GetOrCreate(const TSchemaCacheKey& key, i64 schemaSize);
 
-    void Reconfigure(const TTableSchemaCacheDynamicConfigPtr& config);
+    void Configure(const TTableSchemaCacheDynamicConfigPtr& config);
 
 private:
     const TTableSchemaCacheConfigPtr Config_;

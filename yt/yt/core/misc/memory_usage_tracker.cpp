@@ -24,6 +24,9 @@ public:
 
     void Release(i64 /*size*/) override
     { }
+
+    void SetLimit(i64 /*size*/) override
+    { }
 };
 
 IMemoryUsageTrackerPtr GetNullMemoryUsageTracker()

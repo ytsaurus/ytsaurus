@@ -258,7 +258,7 @@ public:
     //! If ChunkMetaCache is nullptr or partition tag is specified, this option has no effect.
     bool EnableChunkMetaCache;
 
-    //! If |true| reader will retain a set of peers that will be banned for every session. 
+    //! If |true| reader will retain a set of peers that will be banned for every session.
     bool BanPeersPermanently;
 
     //! For testing purposes.

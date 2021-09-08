@@ -372,7 +372,7 @@ private:
             newConfig->DataNode->StorageLookupThreadCount.value_or(GetConfig()->DataNode->StorageLookupThreadCount));
         MasterJobThreadPool_->Configure(newConfig->DataNode->MasterJobThreadCount);
 
-        TableSchemaCache_->Reconfigure(newConfig->DataNode->TableSchemaCache);
+        TableSchemaCache_->Configure(newConfig->DataNode->TableSchemaCache);
     }
 };
 

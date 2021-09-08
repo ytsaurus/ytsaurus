@@ -27,24 +27,29 @@ public:
         , PoolTag_(std::move(poolTag))
     { }
 
-    virtual TError TryAcquire(i64 size) override
+    TError TryAcquire(i64 size) override
     {
         return MemoryTracker_->TryAcquire(Category_, size, PoolTag_);
     }
 
-    virtual TError TryChange(i64 size) override
+    TError TryChange(i64 size) override
     {
         return MemoryTracker_->TryChange(Category_, size, PoolTag_);
     }
 
-    virtual void Acquire(i64 size) override
+    void Acquire(i64 size) override
     {
         MemoryTracker_->Acquire(Category_, size, PoolTag_);
     }
 
-    virtual void Release(i64 size) override
+    void Release(i64 size) override
     {
         MemoryTracker_->Release(Category_, size, PoolTag_);
+    }
+
+    void SetLimit(i64 size) override
+    {
+        MemoryTracker_->SetCategoryLimit(Category_, size);
     }
 
 private:
@@ -120,7 +125,15 @@ bool TMemoryUsageTracker<ECategory, TPoolTag>::IsTotalExceeded() const
 }
 
 template <class ECategory, class TPoolTag>
-i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetLimit(ECategory category, const std::optional<TPoolTag>& poolTag) const
+i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetExplicitLimit(ECategory category) const
+{
+    return Categories_[category].Limit.load();
+}
+
+template <class ECategory, class TPoolTag>
+i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetLimit(
+    ECategory category,
+    const std::optional<TPoolTag>& poolTag) const
 {
     if (!poolTag) {
         return DoGetLimit(category);

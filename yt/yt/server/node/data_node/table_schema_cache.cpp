@@ -118,7 +118,7 @@ TCachedTableSchemaWrapperPtr TTableSchemaCache::GetOrCreate(const TSchemaCacheKe
     return emptyTableSchema;
 }
 
-void TTableSchemaCache::Reconfigure(const TTableSchemaCacheDynamicConfigPtr& config)
+void TTableSchemaCache::Configure(const TTableSchemaCacheDynamicConfigPtr& config)
 {
     TSyncSlruCacheBase::Reconfigure(config);
     TableSchemaCacheRequestTimeout_.store(

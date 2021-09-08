@@ -200,6 +200,12 @@ int TAsyncSlruCacheBase<TKey, TValue, THash>::GetSize() const
 }
 
 template <class TKey, class TValue, class THash>
+i64 TAsyncSlruCacheBase<TKey, TValue, THash>::GetCapacity() const
+{
+    return Capacity_.load();
+}
+
+template <class TKey, class TValue, class THash>
 std::vector<typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValuePtr>
 TAsyncSlruCacheBase<TKey, TValue, THash>::GetAll()
 {
@@ -932,7 +938,15 @@ TMemoryTrackingAsyncSlruCacheBase<TKey, TValue, THash>::TMemoryTrackingAsyncSlru
         std::move(config),
         profiler)
     , MemoryTracker_(std::move(memoryTracker))
-{ }
+{
+    MemoryTracker_->SetLimit(this->Capacity_.load());
+}
+
+template <class TKey, class TValue, class THash>
+TMemoryTrackingAsyncSlruCacheBase<TKey, TValue, THash>::~TMemoryTrackingAsyncSlruCacheBase()
+{
+    MemoryTracker_->SetLimit(0);
+}
 
 template <class TKey, class TValue, class THash>
 void TMemoryTrackingAsyncSlruCacheBase<TKey, TValue, THash>::OnAdded(const TValuePtr& value)
@@ -944,6 +958,15 @@ template <class TKey, class TValue, class THash>
 void TMemoryTrackingAsyncSlruCacheBase<TKey, TValue, THash>::OnRemoved(const TValuePtr& value)
 {
     MemoryTracker_->Release(this->GetWeight(value));
+}
+
+template <class TKey, class TValue, class THash>
+void TMemoryTrackingAsyncSlruCacheBase<TKey, TValue, THash>::Reconfigure(const TSlruCacheDynamicConfigPtr& config)
+{
+    if (auto newCapacity = config->Capacity) {
+        MemoryTracker_->SetLimit(*newCapacity);
+    }
+    TAsyncSlruCacheBase<TKey, TValue, THash>::Reconfigure(config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

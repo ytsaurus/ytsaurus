@@ -99,6 +99,15 @@ TEST(TMemoryUsageTrackerTest, ForbidZeroTryAcquireWhenOvercommit)
     EXPECT_FALSE(tracker->TryAcquire(ECategory::Foo, 0).IsOK());
 }
 
+TEST(TMemoryUsageTrackerTest, LimitlessCategory)
+{
+    auto tracker = CreateTracker(3000, {1000, 1000, std::numeric_limits<i64>::max()});
+
+    EXPECT_EQ(tracker->GetTotalLimit(), 3000);
+    EXPECT_EQ(tracker->GetExplicitLimit(ECategory::Baz), std::numeric_limits<i64>::max());
+    EXPECT_EQ(tracker->GetLimit(ECategory::Baz), 3000);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

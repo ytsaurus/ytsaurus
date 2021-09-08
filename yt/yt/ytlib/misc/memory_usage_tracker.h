@@ -32,6 +32,7 @@ public:
     i64 GetTotalFree() const;
     bool IsTotalExceeded() const;
 
+    i64 GetExplicitLimit(ECategory category) const;
     i64 GetLimit(ECategory category, const std::optional<TPoolTag>& poolTag = {}) const;
     i64 GetUsed(ECategory category, const std::optional<TPoolTag>& poolTag = {}) const;
     i64 GetFree(ECategory category, const std::optional<TPoolTag>& poolTag = {}) const;

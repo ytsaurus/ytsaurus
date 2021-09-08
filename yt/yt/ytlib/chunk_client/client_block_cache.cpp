@@ -251,19 +251,25 @@ public:
         IMemoryUsageTrackerPtr memoryTracker,
         const NProfiling::TProfiler& profiler)
         : SupportedBlockTypes_(supportedBlockTypes)
+        , MemoryTracker_(std::move(memoryTracker))
     {
+        i64 capacity = 0;
         auto initType = [&] (EBlockType type, TSlruCacheConfigPtr config) {
             if (Any(SupportedBlockTypes_ & type)) {
                 auto cache = New<TPerTypeClientBlockCache>(
                     type,
                     config,
-                    memoryTracker,
+                    MemoryTracker_,
                     profiler.WithPrefix("/" + FormatEnum(type)));
                 YT_VERIFY(PerTypeCaches_.emplace(type, cache).second);
+                capacity += cache->GetCapacity();
             }
         };
         initType(EBlockType::CompressedData, config->CompressedData);
         initType(EBlockType::UncompressedData, config->UncompressedData);
+
+        // NB: We simply override the limit as underlying per-type caches know nothing about this cascading structure.
+        MemoryTracker_->SetLimit(capacity);
     }
 
     void PutBlock(
@@ -324,17 +330,23 @@ public:
 
     void Reconfigure(const TBlockCacheDynamicConfigPtr& config) override
     {
+        i64 newCapacity = 0;
         auto reconfigureType = [&] (EBlockType type, TSlruCacheDynamicConfigPtr config) {
             if (const auto& cache = FindPerTypeCache(type)) {
                 cache->Reconfigure(config);
+                newCapacity += cache->GetCapacity();
             }
         };
         reconfigureType(EBlockType::CompressedData, config->CompressedData);
         reconfigureType(EBlockType::UncompressedData, config->UncompressedData);
+
+        // NB: We simply override the limit as underlying per-type caches know nothing about this cascading structure.
+        MemoryTracker_->SetLimit(newCapacity);
     }
 
 private:
     const EBlockType SupportedBlockTypes_;
+    const IMemoryUsageTrackerPtr MemoryTracker_;
 
     THashMap<EBlockType, TPerTypeClientBlockCachePtr> PerTypeCaches_;
 
@@ -399,4 +411,3 @@ IBlockCachePtr GetNullBlockCache()
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient
-

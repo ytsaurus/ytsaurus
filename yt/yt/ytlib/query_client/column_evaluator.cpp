@@ -226,7 +226,7 @@ public:
         return cachedEvaluator->GetColumnEvaluator();
     }
 
-    void Reconfigure(const TColumnEvaluatorCacheDynamicConfigPtr& config) override
+    void Configure(const TColumnEvaluatorCacheDynamicConfigPtr& config) override
     {
         TSyncSlruCacheBase::Reconfigure(config->CGCache);
     }
