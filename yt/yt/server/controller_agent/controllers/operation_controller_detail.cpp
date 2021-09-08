@@ -3948,7 +3948,8 @@ void TOperationControllerBase::AnalyzeInputStatistics()
 void TOperationControllerBase::AnalyzeIntermediateJobsStatistics()
 {
     TError error;
-    if (GetDataFlowGraph()->GetTotalJobCounter()->GetLost() > 0) {
+    const auto& dataFlowGraph = GetDataFlowGraph();
+    if (dataFlowGraph && dataFlowGraph->GetTotalJobCounter()->GetLost() > 0) {
         error = TError(
             "Some intermediate outputs were lost and will be regenerated; "
             "operation will take longer than usual");
