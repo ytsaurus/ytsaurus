@@ -118,44 +118,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Registers tags for all members of enum type #T and provides
-//! fast access to tag ids.
-/*!
- *  Thread-affinity: any
- */
-template <class T>
-class TEnumMemberTagCache
-{
-public:
-    explicit TEnumMemberTagCache(const TString& key);
-    TTagId GetTag(T value) const;
-
-private:
-    TEnumIndexedVector<T, TTagId> Tags_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Caches T-to-tag-id mapping.
-/*!
- *  Thread-affinity: any
- */
-template <class T>
-class TTagCache
-{
-public:
-    explicit TTagCache(const TString& key);
-    TTagId GetTag(const T& value) const;
-
-private:
-    const TString Key_;
-
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
-    mutable THashMap<T, TTagId> ValueToTagId_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NProfiling
 
 template <>
