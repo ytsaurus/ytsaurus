@@ -242,8 +242,9 @@ public:
         TCloseRequest request,
         i64 priority) override
     {
+        auto invoker = (request.Flush || request.Size) ? FsyncInvoker_ : AuxInvoker_;
         return BIND(&TIOEngineBase::DoClose, MakeStrong(this), std::move(request))
-            .AsyncVia(CreateFixedPriorityInvoker(FsyncInvoker_, priority))
+            .AsyncVia(CreateFixedPriorityInvoker(invoker, priority))
             .Run();
     }
 
