@@ -36,6 +36,8 @@ struct TTcpDispatcherStatistics
     i64 ReadErrors = 0;
     i64 WriteErrors = 0;
 
+    i64 Retransmits = 0;
+
     i64 EncoderErrors = 0;
     i64 DecoderErrors = 0;
 };

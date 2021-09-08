@@ -216,6 +216,9 @@ private:
 
     std::atomic<TTosLevel> TosLevel_ = DefaultTosLevel;
 
+    NProfiling::TCpuInstant LastTcpStatisticsUpdate_ = 0;
+    i64 LastRetransmitCount_ = 0;
+
     void Open();
     void Close();
 
@@ -270,6 +273,7 @@ private:
 
     void UpdateConnectionCount(int delta);
     void UpdatePendingOut(int countDelta, i64 sizeDelta);
+    void UpdateTcpStatistics(bool force);
 
     void InitSocketTosLevel(int tosLevel);
 };

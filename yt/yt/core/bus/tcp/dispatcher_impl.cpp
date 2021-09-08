@@ -63,6 +63,8 @@ TTcpDispatcherStatistics TTcpDispatcherCounters::ToStatistics() const
     XX(ReadErrors)
     XX(WriteErrors)
 
+    XX(Retransmits)
+
     XX(EncoderErrors)
     XX(DecoderErrors)
 #undef XX
@@ -221,6 +223,7 @@ void TTcpDispatcher::TImpl::CollectSensors(ISensorWriter* writer)
         writer->AddCounter("/stalled_writes", counters.StalledWrites);
         writer->AddCounter("/read_errors", counters.ReadErrors);
         writer->AddCounter("/write_errors", counters.WriteErrors);
+        writer->AddCounter("/tcp_retransmits", counters.Retransmits);
         writer->AddCounter("/encoder_errors", counters.EncoderErrors);
         writer->AddCounter("/decoder_errors", counters.DecoderErrors);
 
