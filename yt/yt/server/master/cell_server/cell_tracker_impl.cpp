@@ -315,7 +315,7 @@ void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell)
         newLeaderId = FindGoodPeer(cell);
     }
 
-    if (newLeaderId == InvalidPeerId) {
+    if (newLeaderId == InvalidPeerId || newLeaderId == cell->GetLeadingPeerId()) {
         return;
     }
 
