@@ -112,10 +112,14 @@ public:
 
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(Ping)
             .SetInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
-        TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncCells));
-        TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PostMessages));
-        TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SendMessages));
-        TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncWithOthers));
+        TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncCells)
+            .SetHeavy(true));
+        TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PostMessages)
+            .SetHeavy(true));
+        TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SendMessages)
+            .SetHeavy(true));
+        TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncWithOthers)
+            .SetHeavy(true));
 
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAcknowledgeMessages, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPostMessages, Unretained(this)));

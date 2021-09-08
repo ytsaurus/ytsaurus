@@ -11,6 +11,8 @@
 
 #include <yt/yt/client/api/connection.h>
 
+#include <yt/yt/core/rpc/dispatcher.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
@@ -69,6 +71,8 @@ public:
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqPrepareTransaction>(
             [=] (TTransactionParticipantServiceProxy* proxy) {
+                VERIFY_THREAD_AFFINITY_ANY();
+
                 auto req = proxy->PrepareTransaction();
                 req->SetResponseHeavy(true);
                 PrepareRequest(req);
@@ -87,6 +91,8 @@ public:
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqCommitTransaction>(
             [=] (TTransactionParticipantServiceProxy* proxy) {
+                VERIFY_THREAD_AFFINITY_ANY();
+
                 auto req = proxy->CommitTransaction();
                 req->SetResponseHeavy(true);
                 PrepareRequest(req);
@@ -103,6 +109,8 @@ public:
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqAbortTransaction>(
             [=] (TTransactionParticipantServiceProxy* proxy) {
+                VERIFY_THREAD_AFFINITY_ANY();
+
                 auto req = proxy->AbortTransaction();
                 req->SetResponseHeavy(true);
                 PrepareRequest(req);
@@ -134,20 +142,30 @@ private:
     template <class TRequest>
     TFuture<void> SendRequest(std::function<TIntrusivePtr<TRequest>(TTransactionParticipantServiceProxy*)> builder)
     {
-        return GetChannel().Apply(BIND([=] (const NRpc::IChannelPtr& channel) {
-            TTransactionParticipantServiceProxy proxy(channel);
-            auto req = builder(&proxy);
-            return req->Invoke().template As<void>();
-        }));
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return BIND([=, this_ = MakeStrong(this)] {
+            return GetChannel().Apply(BIND([=] (const NRpc::IChannelPtr& channel) {
+                TTransactionParticipantServiceProxy proxy(channel);
+                auto req = builder(&proxy);
+                return req->Invoke().template As<void>();
+            }));
+        })
+            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+            .Run();
     }
 
     void PrepareRequest(const TIntrusivePtr<NRpc::TClientRequest>& request)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         request->SetTimeout(Options_.RpcTimeout);
     }
 
     TFuture<NRpc::IChannelPtr> GetChannel()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto channel = CellDirectory_->FindChannel(CellId_);
         if (channel) {
             return MakeFuture(channel);
@@ -166,12 +184,16 @@ private:
 
     TFuture<NRpc::IChannelPtr> MakeNoChannelError()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return MakeFuture<NRpc::IChannelPtr>(TError(
             NRpc::EErrorCode::Unavailable,
             "No such participant cell %v",
             CellId_));
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 ITransactionParticipantPtr CreateTransactionParticipant(
     TCellDirectoryPtr cellDirectory,

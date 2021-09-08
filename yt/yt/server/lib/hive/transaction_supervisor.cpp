@@ -629,11 +629,14 @@ private:
                 owner,
                 TTransactionSupervisorServiceProxy::GetDescriptor())
         {
-            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
-            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
+            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction)
+                .SetHeavy(true));
+            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction)
+                .SetHeavy(true));
             TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PingTransaction)
                 .SetInvoker(owner->TrackerInvoker_));
-            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(GetDownedParticipants));
+            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(GetDownedParticipants)
+                .SetHeavy(true));
         }
 
     private:
@@ -801,9 +804,12 @@ private:
                 owner,
                 TTransactionParticipantServiceProxy::GetDescriptor())
         {
-            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PrepareTransaction));
-            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
-            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
+            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PrepareTransaction)
+                .SetHeavy(true));
+            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction)
+                .SetHeavy(true));
+            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction)
+                .SetHeavy(true));
         }
 
     private:

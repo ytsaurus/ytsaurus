@@ -27,7 +27,8 @@ public:
             EAutomatonThreadQueue::CypressService,
             CypressServerLogger)
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(TouchNodes));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(TouchNodes)
+            .SetHeavy(true));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, TouchNodes)

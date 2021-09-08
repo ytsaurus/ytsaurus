@@ -36,9 +36,12 @@ public:
             EAutomatonThreadQueue::TransactionSupervisor,
             TransactionServerLogger)
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterTransactionActions));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReplicateTransactions));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterTransactionActions)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReplicateTransactions)
+            .SetHeavy(true));
     }
 
 private:
