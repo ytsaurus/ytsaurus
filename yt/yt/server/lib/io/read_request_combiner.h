@@ -11,26 +11,27 @@ class TReadRequestCombiner
 public:
     struct TIORequest
     {
-        TIOEngineHandlePtr Handle;
         i64 Offset = 0;
         i64 Size = 0;
-        TSharedMutableRef ResultBuffer;
+        TMutableRef ResultBuffer;
         int Index = 0;
     };
 
-    void Combine(
-        const std::vector<IIOEngine::TReadRequest>& requests,
+    using TCombineResult = std::tuple<
+        std::vector<TIOEngineHandlePtr>,
+        std::vector<TIORequest>>;
+
+    TCombineResult Combine(
+        std::vector<IIOEngine::TReadRequest> requests,
         i64 pageSize,
         NYTAlloc::EMemoryZone memoryZone,
         TRefCountedTypeCookie tagCookie);
 
     TError CheckEOF(const TMutableRef& bufferTail);
 
-    const std::vector<TIORequest>& GetIORequests();
-    const std::vector<TSharedRef>& GetOutputBuffers();
+    std::vector<TSharedRef>&& ReleaseOutputBuffers();
 
 private:
-    std::vector<TIORequest> IORequests_;
     std::vector<TSharedRef> OutputRefs_;
 };
 

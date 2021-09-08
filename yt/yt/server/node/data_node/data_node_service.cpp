@@ -1007,10 +1007,10 @@ private:
                                 return;
                             }
 
-                            i64 dataBytesReadFromDisk = 0;
                             auto& results = resultsOrError.Value();
                             YT_VERIFY(results.size() == locationFragmentIndices.size());
 
+                            i64 dataBytesReadFromDisk = 0;
                             for (int resultIndex = 0; resultIndex < std::ssize(results); ++resultIndex) {
                                 auto& result = results[resultIndex];
                                 const auto& fragmentIndices = locationFragmentIndices[resultIndex];

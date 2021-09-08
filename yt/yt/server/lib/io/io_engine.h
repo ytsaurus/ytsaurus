@@ -26,7 +26,7 @@ public:
     bool IsOpenForDirectIO() const;
 
 private:
-    bool OpenForDirectIO_ = false;
+    const bool OpenForDirectIO_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
