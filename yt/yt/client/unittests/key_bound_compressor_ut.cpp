@@ -53,6 +53,7 @@ TEST(TKeyBoundCompressorTest, Simple)
         {TKeyBound::FromRow() <  preimageRow("foo"    ), TKeyBound::FromRow() <  imageRow(1   ), 5},
         {TKeyBound::FromRow() >= preimageRow("foo"    ), TKeyBound::FromRow() >= imageRow(1   ), 5},
         {TKeyBound::FromRow() >  preimageRow("foo", 30), TKeyBound::FromRow() >  imageRow(1, 0), 6},
+        {TKeyBound::FromRow() <  preimageRow("foo", 99), TKeyBound::FromRow() <  imageRow(1, 1), 7},
         {TKeyBound::FromRow() <= preimageRow("foo", 99), TKeyBound::FromRow() <= imageRow(1, 1), 7},
         {TKeyBound::FromRow() >  preimageRow("foo", 99), TKeyBound::FromRow() >  imageRow(1, 1), 7},
         {TKeyBound::FromRow() <  preimageRow("qux", 18), TKeyBound::FromRow() <  imageRow(2, 0), 8},

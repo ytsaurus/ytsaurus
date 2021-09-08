@@ -7,12 +7,16 @@
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 namespace NYT::NChunkPools {
 
 using namespace NControllerAgent;
 using namespace NChunkClient;
 using namespace NLogging;
 using namespace NTableClient;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -149,6 +153,23 @@ const TChunkStripePtr& TNewJobStub::GetStripe(int streamIndex, int rangeIndex, b
         stripe = New<TChunkStripe>(!isStripePrimary /* foreign */);
     }
     return stripe;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TNewJobStub& jobStub, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("primary_lower_bound").Value(jobStub.GetPrimaryLowerBound())
+            .Item("primary_upper_bound").Value(jobStub.GetPrimaryUpperBound())
+            .Item("primary_slice_count").Value(jobStub.GetPrimarySliceCount())
+            .Item("foreign_slice_count").Value(jobStub.GetForeignSliceCount())
+            .Item("primary_row_count").Value(jobStub.GetPrimaryRowCount())
+            .Item("foreign_row_count").Value(jobStub.GetForeignRowCount())
+            .Item("primary_data_weight").Value(jobStub.GetPrimaryDataWeight())
+            .Item("foreign_data_weight").Value(jobStub.GetForeignDataWeight())
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

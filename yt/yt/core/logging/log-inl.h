@@ -25,11 +25,25 @@ void TLogger::AddTag(const char* format, TArgs&&... args)
     AddRawTag(Format(format, std::forward<TArgs>(args)...));
 }
 
+template <class TType>
+void TLogger::AddStructuredTag(TStringBuf key, TType value)
+{
+    StructuredTags_.emplace_back(key, NYTree::ConvertToYsonString(value));
+}
+
 template <class... TArgs>
 TLogger TLogger::WithTag(const char* format, TArgs&&... args) const
 {
     auto result = *this;
     result.AddTag(format, std::forward<TArgs>(args)...);
+    return result;
+}
+
+template <class TType>
+TLogger TLogger::WithStructuredTag(TStringBuf key, TType value) const
+{
+    auto result = *this;
+    result.AddStructuredTag(key, value);
     return result;
 }
 

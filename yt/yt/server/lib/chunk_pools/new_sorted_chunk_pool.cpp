@@ -70,6 +70,7 @@ public:
         , RowBuffer_(options.RowBuffer)
     {
         Logger = options.Logger;
+        StructuredLogger = options.StructuredLogger;
         ValidateLogger(Logger);
 
         YT_VERIFY(RowBuffer_);
@@ -206,7 +207,7 @@ public:
         CheckCompleted();
     }
 
-    void Persist(const TPersistenceContext& context) final 
+    void Persist(const TPersistenceContext& context) final
     {
         TChunkPoolInputBase::Persist(context);
         TChunkPoolOutputWithJobManagerBase::Persist(context);
@@ -234,6 +235,9 @@ public:
         if (context.IsLoad()) {
             ValidateLogger(Logger);
             RowBuffer_ = New<TRowBuffer>();
+        }
+        if (context.GetVersion() >= ESnapshotVersion::StructuredTagsInLogger) {
+            Persist(context, StructuredLogger);
         }
     }
 
@@ -294,6 +298,8 @@ private:
     std::vector<TInputChunkPtr> TeleportChunks_;
 
     bool IsCompleted_ = false;
+
+    TLogger StructuredLogger;
 
     //! This method processes all input stripes that do not correspond to teleported chunks
     //! and either slices them using ChunkSliceFetcher (for unversioned stripes) or leaves them as is
@@ -620,7 +626,8 @@ private:
                     TeleportChunks_,
                     retryIndex,
                     InputStreamDirectory_,
-                    Logger);
+                    Logger,
+                    StructuredLogger);
 
                 FetchNonTeleportDataSlices(builder);
                 jobStubs = builder->Build();
@@ -747,7 +754,8 @@ private:
             teleportChunks,
             0 /* retryIndex */,
             InputStreamDirectory_,
-            Logger);
+            Logger,
+            StructuredLogger);
 
         for (const auto& dataSlice : unreadInputDataSlices) {
             YT_VERIFY(InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary());

@@ -48,6 +48,31 @@ TOneShotFluentLogEvent LogStructuredEventFluentlyToNowhere();
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStructuredLogBatcher
+{
+public:
+    explicit TStructuredLogBatcher(const NLogging::TLogger& logger, i64 maxBatchSize = 10_KB, NLogging::ELogLevel level = NLogging::ELogLevel::Info);
+
+    using TFluent = decltype(NYTree::BuildYsonListFragmentFluently(nullptr).Item());
+
+    TFluent AddItemFluently();
+
+    ~TStructuredLogBatcher();
+
+private:
+    NLogging::TLogger Logger;
+    NLogging::ELogLevel Level_;
+    size_t MaxBatchSize_;
+    TString BatchYson_;
+    TStringOutput BatchOutputStream_{BatchYson_};
+    NYson::TYsonWriter BatchYsonWriter_{&BatchOutputStream_, NYson::EYsonFormat::Binary, NYson::EYsonType::ListFragment};
+    int BatchItemCount_ = 0;
+
+    void Flush();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NLogging
 
 #define FLUENT_LOG_INL_H_

@@ -41,7 +41,7 @@ bool TRateLimitCounter::IsLimitReached()
         return false;
     }
 
-    if(BytesWritten_ >= *RateLimit_) {
+    if (BytesWritten_ >= *RateLimit_) {
         SkippedEvents_++;
         SkippedEventsCounter_.Increment();
         return true;

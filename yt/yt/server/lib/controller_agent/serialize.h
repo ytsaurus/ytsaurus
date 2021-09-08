@@ -36,6 +36,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((AccountInDiskRequest)                 (300613))
     ((ReadyExhaustTimers)                   (300614))
     ((AddShallowMerge)                      (300615))
+    ((StructuredTagsInLogger)               (300616))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

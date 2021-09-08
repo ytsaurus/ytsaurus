@@ -27,6 +27,7 @@ struct TSortedChunkPoolOptions
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;
     NTableClient::TRowBufferPtr RowBuffer;
     NLogging::TLogger Logger;
+    NLogging::TLogger StructuredLogger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

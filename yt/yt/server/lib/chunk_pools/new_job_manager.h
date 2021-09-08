@@ -76,6 +76,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TNewJobStub& jobStub, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! A helper class that is used in TSortedChunkPool and TOrderedChunkPool to store all the jobs with their cookies
 //! and deal with their suspends, resumes etc.
 class TNewJobManager

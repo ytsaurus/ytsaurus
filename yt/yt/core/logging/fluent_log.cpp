@@ -27,4 +27,45 @@ TOneShotFluentLogEvent LogStructuredEventFluentlyToNowhere()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TStructuredLogBatcher::TStructuredLogBatcher(const TLogger& logger, i64 maxBatchSize, ELogLevel level)
+    : Logger(logger)
+    , Level_(level)
+    , MaxBatchSize_(maxBatchSize)
+{ }
+
+TStructuredLogBatcher::TFluent TStructuredLogBatcher::AddItemFluently()
+{
+    if (BatchYson_.size() >= MaxBatchSize_) {
+        Flush();
+    }
+    ++BatchItemCount_;
+
+    return BuildYsonListFragmentFluently(&BatchYsonWriter_)
+        .Item();
+}
+
+void TStructuredLogBatcher::Flush()
+{
+    if (BatchItemCount_ == 0) {
+        return;
+    }
+    BatchYsonWriter_.Flush();
+    LogStructuredEventFluently(Logger, Level_)
+        .Item("batch")
+            .BeginList()
+                .Do([&] (TFluentList fluent) {
+                    fluent.GetConsumer()->OnRaw(TYsonString(std::move(BatchYson_), EYsonType::ListFragment));
+                })
+            .EndList();
+    BatchYson_.clear();
+    BatchItemCount_ = 0;
+}
+
+TStructuredLogBatcher::~TStructuredLogBatcher()
+{
+    Flush();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NLogging

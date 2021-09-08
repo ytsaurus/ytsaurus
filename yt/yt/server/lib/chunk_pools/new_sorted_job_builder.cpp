@@ -12,10 +12,13 @@
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/key_bound_compressor.h>
 
 #include <yt/yt/library/random/bernoulli_sampler.h>
 
 #include <yt/yt/core/concurrency/periodic_yielder.h>
+
+#include <yt/yt/core/logging/fluent_log.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/finally.h>
@@ -48,7 +51,8 @@ public:
         const std::vector<TInputChunkPtr>& teleportChunks,
         int retryIndex,
         const TInputStreamDirectory& inputStreamDirectory,
-        const TLogger& logger)
+        const TLogger& logger,
+        const TLogger& structuredLogger)
         : Options_(options)
         , PrimaryComparator_(options.PrimaryComparator)
         , ForeignComparator_(options.ForeignComparator)
@@ -58,6 +62,7 @@ public:
         , RetryIndex_(retryIndex)
         , InputStreamDirectory_(inputStreamDirectory)
         , Logger(logger)
+        , StructuredLogger(structuredLogger)
     {
         double retryFactor = std::pow(JobSizeConstraints_->GetDataWeightPerJobRetryFactor(), RetryIndex_);
 
@@ -99,6 +104,10 @@ public:
         YT_VERIFY(!dataSlice->IsLegacy);
         YT_VERIFY(dataSlice->LowerLimit().KeyBound);
         YT_VERIFY(dataSlice->UpperLimit().KeyBound);
+
+        // Making a copy here is crucial since provided data slice object may be modified in-place.
+        InputDataSlices_.push_back(CreateInputDataSlice(dataSlice));
+
         auto inputStreamIndex = dataSlice->InputStreamIndex;
         auto isPrimary = InputStreamDirectory_.GetDescriptor(inputStreamIndex).IsPrimary();
 
@@ -184,6 +193,8 @@ public:
             job.Finalize();
             ValidateJob(&job);
         }
+
+        LogStructured();
 
         return std::move(Jobs_);
     }
@@ -357,8 +368,12 @@ private:
     //! for sorted pool: lower bounds and upper bounds must be monotonic among each input stream.
     std::vector<TLegacyDataSlicePtr> InputStreamIndexToLastDataSlice_;
 
+    //! Used for structured logging.
+    std::vector<TLegacyDataSlicePtr> InputDataSlices_;
+
     TPeriodicYielder PeriodicYielder_;
     const TLogger& Logger;
+    const TLogger& StructuredLogger;
 
     void AddPivotKeysEndpoints()
     {
@@ -467,6 +482,78 @@ private:
                 endpoint.KeyBound,
                 endpoint.Type,
                 endpoint.DataSlice.Get());
+        }
+    }
+
+    void LogStructured()
+    {
+        if (!Logger.IsLevelEnabled(ELogLevel::Trace)) {
+            return;
+        }
+
+        {
+            TKeyBoundCompressor compressor(PrimaryComparator_);
+
+            for (const auto& job : Jobs_) {
+                if (job.GetIsBarrier()) {
+                    continue;
+                }
+                compressor.Add(job.GetPrimaryLowerBound());
+                compressor.Add(job.GetPrimaryUpperBound());
+                for (const auto& stripe : job.GetStripeList()->Stripes) {
+                    for (const auto& dataSlice : stripe->DataSlices) {
+                        compressor.Add(dataSlice->LowerLimit().KeyBound);
+                        compressor.Add(dataSlice->UpperLimit().KeyBound);
+                    }
+                }
+            }
+
+            for (const auto& dataSlice : InputDataSlices_) {
+                compressor.Add(dataSlice->LowerLimit().KeyBound);
+                compressor.Add(dataSlice->UpperLimit().KeyBound);
+            }
+
+            compressor.InitializeMapping();
+            compressor.Dump(
+                StructuredLogger
+                    .WithStructuredTag("batch_kind", AsStringBuf("compressor")));
+        }
+
+        {
+            TStructuredLogBatcher batcher(
+                StructuredLogger
+                .WithStructuredTag("batch_kind", AsStringBuf("input_data_slices")));
+            for (const auto& dataSlice : InputDataSlices_) {
+                batcher.AddItemFluently()
+                    .Value(dataSlice);
+            }
+        }
+
+        {
+            TStructuredLogBatcher batcher(
+                StructuredLogger
+                    .WithStructuredTag("batch_kind", AsStringBuf("job_data_slices")));
+            for (const auto& job : Jobs_) {
+                for (const auto& stripe : job.GetStripeList()->Stripes) {
+                    for (const auto& dataSlice : stripe->DataSlices) {
+                        batcher.AddItemFluently()
+                            .Value(dataSlice);
+                    }
+                }
+            }
+        }
+
+        {
+            TStructuredLogBatcher batcher(
+                StructuredLogger
+                .WithStructuredTag("batch_kind", AsStringBuf("jobs")));
+            for (const auto& job : Jobs_) {
+                if (job.GetIsBarrier()) {
+                    continue;
+                }
+                batcher.AddItemFluently()
+                    .Value(job);
+            }
         }
     }
 
@@ -903,7 +990,8 @@ INewSortedJobBuilderPtr CreateNewSortedJobBuilder(
     const std::vector<TInputChunkPtr>& teleportChunks,
     int retryIndex,
     const TInputStreamDirectory& inputStreamDirectory,
-    const TLogger& logger)
+    const TLogger& logger,
+    const TLogger& structuredLogger)
 {
     return New<TNewSortedJobBuilder>(
         options,
@@ -912,7 +1000,8 @@ INewSortedJobBuilderPtr CreateNewSortedJobBuilder(
         teleportChunks,
         retryIndex,
         inputStreamDirectory,
-        logger);
+        logger,
+        structuredLogger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

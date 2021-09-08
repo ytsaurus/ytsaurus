@@ -20,6 +20,7 @@ namespace NYT::NTableClient {
 //! <  [foo]        <  [1]              5
 //! >= [foo]        >= [1]              5
 //! >  [foo; 30]    >  [1, 0]           6
+//! <  [foo; 99]    <  [1, 1]           7
 //! <= [foo; 99]    <= [1, 1]           7
 //! >  [foo; 99]    >  [1, 1]           7
 //! <  [qux; 18]    <  [2, 0]           8
@@ -29,7 +30,8 @@ namespace NYT::NTableClient {
 //!
 //! Note that ComponentWise is a TKeyBound -> TKeyBound mapping,
 //! while Global is a TKeyBound -> int mapping which identifies
-//! complementary key bounds.
+//! complementary key bounds and also full-length key bounds with
+//! coinciding prefixes.
 class TKeyBoundCompressor
 {
 public:

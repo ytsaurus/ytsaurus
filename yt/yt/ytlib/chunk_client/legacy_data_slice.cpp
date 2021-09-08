@@ -10,9 +10,13 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 namespace NYT::NChunkClient {
 
 using namespace NTableClient;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -255,6 +259,25 @@ int TLegacyDataSlice::GetSliceIndex() const
     return Type == EDataSourceType::UnversionedTable
         ? ChunkSlices[0]->GetSliceIndex()
         : 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TLegacyDataSlicePtr& dataSlice, IYsonConsumer* consumer)
+{
+    YT_VERIFY(!dataSlice->IsLegacy);
+
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("lower_limit").Value(dataSlice->LowerLimit())
+            .Item("upper_limit").Value(dataSlice->UpperLimit())
+            .OptionalItem("tag", dataSlice->Tag)
+            .Item("input_stream_index").Value(dataSlice->InputStreamIndex)
+            .Item("is_teleportable").Value(dataSlice->IsTeleportable)
+            .Item("chunk_count").Value(dataSlice->GetChunkCount())
+            .Item("data_weight").Value(dataSlice->GetDataWeight())
+            .Item("row_count").Value(dataSlice->GetRowCount())
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
