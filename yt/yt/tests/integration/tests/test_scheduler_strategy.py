@@ -3480,7 +3480,7 @@ class TestSchedulingSegments(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_rebalancing_heuristic_choose_node_with_preemptable_job(self):
-        set("//sys/pool_trees/default/large_gpu/@cached_job_preemption_statuses_update_period", 100)
+        set("//sys/pool_trees/default/@config/cached_job_preemption_statuses_update_period", 1000)
         set("//sys/pool_trees/default/large_gpu/@strong_guarantee_resources", {"gpu": 72})
         set("//sys/pool_trees/default/small_gpu/@strong_guarantee_resources", {"gpu": 8})
         create_pool("guaranteed_large", parent_name="large_gpu", attributes={"strong_guarantee_resources": {"gpu": 72}})
