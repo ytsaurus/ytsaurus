@@ -2,7 +2,6 @@ package ru.yandex.yt.ytclient.proxy.request;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 
 import javax.annotation.Nullable;
 
@@ -19,38 +18,10 @@ public class ColumnFilter {
     public ColumnFilter() {
     }
 
-    /**
-     * @deprecated If all = true, use {@link #ColumnFilter().setColumns(null)} instead.
-     * If all = false, use {@link #ColumnFilter().setColumns(columns)} instead.
-     */
-    @Deprecated
-    public ColumnFilter(boolean all, List<String> columns) {
-        if (all) {
-            this.columns = null;
-        } else {
-            this.columns = columns;
-        }
-    }
-
     public static ColumnFilter of(String... columns) {
         ColumnFilter result = new ColumnFilter();
         result.columns = Arrays.asList(columns);
         return result;
-    }
-
-    /**
-     * @deprecated Use {@link #setColumns(null)} instead.
-     */
-    @Deprecated
-    public ColumnFilter setAll(boolean all) {
-        if (all) {
-            this.columns = null;
-        } else {
-            if (this.columns == null) {
-                this.columns = Arrays.asList();
-            }
-        }
-        return this;
     }
 
     public ColumnFilter setColumns(@Nullable Collection<String> columns) {

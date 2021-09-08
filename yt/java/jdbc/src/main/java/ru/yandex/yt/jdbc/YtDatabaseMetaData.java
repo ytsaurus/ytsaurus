@@ -126,7 +126,7 @@ class YtDatabaseMetaData extends AbstractWrapper implements DatabaseMetaData {
         if (StringUtils.isEmpty(path)) {
             return null; // ---
         }
-        final ListNode request = new ListNode(path).setAttributes(new ColumnFilter(false, TABLE_COLUMNS));
+        final ListNode request = new ListNode(path).setAttributes(new ColumnFilter().setColumns(TABLE_COLUMNS));
         return client.listNode(request).thenApplyAsync(nodes -> {
             final Collection<CompletableFuture<Void>> futures = new ArrayList<>();
             for (YTreeNode item : nodes.asList()) {
