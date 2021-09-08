@@ -123,6 +123,8 @@ using namespace NApi;
 using namespace NProfiling;
 using namespace NDistributedThrottler;
 
+using NLsm::EStoreRotationReason;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletManager::TImpl
@@ -445,7 +447,7 @@ public:
         }
     }
 
-    void ScheduleStoreRotation(TTablet* tablet)
+    void ScheduleStoreRotation(TTablet* tablet, EStoreRotationReason reason)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -454,11 +456,12 @@ public:
             return;
         }
 
-        storeManager->ScheduleRotation();
+        storeManager->ScheduleRotation(reason);
 
         TReqRotateStore request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(tablet->GetMountRevision());
+        request.set_reason(static_cast<int>(reason));
         CommitTabletMutation(request);
     }
 
@@ -1191,7 +1194,7 @@ private:
 
         // COMPAT(ifsmirnov)
         if (mutationReign >= ToUnderlying(ETabletReign::DynamicStoreRead)) {
-            storeManager->Rotate(true);
+            storeManager->Rotate(true, EStoreRotationReason::None);
         }
 
         storeManager->InitializeRotation();
@@ -1359,11 +1362,11 @@ private:
                 const auto& storeManager = tablet->GetStoreManager();
                 // COMPAT(ifsmirnov)
                 if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::DynamicStoreRead)) {
-                    storeManager->Rotate(false);
+                    storeManager->Rotate(false, EStoreRotationReason::None);
                 } else if (requestedState == ETabletState::UnmountFlushing ||
                     storeManager->IsFlushNeeded())
                 {
-                    storeManager->Rotate(requestedState == ETabletState::FreezeFlushing);
+                    storeManager->Rotate(requestedState == ETabletState::FreezeFlushing, EStoreRotationReason::None);
                 }
 
                 YT_LOG_INFO_IF(IsLeader(), "Waiting for all tablet stores to be flushed (%v, NewState: %v)",
@@ -1705,7 +1708,8 @@ private:
             return;
         }
 
-        storeManager->Rotate(true);
+        auto reason = static_cast<EStoreRotationReason>(request->reason());
+        storeManager->Rotate(true, reason);
         UpdateTabletSnapshot(tablet);
     }
 
@@ -4314,9 +4318,9 @@ TFuture<void> TTabletManager::Trim(
         trimmedRowCount);
 }
 
-void TTabletManager::ScheduleStoreRotation(TTablet* tablet)
+void TTabletManager::ScheduleStoreRotation(TTablet* tablet, EStoreRotationReason reason)
 {
-    Impl_->ScheduleStoreRotation(tablet);
+    Impl_->ScheduleStoreRotation(tablet, reason);
 }
 
 TFuture<void> TTabletManager::CommitTabletStoresUpdateTransaction(

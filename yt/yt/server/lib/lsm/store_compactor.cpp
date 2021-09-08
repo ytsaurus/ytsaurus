@@ -97,7 +97,7 @@ private:
 
         auto* tablet = eden->GetTablet();
 
-        auto stores = PickStoresForPartitioning(eden);
+        auto [reason, stores] = PickStoresForPartitioning(eden);
         if (stores.empty()) {
             return {};
         }
@@ -116,6 +116,7 @@ private:
             .Stores = std::move(stores),
             .Slack = slack,
             .Effect = effect,
+            .Reason = reason,
         };
     }
 
@@ -170,6 +171,7 @@ private:
             .PartitionId = partition->GetId(),
             .Stores = std::move(stores),
             .DiscardStores = true,
+            .Reason = EStoreCompactionReason::DiscardByTtl,
         };
 
         YT_LOG_DEBUG("Found partition with expired stores (%v, PartitionId: %v, PartitionIndex: %v, "
@@ -198,7 +200,7 @@ private:
         }
 
 
-        auto stores = PickStoresForCompaction(partition);
+        auto [reason, stores] = PickStoresForCompaction(partition);
         if (stores.empty()) {
             return {};
         }
@@ -207,6 +209,7 @@ private:
             .Tablet = MakeStrong(tablet),
             .PartitionId = partition->GetId(),
             .Stores = stores,
+            .Reason = reason,
         };
         const auto& mountConfig = tablet->GetMountConfig();
         // We aim to improve OSC; compaction improves OSC _only_ if the partition contributes towards OSC.
@@ -237,7 +240,8 @@ private:
         return request;
     }
 
-    std::vector<TStoreId> PickStoresForPartitioning(TPartition* eden)
+    std::pair<EStoreCompactionReason, std::vector<TStoreId>>
+        PickStoresForPartitioning(TPartition* eden)
     {
         std::vector<TStoreId> finalists;
 
@@ -246,6 +250,7 @@ private:
 
         std::vector<TStore*> candidates;
 
+        EStoreCompactionReason finalistCompactionReason;
         for (const auto& store : eden->Stores()) {
             if (!IsStoreCompactable(store.get())) {
                 continue;
@@ -256,6 +261,7 @@ private:
 
             auto compactionReason = GetStoreCompactionReason(candidate);
             if (compactionReason != EStoreCompactionReason::None) {
+                finalistCompactionReason = compactionReason;
                 finalists.push_back(candidate->GetId());
             }
 
@@ -266,7 +272,9 @@ private:
 
         // Check for forced candidates.
         if (!finalists.empty()) {
-            return finalists;
+            // NB: Situations when there are multiple different reasons are
+            // very rare, we take arbitrary reason in this case.
+            return {finalistCompactionReason, finalists};
         }
 
         // Sort by decreasing data size.
@@ -300,10 +308,11 @@ private:
             }
         }
 
-        return finalists;
+        return {EStoreCompactionReason::Regular, finalists};
     }
 
-    std::vector<TStoreId> PickStoresForCompaction(TPartition* partition)
+    std::pair<EStoreCompactionReason, std::vector<TStoreId>>
+        PickStoresForCompaction(TPartition* partition)
     {
         std::vector<TStoreId> finalists;
 
@@ -340,10 +349,13 @@ private:
             }
         }
 
+        EStoreCompactionReason finalistCompactionReason;
+
         // Check if periodic compaction for the partition has come.
         if (mountConfig->PeriodicCompactionMode == EPeriodicCompactionMode::Partition &&
-            storeCountByReason[EStoreCompactionReason::PeriodicCompaction] > 0)
+            storeCountByReason[EStoreCompactionReason::Periodic] > 0)
         {
+            finalistCompactionReason = EStoreCompactionReason::Periodic;
             std::sort(
                 candidates.begin(),
                 candidates.end(),
@@ -361,6 +373,7 @@ private:
             for (auto* candidate : candidates) {
                 auto compactionReason = GetStoreCompactionReason(candidate);
                 if (compactionReason != EStoreCompactionReason::None) {
+                    finalistCompactionReason = compactionReason;
                     finalists.push_back(candidate->GetId());
                     YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                         "Finalist store picked out of order (StoreId: %v, CompactionReason: %v)",
@@ -376,7 +389,9 @@ private:
 
         // Check for forced candidates.
         if (!finalists.empty()) {
-            return finalists;
+            // NB: Situations when there are multiple different reasons are
+            // very rare, we take arbitrary reason in this case.
+            return {finalistCompactionReason, finalists};
         }
 
         // Sort by increasing data size.
@@ -436,7 +451,7 @@ private:
             }
         }
 
-        return finalists;
+        return {EStoreCompactionReason::Regular, finalists};
     }
 
     bool IsStoreCompactable(TStore* store)
@@ -499,11 +514,11 @@ private:
     EStoreCompactionReason GetStoreCompactionReason(const TStore* store) const
     {
         if (IsStoreCompactionForced(store)) {
-            return EStoreCompactionReason::ForcedCompaction;
+            return EStoreCompactionReason::Forced;
         }
 
         if (IsStorePeriodicCompactionNeeded(store)) {
-            return EStoreCompactionReason::PeriodicCompaction;
+            return EStoreCompactionReason::Periodic;
         }
 
         if (IsStoreOutOfTabletRange(store)) {

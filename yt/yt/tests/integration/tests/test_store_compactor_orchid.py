@@ -68,6 +68,7 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
                 del task["task_priority"]
                 del task["partition_id"]
                 del task["mount_revision"]
+                del task["reason"]
             compaction_tasks["finished_tasks"].sort(key=lambda x: x["tablet_id"])
 
             expected_compaction_tasks = {
@@ -118,6 +119,7 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
             del partition_task["finished_tasks"][0]["task_priority"]
             del partition_task["finished_tasks"][0]["partition_id"]
             del partition_task["finished_tasks"][0]["mount_revision"]
+            del partition_task["finished_tasks"][0]["reason"]
             return partition_task == expected_partition_task
 
         wait(lambda: _partition_task_finished())

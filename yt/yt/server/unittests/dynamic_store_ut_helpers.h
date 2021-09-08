@@ -416,8 +416,8 @@ protected:
     void RotateStores()
     {
         auto storeManager = GetStoreManager();
-        storeManager->ScheduleRotation();
-        storeManager->Rotate(true);
+        storeManager->ScheduleRotation(NLsm::EStoreRotationReason::Periodic);
+        storeManager->Rotate(true, NLsm::EStoreRotationReason::Periodic);
     }
 };
 

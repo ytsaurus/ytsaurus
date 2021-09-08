@@ -87,8 +87,6 @@ private:
     const TThrottlerManagerPtr ThrottlerManager_;
 
     const TProfiler Profiler_ = TabletNodeProfiler.WithPrefix("/partition_balancer");
-    TCounter ScheduledSplitsCounter_ = Profiler_.Counter("/scheduled_splits");
-    TCounter ScheduledMergesCounter_ = Profiler_.Counter("/scheduled_merges");
     TEventTimer ScanTime_ = Profiler_.Timer("/scan_time");
 
     void ProcessLsmActionBatch(
@@ -180,8 +178,8 @@ private:
                 return;
             }
 
+            tablet->GetTableProfiler()->GetLsmCounters()->ProfilePartitionSplit();
             partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Splitting);
-            ScheduledSplitsCounter_.Increment();
             DoRunImmediateSplit(slot, partition, Logger);
             return;
         }
@@ -191,6 +189,7 @@ private:
             // NB: deducible.
             .Item("split_factor").Value(request.SplitFactor);
 
+        tablet->GetTableProfiler()->GetLsmCounters()->ProfilePartitionSplit();
         partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Splitting);
         tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
             &TPartitionBalancer::DoRunSplit,
@@ -408,7 +407,8 @@ private:
         for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
             tablet->PartitionList()[index]->CheckedSetState(EPartitionState::Normal, EPartitionState::Merging);
         }
-        ScheduledMergesCounter_.Increment();
+
+        tablet->GetTableProfiler()->GetLsmCounters()->ProfilePartitionMerge();
 
         auto Logger = TabletNodeLogger;
         Logger.AddTag("%v, CellId: %v, PartitionIds: %v",
