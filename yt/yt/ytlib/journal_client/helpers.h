@@ -101,4 +101,11 @@ i64 GetLogicalChunkRowCount(i64 physicalRowCount, bool overlayed);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+i64 GetJournalRowCount(
+    i64 previousJournalRowCount,
+    std::optional<i64> lastChunkFirstRowIndex,
+    i64 lastChunkRowCount);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NJournalClient

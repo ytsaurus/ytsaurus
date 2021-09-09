@@ -561,7 +561,7 @@ void AppendChunkTreeChild(
     }
 
     if (child && chunkList->HasChildToIndexMapping()) {
-        int index = static_cast<int>(chunkList->Children().size());
+        int index = std::ssize(chunkList->Children());
         YT_VERIFY(chunkList->ChildToIndex().emplace(child, index).second);
     }
 
