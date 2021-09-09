@@ -705,11 +705,14 @@ private:
         i64 totalUsedSpace = 0;
         int totalStoredChunkCount = 0;
         int totalSessionCount = 0;
-        bool full = true;
 
         THashMap<int, int> mediumIndexToIOWeight;
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
+
+        // NB. We do not indicate that the node is full when it doesn't have storage locations. See YT-15393 for details.
+        bool full = !chunkStore->Locations().empty();
+
         for (const auto& location : chunkStore->Locations()) {
             if (location->IsEnabled()) {
                 totalAvailableSpace += location->GetAvailableSpace();
