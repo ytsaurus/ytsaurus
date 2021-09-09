@@ -931,6 +931,7 @@ private:
         auto transactionType = FromProto<NTransactionClient::ETransactionType>(request->type());
 
         TTransactionStartOptions options;
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_timeout()) {
             options.Timeout = FromProto<TDuration>(request->timeout());
         }
@@ -1023,6 +1024,7 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
         TTransactionCommitOptions options;
+        SetMutatingOptions(&options, request, context.Get());
         options.AdditionalParticipantCellIds = FromProto<std::vector<TCellId>>(request->additional_participant_cell_ids());
         if (request->has_prerequisite_options()) {
             FromProto(&options, request->prerequisite_options());
@@ -1091,6 +1093,9 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
+        TTransactionAbortOptions options;
+        SetMutatingOptions(&options, request, context.Get());
+
         context->SetRequestInfo("TransactionId: %v",
             transactionId);
 
@@ -1103,11 +1108,10 @@ private:
                 .PingAncestors = false
             });
 
-        // TODO(sandello): options are ignored
         ExecuteCall(
             context,
             [=] {
-                return transaction->Abort();
+                return transaction->Abort(options);
             });
     }
 
@@ -1164,6 +1168,7 @@ private:
 
         auto type = FromProto<EObjectType>(request->type());
         TCreateObjectOptions options;
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_ignore_existing()) {
             options.IgnoreExisting = request->ignore_existing();
         }
@@ -1508,14 +1513,12 @@ private:
 
         TMultisetAttributesNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
         if (request->has_prerequisite_options()) {
             FromProto(&options, request->prerequisite_options());
-        }
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
         }
         if (request->has_suppressable_access_tracking_options()) {
             FromProto(&options, request->suppressable_access_tracking_options());
