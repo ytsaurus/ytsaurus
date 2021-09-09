@@ -254,23 +254,17 @@ public:
 
     void Arm(int fd, const IPollablePtr& pollable, EPollControl control) override
     {
-        if (auto* cookie = TPollableCookie::FromPollable(pollable)) {
-            PollerThread_->Arm(fd, pollable, control);
-        }
+        PollerThread_->Arm(fd, pollable, control);
     }
 
     void Unarm(int fd, const IPollablePtr& pollable) override
     {
-        if (auto* cookie = TPollableCookie::FromPollable(pollable)) {
-            PollerThread_->Unarm(fd, pollable);
-        }
+        PollerThread_->Unarm(fd, pollable);
     }
 
     void Retry(const IPollablePtr& pollable, bool wakeup) override
     {
-        if (auto* cookie = TPollableCookie::FromPollable(pollable)) {
-            PollerThread_->Retry(pollable, wakeup);
-        }
+        PollerThread_->Retry(pollable, wakeup);
     }
 
     IInvokerPtr GetInvoker() const override
@@ -291,7 +285,6 @@ private:
         using TMyMutex = TMutex;
     };
     using TPollerImpl = ::TPollerImpl<TMutexLocking>;
-    const std::shared_ptr<TPollerImpl> PollerImpl_ = std::make_shared<TPollerImpl>();
 
     class TPollerThread
         : public TRefCounted
@@ -307,7 +300,7 @@ private:
 
         void Start()
         {
-            Poller_->PollerImpl_->Set(nullptr, WakeupHandle_.GetFD(), CONT_POLL_EDGE_TRIGGERED | CONT_POLL_READ);
+            PollerImpl_.Set(nullptr, WakeupHandle_.GetFD(), CONT_POLL_EDGE_TRIGGERED | CONT_POLL_READ);
             Thread_.Start();
         }
 
@@ -330,7 +323,7 @@ private:
                 fd,
                 control,
                 pollable->GetLoggingTag());
-            Poller_->PollerImpl_->Set(pollable.Get(), fd, ToImplControl(control));
+            PollerImpl_.Set(pollable.Get(), fd, ToImplControl(control));
         }
 
         void Unarm(int fd, const IPollablePtr& pollable)
@@ -338,7 +331,7 @@ private:
             YT_LOG_DEBUG("Unarming poller (FD: %v, %v)",
                 fd,
                 pollable->GetLoggingTag());
-            Poller_->PollerImpl_->Remove(fd);
+            PollerImpl_.Remove(fd);
         }
 
         void Retry(const IPollablePtr& pollable, bool wakeup)
@@ -362,6 +355,8 @@ private:
         const NLogging::TLogger Logger;
 
         ::TThread Thread_;
+
+        TPollerImpl PollerImpl_;
 
         std::atomic<bool> ShutdownStarted_ = false;
 
@@ -416,10 +411,9 @@ private:
             Poller_->HandlerEventCount_->NotifyMany(count);
         }
 
-
         int WaitForPollerEvents(TDuration timeout)
         {
-            int count = Poller_->PollerImpl_->Wait(PollerEvents_.data(), PollerEvents_.size(), timeout.MicroSeconds());
+            int count = PollerImpl_.Wait(PollerEvents_.data(), PollerEvents_.size(), timeout.MicroSeconds());
             auto it = std::remove_if(
                 PollerEvents_.begin(),
                 PollerEvents_.begin() + count,
@@ -516,9 +510,10 @@ private:
             }
 
             bool didAnything = false;
+            didAnything |= DequeueUnregisterRequests();
             didAnything |= HandlePollerEvents();
             didAnything |= HandleRetries();
-            didAnything |= HandleUnregisterRequests();
+            HandleUnregisterRequests();
             if (didAnything) {
                 static const auto DummyCallback = BIND([] { });
                 return DummyCallback;
@@ -535,6 +530,7 @@ private:
 
         void AfterShutdown() override
         {
+            DequeueUnregisterRequests();
             HandleUnregisterRequests();
         }
 
@@ -546,6 +542,7 @@ private:
         moodycamel::ConsumerToken PollerEventQueueToken_;
 
         TMpscStack<IPollablePtr> UnregisterQueue_;
+        std::vector<IPollablePtr> UnregisterList_;
 
         std::atomic<bool> Dying_ = false;
 
@@ -589,15 +586,17 @@ private:
             return gotRetry;
         }
 
-        bool HandleUnregisterRequests()
+        bool DequeueUnregisterRequests()
         {
-            auto pollables = UnregisterQueue_.DequeueAll();
-            if (pollables.empty()) {
-                return false;
-            }
+            YT_VERIFY(UnregisterList_.empty());
+            UnregisterList_ = UnregisterQueue_.DequeueAll();
+            return !UnregisterList_.empty();
+        }
 
+        void HandleUnregisterRequests()
+        {
             std::vector<IPollablePtr> deadPollables;
-            for (const auto& pollable : pollables) {
+            for (const auto& pollable : UnregisterList_) {
                 auto* cookie = TPollableCookie::FromPollable(pollable);
                 auto pendingUnregisterCount = --cookie->PendingUnregisterCount;
                 YT_VERIFY(pendingUnregisterCount >= 0);
@@ -626,7 +625,7 @@ private:
                 }
             }
 
-            return true;
+            UnregisterList_.clear();
         }
 
         void MarkDead()
