@@ -299,6 +299,8 @@ message TReqStartTransaction
     repeated NYT.NProto.TGuid prerequisite_transaction_ids = 13;
 
     optional uint64 start_timestamp = 14;
+
+    optional TMutatingOptions mutating_options = 103;
 }
 
 message TRspStartTransaction
@@ -329,6 +331,7 @@ message TReqCommitTransaction
     repeated NYT.NProto.TGuid additional_participant_cell_ids = 7;
 
     optional TPrerequisiteOptions prerequisite_options = 101;
+    optional TMutatingOptions mutating_options = 103;
 }
 
 message TRspCommitTransaction
@@ -354,6 +357,9 @@ message TRspFlushTransaction
 message TReqAbortTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
+
+    optional TMutatingOptions mutating_options = 103;
+
     reserved 6;
 }
 
@@ -809,6 +815,8 @@ message TReqCreateObject
     required int32 type = 1; // NObjectClient::EObjectType
     optional bool ignore_existing = 3 [default = false];
     optional NYT.NYTree.NProto.TAttributeDictionary attributes = 2;
+
+    optional TMutatingOptions mutating_options = 103;
 }
 
 message TRspCreateObject
