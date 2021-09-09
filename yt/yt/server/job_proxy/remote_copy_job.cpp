@@ -778,7 +778,7 @@ private:
             int endBlockIndex = blockIndex;
             i64 sizeToRead = 0;
 
-            while (endBlockIndex < blockCount && sizeToRead <= RemoteCopyJobSpecExt_.block_buffer_size()) {
+            while (endBlockIndex < blockCount && sizeToRead + blockSizes[endBlockIndex] <= RemoteCopyJobSpecExt_.block_buffer_size()) {
                 sizeToRead += blockSizes[endBlockIndex];
                 endBlockIndex += 1;
             }
