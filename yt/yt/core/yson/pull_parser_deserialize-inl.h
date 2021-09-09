@@ -148,6 +148,12 @@ void Deserialize(std::vector<T, A>& value, NYson::TYsonPullParserCursor* cursor,
     NDetail::DeserializeVector(value, cursor);
 }
 
+template <class T, class A>
+void Deserialize(std::deque<T, A>& value, NYson::TYsonPullParserCursor* cursor, std::enable_if_t<ArePullParserDeserializable<T>(), void*>)
+{
+    NDetail::DeserializeVector(value, cursor);
+}
+
 template <class T>
 void Deserialize(std::optional<T>& value, TYsonPullParserCursor* cursor, std::enable_if_t<ArePullParserDeserializable<T>(), void*>)
 {
