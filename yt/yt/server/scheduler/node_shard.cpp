@@ -320,13 +320,7 @@ void TNodeShard::StartOperationRevival(TOperationId operationId, TControllerEpoc
     }
     operationState.JobsToSubmitToStrategy.clear();
 
-    {
-        auto range = OperationIdToJobIterators_.equal_range(operationId);
-        for (auto it = range.first; it != range.second; ++it) {
-            JobIdToScheduleEntry_.erase(it->second);
-        }
-        OperationIdToJobIterators_.erase(operationId);
-    }
+    RemoveOperationScheduleJobEntries(operationId);
 
     YT_VERIFY(operationState.Jobs.empty());
 }
@@ -341,7 +335,7 @@ void TNodeShard::FinishOperationRevival(TOperationId operationId, const std::vec
     YT_VERIFY(!operationState.JobsReady);
     operationState.JobsReady = true;
     operationState.ForbidNewJobs = false;
-    operationState.Terminated = false;
+    operationState.ControllerTerminated = false;
     operationState.OperationUnreadyLoggedJobIds = THashSet<TJobId>();
 
     for (const auto& job : jobs) {
@@ -375,7 +369,7 @@ void TNodeShard::ResetOperationRevival(TOperationId operationId)
 
     operationState.JobsReady = true;
     operationState.ForbidNewJobs = false;
-    operationState.Terminated = false;
+    operationState.ControllerTerminated = false;
     operationState.OperationUnreadyLoggedJobIds = THashSet<TJobId>();
 
     YT_LOG_DEBUG("Operation revival state reset at node shard (OperationId: %v)",
@@ -767,6 +761,15 @@ void TNodeShard::UpdateNodeState(
     }
 }
 
+void TNodeShard::RemoveOperationScheduleJobEntries(const TOperationId operationId)
+{
+    auto range = OperationIdToJobIterators_.equal_range(operationId);
+    for (auto it = range.first; it != range.second; ++it) {
+        JobIdToScheduleEntry_.erase(it->second);
+    }
+    OperationIdToJobIterators_.erase(operationId);
+}
+
 void TNodeShard::RemoveMissingNodes(const std::vector<TString>& nodeAddresses)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
@@ -927,23 +930,27 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
     return errors;
 }
 
-void TNodeShard::AbortOperationJobs(TOperationId operationId, const TError& abortReason, bool terminated)
+void TNodeShard::AbortOperationJobs(TOperationId operationId, const TError& abortReason, bool controllerTerminated)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
     ValidateConnected();
+
+    if (controllerTerminated) {
+        RemoveOperationScheduleJobEntries(operationId);
+    }
 
     auto* operationState = FindOperationState(operationId);
     if (!operationState) {
         return;
     }
 
-    operationState->Terminated = terminated;
+    operationState->ControllerTerminated = controllerTerminated;
     operationState->ForbidNewJobs = true;
     auto jobs = operationState->Jobs;
     for (const auto& job : jobs) {
         auto status = JobStatusFromError(abortReason);
-        OnJobAborted(job.second, &status, /* byScheduler */ true, terminated);
+        OnJobAborted(job.second, &status, /* byScheduler */ true, controllerTerminated);
     }
 
     for (const auto& job : operationState->Jobs) {
@@ -958,7 +965,7 @@ void TNodeShard::ResumeOperationJobs(TOperationId operationId)
     ValidateConnected();
 
     auto* operationState = FindOperationState(operationId);
-    if (!operationState || operationState->Terminated) {
+    if (!operationState || operationState->ControllerTerminated) {
         return;
     }
 
@@ -1334,6 +1341,7 @@ TFuture<TControllerScheduleJobResultPtr> TNodeShard::BeginScheduleJob(
     entry.OperationId = operationId;
     entry.OperationIdToJobIdsIterator = OperationIdToJobIterators_.emplace(operationId, pair.first);
     entry.StartTime = GetCpuInstant();
+
     return entry.Promise.ToFuture();
 }
 
@@ -1346,7 +1354,8 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
     auto operationId = FromProto<TOperationId>(response.operation_id());
 
     auto it = JobIdToScheduleEntry_.find(jobId);
-    YT_VERIFY(it != JobIdToScheduleEntry_.end());
+    YT_VERIFY(it != std::cend(JobIdToScheduleEntry_));
+
     auto& entry = it->second;
     YT_VERIFY(operationId == entry.OperationId);
 
@@ -1429,6 +1438,12 @@ TControllerEpoch TNodeShard::GetJobControllerEpoch(TJobId jobId)
     } else {
         return InvalidControllerEpoch;
     }
+}
+
+bool TNodeShard::IsOperationControllerTerminated(const TOperationId operationId) const noexcept
+{
+    const auto statePtr = FindOperationState(operationId);
+    return !statePtr || statePtr->ControllerTerminated;
 }
 
 void TNodeShard::SetNodeSchedulingSegment(const TExecNodePtr& node, ESchedulingSegment segment)
@@ -2234,7 +2249,7 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
             YT_LOG_DEBUG("Job cannot be started since new jobs are forbidden (JobId: %v, OperationId: %v)",
                 job->GetId(),
                 job->GetOperationId());
-            if (!operationState->Terminated) {
+            if (!operationState->ControllerTerminated) {
                 const auto& controller = operationState->Controller;
                 controller->OnNonscheduledJobAborted(job->GetId(), EAbortReason::SchedulingOperationSuspended);
                 JobsToSubmitToStrategy_[job->GetId()] = TJobUpdate{
@@ -2787,7 +2802,12 @@ TJobProberServiceProxy TNodeShard::CreateJobProberProxy(const TJobPtr& job)
     return Host_->CreateJobProberProxy(addressWithNetwork);
 }
 
-TNodeShard::TOperationState* TNodeShard::FindOperationState(TOperationId operationId)
+TNodeShard::TOperationState* TNodeShard::FindOperationState(TOperationId operationId) noexcept
+{
+    return const_cast<TNodeShard::TOperationState*>(const_cast<const TNodeShard*>(this)->FindOperationState(operationId));
+}
+
+const TNodeShard::TOperationState* TNodeShard::FindOperationState(TOperationId operationId) const noexcept
 {
     auto it = IdToOpertionState_.find(operationId);
     return it != IdToOpertionState_.end() ? &it->second : nullptr;

@@ -749,15 +749,23 @@ public:
 
                     for (const auto* protoResponse : protoResponses) {
                         auto operationId = FromProto<TOperationId>(protoResponse->operation_id());
+                        auto jobId = FromProto<TJobId>(protoResponse->job_id());
                         auto controllerEpoch = protoResponse->controller_epoch();
                         auto expectedControllerEpoch = nodeShard->GetOperationControllerEpoch(operationId);
                         if (controllerEpoch != expectedControllerEpoch) {
                             YT_LOG_DEBUG("Received job schedule result with unexpected controller epoch; ignored "
                                 "(OperationId: %v, JobId: %v, ControllerEpoch: %v, ExpectedControllerEpoch: %v)",
                                 operationId,
-                                FromProto<TJobId>(protoResponse->job_id()),
+                                jobId,
                                 controllerEpoch,
                                 expectedControllerEpoch);
+                            continue;
+                        }
+                        if (nodeShard->IsOperationControllerTerminated(operationId)) {
+                            YT_LOG_DEBUG("Received job schedule result for operation whose controller is terminated; "
+                                " ignored (OperationId: %v, JobId: %v)",
+                                operationId,
+                                jobId);
                             continue;
                         }
                         nodeShard->EndScheduleJob(*protoResponse);
