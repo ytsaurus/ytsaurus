@@ -189,6 +189,7 @@ DEFINE_ENUM(EMasterReign,
     ((JournalTruncateFixes)                                         (1660))  // aleksandra-zh
     ((PreloadPendingStoreCountBulkInsert)                           (1661))  // ifsmirnov
     ((RemoveTabletCellConfig)                                       (1662))  // savrus
+    ((TruncateOverlayedJournals)                                    (1663))  // aleksandra-zh
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1800))  // ignat
 );

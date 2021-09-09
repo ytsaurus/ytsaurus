@@ -172,9 +172,6 @@ class TestJournals(YTEnvSetup):
     @authors("babenko")
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     def test_journal_quorum_row_count(self, enable_chunk_preallocation):
-        if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
-            pytest.skip("Chunk preallocation is not available without 20.3+ masters")
-
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed(
             "//tmp/j",
@@ -198,9 +195,6 @@ class TestJournals(YTEnvSetup):
     @authors("babenko", "ignat")
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     def test_read_write(self, enable_chunk_preallocation):
-        if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
-            pytest.skip("Chunk preallocation is not available without 20.3+ masters")
-
         create("journal", "//tmp/j")
         for i in xrange(0, 10):
             self._write_and_wait_until_sealed(
@@ -232,9 +226,6 @@ class TestJournals(YTEnvSetup):
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     def test_truncate1(self, enable_chunk_preallocation):
-        if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
-            pytest.skip("Chunk preallocation is not available without 20.3+ masters")
-
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed(
             "//tmp/j",
@@ -248,12 +239,12 @@ class TestJournals(YTEnvSetup):
         self._truncate_and_check("//tmp/j", 3)
         self._truncate_and_check("//tmp/j", 10)
 
+        with pytest.raises(YtError):
+            truncate_journal("//tmp/j", -2)
+
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     def test_truncate2(self, enable_chunk_preallocation):
-        if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
-            pytest.skip("Chunk preallocation is not available without 20.3+ masters")
-
         create("journal", "//tmp/j")
         for i in xrange(0, 10):
             self._write_and_wait_until_sealed(
@@ -304,9 +295,6 @@ class TestJournals(YTEnvSetup):
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     def test_truncate_prerequisites(self, enable_chunk_preallocation):
-        if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
-            pytest.skip("Chunk preallocation is not available without 20.3+ masters")
-
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed(
             "//tmp/j",
@@ -328,10 +316,39 @@ class TestJournals(YTEnvSetup):
 
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
-    def test_cannot_truncate_unsealed(self, enable_chunk_preallocation):
-        if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
-            pytest.skip("Chunk preallocation is not available without 20.3+ masters")
+    def test_simulated_failures_truncate(self, enable_chunk_preallocation):
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", True)
+        set("//sys/@config/chunk_manager/chunk_refresh_period", 50)
 
+        create("journal", "//tmp/j")
+
+        rows = self.DATA * 100
+
+        self._write_slowly(
+            "//tmp/j",
+            rows,
+            enable_chunk_preallocation=enable_chunk_preallocation,
+            journal_writer={
+                "dont_seal": True,
+                "max_batch_row_count": 9,
+                "max_flush_row_count": 9,
+                "max_chunk_row_count": 49,
+                "replica_failure_probability": 0.1,
+                "open_session_backoff_time": 100,
+            },
+        )
+
+        self._wait_until_last_chunk_sealed("//tmp/j")
+        assert get("//tmp/j/@quorum_row_count") == len(rows)
+        assert read_journal("//tmp/j") == rows
+
+        self._truncate_and_check("//tmp/j", 73)
+        self._truncate_and_check("//tmp/j", 42)
+        self._truncate_and_check("//tmp/j", 13)
+
+    @authors("aleksandra-zh")
+    @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
+    def test_cannot_truncate_unsealed(self, enable_chunk_preallocation):
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
 
         create("journal", "//tmp/j")
@@ -401,9 +418,6 @@ class TestJournals(YTEnvSetup):
     @authors("babenko")
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     def test_read_write_unsealed(self, enable_chunk_preallocation):
-        if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
-            pytest.skip("Chunk preallocation is not available without 20.3+ masters")
-
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
 
         create("journal", "//tmp/j")
@@ -425,9 +439,6 @@ class TestJournals(YTEnvSetup):
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     @pytest.mark.parametrize("seal_mode", ["client-side", "master-side"])
     def test_simulated_failures(self, enable_chunk_preallocation, seal_mode):
-        if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
-            pytest.skip("Chunk preallocation is not available without 20.3+ masters")
-
         set("//sys/@config/chunk_manager/enable_chunk_sealer", seal_mode == "master-side")
         set("//sys/@config/chunk_manager/chunk_refresh_period", 50)
 
@@ -815,9 +826,6 @@ class TestErasureJournals(TestJournals):
 
     @authors("gritukan", "babenko")
     def test_repair_overlayed_chunk(self):
-        if self.Env.get_component_version("ytserver-master").abi <= (20, 2):
-            pytest.skip("Chunk preallocation is not available without 20.3+ masters")
-
         set("//sys/@config/chunk_manager/chunk_refresh_period", 50)
 
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES["isa_reed_solomon_3_3"])

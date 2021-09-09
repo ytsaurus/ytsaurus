@@ -4255,9 +4255,10 @@ private:
             const auto& statistics = chunkList->Statistics();
             YT_VERIFY(statistics.RowCount == statistics.LogicalRowCount);
             i64 oldJournalRowCount = statistics.RowCount;
-            i64 newJournalRowCount = firstOverlayedRowIndex
-                ? *firstOverlayedRowIndex + chunk->GetRowCount()
-                : oldJournalRowCount + chunk->GetRowCount();
+            i64 newJournalRowCount = GetJournalRowCount(
+                oldJournalRowCount,
+                firstOverlayedRowIndex,
+                chunk->GetRowCount());
 
             // NB: Last chunk can be nested into another.
             newJournalRowCount = std::max<i64>(newJournalRowCount, oldJournalRowCount);

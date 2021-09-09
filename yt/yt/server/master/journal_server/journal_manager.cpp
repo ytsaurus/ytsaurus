@@ -90,26 +90,32 @@ public:
 
     void TruncateJournal(
         TJournalNode* trunkNode,
-        i64 rowCount)
+        i64 desiredRowCount)
     {
         YT_VERIFY(trunkNode->IsTrunk());
         if (!trunkNode->GetSealed()) {
             THROW_ERROR_EXCEPTION("Journal is not sealed");
         }
 
+        if (desiredRowCount < 0) {
+            THROW_ERROR_EXCEPTION(
+                "Truncation desired row count %v is negative",
+                desiredRowCount);
+        }
+
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         if (trunkNode->IsExternal()) {
             auto req = TJournalYPathProxy::Truncate(FromObjectId(trunkNode->GetId()));
-            req->set_row_count(rowCount);
+            req->set_row_count(desiredRowCount);
             multicellManager->PostToMaster(req, trunkNode->GetExternalCellTag());
         } else {
-            DoTruncateJournal(trunkNode, rowCount);
+            DoTruncateJournal(trunkNode, desiredRowCount);
         }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Journal node truncated (NodeId: %v, RowCount: %v)",
             trunkNode->GetId(),
-            rowCount);
+            desiredRowCount);
 
         if (trunkNode->IsForeign()) {
             auto req = TJournalYPathProxy::UpdateStatistics(FromObjectId(trunkNode->GetId()));
@@ -121,16 +127,18 @@ public:
 private:
     void DoTruncateJournal(
         TJournalNode* trunkNode,
-        i64 rowCount)
+        i64 desiredRowCount)
     {
         auto* chunkList = trunkNode->GetChunkList();
         YT_VERIFY(chunkList);
 
-        auto currentRowCount = chunkList->Statistics().RowCount;
-        if (currentRowCount < rowCount) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Journal has less rows than requested for truncation (CurrentRowCount: %v, RequestedRowCount: %v)",
-                currentRowCount,
-                rowCount);
+        auto totalRowCount = chunkList->Statistics().RowCount;
+        if (totalRowCount < desiredRowCount) {
+            YT_LOG_DEBUG_IF(
+                IsMutationLoggingEnabled(),
+                "Journal has less rows than requested for truncation (TotalRowCount: %v, DesiredRowCount: %v)",
+                totalRowCount,
+                desiredRowCount);
             return;
         }
 
@@ -141,36 +149,64 @@ private:
         newChunkList->AddOwningNode(trunkNode);
         objectManager->RefObject(newChunkList);
 
-        auto remainingRowCount = rowCount;
+        i64 appendedRowCount = 0;
         for (auto* child : chunkList->Children()) {
-            if (remainingRowCount == 0) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Dropping chunk when truncating journal (NodeId: %v, ChunkId: %v)",
+            YT_VERIFY(appendedRowCount <= desiredRowCount);
+            if (appendedRowCount == desiredRowCount) {
+                YT_LOG_DEBUG_IF(
+                    IsMutationLoggingEnabled(),
+                    "Dropping chunk when truncating journal (NodeId: %v, ChunkId: %v)",
                     trunkNode->GetId(),
                     child->GetId());
                 continue;
             }
 
             auto* chunk = child->AsChunk();
-            auto childRowCount = chunk->GetRowCount();
-            if (childRowCount <= remainingRowCount) {
-                remainingRowCount -= childRowCount;
-            } else {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Truncating trailing journal chunk (NodeId: %v, ChunkId: %v, PrevRowCount: %v, NewRowCount: %v)",
+            auto firstOverlayedRowIndex = chunk->GetFirstOverlayedRowIndex();
+            auto chunkRowCount = chunk->GetRowCount();
+            auto newRowCount = GetJournalRowCount(appendedRowCount, firstOverlayedRowIndex, chunkRowCount);
+            if (newRowCount <= appendedRowCount) {
+                YT_LOG_DEBUG_IF(
+                    IsMutationLoggingEnabled(),
+                    "Dropping nested chunk (NodeId: %v, ChunkId: %v, AppendedRowCount: %v, ChunkRowCount: %v)",
                     trunkNode->GetId(),
                     child->GetId(),
-                    childRowCount,
-                    remainingRowCount);
-                chunk->SetRowCount(remainingRowCount);
-                remainingRowCount = 0;
+                    appendedRowCount,
+                    chunkRowCount);
+                continue;
             }
 
+            if (newRowCount > desiredRowCount) {
+                auto rowCountToTrim = newRowCount - desiredRowCount;
+                YT_LOG_DEBUG_IF(
+                    IsMutationLoggingEnabled(),
+                    "Truncating trailing journal chunk (NodeId: %v, ChunkId: %v, PrevRowCount: %v, NewRowCount: %v)",
+                    trunkNode->GetId(),
+                    child->GetId(),
+                    chunkRowCount,
+                    chunkRowCount - rowCountToTrim);
+                chunkRowCount -= rowCountToTrim;
+                newRowCount = desiredRowCount;
+            }
+
+            // Temporarily set row count to logical row count
+            // for AttachToChunkList to compute statistics correctly
+            // (it is not the sum of row counts for overlayed chunks).
+            chunk->SetRowCount(newRowCount - appendedRowCount);
             chunkManager->AttachToChunkList(newChunkList, child);
+            // Then set it back.
+            chunk->SetRowCount(chunkRowCount);
+
+            YT_VERIFY(newChunkList->Statistics().RowCount == newRowCount);
+            appendedRowCount = newRowCount;
         }
 
         chunkList->RemoveOwningNode(trunkNode);
         objectManager->UnrefObject(chunkList);
 
         trunkNode->SetChunkList(newChunkList);
+
+        YT_VERIFY(newChunkList->Statistics().RowCount == desiredRowCount);
         trunkNode->SnapshotStatistics() = newChunkList->Statistics().ToDataStatistics();
     }
 };
@@ -199,9 +235,9 @@ void TJournalManager::SealJournal(
 
 void TJournalManager::TruncateJournal(
     TJournalNode* trunkNode,
-    i64 rowCount)
+    i64 desiredRowCount)
 {
-    Impl_->TruncateJournal(trunkNode, rowCount);
+    Impl_->TruncateJournal(trunkNode, desiredRowCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
