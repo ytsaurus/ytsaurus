@@ -162,7 +162,7 @@ public:
     void RemoveMissingNodes(const std::vector<TString>& nodeAddresses);
     std::vector<TError> HandleNodesAttributes(const std::vector<std::pair<TString, NYTree::INodePtr>>& nodeMaps);
 
-    void AbortOperationJobs(TOperationId operationId, const TError& abortReason, bool terminated);
+    void AbortOperationJobs(TOperationId operationId, const TError& abortReason, bool controllerTerminated);
     void ResumeOperationJobs(TOperationId operationId);
 
     NNodeTrackerClient::TNodeDescriptor GetJobNode(TJobId jobId);
@@ -203,6 +203,8 @@ public:
 
     TControllerEpoch GetOperationControllerEpoch(TOperationId operationId);
     TControllerEpoch GetJobControllerEpoch(TJobId jobId);
+
+    bool IsOperationControllerTerminated(TOperationId operationId) const noexcept;
 
 private:
     const int Id_;
@@ -303,7 +305,7 @@ private:
         //! Used only to avoid multiple log messages per job about 'operation is not ready'.
         THashSet<TJobId> OperationUnreadyLoggedJobIds;
         IOperationControllerPtr Controller;
-        bool Terminated = false;
+        bool ControllerTerminated = false;
         //! Raised to prevent races between suspension and scheduler strategy scheduling new jobs.
         bool ForbidNewJobs = false;
         //! Flag showing that we already know about all jobs of this operation
@@ -431,7 +433,8 @@ private:
 
     NJobProberClient::TJobProberServiceProxy CreateJobProberProxy(const TJobPtr& job);
 
-    TOperationState* FindOperationState(TOperationId operationId);
+    TOperationState* FindOperationState(TOperationId operationId) noexcept;
+    const TOperationState* FindOperationState(TOperationId operationId) const noexcept;
     TOperationState& GetOperationState(TOperationId operationId);
 
     void BuildNodeYson(const TExecNodePtr& node, NYTree::TFluentMap consumer);
@@ -441,6 +444,8 @@ private:
         NNodeTrackerClient::ENodeState newState,
         ENodeState newSchedulerState,
         const TError& error = TError());
+    
+    void RemoveOperationScheduleJobEntries(TOperationId operationId);
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeShard)
