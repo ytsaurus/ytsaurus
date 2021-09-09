@@ -487,30 +487,39 @@ private:
                 return;
             }
 
-            TraceContext_.emplace();
-
+            NTracing::NProto::TTracingExt traceContext{};
             if (traceIdString) {
-                const auto traceId = TGuid::FromString(traceIdString);
-                ToProto(TraceContext_->mutable_trace_id(), traceId);
+                TGuid traceId{};
+                const auto result = TGuid::FromString(traceIdString, &traceId);
+                if (!result) return;
+                ToProto(traceContext.mutable_trace_id(), traceId);
             }
             if (spanIdString) {
-                const auto spanId = FromString<NTracing::TSpanId>(spanIdString);
-                decltype(TraceContext_->span_id()) spanProto{};
+                NTracing::TSpanId spanId{};
+                const auto result = TryFromString(spanIdString, spanId);
+                if (!result) return;
+                decltype(traceContext.span_id()) spanProto{};
                 ToProto(&spanProto, spanId);
-                TraceContext_->set_span_id(spanProto);
+                traceContext.set_span_id(spanProto);
             }
             if (sampledString) {
-                const auto sampled = FromString<bool>(sampledString);
-                decltype(TraceContext_->sampled()) sampledProto{};
+                bool sampled{};
+                const auto result = TryFromString(sampledString, sampled);
+                if (!result) return;
+                decltype(traceContext.sampled()) sampledProto{};
                 ToProto(&sampledProto, sampled);
-                TraceContext_->set_sampled(sampledProto);
+                traceContext.set_sampled(sampledProto);
             }
             if (debugString) {
-                const auto debug = FromString<bool>(debugString);
-                decltype(TraceContext_->debug()) debugProto{};
+                bool debug{};
+                const auto result = TryFromString(debugString, debug);
+                if (!result) return;
+                decltype(traceContext.debug()) debugProto{};
                 ToProto(&debugProto, debug);
-                TraceContext_->set_debug(debugProto);
+                traceContext.set_debug(debugProto);
             }
+            TraceContext_.emplace(traceContext);
+
         }
 
         void ParseRequestId()
