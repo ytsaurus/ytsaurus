@@ -24,7 +24,7 @@ message TReqGetStderr
 
 message TRspGetStderr
 {
-    required bytes stderr_data = 1;
+    optional bytes stderr_data = 1;
 }
 
 message TReqGetFailContext
@@ -34,7 +34,7 @@ message TReqGetFailContext
 
 message TRspGetFailContext
 {
-    required bytes fail_context_data = 1;
+    optional bytes fail_context_data = 1;
 }
 
 message TReqGetSpec
