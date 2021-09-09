@@ -1566,12 +1566,14 @@ def add_compression_benchmark_parser(add_parser):
     parser.add_argument("--time-limit-sec", type=int, default=100, help="time limit for one operation in seconds")
 
 def sky_share(**kwargs):
-    print(yt.sky_share(**kwargs))
+    print_to_output(yt.sky_share(**kwargs))
 
 def add_sky_share_parser(add_parser):
     parser = add_parser("sky-share", function=sky_share, help="share table to skynet")
     parser.add_argument("path", help="table path")
     parser.add_argument("--cluster", help="cluster name, by default it is derived from proxy url")
+    parser.add_argument("--key-column", help="create a separate torrent for each unique key and print rbtorrent list in JSON format", action="append", dest="key_columns")
+    parser.add_argument("--enable-fastbone", help="download over fastbone if all necessary firewall rules are present", action="store_true")
 
 @copy_docstring_from(get_default_config)
 def show_default_config(**kwargs):
