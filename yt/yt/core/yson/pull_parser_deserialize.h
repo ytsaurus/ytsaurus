@@ -87,6 +87,13 @@ void Deserialize(
     TYsonPullParserCursor* cursor,
     std::enable_if_t<ArePullParserDeserializable<T>(), void*> = nullptr);
 
+// std::deque
+template <class T, class A>
+void Deserialize(
+    std::deque<T, A>& value,
+    TYsonPullParserCursor* cursor,
+    std::enable_if_t<ArePullParserDeserializable<T>(), void*> = nullptr);
+
 // std::optional.
 template <class T>
 void Deserialize(

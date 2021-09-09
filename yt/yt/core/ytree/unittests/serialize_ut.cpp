@@ -303,6 +303,12 @@ TEST(TSerializationTest, Vector)
     TestSerializationDeserialization(original);
 }
 
+TEST(TSerializationTest, Deque)
+{
+    const std::deque<TString> original{"First", "Second", "Third"};
+    TestSerializationDeserialization(original);
+}
+
 TEST(TSerializationTest, Pair)
 {
     auto original = std::make_pair<size_t, TString>(1U, "Second");
