@@ -26,14 +26,14 @@ TChunkReplicaLocator::TChunkReplicaLocator(
     TChunkId chunkId,
     TDuration expirationTime,
     const TChunkReplicaList& initialReplicas,
-    NLogging::TLogger logger)
+    const NLogging::TLogger& logger)
     : NodeDirectory_(std::move(nodeDirectory))
     , ChunkId_(chunkId)
     , ExpirationTime_(expirationTime)
     , Channel_(client->GetMasterChannelOrThrow(
         EMasterChannelKind::Follower,
         CellTagFromId(ChunkId_)))
-    , Logger(std::move(logger))
+    , Logger(logger.WithTag("ChunkId: %v", chunkId))
 {
     if (!initialReplicas.empty()) {
         ReplicasPromise_ = MakePromise(TAllyReplicasInfo::FromChunkReplicas(initialReplicas));

@@ -27,7 +27,7 @@ public:
         TChunkId chunkId,
         TDuration expirationTime,
         const TChunkReplicaList& initialReplicas,
-        NLogging::TLogger logger);
+        const NLogging::TLogger& logger);
 
     TFuture<TAllyReplicasInfo> GetReplicasFuture();
     void DiscardReplicas(const TFuture<TAllyReplicasInfo>& future);
