@@ -136,7 +136,6 @@ struct IChangelogStoreFactory
     //! induces a barrier such that no record added via IChangelog instances
     //! obtained from IChangelogStore prior to this #Lock call may penetrate.
     virtual TFuture<IChangelogStorePtr> Lock() = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(IChangelogStoreFactory)

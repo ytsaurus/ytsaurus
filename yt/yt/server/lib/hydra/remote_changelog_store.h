@@ -4,11 +4,9 @@
 
 #include <yt/yt/server/lib/security_server/public.h>
 
-#include <yt/yt/client/api/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/client/api/client.h>
-
-#include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/client/ypath/public.h>
 
@@ -23,7 +21,7 @@ namespace NYT::NHydra {
 IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
     TRemoteChangelogStoreConfigPtr config,
     TRemoteChangelogStoreOptionsPtr options,
-    const NYPath::TYPath& path,
+    NYPath::TYPath path,
     NApi::IClientPtr client,
     NSecurityServer::IResourceLimitsManagerPtr resourceLimitsManager,
     NTransactionClient::TTransactionId prerequisiteTransactionId =

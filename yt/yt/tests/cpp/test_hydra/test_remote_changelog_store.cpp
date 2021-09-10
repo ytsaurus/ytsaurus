@@ -14,6 +14,8 @@
 
 #include <yt/yt/client/api/transaction.h>
 
+#include <yt/yt/core/ytree/attributes.h>
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT {
@@ -25,6 +27,7 @@ using namespace NHydra;
 using namespace NObjectClient;
 using namespace NSecurityServer;
 using namespace NTransactionClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,14 +72,14 @@ protected:
 
     void SetUp() override
     {
-        WaitFor(Client_->CreateNode("//changelogs", EObjectType::MapNode))
+        WaitFor(Client_->CreateNode(GetChangelogsPath(), EObjectType::MapNode))
             .ThrowOnError();
     }
 
     void TearDown() override
     {
         auto tryRemove = [&] {
-            return WaitFor(Client_->RemoveNode("//changelogs")).IsOK();
+            return WaitFor(Client_->RemoveNode(GetChangelogsPath())).IsOK();
         };
         WaitForPredicate(tryRemove, /*iteartionCount*/ 100, /*period*/ TDuration::MilliSeconds(200));
     }
@@ -86,7 +89,7 @@ protected:
         return CreateRemoteChangelogStoreFactory(
             Config_,
             Options_,
-            "//changelogs",
+            GetChangelogsPath(),
             Client_,
             New<TDummyResourceLimitsManager>(),
             prerequisiteTransactionId);
@@ -109,6 +112,69 @@ protected:
 
         YT_VERIFY(store);
         return store;
+    }
+
+    void CreateChangelog(int changelogIndex, int recordCount)
+    {
+        auto prerequisiteTransaction = WaitFor(Client_->StartTransaction(ETransactionType::Master))
+            .ValueOrThrow();
+        auto changelogStoreFactory = CreateChangelogStoreFactory(prerequisiteTransaction->GetId());
+        auto changelogStore = LockStoreFactory(changelogStoreFactory);
+        auto changelog = WaitFor(changelogStore->CreateChangelog(changelogIndex))
+            .ValueOrThrow();
+
+        WaitFor(changelog->Append(MakeRange(Records_.begin(), Records_.begin() + recordCount)))
+            .ThrowOnError();
+        WaitFor(changelog->Close())
+            .ThrowOnError();
+    }
+
+    static TYPath GetChangelogsPath()
+    {
+        return "//changelogs";
+    }
+
+    TYPath GetChangelogPath(int changelogIndex) const
+    {
+        return Format("%v/%09d",
+            GetChangelogsPath(),
+            changelogIndex);
+    }
+
+    void WaitUntilSealed(int changelogIndex)
+    {
+        auto checkSealed = [&] {
+            NApi::TGetNodeOptions options{
+                .Attributes = std::vector<TString>{"sealed"},
+            };
+            auto path = GetChangelogPath(changelogIndex);
+            auto rspOrError = WaitFor(Client_->GetNode(path, options));
+            if (!rspOrError.IsOK()) {
+                return false;
+            }
+
+            auto response = ConvertTo<INodePtr>(rspOrError.Value());
+            return response->Attributes().Get<bool>("sealed");
+        };
+        WaitForPredicate(checkSealed, /*iteartionCount*/ 100, /*period*/ TDuration::MilliSeconds(200));
+    }
+
+    void CheckChangelog(const IChangelogPtr& changelog, int recordCount)
+    {
+        std::vector<TSharedRef> records;
+        while (true) {
+            auto newRecords = WaitFor(changelog->Read(/*firstRecordId*/ records.size(), /*maxRecords*/ 100'000, /*maxBytes*/ 100'000))
+                .ValueOrThrow();
+            if (newRecords.empty()) {
+                break;
+            }
+            records.insert(records.end(), newRecords.begin(), newRecords.end());
+        }
+
+        EXPECT_EQ(std::ssize(records), recordCount);
+        for (auto recordIndex = 0; recordIndex < recordCount; ++recordIndex) {
+            EXPECT_TRUE(TRef::AreBitwiseEqual(records[recordIndex], Records_[recordIndex]));
+        }
     }
 };
 
@@ -138,11 +204,7 @@ TEST_F(TRemoteChangelogStoreTest, TestReadWrite)
     EXPECT_EQ(changelogStore->GetReachableVersion(), TVersion(1, 2));
     changelog = WaitFor(changelogStore->OpenChangelog(/*id*/ 1))
         .ValueOrThrow();
-    auto records = WaitFor(changelog->Read(/*firstRecordId*/ 0, /*maxRecords*/ 1000, /*maxBytes*/ 1000))
-        .ValueOrThrow();
-    EXPECT_EQ(std::ssize(records), 2);
-    EXPECT_TRUE(TRef::AreBitwiseEqual(records[0], Records_[0]));
-    EXPECT_TRUE(TRef::AreBitwiseEqual(records[1], Records_[1]));
+    CheckChangelog(changelog, /*recordCount*/ 2);
 }
 
 TEST_F(TRemoteChangelogStoreTest, TestTwoConcurrentWritersAreForbidden)
@@ -169,6 +231,84 @@ TEST_F(TRemoteChangelogStoreTest, TestTwoConcurrentWritersAreForbidden)
     // can be allocated.
     EXPECT_FALSE(WaitFor(store1->CreateChangelog(/*id*/ 2)).IsOK());
     EXPECT_FALSE(WaitFor(store1->CreateChangelog(/*id*/ 3)).IsOK());
+}
+
+TEST_F(TRemoteChangelogStoreTest, TestTruncate)
+{
+    CreateChangelog(/*changelogIndex*/ 42, /*recordCount*/ 7);
+    WaitUntilSealed(/*changelogIndex*/ 42);
+
+    auto prerequisiteTransaction = WaitFor(Client_->StartTransaction(ETransactionType::Master))
+        .ValueOrThrow();
+    auto changelogStoreFactory = CreateChangelogStoreFactory(prerequisiteTransaction->GetId());
+    auto changelogStore = LockStoreFactory(changelogStoreFactory);
+    auto changelog = WaitFor(changelogStore->OpenChangelog(/*id*/ 42))
+        .ValueOrThrow();
+
+    CheckChangelog(changelog, 7);
+
+    WaitFor(changelog->Truncate(/*recordCount*/ 5))
+        .ThrowOnError();
+
+    CheckChangelog(changelog, 5);
+
+    WaitFor(changelog->Truncate(/*recordCount*/ 6))
+        .ThrowOnError();
+
+    CheckChangelog(changelog, 5);
+}
+
+TEST_F(TRemoteChangelogStoreTest, TestAppend)
+{
+    CreateChangelog(/*changelogIndex*/ 25, /*recordCount*/ 6);
+    WaitUntilSealed(/*changelogIndex*/ 25);
+
+    auto prerequisiteTransaction = WaitFor(Client_->StartTransaction(ETransactionType::Master))
+        .ValueOrThrow();
+    auto changelogStoreFactory = CreateChangelogStoreFactory(prerequisiteTransaction->GetId());
+    auto changelogStore = LockStoreFactory(changelogStoreFactory);
+    auto changelog = WaitFor(changelogStore->OpenChangelog(/*id*/ 25))
+        .ValueOrThrow();
+    WaitFor(changelog->Append(MakeRange(Records_.begin() + 6, Records_.begin() + 8)))
+        .ThrowOnError();
+    WaitFor(changelog->Flush())
+        .ThrowOnError();
+
+    CheckChangelog(changelog, 8);
+}
+
+TEST_F(TRemoteChangelogStoreTest, TestAppendPrerequisiteCheck)
+{
+    CreateChangelog(/*changelogIndex*/ 28, /*recordCount*/ 6);
+    WaitUntilSealed(/*changelogIndex*/ 28);
+
+    auto prerequisiteTransaction = WaitFor(Client_->StartTransaction(ETransactionType::Master))
+        .ValueOrThrow();
+    auto changelogStoreFactory = CreateChangelogStoreFactory(prerequisiteTransaction->GetId());
+    auto changelogStore = LockStoreFactory(changelogStoreFactory);
+    auto changelog = WaitFor(changelogStore->OpenChangelog(/*id*/ 28))
+        .ValueOrThrow();
+    WaitFor(prerequisiteTransaction->Abort())
+        .ThrowOnError();
+    EXPECT_FALSE(WaitFor(changelog->Append(MakeRange(Records_.begin() + 6, Records_.begin() + 8))).IsOK());
+
+    CheckChangelog(changelog, 6);
+}
+
+TEST_F(TRemoteChangelogStoreTest, TestReadOnlyStore)
+{
+    CreateChangelog(/*changelogIndex*/ 42, /*recordCount*/ 6);
+    WaitUntilSealed(/*changelogIndex*/ 42);
+
+    auto changelogStoreFactory = CreateChangelogStoreFactory(NullTransactionId);
+    auto changelogStore = LockStoreFactory(changelogStoreFactory);
+    auto changelog = WaitFor(changelogStore->OpenChangelog(/*id*/ 42))
+        .ValueOrThrow();
+
+    EXPECT_FALSE(WaitFor(changelog->Truncate(/*recordCount*/ 5)).IsOK());
+    EXPECT_FALSE(WaitFor(changelog->Append(MakeRange(Records_.begin() + 6, Records_.begin() + 8))).IsOK());
+
+    CheckChangelog(changelog, 6);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
