@@ -9,6 +9,8 @@
 #include <util/generic/fwd.h>
 #include <util/system/types.h>
 
+#include <variant>
+
 namespace google::protobuf {
     class Message;
 }
@@ -355,7 +357,7 @@ namespace NYT {
 
     struct TJobBinaryCypressPath;
 
-    using TJobBinaryConfig = ::TVariant<
+    using TJobBinaryConfig = std::variant<
         TJobBinaryDefault,
         TJobBinaryLocalPath,
         TJobBinaryCypressPath>;
