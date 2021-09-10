@@ -317,12 +317,22 @@ class TDataFlowGraph::TImpl
     : public TRefCounted
 {
 public:
-    TImpl() = default;
-
-    TImpl(TNodeDirectoryPtr nodeDirectory)
-        : NodeDirectory_(std::move(nodeDirectory))
+    void Initialize()
     {
-        Initialize();
+        using TVertexMapService = TCollectionBoundMapService<TVertexMap>;
+
+        auto vertexMapService = New<TVertexMapService>(std::weak_ptr<TVertexMap>(Vertices_));
+        vertexMapService->SetOpaque(false);
+        auto service = New<TCompositeMapService>()
+            ->AddChild("vertices", std::move(vertexMapService))
+            ->AddChild("topological_ordering", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+                if (auto this_ = weakThis.Lock()) {
+                    BuildYsonFluently(consumer)
+                        .List(this_->GetTopologicalOrdering());
+                }
+            })));
+        service->SetOpaque(false);
+        Service_ = std::move(service);
     }
 
     IYPathServicePtr GetService() const
@@ -459,6 +469,11 @@ public:
             .Item("topological_ordering").List(topologicalOrdering);
     }
 
+    void SetNodeDirectory(TNodeDirectoryPtr nodeDirectory)
+    {
+        NodeDirectory_ = std::move(nodeDirectory);
+    }
+
 private:
     using TVertexMap = THashMap<TVertexDescriptor, TVertexPtr>;
     const std::shared_ptr<TVertexMap> Vertices_ = std::make_shared<TVertexMap>();
@@ -470,24 +485,6 @@ private:
     TNodeDirectoryPtr NodeDirectory_;
 
     NYTree::IYPathServicePtr Service_;
-
-    void Initialize()
-    {
-        using TVertexMapService = TCollectionBoundMapService<TVertexMap>;
-
-        auto vertexMapService = New<TVertexMapService>(std::weak_ptr<TVertexMap>(Vertices_));
-        vertexMapService->SetOpaque(false);
-        auto service = New<TCompositeMapService>()
-            ->AddChild("vertices", std::move(vertexMapService))
-            ->AddChild("topological_ordering", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
-                if (auto this_ = weakThis.Lock()) {
-                    BuildYsonFluently(consumer)
-                        .List(this_->GetTopologicalOrdering());
-                }
-            })));
-        service->SetOpaque(false);
-        Service_ = std::move(service);
-    }
 
     const TVertexPtr& GetOrRegisterVertex(const TVertexDescriptor& descriptor)
     {
@@ -515,11 +512,12 @@ TDataFlowGraph::TDataFlowGraph()
     : Impl_(New<TImpl>())
 { }
 
-TDataFlowGraph::TDataFlowGraph(TNodeDirectoryPtr nodeDirectory)
-    : Impl_(New<TImpl>(std::move(nodeDirectory)))
-{ }
-
 TDataFlowGraph::~TDataFlowGraph() = default;
+
+void TDataFlowGraph::Initialize()
+{
+    Impl_->Initialize();
+}
 
 IYPathServicePtr TDataFlowGraph::GetService() const
 {
@@ -590,6 +588,11 @@ const TProgressCounterPtr& TDataFlowGraph::GetTotalJobCounter() const
 const std::vector<TVertexDescriptor>& TDataFlowGraph::GetTopologicalOrdering() const
 {
     return Impl_->GetTopologicalOrdering();
+}
+
+void TDataFlowGraph::SetNodeDirectory(TNodeDirectoryPtr nodeDirectory)
+{
+    Impl_->SetNodeDirectory(std::move(nodeDirectory));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
