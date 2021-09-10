@@ -478,7 +478,7 @@ protected:
     int UnavailableIntermediateChunkCount = 0;
 
     // Maps node ids to descriptors for job input chunks.
-    NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory_;
+    NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
 
     NApi::ITransactionPtr AsyncTransaction;
     NApi::ITransactionPtr InputTransaction;
@@ -529,7 +529,7 @@ protected:
     //! Whether auto-merge is enabled for particular output table.
     std::vector<bool> AutoMergeEnabled_;
 
-    TDataFlowGraphPtr DataFlowGraph_;
+    TDataFlowGraphPtr DataFlowGraph_ = New<TDataFlowGraph>();
 
     NYTree::IMapNodePtr UnrecognizedSpec_;
 

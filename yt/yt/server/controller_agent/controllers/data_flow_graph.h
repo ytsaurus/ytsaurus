@@ -30,8 +30,9 @@ public:
     static TVertexDescriptor SinkDescriptor;
 
     TDataFlowGraph();
-    TDataFlowGraph(NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
     ~TDataFlowGraph();
+
+    void Initialize();
 
     NYTree::IYPathServicePtr GetService() const;
 
@@ -66,6 +67,8 @@ public:
     const TProgressCounterPtr& GetTotalJobCounter() const;
 
     const std::vector<TVertexDescriptor>& GetTopologicalOrdering() const;
+
+    void SetNodeDirectory(NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
 
 private:
     class TImpl;

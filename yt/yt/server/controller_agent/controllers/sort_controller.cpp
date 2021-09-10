@@ -3683,9 +3683,6 @@ private:
 
     TString GetLoggingProgress() const override
     {
-        if (!GetDataFlowGraph()) {
-            return "Cannot obtain progress: dataflow graph is not initialized.";
-        }
         const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v}, "
@@ -4567,9 +4564,6 @@ private:
 
     TString GetLoggingProgress() const override
     {
-        if (!GetDataFlowGraph()) {
-            return "Cannot obtain progress: dataflow graph is not initialized.";
-        }
         const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v}, "

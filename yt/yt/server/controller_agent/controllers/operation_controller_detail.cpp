@@ -673,8 +673,9 @@ void TOperationControllerBase::InitializeStructures()
         TestingAllocationVector_.resize(*Spec_->TestingOperationOptions->AllocationSize, 'a');
     }
 
-    InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
-    DataFlowGraph_ = New<TDataFlowGraph>(InputNodeDirectory_);
+    DataFlowGraph_->SetNodeDirectory(InputNodeDirectory_);
+    DataFlowGraph_->Initialize();
+
     InitializeOrchid();
 
     // NB: keep it sync with GetNonTrivialInputTransactionIds.
@@ -2066,13 +2067,9 @@ void TOperationControllerBase::FinalizeFeatures()
     ControllerFeatures_.AddSingular("wall_time", (FinishTime_ - StartTime_).MilliSeconds());
     ControllerFeatures_.AddSingular("peak_controller_memory_usage", PeakMemoryUsage_);
 
-    if (DataFlowGraph_) {
-        ControllerFeatures_.AddSingular(
-            "job_count",
-            BuildYsonNodeFluently().Value(DataFlowGraph_->GetTotalJobCounter()));
-    }
-
-
+    ControllerFeatures_.AddSingular(
+        "job_count",
+        BuildYsonNodeFluently().Value(DataFlowGraph_->GetTotalJobCounter()));
 }
 
 void TOperationControllerBase::SafeCommit()
@@ -3948,8 +3945,7 @@ void TOperationControllerBase::AnalyzeInputStatistics()
 void TOperationControllerBase::AnalyzeIntermediateJobsStatistics()
 {
     TError error;
-    const auto& dataFlowGraph = GetDataFlowGraph();
-    if (dataFlowGraph && dataFlowGraph->GetTotalJobCounter()->GetLost() > 0) {
+    if (GetDataFlowGraph()->GetTotalJobCounter()->GetLost() > 0) {
         error = TError(
             "Some intermediate outputs were lost and will be regenerated; "
             "operation will take longer than usual");
@@ -7247,10 +7243,6 @@ bool TOperationControllerBase::IsLocalityEnabled() const
 
 TString TOperationControllerBase::GetLoggingProgress() const
 {
-    if (!DataFlowGraph_) {
-        return "Cannot obtain progress: dataflow graph is not initialized.";
-    }
-
     const auto& jobCounter = DataFlowGraph_->GetTotalJobCounter();
     return Format(
         "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
@@ -8129,15 +8121,12 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
             .Item("duration").Value(ScheduleJobStatistics_->Duration)
             .Item("failed").Value(ScheduleJobStatistics_->Failed)
         .EndMap()
-        .DoIf(static_cast<bool>(DataFlowGraph_), [=] (TFluentMap fluent) {
-            fluent
-                // COMPAT(gritukan): Drop it in favour of "total_job_counter".
-                .Item("jobs").Value(DataFlowGraph_->GetTotalJobCounter())
-                .Item("total_job_counter").Value(DataFlowGraph_->GetTotalJobCounter())
-                .Item("data_flow_graph").BeginMap()
-                    .Do(BIND(&TDataFlowGraph::BuildLegacyYson, DataFlowGraph_))
-                .EndMap();
-        })
+        // COMPAT(gritukan): Drop it in favour of "total_job_counter".
+        .Item("jobs").Value(DataFlowGraph_->GetTotalJobCounter())
+        .Item("total_job_counter").Value(DataFlowGraph_->GetTotalJobCounter())
+        .Item("data_flow_graph").BeginMap()
+            .Do(BIND(&TDataFlowGraph::BuildLegacyYson, DataFlowGraph_))
+        .EndMap()
         // COMPAT(gritukan): Drop it in favour of per-task histograms.
         .DoIf(static_cast<bool>(EstimatedInputDataSizeHistogram_), [=] (TFluentMap fluent) {
             EstimatedInputDataSizeHistogram_->BuildHistogramView();
@@ -8158,17 +8147,14 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
                     .Do(BIND(&TTask::BuildTaskYson, task))
                 .EndMap();
         })
-        .DoIf(static_cast<bool>(DataFlowGraph_), [=] (TFluentMap fluent) {
-            fluent.Item("data_flow")
-                .BeginList()
-                    .Do(BIND(&TDataFlowGraph::BuildDataFlowYson, DataFlowGraph_))
-                .EndList();
-        });
+        .Item("data_flow").BeginList()
+            .Do(BIND(&TDataFlowGraph::BuildDataFlowYson, DataFlowGraph_))
+        .EndList();
 }
 
 void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
 {
-    if (IsPrepared() && DataFlowGraph_) {
+    if (IsPrepared()) {
         fluent
             .Item("state").Value(State.load())
             // COMPAT(gritukan): Drop it in favour of "total_job_counter".
@@ -9699,10 +9685,6 @@ int TOperationControllerBase::GetOutputTableCount() const
 
 std::vector<TTaskPtr> TOperationControllerBase::GetTopologicallyOrderedTasks() const
 {
-    if (!DataFlowGraph_) {
-        return {};
-    }
-
     THashMap<TDataFlowGraph::TVertexDescriptor, int> vertexDescriptorToIndex;
     auto topologicalOrdering = DataFlowGraph_->GetTopologicalOrdering();
     for (int index = 0; index < std::ssize(topologicalOrdering); ++index) {
