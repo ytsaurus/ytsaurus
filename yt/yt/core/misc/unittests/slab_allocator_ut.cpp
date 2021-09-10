@@ -26,7 +26,7 @@ TEST(TSlabAllocatorTest, Reallocate)
     void* ptr0 = allocator.Allocate(objSize);
     EXPECT_FALSE(allocator.IsReallocationNeeded());
 
-    int objectsInSegment = TSlabAllocator::SegmentSize / NYTAlloc::GetAllocationSize(objSize + sizeof(void*));
+    int objectsInSegment = TSlabAllocator::SegmentSize / nallocx(objSize + sizeof(void*), 0);
 
     std::vector<void*> ptrs;
     // Fill segment.

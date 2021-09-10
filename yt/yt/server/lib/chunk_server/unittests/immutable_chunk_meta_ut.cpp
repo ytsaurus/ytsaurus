@@ -105,7 +105,7 @@ TEST(TImmutableChunkMetaTest, TotalByteSize)
 
     auto payloadSize = sizeof(TImmutableChunkMeta) + meta->GetExtensionsByteSize();
 
-    EXPECT_EQ(NYTAlloc::GetAllocationSize(payloadSize), static_cast<size_t>(meta->GetTotalByteSize()));
+    EXPECT_GE(static_cast<size_t>(meta->GetTotalByteSize()), payloadSize);
 }
 
 #endif
