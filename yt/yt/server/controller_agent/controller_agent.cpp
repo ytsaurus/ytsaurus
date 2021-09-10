@@ -232,6 +232,7 @@ public:
         , Bootstrap_(bootstrap)
         , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
         , JobSpecBuildPool_(New<TThreadPool>(Config_->JobSpecBuildThreadCount, "JobSpec"))
+        , ExecNodesUpdateQueue_(New<TActionQueue>("ExecNodes"))
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
         , ChunkLocationThrottlerManager_(New<TThrottlerManager>(
             Config_->ChunkLocationThrottler,
@@ -356,6 +357,13 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return JobSpecBuildPool_->GetInvoker();
+    }
+
+    const IInvokerPtr& GetExecNodesUpdateInvoker()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return ExecNodesUpdateQueue_->GetInvoker();
     }
 
     TMemoryTagQueue* GetMemoryTagQueue()
@@ -907,6 +915,13 @@ public:
         return onlineOnly ? result.Online : result.All;
     }
 
+    TJobResources GetMaxAvailableResources(const TSchedulingTagFilter& filter)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return CachedExecNodeDescriptorsByTags_->Get(filter).MaxAvailableResources;
+    }
+
     int GetOnlineExecNodeCount() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -997,6 +1012,7 @@ private:
 
     const TThreadPoolPtr ControllerThreadPool_;
     const TThreadPoolPtr JobSpecBuildPool_;
+    const TActionQueuePtr ExecNodesUpdateQueue_;
     const TActionQueuePtr SnapshotIOQueue_;
     const TThrottlerManagerPtr ChunkLocationThrottlerManager_;
     const IReconfigurableThroughputThrottlerPtr ReconfigurableJobSpecSliceThrottler_;
@@ -1024,6 +1040,8 @@ private:
     {
         TRefCountedExecNodeDescriptorMapPtr All;
         TRefCountedExecNodeDescriptorMapPtr Online;
+
+        TJobResources MaxAvailableResources;
     };
 
     const TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TFilteredExecNodeDescriptors>> CachedExecNodeDescriptorsByTags_;
@@ -1790,19 +1808,25 @@ private:
         result.All = New<TRefCountedExecNodeDescriptorMap>();
         result.Online = New<TRefCountedExecNodeDescriptorMap>();
 
+        TJobResources maxAvailableResources;
         for (const auto& [nodeId, descriptor] : *CachedExecNodeDescriptors_) {
             if (filter.CanSchedule(descriptor.Tags)) {
                 YT_VERIFY(result.All->emplace(nodeId, descriptor).second);
                 if (descriptor.Online) {
                     YT_VERIFY(result.Online->emplace(nodeId, descriptor).second);
                 }
+                maxAvailableResources = Max(maxAvailableResources, descriptor.ResourceLimits);
             }
         }
 
-        YT_LOG_DEBUG("Exec nodes filtered (Formula: %v, MatchingNodeCount: %v, MatchingOnlineNodeCount)",
+        result.MaxAvailableResources = maxAvailableResources;
+
+        YT_LOG_DEBUG("Exec nodes filtered "
+            "(Formula: %v, MatchingNodeCount: %v, MatchingOnlineNodeCount: %v, MaxAvailableResources: %v)",
             filter.GetBooleanFormula().GetFormula(),
             result.All->size(),
-            result.Online->size());
+            result.Online->size(),
+            result.MaxAvailableResources);
 
         return result;
     }
@@ -1977,6 +2001,11 @@ const IInvokerPtr& TControllerAgent::GetControllerThreadPoolInvoker()
 const IInvokerPtr& TControllerAgent::GetJobSpecBuildPoolInvoker()
 {
     return Impl_->GetJobSpecBuildPoolInvoker();
+}
+
+const IInvokerPtr& TControllerAgent::GetExecNodesUpdateInvoker()
+{
+    return Impl_->GetExecNodesUpdateInvoker();
 }
 
 const IInvokerPtr& TControllerAgent::GetSnapshotIOInvoker()
@@ -2159,6 +2188,11 @@ int TControllerAgent::GetOnlineExecNodeCount() const
 TRefCountedExecNodeDescriptorMapPtr TControllerAgent::GetExecNodeDescriptors(const TSchedulingTagFilter& filter, bool onlineOnly) const
 {
     return Impl_->GetExecNodeDescriptors(filter, onlineOnly);
+}
+
+TJobResources TControllerAgent::GetMaxAvailableResources(const TSchedulingTagFilter& filter) const
+{
+    return Impl_->GetMaxAvailableResources(filter);
 }
 
 const IThroughputThrottlerPtr& TControllerAgent::GetJobSpecSliceThrottler() const

@@ -587,7 +587,6 @@ protected:
     void FlushOperationNode(bool checkFlushResult);
 
     void CheckMinNeededResourcesSanity();
-    void UpdateCachedMaxAvailableExecNodeResources();
 
     void DoScheduleJob(
         ISchedulingContext* context,
@@ -930,6 +929,8 @@ protected:
     const TExecNodeDescriptorMap& GetExecNodeDescriptors();
     const TExecNodeDescriptorMap& GetOnlineExecNodeDescriptors();
 
+    void UpdateExecNodes();
+
     void InferSchemaFromInput(const NTableClient::TSortColumns& sortColumns = NTableClient::TSortColumns());
     void InferSchemaFromInputOrdered();
     void FilterOutputSchemaByInputColumnSelectors();
@@ -1091,20 +1092,18 @@ private:
     //! Periodically checks min needed resources of tasks for sanity.
     NConcurrency::TPeriodicExecutorPtr MinNeededResourcesSanityCheckExecutor;
 
-    //! Periodically updates cached max available exec node resources.
-    NConcurrency::TPeriodicExecutorPtr MaxAvailableExecNodeResourcesUpdateExecutor;
-
     //! Periodically checks operation controller memory usage.
     //! If memory usage exceeds the limit, operation fails.
     NConcurrency::TPeriodicExecutorPtr PeakMemoryUsageUpdateExecutor;
 
-    //! Exec node count do not consider scheduling tag.
+    //! Periodically updates various info about exec nodes.
+    NConcurrency::TPeriodicExecutorPtr ExecNodesUpdateExecutor;
+
+    //! Exec node count do not consider schedufling tag.
     //! But descriptors do.
     int OnlineExecNodeCount_ = 0;
     TRefCountedExecNodeDescriptorMapPtr ExecNodesDescriptors_ = New<NScheduler::TRefCountedExecNodeDescriptorMap>();
     TRefCountedExecNodeDescriptorMapPtr OnlineExecNodesDescriptors_ = New<NScheduler::TRefCountedExecNodeDescriptorMap>();
-
-    NProfiling::TCpuInstant GetExecNodesInformationDeadline_ = 0;
 
     std::optional<TJobResources> CachedMaxAvailableExecNodeResources_;
 
@@ -1233,7 +1232,6 @@ private:
 
     virtual void OnExecNodesUpdated();
 
-    void GetExecNodesInformation();
     int GetOnlineExecNodeCount();
 
     void UpdateJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary);

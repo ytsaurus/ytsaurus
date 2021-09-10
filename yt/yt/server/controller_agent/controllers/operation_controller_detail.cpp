@@ -281,14 +281,14 @@ TOperationControllerBase::TOperationControllerBase(
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         BIND(&TThis::CheckMinNeededResourcesSanity, MakeWeak(this)),
         Config->ResourceDemandSanityCheckPeriod))
-    , MaxAvailableExecNodeResourcesUpdateExecutor(New<TPeriodicExecutor>(
-        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
-        BIND(&TThis::UpdateCachedMaxAvailableExecNodeResources, MakeWeak(this)),
-        Config->MaxAvailableExecNodeResourcesUpdatePeriod))
     , PeakMemoryUsageUpdateExecutor(New<TPeriodicExecutor>(
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         BIND(&TThis::UpdatePeakMemoryUsage, MakeWeak(this)),
         Config->MemoryWatchdog->MemoryUsageCheckPeriod))
+    , ExecNodesUpdateExecutor(New<TPeriodicExecutor>(
+        Host->GetExecNodesUpdateInvoker(),
+        BIND(&TThis::UpdateExecNodes, MakeWeak(this)),
+        Config->ControllerExecNodeInfoUpdatePeriod))
     , EventLogConsumer_(Host->GetEventLogWriter()->CreateConsumer())
     , LogProgressBackoff(DurationToCpuDuration(Config->OperationLogProgressBackoff))
     , ProgressBuildExecutor_(New<TPeriodicExecutor>(
@@ -1089,7 +1089,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         SuspiciousJobsYsonUpdater_->Start();
         AnalyzeOperationProgressExecutor->Start();
         MinNeededResourcesSanityCheckExecutor->Start();
-        MaxAvailableExecNodeResourcesUpdateExecutor->Start();
+        ExecNodesUpdateExecutor->Start();
         CheckTentativeTreeEligibilityExecutor_->Start();
 
         if (auto maybeDelay = Spec_->TestingOperationOptions->DelayInsideMaterialize) {
@@ -1206,7 +1206,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     SuspiciousJobsYsonUpdater_->Start();
     AnalyzeOperationProgressExecutor->Start();
     MinNeededResourcesSanityCheckExecutor->Start();
-    MaxAvailableExecNodeResourcesUpdateExecutor->Start();
+    ExecNodesUpdateExecutor->Start();
     CheckTentativeTreeEligibilityExecutor_->Start();
 
     for (const auto& [jobId, joblet] : JobletMap) {
@@ -4246,20 +4246,6 @@ void TOperationControllerBase::AnalyzeOperationProgress()
     AnalyzeScheduleJobStatistics();
     AnalyzeControllerQueues();
     AnalyzeInvalidatedJobs();
-}
-
-void TOperationControllerBase::UpdateCachedMaxAvailableExecNodeResources()
-{
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
-
-    const auto& nodeDescriptors = GetExecNodeDescriptors();
-
-    TJobResources maxAvailableResources;
-    for (const auto& [nodeId, descriptor] : nodeDescriptors) {
-        maxAvailableResources = Max(maxAvailableResources, descriptor.ResourceLimits);
-    }
-
-    CachedMaxAvailableExecNodeResources_ = maxAvailableResources;
 }
 
 void TOperationControllerBase::CheckMinNeededResourcesSanity()
@@ -8935,39 +8921,61 @@ void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const
 void TOperationControllerBase::OnExecNodesUpdated()
 { }
 
-void TOperationControllerBase::GetExecNodesInformation()
-{
-    auto now = NProfiling::GetCpuInstant();
-    if (now < GetExecNodesInformationDeadline_) {
-        return;
-    }
-
-    OnlineExecNodeCount_ = Host->GetOnlineExecNodeCount();
-    ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(NScheduler::TSchedulingTagFilter(Spec_->SchedulingTagFilter));
-    OnlineExecNodesDescriptors_ = Host->GetExecNodeDescriptors(NScheduler::TSchedulingTagFilter(Spec_->SchedulingTagFilter), /* onlineOnly */ true);
-
-    GetExecNodesInformationDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ControllerExecNodeInfoUpdatePeriod);
-
-    OnExecNodesUpdated();
-    YT_LOG_DEBUG("Exec nodes information updated (SuitableExecNodeCount: %v, OnlineExecNodeCount: %v)", ExecNodesDescriptors_->size(), OnlineExecNodeCount_);
-}
-
 int TOperationControllerBase::GetOnlineExecNodeCount()
 {
-    GetExecNodesInformation();
     return OnlineExecNodeCount_;
 }
 
 const TExecNodeDescriptorMap& TOperationControllerBase::GetOnlineExecNodeDescriptors()
 {
-    GetExecNodesInformation();
     return *OnlineExecNodesDescriptors_;
 }
 
 const TExecNodeDescriptorMap& TOperationControllerBase::GetExecNodeDescriptors()
 {
-    GetExecNodesInformation();
     return *ExecNodesDescriptors_;
+}
+
+void TOperationControllerBase::UpdateExecNodes()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TSchedulingTagFilter filter(Spec_->SchedulingTagFilter);
+
+    auto onlineExecNodeCount = Host->GetOnlineExecNodeCount();
+    auto execNodeDescriptors = Host->GetExecNodeDescriptors(filter, /*onlineOnly*/ false);
+    auto onlineExecNodeDescriptors = Host->GetExecNodeDescriptors(filter, /*onlineOnly*/ true);
+    auto maxAvailableResources = Host->GetMaxAvailableResources(filter);
+
+    const auto& controllerInvoker = CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default);
+    controllerInvoker->Invoke(
+        BIND([=, this_ = MakeWeak(this)] {
+            auto strongThis = this_.Lock();
+            if (!strongThis) {
+                return;
+            }
+
+            OnlineExecNodeCount_ = onlineExecNodeCount;
+            CachedMaxAvailableExecNodeResources_ = maxAvailableResources;
+
+            auto assign = [this]<class T, class U>(T* variable, U value) {
+                auto oldValue = *variable;
+                *variable = std::move(value);
+
+                // Offload old value destruction to a large thread pool.
+                NRpc::TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(
+                    BIND([value = std::move(oldValue)] { Y_UNUSED(value); }));
+            };
+
+            assign(&ExecNodesDescriptors_, std::move(execNodeDescriptors));
+            assign(&OnlineExecNodesDescriptors_, std::move(onlineExecNodeDescriptors));
+
+            OnExecNodesUpdated();
+
+            YT_LOG_DEBUG("Exec nodes information updated (SuitableExecNodeCount: %v, OnlineExecNodeCount: %v)",
+                ExecNodesDescriptors_->size(),
+                OnlineExecNodeCount_);
+        }));
 }
 
 bool TOperationControllerBase::ShouldSkipSanityCheck()

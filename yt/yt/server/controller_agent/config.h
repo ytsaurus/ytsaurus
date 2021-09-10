@@ -707,9 +707,6 @@ public:
 
     TDuration TaskUpdatePeriod;
 
-    //! Max available exec node resources are updated not more often then this period.
-    TDuration MaxAvailableExecNodeResourcesUpdatePeriod;
-
     TZombieOperationOrchidsConfigPtr ZombieOperationOrchids;
 
     // Maximum number of jobs to save as retained in operation orchid.

@@ -185,6 +185,7 @@ struct IOperationControllerHost
     virtual const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() = 0;
     virtual const IInvokerPtr& GetControllerThreadPoolInvoker() = 0;
     virtual const IInvokerPtr& GetJobSpecBuildPoolInvoker() = 0;
+    virtual const IInvokerPtr& GetExecNodesUpdateInvoker() = 0;
     virtual const IInvokerPtr& GetConnectionInvoker() = 0;
     virtual const NEventLog::IEventLogWriterPtr& GetEventLogWriter() = 0;
     virtual const ICoreDumperPtr& GetCoreDumper() = 0;
@@ -196,6 +197,7 @@ struct IOperationControllerHost
 
     virtual int GetOnlineExecNodeCount() = 0;
     virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter, bool onlineOnly = false) = 0;
+    virtual TJobResources GetMaxAvailableResources(const NScheduler::TSchedulingTagFilter& filter) = 0;
     virtual TInstant GetConnectionTime() = 0;
     virtual NScheduler::TIncarnationId GetIncarnationId() = 0;
 

@@ -67,6 +67,11 @@ public:
     /*!
      *  \note Thread affinity: any
      */
+    const IInvokerPtr& GetExecNodesUpdateInvoker();
+
+    /*!
+     *  \note Thread affinity: any
+     */
     const IInvokerPtr& GetSnapshotIOInvoker();
 
     /*!
@@ -157,6 +162,12 @@ public:
      *  \note Thread affinity: any
      */
     NScheduler::TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter, bool onlineOnly = false) const;
+
+    //! Returns maximum available resources of a node matching a given #filter.
+    /*!
+     *  \note Thread affinity: any
+     */
+    TJobResources GetMaxAvailableResources(const NScheduler::TSchedulingTagFilter& filter) const;
 
     /*!
      *  \note Thread affinity: any

@@ -130,6 +130,7 @@ public:
     virtual const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() override;
     virtual const IInvokerPtr& GetControllerThreadPoolInvoker() override;
     virtual const IInvokerPtr& GetJobSpecBuildPoolInvoker() override;
+    virtual const IInvokerPtr& GetExecNodesUpdateInvoker() override;
     virtual const IInvokerPtr& GetConnectionInvoker() override;
     virtual const NEventLog::IEventLogWriterPtr& GetEventLogWriter() override;
     virtual const ICoreDumperPtr& GetCoreDumper() override;
@@ -141,6 +142,7 @@ public:
 
     virtual int GetOnlineExecNodeCount() override;
     virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter, bool onlineOnly = false) override;
+    virtual TJobResources GetMaxAvailableResources(const NScheduler::TSchedulingTagFilter& filter) override;
 
     virtual TInstant GetConnectionTime() override;
     virtual TIncarnationId GetIncarnationId() override;
@@ -154,7 +156,7 @@ public:
     virtual void ValidateOperationAccess(
         const TString& user,
         NYTree::EPermission permission) override;
-    
+
     virtual TFuture<void> UpdateAccountResourceUsageLease(
         NSecurityClient::TAccountResourceUsageLeaseId leaseId,
         const NScheduler::TDiskQuota& diskQuota) override;
