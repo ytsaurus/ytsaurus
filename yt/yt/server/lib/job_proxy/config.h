@@ -294,7 +294,7 @@ public:
 
         RegisterParameter("do_not_set_user_id", DoNotSetUserId)
             .Default(false);
-        
+
         RegisterPreprocessor([&] {
             SolomonExporter->EnableSelfProfiling = false;
             SolomonExporter->WindowSize = 1;
@@ -311,10 +311,13 @@ class TJobTestingOptions
 {
 public:
     bool FailBeforeJobStart;
+    bool ThrowInShallowMerge;
 
     TJobTestingOptions()
     {
         RegisterParameter("fail_before_job_start", FailBeforeJobStart)
+            .Default(false);
+        RegisterParameter("throw_in_shallow_merge", ThrowInShallowMerge)
             .Default(false);
     }
 };

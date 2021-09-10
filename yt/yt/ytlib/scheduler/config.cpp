@@ -256,6 +256,8 @@ TAutoMergeConfig::TAutoMergeConfig()
         .Default(EAutoMergeMode::Disabled);
     RegisterParameter("enable_shallow_merge", EnableShallowMerge)
         .Default(false);
+    RegisterParameter("allow_unknown_extensions", AllowUnknownExtensions)
+        .Default(false);
 
     RegisterParameter("use_intermediate_data_account", UseIntermediateDataAccount)
         .Default(false);
@@ -1771,7 +1773,7 @@ TPoolIntegralGuaranteesConfig::TPoolIntegralGuaranteesConfig()
 
     RegisterParameter("can_accept_free_volume", CanAcceptFreeVolume)
         .Default(true);
-    
+
     RegisterParameter("should_distribute_free_volume_among_children", ShouldDistributeFreeVolumeAmongChildren)
         .Default();
 }
