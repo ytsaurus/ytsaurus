@@ -30,6 +30,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/yt/ytlib/chunk_client/confirming_writer.h>
+#include <yt/yt/ytlib/chunk_client/meta_aggregating_writer.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/yt/ytlib/chunk_client/erasure_repair.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -1139,111 +1140,205 @@ private:
     const TMergeChunksJobSpecExt JobSpecExt_;
     const TCellTag CellTag_;
 
+
+    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
+    TTableSchemaPtr Schema_;
+    NCompression::ECodec CompressionCodec_;
+    NErasure::ECodec ErasureCodec_;
+    std::optional<EOptimizeFor> OptimizeFor_;
+    std::optional<bool> EnableSkynetSharing_;
+    int MaxHeavyColumns_;
+    std::optional<int> MaxBlockCount_;
+
+    struct TChunkInfo
+    {
+        IChunkReaderPtr Reader;
+        TDeferredChunkMetaPtr Meta;
+        TChunkId ChunkId;
+        int BlockCount;
+        TClientChunkReadOptions Options;
+    };
+    std::vector<TChunkInfo> InputChunkInfos_;
+
     void DoRun() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-        nodeDirectory->MergeFrom(JobSpecExt_.node_directory());
+        NodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
+        NodeDirectory_->MergeFrom(JobSpecExt_.node_directory());
 
         const auto& chunkMergerWriterOptions = JobSpecExt_.chunk_merger_writer_options();
-        auto schema = New<TTableSchema>(FromProto<TTableSchema>(chunkMergerWriterOptions.schema()));
-
-        auto outputChunkId = FromProto<TChunkId>(JobSpecExt_.output_chunk_id());
-        int mediumIndex = JobSpecExt_.medium_index();
-        auto sessionId = TSessionId(outputChunkId, mediumIndex);
-        auto compressionCodec = CheckedEnumCast<NCompression::ECodec>(chunkMergerWriterOptions.compression_codec());
-        auto erasureCodec = CheckedEnumCast<NErasure::ECodec>(chunkMergerWriterOptions.erasure_codec());
-        auto targetReplicas = FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas());
-
-        YT_LOG_INFO("Merge job started (ChunkId: %v@%v)", outputChunkId, mediumIndex);
-
-        auto options = New<TMultiChunkWriterOptions>();
-        options->TableSchema = schema;
-        options->CompressionCodec = compressionCodec;
-        options->ErasureCodec = erasureCodec;
-
-        auto confirmingWriter = CreateConfirmingWriter(
-            Config_->MergeWriter,
-            options,
-            CellTag_,
-            NullTransactionId,
-            NullChunkListId,
-            nodeDirectory,
-            Bootstrap_->GetMasterClient(),
-            Bootstrap_->GetBlockCache(),
-            /*trafficMeter*/ nullptr,
-            Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::MergeOut),
-            sessionId,
-            std::move(targetReplicas));
-
-        auto chunkWriterOptions = New<TChunkWriterOptions>();
-        chunkWriterOptions->CompressionCodec = compressionCodec;
+        Schema_ = New<TTableSchema>(FromProto<TTableSchema>(chunkMergerWriterOptions.schema()));
+        CompressionCodec_ = CheckedEnumCast<NCompression::ECodec>(chunkMergerWriterOptions.compression_codec());
+        ErasureCodec_ = CheckedEnumCast<NErasure::ECodec>(chunkMergerWriterOptions.erasure_codec());
         if (chunkMergerWriterOptions.has_optimize_for()) {
-            chunkWriterOptions->OptimizeFor = CheckedEnumCast<EOptimizeFor>(chunkMergerWriterOptions.optimize_for());
+            OptimizeFor_ = CheckedEnumCast<EOptimizeFor>(chunkMergerWriterOptions.optimize_for());
         }
         if (chunkMergerWriterOptions.has_enable_skynet_sharing()) {
-            chunkWriterOptions->EnableSkynetSharing = chunkMergerWriterOptions.enable_skynet_sharing();
+            EnableSkynetSharing_ = chunkMergerWriterOptions.enable_skynet_sharing();
+        }
+        MaxHeavyColumns_ = chunkMergerWriterOptions.max_heavy_columns();
+
+        auto mergeMode = CheckedEnumCast<NChunkClient::EChunkMergerMode>(chunkMergerWriterOptions.merge_mode());
+        YT_LOG_DEBUG("Merge job started (Mode: %v)", mergeMode);
+
+        PrepareInputChunkMetas();
+        switch (mergeMode) {
+            case NChunkClient::EChunkMergerMode::Shallow:
+                MergeShallow();
+                break;
+            case NChunkClient::EChunkMergerMode::Deep:
+                MergeDeep();
+                break;
+            case NChunkClient::EChunkMergerMode::Auto:
+                try {
+                    MergeShallow();
+                } catch (const TErrorException& ex) {
+                    if (ex.Error().GetCode() != NChunkClient::EErrorCode::IncompatibleChunkMetas) {
+                        throw;
+                    }
+                    YT_LOG_DEBUG(ex, "Unable to merge chunks using shallow mode, falling back to deep merge");
+                    MergeDeep();
+                }
+                break;
+            default:
+                THROW_ERROR_EXCEPTION("Cannot merge chunks in %Qlv mode", mergeMode);
+        }
+    }
+
+    void PrepareInputChunkMetas()
+    {
+        for (const auto& chunk : JobSpecExt_.input_chunks()) {
+            auto reader = CreateReader(chunk);
+            auto chunkId = FromProto<TChunkId>(chunk.id());
+
+            TWorkloadDescriptor workloadDescriptor;
+            workloadDescriptor.Category = EWorkloadCategory::SystemMerge;
+            workloadDescriptor.Annotations.push_back(Format("Merge chunk %v", chunkId));
+
+            TClientChunkReadOptions options;
+            options.WorkloadDescriptor = workloadDescriptor;
+
+            auto chunkMeta = GetChunkMeta(reader, options);
+            auto blocksExt = GetProtoExtension<NTableClient::NProto::TBlockMetaExt>(chunkMeta->extensions());
+
+            InputChunkInfos_.push_back({
+                .Reader = std::move(reader),
+                .Meta = std::move(chunkMeta),
+                .ChunkId = chunkId,
+                .BlockCount = blocksExt.blocks_size(),
+                .Options = options
+            });
+        }
+    }
+
+    void MergeShallow()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto confirmingWriter = CreateWriter();
+
+        auto options = New<TMetaAggregatingWriterOptions>();
+        options->TableSchema = Schema_;
+        options->CompressionCodec = CompressionCodec_;
+        options->ErasureCodec = ErasureCodec_;
+        if (EnableSkynetSharing_) {
+            options->EnableSkynetSharing = *EnableSkynetSharing_;
+        }
+        options->MaxHeavyColumns = MaxHeavyColumns_;
+
+        auto writer = CreateMetaAggregatingWriter(
+            confirmingWriter,
+            options);
+        WaitFor(writer->Open())
+            .ThrowOnError();
+
+        int totalBlockCount = 0;
+        for (const auto& chunkInfo : InputChunkInfos_) {
+            writer->AbsorbMeta(chunkInfo.Meta, chunkInfo.ChunkId);
+            totalBlockCount += chunkInfo.BlockCount;
+        }
+
+        if (MaxBlockCount_ && totalBlockCount > *MaxBlockCount_) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::IncompatibleChunkMetas,
+                "Too many blocks for shallow merge")
+                << TErrorAttribute("actual_total_block_count", totalBlockCount)
+                << TErrorAttribute("max_allowed_total_block_count", *MaxBlockCount_);
+        }
+
+        for (const auto& chunkInfo : InputChunkInfos_) {
+            int currentBlockCount = 0;
+            auto inputChunkBlockCount = chunkInfo.BlockCount;
+            while (currentBlockCount < inputChunkBlockCount) {
+                auto asyncResult = chunkInfo.Reader->ReadBlocks(
+                    chunkInfo.Options,
+                    currentBlockCount,
+                    inputChunkBlockCount - currentBlockCount);
+
+                auto readResult = WaitFor(asyncResult);
+                THROW_ERROR_EXCEPTION_IF_FAILED(readResult, "Error reading blocks");
+                auto blocks = readResult.Value();
+                if (!writer->WriteBlocks(blocks)) {
+                    auto writeResult = WaitFor(writer->GetReadyEvent());
+                    THROW_ERROR_EXCEPTION_IF_FAILED(writeResult, "Error writing block");
+                }
+                currentBlockCount += ssize(blocks);
+            }
+        }
+
+        WaitFor(writer->Close())
+            .ThrowOnError();
+    }
+
+    void MergeDeep()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto confirmingWriter = CreateWriter();
+
+        auto chunkWriterOptions = New<TChunkWriterOptions>();
+        chunkWriterOptions->CompressionCodec = CompressionCodec_;
+        if (OptimizeFor_) {
+            chunkWriterOptions->OptimizeFor = *OptimizeFor_;
+        }
+        if (EnableSkynetSharing_) {
+            chunkWriterOptions->EnableSkynetSharing = *EnableSkynetSharing_;
         }
 
         auto writer = CreateSchemalessChunkWriter(
             New<TChunkWriterConfig>(),
             chunkWriterOptions,
-            schema,
+            Schema_,
             confirmingWriter);
 
         auto rowBuffer = New<TRowBuffer>();
         auto writeNameTable = writer->GetNameTable();
 
-        for (const auto& chunk : JobSpecExt_.input_chunks()) {
-            auto inputChunkId = FromProto<TChunkId>(chunk.id());
-            auto inputChunkReplicas = FromProto<TChunkReplicaList>(chunk.source_replicas());
-            YT_LOG_INFO("Reading input chunk (ChunkId: %v)", inputChunkId);
-
-            TChunkSpec chunkSpec;
-            chunkSpec.set_row_count_override(chunk.row_count());
-            chunkSpec.set_erasure_codec(chunk.erasure_codec()),
-            *chunkSpec.mutable_chunk_id() = chunk.id();
-            chunkSpec.mutable_replicas()->CopyFrom(chunk.source_replicas());
-
-            auto erasureReaderConfig = New<TErasureReaderConfig>();
-            erasureReaderConfig->EnableAutoRepair = false;
-            auto remoteReader = CreateRemoteReader(
-                chunkSpec,
-                erasureReaderConfig,
-                New<TRemoteReaderOptions>(),
-                Bootstrap_->GetMasterClient(),
-                nodeDirectory,
-                Bootstrap_->GetLocalDescriptor(),
-                Bootstrap_->GetNodeId(),
-                Bootstrap_->GetBlockCache(),
-                /*chunkMetaCache*/ nullptr,
-                /*trafficMeter*/ nullptr ,
-                /*nodeStatusDirectory*/ nullptr ,
-                Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::MergeIn),
-                /*rpsThrottler*/ GetUnlimitedThrottler());
-
-            auto chunkMeta = GetChunkMeta(remoteReader);
+        for (int i = 0; i < ssize(InputChunkInfos_); ++i) {
             auto chunkState = New<TChunkState>(
                 Bootstrap_->GetBlockCache(),
-                chunkSpec,
+                GetChunkSpec(JobSpecExt_.input_chunks()[i]),
                 nullptr,
                 NullTimestamp,
                 nullptr,
                 nullptr,
                 nullptr,
                 nullptr);
+
+            const auto& chunkInfo = InputChunkInfos_[i];
+
             auto reader = CreateSchemalessRangeChunkReader(
                 std::move(chunkState),
-                New<TColumnarChunkMeta>(*chunkMeta),
+                New<TColumnarChunkMeta>(*chunkInfo.Meta),
                 TChunkReaderConfig::GetDefault(),
                 TChunkReaderOptions::GetDefault(),
-                remoteReader,
+                chunkInfo.Reader,
                 New<TNameTable>(),
-                TClientChunkReadOptions(),
+                chunkInfo.Options,
                 /*keyColumns*/ {},
                 /*omittedInaccessibleColumns*/ {},
-                TColumnFilter(),
+                NTableClient::TColumnFilter(),
                 NChunkClient::TReadRange());
 
             while (auto batch = WaitForRowBatch(reader)) {
@@ -1262,8 +1357,8 @@ private:
                 for (auto row : rows) {
                     auto permutedRow = rowBuffer->CaptureAndPermuteRow(
                         row,
-                        *schema,
-                        schema->GetColumnCount(),
+                        *Schema_,
+                        Schema_->GetColumnCount(),
                         idMapping,
                         nullptr);
                     permutedRows.push_back(permutedRow);
@@ -1277,12 +1372,73 @@ private:
             .ThrowOnError();
     }
 
-    TDeferredChunkMetaPtr GetChunkMeta(IChunkReaderPtr reader)
+    IChunkWriterPtr CreateWriter()
     {
-        auto result = WaitFor(reader->GetMeta(TClientChunkReadOptions()));
-        if (!result.IsOK()) {
-            THROW_ERROR_EXCEPTION_IF_FAILED(result, "Merge job failed");
-        }
+        auto outputChunkId = FromProto<TChunkId>(JobSpecExt_.output_chunk_id());
+        int mediumIndex = JobSpecExt_.medium_index();
+        auto sessionId = TSessionId(outputChunkId, mediumIndex);
+        auto targetReplicas = FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas());
+
+        auto options = New<TMultiChunkWriterOptions>();
+        options->TableSchema = Schema_;
+        options->CompressionCodec = CompressionCodec_;
+        options->ErasureCodec = ErasureCodec_;
+
+        return CreateConfirmingWriter(
+            Config_->MergeWriter,
+            options,
+            CellTag_,
+            NullTransactionId,
+            NullChunkListId,
+            NodeDirectory_,
+            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetBlockCache(),
+            /*trafficMeter*/ nullptr,
+            Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::MergeOut),
+            sessionId,
+            std::move(targetReplicas));
+    }
+
+    TChunkSpec GetChunkSpec(const NChunkClient::NProto::TMergeChunkInfo& chunk)
+    {
+        TChunkSpec chunkSpec;
+        chunkSpec.set_row_count_override(chunk.row_count());
+        chunkSpec.set_erasure_codec(chunk.erasure_codec()),
+        *chunkSpec.mutable_chunk_id() = chunk.id();
+        chunkSpec.mutable_replicas()->CopyFrom(chunk.source_replicas());
+
+        return chunkSpec;
+    }
+
+    IChunkReaderPtr CreateReader(const NChunkClient::NProto::TMergeChunkInfo& chunk)
+    {
+        auto inputChunkId = FromProto<TChunkId>(chunk.id());
+        YT_LOG_INFO("Reading input chunk (ChunkId: %v)", inputChunkId);
+
+        auto erasureReaderConfig = New<TErasureReaderConfig>();
+        erasureReaderConfig->EnableAutoRepair = false;
+
+        return CreateRemoteReader(
+            GetChunkSpec(chunk),
+            erasureReaderConfig,
+            New<TRemoteReaderOptions>(),
+            Bootstrap_->GetMasterClient(),
+            NodeDirectory_,
+            Bootstrap_->GetLocalDescriptor(),
+            Bootstrap_->GetNodeId(),
+            Bootstrap_->GetBlockCache(),
+            /*chunkMetaCache*/ nullptr,
+            /*trafficMeter*/ nullptr,
+            /*nodeStatusDirectory*/ nullptr,
+            Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::MergeIn),
+            /*rpsThrottler*/ GetUnlimitedThrottler());
+    }
+
+    TDeferredChunkMetaPtr GetChunkMeta(IChunkReaderPtr reader, const TClientChunkReadOptions& options)
+    {
+        auto result = WaitFor(reader->GetMeta(options));
+        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Merge job failed");
+
         auto deferredChunkMeta = New<TDeferredChunkMeta>();
         deferredChunkMeta->CopyFrom(*result.Value());
         return deferredChunkMeta;

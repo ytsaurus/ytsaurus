@@ -28,6 +28,7 @@ DEFINE_ENUM(EWorkloadCategory,
     ((SystemArtifactCacheDownload) (9))
     ((SystemRepair)                (2))
     ((SystemReplication)           (1))
+    ((SystemMerge)                (16))
     ((SystemTabletCompaction)      (6))
     ((SystemTabletLogging)         (5))
     ((SystemTabletPartitioning)    (7))

@@ -593,7 +593,7 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SecurityTags)
         .SetWritable(true)
         .SetReplicated(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableChunkMerger)
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkMergerMode)
         .SetWritable(true)
         .SetWritePermission(EPermission::Administer)
         .SetExternal(isExternal)
@@ -658,7 +658,7 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
 
         case EInternedAttributeKey::UpdateMode:
             BuildYsonFluently(consumer)
-                .Value(FormatEnum(node->GetUpdateMode()));
+                .Value(node->GetUpdateMode());
             return true;
 
         case EInternedAttributeKey::Media: {
@@ -707,12 +707,12 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
                 .Value(node->GetSecurityTags().Items);
             return true;
 
-        case EInternedAttributeKey::EnableChunkMerger:
+        case EInternedAttributeKey::ChunkMergerMode:
             if (isExternal) {
                 break;
             }
             BuildYsonFluently(consumer)
-                .Value(node->GetEnableChunkMerger());
+                .Value(FormatEnum(node->GetChunkMergerMode()));
             return true;
 
         case EInternedAttributeKey::IsBeingMerged: {
@@ -915,9 +915,10 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             return true;
         }
 
-        case EInternedAttributeKey::EnableChunkMerger: {
-            auto enable = ConvertTo<bool>(value);
-            SetEnableChunkMerger(enable);
+        case EInternedAttributeKey::ChunkMergerMode: {
+            ValidateNoTransaction();
+
+            SetChunkMergerMode(ConvertTo<EChunkMergerMode>(value));
             return true;
         }
 
@@ -1045,17 +1046,17 @@ void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
 void TChunkOwnerNodeProxy::ValidateReadLimit(const NChunkClient::NProto::TReadLimit& /* readLimit */) const
 { }
 
-void TChunkOwnerNodeProxy::SetEnableChunkMerger(bool enable)
+void TChunkOwnerNodeProxy::SetChunkMergerMode(EChunkMergerMode mode)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YT_VERIFY(node->IsTrunk());
 
-    if (!node->IsExternal() && enable) {
+    node->SetChunkMergerMode(mode);
+
+    if (!node->IsExternal() && mode != EChunkMergerMode::None) {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         chunkManager->ScheduleChunkMerge(node);
     }
-
-    node->SetEnableChunkMerger(enable);
 }
 
 TComparator TChunkOwnerNodeProxy::GetComparator() const

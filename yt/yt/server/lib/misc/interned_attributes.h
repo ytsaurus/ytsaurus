@@ -62,6 +62,7 @@
     XX(ChunkId, chunk_id) \
     XX(ChunkIds, chunk_ids) \
     XX(ChunkListId, chunk_list_id) \
+    XX(ChunkMergerMode, chunk_merger_mode) \
     XX(ChunkReader, chunk_reader) \
     XX(ChunkReplicaCount, chunk_replica_count) \
     XX(ChunkReplicatorEnabled, chunk_replicator_enabled) \
@@ -119,7 +120,6 @@
     XX(EnableTabletBalancer, enable_tablet_balancer) \
     XX(EnableDynamicStoreRead, enable_dynamic_store_read) \
     XX(EnableReplicatedTableTracker, enable_replicated_table_tracker) \
-    XX(EnableChunkMerger, enable_chunk_merger) \
     XX(EnableSkynetSharing, enable_skynet_sharing) \
     XX(EndorsementRequired, endorsement_required) \
     XX(EntranceCellTag, entrance_cell_tag) \

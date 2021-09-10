@@ -494,44 +494,55 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
 
 void TCompositeNodeBase::TAttributes::Persist(const NCellMaster::TPersistenceContext& context)
 {
-#define PERSIST(camelCaseName, snakeCaseName) \
-    Persist(context, camelCaseName);
-
-#define LOAD_AS_OPTIONAL(camelCaseName, snakeCaseName) \
-    { \
-        YT_VERIFY(context.IsLoad()); \
-        std::optional<decltype(camelCaseName)::TValue> optionalAttribute; \
-        if (TString(#snakeCaseName) == "tablet_cell_bundle") { \
-            decltype(camelCaseName)::TValue bundle = {}; \
-            Persist(context, bundle); \
-            optionalAttribute = bundle; \
-        } else { \
-            Persist(context, optionalAttribute); \
-        } \
-        if (optionalAttribute) { \
-            camelCaseName.SetOrReset(std::move(*optionalAttribute)); \
-        } else { \
-            camelCaseName.Reset(); \
-        } \
-    }
+    auto reign = context.GetVersion();
+    #define PERSIST(camelCaseName, snakeCaseName) \
+        { \
+            if (reign < EMasterReign::CorrectMergeBranchSemanticsForAttributes) { \
+                YT_VERIFY(context.IsLoad()); \
+                std::optional<decltype(camelCaseName)::TValue> optionalAttribute; \
+                if (TString(#snakeCaseName) == "tablet_cell_bundle") { \
+                    decltype(camelCaseName)::TValue bundle = {}; \
+                    Persist(context, bundle); \
+                    optionalAttribute = bundle; \
+                } else { \
+                    Persist(context, optionalAttribute); \
+                } \
+                if (optionalAttribute) { \
+                    camelCaseName.SetOrReset(std::move(*optionalAttribute)); \
+                } else { \
+                    camelCaseName.Reset(); \
+                } \
+            } else { \
+                Persist(context, camelCaseName); \
+            } \
+        }
 
     using NYT::Persist;
 
-    // COMPAT(shakurov)
-    if (auto reign = context.GetVersion(); reign < EMasterReign::CorrectMergeBranchSemanticsForAttributes) {
-        // COMPAT(akozhikhov)
-        if (reign >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_3) {
-            FOR_EACH_INHERITABLE_ATTRIBUTE(LOAD_AS_OPTIONAL);
-        } else {
-            FOR_EACH_INHERITABLE_ATTRIBUTE_BEFORE_1403(LOAD_AS_OPTIONAL);
-        }
-    } else {
-        if (reign >= EMasterReign::InheritEnableChunkMerger) {
-            FOR_EACH_INHERITABLE_ATTRIBUTE(PERSIST);
-        } else {
-            FOR_EACH_INHERITABLE_ATTRIBUTE_BEFORE_1613(PERSIST);
+    PERSIST(CompressionCodec, compression_codec);
+    PERSIST(ErasureCodec, erasure_codec);
+    PERSIST(ReplicationFactor, replication_factor);
+    PERSIST(Vital, vital);
+    PERSIST(Atomicity, atomicity);
+    PERSIST(CommitOrdering, commit_ordering);
+    PERSIST(InMemoryMode, in_memory_mode);
+    PERSIST(OptimizeFor, optimize_for);
+
+    if (reign >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_3) {
+        PERSIST(ProfilingMode, profiling_mode);
+        PERSIST(ProfilingTag, profiling_tag);
+    }
+    if (reign >= EMasterReign::InheritEnableChunkMerger && reign < EMasterReign::ChunkMergeModes) {
+        if (context.IsLoad()) {
+            ChunkMergerMode.Set(NChunkClient::EChunkMergerMode::Deep);
         }
     }
+    if (reign >= EMasterReign::ChunkMergeModes) {
+        Persist(context, ChunkMergerMode);
+    }
+    PERSIST(PrimaryMediumIndex, primary_medium);
+    PERSIST(Media, media);
+    PERSIST(TabletCellBundle, tablet_cell_bundle)
 
 #undef LOAD_AS_OPTIONAL
 #undef PERSIST

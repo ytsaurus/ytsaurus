@@ -43,6 +43,7 @@ using namespace NJournalServer;
 using namespace NCypressServer;
 using namespace NSecurityServer;
 using namespace NObjectServer;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,7 +125,7 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
     auto nodeHolder = TBase::DoCreate(id, context);
     auto* node = nodeHolder.get();
 
-    auto enableChunkMerger = combinedAttributes->GetAndRemove<bool>("enable_chunk_merger", false);
+    auto chunkMergerMode = combinedAttributes->GetAndRemove<EChunkMergerMode>("chunk_merger_mode", EChunkMergerMode::None);
 
     try {
         node->SetPrimaryMediumIndex(primaryMedium->GetIndex());
@@ -134,7 +135,7 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
         node->SetCompressionCodec(compressionCodec);
         node->SetErasureCodec(erasureCodec);
 
-        node->SetEnableChunkMerger(enableChunkMerger);
+        node->SetChunkMergerMode(chunkMergerMode);
 
         if (securityTags) {
             const auto& securityManager = this->Bootstrap_->GetSecurityManager();
@@ -433,7 +434,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         // Rebalance when the topmost transaction commits.
         chunkManager->RebalanceChunkTree(newOriginatingChunkList);
 
-        if (originatingNode->GetEnableChunkMerger()) {
+        if (originatingNode->GetChunkMergerMode() != EChunkMergerMode::None) {
             chunkManager->ScheduleChunkMerge(originatingNode);
         }
     }
