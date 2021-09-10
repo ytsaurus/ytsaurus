@@ -4,8 +4,6 @@
 #include "chunk_tree.h"
 #include "chunk.h"
 
-#include <stack>
-
 namespace NYT::NChunkServer {
 
 using namespace NObjectClient;
@@ -20,151 +18,96 @@ TChunkReplacer::TChunkReplacer(
     , Logger(std::move(logger))
 { }
 
-bool TChunkReplacer::Replace(
-    TChunkList* oldChunkList,
-    TChunkList* newChunkList,
-    TChunk* newChunk,
-    const std::vector<TChunkId>& oldChunkIds)
+bool TChunkReplacer::FindChunkList(
+    TChunkList* rootChunkList,
+    TChunkListId desiredChunkListId)
 {
-    std::stack<TTraversalStateEntry> stack;
-    stack.push({oldChunkList, 0});
+    // TODO(aleksandra-zh): optimize.
+    NewRootChunkList_ = ChunkReplacerCallbacks_->CreateChunkList(EChunkListKind::Static);
+    Stack_.push({rootChunkList, 0});
 
-    auto oldChunkIndex = 0;
-
-    enum class EProcessChunkResult
-    {
-        Advance,
-        Skip,
-        Unknown
-    };
-
-    auto processChunk = [&] (TChunk* chunk) {
-        if (oldChunkIndex < std::ssize(oldChunkIds) && oldChunkIds[oldChunkIndex] == chunk->GetId()) {
-            ++oldChunkIndex;
-            return EProcessChunkResult::Advance;
-        }
-
-        if (oldChunkIndex == std::ssize(oldChunkIds) || oldChunkIndex == 0) {
-            return EProcessChunkResult::Skip;
-        }
-
-        return EProcessChunkResult::Unknown;
-    };
-
-    auto isDynamicTableChunkTree = [&] (TChunkTree* chunkTree) {
-        if (chunkTree->GetType() == EObjectType::ChunkView ||
-            chunkTree->GetType() == EObjectType::SortedDynamicTabletStore ||
-            chunkTree->GetType() == EObjectType::OrderedDynamicTabletStore)
-        {
-            YT_LOG_ALERT_IF(ChunkReplacerCallbacks_->IsMutationLoggingEnabled(), "Unexpected chunk tree type (Type: %v, Id: %v)",
-                chunkTree->GetType(),
-                chunkTree->GetId());
-            YT_VERIFY(oldChunkIndex == std::ssize(oldChunkIds) || oldChunkIndex == 0);
-            return true;
-        }
-        return false;
-    };
-
-    while (!stack.empty()) {
-        auto& entry = stack.top();
+    while (!Stack_.empty()) {
+        auto& entry = Stack_.top();
         auto* chunkTree = entry.ChunkTree;
 
-        if (chunkTree->GetType() == EObjectType::ChunkList) {
-            auto* chunkList = chunkTree->AsChunkList();
+        if (chunkTree->GetType() != EObjectType::ChunkList) {
+            return false;
+        }
 
-            // Chunks are already replaced, just skip.
-            if (oldChunkIndex == std::ssize(oldChunkIds) && entry.Index == 0) {
-                ChunkReplacerCallbacks_->AttachToChunkList(newChunkList, chunkList);
-                stack.pop();
+        auto* chunkList = chunkTree->AsChunkList();
+        if (chunkList->Statistics().Rank > 1) {
+            if (entry.Index < std::ssize(chunkList->Children())) {
+                Stack_.push({chunkList->Children()[entry.Index], 0});
+                ++entry.Index;
                 continue;
             }
-
-            if (chunkList->Statistics().Rank > 1) {
-                if (entry.Index < static_cast<int>(chunkList->Children().size())) {
-                    stack.push({chunkList->Children()[entry.Index], 0});
-                    ++entry.Index;
-                    continue;
-                }
-            } else {
-                YT_VERIFY(entry.Index == 0 && oldChunkIndex < std::ssize(oldChunkIds));
-
-                auto firstChunkToReplace = -1;
-                auto lastChunkToReplace = -1;
-                for (auto i = 0; i < static_cast<int>(chunkList->Children().size()); ++i) {
-                    const auto& child = chunkList->Children()[i];
-                    if (isDynamicTableChunkTree(child)) {
-                        return false;
-                    }
-
-                    YT_VERIFY(IsBlobChunkType(child->GetType()));
-                    auto childChunk = child->AsChunk();
-
-                    auto result = processChunk(childChunk);
-                    if (result == EProcessChunkResult::Advance) {
-                        if (firstChunkToReplace == -1) {
-                            firstChunkToReplace = i;
-                        }
-                        lastChunkToReplace = i;
-                    } else if (result == EProcessChunkResult::Unknown) {
-                        YT_LOG_WARNING_IF(ChunkReplacerCallbacks_->IsMutationLoggingEnabled(), "Could not replace chunks: unexpected chunk (ChunkId: %v, ChunkListId: %v, Index: %v)",
-                            childChunk->GetId(),
-                            oldChunkList->GetId(),
-                            oldChunkIndex);
-                        return false;
-                    }
-                }
-
-                if (firstChunkToReplace == -1) {
-                    // There were no chunks to replace in this chunk list.
-                    ChunkReplacerCallbacks_->AttachToChunkList(newChunkList, chunkList);
-                } else {
-                    // ...[
-                    ChunkReplacerCallbacks_->AttachToChunkList(
-                        newChunkList,
-                        chunkList->Children().begin(),
-                        chunkList->Children().begin() + firstChunkToReplace);
-
-                    // ...[...]
-                    if (oldChunkIndex == std::ssize(oldChunkIds)) {
-                        ChunkReplacerCallbacks_->AttachToChunkList(newChunkList, newChunk);
-                    }
-                    if (lastChunkToReplace + 1 < static_cast<int>(chunkList->Children().size())) {
-                        // ...[...]...
-                        ChunkReplacerCallbacks_->AttachToChunkList(
-                            newChunkList,
-                            chunkList->Children().begin() + lastChunkToReplace + 1,
-                            chunkList->Children().end());
-                    }
-                }
-            }
-            stack.pop();
         } else {
-            if (isDynamicTableChunkTree(chunkTree)) {
-                return false;
-            }
-
-            YT_VERIFY(IsBlobChunkType(chunkTree->GetType()));
-            auto chunk = chunkTree->AsChunk();
-
-            auto result = processChunk(chunk);
-            if (result == EProcessChunkResult::Advance) {
-                if (oldChunkIndex == std::ssize(oldChunkIds)) {
-                    ChunkReplacerCallbacks_->AttachToChunkList(newChunkList, newChunk);
-                }
-            } else if (result == EProcessChunkResult::Unknown) {
-                YT_LOG_WARNING_IF(ChunkReplacerCallbacks_->IsMutationLoggingEnabled(), "Could not replace chunks: unexpected chunk (ChunkId: %v, ChunkListId: %v, Index: %v)",
-                    chunk->GetId(),
-                    oldChunkList->GetId(),
-                    oldChunkIndex);
-                return false;
+            if (chunkList->GetId() == desiredChunkListId) {
+                PrevParentChunkList_ = chunkList;
+                NewParentChunkList_ = ChunkReplacerCallbacks_->CreateChunkList(EChunkListKind::Static);
+                ChunkReplacerCallbacks_->AttachToChunkList(NewRootChunkList_, NewParentChunkList_);
             } else {
-                ChunkReplacerCallbacks_->AttachToChunkList(newChunkList, chunk);
+                ChunkReplacerCallbacks_->AttachToChunkList(NewRootChunkList_, chunkList);
             }
-            stack.pop();
+        }
+        Stack_.pop();
+    }
+    Initialized_ = PrevParentChunkList_ != nullptr;
+    return Initialized_;
+}
+
+bool TChunkReplacer::ReplaceChunkSequence(
+    TChunk* newChunk,
+    const std::vector<TChunkId>& chunksToReplaceIds)
+{
+    if (!Initialized_) {
+        return false;
+    }
+
+    YT_VERIFY(!chunksToReplaceIds.empty());
+
+    int chunkToReplaceIndex = 0;
+    std::vector<TChunkTree*> chunkStash;
+    auto flush = [&] {
+        for (auto* chunk : chunkStash) {
+            ChunkReplacerCallbacks_->AttachToChunkList(NewParentChunkList_, chunk);
+        }
+    };
+    while (ChunkListIndex_ < std::ssize(PrevParentChunkList_->Children())) {
+        const auto& child = PrevParentChunkList_->Children()[ChunkListIndex_++];
+        if (child->GetId() == chunksToReplaceIds[chunkToReplaceIndex]) {
+            chunkStash.push_back(child);
+            ++chunkToReplaceIndex;
+        } else {
+            if (chunkToReplaceIndex > 0) {
+                flush();
+                ChunkReplacerCallbacks_->AttachToChunkList(NewParentChunkList_, child);
+                return false;
+            }
+            ChunkReplacerCallbacks_->AttachToChunkList(NewParentChunkList_, child);
+        }
+
+        if (chunkToReplaceIndex == std::ssize(chunksToReplaceIds)) {
+            ChunkReplacerCallbacks_->AttachToChunkList(NewParentChunkList_, newChunk);
+            return true;
         }
     }
 
-    return oldChunkIndex == std::ssize(oldChunkIds);
+    flush();
+    return false;
+}
+
+TChunkList* TChunkReplacer::Finish()
+{
+    if (!Initialized_) {
+        return nullptr;
+    }
+
+    // Flush the remaining chunks in PrevParentChunkList_.
+    YT_VERIFY(!ReplaceChunkSequence(nullptr, {NullChunkId}));
+    YT_VERIFY(ChunkListIndex_ == std::ssize(PrevParentChunkList_->Children()));
+
+    return NewRootChunkList_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -191,6 +191,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveTabletCellConfig)                                       (1662))  // savrus
     ((TruncateOverlayedJournals)                                    (1663))  // aleksandra-zh
     ((ChunkMergeModes)                                              (1664))  // aleksandra-zh
+    ((OptimizeChunkReplacer)                                        (1665))  // aleksandra-zh
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1800))  // ignat
 );

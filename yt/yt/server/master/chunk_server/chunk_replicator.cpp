@@ -2000,6 +2000,7 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
 
         bool OnChunk(
             TChunk* chunk,
+            TChunkList* /*parent*/,
             std::optional<i64> /*rowIndex*/,
             std::optional<int> /*tabletIndex*/,
             const NChunkClient::TReadLimit& /*startLimit*/,

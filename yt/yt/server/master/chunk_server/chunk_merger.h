@@ -37,16 +37,18 @@ DEFINE_ENUM(EMergeSessionResult,
 
 struct TChunkMergerSession
 {
-    THashSet<TJobId> Jobs;
+    THashMap<NCypressClient::TObjectId, THashSet<TJobId>> ChunkListIdToRunningJobs;
+    THashMap<NCypressClient::TObjectId, THashSet<TJobId>> ChunkListIdToCompletedJobs;
     EMergeSessionResult Result = EMergeSessionResult::None;
 };
 
 struct TMergeJobInfo
 {
     TJobId JobId;
+    int JobIndex;
 
     NCypressClient::TObjectId NodeId;
-    TChunkListId RootChunkListId;
+    TChunkListId ParentChunkListId;
 
     std::vector<TChunkId> InputChunkIds;
     TChunkId OutputChunkId;
@@ -62,8 +64,9 @@ struct IMergeChunkVisitorHost
     virtual void RegisterJobAwaitingChunkCreation(
         TJobId jobId,
         NChunkClient::EChunkMergerMode mode,
+        int jobIndex,
         NCypressClient::TObjectId nodeId,
-        TChunkListId rootChunkListId,
+        TChunkListId parentChunkListId,
         std::vector<TChunkId> inputChunkIds) = 0;
     virtual void OnTraversalFinished(
         NCypressClient::TObjectId nodeId,
@@ -88,21 +91,21 @@ public:
     void OnProfiling(NProfiling::TSensorBuffer* buffer) const;
 
     // IJobController implementation.
-    virtual void ScheduleJobs(IJobSchedulingContext* context) override;
+    void ScheduleJobs(IJobSchedulingContext* context) override;
 
-    virtual void OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks* callbacks) override;
-    virtual void OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* callbacks) override;
+    void OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks* callbacks) override;
+    void OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* callbacks) override;
 
-    virtual void OnJobCompleted(const TJobPtr& job) override;
-    virtual void OnJobAborted(const TJobPtr& job) override;
-    virtual void OnJobFailed(const TJobPtr& job) override;
+    void OnJobCompleted(const TJobPtr& job) override;
+    void OnJobAborted(const TJobPtr& job) override;
+    void OnJobFailed(const TJobPtr& job) override;
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     NCellMaster::TBootstrap* const Bootstrap_;
 
-    TChunkReplacer ChunkReplacer_;
+    IChunkReplacerCallbacksPtr ChunkReplacerCallbacks_;
 
     NConcurrency::TPeriodicExecutorPtr ScheduleExecutor_;
     NConcurrency::TPeriodicExecutorPtr ChunkCreatorExecutor_;
@@ -149,25 +152,35 @@ private:
     };
     std::queue<TMergeSessionResult> SessionsAwaitingFinalizaton_;
 
-    virtual void OnLeaderActive() override;
-    virtual void OnStopLeading() override;
+    void OnLeaderActive() override;
+    void OnStopLeading() override;
 
     void RegisterSession(TChunkOwnerBase* chunkOwner);
     void RegisterSessionTransient(TChunkOwnerBase* chunkOwner);
-    void FinalizeJob(NCypressClient::TObjectId nodeId, TJobId jobId, EMergeSessionResult result);
+    void FinalizeJob(
+        NCypressClient::TObjectId nodeId,
+        TChunkListId parentChunkListId,
+        TJobId jobId,
+        EMergeSessionResult result);
 
-    virtual void RegisterJobAwaitingChunkCreation(
+    void RegisterJobAwaitingChunkCreation(
         TJobId jobId,
         NChunkClient::EChunkMergerMode mode,
+        int jobIndex,
         NCypressClient::TObjectId nodeId,
-        TChunkListId rootChunkListId,
+        TChunkListId parentChunkListId,
         std::vector<TChunkId> inputChunkIds) override;
-    virtual void OnTraversalFinished(NCypressClient::TObjectId nodeId, EMergeSessionResult result) override;
+    void OnTraversalFinished(NCypressClient::TObjectId nodeId, EMergeSessionResult result) override;
 
     void ScheduleSessionFinalization(NCypressClient::TObjectId nodeId, EMergeSessionResult result);
     void FinalizeSessions();
 
-    virtual void Clear() override;
+    void FinalizeReplacement(
+        NCypressClient::TObjectId nodeId,
+        TChunkListId chunkListId,
+        EMergeSessionResult result);
+
+    void Clear() override;
 
     void ResetTransientState();
 
@@ -187,7 +200,10 @@ private:
         IJobSchedulingContext* context,
         const TMergeJobInfo& jobInfo);
 
-    void ScheduleReplaceChunks(const TMergeJobInfo& jobInfo);
+    void ScheduleReplaceChunks(
+        NCypressClient::TObjectId nodeId,
+        TChunkListId parentChunkListId,
+        const THashSet<TJobId>& jobIds);
 
     void OnJobFinished(const TJobPtr& job);
 

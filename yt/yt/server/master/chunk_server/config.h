@@ -220,6 +220,7 @@ public:
     i64 MaxInputChunkDataWeight;
 
     int MaxBlockCount;
+    i64 MaxJobsPerChunkList;
 
     TDuration SchedulePeriod;
     TDuration CreateChunksPeriod;
@@ -262,6 +263,9 @@ public:
         RegisterParameter("max_block_count", MaxBlockCount)
             .GreaterThan(0)
             .Default(250);
+        RegisterParameter("max_jobs_per_chunk_list", MaxJobsPerChunkList)
+            .GreaterThan(0)
+            .Default(50);
 
         RegisterParameter("schedule_period", SchedulePeriod)
             .Default(TDuration::Seconds(1));
