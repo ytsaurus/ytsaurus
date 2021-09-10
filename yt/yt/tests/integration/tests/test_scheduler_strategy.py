@@ -2456,11 +2456,10 @@ class TestEphemeralPools(YTEnvSetup):
             op.track()
 
     @authors("renadeen")
-    def test_ephemeral_pool_is_created_in_default_user_pool(self):
+    def test_ephemeral_pool_is_created_in_user_default_parent_pool(self):
+        set("//sys/pool_trees/default/@config/use_user_default_parent_pool_map", True)
         create_user("u")
         create_pool("default_for_u")
-
-        set("//sys/pool_trees/default/@config/use_user_default_parent_pool_map", True)
         create("document", "//sys/scheduler/user_to_default_pool", attributes={"value": {"u": "default_for_u"}})
         time.sleep(0.2)
 
@@ -2470,11 +2469,23 @@ class TestEphemeralPools(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_pool_path("u") + "/parent", default="") == "default_for_u")
 
     @authors("renadeen")
-    def test_nonexistent_pools_are_created_in_default_user_pool(self):
+    def test_change_in_user_default_parent_pool_map_changes_parent_of_existing_ephemeral_pool(self):
         create_user("u")
         create_pool("default_for_u")
-
         set("//sys/pool_trees/default/@config/use_user_default_parent_pool_map", True)
+
+        run_sleeping_vanilla(authenticated_user="u")
+        wait(lambda: get(scheduler_orchid_pool_path("u") + "/parent", default="") == "<Root>")
+
+        create("document", "//sys/scheduler/user_to_default_pool", attributes={"value": {"u": "default_for_u"}})
+
+        wait(lambda: get(scheduler_orchid_pool_path("u") + "/parent", default="") == "default_for_u")
+
+    @authors("renadeen")
+    def test_nonexistent_pools_are_created_in_default_user_pool(self):
+        set("//sys/pool_trees/default/@config/use_user_default_parent_pool_map", True)
+        create_user("u")
+        create_pool("default_for_u")
         create("document", "//sys/scheduler/user_to_default_pool", attributes={"value": {"u": "default_for_u"}})
         time.sleep(0.2)
 

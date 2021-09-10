@@ -675,6 +675,8 @@ public:
         }
 
         UserToDefaultPoolMap_ = userToDefaultPoolMap;
+        ActualizeEphemeralPoolParents();
+
         return TError();
     }
 
@@ -2200,6 +2202,35 @@ private:
         YT_LOG_INFO("Using %v as default parent pool", RootPoolName);
 
         return RootElement_;
+    }
+
+    void ActualizeEphemeralPoolParents()
+    {
+        for (const auto& [_, ephemeralPools] : UserToEphemeralPoolsInDefaultPool_) {
+            for (const auto& poolName : ephemeralPools) {
+                auto ephemeralPool = GetOrCrash(Pools_, poolName);
+                const auto& actualParentName = ephemeralPool->GetParent()->GetId();
+                auto it = UserToDefaultPoolMap_.find(poolName);
+                if (it != UserToDefaultPoolMap_.end() && it->second != actualParentName) {
+                    const auto& configuredParentName = it->second;
+                    auto newParent = FindPool(configuredParentName);
+                    if (!newParent) {
+                        YT_LOG_DEBUG(
+                            "Configured parent of ephemeral pool not found; skipping (Pool: %v, ActualParent: %v, ConfiguredParent: %v)",
+                            poolName,
+                            actualParentName,
+                            configuredParentName);
+                    } else {
+                        YT_LOG_DEBUG(
+                            "Actual parent of ephemeral pool differs from configured by default parent pool map; will change parent (Pool: %v, ActualParent: %v, ConfiguredParent: %v)",
+                            poolName,
+                            actualParentName,
+                            configuredParentName);
+                        ephemeralPool->ChangeParent(newParent.Get());
+                    }
+                }
+            }
+        }
     }
 
     TSchedulerCompositeElementPtr GetPoolOrParent(const TPoolName& poolName, const TString& userName) const
