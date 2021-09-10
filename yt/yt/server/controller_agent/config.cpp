@@ -549,9 +549,6 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("check_tentative_tree_eligibility_period", CheckTentativeTreeEligibilityPeriod)
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("max_available_exec_node_resources_update_period", MaxAvailableExecNodeResourcesUpdatePeriod)
-        .Default(TDuration::Seconds(10));
-
     RegisterParameter("zombie_operation_orchids", ZombieOperationOrchids)
         .DefaultNew();
 

@@ -349,6 +349,11 @@ const IInvokerPtr& TOperationControllerHost::GetJobSpecBuildPoolInvoker()
     return Bootstrap_->GetControllerAgent()->GetJobSpecBuildPoolInvoker();
 }
 
+const IInvokerPtr& TOperationControllerHost::GetExecNodesUpdateInvoker()
+{
+    return Bootstrap_->GetControllerAgent()->GetExecNodesUpdateInvoker();
+}
+
 const IInvokerPtr& TOperationControllerHost::GetConnectionInvoker()
 {
     return Bootstrap_->GetConnectionInvoker();
@@ -382,6 +387,11 @@ int TOperationControllerHost::GetOnlineExecNodeCount()
 TRefCountedExecNodeDescriptorMapPtr TOperationControllerHost::GetExecNodeDescriptors(const TSchedulingTagFilter& filter, bool onlineOnly)
 {
     return Bootstrap_->GetControllerAgent()->GetExecNodeDescriptors(filter, onlineOnly);
+}
+
+TJobResources TOperationControllerHost::GetMaxAvailableResources(const TSchedulingTagFilter& filter)
+{
+    return Bootstrap_->GetControllerAgent()->GetMaxAvailableResources(filter);
 }
 
 TInstant TOperationControllerHost::GetConnectionTime()
