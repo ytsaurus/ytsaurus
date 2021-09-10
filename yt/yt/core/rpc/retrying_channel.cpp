@@ -187,7 +187,10 @@ private:
         //! The current attempt number (1-based).
         int CurrentAttempt_ = 1;
         TInstant Deadline_;
-        std::vector<TError> InnerErrors_;
+
+        std::optional<TError> FirstError_;
+        std::optional<TError> LastError_;
+        int OmittedInnerErrorCount_ = 0;
 
         // IClientResponseHandler implementation.
 
@@ -211,7 +214,15 @@ private:
                 return;
             }
 
-            InnerErrors_.push_back(error);
+            if (!FirstError_) {
+                FirstError_ = error;
+            } else {
+                if (LastError_) {
+                    ++OmittedInnerErrorCount_;
+                }
+                LastError_ = error;
+            }
+
             Retry();
         }
 
@@ -247,7 +258,13 @@ private:
         {
             auto detailedError = error
                 << UnderlyingChannel_->GetEndpointAttributes()
-                << InnerErrors_;
+                << TErrorAttribute("omitted_inner_error_count", OmittedInnerErrorCount_);
+            if (FirstError_) {
+                detailedError = detailedError << *FirstError_;
+            }
+            if (LastError_) {
+                detailedError = detailedError << *LastError_;
+            }
             ResponseHandler_->HandleError(detailedError);
         }
 
