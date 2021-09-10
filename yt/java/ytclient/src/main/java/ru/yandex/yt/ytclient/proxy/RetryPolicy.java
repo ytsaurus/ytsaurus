@@ -16,6 +16,7 @@ import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.rpc.RpcError;
 import ru.yandex.yt.ytclient.rpc.RpcErrorCode;
+import ru.yandex.yt.ytclient.rpc.RpcFailoverPolicy;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
 /**
@@ -58,15 +59,22 @@ public abstract class RetryPolicy {
     }
 
     /**
+     * Create retry policy from old RpcFailoverPolicy
+     */
+    public static RetryPolicy fromRpcFailoverPolicy(RpcFailoverPolicy oldPolicy) {
+        return new OldFailoverRetryPolicy(oldPolicy);
+    }
+
+    /**
      * Wrap other retry policy to limit total number of attempts.
      */
     public static RetryPolicy attemptLimited(int attemptLimit, RetryPolicy inner) {
         return new AttemptLimitedRetryPolicy(attemptLimit, inner);
     }
 
-    abstract Optional<Duration> getBackoffDuration(Throwable error, RpcOptions options);
+    public abstract Optional<Duration> getBackoffDuration(Throwable error, RpcOptions options);
 
-    void onNewAttempt() {
+    public void onNewAttempt() {
     }
 
     String getTotalRetryCountDescription() {
@@ -74,6 +82,34 @@ public abstract class RetryPolicy {
     }
 
     @NonNullApi
+    @NonNullFields
+    static class OldFailoverRetryPolicy extends RetryPolicy {
+        private final RpcFailoverPolicy oldPolicy;
+
+        OldFailoverRetryPolicy(RpcFailoverPolicy oldPolicy) {
+            this.oldPolicy = oldPolicy;
+        }
+
+        @Override
+        public Optional<Duration> getBackoffDuration(Throwable error, RpcOptions options) {
+            boolean isRetriable;
+
+            if (error instanceof TimeoutException) {
+                isRetriable = oldPolicy.onTimeout();
+            } else {
+                isRetriable = oldPolicy.onError(error);
+            }
+
+            if (isRetriable) {
+                return Optional.of(Duration.ZERO);
+            } else {
+                return Optional.empty();
+            }
+        }
+    }
+
+    @NonNullApi
+    @NonNullFields
     static class YtErrorRetryPolicy extends RetryPolicy {
         private final Set<Integer> errorCodesToRetry;
         private final BackoffProvider backoffProvider = new BackoffProvider();
@@ -83,7 +119,7 @@ public abstract class RetryPolicy {
         }
 
         @Override
-        Optional<Duration> getBackoffDuration(Throwable error, RpcOptions options) {
+        public Optional<Duration> getBackoffDuration(Throwable error, RpcOptions options) {
             TimeoutException timeoutException = null;
             IOException ioException = null;
             RpcError rpcError = null;
@@ -149,7 +185,7 @@ public abstract class RetryPolicy {
 
     static class NoRetryPolicy extends RetryPolicy {
         @Override
-        Optional<Duration> getBackoffDuration(Throwable error, RpcOptions options) {
+        public Optional<Duration> getBackoffDuration(Throwable error, RpcOptions options) {
             return Optional.empty();
         }
     }

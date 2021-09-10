@@ -408,8 +408,17 @@ public class DefaultRpcBusClient implements RpcClient {
                 BusDeliveryTracking level =
                         options.getDefaultRequestAck() ? BusDeliveryTracking.FULL : BusDeliveryTracking.SENT;
 
+                TRequestHeader builtRequestHeader = requestHeader.build();
+
+                RpcRequestsTestingController rpcRequestsTestingController =
+                        options.getTestingOptions().getRpcRequestsTestingController();
+
+                if (rpcRequestsTestingController != null) {
+                    rpcRequestsTestingController.addRequest(builtRequestHeader, rpcRequest.body);
+                }
+
                 final List<byte[]> message = RpcRequest.serialize(
-                        requestHeader.build(),
+                        builtRequestHeader,
                         rpcRequest.body,
                         rpcRequest.attachments);
                 session.bus.send(message, level).whenComplete((ignored, exception) -> {

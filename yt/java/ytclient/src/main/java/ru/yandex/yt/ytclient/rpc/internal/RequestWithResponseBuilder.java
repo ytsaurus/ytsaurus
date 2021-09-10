@@ -89,15 +89,12 @@ public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder,
         CompletableFuture<RpcClientResponse<ResponseType>> result = new CompletableFuture<>();
         try {
             RpcClientResponseHandler handler = createHandler(result);
-            // NB. we use attemptCount 3 since it corresponds to old default behaviour
-            final int attemptCount = 3;
             RpcClientRequestControl control = FailoverRpcExecutor.execute(
                     executor,
                     clientPool,
                     getRpcRequest(),
                     handler,
-                    getOptions(),
-                    attemptCount);
+                    getOptions());
             result.whenComplete((ignoredResult, ignoredException) -> control.cancel());
         } catch (Throwable e) {
             result.completeExceptionally(e);

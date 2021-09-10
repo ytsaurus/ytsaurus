@@ -10,7 +10,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
@@ -153,13 +152,14 @@ public class YtClient extends CompoundClient {
         this.isBusConnectorOwner = builder.builder.isBusConnectorOwner;
         this.executor = busConnector.executorService();
 
-        Optional<OutageController> outageControllerOptional = builder.builder.options.getOutageController();
+        OutageController outageController =
+                builder.builder.options.getTestingOptions().getOutageController();
 
         final RpcClientFactory rpcClientFactory =
-                outageControllerOptional.isPresent()
+                outageController != null
                         ? new OutageRpcClientFactoryImpl(
                                 busConnector, builder.credentials, builder.builder.compression,
-                                outageControllerOptional.get())
+                                outageController)
                         : new RpcClientFactoryImpl(
                             busConnector,
                             builder.credentials,
@@ -644,7 +644,7 @@ public class YtClient extends CompoundClient {
                         dataCenters, 3,
                         localDataCenter != null,
                         random,
-                        !options.getFailoverPolicy().randomizeDcs());
+                        !options.getRandomizeDcs());
             }
         }
     }

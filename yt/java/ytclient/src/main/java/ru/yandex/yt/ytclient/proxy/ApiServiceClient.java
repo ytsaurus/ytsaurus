@@ -4,7 +4,6 @@ import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
@@ -120,9 +119,9 @@ public class ApiServiceClient extends TransactionalClient {
             @Nonnull RpcOptions options,
             @Nonnull Executor heavyExecutor
     ) {
-        Optional<OutageController> outageControllerOptional = options.getOutageController();
-        if (client != null && outageControllerOptional.isPresent()) {
-            this.rpcClient = new OutageRpcClient(client, outageControllerOptional.get());
+        OutageController outageController = options.getTestingOptions().getOutageController();
+        if (client != null && outageController != null) {
+            this.rpcClient = new OutageRpcClient(client, outageController);
         } else {
             this.rpcClient = client;
         }

@@ -2,6 +2,7 @@ package ru.yandex.yt.ytclient.proxy.request;
 
 import javax.annotation.Nullable;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
@@ -11,7 +12,7 @@ import ru.yandex.lang.NonNullFields;
 public abstract class TableReq<T extends TableReq<T>> extends RequestBase<T> {
     protected @Nullable YPath path;
     protected @Nullable String stringPath;
-    protected @Nullable MutatingOptions mutatingOptions;
+    protected MutatingOptions mutatingOptions = new MutatingOptions().setMutationId(GUID.create());
     protected @Nullable TabletRangeOptions tabletRangeOptions;
 
 
@@ -29,7 +30,7 @@ public abstract class TableReq<T extends TableReq<T>> extends RequestBase<T> {
         this.stringPath = path;
     }
 
-    public T setMutatingOptions(@Nullable MutatingOptions mutatingOptions) {
+    public T setMutatingOptions(MutatingOptions mutatingOptions) {
         this.mutatingOptions = mutatingOptions;
         return self();
     }
@@ -66,11 +67,9 @@ public abstract class TableReq<T extends TableReq<T>> extends RequestBase<T> {
                     tabletRangeOptions.toProto());
         }
 
-        if (mutatingOptions != null) {
-            builder.setField(
-                    builder.getDescriptorForType().findFieldByName("mutating_options"),
-                    mutatingOptions.toProto());
-        }
+        builder.setField(
+                builder.getDescriptorForType().findFieldByName("mutating_options"),
+                mutatingOptions.toProto());
 
         builder.setField(builder.getDescriptorForType().findFieldByName("path"), getPath());
 
