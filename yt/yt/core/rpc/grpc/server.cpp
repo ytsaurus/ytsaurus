@@ -489,35 +489,34 @@ private:
 
             NTracing::NProto::TTracingExt traceContext{};
             if (traceIdString) {
-                TGuid traceId{};
+                TGuid traceId;
                 if (!TGuid::FromString(traceIdString, &traceId)) {
                     return;
                 }
                 ToProto(traceContext.mutable_trace_id(), traceId);
             }
             if (spanIdString) {
-                NTracing::TSpanId spanId{};
+                NTracing::TSpanId spanId;
                 if (!TryFromString(spanIdString, spanId)) {
                     return;
                 }
                 traceContext.set_span_id(spanId);
             }
             if (sampledString) {
-                bool sampled{};
+                bool sampled;
                 if (!TryFromString(sampledString, sampled)) {
                     return;
                 }
                 traceContext.set_sampled(sampled);
             }
             if (debugString) {
-                bool debug{};
+                bool debug;
                 if (!TryFromString(debugString, debug)) {
                     return;
                 }
                 traceContext.set_debug(debug);
             }
             TraceContext_.emplace(traceContext);
-
         }
 
         void ParseRequestId()
