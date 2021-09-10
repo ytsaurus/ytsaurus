@@ -18,6 +18,7 @@ import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.rpc.TestingOptions;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
@@ -29,8 +30,9 @@ public class YtClientCypressTest extends YtClientTestBase {
     @Test
     public void testOutageExistsNode() throws Exception {
         OutageController outageController = new OutageController();
+        TestingOptions testingOptions = new TestingOptions().setOutageController(outageController);
 
-        var ytFixture = createYtFixture(new RpcOptions().setOutageController(outageController));
+        var ytFixture = createYtFixture(new RpcOptions().setTestingOptions(testingOptions));
         var tablePath = ytFixture.testDirectory.child("static-table");
         var yt = ytFixture.yt;
 

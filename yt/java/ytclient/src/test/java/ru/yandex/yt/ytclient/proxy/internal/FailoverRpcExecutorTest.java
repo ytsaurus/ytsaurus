@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import org.junit.After;
 import org.junit.Test;
@@ -21,6 +22,7 @@ import ru.yandex.inside.yt.kosher.impl.common.YtException;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.rpcproxy.TReqGetNode;
+import ru.yandex.yt.ytclient.proxy.RetryPolicy;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientPool;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
@@ -50,7 +52,14 @@ public class FailoverRpcExecutorTest {
     public void testCancel() {
         CompletableFuture<String> result = new CompletableFuture<>();
 
-        RpcClientRequestControl c = execute(responseNever(), defaultOptions(), result, 2, 2);
+        Supplier<RetryPolicy> retryPolicyFactory = () -> RetryPolicy.attemptLimited(
+                2, RetryPolicy.fromRpcFailoverPolicy(new TestFailoverPolicy()));
+
+        RpcClientRequestControl c = execute(
+                responseNever(),
+                defaultOptions().setRetryPolicyFactory(retryPolicyFactory),
+                result,
+                2);
         c.cancel();
         waitFuture(result, 10);
 
@@ -61,7 +70,10 @@ public class FailoverRpcExecutorTest {
     @Test
     public void testSuccess() throws Exception {
         CompletableFuture<String> result = new CompletableFuture<>();
-        execute(responseImmediately(), defaultOptions(), result, 2, 2);
+        Supplier<RetryPolicy> retryPolicyFactory = () -> RetryPolicy.attemptLimited(
+                2, RetryPolicy.fromRpcFailoverPolicy(new TestFailoverPolicy()));
+
+        execute(responseImmediately(), defaultOptions().setRetryPolicyFactory(retryPolicyFactory), result, 2);
 
         waitFuture(result, 1000);
 
@@ -73,11 +85,15 @@ public class FailoverRpcExecutorTest {
     @Test
     public void testGlobalTimeout() {
         CompletableFuture<String> result = new CompletableFuture<>();
+        Supplier<RetryPolicy> retryPolicyFactory = () -> RetryPolicy.attemptLimited(
+                2, RetryPolicy.fromRpcFailoverPolicy(new TestFailoverPolicy()));
+
         RpcOptions options = defaultOptions()
                 .setGlobalTimeout(Duration.ofMillis(100))
-                .setFailoverTimeout(Duration.ofMillis(100));
+                .setFailoverTimeout(Duration.ofMillis(100))
+                .setRetryPolicyFactory(retryPolicyFactory);
 
-        execute(responseNever(), options, result, 2, 2);
+        execute(responseNever(), options, result, 2);
 
         waitFuture(result, 1000);
 
@@ -89,10 +105,13 @@ public class FailoverRpcExecutorTest {
     @Test
     public void testFailover() throws Exception {
         CompletableFuture<String> result = new CompletableFuture<>();
+        Supplier<RetryPolicy> retryPolicyFactory = () -> RetryPolicy.attemptLimited(
+                2, RetryPolicy.fromRpcFailoverPolicy(new TestFailoverPolicy()));
         RpcOptions options = defaultOptions()
                 .setGlobalTimeout(Duration.ofMillis(1000))
-                .setFailoverTimeout(Duration.ofMillis(100));
-        execute(responseOnSecondRequest(), options, result, 2, 2);
+                .setFailoverTimeout(Duration.ofMillis(100))
+                .setRetryPolicyFactory(retryPolicyFactory);
+        execute(responseOnSecondRequest(), options, result, 2);
 
         waitFuture(result, 1000);
 
@@ -105,7 +124,14 @@ public class FailoverRpcExecutorTest {
     public void testNoClientsInPool() {
         CompletableFuture<String> result = new CompletableFuture<>();
 
-        execute(responseNever(), defaultOptions(), result, 0, 2);
+        Supplier<RetryPolicy> retryPolicyFactory = () -> RetryPolicy.attemptLimited(
+                2, RetryPolicy.fromRpcFailoverPolicy(new TestFailoverPolicy()));
+
+        execute(
+                responseNever(),
+                defaultOptions().setRetryPolicyFactory(retryPolicyFactory),
+                result,
+                0);
 
         waitFuture(result, 1000);
 
@@ -118,11 +144,14 @@ public class FailoverRpcExecutorTest {
     public void respondWithDelayPoolExhausted() throws ExecutionException, InterruptedException {
         CompletableFuture<String> result = new CompletableFuture<>();
 
+        Supplier<RetryPolicy> retryPolicyFactory = () -> RetryPolicy.attemptLimited(
+                2, RetryPolicy.fromRpcFailoverPolicy(new TestFailoverPolicy()));
+
         Consumer<RpcClientResponseHandler> respondWithDelay = (handler) -> executorService.schedule(
                 () -> handler.onResponse(null, null, null),
                 100, TimeUnit.MILLISECONDS);
 
-        execute(respondWithDelay, defaultOptions(), result, 1, 2);
+        execute(respondWithDelay, defaultOptions().setRetryPolicyFactory(retryPolicyFactory), result, 1);
 
         waitFuture(result, 1000);
 
@@ -135,13 +164,16 @@ public class FailoverRpcExecutorTest {
     public void errorImmediatelyPoolExhausted() {
         CompletableFuture<String> result = new CompletableFuture<>();
 
+        Supplier<RetryPolicy> retryPolicyFactory = () -> RetryPolicy.attemptLimited(
+                2, RetryPolicy.fromRpcFailoverPolicy(new TestFailoverPolicy()));
+
         AtomicInteger attempts = new AtomicInteger(0);
         Consumer<RpcClientResponseHandler> respondWithError = (handler) -> {
             attempts.incrementAndGet();
             handler.onError(new YtException("retriable error"));
         };
 
-        execute(respondWithError, defaultOptions(), result, 2, 3);
+        execute(respondWithError, defaultOptions().setRetryPolicyFactory(retryPolicyFactory), result, 2);
 
         waitFuture(result, 1000);
 
@@ -155,15 +187,19 @@ public class FailoverRpcExecutorTest {
     public void errorWithDelayPoolExhausted() {
         CompletableFuture<String> result = new CompletableFuture<>();
 
+        Supplier<RetryPolicy> retryPolicyFactory = () -> RetryPolicy.attemptLimited(
+                2, RetryPolicy.fromRpcFailoverPolicy(new TestFailoverPolicy()));
+
         RpcOptions options = defaultOptions()
                 .setGlobalTimeout(Duration.ofMillis(1000))
-                .setFailoverTimeout(Duration.ofMillis(20));
+                .setFailoverTimeout(Duration.ofMillis(20))
+                .setRetryPolicyFactory(retryPolicyFactory);
 
         Consumer<RpcClientResponseHandler> respondWithDelay = (handler) -> executorService.schedule(
                 () -> handler.onError(new YtException("our test error")),
                 100, TimeUnit.MILLISECONDS);
 
-        execute(respondWithDelay, options, result, 1, 2);
+        execute(respondWithDelay, options, result, 1);
 
         waitFuture(result, 1000);
 
@@ -252,8 +288,7 @@ public class FailoverRpcExecutorTest {
             Consumer<RpcClientResponseHandler> handlerConsumer,
             RpcOptions options,
             CompletableFuture<String> result,
-            int clientCount,
-            int attemptCount)
+            int clientCount)
     {
         RpcRequest<?> rpcRequest;
         {
@@ -292,8 +327,7 @@ public class FailoverRpcExecutorTest {
                 RpcClientPool.collectionPool(clients),
                 rpcRequest,
                 handler,
-                options,
-                attemptCount);
+                options);
     }
 
     private static void waitFuture(Future<?> future, long timeoutMillis) {

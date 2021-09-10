@@ -2,13 +2,14 @@ package ru.yandex.yt.ytclient.rpc;
 
 import java.time.Duration;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.ThreadFactory;
+import java.util.function.Supplier;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import ru.yandex.yt.ytclient.proxy.OutageController;
 import ru.yandex.yt.ytclient.proxy.ProxySelector;
+import ru.yandex.yt.ytclient.proxy.RetryPolicy;
 import ru.yandex.yt.ytclient.proxy.internal.DiscoveryMethod;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolder;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolderImpl;
@@ -16,6 +17,7 @@ import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingResponseHandlerMetric
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingResponseHandlerMetricsHolderImpl;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolder;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolderImpl;
+
 
 /**
  * Опции для создания rpc клиентов
@@ -36,10 +38,12 @@ public class RpcOptions {
     // sends fallback request to other proxy after this timeout
     private Duration failoverTimeout = Duration.ofMillis(30000);
     private Duration proxyUpdateTimeout = Duration.ofMillis(60000);
-    private Duration pingTimeout = Duration.ofMillis(5000); // marks proxy as dead/live after this timeout
+    private Duration pingTimeout = Duration.ofMillis(5000);  // marks proxy as dead/live after this timeout
     private Duration channelPoolRebalanceInterval = Duration.ofMinutes(10);
     private Duration rpcClientSelectionTimeout = Duration.ofSeconds(30);
     private int channelPoolSize = 3;
+
+    private TestingOptions testingOptions = new TestingOptions();
 
     private Duration minBackoffTime = Duration.ofSeconds(3);
     private Duration maxBackoffTime = Duration.ofSeconds(30);
@@ -49,7 +53,10 @@ public class RpcOptions {
     private Duration writeTimeout = Duration.ofMillis(60000);
     private int windowSize = 32 * 1024 * 1024;
 
-    private RpcFailoverPolicy failoverPolicy = new DefaultRpcFailoverPolicy();
+    private boolean randomizeDcs = false;
+    @Nonnull private Supplier<RetryPolicy> retryPolicyFactory =
+            () -> RetryPolicy.attemptLimited(3, RetryPolicy.fromRpcFailoverPolicy(new DefaultRpcFailoverPolicy()));
+
     private BalancingResponseHandlerMetricsHolder responseMetricsHolder =
             new BalancingResponseHandlerMetricsHolderImpl();
     private DataCenterMetricsHolder dataCenterMetricsHolder = DataCenterMetricsHolderImpl.INSTANCE;
@@ -58,8 +65,6 @@ public class RpcOptions {
     private boolean traceEnabled = false;
     private boolean traceSampled = false;
     private boolean traceDebug = false;
-
-    private Optional<OutageController> outageController = Optional.empty();
 
     private DiscoveryMethod preferableDiscoveryMethod = DiscoveryMethod.RPC;
 
@@ -119,19 +124,13 @@ public class RpcOptions {
         return this;
     }
 
-    /**
-     * Allows to simulate rpc errors using controller.
-     */
-    public RpcOptions setOutageController(OutageController controller) {
-        this.outageController = Optional.of(Objects.requireNonNull(controller));
-        return this;
+    public TestingOptions getTestingOptions() {
+        return this.testingOptions;
     }
 
-    /**
-     * Returns controller if the client wants to enable the ability to have programmable errors.
-     */
-    public Optional<OutageController> getOutageController() {
-        return outageController;
+    public RpcOptions setTestingOptions(TestingOptions testingOptions) {
+        this.testingOptions = testingOptions;
+        return this;
     }
 
     public boolean getUseClientsCache() {
@@ -222,12 +221,38 @@ public class RpcOptions {
         return this.readTimeout;
     }
 
-    public RpcFailoverPolicy getFailoverPolicy() {
-        return failoverPolicy;
+    /**
+     * @return randomizeDcs from failover policy
+     */
+    public boolean getRandomizeDcs() {
+        return this.randomizeDcs;
     }
 
+    /**
+     * @deprecated Use {@link #setRetryPolicyFactory(Supplier<RetryPolicy> retryPolicyFactory)} instead.
+     */
+    @Deprecated
     public RpcOptions setFailoverPolicy(RpcFailoverPolicy failoverPolicy) {
-        this.failoverPolicy = failoverPolicy;
+        this.randomizeDcs = failoverPolicy.randomizeDcs();
+        this.retryPolicyFactory = () -> RetryPolicy.attemptLimited(
+                3, RetryPolicy.fromRpcFailoverPolicy(failoverPolicy));
+        return this;
+    }
+
+    /**
+     * @return retry policy factory
+     */
+    public Supplier<RetryPolicy> getRetryPolicyFactory() {
+        return this.retryPolicyFactory;
+    }
+
+    /**
+     * Allow setting custom factory of retry policies
+     * @param retryPolicyFactory
+     * @return self
+     */
+    public RpcOptions setRetryPolicyFactory(Supplier<RetryPolicy> retryPolicyFactory) {
+        this.retryPolicyFactory = retryPolicyFactory;
         return this;
     }
 

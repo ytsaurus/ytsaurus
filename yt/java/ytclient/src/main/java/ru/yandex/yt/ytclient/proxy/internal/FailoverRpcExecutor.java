@@ -16,13 +16,14 @@ import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.ytclient.misc.ScheduledSerializedExecutorService;
+import ru.yandex.yt.ytclient.proxy.RetryPolicy;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientPool;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
-import ru.yandex.yt.ytclient.rpc.RpcFailoverPolicy;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.RpcRequest;
+import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingResponseHandlerMetricsHolder;
 
 public class FailoverRpcExecutor {
@@ -31,17 +32,17 @@ public class FailoverRpcExecutor {
     private final ScheduledSerializedExecutorService serializedExecutorService;
     private final BalancingResponseHandlerMetricsHolder metricsHolder;
     private final RpcClientPool clientPool;
-    private final RpcFailoverPolicy failoverPolicy;
+    private final RetryPolicy retryPolicy;
+
     private final long failoverTimeout;
     private final long globalDeadline;
 
     private final RpcRequest<?> request;
-    private final GUID requestId;
+    private final GUID originalRequestId;
     private final RpcClientResponseHandler baseHandler;
     private final RpcOptions options;
 
     private final CompletableFuture<Result> result = new CompletableFuture<>();
-    private final int attemptCount;
 
     private final MutableState mutableState;
 
@@ -50,19 +51,19 @@ public class FailoverRpcExecutor {
             RpcClientPool clientPool,
             RpcRequest<?> request,
             RpcClientResponseHandler handler,
-            RpcOptions options,
-            int attemptCount
+            RpcOptions options
     ) {
         this.serializedExecutorService = new ScheduledSerializedExecutorService(executorService);
         this.clientPool = clientPool;
         this.metricsHolder = options.getResponseMetricsHolder();
-        this.failoverPolicy = options.getFailoverPolicy();
+
+        this.retryPolicy = options.getRetryPolicyFactory().get();
+
         this.failoverTimeout = options.getFailoverTimeout().toMillis();
         this.globalDeadline = System.currentTimeMillis() + options.getGlobalTimeout().toMillis();
-        this.attemptCount = attemptCount;
 
         this.request = request;
-        this.requestId = RpcRequest.getRequestId(request.header);
+        this.originalRequestId = RpcRequest.getRequestId(request.header);
         this.baseHandler = handler;
         this.options = options;
 
@@ -74,7 +75,8 @@ public class FailoverRpcExecutor {
 
         result.whenComplete((result, error) -> {
             if (error != null) {
-                logger.warn("Request {} failed with error: {}", request, error.toString());
+                logger.warn("Request {} failed with error; OriginalRequestId: {}, Error: {}",
+                        request, originalRequestId, error.toString());
             }
             serializedExecutorService.submit(mutableState::cancel);
             handleResult(result, error);
@@ -88,28 +90,26 @@ public class FailoverRpcExecutor {
             RpcClientPool clientPool,
             RpcRequest<?> request,
             RpcClientResponseHandler handler,
-            RpcOptions options,
-            int attemptCount
+            RpcOptions options
     ) {
         return new FailoverRpcExecutor(
                 executorService,
                 clientPool,
                 request,
                 handler,
-                options,
-                attemptCount)
+                options)
                 .execute();
     }
 
     private void send(RpcClientResponseHandler handler) {
-        logger.trace("Peeking connection from pool; RequestId: {}", requestId);
+        logger.trace("Peeking connection from pool; OriginalRequestId: {}", originalRequestId);
         clientPool.peekClient(result).whenCompleteAsync((RpcClient client, Throwable error) -> {
             if (error == null) {
                 mutableState.sendImpl(client, handler);
                 return;
             }
 
-            logger.warn("Failed to get RpcClient from pool; RequestId: {}", requestId, error);
+            logger.warn("Failed to get RpcClient from pool; OriginalRequestId: {}", originalRequestId, error);
             mutableState.softAbort(error);
         }, serializedExecutorService);
     }
@@ -124,7 +124,8 @@ public class FailoverRpcExecutor {
 
     private void onGlobalTimeout() {
         result.completeExceptionally(
-                new TimeoutException(String.format("Request %s has timed out", requestId))
+                new TimeoutException(
+                        String.format("Request has timed out; OriginalRequestId: {}", originalRequestId))
         );
     }
 
@@ -184,10 +185,10 @@ public class FailoverRpcExecutor {
             requestsError++;
             lastRequestError = error;
             if (!result.isDone()) {
-                boolean isRetriable = failoverPolicy.onError(error);
+                boolean isRetriable = retryPolicy.getBackoffDuration(error, options).isPresent();
                 if (!isRetriable) {
                     result.completeExceptionally(error);
-                } else if (!stopped && requestsSent < attemptCount) {
+                } else if (!stopped) {
                     send(handler);
                 } else if (requestsError == requestsSent) {
                     result.completeExceptionally(error);
@@ -207,23 +208,37 @@ public class FailoverRpcExecutor {
             }
 
             requestsSent++;
+            retryPolicy.onNewAttempt();
 
             metricsHolder.inflightInc();
             metricsHolder.totalInc();
 
             TRequestHeader.Builder requestHeader = request.header.toBuilder();
-            requestHeader.setTimeout((globalDeadline - now) * 1000); // in microseconds
+            requestHeader.setTimeout((globalDeadline - now) * 1000);  // in microseconds
+
+            GUID currentRequestId;
+
+            if (requestsSent > 1) {
+                currentRequestId = GUID.create();
+                requestHeader.setRequestId(RpcUtil.toProto(currentRequestId));
+                requestHeader.setRetry(true);
+            } else {
+                currentRequestId = originalRequestId;
+                requestHeader.setRequestId(RpcUtil.toProto(currentRequestId));
+            }
+
             RpcRequest<?> copy = new RpcRequest(requestHeader.build(), request.body, request.attachments);
             cancellation.add(client.send(client, copy, handler, options));
+
+            logger.debug("Starting new attempt; AttemptId: {}, OriginalRequestId: {}, RequestId: {}",
+                    requestsSent, originalRequestId, currentRequestId);
 
             // schedule next step
             ScheduledFuture<?> scheduled = serializedExecutorService.schedule(
                     () -> {
                         if (!result.isDone()) {
-                            boolean isTimeoutRetriable =
-                                    !stopped &&
-                                            requestsSent < attemptCount &&
-                                            failoverPolicy.onTimeout();
+                            boolean isTimeoutRetriable = !stopped &&
+                                    retryPolicy.getBackoffDuration(new TimeoutException(), options).isPresent();
                             if (isTimeoutRetriable) {
                                 send(handler);
                             }

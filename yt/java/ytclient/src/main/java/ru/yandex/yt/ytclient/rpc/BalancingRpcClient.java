@@ -16,10 +16,6 @@ import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.proxy.internal.DataCenter;
 import ru.yandex.yt.ytclient.proxy.internal.FailoverRpcExecutor;
 import ru.yandex.yt.ytclient.proxy.internal.Manifold;
-import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolder;
-import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolderImpl;
-import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingResponseHandlerMetricsHolder;
-import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingResponseHandlerMetricsHolderImpl;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolder;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolderImpl;
 
@@ -32,7 +28,9 @@ public class BalancingRpcClient implements RpcClient {
     private final DataCenter[] dataCenters;
     private final Random rnd = new Random();
     private final ScheduledExecutorService executorService;
-    private final RpcFailoverPolicy failoverPolicy;
+
+    private final boolean randomizeDcs = false;
+
     private DataCenter localDataCenter;
 
     public BalancingRpcClient(
@@ -42,73 +40,19 @@ public class BalancingRpcClient implements RpcClient {
         BusConnector connector,
         RpcClient... destinations
     ) {
-
-        this(failoverTimeout, globalTimeout, pingTimeout, connector, new DefaultRpcFailoverPolicy(), destinations);
-    }
-
-    public BalancingRpcClient(
-        Duration failoverTimeout,
-        Duration globalTimeout,
-        Duration pingTimeout,
-        BusConnector connector,
-        RpcFailoverPolicy failoverPolicy,
-        RpcClient... destinations
-    ) {
-        this(
-            failoverTimeout,
-            globalTimeout,
-            pingTimeout,
-            connector,
-            failoverPolicy,
-            "unknown",
-            ImmutableMap.of("unknown", Arrays.stream(destinations).collect(Collectors.toList()))
-        );
-    }
-
-    public BalancingRpcClient(
-            Duration failoverTimeout,
-            Duration globalTimeout,
-            Duration pingTimeout,
-            BusConnector connector,
-            RpcFailoverPolicy failoverPolicy,
-            String dataCenter,
-            Map<String, List<RpcClient>> dataCenters) {
-        this(
-                failoverTimeout,
-                globalTimeout,
-                pingTimeout,
-                connector,
-                failoverPolicy,
-                dataCenter,
-                dataCenters,
-                BalancingDestinationMetricsHolderImpl.INSTANCE,
-                BalancingResponseHandlerMetricsHolderImpl.INSTANCE,
-                DataCenterMetricsHolderImpl.INSTANCE
-        );
-    }
-
-    @SuppressWarnings("checkstyle:ParameterNumber")
-    public BalancingRpcClient(
-        Duration failoverTimeout,
-        Duration globalTimeout,
-        Duration pingTimeout,
-        BusConnector connector,
-        RpcFailoverPolicy failoverPolicy,
-        String dataCenter,
-        Map<String, List<RpcClient>> dataCenters,
-        BalancingDestinationMetricsHolder balancingDestinationMetricsHolder,
-        BalancingResponseHandlerMetricsHolder balancingResponseHandlerMetricsHolder,
-        DataCenterMetricsHolder dataCenterMetricsHolder
-    ) {
         assert failoverTimeout.compareTo(globalTimeout) <= 0;
 
-        this.failoverPolicy = failoverPolicy;
+        String dataCenter = "unknown";
+        Map<String, List<RpcClient>> dataCentersMap =
+                ImmutableMap.of("unknown", Arrays.stream(destinations).collect(Collectors.toList()));
+        DataCenterMetricsHolder dataCenterMetricsHolder = DataCenterMetricsHolderImpl.INSTANCE;
+
         this.executorService = connector.eventLoopGroup();
-        this.dataCenters = new DataCenter[dataCenters.size()];
+        this.dataCenters = new DataCenter[dataCentersMap.size()];
         this.localDataCenter = null;
 
         int i = 0;
-        for (Map.Entry<String, List<RpcClient>> entity : dataCenters.entrySet()) {
+        for (Map.Entry<String, List<RpcClient>> entity : dataCentersMap.entrySet()) {
             String dcName = entity.getKey();
             List<RpcClient> clients = entity.getValue();
 
@@ -159,7 +103,7 @@ public class BalancingRpcClient implements RpcClient {
                 1,
                 localDataCenter != null,
                 rnd,
-                !failoverPolicy.randomizeDcs()
+                !randomizeDcs
         );
         if (r.isEmpty()) {
             return null;
@@ -190,15 +134,14 @@ public class BalancingRpcClient implements RpcClient {
                 3,
                 localDataCenter != null,
                 rnd,
-                !failoverPolicy.randomizeDcs()
+                !randomizeDcs
         );
         return FailoverRpcExecutor.execute(
                 executorService,
                 RpcClientPool.collectionPool(destinations),
                 request,
                 handler,
-                options,
-                destinations.size());
+                options);
     }
 
     public String destinationName() {

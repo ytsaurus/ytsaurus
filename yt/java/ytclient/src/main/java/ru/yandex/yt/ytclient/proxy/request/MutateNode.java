@@ -2,8 +2,7 @@ package ru.yandex.yt.ytclient.proxy.request;
 
 import java.util.Optional;
 
-import javax.annotation.Nullable;
-
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
@@ -11,7 +10,7 @@ import ru.yandex.lang.NonNullFields;
 @NonNullFields
 @NonNullApi
 public abstract class MutateNode<T extends MutateNode<T>> extends TransactionalRequest<T> {
-    protected @Nullable MutatingOptions mutatingOptions;
+    protected MutatingOptions mutatingOptions = new MutatingOptions().setMutationId(GUID.create());
 
     protected MutateNode() {
     }

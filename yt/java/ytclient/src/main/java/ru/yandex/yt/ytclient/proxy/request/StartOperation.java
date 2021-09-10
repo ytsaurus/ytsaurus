@@ -4,6 +4,7 @@ import javax.annotation.Nonnull;
 
 import com.google.protobuf.ByteString;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpc.TRequestHeader;
@@ -20,7 +21,7 @@ public class StartOperation
     private final YTreeNode spec;
 
     private TransactionalOptions transactionalOptions;
-    private MutatingOptions mutatingOptions;
+    @Nonnull private MutatingOptions mutatingOptions = new MutatingOptions().setMutationId(GUID.create());
 
     public StartOperation(EOperationType type, YTreeNode spec) {
         this.type = type;
@@ -32,7 +33,7 @@ public class StartOperation
         return this;
     }
 
-    public StartOperation setMutatingOptions(MutatingOptions mutatingOptions) {
+    public StartOperation setMutatingOptions(@Nonnull MutatingOptions mutatingOptions) {
         this.mutatingOptions = mutatingOptions;
         return this;
     }
@@ -52,9 +53,7 @@ public class StartOperation
             builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
         }
 
-        if (mutatingOptions != null) {
-            builder.setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
-        }
+        builder.setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
     }
 
     @Override
