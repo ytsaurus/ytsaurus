@@ -592,7 +592,6 @@ protected:
 // important to be able to specify just the ReplicationFactor (or the Vital
 // flag) while leaving Media null.
 
-// Beware: changing these macros changes snapshot format.
 #define FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(process) \
     process(CompressionCodec, compression_codec) \
     process(ErasureCodec, erasure_codec) \
@@ -604,7 +603,7 @@ protected:
     process(OptimizeFor, optimize_for) \
     process(ProfilingMode, profiling_mode) \
     process(ProfilingTag, profiling_tag) \
-    process(EnableChunkMerger, enable_chunk_merger)
+    process(ChunkMergerMode, chunk_merger_mode)
 
 #define FOR_EACH_OBJECT_REF_INHERITABLE_ATTRIBUTE(process) \
     process(TabletCellBundle, tablet_cell_bundle)
@@ -619,44 +618,6 @@ protected:
     FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(process) \
     process(PrimaryMediumIndex, primary_medium) \
     process(Media, media) \
-
-// COMPAT(aleksandra-zh)
-#define FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE_BEFORE_1613(process) \
-    process(CompressionCodec, compression_codec) \
-    process(ErasureCodec, erasure_codec) \
-    process(ReplicationFactor, replication_factor) \
-    process(Vital, vital) \
-    process(Atomicity, atomicity) \
-    process(CommitOrdering, commit_ordering) \
-    process(InMemoryMode, in_memory_mode) \
-    process(OptimizeFor, optimize_for) \
-    process(ProfilingMode, profiling_mode) \
-    process(ProfilingTag, profiling_tag) \
-
-// COMPAT(aleksandra-zh)
-#define FOR_EACH_INHERITABLE_ATTRIBUTE_BEFORE_1613(process) \
-    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE_BEFORE_1613(process) \
-    process(PrimaryMediumIndex, primary_medium) \
-    process(Media, media) \
-    FOR_EACH_OBJECT_REF_INHERITABLE_ATTRIBUTE(process) \
-
-// COMPAT(akozhikhov)
-#define FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE_BEFORE_1403(process) \
-    process(CompressionCodec, compression_codec) \
-    process(ErasureCodec, erasure_codec) \
-    process(ReplicationFactor, replication_factor) \
-    process(Vital, vital) \
-    process(Atomicity, atomicity) \
-    process(CommitOrdering, commit_ordering) \
-    process(InMemoryMode, in_memory_mode) \
-    process(OptimizeFor, optimize_for)
-
-// COMPAT(akozhikhov)
-#define FOR_EACH_INHERITABLE_ATTRIBUTE_BEFORE_1403(process) \
-    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE_BEFORE_1403(process) \
-    process(PrimaryMediumIndex, primary_medium) \
-    process(Media, media) \
-    process(TabletCellBundle, tablet_cell_bundle)
 
 class TCompositeNodeBase
     : public TCypressNode
@@ -685,6 +646,7 @@ public:
         TVersionedBuiltinAttribute<NTabletNode::EDynamicTableProfilingMode> ProfilingMode;
         TVersionedBuiltinAttribute<TString> ProfilingTag;
         TVersionedBuiltinAttribute<bool> EnableChunkMerger;
+        TVersionedBuiltinAttribute<NChunkClient::EChunkMergerMode> ChunkMergerMode;
 
         void Persist(const NCellMaster::TPersistenceContext& context);
         void Persist(const NCypressServer::TCopyPersistenceContext& context);

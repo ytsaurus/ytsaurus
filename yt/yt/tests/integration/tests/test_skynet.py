@@ -437,7 +437,8 @@ class TestSkynetIntegration(YTEnvSetup):
             assert hashlib.md5(file_content[row["filename"]]).digest() == row["md5"]
 
     @authors("aleksandra-zh")
-    def test_chunk_merge_skynet_share(self):
+    @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
+    def test_chunk_merge_skynet_share(self, merge_mode):
         set("//sys/@config/chunk_manager/chunk_merger/enable", True)
 
         create(
@@ -458,7 +459,7 @@ class TestSkynetIntegration(YTEnvSetup):
         chunk_ids = get("//tmp/table/@chunk_ids")
         assert get("#{0}/@shared_to_skynet".format(chunk_ids[0]))
 
-        set("//tmp/table/@enable_chunk_merger", True)
+        set("//tmp/table/@chunk_merger_mode", merge_mode)
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
 
         wait(lambda: get("//tmp/table/@resource_usage/chunk_count") == 1)

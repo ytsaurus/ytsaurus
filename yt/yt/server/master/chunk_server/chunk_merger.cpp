@@ -23,7 +23,11 @@
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+
 #include <yt/yt/ytlib/cypress_client/cypress_service_proxy.h>
+
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
 #include <yt/yt/library/erasure/public.h>
 #include <yt/yt/library/erasure/impl/codec.h>
@@ -32,6 +36,10 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
+
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
+#include <google/protobuf/util/message_differencer.h>
 
 #include <stack>
 
@@ -54,9 +62,12 @@ using namespace NTableServer;
 using namespace NObjectServer;
 using namespace NCypressServer;
 using namespace NChunkClient;
+using namespace NNodeTrackerClient::NProto;
+using namespace NTableClient::NProto;
 
 using NYT::ToProto;
 using NYT::FromProto;
+using NChunkClient::NProto::TMiscExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,6 +116,45 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+bool ChunkMetaEqual(const TChunk* lhs, const TChunk* rhs)
+{
+    const auto& lhsMeta = lhs->ChunkMeta();
+    const auto& rhsMeta = rhs->ChunkMeta();
+
+    if (lhsMeta->GetType() != rhsMeta->GetType() || lhsMeta->GetFormat() != rhsMeta->GetFormat()) {
+        return false;
+    }
+
+    auto lhsMiscExt = lhsMeta->FindExtension<TMiscExt>();
+    auto rhsMiscExt = rhsMeta->FindExtension<TMiscExt>();
+
+    if (!lhsMiscExt || !rhsMiscExt) {
+        return false;
+    }
+
+    if (lhsMiscExt->compression_codec() != rhsMiscExt->compression_codec()) {
+        return false;
+    }
+
+    auto lhsNameTableExt = lhsMeta->FindExtension<TNameTableExt>();
+    auto rhsNameTableExt = rhsMeta->FindExtension<TNameTableExt>();
+    if (lhsNameTableExt.has_value() != rhsNameTableExt.has_value()) {
+        return false;
+    }
+
+    if (lhsNameTableExt && rhsNameTableExt) {
+        return google::protobuf::util::MessageDifferencer::Equals(*lhsNameTableExt, *rhsNameTableExt);
+    }
+
+    return true;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMergeChunkVisitor
     : public IChunkVisitor
 {
@@ -115,10 +165,14 @@ public:
         TWeakPtr<IMergeChunkVisitorHost> chunkVisitorHost)
         : Bootstrap_(bootstrap)
         , Node_(node)
+        , Mode_(Node_->GetChunkMergerMode())
         , RootChunkList_(Node_->GetChunkList())
         , Account_(Node_->GetAccount())
         , ChunkVisitorHost_(std::move(chunkVisitorHost))
-    { }
+        , CurrentJobMode_(Mode_)
+    {
+        YT_VERIFY(Mode_ != EChunkMergerMode::None);
+    }
 
     void Run()
     {
@@ -140,12 +194,13 @@ public:
 private:
     TBootstrap* const Bootstrap_;
     TChunkOwnerBase* const Node_;
+    const EChunkMergerMode Mode_;
     TChunkList* const RootChunkList_;
     TAccount* const Account_;
     const TWeakPtr<IMergeChunkVisitorHost> ChunkVisitorHost_;
 
     std::vector<TChunkId> ChunkIds_;
-
+    EChunkMergerMode CurrentJobMode_;
     i64 CurrentRowCount_ = 0;
     i64 CurrentDataWeight_ = 0;
     i64 CurrentUncompressedDataSize_ = 0;
@@ -164,12 +219,7 @@ private:
         }
 
         MaybePlanJob();
-
-        ChunkIds_.clear();
-        CurrentRowCount_ = 0;
-        CurrentDataWeight_ = 0;
-        CurrentUncompressedDataSize_ = 0;
-
+        ResetStatistics();
         MaybeAddChunk(chunk);
         return true;
     }
@@ -212,9 +262,48 @@ private:
         objectManager->EphemeralUnrefObject(RootChunkList_);
     }
 
+    void ResetStatistics()
+    {
+        ChunkIds_.clear();
+        CurrentRowCount_ = 0;
+        CurrentDataWeight_ = 0;
+        CurrentUncompressedDataSize_ = 0;
+        CurrentJobMode_ = Mode_;
+    }
+
+    bool SatisfiesShallowMergeCriteria(TChunk* chunk)
+    {
+        if (ChunkIds_.empty()) {
+            return true;
+        }
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto* firstChunk = chunkManager->FindChunk(ChunkIds_.front());
+        if (!IsObjectAlive(firstChunk)) {
+            return false;
+        }
+        if (!ChunkMetaEqual(firstChunk, chunk)) {
+            return false;
+        }
+
+        return true;
+    }
+
     bool MaybeAddChunk(TChunk* chunk)
     {
         const auto& config = GetDynamicConfig();
+
+        if (CurrentJobMode_ == EChunkMergerMode::Shallow && !SatisfiesShallowMergeCriteria(chunk)) {
+            return false;
+        }
+
+        if (CurrentJobMode_ == EChunkMergerMode::Auto && !SatisfiesShallowMergeCriteria(chunk)) {
+            if (ssize(ChunkIds_) >= config->MinShallowMergeChunkCount) {
+                return false;
+            }
+            CurrentJobMode_ = EChunkMergerMode::Deep;
+        }
+
         if (CurrentRowCount_ + chunk->GetRowCount() < config->MaxRowCount &&
             CurrentDataWeight_ + chunk->GetDataWeight() < config->MaxDataWeight &&
             CurrentUncompressedDataSize_ + chunk->GetUncompressedDataSize() < config->MaxUncompressedDataSize &&
@@ -245,7 +334,7 @@ private:
         auto nodeId = Node_->GetId();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto jobId = chunkManager->GenerateJobId();
-        chunkVisitorHost->RegisterJobAwaitingChunkCreation(jobId, nodeId, RootChunkList_->GetId(), std::move(ChunkIds_));
+        chunkVisitorHost->RegisterJobAwaitingChunkCreation(jobId, CurrentJobMode_, nodeId, RootChunkList_->GetId(), std::move(ChunkIds_));
     }
 
     const TDynamicChunkMergerConfigPtr& GetDynamicConfig() const
@@ -540,7 +629,10 @@ bool TChunkMerger::CanScheduleMerge(TChunkOwnerBase* chunkOwner) const
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    return Enabled_ && IsObjectAlive(chunkOwner);
+    return
+        Enabled_ &&
+        IsObjectAlive(chunkOwner) &&
+        chunkOwner->GetChunkMergerMode() != EChunkMergerMode::None;
 }
 
 void TChunkMerger::StartMergeTransaction()
@@ -641,6 +733,7 @@ void TChunkMerger::FinalizeJob(TObjectId nodeId, TJobId jobId, EMergeSessionResu
 
 void TChunkMerger::RegisterJobAwaitingChunkCreation(
     TJobId jobId,
+    EChunkMergerMode mode,
     TObjectId nodeId,
     TChunkListId rootChunkListId,
     std::vector<TChunkId> inputChunkIds)
@@ -649,7 +742,8 @@ void TChunkMerger::RegisterJobAwaitingChunkCreation(
         .JobId = jobId,
         .NodeId = nodeId,
         .RootChunkListId = rootChunkListId,
-        .InputChunkIds = std::move(inputChunkIds)
+        .InputChunkIds = std::move(inputChunkIds),
+        .MergeMode = mode
     });
 
     YT_LOG_DEBUG("Planning merge job (JobId: %v, NodeId: %v, RootChunkListId: %v)",
@@ -854,6 +948,9 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
     chunkMergerWriterOptions.set_compression_codec(ToProto<int>(chunkOwner->GetCompressionCodec()));
     chunkMergerWriterOptions.set_erasure_codec(ToProto<int>(chunkOwner->GetErasureCodec()));
     chunkMergerWriterOptions.set_enable_skynet_sharing(chunkOwner->GetEnableSkynetSharing());
+    chunkMergerWriterOptions.set_merge_mode(ToProto<int>(jobInfo.MergeMode));
+    chunkMergerWriterOptions.set_max_heavy_columns(Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->MaxHeavyColumns);
+    chunkMergerWriterOptions.set_max_block_count(GetDynamicConfig()->MaxBlockCount);
 
     TMergeJob::TChunkVector inputChunks;
     inputChunks.reserve(jobInfo.InputChunkIds.size());
@@ -961,15 +1058,25 @@ void TChunkMerger::OnJobFinished(const TJobPtr& job)
     }
 
     const auto& jobInfo = it->second;
-    switch (job->GetState()) {
+    auto state = job->GetState();
+    switch (state) {
         case EJobState::Completed:
             ScheduleReplaceChunks(jobInfo);
             break;
 
         case EJobState::Failed:
-        case EJobState::Aborted:
-            FinalizeJob(jobInfo.NodeId, jobInfo.JobId, EMergeSessionResult::TransientFailure);
+        case EJobState::Aborted: {
+            auto result = EMergeSessionResult::TransientFailure;
+            if (state == EJobState::Failed && job->Error().FindMatching(NChunkClient::EErrorCode::IncompatibleChunkMetas)) {
+                YT_LOG_DEBUG(
+                    job->Error(),
+                    "Chunks do not satisfy shallow merge criteria, will not try merging them again (JobId: %v)",
+                    jobId);
+                result = EMergeSessionResult::OK;
+            }
+            FinalizeJob(jobInfo.NodeId, jobInfo.JobId, result);
             break;
+        }
 
         default:
             YT_ABORT();

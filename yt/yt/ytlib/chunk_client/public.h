@@ -133,6 +133,13 @@ DEFINE_ENUM(EChunkClientFeature,
     ((AllBlocksIndex)           (0))
 );
 
+DEFINE_ENUM(EChunkMergerMode,
+    ((None)         (0))
+    ((Shallow)      (1))
+    ((Deep)         (2))
+    ((Auto)         (3))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TRemoteReaderOptions)

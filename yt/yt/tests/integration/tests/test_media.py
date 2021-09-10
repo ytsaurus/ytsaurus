@@ -561,7 +561,8 @@ class TestMedia(YTEnvSetup):
         wait(transient_chunk_is_lost_but_not_vital)
 
     @authors("aleksandra-zh")
-    def test_merge_chunks_for_nondefault_medium(self):
+    @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
+    def test_merge_chunks_for_nondefault_medium(self, merge_mode):
         set("//sys/@config/chunk_manager/chunk_merger/enable", True)
 
         primary_medium = TestMedia.NON_DEFAULT_MEDIUM
@@ -574,7 +575,7 @@ class TestMedia(YTEnvSetup):
 
         info = read_table("//tmp/t")
 
-        set("//tmp/t/@enable_chunk_merger", True)
+        set("//tmp/t/@chunk_merger_mode", merge_mode)
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
 
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
@@ -584,7 +585,8 @@ class TestMedia(YTEnvSetup):
         assert get("#{0}/@requisition/0/medium".format(chunk_ids[0])) == primary_medium
 
     @authors("aleksandra-zh")
-    def test_merge_chunks_change_medium(self):
+    @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
+    def test_merge_chunks_change_medium(self, merge_mode):
         set("//sys/@config/chunk_manager/chunk_merger/enable", True)
 
         primary_medium = TestMedia.NON_DEFAULT_MEDIUM
@@ -603,7 +605,7 @@ class TestMedia(YTEnvSetup):
         another_primary_medium = TestMedia.NON_DEFAULT_TRANSIENT_MEDIUM
         set("//tmp/t/@primary_medium", another_primary_medium)
 
-        set("//tmp/t/@enable_chunk_merger", True)
+        set("//tmp/t/@chunk_merger_mode", merge_mode)
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
 
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
@@ -629,7 +631,7 @@ class TestMedia(YTEnvSetup):
         write_table("<append=true>//tmp/t", {"a": "c"})
         write_table("<append=true>//tmp/t", {"a": "d"})
 
-        set("//tmp/t/@enable_chunk_merger", True)
+        set("//tmp/t/@chunk_merger_mode", "deep")
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
 
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)

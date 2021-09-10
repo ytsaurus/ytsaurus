@@ -41,10 +41,10 @@ public:
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, NCompression::ECodec, CompressionCodec);
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, NErasure::ECodec, ErasureCodec);
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, bool, EnableSkynetSharing);
-    DEFINE_BYVAL_RW_PROPERTY(bool, EnableChunkMerger, false);
     // If chunk owner is changed, while it is being merged, it should be marked updated
     // to initiate another merge after the current one is finished.
     DEFINE_BYVAL_RW_PROPERTY(bool, UpdatedSinceLastMerge, false);
+    DEFINE_BYVAL_RW_PROPERTY(NChunkClient::EChunkMergerMode, ChunkMergerMode, NChunkClient::EChunkMergerMode::None);
 
 public:
     explicit TChunkOwnerBase(NCypressServer::TVersionedNodeId id);

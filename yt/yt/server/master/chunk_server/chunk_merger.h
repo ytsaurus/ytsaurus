@@ -50,6 +50,8 @@ struct TMergeJobInfo
 
     std::vector<TChunkId> InputChunkIds;
     TChunkId OutputChunkId;
+
+    NChunkClient::EChunkMergerMode MergeMode;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,6 +61,7 @@ struct IMergeChunkVisitorHost
 {
     virtual void RegisterJobAwaitingChunkCreation(
         TJobId jobId,
+        NChunkClient::EChunkMergerMode mode,
         NCypressClient::TObjectId nodeId,
         TChunkListId rootChunkListId,
         std::vector<TChunkId> inputChunkIds) = 0;
@@ -155,6 +158,7 @@ private:
 
     virtual void RegisterJobAwaitingChunkCreation(
         TJobId jobId,
+        NChunkClient::EChunkMergerMode mode,
         NCypressClient::TObjectId nodeId,
         TChunkListId rootChunkListId,
         std::vector<TChunkId> inputChunkIds) override;

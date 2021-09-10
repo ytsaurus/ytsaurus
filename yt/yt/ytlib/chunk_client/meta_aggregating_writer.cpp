@@ -32,6 +32,7 @@ using NYT::ToProto;
 const static THashSet<int> KnownExtensionTags = {
     TProtoExtensionTag<NProto::TMiscExt>::Value,
     TProtoExtensionTag<NProto::TBlocksExt>::Value,
+    TProtoExtensionTag<NProto::TErasurePlacementExt>::Value,
     TProtoExtensionTag<TBlockMetaExt>::Value,
     TProtoExtensionTag<TNameTableExt>::Value,
     TProtoExtensionTag<TBoundaryKeysExt>::Value,

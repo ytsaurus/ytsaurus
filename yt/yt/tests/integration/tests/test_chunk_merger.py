@@ -3,8 +3,9 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, remove,
     exists, concatenate,
-    create_account, create_user, make_ace, abort_transaction, insert_rows, alter_table, read_table, write_table, map, merge,
+    create_account, create_user, make_ace, insert_rows, alter_table, read_table, write_table, map, merge,
     sync_create_cells, sync_mount_table,
+    start_transaction, abort_transaction, commit_transaction,
     sync_unmount_table, create_dynamic_table, get_nodes, create_data_center, create_rack, create_table)
 
 from yt_type_helpers import make_schema
@@ -40,6 +41,8 @@ class TestChunkMerger(YTEnvSetup):
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
     ENABLE_BULK_INSERT = True
+    ENABLE_RPC_PROXY = True
+    DRIVER_BACKEND = "rpc"
 
     DELTA_MASTER_CONFIG = {
         "chunk_manager": {
@@ -71,13 +74,32 @@ class TestChunkMerger(YTEnvSetup):
         for tx in txs:
             abort_transaction(tx)
 
+    def _wait_for_merge(self, table_path, merge_mode, account):
+        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
+
+        assert get("{}/@resource_usage/chunk_count".format(table_path)) > 1
+        rows = read_table(table_path)
+
+        set("{}/@chunk_merger_mode".format(table_path), merge_mode)
+        set("//sys/accounts/{}/@merge_job_rate_limit".format(account), 10)
+
+        wait(lambda: get("{}/@resource_usage/chunk_count".format(table_path)) == 1)
+        assert read_table(table_path) == rows
+
     @authors("aleksandra-zh")
     def test_merge_attributes(self):
         create("table", "//tmp/t")
 
-        assert not get("//tmp/t/@enable_chunk_merger")
-        set("//tmp/t/@enable_chunk_merger", True)
-        assert get("//tmp/t/@enable_chunk_merger")
+        assert get("//tmp/t/@chunk_merger_mode") == "none"
+        set("//tmp/t/@chunk_merger_mode", "deep")
+        assert get("//tmp/t/@chunk_merger_mode") == "deep"
+        set("//tmp/t/@chunk_merger_mode", "shallow")
+        assert get("//tmp/t/@chunk_merger_mode") == "shallow"
+        set("//tmp/t/@chunk_merger_mode", "auto")
+        assert get("//tmp/t/@chunk_merger_mode") == "auto"
+
+        with pytest.raises(YtError):
+            set("//tmp/t/@chunk_merger_mode", "sdjkfhdskj")
 
         create_account("a")
         assert get("//sys/accounts/a/@merge_job_rate_limit") == 0
@@ -85,28 +107,18 @@ class TestChunkMerger(YTEnvSetup):
         assert get("//sys/accounts/a/@merge_job_rate_limit") == 7
 
     @authors("aleksandra-zh")
-    def test_merge1(self):
-        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
-
+    @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
+    def test_merge1(self, merge_mode):
         create("table", "//tmp/t")
         write_table("<append=true>//tmp/t", {"a": "b"})
         write_table("<append=true>//tmp/t", {"a": "c"})
         write_table("<append=true>//tmp/t", {"a": "d"})
         write_table("<append=true>//tmp/t", {"a": "e"})
 
-        assert get("//tmp/t/@resource_usage/chunk_count") > 1
-        rows = read_table("//tmp/t")
-
-        set("//tmp/t/@enable_chunk_merger", True)
-        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
-
-        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
-        assert read_table("//tmp/t") == rows
+        self._wait_for_merge("//tmp/t", merge_mode, "tmp")
 
     @authors("aleksandra-zh")
     def test_merge2(self):
-        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
-
         create("table", "//tmp/t")
         write_table("//tmp/t", [
             {"a": 10},
@@ -116,14 +128,74 @@ class TestChunkMerger(YTEnvSetup):
         write_table("<append=true>//tmp/t", {"b": "c"})
         write_table("<append=true>//tmp/t", {"c": "d"})
 
-        assert get("//tmp/t/@resource_usage/chunk_count") > 1
-        rows = read_table("//tmp/t")
+        self._wait_for_merge("//tmp/t", "deep", "tmp")
 
-        set("//tmp/t/@enable_chunk_merger", True)
+    @authors("aleksandra-zh")
+    def test_auto_merge1(self):
+        create("table", "//tmp/t", attributes={"compression_codec": "lz4"})
+        write_table("<append=true>//tmp/t", {"a": "b"})
+        write_table("<append=true>//tmp/t", {"a": "c"})
+        write_table("<append=true>//tmp/t", {"a": "d"})
+
+        set("//tmp/t/@compression_codec", "zstd_17")
+        write_table("<append=true>//tmp/t", {"q": "e"})
+
+        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
+        set("//tmp/t/@chunk_merger_mode", "auto")
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
 
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
-        assert read_table("//tmp/t") == rows
+
+    @authors("aleksandra-zh")
+    def test_auto_merge2(self):
+        create("table", "//tmp/t", attributes={"compression_codec": "lz4"})
+        write_table("<append=true>//tmp/t", {"a": "b"})
+        write_table("<append=true>//tmp/t", {"a": "c"})
+        write_table("<append=true>//tmp/t", {"a": "d"})
+
+        set("//tmp/t/@compression_codec", "zstd_17")
+        write_table("<append=true>//tmp/t", {"q": "e"})
+
+        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
+        set("//sys/@config/chunk_manager/chunk_merger/min_shallow_merge_chunk_count", 3)
+        set("//tmp/t/@chunk_merger_mode", "auto")
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+
+        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 2)
+
+    @authors("aleksandra-zh")
+    def test_merge_does_not_conflict_with_tx_append(self):
+        create("table", "//tmp/t")
+        write_table("<append=true>//tmp/t", {"a": "b"})
+        write_table("<append=true>//tmp/t", {"b": "c"})
+        write_table("<append=true>//tmp/t", {"c": "d"})
+
+        tx = start_transaction()
+        write_table("<append=true>//tmp/t", {"d": "e"}, tx=tx)
+        rows = read_table("//tmp/t", tx=tx)
+
+        self._wait_for_merge("//tmp/t", "deep", "tmp")
+        commit_transaction(tx)
+
+        assert get("//tmp/t/@resource_usage/chunk_count") == 2
+        read_table("//tmp/t") == rows
+
+    @authors("aleksandra-zh")
+    def test_merge_does_not_conflict_with_tx_overwrite(self):
+        create("table", "//tmp/t")
+        write_table("<append=true>//tmp/t", {"a": "b"})
+        write_table("<append=true>//tmp/t", {"b": "c"})
+        write_table("<append=true>//tmp/t", {"c": "d"})
+
+        tx = start_transaction()
+        write_table("//tmp/t", {"d": "e"}, tx=tx)
+        rows = read_table("//tmp/t", tx=tx)
+
+        self._wait_for_merge("//tmp/t", "deep", "tmp")
+        commit_transaction(tx)
+
+        assert get("//tmp/t/@resource_usage/chunk_count") == 1
+        read_table("//tmp/t") == rows
 
     @authors("aleksandra-zh")
     def test_is_being_merged(self):
@@ -138,7 +210,7 @@ class TestChunkMerger(YTEnvSetup):
         assert get("//tmp/t/@resource_usage/chunk_count") > 1
         rows = read_table("//tmp/t")
 
-        set("//tmp/t/@enable_chunk_merger", True)
+        set("//tmp/t/@chunk_merger_mode", "deep")
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
 
         wait(lambda: get("//tmp/t/@is_being_merged"))
@@ -159,7 +231,7 @@ class TestChunkMerger(YTEnvSetup):
 
         rows = read_table("//tmp/t")
 
-        set("//tmp/t/@enable_chunk_merger", True)
+        set("//tmp/t/@chunk_merger_mode", "deep")
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
 
         for _ in range(10):
@@ -172,8 +244,6 @@ class TestChunkMerger(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_merge_job_accounting(self):
-        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
-
         create_account("a")
         create("table", "//tmp/t1", attributes={"account": "a"})
 
@@ -188,23 +258,21 @@ class TestChunkMerger(YTEnvSetup):
         write_table("<append=true>//tmp/t2", {"b": "c"})
         write_table("<append=true>//tmp/t2", {"c": "d"})
 
-        set("//tmp/t1/@enable_chunk_merger", True)
-        set("//tmp/t2/@enable_chunk_merger", True)
+        set("//tmp/t1/@chunk_merger_mode", "deep")
+        self._wait_for_merge("//tmp/t2", "deep", "b")
 
-        set("//sys/accounts/b/@merge_job_rate_limit", 10)
-
-        wait(lambda: get("//tmp/t2/@resource_usage/chunk_count") == 1)
         assert get("//tmp/t1/@resource_usage/chunk_count") > 1
 
         set("//sys/accounts/a/@merge_job_rate_limit", 10)
+        write_table("<append=true>//tmp/t1", {"c": "d"})
+
         wait(lambda: get("//tmp/t1/@resource_usage/chunk_count") == 1)
 
         self._abort_chunk_merger_txs()
 
     @authors("aleksandra-zh")
-    def test_copy_merge(self):
-        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
-
+    @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
+    def test_copy_merge(self, merge_mode):
         create("table", "//tmp/t")
         write_table("<append=true>//tmp/t", {"a": "b"})
         write_table("<append=true>//tmp/t", {"a": "c"})
@@ -212,38 +280,24 @@ class TestChunkMerger(YTEnvSetup):
         copy("//tmp/t", "//tmp/t1")
         rows = read_table("//tmp/t")
 
-        set("//tmp/t1/@enable_chunk_merger", True)
-        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        self._wait_for_merge("//tmp/t1", merge_mode, "tmp")
 
-        wait(lambda: get("//tmp/t1/@resource_usage/chunk_count") == 1)
         assert get("//tmp/t/@resource_usage/chunk_count") > 1
-
         assert read_table("//tmp/t") == rows
-        assert read_table("//tmp/t1") == rows
 
     @authors("aleksandra-zh")
     def test_schedule_again(self):
-        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
-
         create("table", "//tmp/t")
         write_table("<append=true>//tmp/t", {"a": "b"})
         write_table("<append=true>//tmp/t", {"b": "c"})
         write_table("<append=true>//tmp/t", {"c": "d"})
 
-        assert get("//tmp/t/@resource_usage/chunk_count") > 1
-        rows = read_table("//tmp/t")
-
-        set("//tmp/t/@enable_chunk_merger", True)
-        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
-
-        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
-        assert read_table("//tmp/t") == rows
+        self._wait_for_merge("//tmp/t", "deep", "tmp")
 
         write_table("<append=true>//tmp/t", {"b": "c"})
         write_table("<append=true>//tmp/t", {"c": "d"})
-        assert get("//tmp/t/@resource_usage/chunk_count") > 1
-        rows = read_table("//tmp/t")
 
+        rows = read_table("//tmp/t")
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
         assert read_table("//tmp/t") == rows
 
@@ -261,7 +315,7 @@ class TestChunkMerger(YTEnvSetup):
         write_table("<append=true>//tmp/t", {"b": "c"})
         write_table("<append=true>//tmp/t", {"c": "d"})
 
-        set("//tmp/t/@enable_chunk_merger", True)
+        set("//tmp/t/@chunk_merger_mode", "deep")
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
 
         for i in range(3):
@@ -278,7 +332,7 @@ class TestChunkMerger(YTEnvSetup):
         write_table("<append=true>//tmp/t", {"b": "c"})
         write_table("<append=true>//tmp/t", {"c": "d"})
 
-        set("//tmp/t/@enable_chunk_merger", True)
+        set("//tmp/t/@chunk_merger_mode", "deep")
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
 
         wait(lambda: get("//tmp/t/@is_being_merged"))
@@ -306,7 +360,7 @@ class TestChunkMerger(YTEnvSetup):
 
         assert get("//tmp/t/@resource_usage/chunk_count") > 1
 
-        set("//tmp/t/@enable_chunk_merger", True)
+        set("//tmp/t/@chunk_merger_mode", "deep")
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
 
         wait(lambda: get("//tmp/t/@is_being_merged"))
@@ -317,9 +371,8 @@ class TestChunkMerger(YTEnvSetup):
         sleep(5)
 
     @authors("aleksandra-zh")
-    def test_schema(self):
-        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
-
+    @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
+    def test_schema(self, merge_mode):
         create(
             "table",
             "//tmp/t",
@@ -337,19 +390,11 @@ class TestChunkMerger(YTEnvSetup):
         write_table("<append=true>//tmp/t", {"key": 2, "value": "b"})
         write_table("<append=true>//tmp/t", {"key": 3, "value": "c"})
 
-        rows = read_table("//tmp/t")
-
-        set("//tmp/t/@enable_chunk_merger", True)
-        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
-
-        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
-
-        assert read_table("//tmp/t") == rows
+        self._wait_for_merge("//tmp/t", merge_mode, "tmp")
 
     @authors("aleksandra-zh")
-    def test_sorted(self):
-        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
-
+    @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
+    def test_sorted(self, merge_mode):
         create(
             "table",
             "//tmp/t",
@@ -367,19 +412,10 @@ class TestChunkMerger(YTEnvSetup):
         write_table("<append=true>//tmp/t", {"key": 2, "value": "b"})
         write_table("<append=true>//tmp/t", {"key": 3, "value": "c"})
 
-        rows = read_table("//tmp/t")
-
-        set("//tmp/t/@enable_chunk_merger", True)
-        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
-
-        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
-
-        assert read_table("//tmp/t") == rows
+        self._wait_for_merge("//tmp/t", merge_mode, "tmp")
 
     @authors("aleksandra-zh")
     def test_merge_merge(self):
-        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
-
         create("table", "//tmp/t1")
         write_table("<append=true>//tmp/t1", {"a": "b"})
         write_table("<append=true>//tmp/t1", {"b": "c"})
@@ -391,17 +427,11 @@ class TestChunkMerger(YTEnvSetup):
         create("table", "//tmp/t")
         merge(mode="unordered", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t")
 
-        rows = read_table("//tmp/t")
-
-        set("//tmp/t/@enable_chunk_merger", True)
-        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
-
-        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
-
-        assert read_table("//tmp/t") == rows
+        self._wait_for_merge("//tmp/t", "deep", "tmp")
 
     @authors("aleksandra-zh")
-    def test_merge_chunks_exceed_max_chunk_to_merge_limit(self):
+    @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
+    def test_merge_chunks_exceed_max_chunk_to_merge_limit(self, merge_mode):
         set("//sys/@config/chunk_manager/chunk_merger/enable", True)
 
         create("table", "//tmp/t")
@@ -411,7 +441,7 @@ class TestChunkMerger(YTEnvSetup):
         assert get("//tmp/t/@resource_usage/chunk_count") == 10
         rows = read_table("//tmp/t")
 
-        set("//tmp/t/@enable_chunk_merger", True)
+        set("//tmp/t/@chunk_merger_mode", merge_mode)
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
 
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") <= 2)
@@ -444,7 +474,9 @@ class TestChunkMerger(YTEnvSetup):
 
         create("table", "//tmp/t")
         with pytest.raises(YtError):
-            set("//tmp/t/@enable_chunk_merger", True, authenticated_user="u")
+            set("//tmp/t/@chunk_merger_mode", "shallow", authenticated_user="u")
+        with pytest.raises(YtError):
+            set("//tmp/t/@chunk_merger_mode", "deep", authenticated_user="u")
 
     @authors("aleksandra-zh")
     def test_do_not_crash_on_dynamic_table(self):
@@ -471,33 +503,25 @@ class TestChunkMerger(YTEnvSetup):
 
         map(in_="//tmp/t1", out="<append=true>//tmp/t2", command="cat")
 
-        set("//tmp/t2/@enable_chunk_merger", True)
+        set("//tmp/t2/@chunk_merger_mode", "deep")
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
 
         # Just do not crash, please.
         sleep(10)
 
     @authors("aleksandra-zh")
-    def test_compression_codec(self):
+    @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
+    def test_compression_codec(self, merge_mode):
         codec = "lz4"
         create("table", "//tmp/t", attributes={"compression_codec": codec})
 
-        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
-
-        write_table("<append=true>//tmp/t", {"a": "b"})
-        write_table("<append=true>//tmp/t", {"b": "c"})
-        write_table("<append=true>//tmp/t", {"c": "d"})
+        write_table("<append=true>//tmp/t", {"a": "b", "b": "c"})
+        write_table("<append=true>//tmp/t", {"a": "d", "b": "e"})
 
         chunk_ids = get("//tmp/t/@chunk_ids")
         assert get("#{0}/@compression_codec".format(chunk_ids[0])) == codec
 
-        rows = read_table("//tmp/t")
-
-        set("//tmp/t/@enable_chunk_merger", True)
-        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
-
-        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
-        assert read_table("//tmp/t") == rows
+        self._wait_for_merge("//tmp/t", merge_mode, "tmp")
 
         chunk_ids = get("//tmp/t/@chunk_ids")
         assert get("#{0}/@compression_codec".format(chunk_ids[0])) == codec
@@ -508,8 +532,6 @@ class TestChunkMerger(YTEnvSetup):
         codec2 = "zstd_17"
         create("table", "//tmp/t", attributes={"compression_codec": codec1})
 
-        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
-
         write_table("<append=true>//tmp/t", {"a": "b"})
         write_table("<append=true>//tmp/t", {"b": "c"})
         write_table("<append=true>//tmp/t", {"c": "d"})
@@ -517,121 +539,178 @@ class TestChunkMerger(YTEnvSetup):
         chunk_ids = get("//tmp/t/@chunk_ids")
         assert get("#{0}/@compression_codec".format(chunk_ids[0])) == codec1
 
-        rows = read_table("//tmp/t")
-
         set("//tmp/t/@compression_codec", codec2)
 
-        set("//tmp/t/@enable_chunk_merger", True)
-        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
-
-        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
-        assert read_table("//tmp/t") == rows
+        self._wait_for_merge("//tmp/t", "deep", "tmp")
 
         chunk_ids = get("//tmp/t/@chunk_ids")
         assert get("#{0}/@compression_codec".format(chunk_ids[0])) == codec2
 
     @authors("aleksandra-zh")
-    def test_erasure1(self):
-        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
-
+    @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
+    def test_erasure1(self, merge_mode):
         codec = "lrc_12_2_2"
         create("table", "//tmp/t", attributes={"erasure_codec": codec})
 
         write_table("<append=true>//tmp/t", {"a": "b"})
-        write_table("<append=true>//tmp/t", {"b": "c"})
-        write_table("<append=true>//tmp/t", {"c": "d"})
+        write_table("<append=true>//tmp/t", {"a": "c"})
+        write_table("<append=true>//tmp/t", {"a": "d"})
 
-        info = read_table("//tmp/t")
-
-        set("//tmp/t/@enable_chunk_merger", True)
-        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
-
-        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
-        assert read_table("//tmp/t") == info
+        self._wait_for_merge("//tmp/t", merge_mode, "tmp")
 
         chunk_ids = get("//tmp/t/@chunk_ids")
         assert get("#{0}/@erasure_codec".format(chunk_ids[0])) == codec
 
     @authors("aleksandra-zh")
-    def test_erasure2(self):
-        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
-
+    @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
+    def test_erasure2(self, merge_mode):
         codec = "lrc_12_2_2"
         none_codec = "none"
         create("table", "//tmp/t", attributes={"erasure_codec": codec})
 
         write_table("<append=true>//tmp/t", {"a": "b"})
-        write_table("<append=true>//tmp/t", {"b": "c"})
-        write_table("<append=true>//tmp/t", {"c": "d"})
-
-        info = read_table("//tmp/t")
+        write_table("<append=true>//tmp/t", {"a": "c"})
+        write_table("<append=true>//tmp/t", {"a": "d"})
 
         set("//tmp/t/@erasure_codec", none_codec)
 
-        set("//tmp/t/@enable_chunk_merger", True)
-        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
-
-        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
-        assert read_table("//tmp/t") == info
+        self._wait_for_merge("//tmp/t", merge_mode, "tmp")
 
         chunk_ids = get("//tmp/t/@chunk_ids")
         assert not exists("#{0}/@erasure_codec".format(chunk_ids[0]))
 
     @authors("aleksandra-zh")
-    def test_erasure3(self):
-        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
-
+    @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
+    def test_erasure3(self, merge_mode):
         codec = "lrc_12_2_2"
         none_codec = "none"
         create("table", "//tmp/t")
 
         write_table("<append=true>//tmp/t", {"a": "b"})
         set("//tmp/t/@erasure_codec", codec)
-        write_table("<append=true>//tmp/t", {"b": "c"})
+        write_table("<append=true>//tmp/t", {"a": "c"})
         set("//tmp/t/@erasure_codec", none_codec)
-        write_table("<append=true>//tmp/t", {"c": "d"})
-
-        info = read_table("//tmp/t")
+        write_table("<append=true>//tmp/t", {"a": "d"})
 
         set("//tmp/t/@erasure_codec", codec)
 
-        set("//tmp/t/@enable_chunk_merger", True)
-        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
-
-        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
-        assert read_table("//tmp/t") == info
+        self._wait_for_merge("//tmp/t", merge_mode, "tmp")
 
         chunk_ids = get("//tmp/t/@chunk_ids")
         assert get("#{0}/@erasure_codec".format(chunk_ids[0])) == codec
 
     @authors("aleksandra-zh")
-    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_optimize_for(self, optimize_for):
-        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
+    @pytest.mark.parametrize(
+        "optimize_for, merge_mode",
+        [("scan", "deep"), ("scan", "shallow"), ("lookup", "deep"), ("lookup", "shallow")]
+    )
+    def test_optimize_for(self, optimize_for, merge_mode):
         create("table", "//tmp/t", attributes={"optimize_for": optimize_for})
 
         write_table("<append=true>//tmp/t", {"a": "b"})
         write_table("<append=true>//tmp/t", {"a": "c"})
         write_table("<append=true>//tmp/t", {"a": "d"})
 
-        assert get("//tmp/t/@resource_usage/chunk_count") > 1
-        rows = read_table("//tmp/t")
-
-        set("//tmp/t/@enable_chunk_merger", True)
-        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
-
-        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
-        assert read_table("//tmp/t") == rows
+        self._wait_for_merge("//tmp/t", merge_mode, "tmp")
 
         chunk_format = "table_schemaless_horizontal" if optimize_for == "lookup" else "table_unversioned_columnar"
         chunk_ids = get("//tmp/t/@chunk_ids")
         assert get("#{0}/@chunk_format".format(chunk_ids[0])) == chunk_format
 
+    @authors("aleksandra-zh")
+    @pytest.mark.parametrize(
+        "optimize_for, merge_mode",
+        [("scan", "deep"), ("scan", "shallow"), ("lookup", "deep"), ("lookup", "shallow")]
+    )
+    def test_read_rows(self, optimize_for, merge_mode):
+        create("table", "//tmp/t", attributes={"optimize_for": optimize_for})
+        set("//tmp/t/@chunk_writer", {"block_size": 1})
+
+        write_table("<append=true>//tmp/t", [{"a": "z"}, {"b": "a"}, {"c": "q"}])
+        write_table("<append=true>//tmp/t", [{"a": "x"}, {"b": "s"}, {"c": "w"}])
+        write_table("<append=true>//tmp/t", [{"a": "c"}, {"b": "d"}, {"c": "e"}])
+
+        self._wait_for_merge("//tmp/t", merge_mode, "tmp")
+
+        assert read_table("//tmp/t[#-1:#2]") == [{"a": "z"}, {"b": "a"}]
+        assert read_table("//tmp/t[#2:#4]") == [{"c": "q"}, {"a": "x"}]
+        assert read_table("//tmp/t[#5:#8]") == [{"c": "w"}, {"a": "c"}, {"b": "d"}]
+        assert read_table("//tmp/t[#4:#5]") == [{"b": "s"}]
+        assert read_table("//tmp/t[#7:#11]") == [{"b": "d"}, {"c": "e"}]
+
+    @authors("aleksandra-zh")
+    @pytest.mark.parametrize(
+        "optimize_for, merge_mode",
+        [("scan", "deep"), ("scan", "shallow"), ("lookup", "deep"), ("lookup", "shallow")]
+    )
+    def test_row_key_selector(self, optimize_for, merge_mode):
+        create("table", "//tmp/t", attributes={"optimize_for": optimize_for})
+        set("//tmp/t/@chunk_writer", {"block_size": 1})
+
+        v1 = {"s": "a", "i": 0, "d": 15.5}
+        v2 = {"s": "a", "i": 10, "d": 15.2}
+        v3 = {"s": "b", "i": 5, "d": 20.0}
+        write_table("<append=true>//tmp/t", [v1, v2], sorted_by=["s", "i", "d"])
+
+        v4 = {"s": "b", "i": 20, "d": 20.0}
+        v5 = {"s": "c", "i": -100, "d": 10.0}
+        write_table("<append=true>//tmp/t", [v3, v4, v5], sorted_by=["s", "i", "d"])
+
+        self._wait_for_merge("//tmp/t", merge_mode, "tmp")
+
+        assert read_table("//tmp/t[a : a]") == []
+        assert read_table("//tmp/t[(a, 1) : (a, 10)]") == []
+        assert read_table("//tmp/t[b : a]") == []
+        assert read_table("//tmp/t[(c, 0) : (a, 10)]") == []
+        assert read_table("//tmp/t[(a, 10, 1e7) : (b, )]") == []
+
+        assert read_table("//tmp/t[c:]") == [v5]
+        assert read_table("//tmp/t[:(a, 10)]") == [v1]
+        assert read_table("//tmp/t[:(a, 10),:(a, 10)]") == [v1, v1]
+        assert read_table("//tmp/t[:(a, 11)]") == [v1, v2]
+        assert read_table("//tmp/t[:]") == [v1, v2, v3, v4, v5]
+        assert read_table("//tmp/t[a : b , b : c]") == [v1, v2, v3, v4]
+        assert read_table("//tmp/t[a]") == [v1, v2]
+        assert read_table("//tmp/t[(a,10)]") == [v2]
+        assert read_table("//tmp/t[a,c]") == [v1, v2, v5]
+
+        assert read_table("//tmp/t{s, d}[aa: (b, 10)]") == [{"s": "b", "d": 20.0}]
+        assert read_table("//tmp/t[#0:c]") == [v1, v2, v3, v4]
+
+    @authors("aleksandra-zh")
+    @pytest.mark.parametrize(
+        "optimize_for, merge_mode",
+        [("scan", "deep"), ("scan", "shallow"), ("lookup", "deep"), ("lookup", "shallow")]
+    )
+    def test_column_selector(self, optimize_for, merge_mode):
+        create("table", "//tmp/t", attributes={"optimize_for": optimize_for})
+
+        write_table("<append=true>//tmp/t", {"a": 1, "aa": 2, "b": 3, "bb": 4, "c": 5})
+        write_table("<append=true>//tmp/t", {"a": 11, "aa": 22, "b": 33, "bb": 44, "c": 55})
+        write_table("<append=true>//tmp/t", {"a": 111, "aa": 222, "b": 333, "bb": 444, "c": 555})
+
+        copy("//tmp/t", "//tmp/t1")
+        self._wait_for_merge("//tmp/t", merge_mode, "tmp")
+
+        assert get("//tmp/t1/@resource_usage/chunk_count") > 1
+
+        assert read_table("//tmp/t{}") == read_table("//tmp/t1{}")
+
+        assert read_table("//tmp/t{a}") == read_table("//tmp/t1{a}")
+        assert read_table("//tmp/t{a, }") == read_table("//tmp/t1{a, }")
+        assert read_table("//tmp/t{a, a}") == read_table("//tmp/t1{a, a}")
+        assert read_table("//tmp/t{c, b}") == read_table("//tmp/t1{c, b}")
+        assert read_table("//tmp/t{zzzzz}") == read_table("//tmp/t1{zzzzz}")
+
+        assert read_table("//tmp/t{a}") == read_table("//tmp/t1{a}")
+        assert read_table("//tmp/t{a, }") == read_table("//tmp/t1{a, }")
+        assert read_table("//tmp/t{a, a}") == read_table("//tmp/t1{a, a}")
+        assert read_table("//tmp/t{c, b}") == read_table("//tmp/t1{c, b}")
+        assert read_table("//tmp/t{zzzzz}") == read_table("//tmp/t1{zzzzz}")
+
     @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_nonstrict_schema(self, optimize_for):
-        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
-
         schema = make_schema(
             [
                 {"name": "a", "type": "string"},
@@ -648,15 +727,9 @@ class TestChunkMerger(YTEnvSetup):
         write_table("<append=true>//tmp/t", rows2)
         rows3 = [{"a": "a" + str(i), "b": "b" + str(i), "c": i, "z": "z" + str(i)} for i in xrange(20, 30)]
         write_table("<append=true>//tmp/t", rows3)
-
-        assert get("//tmp/t/@resource_usage/chunk_count") > 1
         assert read_table("//tmp/t") == rows1 + rows2 + rows3
 
-        set("//tmp/t/@enable_chunk_merger", True)
-        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
-
-        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
-        assert read_table("//tmp/t") == rows1 + rows2 + rows3
+        self._wait_for_merge("//tmp/t", "deep", "tmp")
 
         chunk_format = "table_schemaless_horizontal" if optimize_for == "lookup" else "table_unversioned_columnar"
         chunk_ids = get("//tmp/t/@chunk_ids")
@@ -693,7 +766,7 @@ class TestChunkMerger(YTEnvSetup):
 
         rows = read_table("//tmp/t")
 
-        set("//tmp/t/@enable_chunk_merger", True)
+        set("//tmp/t/@chunk_merger_mode", "deep")
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
         merged_rows = read_table("//tmp/t")
@@ -701,11 +774,12 @@ class TestChunkMerger(YTEnvSetup):
         assert _schematize_rows(rows, schema2) == _schematize_rows(merged_rows, schema2)
 
     @authors("aleksandra-zh")
-    def test_inherit_enable_chunk_merger(self):
+    @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
+    def test_inherit_chunk_merger_mode(self, merge_mode):
         set("//sys/@config/chunk_manager/chunk_merger/enable", True)
 
         create("map_node", "//tmp/d")
-        set("//tmp/d/@enable_chunk_merger", True)
+        set("//tmp/d/@chunk_merger_mode", merge_mode)
 
         create("table", "//tmp/d/t")
         write_table("<append=true>//tmp/d/t", {"a": "b"})
@@ -715,7 +789,6 @@ class TestChunkMerger(YTEnvSetup):
         assert get("//tmp/d/t/@resource_usage/chunk_count") > 1
         info = read_table("//tmp/d/t")
 
-        set("//tmp/d/@enable_chunk_merger", True)
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
 
         wait(lambda: get("//tmp/d/t/@resource_usage/chunk_count") == 1)
@@ -763,7 +836,7 @@ class TestChunkMerger(YTEnvSetup):
                 write_table("<append=true>//tmp/t{}".format(i), {"b": "c"})
                 write_table("<append=true>//tmp/t{}".format(i), {"c": "d"})
             for i in range(TABLE_COUNT):
-                set("//tmp/t{}/@enable_chunk_merger".format(i), True)
+                set("//tmp/t{}/@chunk_merger_mode".format(i), "deep")
             return measure_time_until(merge_completed)
 
         t1 = run()

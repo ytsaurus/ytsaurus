@@ -65,7 +65,7 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     Save(context, ErasureCodec_);
     Save(context, SnapshotSecurityTags_);
     Save(context, DeltaSecurityTags_);
-    Save(context, EnableChunkMerger_);
+    Save(context, ChunkMergerMode_);
     Save(context, EnableSkynetSharing_);
     Save(context, UpdatedSinceLastMerge_);
 }
@@ -87,8 +87,15 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, DeltaSecurityTags_);
 
     // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= EMasterReign::MasterMergeJobs) {
-        Load(context, EnableChunkMerger_);
+    if (context.GetVersion() >= EMasterReign::MasterMergeJobs && context.GetVersion() < EMasterReign::ChunkMergeModes) {
+        if (Load<bool>(context)) {
+            ChunkMergerMode_ = EChunkMergerMode::Deep;
+        }
+    }
+
+    // COMPAT(aleksandra-zh)
+    if (context.GetVersion() >= EMasterReign::ChunkMergeModes) {
+        Load(context, ChunkMergerMode_);
     }
 
     // COMPAT(aleksandra-zh)

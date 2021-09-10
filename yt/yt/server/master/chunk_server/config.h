@@ -209,10 +209,17 @@ public:
 
     int MaxChunkCount;
     int MinChunkCount;
+
+    // If we are in auto mode and less than MinShallowMergeChunkCount chunks satisfy shallow
+    // merge criteria, fallback to deep merge right away.
+    int MinShallowMergeChunkCount;
+
     i64 MaxRowCount;
     i64 MaxDataWeight;
     i64 MaxUncompressedDataSize;
     i64 MaxInputChunkDataWeight;
+
+    int MaxBlockCount;
 
     TDuration SchedulePeriod;
     TDuration CreateChunksPeriod;
@@ -235,18 +242,26 @@ public:
         RegisterParameter("min_chunk_count", MinChunkCount)
             .GreaterThan(1)
             .Default(2);
-        RegisterParameter("max_row_count", MaxRowCount)
+        RegisterParameter("min_shallow_merge_chunk_count", MinShallowMergeChunkCount)
             .GreaterThan(1)
+            .Default(5);
+
+        RegisterParameter("max_row_count", MaxRowCount)
+            .GreaterThan(0)
             .Default(1000000);
         RegisterParameter("max_data_weight", MaxDataWeight)
-            .GreaterThan(1)
+            .GreaterThan(0)
             .Default(1_GB);
         RegisterParameter("max_uncompressed_data_size", MaxUncompressedDataSize)
-            .GreaterThan(1)
+            .GreaterThan(0)
             .Default(2_GB);
         RegisterParameter("max_input_chunk_data_weight", MaxInputChunkDataWeight)
-            .GreaterThan(1)
+            .GreaterThan(0)
             .Default(512_MB);
+
+        RegisterParameter("max_block_count", MaxBlockCount)
+            .GreaterThan(0)
+            .Default(250);
 
         RegisterParameter("schedule_period", SchedulePeriod)
             .Default(TDuration::Seconds(1));

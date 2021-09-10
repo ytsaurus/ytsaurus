@@ -130,6 +130,9 @@ message TChunkMergerWriterOptions
     optional int32 optimize_for = 3; // EOptimizeFor
     optional bool enable_skynet_sharing = 4;
     optional int32 erasure_codec = 5 [default = 0]; // NErasure::ECodec
+    optional int32 merge_mode = 6 [default = 2]; // NChunkClient::EChunkMergerMode, default is EChunkMergerMode::Deep
+    optional int32 max_heavy_columns = 7 [default = 0];
+    optional int32 max_block_count = 8;
 }
 
 message TMergeChunksJobSpecExt
