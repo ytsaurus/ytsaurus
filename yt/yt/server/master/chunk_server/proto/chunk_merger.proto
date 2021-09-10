@@ -30,10 +30,16 @@ message TReqCreateChunks
 
 message TReqReplaceChunks
 {
-    repeated NYT.NProto.TGuid old_chunk_ids = 1;
-    required NYT.NProto.TGuid new_chunk_id = 2;
-    required NYT.NProto.TGuid node_id = 3;
-    required NYT.NProto.TGuid job_id = 4;
+    message TReplaceChunkInfo
+    {
+        repeated NYT.NProto.TGuid old_chunk_ids = 1;
+        required NYT.NProto.TGuid new_chunk_id = 2;
+    }
+
+    repeated TReplaceChunkInfo replacements = 1;
+
+    required NYT.NProto.TGuid node_id = 2;
+    required NYT.NProto.TGuid chunk_list_id = 3;
 }
 
 message TReqFinalizeChunkMergeSessions

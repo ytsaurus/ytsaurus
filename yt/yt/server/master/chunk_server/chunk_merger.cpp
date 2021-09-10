@@ -105,6 +105,11 @@ public:
         Bootstrap_->GetChunkManager()->AttachToChunkList(chunkList, childrenBegin, childrenEnd);
     }
 
+    TChunkList* CreateChunkList(EChunkListKind kind) override
+    {
+        return Bootstrap_->GetChunkManager()->CreateChunkList(kind);
+    }
+
     bool IsMutationLoggingEnabled() override
     {
         return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsMutationLoggingEnabled();
@@ -166,7 +171,6 @@ public:
         : Bootstrap_(bootstrap)
         , Node_(node)
         , Mode_(Node_->GetChunkMergerMode())
-        , RootChunkList_(Node_->GetChunkList())
         , Account_(Node_->GetAccount())
         , ChunkVisitorHost_(std::move(chunkVisitorHost))
         , CurrentJobMode_(Mode_)
@@ -186,54 +190,65 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->EphemeralRefObject(Account_);
         objectManager->EphemeralRefObject(Node_);
-        objectManager->EphemeralRefObject(RootChunkList_);
 
-        TraverseChunkTree(std::move(callbacks), this, RootChunkList_);
+        YT_LOG_DEBUG("Traversal started (NodeId: %v, RootChunkListId: %v)",
+            Node_->GetId(),
+            Node_->GetChunkList()->GetId());
+        TraverseChunkTree(std::move(callbacks), this, Node_->GetChunkList());
     }
 
 private:
     TBootstrap* const Bootstrap_;
     TChunkOwnerBase* const Node_;
     const EChunkMergerMode Mode_;
-    TChunkList* const RootChunkList_;
     TAccount* const Account_;
     const TWeakPtr<IMergeChunkVisitorHost> ChunkVisitorHost_;
 
+    // Used to order jobs results correctly for chunk replace.
+    int JobIndex_ = 0;
+
     std::vector<TChunkId> ChunkIds_;
     EChunkMergerMode CurrentJobMode_;
+
+    TChunkListId ParentChunkListId_;
     i64 CurrentRowCount_ = 0;
     i64 CurrentDataWeight_ = 0;
     i64 CurrentUncompressedDataSize_ = 0;
 
+    TChunkListId LastChunkListId_;
+    int JobsForLastChunkList_ = 0;
 
     bool OnChunk(
         TChunk* chunk,
+        TChunkList* parent,
         std::optional<i64> /*rowIndex*/,
         std::optional<int> /*tabletIndex*/,
         const NChunkClient::TReadLimit& /*lowerLimit*/,
         const NChunkClient::TReadLimit& /*upperLimit*/,
         TTransactionId /*timestampTransactionId*/) override
     {
-        if (MaybeAddChunk(chunk)) {
+        if (MaybeAddChunk(chunk, parent)) {
             return true;
         }
 
         MaybePlanJob();
+
         ResetStatistics();
-        MaybeAddChunk(chunk);
+
+        MaybeAddChunk(chunk, parent);
         return true;
     }
 
-    bool OnChunkView(TChunkView*) override
+    bool OnChunkView(TChunkView* /*chunkView*/) override
     {
         return false;
     }
 
     bool OnDynamicStore(
-        TDynamicStore*,
-        std::optional<int>,
-        const NChunkClient::TReadLimit&,
-        const NChunkClient::TReadLimit&) override
+        TDynamicStore* /*dynamicStore*/,
+        std::optional<int> /*tabletIndex*/,
+        const NChunkClient::TReadLimit& /*startLimit*/,
+        const NChunkClient::TReadLimit& /*endLimit*/) override
     {
         return false;
     }
@@ -251,16 +266,14 @@ private:
         }
 
         auto nodeId = Node_->GetId();
-        auto result = !error.IsOK() || Node_->GetChunkList() != RootChunkList_
-            ? EMergeSessionResult::TransientFailure
-            : EMergeSessionResult::OK;
+        auto result = error.IsOK() ? EMergeSessionResult::OK : EMergeSessionResult::TransientFailure;
         chunkVisitorHost->OnTraversalFinished(nodeId, result);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->EphemeralUnrefObject(Account_);
         objectManager->EphemeralUnrefObject(Node_);
-        objectManager->EphemeralUnrefObject(RootChunkList_);
     }
+
 
     void ResetStatistics()
     {
@@ -269,6 +282,7 @@ private:
         CurrentDataWeight_ = 0;
         CurrentUncompressedDataSize_ = 0;
         CurrentJobMode_ = Mode_;
+        ParentChunkListId_ = NullObjectId;
     }
 
     bool SatisfiesShallowMergeCriteria(TChunk* chunk)
@@ -289,9 +303,13 @@ private:
         return true;
     }
 
-    bool MaybeAddChunk(TChunk* chunk)
+    bool MaybeAddChunk(TChunk* chunk, TChunkList* parent)
     {
         const auto& config = GetDynamicConfig();
+
+        if (parent->GetId() == LastChunkListId_ && JobsForLastChunkList_ >= config->MaxJobsPerChunkList) {
+            return false;
+        }
 
         if (CurrentJobMode_ == EChunkMergerMode::Shallow && !SatisfiesShallowMergeCriteria(chunk)) {
             return false;
@@ -308,11 +326,13 @@ private:
             CurrentDataWeight_ + chunk->GetDataWeight() < config->MaxDataWeight &&
             CurrentUncompressedDataSize_ + chunk->GetUncompressedDataSize() < config->MaxUncompressedDataSize &&
             std::ssize(ChunkIds_) < config->MaxChunkCount &&
-            chunk->GetDataWeight() < config->MaxInputChunkDataWeight)
+            chunk->GetDataWeight() < config->MaxInputChunkDataWeight &&
+            ParentChunkListId_ == NullObjectId || ParentChunkListId_ == parent->GetId())
         {
             CurrentRowCount_ += chunk->GetRowCount();
             CurrentDataWeight_ += chunk->GetDataWeight();
             CurrentUncompressedDataSize_ += chunk->GetUncompressedDataSize();
+            ParentChunkListId_ = parent->GetId();
             ChunkIds_.push_back(chunk->GetId());
             return true;
         }
@@ -331,10 +351,23 @@ private:
             return;
         }
 
+        if (LastChunkListId_ == ParentChunkListId_) {
+            ++JobsForLastChunkList_;
+        } else {
+            LastChunkListId_ = ParentChunkListId_;
+            JobsForLastChunkList_ = 1;
+        }
+
         auto nodeId = Node_->GetId();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto jobId = chunkManager->GenerateJobId();
-        chunkVisitorHost->RegisterJobAwaitingChunkCreation(jobId, CurrentJobMode_, nodeId, RootChunkList_->GetId(), std::move(ChunkIds_));
+        chunkVisitorHost->RegisterJobAwaitingChunkCreation(
+            jobId,
+            CurrentJobMode_,
+            JobIndex_++,
+            nodeId,
+            ParentChunkListId_,
+            std::move(ChunkIds_));
     }
 
     const TDynamicChunkMergerConfigPtr& GetDynamicConfig() const
@@ -349,7 +382,7 @@ private:
 TChunkMerger::TChunkMerger(TBootstrap* bootstrap)
     : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ChunkMerger)
     , Bootstrap_(bootstrap)
-    , ChunkReplacer_(New<TChunkReplacerCallbacks>(Bootstrap_), Logger)
+    , ChunkReplacerCallbacks_(New<TChunkReplacerCallbacks>(Bootstrap_))
 {
     YT_VERIFY(Bootstrap_);
 
@@ -440,6 +473,7 @@ void TChunkMerger::ScheduleJobs(IJobSchedulingContext* context)
             auto* trunkNode = FindChunkOwner(jobInfo.NodeId);
             FinalizeJob(
                 jobInfo.NodeId,
+                jobInfo.ParentChunkListId,
                 jobInfo.JobId,
                 CanScheduleMerge(trunkNode) ? EMergeSessionResult::TransientFailure : EMergeSessionResult::PermanentFailure);
             continue;
@@ -714,54 +748,130 @@ void TChunkMerger::RegisterSessionTransient(TChunkOwnerBase* chunkOwner)
     queue.push(chunkOwner->GetId());
 }
 
-void TChunkMerger::FinalizeJob(TObjectId nodeId, TJobId jobId, EMergeSessionResult result)
+void TChunkMerger::FinalizeJob(
+    TObjectId nodeId,
+    TChunkListId parentChunkListId,
+    TJobId jobId,
+    EMergeSessionResult result)
 {
     if (!IsLeader()) {
         return;
     }
 
-    YT_LOG_DEBUG("Finalizing merge job (NodeId: %v, JobId: %v)", nodeId, jobId);
-    auto it = RunningSessions_.find(nodeId);
-    YT_VERIFY(it != RunningSessions_.end());
-    auto& session = it->second;
-    YT_VERIFY(session.Jobs.erase(jobId) > 0);
+    YT_LOG_DEBUG("Finalizing merge job (NodeId: %v, JobId: %v)",
+        nodeId,
+        jobId);
+
+    auto& session = GetOrCrash(RunningSessions_, nodeId);
     session.Result = std::max(session.Result, result);
-    if (session.Jobs.empty()) {
+
+    auto& runningJobs = GetOrCrash(session.ChunkListIdToRunningJobs, parentChunkListId);
+    EraseOrCrash(runningJobs, jobId);
+
+    if (result == EMergeSessionResult::OK) {
+        session.ChunkListIdToCompletedJobs[parentChunkListId].insert(jobId);
+    }
+
+    if (runningJobs.empty()) {
+        EraseOrCrash(session.ChunkListIdToRunningJobs, parentChunkListId);
+        auto completedJobsIt = session.ChunkListIdToCompletedJobs.find(parentChunkListId);
+        if (completedJobsIt != session.ChunkListIdToCompletedJobs.end()) {
+            ScheduleReplaceChunks(nodeId, parentChunkListId, completedJobsIt->second);
+        }
+    }
+
+    if (session.ChunkListIdToRunningJobs.empty() && session.ChunkListIdToCompletedJobs.empty()) {
         ScheduleSessionFinalization(nodeId, EMergeSessionResult::None);
     }
+}
+
+void TChunkMerger::FinalizeReplacement(
+    TObjectId nodeId,
+    TChunkListId chunkListId,
+    EMergeSessionResult result)
+{
+    if (!IsLeader()) {
+        return;
+    }
+
+    YT_LOG_DEBUG("Finalizing chunk merge replacement (NodeId: %v, ChunkListId: %v, Result: %v)",
+        nodeId,
+        chunkListId,
+        result);
+
+    auto& session = GetOrCrash(RunningSessions_, nodeId);
+    session.Result = std::max(session.Result, result);
+    EraseOrCrash(session.ChunkListIdToCompletedJobs,chunkListId);
+
+    if (session.ChunkListIdToRunningJobs.empty() && session.ChunkListIdToCompletedJobs.empty()) {
+        ScheduleSessionFinalization(nodeId, EMergeSessionResult::None);
+    }
+}
+
+void TChunkMerger::ScheduleReplaceChunks(
+    TObjectId nodeId,
+    TChunkListId parentChunkListId,
+    const THashSet<TJobId>& jobIds)
+{
+    YT_LOG_DEBUG("Scheduling chunk replace after merge (NodeId: %v, ParentChunkListId: %v)",
+        nodeId,
+        parentChunkListId);
+
+    TReqReplaceChunks request;
+    std::vector<const TMergeJobInfo*> jobs;
+    jobs.reserve(jobIds.size());
+    for (auto jobId : jobIds) {
+        const auto& jobInfo = GetOrCrash(RunningJobs_, jobId);
+        jobs.push_back(&jobInfo);
+    }
+
+    std::sort(jobs.begin(), jobs.end(), [] (const TMergeJobInfo* lhs, const TMergeJobInfo* rhs) {
+        return lhs->JobIndex < rhs->JobIndex;
+    });
+
+    for (const auto& job : jobs) {
+        auto* replacement = request.add_replacements();
+        ToProto(replacement->mutable_new_chunk_id(), job->OutputChunkId);
+        ToProto(replacement->mutable_old_chunk_ids(), job->InputChunkIds);
+    }
+
+    ToProto(request.mutable_node_id(), nodeId);
+    ToProto(request.mutable_chunk_list_id(), parentChunkListId);
+
+    CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
+        ->CommitAndLog(Logger);
 }
 
 void TChunkMerger::RegisterJobAwaitingChunkCreation(
     TJobId jobId,
     EChunkMergerMode mode,
+    int jobIndex,
     TObjectId nodeId,
-    TChunkListId rootChunkListId,
+    TChunkListId parentChunkListId,
     std::vector<TChunkId> inputChunkIds)
 {
     JobsAwaitingChunkCreation_.push({
         .JobId = jobId,
+        .JobIndex = jobIndex,
         .NodeId = nodeId,
-        .RootChunkListId = rootChunkListId,
+        .MergeMode = mode,
+        .ParentChunkListId = parentChunkListId,
         .InputChunkIds = std::move(inputChunkIds),
-        .MergeMode = mode
     });
 
-    YT_LOG_DEBUG("Planning merge job (JobId: %v, NodeId: %v, RootChunkListId: %v)",
+    YT_LOG_DEBUG("Planning merge job (JobId: %v, NodeId: %v, ParentChunkListId: %v)",
         jobId,
         nodeId,
-        rootChunkListId);
+        parentChunkListId);
 
-    auto it = RunningSessions_.find(nodeId);
-    YT_VERIFY(it != RunningSessions_.end());
-    YT_VERIFY(it->second.Jobs.insert(jobId).second);
+    auto& session = GetOrCrash(RunningSessions_, nodeId);
+    InsertOrCrash(session.ChunkListIdToRunningJobs[parentChunkListId], jobId);
 }
 
 void TChunkMerger::OnTraversalFinished(TObjectId nodeId, EMergeSessionResult result)
 {
-    auto it = RunningSessions_.find(nodeId);
-    YT_VERIFY(it != RunningSessions_.end());
-    const auto& session = it->second;
-    if (session.Jobs.empty()) {
+    auto& session = GetOrCrash(RunningSessions_, nodeId);
+    if (session.ChunkListIdToRunningJobs.empty() && session.ChunkListIdToCompletedJobs.empty()) {
         ScheduleSessionFinalization(nodeId, result);
     }
 }
@@ -772,22 +882,20 @@ void TChunkMerger::ScheduleSessionFinalization(TObjectId nodeId, EMergeSessionRe
         return;
     }
 
-    auto it = RunningSessions_.find(nodeId);
-    YT_VERIFY(it != RunningSessions_.end());
-    auto& session = it->second;
+    auto& session = GetOrCrash(RunningSessions_, nodeId);
     session.Result = std::max(session.Result, result);
 
-    YT_VERIFY(session.Jobs.empty());
+    YT_VERIFY(session.ChunkListIdToRunningJobs.empty() && session.ChunkListIdToCompletedJobs.empty());
     YT_LOG_DEBUG_IF(
         IsMutationLoggingEnabled(),
-        "Finalizing merge session (NodeId: %v, Result: %v)",
+        "Finalizing chunk merge session (NodeId: %v, Result: %v)",
         nodeId,
         session.Result);
     SessionsAwaitingFinalizaton_.push({
         .NodeId = nodeId,
         .Result = session.Result
     });
-    RunningSessions_.erase(it);
+    EraseOrCrash(RunningSessions_, nodeId);
 }
 
 void TChunkMerger::FinalizeSessions()
@@ -888,7 +996,11 @@ void TChunkMerger::CreateChunks()
 
         auto* node = FindChunkOwner(jobInfo.NodeId);
         if (!node) {
-            FinalizeJob(jobInfo.NodeId, jobInfo.JobId, EMergeSessionResult::PermanentFailure);
+            FinalizeJob(
+                jobInfo.NodeId,
+                jobInfo.ParentChunkListId,
+                jobInfo.JobId,
+                EMergeSessionResult::PermanentFailure);
             JobsAwaitingChunkCreation_.pop();
             continue;
         }
@@ -933,9 +1045,6 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
 
     auto* chunkOwner = FindChunkOwner(jobInfo.NodeId);
     if (!CanScheduleMerge(chunkOwner)) {
-        return false;
-    }
-    if (!chunkOwner->GetChunkList() || chunkOwner->GetChunkList()->GetId() != jobInfo.RootChunkListId) {
         return false;
     }
 
@@ -1025,24 +1134,6 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
     return true;
 }
 
-void TChunkMerger::ScheduleReplaceChunks(const TMergeJobInfo& jobInfo)
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    YT_LOG_DEBUG("Scheduling chunk replace after merge (JobId: %v, NodeId: %v)",
-        jobInfo.JobId,
-        jobInfo.NodeId);
-
-    TReqReplaceChunks request;
-    ToProto(request.mutable_new_chunk_id(), jobInfo.OutputChunkId);
-    ToProto(request.mutable_node_id(), jobInfo.NodeId);
-    ToProto(request.mutable_old_chunk_ids(), jobInfo.InputChunkIds);
-    ToProto(request.mutable_job_id(), jobInfo.JobId);
-
-    CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-        ->CommitAndLog(Logger);
-}
-
 void TChunkMerger::OnJobFinished(const TJobPtr& job)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1059,28 +1150,24 @@ void TChunkMerger::OnJobFinished(const TJobPtr& job)
 
     const auto& jobInfo = it->second;
     auto state = job->GetState();
-    switch (state) {
-        case EJobState::Completed:
-            ScheduleReplaceChunks(jobInfo);
-            break;
 
-        case EJobState::Failed:
-        case EJobState::Aborted: {
-            auto result = EMergeSessionResult::TransientFailure;
-            if (state == EJobState::Failed && job->Error().FindMatching(NChunkClient::EErrorCode::IncompatibleChunkMetas)) {
-                YT_LOG_DEBUG(
-                    job->Error(),
-                    "Chunks do not satisfy shallow merge criteria, will not try merging them again (JobId: %v)",
-                    jobId);
-                result = EMergeSessionResult::OK;
-            }
-            FinalizeJob(jobInfo.NodeId, jobInfo.JobId, result);
-            break;
-        }
+    auto result = job->GetState() == EJobState::Completed
+        ? EMergeSessionResult::OK
+        : EMergeSessionResult::TransientFailure;
 
-        default:
-            YT_ABORT();
+    if (state == EJobState::Failed && job->Error().FindMatching(NChunkClient::EErrorCode::IncompatibleChunkMetas)) {
+        YT_LOG_DEBUG(
+            job->Error(),
+            "Chunks do not satisfy shallow merge criteria, will not try merging them again (JobId: %v)",
+            jobId);
+        result = EMergeSessionResult::OK;
     }
+
+    FinalizeJob(
+        jobInfo.NodeId,
+        jobInfo.ParentChunkListId,
+        jobInfo.JobId,
+        result);
 
     RunningJobs_.erase(it);
 }
@@ -1160,7 +1247,11 @@ void TChunkMerger::HydraCreateChunks(NProto::TReqCreateChunks* request)
                 return;
             }
 
-            FinalizeJob(it->second.NodeId, jobId, EMergeSessionResult::TransientFailure);
+            FinalizeJob(
+                it->second.NodeId,
+                it->second.ParentChunkListId,
+                jobId,
+                EMergeSessionResult::TransientFailure);
             JobsUndergoingChunkCreation_.erase(it);
         };
 
@@ -1230,13 +1321,15 @@ void TChunkMerger::HydraCreateChunks(NProto::TReqCreateChunks* request)
 void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
 {
     auto nodeId = FromProto<TObjectId>(request->node_id());
-    auto jobId = FromProto<TObjectId>(request->job_id());
+    auto chunkListId = FromProto<TChunkListId>(request->chunk_list_id());
+
+    auto replacementCount = request->replacements_size();
     auto* chunkOwner = FindChunkOwner(nodeId);
     if (!chunkOwner) {
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: no such chunk owner node (NodeId: %v)",
             nodeId);
-        ++ChunkReplacementFailed_;
-        FinalizeJob(nodeId, jobId, EMergeSessionResult::PermanentFailure);
+        ChunkReplacementFailed_ += replacementCount;
+        FinalizeReplacement(nodeId, chunkListId, EMergeSessionResult::PermanentFailure);
         return;
     }
 
@@ -1245,66 +1338,99 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
         if (table->IsDynamic()) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: table is dynamic (NodeId: %v)",
                 chunkOwner->GetId());
-            ++ChunkReplacementFailed_;
-            FinalizeJob(nodeId, jobId, EMergeSessionResult::PermanentFailure);
+            ChunkReplacementFailed_ += replacementCount;
+            FinalizeReplacement(nodeId, chunkListId, EMergeSessionResult::PermanentFailure);
             return;
         }
     }
-    auto* oldChunkList = chunkOwner->GetChunkList();
 
-    auto newChunkId = FromProto<TChunkId>(request->new_chunk_id());
+    auto* rootChunkList = chunkOwner->GetChunkList();
+    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replacing chunks after merge (NodeId: %v, ChunkListId: %v)",
+        nodeId,
+        chunkListId);
+
+    TChunkReplacer chunkReplacer(ChunkReplacerCallbacks_, Logger);
+    if (!chunkReplacer.FindChunkList(rootChunkList, chunkListId)) {
+        YT_LOG_DEBUG_IF(
+            IsMutationLoggingEnabled(),
+            "Cannot replace chunks after merge: parent chunk list is no longer there (NodeId: %v, ParentChunkListId: %v)",
+            nodeId,
+            chunkListId);
+        ChunkReplacementFailed_ += replacementCount;
+        FinalizeReplacement(nodeId, chunkListId, EMergeSessionResult::OK);
+        return;
+    }
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
-    auto* newChunk = chunkManager->FindChunk(newChunkId);
-    if (!IsObjectAlive(newChunk)) {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: no such chunk (NodeId: %v, ChunkId: %v)",
-            nodeId,
-            newChunkId);
-        ++ChunkReplacementFailed_;
-        FinalizeJob(nodeId, jobId, EMergeSessionResult::TransientFailure);
+
+    auto chunkReplacementSucceded = 0;
+    for (int index = 0; index < replacementCount; ++index) {
+        const auto& replacement = request->replacements()[index];
+        auto newChunkId = FromProto<TChunkId>(replacement.new_chunk_id());
+        auto* newChunk = chunkManager->FindChunk(newChunkId);
+        if (!IsObjectAlive(newChunk)) {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: no such chunk (NodeId: %v, ChunkId: %v)",
+                nodeId,
+                newChunkId);
+            ++ChunkReplacementFailed_;
+            continue;
+        }
+
+        auto chunkIds = FromProto<std::vector<TChunkId>>(replacement.old_chunk_ids());
+        if (chunkReplacer.ReplaceChunkSequence(newChunk, chunkIds)) {
+            YT_LOG_DEBUG_IF(
+                IsMutationLoggingEnabled(),
+                "Replaced chunks after merge (NodeId: %v, InputChunkIds: %v, ChunkId: %v)",
+                nodeId,
+                chunkIds,
+                newChunkId);
+            ++ChunkReplacementSucceded_;
+            ++chunkReplacementSucceded;
+            ChunkCountSaving_ += std::ssize(chunkIds) - 1;
+            chunkManager->ScheduleChunkRequisitionUpdate(newChunk);
+        } else {
+            YT_LOG_DEBUG_IF(
+                IsMutationLoggingEnabled(),
+                "Cannot replace chunks after merge: input chunk sequence is no longer there (NodeId: %v, InputChunkIds: %v, ChunkId: %v)",
+                nodeId,
+                chunkIds,
+                newChunkId);
+            ChunkReplacementFailed_ += replacementCount - index;
+            break;
+        }
+    }
+
+    auto result = chunkReplacementSucceded == replacementCount
+        ? EMergeSessionResult::OK
+        : EMergeSessionResult::TransientFailure;
+    FinalizeReplacement(nodeId, chunkListId, result);
+
+    if (chunkReplacementSucceded == 0) {
         return;
     }
 
-    auto oldChunkIds = FromProto<std::vector<TChunkId>>(request->old_chunk_ids());
-
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replacing chunks after merge (NodeId: %v, OldChunkIds: %v, NewChunkId: %v)",
-        nodeId,
-        oldChunkIds,
-        newChunkId);
-
-    auto* newChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
-
-    if (!ChunkReplacer_.Replace(oldChunkList, newChunkList, newChunk, oldChunkIds)) {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: root has changed (NodeId: %v)",
-            nodeId);
-        ++ChunkReplacementFailed_;
-        FinalizeJob(nodeId, jobId, EMergeSessionResult::TransientFailure);
-        return;
-    }
+    auto* newRootChunkList = chunkReplacer.Finish();
+    YT_VERIFY(newRootChunkList);
 
     // Change chunk list.
     const auto& objectManager = Bootstrap_->GetObjectManager();
 
-    newChunkList->AddOwningNode(chunkOwner);
-    oldChunkList->RemoveOwningNode(chunkOwner);
+    newRootChunkList->AddOwningNode(chunkOwner);
+    rootChunkList->RemoveOwningNode(chunkOwner);
 
-    chunkOwner->SetChunkList(newChunkList);
-    chunkOwner->SnapshotStatistics() = newChunkList->Statistics().ToDataStatistics();
+    chunkOwner->SetChunkList(newRootChunkList);
+    chunkOwner->SnapshotStatistics() = newRootChunkList->Statistics().ToDataStatistics();
 
-    objectManager->RefObject(newChunkList);
+    objectManager->RefObject(newRootChunkList);
 
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk list replaced after merge (NodeId: %v, OldChunkListId: %v, NewChunkListId: %v)",
+    YT_LOG_DEBUG_IF(
+        IsMutationLoggingEnabled(),
+        "Chunk list replaced after merge (NodeId: %v, OldChunkListId: %v, NewChunkListId: %v)",
         nodeId,
-        oldChunkList->GetId(),
-        newChunkList->GetId());
-    ++ChunkReplacementSucceded_;
-    ChunkCountSaving_ += oldChunkIds.size() - 1;
+        rootChunkList->GetId(),
+        newRootChunkList->GetId());
 
-    objectManager->UnrefObject(oldChunkList);
-
-    chunkManager->ScheduleChunkRequisitionUpdate(newChunk);
-
-    FinalizeJob(nodeId, jobId, EMergeSessionResult::OK);
+    objectManager->UnrefObject(rootChunkList);
 
     if (chunkOwner->IsForeign()) {
         const auto& tableManager = Bootstrap_->GetTableManager();

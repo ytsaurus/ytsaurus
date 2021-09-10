@@ -371,6 +371,7 @@ private:
 
     bool OnChunk(
         TChunk* chunk,
+        TChunkList* /*parent*/,
         std::optional<i64> rowIndex,
         std::optional<int> tabletIndex,
         const TReadLimit& lowerLimit,
@@ -463,6 +464,7 @@ private:
 
                 return OnChunk(
                     chunk,
+                    /*parent*/ nullptr,
                     dynamicStore->GetTableRowIndex(),
                     tabletIndex,
                     relativeLowerLimit,

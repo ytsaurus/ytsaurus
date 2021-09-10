@@ -475,6 +475,7 @@ protected:
                 subtreeEndLimit);
             if (!Visitor_->OnChunk(
                 childChunk,
+                chunkList,
                 rowIndex,
                 {} /*tabletIndex*/,
                 subtreeStartLimit,
@@ -820,6 +821,7 @@ protected:
 
                 if (!Visitor_->OnChunk(
                     childChunk,
+                    chunkList,
                     rowIndex,
                     tabletIndex,
                     subtreeStartLimit,
@@ -1623,6 +1625,7 @@ public:
 
     bool OnChunk(
         TChunk* chunk,
+        TChunkList* /*parent*/,
         std::optional<i64> /*rowIndex*/,
         std::optional<int> /*tabletIndex*/,
         const NChunkClient::TReadLimit& /*startLimit*/,
@@ -1693,6 +1696,7 @@ void EnumerateStoresInChunkTree(
 
         bool OnChunk(
             TChunk* chunk,
+            TChunkList* /*parent*/,
             std::optional<i64> /*rowIndex*/,
             std::optional<int> /*tabletIndex*/,
             const NChunkClient::TReadLimit& /*startLimit*/,

@@ -3,6 +3,8 @@
 #include "public.h"
 #include "private.h"
 
+#include <stack>
+
 #include <yt/yt/core/logging/log.h>
 
 namespace NYT::NChunkServer {
@@ -22,7 +24,9 @@ struct IChunkReplacerCallbacks
         TChunkList* chunkList,
         TChunkTree* const* childrenBegin,
         TChunkTree* const* childrenEnd) = 0;
-    
+    virtual TChunkList* CreateChunkList(
+        EChunkListKind kind) = 0;
+
     virtual bool IsMutationLoggingEnabled() = 0;
 };
 
@@ -37,21 +41,34 @@ public:
         IChunkReplacerCallbacksPtr chunkReplacerCallbacks,
         NLogging::TLogger logger = {});
 
-    bool Replace(
-        TChunkList* oldChunkList,
-        TChunkList* newChunkList,
+    bool FindChunkList(
+        TChunkList* rootChunkList,
+        TChunkListId desiredChunkListId);
+
+    bool ReplaceChunkSequence(
         TChunk* newChunk,
         const std::vector<TChunkId>& oldChunkIds);
 
+    TChunkList* Finish();
+
 private:
+    const IChunkReplacerCallbacksPtr ChunkReplacerCallbacks_;
+    const NLogging::TLogger Logger;
+
     struct TTraversalStateEntry
     {
         TChunkTree* ChunkTree;
         int Index;
     };
+    std::stack<TTraversalStateEntry> Stack_;
+    int ChunkListIndex_ = 0;
 
-    const IChunkReplacerCallbacksPtr ChunkReplacerCallbacks_;
-    const NLogging::TLogger Logger;
+    bool Initialized_ = false;
+
+    TChunkList* PrevParentChunkList_ = nullptr;
+    TChunkList* NewParentChunkList_ = nullptr;
+
+    TChunkList* NewRootChunkList_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
