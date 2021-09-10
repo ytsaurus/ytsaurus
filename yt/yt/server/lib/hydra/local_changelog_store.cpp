@@ -39,6 +39,7 @@ TString GetChangelogPath(const TString& path, int id)
 
 
 ////////////////////////////////////////////////////////////////////////////////
+
 class TLocalChangelogStoreLock
     : public TRefCounted
 {
@@ -55,7 +56,6 @@ public:
 
 private:
     std::atomic<ui64> CurrentEpoch_ = {0};
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TLocalChangelogStoreLock)
@@ -207,7 +207,6 @@ public:
 
 private:
     const IChangelogPtr UnderlyingChangelog_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedLocalChangelog)
@@ -433,7 +432,6 @@ private:
     const TLocalChangelogStoreFactoryPtr Factory_;
     const ui64 Epoch_;
     const TVersion ReachableVersion_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TLocalChangelogStore)
@@ -462,4 +460,3 @@ IChangelogStoreFactoryPtr CreateLocalChangelogStoreFactory(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHydra
-

@@ -1,4 +1,5 @@
 #include "remote_changelog_store.h"
+
 #include "private.h"
 #include "changelog.h"
 #include "config.h"
@@ -9,13 +10,13 @@
 #include <yt/yt/ytlib/api/native/journal_reader.h>
 #include <yt/yt/ytlib/api/native/journal_writer.h>
 
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
+#include <yt/yt/ytlib/hydra/config.h>
+
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
 #include <yt/yt/client/api/journal_reader.h>
 #include <yt/yt/client/api/journal_writer.h>
-
-#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
-#include <yt/yt/ytlib/hydra/config.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -56,16 +57,16 @@ public:
     TRemoteChangelogStore(
         TRemoteChangelogStoreConfigPtr config,
         TRemoteChangelogStoreOptionsPtr options,
-        const TYPath& remotePath,
+        TYPath remotePath,
         IClientPtr client,
         NSecurityServer::IResourceLimitsManagerPtr resourceLimitsManager,
         ITransactionPtr prerequisiteTransaction,
         std::optional<TVersion> reachableVersion,
         const TJournalWriterPerformanceCounters& counters)
         : Config_(std::move(config))
-        , Options_(options)
-        , Path_(remotePath)
-        , Client_(client)
+        , Options_(std::move(options))
+        , Path_(std::move(remotePath))
+        , Client_(std::move(client))
         , ResourceLimitsManager_(std::move(resourceLimitsManager))
         , PrerequisiteTransaction_(std::move(prerequisiteTransaction))
         , ReachableVersion_(reachableVersion)
@@ -116,7 +117,6 @@ private:
 
     const NLogging::TLogger Logger;
 
-
     IChangelogPtr DoCreateChangelog(int id)
     {
         auto path = GetChangelogPath(Path_, id);
@@ -152,28 +152,14 @@ private:
                     .ThrowOnError();
             }
 
-            IJournalWriterPtr writer;
-            {
-                TJournalWriterOptions options;
-                options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
-                options.Config = Config_->Writer;
-                options.EnableMultiplexing = Options_->EnableChangelogMultiplexing;
-                options.EnableChunkPreallocation = Options_->EnableChangelogChunkPreallocation;
-                options.ReplicaLagLimit = Options_->ChangelogReplicaLagLimit;
-                options.Counters = Counters_;
-                writer = Client_->CreateJournalWriter(path, options);
-                WaitFor(writer->Open())
-                    .ThrowOnError();
-            }
-
             YT_LOG_DEBUG("Remote changelog created (ChangelogId: %v)",
                 id);
 
             return CreateRemoteChangelog(
                 path,
-                writer,
-                0,
-                0);
+                /*recordCount*/ 0,
+                /*dataSize*/ 0,
+                /*createWriter*/ true);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error creating remote changelog")
                 << TErrorAttribute("changelog_path", path)
@@ -213,9 +199,9 @@ private:
 
             return CreateRemoteChangelog(
                 path,
-                nullptr,
                 recordCount,
-                dataSize);
+                dataSize,
+                /*createWriter*/ false);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error opening remote changelog")
                 << TErrorAttribute("changelog_path", path)
@@ -224,17 +210,33 @@ private:
     }
 
     IChangelogPtr CreateRemoteChangelog(
-        const TYPath& path,
-        IJournalWriterPtr writer,
+        TYPath path,
         int recordCount,
-        i64 dataSize)
+        i64 dataSize,
+        bool createWriter)
     {
         return New<TRemoteChangelog>(
-            path,
+            std::move(path),
+            PrerequisiteTransaction_,
             recordCount,
             dataSize,
-            writer,
+            createWriter,
             this);
+    }
+
+    TJournalWriterOptions GetJournalWriterOptions() const
+    {
+        YT_VERIFY(!IsReadOnly());
+
+        TJournalWriterOptions options;
+        options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
+        options.Config = Config_->Writer;
+        options.EnableMultiplexing = Options_->EnableChangelogMultiplexing;
+        options.EnableChunkPreallocation = Options_->EnableChangelogChunkPreallocation;
+        options.ReplicaLagLimit = Options_->ChangelogReplicaLagLimit;
+        options.Counters = Counters_;
+
+        return options;
     }
 
 
@@ -243,17 +245,22 @@ private:
     {
     public:
         TRemoteChangelog(
-            const TYPath& path,
+            TYPath path,
+            ITransactionPtr prerequisiteTransaction,
             int recordCount,
             i64 dataSize,
-            IJournalWriterPtr writer,
+            bool createWriter,
             TRemoteChangelogStorePtr owner)
-            : Path_(path)
-            , Writer_(writer)
+            : Path_(std::move(path))
+            , PrerequisiteTransaction_(std::move(prerequisiteTransaction))
             , Owner_(owner)
             , RecordCount_(recordCount)
             , DataSize_(dataSize)
-        { }
+        {
+            if (createWriter) {
+                CreateWriter();
+            }
+        }
 
         int GetRecordCount() const override
         {
@@ -268,12 +275,38 @@ private:
         TFuture<void> Append(TRange<TSharedRef> records) override
         {
             if (!Writer_) {
-                return MakeFuture<void>(TError("Changelog is read-only"));
+                if (Owner_->IsReadOnly()) {
+                    return MakeFuture(TError("Changelog is read-only"));
+                }
+
+                try {
+                    CreateWriter();
+                } catch (const std::exception& ex) {
+                    return MakeFuture(TError(ex));
+                }
             }
 
-            DataSize_ += GetByteSize(records);
-            RecordCount_ += records.Size();
-            FlushResult_ = Writer_->Write(records);
+            auto recordsDataSize = GetByteSize(records);
+            auto recordCount = records.size();
+
+            // Fast path.
+            if (WriterOpenedFuture_.IsSet() && WriterOpenedFuture_.Get().IsOK()) {
+                FlushResult_ = Writer_->Write(records);
+            } else {
+                std::vector<TSharedRef> recordList(records.begin(), records.end());
+                FlushResult_ = WriterOpenedFuture_.Apply(
+                    BIND([=, this_ = MakeStrong(this)] {
+                        return Writer_->Write(MakeRange(recordList));
+                    }));
+            }
+
+            FlushResult_.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+                if (error.IsOK()) {
+                    DataSize_ += recordsDataSize;
+                    RecordCount_ += recordCount;
+                }
+            }));
+
             return FlushResult_;
         }
 
@@ -292,9 +325,18 @@ private:
                 .Run(firstRecordId, maxRecords);
         }
 
-        TFuture<void> Truncate(int /*recordCount*/) override
+        TFuture<void> Truncate(int recordCount) override
         {
-            YT_ABORT();
+            if (Owner_->IsReadOnly()) {
+                return MakeFuture(TError("Changelog is read-only"));
+            }
+
+            return Owner_->Client_->TruncateJournal(Path_, recordCount)
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+                    if (error.IsOK()) {
+                        RecordCount_ = std::min<int>(RecordCount_, recordCount);
+                    }
+                }));
         }
 
         TFuture<void> Close() override
@@ -304,18 +346,21 @@ private:
 
         TFuture<void> Preallocate(size_t /*size*/) override
         {
-            YT_ABORT();
+            YT_UNIMPLEMENTED();
         }
 
     private:
         const TYPath Path_;
-        const IJournalWriterPtr Writer_;
+        const ITransactionPtr PrerequisiteTransaction_;
         const TRemoteChangelogStorePtr Owner_;
+
+        IJournalWriterPtr Writer_;
+        TFuture<void> WriterOpenedFuture_;
 
         std::atomic<int> RecordCount_;
         std::atomic<i64> DataSize_;
-        TFuture<void> FlushResult_ = VoidFuture;
 
+        TFuture<void> FlushResult_ = VoidFuture;
 
         std::vector<TSharedRef> DoRead(int firstRecordId, int maxRecords) const
         {
@@ -337,10 +382,25 @@ private:
                     << ex;
             }
         }
+
+        void CreateWriter()
+        {
+            try {
+                auto writerOptions = Owner_->GetJournalWriterOptions();
+                Writer_ = Owner_->Client_->CreateJournalWriter(Path_, writerOptions);
+                WriterOpenedFuture_ = Writer_->Open();
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Failed to open remote changelog writer")
+                    << TErrorAttribute("changelog_path", Path_)
+                    << ex;
+            }
+        }
     };
 };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStore)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteChangelogStoreFactory
     : public IChangelogStoreFactory
@@ -349,18 +409,18 @@ public:
     TRemoteChangelogStoreFactory(
         TRemoteChangelogStoreConfigPtr config,
         TRemoteChangelogStoreOptionsPtr options,
-        const TYPath& remotePath,
+        TYPath remotePath,
         IClientPtr client,
         NSecurityServer::IResourceLimitsManagerPtr resourceLimitsManager,
         TTransactionId prerequisiteTransactionId,
-        const TJournalWriterPerformanceCounters& counters)
-        : Config_(config)
-        , Options_(options)
-        , Path_(remotePath)
-        , MasterClient_(client)
+        TJournalWriterPerformanceCounters counters)
+        : Config_(std::move(config))
+        , Options_(std::move(options))
+        , Path_(std::move(remotePath))
+        , MasterClient_(std::move(client))
         , ResourceLimitsManager_(std::move(resourceLimitsManager))
         , PrerequisiteTransactionId_(prerequisiteTransactionId)
-        , Counters_(counters)
+        , Counters_(std::move(counters))
         , Logger(HydraLogger.WithTag("Path: %v", Path_))
     { }
 
@@ -381,7 +441,6 @@ private:
     const TJournalWriterPerformanceCounters Counters_;
 
     const NLogging::TLogger Logger;
-
 
     IChangelogStorePtr DoLock()
     {
@@ -471,25 +530,26 @@ private:
 
         return TVersion(latestId, latestRowCount);
     }
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStoreFactory)
 
+////////////////////////////////////////////////////////////////////////////////
+
 IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
     TRemoteChangelogStoreConfigPtr config,
     TRemoteChangelogStoreOptionsPtr options,
-    const TYPath& path,
+    TYPath path,
     IClientPtr client,
     NSecurityServer::IResourceLimitsManagerPtr resourceLimitsManager,
     TTransactionId prerequisiteTransactionId,
     const TJournalWriterPerformanceCounters& counters)
 {
     return New<TRemoteChangelogStoreFactory>(
-        config,
-        options,
-        path,
-        client,
+        std::move(config),
+        std::move(options),
+        std::move(path),
+        std::move(client),
         std::move(resourceLimitsManager),
         prerequisiteTransactionId,
         counters);
