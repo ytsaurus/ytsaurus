@@ -490,33 +490,31 @@ private:
             NTracing::NProto::TTracingExt traceContext{};
             if (traceIdString) {
                 TGuid traceId{};
-                const auto result = TGuid::FromString(traceIdString, &traceId);
-                if (!result) return;
+                if (!TGuid::FromString(traceIdString, &traceId)) {
+                    return;
+                }
                 ToProto(traceContext.mutable_trace_id(), traceId);
             }
             if (spanIdString) {
                 NTracing::TSpanId spanId{};
-                const auto result = TryFromString(spanIdString, spanId);
-                if (!result) return;
-                decltype(traceContext.span_id()) spanProto{};
-                ToProto(&spanProto, spanId);
-                traceContext.set_span_id(spanProto);
+                if (!TryFromString(spanIdString, spanId)) {
+                    return;
+                }
+                traceContext.set_span_id(spanId);
             }
             if (sampledString) {
                 bool sampled{};
-                const auto result = TryFromString(sampledString, sampled);
-                if (!result) return;
-                decltype(traceContext.sampled()) sampledProto{};
-                ToProto(&sampledProto, sampled);
-                traceContext.set_sampled(sampledProto);
+                if (!TryFromString(sampledString, sampled)) {
+                    return;
+                }
+                traceContext.set_sampled(sampled);
             }
             if (debugString) {
                 bool debug{};
-                const auto result = TryFromString(debugString, debug);
-                if (!result) return;
-                decltype(traceContext.debug()) debugProto{};
-                ToProto(&debugProto, debug);
-                traceContext.set_debug(debugProto);
+                if (!TryFromString(debugString, debug)) {
+                    return;
+                }
+                traceContext.set_debug(debug);
             }
             TraceContext_.emplace(traceContext);
 
