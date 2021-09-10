@@ -35,6 +35,7 @@ DEFINE_ENUM(EJobType,
     ((OrderedMap)        ( 14))
     ((JoinReduce)        ( 15))
     ((Vanilla)           ( 16))
+    ((ShallowMerge)      ( 17))
     ((SchedulerUnknown)  ( 98)) // Used by node to report aborted jobs for which spec request has failed
 
     // Master jobs

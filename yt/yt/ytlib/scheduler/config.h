@@ -581,6 +581,10 @@ public:
     //! tables, as it doesn't require serializing and deserializing data to do it.
     bool EnableShallowMerge;
 
+    //! Whether we allow unknown chunk meta extensions during shallow merge. Useful only
+    //! when EnableShallowMerge is set to true.
+    bool AllowUnknownExtensions;
+
     TAutoMergeConfig();
 };
 

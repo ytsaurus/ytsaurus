@@ -127,6 +127,12 @@ public:
 
     void AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChunkId chunkId) override;
 
+    const TDeferredChunkMetaPtr& GetChunkMeta() const override
+    {
+        YT_VERIFY(MetaFinalized_);
+        return ChunkMeta_;
+    }
+
 private:
     const IChunkWriterPtr UnderlyingWriter_;
     const TDeferredChunkMetaPtr ChunkMeta_;
@@ -134,6 +140,7 @@ private:
     const NLogging::TLogger Logger;
 
     bool MetaInitialized_ = false;
+    bool MetaFinalized_ = false;
     TChunkId FirstChunkId_;
 
     int RowCount_ = 0;
@@ -437,6 +444,7 @@ void TMetaAggregatingWriter::AbsorbAnotherMeta(const TDeferredChunkMetaPtr& meta
 void TMetaAggregatingWriter::FinalizeMeta()
 {
     YT_VERIFY(MetaInitialized_);
+    YT_VERIFY(!MetaFinalized_);
 
     SetProtoExtension(ChunkMeta_->mutable_extensions(), BlockMetaExt_);
     SetProtoExtension(ChunkMeta_->mutable_extensions(), NameTableExt_);
@@ -476,6 +484,8 @@ void TMetaAggregatingWriter::FinalizeMeta()
     MiscExt_.set_meta_size(ChunkMeta_->ByteSize());
     MiscExt_.set_value_count(ValueCount_);
     SetProtoExtension(ChunkMeta_->mutable_extensions(), MiscExt_);
+
+    MetaFinalized_ = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

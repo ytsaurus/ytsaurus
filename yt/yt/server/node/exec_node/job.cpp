@@ -2028,6 +2028,10 @@ std::optional<EAbortReason> TJob::GetAbortReason(const TJobResult& jobResult)
         return EAbortReason::Scheduler;
     }
 
+    if (resultError.FindMatching(NJobProxy::EErrorCode::ShallowMergeFailed)) {
+        return EAbortReason::ShallowMergeFailed;
+    }
+
     if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
         resultError.FindMatching(NChunkClient::EErrorCode::BandwidthThrottlingFailed) ||
         resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||

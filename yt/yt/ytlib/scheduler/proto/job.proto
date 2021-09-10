@@ -417,6 +417,16 @@ message TMergeJobSpecExt
     optional NTableClient.NProto.TSortColumnsExt sort_columns = 3;
 }
 
+message TShallowMergeJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TShallowMergeJobSpecExt shallow_merge_job_spec_ext = 107;
+    }
+
+    optional bool allow_unknown_extensions = 1 [default = false];
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Partition jobs.

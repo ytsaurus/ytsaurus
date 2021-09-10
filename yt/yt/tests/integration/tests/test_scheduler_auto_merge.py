@@ -1,9 +1,12 @@
 from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, is_asan_build
 
 from yt_commands import (
-    authors, print_debug, wait, create, get, set, exists,
+    authors, list_jobs, print_debug, wait, create, get, set, exists,
     create_account, read_table,
-    write_table, map, reduce, merge, sync_create_cells, sync_mount_table)
+    write_table, map, reduce, merge, sync_create_cells, sync_mount_table,
+    get_operation)
+
+import yt.environment.init_operation_archive as init_operation_archive
 
 from yt_type_helpers import normalize_schema, make_schema
 
@@ -18,13 +21,15 @@ from time import sleep
 ##################################################################
 
 
-class TestSchedulerAutoMerge(YTEnvSetup):
+class TestSchedulerAutoMergeBase(YTEnvSetup):
     NUM_TEST_PARTITIONS = 8
     NUM_MASTERS = 1
     NUM_NODES = 4
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
     ENABLE_BULK_INSERT = True
+
+    ENABLE_SHALLOW_MERGE = False
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -60,6 +65,40 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         },
     }
 
+    def setup(self):
+        # Init operations archive.
+        sync_create_cells(1)
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(),
+            override_tablet_cell_bundle="default",
+        )
+
+    def _wait_for_job_list(self, operation):
+        job_count = sum((operation.get_job_count(state) for state in ["completed", "failed", "aborted"]))
+        wait(lambda: len(list_jobs(operation.id)["jobs"]) == job_count)
+
+    def _verify_auto_merge_job_types(self, operation, allow_zero_merge_jobs=False):
+        self._wait_for_job_list(operation)
+        job_types = list_jobs(operation.id)["type_counts"]
+        if not allow_zero_merge_jobs:
+            assert job_types.get("unordered_merge", 0) + job_types.get("shallow_merge", 0) > 0
+        if self.ENABLE_SHALLOW_MERGE:
+            assert job_types.get("unordered_merge", 0) == 0
+        else:
+            assert job_types.get("shallow_merge", 0) == 0
+
+    def _verify_shallow_merge_attempted(self, operation):
+        assert self.ENABLE_SHALLOW_MERGE
+        self._wait_for_job_list(operation)
+        listed_jobs = list_jobs(operation.id)
+        job_types = listed_jobs["type_counts"]
+        job_states = listed_jobs["state_counts"]
+        assert job_types["unordered_merge"] > 0
+        assert job_types["shallow_merge"] > 0
+        assert job_states["aborted"] == job_types["shallow_merge"]
+
+
+class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
     def _create_account(self, chunk_count):
         create_account("acc")
         set("//sys/accounts/acc/@resource_limits/chunk_count", chunk_count)
@@ -143,11 +182,13 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                         "mode": "manual",
                         "max_intermediate_chunk_count": max_intermediate_chunk_count,
                         "chunk_count_per_merge_job": chunk_count_per_merge_job,
+                        "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                     },
                     "data_size_per_job": 1,
                 },
             )
             op.track()
+            self._verify_auto_merge_job_types(op, allow_zero_merge_jobs=True)
             assert (
                 get("//tmp/t_out/@chunk_count")
                 == (row_count - 1) // min(chunk_count_per_merge_job, max_intermediate_chunk_count) + 1
@@ -190,6 +231,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "max_intermediate_chunk_count": 35,
                     "chunk_count_per_merge_job": 20,
                     "use_intermediate_data_account": True,
+                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
                 "suspend_operation_if_account_limit_exceeded": True,
@@ -198,6 +240,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         )
 
         self._track_and_report_peak_chunk_count(op)
+        self._verify_auto_merge_job_types(op)
 
         assert get("//tmp/t_out/@row_count") == row_count
 
@@ -224,6 +267,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "max_intermediate_chunk_count": 20,
                     "chunk_count_per_merge_job": 15,
                     "use_intermediate_data_account": True,
+                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
                 "data_size_per_job": 1,
@@ -233,6 +277,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         )
 
         self._track_and_report_peak_chunk_count(op)
+        self._verify_auto_merge_job_types(op)
 
         assert get("//tmp/t_out1/@row_count") == row_count // 2
         assert get("//tmp/t_out2/@row_count") == row_count // 2
@@ -262,6 +307,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "max_intermediate_chunk_count": 20,
                     "chunk_count_per_merge_job": 15,
                     "use_intermediate_data_account": True,
+                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
                 "data_size_per_job": 1,
@@ -271,6 +317,13 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         )
 
         self._track_and_report_peak_chunk_count(op, with_revive=with_revive)
+        # Do not verify job types if with_revive is set to True. Verifying job types requires
+        # waiting for the information about all the jobs, but we cannot obtain such information
+        # reliably when operations revive multiple times.
+        # TODO(gepardo): Always verify job types when we will have counters to track the number
+        # of shallow and deep merge jobs without archive.
+        if not with_revive:
+            self._verify_auto_merge_job_types(op)
 
         assert get("//tmp/t_out1/@row_count") == row_count // 10
         assert get("//tmp/t_out2/@row_count") == row_count * 9 // 10
@@ -316,7 +369,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         init_content = [{"a": -1, "b": "1"}]
         write_table("<append=%true>//tmp/t_out", init_content)
 
-        map(
+        op = map(
             in_="//tmp/t_in",
             out=["<append=%true>//tmp/t_out"],
             command="cat",
@@ -325,10 +378,12 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "mode": "manual",
                     "max_intermediate_chunk_count": 4,
                     "chunk_count_per_merge_job": 2,
+                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
             },
         )
+        self._verify_auto_merge_job_types(op)
 
         assert get("//tmp/t_out/@row_count") == 11
         assert get("//tmp/t_out/@chunk_count") == 6
@@ -358,11 +413,13 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "max_intermediate_chunk_count": 5,
                     "chunk_count_per_merge_job": 5,
                     "chunk_size_threshold": 100 * 1024,
+                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
                 "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
             },
         )
+        self._verify_auto_merge_job_types(op)
         assert get("//tmp/t_out1/@chunk_count") == 0
         assert get("//tmp/t_out2/@chunk_count") == 10
         chunk_ids = get("//tmp/t_out2/@chunk_ids")
@@ -372,7 +429,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         row_counts = sorted(row_counts)
         assert row_counts == [1] * 8 + [2, 5]
 
-        data_flow = get(op.get_path() + "/@progress/data_flow")
+        data_flow = get_operation(op.id, attributes=["progress"])["progress"]["data_flow"]
         directions = {
             (direction["source_name"], direction["target_name"]) : direction
             for direction in data_flow
@@ -404,11 +461,16 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "mode": "manual",
                     "chunk_count_per_merge_job": 2,
                     "max_intermediate_chunk_count": 100,
+                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
                 "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
             },
         )
+        # Shallow merge for erasure chunks is not supported now (see YT-15431).
+        # TODO(gepardo): Uncomment the following line when shallow merge of erasure chunks is supported.
+        # self._verify_auto_merge_job_types(op)
+
         assert get("//tmp/t_out/@chunk_count") == 5
         chunk_ids = get("//tmp/t_out/@chunk_ids")
         for chunk_id in chunk_ids:
@@ -424,7 +486,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         for i in range(10):
             write_table("<append=%true>//tmp/t_in", [{"a": i}])
 
-        map(
+        op = map(
             in_="//tmp/t_in",
             out=["//tmp/t_out"],
             command="cat",
@@ -433,11 +495,13 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "mode": "manual",
                     "chunk_count_per_merge_job": 2,
                     "max_intermediate_chunk_count": 100,
+                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
                 "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
             },
         )
+        self._verify_auto_merge_job_types(op)
         assert get("//tmp/t_out/@chunk_count") == 5
         chunk_ids = get("//tmp/t_out/@chunk_ids")
         for chunk_id in chunk_ids:
@@ -461,6 +525,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "mode": "manual",
                     "chunk_count_per_merge_job": 4,
                     "max_intermediate_chunk_count": 100,
+                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
                 "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
@@ -500,6 +565,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "mode": "manual",
                     "chunk_count_per_merge_job": 4,
                     "max_intermediate_chunk_count": 100,
+                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
                 "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
@@ -517,6 +583,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "mode": "manual",
                     "chunk_count_per_merge_job": 4,
                     "max_intermediate_chunk_count": 100,
+                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
                 "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
@@ -546,6 +613,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "mode": "manual",
                     "max_intermediate_chunk_count": 20,
                     "chunk_count_per_merge_job": 15,
+                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
                 "data_size_per_job": 1,
@@ -584,6 +652,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 break
 
         op.track()
+        self._verify_auto_merge_job_types(op)
 
     @authors("ifsmirnov")
     def test_unversioned_update_no_auto_merge(self):
@@ -619,6 +688,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             spec={
                 "auto_merge": {
                     "mode": "relaxed",
+                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "job_count": 2,
             },
@@ -672,6 +742,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "max_intermediate_chunk_count": 35,
                     "chunk_count_per_merge_job": 20,
                     "use_intermediate_data_account": True,
+                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
                 "suspend_operation_if_account_limit_exceeded": True,
@@ -691,3 +762,41 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             assert abs(transaction_chunk_count - chunk_count) <= 10
             assert transaction_chunk_count <= 40
             assert chunk_count <= 40
+
+
+class TestSchedulerShallowAutoMerge(TestSchedulerAutoMerge):
+    ENABLE_SHALLOW_MERGE = True
+
+
+class TestSchedulerAutoMergeAborted(TestSchedulerAutoMergeBase):
+    ENABLE_SHALLOW_MERGE = True
+
+    @authors("gepardo")
+    def test_shallow_to_deep_merge_switch(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        data = [{"a": i, "b": str(i * i)} for i in range(10)]
+        write_table("//tmp/t_in", data)
+
+        op = map(
+            in_="//tmp/t_in",
+            out=["//tmp/t_out"],
+            command="cat",
+            spec={
+                "auto_merge": {
+                    "mode": "manual",
+                    "max_intermediate_chunk_count": 4,
+                    "chunk_count_per_merge_job": 2,
+                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
+                },
+                "data_size_per_job": 1,
+                "job_testing_options": {"throw_in_shallow_merge": True}
+            },
+        )
+        self._verify_shallow_merge_attempted(op)
+
+        assert get("//tmp/t_out/@row_count") == 10
+        assert get("//tmp/t_out/@chunk_count") == 5
+        content = read_table("//tmp/t_out")
+        assert sorted(content) == sorted(data)

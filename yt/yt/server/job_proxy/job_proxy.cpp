@@ -10,6 +10,7 @@
 #include "user_job_write_controller.h"
 #include "job_prober_service.h"
 #include "job_throttler.h"
+#include "shallow_merge_job.h"
 
 #include <yt/yt/server/lib/containers/public.h>
 
@@ -506,6 +507,9 @@ IJobPtr TJobProxy::CreateBuiltinJob()
 
         case NScheduler::EJobType::RemoteCopy:
             return CreateRemoteCopyJob(this);
+
+        case NScheduler::EJobType::ShallowMerge:
+            return CreateShallowMergeJob(this);
 
         default:
             YT_ABORT();

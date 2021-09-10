@@ -415,10 +415,15 @@ void TAutoMergeTask::InitAutoMergeJobSpecTemplates()
         schedulerJobSpecExt->set_io_config(
             ConvertToYsonString(TaskHost_->GetSpec()->AutoMerge->JobIO).ToString());
 
-        // TODO(gepardo): Make the templates for shallow merge and deep merge different when the
-        // support for shallow jobs will appear in job proxy.
-        JobSpecTemplates_[tableIndex][EMergeJobType::Shallow] = jobSpecTemplate;
-        JobSpecTemplates_[tableIndex][EMergeJobType::Deep] = std::move(jobSpecTemplate);
+        auto& shallowTemplate = JobSpecTemplates_[tableIndex][EMergeJobType::Shallow];
+        shallowTemplate = jobSpecTemplate;
+        shallowTemplate.set_type(static_cast<int>(EJobType::ShallowMerge));
+        auto* shallowMergeJobSpecExt = shallowTemplate
+            .MutableExtension(TShallowMergeJobSpecExt::shallow_merge_job_spec_ext);
+        shallowMergeJobSpecExt->set_allow_unknown_extensions(TaskHost_->GetSpec()->AutoMerge->AllowUnknownExtensions);
+
+        auto& deepTemplate = JobSpecTemplates_[tableIndex][EMergeJobType::Deep];
+        deepTemplate = std::move(jobSpecTemplate);
     }
 }
 

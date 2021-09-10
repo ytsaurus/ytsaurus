@@ -14,6 +14,7 @@ DEFINE_ENUM(EErrorCode,
     ((JobNotPrepared)            (1204))
     ((UserJobFailed)             (1205))
     ((UserJobProducedCoreFiles)  (1206))
+    ((ShallowMergeFailed)        (1207))
 );
 
 DECLARE_REFCOUNTED_STRUCT(IJobSpecHelper)

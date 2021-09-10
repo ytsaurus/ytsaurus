@@ -134,6 +134,7 @@ public:
         GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::OrderedMap, createSchedulerJob);
         GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::JoinReduce, createSchedulerJob);
         GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::Vanilla, createSchedulerJob);
+        GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::ShallowMerge, createSchedulerJob);
 
         GetJobController()->AddHeartbeatProcessor<TSchedulerJobHeartbeatProcessor>(EObjectType::SchedulerJob, ClusterNodeBootstrap_);
 
