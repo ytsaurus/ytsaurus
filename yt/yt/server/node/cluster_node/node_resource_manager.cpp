@@ -16,6 +16,8 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <tcmalloc/malloc_extension.h>
+
 #include <limits>
 
 namespace NYT::NClusterNode {
@@ -186,9 +188,15 @@ void TNodeResourceManager::UpdateMemoryFootprint()
 
     const auto& memoryUsageTracker = Bootstrap_->GetMemoryUsageTracker();
 
+    auto tcmallocBytesUsed = tcmalloc::MallocExtension::GetNumericProperty("generic.current_allocated_bytes");
+    auto tcmallocBytesCommitted = tcmalloc::MallocExtension::GetNumericProperty("generic.heap_size");
+
     auto allocCounters = NYTAlloc::GetTotalAllocationCounters();
-    auto bytesUsed = allocCounters[NYTAlloc::ETotalCounter::BytesUsed];
-    auto bytesCommitted = allocCounters[NYTAlloc::ETotalCounter::BytesCommitted];
+    auto ytallocBytesUsed = allocCounters[NYTAlloc::ETotalCounter::BytesUsed];
+    auto ytallocBytesCommitted = allocCounters[NYTAlloc::ETotalCounter::BytesCommitted];
+
+    auto bytesUsed = tcmallocBytesUsed.value_or(ytallocBytesUsed);
+    auto bytesCommitted = tcmallocBytesCommitted.value_or(ytallocBytesCommitted);
 
     auto newFragmentation = std::max<i64>(0, bytesCommitted - bytesUsed);
 
