@@ -28,7 +28,7 @@ TDerived* TAllocationHolder::Allocate(size_t size, TRefCountedTypeCookie cookie)
 {
     auto requestedSize = sizeof(TDerived) + size;
     auto* ptr = NYTAlloc::Allocate(requestedSize);
-    auto allocatedSize = NYTAlloc::GetAllocationSize(ptr);
+    auto allocatedSize = malloc_usable_size(ptr);
     if (allocatedSize) {
         size += allocatedSize - requestedSize;
     }

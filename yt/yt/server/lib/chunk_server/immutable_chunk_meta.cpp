@@ -36,7 +36,7 @@ int TImmutableChunkMeta::GetExtensionCount() const
 
 i64 TImmutableChunkMeta::GetTotalByteSize() const
 {
-    return NYTAlloc::GetAllocationSize(this);
+    return malloc_usable_size(reinterpret_cast<void*>(const_cast<TImmutableChunkMeta*>(this)));
 }
 
 bool TImmutableChunkMeta::HasExtension(int tag) const

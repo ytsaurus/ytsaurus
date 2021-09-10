@@ -226,7 +226,7 @@ public:
         }
         auto itemCount = ++RefCount_;
         auto ptr = NYTAlloc::Allocate(size);
-        auto allocatedSize = NYTAlloc::GetAllocationSize(ptr);
+        auto allocatedSize = malloc_usable_size(ptr);
         YT_VERIFY(allocatedSize == size);
         AllocatedItems.Increment();
         AliveItems.Update(itemCount);
@@ -236,7 +236,7 @@ public:
 
     void Free(void* ptr)
     {
-        auto allocatedSize = NYTAlloc::GetAllocationSize(ptr);
+        auto allocatedSize = malloc_usable_size(ptr);
         ReleaseMemory(allocatedSize);
         NYTAlloc::Free(ptr);
         FreedItems.Increment();

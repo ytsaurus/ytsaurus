@@ -735,7 +735,7 @@ void TCompactVector<T, N>::EnsureOnHeapCapacity(size_t newCapacity, bool increme
     }
 
     auto byteSize = sizeof(TOnHeapStorage) + newCapacity * sizeof(T);
-    byteSize = NYTAlloc::GetAllocationSize(byteSize);
+    byteSize = nallocx(byteSize, 0);
 
     newCapacity = (byteSize - sizeof(TOnHeapStorage)) / sizeof(T);
 
