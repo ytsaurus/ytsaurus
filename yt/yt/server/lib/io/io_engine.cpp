@@ -729,7 +729,7 @@ private:
 
     void DoFlushFile(const TFlushFileRequest& request)
     {
-        if (Config_->EnableSync) {
+        if (!Config_->EnableSync) {
             return;
         }
 
