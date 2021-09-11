@@ -35,8 +35,8 @@ DEFINE_ENUM(ESnapshotVersion,
     ((MainResourceConsumptionPerTree)       (300612))
     ((AccountInDiskRequest)                 (300613))
     ((ReadyExhaustTimers)                   (300614))
-    ((AddShallowMerge)                      (300615))
-    ((StructuredTagsInLogger)               (300616))
+    ((StructuredTagsInLogger)               (300615))
+    ((AddShallowMerge)                      (300616))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
