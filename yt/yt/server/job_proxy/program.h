@@ -58,6 +58,11 @@ protected:
         ConfigureIgnoreSigpipe();
         ConfigureCrashHandler();
         CloseAllDescriptors();
+        ConfigureAllocator({
+            .YTAllocStockpile = false,
+            .YTAllocEagerMemoryRelease = true,
+            .TCMallocOptimizeSize = true,
+        });
         NYTAlloc::EnableYTLogging();
         NYTAlloc::InitializeLibunwindInterop();
 

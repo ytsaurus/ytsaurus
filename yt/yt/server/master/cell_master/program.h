@@ -84,6 +84,9 @@ protected:
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
         EnableRefCountedTrackerProfiling();
+        ConfigureAllocator({});
+
+
         NYTAlloc::EnableYTLogging();
         NYTAlloc::EnableYTProfiling();
         NYTAlloc::InitializeLibunwindInterop();

@@ -29,9 +29,7 @@
 
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
-#if defined(_linux_)
 #include <yt/yt/library/ytprof/http/handler.h>
-#endif
 
 #include <library/cpp/cgiparam/cgiparam.h>
 
@@ -86,9 +84,7 @@ void Initialize(
             "/sensors",
             CreateVirtualNode(exporter->GetSensorService()));
 
-#if defined(_linux_)
         NYTProf::Register(monitoringServer, "/ytprof");
-#endif
 
         monitoringServer->AddHandler(
             "/orchid/",

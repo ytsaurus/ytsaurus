@@ -93,11 +93,9 @@ private:
         // NB: ConfigureCrashHandler() is not called intentionally; crash handlers is set up in bootstrap.
         ConfigureExitZeroOnSigterm();
         EnableRefCountedTrackerProfiling();
-        NYTAlloc::EnableYTLogging();
-        NYTAlloc::EnableYTProfiling();
-        NYTAlloc::InitializeLibunwindInterop();
-        NYTAlloc::EnableStockpile();
-        NYT::MlockFileMappings();
+        ConfigureAllocator({
+            .YTAllocEagerMemoryRelease = true,
+        });
 
         if (HandleSetsidOptions()) {
             return;

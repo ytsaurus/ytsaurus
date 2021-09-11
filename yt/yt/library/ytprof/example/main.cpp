@@ -6,8 +6,6 @@
 #include <yt/yt/library/ytprof/http/handler.h>
 #include <yt/yt/library/ytprof/heap_profiler.h>
 
-#include <tcmalloc/common.h>
-
 #include <absl/debugging/stacktrace.h>
 
 using namespace NYT;
@@ -18,7 +16,7 @@ using namespace NYT::NYTProf;
 int main(int argc, char* argv[])
 {
     absl::SetStackUnwinder(AbslStackUnwinder);
-    tcmalloc::MallocExtension::SetProfileSamplingRate(kDefaultProfileSamplingRate);
+    tcmalloc::MallocExtension::SetProfileSamplingRate(2_MB);
 
     try {
         if (argc != 2 && argc != 3) {

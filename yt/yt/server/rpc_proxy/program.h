@@ -59,12 +59,7 @@ protected:
         ConfigureCrashHandler();
         EnablePhdrCache();
         ConfigureExitZeroOnSigterm();
-        NYTAlloc::EnableYTLogging();
-        NYTAlloc::EnableYTProfiling();
-        NYTAlloc::InitializeLibunwindInterop();
-        NYTAlloc::SetEnableEagerMemoryRelease(false);
-        NYTAlloc::EnableStockpile();
-        NYT::MlockFileMappings();
+        ConfigureAllocator({});
 
         if (HandleSetsidOptions()) {
             return;

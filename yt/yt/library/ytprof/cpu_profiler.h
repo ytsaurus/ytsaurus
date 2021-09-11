@@ -3,7 +3,9 @@
 #include <thread>
 #include <array>
 
+#if defined(_linux_)
 #include <sys/types.h>
+#endif
 
 #include <yt/yt/library/ytprof/profile.pb.h>
 
@@ -90,6 +92,7 @@ public:
     NProto::Profile ReadProfile();
 
 private:
+#if defined(_linux_)
     const TCpuProfilerOptions Options_;
 
     static std::atomic<TCpuProfiler*> ActiveProfiler_;
@@ -112,6 +115,7 @@ private:
     void DequeueSamples();
 
     void OnSigProf(siginfo_t* info, ucontext_t* ucontext);
+#endif
 };
 
 ////////////////////////////////////////////////////////////////////////////////
