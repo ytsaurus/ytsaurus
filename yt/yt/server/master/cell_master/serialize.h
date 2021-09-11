@@ -192,6 +192,7 @@ DEFINE_ENUM(EMasterReign,
     ((TruncateOverlayedJournals)                                    (1663))  // aleksandra-zh
     ((ChunkMergeModes)                                              (1664))  // aleksandra-zh
     ((OptimizeChunkReplacer)                                        (1665))  // aleksandra-zh
+    ((ChunkMergerFixes)                                             (1666))  // aleksandra-zh
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1800))  // ignat
 );

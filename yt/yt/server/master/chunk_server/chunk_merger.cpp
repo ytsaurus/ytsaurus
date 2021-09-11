@@ -327,7 +327,7 @@ private:
             CurrentUncompressedDataSize_ + chunk->GetUncompressedDataSize() < config->MaxUncompressedDataSize &&
             std::ssize(ChunkIds_) < config->MaxChunkCount &&
             chunk->GetDataWeight() < config->MaxInputChunkDataWeight &&
-            ParentChunkListId_ == NullObjectId || ParentChunkListId_ == parent->GetId())
+            (ParentChunkListId_ == NullObjectId || ParentChunkListId_ == parent->GetId()))
         {
             CurrentRowCount_ += chunk->GetRowCount();
             CurrentDataWeight_ += chunk->GetDataWeight();
@@ -427,7 +427,8 @@ void TChunkMerger::ScheduleMerge(TChunkOwnerBase* trunkNode)
 
     YT_VERIFY(trunkNode->IsTrunk());
 
-    if (!Enabled_) {
+    const auto& config = GetDynamicConfig();
+    if (!config->Enable) {
         YT_LOG_DEBUG("Cannot schedule merge: chunk merger is disabled");
         return;
     }
@@ -663,8 +664,9 @@ bool TChunkMerger::CanScheduleMerge(TChunkOwnerBase* chunkOwner) const
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    const auto& config = GetDynamicConfig();
     return
-        Enabled_ &&
+        config->Enable &&
         IsObjectAlive(chunkOwner) &&
         chunkOwner->GetChunkMergerMode() != EChunkMergerMode::None;
 }
@@ -735,7 +737,6 @@ void TChunkMerger::RegisterSessionTransient(TChunkOwnerBase* chunkOwner)
         nodeId,
         account->GetName());
     YT_VERIFY(RunningSessions_.emplace(nodeId, TChunkMergerSession()).second);
-
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
 
