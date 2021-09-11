@@ -36,12 +36,7 @@ void TTimestampProviderProgram::DoRun(const NLastGetopt::TOptsParseResult& /*par
     ConfigureExitZeroOnSigterm();
     EnablePhdrCache();
     EnableRefCountedTrackerProfiling();
-    NYTAlloc::EnableYTLogging();
-    NYTAlloc::EnableYTProfiling();
-    NYTAlloc::InitializeLibunwindInterop();
-    NYTAlloc::SetEnableEagerMemoryRelease(false);
-    NYTAlloc::EnableStockpile();
-    NYT::MlockFileMappings();
+    ConfigureAllocator({});
 
     if (HandleSetsidOptions()) {
         return;

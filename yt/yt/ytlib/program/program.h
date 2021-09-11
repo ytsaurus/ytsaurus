@@ -100,4 +100,16 @@ void ConfigureExitZeroOnSigterm();
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TAllocatorOptions
+{
+    bool YTAllocStockpile = true;
+    bool YTAllocEagerMemoryRelease = false;
+
+    bool TCMallocOptimizeSize = false;
+};
+
+void ConfigureAllocator(TAllocatorOptions options);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

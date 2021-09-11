@@ -2,6 +2,7 @@
 #include "symbolize.h"
 #include "backtrace.h"
 
+#if defined(_linux_)
 #include <link.h>
 #include <sys/syscall.h>
 
@@ -10,6 +11,7 @@
 #include <csignal>
 
 #include <util/generic/yexception.h>
+#endif
 
 namespace NYT::NYTProf {
 
@@ -66,6 +68,33 @@ TCpuSample::operator size_t() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#if not defined(_linux_)
+
+TCpuProfiler::TCpuProfiler(TCpuProfilerOptions options)
+{
+    Y_UNUSED(options);
+}
+
+TCpuProfiler::~TCpuProfiler()
+{ }
+
+void TCpuProfiler::Start()
+{ }
+
+void TCpuProfiler::Stop()
+{ }
+
+NProto::Profile TCpuProfiler::ReadProfile()
+{
+    return {};
+}
+
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+
+#if defined(_linux_)
 
 size_t GetTid()
 {
@@ -388,6 +417,8 @@ NProto::Profile TCpuProfiler::ReadProfile()
 
     return profile;
 }
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

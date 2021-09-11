@@ -226,15 +226,10 @@ protected:
 #endif
 
         // TODO(antonkikh): Which of these are actually needed?
-        ConfigureUids();
         ConfigureIgnoreSigpipe();
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
-        NYTAlloc::EnableYTLogging();
-        NYTAlloc::EnableYTProfiling();
-        NYTAlloc::InitializeLibunwindInterop();
-        NYTAlloc::EnableStockpile();
 
         if (HandlePdeathsigOptions()) {
             return;

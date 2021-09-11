@@ -1,6 +1,6 @@
 #include "symbolize.h"
-#include "util/generic/yexception.h"
 
+#include <util/generic/yexception.h>
 #include <util/folder/path.h>
 #include <util/generic/hash.h>
 #include <util/string/printf.h>

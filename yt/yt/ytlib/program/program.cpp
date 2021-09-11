@@ -8,21 +8,35 @@
 #include <yt/yt/core/misc/signal_registry.h>
 #include <yt/yt/core/misc/fs.h>
 
+#include <yt/yt/core/ytalloc/bindings.h>
+
 #include <yt/yt/core/logging/log_manager.h>
 
 #include <yt/yt/core/yson/writer.h>
+
+#include <yt/yt/library/ytprof/heap_profiler.h>
+
+#include <yt/yt/library/mlock/mlock.h>
+
+#include <library/cpp/ytalloc/api/ytalloc.h>
+
+#include <tcmalloc/malloc_extension.h>
+
+#include <absl/debugging/stacktrace.h>
 
 #include <util/system/thread.h>
 #include <util/system/sigset.h>
 
 #include <util/string/subst.h>
 
+#include <thread>
+
 #ifdef _unix_
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-
 #endif
+
 #ifdef _linux_
 #include <grp.h>
 #include <sys/prctl.h>
@@ -287,6 +301,40 @@ void ConfigureExitZeroOnSigterm()
 {
 #ifdef _unix_
     signal(SIGTERM, ExitZero);
+#endif
+}
+
+void ConfigureAllocator(TAllocatorOptions options)
+{
+    NYT::MlockFileMappings();
+
+#ifdef _linux_
+    NYTAlloc::EnableYTLogging();
+    NYTAlloc::EnableYTProfiling();
+    NYTAlloc::InitializeLibunwindInterop();
+    NYTAlloc::SetEnableEagerMemoryRelease(options.YTAllocEagerMemoryRelease);
+    if (options.YTAllocStockpile) {
+        NYTAlloc::EnableStockpile();
+    }
+
+    if (tcmalloc::MallocExtension::GetNumericProperty("generic.current_allocated_bytes")) {
+        std::thread backgroundThread([] {
+            TThread::SetCurrentThreadName("TCAllocBack");
+            tcmalloc::MallocExtension::ProcessBackgroundActions();
+        });
+        backgroundThread.detach();
+    }
+
+    absl::SetStackUnwinder(NYTProf::AbslStackUnwinder);
+    // TODO(prime@): tune parameters.
+    tcmalloc::MallocExtension::SetProfileSamplingRate(2_MB);
+    tcmalloc::MallocExtension::SetGuardedSamplingRate(128_MB);
+    tcmalloc::MallocExtension::ActivateGuardedSampling();
+    tcmalloc::MallocExtension::SetMaxPerCpuCacheSize(3_MB);
+    tcmalloc::MallocExtension::SetMaxTotalThreadCacheBytes(24_MB);
+    tcmalloc::MallocExtension::SetBackgroundReleaseRate(tcmalloc::MallocExtension::BytesPerSecond{1_MB});
+#else
+    Y_UNUSED(options);
 #endif
 }
 
