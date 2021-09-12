@@ -517,8 +517,9 @@ TJobResources TSchedulerElement::GetInstantResourceUsage() const
         ? ResourceTreeElement_->GetResourceUsageWithPrecommit()
         : ResourceTreeElement_->GetResourceUsage();
     if (resourceUsage.GetUserSlots() > 0 && resourceUsage.GetMemory() == 0) {
-        YT_LOG_WARNING("Found usage of schedulable element %Qv with non-zero user slots and zero memory",
-            GetId());
+        YT_LOG_WARNING("Found usage of schedulable element with non-zero user slots and zero memory (ElementId: %v, Usage: %v)",
+            GetId(),
+            FormatResources(resourceUsage));
     }
     return resourceUsage;
 }
