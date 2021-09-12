@@ -141,7 +141,7 @@ struct IOperationController
     virtual void AssignAgent(const TControllerAgentPtr& agent) = 0;
 
     //! Revokes the agent; safe to call multiple times.
-    virtual void RevokeAgent() = 0;
+    virtual bool RevokeAgent() = 0;
 
     //! Returns the agent the operation runs at.
     //! May return null if the agent is no longer available.

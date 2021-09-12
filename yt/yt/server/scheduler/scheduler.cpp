@@ -924,7 +924,10 @@ public:
         }
 
         const auto& controller = operation->GetController();
-        controller->RevokeAgent();
+        if (!controller->RevokeAgent()) {
+            // Agent has already been revoked.
+            return;
+        }
 
         Strategy_->DisableOperation(operation.Get());
 
