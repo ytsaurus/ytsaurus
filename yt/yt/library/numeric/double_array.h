@@ -1,6 +1,10 @@
 #pragma once
 
-#include <yt/yt/core/misc/format.h>
+#include <vector>
+#include <algorithm>
+#include <array>
+
+#include <util/system/yassert.h>
 
 namespace NYT {
 
@@ -36,7 +40,7 @@ public:
 
     constexpr TDoubleArrayBase(std::initializer_list<double> values)
     {
-        YT_ASSERT(values.size() == Size);
+        Y_VERIFY_DEBUG(values.size() == Size);
         std::copy(std::begin(values), std::end(values), std::begin(Values_));
     }
 
@@ -256,14 +260,6 @@ public:
     {
         return TDerived::Apply(lhs, rhs, [](auto x, auto y) { return std::min(x, y); });
     }
-
-public:
-    // We have to define it as a friend function to successfully overload the default implementation.
-    // The default implementation causes linker error.
-    friend IOutputStream& operator<<(IOutputStream& os, const TDerived& vec)
-    {
-        return os << Format("%v", vec);
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -386,28 +382,6 @@ constexpr TDerived Div(
     });
 }
 
-template <class TDerived>
-struct TValueFormatter<TDerived, std::enable_if_t<IsDoubleArray<TDerived>>>
-{
-    static void Do(TStringBuilderBase* builder, const TDerived& vec, TStringBuf format)
-    {
-        builder->AppendChar('[');
-        FormatValue(builder, vec[0], format);
-        for (size_t i = 1; i < TDerived::Size; i++) {
-            builder->AppendChar(' ');
-            FormatValue(builder, vec[i], format);
-        }
-        builder->AppendChar(']');
-    }
-};
-
-// This overload is important for readable output in tests.
-template <class TDerived, class = std::enable_if_t<IsDoubleArray<TDerived>>>
-std::ostream& operator<<(std::ostream& os, const TDerived& vec)
-{
-    return os << Format("%v", vec);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 // "Double array" is a real valued vector in mathematical sense (not related to |std::vector|).
@@ -416,16 +390,16 @@ std::ostream& operator<<(std::ostream& os, const TDerived& vec)
 //
 // Example of usage:
 //     TDoubleArray<4> vec1 = {1, 2, 3, 4};
-//     YT_ASSERT(vec1[3] == 4);
-//     YT_ASSERT(TDoubleArray<4>::All(vec1, [] (double x) { return x > 0; }));
-//     YT_ASSERT(MinComponent(vec1) == 1);
+//     Y_VERIFY(vec1[3] == 4);
+//     Y_VERIFY(TDoubleArray<4>::All(vec1, [] (double x) { return x > 0; }));
+//     Y_VERIFY(MinComponent(vec1) == 1);
 //
 //     TDoubleArray<4> vec2 = {4, 3, 2, 1};
-//     YT_ASSERT(vec1 + vec2 == TDoubleArray<4>::FromDouble(5));
+//     Y_VERIFY(vec1 + vec2 == TDoubleArray<4>::FromDouble(5));
 //
 //     // |vec1 * vec1| wouldn't work because multiplication is not defined for mathematical vectors.
 //     auto vec1Square = TDoubleArray<4>::Apply(vec1, [] (double x) { return x * x; });
-//     YT_ASSERT(TDoubleArray<4>::All(vec1, vec1Square, [] (double x, double y) { return y == x * x; }));
+//     Y_VERIFY(TDoubleArray<4>::All(vec1, vec1Square, [] (double x, double y) { return y == x * x; }));
 template <size_t DimCnt>
 class TDoubleArray final : public TDoubleArrayBase<DimCnt, TDoubleArray<DimCnt>>
 {

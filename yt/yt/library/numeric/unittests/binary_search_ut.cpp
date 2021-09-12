@@ -1,4 +1,4 @@
-#include <yt/yt/core/test_framework/framework.h>
+#include <library/cpp/testing/gtest/gtest.h>
 
 #include <yt/yt/library/numeric/binary_search.h>
 

@@ -2,6 +2,8 @@
 
 #include "resource_vector.h"
 
+#include <yt/yt/core/logging/log.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
