@@ -622,6 +622,12 @@ class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
         },
     }
 
+    DELTA_PROXY_CONFIG = {
+        "coordinator": {
+            "cypress_timeout": 50,
+        },
+    }
+
     def _build_snapshot(self, set_read_only):
         params = {
             "cell_id": self.Env.configs["master"][0]["primary_master"]["cell_id"],
