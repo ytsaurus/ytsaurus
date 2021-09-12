@@ -439,9 +439,13 @@ public:
 
         // NB: This is monotonic: once in read-only mode, cannot leave it.
         if (ReadOnly_) {
+            auto readOnlyError = TError(
+                EErrorCode::ReadOnly,
+                "Read-only mode is active");
             return MakeFuture<TMutationResponse>(TError(
-                NHydra::EErrorCode::ReadOnly,
-                "Read-only mode is active"));
+                NRpc::EErrorCode::Unavailable,
+                "Cannot commit a mutation at the moment")
+                << readOnlyError);
         }
 
         auto state = GetAutomatonState();
