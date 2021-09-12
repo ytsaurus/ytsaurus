@@ -1,9 +1,16 @@
-#include <yt/yt/core/test_framework/framework.h>
-
+#include <yt/yt/library/numeric/double_array_format.h>
 #include <yt/yt/library/numeric/piecewise_linear_function.h>
 #include <yt/yt/library/numeric/piecewise_linear_function-test.h>
 
+#include <library/cpp/testing/gtest/gtest.h>
+
+#include <util/string/cast.h>
+
+
 namespace NYT {
+
+using ::ToString;
+using NDetail::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,13 +92,10 @@ TEST_F(TPiecewiseLinearFunctionTest, TestInterpolationProperties)
     // Test that interpolation is monotonic and is exact at bounds on different segments.
     for (int segmentIdx = 0; segmentIdx < std::ssize(segments); segmentIdx++) {
         const auto& segment = segments[segmentIdx];
-        auto msg = Format(
-            "For segment #%v equal to {{%v, %v}, {%v, %v}}",
-            segmentIdx,
-            segment.LeftBound(),
-            segment.LeftValue(),
-            segment.RightBound(),
-            segment.RightValue());
+        auto msg = TStringBuilder()
+            << "For segment #" << segmentIdx << "equal to {"
+            << "{" << segment.LeftBound() << ", " << segment.LeftValue() << "}, "
+            << "{" << segment.RightBound() << ", " << segment.RightValue() << "}}";
 
         // Test on endpoints.
         {
@@ -287,7 +291,7 @@ TEST_F(TPiecewiseLinearFunctionTest, TestSortOrMergeImpl)
     };
 
     for (const auto& testCase : testCases) {
-        auto testCaseMsg = Format("In the test case %v. ", testCase.Name);
+        auto testCaseMsg = TStringBuilder() << "In the test case " << testCase.Name;
 
         std::vector<double> vec = testCase.Input;
         std::vector<double> buffer(vec.size());
@@ -480,14 +484,14 @@ TEST_F(TPiecewiseLinearFunctionTest, TestSum)
     };
 
     for (const auto& testCase : testCases) {
-        auto testCaseMsg = Format("In the test case %v. ", testCase.Name);
+        auto testCaseMsg = TStringBuilder() << "In the test case " << testCase.Name;
 
         auto sumResult = TPiecewiseLinearFunction<double>::Sum(testCase.Functions);
         EXPECT_EQ(testCase.ExpectedLeftBound, sumResult.LeftFunctionBound()) << testCaseMsg;
         EXPECT_EQ(testCase.ExpectedRightBound, sumResult.RightFunctionBound()) << testCaseMsg;
 
         for (const auto& sample : testCase.Samples) {
-            auto sampleMsg = Format("At point %v. ", sample.Argument);
+            auto sampleMsg = TStringBuilder() << "At point " << sample.Argument;
 
             EXPECT_EQ(sample.ExpectedLeftLimit, sumResult.ValueAt(sample.Argument)) << testCaseMsg << sampleMsg;
             EXPECT_EQ(sample.ExpectedLeftLimit, sumResult.LeftLimitAt(sample.Argument)) << testCaseMsg << sampleMsg;
@@ -729,14 +733,14 @@ TEST_F(TPiecewiseLinearFunctionTest, TestPointwiseMin)
     };
 
     for (const auto& testCase : testCases) {
-        auto testCaseMsg = Format("In the test case %v. ", testCase.Name);
+        auto testCaseMsg = TStringBuilder() << "In the test case " << testCase.Name;
 
         auto minResult = PointwiseMin<double>(testCase.Functions);
         EXPECT_EQ(testCase.ExpectedLeftBound, minResult.LeftFunctionBound()) << testCaseMsg;
         EXPECT_EQ(testCase.ExpectedRightBound, minResult.RightFunctionBound()) << testCaseMsg;
 
         for (const auto& sample : testCase.Samples) {
-            auto sampleMsg = Format("At point %v. ", sample.Argument);
+            auto sampleMsg = TStringBuilder() << "At point %v" << sample.Argument;
 
             EXPECT_EQ(sample.ExpectedLeftLimit, minResult.ValueAt(sample.Argument)) << testCaseMsg << sampleMsg;
             EXPECT_EQ(sample.ExpectedLeftLimit, minResult.LeftLimitAt(sample.Argument)) << testCaseMsg << sampleMsg;
@@ -745,7 +749,7 @@ TEST_F(TPiecewiseLinearFunctionTest, TestPointwiseMin)
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TPiecewiseLinearFunctionTest, TestCompose)
 {
@@ -989,14 +993,14 @@ TEST_F(TPiecewiseLinearFunctionTest, TestCompose)
     };
 
     for (const auto& testCase : testCases) {
-        auto testCaseMsg = Format("In the test case %v. ", testCase.Name);
+        auto testCaseMsg = TStringBuilder() << "In the test case " << testCase.Name;
 
         auto result = testCase.Lhs.Compose(testCase.Rhs);
         EXPECT_EQ(testCase.Rhs.LeftFunctionBound(), result.LeftFunctionBound()) << testCaseMsg;
         EXPECT_EQ(testCase.Rhs.RightFunctionBound(), result.RightFunctionBound()) << testCaseMsg;
 
         for (const auto& sample : testCase.Samples) {
-            auto sampleMsg = Format("At point %v. ", sample.Argument);
+            auto sampleMsg = TStringBuilder() << "At point %v" << sample.Argument;
 
             EXPECT_EQ(sample.ExpectedLeftLimit, result.ValueAt(sample.Argument)) << testCaseMsg << sampleMsg;
             EXPECT_EQ(sample.ExpectedLeftLimit, result.LeftLimitAt(sample.Argument)) << testCaseMsg << sampleMsg;
@@ -1039,7 +1043,7 @@ TEST_F(TPiecewiseLinearFunctionTest, TestTransformations)
     };
 
     for (const auto& testCase : testCases) {
-        auto testCaseMsg = Format("In the test case %v. ", testCase.Name);
+        auto testCaseMsg = TStringBuilder() << "In the test case " << testCase.Name;
 
         const auto& function = testCase.Function;
         EXPECT_EQ(testCase.ExpectedTransposedFunction, function.Transpose()) << testCaseMsg;
@@ -1187,7 +1191,7 @@ TEST_F(TPiecewiseLinearFunctionTest, TestPiecewiseSegmentScalar)
     };
 
     for (const auto& testCase : testCases) {
-        auto testCaseMsg = Format("In the test case %v. ", testCase.Name);
+        auto testCaseMsg = TStringBuilder() << "In the test case " << testCase.Name;
 
         const auto& segment = testCase.Segment;
 
@@ -1197,20 +1201,20 @@ TEST_F(TPiecewiseLinearFunctionTest, TestPiecewiseSegmentScalar)
         EXPECT_EQ(testCase.ExpectedValues.second, segment.RightValue()) << testCaseMsg;
 
         for (const auto& [leftBound, rightBound, expectedIsDefined] : testCase.Intervals) {
-            auto sampleMsg = Format("At interval [%v, %v]. ", leftBound, rightBound);
+            auto sampleMsg = TStringBuilder() << "At interval [" << leftBound << ", " << rightBound << "]";
 
-            EXPECT_EQ(expectedIsDefined, segment.IsDefinedOn(leftBound, rightBound)) << testCaseMsg << sampleMsg;
+            EXPECT_EQ(expectedIsDefined, segment.IsDefinedOn(leftBound, rightBound)) << testCaseMsg << ". " << sampleMsg;
         }
 
         for (const auto& [arg, expectedLeftLimit, expectedRightLimit] : testCase.Samples) {
-            auto sampleMsg = Format("At point %v. ", arg);
+            auto sampleMsg = TStringBuilder() << "At point " << arg;
 
-            EXPECT_TRUE(segment.IsDefinedAt(arg)) << testCaseMsg << sampleMsg;
-            EXPECT_EQ(expectedLeftLimit, segment.LeftLimitAt(arg)) << testCaseMsg << sampleMsg;
-            EXPECT_EQ(expectedRightLimit, segment.RightLimitAt(arg)) << testCaseMsg << sampleMsg;
+            EXPECT_TRUE(segment.IsDefinedAt(arg)) << testCaseMsg << ". " << sampleMsg;
+            EXPECT_EQ(expectedLeftLimit, segment.LeftLimitAt(arg)) << testCaseMsg << ". " << sampleMsg;
+            EXPECT_EQ(expectedRightLimit, segment.RightLimitAt(arg)) << testCaseMsg << ". " << sampleMsg;
             auto expectedLeftRightLimit = std::make_pair(expectedLeftLimit, expectedRightLimit);
-            EXPECT_EQ(expectedLeftRightLimit, segment.LeftRightLimitAt(arg)) << testCaseMsg << sampleMsg;
-            EXPECT_EQ(expectedLeftLimit, segment.ValueAt(arg)) << testCaseMsg << sampleMsg;
+            EXPECT_EQ(expectedLeftRightLimit, segment.LeftRightLimitAt(arg)) << testCaseMsg << ". " << sampleMsg;
+            EXPECT_EQ(expectedLeftLimit, segment.ValueAt(arg)) << testCaseMsg << ". " << sampleMsg;
         }
 
         EXPECT_EQ(testCase.ExpectedIsVertical, segment.IsVertical()) << testCaseMsg;
@@ -1337,22 +1341,22 @@ TEST_F(TPiecewiseLinearFunctionTest, TestPiecewiseSegmentTransformationsScalar)
     };
 
     for (const auto& testCase : testCases) {
-        auto testCaseMsg = Format("In the test case %v. ", testCase.Name);
+        auto testCaseMsg = TStringBuilder() << "In the test case " << testCase.Name;
 
         const auto& segment = testCase.Segment;
 
         EXPECT_EQ(testCase.ExpectedTransposedSegment, segment.Transpose()) << testCaseMsg;
 
         for (const auto& [scale, expectedSegment] : testCase.ExpectedScaledSegments) {
-            auto sampleMsg = Format("At scale %v. ", scale);
+            auto sampleMsg = TStringBuilder() << "At scale " << scale;
 
-            EXPECT_EQ(expectedSegment, segment.ScaleArgument(scale)) << testCaseMsg << sampleMsg;
+            EXPECT_EQ(expectedSegment, segment.ScaleArgument(scale)) << testCaseMsg << ". " << sampleMsg;
         }
 
         for (const auto& [deltaBound, deltaValue, expectedSegment] : testCase.ExpectedShiftedSegments) {
-            auto sampleMsg = Format("At shift [%v, %v]. ", deltaBound, deltaValue);
+            auto sampleMsg = TStringBuilder() << "At shift [" << deltaBound << ", " << deltaValue << "]";
 
-            EXPECT_EQ(expectedSegment, segment.Shift(deltaBound, deltaValue)) << testCaseMsg << sampleMsg;
+            EXPECT_EQ(expectedSegment, segment.Shift(deltaBound, deltaValue)) << testCaseMsg << ". " << sampleMsg;
         }
     }
 }

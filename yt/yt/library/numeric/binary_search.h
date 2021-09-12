@@ -1,6 +1,13 @@
 #pragma once
 
+#include "util.h"
+
+#include <util/system/yassert.h>
+
+#include <cmath>
+#include <cstdint>
 #include <limits>
+#include <type_traits>
 
 namespace NYT {
 

@@ -11,9 +11,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <yt/yt/core/test_framework/framework.h>
+#include <yt/yt/library/small_containers/small_vector.h>
 
-#include <yt/yt/core/misc/small_vector.h>
+#include <library/cpp/testing/gtest/gtest.h>
 
 #include <algorithm>
 #include <list>

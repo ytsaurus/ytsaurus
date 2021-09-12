@@ -5,14 +5,6 @@
 #include "binary_search.h"
 #endif
 
-#include "util.h"
-
-#include <yt/yt/core/misc/assert.h>
-
-#include <cmath>
-#include <type_traits>
-#include <cstdint>
-
 namespace NYT {
 
 using std::uint32_t;
@@ -22,7 +14,7 @@ using std::uint64_t;
 
 namespace NDetail {
 
-static constexpr uint64_t Uint64FirstBit = 1ul << 63ul;
+static constexpr uint64_t Uint64FirstBit = 1ull << 63ull;
 
 // In IEEE 754 the bit representation of non-negative finite doubles is monotonous,
 // i.e. |BitCast<uint64_t>(x1) < BitCast<uin64_t>(x2)| iff |x1 < x2|.
@@ -68,9 +60,9 @@ constexpr TInt IntegerLowerBound(TInt lo, TInt hi, TPredicate&& predicate)
 
     using TUInt = std::make_unsigned_t<TInt>;
 
-    YT_VERIFY(lo <= hi);
+    Y_VERIFY(lo <= hi);
 
-    YT_VERIFY(predicate(hi));
+    Y_VERIFY(predicate(hi));
     if (predicate(lo)) {
         return lo;
     }
@@ -97,9 +89,9 @@ constexpr TInt IntegerInverseLowerBound(TInt lo, TInt hi, TPredicate&& predicate
 
     using TUInt = std::make_unsigned_t<TInt>;
 
-    YT_VERIFY(lo <= hi);
+    Y_VERIFY(lo <= hi);
 
-    YT_VERIFY(predicate(lo));
+    Y_VERIFY(predicate(lo));
     if (predicate(hi)) {
         return hi;
     }
@@ -122,13 +114,13 @@ constexpr TInt IntegerInverseLowerBound(TInt lo, TInt hi, TPredicate&& predicate
 template <class TPredicate>
 double FloatingPointLowerBound(double lo, double hi, TPredicate&& predicate)
 {
-    YT_VERIFY(!std::isnan(lo));
-    YT_VERIFY(!std::isnan(hi));
-    YT_VERIFY(lo <= hi);
+    Y_VERIFY(!std::isnan(lo));
+    Y_VERIFY(!std::isnan(hi));
+    Y_VERIFY(lo <= hi);
 
     // NB(antonkikh): Note that this handles the case when |hi == -0.0| and |lo == 0.0|.
     if (lo == hi) {
-        YT_VERIFY(predicate(hi));
+        Y_VERIFY(predicate(hi));
         return hi;
     }
 
@@ -142,13 +134,13 @@ double FloatingPointLowerBound(double lo, double hi, TPredicate&& predicate)
 template <class TPredicate>
 double FloatingPointInverseLowerBound(double lo, double hi, TPredicate&& predicate)
 {
-    YT_VERIFY(!std::isnan(lo));
-    YT_VERIFY(!std::isnan(hi));
-    YT_VERIFY(lo <= hi);
+    Y_VERIFY(!std::isnan(lo));
+    Y_VERIFY(!std::isnan(hi));
+    Y_VERIFY(lo <= hi);
 
     // NB(antonkikh): Note that this handles the case when |hi == -0.0| and |lo == 0.0|.
     if (lo == hi) {
-        YT_VERIFY(predicate(lo));
+        Y_VERIFY(predicate(lo));
         return lo;
     }
 

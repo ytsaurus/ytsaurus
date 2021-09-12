@@ -16,7 +16,7 @@ TPiecewiseSegment<TValue>::TPiecewiseSegment(std::pair<double, TValue> leftPoint
     , RightBound_(rightPoint.first)
     , RightValue_(rightPoint.second)
 {
-    YT_VERIFY(LeftBound_ <= RightBound_);
+    Y_VERIFY(LeftBound_ <= RightBound_);
 }
 
 template <class TValue>
@@ -58,21 +58,21 @@ bool TPiecewiseSegment<TValue>::IsDefinedOn(double left, double right) const
 template <class TValue>
 TValue TPiecewiseSegment<TValue>::LeftLimitAt(double x) const
 {
-    YT_VERIFY(IsDefinedAt(x));
+    Y_VERIFY(IsDefinedAt(x));
     return LeftRightLimitAt(x).first;
 }
 
 template <class TValue>
 TValue TPiecewiseSegment<TValue>::RightLimitAt(double x) const
 {
-    YT_VERIFY(IsDefinedAt(x));
+    Y_VERIFY(IsDefinedAt(x));
     return LeftRightLimitAt(x).second;
 }
 
 template <class TValue>
 std::pair<TValue, TValue> TPiecewiseSegment<TValue>::LeftRightLimitAt(double x) const
 {
-    YT_VERIFY(IsDefinedAt(x));
+    Y_VERIFY(IsDefinedAt(x));
     if (RightBound() == LeftBound()) {
         return {LeftValue_, RightValue_};
     } else {
@@ -84,7 +84,7 @@ std::pair<TValue, TValue> TPiecewiseSegment<TValue>::LeftRightLimitAt(double x) 
 template <class TValue>
 TValue TPiecewiseSegment<TValue>::ValueAt(double x) const
 {
-    YT_VERIFY(IsDefinedAt(x));
+    Y_VERIFY(IsDefinedAt(x));
     // NB: We currently assume all functions to be left-continuous.
     return LeftLimitAt(x);
 }
@@ -147,14 +147,14 @@ TPiecewiseSegment<TValue> TPiecewiseSegment<TValue>::Shift(double deltaBound, co
 template <class TValue>
 TValue TPiecewiseSegment<TValue>::InterpolateAt(double x) const
 {
-    YT_ASSERT(IsDefinedAt(x));
-    YT_ASSERT(LeftBound_ != RightBound_);
+    Y_VERIFY_DEBUG(IsDefinedAt(x));
+    Y_VERIFY_DEBUG(LeftBound_ != RightBound_);
 
     // The value of t is monotonic and is exact at bounds.
     double t = (x - LeftBound()) / (RightBound() - LeftBound());
 
-    YT_ASSERT(x != LeftBound() || t == 0);
-    YT_ASSERT(x != RightBound() || t == 1);
+    Y_VERIFY_DEBUG(x != LeftBound() || t == 0);
+    Y_VERIFY_DEBUG(x != RightBound() || t == 1);
 
     return InterpolateNormalized(t);
 }
@@ -222,8 +222,8 @@ void PushSegmentImpl(std::vector<TPiecewiseSegment<TValue>>* vec, TPiecewiseSegm
 {
     if (!vec->empty()) {
         // NB: Strict equality is required in both cases.
-        YT_VERIFY(vec->back().RightBound() == segment.LeftBound());
-        YT_VERIFY(vec->back().RightValue() == segment.LeftValue());
+        Y_VERIFY(vec->back().RightBound() == segment.LeftBound());
+        Y_VERIFY(vec->back().RightValue() == segment.LeftValue());
 
         // Try to merge two segments.
         const auto& leftSegment = vec->back();
@@ -240,12 +240,12 @@ void PushSegmentImpl(std::vector<TPiecewiseSegment<TValue>>* vec, TPiecewiseSegm
             return;
         }
         if (leftSegment.IsVertical() && rightSegment.IsVertical()) {
-            YT_VERIFY(mergedSegment.IsVertical());
+            Y_VERIFY(mergedSegment.IsVertical());
             vec->back() = mergedSegment;
             return;
         }
         if (leftSegment.IsHorizontal() && rightSegment.IsHorizontal()) {
-            YT_VERIFY(mergedSegment.IsHorizontal());
+            Y_VERIFY(mergedSegment.IsHorizontal());
             vec->back() = mergedSegment;
             return;
         }
@@ -261,7 +261,7 @@ TPiecewiseLinearFunction<TValue> PointwiseMin(
 {
     double resultLeftBound = std::max(lhs.LeftFunctionBound(), rhs.LeftFunctionBound());
     double resultRightBound = std::min(lhs.RightFunctionBound(), rhs.RightFunctionBound());
-    YT_VERIFY(resultLeftBound <= resultRightBound);
+    Y_VERIFY(resultLeftBound <= resultRightBound);
 
     auto sampleResult = [
             lhsTraverser = lhs.GetLeftToRightTraverser(),
@@ -294,7 +294,7 @@ TPiecewiseLinearFunction<TValue> PointwiseMin(
     for (int i = 1; i < criticalPointsInitialSize; i++) {
         double leftBound = criticalPoints[i - 1];
         double rightBound = criticalPoints[i];
-        YT_VERIFY(leftBound < rightBound);
+        Y_VERIFY(leftBound < rightBound);
 
         // NB: Cannot use structure bindings here because it is not compatible with lambda capturing until C++20.
         auto pair = MinMaxBy(
@@ -304,8 +304,8 @@ TPiecewiseLinearFunction<TValue> PointwiseMin(
         auto segmentLo = pair.first;
         auto segmentHi = pair.second;
 
-        YT_VERIFY(segmentLo.IsDefinedOn(leftBound, rightBound));
-        YT_VERIFY(segmentHi.IsDefinedOn(leftBound, rightBound));
+        Y_VERIFY(segmentLo.IsDefinedOn(leftBound, rightBound));
+        Y_VERIFY(segmentHi.IsDefinedOn(leftBound, rightBound));
 
         if (segmentLo.ValueAt(leftBound) < segmentHi.ValueAt(leftBound)
             && segmentLo.ValueAt(rightBound) > segmentHi.ValueAt(rightBound))
@@ -329,7 +329,7 @@ TPiecewiseLinearFunction<TValue> PointwiseMin(
 template <class TValue>
 TPiecewiseLinearFunction<TValue> PointwiseMin(const std::vector<TPiecewiseLinearFunction<TValue>>& funcs)
 {
-    YT_VERIFY(!funcs.empty());
+    Y_VERIFY(!funcs.empty());
     return std::accumulate(
         begin(funcs) + 1,
         end(funcs),
@@ -353,8 +353,8 @@ template <class TValue>
 void TPiecewiseLinearFunctionBuilder<TValue>::PushSegment(const TSegment& segment)
 {
     if (RightPoint_) {
-        YT_VERIFY(RightPoint_->first == segment.LeftBound());
-        YT_VERIFY(RightPoint_->second == segment.LeftValue());
+        Y_VERIFY(RightPoint_->first == segment.LeftBound());
+        Y_VERIFY(RightPoint_->second == segment.LeftValue());
     }
     PushSegmentImpl(&Segments_, segment);
     RightPoint_ = TPoint(segment.RightBound(), segment.RightValue());
@@ -388,14 +388,15 @@ TPiecewiseLinearFunction<TValue> TPiecewiseLinearFunction<TValue>::Create(
     static_assert(std::is_same_v<decltype(sampleFunction(1.0L)), std::pair<TValue, TValue>>);
 
     ClearAndSortCriticalPoints(&criticalPoints, leftBound, rightBound);
-    YT_VERIFY(!criticalPoints.empty());
+    Y_VERIFY(!criticalPoints.empty());
     if (criticalPoints.front() != leftBound) {
-        THROW_ERROR_EXCEPTION(Format("Left bound of the function must be its first critical point (CriticalPoints: %v, LeftBound: %v)",
-            criticalPoints,
-            leftBound));
+        throw yexception()
+            << "Left bound of the function must be its first critical point (CriticalPoints: ["
+            << NDetail::ToString(criticalPoints)
+            << "], LeftBound: " << leftBound << ")";
     }
-    YT_VERIFY(criticalPoints.front() == leftBound);
-    YT_VERIFY(criticalPoints.back() == rightBound);
+    Y_VERIFY(criticalPoints.front() == leftBound);
+    Y_VERIFY(criticalPoints.back() == rightBound);
 
     TBuilder builder;
 
@@ -408,8 +409,9 @@ TPiecewiseLinearFunction<TValue> TPiecewiseLinearFunction<TValue>::Create(
 
     TSelf result = builder.Finish();
 
-    YT_ASSERT(result.LeftFunctionBound() == leftBound);
-    YT_ASSERT(result.RightFunctionBound() == rightBound);
+    Y_VERIFY_DEBUG(result.LeftFunctionBound() == leftBound);
+    Y_VERIFY_DEBUG(result.RightFunctionBound() == rightBound);
+
     return result;
 }
 
@@ -417,7 +419,7 @@ template <class TValue>
 TPiecewiseLinearFunction<TValue>::TPiecewiseLinearFunction(std::vector<TPiecewiseSegment<TValue>> segments)
     : Segments_(std::move(segments))
 {
-    YT_VERIFY(!Segments_.empty());
+    Y_VERIFY(!Segments_.empty());
 }
 
 template <class TValue>
@@ -493,7 +495,7 @@ TValue TPiecewiseLinearFunction<TValue>::LeftFunctionValue() const
 template <class TValue>
 TValue TPiecewiseLinearFunction<TValue>::RightFunctionValue() const
 {
-    YT_VERIFY(!Segments_.back().IsVertical());
+    Y_VERIFY(!Segments_.back().IsVertical());
     return Segments_.back().RightValue();
 }
 
@@ -541,7 +543,7 @@ bool TPiecewiseLinearFunction<TValue>::IsTrimmedRight() const
 template <class TValue>
 const TPiecewiseSegment<TValue>& TPiecewiseLinearFunction<TValue>::LeftSegmentAt(double x, int* segmentIndex) const
 {
-    YT_ASSERT(IsDefinedAt(x));
+    Y_VERIFY_DEBUG(IsDefinedAt(x));
 
     // Finds first element with |RightBound() >= x|.
     auto it = LowerBoundBy(
@@ -549,7 +551,7 @@ const TPiecewiseSegment<TValue>& TPiecewiseLinearFunction<TValue>::LeftSegmentAt
         end(Segments_),
         /* value */ x,
         [] (const auto& segment) { return segment.RightBound(); });
-    YT_ASSERT(it != end(Segments_));
+    Y_VERIFY_DEBUG(it != end(Segments_));
 
     if (segmentIndex != nullptr) {
         *segmentIndex = it - begin(Segments_);
@@ -560,7 +562,7 @@ const TPiecewiseSegment<TValue>& TPiecewiseLinearFunction<TValue>::LeftSegmentAt
 template <class TValue>
 const TPiecewiseSegment<TValue>& TPiecewiseLinearFunction<TValue>::RightSegmentAt(double x, int* segmentIndex) const
 {
-    YT_ASSERT(IsDefinedAt(x));
+    Y_VERIFY_DEBUG(IsDefinedAt(x));
 
     // Returns first element with LeftBound() > x.
     auto it = UpperBoundBy(
@@ -568,7 +570,7 @@ const TPiecewiseSegment<TValue>& TPiecewiseLinearFunction<TValue>::RightSegmentA
         end(Segments_),
         /* value */ x,
         [] (const auto& segment) { return segment.LeftBound(); });
-    YT_ASSERT(it != begin(Segments_));
+    Y_VERIFY(it != begin(Segments_));
     // We need the last segment with LeftBound() <= x.
     --it;
 
@@ -581,7 +583,7 @@ const TPiecewiseSegment<TValue>& TPiecewiseLinearFunction<TValue>::RightSegmentA
 template <class TValue>
 const TPiecewiseSegment<TValue>& TPiecewiseLinearFunction<TValue>::SegmentAt(double x, int* segmentIndex) const
 {
-    YT_ASSERT(IsDefinedAt(x));
+    Y_VERIFY_DEBUG(IsDefinedAt(x));
 
     // Finds first element with |RightBound() >= x|.
     auto it = LowerBoundBy(
@@ -589,11 +591,11 @@ const TPiecewiseSegment<TValue>& TPiecewiseLinearFunction<TValue>::SegmentAt(dou
         end(Segments_),
         /* value */ x,
         [] (const auto& segment) { return segment.RightBound(); });
-    YT_ASSERT(it != end(Segments_));
+    Y_VERIFY_DEBUG(it != end(Segments_));
 
     auto next = it + 1;
     if (it->RightBound() == x && next != end(Segments_) && next->IsVertical()) {
-        YT_ASSERT(next->LeftBound() == x);
+        Y_VERIFY_DEBUG(next->LeftBound() == x);
         it = next;
     }
 
@@ -647,7 +649,7 @@ TPiecewiseLinearFunction<TValue>& TPiecewiseLinearFunction<TValue>::TrimLeftInpl
             Segments_.front() = TSegment({argument, value}, {argument, value});
         }
 
-        YT_VERIFY(!Segments_.front().IsVertical());
+        Y_VERIFY(!Segments_.front().IsVertical());
     }
 
     return *this;
@@ -681,7 +683,7 @@ TPiecewiseLinearFunction<TValue>& TPiecewiseLinearFunction<TValue>::TrimRightInp
             Segments_.back() = TSegment({argument, value}, {argument, value});
         }
 
-        YT_VERIFY(!Segments_.back().IsVertical());
+        Y_VERIFY(!Segments_.back().IsVertical());
     }
 
     return *this;
@@ -762,9 +764,9 @@ TPiecewiseLinearFunction<TValue> TPiecewiseLinearFunction<TValue>::Narrow(
     double newLeftBound,
     double newRightBound) const
 {
-    YT_VERIFY(IsDefinedAt(newLeftBound));
-    YT_VERIFY(IsDefinedAt(newRightBound));
-    YT_VERIFY(newLeftBound <= newRightBound);
+    Y_VERIFY(IsDefinedAt(newLeftBound));
+    Y_VERIFY(IsDefinedAt(newRightBound));
+    Y_VERIFY(newLeftBound <= newRightBound);
 
     return *this + Constant(newLeftBound, newRightBound, TValue{});
 }
@@ -788,7 +790,7 @@ TPiecewiseLinearFunction<TValue> TPiecewiseLinearFunction<TValue>::Extend(
     double newRightBound,
     const TValue& newRightValue) const
 {
-    YT_VERIFY(newLeftBound <= LeftFunctionBound());
+    Y_VERIFY(newLeftBound <= LeftFunctionBound());
 
     TBuilder builder;
 
@@ -869,7 +871,7 @@ template <class TValue>
 TPiecewiseLinearFunction<TValue> TPiecewiseLinearFunction<TValue>::Sum(
     const std::vector<TPiecewiseLinearFunction<TValue>>& funcs)
 {
-    YT_VERIFY(!funcs.empty());
+    Y_VERIFY(!funcs.empty());
 
     double resultLeftBound = std::numeric_limits<double>::lowest();
     double resultRightBound = std::numeric_limits<double>::max();
@@ -877,7 +879,7 @@ TPiecewiseLinearFunction<TValue> TPiecewiseLinearFunction<TValue>::Sum(
         resultLeftBound = std::max(resultLeftBound, func.LeftFunctionBound());
         resultRightBound = std::min(resultRightBound, func.RightFunctionBound());
     }
-    YT_VERIFY(resultLeftBound <= resultRightBound);
+    Y_VERIFY(resultLeftBound <= resultRightBound);
 
     std::vector<double> criticalPoints;
     for (const auto& func : funcs) {
@@ -920,10 +922,10 @@ TPiecewiseLinearFunction<TValue> TPiecewiseLinearFunction<TValue>::Compose(const
     static_assert(std::is_same_v<double, typename TOther::TValueType>);
 
     if (!other.IsNondecreasing()) {
-        THROW_ERROR_EXCEPTION("Composition is only supported for non-decreasing functions");
+        throw yexception() << "Composition is only supported for non-decreasing functions";
     }
-    YT_VERIFY(IsDefinedAt(other.LeftLimitAt(other.LeftFunctionBound())));
-    YT_VERIFY(IsDefinedAt(other.RightLimitAt(other.RightFunctionBound())));
+    Y_VERIFY(IsDefinedAt(other.LeftLimitAt(other.LeftFunctionBound())));
+    Y_VERIFY(IsDefinedAt(other.RightLimitAt(other.RightFunctionBound())));
 
     // Prepare critical points with the expected values of the rhs function at these points.
     std::vector<std::pair<double, double>> criticalPoints;
@@ -949,8 +951,8 @@ TPiecewiseLinearFunction<TValue> TPiecewiseLinearFunction<TValue>::Compose(const
     }
 
     Sort(begin(criticalPoints), end(criticalPoints));
-    YT_ASSERT(IsSortedBy(begin(criticalPoints), end(criticalPoints), [] (const auto& pair) { return pair.second; }));
-    YT_ASSERT(Unique(begin(criticalPoints), end(criticalPoints)) == end(criticalPoints));
+    Y_VERIFY_DEBUG(IsSortedBy(begin(criticalPoints), end(criticalPoints), [] (const auto& pair) { return pair.second; }));
+    Y_VERIFY_DEBUG(Unique(begin(criticalPoints), end(criticalPoints)) == end(criticalPoints));
 
     // Finally, build the resulting function.
     TBuilder builder;
@@ -985,8 +987,8 @@ TPiecewiseLinearFunction<TValue> TPiecewiseLinearFunction<TValue>::Compose(const
 
     TSelf result = builder.Finish().Trim();
 
-    YT_VERIFY(result.LeftFunctionBound() == other.LeftFunctionBound());
-    YT_VERIFY(result.RightFunctionBound() == other.RightFunctionBound());
+    Y_VERIFY(result.LeftFunctionBound() == other.LeftFunctionBound());
+    Y_VERIFY(result.RightFunctionBound() == other.RightFunctionBound());
 
     return result;
 }
@@ -1039,15 +1041,15 @@ TPiecewiseLinearFunction<TValue>::TLeftToRightTraverser::TLeftToRightTraverser(
     , Cur_(Function_->Segments().begin() + segmentIndex)
     , End_(Function_->Segments().end())
 {
-    YT_ASSERT(segmentIndex < std::ssize(Function_->Segments()));
+    Y_VERIFY_DEBUG(segmentIndex < std::ssize(Function_->Segments()));
 }
 
 template <class TValue>
 const TPiecewiseSegment<TValue>& TPiecewiseLinearFunction<TValue>::TLeftToRightTraverser::LeftSegmentAt(double x)
 {
-    YT_ASSERT(Function_->IsDefinedAt(x));
+    Y_VERIFY_DEBUG(Function_->IsDefinedAt(x));
+    Y_VERIFY_DEBUG(Cur_ == Function_->Segments().begin() || (Cur_ - 1)->RightBound() < x);
 
-    YT_ASSERT(Cur_ == Function_->Segments().begin() || (Cur_ - 1)->RightBound() < x);
     // Note that since |Function_->IsDefinedAt(x)| holds, we do not need to check that |Cur_ != End_|.
     while (Cur_->RightBound() < x) {
         ++Cur_;
@@ -1060,9 +1062,9 @@ const TPiecewiseSegment<TValue>& TPiecewiseLinearFunction<TValue>::TLeftToRightT
 template <class TValue>
 const TPiecewiseSegment<TValue>& TPiecewiseLinearFunction<TValue>::TLeftToRightTraverser::RightSegmentAt(double x)
 {
-    YT_ASSERT(Function_->IsDefinedAt(x));
+    Y_VERIFY_DEBUG(Function_->IsDefinedAt(x));
+    Y_VERIFY_DEBUG(Cur_->LeftBound() <= x);
 
-    YT_ASSERT(Cur_->LeftBound() <= x);
     while (true) {
         auto next = Cur_ + 1;
 
@@ -1080,9 +1082,8 @@ const TPiecewiseSegment<TValue>& TPiecewiseLinearFunction<TValue>::TLeftToRightT
 template <class TValue>
 const TPiecewiseSegment<TValue>& TPiecewiseLinearFunction<TValue>::TLeftToRightTraverser::SegmentAt(double x)
 {
-    YT_ASSERT(Function_->IsDefinedAt(x));
-
-    YT_ASSERT(Cur_->LeftBound() <= x);
+    Y_VERIFY_DEBUG(Function_->IsDefinedAt(x));
+    Y_VERIFY_DEBUG(Cur_->LeftBound() <= x);
     // Note that since |Function_->IsDefinedAt(x)| holds, we do not need to check that |Cur_ != End_|.
     while (Cur_->RightBound() < x) {
         ++Cur_;
@@ -1091,7 +1092,7 @@ const TPiecewiseSegment<TValue>& TPiecewiseLinearFunction<TValue>::TLeftToRightT
 
     auto next = Cur_ + 1;
     if (Cur_->RightBound() == x && next != End_ && next->IsVertical()) {
-        YT_ASSERT(next->LeftBound() == x);
+        Y_VERIFY_DEBUG(next->LeftBound() == x);
         Cur_ = next;
     }
 

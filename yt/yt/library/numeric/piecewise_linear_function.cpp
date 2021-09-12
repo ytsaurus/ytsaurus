@@ -93,7 +93,7 @@ void SortOrMerge(std::vector<double>* vec)
     TPivotsVector pivotsBuffer;
 
     SortOrMergeImpl(vec, &mergeBuffer, &mergePivots, &pivotsBuffer);
-    YT_ASSERT(std::is_sorted(begin(*vec), end(*vec)));
+    Y_VERIFY_DEBUG(std::is_sorted(begin(*vec), end(*vec)));
 }
 
 } // namespace NDetail
