@@ -20,7 +20,7 @@ public:
     
     virtual void AssignAgent(const TControllerAgentPtr& agent) override;
     
-    virtual void RevokeAgent() override;
+    virtual bool RevokeAgent() override;
     
     virtual TControllerAgentPtr FindAgent() const override;
     

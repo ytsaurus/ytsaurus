@@ -76,14 +76,14 @@ void TOperationControllerImpl::AssignAgent(const TControllerAgentPtr& agent)
     ScheduleJobRequestsOutbox_ = agent->GetScheduleJobRequestsOutbox();
 }
 
-void TOperationControllerImpl::RevokeAgent()
+bool TOperationControllerImpl::RevokeAgent()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto guard = Guard(SpinLock_);
 
     if (!IncarnationId_) {
-        return;
+        return false;
     }
 
     PendingInitializeResult_ = TPromise<TOperationControllerInitializeResult>();
@@ -96,6 +96,8 @@ void TOperationControllerImpl::RevokeAgent()
     Agent_.Reset();
 
     YT_LOG_INFO("Agent revoked for operation");
+
+    return true;
 }
 
 TControllerAgentPtr TOperationControllerImpl::FindAgent() const
