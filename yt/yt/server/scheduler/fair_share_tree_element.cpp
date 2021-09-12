@@ -3411,6 +3411,8 @@ TControllerScheduleJobResultPtr TSchedulerOperationElement::DoScheduleJob(
     } else if (scheduleJobResult->Failed[EScheduleJobFailReason::Timeout] > 0) {
         YT_LOG_WARNING("Job scheduling timed out");
 
+        ++context->SchedulingStatistics().ControllerScheduleJobTimedOutCount;
+
         SetOperationAlert(
             OperationId_,
             EOperationAlertType::ScheduleJobTimedOut,
