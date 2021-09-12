@@ -40,6 +40,7 @@ void Serialize(const TScheduleJobsStatistics& statistics, IYsonConsumer* consume
     BuildYsonFluently(consumer).BeginMap()
         .Item("unconditionally_preemptable_job_count").Value(statistics.UnconditionallyPreemptableJobCount)
         .Item("controller_schedule_job_count").Value(statistics.ControllerScheduleJobCount)
+        .Item("controller_schedule_job_timed_out_count").Value(statistics.ControllerScheduleJobTimedOutCount)
         .Item("non_preemptive_schedule_job_attempts").Value(statistics.NonPreemptiveScheduleJobAttempts)
         .Item("aggressively_preemptive_schedule_job_attempts").Value(statistics.AggressivelyPreemptiveScheduleJobAttempts)
         .Item("preemptive_schedule_job_attempts").Value(statistics.PreemptiveScheduleJobAttempts)

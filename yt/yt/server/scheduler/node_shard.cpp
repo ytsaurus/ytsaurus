@@ -654,7 +654,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             "StartedJobs: {All: %v, ByPreemption: %v}, PreemptedJobs: %v, "
             "PreemptableInfo: {UnconditionalJobCount: %v, UnconditionalDiscount: %v, "
             "TotalConditionalJobCount: %v, MaxConditionalJobCountPerPool: %v, MaxConditionalDiscount: %v}, "
-            "ScheduleJobAttempts: {NP: %v, AP: %v, P: %v, C: %v}, "
+            "ScheduleJobAttempts: {NP: %v, AP: %v, P: %v, C: %v, TO: %v}, "
             "HasAggressivelyStarvingElements: %v",
             nodeId,
             descriptor.GetDefaultAddress(),
@@ -672,6 +672,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             statistics.AggressivelyPreemptiveScheduleJobAttempts,
             statistics.PreemptiveScheduleJobAttempts,
             statistics.ControllerScheduleJobCount,
+            statistics.ControllerScheduleJobTimedOutCount,
             statistics.HasAggressivelyStarvingElements);
     } else {
         ProcessScheduledAndPreemptedJobs(
