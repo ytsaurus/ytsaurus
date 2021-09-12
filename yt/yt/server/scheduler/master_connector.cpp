@@ -1350,7 +1350,10 @@ private:
                         options.PingPeriod = Config_->OperationTransactionPingPeriod;
                         options.Ping = ping;
                         options.PingAncestors = false;
-                        return client->AttachTransaction(transactionId, options);
+                        auto transaction = client->AttachTransaction(transactionId, options);
+                        WaitFor(transaction->Ping())
+                            .ThrowOnError();
+                        return transaction;
                     } catch (const std::exception& ex) {
                         YT_LOG_WARNING(ex, "Error attaching operation transaction (OperationId: %v, TransactionId: %v)",
                             operationId,
