@@ -527,7 +527,7 @@ void TRefCountedProto<TProto>::UnregisterExtraSpace()
 template <class TProto>
 i64 TRefCountedProto<TProto>::GetSize() const
 {
-    return sizeof(this) + ExtraSpace_;
+    return sizeof(*this) + ExtraSpace_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
