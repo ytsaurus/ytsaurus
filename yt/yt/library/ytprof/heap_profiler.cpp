@@ -29,7 +29,9 @@ NProto::Profile ConvertAllocationProfile(const tcmalloc::Profile& snapshot)
 
     sampleType = profile.add_sample_type();
     sampleType->set_type(addString("space"));
-    sampleType->set_unit(addString("bytes"));
+
+    auto bytesUnitId = addString("bytes");
+    sampleType->set_unit(bytesUnitId);
 
     auto periodType = profile.mutable_period_type();
     periodType->set_type(sampleType->type());
@@ -58,14 +60,17 @@ NProto::Profile ConvertAllocationProfile(const tcmalloc::Profile& snapshot)
         auto allocatedSizeLabel = sampleProto->add_label();
         allocatedSizeLabel->set_key(allocatedSizeId);
         allocatedSizeLabel->set_num(sample.allocated_size);
+        allocatedSizeLabel->set_num_unit(bytesUnitId);
 
         auto requestedSizeLabel = sampleProto->add_label();
         requestedSizeLabel->set_key(requestedSizeId);
         requestedSizeLabel->set_num(sample.requested_size);
+        requestedSizeLabel->set_num_unit(bytesUnitId);
 
         auto requestedAlignmentLabel = sampleProto->add_label();
         requestedAlignmentLabel->set_key(requestedAlignmentId);
         requestedAlignmentLabel->set_num(sample.requested_alignment);
+        requestedAlignmentLabel->set_num_unit(bytesUnitId);
 
         for (int i = 1; i < sample.depth; i++) {
             auto ip = sample.stack[i];

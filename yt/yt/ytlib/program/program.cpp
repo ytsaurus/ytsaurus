@@ -18,6 +18,8 @@
 
 #include <yt/yt/library/mlock/mlock.h>
 
+#include <yt/yt/library/profiling/tcmalloc/profiler.h>
+
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
 #include <tcmalloc/malloc_extension.h>
@@ -325,6 +327,7 @@ void ConfigureAllocator(TAllocatorOptions options)
         backgroundThread.detach();
     }
 
+    NProfiling::EnableTCMallocProfiler();
     absl::SetStackUnwinder(NYTProf::AbslStackUnwinder);
     // TODO(prime@): tune parameters.
     tcmalloc::MallocExtension::SetProfileSamplingRate(2_MB);
