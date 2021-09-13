@@ -3,8 +3,9 @@
 // TODO(ignat): migrate to enum class
 #include <library/cpp/ytalloc/core/misc/enum.h>
 
+#include <yt/yt/library/numeric/fixed_point_number.h>
+
 #include <yt/yt/core/misc/public.h>
-#include <yt/yt/core/misc/fixed_point_number.h>
 
 namespace NYT::NScheduler {
 
