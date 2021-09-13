@@ -9305,7 +9305,7 @@ TStreamDescriptor TOperationControllerBase::GetIntermediateStreamDescriptorTempl
             .Item("upload_replication_factor").Value(Spec_->IntermediateDataReplicationFactor)
             .Item("min_upload_replication_factor").Value(1)
             .Item("populate_cache").Value(true)
-            .Item("sync_on_close").Value(false)
+            .Item("sync_on_close").Value(Spec_->IntermediateDataSyncOnClose)
             .DoIf(Spec_->IntermediateDataReplicationFactor > 1, [&] (TFluentMap fluent) {
                 // Set reduced rpc_timeout if replication_factor is greater than one.
                 fluent.Item("node_rpc_timeout").Value(TDuration::Seconds(120));
