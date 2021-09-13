@@ -164,7 +164,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/scheduler",
-        CreateVirtualNode(Scheduler_->CreateOrchidService()->Via(GetControlInvoker(EControlQueue::Orchid))));
+        CreateVirtualNode(Scheduler_->CreateOrchidService()->Via(GetControlInvoker(EControlQueue::StaticOrchid))));
     SetBuildAttributes(
         orchidRoot,
         "scheduler");
@@ -174,7 +174,7 @@ void TBootstrap::DoRun()
         CoreDumper_));
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
-        GetControlInvoker(EControlQueue::Orchid)));
+        GetControlInvoker(EControlQueue::StaticOrchid)));
     RpcServer_->RegisterService(CreateSchedulerService(this));
     RpcServer_->RegisterService(CreateJobTrackerService(this));
     RpcServer_->RegisterService(CreateJobProberService(this));

@@ -337,7 +337,7 @@ public:
 
         auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
         auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer)
-            ->Via(GetControlInvoker(EControlQueue::Orchid))
+            ->Via(GetControlInvoker(EControlQueue::StaticOrchid))
             ->Cached(
                 Config_->StaticOrchidCacheUpdatePeriod,
                 OrchidWorkerPool_->GetInvoker(),
@@ -347,10 +347,10 @@ public:
 
         auto lightStaticOrchidProducer = BIND(&TImpl::BuildLightStaticOrchid, MakeStrong(this));
         auto lightStaticOrchidService = IYPathService::FromProducer(lightStaticOrchidProducer)
-            ->Via(GetControlInvoker(EControlQueue::Orchid));
+            ->Via(GetControlInvoker(EControlQueue::StaticOrchid));
 
         auto dynamicOrchidService = GetDynamicOrchidService()
-            ->Via(GetControlInvoker(EControlQueue::Orchid));
+            ->Via(GetControlInvoker(EControlQueue::DynamicOrchid));
 
         auto combinedOrchidService = New<TServiceCombiner>(
             std::vector<IYPathServicePtr>{
@@ -3142,7 +3142,7 @@ private:
     {
         auto operationOrchidProducer = BIND(&TImpl::BuildOperationOrchid, MakeStrong(this), operation);
         return IYPathService::FromProducer(operationOrchidProducer)
-            ->Via(GetControlInvoker(EControlQueue::Orchid));
+            ->Via(GetControlInvoker(EControlQueue::DynamicOrchid));
     }
 
     void RegisterOperationAlias(const TOperationPtr& operation)
@@ -4454,7 +4454,7 @@ private:
             auto jobId = TJobId::FromString(key);
             auto buildJobYsonCallback = BIND(&TJobsService::BuildControllerJobYson, MakeStrong(this), jobId);
             auto jobYPathService = IYPathService::FromProducer(buildJobYsonCallback)
-                ->Via(Scheduler_->GetControlInvoker(EControlQueue::Orchid));
+                ->Via(Scheduler_->GetControlInvoker(EControlQueue::DynamicOrchid));
             return jobYPathService;
         }
 
