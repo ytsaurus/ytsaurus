@@ -106,6 +106,7 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/periodic_yielder.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
@@ -5357,6 +5358,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
 
 void TOperationControllerBase::FetchInputTables()
 {
+    TPeriodicYielder yielder(PrepareYieldPeriod);
+
     i64 totalChunkCount = 0;
     i64 totalExtensionSize = 0;
 
@@ -5411,6 +5414,8 @@ void TOperationControllerBase::FetchInputTables()
 
     // We fetch columnar statistics only for the tables that have column selectors specified.
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables_.size()); ++tableIndex) {
+        yielder.TryYield();
+
         auto& table = InputTables_[tableIndex];
         auto ranges = table->Path.GetNewRanges(table->Comparator, table->Schema->GetKeyColumnTypes());
         int originalRangeCount = ranges.size();
@@ -5433,6 +5438,8 @@ void TOperationControllerBase::FetchInputTables()
 
             std::vector<TReadRange> inferredRanges;
             for (const auto& range : ranges) {
+                yielder.TryYield();
+
                 auto legacyRange = ReadRangeToLegacyReadRange(range);
                 auto lower = legacyRange.LowerLimit().HasLegacyKey()
                     ? legacyRange.LowerLimit().GetLegacyKey()
@@ -5483,6 +5490,8 @@ void TOperationControllerBase::FetchInputTables()
     YT_LOG_INFO("Input tables fetched");
 
     for (const auto& chunkSpec : chunkSpecFetcher->ChunkSpecs()) {
+        yielder.TryYield();
+
         int tableIndex = chunkSpec.table_index();
         auto& table = InputTables_[tableIndex];
 
