@@ -473,9 +473,7 @@ void TChunkMerger::ScheduleJobs(IJobSchedulingContext* context)
         if (!TryScheduleMergeJob(context, jobInfo)) {
             auto* trunkNode = FindChunkOwner(jobInfo.NodeId);
             FinalizeJob(
-                jobInfo.NodeId,
-                jobInfo.ParentChunkListId,
-                jobInfo.JobId,
+                std::move(jobInfo),
                 CanScheduleMerge(trunkNode) ? EMergeSessionResult::TransientFailure : EMergeSessionResult::PermanentFailure);
             continue;
         }
@@ -750,34 +748,36 @@ void TChunkMerger::RegisterSessionTransient(TChunkOwnerBase* chunkOwner)
 }
 
 void TChunkMerger::FinalizeJob(
-    TObjectId nodeId,
-    TChunkListId parentChunkListId,
-    TJobId jobId,
+    TMergeJobInfo jobInfo,
     EMergeSessionResult result)
 {
     if (!IsLeader()) {
         return;
     }
 
+    auto jobId = jobInfo.JobId;
+    auto nodeId = jobInfo.NodeId;
+    auto parentChunkListId = jobInfo.ParentChunkListId;
+
     YT_LOG_DEBUG("Finalizing merge job (NodeId: %v, JobId: %v)",
         nodeId,
         jobId);
 
-    auto& session = GetOrCrash(RunningSessions_, nodeId);
+    auto& session = GetOrCrash(RunningSessions_, jobInfo.NodeId);
     session.Result = std::max(session.Result, result);
 
     auto& runningJobs = GetOrCrash(session.ChunkListIdToRunningJobs, parentChunkListId);
     EraseOrCrash(runningJobs, jobId);
 
     if (result == EMergeSessionResult::OK) {
-        session.ChunkListIdToCompletedJobs[parentChunkListId].insert(jobId);
+        session.ChunkListIdToCompletedJobs[parentChunkListId].push_back(std::move(jobInfo));
     }
 
     if (runningJobs.empty()) {
         EraseOrCrash(session.ChunkListIdToRunningJobs, parentChunkListId);
         auto completedJobsIt = session.ChunkListIdToCompletedJobs.find(parentChunkListId);
         if (completedJobsIt != session.ChunkListIdToCompletedJobs.end()) {
-            ScheduleReplaceChunks(nodeId, parentChunkListId, completedJobsIt->second);
+            ScheduleReplaceChunks(nodeId, parentChunkListId, &completedJobsIt->second);
         }
     }
 
@@ -802,7 +802,7 @@ void TChunkMerger::FinalizeReplacement(
 
     auto& session = GetOrCrash(RunningSessions_, nodeId);
     session.Result = std::max(session.Result, result);
-    EraseOrCrash(session.ChunkListIdToCompletedJobs,chunkListId);
+    EraseOrCrash(session.ChunkListIdToCompletedJobs, chunkListId);
 
     if (session.ChunkListIdToRunningJobs.empty() && session.ChunkListIdToCompletedJobs.empty()) {
         ScheduleSessionFinalization(nodeId, EMergeSessionResult::None);
@@ -812,28 +812,25 @@ void TChunkMerger::FinalizeReplacement(
 void TChunkMerger::ScheduleReplaceChunks(
     TObjectId nodeId,
     TChunkListId parentChunkListId,
-    const THashSet<TJobId>& jobIds)
+    std::vector<TMergeJobInfo>* jobInfos)
 {
-    YT_LOG_DEBUG("Scheduling chunk replace after merge (NodeId: %v, ParentChunkListId: %v)",
+    YT_LOG_DEBUG("Scheduling chunk replace after merge (NodeId: %v, ParentChunkListId: %v, JobIds: %v)",
         nodeId,
-        parentChunkListId);
+        parentChunkListId,
+        MakeFormattableView(*jobInfos, [] (auto* builder, const auto& jobInfo) {
+            builder->AppendFormat("%v", jobInfo.JobId);
+        }));
 
     TReqReplaceChunks request;
-    std::vector<const TMergeJobInfo*> jobs;
-    jobs.reserve(jobIds.size());
-    for (auto jobId : jobIds) {
-        const auto& jobInfo = GetOrCrash(RunningJobs_, jobId);
-        jobs.push_back(&jobInfo);
-    }
 
-    std::sort(jobs.begin(), jobs.end(), [] (const TMergeJobInfo* lhs, const TMergeJobInfo* rhs) {
-        return lhs->JobIndex < rhs->JobIndex;
+    SortBy(jobInfos->begin(), jobInfos->end(), [] (const TMergeJobInfo& info) {
+        return info.JobIndex;
     });
 
-    for (const auto& job : jobs) {
+    for (const auto& job : *jobInfos) {
         auto* replacement = request.add_replacements();
-        ToProto(replacement->mutable_new_chunk_id(), job->OutputChunkId);
-        ToProto(replacement->mutable_old_chunk_ids(), job->InputChunkIds);
+        ToProto(replacement->mutable_new_chunk_id(), job.OutputChunkId);
+        ToProto(replacement->mutable_old_chunk_ids(), job.InputChunkIds);
     }
 
     ToProto(request.mutable_node_id(), nodeId);
@@ -998,9 +995,7 @@ void TChunkMerger::CreateChunks()
         auto* node = FindChunkOwner(jobInfo.NodeId);
         if (!node) {
             FinalizeJob(
-                jobInfo.NodeId,
-                jobInfo.ParentChunkListId,
-                jobInfo.JobId,
+                std::move(jobInfo),
                 EMergeSessionResult::PermanentFailure);
             JobsAwaitingChunkCreation_.pop();
             continue;
@@ -1165,9 +1160,7 @@ void TChunkMerger::OnJobFinished(const TJobPtr& job)
     }
 
     FinalizeJob(
-        jobInfo.NodeId,
-        jobInfo.ParentChunkListId,
-        jobInfo.JobId,
+        std::move(jobInfo),
         result);
 
     RunningJobs_.erase(it);
@@ -1249,9 +1242,7 @@ void TChunkMerger::HydraCreateChunks(NProto::TReqCreateChunks* request)
             }
 
             FinalizeJob(
-                it->second.NodeId,
-                it->second.ParentChunkListId,
-                jobId,
+                std::move(it->second),
                 EMergeSessionResult::TransientFailure);
             JobsUndergoingChunkCreation_.erase(it);
         };

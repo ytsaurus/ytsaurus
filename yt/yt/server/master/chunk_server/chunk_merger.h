@@ -35,13 +35,6 @@ DEFINE_ENUM(EMergeSessionResult,
     ((PermanentFailure)  (3))
 );
 
-struct TChunkMergerSession
-{
-    THashMap<NCypressClient::TObjectId, THashSet<TJobId>> ChunkListIdToRunningJobs;
-    THashMap<NCypressClient::TObjectId, THashSet<TJobId>> ChunkListIdToCompletedJobs;
-    EMergeSessionResult Result = EMergeSessionResult::None;
-};
-
 struct TMergeJobInfo
 {
     TJobId JobId;
@@ -54,6 +47,13 @@ struct TMergeJobInfo
     TChunkId OutputChunkId;
 
     NChunkClient::EChunkMergerMode MergeMode;
+};
+
+struct TChunkMergerSession
+{
+    THashMap<NCypressClient::TObjectId, THashSet<TJobId>> ChunkListIdToRunningJobs;
+    THashMap<NCypressClient::TObjectId, std::vector<TMergeJobInfo>> ChunkListIdToCompletedJobs;
+    EMergeSessionResult Result = EMergeSessionResult::None;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -158,9 +158,7 @@ private:
     void RegisterSession(TChunkOwnerBase* chunkOwner);
     void RegisterSessionTransient(TChunkOwnerBase* chunkOwner);
     void FinalizeJob(
-        NCypressClient::TObjectId nodeId,
-        TChunkListId parentChunkListId,
-        TJobId jobId,
+        TMergeJobInfo jobInfo,
         EMergeSessionResult result);
 
     void RegisterJobAwaitingChunkCreation(
@@ -203,7 +201,7 @@ private:
     void ScheduleReplaceChunks(
         NCypressClient::TObjectId nodeId,
         TChunkListId parentChunkListId,
-        const THashSet<TJobId>& jobIds);
+        std::vector<TMergeJobInfo>* jobInfos);
 
     void OnJobFinished(const TJobPtr& job);
 
