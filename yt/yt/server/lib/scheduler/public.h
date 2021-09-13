@@ -115,7 +115,6 @@ DEFINE_ENUM(EControlQueue,
     (DynamicOrchid)
     (CommonPeriodicActivity)
     (OperationsPeriodicActivity)
-    (NodesPeriodicActivity)
     (SchedulerProfiling)
     (Operation)
     (AgentTracker)
