@@ -289,6 +289,7 @@ private:
             blocksSize += block.Size();
         }
         InputDataStatistics_.set_compressed_data_size(InputDataStatistics_.compressed_data_size() + blocksSize);
+        OutputDataStatistics_.set_compressed_data_size(OutputDataStatistics_.compressed_data_size() + blocksSize);
         ProcessedBlocksSize_ += blocksSize;
     }
 
