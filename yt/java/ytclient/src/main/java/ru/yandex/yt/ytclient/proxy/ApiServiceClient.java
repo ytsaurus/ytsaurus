@@ -183,6 +183,10 @@ public class ApiServiceClient extends TransactionalClient {
         });
     }
 
+    /**
+     * @deprecated prefer to use {@link #startTransaction(StartTransaction)}
+     */
+    @Deprecated
     public CompletableFuture<ApiServiceTransaction> startTransaction(ApiServiceTransactionOptions options) {
         return startTransaction(options.toStartTransaction());
     }
