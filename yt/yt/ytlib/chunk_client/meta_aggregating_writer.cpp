@@ -147,6 +147,7 @@ private:
     int RowCount_ = 0;
     i64 UncompressedDataSize_ = 0;
     i64 CompressedDataSize_ = 0;
+    i64 DataWeight_ = 0;
     i64 LargestBlockSize_ = 0;
     int BlockIndex_ = 0;
     int ValueCount_ = 0;
@@ -332,6 +333,7 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
     RowCount_ += miscExt.row_count();
     UncompressedDataSize_ += miscExt.uncompressed_data_size();
     CompressedDataSize_ += miscExt.compressed_data_size();
+    DataWeight_ += miscExt.data_weight();
     ValueCount_ += miscExt.value_count();
 }
 
@@ -481,6 +483,7 @@ void TMetaAggregatingWriter::FinalizeMeta()
     MiscExt_.set_row_count(RowCount_);
     MiscExt_.set_uncompressed_data_size(UncompressedDataSize_);
     MiscExt_.set_compressed_data_size(CompressedDataSize_);
+    MiscExt_.set_data_weight(DataWeight_);
     MiscExt_.set_max_block_size(LargestBlockSize_);
     MiscExt_.set_meta_size(ChunkMeta_->ByteSize());
     MiscExt_.set_value_count(ValueCount_);
