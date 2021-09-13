@@ -117,6 +117,9 @@ class TestChunkMerger(YTEnvSetup):
 
         self._wait_for_merge("//tmp/t", merge_mode, "tmp")
 
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert get("#{0}/@data_weight".format(chunk_ids[0])) > 0
+
     @authors("aleksandra-zh")
     def test_merge2(self):
         create("table", "//tmp/t")
