@@ -39,7 +39,6 @@ using namespace NBus;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
-using namespace NProfiling;
 using namespace NTracing;
 using namespace NConcurrency;
 using namespace NYTAlloc;
@@ -253,7 +252,7 @@ public:
         , PerformanceCounters_(Service_->GetMethodPerformanceCounters(
             RuntimeInfo_,
             {GetAuthenticationIdentity().UserTag, RequestQueue_}))
-        , ArriveInstant_(GetCpuInstant())
+        , ArriveInstant_(NProfiling::GetInstant())
 
     {
         YT_ASSERT(RequestMessage_);
@@ -376,7 +375,7 @@ public:
             AbortStreamsUnlessClosed(CanceledError);
         }
 
-        CancelInstant_ = GetCpuInstant();
+        CancelInstant_ = NProfiling::GetInstant();
 
         PerformanceCounters_->CanceledRequestCounter.Increment();
     }
@@ -413,20 +412,20 @@ public:
 
     TInstant GetArriveInstant() const override
     {
-        return CpuInstantToInstant(ArriveInstant_);
+        return ArriveInstant_;
     }
 
     std::optional<TInstant> GetRunInstant() const override
     {
-        return RunInstant_ == 0 ? std::nullopt : std::make_optional(CpuInstantToInstant(RunInstant_));
+        return RunInstant_;
     }
 
     std::optional<TInstant> GetFinishInstant() const override
     {
-        if (ReplyInstant_ != 0) {
-            return CpuInstantToInstant(ReplyInstant_);
-        } else if (CancelInstant_ != 0) {
-            return CpuInstantToInstant(CancelInstant_);
+        if (ReplyInstant_) {
+            return ReplyInstant_;
+        } else if (CancelInstant_) {
+            return CancelInstant_;
         } else {
             return std::nullopt;
         }
@@ -434,12 +433,12 @@ public:
 
     std::optional<TDuration> GetWaitDuration() const override
     {
-        return LocalWaitTime_ == TDuration::Zero() ? std::nullopt : std::make_optional(LocalWaitTime_);
+        return LocalWaitTime_;
     }
 
     std::optional<TDuration> GetExecutionDuration() const override
     {
-        return ExecutionTime_ == TDuration::Zero() ? std::nullopt : std::make_optional(ExecutionTime_);
+        return ExecutionTime_;
     }
 
     TTraceContextPtr GetTraceContext() const override
@@ -538,14 +537,14 @@ private:
     bool Cancelable_ = false;
     TSingleShotCallbackList<void()> CanceledList_;
 
-    const NProfiling::TCpuInstant ArriveInstant_;
-    NProfiling::TCpuInstant RunInstant_ = 0;
-    NProfiling::TCpuInstant ReplyInstant_ = 0;
-    NProfiling::TCpuInstant CancelInstant_ = 0;
+    const TInstant ArriveInstant_;
+    std::optional<TInstant> RunInstant_;
+    std::optional<TInstant> ReplyInstant_;
+    std::optional<TInstant> CancelInstant_;
 
-    TDuration ExecutionTime_;
-    TDuration TotalTime_;
-    TDuration LocalWaitTime_;
+    std::optional<TDuration> ExecutionTime_;
+    std::optional<TDuration> TotalTime_;
+    std::optional<TDuration> LocalWaitTime_;
 
     std::atomic_flag CompletedLatch_ = ATOMIC_FLAG_INIT;
     std::atomic_flag TimedOutLatch_ = ATOMIC_FLAG_INIT;
@@ -625,10 +624,10 @@ private:
 
         Service_->IncrementActiveRequestCount();
         if (Service_->IsStopped()) {
-                Reply(TError(
-                    NRpc::EErrorCode::Unavailable,
-                    "Service is stopped"));
-                return;
+            Reply(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Service is stopped"));
+            return;
         }
 
         BuildGlobalRequestInfo();
@@ -637,14 +636,7 @@ private:
             Service_->RegisterRequest(this);
         }
 
-        if (RuntimeInfo_->Descriptor.Cancelable && !RequestHeader_->uncancelable()) {
-            Cancelable_ = true;
-            if (auto timeout = GetTimeout()) {
-                TimeoutCookie_ = TDelayedExecutor::Submit(
-                    BIND(&TServiceBase::OnRequestTimeout, Service_, RequestId_),
-                    *timeout);
-            }
-        }
+        Cancelable_ = RuntimeInfo_->Descriptor.Cancelable && !RequestHeader_->uncancelable();
     }
 
     void BuildGlobalRequestInfo()
@@ -757,7 +749,7 @@ private:
     {
         DoBeforeRun();
 
-        TFiberWallTimer timer;
+        NProfiling::TFiberWallTimer timer;
 
         auto finally = Finally([&] {
             DoAfterRun(timer.GetElapsedTime());
@@ -773,9 +765,9 @@ private:
 
     void DoBeforeRun()
     {
-        RunInstant_ = GetCpuInstant();
-        LocalWaitTime_ = CpuDurationToDuration(RunInstant_ - ArriveInstant_);
-        PerformanceCounters_->LocalWaitTimeCounter.Record(LocalWaitTime_);
+        RunInstant_ = NProfiling::GetInstant();
+        LocalWaitTime_ = *RunInstant_ - ArriveInstant_;
+        PerformanceCounters_->LocalWaitTimeCounter.Record(*LocalWaitTime_);
     }
 
     void DoGuardedRun(const TLiteHandler& handler)
@@ -786,18 +778,24 @@ private:
             Service_->BeforeInvoke(this);
         }
 
-        auto timeout = GetTimeout();
-        if (timeout && NProfiling::GetCpuInstant() > ArriveInstant_ + NProfiling::DurationToCpuDuration(*timeout)) {
-            if (!TimedOutLatch_.test_and_set()) {
-                Reply(TError(NYT::EErrorCode::Timeout, "Request dropped due to timeout before being run"));
-                PerformanceCounters_->TimedOutRequestCounter.Increment();
+        if (auto timeout = GetTimeout()) {
+            auto remainingTimeout = *timeout - (*RunInstant_ - ArriveInstant_);
+            if (remainingTimeout == TDuration::Zero()) {
+                if (!TimedOutLatch_.test_and_set()) {
+                    Reply(TError(NYT::EErrorCode::Timeout, "Request dropped due to timeout before being run"));
+                    PerformanceCounters_->TimedOutRequestCounter.Increment();
+                }
+                return;
             }
-            return;
+            if (Cancelable_) {
+                TimeoutCookie_ = TDelayedExecutor::Submit(
+                    BIND(&TServiceBase::OnRequestTimeout, Service_, RequestId_),
+                    remainingTimeout);
+            }
         }
 
         if (Cancelable_) {
             // TODO(lukyan): Wrap in CancelableExecution.
-
             auto fiberCanceler = GetCurrentFiberCanceler();
             if (fiberCanceler) {
                 auto cancelationHandler = BIND([fiberCanceler = std::move(fiberCanceler)] {
@@ -855,14 +853,12 @@ private:
         busOptions.MemoryZone = ResponseMemoryZone_;
         ReplyBus_->Send(responseMessage, busOptions);
 
-        ReplyInstant_ = GetCpuInstant();
-        ExecutionTime_ = RunInstant_ != 0
-            ? CpuDurationToDuration(ReplyInstant_ - RunInstant_)
-            : TDuration();
-        TotalTime_ = CpuDurationToDuration(ReplyInstant_ - ArriveInstant_);
+        ReplyInstant_ = NProfiling::GetInstant();
+        ExecutionTime_ = RunInstant_ ? *ReplyInstant_ - *RunInstant_ : TDuration();
+        TotalTime_ = *ReplyInstant_ - ArriveInstant_;
 
-        PerformanceCounters_->ExecutionTimeCounter.Record(ExecutionTime_);
-        PerformanceCounters_->TotalTimeCounter.Record(TotalTime_);
+        PerformanceCounters_->ExecutionTimeCounter.Record(*ExecutionTime_);
+        PerformanceCounters_->TotalTimeCounter.Record(*TotalTime_);
         if (!Error_.IsOK()) {
             PerformanceCounters_->FailedRequestCounter.Increment();
         }
@@ -894,7 +890,7 @@ private:
             ? FromProto<TDuration>(RequestHeader_->logging_suppression_timeout())
             : RuntimeInfo_->LoggingSuppressionTimeout.load(std::memory_order_relaxed);
 
-        if (TotalTime_ >= timeout) {
+        if (*TotalTime_ >= timeout) {
             return;
         }
 
@@ -914,7 +910,6 @@ private:
         if (CompletedLatch_.test_and_set()) {
             return;
         }
-
 
         RequestQueue_->OnRequestFinished();
 
@@ -979,8 +974,8 @@ private:
         }
 
         delimitedBuilder->AppendFormat("ExecutionTime: %v, TotalTime: %v",
-            ExecutionTime_,
-            TotalTime_);
+            *ExecutionTime_,
+            *TotalTime_);
 
         if (auto traceContextTime = GetTraceContextTime()) {
             delimitedBuilder->AppendFormat("CpuTime: %v", traceContextTime);
