@@ -55,7 +55,9 @@ object Dependencies {
 
   lazy val sparkFork = Seq(
     "org.apache.spark" %% "spark-core"
-  ).map(_ % sparkForkVersion)
+  ).map(_ % sparkForkVersion).map(_ excludeAll
+    ExclusionRule(organization = "org.apache.httpcomponents")
+  )
 
   lazy val yandexIceberg = Seq(
     "ru.yandex" % "java-ytclient" % yandexIcebergVersion
