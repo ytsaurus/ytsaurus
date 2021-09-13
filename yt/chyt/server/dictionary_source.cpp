@@ -22,6 +22,7 @@
 #include <Common/Exception.h>
 #include <Dictionaries/DictionarySourceFactory.h>
 #include <Dictionaries/DictionaryStructure.h>
+#include <Processors/Sources/SourceFromInputStream.h>
 
 #include <Poco/Util/AbstractConfiguration.h>
 
@@ -52,7 +53,7 @@ public:
         , Logger(ClickHouseYtLogger.WithTag("Path: %v", Path_))
     { }
 
-    DB::BlockInputStreamPtr loadAll() override
+    DB::Pipe loadAll() override
     {
         RevisionTracker_.FixCurrentRevision();
 
@@ -83,7 +84,7 @@ public:
             NTableClient::TNameTable::FromSchema(*table->Schema),
             NTableClient::TColumnFilter(table->Schema->GetColumnCount()));
 
-        return CreateBlockInputStream(
+        auto blockInputStream = CreateBlockInputStream(
             reader,
             table->Schema,
             nullptr /* traceContext */,
@@ -91,9 +92,13 @@ public:
             Host_->GetConfig()->QuerySettings,
             Logger,
             nullptr /* prewhereInfo */);
+
+        auto source = std::make_shared<DB::SourceFromInputStream>(std::move(blockInputStream));
+
+        return DB::Pipe(source);
     }
 
-    DB::BlockInputStreamPtr loadIds(const std::vector<UInt64>& /* ids */) override
+    DB::Pipe loadIds(const std::vector<UInt64>& /* ids */) override
     {
         THROW_ERROR_EXCEPTION("Method loadIds not supported");
     }
@@ -103,7 +108,7 @@ public:
         return false;
     }
 
-    DB::BlockInputStreamPtr loadKeys(
+    DB::Pipe loadKeys(
         const DB::Columns& /* keyColumns */,
         const std::vector<size_t>& /* requestedRows */) override
     {
@@ -130,7 +135,7 @@ public:
         return "YT: " + ToString(Path_);
     }
 
-    DB::BlockInputStreamPtr loadUpdatedAll() override
+    DB::Pipe loadUpdatedAll() override
     {
         THROW_ERROR_EXCEPTION("Method loadUpdatedAll not supported");
     }

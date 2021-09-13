@@ -50,12 +50,11 @@
 #include <Parsers/ASTSampleRatio.h>
 #include <Parsers/ASTSelectQuery.h>
 #include <Parsers/queryToString.h>
-#include <Processors/NullSink.h>
 #include <Processors/ResizeProcessor.h>
+#include <Processors/Sinks/NullSink.h>
 #include <Processors/Sources/RemoteSource.h>
+#include <Processors/Sources/SinkToOutputStream.h>
 #include <Processors/Sources/SourceFromInputStream.h>
-#include <Storages/MergeTree/MergeTreeData.h>
-#include <Storages/SelectQueryInfo.h>
 #include <Storages/StorageFactory.h>
 
 #include <library/cpp/iterator/functools.h>
@@ -936,7 +935,7 @@ public:
         return true;
     }
 
-    DB::BlockOutputStreamPtr write(
+    DB::SinkToStoragePtr write(
         const DB::ASTPtr& /*ptr*/,
         const DB::StorageMetadataPtr& /*metadata_snapshot*/,
         DB::ContextPtr /*context*/) override
@@ -960,8 +959,10 @@ public:
             table->Schema,
             dataTypes);
 
+        DB::BlockOutputStreamPtr outputStream;
+
         if (table->Dynamic) {
-            return CreateDynamicTableBlockOutputStream(
+            outputStream = CreateDynamicTableBlockOutputStream(
                 path,
                 table->Schema,
                 dataTypes,
@@ -972,7 +973,7 @@ public:
         } else {
             // Set append if it is not set.
             path.SetAppend(path.GetAppend(true /*defaultValue*/));
-            return CreateStaticTableBlockOutputStream(
+            outputStream = CreateStaticTableBlockOutputStream(
                 path,
                 table->Schema,
                 dataTypes,
@@ -981,6 +982,8 @@ public:
                 QueryContext_->Client(),
                 QueryContext_->Logger);
         }
+
+        return std::make_shared<DB::SinkToOutputStream>(std::move(outputStream));
     }
 
     DB::QueryPipelinePtr distributedWrite(const DB::ASTInsertQuery& query, DB::ContextPtr context) override

@@ -14,11 +14,11 @@
 
 #include <yt/yt/core/profiling/profile_manager.h>
 
+#include <Core/Types.h>
+#include <DataStreams/IBlockInputStream.h>
 #include <Interpreters/ClientInfo.h>
 #include <Interpreters/executeQuery.h>
-
-#include <Core/Types.h>
-
+#include <Interpreters/Session.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -35,16 +35,16 @@ namespace NDetail {
 ////////////////////////////////////////////////////////////////////////////////
 
 DB::ContextMutablePtr PrepareContextForQuery(
-    DB::ContextPtr databaseContext,
+    std::shared_ptr<DB::Session> session,
     const TString& dataBaseUser,
     TDuration timeout,
     THost* host)
 {
-    auto contextForQuery = DB::Context::createCopy(databaseContext);
-
-    contextForQuery->setUser(dataBaseUser,
-        /*password =*/"",
+    session->authenticate(dataBaseUser,
+        /*password*/ "",
         Poco::Net::SocketAddress());
+
+    auto contextForQuery = session->makeQueryContext();
 
     auto settings = contextForQuery->getSettings();
     settings.max_execution_time = Poco::Timespan(timeout.Seconds(), timeout.MicroSecondsOfSecond());
@@ -56,8 +56,6 @@ DB::ContextMutablePtr PrepareContextForQuery(
     clientInfo.initial_user = clientInfo.current_user;
     clientInfo.query_kind = DB::ClientInfo::QueryKind::INITIAL_QUERY;
     clientInfo.initial_query_id = ToString(queryId);
-
-    contextForQuery->makeQueryContext();
 
     auto traceContext = NTracing::TTraceContext::NewRoot("HealthCheckerQuery");
 
@@ -83,7 +81,8 @@ void ValidateQueryResult(DB::BlockIO& blockIO)
 
 void THealthChecker::ExecuteQuery(const TString& query)
 {
-    auto context = NDetail::PrepareContextForQuery(getContext(), DatabaseUser_, Config_->Timeout, Host_);
+    auto session = std::make_shared<DB::Session>(getContext(), DB::ClientInfo::Interface::TCP);
+    auto context = NDetail::PrepareContextForQuery(session, DatabaseUser_, Config_->Timeout, Host_);
     auto blockIO = DB::executeQuery(query, context, true /* internal */);
     NDetail::ValidateQueryResult(blockIO);
 }

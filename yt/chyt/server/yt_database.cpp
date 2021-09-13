@@ -73,14 +73,15 @@ public:
 
     DB::DatabaseTablesIteratorPtr getTablesIterator(
         DB::ContextPtr context,
-        const FilterByNameFunction& filterByTableName) override
+        const FilterByNameFunction& filterByTableName) const override
     {
         class TTableIterator
             : public DB::IDatabaseTablesIterator
         {
         public:
             TTableIterator(std::vector<String> paths)
-                : Paths_(std::move(paths))
+                : IDatabaseTablesIterator("YT")
+                , Paths_(std::move(paths))
             { }
 
             bool isValid() const override
