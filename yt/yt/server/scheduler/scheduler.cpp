@@ -289,7 +289,7 @@ public:
         NodesInfoLoggingExecutor_->Start();
 
         UpdateExecNodeDescriptorsExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(EControlQueue::NodesPeriodicActivity),
+            TDispatcher::Get()->GetHeavyInvoker(),
             BIND(&TImpl::UpdateExecNodeDescriptors, MakeWeak(this)),
             Config_->ExecNodeDescriptorsUpdatePeriod);
         UpdateExecNodeDescriptorsExecutor_->Start();
@@ -2706,7 +2706,7 @@ private:
 
     void UpdateExecNodeDescriptors()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetHeavyInvoker());
 
         std::vector<TFuture<TRefCountedExecNodeDescriptorMapPtr>> shardDescriptorsFutures;
         for (const auto& nodeShard : NodeShards_) {
@@ -4333,7 +4333,10 @@ private:
                 .ThrowOnError();
 
             // We want to update the descriptors after moving nodes between segments to send the most recent state to master.
-            UpdateExecNodeDescriptors();
+            UpdateExecNodeDescriptorsExecutor_->ScheduleOutOfBand();
+            WaitFor(UpdateExecNodeDescriptorsExecutor_->GetExecutedEvent())
+                .ThrowOnError();
+
             context.ExecNodeDescriptors = GetCachedExecNodeDescriptors();
         }
 
