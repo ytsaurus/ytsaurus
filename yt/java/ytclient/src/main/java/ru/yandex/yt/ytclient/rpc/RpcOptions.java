@@ -68,7 +68,7 @@ public class RpcOptions {
 
     private DiscoveryMethod preferableDiscoveryMethod = DiscoveryMethod.RPC;
 
-    private boolean newDiscoveryServiceEnabled = false;
+    private boolean newDiscoveryServiceEnabled = true;
 
     private ThreadFactory discoveryThreadFactory;
 
