@@ -24,11 +24,14 @@ using namespace DB;
 //! For example,
 //! select YSONExtractInt('{a = "hello"; b = [-100; 200.0; 300]}', 'b', 1) = -100
 template <typename Name, template<typename> typename Impl>
-class TFunctionYson : public IFunction, WithConstContext
+class TFunctionYson
+    : public IFunction
+    , public WithConstContext
 {
 public:
 
-    TFunctionYson(ContextPtr context_) : WithConstContext(context_)
+    TFunctionYson(ContextPtr context_)
+        : WithConstContext(context_)
     { }
 
     static constexpr auto name = Name::name;
@@ -51,6 +54,11 @@ public:
     size_t getNumberOfArguments() const override
     {
         return 0;
+    }
+
+    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override
+    {
+        return true;
     }
 
     bool useDefaultImplementationForConstants() const override

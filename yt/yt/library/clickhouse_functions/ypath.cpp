@@ -82,6 +82,11 @@ public:
         return 2;
     }
 
+    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override
+    {
+        return true;
+    }
+
     DataTypePtr getReturnTypeImpl(const DataTypes& arguments) const override
     {
         if (!isString(removeNullable(arguments[0])) && !WhichDataType(removeNullable(arguments[0])).isNothing()) {
@@ -293,6 +298,11 @@ public:
         return 0;
     }
 
+    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override
+    {
+        return true;
+    }
+
     static FunctionPtr create(ContextPtr /*context*/)
     {
         return std::make_shared<TFunctionYPathRawImpl>();
@@ -445,6 +455,11 @@ public:
     size_t getNumberOfArguments() const override
     {
         return 3;
+    }
+
+    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override
+    {
+        return true;
     }
 
     static FunctionPtr create(ContextPtr /* context */)

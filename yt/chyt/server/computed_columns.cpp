@@ -253,8 +253,8 @@ struct TComputedColumnPopulationMatcher
         }
 
         auto set = std::make_shared<DB::Set>(DB::SizeLimits(), true /* fill_set_elements */, data.getContext()->getSettingsRef().transform_null_in);
-        set->setHeader(block.cloneEmpty());
-        set->insertFromBlock(block);
+        set->setHeader(block.cloneEmpty().getColumnsWithTypeAndName());
+        set->insertFromBlock(block.getColumnsWithTypeAndName());
         set->finishInsert();
 
         data.PreparedSets[setKey] = set;
