@@ -692,6 +692,9 @@ public:
     //! Replication factor for intermediate data.
     int IntermediateDataReplicationFactor;
 
+    //! SyncOnClose option for intermediate data.
+    bool IntermediateDataSyncOnClose;
+
     TString IntermediateDataMediumName;
 
     //! Account for job nodes and operation files (stderrs and input contexts of failed jobs).
