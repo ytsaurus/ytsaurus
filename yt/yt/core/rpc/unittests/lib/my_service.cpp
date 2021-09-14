@@ -10,6 +10,8 @@
 #include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/error.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 #include <random>
 
 namespace NYT::NRpc {
@@ -59,6 +61,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ServerNotWriting)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTraceBaggage));
         // NB: NotRegisteredCall is not registered intentionally
 
         DeclareServerFeature(EMyFeature::Great);
@@ -297,6 +300,14 @@ public:
     {
         context->SetRequestInfo();
         context->ValidateClientFeature(EMyFeature::Cool);
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, GetTraceBaggage)
+    {
+        context->SetRequestInfo();
+        auto traceContext = NTracing::GetCurrentTraceContext();
+        response->set_baggage(NYTree::ConvertToYsonString(traceContext->UnpackBaggage()).ToString());
         context->Reply();
     }
 

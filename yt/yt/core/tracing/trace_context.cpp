@@ -7,6 +7,8 @@
 #include <yt/yt/core/misc/shutdown.h>
 #include <yt/yt/core/misc/singleton.h>
 
+#include <yt/yt/core/ytree/convert.h>
+
 #include <yt/yt_proto/yt/core/tracing/proto/tracing_ext.pb.h>
 
 #include <yt/yt/library/tracing/tracer.h>
@@ -15,6 +17,8 @@ namespace NYT::NTracing {
 
 using namespace NConcurrency;
 using namespace NProfiling;
+using namespace NYTree;
+using namespace NYson;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -111,6 +115,7 @@ TTraceContext::TTraceContext(
     , RequestId_(ParentContext_ ? ParentContext_->GetRequestId() : TRequestId{})
     , LoggingTag_(ParentContext_ ? ParentContext_->GetLoggingTag() : TString{})
     , StartTime_(GetCpuInstant())
+    , Baggage_(ParentContext_ ? ParentContext_->GetBaggage() : TYsonString{})
 {
 
 }
@@ -191,6 +196,29 @@ TTraceContext::TAsyncChildrenList TTraceContext::GetAsyncChildren() const
 {
     auto guard = Guard(Lock_);
     return AsyncChildren_;
+}
+
+TYsonString TTraceContext::GetBaggage() const
+{
+    auto guard = Guard(Lock_);
+    return Baggage_;
+}
+
+void TTraceContext::SetBaggage(TYsonString baggage)
+{
+    auto guard = Guard(Lock_);
+    Baggage_ = std::move(baggage);
+}
+
+IAttributeDictionaryPtr TTraceContext::UnpackBaggage() const
+{
+    auto baggage = GetBaggage();
+    return baggage ? ConvertToAttributes(baggage) : nullptr;
+}
+
+void TTraceContext::PackBaggage(const IAttributeDictionaryPtr& baggage)
+{
+    SetBaggage(baggage ? ConvertToYsonString(baggage) : TYsonString{});
 }
 
 void TTraceContext::AddTag(const TString& tagKey, const TString& tagValue)
@@ -344,6 +372,10 @@ void ToProto(NProto::TTracingExt* ext, const TTraceContextPtr& context)
     ext->set_span_id(context->GetSpanId());
     ext->set_sampled(context->IsSampled());
     ext->set_debug(context->IsDebug());
+
+    if (auto baggage = context->GetBaggage()) {
+        ext->set_baggage(baggage.ToString());
+    }
 }
 
 TTraceContextPtr TTraceContext::NewRoot(TString spanName)
@@ -360,11 +392,14 @@ TTraceContextPtr TTraceContext::NewRoot(TString spanName)
 
 TTraceContextPtr TTraceContext::NewChildFromSpan(
     TSpanContext parentSpanContext,
-    TString spanName)
+    TString spanName,
+    TYsonString baggage)
 {
-    return New<TTraceContext>(
+    auto result = New<TTraceContext>(
         parentSpanContext,
         std::move(spanName));
+    result->SetBaggage(std::move(baggage));
+    return result;
 }
 
 TTraceContextPtr TTraceContext::NewChildFromRpc(
@@ -394,6 +429,9 @@ TTraceContextPtr TTraceContext::NewChildFromRpc(
         },
         std::move(spanName));
     traceContext->SetRequestId(requestId);
+    if (ext.has_baggage()) {
+        traceContext->SetBaggage(TYsonString(ext.baggage()));
+    }
     return traceContext;
 }
 

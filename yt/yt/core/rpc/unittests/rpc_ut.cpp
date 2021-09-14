@@ -38,8 +38,13 @@
 #include <yt/yt/core/rpc/grpc/proto/grpc.pb.h>
 
 #include <yt/yt/core/misc/error.h>
+
+#include <yt/yt/core/tracing/public.h>
+
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/helpers.h>
 
 #include <library/cpp/testing/common/network.h>
 
@@ -785,6 +790,28 @@ TYPED_TEST(TNotGrpcTest, VeryLaggyStreamingRequest)
     auto end = Now();
     int duration = (end - start).MilliSeconds();
     EXPECT_LE(duration, 2000);
+}
+
+TYPED_TEST(TNotGrpcTest, TraceBaggagePropagation)
+{
+    using namespace NTracing;
+
+    auto traceContext = TTraceContext::NewRoot("Test");
+    TCurrentTraceContextGuard guard(traceContext);
+
+    auto baggage = CreateEphemeralAttributes();
+    baggage->Set("key1", "value1");
+    baggage->Set("key2", "value2");
+    traceContext->PackBaggage(ConvertToAttributes(baggage));
+
+    TMyProxy proxy(this->CreateChannel());
+    auto req = proxy.GetTraceBaggage();
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_TRUE(rspOrError.IsOK());
+    auto rsp = rspOrError.Value();
+
+    auto receivedBaggage = TYsonString(rsp->baggage());
+    EXPECT_EQ(receivedBaggage, ConvertToYsonString(baggage));
 }
 
 TYPED_TEST(TRpcTest, ManyAsyncRequests)

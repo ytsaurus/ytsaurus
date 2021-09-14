@@ -9,6 +9,8 @@
 
 #include <yt/yt/core/profiling/public.h>
 
+#include <yt/yt/core/yson/string.h>
+
 #include <yt/yt/library/tracing/public.h>
 
 #include <atomic>
@@ -50,7 +52,7 @@ DEFINE_ENUM(ETraceContextState,
 /*!
  *  TTraceContext contains 3 distinct pieces of logic.
  *
- *  1) TraceId, RequestId and LoggingTag are recorded inside trace context and 
+ *  1) TraceId, RequestId and LoggingTag are recorded inside trace context and
  *     passed to logger.
  *  2) ElapsedCpu time is tracked by fiber scheduler during context switch.
  *  3) Opentracing compatible information is recorded and later pushed to jaeger.
@@ -91,14 +93,14 @@ public:
 
     //! Sets request id.
     /*!
-     *  Not thread-safe. 
+     *  Not thread-safe.
      */
     void SetRequestId(TRequestId requestId);
     TRequestId GetRequestId() const;
 
     //! Sets logging tag.
     /*!
-     *  Not thread-safe. 
+     *  Not thread-safe.
      */
     void SetLoggingTag(const TString& loggingTag);
     const TString& GetLoggingTag() const;
@@ -113,6 +115,9 @@ public:
 
     using TTagList = SmallVector<std::pair<TString, TString>, 4>;
     TTagList GetTags() const;
+
+    NYTree::IAttributeDictionaryPtr UnpackBaggage() const;
+    void PackBaggage(const NYTree::IAttributeDictionaryPtr& baggage);
 
     void AddTag(const TString& tagKey, const TString& tagValue);
 
@@ -149,9 +154,12 @@ public:
 
     static TTraceContextPtr NewChildFromSpan(
         TSpanContext parentSpanContext,
-        TString spanName);
+        TString spanName,
+        NYson::TYsonString baggage = NYson::TYsonString());
 
     TTraceContextPtr CreateChild(TString spanName);
+
+    friend void ToProto(NProto::TTracingExt* ext, const TTraceContextPtr& context);
 
 private:
     const TTraceId TraceId_;
@@ -179,6 +187,7 @@ private:
     TTagList Tags_;
     TLogList Logs_;
     TAsyncChildrenList AsyncChildren_;
+    NYson::TYsonString Baggage_;
 
     TTraceContext(
         TSpanContext parentSpanContext,
@@ -187,6 +196,9 @@ private:
     DECLARE_NEW_FRIEND();
 
     void SetDuration();
+
+    NYson::TYsonString GetBaggage() const;
+    void SetBaggage(NYson::TYsonString baggage);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTraceContext)
@@ -198,8 +210,6 @@ TString ToString(const TTraceContextPtr& context);
 
 TTraceContext* GetCurrentTraceContext();
 void FlushCurrentTraceContextTime();
-
-void ToProto(NProto::TTracingExt* ext, const TTraceContextPtr& context);
 
 ////////////////////////////////////////////////////////////////////////////////
 
