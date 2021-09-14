@@ -443,7 +443,6 @@ DEFINE_REFCOUNTED_TYPE(TOperation)
 struct TPreprocessedSpec
 {
     TOperationSpecBasePtr Spec;
-    NYTree::IMapNodePtr SpecNode;
     NYson::TYsonString SpecString;
     THashMap<TString, TStrategyOperationSpecPtr> CustomSpecPerTree;
     std::vector<TExperimentAssignmentPtr> ExperimentAssignments;

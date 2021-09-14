@@ -562,7 +562,6 @@ void ParseSpec(IMapNodePtr specNode, INodePtr specTemplate, std::optional<TOpera
     }
 
     specNode->RemoveChild("secure_vault");
-    preprocessedSpec->SpecNode = specNode;
     preprocessedSpec->SpecString = ConvertToYsonString(specNode);
 
     auto strategySpec = static_cast<TStrategyOperationSpecPtr>(preprocessedSpec->Spec);

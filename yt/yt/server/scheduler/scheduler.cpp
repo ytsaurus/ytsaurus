@@ -640,7 +640,7 @@ public:
                 Config_->MaxOperationCount);
         }
 
-        auto spec = preprocessedSpec.Spec;
+        auto spec = std::move(preprocessedSpec.Spec);
         auto secureVault = std::move(spec->SecureVault);
 
         auto baseAcl = GetOperationBaseAcl();
