@@ -4544,6 +4544,11 @@ const IInvokerPtr& TScheduler::GetCancelableNodeShardInvoker(int shardId) const
     return Impl_->GetCancelableNodeShardInvoker(shardId);
 }
 
+const std::vector<IInvokerPtr>& TScheduler::GetNodeShardInvokers() const
+{
+    return Impl_->GetNodeShardInvokers();
+}
+
 const std::vector<TNodeShardPtr>& TScheduler::GetNodeShards() const
 {
     return Impl_->GetNodeShards();

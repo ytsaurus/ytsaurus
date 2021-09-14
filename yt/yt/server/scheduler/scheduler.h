@@ -65,6 +65,8 @@ public:
      */
     int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const;
 
+    const std::vector<IInvokerPtr>& GetNodeShardInvokers() const;
+
     const IInvokerPtr& GetCancelableNodeShardInvoker(int shardId) const;
 
     /*!
