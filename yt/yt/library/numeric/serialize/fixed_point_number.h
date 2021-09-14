@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/core/misc/serialize.h>
+
 #include <yt/yt/core/ytree/serialize.h>
 
 namespace NYT {
@@ -28,4 +30,29 @@ TString ToString(const TFixedPointNumber<U, P>& number)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace std
+struct TFixedPointNumberSerializer
+{
+    template <class TNumber, class C>
+    static void Save(C& context, const TNumber& value)
+    {
+        NYT::Save(context, value.GetUnderlyingValue());
+    }
+
+    template <class TNumber, class C>
+    static void Load(C& context, TNumber& value)
+    {
+        typename std::remove_const<decltype(TNumber::ScalingFactor)>::type underlyingValue;
+        NYT::Load(context, underlyingValue);
+        value.SetUnderlyingValue(underlyingValue);
+    }
+};
+
+template <class U, int P, class C>
+struct TSerializerTraits<TFixedPointNumber<U, P>, C, void>
+{
+    typedef TFixedPointNumberSerializer TSerializer;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT

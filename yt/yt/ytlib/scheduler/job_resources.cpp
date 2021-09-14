@@ -1,25 +1,8 @@
 #include "job_resources.h"
 
-// NB: For NYT::Persist
-#include <yt/yt/core/misc/serialize.h>
-
 namespace NYT::NScheduler {
 
 using std::round;
-
-////////////////////////////////////////////////////////////////////////////////
-
-void PersistCpuResource(const TStreamPersistenceContext& context, TCpuResource& cpu)
-{
-    static_assert(std::is_same_v<std::remove_const<decltype(TCpuResource::ScalingFactor)>::type, i64>);
-    if (context.IsSave()) {
-        Save(context.SaveContext(), cpu.GetUnderlyingValue());
-    } else {
-        i64 underlyingValue;
-        Load(context.LoadContext(), underlyingValue);
-        cpu.SetUnderlyingValue(underlyingValue);
-    }
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,16 +13,6 @@ TJobResources TJobResources::Infinite()
     ITERATE_JOB_RESOURCES(XX)
 #undef XX
     return result;
-}
-
-void TJobResources::Persist(const TStreamPersistenceContext& context)
-{
-    using NYT::Persist;
-    Persist(context, UserSlots_);
-    PersistCpuResource(context, Cpu_);
-    Persist(context, Gpu_);
-    Persist(context, Memory_);
-    Persist(context, Network_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

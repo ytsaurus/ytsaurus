@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/ytree/node.h>
 
-#include <yt/yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 namespace NYT::NSchedulerSimulator {
 

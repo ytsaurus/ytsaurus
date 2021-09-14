@@ -1,4 +1,5 @@
 #include "job_resources_with_quota.h"
+#include "job_resources_helpers.h"
 #include "config.h"
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
@@ -120,7 +121,7 @@ TJobResources TJobResourcesWithQuota::ToJobResources() const
 void TJobResourcesWithQuota::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
-    TJobResources::Persist(context);
+    Persist(context, *static_cast<TJobResources*>(this));
     Persist(context, DiskQuota_);
 }
 

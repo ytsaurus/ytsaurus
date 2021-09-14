@@ -4,9 +4,11 @@
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
+#include <yt/yt/core/misc/serialize.h>
+
 #include <yt/yt/core/ytree/public.h>
 
-#include <yt/yt/library/numeric/serialize//fixed_point_number.h>
+#include <yt/yt/library/numeric/serialize/fixed_point_number.h>
 
 #include <yt/yt/library/profiling/producer.h>
 
@@ -72,6 +74,43 @@ void ProfileResources(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJobResourcesSerializer
+{
+    template <class C>
+    static void Save(C& context, const TJobResources& value)
+    {
+        NYT::Save(context, value.GetUserSlots());
+        NYT::Save(context, value.GetCpu());
+        NYT::Save(context, value.GetGpu());
+        NYT::Save(context, value.GetMemory());
+        NYT::Save(context, value.GetNetwork());
+    }
+
+    template <class C>
+    static void Load(C& context, TJobResources& value)
+    {
+        i64 userSlots;
+        TCpuResource cpu;
+        int gpu;
+        i64 memory;
+        i64 network;
+
+        NYT::Load(context, userSlots);
+        NYT::Load(context, cpu);
+        NYT::Load(context, gpu);
+        NYT::Load(context, memory);
+        NYT::Load(context, network);
+
+        value.SetUserSlots(userSlots);
+        value.SetCpu(cpu);
+        value.SetGpu(gpu);
+        value.SetMemory(memory);
+        value.SetNetwork(network);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NProto {
 
 void ToProto(NScheduler::NProto::TDiskQuota* protoDiskQuota, const NScheduler::TDiskQuota& diskQuota);
@@ -88,3 +127,15 @@ void FromProto(NScheduler::TJobResourcesWithQuota* resources, const NScheduler::
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NYT {
+
+template <class C>
+struct TSerializerTraits<NScheduler::TJobResources, C, void>
+{
+    typedef NScheduler::TJobResourcesSerializer TSerializer;
+};
+
+} // namespace NYT
