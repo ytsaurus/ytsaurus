@@ -6930,29 +6930,31 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
         }
     }
 
-    // TODO(ignat): use batching here.
-    for (const auto& account : accounts) {
-        ValidateAccountPermission(account, EPermission::Use);
+    if (Config->EnableMasterResourceUsageAccounting) {
+        // TODO(ignat): use batching here.
+        for (const auto& account : accounts) {
+            ValidateAccountPermission(account, EPermission::Use);
 
-        auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(channel);
+            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+            TObjectServiceProxy proxy(channel);
 
-        auto req = TMasterYPathProxy::CreateObject();
-        req->set_type(static_cast<int>(EObjectType::AccountResourceUsageLease));
-        // SetTransactionId(req, AsyncTransaction->GetId());
+            auto req = TMasterYPathProxy::CreateObject();
+            req->set_type(static_cast<int>(EObjectType::AccountResourceUsageLease));
+            // SetTransactionId(req, AsyncTransaction->GetId());
 
-        auto attributes = CreateEphemeralAttributes();
-        attributes->Set("account", account);
-        attributes->Set("transaction_id", AsyncTransaction->GetId());
-        ToProto(req->mutable_object_attributes(), *attributes);
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("account", account);
+            attributes->Set("transaction_id", AsyncTransaction->GetId());
+            ToProto(req->mutable_object_attributes(), *attributes);
 
-        auto rsp = WaitFor(proxy.Execute(req))
-            .ValueOrThrow();
+            auto rsp = WaitFor(proxy.Execute(req))
+                .ValueOrThrow();
 
-        AccountResourceUsageLeaseMap_[account] = {
-            .LeaseId = FromProto<TAccountResourceUsageLeaseId>(rsp->object_id()),
-            .DiskQuota = TDiskQuota(),
-        };
+            AccountResourceUsageLeaseMap_[account] = {
+                .LeaseId = FromProto<TAccountResourceUsageLeaseId>(rsp->object_id()),
+                .DiskQuota = TDiskQuota(),
+            };
+        }
     }
 }
 
