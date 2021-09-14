@@ -17,4 +17,5 @@ message TTracingExt
     optional fixed64 span_id = 5;
     optional bool sampled = 6;
     optional bool debug = 7;
+    optional bytes baggage = 8;
 }

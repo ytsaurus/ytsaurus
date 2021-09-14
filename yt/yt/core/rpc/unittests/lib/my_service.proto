@@ -197,3 +197,14 @@ message TReqServerNotWriting
 message TRspServerNotWriting
 {
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetTraceBaggage
+{
+}
+
+message TRspGetTraceBaggage
+{
+    required string baggage = 1;
+}

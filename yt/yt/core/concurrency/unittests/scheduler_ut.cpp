@@ -28,6 +28,8 @@
 
 #include <yt/yt/core/misc/finally.h>
 
+#include <yt/yt/core/ytree/helpers.h>
+
 #include <util/system/compiler.h>
 #include <util/system/thread.h>
 #include <util/system/type_name.h>
@@ -970,6 +972,28 @@ TEST_W(TSchedulerTest, TraceContextTimingPropagationViaBind)
     }
 
     CheckTraceContextTime(traceContext, TDuration::MilliSeconds(900), TDuration::MilliSeconds(1100));
+}
+
+TEST_W(TSchedulerTest, TraceBaggagePropagation)
+{
+    using namespace NYson;
+    using namespace NYTree;
+    using namespace NTracing;
+
+    auto traceContext = TTraceContext::NewRoot("Test");
+    auto baggage = CreateEphemeralAttributes();
+    baggage->Set("myKey", "myValue");
+    baggage->Set("myKey2", "myValue2");
+    auto expected = ConvertToYsonString(baggage);
+    traceContext->PackBaggage(baggage);
+
+    auto childContext = traceContext->CreateChild("Сhild");
+    auto childBaggage = childContext->UnpackBaggage();
+    auto result = ConvertToYsonString(childBaggage);
+    childBaggage->Set("myKey3", "myValue3");
+    childContext->PackBaggage(std::move(childBaggage));
+
+    EXPECT_EQ(expected, result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
