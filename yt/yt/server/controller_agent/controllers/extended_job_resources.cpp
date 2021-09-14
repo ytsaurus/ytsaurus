@@ -20,7 +20,7 @@ void TExtendedJobResources::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
 
-    NScheduler::PersistCpuResource(context, Cpu_);
+    Persist(context, Cpu_);
     Persist(context, Gpu_);
     Persist(context, UserSlots_);
     Persist(context, JobProxyMemory_);

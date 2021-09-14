@@ -5,16 +5,12 @@
 
 #include <yt/yt/library/numeric/fixed_point_number.h>
 
-#include <yt/yt/core/misc/public.h>
-
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // Uses precision of 2 decimal digits.
 using TCpuResource = TFixedPointNumber<i64, 2>;
-
-void PersistCpuResource(const TStreamPersistenceContext& context, TCpuResource& cpu);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,8 +75,6 @@ public:
     TJobResources() = default;
 
     static TJobResources Infinite();
-
-    void Persist(const TStreamPersistenceContext& context);
 
 private:
     i64 UserSlots_{};
