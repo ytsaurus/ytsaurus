@@ -36,6 +36,9 @@ type TaggedEmbeddedPtr struct {
 	ExportedField bool `yson:"exported_field_of_tagged_embedded_ptr"`
 }
 
+type MyString string
+type MyInt int
+
 type testItem struct {
 	I       int     `yson:"i"`
 	I64     int64   `yson:"i64"`
@@ -52,6 +55,9 @@ type testItem struct {
 	Boolean bool    `yson:"bool"`
 	String  string  `yson:"string"`
 	Bytes   []byte  `yson:"bytes"`
+
+	MyString MyString `yson:"my_string"`
+	MyInt    MyInt    `yson:"my_int"`
 
 	Struct    innterStruct  `yson:"struct"`
 	StructPtr *innterStruct `yson:"struct_ptr"`
@@ -82,21 +88,23 @@ func TestEncode(t *testing.T) {
 			name: "struct",
 			items: []interface{}{
 				&testItem{
-					I:       -1,
-					I64:     -64,
-					I32:     -32,
-					I16:     -16,
-					I8:      -8,
-					U:       1,
-					U64:     64,
-					U32:     32,
-					U16:     16,
-					U8:      8,
-					Boolean: true,
-					F32:     32.0,
-					F64:     64.0,
-					String:  "hello",
-					Bytes:   []byte("world"),
+					I:        -1,
+					I64:      -64,
+					I32:      -32,
+					I16:      -16,
+					I8:       -8,
+					U:        1,
+					U64:      64,
+					U32:      32,
+					U16:      16,
+					U8:       8,
+					Boolean:  true,
+					F32:      32.0,
+					F64:      64.0,
+					String:   "hello",
+					Bytes:    []byte("world"),
+					MyString: "my-string",
+					MyInt:    1337,
 					Struct: innterStruct{
 						ID:   88,
 						Name: "foo",
@@ -144,6 +152,8 @@ func TestEncode(t *testing.T) {
 				{Name: "bool"},
 				{Name: "string"},
 				{Name: "bytes"},
+				{Name: "my_string"},
+				{Name: "my_int"},
 				{Name: "struct"},
 				{Name: "struct_ptr"},
 				{Name: "embedded_id"},
@@ -172,16 +182,18 @@ func TestEncode(t *testing.T) {
 					NewBool(12, true),
 					NewBytes(13, []byte("hello")),
 					NewBytes(14, []byte("world")),
-					NewAny(15, []byte(`{id=88;name=foo;}`)),
-					NewAny(16, []byte(`{id=89;name=bar;}`)),
-					NewInt64(17, 90),
-					NewBytes(18, []byte("baz")),
-					NewInt64(19, 91),
-					NewUint64(20, 92),
-					NewAny(21, []byte(`{"exported_field_of_tagged_embedded"=93u;}`)),
-					NewAny(22, []byte(`{"exported_field_of_tagged_embedded_ptr"=%true;}`)),
-					NewInt64(23, 94),
-					NewInt64(24, 0),
+					NewBytes(15, []byte("my-string")),
+					NewInt64(16, 1337),
+					NewAny(17, []byte(`{id=88;name=foo;}`)),
+					NewAny(18, []byte(`{id=89;name=bar;}`)),
+					NewInt64(19, 90),
+					NewBytes(20, []byte("baz")),
+					NewInt64(21, 91),
+					NewUint64(22, 92),
+					NewAny(23, []byte(`{"exported_field_of_tagged_embedded"=93u;}`)),
+					NewAny(24, []byte(`{"exported_field_of_tagged_embedded_ptr"=%true;}`)),
+					NewInt64(25, 94),
+					NewInt64(26, 0),
 				},
 			},
 		},
@@ -189,21 +201,23 @@ func TestEncode(t *testing.T) {
 			name: "map",
 			items: []interface{}{
 				map[string]interface{}{
-					"i":      -1,
-					"i64":    int64(-64),
-					"i32":    int32(-32),
-					"i16":    int16(-16),
-					"i8":     int8(-8),
-					"u":      uint(1),
-					"u64":    uint64(64),
-					"u32":    uint32(32),
-					"u16":    uint16(16),
-					"u8":     uint8(8),
-					"bool":   true,
-					"f32":    float32(32.0),
-					"f64":    64.0,
-					"string": "hello",
-					"bytes":  []byte("world"),
+					"i":         -1,
+					"i64":       int64(-64),
+					"i32":       int32(-32),
+					"i16":       int16(-16),
+					"i8":        int8(-8),
+					"u":         uint(1),
+					"u64":       uint64(64),
+					"u32":       uint32(32),
+					"u16":       uint16(16),
+					"u8":        uint8(8),
+					"f32":       float32(32.0),
+					"f64":       64.0,
+					"bool":      true,
+					"string":    "hello",
+					"bytes":     []byte("world"),
+					"my_string": MyString("my-string"),
+					"my_int":    MyInt(1337),
 					"struct": innterStruct{
 						ID:   88,
 						Name: "foo",
@@ -230,6 +244,8 @@ func TestEncode(t *testing.T) {
 				{Name: "bool"},
 				{Name: "string"},
 				{Name: "bytes"},
+				{Name: "my_string"},
+				{Name: "my_int"},
 				{Name: "struct"},
 				{Name: "struct_ptr"},
 			},
@@ -250,8 +266,10 @@ func TestEncode(t *testing.T) {
 					NewBool(12, true),
 					NewBytes(13, []byte("hello")),
 					NewBytes(14, []byte("world")),
-					NewAny(15, []byte(`{id=88;name=foo;}`)),
-					NewAny(16, []byte(`{id=89;name=bar;}`)),
+					NewBytes(15, []byte("my-string")),
+					NewInt64(16, 1337),
+					NewAny(17, []byte(`{id=88;name=foo;}`)),
+					NewAny(18, []byte(`{id=89;name=bar;}`)),
 				},
 			},
 		},

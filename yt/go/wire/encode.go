@@ -182,18 +182,13 @@ func encodeReflectStruct(value reflect.Value, indexMap map[NameTableEntry]uint16
 			continue
 		}
 
-		ytTyp, err := ytTypeFor(v.Type())
-		if err != nil {
-			return nil, err
-		}
-
 		k := NameTableEntry{Name: f.name}
 		if _, ok := indexMap[k]; !ok {
 			id := uint16(len(indexMap))
 			indexMap[k] = id
 		}
 
-		value, err := convertValue(ytTyp, indexMap[k], v.Interface())
+		value, err := convertValue(indexMap[k], v)
 		if err != nil {
 			return nil, err
 		}
@@ -234,18 +229,18 @@ func encodeReflectMap(v reflect.Value, indexMap map[NameTableEntry]uint16) (row 
 			continue
 		}
 
-		ytTyp, err := ytTypeFor(typ)
-		if err != nil {
-			return nil, err
-		}
-
 		key := NameTableEntry{Name: f.name}
 		if _, ok := indexMap[key]; !ok {
 			id := uint16(len(indexMap))
 			indexMap[key] = id
 		}
 
-		value, err := convertValue(ytTyp, indexMap[key], v.Interface())
+		vv := v
+		if !vv.IsNil() {
+			vv = vv.Elem()
+		}
+
+		value, err := convertValue(indexMap[key], vv)
 		if err != nil {
 			return nil, err
 		}
@@ -256,54 +251,72 @@ func encodeReflectMap(v reflect.Value, indexMap map[NameTableEntry]uint16) (row 
 	return
 }
 
-func convertValue(typ schema.Type, id uint16, value interface{}) (Value, error) {
+func convertValue(id uint16, value reflect.Value) (Value, error) {
+	typ := value.Type()
+
+	if typ == typeOfBytes {
+		return NewBytes(id, value.Bytes()), nil
+	}
+
+	if m, ok := value.Interface().(encoding.BinaryMarshaler); ok {
+		buf, err := m.MarshalBinary()
+		if err != nil {
+			return Value{}, err
+		}
+		return NewBytes(id, buf), nil
+	}
+
+	if m, ok := value.Interface().(encoding.TextMarshaler); ok {
+		buf, err := m.MarshalText()
+		if err != nil {
+			return Value{}, err
+		}
+		return NewBytes(id, buf), nil
+	}
+
+	if typ.Kind() == reflect.Ptr {
+		typ = typ.Elem()
+	}
+
+	switch {
+	case typ == reflect.TypeOf(schema.Date(0)) ||
+		typ == reflect.TypeOf(schema.Datetime(0)) ||
+		typ == reflect.TypeOf(schema.Timestamp(0)) ||
+		typ == reflect.TypeOf(schema.Interval(0)):
+		return Value{}, xerrors.Errorf("unsupported schema type %T when converting to wire", typ)
+	}
+
 	var v Value
 
-	switch typ {
-	case schema.TypeInt64:
-		if i, ok := value.(int); ok {
-			v = NewInt64(id, int64(i))
-		} else {
-			v = NewInt64(id, value.(int64))
+	switch typ.Kind() {
+	case reflect.Int, reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8:
+		v = NewInt64(id, value.Int())
+	case reflect.Uint, reflect.Uint64, reflect.Uint32, reflect.Uint16, reflect.Uint8:
+		v = NewUint64(id, value.Uint())
+	case reflect.String:
+		v = NewBytes(id, []byte(value.String()))
+	case reflect.Bool:
+		v = NewBool(id, value.Bool())
+	case reflect.Float64, reflect.Float32:
+		v = NewFloat64(id, value.Float())
+	case reflect.Slice, reflect.Map, reflect.Interface:
+		if value.IsNil() {
+			return NewNull(id), nil
 		}
-	case schema.TypeInt32:
-		v = NewInt64(id, int64(value.(int32)))
-	case schema.TypeInt16:
-		v = NewInt64(id, int64(value.(int16)))
-	case schema.TypeInt8:
-		v = NewInt64(id, int64(value.(int8)))
-	case schema.TypeUint64:
-		if u, ok := value.(uint); ok {
-			v = NewUint64(id, uint64(u))
-		} else {
-			v = NewUint64(id, value.(uint64))
-		}
-	case schema.TypeUint32:
-		v = NewUint64(id, uint64(value.(uint32)))
-	case schema.TypeUint16:
-		v = NewUint64(id, uint64(value.(uint16)))
-	case schema.TypeUint8:
-		v = NewUint64(id, uint64(value.(uint8)))
-	case schema.TypeFloat32:
-		v = NewFloat64(id, float64(value.(float32)))
-	case schema.TypeFloat64:
-		v = NewFloat64(id, value.(float64))
-	case schema.TypeBytes:
-		v = NewBytes(id, value.([]byte))
-	case schema.TypeString:
-		v = NewBytes(id, []byte(value.(string)))
-	case schema.TypeBoolean:
-		v = NewBool(id, value.(bool))
-	case schema.TypeAny:
-		blob, err := yson.Marshal(value)
+
+		blob, err := yson.Marshal(value.Interface())
 		if err != nil {
 			return Value{}, err
 		}
 		v = NewAny(id, blob)
-	case schema.TypeDate, schema.TypeDatetime, schema.TypeTimestamp, schema.TypeInterval:
-		return Value{}, xerrors.Errorf("unsupported schema type %T when converting to wire", typ)
+	case reflect.Struct, reflect.Array:
+		blob, err := yson.Marshal(value.Interface())
+		if err != nil {
+			return Value{}, err
+		}
+		v = NewAny(id, blob)
 	default:
-		return Value{}, xerrors.Errorf("unable to convert schema type %T to wire", typ)
+		return Value{}, xerrors.Errorf("unable to convert type %T to wire", typ)
 	}
 
 	return v, nil
@@ -355,12 +368,7 @@ func encodeReflectPivotKey(key interface{}) (row Row, err error) {
 	for i := 0; i < vv.Len(); i++ {
 		val := vv.Index(i).Interface()
 
-		ytTyp, err := ytTypeFor(reflect.TypeOf(val))
-		if err != nil {
-			return nil, err
-		}
-
-		value, err := convertValue(ytTyp, 0, val)
+		value, err := convertValue(0, reflect.ValueOf(val))
 		if err != nil {
 			return nil, err
 		}
