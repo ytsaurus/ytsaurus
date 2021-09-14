@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/table_client/public.h>
 
+#include <yt/yt/client/formats/public.h>
+
 #include <yt/yt/core/yson/pull_parser.h>
 
 namespace NYT::NComplexTypes {
@@ -30,23 +32,28 @@ namespace NYT::NComplexTypes {
 //
 // Functions in this file create convertors between these two representations.
 
-using TYsonConverter = std::function<void(NYson::TYsonPullParserCursor*, NYson::IYsonConsumer*)>;
+using TYsonClientToServerConverter = std::function<NTableClient::TUnversionedValue(NTableClient::TUnversionedValue value)>;
+using TYsonServerToClientConverter = std::function<void(NTableClient::TUnversionedValue value, NYson::IYsonConsumer* consumer)>;
 
-struct TPositionalToNamedConfig
+struct TYsonConverterConfig
 {
+    NFormats::EComplexTypeMode ComplexTypeMode = NFormats::EComplexTypeMode::Named;
+    NFormats::EDecimalMode DecimalMode = NFormats::EDecimalMode::Binary;
+    NFormats::ETimeMode TimeMode = NFormats::ETimeMode::Binary;
+    NFormats::EUuidMode UuidMode = NFormats::EUuidMode::Binary;
+
     // When SkipNullValues is true converters doesn't write
     // structure fields that have `#` value (i.e. they are Null).
     bool SkipNullValues = false;
 };
 
-TYsonConverter CreateNamedToPositionalYsonConverter(const NTableClient::TComplexTypeFieldDescriptor& descriptor);
-TYsonConverter CreatePositionalToNamedYsonConverter(
+TYsonServerToClientConverter CreateYsonServerToClientConverter(
     const NTableClient::TComplexTypeFieldDescriptor& descriptor,
-    const TPositionalToNamedConfig& config);
+    const TYsonConverterConfig& config);
 
-
-// Helper method to reduce boilerplate code.
-void ApplyYsonConverter(const TYsonConverter& converter, TStringBuf inputYson, NYson::IYsonConsumer* consumer);
+TYsonClientToServerConverter CreateYsonClientToServerConverter(
+    const NTableClient::TComplexTypeFieldDescriptor& descriptor,
+    const TYsonConverterConfig& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

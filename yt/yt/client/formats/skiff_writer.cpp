@@ -36,6 +36,7 @@ using NYTree::ConvertTo;
 using namespace NSkiff;
 using namespace NSkiffExt;
 using namespace NTableClient;
+using namespace NComplexTypes;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -630,7 +631,7 @@ public:
         GetError().ThrowOnError();
 
         for (const auto& schema : schemas) {
-            UnversionedValueToYsonConverter_.emplace_back(NameTable_, schema, EComplexTypeMode::Named, /* skipNullValues */ false);
+            UnversionedValueToYsonConverter_.emplace_back(NameTable_, schema, TYsonConverterConfig());
         }
 
         std::shared_ptr<TSkiffSchema> streamSchema;

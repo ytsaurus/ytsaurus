@@ -5,6 +5,7 @@ namespace NYT::NComplexTypes {
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr size_t UuidYqlTextSize = 36;
+constexpr size_t UuidYtTextSize = 35;
 constexpr size_t UuidBinarySize = 16;
 
 void TextYqlUuidToBytes(TStringBuf uuid, char* ptr);

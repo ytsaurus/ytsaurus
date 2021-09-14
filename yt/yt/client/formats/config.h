@@ -39,6 +39,9 @@ class TYsonFormatConfig
 public:
     NYson::EYsonFormat Format;
     EComplexTypeMode ComplexTypeMode;
+    EDecimalMode DecimalMode;
+    ETimeMode TimeMode;
+    EUuidMode UuidMode;
 
     //! Only works for tabular data.
     bool SkipNullValues;
@@ -49,6 +52,12 @@ public:
             .Default(NYson::EYsonFormat::Binary);
         RegisterParameter("complex_type_mode", ComplexTypeMode)
             .Default(EComplexTypeMode::Named);
+        RegisterParameter("decimal_mode", DecimalMode)
+            .Default(EDecimalMode::Binary);
+        RegisterParameter("time_mode", TimeMode)
+            .Default(ETimeMode::Binary);
+        RegisterParameter("uuid_mode", UuidMode)
+            .Default(EUuidMode::Binary);
         RegisterParameter("skip_null_values", SkipNullValues)
             .Default(false);
     }
@@ -504,6 +513,9 @@ public:
     std::vector<TString> TypeNames;
 
     EComplexTypeMode ComplexTypeMode;
+    EDecimalMode DecimalMode;
+    ETimeMode TimeMode;
+    EUuidMode UuidMode;
 
     TProtobufFormatConfig()
     {
@@ -530,6 +542,12 @@ public:
 
         RegisterParameter("complex_type_mode", ComplexTypeMode)
             .Default(EComplexTypeMode::Named);
+        RegisterParameter("decimal_mode", DecimalMode)
+            .Default(EDecimalMode::Binary);
+        RegisterParameter("time_mode", TimeMode)
+            .Default(ETimeMode::Binary);
+        RegisterParameter("uuid_mode", UuidMode)
+            .Default(EUuidMode::Binary);
     }
 };
 

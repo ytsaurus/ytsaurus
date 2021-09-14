@@ -18,7 +18,7 @@ class TYsonMapToUnversionedValueConverter
 {
 public:
     TYsonMapToUnversionedValueConverter(
-        EComplexTypeMode complexTypeMode,
+        const NComplexTypes::TYsonConverterConfig& config,
         NTableClient::IValueConsumer* valueConsumer);
 
     void Reset();

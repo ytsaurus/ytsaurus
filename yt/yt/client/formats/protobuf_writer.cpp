@@ -28,6 +28,7 @@ using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
 using namespace NTableClient;
+using namespace NComplexTypes;
 
 using ::google::protobuf::internal::WireFormatLite;
 
@@ -45,7 +46,7 @@ public:
         const std::vector<TTableSchemaPtr>& schemas,
         const TNameTablePtr& nameTable,
         const TProtobufWriterFormatDescriptionPtr& description,
-        EComplexTypeMode complexTypeMode)
+        const TYsonConverterConfig& config)
         : NameTableReader_(nameTable)
         , Description_(description)
         , TableIndexToConverter_(description->GetTableCount())
@@ -60,8 +61,7 @@ public:
                 TableIndexToConverter_[tableIndex].emplace(
                     nameTable,
                     schemas[tableIndex],
-                    complexTypeMode,
-                    /* skipNullValues */ false);
+                    config);
                 break;
             }
         }
@@ -534,8 +534,8 @@ public:
         const std::vector<TTableSchemaPtr>& schemas,
         const TNameTablePtr& nameTable,
         const TProtobufWriterFormatDescriptionPtr& description,
-        EComplexTypeMode complexTypeMode)
-        : OtherColumnsWriter_(schemas, nameTable, description, complexTypeMode)
+        const TYsonConverterConfig& config)
+        : OtherColumnsWriter_(schemas, nameTable, description, config)
     { }
 
     void SetTableIndex(i64 tableIndex)
@@ -795,7 +795,7 @@ public:
         TControlAttributesConfigPtr controlAttributesConfig,
         int keyColumnCount,
         TProtobufWriterFormatDescriptionPtr description,
-        EComplexTypeMode complexTypeMode)
+        const TYsonConverterConfig& ysonConfig)
         : TSchemalessFormatWriterBase(
             nameTable,
             output,
@@ -803,7 +803,7 @@ public:
             controlAttributesConfig,
             keyColumnCount)
         , Description_(description)
-        , WriterImpl_(schemas, nameTable, description, complexTypeMode)
+        , WriterImpl_(schemas, nameTable, description, ysonConfig)
         , StreamWriter_(GetOutputStream())
     {
         WriterImpl_.SetTableIndex(CurrentTableIndex_);
@@ -924,6 +924,13 @@ ISchemalessFormatWriterPtr CreateWriterForProtobuf(
 {
     auto description = New<TProtobufWriterFormatDescription>();
     description->Init(config, schemas);
+    TYsonConverterConfig ysonConfig{
+        .ComplexTypeMode = config->ComplexTypeMode,
+        .DecimalMode = config->DecimalMode,
+        .TimeMode = config->TimeMode,
+        .UuidMode = config->UuidMode,
+    };
+
     return New<TSchemalessWriterForProtobuf>(
         schemas,
         nameTable,
@@ -932,7 +939,7 @@ ISchemalessFormatWriterPtr CreateWriterForProtobuf(
         controlAttributesConfig,
         keyColumnCount,
         std::move(description),
-        config->ComplexTypeMode);
+        ysonConfig);
 }
 
 ISchemalessFormatWriterPtr CreateWriterForProtobuf(

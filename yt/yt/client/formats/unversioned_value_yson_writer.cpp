@@ -17,30 +17,38 @@ using namespace NComplexTypes;
 TUnversionedValueYsonWriter::TUnversionedValueYsonWriter(
     const TNameTablePtr& nameTable,
     const TTableSchemaPtr& tableSchema,
-    EComplexTypeMode complexTypeMode,
-    bool skipNullValues)
+    const TYsonConverterConfig& config)
 {
-    if (complexTypeMode == EComplexTypeMode::Positional) {
+    if (config.ComplexTypeMode == EComplexTypeMode::Positional &&
+        config.DecimalMode == EDecimalMode::Binary &&
+        config.TimeMode == ETimeMode::Binary &&
+        config.UuidMode == EUuidMode::Binary) {
         return;
     }
-
-    TPositionalToNamedConfig config;
-    config.SkipNullValues = skipNullValues;
 
     const auto& columns = tableSchema->Columns();
     for (size_t i = 0; i != columns.size(); ++i) {
         const auto& column = columns[i];
-        if (!IsV3Composite(column.LogicalType())) {
-            continue;
-        }
         auto id = nameTable->GetIdOrRegisterName(column.Name());
         TComplexTypeFieldDescriptor descriptor(column.Name(), column.LogicalType());
-        ColumnConverters_[id] = CreatePositionalToNamedYsonConverter(descriptor, config);
+        auto converter = CreateYsonServerToClientConverter(descriptor, config);
+        if (converter) {
+            ColumnConverters_.emplace(id, std::move(converter));
+        }
     }
 }
 
 void TUnversionedValueYsonWriter::WriteValue(const TUnversionedValue& value, IYsonConsumer* consumer)
 {
+    if (value.Type == EValueType::Null) {
+        consumer->OnEntity();
+        return;
+    }
+    auto it = ColumnConverters_.find(value.Id);
+    if (it != ColumnConverters_.end()) {
+        it->second(value, consumer);
+        return;
+    }
     switch (value.Type) {
         case EValueType::Int64:
             consumer->OnInt64Scalar(value.Data.Int64);
@@ -57,25 +65,11 @@ void TUnversionedValueYsonWriter::WriteValue(const TUnversionedValue& value, IYs
         case EValueType::String:
             consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
             return;
-        case EValueType::Null:
-            consumer->OnEntity();
-            return;
         case EValueType::Any:
+        case EValueType::Composite:
             consumer->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
             return;
-        case EValueType::Composite: {
-            auto data = TStringBuf(value.Data.String, value.Length);
-            auto it = ColumnConverters_.find(value.Id);
-            if (it != ColumnConverters_.end()) {
-                const auto& converter = ColumnConverters_[value.Id];
-                if (converter) {
-                    ApplyYsonConverter(converter, data, consumer);
-                    return;
-                }
-            }
-            consumer->OnRaw(data, EYsonType::Node);
-            return;
-        }
+        case EValueType::Null:
         case EValueType::Min:
         case EValueType::TheBottom:
         case EValueType::Max:

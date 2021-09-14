@@ -43,6 +43,7 @@ using namespace NYson;
 using namespace NJson;
 using namespace NTableClient;
 using namespace NSkiffExt;
+using namespace NComplexTypes;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,7 +172,12 @@ public:
         std::vector<IValueConsumer*> valueConsumers,
         int tableIndex)
         : TableConsumer_(new TTableConsumer(
-            format.Attributes().Get("complex_type_mode", EComplexTypeMode::Named),
+            TYsonConverterConfig{
+                .ComplexTypeMode = format.Attributes().Get("complex_type_mode", EComplexTypeMode::Named),
+                .DecimalMode = format.Attributes().Get("decimal_mode", EDecimalMode::Binary),
+                .TimeMode = format.Attributes().Get("time_mode", ETimeMode::Binary),
+                .UuidMode = format.Attributes().Get("uuid_mode", EUuidMode::Binary),
+            },
             valueConsumers,
             tableIndex))
         , Parser_(CreateParserForFormat(

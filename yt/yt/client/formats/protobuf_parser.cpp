@@ -24,6 +24,7 @@ namespace NYT::NFormats {
 
 using namespace NYson;
 using namespace NTableClient;
+using namespace NComplexTypes;
 
 using ::google::protobuf::internal::WireFormatLite;
 
@@ -233,7 +234,7 @@ public:
         IValueConsumer* valueConsumer,
         TProtobufParserFormatDescriptionPtr description,
         int tableIndex,
-        EComplexTypeMode complexTypeMode)
+        const TYsonConverterConfig& config)
         : ValueConsumer_(valueConsumer)
         , Description_(std::move(description))
         , TableIndex_(tableIndex)
@@ -243,8 +244,12 @@ public:
         // conversions so we use Positional mode.
         // At the same time we use OtherColumnsConsumer_ to feed yson passed by users.
         // This YSON should be in format specified on the format config.
-        , ColumnConsumer_(EComplexTypeMode::Positional, valueConsumer)
-        , OtherColumnsConsumer_(complexTypeMode, valueConsumer)
+        , ColumnConsumer_(
+            TYsonConverterConfig{
+                .ComplexTypeMode = EComplexTypeMode::Positional,
+            },
+            valueConsumer)
+        , OtherColumnsConsumer_(config, valueConsumer)
     {
         FieldVectors_.resize(ComputeDepth(Description_->GetTableType()) + 1);
     }
@@ -682,11 +687,17 @@ std::unique_ptr<IParser> CreateParserForProtobuf(
     }
     auto formatDescription = New<TProtobufParserFormatDescription>();
     formatDescription->Init(config, {consumer->GetSchema()});
+    TYsonConverterConfig ysonConfig{
+        .ComplexTypeMode = config->ComplexTypeMode,
+        .DecimalMode = config->DecimalMode,
+        .TimeMode = config->TimeMode,
+        .UuidMode = config->UuidMode,
+    };
     return std::make_unique<TProtobufParser>(
         consumer,
         formatDescription,
         tableIndex,
-        config->ComplexTypeMode);
+        ysonConfig);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

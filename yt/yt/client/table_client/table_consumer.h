@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/client/complex_types/named_structures_yson.h>
+#include <yt/yt/client/complex_types/yson_format_conversion.h>
 #include <yt/yt/client/formats/public.h>
 
 #include <yt/yt/client/table_client/value_consumer.h>
@@ -25,11 +25,11 @@ public:
 
 public:
     TYsonToUnversionedValueConverter(
-        NFormats::EComplexTypeMode complexTypeMode,
+        const NComplexTypes::TYsonConverterConfig& config,
         IValueConsumer* valueConsumers);
 
     TYsonToUnversionedValueConverter(
-        NFormats::EComplexTypeMode complexTypeMode,
+        const NComplexTypes::TYsonConverterConfig& config,
         std::vector<IValueConsumer*> valueConsumers,
         int tableIndex = 0);
 
@@ -56,15 +56,18 @@ public:
     virtual void OnEndAttributes() override;
 
 private:
+    bool TryConvertAndFeedValueConsumer(TUnversionedValue value);
+
     TBlobOutput ValueBuffer_;
     NYson::TBufferedBinaryYsonWriter ValueWriter_;
 
     // Key of ComplexTypeConverters_ map is <TableIndex;ColumnId>.
     // All complex columns are present in this map.
     //
-    // If EComplexTypeMode::Positional is chosen then values are empty functions.
-    // If EComplexTypeMode::Named is chosen values are converter functions.
-    THashMap<std::pair<int,int>, NComplexTypes::TYsonConverter> ComplexTypeConverters_;
+    // If no conversion is needed then values are empty functions.
+    // Otherwise values are converter functions.
+    THashMap<std::pair<int,int>, NComplexTypes::TYsonClientToServerConverter> ComplexTypeConverters_;
+    THashMap<std::pair<int,int>, NComplexTypes::TYsonClientToServerConverter> SimpleValueConverters_;
 
     TBlobOutput ConvertedBuffer_;
     NYson::TBufferedBinaryYsonWriter ConvertedWriter_;
@@ -93,10 +96,10 @@ class TTableConsumer
 {
 public:
     TTableConsumer(
-        NFormats::EComplexTypeMode complexTypeMode,
+        const NComplexTypes::TYsonConverterConfig& config,
         IValueConsumer* consumer);
     TTableConsumer(
-        NFormats::EComplexTypeMode complexTypeMode,
+        const NComplexTypes::TYsonConverterConfig& config,
         std::vector<IValueConsumer*> consumers,
         int tableIndex = 0);
 

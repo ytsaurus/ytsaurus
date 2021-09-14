@@ -25,6 +25,7 @@ namespace NYT::NFormats {
 using namespace NTableClient;
 using namespace NSkiff;
 using namespace NSkiffExt;
+using namespace NComplexTypes;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -356,8 +357,8 @@ public:
         IValueConsumer* valueConsumer)
         : SkiffSchemaList_({std::move(skiffSchema)})
         , ValueConsumer_(valueConsumer)
-        , YsonToUnversionedValueConverter_(EComplexTypeMode::Named, ValueConsumer_)
-        , OtherColumnsConsumer_(EComplexTypeMode::Named, ValueConsumer_)
+        , YsonToUnversionedValueConverter_(TYsonConverterConfig(), ValueConsumer_)
+        , OtherColumnsConsumer_(TYsonConverterConfig(), ValueConsumer_)
     {
         THashMap<TString, const TColumnSchema*> columnSchemas;
         for (const auto& column : tableSchema->Columns()) {

@@ -9,12 +9,12 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 TYsonMapToUnversionedValueConverter::TYsonMapToUnversionedValueConverter(
-    EComplexTypeMode complexTypeMode,
+    const NComplexTypes::TYsonConverterConfig& config,
     IValueConsumer* consumer)
     : Consumer_(consumer)
     , AllowUnknownColumns_(consumer->GetAllowUnknownColumns())
     , NameTable_(consumer->GetNameTable())
-    , ColumnConsumer_(complexTypeMode, this)
+    , ColumnConsumer_(config, this)
 { }
 
 void TYsonMapToUnversionedValueConverter::Reset()

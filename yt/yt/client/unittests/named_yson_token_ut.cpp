@@ -1,15 +1,19 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/client/complex_types/named_structures_yson.h>
+#include <yt/yt/client/complex_types/yson_format_conversion.h>
 #include <yt/yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/yson/writer.h>
 #include <yt/yt/core/yson/parser.h>
+
+#include <yt/yt/core/misc/variant.h>
 
 #include <util/stream/mem.h>
 
 namespace NYT::NComplexTypes {
 
+using NFormats::EComplexTypeMode;
 using namespace NYson;
 using namespace NTableClient;
 
@@ -25,20 +29,23 @@ const auto IntStringVariant = VariantStructLogicalType({
     {"string", SimpleLogicalType(ESimpleLogicalValueType::String)},
 });
 
-thread_local TPositionalToNamedConfig PositionalToNamedConfigInstance;
+thread_local TYsonConverterConfig PositionalToNamedConfigInstance;
 
 class TWithConfig
 {
 public:
-    TWithConfig(const TPositionalToNamedConfig& config)
+    TWithConfig(const TYsonConverterConfig& config)
+        : OldConfig_(PositionalToNamedConfigInstance)
     {
         PositionalToNamedConfigInstance = config;
     }
 
     ~TWithConfig()
     {
-        PositionalToNamedConfigInstance = {};
+        PositionalToNamedConfigInstance = OldConfig_;
     }
+private:
+    TYsonConverterConfig OldConfig_;
 };
 
 TString CanonizeYson(TStringBuf yson)
@@ -52,33 +59,47 @@ TString CanonizeYson(TStringBuf yson)
     return result;
 }
 
-void ConvertYson(
+TString ConvertYson(
     bool namedToPositional,
     const TLogicalTypePtr& type,
-    TStringBuf sourceYson,
-    TString* convertedYson)
+    TStringBuf sourceYson)
 {
     TComplexTypeFieldDescriptor descriptor("<test-field>", type);
-    TYsonConverter converter;
+    std::variant<TYsonServerToClientConverter, TYsonClientToServerConverter> converter;
     try {
-        converter = namedToPositional
-            ? CreateNamedToPositionalYsonConverter(descriptor)
-            : CreatePositionalToNamedYsonConverter(descriptor, PositionalToNamedConfigInstance);
+        if (namedToPositional) {
+            TYsonConverterConfig config{
+                .ComplexTypeMode = EComplexTypeMode::Named,
+            };
+            converter = CreateYsonClientToServerConverter(descriptor, config);
+        } else {
+            converter = CreateYsonServerToClientConverter(descriptor, PositionalToNamedConfigInstance);
+        }
     } catch (const std::exception& ex) {
         ADD_FAILURE() << "cannot create converter: " << ex.what();
-        return;
+        return "";
     }
-
-    TMemoryInput in(sourceYson);
-    TYsonPullParser parser(&in, EYsonType::Node);
-    TYsonPullParserCursor cursor(&parser);
-
-    TStringOutput out(*convertedYson);
-    {
-        TYsonWriter writer(&out, EYsonFormat::Pretty);
-        converter(&cursor, &writer);
-    }
-    EXPECT_EQ(cursor->GetType(), EYsonItemType::EndOfStream);
+    TString convertedYson;
+    Visit(
+        converter,
+        [&] (const TYsonServerToClientConverter& serverToClientConverter) {
+            if (serverToClientConverter) {
+                TStringOutput out(convertedYson);
+                TYsonWriter writer(&out, EYsonFormat::Pretty);
+                serverToClientConverter(MakeUnversionedStringValue(sourceYson), &writer);
+            } else {
+                convertedYson = CanonizeYson(sourceYson);
+            }
+        },
+        [&] (const TYsonClientToServerConverter& clientToServerConverter) {
+            if (clientToServerConverter) {
+                auto value = clientToServerConverter(MakeUnversionedStringValue(sourceYson));
+                convertedYson = TStringBuf(value.Data.String, value.Length);
+            } else {
+                convertedYson = CanonizeYson(sourceYson);
+            }
+        });
+    return convertedYson;
 }
 
 void CheckYsonConvertion(
@@ -89,13 +110,13 @@ void CheckYsonConvertion(
 {
     TString convertedYson;
     try {
-        ConvertYson(namedToPositional, type, sourceYson, &convertedYson);
+        convertedYson = ConvertYson(namedToPositional, type, sourceYson);
     } catch (const std::exception& ex) {
         ADD_FAILURE() << "convertion error: " << ex.what();
         return;
     }
 
-    EXPECT_EQ(convertedYson, CanonizeYson(expectedConvertedYson));
+    EXPECT_EQ(CanonizeYson(convertedYson), CanonizeYson(expectedConvertedYson));
 }
 
 #define CHECK_POSITIONAL_TO_NAMED(type, positionalYson, namedYson) \
@@ -113,13 +134,13 @@ void CheckYsonConvertion(
 #define CHECK_NAMED_TO_POSITIONAL_THROWS(type, namedYson, exceptionSubstring) \
     do { \
         TString tmp; \
-        EXPECT_THROW_WITH_SUBSTRING(ConvertYson(true, type, namedYson, &tmp), exceptionSubstring); \
+        EXPECT_THROW_WITH_SUBSTRING(ConvertYson(true, type, namedYson), exceptionSubstring); \
     } while (0)
 
 #define CHECK_POSITIONAL_TO_NAMED_THROWS(type, namedYson, exceptionSubstring) \
     do { \
         TString tmp; \
-        EXPECT_THROW_WITH_SUBSTRING(ConvertYson(false, type, namedYson, &tmp), exceptionSubstring); \
+        EXPECT_THROW_WITH_SUBSTRING(ConvertYson(false, type, namedYson), exceptionSubstring); \
     } while (0)
 
 #define CHECK_BIDIRECTIONAL(type, positionalYson, namedYson) \
@@ -155,8 +176,9 @@ TEST(TNamedPositionalYsonConverter, TestStruct)
 
 TEST(TNamedPositionalYsonConverter, TestStructSkipNullValues)
 {
-    TPositionalToNamedConfig config;
-    config.SkipNullValues = true;
+    TYsonConverterConfig config{
+        .SkipNullValues = true,
+    };
     TWithConfig g(config);
 
     CHECK_POSITIONAL_TO_NAMED(KeyValueStruct, "[foo; bar]", "{key=foo; value=bar}");
