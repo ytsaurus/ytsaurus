@@ -120,7 +120,7 @@ public:
         Y_VERIFY(node.IsMap());
 
         for (const auto& [key, value] : node.AsMap()) {
-            if (key == AsStringBuf("$")) {
+            if (key == "$"sv) {
                 ParseNode(value, &(*output)[curPath]);
             } else {
                 TString childPath = curPath;
