@@ -392,6 +392,10 @@ func (d *WireDecoder) decodeValueAny(value Value, v interface{}) (err error) {
 		return &UnsupportedTypeError{}
 	}
 
+	if value.Type == TypeNull {
+		return
+	}
+
 	switch vv := v.(type) {
 	case *int:
 		if err := validateWireType(TypeInt64, value.Type); err != nil {
@@ -480,14 +484,70 @@ func (d *WireDecoder) decodeValueAny(value Value, v interface{}) (err error) {
 		err = d.decodeValueGeneric(value, vv)
 
 	default:
+		if err := decodeReflect(value, reflect.ValueOf(v)); err != nil {
+			return err
+		}
+	}
+
+	return
+}
+
+func decodeReflect(value Value, v reflect.Value) error {
+	if v.Kind() != reflect.Ptr {
+		return &UnsupportedTypeError{v.Type()}
+	}
+
+	if value.Type == TypeNull {
+		return nil
+	}
+
+	switch v.Elem().Type().Kind() {
+	case reflect.Int, reflect.Int64:
+		i, err := convertInt64(value)
+		v.Elem().SetInt(i)
+		return err
+	case reflect.Int8:
+		i, err := convertInt8(value)
+		v.Elem().SetInt(int64(i))
+		return err
+	case reflect.Int16:
+		i, err := convertInt16(value)
+		v.Elem().SetInt(int64(i))
+		return err
+	case reflect.Int32:
+		i, err := convertInt32(value)
+		v.Elem().SetInt(int64(i))
+		return err
+
+	case reflect.Uint, reflect.Uint64:
+		i, err := convertUint64(value)
+		v.Elem().SetUint(i)
+		return err
+	case reflect.Uint8:
+		i, err := convertUint8(value)
+		v.Elem().SetUint(uint64(i))
+		return err
+	case reflect.Uint16:
+		i, err := convertUint16(value)
+		v.Elem().SetUint(uint64(i))
+		return err
+	case reflect.Uint32:
+		i, err := convertUint32(value)
+		v.Elem().SetUint(uint64(i))
+		return err
+
+	case reflect.String:
+		s := string(value.Bytes())
+		v.Elem().SetString(string(s))
+		return nil
+
+	default:
 		if err := validateWireType(TypeAny, value.Type); err != nil {
 			return err
 		}
 
-		return yson.Unmarshal(value.Any(), v)
+		return yson.Unmarshal(value.Any(), v.Interface())
 	}
-
-	return
 }
 
 func convertInt8(value Value) (int8, error) {

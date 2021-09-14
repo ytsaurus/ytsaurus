@@ -25,6 +25,9 @@ type testResponseRow struct {
 	String  string  `yson:"string"`
 	Bytes   []byte  `yson:"bytes"`
 
+	MyString MyString `yson:"my_string"`
+	MyInt    MyInt    `yson:"my_int"`
+
 	Struct    innterStruct  `yson:"struct"`
 	StructPtr *innterStruct `yson:"struct_ptr"`
 
@@ -68,6 +71,8 @@ func TestDecoder_UnmarshalRow(t *testing.T) {
 				{Name: "bool"},
 				{Name: "string"},
 				{Name: "bytes"},
+				{Name: "my_string"},
+				{Name: "my_int"},
 				{Name: "struct"},
 				{Name: "struct_ptr"},
 				{Name: "embedded_id"},
@@ -92,30 +97,34 @@ func TestDecoder_UnmarshalRow(t *testing.T) {
 				NewBool(12, true),
 				NewBytes(13, []byte("hello")),
 				NewBytes(14, []byte("world")),
-				NewAny(15, []byte(`{id=88;name=foo;}`)),
-				NewAny(16, []byte(`{id=89;name=bar;}`)),
-				NewInt64(17, 90),
-				NewBytes(18, []byte("baz")),
-				NewInt64(19, 91),
-				NewAny(20, []byte(`{"exported_field_of_tagged_embedded"=93u;}`)),
-				NewAny(21, []byte(`{"exported_field_of_tagged_embedded_ptr"=%true;}`)),
+				NewBytes(15, []byte("my-string")),
+				NewInt64(16, 1337),
+				NewAny(17, []byte(`{id=88;name=foo;}`)),
+				NewAny(18, []byte(`{id=89;name=bar;}`)),
+				NewInt64(19, 90),
+				NewBytes(20, []byte("baz")),
+				NewInt64(21, 91),
+				NewAny(22, []byte(`{"exported_field_of_tagged_embedded"=93u;}`)),
+				NewAny(23, []byte(`{"exported_field_of_tagged_embedded_ptr"=%true;}`)),
 			},
 			expected: &testResponseRow{
-				I:       -1,
-				I64:     -64,
-				I32:     -32,
-				I16:     -16,
-				I8:      -8,
-				U:       1,
-				U64:     64,
-				U32:     32,
-				U16:     16,
-				U8:      8,
-				F32:     32.0,
-				F64:     64.0,
-				Boolean: true,
-				String:  "hello",
-				Bytes:   []byte("world"),
+				I:        -1,
+				I64:      -64,
+				I32:      -32,
+				I16:      -16,
+				I8:       -8,
+				U:        1,
+				U64:      64,
+				U32:      32,
+				U16:      16,
+				U8:       8,
+				F32:      32.0,
+				F64:      64.0,
+				Boolean:  true,
+				String:   "hello",
+				Bytes:    []byte("world"),
+				MyString: MyString("my-string"),
+				MyInt:    MyInt(1337),
 				Struct: innterStruct{
 					ID:   88,
 					Name: "foo",
@@ -275,6 +284,22 @@ func TestDecoder_UnmarshalRow(t *testing.T) {
 				},
 			},
 			isErr: true,
+		},
+		{
+			name: "null_string",
+			nameTable: NameTable{
+				{Name: "string"},
+			},
+			in:       Row{Value{ID: 0, Type: TypeNull}},
+			expected: &testResponseRow{},
+		},
+		{
+			name: "null_int",
+			nameTable: NameTable{
+				{Name: "i"},
+			},
+			in:       Row{Value{ID: 0, Type: TypeNull}},
+			expected: &testResponseRow{},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

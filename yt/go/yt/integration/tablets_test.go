@@ -47,9 +47,11 @@ func TestTabletClient(t *testing.T) {
 		{"ExecTabletTx", suite.TestExecTabletTx},
 		{"LookupColumnFilter", suite.TestLookupColumnFilter},
 		{"ReadTimestamp", suite.TestReadTimestamp},
+		{"InsertRows_map", suite.TestInsertRows_map},
 		{"InsertRows_empty", suite.TestInsertRows_empty},
 		{"DeleteRows_empty", suite.TestDeleteRows_empty},
 		{"InsertRowsBatch", suite.TestInsertRowsBatch},
+		{"LookupRows_map", suite.TestLookupRows_map},
 	})
 }
 
@@ -257,6 +259,76 @@ func (s *Suite) TestReadTimestamp(t *testing.T, yc yt.Client) {
 	require.NoError(t, err)
 	defer r.Close()
 	checkReader(r)
+}
+
+func (s *Suite) TestInsertRows_map(t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	type testRow struct {
+		Key   string `yson:"table_key,key"`
+		Value string `yson:"value,omitempty"`
+	}
+
+	testTable := tmpPath().Child("table")
+	require.NoError(t, migrate.Create(s.Ctx, yc, testTable, schema.MustInfer(&testRow{})))
+	require.NoError(t, migrate.MountAndWait(s.Ctx, yc, testTable))
+
+	rows := []interface{}{
+		map[string]interface{}{"table_key": "foo", "value": nil},
+	}
+	require.NoError(t, yc.InsertRows(s.Ctx, testTable, rows, nil))
+
+	keys := []interface{}{
+		map[string]interface{}{"table_key": "foo"},
+	}
+
+	r, err := yc.LookupRows(s.Ctx, testTable, keys, nil)
+	require.NoError(t, err)
+	defer r.Close()
+
+	var row testRow
+	require.True(t, r.Next())
+	require.NoError(t, r.Scan(&row))
+	require.Equal(t, testRow{Key: "foo", Value: ""}, row)
+
+	require.False(t, r.Next())
+	require.NoError(t, r.Err())
+}
+
+func (s *Suite) TestLookupRows_map(t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	t.Skip("Test was skipped due to the different behavior of clients when deserializing byte strings.") // todo https://st.yandex-team.ru/YT-15505
+
+	type testRow struct {
+		Key   string `yson:"table_key,key"`
+		Value string `yson:"value,omitempty"`
+	}
+
+	testTable := tmpPath().Child("table")
+	require.NoError(t, migrate.Create(s.Ctx, yc, testTable, schema.MustInfer(&testRow{})))
+	require.NoError(t, migrate.MountAndWait(s.Ctx, yc, testTable))
+
+	rows := []interface{}{
+		map[string]interface{}{"table_key": "foo", "value": nil},
+	}
+	require.NoError(t, yc.InsertRows(s.Ctx, testTable, rows, nil))
+
+	keys := []interface{}{
+		map[string]interface{}{"table_key": "foo"},
+	}
+
+	r, err := yc.LookupRows(s.Ctx, testTable, keys, nil)
+	require.NoError(t, err)
+	defer r.Close()
+
+	row := make(map[string]interface{})
+	require.True(t, r.Next())
+	require.NoError(t, r.Scan(&row))
+	require.Equal(t, map[string]interface{}{"table_key": "foo", "value": nil}, row)
+
+	require.False(t, r.Next())
+	require.NoError(t, r.Err())
 }
 
 func (s *Suite) TestInsertRows_empty(t *testing.T, yc yt.Client) {
