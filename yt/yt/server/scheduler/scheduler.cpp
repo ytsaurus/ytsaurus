@@ -3857,6 +3857,18 @@ private:
                             }
                         })
                 .EndMap()
+                .Item("controller_agents").DoMapFor(Bootstrap_->GetControllerAgentTracker()->GetAgents(), [] (TFluentMap fluent, const auto& agent) {
+                    fluent
+                        .Item(agent->GetId()).BeginMap()
+                            .Item("state").Value(agent->GetState())
+                            .DoIf(agent->GetState() == EControllerAgentState::Registered, [&] (TFluentMap fluent) {
+                                fluent.Item("incarnation_id").Value(agent->GetIncarnationId());
+                            })
+                            .Item("operation_ids").DoListFor(agent->Operations(), [] (TFluentList fluent, const auto& operation) {
+                                fluent.Item().Value(operation->GetId());
+                            })
+                        .EndMap();
+                })
                 .Item("cluster").BeginMap()
                     .Item("resource_limits").Value(GetResourceLimits(EmptySchedulingTagFilter))
                     .Item("resource_usage").Value(GetResourceUsage(EmptySchedulingTagFilter))
@@ -3903,18 +3915,6 @@ private:
             .BeginMap()
                 // Deprecated.
                 .Item("connected").Value(IsConnected())
-                .Item("controller_agents").DoMapFor(Bootstrap_->GetControllerAgentTracker()->GetAgents(), [] (TFluentMap fluent, const auto& agent) {
-                    fluent
-                        .Item(agent->GetId()).BeginMap()
-                            .Item("state").Value(agent->GetState())
-                            .DoIf(agent->GetState() == EControllerAgentState::Registered, [&] (TFluentMap fluent) {
-                                fluent.Item("incarnation_id").Value(agent->GetIncarnationId());
-                            })
-                            .Item("operation_ids").DoListFor(agent->Operations(), [] (TFluentList fluent, const auto& operation) {
-                                fluent.Item().Value(operation->GetId());
-                            })
-                        .EndMap();
-                })
                 .Item("config").Value(Config_)
                 .Item("config_revision").Value(ConfigRevision_)
                 .Item("operations_cleaner").BeginMap()
