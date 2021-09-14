@@ -486,7 +486,6 @@ public:
         scheduler->GetStrategy()->ApplyJobMetricsDelta(std::move(operationIdToOperationJobMetrics));
 
         const auto& nodeShards = scheduler->GetNodeShards();
-        int nodeShardCount = static_cast<int>(nodeShards.size());
 
         std::vector<std::vector<const NProto::TAgentToSchedulerJobEvent*>> groupedJobEvents(nodeShards.size());
         std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses(nodeShards.size());
@@ -698,80 +697,88 @@ public:
             });
         }
 
-        for (int shardId = 0; shardId < nodeShardCount; ++shardId) {
-            scheduler->GetCancelableNodeShardInvoker(shardId)->Invoke(
-                BIND([
-                    context,
-                    nodeShard = nodeShards[shardId],
-                    protoEvents = std::move(groupedJobEvents[shardId]),
-                    protoResponses = std::move(groupedScheduleJobResponses[shardId])
-                ] {
-                    for (const auto* protoEvent : protoEvents) {
-                        auto eventType = static_cast<EAgentToSchedulerJobEventType>(protoEvent->event_type());
-                        auto jobId = FromProto<TJobId>(protoEvent->job_id());
-                        auto controllerEpoch = protoEvent->controller_epoch();
-                        auto error = FromProto<TError>(protoEvent->error());
-                        auto interruptReason = static_cast<EInterruptReason>(protoEvent->interrupt_reason());
+        RunInMessageOffloadThread([
+            context,
+            nodeShards = std::move(nodeShards),
+            groupedJobEvents = std::move(groupedJobEvents),
+            groupedScheduleJobResponses = std::move(groupedScheduleJobResponses),
+            nodeShardInvokers = scheduler->GetNodeShardInvokers()
+        ] {
+            for (int shardId = 0; shardId < std::ssize(nodeShards); ++shardId) {
+                nodeShardInvokers[shardId]->Invoke(
+                    BIND([
+                        context,
+                        nodeShard = nodeShards[shardId],
+                        protoEvents = std::move(groupedJobEvents[shardId]),
+                        protoResponses = std::move(groupedScheduleJobResponses[shardId])
+                    ] {
+                        for (const auto* protoEvent : protoEvents) {
+                            auto eventType = static_cast<EAgentToSchedulerJobEventType>(protoEvent->event_type());
+                            auto jobId = FromProto<TJobId>(protoEvent->job_id());
+                            auto controllerEpoch = protoEvent->controller_epoch();
+                            auto error = FromProto<TError>(protoEvent->error());
+                            auto interruptReason = static_cast<EInterruptReason>(protoEvent->interrupt_reason());
 
-                        auto expectedControllerEpoch = nodeShard->GetJobControllerEpoch(jobId);
+                            auto expectedControllerEpoch = nodeShard->GetJobControllerEpoch(jobId);
 
-                        // NB(gritukan, ignat): If job is released, either it is stored into operation snapshot
-                        // or operation is completed. In both cases controller epoch actually is not important.
-                        bool shouldValidateEpoch = eventType != EAgentToSchedulerJobEventType::Released;
+                            // NB(gritukan, ignat): If job is released, either it is stored into operation snapshot
+                            // or operation is completed. In both cases controller epoch actually is not important.
+                            bool shouldValidateEpoch = eventType != EAgentToSchedulerJobEventType::Released;
 
-                        if (shouldValidateEpoch && (controllerEpoch != expectedControllerEpoch)) {
-                            YT_LOG_DEBUG("Received job event with unexpected controller epoch; ignored "
-                                "(JobId: %v, EventType: %v, ControllerEpoch: %v, ExpectedControllerEpoch: %v)",
-                                jobId,
-                                eventType,
-                                controllerEpoch,
-                                expectedControllerEpoch);
-                            continue;
+                            if (shouldValidateEpoch && (controllerEpoch != expectedControllerEpoch)) {
+                                YT_LOG_DEBUG("Received job event with unexpected controller epoch; ignored "
+                                             "(JobId: %v, EventType: %v, ControllerEpoch: %v, ExpectedControllerEpoch: %v)",
+                                    jobId,
+                                    eventType,
+                                    controllerEpoch,
+                                    expectedControllerEpoch);
+                                continue;
+                            }
+
+                            switch (eventType) {
+                                case EAgentToSchedulerJobEventType::Interrupted:
+                                    nodeShard->InterruptJob(jobId, interruptReason);
+                                    break;
+                                case EAgentToSchedulerJobEventType::Aborted:
+                                    nodeShard->AbortJob(jobId, error);
+                                    break;
+                                case EAgentToSchedulerJobEventType::Failed:
+                                    nodeShard->FailJob(jobId);
+                                    break;
+                                case EAgentToSchedulerJobEventType::Released:
+                                    nodeShard->ReleaseJob(jobId, FromProto<TReleaseJobFlags>(protoEvent->release_job_flags()));
+                                    break;
+                                default:
+                                    YT_ABORT();
+                            }
                         }
 
-                        switch (eventType) {
-                            case EAgentToSchedulerJobEventType::Interrupted:
-                                nodeShard->InterruptJob(jobId, interruptReason);
-                                break;
-                            case EAgentToSchedulerJobEventType::Aborted:
-                                nodeShard->AbortJob(jobId, error);
-                                break;
-                            case EAgentToSchedulerJobEventType::Failed:
-                                nodeShard->FailJob(jobId);
-                                break;
-                            case EAgentToSchedulerJobEventType::Released:
-                                nodeShard->ReleaseJob(jobId, FromProto<TReleaseJobFlags>(protoEvent->release_job_flags()));
-                                break;
-                            default:
-                                YT_ABORT();
+                        for (const auto* protoResponse : protoResponses) {
+                            auto operationId = FromProto<TOperationId>(protoResponse->operation_id());
+                            auto jobId = FromProto<TJobId>(protoResponse->job_id());
+                            auto controllerEpoch = protoResponse->controller_epoch();
+                            auto expectedControllerEpoch = nodeShard->GetOperationControllerEpoch(operationId);
+                            if (controllerEpoch != expectedControllerEpoch) {
+                                YT_LOG_DEBUG("Received job schedule result with unexpected controller epoch; ignored "
+                                             "(OperationId: %v, JobId: %v, ControllerEpoch: %v, ExpectedControllerEpoch: %v)",
+                                    operationId,
+                                    jobId,
+                                    controllerEpoch,
+                                    expectedControllerEpoch);
+                                continue;
+                            }
+                            if (nodeShard->IsOperationControllerTerminated(operationId)) {
+                                YT_LOG_DEBUG("Received job schedule result for operation whose controller is terminated; "
+                                             " ignored (OperationId: %v, JobId: %v)",
+                                    operationId,
+                                    jobId);
+                                continue;
+                            }
+                            nodeShard->EndScheduleJob(*protoResponse);
                         }
-                    }
-
-                    for (const auto* protoResponse : protoResponses) {
-                        auto operationId = FromProto<TOperationId>(protoResponse->operation_id());
-                        auto jobId = FromProto<TJobId>(protoResponse->job_id());
-                        auto controllerEpoch = protoResponse->controller_epoch();
-                        auto expectedControllerEpoch = nodeShard->GetOperationControllerEpoch(operationId);
-                        if (controllerEpoch != expectedControllerEpoch) {
-                            YT_LOG_DEBUG("Received job schedule result with unexpected controller epoch; ignored "
-                                "(OperationId: %v, JobId: %v, ControllerEpoch: %v, ExpectedControllerEpoch: %v)",
-                                operationId,
-                                jobId,
-                                controllerEpoch,
-                                expectedControllerEpoch);
-                            continue;
-                        }
-                        if (nodeShard->IsOperationControllerTerminated(operationId)) {
-                            YT_LOG_DEBUG("Received job schedule result for operation whose controller is terminated; "
-                                " ignored (OperationId: %v, JobId: %v)",
-                                operationId,
-                                jobId);
-                            continue;
-                        }
-                        nodeShard->EndScheduleJob(*protoResponse);
-                    }
-                }));
-        }
+                    }));
+            }
+        });
 
         response->set_operation_archive_version(Bootstrap_->GetScheduler()->GetOperationArchiveVersion());
         response->set_enable_job_reporter(Bootstrap_->GetScheduler()->IsJobReporterEnabled());
