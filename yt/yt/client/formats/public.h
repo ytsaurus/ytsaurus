@@ -15,6 +15,22 @@ DEFINE_ENUM(EComplexTypeMode,
     (Named)
 );
 
+DEFINE_ENUM(EDecimalMode,
+    (Text)
+    (Binary)
+);
+
+DEFINE_ENUM(ETimeMode,
+    (Text)
+    (Binary)
+);
+
+DEFINE_ENUM(EUuidMode,
+    (TextYql)
+    (TextYt)
+    (Binary)
+);
+
 //! Type of data that can be read or written by a driver command.
 DEFINE_ENUM(EDataType,
     (Null)

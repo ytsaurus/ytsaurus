@@ -4,12 +4,14 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <cmath>
 #include <util/string/cast.h>
+
+#include <cmath>
+#include <variant>
 
 namespace NYT::NTableClient {
 
-using NFormats::EComplexTypeMode;
+using namespace NFormats;
 using namespace NYson;
 using namespace NConcurrency;
 using namespace NComplexTypes;
@@ -17,13 +19,13 @@ using namespace NComplexTypes;
 ////////////////////////////////////////////////////////////////////////////////
 
 TYsonToUnversionedValueConverter::TYsonToUnversionedValueConverter(
-    EComplexTypeMode complexTypeMode,
+    const TYsonConverterConfig& config,
     IValueConsumer* valueConsumer)
-    : TYsonToUnversionedValueConverter(complexTypeMode, std::vector<IValueConsumer*>{valueConsumer})
+    : TYsonToUnversionedValueConverter(config, std::vector<IValueConsumer*>{valueConsumer})
 { }
 
 TYsonToUnversionedValueConverter::TYsonToUnversionedValueConverter(
-    EComplexTypeMode complexTypeMode,
+    const TYsonConverterConfig& config,
     std::vector<IValueConsumer*> valueConsumers,
     int tableIndex)
     : ValueConsumers_(std::move(valueConsumers))
@@ -37,15 +39,13 @@ TYsonToUnversionedValueConverter::TYsonToUnversionedValueConverter(
         const auto& nameTable = valueConsumer->GetNameTable();
 
         for (const auto& column : valueConsumer->GetSchema()->Columns()) {
-            if (!IsV3Composite(column.LogicalType())) {
-                continue;
-            }
             const auto id = nameTable->GetIdOrRegisterName(column.Name());
-            auto key = std::pair<int,int>(tableIndex, id);
-            if (complexTypeMode == EComplexTypeMode::Positional) {
-                ComplexTypeConverters_[key] = {};
-            } else {
-                ComplexTypeConverters_[key] = CreateNamedToPositionalYsonConverter(TComplexTypeFieldDescriptor(column));
+            const auto key = std::pair(tableIndex, id);
+            auto converter = CreateYsonClientToServerConverter(TComplexTypeFieldDescriptor(column), config);
+            if (IsV3Composite(column.LogicalType())) {
+                ComplexTypeConverters_.emplace(key, std::move(converter));
+            } else if (converter) {
+                SimpleValueConverters_.emplace(key, std::move(converter));
             }
         }
     }
@@ -68,7 +68,10 @@ void TYsonToUnversionedValueConverter::SetColumnIndex(int columnIndex)
 void TYsonToUnversionedValueConverter::OnStringScalar(TStringBuf value)
 {
     if (Depth_ == 0) {
-        CurrentValueConsumer_->OnValue(MakeUnversionedStringValue(value, ColumnIndex_));
+        auto unversionedValue = MakeUnversionedStringValue(value, ColumnIndex_);
+        if (!TryConvertAndFeedValueConsumer(unversionedValue)) {
+            CurrentValueConsumer_->OnValue(unversionedValue);
+        }
     } else {
         ValueWriter_.OnStringScalar(value);
     }
@@ -77,7 +80,10 @@ void TYsonToUnversionedValueConverter::OnStringScalar(TStringBuf value)
 void TYsonToUnversionedValueConverter::OnInt64Scalar(i64 value)
 {
     if (Depth_ == 0) {
-        CurrentValueConsumer_->OnValue(MakeUnversionedInt64Value(value, ColumnIndex_));
+        auto unversionedValue = MakeUnversionedInt64Value(value, ColumnIndex_);
+        if (!TryConvertAndFeedValueConsumer(unversionedValue)) {
+            CurrentValueConsumer_->OnValue(unversionedValue);
+        }
     } else {
         ValueWriter_.OnInt64Scalar(value);
     }
@@ -86,7 +92,10 @@ void TYsonToUnversionedValueConverter::OnInt64Scalar(i64 value)
 void TYsonToUnversionedValueConverter::OnUint64Scalar(ui64 value)
 {
     if (Depth_ == 0) {
-        CurrentValueConsumer_->OnValue(MakeUnversionedUint64Value(value, ColumnIndex_));
+        auto unversionedValue = MakeUnversionedUint64Value(value, ColumnIndex_);
+        if (!TryConvertAndFeedValueConsumer(unversionedValue)) {
+            CurrentValueConsumer_->OnValue(unversionedValue);
+        }
     } else {
         ValueWriter_.OnUint64Scalar(value);
     }
@@ -191,10 +200,8 @@ void TYsonToUnversionedValueConverter::FlushCurrentValueIfCompleted()
         } else {
             const auto& converter = it->second;
             if (converter) {
-                ConvertedBuffer_.Clear();
-                ApplyYsonConverter(converter, TStringBuf(ValueBuffer_.Begin(), ValueBuffer_.Size()), &ConvertedWriter_);
-                ConvertedWriter_.Flush();
-                value = MakeUnversionedCompositeValue(ConvertedBuffer_.Blob().ToStringBuf(), ColumnIndex_);
+                value = converter(MakeUnversionedStringValue(ValueBuffer_.Blob().ToStringBuf()));
+                value.Id = ColumnIndex_;
             } else {
                 value = MakeUnversionedCompositeValue(accumulatedYson, ColumnIndex_);
             }
@@ -204,13 +211,25 @@ void TYsonToUnversionedValueConverter::FlushCurrentValueIfCompleted()
     }
 }
 
+bool TYsonToUnversionedValueConverter::TryConvertAndFeedValueConsumer(TUnversionedValue value)
+{
+    auto it = SimpleValueConverters_.find(std::pair(TableIndex_, ColumnIndex_));
+    if (it != SimpleValueConverters_.end()) {
+        auto converted = it->second(value);
+        converted.Id = ColumnIndex_;
+        CurrentValueConsumer_->OnValue(converted);
+        return true;
+    }
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableConsumer::TTableConsumer(
-    EComplexTypeMode complexTypeMode,
+    const TYsonConverterConfig& config,
     std::vector<IValueConsumer*> valueConsumers,
     int tableIndex)
-    : YsonToUnversionedValueConverter_(complexTypeMode, std::move(valueConsumers))
+    : YsonToUnversionedValueConverter_(config, std::move(valueConsumers))
 {
     for (auto* consumer : YsonToUnversionedValueConverter_.ValueConsumers()) {
         NameTableWriters_.emplace_back(std::make_unique<TNameTableWriter>(consumer->GetNameTable()));
@@ -218,8 +237,8 @@ TTableConsumer::TTableConsumer(
     SwitchToTable(tableIndex);
 }
 
-TTableConsumer::TTableConsumer(EComplexTypeMode complexTypeMode, IValueConsumer* valueConsumer)
-    : TTableConsumer(complexTypeMode, std::vector<IValueConsumer*>(1, valueConsumer))
+TTableConsumer::TTableConsumer(const TYsonConverterConfig& config, IValueConsumer* valueConsumer)
+    : TTableConsumer(config, std::vector<IValueConsumer*>(1, valueConsumer))
 { }
 
 TError TTableConsumer::AttachLocationAttributes(TError error) const

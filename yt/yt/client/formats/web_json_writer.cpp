@@ -7,7 +7,7 @@
 #include "schemaless_writer_adapter.h"
 #include "yql_yson_converter.h"
 
-#include <yt/yt/client/complex_types/named_structures_yson.h>
+#include <yt/yt/client/complex_types/yson_format_conversion.h>
 
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/schema.h>
@@ -399,9 +399,11 @@ public:
                     continue;
                 }
                 auto columnId = nameTable->GetIdOrRegisterName(column.Name());
-                auto key = std::pair<int,int>(tableIndex, columnId);
                 auto descriptor = TComplexTypeFieldDescriptor(column);
-                YsonConverters_[key] = CreatePositionalToNamedYsonConverter(descriptor, { });
+                auto converter = CreateYsonServerToClientConverter(descriptor, { });
+                if (converter) {
+                    YsonConverters_.emplace(std::pair{tableIndex, columnId}, std::move(converter));
+                }
             }
         }
     }
@@ -418,7 +420,7 @@ public:
                     Consumer_->OnNodeWeightLimited(data, FieldWeightLimit_);
                 } else {
                     TmpBlob_.Clear();
-                    ApplyYsonConverter(it->second, data, &BlobYsonWriter_);
+                    it->second(value, &BlobYsonWriter_);
                     BlobYsonWriter_.Flush();
 
                     Consumer_->OnNodeWeightLimited(TStringBuf(TmpBlob_.Begin(), TmpBlob_.Size()), FieldWeightLimit_);
@@ -461,7 +463,7 @@ private:
     std::unique_ptr<IJsonConsumer> Consumer_;
 
     // Map <tableIndex,columnId> -> YsonConverter
-    THashMap<std::pair<int, int>, TYsonConverter> YsonConverters_;
+    THashMap<std::pair<int, int>, TYsonServerToClientConverter> YsonConverters_;
     TBlobOutput TmpBlob_;
     TBufferedBinaryYsonWriter BlobYsonWriter_;
 };

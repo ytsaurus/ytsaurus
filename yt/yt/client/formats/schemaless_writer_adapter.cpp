@@ -20,6 +20,7 @@ using namespace NTableClient;
 using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
+using namespace NComplexTypes;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -328,13 +329,19 @@ void TSchemalessWriterAdapter::Init(const std::vector<NTableClient::TTableSchema
     // This is generic code for those formats, that support skipping nulls.
     // See #TYsonFormatConfig and #TJsonFormatConfig.
     SkipNullValues_ = format.Attributes().Get("skip_null_values", false);
-    auto complexTypeMode = format.Attributes().Get("complex_type_mode", EComplexTypeMode::Named);
+    TYsonConverterConfig config{
+        .ComplexTypeMode = format.Attributes().Get("complex_type_mode", EComplexTypeMode::Named),
+        .DecimalMode = format.Attributes().Get("decimal_mode", EDecimalMode::Binary),
+        .TimeMode = format.Attributes().Get("time_mode", ETimeMode::Binary),
+        .UuidMode = format.Attributes().Get("uuid_mode", EUuidMode::Binary),
+        .SkipNullValues = SkipNullValues_,
+    };
 
     Consumer_ = CreateConsumerForFormat(format, EDataType::Tabular, GetOutputStream());
 
     ValueWriters_.reserve(tableSchemas.size());
     for (const auto& schema : tableSchemas) {
-        ValueWriters_.emplace_back(NameTable_, schema, complexTypeMode, SkipNullValues_);
+        ValueWriters_.emplace_back(NameTable_, schema, config);
     }
 }
 

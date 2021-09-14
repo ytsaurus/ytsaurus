@@ -17,6 +17,7 @@ using namespace NApi;
 using namespace NYson;
 using namespace NTableClient;
 using namespace NConcurrency;
+using namespace NComplexTypes;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,7 +113,7 @@ class TEventLogTableConsumer
 {
 public:
     explicit TEventLogTableConsumer(std::unique_ptr<TEventLogValueConsumer> valueConsumer)
-        : TTableConsumer(NFormats::EComplexTypeMode::Named, valueConsumer.get())
+        : TTableConsumer(TYsonConverterConfig(), valueConsumer.get())
         , ValueConsumer_(std::move(valueConsumer))
     { }
 

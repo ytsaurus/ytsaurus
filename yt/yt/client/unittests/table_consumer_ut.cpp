@@ -19,6 +19,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NTableClient;
 using namespace NFormats;
+using namespace NComplexTypes;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,7 +64,10 @@ TEST(TTableConsumer, EntityAsNull)
     EXPECT_CALL(mock, OnMyValue(MakeUnversionedSentinelValue(EValueType::Null, 0)));
     EXPECT_CALL(mock, OnEndRow());
 
-    std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(EComplexTypeMode::Positional, &mock));
+    TYsonConverterConfig config{
+        .ComplexTypeMode = EComplexTypeMode::Positional,
+    };
+    std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(config, &mock));
     consumer->OnBeginMap();
         consumer->OnKeyedItem("a");
         consumer->OnEntity();
@@ -75,7 +79,10 @@ TEST(TTableConsumer, TopLevelAttributes)
     StrictMock<TMockValueConsumer> mock(New<TNameTable>(), true);
     EXPECT_CALL(mock, OnBeginRow());
 
-    std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(EComplexTypeMode::Positional, &mock));
+    TYsonConverterConfig config{
+        .ComplexTypeMode = EComplexTypeMode::Positional,
+    };
+    std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(config, &mock));
     consumer->OnBeginMap();
         consumer->OnKeyedItem("a");
         EXPECT_THROW(consumer->OnBeginAttributes(), std::exception);
@@ -85,7 +92,10 @@ TEST(TTableConsumer, RowAttributes)
 {
     StrictMock<TMockValueConsumer> mock(New<TNameTable>(), true);
 
-    std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(EComplexTypeMode::Positional, &mock));
+    TYsonConverterConfig config{
+        .ComplexTypeMode = EComplexTypeMode::Positional,
+    };
+    std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(config, &mock));
     consumer->OnBeginAttributes();
     consumer->OnKeyedItem("table_index");
     consumer->OnInt64Scalar(0);
@@ -97,7 +107,11 @@ TEST(TYsonParserTest, ContextInExceptions_TableConsumer)
 {
     try {
         TEmptyValueConsumer emptyValueConsumer;
-        TTableConsumer consumer(EComplexTypeMode::Positional, &emptyValueConsumer);
+
+        TYsonConverterConfig config{
+            .ComplexTypeMode = EComplexTypeMode::Positional,
+        };
+        TTableConsumer consumer(config, &emptyValueConsumer);
         TYsonParser parser(&consumer, EYsonType::ListFragment);
         parser.Read("{foo=bar};");
         parser.Read("{bar=baz};YT_LOG_IN");
