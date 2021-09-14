@@ -106,6 +106,8 @@ public:
 
     void CloseEventLogger();
 
+    virtual const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override;
+
 private:
     const std::vector<NScheduler::TExecNodePtr>* ExecNodes_;
     NScheduler::TJobResources TotalResourceLimits_;

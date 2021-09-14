@@ -263,7 +263,7 @@ int TSchedulerStrategyHost::GetDefaultAbcId() const
     return -1;
 }
 
-void TSchedulerStrategyHost::InvokeStoringStrategyState(TPersistentStrategyStatePtr /* persistentStrategyState */)
+void TSchedulerStrategyHost::InvokeStoringStrategyState(TPersistentStrategyStatePtr /*persistentStrategyState*/)
 { }
 
 void TSchedulerStrategyHost::CloseEventLogger()
@@ -272,6 +272,12 @@ void TSchedulerStrategyHost::CloseEventLogger()
         WaitFor(RemoteEventLogWriter_->Close())
             .ThrowOnError();
     }
+}
+
+const THashMap<TString, TString>& TSchedulerStrategyHost::GetUserDefaultParentPoolMap() const
+{
+    static THashMap<TString, TString> stub;
+    return stub;
 }
 
 } // namespace NYT::NSchedulerSimulator

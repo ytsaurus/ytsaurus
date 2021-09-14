@@ -654,10 +654,9 @@ public:
         return {LastPoolsNodeUpdateError_, true};
     }
     
-    virtual TError UpdateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) override
+    virtual TError ValidateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) override
     {
         if (!Config_->UseUserDefaultParentPoolMap) {
-            UserToDefaultPoolMap_.clear();
             return TError();
         }
 
@@ -673,9 +672,6 @@ public:
                     << TErrorAttribute("pool_tree", TreeId_);
             }
         }
-
-        UserToDefaultPoolMap_ = userToDefaultPoolMap;
-        ActualizeEphemeralPoolParents();
 
         return TError();
     }
@@ -884,8 +880,6 @@ private:
     const NLogging::TLogger Logger;
 
     TPoolElementMap Pools_;
-
-    THashMap<TString, TString> UserToDefaultPoolMap_;
 
     std::optional<TInstant> LastFairShareUpdateTime_;
 
@@ -2178,8 +2172,9 @@ private:
     TSchedulerCompositeElementPtr GetDefaultParentPoolForUser(const TString& userName) const
     {
         if (Config_->UseUserDefaultParentPoolMap) {
-            auto it = UserToDefaultPoolMap_.find(userName);
-            if (it != UserToDefaultPoolMap_.end()) {
+            const auto& userToDefaultPoolMap = StrategyHost_->GetUserDefaultParentPoolMap();
+            auto it = userToDefaultPoolMap.find(userName);
+            if (it != userToDefaultPoolMap.end()) {
                 const auto& userDefaultParentPoolName = it->second;
                 if (auto pool = FindPool(userDefaultParentPoolName)) {
                     return pool;
@@ -2204,14 +2199,14 @@ private:
         return RootElement_;
     }
 
-    void ActualizeEphemeralPoolParents()
+    virtual void ActualizeEphemeralPoolParents(const THashMap<TString, TString> userToDefaultPoolMap) override
     {
         for (const auto& [_, ephemeralPools] : UserToEphemeralPoolsInDefaultPool_) {
             for (const auto& poolName : ephemeralPools) {
                 auto ephemeralPool = GetOrCrash(Pools_, poolName);
                 const auto& actualParentName = ephemeralPool->GetParent()->GetId();
-                auto it = UserToDefaultPoolMap_.find(poolName);
-                if (it != UserToDefaultPoolMap_.end() && it->second != actualParentName) {
+                auto it = userToDefaultPoolMap.find(poolName);
+                if (it != userToDefaultPoolMap.end() && it->second != actualParentName) {
                     const auto& configuredParentName = it->second;
                     auto newParent = FindPool(configuredParentName);
                     if (!newParent) {
