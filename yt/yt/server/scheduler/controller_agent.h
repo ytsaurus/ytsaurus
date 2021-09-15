@@ -9,13 +9,13 @@
 
 #include <yt/yt/client/api/public.h>
 
-#include <yt/yt/ytlib/scheduler/job_resources.h>
-
 #include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/misc/property.h>
 
 #include <yt/yt/core/concurrency/public.h>
+
+#include <yt/yt/library/vector_hdrf/job_resources.h>
 
 namespace NYT::NScheduler {
 

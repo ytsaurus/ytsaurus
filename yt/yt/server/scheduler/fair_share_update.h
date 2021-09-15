@@ -6,7 +6,7 @@
 // Used for TJobResourcesConfig.
 #include <yt/yt/ytlib/scheduler/config.h>
 
-#include <yt/yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/library/vector_hdrf/job_resources.h>
 
 namespace NYT::NFairShare {
 

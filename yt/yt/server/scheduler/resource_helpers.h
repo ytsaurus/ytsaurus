@@ -5,6 +5,10 @@
 
 #include <yt/yt/library/profiling/producer.h>
 
+#include <yt/yt/core/yson/consumer.h>
+
+#include <yt/yt/core/ytree/node.h>
+
 #include <yt/yt/core/misc/string_builder.h>
 
 namespace NYT::NScheduler {
