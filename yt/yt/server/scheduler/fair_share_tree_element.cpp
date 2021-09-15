@@ -120,6 +120,16 @@ void TScheduleJobsContext::PrepareForScheduling(const TSchedulerRootElementPtr& 
     }
 }
 
+void TScheduleJobsContext::PrescheduleJob(const TSchedulerRootElementPtr& rootElement, EPrescheduleJobOperationCriterion operationCriterion)
+{
+    TWallTimer prescheduleTimer;
+
+    rootElement->PrescheduleJob(this, operationCriterion);
+
+    StageState_->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
+    StageState_->PrescheduleExecuted = true;
+}
+
 void TScheduleJobsContext::PrepareConditionalUsageDiscounts(const TSchedulerRootElementPtr& rootElement, bool isAggressive)
 {
     CurrentConditionalDiscount_ = {};
@@ -150,12 +160,17 @@ TScheduleJobsContext::TStageState::TStageState(TScheduleJobsStage* schedulingSta
 void TScheduleJobsContext::StartStage(TScheduleJobsStage* schedulingStage, const TString& stageName)
 {
     YT_VERIFY(!StageState_);
+
     StageState_.emplace(TStageState(schedulingStage, stageName));
+
+    Timer_ = TWallTimer();
 }
 
 void TScheduleJobsContext::ProfileStageTimingsAndLogStatistics()
 {
     YT_VERIFY(StageState_);
+
+    StageState_->TotalDuration = Timer_.GetElapsedTime();
 
     ProfileStageTimings();
 
@@ -167,6 +182,9 @@ void TScheduleJobsContext::ProfileStageTimingsAndLogStatistics()
 void TScheduleJobsContext::FinishStage()
 {
     YT_VERIFY(StageState_);
+
+    ProfileStageTimingsAndLogStatistics();
+
     StageState_ = std::nullopt;
 }
 
@@ -272,7 +290,7 @@ void TSchedulerElement::PreUpdateBottomUp(NFairShare::TFairShareUpdateContext* c
 {
     YT_VERIFY(Mutable_);
 
-    // NB: The order of computation should be: TotalResourceLimits_, SchedulingTagFilterResourceLimits_, ResourceLimits_. 
+    // NB: The order of computation should be: TotalResourceLimits_, SchedulingTagFilterResourceLimits_, ResourceLimits_.
     TotalResourceLimits_ = context->TotalResourceLimits;
     SchedulingTagFilterResourceLimits_ = ComputeSchedulingTagFilterResourceLimits();
     ResourceLimits_ = ComputeResourceLimits();
@@ -2681,7 +2699,7 @@ const TJobResources& TSchedulerOperationElement::CalculateCurrentResourceUsage(T
 
     return attributes.ResourceUsage;
 }
-    
+
 void TSchedulerOperationElement::UpdateCurrentResourceUsage(TScheduleJobsContext* context)
 {
     auto resourceUsageBeforeUpdate = GetCurrentResourceUsage(context->DynamicAttributesList());

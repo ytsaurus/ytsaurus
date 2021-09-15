@@ -1398,21 +1398,17 @@ private:
         bool ignorePacking,
         bool oneJobOnly)
     {
-        auto& rootElement = treeSnapshotImpl->RootElement();
+        const auto& rootElement = treeSnapshotImpl->RootElement();
         const auto& controllerConfig = treeSnapshotImpl->ControllerConfig();
 
         {
             TCpuInstant schedulingDeadline = startTime + DurationToCpuDuration(controllerConfig->ScheduleJobsTimeout);
 
-            TWallTimer scheduleTimer;
             while (context->SchedulingContext()->CanStartMoreJobs() && context->SchedulingContext()->GetNow() < schedulingDeadline)
             {
                 if (!context->StageState()->PrescheduleExecuted) {
-                    TWallTimer prescheduleTimer;
-                    context->PrepareForScheduling(treeSnapshotImpl->RootElement());
-                    rootElement->PrescheduleJob(context, EPrescheduleJobOperationCriterion::All);
-                    context->StageState()->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
-                    context->StageState()->PrescheduleExecuted = true;
+                    context->PrepareForScheduling(rootElement);
+                    context->PrescheduleJob(rootElement, EPrescheduleJobOperationCriterion::All);
                 }
                 ++context->StageState()->ScheduleJobAttemptCount;
                 auto scheduleJobResult = rootElement->ScheduleJob(context, ignorePacking);
@@ -1423,9 +1419,6 @@ private:
                     break;
                 }
             }
-
-            context->StageState()->TotalDuration = scheduleTimer.GetElapsedTime();
-            context->ProfileStageTimingsAndLogStatistics();
         }
     }
 
@@ -1577,19 +1570,14 @@ private:
 
             TCpuInstant schedulingDeadline = startTime + DurationToCpuDuration(controllerConfig->ScheduleJobsTimeout);
 
-            TWallTimer timer;
             while (context->SchedulingContext()->CanStartMoreJobs() && context->SchedulingContext()->GetNow() < schedulingDeadline)
             {
                 if (!context->StageState()->PrescheduleExecuted) {
-                    TWallTimer prescheduleTimer;
-                    rootElement->PrescheduleJob(
-                        context,
+                    context->PrescheduleJob(
+                        rootElement,
                         isAggressive
                             ? EPrescheduleJobOperationCriterion::EligibleForAggressivelyPreemptiveSchedulingOnly
                             : EPrescheduleJobOperationCriterion::EligibleForPreemptiveSchedulingOnly);
-
-                    context->StageState()->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
-                    context->StageState()->PrescheduleExecuted = true;
                 }
 
                 ++context->StageState()->ScheduleJobAttemptCount;
@@ -1602,9 +1590,6 @@ private:
                     break;
                 }
             }
-
-            context->StageState()->TotalDuration = timer.GetElapsedTime();
-            context->ProfileStageTimingsAndLogStatistics();
         }
 
         int startedAfterPreemption = context->SchedulingContext()->StartedJobs().size();
