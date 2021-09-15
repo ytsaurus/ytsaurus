@@ -159,7 +159,7 @@ TVector<TRichYPath> GetPathList(
         if (jobSchemaInferenceResult && !jobSchemaInferenceResult->at(tableIndex).Empty()) {
             return jobSchemaInferenceResult->at(tableIndex);
         }
-        if (HoldsAlternative<TYdlTableStructure>(table.Description)) {
+        if (std::holds_alternative<TYdlTableStructure>(table.Description)) {
             return CreateTableSchema(Get<TYdlTableStructure>(table.Description).Type);
         }
         if (inferSchemaFromDescriptions) {
@@ -297,7 +297,7 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateYamrFormat(
     bool allowFormatFromTableAttribute)
 {
     for (const auto& table: structuredTableList) {
-        if (!HoldsAlternative<TUnspecifiedTableStructure>(table.Description)) {
+        if (!std::holds_alternative<TUnspecifiedTableStructure>(table.Description)) {
             ythrow TApiUsageError()
                 << "cannot use " << direction << " table '" << JobTablePathString(table)
                 << "' with job " << TJobFactory::Get()->GetJobName(&job) << "; "
@@ -340,7 +340,7 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateNodeFormat(
     bool /*allowFormatFromTableAttribute*/)
 {
     for (const auto& table: structuredTableList) {
-        if (!HoldsAlternative<TUnspecifiedTableStructure>(table.Description)) {
+        if (!std::holds_alternative<TUnspecifiedTableStructure>(table.Description)) {
             ythrow TApiUsageError()
                 << "cannot use " << direction << " table '" << JobTablePathString(table)
                 << "' with job " << TJobFactory::Get()->GetJobName(&job) << "; "
@@ -434,7 +434,7 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateNodeYdlFormat(
 
     for (const auto& table : structuredTableList) {
         NTi::TTypePtr descriptor = nullptr;
-        if (HoldsAlternative<TYdlTableStructure>(table.Description)) {
+        if (std::holds_alternative<TYdlTableStructure>(table.Description)) {
             descriptor = Get<TYdlTableStructure>(table.Description).Type;
         } else if (table.RichYPath) {
             ThrowUnsupportedStructureDescription(direction, table, job);
@@ -497,7 +497,7 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateProtobufFormat(
     TVector<const ::google::protobuf::Descriptor*> descriptorList;
     for (const auto& table : structuredTableList) {
         const ::google::protobuf::Descriptor* descriptor = nullptr;
-        if (HoldsAlternative<TProtobufTableStructure>(table.Description)) {
+        if (std::holds_alternative<TProtobufTableStructure>(table.Description)) {
             descriptor = Get<TProtobufTableStructure>(table.Description).Descriptor;
         } else if (table.RichYPath) {
             ThrowUnsupportedStructureDescription(direction, table, job);
