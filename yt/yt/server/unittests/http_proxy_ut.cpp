@@ -74,8 +74,8 @@ TEST(THttpProxy, FramingOutputStream)
         ::TStringBuilder() << DataFrameTag << AsStringBuf("\x03\x00\x00\x00" "abc")
         << KeepAliveFrameTag
         << KeepAliveFrameTag
-        << DataFrameTag << AsStringBuf("\x00\x00\x00\x00")
-        << DataFrameTag << AsStringBuf("\x00\x00\x00\x00")
+        << DataFrameTag << "\x00\x00\x00\x00"sv
+        << DataFrameTag << "\x00\x00\x00\x00"sv
         << DataFrameTag << AsStringBuf("\x0f\x00\x00\x00" "123 456" "\x00" "789 ABC"));
 }
 
