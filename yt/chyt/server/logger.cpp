@@ -63,8 +63,9 @@ private:
 
     static char GetOriginalLevelLetter(Poco::Message::Priority priority)
     {
-        constexpr const char* Letters = "?FCEWNIDT";
+        constexpr const char* Letters = "?FCEWNIDTT";
 
+        YT_VERIFY(priority > 0 && priority < strlen(Letters));
         return Letters[priority];
     }
 };
