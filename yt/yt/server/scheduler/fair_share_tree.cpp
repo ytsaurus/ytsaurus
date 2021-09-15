@@ -2199,7 +2199,7 @@ private:
         return RootElement_;
     }
 
-    virtual void ActualizeEphemeralPoolParents(const THashMap<TString, TString> userToDefaultPoolMap) override
+    virtual void ActualizeEphemeralPoolParents(const THashMap<TString, TString>& userToDefaultPoolMap) override
     {
         for (const auto& [_, ephemeralPools] : UserToEphemeralPoolsInDefaultPool_) {
             for (const auto& poolName : ephemeralPools) {
