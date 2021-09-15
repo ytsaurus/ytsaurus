@@ -694,7 +694,7 @@ class TestMemoryWatchdog(YTEnvSetup):
             "tagged_memory_statistics_update_period": 100,
             "memory_watchdog": {
                 "memory_usage_check_period": 100,
-                "total_controller_memory_limit": 1000 * 1024 * 1024,
+                "total_controller_memory_limit": 1100 * 1024 * 1024,
                 "operation_controller_memory_overconsumption_threshold": 100 * 1024 * 1024,
             },
         }
@@ -710,6 +710,20 @@ class TestMemoryWatchdog(YTEnvSetup):
 
     @authors("alexkolodezny")
     def test_memory_watchdog(self):
+        big_ops = []
+        for _ in range(5):
+            big_ops.append(run_test_vanilla(
+                with_breakpoint("BREAKPOINT; sleep 5"),
+                spec={
+                    "testing": {
+                        "allocation_size": 200 * 1024 * 1024,
+                    },
+                },
+                track=False,
+            ))
+
+        wait_breakpoint()
+        release_breakpoint()
         small_ops = []
         for _ in range(2):
             small_ops.append(run_test_vanilla(
@@ -717,17 +731,6 @@ class TestMemoryWatchdog(YTEnvSetup):
                 spec={
                     "testing": {
                         "allocation_size": 150 * 1024 * 1024,
-                    },
-                },
-                track=False,
-            ))
-        big_ops = []
-        for _ in range(5):
-            big_ops.append(run_test_vanilla(
-                "sleep 1",
-                spec={
-                    "testing": {
-                        "allocation_size": 200 * 1024 * 1024,
                     },
                 },
                 track=False,

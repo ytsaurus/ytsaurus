@@ -671,7 +671,16 @@ std::vector<TTransactionId> TOperationControllerBase::GetNonTrivialInputTransact
 void TOperationControllerBase::InitializeStructures()
 {
     if (Spec_->TestingOperationOptions && Spec_->TestingOperationOptions->AllocationSize) {
-        TestingAllocationVector_.resize(*Spec_->TestingOperationOptions->AllocationSize, 'a');
+        constexpr i64 MaxAllocationSize = 1_GB;
+        i64 testingAllocationVectorSize = 0;
+        while (testingAllocationVectorSize < *Spec_->TestingOperationOptions->AllocationSize) {
+            i64 currentAllocationSize = std::min(
+                *Spec_->TestingOperationOptions->AllocationSize - testingAllocationVectorSize,
+                MaxAllocationSize);
+            TestingAllocationVector_.push_back(std::vector<char>(currentAllocationSize, 'a'));
+            testingAllocationVectorSize += currentAllocationSize;
+            Yield();
+        }
     }
 
     DataFlowGraph_->SetNodeDirectory(InputNodeDirectory_);

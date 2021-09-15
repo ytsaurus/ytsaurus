@@ -535,7 +535,7 @@ protected:
 
     NYTree::IYPathServicePtr Orchid_;
 
-    std::vector<char> TestingAllocationVector_;
+    std::vector<std::vector<char>> TestingAllocationVector_;
 
     // NB: these values are accessed from BuildJobSpecProto invoker queue, ScheduleJob invoker queue and from control invoker.
     // Slight discrepancy in their values due to concurrent modification and access is OK.
