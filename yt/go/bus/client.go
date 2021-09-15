@@ -208,7 +208,12 @@ func (c *ClientConn) runSender() {
 				return
 			}
 
-			if err := c.bus.Send(guid.New(), msg, &busSendOptions{}); err != nil {
+			packetID := guid.New()
+			c.log.Debug("Sending cancel packet",
+				log.String("id", packetID.String()),
+				log.String("request_id", misc.NewGUIDFromProto(req.reqHeader.RequestId).String()))
+
+			if err := c.bus.Send(packetID, msg, &busSendOptions{}); err != nil {
 				c.fail(err)
 				return
 			}
@@ -233,6 +238,10 @@ func (c *ClientConn) runSender() {
 			if req.acknowledgementTimeout != nil {
 				c.addUnackedReq(req.id, packetID)
 			}
+
+			c.log.Debug("Sending packet",
+				log.String("id", packetID.String()),
+				log.String("request_id", misc.NewGUIDFromProto(req.reqHeader.RequestId).String()))
 
 			if err := c.bus.Send(packetID, msg, opts); err != nil {
 				c.fail(err)
