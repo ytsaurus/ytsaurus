@@ -55,7 +55,7 @@ TYPath TLinkNode::ComputeEffectiveTargetPath(const TYPath& targetPath, TCypressS
         THROW_ERROR_EXCEPTION("Link target path must start with %v",
             portalExit->GetPath());
     }
-    
+
     return FromObjectId(portalExit->GetId()) + *optionalSuffix;
 }
 

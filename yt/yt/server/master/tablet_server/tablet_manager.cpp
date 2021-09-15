@@ -55,6 +55,7 @@
 
 #include <yt/yt/server/master/table_server/master_table_schema.h>
 #include <yt/yt/server/master/table_server/replicated_table_node.h>
+#include <yt/yt/server/master/table_server/table_collocation.h>
 #include <yt/yt/server/master/table_server/table_manager.h>
 #include <yt/yt/server/master/table_server/table_node.h>
 
@@ -1458,6 +1459,8 @@ public:
 
     void DestroyTable(TTableNode* table)
     {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+
         if (!table->Tablets().empty()) {
             int firstTabletIndex = 0;
             int lastTabletIndex = static_cast<int>(table->Tablets().size()) - 1;
@@ -1466,7 +1469,6 @@ public:
 
             DoUnmountTable(table, true, firstTabletIndex, lastTabletIndex, /*onDestroy*/ true);
 
-            const auto& objectManager = Bootstrap_->GetObjectManager();
             for (auto* tablet : table->Tablets()) {
                 tablet->SetTable(nullptr);
                 YT_VERIFY(tablet->GetState() == ETabletState::Unmounted);
@@ -1483,14 +1485,12 @@ public:
         }
 
         if (auto* bundle = table->GetTabletCellBundle()) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
             objectManager->UnrefObject(bundle);
             table->SetTabletCellBundle(nullptr);
         }
 
         if (table->GetType() == EObjectType::ReplicatedTable) {
             auto* replicatedTable = table->As<TReplicatedTableNode>();
-            const auto& objectManager = Bootstrap_->GetObjectManager();
             for (auto* replica : GetValuesSortedByKey(replicatedTable->Replicas())) {
                 replica->SetTable(nullptr);
                 replica->TransitioningTablets().clear();
@@ -1508,6 +1508,12 @@ public:
             }
 
             transaction->LockedDynamicTables().erase(table);
+        }
+
+        if (auto* replicationCollocation = table->GetReplicationCollocation()) {
+            YT_VERIFY(table->GetType() == EObjectType::ReplicatedTable);
+            const auto& tableManager = Bootstrap_->GetTableManager();
+            tableManager->RemoveTableFromCollocation(table, replicationCollocation);
         }
     }
 

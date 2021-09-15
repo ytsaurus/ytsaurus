@@ -3,9 +3,10 @@ from test_dynamic_tables import DynamicTablesBase
 from yt_env_setup import parametrize_external
 
 from yt_commands import (
-    authors, wait, WaitFailed, create, ls, get, set, copy, move,
+    authors, create_table_collocation, wait, WaitFailed, create, ls, get, set, copy, move,
     remove, exists,
-    create_user, create_table_replica, make_ace, start_transaction, abort_transaction, commit_transaction, lock, insert_rows, select_rows, lookup_rows,
+    create_user, create_table_replica,
+    make_ace, start_transaction, abort_transaction, commit_transaction, lock, insert_rows, select_rows, lookup_rows,
     delete_rows, lock_rows,
     reshard_table, generate_timestamp, get_tablet_infos, get_tablet_leader_address, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_freeze_table,
@@ -137,9 +138,10 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
     def _create_replicated_table(self, path, schema=SIMPLE_SCHEMA_SORTED, mount=True, **attributes):
         attributes.update(self._get_table_attributes(schema))
         attributes["enable_replication_logging"] = True
-        create("replicated_table", path, attributes=attributes)
+        id = create("replicated_table", path, attributes=attributes)
         if mount:
             sync_mount_table(path)
+        return id
 
     def _create_replica_table(
         self, path, replica_id=None, schema=SIMPLE_SCHEMA_SORTED, mount=True, replica_driver=None, **kwargs
@@ -2575,6 +2577,44 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             return replica_id in errors and "Replication reader returned zero rows" in str(errors[replica_id])
 
         wait(lambda: _check())
+
+    @authors("akozhikhov")
+    def test_collocated_replicated_tables(self):
+        self._create_cells()
+
+        self._create_replicated_table(
+            "//tmp/t1",
+            schema=self.SIMPLE_SCHEMA_SORTED,
+            replicated_table_options={"enable_replicated_table_tracker": True},
+            external_cell_tag=1)
+        self._create_replicated_table(
+            "//tmp/t2",
+            schema=self.SIMPLE_SCHEMA_SORTED,
+            replicated_table_options={"enable_replicated_table_tracker": True},
+            external_cell_tag=1)
+        create_table_collocation(table_paths=["//tmp/t1", "//tmp/t2"])
+
+        def _create_replica(replicated_table, replica_table, cluster, mode):
+            replica_id = create_table_replica(
+                replicated_table,
+                cluster,
+                replica_table,
+                attributes={"mode": mode})
+            self._create_replica_table(replica_table, replica_id, schema=self.SIMPLE_SCHEMA_SORTED)
+            sync_enable_table_replica(replica_id)
+            return replica_id
+
+        replica1 = _create_replica("//tmp/t1", "//tmp/r1", "primary", "sync")
+        replica2 = _create_replica("//tmp/t1", "//tmp/r2", self.REPLICA_CLUSTER_NAME, "async")
+
+        replica3 = _create_replica("//tmp/t2", "//tmp/r3", "primary", "async")
+        replica4 = _create_replica("//tmp/t2", "//tmp/r4", self.REPLICA_CLUSTER_NAME, "sync")
+
+        wait(lambda: get("#{}/@mode".format(replica1)) == get("#{}/@mode".format(replica3)))
+        assert lambda: get("#{}/@mode".format(replica2)) == get("#{}/@mode".format(replica4))
+        assert lambda: get("#{}/@mode".format(replica1)) != get("#{}/@mode".format(replica2))
+        assert lambda: get("#{}/@mode".format(replica3)) != get("#{}/@mode".format(replica4))
+
 
 ##################################################################
 

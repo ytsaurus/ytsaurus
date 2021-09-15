@@ -36,11 +36,11 @@ NObjectServer::ETypeFlags TCellBundleTypeHandlerBase<TImpl>::GetFlags() const
 {
     return
         NObjectServer::ETypeFlags::ReplicateCreate |
-            NObjectServer::ETypeFlags::ReplicateDestroy |
-            NObjectServer::ETypeFlags::ReplicateAttributes |
-            NObjectServer::ETypeFlags::Creatable |
-            NObjectServer::ETypeFlags::Removable |
-            NObjectServer::ETypeFlags::TwoPhaseRemoval;
+        NObjectServer::ETypeFlags::ReplicateDestroy |
+        NObjectServer::ETypeFlags::ReplicateAttributes |
+        NObjectServer::ETypeFlags::Creatable |
+        NObjectServer::ETypeFlags::Removable |
+        NObjectServer::ETypeFlags::TwoPhaseRemoval;
 }
 
 template <class TImpl>

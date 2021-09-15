@@ -220,7 +220,6 @@ private:
         bool skipFreezing,
         TGuid correlationId,
         TInstant expirationTime);
-
     void DestroyTabletAction(TTabletAction* action);
 
     const TIntrusivePtr<TImpl> Impl_;

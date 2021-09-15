@@ -34,10 +34,10 @@ public:
     {
         return
             ETypeFlags::ReplicateCreate |
-                ETypeFlags::ReplicateDestroy |
-                ETypeFlags::ReplicateAttributes |
-                ETypeFlags::Creatable |
-                ETypeFlags::Removable;
+            ETypeFlags::ReplicateDestroy |
+            ETypeFlags::ReplicateAttributes |
+            ETypeFlags::Creatable |
+            ETypeFlags::Removable;
     }
 
     EObjectType GetType() const override

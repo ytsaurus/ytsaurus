@@ -16,7 +16,9 @@
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/world_initializer.h>
 
+#include <yt/yt/server/master/table_server/public.h>
 #include <yt/yt/server/master/table_server/replicated_table_node.h>
+#include <yt/yt/server/master/table_server/table_collocation.h>
 
 #include <yt/yt/server/master/tablet_server/config.h>
 #include <yt/yt/server/master/tablet_server/table_replica.h>
@@ -565,10 +567,21 @@ private:
         : public TRefCounted
     {
     public:
-        TTable(TObjectId id, NProfiling::TCounter replicaSwitchCounter, TReplicatedTableOptionsPtr config = nullptr)
+        struct TCheckResult
+        {
+            int SwitchCount;
+            std::optional<THashSet<TString>> SyncReplicaClusters;
+        };
+
+        TTable(
+            TObjectId id,
+            NProfiling::TCounter replicaSwitchCounter,
+            TReplicatedTableOptionsPtr config,
+            TTableCollocationId collocationId)
             : Id_(id)
             , ReplicaSwitchCounter_(replicaSwitchCounter)
             , Config_(std::move(config))
+            , CollocationId_(collocationId)
         { }
 
         TObjectId GetId() const
@@ -605,7 +618,21 @@ private:
             }
         }
 
-        TFuture<int> Check(TBootstrap* bootstrap)
+        void SetCollocationId(TTableCollocationId collocationId)
+        {
+            auto guard = Guard(Lock_);
+            CollocationId_ = collocationId;
+        }
+
+        TTableCollocationId GetCollocationId()
+        {
+            auto guard = Guard(Lock_);
+            return CollocationId_;
+        }
+
+        TFuture<TCheckResult> Check(
+            TBootstrap* bootstrap,
+            std::optional<THashSet<TString>> referenceSyncReplicaClusters)
         {
             if (!CheckFuture_ || CheckFuture_.IsSet()) {
                 std::vector<TReplicaPtr> syncReplicas;
@@ -644,6 +671,7 @@ private:
                         asyncReplicas,
                         maxSyncReplicaCount,
                         minSyncReplicaCount,
+                        referenceSyncReplicaClusters = std::move(referenceSyncReplicaClusters),
                         id = Id_
                     ] (const std::vector<TError>& results) mutable {
                         std::vector<TReplicaPtr> badSyncReplicas;
@@ -692,13 +720,13 @@ private:
                             });
 
                         std::vector<TFuture<void>> futures;
-                        futures.reserve(syncReplicas.size() + asyncReplicas.size());
 
                         int switchCount = 0;
                         int currentSyncReplicaCount = std::min(maxSyncReplicaCount, static_cast<int>(goodSyncReplicas.size()));
                         while (currentSyncReplicaCount < maxSyncReplicaCount && !goodAsyncReplicas.empty()) {
                             futures.push_back(goodAsyncReplicas.back()->SetMode(bootstrap, ETableReplicaMode::Sync));
                             ++switchCount;
+                            goodSyncReplicas.push_back(std::move(goodAsyncReplicas.back()));
                             goodAsyncReplicas.pop_back();
                             ++currentSyncReplicaCount;
                         }
@@ -710,11 +738,47 @@ private:
                         for (int index = maxSyncReplicaCount; index < static_cast<int>(goodSyncReplicas.size()); ++index) {
                             futures.push_back(goodSyncReplicas[index]->SetMode(bootstrap, ETableReplicaMode::Async));
                             ++switchCount;
+                            goodAsyncReplicas.push_back(goodSyncReplicas[index]);
+                            --currentSyncReplicaCount;
+                        }
+                        goodSyncReplicas.resize(currentSyncReplicaCount);
+
+                        if (referenceSyncReplicaClusters) {
+                            std::vector<TReplicaPtr> undesiredSyncReplicas;
+                            std::vector<TReplicaPtr> desiredAsyncReplicas;
+                            for (const auto& replica : goodSyncReplicas) {
+                                if (!referenceSyncReplicaClusters->contains(replica->GetClusterName())) {
+                                    undesiredSyncReplicas.push_back(replica);
+                                }
+                            }
+                            for (const auto& replica : goodAsyncReplicas) {
+                                if (referenceSyncReplicaClusters->contains(replica->GetClusterName())) {
+                                    desiredAsyncReplicas.push_back(replica);
+                                }
+                            }
+
+                            while (!undesiredSyncReplicas.empty() && !desiredAsyncReplicas.empty()) {
+                                futures.push_back(undesiredSyncReplicas.back()->SetMode(bootstrap, ETableReplicaMode::Async));
+                                undesiredSyncReplicas.pop_back();
+                                futures.push_back(desiredAsyncReplicas.back()->SetMode(bootstrap, ETableReplicaMode::Sync));
+                                desiredAsyncReplicas.pop_back();
+                                switchCount += 2;
+                            }
+
+                            referenceSyncReplicaClusters.reset();
+                        } else {
+                            referenceSyncReplicaClusters.emplace();
+                            for (const auto& replica : goodSyncReplicas) {
+                                referenceSyncReplicaClusters->insert(replica->GetClusterName());
+                            }
                         }
 
                         return AllSucceeded(futures)
-                            .Apply(BIND([switchCount] {
-                                return switchCount;
+                            .Apply(BIND([switchCount, syncReplicaClusters = std::move(referenceSyncReplicaClusters)] {
+                                return TCheckResult{
+                                    .SwitchCount = switchCount,
+                                    .SyncReplicaClusters = std::move(syncReplicaClusters)
+                                };
                             }));
                     }));
             }
@@ -725,12 +789,14 @@ private:
     private:
         const TObjectId Id_;
         const NProfiling::TCounter ReplicaSwitchCounter_;
+
         NTableServer::TReplicatedTableOptionsPtr Config_;
+        TTableCollocationId CollocationId_;
 
         YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
         std::vector<TReplicaPtr> Replicas_;
 
-        TFuture<int> CheckFuture_;
+        TFuture<TCheckResult> CheckFuture_;
     };
 
     using TTablePtr = TIntrusivePtr<TTable>;
@@ -864,7 +930,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(CheckerThread);
 
-        std::vector<TFuture<int>> futures;
+        std::vector<TFuture<TTable::TCheckResult>> futures;
+        THashMap<TTableCollocationId, TFuture<TTable::TCheckResult>> collocationIdToLeaderFuture;
 
         {
             auto guard = Guard(Lock_);
@@ -878,13 +945,46 @@ private:
                 }
 
                 auto switchCounter = table->GetReplicaSwitchCounter();
-                auto future = table->Check(Bootstrap_);
-                future.Subscribe(BIND([id = id, switchCounter] (const TErrorOr<int>& result) {
+
+                TFuture<TTable::TCheckResult> future;
+
+                auto collocationId = table->GetCollocationId();
+                if (collocationId != NullObjectId) {
+                    auto it = collocationIdToLeaderFuture.find(collocationId);
+                    if (it == collocationIdToLeaderFuture.end()) {
+                        YT_LOG_DEBUG("Picked replication collocation leader (CollocationId: %v, LeaderTableId: %v)",
+                            collocationId,
+                            id);
+                        future = table->Check(
+                            Bootstrap_,
+                            /*referenceSyncReplicaClusters*/ std::nullopt);
+                        collocationIdToLeaderFuture.emplace(collocationId, future);
+                    } else {
+                        future = it->second.Apply(BIND(
+                            [table = table, bootstrap = Bootstrap_]
+                            (const TErrorOr<TTable::TCheckResult>& leaderResult)
+                            {
+                                auto referenceSyncReplicaClusters = leaderResult.IsOK()
+                                    ? leaderResult.Value().SyncReplicaClusters
+                                    : std::nullopt;
+
+                                return table->Check(
+                                    bootstrap,
+                                    referenceSyncReplicaClusters);
+                            }));
+                    }
+                } else {
+                    future = table->Check(
+                        Bootstrap_,
+                        /*referenceSyncReplicaClusters*/ std::nullopt);
+                }
+
+                future.Subscribe(BIND([id = id, switchCounter] (const TErrorOr<TTable::TCheckResult>& result) {
                     YT_LOG_DEBUG_UNLESS(result.IsOK(), result, "Error checking table (TableId: %v)",
                         id);
 
                     if (result.IsOK()) {
-                        switchCounter.Increment(result.Value());
+                        switchCounter.Increment(result.Value().SwitchCount);
                     }
                 }));
                 futures.push_back(future);
@@ -990,6 +1090,9 @@ private:
 
         auto id = object->GetId();
         const auto& config = object->GetReplicatedTableOptions();
+        auto collocationId = object->GetReplicationCollocation()
+            ? object->GetReplicationCollocation()->GetId()
+            : NullObjectId;
 
         TTablePtr table;
 
@@ -999,7 +1102,11 @@ private:
             auto guard = Guard(Lock_);
             auto it = Tables_.find(id);
             if (it == Tables_.end()) {
-                table = New<TTable>(id, object->GetTabletCellBundle()->ProfilingCounters().ReplicaSwitch, config);
+                table = New<TTable>(
+                    id,
+                    object->GetTabletCellBundle()->ProfilingCounters().ReplicaSwitch,
+                    config,
+                    collocationId);
                 Tables_.emplace(id, table);
                 newTable = true;
             } else {
@@ -1064,8 +1171,12 @@ private:
 
         const auto [maxSyncReplicaCount,  minSyncReplicaCount] = config->GetEffectiveMinMaxReplicaCount(static_cast<int>(replicas.size()));
 
-        YT_LOG_DEBUG("Table %v (TableId: %v, Replicas: %v, SyncReplicas: %v, AsyncReplicas: %v, SkippedReplicas: %v, DesiredMaxSyncReplicaCount: %v, DesiredMinSyncReplicaCount: %v)",
+        YT_LOG_DEBUG("Table %v "
+            "(TableId: %v, CollocationId: %v, "
+            "Replicas: %v, SyncReplicas: %v, AsyncReplicas: %v, SkippedReplicas: %v, "
+            "DesiredMaxSyncReplicaCount: %v, DesiredMinSyncReplicaCount: %v)",
             newTable ? "added" : "updated",
+            collocationId,
             object->GetId(),
             object->Replicas().size(),
             syncReplicas,
@@ -1076,6 +1187,7 @@ private:
 
         table->SetConfig(config);
         table->SetReplicas(replicas);
+        table->SetCollocationId(collocationId);
     }
 
     void OnNodeCreated(TObject* object)

@@ -1,6 +1,7 @@
 #include "table_node.h"
 #include "private.h"
 #include "master_table_schema.h"
+#include "table_collocation.h"
 #include "table_manager.h"
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
@@ -336,6 +337,7 @@ void TTableNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, RetainedTimestamp_);
     Save(context, UnflushedTimestamp_);
     Save(context, TabletCellBundle_);
+    Save(context, ReplicationCollocation_);
     TUniquePtrSerializer<>::Save(context, DynamicTableAttributes_);
 }
 
@@ -350,6 +352,10 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     Load(context, RetainedTimestamp_);
     Load(context, UnflushedTimestamp_);
     Load(context, TabletCellBundle_);
+    // COMPAT(akozhikhov).
+    if (context.GetVersion() >= EMasterReign::TableCollocation) {
+        Load(context, ReplicationCollocation_);
+    }
     TUniquePtrSerializer<>::Load(context, DynamicTableAttributes_);
 }
 

@@ -12,8 +12,10 @@ namespace NYT::NTableServer {
 
 using TTableId = NTableClient::TTableId;
 using TMasterTableSchemaId = NObjectClient::TObjectId;
+using TTableCollocationId = NObjectClient::TObjectId;
 
 DECLARE_ENTITY_TYPE(TMasterTableSchema, TMasterTableSchemaId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TTableCollocation, TTableCollocationId, NObjectClient::TDirectObjectIdHash)
 
 class TTableNode;
 class TReplicatedTableNode;
@@ -28,6 +30,12 @@ DECLARE_REFCOUNTED_CLASS(TVirtualStaticTable);
 DECLARE_REFCOUNTED_CLASS(TReplicatedTableOptions);
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerConfig);
 DECLARE_REFCOUNTED_CLASS(TPartitionConfig)
+
+DEFINE_ENUM(ETableCollocationType,
+    ((Replication)  (0))
+);
+
+static constexpr int MaxTableCollocationSize = 100;
 
 ////////////////////////////////////////////////////////////////////////////////
 

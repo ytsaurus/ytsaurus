@@ -25,6 +25,7 @@ public:
     virtual ~TTableManager() override;
 
     DECLARE_ENTITY_MAP_ACCESSORS(MasterTableSchema, TMasterTableSchema);
+    DECLARE_ENTITY_MAP_ACCESSORS(TableCollocation, TTableCollocation);
 
     void Initialize();
 
@@ -40,6 +41,9 @@ public:
 
     // COMPAT(shakurov)
     void LoadStatisticsUpdateRequests(NCellMaster::TLoadContext& context);
+
+    //! Looks up a table by id. Throws if no such table exists.
+    TTableNode* GetTableNodeOrThrow(TTableId id);
 
     //! Looks up a master table schema by id. Throws if no such schema exists.
     TMasterTableSchema* GetMasterTableSchemaOrThrow(TMasterTableSchemaId id);
@@ -81,6 +85,16 @@ public:
 
     void SetTableSchema(TTableNode* table, TMasterTableSchema* schema);
     void ResetTableSchema(TTableNode* table);
+
+    //! Table collocation management.
+    TTableCollocation* CreateTableCollocation(
+        NObjectClient::TObjectId hintId,
+        ETableCollocationType type,
+        THashSet<TTableNode*> collocatedTables);
+    void ZombifyTableCollocation(TTableCollocation* collocation);
+    void AddTableToCollocation(TTableNode* table, TTableCollocation* collocation);
+    void RemoveTableFromCollocation(TTableNode* table, TTableCollocation* collocation);
+    TTableCollocation* GetTableCollocationOrThrow(TTableCollocationId id) const;
 
 private:
     class TImpl;

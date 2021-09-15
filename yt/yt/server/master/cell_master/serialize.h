@@ -193,6 +193,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChunkMergeModes)                                              (1664))  // aleksandra-zh
     ((OptimizeChunkReplacer)                                        (1665))  // aleksandra-zh
     ((ChunkMergerFixes)                                             (1666))  // aleksandra-zh
+    ((TableCollocation)                                             (1667))  // akozhikhov
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1800))  // ignat
 );

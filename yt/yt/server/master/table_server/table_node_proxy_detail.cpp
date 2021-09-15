@@ -1,5 +1,6 @@
 #include "table_node_proxy_detail.h"
 #include "private.h"
+#include "table_collocation.h"
 #include "table_manager.h"
 #include "table_node.h"
 #include "replicated_table_node.h"
@@ -340,6 +341,14 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetWritable(true)
         .SetReplicated(true)
         .SetPresent(isDynamic));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationCollocationId)
+        .SetPresent(table->IsReplicated() && trunkTable->GetReplicationCollocation())
+        .SetWritable(true)
+        .SetRemovable(true)
+        .SetReplicated(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationCollocationTablePaths)
+        .SetPresent(table->IsReplicated() && trunkTable->GetReplicationCollocation())
+        .SetOpaque(true));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -838,6 +847,37 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .Value(table->GetEnableDetailedProfiling());
             return true;
 
+        case EInternedAttributeKey::ReplicationCollocationTablePaths: {
+            if (!isDynamic || !table->IsReplicated() || !trunkTable->GetReplicationCollocation()) {
+                break;
+            }
+
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            auto* collocation = trunkTable->GetReplicationCollocation();
+
+            BuildYsonFluently(consumer)
+                .DoListFor(collocation->Tables(), [&] (TFluentList fluent, TTableNode* table) {
+                    if (!IsObjectAlive(table)) {
+                        return;
+                    }
+                    fluent
+                        .Item().Value(cypressManager->GetNodePath(table, nullptr));
+                });
+
+            return true;
+        }
+
+        case EInternedAttributeKey::ReplicationCollocationId: {
+            if (!isDynamic || !table->IsReplicated() || !trunkTable->GetReplicationCollocation()) {
+                break;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->GetReplicationCollocation()->GetId());
+
+            return true;
+        }
+
         default:
             break;
     }
@@ -986,6 +1026,21 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
         case EInternedAttributeKey::ProfilingTag: {
             auto* lockedTable = LockThisImpl();
             lockedTable->SetProfilingTag(std::nullopt);
+            return true;
+        }
+
+        case EInternedAttributeKey::ReplicationCollocationId: {
+            ValidateNoTransaction();
+
+            auto* lockedTable = LockThisImpl();
+            if (auto* collocation = lockedTable->GetReplicationCollocation()) {
+                YT_VERIFY(lockedTable->IsDynamic() && lockedTable->IsReplicated());
+                const auto& tableManager = Bootstrap_->GetTableManager();
+                tableManager->RemoveTableFromCollocation(
+                    lockedTable,
+                    collocation);
+            }
+
             return true;
         }
 
@@ -1177,6 +1232,25 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
 
             auto* lockedTable = LockThisImpl();
             lockedTable->SetEnableDetailedProfiling(ConvertTo<bool>(value));
+            return true;
+        }
+
+        case EInternedAttributeKey::ReplicationCollocationId: {
+            ValidateNoTransaction();
+
+            auto collocationId = ConvertTo<TTableCollocationId>(value);
+
+            auto* lockedTable = LockThisImpl();
+            if (!lockedTable->IsDynamic() || !lockedTable->IsReplicated()) {
+                break;
+            }
+
+            const auto& tableManager = Bootstrap_->GetTableManager();
+            auto* collocation = tableManager->GetTableCollocationOrThrow(collocationId);
+            tableManager->AddTableToCollocation(
+                lockedTable,
+                collocation);
+
             return true;
         }
 
@@ -1645,5 +1719,3 @@ bool TReplicatedTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, c
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableServer
-
-
