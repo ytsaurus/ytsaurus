@@ -235,6 +235,9 @@ public:
         const NLogging::TLogger& logger);
 
     void PrepareForScheduling(const TSchedulerRootElementPtr& rootElement);
+    void PrescheduleJob(
+        const TSchedulerRootElementPtr& rootElement,
+        EPrescheduleJobOperationCriterion operationCriterion);
 
     TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element);
     const TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element) const;
@@ -259,6 +262,8 @@ private:
     const NLogging::TLogger Logger;
 
     bool Initialized_ = false;
+
+    NProfiling::TWallTimer Timer_;
 
     void ProfileStageTimings();
 
