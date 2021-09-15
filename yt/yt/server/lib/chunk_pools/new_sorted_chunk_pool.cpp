@@ -349,7 +349,7 @@ private:
                 // Unversioned data slices should be additionally sliced using chunkSliceFetcher,
                 // while versioned slices are taken as is.
                 if (dataSlice->Type == EDataSourceType::UnversionedTable) {
-                    auto inputChunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+                    auto inputChunk = dataSlice->GetSingleUnversionedChunk();
                     auto isPrimary = InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary();
                     auto comparator = isPrimary
                         ? PrimaryComparator_
@@ -562,7 +562,7 @@ private:
         TeleportChunks_.reserve(teleportDataSlices.size());
 
         for (const auto& dataSlice : teleportDataSlices) {
-            TeleportChunks_.emplace_back(dataSlice->GetSingleUnversionedChunkOrThrow());
+            TeleportChunks_.emplace_back(dataSlice->GetSingleUnversionedChunk());
         }
 
         i64 totalTeleportChunkSize = 0;

@@ -173,7 +173,7 @@ public:
         return OutputOrder_;
     }
 
-    void Persist(const TPersistenceContext& context) final 
+    void Persist(const TPersistenceContext& context) final
     {
         TChunkPoolInputBase::Persist(context);
         TChunkPoolOutputWithJobManagerBase::Persist(context);
@@ -277,7 +277,7 @@ private:
             for (const auto& dataSlice : stripe->DataSlices) {
                 yielder.TryYield();
                 if (dataSlice->Type == EDataSourceType::UnversionedTable) {
-                    auto inputChunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+                    auto inputChunk = dataSlice->GetSingleUnversionedChunk();
                     if (InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsTeleportable() &&
                         inputChunk->IsLargeCompleteChunk(MinTeleportChunkSize_) &&
                         !SingleJob_)

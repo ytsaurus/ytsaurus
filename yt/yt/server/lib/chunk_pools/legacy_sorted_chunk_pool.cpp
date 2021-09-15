@@ -183,7 +183,7 @@ public:
         CheckCompleted();
     }
 
-    void Persist(const TPersistenceContext& context) final 
+    void Persist(const TPersistenceContext& context) final
     {
         TChunkPoolInputBase::Persist(context);
         TChunkPoolOutputWithJobManagerBase::Persist(context);
@@ -354,7 +354,7 @@ private:
                 // Unversioned data slices should be additionally sliced using chunkSliceFetcher,
                 // while versioned slices are taken as is.
                 if (dataSlice->Type == EDataSourceType::UnversionedTable) {
-                    auto inputChunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+                    auto inputChunk = dataSlice->GetSingleUnversionedChunk();
                     auto isPrimary = InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary();
                     auto sliceSize = isPrimary
                         ? primarySliceSize
@@ -480,10 +480,10 @@ private:
                 yielder.TryYield();
 
                 if (InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsTeleportable() &&
-                    dataSlice->GetSingleUnversionedChunkOrThrow()->IsLargeCompleteChunk(MinTeleportChunkSize_) &&
+                    dataSlice->GetSingleUnversionedChunk()->IsLargeCompleteChunk(MinTeleportChunkSize_) &&
                     primary)
                 {
-                    teleportCandidates.emplace_back(dataSlice->GetSingleUnversionedChunkOrThrow(), inputCookie);
+                    teleportCandidates.emplace_back(dataSlice->GetSingleUnversionedChunk(), inputCookie);
                 }
 
                 lowerLimits.emplace_back(GetKeyPrefix(dataSlice->LegacyLowerLimit().Key, PrimaryPrefixLength_, RowBuffer_));

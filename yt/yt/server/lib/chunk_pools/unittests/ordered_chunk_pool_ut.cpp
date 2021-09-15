@@ -247,7 +247,7 @@ protected:
                     }
                     while (
                         chunkIndex < std::ssize(OriginalChunks_) &&
-                        dataSlice->GetSingleUnversionedChunkOrThrow()->GetChunkId() != OriginalChunks_[chunkIndex])
+                        dataSlice->GetSingleUnversionedChunk()->GetChunkId() != OriginalChunks_[chunkIndex])
                     {
                         ++chunkIndex;
                     }
@@ -277,7 +277,7 @@ protected:
             Cerr << "C ";
             auto stripeList = ChunkPool_->GetStripeList(entry.IsCookie());
             for (const auto& dataSlice : stripeList->Stripes[0]->DataSlices) {
-                Cerr << ToString(dataSlice->GetSingleUnversionedChunkOrThrow()->GetChunkId()) << " ";
+                Cerr << ToString(dataSlice->GetSingleUnversionedChunk()->GetChunkId()) << " ";
             }
             Cerr << Endl;
         }
@@ -301,7 +301,7 @@ protected:
         EXPECT_EQ(stripeList->Stripes.size(), 1u);
         EXPECT_EQ(stripeList->Stripes[0]->DataSlices.size(), chunks.size());
         for (int index = 0; index < std::ssize(stripeList->Stripes[0]->DataSlices); ++index) {
-            EXPECT_EQ(stripeList->Stripes[0]->DataSlices[index]->GetSingleUnversionedChunkOrThrow()->GetChunkId(), chunks[index]->GetChunkId());
+            EXPECT_EQ(stripeList->Stripes[0]->DataSlices[index]->GetSingleUnversionedChunk()->GetChunkId(), chunks[index]->GetChunkId());
         }
     }
 
@@ -658,7 +658,7 @@ TEST_P(TOrderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 ASSERT_TRUE(stripeList->Stripes[0]);
                 const auto& stripe = stripeList->Stripes[0];
                 const auto& dataSlice = stripe->DataSlices.front();
-                const auto& chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+                const auto& chunk = dataSlice->GetSingleUnversionedChunk();
                 auto chunkId = chunk->GetChunkId();
                 Cdebug << Format(" that corresponds to a chunk %v", chunkId) << Endl;
                 ASSERT_TRUE(resumedChunks.contains(chunkId));

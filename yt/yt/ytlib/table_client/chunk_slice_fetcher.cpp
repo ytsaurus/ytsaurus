@@ -80,7 +80,7 @@ public:
     {
         YT_VERIFY(sliceDataWeight > 0);
 
-        auto chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+        auto chunk = dataSlice->GetSingleUnversionedChunk();
         TFetcherBase::AddChunk(chunk);
 
         YT_VERIFY(dataSlice->ChunkSlices.size() == 1);

@@ -1476,7 +1476,7 @@ void TTask::RegisterOutput(
                 TaskHost_->RegisterLivePreviewChunk(
                     GetVertexDescriptor(),
                     streamDescriptor.LivePreviewIndex,
-                    dataSlice->GetSingleUnversionedChunkOrThrow());
+                    dataSlice->GetSingleUnversionedChunk());
             }
 
             RegisterStripe(

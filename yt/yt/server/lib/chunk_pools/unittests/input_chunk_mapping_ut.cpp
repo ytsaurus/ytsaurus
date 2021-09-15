@@ -107,7 +107,7 @@ protected:
     {
         std::vector<TInputChunkPtr> chunks;
         for (const auto& dataSlice : stripe->DataSlices) {
-            chunks.push_back(dataSlice->GetSingleUnversionedChunkOrThrow());
+            chunks.push_back(dataSlice->GetSingleUnversionedChunk());
         }
         return chunks;
     }

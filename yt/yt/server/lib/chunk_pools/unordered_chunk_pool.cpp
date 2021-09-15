@@ -489,7 +489,7 @@ private:
         if (dataSlice->Type == EDataSourceType::VersionedTable) {
             AddStripe(New<TChunkStripe>(dataSlice));
         } else {
-            const auto& chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+            const auto& chunk = dataSlice->GetSingleUnversionedChunk();
 
             if (chunk->IsCompleteChunk() &&
                 ((chunk->IsLargeCompleteChunk(MinTeleportChunkSize_) ||

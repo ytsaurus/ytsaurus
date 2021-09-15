@@ -83,7 +83,7 @@ public:
             YT_VERIFY(!dataSlice->IsLegacy);
 
             // NB: TShuffleChunkPool contains only chunks from unversioned tables.
-            const auto& chunkSpec = dataSlice->GetSingleUnversionedChunkOrThrow();
+            const auto& chunkSpec = dataSlice->GetSingleUnversionedChunk();
 
             int elementaryIndex = static_cast<int>(ElementaryStripes_.size());
             auto elementaryStripe = New<TChunkStripe>(dataSlice);

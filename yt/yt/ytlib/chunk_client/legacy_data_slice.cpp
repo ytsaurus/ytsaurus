@@ -121,7 +121,7 @@ int TLegacyDataSlice::GetRangeIndex() const
     return ChunkSlices[0]->GetInputChunk()->GetRangeIndex();
 }
 
-TInputChunkPtr TLegacyDataSlice::GetSingleUnversionedChunkOrThrow() const
+TInputChunkPtr TLegacyDataSlice::GetSingleUnversionedChunk() const
 {
     YT_VERIFY(IsTrivial());
 
@@ -552,7 +552,7 @@ void SetLimitsFromShortenedBoundaryKeys(
 {
     YT_VERIFY(!dataSlice->IsLegacy);
 
-    auto chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+    auto chunk = dataSlice->GetSingleUnversionedChunk();
     if (const auto& boundaryKeys = chunk->BoundaryKeys()) {
         dataSlice->LowerLimit().KeyBound = TKeyBound::FromRow(
             rowBuffer->CaptureRow(MakeRange(boundaryKeys->MinKey.Begin(), prefixLength)), /* isInclusive */ true, /* isUpper */ false);

@@ -121,7 +121,7 @@ protected:
                         &TLegacyDataSlicePtr::Get,
                         Pointee(
                             Property(
-                                &TLegacyDataSlice::GetSingleUnversionedChunkOrThrow,
+                                &TLegacyDataSlice::GetSingleUnversionedChunk,
                                 Eq(chunk)))),
                     _,
                     _,
@@ -518,8 +518,8 @@ protected:
 
         // Second check.
         auto unversionedDataSliceComparator = [] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
-            auto lhsChunk = lhs->GetSingleUnversionedChunkOrThrow();
-            auto rhsChunk = rhs->GetSingleUnversionedChunkOrThrow();
+            auto lhsChunk = lhs->GetSingleUnversionedChunk();
+            auto rhsChunk = rhs->GetSingleUnversionedChunk();
             if (lhsChunk != rhsChunk) {
                 return lhsChunk->GetTableRowIndex() < rhsChunk->GetTableRowIndex();
             } else {
@@ -2285,10 +2285,10 @@ TEST_F(TSortedChunkPoolTest, TestTrickyCase)
     ASSERT_EQ(stripeLists[1]->Stripes.size(), 1u);
     std::vector<TInputChunkPtr> chunkSequence;
     for (const auto& dataSlice : stripeLists[0]->Stripes[0]->DataSlices) {
-        chunkSequence.push_back(dataSlice->GetSingleUnversionedChunkOrThrow());
+        chunkSequence.push_back(dataSlice->GetSingleUnversionedChunk());
     }
     for (const auto& dataSlice : stripeLists[1]->Stripes[0]->DataSlices) {
-        chunkSequence.push_back(dataSlice->GetSingleUnversionedChunkOrThrow());
+        chunkSequence.push_back(dataSlice->GetSingleUnversionedChunk());
     }
     chunkSequence.erase(std::unique(chunkSequence.begin(), chunkSequence.end()), chunkSequence.end());
     ASSERT_EQ(chunkSequence.size(), 2u);
@@ -2334,10 +2334,10 @@ TEST_F(TSortedChunkPoolTest, TestTrickyCase2)
     ASSERT_EQ(stripeLists[1]->Stripes.size(), 1u);
     std::vector<TInputChunkPtr> chunkSequence;
     for (const auto& dataSlice : stripeLists[0]->Stripes[0]->DataSlices) {
-        chunkSequence.push_back(dataSlice->GetSingleUnversionedChunkOrThrow());
+        chunkSequence.push_back(dataSlice->GetSingleUnversionedChunk());
     }
     for (const auto& dataSlice : stripeLists[1]->Stripes[0]->DataSlices) {
-        chunkSequence.push_back(dataSlice->GetSingleUnversionedChunkOrThrow());
+        chunkSequence.push_back(dataSlice->GetSingleUnversionedChunk());
     }
     chunkSequence.erase(std::unique(chunkSequence.begin(), chunkSequence.end()), chunkSequence.end());
     ASSERT_EQ(chunkSequence.size(), 3u);
@@ -3451,7 +3451,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 ASSERT_TRUE(stripeList->Stripes[0]);
                 const auto& stripe = stripeList->Stripes[0];
                 const auto& dataSlice = stripe->DataSlices.front();
-                const auto& chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+                const auto& chunk = dataSlice->GetSingleUnversionedChunk();
                 auto chunkId = chunk->GetChunkId();
                 Cdebug << Format(" that corresponds to a chunk %v", chunkId) << Endl;
                 ASSERT_TRUE(resumedChunks.contains(chunkId));

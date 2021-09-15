@@ -215,7 +215,7 @@ protected:
 
             if (UseNewSortedPool_) {
                 dataSlice->IsTeleportable = !inputStreamDescriptor.IsVersioned() &&
-                    dataSlice->GetSingleUnversionedChunkOrThrow()->IsLargeCompleteChunk(Controller_->GetMinTeleportChunkSize());
+                    dataSlice->GetSingleUnversionedChunk()->IsLargeCompleteChunk(Controller_->GetMinTeleportChunkSize());
                 if (!inputStreamDescriptor.IsVersioned()) {
                     YT_VERIFY(dataSlice->LowerLimit().KeyBound && !dataSlice->LowerLimit().KeyBound.IsUniversal());
                     YT_VERIFY(dataSlice->UpperLimit().KeyBound && !dataSlice->UpperLimit().KeyBound.IsUniversal());

@@ -140,7 +140,7 @@ protected:
             for (const auto& slice : slices) {
                 YT_VERIFY(!slice->IsLegacy);
             }
-            auto chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+            auto chunk = dataSlice->GetSingleUnversionedChunk();
             ChunkSlices.insert(ChunkSlices.end(), slices.begin(), slices.end());
             AllChunksAreAdded += EXPECT_CALL(
                 *ChunkSliceFetcher,
@@ -149,7 +149,7 @@ protected:
                         &TLegacyDataSlicePtr::Get,
                         Pointee(
                             Property(
-                                &TLegacyDataSlice::GetSingleUnversionedChunkOrThrow,
+                                &TLegacyDataSlice::GetSingleUnversionedChunk,
                                 Eq(chunk)))),
                     _,
                     _,
@@ -161,7 +161,7 @@ protected:
             auto chunkSlices = Owner->SliceUnversionedDataSlice(
                 dataSlice,
                 {},
-                {dataSlice->GetSingleUnversionedChunkOrThrow()->GetDataWeight()});
+                {dataSlice->GetSingleUnversionedChunk()->GetDataWeight()});
             RegisterSliceableUnversionedDataSlice(dataSlice, std::move(chunkSlices));
         }
 
@@ -280,7 +280,7 @@ protected:
         std::vector<i64> sliceSizes = std::vector<i64>(),
         std::vector<i64> sliceRowCounts = std::vector<i64>())
     {
-        auto chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+        auto chunk = dataSlice->GetSingleUnversionedChunk();
         if (sliceSizes.empty()) {
             sliceSizes.assign(internalUpperBounds.size() + 1, chunk->GetUncompressedDataSize() / (internalUpperBounds.size() + 1));
             // Fix the first size to fix the error because of integer division.
@@ -605,7 +605,7 @@ protected:
         // internal validation routine and run always as a sanity check?
         // First check.
         for (const auto& dataSlice : CreatedUnversionedPrimaryDataSlices_) {
-            if (teleportChunksSet.contains(dataSlice->GetSingleUnversionedChunkOrThrow())) {
+            if (teleportChunksSet.contains(dataSlice->GetSingleUnversionedChunk())) {
                 continue;
             }
             auto dataSliceLowerBound = dataSlice->LowerLimit().KeyBound;
@@ -621,7 +621,7 @@ protected:
             TKeyBound lastUpperBound = dataSliceLowerBound.Invert();
             i64 lastLowerRowIndex = -1;
             i64 lastUpperRowIndex = dataSliceLowerRowIndex;
-            auto it = chunkSlicesByInputChunk.find(dataSlice->GetSingleUnversionedChunkOrThrow());
+            auto it = chunkSlicesByInputChunk.find(dataSlice->GetSingleUnversionedChunk());
             ASSERT_TRUE(chunkSlicesByInputChunk.end() != it);
             auto& chunkSlices = it->second;
             for (const auto& chunkSlice : chunkSlices) {
@@ -655,8 +655,8 @@ protected:
 
         // Second check. Verify some (weak) sort order for versioned data slices.
         auto unversionedDataSliceComparator = [this] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
-            auto lhsChunk = lhs->GetSingleUnversionedChunkOrThrow();
-            auto rhsChunk = rhs->GetSingleUnversionedChunkOrThrow();
+            auto lhsChunk = lhs->GetSingleUnversionedChunk();
+            auto rhsChunk = rhs->GetSingleUnversionedChunk();
             if (lhsChunk != rhsChunk) {
                 return lhsChunk->GetTableRowIndex() < rhsChunk->GetTableRowIndex();
             } else {
@@ -724,8 +724,8 @@ protected:
                             if (lhsDataSlice->Type == EDataSourceType::UnversionedTable &&
                                 rhsDataSlice->Type == EDataSourceType::UnversionedTable)
                             {
-                                const auto& lhsChunk = lhsDataSlice->GetSingleUnversionedChunkOrThrow();
-                                const auto& rhsChunk = rhsDataSlice->GetSingleUnversionedChunkOrThrow();
+                                const auto& lhsChunk = lhsDataSlice->GetSingleUnversionedChunk();
+                                const auto& rhsChunk = rhsDataSlice->GetSingleUnversionedChunk();
                                 separatedByRows =
                                     lhsChunk == rhsChunk &&
                                     lhsDataSlice->UpperLimit().RowIndex &&
@@ -2695,10 +2695,10 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestTrickyCase)
     ASSERT_EQ(stripeLists[1]->Stripes.size(), 1u);
     std::vector<TInputChunkPtr> chunkSequence;
     for (const auto& dataSlice : stripeLists[0]->Stripes[0]->DataSlices) {
-        chunkSequence.push_back(dataSlice->GetSingleUnversionedChunkOrThrow());
+        chunkSequence.push_back(dataSlice->GetSingleUnversionedChunk());
     }
     for (const auto& dataSlice : stripeLists[1]->Stripes[0]->DataSlices) {
-        chunkSequence.push_back(dataSlice->GetSingleUnversionedChunkOrThrow());
+        chunkSequence.push_back(dataSlice->GetSingleUnversionedChunk());
     }
     chunkSequence.erase(std::unique(chunkSequence.begin(), chunkSequence.end()), chunkSequence.end());
     ASSERT_EQ(chunkSequence.size(), 2u);
@@ -3974,7 +3974,7 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
     THashMap<TChunkStripePtr, TChunkId> stripeToChunkId;
 
     for (const auto& dataSlice : CreatedUnversionedPrimaryDataSlices_) {
-        auto chunkId = dataSlice->GetSingleUnversionedChunkOrThrow()->GetChunkId();
+        auto chunkId = dataSlice->GetSingleUnversionedChunk()->GetChunkId();
         chunkIdToDataSlice[chunkId] = dataSlice;
         auto stripe = CreateStripe({dataSlice});
         YT_VERIFY(stripeToChunkId.emplace(stripe, chunkId).second);
@@ -4143,7 +4143,7 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
                 ASSERT_TRUE(stripeList->Stripes[0]);
                 const auto& stripe = stripeList->Stripes[0];
                 const auto& dataSlice = stripe->DataSlices.front();
-                const auto& chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+                const auto& chunk = dataSlice->GetSingleUnversionedChunk();
                 auto chunkId = chunk->GetChunkId();
                 Cdebug << Format(" that corresponds to a chunk %v", chunkId) << Endl;
                 ASSERT_TRUE(resumedChunks.contains(chunkId));

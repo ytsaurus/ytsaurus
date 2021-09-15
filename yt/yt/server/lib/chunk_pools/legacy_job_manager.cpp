@@ -95,8 +95,8 @@ void TLegacyJobStub::Finalize(bool sortByPosition)
                 }
 
                 if (lhs->Type == EDataSourceType::UnversionedTable) {
-                    auto lhsChunk = lhs->GetSingleUnversionedChunkOrThrow();
-                    auto rhsChunk = rhs->GetSingleUnversionedChunkOrThrow();
+                    auto lhsChunk = lhs->GetSingleUnversionedChunk();
+                    auto rhsChunk = rhs->GetSingleUnversionedChunk();
                     if (lhsChunk != rhsChunk) {
                         return lhsChunk->GetTableRowIndex() < rhsChunk->GetTableRowIndex();
                     }
