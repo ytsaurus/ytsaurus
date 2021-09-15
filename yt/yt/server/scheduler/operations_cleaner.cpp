@@ -192,7 +192,7 @@ std::vector<TString> GetPools(const IMapNodePtr& runtimeParameters)
     return pools;
 }
 
-TString GetFilterFactors(const TArchiveOperationRequest& request)
+TString GetFilterFactors(const TArchiveOperationRequest& request, int version)
 {
     auto getOriginalPath = [] (const TString& path) -> TString {
         try {
@@ -215,8 +215,12 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
     parts.push_back(request.AuthenticatedUser);
     parts.push_back(FormatEnum(request.State));
     parts.push_back(FormatEnum(request.OperationType));
-    auto experimentAssignmentNames = ConvertTo<std::vector<TString>>(request.ExperimentAssignmentNames);
-    parts.insert(parts.end(), experimentAssignmentNames.begin(), experimentAssignmentNames.end());
+    if (version >= 40) {
+        YT_VERIFY(request.ExperimentAssignmentNames);
+        auto experimentAssignmentNames = ConvertTo<std::vector<TString>>(request.ExperimentAssignmentNames);
+        parts.insert(parts.end(), experimentAssignmentNames.begin(), experimentAssignmentNames.end());
+    }
+
     if (auto node = runtimeParametersMapNode->FindChild("annotations")) {
         parts.push_back(ConvertToYsonString(node, EYsonFormat::Text).ToString());
     }
@@ -291,7 +295,7 @@ TUnversionedRow BuildOrderedByIdTableRow(
     // they are captured in row buffer (they are not owned by unversioned value or builder).
     auto state = FormatEnum(request.State);
     auto operationType = FormatEnum(request.OperationType);
-    auto filterFactors = GetFilterFactors(request);
+    auto filterFactors = GetFilterFactors(request, version);
 
     TUnversionedRowBuilder builder;
     builder.AddValue(MakeUnversionedUint64Value(request.Id.Parts64[0], index.IdHi));
@@ -360,7 +364,7 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
     // they are captured in row buffer (they are not owned by unversioned value or builder).
     auto state = FormatEnum(request.State);
     auto operationType = FormatEnum(request.OperationType);
-    auto filterFactors = GetFilterFactors(request);
+    auto filterFactors = GetFilterFactors(request, version);
 
     TYsonString pools;
     TYsonString acl;
