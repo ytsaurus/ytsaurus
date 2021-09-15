@@ -113,7 +113,7 @@ struct ISchedulerTree
 
     virtual void BuildFairShareInfo(NYTree::TFluentMap fluent) const = 0;
 
-    virtual void ActualizeEphemeralPoolParents(const THashMap<TString, TString> userToDefaultPoolMap) = 0;
+    virtual void ActualizeEphemeralPoolParents(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;
 
     //! Raised when operation considered running in tree.
     DECLARE_INTERFACE_SIGNAL(void(TOperationId), OperationRunning);
