@@ -431,10 +431,8 @@ TKeyBound KeyBoundFromLegacyRow(TUnversionedRow row, bool isUpper, int keyLength
 
     auto [prefixLength, isInclusive] = KeyBoundFromLegacyRowImpl(row, isUpper, keyLength);
     YT_VERIFY(prefixLength <= static_cast<int>(row.GetCount()));
-    if (prefixLength < static_cast<int>(row.GetCount())) {
-        // Capture a prefix.
-        row = rowBuffer->CaptureRow(MakeRange(row.Begin(), prefixLength));
-    }
+    row = rowBuffer->CaptureRow(MakeRange(row.Begin(), prefixLength));
+
     return TKeyBound::FromRow(
         row,
         isInclusive,
