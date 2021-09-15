@@ -3,6 +3,7 @@
 #include "channel_detail.h"
 #include "client.h"
 #include "config.h"
+#include "dispatcher.h"
 
 #include <yt/yt/core/bus/client.h>
 
@@ -123,7 +124,7 @@ private:
                     toCancelList.push_back(std::move(Underlying_));
                 }
 
-                if (Canceled_) {
+                if (Canceled_.load()) {
                     toCancelList.push_back(std::move(newUnderlying));
                 } else {
                     Underlying_ = std::move(newUnderlying);
@@ -140,17 +141,21 @@ private:
             {
                 VERIFY_THREAD_AFFINITY_ANY();
 
-                IClientRequestControlPtr toCancel;
                 auto guard = Guard(SpinLock_);
-
-                Canceled_ = true;
-                toCancel = std::move(Underlying_);
-
+                Canceled_.store(true);
+                auto toCancel = std::move(Underlying_);
                 guard.Release();
 
                 if (toCancel) {
                     toCancel->Cancel();
                 }
+            }
+
+            bool IsCanceled() const
+            {
+                VERIFY_THREAD_AFFINITY_ANY();
+
+                return Canceled_.load();
             }
 
             TFuture<void> SendStreamingPayload(const TStreamingPayload& /*payload*/) override
@@ -169,7 +174,7 @@ private:
 
         private:
             YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
-            bool Canceled_ = false;
+            std::atomic<bool> Canceled_ = false;
             IClientRequestControlPtr Underlying_;
 
         };
@@ -278,13 +283,19 @@ private:
 
             TDelayedExecutor::Submit(
                 BIND(&TRetryingRequest::DoRetry, MakeStrong(this)),
-                Config_->RetryBackoffTime);
+                Config_->RetryBackoffTime,
+                TDispatcher::Get()->GetHeavyInvoker());
         }
 
         void DoRetry(bool aborted)
         {
             if (aborted) {
                 ReportError(TError(NYT::EErrorCode::Canceled, "Request timed out (timer was aborted)"));
+                return;
+            }
+
+            if (RequestControlThunk_->IsCanceled()) {
+                ResponseHandler_->HandleError(TError(NYT::EErrorCode::Canceled, "Request canceled"));
                 return;
             }
 
