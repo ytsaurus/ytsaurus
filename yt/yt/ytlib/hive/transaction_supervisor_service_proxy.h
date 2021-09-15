@@ -15,7 +15,8 @@ class TTransactionSupervisorServiceProxy
 {
 public:
     DEFINE_RPC_PROXY(TTransactionSupervisorServiceProxy, TransactionSupervisorService,
-        .SetProtocolVersion(2));
+        .SetProtocolVersion(2)
+        .SetAcceptsBaggage(false));
 
     DEFINE_RPC_PROXY_METHOD(NProto::NTransactionSupervisor, CommitTransaction,
         .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));

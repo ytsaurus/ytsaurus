@@ -15,7 +15,8 @@ class TNodeTrackerServiceProxy
 {
 public:
     DEFINE_RPC_PROXY(TNodeTrackerServiceProxy, NodeTrackerService,
-        .SetProtocolVersion(14));
+        .SetProtocolVersion(14)
+        .SetAcceptsBaggage(false));
 
     DEFINE_RPC_PROXY_METHOD(NProto, RegisterNode);
     DEFINE_RPC_PROXY_METHOD(NProto, Heartbeat);

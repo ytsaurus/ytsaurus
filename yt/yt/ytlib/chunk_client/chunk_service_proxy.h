@@ -18,6 +18,7 @@ class TChunkServiceProxy
 public:
     DEFINE_RPC_PROXY(TChunkServiceProxy, ChunkService,
         .SetProtocolVersion(6)
+        .SetAcceptsBaggage(false)
         .SetFeaturesType<NObjectClient::EMasterFeature>());
 
     DEFINE_RPC_PROXY_METHOD(NProto, LocateChunks);

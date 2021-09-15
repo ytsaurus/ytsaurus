@@ -29,8 +29,8 @@
 #include <yt/yt/core/rpc/service_detail.h>
 #include <yt/yt/core/rpc/stream.h>
 
-#include <yt/yt/core/rpc/unittests/lib/my_service.pb.h>
 #include <yt/yt/core/rpc/unittests/lib/my_service.h>
+#include <yt/yt/core/rpc/unittests/lib/no_baggage_service.h>
 
 #include <yt/yt/core/rpc/grpc/config.h>
 #include <yt/yt/core/rpc/grpc/channel.h>
@@ -109,8 +109,10 @@ public:
         Server_ = CreateServer(Port_);
         WorkerPool_ = New<TThreadPool>(4, "Worker");
         bool secure = TImpl::Secure;
-        Service_ = CreateMyService(WorkerPool_->GetInvoker(), secure);
-        Server_->RegisterService(Service_);
+        MyService_ = CreateMyService(WorkerPool_->GetInvoker(), secure);
+        NoBaggageService_ = CreateNoBaggageService(WorkerPool_->GetInvoker());
+        Server_->RegisterService(MyService_);
+        Server_->RegisterService(NoBaggageService_);
         Server_->Start();
     }
 
@@ -161,7 +163,8 @@ protected:
     TString Address_;
 
     NConcurrency::TThreadPoolPtr WorkerPool_;
-    IMyServicePtr Service_;
+    IMyServicePtr MyService_;
+    IServicePtr NoBaggageService_;
     IServerPtr Server_;
 };
 
@@ -617,7 +620,7 @@ TYPED_TEST(TNotGrpcTest, ServerStreamsAborted)
     auto rspOrError = WaitFor(req->Invoke());
     EXPECT_EQ(NYT::EErrorCode::Timeout, rspOrError.GetCode());
 
-    WaitFor(this->Service_->GetServerStreamsAborted())
+    WaitFor(this->MyService_->GetServerStreamsAborted())
         .ThrowOnError();
 }
 
@@ -706,7 +709,7 @@ TYPED_TEST(TNotGrpcTest, ServerNotReading)
         EXPECT_EQ(expectedInvokeErrorCode, rspOrError.GetCode());
     }
 
-    WaitFor(this->Service_->GetSlowCallCanceled())
+    WaitFor(this->MyService_->GetSlowCallCanceled())
         .ThrowOnError();
 }
 
@@ -732,7 +735,7 @@ TYPED_TEST(TNotGrpcTest, ServerNotWriting)
         EXPECT_EQ(expectedInvokeErrorCode, rspOrError.GetCode());
     }
 
-    WaitFor(this->Service_->GetSlowCallCanceled())
+    WaitFor(this->MyService_->GetSlowCallCanceled())
         .ThrowOnError();
 }
 
@@ -812,6 +815,25 @@ TYPED_TEST(TNotGrpcTest, TraceBaggagePropagation)
 
     auto receivedBaggage = TYsonString(rsp->baggage());
     EXPECT_EQ(receivedBaggage, ConvertToYsonString(baggage));
+}
+
+TYPED_TEST(TNotGrpcTest, DisableAcceptsBaggage)
+{
+    using namespace NTracing;
+
+    auto traceContext = TTraceContext::NewRoot("Test");
+    TCurrentTraceContextGuard guard(traceContext);
+
+    auto baggage = CreateEphemeralAttributes();
+    baggage->Set("key1", "value1");
+    baggage->Set("key2", "value2");
+    traceContext->PackBaggage(ConvertToAttributes(baggage));
+
+    TNoBaggageProxy proxy(this->CreateChannel());
+    auto req = proxy.ExpectNoBaggage();
+
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_TRUE(rspOrError.IsOK());
 }
 
 TYPED_TEST(TRpcTest, ManyAsyncRequests)
@@ -1054,7 +1076,7 @@ TYPED_TEST(TRpcTest, ServerTimeout)
     auto req = proxy.SlowCanceledCall();
     auto rspOrError = req->Invoke().Get();
     EXPECT_TRUE(this->CheckTimeoutCode(rspOrError.GetCode()));
-    WaitFor(this->Service_->GetSlowCallCanceled())
+    WaitFor(this->MyService_->GetSlowCallCanceled())
         .ThrowOnError();
 }
 
@@ -1070,7 +1092,7 @@ TYPED_TEST(TRpcTest, ClientCancel)
     EXPECT_TRUE(asyncRspOrError.IsSet());
     auto rspOrError = asyncRspOrError.Get();
     EXPECT_TRUE(this->CheckCancelCode(rspOrError.GetCode()));
-    WaitFor(this->Service_->GetSlowCallCanceled())
+    WaitFor(this->MyService_->GetSlowCallCanceled())
         .ThrowOnError();
 }
 
@@ -1158,7 +1180,7 @@ TYPED_TEST(TRpcTest, ConnectionLost)
     EXPECT_TRUE(asyncRspOrError.IsSet());
     auto rspOrError = asyncRspOrError.Get();
     EXPECT_EQ(NRpc::EErrorCode::TransportError, rspOrError.GetCode());
-    WaitFor(this->Service_->GetSlowCallCanceled())
+    WaitFor(this->MyService_->GetSlowCallCanceled())
         .ThrowOnError();
 }
 
@@ -1213,7 +1235,7 @@ TYPED_TEST(TNotGrpcTest, RequiredClientFeatureNotSupported)
 
 TYPED_TEST(TRpcTest, StopWithoutActiveRequests)
 {
-    auto stopResult = this->Service_->Stop();
+    auto stopResult = this->MyService_->Stop();
     EXPECT_TRUE(stopResult.IsSet());
 }
 
@@ -1223,7 +1245,7 @@ TYPED_TEST(TRpcTest, StopWithActiveRequests)
     auto req = proxy.SlowCall();
     auto reqResult = req->Invoke();
     Sleep(TDuration::Seconds(0.5));
-    auto stopResult = this->Service_->Stop();
+    auto stopResult = this->MyService_->Stop();
     EXPECT_FALSE(stopResult.IsSet());
     EXPECT_TRUE(reqResult.Get().IsOK());
     Sleep(TDuration::Seconds(0.5));
@@ -1232,7 +1254,7 @@ TYPED_TEST(TRpcTest, StopWithActiveRequests)
 
 TYPED_TEST(TRpcTest, NoMoreRequestsAfterStop)
 {
-    auto stopResult = this->Service_->Stop();
+    auto stopResult = this->MyService_->Stop();
     EXPECT_TRUE(stopResult.IsSet());
     TMyProxy proxy(this->CreateChannel());
     auto req = proxy.SlowCall();

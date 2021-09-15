@@ -12,7 +12,8 @@ class TTabletNodeTrackerServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TTabletNodeTrackerServiceProxy, TabletNodeTrackerService);
+    DEFINE_RPC_PROXY(TTabletNodeTrackerServiceProxy, TabletNodeTrackerService,
+        .SetAcceptsBaggage(false));
 
     DEFINE_RPC_PROXY_METHOD(NProto, Heartbeat);
 };
