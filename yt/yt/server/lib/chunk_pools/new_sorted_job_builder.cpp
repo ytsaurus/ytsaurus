@@ -812,7 +812,7 @@ private:
 
                 // Divide slice in desired proportion using row indices.
                 auto lowerRowIndex = dataSlice->LowerLimit().RowIndex.value_or(0);
-                auto upperRowIndex = dataSlice->UpperLimit().RowIndex.value_or(dataSlice->GetSingleUnversionedChunkOrThrow()->GetRowCount());
+                auto upperRowIndex = dataSlice->UpperLimit().RowIndex.value_or(dataSlice->GetSingleUnversionedChunk()->GetRowCount());
                 YT_VERIFY(lowerRowIndex < upperRowIndex);
                 auto rowCount = static_cast<i64>(std::ceil((upperRowIndex - lowerRowIndex) * fraction));
                 rowCount = ClampVal<i64>(rowCount, 0, upperRowIndex - lowerRowIndex);

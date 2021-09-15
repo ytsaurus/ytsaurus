@@ -1190,7 +1190,7 @@ private:
         if (!dataSlice->IsTrivial()) {
             THROW_ERROR_EXCEPTION(errorCode, "Remote copy operation does not support versioned data slices");
         }
-        const auto& chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+        const auto& chunk = dataSlice->GetSingleUnversionedChunk();
         YT_VERIFY(!chunk->IsDynamicStore());
         if ((chunk->LowerLimit() && !IsTrivial(*chunk->LowerLimit())) ||
             (chunk->UpperLimit() && !IsTrivial(*chunk->UpperLimit())))

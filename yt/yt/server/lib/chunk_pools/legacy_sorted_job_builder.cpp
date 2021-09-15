@@ -132,7 +132,7 @@ public:
 
             int rightRowIndex = dataSlice->LegacyUpperLimit().RowIndex.value_or(
                 dataSlice->Type == EDataSourceType::UnversionedTable
-                ? dataSlice->GetSingleUnversionedChunkOrThrow()->GetRowCount()
+                ? dataSlice->GetSingleUnversionedChunk()->GetRowCount()
                 : 0);
 
             rightEndpoint = {
@@ -280,8 +280,8 @@ private:
                     rhs.DataSlice && rhs.DataSlice->Type == EDataSourceType::UnversionedTable)
                 {
                     // If keys are equal, we put slices in the same order they are in the original input stream.
-                    const auto& lhsChunk = lhs.DataSlice->GetSingleUnversionedChunkOrThrow();
-                    const auto& rhsChunk = rhs.DataSlice->GetSingleUnversionedChunkOrThrow();
+                    const auto& lhsChunk = lhs.DataSlice->GetSingleUnversionedChunk();
+                    const auto& rhsChunk = rhs.DataSlice->GetSingleUnversionedChunk();
 
                     auto cmpResult = (lhsChunk->GetTableRowIndex() + lhs.RowIndex) - (rhsChunk->GetTableRowIndex() + rhs.RowIndex);
                     if (cmpResult != 0) {
@@ -313,7 +313,7 @@ private:
                 endpoint.Key,
                 endpoint.RowIndex,
                 (endpoint.DataSlice && endpoint.DataSlice->Type == EDataSourceType::UnversionedTable)
-                ? std::make_optional(endpoint.DataSlice->GetSingleUnversionedChunkOrThrow()->GetTableRowIndex() + endpoint.RowIndex)
+                ? std::make_optional(endpoint.DataSlice->GetSingleUnversionedChunk()->GetTableRowIndex() + endpoint.RowIndex)
                 : std::nullopt,
                 endpoint.Type,
                 endpoint.DataSlice.Get());

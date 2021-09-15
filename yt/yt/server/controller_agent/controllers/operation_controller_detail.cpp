@@ -3366,7 +3366,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(TChunkId chunkId, TInputC
                         inputStripe.Stripe->DataSlices.end(),
                         [&] (TLegacyDataSlicePtr slice) {
                             try {
-                                return chunkId == slice->GetSingleUnversionedChunkOrThrow()->GetChunkId();
+                                return chunkId == slice->GetSingleUnversionedChunk()->GetChunkId();
                             } catch (const std::exception& ex) {
                                 //FIXME(savrus) allow data slices to be unavailable.
                                 OnOperationFailed(TError(NChunkClient::EErrorCode::ChunkUnavailable, "Dynamic table chunk became unavailable")
@@ -3461,7 +3461,7 @@ void TOperationControllerBase::OnIntermediateChunkAvailable(TChunkId chunkId, co
     if (completedJob->UnavailableChunks.erase(chunkId) == 1) {
         for (auto& dataSlice : completedJob->InputStripe->DataSlices) {
             // Intermediate chunks are always unversioned.
-            auto inputChunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+            auto inputChunk = dataSlice->GetSingleUnversionedChunk();
             if (inputChunk->GetChunkId() == chunkId) {
                 inputChunk->SetReplicaList(replicas);
             }
@@ -7664,7 +7664,7 @@ void TOperationControllerBase::RegisterRecoveryInfo(
 {
     for (const auto& dataSlice : stripe->DataSlices) {
         // NB: intermediate slice must be trivial.
-        auto chunkId = dataSlice->GetSingleUnversionedChunkOrThrow()->GetChunkId();
+        auto chunkId = dataSlice->GetSingleUnversionedChunk()->GetChunkId();
         YT_VERIFY(ChunkOriginMap.emplace(chunkId, completedJob).second);
     }
 

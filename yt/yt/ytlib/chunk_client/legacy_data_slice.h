@@ -67,7 +67,7 @@ public:
     //! Copy some fields from the originating data slice.
     void CopyPayloadFrom(const TLegacyDataSlice& dataSlice);
 
-    TInputChunkPtr GetSingleUnversionedChunkOrThrow() const;
+    TInputChunkPtr GetSingleUnversionedChunk() const;
 
     std::pair<TLegacyDataSlicePtr, TLegacyDataSlicePtr> SplitByRowIndex(i64 splitRow) const;
 

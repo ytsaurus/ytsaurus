@@ -37,7 +37,7 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripe(const TChunkStripePtr& strip
     auto mappedStripe = New<TChunkStripe>();
     for (const auto& dataSlice : stripe->DataSlices) {
         if (dataSlice->Type == EDataSourceType::UnversionedTable) {
-            const auto& chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+            const auto& chunk = dataSlice->GetSingleUnversionedChunk();
             auto iterator = Substitutes_.find(chunk);
             if (iterator == Substitutes_.end()) {
                 // The chunk was never substituted, so it remains as is.
@@ -122,8 +122,8 @@ void TInputChunkMapping::OnStripeRegenerated(
         }
 
         for (int index = 0; index < std::ssize(oldStripe->DataSlices); ++index) {
-            const auto& oldChunk = oldStripe->DataSlices[index]->GetSingleUnversionedChunkOrThrow();
-            const auto& newChunk = newStripe->DataSlices[index]->GetSingleUnversionedChunkOrThrow();
+            const auto& oldChunk = oldStripe->DataSlices[index]->GetSingleUnversionedChunk();
+            const auto& newChunk = newStripe->DataSlices[index]->GetSingleUnversionedChunk();
             ValidateSortedChunkConsistency(oldChunk, newChunk);
         }
     }
@@ -132,7 +132,7 @@ void TInputChunkMapping::OnStripeRegenerated(
         const auto& oldSlice = oldStripe->DataSlices[index];
         // Versioned slices may not be lost and regenerated.
         YT_VERIFY(oldSlice->Type == EDataSourceType::UnversionedTable);
-        const auto& oldChunk = oldSlice->GetSingleUnversionedChunkOrThrow();
+        const auto& oldChunk = oldSlice->GetSingleUnversionedChunk();
 
         // In case of unordered mode we distribute the substitutes uniformly
         // among the original chunks.
@@ -144,7 +144,7 @@ void TInputChunkMapping::OnStripeRegenerated(
         substitutes.reserve(end - begin);
 
         for (int newIndex = begin; newIndex < end; ++newIndex) {
-            const auto& newChunk = newStripe->DataSlices[newIndex]->GetSingleUnversionedChunkOrThrow();
+            const auto& newChunk = newStripe->DataSlices[newIndex]->GetSingleUnversionedChunk();
             substitutes.emplace_back(newChunk);
         }
     }
