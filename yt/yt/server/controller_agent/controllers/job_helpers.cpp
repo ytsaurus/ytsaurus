@@ -9,6 +9,8 @@
 
 #include <yt/yt/ytlib/job_tracker_client/statistics.h>
 
+#include <yt/yt/core/ypath/tokenizer.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NControllerAgent::NControllers {
@@ -184,12 +186,23 @@ void ParseStatistics(
         statistics = TStatistics();
     }
 
+    bool hasTimeStatistics = false;
+    {
+        const auto& data = statistics->Data();
+        auto iterator = data.lower_bound("/time");
+        if (iterator != data.end() && HasPrefix(iterator->first, "/time")) {
+            hasTimeStatistics = true;
+        }
+    }
+    if (!hasTimeStatistics) {
+        jobSummary->TimeStatistics.AddSamplesTo(&statistics.value());
+    }
+
     {
         auto endTime = std::max(jobSummary->FinishTime ? *jobSummary->FinishTime : TInstant::Now(), lastUpdateTime);
         auto duration = endTime - startTime;
         statistics->AddSample("/time/total", duration.MilliSeconds());
     }
-    jobSummary->TimeStatistics.AddSamplesTo(&statistics.value());
 
     jobSummary->StatisticsYson = ConvertToYsonString(statistics);
 }

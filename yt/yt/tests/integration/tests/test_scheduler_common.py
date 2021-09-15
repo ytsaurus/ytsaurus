@@ -1663,6 +1663,24 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         release_breakpoint()
         op.track()
 
+    @authors("ignat")
+    def test_scheduler_operation_statistics(self):
+        self._create_table("//tmp/in")
+        self._create_table("//tmp/out")
+        write_table("//tmp/in", [{"foo": i} for i in xrange(10)])
+
+        op = map(
+            in_="//tmp/in",
+            out="//tmp/out",
+            command="cat",
+            spec={"data_size_per_job": 1})
+
+        statistics = get(op.get_path() + "/@progress/job_statistics")
+
+        assert get_statistics(statistics, "time.exec.$.completed.map.count") == 10
+        assert get_statistics(statistics, "time.exec.$.completed.map.sum") <= \
+            get_statistics(statistics, "time.total.$.completed.map.sum")
+
 
 ##################################################################
 
