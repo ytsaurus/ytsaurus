@@ -346,7 +346,7 @@ class YsonLexer(object):
                     string = string[:-1]
                 else:
                     raise ValueError()
-                result = int(string)
+                result = yson_types.YsonUint64(int(string))
                 token_type = TOKEN_UINT64
                 if result > 2 ** 64 - 1:
                     raise ValueError()

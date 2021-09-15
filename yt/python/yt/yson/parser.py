@@ -123,8 +123,6 @@ class YsonParser(object):
             self._tokenizer.get_current_token().expect_type((TOKEN_BOOLEAN, TOKEN_INT64, TOKEN_UINT64,
                                                              TOKEN_STRING, TOKEN_DOUBLE))
             result = self._tokenizer.get_current_token().get_value()
-            if self._tokenizer.get_current_token().get_type() == TOKEN_UINT64:
-                result = YsonUint64(result)
 
         return convert.to_yson_type(
             result,
