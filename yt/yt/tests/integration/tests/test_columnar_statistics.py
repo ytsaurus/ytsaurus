@@ -467,6 +467,17 @@ class TestColumnarStatistics(YTEnvSetup):
         assert 10000 <= statistics["uncompressed_data_size"] <= 12000
         assert 10000 <= statistics["compressed_data_size"] <= 12000
 
+    @authors("prime")
+    def test_max_node_per_fetch(self):
+        create("table", "//tmp/t")
+
+        for _ in range(100):
+            write_table("<append=%true>//tmp/t", [{"a": "x" * 100}, {"c": 1.2}])
+
+        statistics0 = get_table_columnar_statistics('["//tmp/t{a}";]')
+        statistics1 = get_table_columnar_statistics('["//tmp/t{a}";]', max_chunks_per_node_fetch=1)
+        assert statistics0 == statistics1
+
 
 ##################################################################
 
