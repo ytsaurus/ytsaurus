@@ -314,6 +314,8 @@
     XX(ReplicaPath, replica_path) \
     XX(Replicas, replicas) \
     XX(ReplicatedTableOptions, replicated_table_options) \
+    XX(ReplicationCollocationId, replication_collocation_id) \
+    XX(ReplicationCollocationTablePaths, replication_collocation_table_paths) \
     XX(ReplicationErrorCount, replication_error_count) \
     XX(ReplicationErrors, replication_errors) \
     XX(ReplicationFactor, replication_factor) \
@@ -361,7 +363,9 @@
     XX(TableChunkFormat, table_chunk_format) \
     XX(TableChunkFormatStatistics, table_chunk_format_statistics) \
     XX(TableId, table_id) \
+    XX(TableIds, table_ids) \
     XX(TablePath, table_path) \
+    XX(TablePaths, table_paths) \
     XX(TabletActions, tablet_actions) \
     XX(TabletBalancerConfig, tablet_balancer_config) \
     XX(TabletCellBundle, tablet_cell_bundle) \

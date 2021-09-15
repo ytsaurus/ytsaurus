@@ -1981,6 +1981,36 @@ TObjectId TClient::DoCreateObject(
             break;
         }
 
+        case EObjectType::TableCollocation: {
+            if (attributes->Contains("table_paths")) {
+                if (attributes->Contains("table_ids")) {
+                    THROW_ERROR_EXCEPTION("Cannot specify both \"table_ids\" and \"table_paths\"");
+                }
+
+                auto tablePaths = attributes->GetAndRemove<std::vector<TYPath>>("table_paths");
+
+                auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
+                auto batchReq = proxy->ExecuteBatch();
+                for (const auto& tablePath : tablePaths) {
+                    auto req = TCypressYPathProxy::Get(tablePath + "/@id");
+                    batchReq->AddRequest(req);
+                }
+                auto batchRsp = WaitFor(batchReq->Invoke())
+                    .ValueOrThrow();
+
+                std::vector<TTableId> tableIds;
+                tableIds.reserve(tablePaths.size());
+                for (const auto& rspOrError : batchRsp->GetResponses<TCypressYPathProxy::TRspGet>()) {
+                    const auto& rsp = rspOrError.ValueOrThrow();
+                    tableIds.push_back(ConvertTo<TTableId>(TYsonString(rsp->value())));
+                }
+
+                attributes->Set("table_ids", tableIds);
+            }
+
+            break;
+        }
+
         default:
             break;
     }

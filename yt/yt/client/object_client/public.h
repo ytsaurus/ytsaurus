@@ -201,6 +201,7 @@ DEFINE_ENUM(EObjectType,
     // Table Manager stuff
     ((MasterTableSchema)            (1300))
     ((MasterTableSchemaMap)         (1301))
+    ((TableCollocation)             (1302))
 
     // Global stuff
     // A mysterious creature representing the master as a whole.

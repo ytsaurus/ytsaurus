@@ -1,6 +1,9 @@
 #include "table_manager.h"
 #include "private.h"
 #include "master_table_schema_proxy.h"
+#include "replicated_table_node.h"
+#include "table_collocation.h"
+#include "table_collocation_type_handler.h"
 #include "table_node.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
@@ -54,7 +57,7 @@ using NCypressServer::TNodeId;
 
 static const auto& Logger = TableServerLogger;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TTableManager::TMasterTableSchemaTypeHandler
     : public TObjectTypeHandlerWithMapBase<TMasterTableSchema>
@@ -121,6 +124,7 @@ public:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TMasterTableSchemaTypeHandler>(this));
+        objectManager->RegisterHandler(CreateTableCollocationTypeHandler(Bootstrap_, &TableCollocationMap_));
 
         auto cellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
         EmptyMasterTableSchemaId_ = MakeWellKnownId(EObjectType::MasterTableSchema, cellTag, 0xffffffffffffffff);
@@ -434,6 +438,10 @@ public:
         if (context.GetVersion() >= EMasterReign::TrueTableSchemaObjects) {
             MasterTableSchemaMap_.LoadKeys(context);
         }
+        // COMPAT(akozhikhov)
+        if (context.GetVersion() >= EMasterReign::TableCollocation) {
+            TableCollocationMap_.LoadKeys(context);
+        }
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -447,6 +455,11 @@ public:
         if (context.GetVersion() >= EMasterReign::MoveTableStatisticsGossipToTableManager) {
             LoadStatisticsUpdateRequests(context);
         } // Otherwise loading is initiated from tablet manager.
+
+        // COMPAT(akozhikhov)
+        if (context.GetVersion() >= EMasterReign::TableCollocation) {
+            TableCollocationMap_.LoadValues(context);
+        }
 
         // COMPAT(shakurov)
         if (context.GetVersion() < EMasterReign::RefBuiltinEmptySchema) {
@@ -474,15 +487,37 @@ public:
     void SaveKeys(NCellMaster::TSaveContext& context) const
     {
         MasterTableSchemaMap_.SaveKeys(context);
+        TableCollocationMap_.SaveKeys(context);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
     {
         MasterTableSchemaMap_.SaveValues(context);
         Save(context, StatisticsUpdateRequests_);
+        TableCollocationMap_.SaveValues(context);
     }
 
     DECLARE_ENTITY_MAP_ACCESSORS(MasterTableSchema, TMasterTableSchema);
+    DECLARE_ENTITY_MAP_ACCESSORS(TableCollocation, TTableCollocation);
+
+    TTableNode* GetTableNodeOrThrow(TTableId id)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto* object = objectManager->GetObjectOrThrow(id);
+        if (!IsObjectAlive(object)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::ResolveError,
+                "No such table %v",
+                id);
+        }
+        if (!IsTableType(object->GetType())) {
+            THROW_ERROR_EXCEPTION("Object %v is expected to be a table, actual type is %Qlv",
+                id,
+                object->GetType());
+        }
+
+        return object->As<TTableNode>();
+    }
 
     TMasterTableSchema* GetEmptyMasterTableSchema()
     {
@@ -680,8 +715,253 @@ public:
         return it;
     }
 
-private:
+    TTableCollocation* CreateTableCollocation(
+        TObjectId hintId,
+        ETableCollocationType type,
+        THashSet<TTableNode*> collocatedTables)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        if (collocatedTables.empty()) {
+            THROW_ERROR_EXCEPTION("Collocated table set must be non-empty");
+        }
+        if (std::ssize(collocatedTables) > MaxTableCollocationSize) {
+            THROW_ERROR_EXCEPTION("Too many tables in collocation: %v > %v",
+                std::ssize(collocatedTables),
+                MaxTableCollocationSize);
+        }
+
+        TCellTag externalCellTag = InvalidCellTag;
+        for (auto* table : GetValuesSortedByKey(collocatedTables)) {
+            switch (type) {
+                case ETableCollocationType::Replication:
+                    if (table->GetType() != EObjectType::ReplicatedTable) {
+                        THROW_ERROR_EXCEPTION("Unexpected type of table %v: expected %Qlv, actual %Qlv",
+                            table->GetId(),
+                            EObjectType::ReplicatedTable,
+                            table->GetType());
+                    }
+
+                    if (auto* collocation = table->GetReplicationCollocation()) {
+                        YT_VERIFY(IsObjectAlive(collocation));
+                        THROW_ERROR_EXCEPTION("Table %v already belongs to replication collocation %v",
+                            table->GetId(),
+                            collocation->GetId());
+                    }
+
+                    break;
+
+                default:
+                    YT_ABORT();
+            }
+
+            auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
+            if (primaryCellTag != table->GetNativeCellTag()) {
+                // TODO(akozhikhov): Support portals with collocation.
+                THROW_ERROR_EXCEPTION("Unexpected native cell tag for table %v: expected %v, actual %v",
+                    table->GetId(),
+                    primaryCellTag,
+                    table->GetNativeCellTag());
+            }
+
+            auto tableExternalCellTag = table->GetExternalCellTag();
+            if (externalCellTag != InvalidCellTag && externalCellTag != tableExternalCellTag) {
+                THROW_ERROR_EXCEPTION("Collocated tables must have same external cell tag, found %v and %v",
+                    externalCellTag,
+                    tableExternalCellTag);
+            }
+            externalCellTag = tableExternalCellTag;
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto id = objectManager->GenerateId(EObjectType::TableCollocation, hintId);
+        auto collocationHolder = TPoolAllocator::New<TTableCollocation>(id);
+
+        auto* collocation = TableCollocationMap_.Insert(id, std::move(collocationHolder));
+        YT_VERIFY(collocation->RefObject() == 1);
+
+        collocation->SetExternalCellTag(externalCellTag);
+        collocation->Tables() = std::move(collocatedTables);
+        collocation->SetType(type);
+        switch (type) {
+            case ETableCollocationType::Replication:
+                for (auto* table : collocation->Tables()) {
+                    table->SetReplicationCollocation(collocation);
+                }
+                break;
+
+            default:
+                YT_ABORT();
+        }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table collocation created "
+            "(CollocationId: %v, CollocationType: %v, ExternalCellTag: %v, TableIds: %v)",
+            collocation->GetId(),
+            type,
+            externalCellTag,
+            MakeFormattableView(collocation->Tables(), [] (auto* builder, TTableNode* table) {
+                builder->AppendFormat("%v", table->GetId());
+            }));
+
+        return collocation;
+    }
+
+    void ZombifyTableCollocation(TTableCollocation* collocation)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        switch (collocation->GetType()) {
+            case ETableCollocationType::Replication:
+                for (auto* table : collocation->Tables()) {
+                    table->SetReplicationCollocation(nullptr);
+                }
+                break;
+
+            default:
+                YT_ABORT();
+        }
+
+        collocation->Tables().clear();
+
+        YT_VERIFY(collocation->GetObjectRefCounter() == 0);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table collocation zombified (TableCollocationId: %v)",
+            collocation->GetId());
+    }
+
+    void AddTableToCollocation(
+        TTableNode* table,
+        TTableCollocation* collocation)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        YT_VERIFY(IsObjectAlive(collocation));
+        YT_VERIFY(IsObjectAlive(table));
+
+        if (std::ssize(collocation->Tables()) + 1 > MaxTableCollocationSize) {
+            THROW_ERROR_EXCEPTION("Too many tables in collocation: %v > %v",
+                std::ssize(collocation->Tables()) + 1,
+                MaxTableCollocationSize);
+        }
+
+        if (collocation->GetExternalCellTag() != table->GetExternalCellTag()) {
+            THROW_ERROR_EXCEPTION("Collocated tables must have same external cell tag, found %v and %v",
+                collocation->GetExternalCellTag(),
+                table->GetExternalCellTag());
+        }
+
+        auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
+        if (primaryCellTag != table->GetNativeCellTag()) {
+            // TODO(akozhikhov): Support portals with collocation.
+            THROW_ERROR_EXCEPTION("Unexpected native cell tag for table %v: found %v, expected %v",
+                table->GetId(),
+                table->GetNativeCellTag(),
+                primaryCellTag);
+        }
+
+        auto collocationType = collocation->GetType();
+        switch (collocationType) {
+            case ETableCollocationType::Replication:
+                if (auto* tableCollocation = table->GetReplicationCollocation()) {
+                    YT_VERIFY(IsObjectAlive(tableCollocation));
+                    if (tableCollocation != collocation) {
+                        THROW_ERROR_EXCEPTION("Table %v already belongs to replication collocation %v",
+                            table->GetId(),
+                            tableCollocation->GetId());
+                    }
+                    return;
+                }
+
+                if (table->GetType() != EObjectType::ReplicatedTable) {
+                    THROW_ERROR_EXCEPTION("Unexpected type of table %v: expected %Qlv, actual %Qlv",
+                        table->GetId(),
+                        EObjectType::ReplicatedTable,
+                        table->GetType());
+                }
+
+                break;
+
+            default:
+                YT_ABORT();
+        }
+
+        if (!collocation->Tables().insert(table).second) {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Table %v is already present in collocation %v",
+                table->GetId(),
+                collocation->GetId());
+        }
+
+        switch (collocationType) {
+            case ETableCollocationType::Replication:
+                table->SetReplicationCollocation(collocation);
+                break;
+
+            default:
+                YT_ABORT();
+        }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Added table to collocation "
+            "(CollocationId: %v, CollocationType: %v, TableId: %v, NewCollocationSize: %v)",
+            collocation->GetId(),
+            collocationType,
+            table->GetId(),
+            collocation->Tables().size());
+    }
+
+    void RemoveTableFromCollocation(TTableNode* table, TTableCollocation* collocation)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        YT_VERIFY(IsObjectAlive(collocation));
+
+        auto collocationType = collocation->GetType();
+        switch (collocationType) {
+            case ETableCollocationType::Replication:
+                table->SetReplicationCollocation(nullptr);
+                break;
+
+            default:
+                YT_ABORT();
+        }
+
+        if (collocation->Tables().erase(table) != 1) {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Table %v is already missing from collocation %v",
+                table->GetId(),
+                collocation->GetId());
+            return;
+        }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Removed table from collocation "
+            "(CollocationId: %v, CollocationType: %v, TableId: %v, NewCollocationSize: %v)",
+            collocation->GetId(),
+            collocationType,
+            table->GetId(),
+            collocation->Tables().size());
+
+        // NB: On secondary master collocation should only be destroyed via foreign object removal mechanism.
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster() &&
+            collocation->Tables().empty())
+        {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->UnrefObject(collocation);
+        }
+    }
+
+    TTableCollocation* GetTableCollocationOrThrow(TTableCollocationId id) const
+    {
+        auto* collocation = FindTableCollocation(id);
+        if (!IsObjectAlive(collocation)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::ResolveError,
+                "No such table collocation %v",
+                id);
+        }
+
+        return collocation;
+    }
+
+private:
     const TDynamicTablesMulticellGossipConfigPtr& GetGossipConfig()
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
@@ -737,6 +1017,8 @@ private:
     TMasterTableSchemaId EmptyMasterTableSchemaId_;
     TMasterTableSchema* EmptyMasterTableSchema_ = nullptr;
 
+    NHydra::TEntityMap<TTableCollocation> TableCollocationMap_;
+
     TRandomAccessQueue<TNodeId, TStatisticsUpdateRequest> StatisticsUpdateRequests_;
     TPeriodicExecutorPtr StatisticsGossipExecutor_;
     IReconfigurableThroughputThrottlerPtr StatisticsGossipThrottler_;
@@ -748,6 +1030,7 @@ private:
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TTableManager::TImpl, MasterTableSchema, TMasterTableSchema, MasterTableSchemaMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TTableManager::TImpl, TableCollocation, TTableCollocation, TableCollocationMap_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -819,6 +1102,11 @@ void TTableManager::LoadStatisticsUpdateRequests(NCellMaster::TLoadContext& cont
     Impl_->LoadStatisticsUpdateRequests(context);
 }
 
+TTableNode* TTableManager::GetTableNodeOrThrow(TTableId id)
+{
+    return Impl_->GetTableNodeOrThrow(id);
+}
+
 TMasterTableSchema* TTableManager::GetMasterTableSchemaOrThrow(TMasterTableSchemaId id)
 {
     return Impl_->GetMasterTableSchemaOrThrow(id);
@@ -872,7 +1160,38 @@ void TTableManager::ResetTableSchema(TTableNode* table)
     return Impl_->ResetTableSchema(table);
 }
 
+TTableCollocation* TTableManager::CreateTableCollocation(
+    TObjectId hintId,
+    ETableCollocationType type,
+    THashSet<TTableNode*> collocatedTables)
+{
+    return Impl_->CreateTableCollocation(hintId, type, std::move(collocatedTables));
+}
+
+void TTableManager::ZombifyTableCollocation(TTableCollocation* collocation)
+{
+    Impl_->ZombifyTableCollocation(collocation);
+}
+
+void TTableManager::AddTableToCollocation(
+    TTableNode* table,
+    TTableCollocation* collocation)
+{
+    Impl_->AddTableToCollocation(table, collocation);
+}
+
+void TTableManager::RemoveTableFromCollocation(TTableNode* table, TTableCollocation* collocation)
+{
+    Impl_->RemoveTableFromCollocation(table, collocation);
+}
+
+TTableCollocation* TTableManager::GetTableCollocationOrThrow(TTableCollocationId id) const
+{
+    return Impl_->GetTableCollocationOrThrow(id);
+}
+
 DELEGATE_ENTITY_MAP_ACCESSORS(TTableManager, MasterTableSchema, TMasterTableSchema, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TTableManager, TableCollocation, TTableCollocation, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////
 

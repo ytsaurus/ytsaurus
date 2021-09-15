@@ -1780,6 +1780,18 @@ def alter_table_replica(replica_id, **kwargs):
     execute_command("alter_table_replica", kwargs)
 
 
+def create_table_collocation(table_ids=None, table_paths=None, **kwargs):
+    kwargs["type"] = "table_collocation"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["type"] = "replication"
+    if table_ids is not None:
+        kwargs["attributes"]["table_ids"] = table_ids
+    if table_paths is not None:
+        kwargs["attributes"]["table_paths"] = table_paths
+    return execute_command("create", kwargs, parse_yson=True)
+
+
 def create_data_center(name, **kwargs):
     kwargs["type"] = "data_center"
     if "attributes" not in kwargs:
@@ -2304,7 +2316,7 @@ def create_dynamic_table(path, schema=None, **attributes):
 
     attributes.update({"schema": schema})
 
-    create("table", path, attributes=attributes)
+    return create("table", path, attributes=attributes)
 
 
 def create_area(name, cell_bundle_id, **kwargs):
