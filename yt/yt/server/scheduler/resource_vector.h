@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/library/vector_hdrf/job_resources.h>
 
 #include <yt/yt/library/numeric/binary_search.h>
 #include <yt/yt/library/numeric/double_array.h>

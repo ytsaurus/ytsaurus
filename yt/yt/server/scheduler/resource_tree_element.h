@@ -5,11 +5,11 @@
 
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
 
-#include <yt/yt/ytlib/scheduler/job_resources.h>
-
 #include <yt/yt/core/concurrency/spinlock.h>
 
 #include <yt/yt/core/misc/atomic_object.h>
+
+#include <yt/yt/library/vector_hdrf/job_resources.h>
 
 namespace NYT::NScheduler {
 

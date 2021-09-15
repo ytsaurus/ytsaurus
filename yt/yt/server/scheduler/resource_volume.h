@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/core/misc/property.h>
 
-#include <yt/yt/core/yson/public.h>
+#include <yt/yt/library/vector_hdrf/job_resources.h>
 
-#include <yt/yt/core/ytree/fluent.h>
+#include <util/datetime/base.h>
 
 namespace NYT::NScheduler {
 

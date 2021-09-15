@@ -2,6 +2,8 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////

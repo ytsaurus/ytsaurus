@@ -7,7 +7,6 @@
 #include <yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
-#include <yt/yt/ytlib/scheduler/job_resources.h>
 #include <yt/yt/ytlib/scheduler/proto/scheduler_service.pb.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -26,6 +25,8 @@
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <yt/yt/core/ytree/node.h>
+
+#include <yt/yt/library/vector_hdrf/job_resources.h>
 
 namespace NYT::NScheduler {
 

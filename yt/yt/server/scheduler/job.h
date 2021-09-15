@@ -11,8 +11,6 @@
 
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
-#include <yt/yt/ytlib/scheduler/job_resources.h>
-
 #include <yt/yt/core/actions/callback.h>
 
 #include <yt/yt/core/misc/optional.h>
@@ -20,6 +18,8 @@
 #include <yt/yt/core/misc/phoenix.h>
 
 #include <yt/yt/core/yson/consumer.h>
+
+#include <yt/yt/library/vector_hdrf/job_resources.h>
 
 namespace NYT::NScheduler {
 
