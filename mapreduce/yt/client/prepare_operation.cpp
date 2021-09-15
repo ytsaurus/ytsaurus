@@ -197,7 +197,7 @@ static void FixInputTable(TStructuredJobTable& table, int index, const TJobOpera
     const auto& inputDescriptions = preparer.GetInputDescriptions();
 
     Y_VERIFY(table.RichYPath);
-    if (inputDescriptions[index] && HoldsAlternative<TUnspecifiedTableStructure>(table.Description)) {
+    if (inputDescriptions[index] && std::holds_alternative<TUnspecifiedTableStructure>(table.Description)) {
         table.Description = *inputDescriptions[index];
     }
     FixInputTable(*table.RichYPath, index, preparer);
@@ -211,7 +211,7 @@ static void FixOutputTable(TStructuredJobTable& table, int index, const TJobOper
     const auto& outputDescriptions = preparer.GetOutputDescriptions();
 
     Y_VERIFY(table.RichYPath);
-    if (outputDescriptions[index] && HoldsAlternative<TUnspecifiedTableStructure>(table.Description)) {
+    if (outputDescriptions[index] && std::holds_alternative<TUnspecifiedTableStructure>(table.Description)) {
         table.Description = *outputDescriptions[index];
     }
     FixOutputTable(*table.RichYPath, index, preparer);

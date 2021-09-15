@@ -315,7 +315,7 @@ TStructuredJobTableList ApplyProtobufColumnFilters(
         if (table.RichYPath->Columns_) {
             continue;
         }
-        if (!HoldsAlternative<TProtobufTableStructure>(table.Description)) {
+        if (!std::holds_alternative<TProtobufTableStructure>(table.Description)) {
             continue;
         }
         const auto& descriptor = ::Get<TProtobufTableStructure>(table.Description).Descriptor;
@@ -341,7 +341,7 @@ TSimpleOperationIo CreateSimpleOperationIo(
     const TOperationOptions& options,
     bool allowSkiff)
 {
-    if (!HoldsAlternative<TVoidStructuredRowStream>(structuredJob.GetInputRowStreamDescription())) {
+    if (!std::holds_alternative<TVoidStructuredRowStream>(structuredJob.GetInputRowStreamDescription())) {
         VerifyHasElements(GetStructuredInputs(spec), "input");
     }
 
@@ -874,14 +874,14 @@ private:
 
     void UploadBinary(const TJobBinaryConfig& jobBinary)
     {
-        if (HoldsAlternative<TJobBinaryLocalPath>(jobBinary)) {
+        if (std::holds_alternative<TJobBinaryLocalPath>(jobBinary)) {
             auto binaryLocalPath = ::Get<TJobBinaryLocalPath>(jobBinary);
             auto opts = TAddLocalFileOptions().PathInJob("cppbinary");
             if (binaryLocalPath.MD5CheckSum) {
                 opts.MD5CheckSum(*binaryLocalPath.MD5CheckSum);
             }
             UploadLocalFile(binaryLocalPath.Path, opts, /* isApiFile */ true);
-        } else if (HoldsAlternative<TJobBinaryCypressPath>(jobBinary)) {
+        } else if (std::holds_alternative<TJobBinaryCypressPath>(jobBinary)) {
             auto binaryCypressPath = ::Get<TJobBinaryCypressPath>(jobBinary);
             TRichYPath ytPath = TConfig::Get()->ApiFilePathOptions;
             ytPath.Path(binaryCypressPath.Path);
@@ -927,11 +927,11 @@ private:
     void PrepareJobBinary(const IJob& job, int outputTableCount, bool hasState)
     {
         auto jobBinary = TJobBinaryConfig();
-        if (!HoldsAlternative<TJobBinaryDefault>(Spec_.GetJobBinary())) {
+        if (!std::holds_alternative<TJobBinaryDefault>(Spec_.GetJobBinary())) {
             jobBinary = Spec_.GetJobBinary();
         }
         TString binaryPathInsideJob;
-        if (HoldsAlternative<TJobBinaryDefault>(jobBinary)) {
+        if (std::holds_alternative<TJobBinaryDefault>(jobBinary)) {
             if (GetInitStatus() != EInitStatus::FullInitialization) {
                 ythrow yexception() << "NYT::Initialize() must be called prior to any operation";
             }
@@ -943,13 +943,13 @@ private:
             if (isLocalMode) {
                 binaryPathInsideJob = GetExecPath();
             }
-        } else if (HoldsAlternative<TJobBinaryLocalPath>(jobBinary)) {
+        } else if (std::holds_alternative<TJobBinaryLocalPath>(jobBinary)) {
             const bool isLocalMode = IsLocalMode();
             if (isLocalMode) {
                 binaryPathInsideJob = TFsPath(::Get<TJobBinaryLocalPath>(jobBinary).Path).RealPath();
             }
         }
-        Y_ASSERT(!HoldsAlternative<TJobBinaryDefault>(jobBinary));
+        Y_ASSERT(!std::holds_alternative<TJobBinaryDefault>(jobBinary));
 
         // binaryPathInsideJob is only set when LocalModeOptimization option is on, so upload is not needed
         if (!binaryPathInsideJob) {
@@ -2415,7 +2415,7 @@ TOperationId ExecuteVanilla(
 
     auto addTask = [&](TFluentMap fluent, const TVanillaTask& task) {
         Y_VERIFY(task.Job_.Get());
-        if (HoldsAlternative<TVoidStructuredRowStream>(task.Job_->GetOutputRowStreamDescription())) {
+        if (std::holds_alternative<TVoidStructuredRowStream>(task.Job_->GetOutputRowStreamDescription())) {
             Y_ENSURE_EX(task.Outputs_.empty(),
                 TApiUsageError() << "Vanilla task with void IVanillaJob doesn't expect output tables");
             TJobPreparer jobPreparer(
