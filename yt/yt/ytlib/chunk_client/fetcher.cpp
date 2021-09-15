@@ -340,6 +340,7 @@ void TFetcherBase::StartFetchingRound()
         }
 
         if (std::ssize(chunkIndexes) > Config_->MaxChunksPerNodeFetch) {
+            UnfetchedChunkIndexes_.insert(chunkIndexes.begin() + Config_->MaxChunksPerNodeFetch, chunkIndexes.end());
             chunkIndexes.resize(Config_->MaxChunksPerNodeFetch);
         }
 

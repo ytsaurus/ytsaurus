@@ -304,6 +304,8 @@ TGetTableColumnarStatisticsCommand::TGetTableColumnarStatisticsCommand()
     RegisterParameter("paths", Paths);
     RegisterParameter("fetcher_mode", FetcherMode)
         .Default(EColumnarStatisticsFetcherMode::FromNodes);
+    RegisterParameter("max_chunks_per_node_fetch", MaxChunksPerNodeFetch)
+        .Default();
 
     RegisterPostprocessor([&] {
         for (auto& path : Paths) {
@@ -321,6 +323,11 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
 {
     Options.FetchChunkSpecConfig = context->GetConfig()->TableReader;
     Options.FetcherConfig = context->GetConfig()->Fetcher;
+
+    if (MaxChunksPerNodeFetch) {
+        Options.FetcherConfig = CloneYsonSerializable(Options.FetcherConfig);
+        Options.FetcherConfig->MaxChunksPerNodeFetch = *MaxChunksPerNodeFetch;
+    }
 
     std::vector<std::vector<TString>> allColumns;
     allColumns.reserve(Paths.size());

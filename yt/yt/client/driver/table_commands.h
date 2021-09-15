@@ -93,6 +93,7 @@ public:
 private:
     std::vector<NYPath::TRichYPath> Paths;
     NTableClient::EColumnarStatisticsFetcherMode FetcherMode;
+    std::optional<int> MaxChunksPerNodeFetch;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };
