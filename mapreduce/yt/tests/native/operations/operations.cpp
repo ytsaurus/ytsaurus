@@ -43,7 +43,6 @@
 
 #include <util/system/env.h>
 #include <util/system/fs.h>
-#include <util/system/mktemp.h>
 #include <util/system/tempfile.h>
 
 #include <util/thread/factory.h>
