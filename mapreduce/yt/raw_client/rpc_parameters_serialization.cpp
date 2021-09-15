@@ -667,12 +667,15 @@ TNode SerializeParamsForAlterTable(
 TNode SerializeParamsForGetTableColumnarStatistics(
     const TTransactionId& transactionId,
     const TVector<TRichYPath>& paths,
-    const TGetTableColumnarStatisticsOptions& /* options */)
+    const TGetTableColumnarStatisticsOptions& options)
 {
     TNode result;
     SetTransactionIdParam(&result, transactionId);
     for (const auto& path : paths) {
         result["paths"].Add(PathToNode(path));
+    }
+    if (options.FetcherMode_) {
+        result["fetcher_mode"] = ::ToString(*options.FetcherMode_);
     }
     return result;
 }
