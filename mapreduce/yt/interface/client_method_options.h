@@ -1245,9 +1245,28 @@ struct TCheckPermissionOptions
 };
 
 ///
-/// @brief Options for @ref NYT::IClient::GetTableColumnarStatistics
+/// @brief Columnar statistics fetching mode.
 ///
-/// @note They are empty for now but options might appear in the future.
+/// @ref NYT::TGetTableColumnarStatisticsOptions::FetcherMode
+enum class EColumnarStatisticsFetcherMode
+{
+    /// Slow mode for fetching precise columnar statistics.
+    FromNodes /* "from_nodes" */,
+
+    ///
+    /// @brief Fast mode for fetching lightweight columnar statistics.
+    ///
+    /// Relative presision is 1 / 256.
+    ///
+    /// @note Might be unavailable for old tables in that case some upper bound is returned.
+    FromMaster /* "from_master" */,
+
+    /// Use lightweight columnar statistics (FromMaster) if available otherwise switch to slow but precise mode (FromNodes).
+    Fallback /* "fallback" */,
+};
+
+///
+/// @brief Options for @ref NYT::IClient::GetTableColumnarStatistics
 ///
 /// @see https://yt.yandex-team.ru/docs/api/commands.html#get_table_columnar_statistics
 struct TGetTableColumnarStatisticsOptions
@@ -1255,6 +1274,12 @@ struct TGetTableColumnarStatisticsOptions
     /// @cond Doxygen_Suppress
     using TSelf = TGetTableColumnarStatisticsOptions;
     /// @endcond
+
+    ///
+    /// @brief Mode of statistics fetching.
+    ///
+    /// @ref NYT::EColumnarStatisticsFetcherMode
+    FLUENT_FIELD_OPTION(EColumnarStatisticsFetcherMode, FetcherMode);
 };
 
 ///
