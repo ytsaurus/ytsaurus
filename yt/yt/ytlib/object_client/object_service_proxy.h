@@ -32,6 +32,7 @@ class TObjectServiceProxy
 public:
     DEFINE_RPC_PROXY(TObjectServiceProxy, ObjectService,
         .SetProtocolVersion(12)
+        .SetAcceptsBaggage(false)
         .SetFeaturesType<EMasterFeature>());
 
     TObjectServiceProxy(

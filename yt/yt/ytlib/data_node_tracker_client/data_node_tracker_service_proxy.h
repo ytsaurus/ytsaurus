@@ -12,7 +12,8 @@ class TDataNodeTrackerServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TDataNodeTrackerServiceProxy, DataNodeTrackerService);
+    DEFINE_RPC_PROXY(TDataNodeTrackerServiceProxy, DataNodeTrackerService,
+        .SetAcceptsBaggage(false));
 
     DEFINE_RPC_PROXY_METHOD(NProto, FullHeartbeat);
     DEFINE_RPC_PROXY_METHOD(NProto, IncrementalHeartbeat);

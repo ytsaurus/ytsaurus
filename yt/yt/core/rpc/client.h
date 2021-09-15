@@ -199,6 +199,7 @@ public:
 protected:
     const IChannelPtr Channel_;
     const bool StreamingEnabled_;
+    const bool SendBaggage_;
     const TFeatureIdFormatter FeatureIdFormatter_;
 
     TClientRequest(
@@ -396,12 +397,14 @@ struct TServiceDescriptor
     TString Namespace;
     TProtocolVersion ProtocolVersion = DefaultProtocolVersion;
     TFeatureIdFormatter FeatureIdFormatter = nullptr;
+    bool AcceptsBaggage = true;
 
     explicit TServiceDescriptor(const TString& serviceName);
 
     TServiceDescriptor& SetProtocolVersion(int majorVersion);
     TServiceDescriptor& SetProtocolVersion(TProtocolVersion version);
     TServiceDescriptor& SetNamespace(const TString& value);
+    TServiceDescriptor& SetAcceptsBaggage(bool value);
     template <class E>
     TServiceDescriptor& SetFeaturesType();
 

@@ -13,7 +13,8 @@ class TChaosMasterServiceProxy
 {
 public:
     DEFINE_RPC_PROXY(TChaosMasterServiceProxy, ChaosMasterService,
-        .SetProtocolVersion(1));
+        .SetProtocolVersion(1)
+        .SetAcceptsBaggage(false));
 
     DEFINE_RPC_PROXY_METHOD(NProto, SyncAlienCells);
 };

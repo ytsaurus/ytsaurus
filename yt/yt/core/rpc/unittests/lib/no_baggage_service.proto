@@ -1,0 +1,11 @@
+package NNoBaggageRpc;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqExpectNoBaggage
+{ }
+
+message TRspExpectNoBaggage
+{ }

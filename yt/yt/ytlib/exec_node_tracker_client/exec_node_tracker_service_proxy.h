@@ -12,7 +12,8 @@ class TExecNodeTrackerServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TExecNodeTrackerServiceProxy, ExecNodeTrackerService);
+    DEFINE_RPC_PROXY(TExecNodeTrackerServiceProxy, ExecNodeTrackerService,
+        .SetAcceptsBaggage(false));
 
     DEFINE_RPC_PROXY_METHOD(NProto, Heartbeat);
 };

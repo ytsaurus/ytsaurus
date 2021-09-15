@@ -62,6 +62,7 @@ TClientRequest::TClientRequest(
     const TMethodDescriptor& methodDescriptor)
     : Channel_(std::move(channel))
     , StreamingEnabled_(methodDescriptor.StreamingEnabled)
+    , SendBaggage_(serviceDescriptor.AcceptsBaggage)
     , FeatureIdFormatter_(serviceDescriptor.FeatureIdFormatter)
 {
     YT_ASSERT(Channel_);
@@ -86,6 +87,7 @@ TClientRequest::TClientRequest(const TClientRequest& other)
     , MemoryZone_(other.MemoryZone_)
     , Channel_(other.Channel_)
     , StreamingEnabled_(other.StreamingEnabled_)
+    , SendBaggage_(other.SendBaggage_)
     , FeatureIdFormatter_(other.FeatureIdFormatter_)
     , Header_(other.Header_)
     , MultiplexingBand_(other.MultiplexingBand_)
@@ -311,7 +313,11 @@ TClientContextPtr TClientRequest::CreateClientContext()
 {
     auto traceContext = CreateCallTraceContext(GetService(), GetMethod());
     if (traceContext) {
-        ToProto(Header().MutableExtension(NRpc::NProto::TRequestHeader::tracing_ext), traceContext);
+        auto* tracingExt = Header().MutableExtension(NRpc::NProto::TRequestHeader::tracing_ext);
+        ToProto(tracingExt, traceContext);
+        if (!SendBaggage_) {
+            tracingExt->clear_baggage();
+        }
         if (traceContext->IsSampled()) {
             TraceRequest(traceContext);
         }
@@ -698,6 +704,12 @@ TServiceDescriptor& TServiceDescriptor::SetProtocolVersion(TProtocolVersion vers
 TServiceDescriptor& TServiceDescriptor::SetNamespace(const TString& value)
 {
     Namespace = value;
+    return *this;
+}
+
+TServiceDescriptor& TServiceDescriptor::SetAcceptsBaggage(bool value)
+{
+    AcceptsBaggage = value;
     return *this;
 }
 

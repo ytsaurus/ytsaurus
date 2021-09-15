@@ -15,7 +15,8 @@ class THiveServiceProxy
 {
 public:
     DEFINE_RPC_PROXY(THiveServiceProxy, HiveService,
-        .SetProtocolVersion(1));
+        .SetProtocolVersion(1)
+        .SetAcceptsBaggage(false));
 
     DEFINE_RPC_PROXY_METHOD(NProto, Ping,
         .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
