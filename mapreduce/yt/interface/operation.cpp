@@ -249,7 +249,7 @@ TJobOperationPreparer::TInputGroup TJobOperationPreparer::BeginInputGroup(int be
         << "BeginInputGroup(): begin must not exceed end, got " << begin << ", " << end);
     TVector<int> indices;
     for (int i = begin; i < end; ++i) {
-        ValidateInputTableIndex(i, AsStringBuf("BeginInputGroup()"));
+        ValidateInputTableIndex(i, TStringBuf("BeginInputGroup()"));
         indices.push_back(i);
     }
     return TInputGroup(*this, std::move(indices));
@@ -262,7 +262,7 @@ TJobOperationPreparer::TOutputGroup TJobOperationPreparer::BeginOutputGroup(int 
         << "BeginOutputGroup(): begin must not exceed end, got " << begin << ", " << end);
     TVector<int> indices;
     for (int i = begin; i < end; ++i) {
-        ValidateOutputTableIndex(i, AsStringBuf("BeginOutputGroup()"));
+        ValidateOutputTableIndex(i, TStringBuf("BeginOutputGroup()"));
         indices.push_back(i);
     }
     return TOutputGroup(*this, std::move(indices));
@@ -286,14 +286,14 @@ TJobOperationPreparer& TJobOperationPreparer::InputColumnRenaming(
     int tableIndex,
     const THashMap<TString,TString>& renaming)
 {
-    ValidateInputTableIndex(tableIndex, AsStringBuf("InputColumnRenaming()"));
+    ValidateInputTableIndex(tableIndex, TStringBuf("InputColumnRenaming()"));
     InputColumnRenamings_[tableIndex] = renaming;
     return *this;
 }
 
 TJobOperationPreparer& TJobOperationPreparer::InputColumnFilter(int tableIndex, const TVector<TString>& columns)
 {
-    ValidateInputTableIndex(tableIndex, AsStringBuf("InputColumnFilter()"));
+    ValidateInputTableIndex(tableIndex, TStringBuf("InputColumnFilter()"));
     InputColumnFilters_[tableIndex] = columns;
     return *this;
 }

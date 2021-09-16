@@ -410,7 +410,7 @@ template <typename TCont>
 TJobOperationPreparer::TInputGroup TJobOperationPreparer::BeginInputGroup(const TCont& indices)
 {
     for (auto i : indices) {
-        ValidateInputTableIndex(i, AsStringBuf("BeginInputGroup()"));
+        ValidateInputTableIndex(i, TStringBuf("BeginInputGroup()"));
     }
     return TInputGroup(*this, TVector<int>(std::begin(indices), std::end(indices)));
 }
@@ -419,7 +419,7 @@ template <typename TCont>
 TJobOperationPreparer::TOutputGroup TJobOperationPreparer::BeginOutputGroup(const TCont& indices)
 {
     for (auto i : indices) {
-        ValidateOutputTableIndex(i, AsStringBuf("BeginOutputGroup()"));
+        ValidateOutputTableIndex(i, TStringBuf("BeginOutputGroup()"));
     }
     return TOutputGroup(*this, indices);
 }
