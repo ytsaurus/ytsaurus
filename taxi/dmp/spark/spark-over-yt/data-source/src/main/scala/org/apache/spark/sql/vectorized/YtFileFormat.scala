@@ -17,13 +17,11 @@ import ru.yandex.spark.yt.format._
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read._
 import ru.yandex.spark.yt.format.conf.{SparkYtWriteConfiguration, YtTableSparkSettings}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import ru.yandex.spark.yt.fs.YtPath
+import ru.yandex.spark.yt.fs.YtDynamicPath
 import ru.yandex.spark.yt.serializers.{InternalRowDeserializer, SchemaConverter}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
 import ru.yandex.yt.ytclient.proxy.CompoundClient
-
-import scala.collection.mutable
 
 class YtFileFormat extends FileFormat with DataSourceRegister with Serializable {
   override def inferSchema(sparkSession: SparkSession,
@@ -124,8 +122,10 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
   override def shortName(): String = "yt"
 
   override def isSplitable(sparkSession: SparkSession, options: Map[String, String], path: Path): Boolean = {
-    import ru.yandex.spark.yt.format.conf.{YtTableSparkSettings => TableSettings}
-    options.get(TableSettings.Dynamic.name).forall(!_.toBoolean)
+    path match {
+      case _: YtDynamicPath => false
+      case _ => true
+    }
   }
 
   override def supportBatch(sparkSession: SparkSession, dataSchema: StructType): Boolean = {

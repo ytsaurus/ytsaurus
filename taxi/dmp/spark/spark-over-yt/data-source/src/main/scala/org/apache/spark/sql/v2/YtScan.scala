@@ -12,6 +12,7 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.util.SerializableConfiguration
+import ru.yandex.spark.yt.fs.YtDynamicPath
 
 import java.util.Locale
 import scala.collection.JavaConverters._
@@ -26,8 +27,10 @@ case class YtScan(sparkSession: SparkSession,
                   partitionFilters: Seq[Expression] = Seq.empty,
                   dataFilters: Seq[Expression] = Seq.empty) extends FileScan {
   override def isSplitable(path: Path): Boolean = {
-    import ru.yandex.spark.yt.format.conf.{YtTableSparkSettings => TableSettings}
-    !options.getBoolean(TableSettings.Dynamic.name, false)
+    path match {
+      case _: YtDynamicPath => false
+      case _ => true
+    }
   }
 
   override def createReaderFactory(): PartitionReaderFactory = {
