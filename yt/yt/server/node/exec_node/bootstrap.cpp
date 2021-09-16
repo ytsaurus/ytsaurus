@@ -298,6 +298,7 @@ private:
         JobProxyConfigTemplate_->TestPollJobShell = GetConfig()->ExecNode->TestPollJobShell;
 
         JobProxyConfigTemplate_->DoNotSetUserId = GetConfig()->ExecNode->DoNotSetUserId;
+        JobProxyConfigTemplate_->CheckUserJobMemoryLimit = GetConfig()->ExecNode->CheckUserJobMemoryLimit;
     }
 
     void OnDynamicConfigChanged(

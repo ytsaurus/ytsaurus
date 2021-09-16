@@ -448,6 +448,11 @@ public:
     NProfiling::TSolomonExporterConfigPtr JobProxySolomonExporter;
     TDuration SensorDumpTimeout;
 
+    //! This option can disable memory limit check for user jobs.
+    //! Used in arcadia tests, since it's almost impossible to set 
+    //! proper memory limits for asan builds.
+    bool CheckUserJobMemoryLimit;
+
     TExecNodeConfig()
     {
         RegisterParameter("slot_manager", SlotManager)
@@ -513,6 +518,9 @@ public:
             .Default(TDuration::MilliSeconds(100));
         RegisterParameter("smaps_memory_tracker_cache_period", SMapsMemoryTrackerCachePeriod)
             .Default(TDuration::Seconds(5));
+
+        RegisterParameter("check_user_job_memory_limit", CheckUserJobMemoryLimit)
+            .Default(true);
 
         RegisterParameter("user_job_monitoring", UserJobMonitoring)
             .DefaultNew();

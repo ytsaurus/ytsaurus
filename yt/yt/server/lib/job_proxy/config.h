@@ -219,6 +219,11 @@ public:
     //! For testing purposes only.
     bool DoNotSetUserId;
 
+    //! This option can disable memory limit check for user jobs.
+    //! Used in arcadia tests, since it's almost impossible to set 
+    //! proper memory limits for asan builds.
+    bool CheckUserJobMemoryLimit;
+
     TJobProxyConfig()
     {
         RegisterParameter("slot_index", SlotIndex);
@@ -294,6 +299,9 @@ public:
 
         RegisterParameter("do_not_set_user_id", DoNotSetUserId)
             .Default(false);
+
+        RegisterParameter("check_user_job_memory_limit", CheckUserJobMemoryLimit)
+            .Default(true);
 
         RegisterPreprocessor([&] {
             SolomonExporter->EnableSelfProfiling = false;
