@@ -102,7 +102,6 @@ struct IYsonConsumer
 
 
     // Extension methods.
-    void OnRaw(const TYsonString& yson);
     void OnRaw(const TYsonStringBuf& yson);
 };
 
