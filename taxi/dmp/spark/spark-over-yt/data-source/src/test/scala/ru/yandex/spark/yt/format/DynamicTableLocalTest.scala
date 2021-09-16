@@ -3,7 +3,7 @@ package ru.yandex.spark.yt.format
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Encoders
-import org.apache.spark.sql.internal.SQLConf.{FILES_OPEN_COST_IN_BYTES, PARALLEL_PARTITION_DISCOVERY_THRESHOLD}
+import org.apache.spark.sql.internal.SQLConf._
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.test.{LocalSpark, TmpDir}
@@ -72,6 +72,16 @@ class DynamicTableLocalTest extends FlatSpec with Matchers with LocalSpark with 
     }
 
     partitions.length shouldEqual defaultParallelism +- 1
+  }
+
+  it should "not split large partitions" in {
+    prepareTestTable(tmpPath, testData, Nil)
+
+    val partitions = withConf(FILES_MAX_PARTITION_BYTES, "4B") {
+      spark.read.yt(tmpPath).rdd.partitions
+    }
+
+    partitions.length shouldEqual 1
   }
 
   def prepareTestTable(path: String, data: Seq[TestRow], pivotKeys: Seq[String]): Unit = {
