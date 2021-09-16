@@ -87,7 +87,7 @@ void TYtPoller::WatchLoop()
             }
         }
 
-        IncDebugMetric(AsStringBuf("yt_poller_top_loop_repeat_count"));
+        IncDebugMetric(TStringBuf("yt_poller_top_loop_repeat_count"));
     }
 }
 
