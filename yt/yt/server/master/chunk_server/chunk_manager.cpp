@@ -1276,7 +1276,8 @@ public:
         TouchChunk(chunk);
 
         TNodePtrWithIndexesList result;
-        auto replicas = chunk->GetReplicas();
+        auto maxCachedReplicas = GetDynamicConfig()->LocateChunksCachedReplicaCountLimit;
+        auto replicas = chunk->GetReplicas(maxCachedReplicas);
         for (auto replica : replicas) {
             if ((replicaIndex == GenericChunkReplicaIndex || replica.GetReplicaIndex() == replicaIndex) &&
                 (mediumIndex == AllMediaIndex || replica.GetMediumIndex() == mediumIndex))

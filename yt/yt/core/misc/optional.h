@@ -38,6 +38,22 @@ struct TOptionalTraits<TIntrusivePtr<T>>
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+struct TStdOptionalTraits
+{
+    static constexpr bool IsStdOptional = false;
+    using TValueType = T;
+};
+
+template <class T>
+struct TStdOptionalTraits<std::optional<T>>
+{
+    static constexpr bool IsStdOptional = true;
+    using TValueType = T;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 template <class T>

@@ -505,6 +505,8 @@ public:
 
     TDynamicAllyReplicaManagerConfigPtr AllyReplicaManager;
 
+    std::optional<int> LocateChunksCachedReplicaCountLimit;
+
     TDynamicChunkManagerConfig()
     {
         RegisterParameter("enable_chunk_replicator", EnableChunkReplicator)
@@ -650,6 +652,10 @@ public:
 
         RegisterParameter("ally_replica_manager", AllyReplicaManager)
             .DefaultNew();
+
+        RegisterParameter("locate_chunks_cached_replica_count_limit", LocateChunksCachedReplicaCountLimit)
+            .Default(std::nullopt)
+            .DontSerializeDefault();
 
         RegisterPreprocessor([&] () {
             JobThrottler->Limit = 10000;

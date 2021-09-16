@@ -336,6 +336,20 @@ inline void InvokeForComposites(const Map<T...>* parameter, const F& func)
     }
 }
 
+// TODO(shakurov): get rid of this once concept support makes it into the standard
+// library implementation. Use equality-comparability instead.
+template <class T>
+concept SupportsDontSerializeDefaultImpl =
+    std::is_arithmetic_v<T> ||
+    std::is_same_v<T, TString> ||
+    std::is_same_v<T, TDuration>;
+
+template <class T>
+concept SupportsDontSerializeDefault =
+    SupportsDontSerializeDefaultImpl<T> ||
+    TStdOptionalTraits<T>::IsStdOptional &&
+    SupportsDontSerializeDefaultImpl<typename TStdOptionalTraits<T>::TValueType>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail
@@ -471,8 +485,8 @@ TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Dont
     // We should check for equality-comparability here but it is rather hard
     // to do the deep validation.
     static_assert(
-        std::is_arithmetic_v<T> || std::is_same_v<T, TString> || std::is_same_v<T, std::optional<TString>> || std::is_same_v<T, TDuration>,
-        "DontSerializeDefault requires |Parameter| to be TString or arithmetic type");
+        NDetail::SupportsDontSerializeDefault<T>,
+        "DontSerializeDefault requires |Parameter| to be TString, TDuration, an arithmetic type or an optional of those");
 
     SerializeDefault = false;
     return *this;

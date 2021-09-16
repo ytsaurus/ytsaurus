@@ -18,8 +18,9 @@ TNodeDirectoryBuilder::TNodeDirectoryBuilder(NNodeTrackerClient::NProto::TNodeDi
 
 void TNodeDirectoryBuilder::Add(const TNode* node)
 {
-    if (!ListedNodeIds_.insert(node->GetId()).second)
+    if (!ListedNodeIds_.insert(node->GetId()).second) {
         return;
+    }
 
     auto* item = ProtoDirectory_->add_items();
     item->set_node_id(node->GetId());

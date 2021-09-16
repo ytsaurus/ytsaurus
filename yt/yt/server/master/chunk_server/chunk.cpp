@@ -332,14 +332,26 @@ void TChunk::RemoveReplica(TNodePtrWithIndexes replica, const TMedium* medium, b
     }
 }
 
-TNodePtrWithIndexesList TChunk::GetReplicas() const
+TNodePtrWithIndexesList TChunk::GetReplicas(std::optional<int> maxCachedReplicas) const
 {
     const auto& storedReplicas = StoredReplicas();
     const auto& cachedReplicas = CachedReplicas();
+
     TNodePtrWithIndexesList result;
-    result.reserve(storedReplicas.size() + cachedReplicas.size());
-    result.insert(result.end(), storedReplicas.begin(), storedReplicas.end());
-    result.insert(result.end(), cachedReplicas.begin(), cachedReplicas.end());
+    if (maxCachedReplicas) {
+        auto effectiveCachedReplicaCount = std::min<int>(ssize(cachedReplicas), *maxCachedReplicas);
+        result.reserve(storedReplicas.size() + effectiveCachedReplicaCount);
+        result.insert(result.end(), storedReplicas.begin(), storedReplicas.end());
+        auto it = cachedReplicas.begin();
+        for (auto i = 0; i < effectiveCachedReplicaCount; ++i) {
+            result.push_back(*it++);
+        }
+    } else {
+        result.reserve(storedReplicas.size() + cachedReplicas.size());
+        result.insert(result.end(), storedReplicas.begin(), storedReplicas.end());
+        result.insert(result.end(), cachedReplicas.begin(), cachedReplicas.end());
+    }
+
     return result;
 }
 

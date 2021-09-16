@@ -154,7 +154,7 @@ public:
 
     void AddReplica(TNodePtrWithIndexes replica, const TMedium* medium, bool approved);
     void RemoveReplica(TNodePtrWithIndexes replica, const TMedium* medium, bool approved);
-    TNodePtrWithIndexesList GetReplicas() const;
+    TNodePtrWithIndexesList GetReplicas(std::optional<int> maxCachedReplicas = std::nullopt) const;
 
     void ApproveReplica(TNodePtrWithIndexes replica);
     int GetApprovedReplicaCount() const;
