@@ -1488,7 +1488,7 @@ private:
             memoryUsage,
             memoryLimit);
 
-        if (memoryUsage > memoryLimit) {
+        if (memoryUsage > memoryLimit && Config_->CheckUserJobMemoryLimit) {
             YT_LOG_DEBUG("Memory limit exceeded");
             auto error = TError(
                 NJobProxy::EErrorCode::MemoryLimitExceeded,

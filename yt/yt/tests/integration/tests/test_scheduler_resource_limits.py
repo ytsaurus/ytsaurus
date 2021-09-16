@@ -33,7 +33,6 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
-    USE_PORTO = True
 
     # pytest.mark.xfail(run = False, reason = "Set-uid-root before running.")
     @authors("psushin")
@@ -44,24 +43,14 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
             {"value": "value", "subkey": "subkey", "key": "key", "a": "another"},
         )
 
-        mapper = """
-a = list()
-while True:
-    a.append(''.join(['xxx'] * 10000))
-"""
-
-        create("file", "//tmp/mapper.py")
-        write_file("//tmp/mapper.py", mapper)
-
         create("table", "//tmp/t_out")
 
         op = map(
             track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python mapper.py",
-            file="//tmp/mapper.py",
-            spec={"max_failed_job_count": 5},
+            command="python -c 'import time; a=[1]*1000000; time.sleep(10)'",
+            spec={"max_failed_job_count": 2, "mapper" : {"memory_limit" : 1024}},
         )
 
         # if all jobs failed then operation is also failed
@@ -86,6 +75,35 @@ while True:
             out="//tmp/t_out",
             command=command,
             spec={"max_failed_job_count": 1},
+        )
+
+
+class TestSchedulerMemoryLimitsPorto(TestSchedulerMemoryLimits):
+    USE_PORTO = True
+
+
+class TestDisabledMemoryLimit(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "check_user_job_memory_limit": False
+        }
+    }
+
+    @authors("psushin")
+    def test_no_memory_limit(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t_in", {"cool": "stuff"})
+
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="python -c 'import time; a=[1]*1000000; time.sleep(10)'",
+            spec={"mapper": {"memory_limit": 1}},
         )
 
 
