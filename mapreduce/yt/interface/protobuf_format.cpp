@@ -1039,13 +1039,13 @@ void AddStructMember(
     TTypePtrOrOtherColumns typeOrOtherColumns,
     TVector<NTi::TStructType::TOwnedMember>* members)
 {
-    if (HoldsAlternative<TOtherColumns>(typeOrOtherColumns)) {
+    if (std::holds_alternative<TOtherColumns>(typeOrOtherColumns)) {
         ythrow TApiUsageError() <<
             "Could not deduce YT type for field " << innerFieldDescriptor.name() << " of " <<
             "embedded message field " << fieldDescriptor.full_name() << " " <<
             "(note that " << EWrapperFieldFlag::OTHER_COLUMNS << " fields " <<
             "are not allowed inside embedded messages)";
-    } else if (HoldsAlternative<NTi::TTypePtr>(typeOrOtherColumns)) {
+    } else if (std::holds_alternative<NTi::TTypePtr>(typeOrOtherColumns)) {
         members->push_back(NTi::TStructType::TOwnedMember(
             GetColumnName(innerFieldDescriptor),
             Get<NTi::TTypePtr>(std::move(typeOrOtherColumns))));
@@ -1076,7 +1076,7 @@ void AddOneofField(
                 *innerFieldDescriptor,
                 defaultFieldOptions,
                 cycleChecker);
-            if (removeOptionality && HoldsAlternative<NTi::TTypePtr>(type) && Get<NTi::TTypePtr>(type)->IsOptional()) {
+            if (removeOptionality && std::holds_alternative<NTi::TTypePtr>(type) && Get<NTi::TTypePtr>(type)->IsOptional()) {
                 type = Get<NTi::TTypePtr>(type)->AsOptional()->GetItemType();
             }
             AddStructMember(fieldDescriptor, *innerFieldDescriptor, std::move(type), members);
@@ -1169,12 +1169,12 @@ NTi::TTypePtr GetMapType(
             auto message = fieldDescriptor.message_type();
             Y_VERIFY(message->field_count() == 2);
             auto keyVariant = GetScalarFieldType(*message->field(0), TProtobufFieldOptions{});
-            Y_VERIFY(HoldsAlternative<EValueType>(keyVariant));
+            Y_VERIFY(std::holds_alternative<EValueType>(keyVariant));
             auto key = Get<EValueType>(keyVariant);
             TProtobufFieldOptions embeddedOptions;
             embeddedOptions.SerializationMode = EProtobufSerializationMode::Yt;
             auto valueVariant = GetFieldType(*message->field(1), embeddedOptions, cycleChecker);
-            Y_VERIFY(HoldsAlternative<NTi::TTypePtr>(valueVariant));
+            Y_VERIFY(std::holds_alternative<NTi::TTypePtr>(valueVariant));
             auto value = Get<NTi::TTypePtr>(valueVariant);
             Y_VERIFY(value->IsOptional());
             value = value->AsOptional()->GetItemType();
@@ -1209,9 +1209,9 @@ TTypePtrOrOtherColumns GetFieldType(
         }
     } else {
         auto scalarType = GetScalarFieldType(fieldDescriptor, fieldOptions);
-        if (HoldsAlternative<TOtherColumns>(scalarType)) {
+        if (std::holds_alternative<TOtherColumns>(scalarType)) {
             return TOtherColumns{};
-        } else if (HoldsAlternative<EValueType>(scalarType)) {
+        } else if (std::holds_alternative<EValueType>(scalarType)) {
             type = ToTypeV3(Get<EValueType>(scalarType), true);
         } else {
             Y_FAIL();
@@ -1271,9 +1271,9 @@ TTableSchema CreateTableSchemaImpl(
         }
 
         auto type = GetFieldType(fieldDescriptor, defaultFieldOptions, cycleChecker);
-        if (HoldsAlternative<TOtherColumns>(type)) {
+        if (std::holds_alternative<TOtherColumns>(type)) {
             result.Strict(false);
-        } else if (HoldsAlternative<NTi::TTypePtr>(type)) {
+        } else if (std::holds_alternative<NTi::TTypePtr>(type)) {
             TColumnSchema column;
             column.Name(GetColumnName(fieldDescriptor));
             column.Type(std::move(Get<NTi::TTypePtr>(type)));
