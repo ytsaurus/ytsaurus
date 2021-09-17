@@ -14,7 +14,7 @@ namespace NYT::NApi::NNative {
 
 NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
     NHiveClient::TCellDirectoryPtr cellDirectory,
-    NHiveClient::TCellDirectorySynchronizerPtr cellDirectorySynchronizer,
+    NHiveClient::ICellDirectorySynchronizerPtr cellDirectorySynchronizer,
     NTransactionClient::ITimestampProviderPtr timestampProvider,
     IConnectionPtr connection,
     NObjectClient::TCellId cellId,

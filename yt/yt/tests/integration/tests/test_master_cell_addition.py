@@ -34,6 +34,12 @@ class TestMasterCellAddition(YTEnvSetup):
         }
     }
 
+    DELTA_DRIVER_CONFIG = {
+        "cell_directory_synchronizer": {
+            "sync_cells_with_secondary_masters": False,
+        },
+    }
+
     NUM_NODES = 3
     DEFER_NODE_START = True
 

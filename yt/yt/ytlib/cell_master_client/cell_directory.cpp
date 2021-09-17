@@ -71,7 +71,9 @@ public:
         , RandomGenerator_(TInstant::Now().GetValue())
     {
         for (const auto& masterConfig : Config_->SecondaryMasters) {
-            SecondaryMasterCellTags_.push_back(CellTagFromId(masterConfig->CellId));
+            auto cellId = masterConfig->CellId;
+            SecondaryMasterCellTags_.push_back(CellTagFromId(cellId));
+            SecondaryMasterCellIds_.push_back(cellId);
         }
         // Sort tag list to simplify subsequent equality checks.
         std::sort(SecondaryMasterCellTags_.begin(), SecondaryMasterCellTags_.end());
@@ -98,6 +100,11 @@ public:
     const TCellTagList& GetSecondaryMasterCellTags() const
     {
         return SecondaryMasterCellTags_;
+    }
+
+    const TCellIdList& GetSecondaryMasterCellIds() const
+    {
+        return SecondaryMasterCellIds_;
     }
 
     IChannelPtr GetMasterChannelOrThrow(EMasterChannelKind kind, TCellTag cellTag)
@@ -278,6 +285,7 @@ private:
     const IServerPtr RpcServer_;
 
     /*const*/ TCellTagList SecondaryMasterCellTags_;
+    /*const*/ TCellIdList SecondaryMasterCellIds_;
 
     /*const*/ THashMap<TCellTag, TEnumIndexedVector<EMasterChannelKind, IChannelPtr>> CellChannelMap_;
 
@@ -450,6 +458,11 @@ TCellTag TCellDirectory::GetPrimaryMasterCellTag() const
 const TCellTagList& TCellDirectory::GetSecondaryMasterCellTags() const
 {
     return Impl_->GetSecondaryMasterCellTags();
+}
+
+const TCellIdList& TCellDirectory::GetSecondaryMasterCellIds() const
+{
+    return Impl_->GetSecondaryMasterCellIds();
 }
 
 IChannelPtr TCellDirectory::GetMasterChannelOrThrow(EMasterChannelKind kind, TCellTag cellTag)

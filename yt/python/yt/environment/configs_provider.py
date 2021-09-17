@@ -886,7 +886,8 @@ def _build_cluster_connection_config(yt_config,
             "hard_backoff_time": 100
         },
         "cell_directory_synchronizer": {
-            "sync_period": 500
+            "sync_period": 500,
+            "sync_period_splay": 100,
         },
         "cluster_directory_synchronizer": {
             "sync_period": 500,

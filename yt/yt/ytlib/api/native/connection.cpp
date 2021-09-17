@@ -183,10 +183,21 @@ public:
             CellDirectory_->ReconfigureCell(cellConfig);
         }
 
-        CellDirectorySynchronizer_ = New<NHiveClient::TCellDirectorySynchronizer>(
+        // For signlecell clusters we have to sync with primary cell.
+        // For multicell clusters we sync with random secondary cell to reduce
+        // load on primary cell.
+        TCellIdList cellIdsToSyncCells;
+        if (Config_->CellDirectorySynchronizer->SyncCellsWithSecondaryMasters) {
+            cellIdsToSyncCells = MasterCellDirectory_->GetSecondaryMasterCellIds();
+        }
+        if (cellIdsToSyncCells.empty()) {
+            cellIdsToSyncCells.push_back(GetPrimaryMasterCellId());
+        }
+
+        CellDirectorySynchronizer_ = CreateCellDirectorySynchronizer(
             Config_->CellDirectorySynchronizer,
             CellDirectory_,
-            GetPrimaryMasterCellId(),
+            std::move(cellIdsToSyncCells),
             Logger);
 
         if (Options_.BlockCache) {
@@ -379,7 +390,7 @@ public:
         return CellDirectory_;
     }
 
-    const NHiveClient::TCellDirectorySynchronizerPtr& GetCellDirectorySynchronizer() override
+    const NHiveClient::ICellDirectorySynchronizerPtr& GetCellDirectorySynchronizer() override
     {
         return CellDirectorySynchronizer_;
     }
@@ -530,7 +541,7 @@ private:
     IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 
     TCellDirectoryPtr CellDirectory_;
-    TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
+    ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     const TCellTrackerPtr DownedCellTracker_ = New<TCellTracker>();
 
     TClusterDirectoryPtr ClusterDirectory_;
