@@ -351,7 +351,7 @@ TEST(TYsonSkiffConverterTest, TestSkippedFields)
             CreateSimpleTypeSchema(EWireType::Boolean)->SetName("value"),
         }),
         " [ true ; 1; %true ] ");
-    EXPECT_EQ(skiffString, AsStringBuf("04000000" "74727565" "01"));
+    EXPECT_EQ(skiffString, "04000000" "74727565" "01"sv);
 
     skiffString = ConvertYsonHex(
         Struct(
@@ -363,7 +363,7 @@ TEST(TYsonSkiffConverterTest, TestSkippedFields)
             CreateSimpleTypeSchema(EWireType::Int64)->SetName("subkey"),
         }),
         " [ true ; 1; %true ] ");
-    EXPECT_EQ(skiffString, AsStringBuf("01000000" "00000000"));
+    EXPECT_EQ(skiffString, "01000000" "00000000"sv);
 
     try {
         ConvertHexToTextYson(
@@ -408,7 +408,7 @@ TEST(TYsonSkiffConverterTest, TestUnknownSkiffFields)
             CreateSimpleTypeSchema(EWireType::Boolean)->SetName("value"),
         }),
         " [ true ; 1; %true ] ");
-    EXPECT_EQ(skiffString, AsStringBuf("04000000" "74727565" "00" "01"));
+    EXPECT_EQ(skiffString, "04000000" "74727565" "00" "01"sv);
 
     skiffString = ConvertYsonHex(
         Struct(
@@ -422,7 +422,7 @@ TEST(TYsonSkiffConverterTest, TestUnknownSkiffFields)
             SkiffOptional(CreateSimpleTypeSchema(EWireType::Yson32))->SetName("value2"),
         }),
         " [ true ; 1; %true ] ");
-    EXPECT_EQ(skiffString, AsStringBuf("04000000" "74727565" "01" "00"));
+    EXPECT_EQ(skiffString, "04000000" "74727565" "01" "00"sv);
 
 
     try {
@@ -455,7 +455,7 @@ TEST(TYsonSkiffConverterTest, TestUnknownSkiffFields)
                 SkiffOptional(CreateSimpleTypeSchema(EWireType::String32))->SetName("key2"),
                 CreateSimpleTypeSchema(EWireType::Boolean)->SetName("value"),
             }),
-            AsStringBuf("04000000" "74727565" "00" "01"));
+            "04000000" "74727565" "00" "01"sv);
         GTEST_FAIL() << "expected_exception";
     } catch (const std::exception& e) {
         EXPECT_THAT(e.what(), testing::ContainsRegex("is not found in logical type"));
@@ -494,7 +494,7 @@ TEST(TYsonSkiffConverterTest, TestTupleSkippedFields)
             CreateSimpleTypeSchema(EWireType::Boolean),
         }),
         " [ true ; 1; %true ] ");
-    EXPECT_EQ(skiffString, AsStringBuf("04000000" "74727565" "01"));
+    EXPECT_EQ(skiffString, "04000000" "74727565" "01"sv);
 
     skiffString = ConvertYsonHex(
         Tuple(String(), Int64(), Bool()),
@@ -504,7 +504,7 @@ TEST(TYsonSkiffConverterTest, TestTupleSkippedFields)
             CreateSimpleTypeSchema(EWireType::Nothing),
         }),
         " [ true ; 1; %true ] ");
-    EXPECT_EQ(skiffString, AsStringBuf("01000000" "00000000"));
+    EXPECT_EQ(skiffString, "01000000" "00000000"sv);
 
     skiffString = ConvertYsonHex(
         Tuple(Optional(String()), Int64(), Optional(Bool())),
@@ -515,7 +515,7 @@ TEST(TYsonSkiffConverterTest, TestTupleSkippedFields)
         }),
         "[#;15;#;]"
     );
-    EXPECT_EQ(skiffString, AsStringBuf("0f000000" "00000000"));
+    EXPECT_EQ(skiffString, "0f000000" "00000000"sv);
 }
 
 TEST(TYsonSkiffConverterTest, TestDict)
