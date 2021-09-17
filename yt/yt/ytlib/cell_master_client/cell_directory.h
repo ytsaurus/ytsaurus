@@ -44,6 +44,7 @@ public:
     NObjectClient::TCellId GetPrimaryMasterCellId() const;
     NObjectClient::TCellTag GetPrimaryMasterCellTag() const;
     const NObjectClient::TCellTagList& GetSecondaryMasterCellTags() const;
+    const NObjectClient::TCellIdList& GetSecondaryMasterCellIds() const;
 
     NRpc::IChannelPtr GetMasterChannelOrThrow(
         NApi::EMasterChannelKind kind,

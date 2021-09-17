@@ -10,34 +10,29 @@ namespace NYT::NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellDirectorySynchronizer
+struct ICellDirectorySynchronizer
     : public TRefCounted
 {
-public:
-    TCellDirectorySynchronizer(
-        TCellDirectorySynchronizerConfigPtr config,
-        TCellDirectoryPtr cellDirectory,
-        TCellId primaryCellId,
-        const NLogging::TLogger& logger);
-    ~TCellDirectorySynchronizer();
-
     //! Starts periodic syncs.
-    void Start();
+    virtual void Start() = 0;
 
     //! Stops periodic syncs.
-    void Stop();
+    virtual void Stop() = 0;
 
     //! Returns a future that gets set with the next sync.
     //! Starts the synchronizer if not started yet.
-    TFuture<void> Sync();
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
-
+    virtual TFuture<void> Sync() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizer)
+DEFINE_REFCOUNTED_TYPE(ICellDirectorySynchronizer)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ICellDirectorySynchronizerPtr CreateCellDirectorySynchronizer(
+    TCellDirectorySynchronizerConfigPtr config,
+    TCellDirectoryPtr cellDirectory,
+    NObjectClient::TCellIdList cellIdsToSyncCells,
+    const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

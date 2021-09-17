@@ -1,57 +1,63 @@
 #include "cell_directory_synchronizer.h"
+
 #include "config.h"
 #include "private.h"
-
-#include <yt/yt/core/concurrency/periodic_executor.h>
-#include <yt/yt/core/concurrency/scheduler.h>
-
-#include <yt/yt/core/rpc/dispatcher.h>
 
 #include <yt/yt/ytlib/hive/private.h>
 #include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/hive_service_proxy.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/scheduler.h>
+
+#include <yt/yt/core/misc/random.h>
+
+#include <yt/yt/core/rpc/dispatcher.h>
+
 namespace NYT::NHiveClient {
 
 using namespace NConcurrency;
+using namespace NObjectClient;
 
 using NYT::ToProto;
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellDirectorySynchronizer::TImpl
-    : public TRefCounted
+class TCellDirectorySynchronizer
+    : public ICellDirectorySynchronizer
 {
 public:
-    TImpl(
+    TCellDirectorySynchronizer(
         TCellDirectorySynchronizerConfigPtr config,
         TCellDirectoryPtr cellDirectory,
-        TCellId primaryCellId,
+        TCellIdList cellIdsToSyncCells,
         const NLogging::TLogger& logger)
         : Config_(std::move(config))
         , CellDirectory_(std::move(cellDirectory))
-        , PrimaryCellId_(primaryCellId)
+        , CellIdsToSyncCells_(std::move(cellIdsToSyncCells))
         , Logger(logger)
         , SyncExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetLightInvoker(),
-            BIND(&TImpl::OnSync, MakeWeak(this)),
-            Config_->SyncPeriod))
+            BIND(&TCellDirectorySynchronizer::OnSync, MakeWeak(this)),
+            Config_->SyncPeriod,
+            Config_->SyncPeriodSplay))
+        , RandomGenerator_(TInstant::Now().GetValue())
     { }
 
-    void Start()
+    void Start() override
     {
         auto guard = Guard(SpinLock_);
         DoStart();
     }
 
-    void Stop()
+    void Stop() override
     {
         auto guard = Guard(SpinLock_);
         DoStop();
     }
 
-    TFuture<void> Sync()
+    TFuture<void> Sync() override
     {
         auto guard = Guard(SpinLock_);
         if (Stopped_) {
@@ -64,14 +70,16 @@ public:
 private:
     const TCellDirectorySynchronizerConfigPtr Config_;
     const TCellDirectoryPtr CellDirectory_;
-    const TCellId PrimaryCellId_;
+    const TCellIdList CellIdsToSyncCells_;
 
     const NLogging::TLogger Logger;
     const TPeriodicExecutorPtr SyncExecutor_;
 
+    TRandomGenerator RandomGenerator_;
+
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     bool Started_ = false;
-    bool Stopped_= false;
+    bool Stopped_ = false;
     TPromise<void> SyncPromise_ = NewPromise<void>();
 
 
@@ -99,7 +107,8 @@ private:
         try {
             YT_LOG_DEBUG("Started synchronizing cell directory");
 
-            auto channel = CellDirectory_->GetChannelOrThrow(PrimaryCellId_, NHydra::EPeerKind::Follower);
+            auto cellId = CellIdsToSyncCells_[RandomGenerator_.Generate<size_t>() % CellIdsToSyncCells_.size()];
+            auto channel = CellDirectory_->GetChannelOrThrow(cellId, NHydra::EPeerKind::Follower);
             THiveServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Config_->SyncRpcTimeout);
 
@@ -146,33 +155,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellDirectorySynchronizer::TCellDirectorySynchronizer(
+ICellDirectorySynchronizerPtr CreateCellDirectorySynchronizer(
     TCellDirectorySynchronizerConfigPtr config,
     TCellDirectoryPtr cellDirectory,
-    TCellId primaryCellId,
+    TCellIdList cellIdsToSyncCells,
     const NLogging::TLogger& logger)
-    : Impl_(New<TImpl>(
+{
+    return New<TCellDirectorySynchronizer>(
         std::move(config),
         std::move(cellDirectory),
-        primaryCellId,
-        logger))
-{ }
-
-TCellDirectorySynchronizer::~TCellDirectorySynchronizer() = default;
-
-void TCellDirectorySynchronizer::Start()
-{
-    Impl_->Start();
-}
-
-void TCellDirectorySynchronizer::Stop()
-{
-    Impl_->Stop();
-}
-
-TFuture<void> TCellDirectorySynchronizer::Sync()
-{
-    return Impl_->Sync();
+        std::move(cellIdsToSyncCells),
+        logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

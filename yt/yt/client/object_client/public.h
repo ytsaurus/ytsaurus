@@ -67,6 +67,7 @@ constexpr TCellTag InvalidCellTag = 0xf004;
 constexpr int MaxSecondaryMasterCells = 32;
 
 using TCellTagList = SmallVector<TCellTag, MaxSecondaryMasterCells + 1>;
+using TCellIdList = SmallVector<TCellId, MaxSecondaryMasterCells + 1>;
 
 //! Currently at most one additional path is expected (source paths for Copy and Move verbs).
 constexpr int TypicalAdditionalPathCount = 1;

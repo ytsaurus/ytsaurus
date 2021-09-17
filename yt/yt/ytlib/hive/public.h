@@ -28,7 +28,8 @@ struct TCellDescriptor;
 struct TCellInfo;
 
 DECLARE_REFCOUNTED_CLASS(TCellDirectory)
-DECLARE_REFCOUNTED_CLASS(TCellDirectorySynchronizer)
+
+DECLARE_REFCOUNTED_STRUCT(ICellDirectorySynchronizer)
 
 DECLARE_REFCOUNTED_CLASS(TClusterDirectory)
 DECLARE_REFCOUNTED_CLASS(TClusterDirectorySynchronizer)

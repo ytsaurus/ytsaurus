@@ -29,7 +29,7 @@ class TTransactionParticipant
 public:
     TTransactionParticipant(
         TCellDirectoryPtr cellDirectory,
-        TCellDirectorySynchronizerPtr cellDirectorySynchronizer,
+        ICellDirectorySynchronizerPtr cellDirectorySynchronizer,
         ITimestampProviderPtr timestampProvider,
         IConnectionPtr connection,
         TCellId cellId,
@@ -132,7 +132,7 @@ public:
 
 private:
     const TCellDirectoryPtr CellDirectory_;
-    const TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
+    const ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     const ITimestampProviderPtr TimestampProvider_;
     const IConnectionPtr Connection_;
     const TCellId CellId_;
@@ -197,7 +197,7 @@ private:
 
 ITransactionParticipantPtr CreateTransactionParticipant(
     TCellDirectoryPtr cellDirectory,
-    TCellDirectorySynchronizerPtr cellDirectorySynchronizer,
+    ICellDirectorySynchronizerPtr cellDirectorySynchronizer,
     ITimestampProviderPtr timestampProvider,
     IConnectionPtr connection,
     TCellId cellId,
