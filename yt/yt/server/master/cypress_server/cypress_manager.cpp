@@ -44,6 +44,8 @@
 #include <yt/yt/server/master/table_server/master_table_schema.h>
 #include <yt/yt/server/master/table_server/table_node.h>
 
+#include <yt/yt/server/lib/hydra/hydra_context.h>
+
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -2011,6 +2013,8 @@ private:
     bool NeedSetJournalChunkListKinds_ = false;
     // COMPAT(shakurov)
     bool NeedAbortStuckExternalizedTransactions_YT_12559_ = false;
+    // COMPAT(gritukan)
+    bool TestVirtualMutations_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -2051,6 +2055,8 @@ private:
         NeedSetJournalChunkListKinds_ = context.GetVersion() < EMasterReign::OverlayedJournals;
         // COMPAT(shakurov)
         NeedAbortStuckExternalizedTransactions_YT_12559_ = context.GetVersion() < EMasterReign::YT_12559_AbortStuckExternalizedTransactions;
+        // COMPAT(gritukan)
+        TestVirtualMutations_ = context.GetVersion() <= EMasterReign::VirtualMutations;
     }
 
     void Clear() override
@@ -2319,6 +2325,17 @@ private:
                 }
             }
         }
+
+        if (TestVirtualMutations_) {
+            try {
+                const auto& service = Bootstrap_->GetObjectManager()->GetRootService();
+                auto req = NCypressClient::TCypressYPathProxy::Set("//sys/@supports_virtual_mutations");
+                req->set_value("%true");
+                SyncExecuteVerb(service, req);
+            } catch (const std::exception& ex) {
+                YT_LOG_ERROR(ex, "Failed to set //sys/@supports_virtual_mutations");
+            }
+        }
     }
 
 
@@ -2411,12 +2428,14 @@ private:
         const auto nodeId = trunkNodeHolder->GetId();
         auto* node = NodeMap_.Insert(TVersionedNodeId(nodeId), std::move(trunkNodeHolder));
 
-        const auto* mutationContext = GetCurrentMutationContext();
-        node->SetCreationTime(mutationContext->GetTimestamp());
-        node->SetModificationTime(mutationContext->GetTimestamp());
-        node->SetAccessTime(mutationContext->GetTimestamp());
-        node->SetAttributeRevision(mutationContext->GetVersion().ToRevision());
-        node->SetContentRevision(mutationContext->GetVersion().ToRevision());
+        const auto* hydraContext = GetCurrentHydraContext();
+        node->SetCreationTime(hydraContext->GetTimestamp());
+        node->SetModificationTime(hydraContext->GetTimestamp());
+        node->SetAccessTime(hydraContext->GetTimestamp());
+
+        auto currentRevision = hydraContext->GetVersion().ToRevision();
+        node->SetAttributeRevision(currentRevision);
+        node->SetContentRevision(currentRevision);
 
         if (node->IsExternal()) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "External node registered (NodeId: %v, Type: %v, ExternalCellTag: %v)",
@@ -2894,8 +2913,8 @@ private:
         YT_VERIFY(lock->GetState() == ELockState::Pending);
         lock->SetState(ELockState::Acquired);
 
-        const auto* mutationContext = GetCurrentMutationContext();
-        lock->SetAcquisitionTime(mutationContext->GetTimestamp());
+        const auto* hydraContext = GetCurrentHydraContext();
+        lock->SetAcquisitionTime(hydraContext->GetTimestamp());
 
         auto* lockingState = trunkNode->MutableLockingState();
         lockingState->PendingLocks.erase(lock->GetLockListIterator());
@@ -3002,8 +3021,8 @@ private:
         lock->SetTransaction(transaction);
         lock->Request() = request;
 
-        const auto* mutationContext = GetCurrentMutationContext();
-        lock->SetCreationTime(mutationContext->GetTimestamp());
+        const auto* hydraContext = GetCurrentHydraContext();
+        lock->SetCreationTime(hydraContext->GetTimestamp());
 
         auto* lockingState = trunkNode->MutableLockingState();
         lockingState->PendingLocks.push_back(lock);

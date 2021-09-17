@@ -414,11 +414,14 @@ void TCompositeAutomaton::LoadSnapshot(IAsyncZeroCopyInputStreamPtr reader)
             if (context.GetEnableTotalWriteCountReport()) {
                 context.Dumper().ReportWriteCount();
             }
-
-            for (const auto& part : parts) {
-                part->OnAfterSnapshotLoaded();
-            }
         });
+}
+
+void TCompositeAutomaton::PrepareState()
+{
+    for (const auto& part : GetParts()) {
+        part->OnAfterSnapshotLoaded();
+    }
 }
 
 void TCompositeAutomaton::RememberReign(TReign reign)

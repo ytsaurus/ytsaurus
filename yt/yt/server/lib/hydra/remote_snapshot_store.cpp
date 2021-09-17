@@ -149,6 +149,7 @@ private:
                         "sequence_number",
                         "random_seed",
                         "state_hash",
+                        "timestamp",
                     };
                     auto asyncResult = Store_->Client_->GetNode(Path_, options);
                     auto result = WaitFor(asyncResult)
@@ -165,6 +166,10 @@ private:
                     Params_.Meta.set_sequence_number(attributes.Get<i64>("sequence_number", 0));
                     // COMPAT(aleksandra-zh)
                     Params_.Meta.set_state_hash(attributes.Get<ui64>("state_hash", 0));
+                    // COMPAT(gritukan)
+                    auto snapshotTimestamp = attributes.Get<TInstant>("timestamp", TInstant::Zero());
+                    Params_.Meta.set_timestamp(snapshotTimestamp.GetValue());
+
                     Params_.Checksum = 0;
                     Params_.CompressedLength = Params_.UncompressedLength = -1;
                 }
@@ -289,6 +294,7 @@ private:
                     attributes->Set("sequence_number", Meta_.sequence_number());
                     attributes->Set("random_seed", Meta_.random_seed());
                     attributes->Set("state_hash", Meta_.state_hash());
+                    attributes->Set("timestamp", Meta_.timestamp());
                     options.Attributes = std::move(attributes);
                     if (Store_->PrerequisiteTransactionId_) {
                         options.PrerequisiteTransactionIds.push_back(Store_->PrerequisiteTransactionId_);

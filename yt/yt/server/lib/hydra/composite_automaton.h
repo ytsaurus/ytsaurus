@@ -156,6 +156,7 @@ public:
 
     virtual TFuture<void> SaveSnapshot(NConcurrency::IAsyncOutputStreamPtr writer) override;
     virtual void LoadSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader) override;
+    virtual void PrepareState() override;
 
     virtual void ApplyMutation(TMutationContext* context) override;
 

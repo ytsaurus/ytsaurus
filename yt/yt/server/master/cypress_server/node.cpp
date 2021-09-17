@@ -9,6 +9,8 @@
 
 #include <yt/yt/server/master/object_server/object.h>
 
+#include <yt/yt/server/lib/hydra/hydra_context.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NObjectClient;
@@ -172,7 +174,7 @@ void TCypressNode::SetNativeContentRevision(NHydra::TRevision revision)
 
 bool TCypressNode::IsBeingCreated() const
 {
-    return GetRevision() == NHydra::GetCurrentMutationContext()->GetVersion().ToRevision();
+    return GetRevision() == NHydra::GetCurrentHydraContext()->GetVersion().ToRevision();
 }
 
 bool TCypressNode::CanCacheResolve() const
