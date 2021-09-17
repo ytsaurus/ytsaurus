@@ -52,7 +52,7 @@ public:
         IAttributeDictionary* attributes) override
     {
         auto type = attributes->GetAndRemove<ETableCollocationType>(
-            EInternedAttributeKey::Type.Unintern());
+            EInternedAttributeKey::CollocationType.Unintern());
         auto tableIds = attributes->GetAndRemove<std::vector<TTableId>>(
             EInternedAttributeKey::TableIds.Unintern());
 
