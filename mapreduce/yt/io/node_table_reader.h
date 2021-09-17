@@ -4,6 +4,8 @@
 
 #include <mapreduce/yt/interface/io.h>
 
+#include <library/cpp/yson/public.h>
+
 #include <util/stream/input.h>
 #include <util/generic/buffer.h>
 #include <util/system/event.h>
@@ -15,7 +17,6 @@ namespace NYT {
 
 class TRawTableReader;
 class TRowBuilder;
-class TYsonParser;
 
 ////////////////////////////////////////////////////////////////////////////////
 

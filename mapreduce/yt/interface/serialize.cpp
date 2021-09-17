@@ -384,7 +384,7 @@ void Deserialize(TReadRange& readRange, const TNode& node)
     DESERIALIZE_ITEM("exact", readRange.Exact_);
 }
 
-void Serialize(const THashMap<TString, TString>& renameColumns, IYsonConsumer* consumer)
+void Serialize(const THashMap<TString, TString>& renameColumns, ::NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .DoMapFor(renameColumns, [] (TFluentMap fluent, const auto& item) {
