@@ -938,43 +938,43 @@ public:
                 add(Uint64());
             }
         };
-        addMultiCase(EWireType::Int8, 0, AsStringBuf("\x00"));
+        addMultiCase(EWireType::Int8, 0, TStringBuf("\x00"sv));
         addMultiCase(EWireType::Int8, 42, TStringBuf("*"));
-        addMultiCase(EWireType::Int8, -42, AsStringBuf("\xd6"));
-        addMultiCase(EWireType::Int8, 127, AsStringBuf("\x7f"));
-        addMultiCase(EWireType::Int8, -128, AsStringBuf("\x80"));
+        addMultiCase(EWireType::Int8, -42, TStringBuf("\xd6"sv));
+        addMultiCase(EWireType::Int8, 127, TStringBuf("\x7f"sv));
+        addMultiCase(EWireType::Int8, -128, TStringBuf("\x80"sv));
 
-        addMultiCase(EWireType::Int16, 0, AsStringBuf("\x00\x00"));
-        addMultiCase(EWireType::Int16, 42, AsStringBuf("\x2a\x00"));
-        addMultiCase(EWireType::Int16, -42, AsStringBuf("\xd6\xff"));
-        addMultiCase(EWireType::Int16, 0x7fff, AsStringBuf("\xff\x7f"));
-        addMultiCase(EWireType::Int16, -0x8000, AsStringBuf("\x00\x80"));
+        addMultiCase(EWireType::Int16, 0, TStringBuf("\x00\x00"sv));
+        addMultiCase(EWireType::Int16, 42, TStringBuf("\x2a\x00"sv));
+        addMultiCase(EWireType::Int16, -42, TStringBuf("\xd6\xff"sv));
+        addMultiCase(EWireType::Int16, 0x7fff, TStringBuf("\xff\x7f"sv));
+        addMultiCase(EWireType::Int16, -0x8000, TStringBuf("\x00\x80"sv));
 
-        addMultiCase(EWireType::Int32, 0, AsStringBuf("\x00\x00\x00\x00"));
-        addMultiCase(EWireType::Int32, 42, AsStringBuf("\x2a\x00\x00\x00"));
-        addMultiCase(EWireType::Int32, -42, AsStringBuf("\xd6\xff\xff\xff"));
-        addMultiCase(EWireType::Int32, 0x7fffffff, AsStringBuf("\xff\xff\xff\x7f"));
-        addMultiCase(EWireType::Int32, -0x80000000l, AsStringBuf("\x00\x00\x00\x80"));
+        addMultiCase(EWireType::Int32, 0, TStringBuf("\x00\x00\x00\x00"sv));
+        addMultiCase(EWireType::Int32, 42, TStringBuf("\x2a\x00\x00\x00"sv));
+        addMultiCase(EWireType::Int32, -42, TStringBuf("\xd6\xff\xff\xff"sv));
+        addMultiCase(EWireType::Int32, 0x7fffffff, TStringBuf("\xff\xff\xff\x7f"sv));
+        addMultiCase(EWireType::Int32, -0x80000000l, TStringBuf("\x00\x00\x00\x80"sv));
 
-        addMultiCase(EWireType::Uint8, 0ull, AsStringBuf("\x00"));
+        addMultiCase(EWireType::Uint8, 0ull, TStringBuf("\x00"sv));
         addMultiCase(EWireType::Uint8, 42ull, TStringBuf("*"));
-        addMultiCase(EWireType::Uint8, 255ull, AsStringBuf("\xff"));
+        addMultiCase(EWireType::Uint8, 255ull, TStringBuf("\xff"sv));
 
-        addMultiCase(EWireType::Uint16, 0ull, AsStringBuf("\x00\x00"));
-        addMultiCase(EWireType::Uint16, 42ull, AsStringBuf("\x2a\x00"));
-        addMultiCase(EWireType::Uint16, 0xFFFFull, AsStringBuf("\xff\xff"));
+        addMultiCase(EWireType::Uint16, 0ull, TStringBuf("\x00\x00"sv));
+        addMultiCase(EWireType::Uint16, 42ull, TStringBuf("\x2a\x00"sv));
+        addMultiCase(EWireType::Uint16, 0xFFFFull, TStringBuf("\xff\xff"sv));
 
-        addMultiCase(EWireType::Uint32, 0ull, AsStringBuf("\x00\x00\x00\x00"));
-        addMultiCase(EWireType::Uint32, 42ull, AsStringBuf("\x2a\x00\x00\x00"));
-        addMultiCase(EWireType::Uint32, 0xFFFFFFFFull, AsStringBuf("\xff\xff\xff\xff"));
+        addMultiCase(EWireType::Uint32, 0ull, TStringBuf("\x00\x00\x00\x00"sv));
+        addMultiCase(EWireType::Uint32, 42ull, TStringBuf("\x2a\x00\x00\x00"sv));
+        addMultiCase(EWireType::Uint32, 0xFFFFFFFFull, TStringBuf("\xff\xff\xff\xff"sv));
 
-        addSimpleAndListCases(EWireType::Uint16, Date(), 0ull, AsStringBuf("\x00\x00"));
-        addSimpleAndListCases(EWireType::Uint16, Date(), 42ull, AsStringBuf("\x2a\x00"));
-        addSimpleAndListCases(EWireType::Uint16, Date(), DateUpperBound - 1, AsStringBuf("\x08\xc2"));
+        addSimpleAndListCases(EWireType::Uint16, Date(), 0ull, TStringBuf("\x00\x00"sv));
+        addSimpleAndListCases(EWireType::Uint16, Date(), 42ull, TStringBuf("\x2a\x00"sv));
+        addSimpleAndListCases(EWireType::Uint16, Date(), DateUpperBound - 1, TStringBuf("\x08\xc2"sv));
 
-        addSimpleAndListCases(EWireType::Uint32, Datetime(), 0ull, AsStringBuf("\x00\x00\x00\x00"));
-        addSimpleAndListCases(EWireType::Uint32, Datetime(), 42ull, AsStringBuf("\x2a\x00\x00\x00"));
-        addSimpleAndListCases(EWireType::Uint32, Datetime(), DatetimeUpperBound - 1, AsStringBuf("\x7f\xdd\xce\xff"));
+        addSimpleAndListCases(EWireType::Uint32, Datetime(), 0ull, TStringBuf("\x00\x00\x00\x00"sv));
+        addSimpleAndListCases(EWireType::Uint32, Datetime(), 42ull, TStringBuf("\x2a\x00\x00\x00"sv));
+        addSimpleAndListCases(EWireType::Uint32, Datetime(), DatetimeUpperBound - 1, TStringBuf("\x7f\xdd\xce\xff"sv));
 
         return result;
     }
@@ -1160,7 +1160,7 @@ public:
             },
             TString(2, '\0') + "\1" + uint128UuidValue);
 
-        const TString uuidLen = TString(AsStringBuf("\x10\x00\x00\x00"));
+        const TString uuidLen = TString(TStringBuf("\x10\x00\x00\x00"sv));
 
         result.emplace_back(
             nameTable,
@@ -2798,7 +2798,7 @@ TEST(TSkiffParser, TestEmptyColumns)
     TCollectingValueConsumer collectedRows;
     auto parser = CreateParserForSkiff(skiffSchema, &collectedRows);
 
-    parser->Read(AsStringBuf("\x00\x00\x00\x00"));
+    parser->Read(TStringBuf("\x00\x00\x00\x00"sv));
     parser->Finish();
 
     ASSERT_EQ(static_cast<int>(collectedRows.Size()), 2);

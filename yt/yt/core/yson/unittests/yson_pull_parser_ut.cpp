@@ -230,7 +230,7 @@ TEST(TYsonPullParserTest, String)
     EXPECT_EQ(GetYsonPullSignature(" nan "), "'nan'");
     EXPECT_EQ(GetYsonPullSignature("\x01\x06" "bar"), "'bar'");
     EXPECT_EQ(GetYsonPullSignature("\x01\x80\x01" + TString(64, 'a')), TString("'") + TString(64, 'a') + "'");
-    EXPECT_EQ(GetYsonPullSignature(AsStringBuf("\x01\x00")), "''");
+    EXPECT_EQ(GetYsonPullSignature(TStringBuf("\x01\x00"sv)), "''");
     EXPECT_EQ(GetYsonPullSignature(" Hello_789_World_123 "), "'Hello_789_World_123'");
     EXPECT_EQ(GetYsonPullSignature(" Hello_789_World_123 "), "'Hello_789_World_123'");
     EXPECT_EQ(
