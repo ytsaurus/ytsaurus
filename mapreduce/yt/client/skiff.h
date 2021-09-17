@@ -8,9 +8,12 @@
 
 #include <util/generic/vector.h>
 
+namespace NYson {
+struct IYsonConsumer;
+}
+
 namespace NYT {
 
-struct IYsonConsumer;
 struct TAuth;
 enum class ENodeReaderFormat : int;
 
@@ -43,7 +46,7 @@ NSkiff::TSkiffSchemaPtr CreateSkiffSchema(
     const TNode& schemaNode,
     const TCreateSkiffSchemaOptions& options = TCreateSkiffSchemaOptions());
 
-void Serialize(const NSkiff::TSkiffSchemaPtr& schema, IYsonConsumer* consumer);
+void Serialize(const NSkiff::TSkiffSchemaPtr& schema, NYson::IYsonConsumer* consumer);
 
 void Deserialize(NSkiff::TSkiffSchemaPtr& schema, const TNode& node);
 
