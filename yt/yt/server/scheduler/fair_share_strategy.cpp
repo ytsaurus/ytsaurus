@@ -367,18 +367,18 @@ public:
             }
         }
 
+        TError result;
         if (!errors.empty()) {
-            auto error = TError("Error updating mapping from user to default parent pool")
+            result = TError("Error updating mapping from user to default parent pool")
                 << std::move(errors);
-            Host->SetSchedulerAlert(ESchedulerAlertType::UpdateUserToDefaultPoolMap, error);
-            return error;
+        } else {
+            for (const auto& [_, tree] : IdToTree_) {
+                tree->ActualizeEphemeralPoolParents(userToDefaultPoolMap);
+            }
         }
 
-        for (const auto& [_, tree] : IdToTree_) {
-            tree->ActualizeEphemeralPoolParents(userToDefaultPoolMap);
-        }
-
-        return TError();
+        Host->SetSchedulerAlert(ESchedulerAlertType::UpdateUserToDefaultPoolMap, result);
+        return result;
     }
 
     bool IsInitialized() override
