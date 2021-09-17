@@ -52,7 +52,7 @@ TEST(THttpProxy, FramingOutputStream)
         auto framingStream = New<TFramingAsyncOutputStream>(asyncStream, GetCurrentInvoker());
         auto frame1 = TString("abc");
         auto frame2 = TString("");
-        auto frame3 = TString(AsStringBuf("123 456" "\x00" "789 ABC"));
+        auto frame3 = TString("123 456" "\x00" "789 ABC"sv);
         WaitFor(framingStream->WriteDataFrame(TSharedRef::FromString(frame1)))
             .ThrowOnError();
         WaitFor(framingStream->WriteKeepAliveFrame())
@@ -71,12 +71,12 @@ TEST(THttpProxy, FramingOutputStream)
             .ThrowOnError();
     }
     EXPECT_EQ(stringStream.Str(),
-        ::TStringBuilder() << DataFrameTag << AsStringBuf("\x03\x00\x00\x00" "abc")
+        ::TStringBuilder() << DataFrameTag << "\x03\x00\x00\x00" "abc"sv
         << KeepAliveFrameTag
         << KeepAliveFrameTag
         << DataFrameTag << "\x00\x00\x00\x00"sv
         << DataFrameTag << "\x00\x00\x00\x00"sv
-        << DataFrameTag << AsStringBuf("\x0f\x00\x00\x00" "123 456" "\x00" "789 ABC"));
+        << DataFrameTag << "\x0f\x00\x00\x00" "123 456" "\x00" "789 ABC"sv);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
