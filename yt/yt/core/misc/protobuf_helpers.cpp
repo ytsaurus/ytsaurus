@@ -290,10 +290,25 @@ struct TProtobufExtensionDescriptor
 class TProtobufExtensionRegistry
 {
 public:
-    void RegisterProtobufExtension(
+    using TRegisterAction = std::function<void()>;
+
+    void AddAction(TRegisterAction action)
+    {
+        Actions_.emplace_back(std::move(action));
+    }
+
+    void Initialize() const
+    {
+        for (const auto& action : Actions_) {
+            action();
+        }
+        Actions_.clear();
+    }
+
+    void Register(
         const google::protobuf::Descriptor* descriptor,
         int tag,
-        const TString& name)
+        TString name)
     {
         TProtobufExtensionDescriptor extensionDescriptor{
             .MessageDescriptor = descriptor,
@@ -305,8 +320,10 @@ public:
         YT_VERIFY(ExtensionNameToExtensionDescriptor_.emplace(name, extensionDescriptor).second);
     }
 
-    std::optional<TProtobufExtensionDescriptor> FindProtobufExtension(int tag) const
+    std::optional<TProtobufExtensionDescriptor> Find(int tag) const
     {
+        Initialize();
+
         auto it = ExtensionTagToExtensionDescriptor_.find(tag);
         if (it == ExtensionTagToExtensionDescriptor_.end()) {
             return std::nullopt;
@@ -315,8 +332,10 @@ public:
         }
     }
 
-    std::optional<TProtobufExtensionDescriptor> FindProtobufExtension(const TString& name) const
+    std::optional<TProtobufExtensionDescriptor> Find(const TString& name) const
     {
+        Initialize();
+
         auto it = ExtensionNameToExtensionDescriptor_.find(name);
         if (it == ExtensionNameToExtensionDescriptor_.end()) {
             return std::nullopt;
@@ -336,6 +355,8 @@ private:
 
     THashMap<int, TProtobufExtensionDescriptor> ExtensionTagToExtensionDescriptor_;
     THashMap<TString, TProtobufExtensionDescriptor> ExtensionNameToExtensionDescriptor_;
+
+    mutable std::vector<TRegisterAction> Actions_;
 };
 
 void RegisterProtobufExtension(
@@ -343,7 +364,12 @@ void RegisterProtobufExtension(
     int tag,
     const TString& name)
 {
-    TProtobufExtensionRegistry::Get()->RegisterProtobufExtension(descriptor, tag, name);
+    TProtobufExtensionRegistry::Get()->Register(descriptor, tag, name);
+}
+
+void AddProtobufExtensionRegisterAction(std::function<void()> action)
+{
+    TProtobufExtensionRegistry::Get()->AddAction(std::move(action));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -370,7 +396,7 @@ void FromProto(TExtensionSet* extensionSet, const NYT::NProto::TExtensionSet& pr
 
     for (const auto& protoExtension : protoExtensionSet.extensions()) {
         // Do not parse unknown extensions.
-        if (extensionRegistry->FindProtobufExtension(protoExtension.tag())) {
+        if (extensionRegistry->Find(protoExtension.tag())) {
             TExtension extension{
                 .Tag = protoExtension.tag(),
                 .Data = protoExtension.data()
@@ -395,7 +421,7 @@ void Serialize(const TExtensionSet& extensionSet, NYson::IYsonConsumer* consumer
 
     BuildYsonFluently(consumer)
         .DoMapFor(extensionSet.Extensions, [&] (TFluentMap fluent, const TExtension& extension) {
-            auto extensionDescriptor = extensionRegistry->FindProtobufExtension(extension.Tag);
+            auto extensionDescriptor = extensionRegistry->Find(extension.Tag);
             YT_VERIFY(extensionDescriptor);
 
             fluent
@@ -417,7 +443,7 @@ void Deserialize(TExtensionSet& extensionSet, NYTree::INodePtr node)
 
     auto mapNode = node->AsMap();
     for (const auto& [name, value] : mapNode->GetChildren()) {
-        auto extensionDescriptor = extensionRegistry->FindProtobufExtension(name);
+        auto extensionDescriptor = extensionRegistry->Find(name);
         // Do not parse unknown extensions.
         if (!extensionDescriptor) {
             continue;
@@ -517,7 +543,7 @@ THashSet<int> GetExtensionTagSet(const NYT::NProto::TExtensionSet& source)
 std::optional<TString> FindExtensionName(int tag)
 {
     const auto* extensionRegistry = TProtobufExtensionRegistry::Get();
-    auto extensionDescriptor = extensionRegistry->FindProtobufExtension(tag);
+    auto extensionDescriptor = extensionRegistry->Find(tag);
     if (!extensionDescriptor) {
         return std::nullopt;
     }

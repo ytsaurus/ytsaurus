@@ -140,6 +140,8 @@ class TProtobufTypeRegistry
 public:
     TStringBuf GetYsonName(const FieldDescriptor* descriptor)
     {
+        Initialize();
+
         return GetYsonNameFromDescriptor(
             descriptor,
             descriptor->options().GetExtension(NYT::NYson::NProto::field_name));
@@ -147,6 +149,8 @@ public:
 
     std::vector<TStringBuf> GetYsonNameAliases(const FieldDescriptor* descriptor)
     {
+        Initialize();
+
         std::vector<TStringBuf> aliases;
         auto extensions = descriptor->options().GetRepeatedExtension(NYT::NYson::NProto::field_name_alias);
         for (const auto& alias : extensions) {
@@ -157,6 +161,8 @@ public:
 
     TStringBuf GetYsonLiteral(const EnumValueDescriptor* descriptor)
     {
+        Initialize();
+
         return GetYsonNameFromDescriptor(
             descriptor,
             descriptor->options().GetExtension(NYT::NYson::NProto::enum_value_name));
@@ -165,18 +171,37 @@ public:
     const TProtobufMessageType* ReflectMessageType(const Descriptor* descriptor)
     {
         auto guard = Guard(TypeMapsLock_);
+        Initialize();
+
         return ReflectMessageTypeInternal(descriptor);
     }
 
     const TProtobufEnumType* ReflectEnumType(const EnumDescriptor* descriptor)
     {
         auto guard = Guard(TypeMapsLock_);
+        Initialize();
+
         return ReflectEnumTypeInternal(descriptor);
     }
 
     static TProtobufTypeRegistry* Get()
     {
         return Singleton<TProtobufTypeRegistry>();
+    }
+
+    using TRegisterAction = std::function<void()>;
+
+    void AddAction(TRegisterAction action)
+    {
+        Actions_.emplace_back(std::move(action));
+    }
+
+    void Initialize() const
+    {
+        for (const auto& action : Actions_) {
+            action();
+        }
+        Actions_.clear();
     }
 
     //! This method is called during static initialization and is not expected to be called during runtime.
@@ -199,6 +224,8 @@ public:
     std::optional<TProtobufMessageConverter> GetMessageTypeConverter(
         const Descriptor* descriptor) const
     {
+        Initialize();
+
         auto it = MessageTypeConverterMap_.find(descriptor);
         if (it == MessageTypeConverterMap_.end()) {
             return std::nullopt;
@@ -211,6 +238,8 @@ public:
         const Descriptor* descriptor,
         int fieldIndex) const
     {
+        Initialize();
+
         auto fieldNumber = descriptor->field(fieldIndex)->number();
         auto it = MessageFieldConverterMap_.find(std::make_pair(descriptor, fieldNumber));
         if (it == MessageFieldConverterMap_.end()) {
@@ -253,6 +282,7 @@ private:
 
     NConcurrency::TForkAwareSpinLock InternedStringsLock_;
     std::vector<TString> InternedStrings_;
+    mutable std::vector<TRegisterAction> Actions_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2587,6 +2617,13 @@ TProtobufElementResolveResult ResolveProtobufElementByYPath(
         }
     }
     return makeResult(currentType->GetElement());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void AddProtobufConverterRegisterAction(std::function<void()> action)
+{
+    TProtobufTypeRegistry::Get()->AddAction(std::move(action));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

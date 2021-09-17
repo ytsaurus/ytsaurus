@@ -294,17 +294,26 @@ struct TProtoExtensionTag;
         static constexpr i32 Value = tag; \
     };
 
-//! Registers protobuf extension for further conversions. This method
-//! is assumed to be called during static initialization only.
+//! Registers protobuf extension for further conversions. Do not call
+//! this method explicitly; use macro below which defers invocation
+//! until static protobuf descriptors are ready.
 void RegisterProtobufExtension(
     const google::protobuf::Descriptor* descriptor,
     int tag,
     const TString& name);
 
+//! This method is assumed to be called during static initialization only.
+//! We defer running actions until static protobuf descriptors are ready.
+//! Accessing type descriptors during static initialization phase may break
+//! descriptors (at least under darwin).
+void AddProtobufExtensionRegisterAction(std::function<void()> action);
+
 #define REGISTER_PROTO_EXTENSION(type, tag, name) \
-    const bool UNIQUE_NAME(TmpBool) = [] { \
-        const auto* descriptor = type::default_instance().GetDescriptor(); \
-        RegisterProtobufExtension(descriptor, tag, #name); \
+    const bool UNIQUE_NAME(TmpBool) = [] {        \
+        AddProtobufExtensionRegisterAction([] {            \
+            const auto* descriptor = type::default_instance().GetDescriptor(); \
+            RegisterProtobufExtension(descriptor, tag, #name);              \
+        });                                     \
         return false; \
     } ();
 
