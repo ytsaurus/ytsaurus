@@ -66,6 +66,7 @@
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -121,12 +122,12 @@ public:
         , Options_(ConvertTo<TTabletCellOptionsPtr>(TYsonString(createInfo.options())))
         , Logger(GetLogger())
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(Occupier_->GetOccupierAutomatonInvoker(), AutomatonThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(GetOccupier()->GetOccupierAutomatonInvoker(), AutomatonThread);
     }
 
-    const ICellarOccupierPtr& GetOccupier() const override
+    ICellarOccupierPtr GetOccupier() const override
     {
-        return Occupier_;
+        return Occupier_.Load();
     }
 
     int GetIndex() const override
@@ -265,6 +266,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(CanConfigure());
 
+        auto occupier = GetOccupier();
         auto client = Bootstrap_->GetMasterClient();
 
         CellDescriptor_ = FromProto<TCellDescriptor>(configureInfo.cell_descriptor());
@@ -345,7 +347,7 @@ public:
                 .WithTag("cell_id", ToString(CellDescriptor_.CellId), -1);
         };
 
-        auto changelogProfiler = addTags(Occupier_->GetProfiler().WithPrefix("/remote_changelog"));
+        auto changelogProfiler = addTags(occupier->GetProfiler().WithPrefix("/remote_changelog"));
         auto changelogStoreFactory = CreateRemoteChangelogStoreFactory(
             Config_->Changelogs,
             Options_,
@@ -377,11 +379,11 @@ public:
             YT_LOG_INFO("Cellar occupant reconfigured (ConfigVersion: %v)",
                 CellDescriptor_.ConfigVersion);
         } else {
-            Automaton_ = Occupier_->CreateAutomaton();
+            Automaton_ = occupier->CreateAutomaton();
 
             ResponseKeeper_ = New<TResponseKeeper>(
                 Config_->ResponseKeeper,
-                Occupier_->GetOccupierAutomatonInvoker(),
+                occupier->GetOccupierAutomatonInvoker(),
                 Logger,
                 Profiler);
 
@@ -397,7 +399,7 @@ public:
             auto hydraManager = CreateDistributedHydraManager(
                 Config_->HydraManager,
                 Bootstrap_->GetControlInvoker(),
-                Occupier_->GetMutationAutomatonInvoker(),
+                occupier->GetMutationAutomatonInvoker(),
                 Automaton_,
                 rpcServer,
                 ElectionManagerThunk_,
@@ -428,11 +430,11 @@ public:
                 Config_->HiveManager,
                 connection->GetCellDirectory(),
                 GetCellId(),
-                Occupier_->GetOccupierAutomatonInvoker(),
+                occupier->GetOccupierAutomatonInvoker(),
                 hydraManager,
                 Automaton_);
 
-            Occupier_->Configure(hydraManager);
+            occupier->Configure(hydraManager);
 
             std::vector<ITransactionParticipantProviderPtr> providers;
 
@@ -445,17 +447,17 @@ public:
             }
             TransactionSupervisor_ = CreateTransactionSupervisor(
                 Config_->TransactionSupervisor,
-                Occupier_->GetOccupierAutomatonInvoker(),
+                occupier->GetOccupierAutomatonInvoker(),
                 Bootstrap_->GetTransactionTrackerInvoker(),
                 hydraManager,
                 Automaton_,
                 ResponseKeeper_,
-                Occupier_->GetOccupierTransactionManager(),
+                occupier->GetOccupierTransactionManager(),
                 GetCellId(),
                 connection->GetTimestampProvider(),
                 std::move(providers));
 
-            Occupier_->Initialize();
+            occupier->Initialize();
 
             hydraManager->Initialize();
 
@@ -464,9 +466,9 @@ public:
             }
             rpcServer->RegisterService(HiveManager_->GetRpcService());
 
-            Occupier_->RegisterRpcServices();
+            occupier->RegisterRpcServices();
 
-            OrchidService_ = Occupier_->PopulateOrchidService(CreateOrchidService())
+            OrchidService_ = occupier->PopulateOrchidService(CreateOrchidService())
                 ->Via(Bootstrap_->GetControlInvoker());
 
             YT_LOG_INFO("Cellar occupant configured (ConfigVersion: %v)",
@@ -540,7 +542,7 @@ public:
 
         Finalizing_ = true;
 
-        Occupier_->Stop();
+        GetOccupier()->Stop();
 
         FinalizeResult_ = BIND(&TCellarOccupant::DoFinalize, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetControlInvoker())
@@ -569,7 +571,7 @@ public:
 private:
     const TCellarOccupantConfigPtr Config_;
     const ICellarBootstrapProxyPtr Bootstrap_;
-    ICellarOccupierPtr Occupier_;
+    TAtomicObject<ICellarOccupierPtr> Occupier_;
 
     const TElectionManagerThunkPtr ElectionManagerThunk_ = New<TElectionManagerThunk>();
     const TSnapshotStoreThunkPtr SnapshotStoreThunk_ = New<TSnapshotStoreThunk>();
@@ -612,7 +614,6 @@ private:
     IYPathServicePtr OrchidService_;
 
     NLogging::TLogger Logger;
-
 
     TCompositeMapServicePtr CreateOrchidService()
     {
@@ -720,9 +721,9 @@ private:
         }
         HiveManager_.Reset();
 
-        Occupier_->Finalize();
+        GetOccupier()->Finalize();
 
-        Occupier_.Reset();
+        Occupier_.Store(nullptr);
     }
 
     NLogging::TLogger GetLogger() const

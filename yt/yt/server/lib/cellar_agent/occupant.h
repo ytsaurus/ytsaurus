@@ -16,7 +16,7 @@ namespace NYT::NCellarAgent {
 struct ICellarOccupant
     : public TRefCounted
 {
-    virtual const ICellarOccupierPtr& GetOccupier() const = 0;
+    virtual ICellarOccupierPtr GetOccupier() const = 0;
     template <typename T>
     TIntrusivePtr<T> GetTypedOccupier() const;
 
