@@ -67,7 +67,7 @@ std::vector<TValueExample> GetPrimitiveValueExamples()
 
         TValueExample{String(), "", R"("")"},
         TValueExample{String(), "foo", R"("foo")"},
-        TValueExample{String(), TString(AsStringBuf("\xf0\x00")), R"("\xf0\x00")"},
+        TValueExample{String(), TString(TStringBuf("\xf0\x00"sv)), R"("\xf0\x00")"},
 
         TValueExample{Utf8(), "", R"("")"},
         TValueExample{Utf8(), "bar", R"("bar")"},
@@ -98,7 +98,7 @@ std::vector<TValueExample> GetPrimitiveValueExamples()
         },
         TValueExample{
             Uuid(),
-            TString(AsStringBuf("\x01\x23\x45\x67\x89\xAB\xCD\xEF\xFE\xDC\xBA\x98\x76\x54\x32\x10")),
+            TString(TStringBuf("\x01\x23\x45\x67\x89\xAB\xCD\xEF\xFE\xDC\xBA\x98\x76\x54\x32\x10"sv)),
             TString(AsStringBuf(R"("\x01\x23\x45\x67\x89\xAB\xCD\xEF\xFE\xDC\xBA\x98\x76\x54\x32\x10")"))
         },
 
