@@ -190,6 +190,7 @@ public:
         i64 sequenceNumber,
         ui64 randomSeed,
         ui64 stateHash,
+        TInstant timestamp,
         NConcurrency::IAsyncZeroCopyInputStreamPtr reader);
 
     void ValidateSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader);
@@ -297,6 +298,8 @@ private:
     std::atomic<i64> SequenceNumber_ = {};
     std::atomic<ui64> StateHash_ = {};
 
+    TInstant Timestamp_ = {};
+
     bool RotatingChangelog_ = false;
 
     //! AutomatonVersion_ <= SnapshotVersion_
@@ -316,7 +319,7 @@ private:
     i64 GetLastLoggedSequenceNumber() const;
 
     void RotateAutomatonVersionIfNeeded(TVersion mutationVersion);
-    void DoApplyMutation(TMutationContext* context);
+    void DoApplyMutation(TMutationContext* mutationContext);
 
     bool TryAcquireUserLock();
     void ReleaseUserLock();

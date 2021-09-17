@@ -119,12 +119,20 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         auto randomSeed = meta.random_seed();
         auto sequenceNumber = meta.sequence_number();
         auto stateHash = meta.state_hash();
+        auto timestamp = FromProto<TInstant>(meta.timestamp());
 
         if (ResponseKeeper_) {
             ResponseKeeper_->Stop();
         }
 
-        DecoratedAutomaton_->LoadSnapshot(snapshotId, snapshotVersion, sequenceNumber, randomSeed, stateHash, snapshotReader);
+        DecoratedAutomaton_->LoadSnapshot(
+            snapshotId,
+            snapshotVersion,
+            sequenceNumber,
+            randomSeed,
+            stateHash,
+            timestamp,
+            snapshotReader);
         initialChangelogId = snapshotId;
     } else {
         // Recover using changelogs only.

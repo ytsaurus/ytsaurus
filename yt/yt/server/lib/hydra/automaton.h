@@ -22,6 +22,11 @@ struct IAutomaton
     //! It is guaranteed that the instance is cleared (via #Clear) prior to this call.
     virtual void LoadSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader) = 0;
 
+    //! Synchronously prepares an automaton state for further mutation processing
+    //! in a determenistic way.
+    //! During automaton preparation hydra context is set while mutation context is not.
+    virtual void PrepareState() = 0;
+
     //! Clears the instance.
     virtual void Clear() = 0;
 

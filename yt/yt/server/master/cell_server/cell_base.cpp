@@ -13,7 +13,7 @@
 
 #include <yt/yt/server/lib/cell_server/proto/cell_manager.pb.h>
 
-#include <yt/yt/server/lib/hydra/mutation_context.h>
+#include <yt/yt/server/lib/hydra/hydra_context.h>
 
 #include <yt/yt/server/lib/cellar_agent/helpers.h>
 
@@ -201,7 +201,7 @@ void TCellBase::RevokePeer(TPeerId peerId, const TError& reason)
     YT_VERIFY(!peer.Descriptor.IsNull());
     peer.Descriptor = TCellPeerDescriptor();
     peer.Node = nullptr;
-    peer.LastRevocationReason = NHydra::SanitizeWithCurrentMutationContext(reason);
+    peer.LastRevocationReason = NHydra::SanitizeWithCurrentHydraContext(reason);
 }
 
 void TCellBase::ExpirePeerRevocationReasons(TInstant deadline)
@@ -240,8 +240,8 @@ void TCellBase::UpdatePeerState(TPeerId peerId, EPeerState peerState)
 {
     auto& peer = Peers_[peerId];
     if (peerId == GetLeadingPeerId() && peer.LastSeenState != EPeerState::Leading && peerState == EPeerState::Leading) {
-        const auto* mutationContext = NHydra::GetCurrentMutationContext();
-        LastLeaderChangeTime_ = mutationContext->GetTimestamp();
+        const auto* hydraContext = NHydra::GetCurrentHydraContext();
+        LastLeaderChangeTime_ = hydraContext->GetTimestamp();
     }
     peer.LastSeenState = peerState;
 }

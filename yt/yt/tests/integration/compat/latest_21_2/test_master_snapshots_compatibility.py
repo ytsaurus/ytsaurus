@@ -1,5 +1,5 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
-from yt_commands import authors, print_debug, build_master_snapshots
+from yt_commands import authors, get, print_debug, build_master_snapshots, exists
 
 
 from original_tests.yt.yt.tests.integration.tests.test_master_snapshots \
@@ -12,8 +12,17 @@ import yatest.common
 ##################################################################
 
 
+def check_foo():
+    assert not exists("//sys/@supports_virtual_mutations")
+
+    yield
+
+    assert get("//sys/@supports_virtual_mutations")
+
+
 class TestMasterSnapshotsCompatibility(YTEnvSetup):
     NUM_MASTERS = 3
+    NUM_SECONDARY_MASTER_CELLS = 3
     NUM_NODES = 5
     USE_DYNAMIC_TABLES = True
 
@@ -25,6 +34,7 @@ class TestMasterSnapshotsCompatibility(YTEnvSetup):
     @authors("gritukan")
     def test(self):
         CHECKER_LIST = [
+            check_foo,
         ] + MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]

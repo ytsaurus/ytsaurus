@@ -13,6 +13,8 @@
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
+#include <yt/yt/server/lib/hydra/hydra_context.h>
+
 #include <yt/yt/ytlib/cypress_client/cypress_service_proxy.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
@@ -70,15 +72,17 @@ void TAccessTracker::SetModified(
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    const auto* mutationContext = GetCurrentMutationContext();
-    node->SetModificationTime(mutationContext->GetTimestamp());
+    const auto* hydraContext = GetCurrentHydraContext();
+    node->SetModificationTime(hydraContext->GetTimestamp());
+
+    auto currentRevision = GetCurrentHydraContext()->GetVersion().ToRevision();
 
     switch (modificationType) {
         case EModificationType::Attributes:
-            node->SetAttributeRevision(mutationContext->GetVersion().ToRevision());
+            node->SetAttributeRevision(currentRevision);
             break;
         case EModificationType::Content:
-            node->SetContentRevision(mutationContext->GetVersion().ToRevision());
+            node->SetContentRevision(currentRevision);
             break;
         default:
             YT_ABORT();

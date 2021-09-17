@@ -2,7 +2,6 @@
 #include "automaton.h"
 #include "changelog.h"
 #include "config.h"
-#include "mutation_context.h"
 #include "serialize.h"
 #include "snapshot.h"
 #include "snapshot_discovery.h"
@@ -270,6 +269,7 @@ public:
         , SnapshotId_(Owner_->SnapshotVersion_.SegmentId + 1)
         , RandomSeed_(Owner_->RandomSeed_)
         , StateHash_(Owner_->StateHash_)
+        , Timestamp_(Owner_->Timestamp_)
         , EpochContext_(Owner_->EpochContext_)
     {
         Logger = Owner_->Logger.WithTag("SnapshotId: %v", SnapshotId_);
@@ -291,6 +291,7 @@ public:
             meta.set_sequence_number(SequenceNumber_);
             meta.set_random_seed(RandomSeed_);
             meta.set_state_hash(StateHash_);
+            meta.set_timestamp(Timestamp_.GetValue());
 
             SnapshotWriter_ = Owner_->SnapshotStore_->CreateWriter(SnapshotId_, meta);
 
@@ -314,6 +315,7 @@ protected:
     const int SnapshotId_;
     const ui64 RandomSeed_;
     const ui64 StateHash_;
+    const TInstant Timestamp_;
     const TEpochContextPtr EpochContext_;
 
     ISnapshotWriterPtr SnapshotWriter_;
@@ -778,6 +780,7 @@ void TDecoratedAutomaton::LoadSnapshot(
     i64 sequenceNumber,
     ui64 randomSeed,
     ui64 stateHash,
+    TInstant timestamp,
     IAsyncZeroCopyInputStreamPtr reader)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -797,7 +800,26 @@ void TDecoratedAutomaton::LoadSnapshot(
         RandomSeed_ = 0;
         SequenceNumber_ = 0;
         StateHash_ = 0;
-        Automaton_->LoadSnapshot(reader);
+        Timestamp_ = {};
+        {
+            Automaton_->LoadSnapshot(reader);
+
+            // Snapshot preparation is a "mutation" that is executed before first mutation
+            // in changelog.
+            TVersion hydraContextVersion(snapshotId, -1);
+            // NB: #randomSeed is used as a random seed for the first mutation
+            // in changelog, so ad-hoc seed is used here.
+            auto hydraContextRandomSeed = randomSeed;
+            HashCombine(hydraContextRandomSeed, snapshotId);
+
+            THydraContext hydraContext(
+                hydraContextVersion,
+                timestamp,
+                hydraContextRandomSeed);
+            THydraContextGuard hydraContextGuard(&hydraContext);
+
+            Automaton_->PrepareState();
+        }
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Snapshot load failed; clearing state");
         Automaton_->Clear();
@@ -817,6 +839,7 @@ void TDecoratedAutomaton::LoadSnapshot(
     RandomSeed_ = randomSeed;
     SequenceNumber_ = sequenceNumber;
     StateHash_ = stateHash;
+    Timestamp_ = timestamp;
 }
 
 void TDecoratedAutomaton::ValidateSnapshot(IAsyncZeroCopyInputStreamPtr reader)
@@ -826,7 +849,7 @@ void TDecoratedAutomaton::ValidateSnapshot(IAsyncZeroCopyInputStreamPtr reader)
     YT_VERIFY(State_ == EPeerState::Stopped);
     State_ = EPeerState::LeaderRecovery;
 
-    LoadSnapshot(0, TVersion{}, 0, 0, 0, reader);
+    LoadSnapshot(0, TVersion{}, 0, 0, 0, TInstant{}, reader);
 
     YT_VERIFY(State_ == EPeerState::LeaderRecovery);
     State_ = EPeerState::Stopped;
@@ -852,7 +875,7 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
     request.MutationId = FromProto<TMutationId>(header.mutation_id());
     request.Data = std::move(requestData);
 
-    TMutationContext context(
+    TMutationContext mutationContext(
         AutomatonVersion_,
         request,
         FromProto<TInstant>(header.timestamp()),
@@ -861,7 +884,7 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
         header.sequence_number(),
         StateHash_);
 
-    DoApplyMutation(&context);
+    DoApplyMutation(&mutationContext);
 }
 
 const TDecoratedAutomaton::TPendingMutation& TDecoratedAutomaton::LogLeaderMutation(
@@ -1192,7 +1215,7 @@ void TDecoratedAutomaton::RotateAutomatonVersionAfterRecovery()
     RotateAutomatonVersion(LoggedVersion_.load().SegmentId);
 }
 
-void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
+void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1202,41 +1225,43 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
     // could submit more mutations and cause #PendingMutations_ to be reallocated.
     // So we'd better make the needed copies right away.
     // Cf. YT-6908.
-    const auto& request = context->Request();
+    const auto& request = mutationContext->Request();
     auto mutationId = request.MutationId;
 
     {
-        TMutationContextGuard guard(context);
-        Automaton_->ApplyMutation(context);
+        TMutationContextGuard mutationContextGuard(mutationContext);
+        Automaton_->ApplyMutation(mutationContext);
     }
 
-    context->CombineStateHash(context->GetRandomSeed());
-    StateHash_ = context->GetStateHash();
+    mutationContext->CombineStateHash(mutationContext->GetRandomSeed());
+    StateHash_ = mutationContext->GetStateHash();
+
+    Timestamp_ = mutationContext->GetTimestamp();
 
     if (Options_.ResponseKeeper &&
         mutationId &&
-        !context->GetResponseKeeperSuppressed() &&
-        context->GetResponseData()) // Null when mutation idempotizer kicks in.
+        !mutationContext->GetResponseKeeperSuppressed() &&
+        mutationContext->GetResponseData()) // Null when mutation idempotizer kicks in.
     {
-        Options_.ResponseKeeper->EndRequest(mutationId, context->GetResponseData());
+        Options_.ResponseKeeper->EndRequest(mutationId, mutationContext->GetResponseData());
     }
 
     // COMPAT(aleksandra-zh)
     YT_LOG_FATAL_IF(
-        RandomSeed_ != context->GetPrevRandomSeed() && context->GetPrevRandomSeed() != 0,
+        RandomSeed_ != mutationContext->GetPrevRandomSeed() && mutationContext->GetPrevRandomSeed() != 0,
         "Mutation random seeds differ (AutomatonRandomSeed: %llx, MutationRandomSeed: %llx)",
         RandomSeed_.load(),
-        context->GetPrevRandomSeed());
-    RandomSeed_ = context->GetRandomSeed();
+        mutationContext->GetPrevRandomSeed());
+    RandomSeed_ = mutationContext->GetRandomSeed();
     AutomatonVersion_ = automatonVersion.Advance();
 
     ++SequenceNumber_;
     // COMPAT(aleksandra-zh)
     YT_LOG_FATAL_IF(
-        SequenceNumber_ != context->GetSequenceNumber() && context->GetSequenceNumber() != 0,
+        SequenceNumber_ != mutationContext->GetSequenceNumber() && mutationContext->GetSequenceNumber() != 0,
         "Sequence numbers differ (AutomatonSequenceNumber: %llx, MutationSequenceNumber: %llx)",
         SequenceNumber_.load(),
-        context->GetSequenceNumber());
+        mutationContext->GetSequenceNumber());
 
     if (CommittedVersion_.load() < automatonVersion) {
         CommittedVersion_ = automatonVersion;

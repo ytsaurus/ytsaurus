@@ -11,11 +11,9 @@ namespace NYT::NHydra {
 TMutationContext::TMutationContext(
     TMutationContext* parent,
     const TMutationRequest& request)
-    : Parent_(parent)
-    , Version_(Parent_->GetVersion())
+    : THydraContext(*parent)
+    , Parent_(parent)
     , Request_(request)
-    , Timestamp_(Parent_->GetTimestamp())
-    , RandomSeed_(Parent_->GetRandomSeed())
     , PrevRandomSeed_(Parent_->GetPrevRandomSeed())
     , SequenceNumber_(Parent_->GetSequenceNumber())
     , StateHash_(Parent_->GetStateHash())
@@ -29,35 +27,20 @@ TMutationContext::TMutationContext(
     ui64 prevRandomSeed,
     i64 sequenceNumber,
     ui64 stateHash)
-    : Parent_(nullptr)
-    , Version_(version)
+    : THydraContext(
+        version,
+        timestamp,
+        randomSeed)
+    , Parent_(nullptr)
     , Request_(request)
-    , Timestamp_(timestamp)
-    , RandomSeed_(randomSeed)
     , PrevRandomSeed_(prevRandomSeed)
     , SequenceNumber_(sequenceNumber)
     , StateHash_(stateHash)
-    , RandomGenerator_(randomSeed)
 { }
-
-TVersion TMutationContext::GetVersion() const
-{
-    return Version_;
-}
 
 const TMutationRequest& TMutationContext::Request() const
 {
     return Request_;
-}
-
-TInstant TMutationContext::GetTimestamp() const
-{
-    return Timestamp_;
-}
-
-ui64 TMutationContext::GetRandomSeed() const
-{
-    return RandomSeed_;
 }
 
 ui64 TMutationContext::GetPrevRandomSeed() const
@@ -73,11 +56,6 @@ i64 TMutationContext::GetSequenceNumber() const
 ui64 TMutationContext::GetStateHash() const
 {
     return StateHash_;
-}
-
-TRandomGenerator& TMutationContext::RandomGenerator()
-{
-    return Parent_ ? Parent_->RandomGenerator() : RandomGenerator_;
 }
 
 void TMutationContext::SetResponseData(TSharedRefArray data)
@@ -99,6 +77,8 @@ bool TMutationContext::GetResponseKeeperSuppressed()
 {
     return ResponseKeeperSuppressed_;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 static NConcurrency::TFls<TMutationContext*> CurrentMutationContext;
 
@@ -122,11 +102,7 @@ bool HasMutationContext()
 void SetCurrentMutationContext(TMutationContext* context)
 {
     *CurrentMutationContext = context;
-}
-
-TError SanitizeWithCurrentMutationContext(const TError& error)
-{
-    return error.Sanitize(GetCurrentMutationContext()->GetTimestamp());
+    SetCurrentHydraContext(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,12 +2,15 @@
 
 #include "common.h"
 
+#include <util/generic/noncopyable.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A fully deterministic pseudo-random number generator.
-class TRandomGenerator
+class TRandomGenerator final
+    : public TNonCopyable
 {
 public:
     TRandomGenerator();
@@ -21,7 +24,6 @@ private:
 
     ui64 GenerateInteger();
     double GenerateDouble();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

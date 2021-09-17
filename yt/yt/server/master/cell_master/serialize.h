@@ -196,6 +196,7 @@ DEFINE_ENUM(EMasterReign,
     ((TableCollocation)                                             (1667))  // akozhikhov
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1800))  // ignat
+    ((VirtualMutations)                                             (1801))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

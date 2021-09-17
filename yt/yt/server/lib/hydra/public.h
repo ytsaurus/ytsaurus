@@ -36,6 +36,8 @@ DECLARE_REFCOUNTED_CLASS(TChangelogStoreFactoryThunk)
 
 struct TDistributedHydraManagerOptions;
 
+class THydraContext;
+
 class TMutation;
 class TMutationContext;
 struct TMutationRequest;

@@ -21,7 +21,7 @@
 
 #include <yt/yt/server/lib/election/election_manager.h>
 
-#include <yt/yt/server/lib/hydra/mutation_context.h>
+#include <yt/yt/server/lib/hydra/hydra_context.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
@@ -234,7 +234,7 @@ void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
 
     // Validate that mutating requests are only being invoked inside mutations or recovery.
     const auto& ypathExt = requestHeader.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-    YT_VERIFY(!ypathExt.mutating() || NHydra::HasMutationContext());
+    YT_VERIFY(!ypathExt.mutating() || NHydra::HasHydraContext());
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
     if (requestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
@@ -773,7 +773,7 @@ void TObjectProxyBase::ValidateCustomAttributeLength(const TYsonString& value)
 
 void TObjectProxyBase::DeclareMutating()
 {
-    YT_VERIFY(NHydra::HasMutationContext());
+    YT_VERIFY(NHydra::HasHydraContext());
 }
 
 void TObjectProxyBase::DeclareNonMutating()

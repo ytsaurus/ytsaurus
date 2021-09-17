@@ -11,13 +11,6 @@
 #include "request_profiling_manager.h"
 #include "helpers.h"
 
-#include <yt/yt/server/master/cypress_server/public.h>
-
-#include <yt/yt/server/lib/hydra/entity_map.h>
-#include <yt/yt/server/lib/hydra/mutation.h>
-
-#include <yt/yt/server/lib/transaction_server/helpers.h>
-
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
@@ -32,12 +25,6 @@
 #include <yt/yt/server/master/cypress_server/node_detail.h>
 #include <yt/yt/server/master/cypress_server/resolve_cache.h>
 
-#include <yt/yt/server/lib/election/election_manager.h>
-
-#include <yt/yt/server/lib/hive/hive_manager.h>
-
-#include <yt/yt/server/lib/misc/interned_attributes.h>
-
 #include <yt/yt/server/master/security_server/group.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>
@@ -46,6 +33,18 @@
 #include <yt/yt/server/master/transaction_server/boomerang_tracker.h>
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
+
+#include <yt/yt/server/lib/election/election_manager.h>
+
+#include <yt/yt/server/lib/hive/hive_manager.h>
+
+#include <yt/yt/server/lib/hydra/hydra_context.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
+
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
+#include <yt/yt/server/lib/transaction_server/helpers.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
@@ -564,7 +563,7 @@ public:
 
     TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& context) override
     {
-        if (IsRequestMutating(context->RequestHeader()) && !HasMutationContext()) {
+        if (IsRequestMutating(context->RequestHeader()) && !HasHydraContext()) {
             // Nested call or recovery.
             return TResolveResultHere{path};
         } else {
@@ -804,9 +803,9 @@ TObjectId TObjectManager::TImpl::GenerateId(EObjectType type, TObjectId hintId)
         return hintId;
     }
 
-    auto* mutationContext = GetCurrentMutationContext();
-    auto version = mutationContext->GetVersion();
-    auto hash = mutationContext->RandomGenerator().Generate<ui32>();
+    auto* hydraContext = GetCurrentHydraContext();
+    auto version = hydraContext->GetVersion();
+    auto hash = hydraContext->RandomGenerator().Generate<ui32>();
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto cellTag = multicellManager->GetCellTag();
@@ -818,7 +817,11 @@ TObjectId TObjectManager::TImpl::GenerateId(EObjectType type, TObjectId hintId)
     }
 
     auto result = MakeRegularId(type, cellTag, version, hash);
-    mutationContext->CombineStateHash(result);
+
+    if (auto* mutationContext = TryGetCurrentMutationContext()) {
+        mutationContext->CombineStateHash(result);
+    }
+
     return result;
 }
 
