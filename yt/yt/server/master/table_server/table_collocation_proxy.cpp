@@ -40,7 +40,7 @@ private:
         attributes->push_back(EInternedAttributeKey::TableIds);
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::TablePaths)
             .SetOpaque(true));
-        attributes->push_back(EInternedAttributeKey::Type);
+        attributes->push_back(EInternedAttributeKey::CollocationType);
 
         TBase::ListSystemAttributes(attributes);
     }
@@ -79,7 +79,7 @@ private:
                     });
                 return true;
 
-            case EInternedAttributeKey::Type:
+            case EInternedAttributeKey::CollocationType:
                 BuildYsonFluently(consumer)
                     .Value(collocation->GetType());
                 return true;

@@ -92,7 +92,8 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
         collocated_tables[table1] = self._create_replicated_table(table1, external_cell_tag=1)
         set("{}/@replication_collocation_id".format(table1), collocation_id)
 
-        assert get("#{}/@type".format(collocation_id)) == "replication"
+        assert get("#{}/@type".format(collocation_id)) == "table_collocation"
+        assert get("#{}/@collocation_type".format(collocation_id)) == "replication"
         assert_items_equal(
             get("#{}/@table_ids".format(collocation_id)),
             collocated_tables.values())

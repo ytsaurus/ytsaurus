@@ -1784,7 +1784,7 @@ def create_table_collocation(table_ids=None, table_paths=None, **kwargs):
     kwargs["type"] = "table_collocation"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
-    kwargs["attributes"]["type"] = "replication"
+    kwargs["attributes"]["collocation_type"] = "replication"
     if table_ids is not None:
         kwargs["attributes"]["table_ids"] = table_ids
     if table_paths is not None:

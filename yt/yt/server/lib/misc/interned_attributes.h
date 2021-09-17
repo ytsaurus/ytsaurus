@@ -79,6 +79,7 @@
     XX(CompressionCodec, compression_codec) \
     XX(CompressionRatio, compression_ratio) \
     XX(CompressionStatistics, compression_statistics) \
+    XX(CollocationType, collocation_type) \
     XX(Config, config) \
     XX(ConfigPreset, config_preset) \
     XX(ConfigVersion, config_version) \
