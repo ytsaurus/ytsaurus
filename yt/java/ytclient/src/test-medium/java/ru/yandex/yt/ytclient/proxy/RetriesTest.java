@@ -213,4 +213,35 @@ public class RetriesTest extends YtClientTestBase {
             assertThat("Third with retry", createRequests.get(2).getLeft().getRetry());
         }
     }
+
+    @Test
+    public void testBackoffDuration() {
+        OutageController outageController = new OutageController();
+        RpcRequestsTestingController rpcRequestsTestingController = new RpcRequestsTestingController();
+        TestingOptions testingOptions = new TestingOptions()
+                .setRpcRequestsTestingController(rpcRequestsTestingController)
+                .setOutageController(outageController);
+
+        var error100 = new RpcError(
+                TError.newBuilder().setCode(100).build()
+        );
+
+        var ytFixture = createYtFixture(new RpcOptions()
+                .setTestingOptions(testingOptions)
+                .setMinBackoffTime(Duration.ofMillis(500))
+                .setMaxBackoffTime(Duration.ofMillis(1000))
+                .setRetryPolicyFactory(() -> RetryPolicy.forCodes(100)));
+
+        var yt = ytFixture.yt;
+
+        outageController.addFails("ExistsNode", 2, error100);
+
+        var tablePath = ytFixture.testDirectory.child("static-table");
+
+        long startTime = System.currentTimeMillis();
+        yt.existsNode(tablePath.toString()).join();
+        long endTime = System.currentTimeMillis();
+
+        assertThat("Expected two retries with postpones", endTime - startTime >= 1000);
+    }
 }
