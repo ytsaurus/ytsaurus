@@ -1825,7 +1825,7 @@ public:
                 auto* mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
                 TStringBuf mediumName = mediumDescriptor
                     ? mediumDescriptor->Name
-                    : AsStringBuf("unknown");
+                    : TStringBuf("unknown");
                 builder->AppendFormat("%v: %v", mediumName, freeDiskSpace);
             }));
     }

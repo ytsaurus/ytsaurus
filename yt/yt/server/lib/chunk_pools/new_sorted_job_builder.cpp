@@ -528,13 +528,13 @@ private:
             compressor.InitializeMapping();
             compressor.Dump(
                 StructuredLogger
-                    .WithStructuredTag("batch_kind", AsStringBuf("compressor")));
+                    .WithStructuredTag("batch_kind", TStringBuf("compressor")));
         }
 
         {
             TStructuredLogBatcher batcher(
                 StructuredLogger
-                .WithStructuredTag("batch_kind", AsStringBuf("input_data_slices")));
+                .WithStructuredTag("batch_kind", TStringBuf("input_data_slices")));
             for (const auto& dataSlice : InputDataSlices_) {
                 batcher.AddItemFluently()
                     .Value(dataSlice);
@@ -544,7 +544,7 @@ private:
         {
             TStructuredLogBatcher batcher(
                 StructuredLogger
-                    .WithStructuredTag("batch_kind", AsStringBuf("job_data_slices")));
+                    .WithStructuredTag("batch_kind", TStringBuf("job_data_slices")));
             for (const auto& job : Jobs_) {
                 for (const auto& stripe : job.GetStripeList()->Stripes) {
                     for (const auto& dataSlice : stripe->DataSlices) {
@@ -558,7 +558,7 @@ private:
         {
             TStructuredLogBatcher batcher(
                 StructuredLogger
-                .WithStructuredTag("batch_kind", AsStringBuf("jobs")));
+                .WithStructuredTag("batch_kind", TStringBuf("jobs")));
             for (const auto& job : Jobs_) {
                 if (job.GetIsBarrier()) {
                     continue;

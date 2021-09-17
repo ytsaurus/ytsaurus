@@ -939,7 +939,7 @@ public:
             }
         };
         addMultiCase(EWireType::Int8, 0, AsStringBuf("\x00"));
-        addMultiCase(EWireType::Int8, 42, AsStringBuf("*"));
+        addMultiCase(EWireType::Int8, 42, TStringBuf("*"));
         addMultiCase(EWireType::Int8, -42, AsStringBuf("\xd6"));
         addMultiCase(EWireType::Int8, 127, AsStringBuf("\x7f"));
         addMultiCase(EWireType::Int8, -128, AsStringBuf("\x80"));
@@ -957,7 +957,7 @@ public:
         addMultiCase(EWireType::Int32, -0x80000000l, AsStringBuf("\x00\x00\x00\x80"));
 
         addMultiCase(EWireType::Uint8, 0ull, AsStringBuf("\x00"));
-        addMultiCase(EWireType::Uint8, 42ull, AsStringBuf("*"));
+        addMultiCase(EWireType::Uint8, 42ull, TStringBuf("*"));
         addMultiCase(EWireType::Uint8, 255ull, AsStringBuf("\xff"));
 
         addMultiCase(EWireType::Uint16, 0ull, AsStringBuf("\x00\x00"));

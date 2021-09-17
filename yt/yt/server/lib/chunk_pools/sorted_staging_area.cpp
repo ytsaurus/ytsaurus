@@ -453,7 +453,7 @@ private:
         std::vector<TString> parts;
         parts.emplace_back(Format("Main: %v", MainDomain_.Statistics));
         parts.emplace_back(Format("Buffer: %v", BufferDomain_.Statistics));
-        return Format("{%v}", JoinToString(parts, AsStringBuf(", ")));
+        return Format("{%v}", JoinToString(parts, TStringBuf(", ")));
     }
 
     //! Check if we have at least one data slice to build job right now.
