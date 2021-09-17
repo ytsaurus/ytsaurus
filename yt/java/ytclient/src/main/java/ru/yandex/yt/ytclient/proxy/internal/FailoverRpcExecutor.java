@@ -1,7 +1,9 @@
 package ru.yandex.yt.ytclient.proxy.internal;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -28,6 +30,7 @@ import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingResponseHandlerMetric
 
 public class FailoverRpcExecutor {
     private static final Logger logger = LoggerFactory.getLogger(FailoverRpcExecutor.class);
+    private static final TimeoutException TIMEOUT_EXCEPTION = new TimeoutException();
 
     private final ScheduledSerializedExecutorService serializedExecutorService;
     private final BalancingResponseHandlerMetricsHolder metricsHolder;
@@ -185,11 +188,16 @@ public class FailoverRpcExecutor {
             requestsError++;
             lastRequestError = error;
             if (!result.isDone()) {
-                boolean isRetriable = retryPolicy.getBackoffDuration(error, options).isPresent();
+                Optional<Duration> backoffDuration = retryPolicy.getBackoffDuration(error, options);
+                boolean isRetriable = backoffDuration.isPresent();
                 if (!isRetriable) {
                     result.completeExceptionally(error);
                 } else if (!stopped) {
-                    send(handler);
+                    serializedExecutorService.schedule(
+                            () -> send(handler),
+                            backoffDuration.get().toMillis(),
+                            TimeUnit.MILLISECONDS
+                    );
                 } else if (requestsError == requestsSent) {
                     result.completeExceptionally(error);
                 }
@@ -237,10 +245,15 @@ public class FailoverRpcExecutor {
             ScheduledFuture<?> scheduled = serializedExecutorService.schedule(
                     () -> {
                         if (!result.isDone()) {
-                            boolean isTimeoutRetriable = !stopped &&
-                                    retryPolicy.getBackoffDuration(new TimeoutException(), options).isPresent();
+                            Optional<Duration> backoffDuration =
+                                    retryPolicy.getBackoffDuration(TIMEOUT_EXCEPTION, options);
+                            boolean isTimeoutRetriable = !stopped && backoffDuration.isPresent();
                             if (isTimeoutRetriable) {
-                                send(handler);
+                                serializedExecutorService.schedule(
+                                        () -> send(handler),
+                                        backoffDuration.get().toMillis(),
+                                        TimeUnit.MILLISECONDS
+                                );
                             }
                         }
                     }, failoverTimeout, TimeUnit.MILLISECONDS);
