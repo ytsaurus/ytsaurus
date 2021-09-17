@@ -10,7 +10,7 @@ using namespace NYT::NDetail::NRawClient;
 
 Y_UNIT_TEST_SUITE(OperationsApiParsing) {
     Y_UNIT_TEST(ParseOperationAttributes) {
-        auto response = AsStringBuf(R"""({
+        auto response = TStringBuf(R"""({
             "id" = "1-2-3-4";
             "authenticated_user" = "some-user";
             "start_time" = "2018-01-01T00:00:00.0Z";
