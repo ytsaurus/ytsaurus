@@ -12,7 +12,7 @@ using namespace NConcurrency;
 TStringBuf ToHttpString(EMethod method)
 {
     switch(method) {
-#define XX(num, name, string) case EMethod::name: return AsStringBuf(#string);
+#define XX(num, name, string) case EMethod::name: return #string;
         YT_HTTP_METHOD_MAP(XX)
 #undef XX
         default: THROW_ERROR_EXCEPTION("Invalid method %v", method);
@@ -22,7 +22,7 @@ TStringBuf ToHttpString(EMethod method)
 TStringBuf ToHttpString(EStatusCode code)
 {
     switch(code) {
-#define XX(num, name, string) case EStatusCode::name: return AsStringBuf(#string);
+#define XX(num, name, string) case EStatusCode::name: return #string;
         YT_HTTP_STATUS_MAP(XX)
 #undef XX
         default:
