@@ -105,7 +105,7 @@ struct TOrderedReadManagerConfig
     int RangeCount;
 };
 
-using TReadManagerConfigVariant = TVariant<
+using TReadManagerConfigVariant = std::variant<
     TUnorderedReadManagerConfig,
     TOrderedReadManagerConfig>;
 

@@ -36,23 +36,23 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TOneofOption = TVariant<
+using TOneofOption = std::variant<
     EProtobufOneofMode>;
 
-using TFieldOption = TVariant<
+using TFieldOption = std::variant<
     EProtobufType,
     EProtobufSerializationMode,
     EProtobufListMode,
     EProtobufMapMode>;
 
-using TMessageOption = TVariant<
+using TMessageOption = std::variant<
     EProtobufFieldSortOrder>;
 
 struct TOtherColumns
 { };
 
-using TTypePtrOrOtherColumns = TVariant<NTi::TTypePtr, TOtherColumns>;
-using TValueTypeOrOtherColumns = TVariant<EValueType, TOtherColumns>;
+using TTypePtrOrOtherColumns = std::variant<NTi::TTypePtr, TOtherColumns>;
+using TValueTypeOrOtherColumns = std::variant<EValueType, TOtherColumns>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
