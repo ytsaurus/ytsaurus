@@ -47,7 +47,7 @@ struct TYdlTableStructure
 };
 
 /// Tag class to specify table row type.
-using TTableStructure = ::TVariant<
+using TTableStructure = std::variant<
     TUnspecifiedTableStructure,
     TProtobufTableStructure,
     TYdlTableStructure
@@ -127,7 +127,7 @@ struct TProtobufStructuredRowStream
 };
 
 /// Tag class to specify type of rows in an operation row stream
-using TStructuredRowStreamDescription = ::TVariant<
+using TStructuredRowStreamDescription = std::variant<
     TVoidStructuredRowStream,
     TTNodeStructuredRowStream,
     TTYaMRRowStructuredRowStream,
