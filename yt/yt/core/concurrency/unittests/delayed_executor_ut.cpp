@@ -14,7 +14,27 @@ using ::testing::TProbe;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TDelayedExecutorTest, Submit)
+TEST(TDelayedExecutorTest, SubmitLarge)
+{
+    auto fired = std::make_shared<std::atomic<int>>(0);
+    auto state = std::make_shared<TProbeState>();
+
+    auto cookie = TDelayedExecutor::Submit(
+        BIND([fired, state, probe = TProbe(state.get())] () { ++*fired; }),
+        TDuration::MilliSeconds(1000));
+
+    Sleep(TDuration::MilliSeconds(500));
+
+    EXPECT_EQ(0, *fired);
+
+    Sleep(TDuration::MilliSeconds(700));
+
+    EXPECT_EQ(1, *fired);
+    EXPECT_EQ(1, state->Constructors);
+    EXPECT_EQ(1, state->Destructors);
+}
+
+TEST(TDelayedExecutorTest, SubmitSmall)
 {
     auto fired = std::make_shared<std::atomic<int>>(0);
     auto state = std::make_shared<TProbeState>();
