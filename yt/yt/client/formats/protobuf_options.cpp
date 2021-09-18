@@ -14,16 +14,16 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TOneofOption = TVariant<
+using TOneofOption = std::variant<
     EProtobufOneofMode>;
 
-using TFieldOption = TVariant<
+using TFieldOption = std::variant<
     ESpecialProtobufType,
     EProtobufSerializationMode,
     EProtobufListMode,
     EProtobufMapMode>;
 
-using TMessageOption = TVariant<
+using TMessageOption = std::variant<
     EProtobufFieldSortOrder>;
 
 ////////////////////////////////////////////////////////////////////////////////
