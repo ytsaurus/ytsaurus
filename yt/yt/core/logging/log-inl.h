@@ -160,17 +160,17 @@ void AppendLogMessage(
     }
 }
 
-template <class... TArgs, size_t FormatLength>
+template <class... TArgs>
 void AppendLogMessageWithFormat(
     TStringBuilderBase* builder,
     const NTracing::TTraceContext* traceContext,
     const TLogger& logger,
-    const char (&format)[FormatLength],
+    TStringBuf format,
     TArgs&&... args)
 {
     if (HasMessageTags(traceContext, logger)) {
-        if (FormatLength >= 2 && format[FormatLength - 2] == ')') {
-            builder->AppendFormat(TStringBuf(format, FormatLength - 2), std::forward<TArgs>(args)...);
+        if (format.size() >= 2 && format[format.size() - 1] == ')') {
+            builder->AppendFormat(format.substr(0, format.size() - 1), std::forward<TArgs>(args)...);
             builder->AppendString(TStringBuf(", "));
         } else {
             builder->AppendFormat(format, std::forward<TArgs>(args)...);
@@ -189,31 +189,31 @@ struct TLogMessage
     TStringBuf Anchor;
 };
 
-template <class... TArgs, size_t FormatLength>
+template <class... TArgs>
 TLogMessage BuildLogMessage(
     const NTracing::TTraceContext* traceContext,
     const TLogger& logger,
-    const char (&format)[FormatLength],
+    TStringBuf format,
     TArgs&&... args)
 {
     TMessageStringBuilder builder;
     AppendLogMessageWithFormat(&builder, traceContext, logger, format, std::forward<TArgs>(args)...);
-    return {builder.Flush(), AsStringBuf(format)};
+    return {builder.Flush(), format};
 }
 
-template <class... TArgs, size_t FormatLength>
+template <class... TArgs>
 TLogMessage BuildLogMessage(
     const NTracing::TTraceContext* traceContext,
     const TLogger& logger,
     const TError& error,
-    const char (&format)[FormatLength],
+    TStringBuf format,
     TArgs&&... args)
 {
     TMessageStringBuilder builder;
     AppendLogMessageWithFormat(&builder, traceContext, logger, format, std::forward<TArgs>(args)...);
     builder.AppendChar('\n');
     FormatValue(&builder, error, TStringBuf());
-    return {builder.Flush(), AsStringBuf(format)};
+    return {builder.Flush(), format};
 }
 
 template <class T>
