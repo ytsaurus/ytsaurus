@@ -941,21 +941,22 @@ TYPED_TEST(TNotGrpcTest, Compression)
     }
 }
 
-#if !defined(_asan_enabled_) && !defined(_msan_enabled_)
+#if !defined(_asan_enabled_) && !defined(_msan_enabled_) && defined(_linux_)
 
 TYPED_TEST(TRpcTest, ResponseMemoryTag)
 {
-    constexpr TMemoryTag TestMemoryTag = 1234;
-    auto initialMemoryUsage = GetMemoryUsageForTag(TestMemoryTag);
+    static TMemoryTag testMemoryTag = 12345;
+    testMemoryTag++;
+    auto initialMemoryUsage = GetMemoryUsageForTag(testMemoryTag);
 
     std::vector<TMyProxy::TRspPassCallPtr> rsps;
     {
         TMyProxy proxy(this->CreateChannel());
-        TString longString(1000, 'a');
+        TString longString(100, 'a');
 
-        NYTAlloc::TMemoryTagGuard guard(TestMemoryTag);
+        NYTAlloc::TMemoryTagGuard guard(testMemoryTag);
 
-        for (int i = 0; i < 100; ++i) {
+        for (int i = 0; i < 10000; ++i) {
             auto req = proxy.PassCall();
             req->SetUser(longString);
             req->SetMutationId(TGuid::Create());
@@ -965,7 +966,10 @@ TYPED_TEST(TRpcTest, ResponseMemoryTag)
         }
     }
 
-    EXPECT_GE(GetMemoryUsageForTag(TestMemoryTag) - initialMemoryUsage, 100'000u);
+    auto currentMemoryUsage = GetMemoryUsageForTag(testMemoryTag);
+    EXPECT_GE(currentMemoryUsage - initialMemoryUsage, 500'000u)
+        << "InitialUsage: " << initialMemoryUsage << std::endl
+        << "Current: " << currentMemoryUsage;
 }
 
 #endif

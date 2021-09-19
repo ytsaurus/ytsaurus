@@ -1012,6 +1012,10 @@ TEST_P(THttpServerTest, RequestCancel)
         return;
     }
 
+#if defined(_darwin_)
+    return;
+#endif
+
     auto handler = New<TCancelingHandler>();
 
     ServerConfig->CancelFiberOnConnectionClose = true;

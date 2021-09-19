@@ -13,7 +13,7 @@
 #include <util/system/compiler.h>
 
 // These tests do not work under MSAN and ASAN.
-#if !defined(_msan_enabled_) and !defined(_asan_enabled_)
+#if !defined(_msan_enabled_) and !defined(_asan_enabled_) and defined(_linux_)
 
 namespace NYT {
 
