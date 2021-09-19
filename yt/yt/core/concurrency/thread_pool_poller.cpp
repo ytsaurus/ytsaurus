@@ -307,14 +307,14 @@ private:
         void Shutdown()
         {
             ShutdownStarted_.store(true);
-            WakeupHandle_.Raise();
+            ScheduleWakeup();
             Thread_.Join();
         }
 
         void ScheduleUnregister(IPollablePtr pollable)
         {
             UnregisterQueue_.Enqueue(std::move(pollable));
-            WakeupHandle_.Raise();
+            ScheduleWakeup();
         }
 
         void Arm(int fd, const IPollablePtr& pollable, EPollControl control)
@@ -342,7 +342,7 @@ private:
             if (wakeup) {
                 RetryQueue_.Enqueue(pollable);
                 if (!RetryScheduled_.exchange(true)) {
-                    WakeupHandle_.Raise();
+                    ScheduleWakeup();
                 }
             } else {
                 Poller_->RetryQueue_.enqueue(pollable);
@@ -361,6 +361,9 @@ private:
         std::atomic<bool> ShutdownStarted_ = false;
 
         TNotificationHandle WakeupHandle_;
+        #ifndef _linux_
+        std::atomic<bool> WakeupScheduled_ = false;
+        #endif
 
         std::array<TPollerImpl::TEvent, MaxEventsPerPoll> PollerEvents_;
 
@@ -423,6 +426,11 @@ private:
             if (it != PollerEvents_.begin()) {
                 Poller_->PollerEventQueue_.enqueue_bulk(PollerEventQueueToken_, PollerEvents_.begin(), std::distance(PollerEvents_.begin(), it));
             }
+            #ifndef _linux_
+            // Drain wakeup handle in order to prevent deadlocking on pipe.
+            WakeupHandle_.Clear();
+            WakeupScheduled_.store(false);
+            #endif
             return count;
         }
 
@@ -458,6 +466,23 @@ private:
             int count = std::ssize(pollables);
             Poller_->RetryQueue_.enqueue_bulk(RetryQueueToken_, std::make_move_iterator(pollables.begin()), count);
             return count;
+        }
+
+        void ScheduleWakeup()
+        {
+            #ifndef _linux_
+            // Under non-linux platforms notification handle is implemented over pipe, so
+            // performing lots consecutive wakeups may lead to blocking on pipe which may
+            // lead to dead-lock in case when handle is raised under spinlock.
+            if (WakeupScheduled_.load(std::memory_order_relaxed)) {
+                return;
+            }
+            if (WakeupScheduled_.exchange(true)) {
+                return;
+            }
+            #endif
+
+            WakeupHandle_.Raise();
         }
     };
 
