@@ -666,6 +666,7 @@ public:
             spec,
             std::move(preprocessedSpec.CustomSpecPerTree),
             std::move(preprocessedSpec.SpecString),
+            std::move(preprocessedSpec.VanillaTaskNames),
             secureVault,
             runtimeParameters,
             std::move(baseAcl),
@@ -4228,7 +4229,7 @@ private:
         }
 
         TPreprocessedSpec result;
-        ParseSpec(std::move(specNode), specTemplate, /* operationId */ std::nullopt, &result);
+        ParseSpec(std::move(specNode), specTemplate, type, /*operationId*/ std::nullopt, &result);
         result.ExperimentAssignments = std::move(experimentAssignments);
 
         return result;

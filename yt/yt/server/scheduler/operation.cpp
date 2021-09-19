@@ -131,6 +131,7 @@ TOperation::TOperation(
     TOperationSpecBasePtr spec,
     THashMap<TString, TStrategyOperationSpecPtr> customSpecPerTree,
     TYsonString specString,
+    std::vector<TString> vanillaTaskNames,
     IMapNodePtr secureVault,
     TOperationRuntimeParametersPtr runtimeParameters,
     NSecurityClient::TSerializableAccessControlList baseAcl,
@@ -160,6 +161,7 @@ TOperation::TOperation(
     , StartTime_(startTime)
     , AuthenticatedUser_(authenticatedUser)
     , SpecString_(specString)
+    , VanillaTaskNames_(std::move(vanillaTaskNames))
     , CustomSpecPerTree_(std::move(customSpecPerTree))
     , CodicilData_(MakeOperationCodicilString(Id_))
     , ControlInvoker_(std::move(controlInvoker))
@@ -225,28 +227,9 @@ const TYsonString& TOperation::GetSpecString() const
     return SpecString_;
 }
 
-std::vector<TString> TOperation::GetTaskNames() const
+const std::vector<TString>& TOperation::GetTaskNames() const
 {
-    if (Type_ != EOperationType::Vanilla) {
-        return {};
-    }
-
-    TVanillaOperationSpecPtr vanillaOperationSpec;
-    try {
-        vanillaOperationSpec = ConvertTo<TVanillaOperationSpecPtr>(SpecString_);
-    } catch (const std::exception& ex) {
-        // We can try to archive operation with invalid spec (for example with empty task name).
-        // Scheduler should not crash in this case.
-        return {};
-    }
-
-    std::vector<TString> taskNames;
-    taskNames.reserve(vanillaOperationSpec->Tasks.size());
-    for (const auto& [taskName, taskSpec] : vanillaOperationSpec->Tasks) {
-        taskNames.push_back(taskName);
-    }
-
-    return taskNames;
+    return VanillaTaskNames_;
 }
 
 TFuture<TOperationPtr> TOperation::GetStarted()
@@ -534,7 +517,12 @@ std::vector<TString> TOperation::GetExperimentAssignmentNames() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseSpec(IMapNodePtr specNode, INodePtr specTemplate, std::optional<TOperationId> operationId, TPreprocessedSpec* preprocessedSpec)
+void ParseSpec(
+    IMapNodePtr specNode,
+    INodePtr specTemplate,
+    EOperationType operationType,
+    std::optional<TOperationId> operationId,
+    TPreprocessedSpec* preprocessedSpec)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -559,6 +547,21 @@ void ParseSpec(IMapNodePtr specNode, INodePtr specTemplate, std::optional<TOpera
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing operation spec")
             << ex;
+    }
+
+    if (operationType == EOperationType::Vanilla) {
+        TVanillaOperationSpecPtr vanillaOperationSpec;
+        try {
+            vanillaOperationSpec = ConvertTo<TVanillaOperationSpecPtr>(specNode);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing vanilla operation spec")
+                << ex;
+        }
+
+        preprocessedSpec->VanillaTaskNames.reserve(vanillaOperationSpec->Tasks.size());
+        for (const auto& [taskName, _] : vanillaOperationSpec->Tasks) {
+            preprocessedSpec->VanillaTaskNames.push_back(taskName);
+        }
     }
 
     specNode->RemoveChild("secure_vault");
