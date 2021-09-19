@@ -3,6 +3,8 @@
 #include <yt/yt/core/concurrency/poller.h>
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 
+#include <util/system/env.h>
+
 #include <thread>
 
 namespace NYT::NConcurrency {
@@ -14,6 +16,10 @@ class TPollableMock
     : public IPollable
 {
 public:
+    explicit TPollableMock(TString loggingTag = "")
+        : LoggingTag_(std::move(loggingTag))
+    { }
+
     void SetCookie(IPollable::TCookiePtr cookie) override
     {
         Cookie_ = std::move(cookie);
@@ -32,8 +38,8 @@ public:
     void OnEvent(EPollControl control) override
     {
         // NB: Retry is the only event we trigger in this unittest via |IPoller::Retry|.
-        EXPECT_EQ(control, EPollControl::Retry);
-        EXPECT_FALSE(ShutdownPromise_.IsSet());
+        YT_VERIFY(control == EPollControl::Retry);
+        YT_VERIFY(!ShutdownPromise_.IsSet());
         RetryPromise_.Set();
     }
 
@@ -80,7 +86,7 @@ public:
     template <class T>
     void ExpectSuccessfullySetFuture(const TFuture<T>& future)
     {
-        EXPECT_TRUE(future.WithTimeout(TDuration::Seconds(5)).Get().IsOK());
+        YT_VERIFY(future.WithTimeout(TDuration::Seconds(15)).Get().IsOK());
     }
 
 protected:
@@ -132,21 +138,24 @@ TEST_F(TThreadPoolPollerTest, Stress)
 {
     std::vector<std::thread> threads;
 
+    auto envIterCount = GetEnv("ITER_COUNT");
+    int iterCount = envIterCount.empty() ? 20000 : FromString<int>(envIterCount);
+
     std::vector<std::thread> auxThreads;
     auxThreads.emplace_back([&] {
         for (int i = 0; i < 10; ++i) {
-            threads.emplace_back([&] {
+            threads.emplace_back([&, i] {
                 std::vector<TIntrusivePtr<TPollableMock>> pollables;
-                for (int j = 0; j < 20000; ++j) {
-                    pollables.push_back(New<TPollableMock>());
+                for (int j = 0; j < iterCount; ++j) {
+                    pollables.push_back(New<TPollableMock>(Format("%v/%05d", i, j)));
                     EXPECT_TRUE(Poller->TryRegister(pollables.back()));
                 }
 
-                Sleep(TDuration::MicroSeconds(1));
+                std::this_thread::yield();
 
                 std::vector<TFuture<void>> retryFutures;
                 std::vector<TFuture<void>> unregisterFutures;
-                for (int j = 0; j < 20000; j += 2) {
+                for (int j = 0; j < iterCount; j += 2) {
                     Poller->Retry(pollables[j]);
                     retryFutures.push_back(pollables[j]->GetRetryFuture());
 
@@ -162,16 +171,15 @@ TEST_F(TThreadPoolPollerTest, Stress)
                 ExpectSuccessfullySetFuture(AllSucceeded(unregisterFutures));
             });
 
-            Sleep(TDuration::MicroSeconds(1));
+            std::this_thread::yield();
         }
     });
     auxThreads.emplace_back([&] {
         for (int j = 0; j < 10; ++j) {
             for (int i = 1, sign = -1; i < 10; ++i, sign *= -1) {
                 Poller->Reconfigure(InitialThreadCount + sign * i);
-
             }
-            Sleep(TDuration::MicroSeconds(1));
+            std::this_thread::yield();
         }
     });
 
