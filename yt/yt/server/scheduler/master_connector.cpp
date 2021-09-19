@@ -1121,8 +1121,9 @@ private:
         {
             auto specString = attributes.GetYson("spec");
             auto specNode = ConvertSpecStringToNode(specString);
+            auto operationType = attributes.Get<EOperationType>("operation_type");
             TPreprocessedSpec preprocessedSpec;
-            ParseSpec(std::move(specNode), /* specTemplate */ nullptr, operationId, &preprocessedSpec);
+            ParseSpec(std::move(specNode), /*specTemplate*/ nullptr, operationType, operationId, &preprocessedSpec);
             preprocessedSpec.ExperimentAssignments =
                 attributes.Get<std::vector<TExperimentAssignmentPtr>>("experiment_assignments", {});
             const auto& spec = preprocessedSpec.Spec;
@@ -1152,12 +1153,13 @@ private:
             auto scheduler = Owner_->Bootstrap_->GetScheduler();
             auto operation = New<TOperation>(
                 operationId,
-                attributes.Get<EOperationType>("operation_type"),
+                operationType,
                 attributes.Get<TMutationId>("mutation_id"),
                 attributes.Get<TTransactionId>("user_transaction_id"),
                 spec,
                 std::move(preprocessedSpec.CustomSpecPerTree),
                 std::move(preprocessedSpec.SpecString),
+                std::move(preprocessedSpec.VanillaTaskNames),
                 secureVault,
                 runtimeParameters,
                 scheduler->GetOperationBaseAcl(),

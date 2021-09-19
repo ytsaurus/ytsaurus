@@ -292,7 +292,7 @@ public:
 
     //! Returns names of operation tasks.
     //! Works for vanilla operations only.
-    std::vector<TString> GetTaskNames() const;
+    const std::vector<TString>& GetTaskNames() const;
 
     //! Gets set when the operation is started.
     TFuture<TOperationPtr> GetStarted();
@@ -386,6 +386,7 @@ public:
         TOperationSpecBasePtr spec,
         THashMap<TString, TStrategyOperationSpecPtr> customSpecPerTree,
         NYson::TYsonString specString,
+        std::vector<TString> vanillaTaskNames,
         NYTree::IMapNodePtr secureVault,
         TOperationRuntimeParametersPtr runtimeParameters,
         NSecurityClient::TSerializableAccessControlList baseAcl,
@@ -406,6 +407,7 @@ private:
     const TInstant StartTime_;
     const TString AuthenticatedUser_;
     const NYson::TYsonString SpecString_;
+    const std::vector<TString> VanillaTaskNames_;
     const THashMap<TString, TStrategyOperationSpecPtr> CustomSpecPerTree_;
     const TString CodicilData_;
     const IInvokerPtr ControlInvoker_;
@@ -447,12 +449,14 @@ struct TPreprocessedSpec
     NYson::TYsonString SpecString;
     THashMap<TString, TStrategyOperationSpecPtr> CustomSpecPerTree;
     std::vector<TExperimentAssignmentPtr> ExperimentAssignments;
+    std::vector<TString> VanillaTaskNames;
 };
 
 //! Fill various spec parts of preprocessed spec.
 void ParseSpec(
     NYTree::IMapNodePtr specNode,
     NYTree::INodePtr specTemplate,
+    EOperationType operationType,
     std::optional<TOperationId> operationId,
     TPreprocessedSpec* preprocessedSpec);
 
