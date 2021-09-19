@@ -112,9 +112,15 @@ class YtConfig(object):
 
     def build_node_config(self):
         if self.node_config is not None:
-            return copy.deepcopy(self.node_config)
+            node_config = copy.deepcopy(self.node_config)
         else:
-            return {}
+            node_config = {}
+        # Disable memory limit validation in tests, since it's very hard to set proper
+        # memory limit for asan builds.
+        return update(
+            node_config, 
+            {"exec_agent" : { "check_user_job_memory_limit" : False}}
+        )
 
     def build_proxy_config(self):
         if self.proxy_config is not None:
