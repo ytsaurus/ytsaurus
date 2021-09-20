@@ -77,9 +77,6 @@ struct IChangelog
      *  when the file is closed.
      */
     virtual TFuture<void> Close() = 0;
-
-    //! Asynchronously preallocates filesystem size for journal
-    virtual TFuture<void> Preallocate(size_t size) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChangelog)

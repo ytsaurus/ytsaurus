@@ -125,14 +125,6 @@ public:
         return UnderlyingChangelog_->Close();
     }
 
-    TFuture<void> Preallocate(size_t size) override
-    {
-        if (auto future = CheckLock()) {
-            return future;
-        }
-        return UnderlyingChangelog_->Preallocate(size);
-    }
-
 private:
     const ui64 Epoch_;
     const TLocalChangelogStoreLockPtr Lock_;
@@ -198,11 +190,6 @@ public:
     TFuture<void> Close() override
     {
         return UnderlyingChangelog_->Close();
-    }
-
-    TFuture<void> Preallocate(size_t size) override
-    {
-        return UnderlyingChangelog_->Preallocate(size);
     }
 
 private:

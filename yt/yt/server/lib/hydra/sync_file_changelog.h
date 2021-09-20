@@ -98,9 +98,6 @@ public:
     //! Synchronously seals the changelog truncating it if necessary.
     void Truncate(int recordCount);
 
-    //! Synchronously preallocates the data file to the given #size.
-    void Preallocate(size_t size);
-
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

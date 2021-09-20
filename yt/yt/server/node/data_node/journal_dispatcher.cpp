@@ -200,11 +200,6 @@ public:
         })).ToUncancelable();
     }
 
-    TFuture<void> Preallocate(size_t size) override
-    {
-        return UnderlyingChangelog_->Preallocate(size).ToUncancelable();
-    }
-
 private:
     const TJournalDispatcherPtr Owner_;
     const TStoreLocationPtr Location_;

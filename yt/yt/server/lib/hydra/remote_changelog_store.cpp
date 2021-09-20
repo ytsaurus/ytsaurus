@@ -344,11 +344,6 @@ private:
             return Writer_ ? Writer_->Close() : VoidFuture;
         }
 
-        TFuture<void> Preallocate(size_t /*size*/) override
-        {
-            YT_UNIMPLEMENTED();
-        }
-
     private:
         const TYPath Path_;
         const ITransactionPtr PrerequisiteTransaction_;
