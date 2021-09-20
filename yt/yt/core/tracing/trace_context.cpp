@@ -110,6 +110,7 @@ TTraceContext::TTraceContext(
     , State_(parentTraceContext
         ? parentTraceContext->State_.load()
         : (parentSpanContext.Sampled ? ETraceContextState::Sampled : ETraceContextState::Disabled))
+    , Propagated_(true)
     , ParentContext_(std::move(parentTraceContext))
     , SpanName_(std::move(spanName))
     , RequestId_(ParentContext_ ? ParentContext_->GetRequestId() : TRequestId{})
@@ -134,6 +135,11 @@ void TTraceContext::SetRecorded()
 {
     auto disabled = ETraceContextState::Disabled;
     State_.compare_exchange_strong(disabled, ETraceContextState::Recorded);
+}
+
+void TTraceContext::SetPropagated(bool value)
+{
+    Propagated_ = value;
 }
 
 TTraceContextPtr TTraceContext::CreateChild(
@@ -363,7 +369,7 @@ TString ToString(const TTraceContextPtr& context)
 
 void ToProto(NProto::TTracingExt* ext, const TTraceContextPtr& context)
 {
-    if (!context) {
+    if (!context || !context->IsPropagated()) {
         ext->Clear();
         return;
     }
@@ -516,4 +522,3 @@ void TTraceContext::IncrementElapsedCpuTime(NProfiling::TCpuDuration delta)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTracing
-

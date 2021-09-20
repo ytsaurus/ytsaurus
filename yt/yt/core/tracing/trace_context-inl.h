@@ -16,6 +16,11 @@ Y_FORCE_INLINE bool TTraceContext::IsRecorded() const
     return state == ETraceContextState::Recorded || state == ETraceContextState::Sampled;
 }
 
+Y_FORCE_INLINE bool TTraceContext::IsPropagated() const
+{
+    return Propagated_;
+}
+
 Y_FORCE_INLINE bool TTraceContext::IsDebug() const
 {
     return Debug_;
