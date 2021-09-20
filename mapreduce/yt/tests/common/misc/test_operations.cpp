@@ -21,7 +21,7 @@ public:
     void SetUp() override
     {
         TTest::SetUp();
-        Server_ = new TServer(ServerName());
+        Server_ = StealToHolder(new TServer(ServerName()));
         RemoveTables();
     }
 
