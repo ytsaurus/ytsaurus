@@ -2986,11 +2986,17 @@ private:
             usage.SetChunkCount(0);
             usage.ClearDiskSpace();
 
-            auto& stat = statMap[account];
-            stat.NodeUsage += usage;
-            if (node->IsTrunk()) {
-                stat.NodeCommittedUsage += usage;
-            }
+            auto isTrunkNode = node->IsTrunk();
+
+            ChargeAccountAncestry(
+                account,
+                [&] (TAccount* account) {
+                    auto& stat = statMap[account];
+                    stat.NodeUsage += usage;
+                    if (isTrunkNode) {
+                        stat.NodeCommittedUsage += usage;
+                    }
+                });
         }
 
         auto chargeStatMap = [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, i64 /*masterMemoryUsage*/, bool committed) {
