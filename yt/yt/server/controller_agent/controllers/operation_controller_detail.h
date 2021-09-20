@@ -458,6 +458,7 @@ protected:
     int TotalEstimatedInputChunkCount = 0;
     i64 TotalEstimatedInputDataWeight = 0;
     i64 TotalEstimatedInputRowCount = 0;
+    i64 TotalEstimatedInputValueCount = 0;
     i64 TotalEstimatedInputCompressedDataSize = 0;
     i64 TotalEstimatedInputUncompressedDataSize = 0;
 

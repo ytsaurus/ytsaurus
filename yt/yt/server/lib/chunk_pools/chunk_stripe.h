@@ -14,6 +14,7 @@ struct TChunkStripeStatistics
     int ChunkCount = 0;
     i64 DataWeight = 0;
     i64 RowCount = 0;
+    i64 ValueCount = 0;
     i64 MaxBlockSize = 0;
 
     void Persist(const TPersistenceContext& context);
@@ -93,6 +94,7 @@ struct TChunkStripeList
     i64 LocalDataWeight = 0;
 
     i64 TotalRowCount = 0;
+    i64 TotalValueCount = 0;
 
     int TotalChunkCount = 0;
     int LocalChunkCount = 0;

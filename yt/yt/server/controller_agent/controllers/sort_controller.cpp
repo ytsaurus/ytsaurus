@@ -2678,6 +2678,11 @@ protected:
                 // Sometimes data size can be much larger than data weight.
                 // Let's protect from such outliers and prevent simple sort in such case.
                 PartitionCount = DivCeil(TotalEstimatedInputUncompressedDataSize, Spec->DataWeightPerShuffleJob);
+            } else if (PartitionCount == 1 && TotalEstimatedInputValueCount > Options->MaxValueCountPerSimpleSortJob) {
+                // In simple sort job memory usage is proportional to value count.
+                // For very sparse tables, value count may be large, while data weight and data size remain small.
+                // Multi-phase sorting doesn't materialize all row values in memory, and we should fallback to it in such corner case.
+                PartitionCount = 2;
             } else if (PartitionCount <= partitionFactorLimit) {
                 // If partition count is small, fallback to old heuristic.
                 PartitionCount = SuggestPartitionCount();
@@ -3603,9 +3608,8 @@ private:
         result.SetCpu(GetSortCpuLimit());
         result.SetJobProxyMemory(GetSortInputIOMemorySize(stat) +
             GetFinalOutputIOMemorySize(FinalSortJobIOConfig) +
-            // Data weight is an approximate estimate for string data + row data
-            // memory footprint inside SchemalessSortingReader.
-            stat.DataWeight);
+            // Row data memory footprint inside SchemalessSortingReader.
+            16 * stat.ValueCount + 16 * stat.RowCount);
         return result;
     }
 

@@ -2068,6 +2068,7 @@ void TOperationControllerBase::FinalizeFeatures()
     ControllerFeatures_.AddTag("operation_type", GetOperationType());
     ControllerFeatures_.AddTag("total_estimated_input_data_weight", TotalEstimatedInputDataWeight);
     ControllerFeatures_.AddTag("total_estimated_input_row_count", TotalEstimatedInputRowCount);
+    ControllerFeatures_.AddTag("total_estimated_input_value_count", TotalEstimatedInputValueCount);
     ControllerFeatures_.AddTag("total_estimated_input_chunk_count", TotalEstimatedInputChunkCount);
     ControllerFeatures_.AddTag("total_estimated_input_compressed_data_size", TotalEstimatedInputCompressedDataSize);
     ControllerFeatures_.AddTag("total_estimated_input_uncompressed_data_size", TotalEstimatedInputUncompressedDataSize);
@@ -5524,6 +5525,12 @@ void TOperationControllerBase::FetchInputTables()
             if (hasColumnSelectors && Spec_->InputTableColumnarStatistics->Enabled) {
                 columnarStatisticsFetcher->AddChunk(inputChunk, *table->Path.GetColumns());
             }
+
+            if (hasColumnSelectors) {
+                inputChunk->SetValuesPerRow(table->Path.GetColumns()->size());
+            } else if (table->Schema->GetStrict()) {
+                inputChunk->SetValuesPerRow(table->Schema->Columns().size());
+            }
         }
     }
 
@@ -6873,6 +6880,7 @@ void TOperationControllerBase::CollectTotals()
             totalInputDataWeight += inputChunk->GetTotalDataWeight();
             TotalEstimatedInputUncompressedDataSize += inputChunk->GetUncompressedDataSize();
             TotalEstimatedInputRowCount += inputChunk->GetRowCount();
+            TotalEstimatedInputValueCount += inputChunk->GetValuesPerRow() * inputChunk->GetRowCount();
             TotalEstimatedInputCompressedDataSize += inputChunk->GetCompressedDataSize();
             TotalEstimatedInputDataWeight += inputChunk->GetDataWeight();
             ++TotalEstimatedInputChunkCount;
@@ -6882,13 +6890,14 @@ void TOperationControllerBase::CollectTotals()
     InputCompressionRatio = static_cast<double>(TotalEstimatedInputCompressedDataSize) / TotalEstimatedInputDataWeight;
     DataWeightRatio = static_cast<double>(totalInputDataWeight) / TotalEstimatedInputUncompressedDataSize;
 
-    YT_LOG_INFO("Estimated input totals collected (ChunkCount: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v, DataWeight: %v, TotalDataWeight: %v)",
+    YT_LOG_INFO("Estimated input totals collected (ChunkCount: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v, DataWeight: %v, TotalDataWeight: %v, TotalValueCount: %v)",
         TotalEstimatedInputChunkCount,
         TotalEstimatedInputRowCount,
         TotalEstimatedInputUncompressedDataSize,
         TotalEstimatedInputCompressedDataSize,
         TotalEstimatedInputDataWeight,
-        totalInputDataWeight);
+        totalInputDataWeight,
+        TotalEstimatedInputValueCount);
 }
 
 bool TOperationControllerBase::HasDiskRequestsWithSpecifiedAccount() const
@@ -9159,6 +9168,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, TotalEstimatedInputChunkCount);
     Persist(context, TotalEstimatedInputUncompressedDataSize);
     Persist(context, TotalEstimatedInputRowCount);
+    Persist(context, TotalEstimatedInputValueCount);
     Persist(context, TotalEstimatedInputCompressedDataSize);
     Persist(context, TotalEstimatedInputDataWeight);
     Persist(context, UnavailableInputChunkCount);

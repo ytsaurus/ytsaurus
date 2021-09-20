@@ -629,6 +629,11 @@ i64 TInputChunkSlice::GetMaxBlockSize() const
     return InputChunk_->GetMaxBlockSize();
 }
 
+i64 TInputChunkSlice::GetValueCount() const
+{
+    return InputChunk_->GetValuesPerRow() * GetRowCount();
+}
+
 bool TInputChunkSlice::GetSizeOverridden() const
 {
     return SizeOverridden_;

@@ -367,6 +367,10 @@ TSortOperationOptionsBase::TSortOperationOptionsBase()
         .Default(100_KB)
         .GreaterThanOrEqual(1);
 
+    RegisterParameter("max_value_count_per_simple_sort_job", MaxValueCountPerSimpleSortJob)
+        .Default(10 * 1000 * 1000)
+        .GreaterThanOrEqual(1);
+
     RegisterParameter("partition_job_size_adjuster", PartitionJobSizeAdjuster)
         .DefaultNew();
 

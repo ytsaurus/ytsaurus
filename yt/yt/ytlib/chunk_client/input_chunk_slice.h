@@ -103,6 +103,7 @@ public:
     DECLARE_BYVAL_RO_PROPERTY(bool, SizeOverridden);
     DECLARE_BYVAL_RO_PROPERTY(int, PartIndex);
     DECLARE_BYVAL_RO_PROPERTY(i64, MaxBlockSize);
+    DECLARE_BYVAL_RO_PROPERTY(i64, ValueCount);
 
     DEFINE_BYVAL_RW_PROPERTY(TInputChunkPtr, InputChunk);
     DEFINE_BYREF_RW_PROPERTY(TLegacyInputSliceLimit, LegacyLowerLimit);
