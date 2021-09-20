@@ -84,6 +84,14 @@ public:
     bool IsSampled() const;
     void SetSampled(bool value = true);
 
+    //! IsPropagated returns a flag indicating that trace is serialized to proto.
+    /*!
+     *  By default trace context is propagated.
+     *  Not thread-safe.
+     */
+    bool IsPropagated() const;
+    void SetPropagated(bool value = true);
+
     TSpanContext GetSpanContext() const;
     TTraceId GetTraceId() const;
     TSpanId GetSpanId() const;
@@ -170,6 +178,7 @@ private:
     const bool Debug_;
 
     mutable std::atomic<ETraceContextState> State_;
+    bool Propagated_;
 
     const TTraceContextPtr ParentContext_;
     const TString SpanName_;
