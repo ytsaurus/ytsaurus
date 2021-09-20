@@ -101,11 +101,11 @@ Y_UNIT_TEST_SUITE(Transactions)
         auto workingDir = fixture.GetWorkingDir();
 
         auto transaction = client->StartTransaction(
-            TStartTransactionOptions().Deadline(TInstant::Now() + TDuration::Seconds(4)));
+            TStartTransactionOptions().Deadline(TInstant::Now() + TDuration::Seconds(1)));
 
         UNIT_ASSERT(client->Exists("#" + GetGuidAsString(transaction->GetId())));
 
-        Sleep(TDuration::Seconds(5));
+        Sleep(TDuration::Seconds(7));
 
         UNIT_ASSERT(!client->Exists("#" + GetGuidAsString(transaction->GetId())));
 
