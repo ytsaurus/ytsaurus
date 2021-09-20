@@ -276,6 +276,12 @@ void GlobalizeHunkValues(
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     TMutableVersionedRow row);
 
+void GlobalizeHunkValuesAndSetHunkFlag(
+    TChunkedMemoryPool* pool,
+    const NTableClient::NProto::THunkChunkRefsExt& hunkChunkRefsExt,
+    bool* columnHunkFlags,
+    TMutableVersionedRow row);
+
 //! Reads hunks in schemaful #rows and decodes them (updating #rows in-place).
 TFuture<TSharedRange<TMutableUnversionedRow>> DecodeHunksInSchemafulUnversionedRows(
     const TTableSchemaPtr& schema,

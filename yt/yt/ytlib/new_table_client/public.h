@@ -28,6 +28,8 @@ using NTableClient::TCachedVersionedChunkMetaPtr;
 using NTableClient::TRefCountedBlockMetaPtr;
 using NTableClient::TColumnIdMapping;
 
+using NTableClient::EValueType;
+
 // For read_span_refiner.h
 using NTableClient::TLegacyKey;
 using NTableClient::TRowRange;
@@ -42,6 +44,16 @@ using NTableClient::TUnversionedValue;
 using NTableClient::TVersionedValue;
 using NTableClient::TUnversionedRow;
 using NTableClient::TTimestamp;
+
+struct TColumnSlice;
+
+struct TTmpBuffers;
+
+struct TMetaBase;
+
+struct TPreparedChunkMeta;
+
+struct TReaderStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 

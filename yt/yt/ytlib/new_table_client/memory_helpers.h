@@ -114,12 +114,12 @@ private:
         TRefCountedTypeCookie Cookie;
     };
 
+    T* Ptr_ = nullptr;
+
     THeader* GetHeader() const
     {
         return reinterpret_cast<THeader*>(Ptr_) - 1;
     }
-
-    T* Ptr_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

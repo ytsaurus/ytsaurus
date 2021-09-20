@@ -14,7 +14,7 @@ public:
     using TWord = ui64;
     static constexpr ui8 WordSize = sizeof(TWord) * 8;
 
-    explicit TCompressedVectorView(const ui64* ptr);
+    explicit TCompressedVectorView(const ui64* ptr = nullptr);
 
     size_t GetSize() const;
 

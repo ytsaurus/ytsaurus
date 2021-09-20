@@ -10,10 +10,11 @@ namespace NYT::NNewTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <template <EValueType Type> class TFunction, class... TArgs>
-auto DispatchByDataType(EValueType type, TArgs&&... args)
+template <template <NTableClient::EValueType Type> class TFunction, class... TArgs>
+auto DispatchByDataType(NTableClient::EValueType type, TArgs&&... args)
 {
-     switch (type) {
+    using NTableClient::EValueType;
+    switch (type) {
         case EValueType::Int64:
             return TFunction<EValueType::Int64>::Do(std::forward<TArgs>(args)...);
 

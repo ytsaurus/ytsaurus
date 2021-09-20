@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "block_ref.h"
 #include "reader_statistics.h"
 
 #include <yt/yt/ytlib/table_client/public.h>
@@ -11,24 +12,14 @@ namespace NYT::NNewTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TSegmentMetas = TRange<const NProto::TSegmentMeta*>;
-using TSharedSegmentMetas = TSharedRange<const NProto::TSegmentMeta*>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TColumnBlockHolder
+class TGroupBlockHolder
+    : public TBlockRef
 {
 public:
-    TColumnBlockHolder(const TColumnBlockHolder&) = delete;
-    TColumnBlockHolder(TColumnBlockHolder&&) = default;
+    TGroupBlockHolder(const TGroupBlockHolder&) = delete;
+    TGroupBlockHolder(TGroupBlockHolder&&) = default;
 
-    explicit TColumnBlockHolder(TSharedSegmentMetas segmentMetas);
-
-    const NProto::TSegmentMeta* SkipToSegment(ui32 rowIndex);
-
-    TRef GetBlock() const;
-
-    TSegmentMetas GetSegmentMetas() const;
+    TGroupBlockHolder(TRange<ui32> blockIds, std::vector<TSharedRef> blockSegmentsMetas);
 
     bool NeedUpdateBlock(ui32 rowIndex) const;
 
@@ -40,26 +31,22 @@ public:
     TRange<ui32> GetBlockIds() const;
 
 private:
-    const TSharedSegmentMetas SegmentMetas_;
-    const std::vector<ui32> BlockIds_;
+    const TRange<ui32> BlockIds_;
+    std::vector<TSharedRef> BlockSegmentsMetas_;
 
-    // Blob value data is stored in blocks without capturing in TRowBuffer.
-    // Therefore block must not change during from the current call of ReadRows till the next one.
-    TSharedRef Block_;
-
-    ui32 SegmentStart_ = 0;
-    ui32 SegmentEnd_ = 0;
-
-    ui32 BlockIdIndex_ = 0;
     ui32 BlockRowLimit_ = 0;
-
-    // TODO(lukyan): Do not keep SegmentRowLimit_ here. Use value from IColumnBase.
-    ui32 SegmentRowLimit_ = 0;
+    ui32 BlockIdIndex_ = 0;
 };
 
-std::vector<TColumnBlockHolder> CreateColumnBlockHolders(
-    const TCachedVersionedChunkMetaPtr& chunkMeta,
-    TRange<TColumnIdMapping> valueIdMapping);
+// Returns ordered unique group ids. Can determine group index via binary search.
+std::vector<ui16> GetGroupsIds(
+    const TPreparedChunkMeta& preparedChunkMeta,
+    ui16 keyColumnCount,
+    TRange<TColumnIdMapping> valuesIdMapping);
+
+std::vector<std::unique_ptr<TGroupBlockHolder>> CreateGroupBlockHolders(
+    const TPreparedChunkMeta& preparedChunkMeta,
+    TRange<ui16> groupIds);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,20 +58,22 @@ class TBlockWindowManager
 {
 public:
     TBlockWindowManager(
-        std::vector<TColumnBlockHolder> columns,
+        std::vector<std::unique_ptr<TGroupBlockHolder>> groups,
         TRefCountedBlockMetaPtr blockMeta,
         NChunkClient::TBlockFetcherPtr blockFetcher,
-        TReaderTimeStatisticsPtr timeStatistics);
+        TReaderStatisticsPtr readerStatistics);
 
-    // Returns true if need wait for ready event.
+    // Returns false if need wait for ready event.
     bool TryUpdateWindow(ui32 rowIndex);
 
     TFuture<void> GetReadyEvent() const;
 
+    const TBlockRef* GetBlockHolder(ui16 index);
+
 protected:
-    std::vector<TColumnBlockHolder> Columns_;
+    std::vector<std::unique_ptr<TGroupBlockHolder>> BlockHolders_;
     NChunkClient::TBlockFetcherPtr BlockFetcher_;
-    TReaderTimeStatisticsPtr TimeStatistics_;
+    TReaderStatisticsPtr ReaderStatistics_;
 
 private:
     const TRefCountedBlockMetaPtr BlockMeta_;

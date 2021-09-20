@@ -736,14 +736,14 @@ TChecksum CombineChecksums(const std::vector<TChecksum>& blockChecksums)
     return combined;
 }
 
-TChecksum GetChecksumOld(TRef data)
+TChecksum GetChecksumOld(TRef data, TChecksum seed)
 {
-    return CrcImplOld(data.Begin(), data.Size(), 0);
+    return CrcImplOld(data.Begin(), data.Size(), seed);
 }
 
-TChecksum GetChecksum(TRef data)
+TChecksum GetChecksum(TRef data, TChecksum seed)
 {
-    return CrcImpl(data.Begin(), data.Size(), 0);
+    return CrcImpl(data.Begin(), data.Size(), seed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

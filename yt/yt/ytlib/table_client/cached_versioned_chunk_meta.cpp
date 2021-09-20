@@ -182,6 +182,19 @@ i64 TCachedVersionedChunkMeta::GetMemoryUsage() const
         + MaxKey_.GetSpaceUsed();
 }
 
+TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> TCachedVersionedChunkMeta::GetPreparedChunkMeta()
+{
+    if (!PreparedMeta_) {
+        auto preparedMeta = New<NNewTableClient::TPreparedChunkMeta>();
+        auto size = preparedMeta->Prepare(GetChunkSchema(), ColumnMeta());
+        if (PreparedMeta_.SwapIfCompare(nullptr, preparedMeta)) {
+            MemoryTrackerGuard_.IncrementSize(size);
+        }
+    }
+
+    return PreparedMeta_.Acquire();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

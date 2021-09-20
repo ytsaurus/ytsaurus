@@ -6,8 +6,8 @@ namespace NYT::NNewTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <template <EValueType Type> class TFunction, class... TArgs>
-auto DispatchByDataType(EValueType type, TArgs&&... args);
+template <template <NTableClient::EValueType Type> class TFunction, class... TArgs>
+auto DispatchByDataType(NTableClient::EValueType type, TArgs&&... args);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,4 +16,3 @@ auto DispatchByDataType(EValueType type, TArgs&&... args);
 #define DISPATCH_BY_TYPE_INL_H_
 #include "dispatch_by_type-inl.h"
 #undef DISPATCH_BY_TYPE_INL_H_
-
