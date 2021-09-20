@@ -37,6 +37,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((ReadyExhaustTimers)                   (300614))
     ((StructuredTagsInLogger)               (300615))
     ((AddShallowMerge)                      (300616))
+    ((AggregateJobStatistics)               (300617))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -759,6 +759,44 @@ class TestControllerFeatures(YTEnvSetup):
         assert operation_features["tags"]["total_job_count"] == 1
 
 
+class TestJobStatisticFeatures(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    USE_PORTO = True
+
+    @authors("alexkolodezny")
+    def test_job_statistic_features(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null',
+        )
+
+        def get_features(op):
+            features = get(op.get_path() + "/@controller_features")
+            operation_features = features[0]
+            task_features = features[1]
+            if "task_name" in operation_features["tags"]:
+                task_features, operation_features = operation_features, task_features
+            return operation_features, task_features
+
+        features = get_features(op)[1]["features"]
+        for component in ["user_job", "job_proxy"]:
+            print_debug(component)
+            assert features["job_statistics." + component + ".cpu.user.completed.sum"] > 0
+            assert features["job_statistics." + component + ".cpu.system.completed.sum"] > 0
+            assert features["job_statistics." + component + ".cpu.context_switches.completed.sum"] is not None
+            assert features["job_statistics." + component + ".cpu.peak_thread_count.completed.max"] is not None
+            assert features["job_statistics." + component + ".cpu.wait.completed.sum"] is not None
+            assert features["job_statistics." + component + ".cpu.throttled.completed.sum"] is not None
+            assert features["job_statistics." + component + ".block_io.bytes_read.completed.sum"] is not None
+            assert features["job_statistics." + component + ".max_memory.completed.sum"] > 0
+
+        assert features["job_statistics.user_job.cumulative_memory_mb_sec.completed.sum"] > 0
+
+
 class TestListOperationFilterExperiments(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1

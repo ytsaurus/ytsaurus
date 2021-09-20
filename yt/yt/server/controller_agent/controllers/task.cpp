@@ -752,6 +752,11 @@ void TTask::Persist(const TPersistenceContext& context)
         Persist(context, ReadyTimer_);
         Persist(context, ExhaustTimer_);
     }
+
+    // COMPAT(alexkolodezny)
+    if (context.GetVersion() >= ESnapshotVersion::AggregateJobStatistics) {
+        Persist(context, AggregatedJobStatistics_);
+    }
 }
 
 void TTask::OnJobStarted(TJobletPtr joblet)
@@ -1783,6 +1788,7 @@ void TTask::FinalizeFeatures()
     ControllerFeatures_.AddSingular("ready_time", GetReadyTime().MilliSeconds());
     ControllerFeatures_.AddSingular("wall_time", GetWallTime().MilliSeconds());
     ControllerFeatures_.AddSingular("exhaust_time", GetExhaustTime().MilliSeconds());
+    ControllerFeatures_.AddSingular("job_statistics", BuildYsonNodeFluently().Value(AggregatedJobStatistics_));
 }
 
 void TTask::OnPendingJobCountUpdated()
@@ -1818,6 +1824,11 @@ TDuration TTask::GetReadyTime() const
 TDuration TTask::GetExhaustTime() const
 {
     return ExhaustTimer_.GetElapsedTime();
+}
+
+void TTask::UpdateJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary)
+{
+    AggregatedJobStatistics_.UpdateJobStatistics(joblet, jobSummary);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
