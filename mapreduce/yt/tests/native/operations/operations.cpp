@@ -2676,7 +2676,7 @@ Y_UNIT_TEST_SUITE(Operations)
 
         auto sorted = [] (TVector<TNode>&& nodes) {
             auto result = std::move(nodes);
-            std::sort(nodes.begin(), nodes.end(), [] (const TNode& lhs, const TNode& rhs) {
+            std::sort(result.begin(), result.end(), [] (const TNode& lhs, const TNode& rhs) {
                 auto getKey = [](const TNode& value) {
                     return std::make_tuple(
                         value["range_index"].IntCast<i64>(),
