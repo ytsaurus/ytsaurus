@@ -7,6 +7,7 @@
 #include "job_splitter.h"
 #include "helpers.h"
 #include "extended_job_resources.h"
+#include "aggregated_job_statistics.h"
 
 #include <yt/yt/server/controller_agent/tentative_tree_eligibility.h>
 
@@ -196,6 +197,8 @@ public:
 
     void StopTiming();
 
+    void UpdateJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary);
+
 protected:
     NLogging::TLogger Logger;
 
@@ -368,6 +371,8 @@ private:
     //! Next incarnation of this job will be run with maximal possible memory reserve factor to
     //! prevent repeated overdraft.
     THashSet<NChunkPools::IChunkPoolOutput::TCookie> ResourceOverdraftedOutputCookies_;
+
+    TAggregatedJobStatistics AggregatedJobStatistics_{false};
 
     NScheduler::TJobResources ApplyMemoryReserve(
         const TExtendedJobResources& jobResources,

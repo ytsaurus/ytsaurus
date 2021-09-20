@@ -3815,8 +3815,10 @@ void TOperationControllerBase::AnalyzeMemoryAndTmpfsUsage()
             task->GetUserJobMemoryDigest()->GetQuantile(Config->UserJobMemoryReserveQuantile);
 
         for (const auto& jobState : { EJobState::Completed, EJobState::Failed }) {
-            auto statistic = "/user_job/max_memory" + GetStatisticsSuffix(task.Get(), jobState);
-            auto summary = FindSummary(JobStatistics, statistic);
+            auto summary = AggregatedJobStatistics_.FindSummary(
+                "/user_job/max_memory",
+                jobState,
+                task->GetVertexDescriptor());
             if (summary) {
                 if (!memoryInfo.MaxMemoryUsage) {
                     memoryInfo.MaxMemoryUsage = 0;
@@ -3976,9 +3978,10 @@ void TOperationControllerBase::AnalyzeAbortedJobs()
     auto aggregateTimeForJobState = [&] (EJobState state) {
         i64 sum = 0;
         for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
-            auto value = FindNumericValue(
-                JobStatistics,
-                Format("/time/total/$/%lv/%lv", state, type));
+            auto value = AggregatedJobStatistics_.FindNumericValue(
+                "/time/total",
+                state,
+                FormatEnum(type));
 
             if (value) {
                 sum += *value;
@@ -4013,9 +4016,10 @@ void TOperationControllerBase::AnalyzeJobsIOUsage()
     std::vector<TError> innerErrors;
 
     for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
-        auto value = FindNumericValue(
-            JobStatistics,
-            "/user_job/woodpecker/$/completed/" + FormatEnum(jobType));
+        auto value = AggregatedJobStatistics_.FindNumericValue(
+            "/user_job/woodpecker",
+            EJobState::Completed,
+            FormatEnum(jobType));
 
         if (value && *value > 0) {
             innerErrors.emplace_back("Detected excessive disk IO in %Qlv jobs", jobType);
@@ -4099,9 +4103,10 @@ void TOperationControllerBase::AnalyzeJobsDuration()
     std::vector<TError> innerErrors;
 
     for (auto jobType : GetSupportedJobTypesForJobsDurationAnalyzer()) {
-        auto completedJobsSummary = FindSummary(
-            JobStatistics,
-            "/time/total/$/completed/" + FormatEnum(jobType));
+        auto completedJobsSummary = AggregatedJobStatistics_.FindSummary(
+            "/time/total",
+            EJobState::Completed,
+            FormatEnum(jobType));
 
         if (!completedJobsSummary) {
             continue;
@@ -5033,20 +5038,6 @@ void TOperationControllerBase::ProcessSafeException(const TAssertionFailedExcept
     YT_LOG_ERROR(error);
 
     OnOperationFailed(error);
-}
-
-EJobState TOperationControllerBase::GetStatisticsJobState(const TJobletPtr& joblet, const EJobState& state)
-{
-    // NB: Completed restarted job is considered as lost in statistics.
-    // Actually we have lost previous incarnation of this job, but it was already considered as completed in statistics.
-    return (joblet->Restarted && state == EJobState::Completed)
-        ? EJobState::Lost
-        : state;
-}
-
-TString TOperationControllerBase::GetStatisticsSuffix(const TTask* task, EJobState state)
-{
-    return Format("/$/%lv/%lv", state, task->GetVertexDescriptor());
 }
 
 void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSummary> summary, bool retainJob)
@@ -8106,7 +8097,7 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
         .Item("state").Value(State.load())
         .Item("build_time").Value(TInstant::Now())
         .Item("ready_job_count").Value(GetPendingJobCount())
-        .Item("job_statistics").Value(JobStatistics)
+        .Item("job_statistics").Value(AggregatedJobStatistics_)
         .Item("peak_memory_usage").Value(PeakMemoryUsage_)
         .Item("estimated_input_statistics").BeginMap()
             .Item("chunk_count").Value(TotalEstimatedInputChunkCount)
@@ -8485,14 +8476,9 @@ void TOperationControllerBase::AnalyzeBriefStatistics(
 
 void TOperationControllerBase::UpdateJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary)
 {
-    YT_VERIFY(jobSummary.Statistics);
+    AggregatedJobStatistics_.UpdateJobStatistics(joblet, jobSummary);
 
-    // NB: There is a copy happening here that can be eliminated.
-    auto statistics = *jobSummary.Statistics;
-    auto statisticsState = GetStatisticsJobState(joblet, jobSummary.State);
-    auto statisticsSuffix = GetStatisticsSuffix(joblet->Task, statisticsState);
-    statistics.AddSuffixToNames(statisticsSuffix);
-    JobStatistics.Merge(statistics);
+    joblet->Task->UpdateJobStatistics(joblet, jobSummary);
 }
 
 void TOperationControllerBase::UpdateJobMetrics(const TJobletPtr& joblet, const TJobSummary& jobSummary, bool isJobFinished)
@@ -9195,7 +9181,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, ChunkOriginMap);
     Persist(context, JobletMap);
     Persist(context, JobIndexGenerator);
-    Persist(context, JobStatistics);
+    Persist(context, AggregatedJobStatistics_);
     Persist(context, ScheduleJobStatistics_);
     Persist(context, RowCountLimitTableIndex);
     Persist(context, RowCountLimit);
@@ -9598,13 +9584,6 @@ void TOperationControllerBase::AnalyzeProcessingUnitUsage(
     EOperationAlertType alertType,
     const TString& message)
 {
-    std::vector<TString> allStatistics;
-    for (const auto& stat : usageStatistics) {
-        for (const auto& jobState : jobStates) {
-            allStatistics.push_back(Format("%s/$/%s/", stat, jobState));
-        }
-    }
-
     std::vector<TError> errors;
     for (const auto& task : Tasks) {
         const auto& userJobSpecPtr = task->GetUserJobSpec();
@@ -9618,7 +9597,7 @@ void TOperationControllerBase::AnalyzeProcessingUnitUsage(
         i64 jobCount = 0;
 
         for (const auto& jobState : jobStates) {
-            auto summary = FindSummary(JobStatistics, Format("/time/exec/$/%s/%s", jobState, taskName));
+            auto summary = AggregatedJobStatistics_.FindSummary("/time/exec", jobState, taskName);
             if (summary) {
                 totalExecutionTime += summary->GetSum();
                 jobCount += summary->GetCount();
@@ -9631,9 +9610,11 @@ void TOperationControllerBase::AnalyzeProcessingUnitUsage(
         }
 
         i64 usage = 0;
-        for (const auto& stat : allStatistics) {
-            auto value = FindNumericValue(JobStatistics, stat + taskName);
-            usage += value.value_or(0);
+        for (const auto& stat : usageStatistics) {
+            for (const auto& jobState : jobStates) {
+                auto value = AggregatedJobStatistics_.FindNumericValue(stat, jobState, taskName);
+                usage += value.value_or(0);
+            }
         }
 
         TDuration totalExecutionDuration = TDuration::MilliSeconds(totalExecutionTime);

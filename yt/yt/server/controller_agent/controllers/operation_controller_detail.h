@@ -8,6 +8,7 @@
 #include "task_host.h"
 #include "helpers.h"
 #include "extended_job_resources.h"
+#include "aggregated_job_statistics.h"
 
 #include <yt/yt/server/controller_agent/chunk_list_pool.h>
 #include <yt/yt/server/controller_agent/tentative_tree_eligibility.h>
@@ -68,7 +69,6 @@
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/ref_tracked.h>
 #include <yt/yt/core/misc/safe_assert.h>
-#include <yt/yt/core/misc/statistics.h>
 
 #include <yt/yt/core/ytree/ypath_client.h>
 
@@ -1057,8 +1057,7 @@ private:
     //! Increments each time a new job is scheduled.
     TIdGenerator JobIndexGenerator;
 
-    //! Aggregates job statistics.
-    TStatistics JobStatistics;
+    TAggregatedJobStatistics AggregatedJobStatistics_{true};
 
     //! Records peak memory usage.
     i64 PeakMemoryUsage_ = 0;
@@ -1278,9 +1277,6 @@ private:
     //! built by data from `ex`.
     void ProcessSafeException(const TAssertionFailedException& ex);
     void ProcessSafeException(const std::exception& ex);
-
-    static EJobState GetStatisticsJobState(const TJobletPtr& joblet, const EJobState& state);
-    static TString GetStatisticsSuffix(const TTask* task, EJobState state);
 
     void BuildMemoryUsageYson(NYTree::TFluentAny fluent) const;
     void BuildStateYson(NYTree::TFluentAny fluent) const;
