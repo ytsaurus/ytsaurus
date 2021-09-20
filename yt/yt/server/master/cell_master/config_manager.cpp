@@ -80,16 +80,8 @@ public:
         newConfig->Load(configNode);
 
         auto oldConfig = std::move(Config_);
-        Config_ = std::move(newConfig);
 
-        auto unrecognizedOptions = Config_->GetUnrecognizedRecursively();
-        if (unrecognizedOptions->GetChildCount() > 0) {
-            UnrecognizedOptionsAlert_ = TError("Found unrecognized options in dynamic cluster config")
-                << TErrorAttribute("unrecognized_options", ConvertToYsonString(unrecognizedOptions, EYsonFormat::Text));
-            UnrecognizedOptionsAlert_ = UnrecognizedOptionsAlert_.Sanitize();
-        } else {
-            UnrecognizedOptionsAlert_ = TError();
-        }
+        DoSetConfig(std::move(newConfig));
 
         ReplicateConfigToSecondaryMasters();
 
@@ -106,13 +98,28 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+    void DoSetConfig(TDynamicClusterConfigPtr newConfig)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        Config_ = std::move(newConfig);
+
+        auto unrecognizedOptions = Config_->GetUnrecognizedRecursively();
+        if (unrecognizedOptions->GetChildCount() > 0) {
+            UnrecognizedOptionsAlert_ = TError("Found unrecognized options in dynamic cluster config")
+                << TErrorAttribute("unrecognized_options", ConvertToYsonString(unrecognizedOptions, EYsonFormat::Text));
+            UnrecognizedOptionsAlert_ = UnrecognizedOptionsAlert_.Sanitize();
+        } else {
+            UnrecognizedOptionsAlert_ = TError();
+        }
+    }
+
     void Save(NCellMaster::TSaveContext& context) const
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         using NYT::Save;
         Save(context, *Config_);
-        Save(context, UnrecognizedOptionsAlert_);
     }
 
     void Load(NCellMaster::TLoadContext& context)
@@ -120,11 +127,18 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         using NYT::Load;
-        Load(context, *Config_);
 
-        // COMPAT(gritukan)
-        if (context.GetVersion() >= EMasterReign::MasterAlerts) {
-            Load(context, UnrecognizedOptionsAlert_);
+        auto newConfig = New<TDynamicClusterConfig>();
+        newConfig->SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
+        Load(context, *newConfig);
+        DoSetConfig(std::move(newConfig));
+
+        // COMPAT(shakurov)
+        if (context.GetVersion() >= EMasterReign::MasterAlerts &&
+            context.GetVersion() < EMasterReign::RecomputeUnrecognizedDynamicConfigOptions)
+        {
+            TError dummy;
+            Load(context, dummy); // Dropping previously persisted UnrecognizedOptionsAlert_.
         }
     }
 
