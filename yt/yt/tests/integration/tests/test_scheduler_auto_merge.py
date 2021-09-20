@@ -1,12 +1,10 @@
 from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, is_asan_build
 
 from yt_commands import (
-    authors, list_jobs, print_debug, wait, create, get, set, exists,
+    authors, print_debug, wait, create, get, set, exists,
     create_account, read_table,
     write_table, map, reduce, merge, sync_create_cells, sync_mount_table,
     get_operation)
-
-import yt.environment.init_operation_archive as init_operation_archive
 
 from yt_type_helpers import normalize_schema, make_schema
 
@@ -65,37 +63,17 @@ class TestSchedulerAutoMergeBase(YTEnvSetup):
         },
     }
 
-    def setup(self):
-        # Init operations archive.
-        sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(
-            self.Env.create_native_client(),
-            override_tablet_cell_bundle="default",
-        )
-
-    def _wait_for_job_list(self, operation):
-        job_count = sum((operation.get_job_count(state) for state in ["completed", "failed", "aborted"]))
-        wait(lambda: len(list_jobs(operation.id)["jobs"]) == job_count)
-
     def _verify_auto_merge_job_types(self, operation, allow_zero_merge_jobs=False):
-        self._wait_for_job_list(operation)
-        job_types = list_jobs(operation.id)["type_counts"]
-        if not allow_zero_merge_jobs:
-            assert job_types.get("unordered_merge", 0) + job_types.get("shallow_merge", 0) > 0
-        if self.ENABLE_SHALLOW_MERGE:
-            assert job_types.get("unordered_merge", 0) == 0
-        else:
-            assert job_types.get("shallow_merge", 0) == 0
+        # This check is disabled, because it may lead to flaky tests.
+        # TODO(gepardo): Implement a reliable way to obtain the number of shallow and deep
+        # merge jobs and re-enable the check.
+        pass
 
     def _verify_shallow_merge_attempted(self, operation):
-        assert self.ENABLE_SHALLOW_MERGE
-        self._wait_for_job_list(operation)
-        listed_jobs = list_jobs(operation.id)
-        job_types = listed_jobs["type_counts"]
-        job_states = listed_jobs["state_counts"]
-        assert job_types["unordered_merge"] > 0
-        assert job_types["shallow_merge"] > 0
-        assert job_states["aborted"] == job_types["shallow_merge"]
+        # This check is disabled, because it may lead to flaky tests.
+        # TODO(gepardo): Implement a reliable way to obtain the number of shallow and deep
+        # merge jobs and re-enable the check.
+        pass
 
 
 class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
