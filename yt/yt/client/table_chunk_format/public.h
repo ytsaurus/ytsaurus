@@ -3,6 +3,7 @@
 namespace NYT::NTableChunkFormat {
 
 namespace NProto {
+
 class TSegmentMeta;
 class TTimestampSegmentMeta;
 class TIntegerSegmentMeta;

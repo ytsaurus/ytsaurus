@@ -11,11 +11,6 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TRefCountedColumnMeta = TRefCountedProto<NProto::TColumnMetaExt>;
-using TRefCountedColumnMetaPtr = TIntrusivePtr<TRefCountedColumnMeta>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TColumnarChunkMeta
     : public TRefCounted
 {

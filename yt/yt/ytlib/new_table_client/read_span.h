@@ -24,6 +24,17 @@ Y_FORCE_INLINE bool IsEmpty(TReadSpan span)
     return span.Lower == span.Upper;
 }
 
+struct TSpanMatching
+{
+    TReadSpan Chunk;
+    TReadSpan Control;
+
+    TSpanMatching(TReadSpan chunk, TReadSpan control)
+        : Chunk(chunk)
+        , Control(control)
+    { }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NNewTableClient

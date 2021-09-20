@@ -6,17 +6,36 @@ namespace NYT::NNewTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TReaderTimeStatistics final
+struct TReaderStatistics final
 {
+    TDuration BuildReadWindowsTime;
+    TDuration BuildSchemaIdMappingTime;
+    TDuration CreateColumnBlockHoldersTime;
+    TDuration BuildBlockInfosTime;
+    TDuration CreateBlockFetcherTime;
+
     TDuration DecodeTimestampSegmentTime;
     TDuration DecodeKeySegmentTime;
     TDuration DecodeValueSegmentTime;
     TDuration FetchBlockTime;
     TDuration BuildRangesTime;
+
     TDuration DoReadTime;
+    TDuration CollectCountsTime;
+    TDuration AllocateRowsTime;
+    TDuration DoReadKeysTime;
+    TDuration DoReadValuesTime;
+
+    size_t TryUpdateWindowCallCount = 0;
+    size_t SkipToBlockCallCount = 0;
+    size_t FetchBlockCallCount = 0;
+    size_t SetBlockCallCount = 0;
+
+    size_t UpdateSegmentCallCount = 0;
+    size_t DoReadCallCount = 0;
 };
 
-using TReaderTimeStatisticsPtr = TIntrusivePtr<TReaderTimeStatistics>;
+using TReaderStatisticsPtr = TIntrusivePtr<TReaderStatistics>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

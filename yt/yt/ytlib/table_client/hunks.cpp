@@ -304,6 +304,25 @@ THunkValue ReadHunkValue(TRef input)
     }
 }
 
+void DoGlobalizeHunkValue(
+    TChunkedMemoryPool* pool,
+    const NTableClient::NProto::THunkChunkRefsExt& hunkChunkRefsExt,
+    TUnversionedValue* value)
+{
+    auto hunkValue = ReadHunkValue(TRef(value->Data.String, value->Length));
+    if (const auto* localRefHunkValue = std::get_if<TLocalRefHunkValue>(&hunkValue)) {
+        auto globalRefHunkValue = TGlobalRefHunkValue{
+            .ChunkId = FromProto<TChunkId>(hunkChunkRefsExt.refs(localRefHunkValue->ChunkIndex).chunk_id()),
+            .Length = localRefHunkValue->Length,
+            .BlockIndex = localRefHunkValue->BlockIndex,
+            .BlockOffset = localRefHunkValue->BlockOffset
+        };
+        auto globalRefPayload = WriteHunkValue(pool, globalRefHunkValue);
+        value->Data.String = globalRefPayload.Begin();
+        value->Length = globalRefPayload.Size();
+    }
+}
+
 void GlobalizeHunkValues(
     TChunkedMemoryPool* pool,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
@@ -320,18 +339,30 @@ void GlobalizeHunkValues(
             continue;
         }
 
-        auto hunkValue = ReadHunkValue(TRef(value.Data.String, value.Length));
-        if (const auto* localRefHunkValue = std::get_if<TLocalRefHunkValue>(&hunkValue)) {
-            auto globalRefHunkValue = TGlobalRefHunkValue{
-                .ChunkId = FromProto<TChunkId>(hunkChunkRefsExt.refs(localRefHunkValue->ChunkIndex).chunk_id()),
-                .Length = localRefHunkValue->Length,
-                .BlockIndex = localRefHunkValue->BlockIndex,
-                .BlockOffset = localRefHunkValue->BlockOffset
-            };
-            auto globalRefPayload = WriteHunkValue(pool, globalRefHunkValue);
-            value.Data.String = globalRefPayload.Begin();
-            value.Length = globalRefPayload.Size();
+        DoGlobalizeHunkValue(pool, hunkChunkRefsExt, &value);
+    }
+}
+
+void GlobalizeHunkValuesAndSetHunkFlag(
+    TChunkedMemoryPool* pool,
+    const NTableClient::NProto::THunkChunkRefsExt& hunkChunkRefsExt,
+    bool* columnHunkFlags,
+    TMutableVersionedRow row)
+{
+    if (!row) {
+        return;
+    }
+
+    for (int index = 0; index < row.GetValueCount(); ++index) {
+        auto& value = row.BeginValues()[index];
+
+        if (!columnHunkFlags[value.Id]) {
+            continue;
         }
+
+        value.Flags |= EValueFlags::Hunk;
+
+        DoGlobalizeHunkValue(pool, hunkChunkRefsExt, &value);
     }
 }
 

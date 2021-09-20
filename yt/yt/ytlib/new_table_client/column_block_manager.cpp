@@ -6,6 +6,10 @@
 
 #include <yt/yt/core/misc/algorithm_helpers.h>
 
+#include "memory_helpers.h"
+#include "dispatch_by_type.h"
+#include "prepared_meta.h"
+
 namespace NYT::NNewTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,108 +19,38 @@ using NProfiling::TWallTimer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<ui32> BuildColumnBlockSequence(TSegmentMetas segmentMetas)
-{
-    std::vector<ui32> blockSequence;
-    ui32 segmentIndex = 0;
-
-    while (segmentIndex < segmentMetas.size()) {
-        auto blockIndex = segmentMetas[segmentIndex]->block_index();
-        blockSequence.push_back(blockIndex);
-        do {
-            ++segmentIndex;
-        } while (segmentIndex < segmentMetas.size() &&
-             segmentMetas[segmentIndex]->block_index() == blockIndex);
-    }
-    return blockSequence;
-}
-
-TColumnBlockHolder::TColumnBlockHolder(TSharedSegmentMetas segmentMetas)
-    : SegmentMetas_(std::move(segmentMetas))
-    , BlockIds_(BuildColumnBlockSequence(SegmentMetas_))
+TGroupBlockHolder::TGroupBlockHolder(TRange<ui32> blockIds, std::vector<TSharedRef> blockSegmentsMetas)
+    : BlockIds_(blockIds)
+    , BlockSegmentsMetas_(blockSegmentsMetas)
 { }
 
-const NProto::TSegmentMeta* TColumnBlockHolder::SkipToSegment(ui32 rowIndex)
-{
-    if (rowIndex < SegmentRowLimit_) {
-        return nullptr;
-    }
-
-    auto segmentIt = ExponentialSearch(
-        SegmentMetas_.begin() + SegmentStart_,
-        SegmentMetas_.begin() + SegmentEnd_,
-        [&] (auto segmentMetaIt) {
-            return (*segmentMetaIt)->chunk_row_count() <= rowIndex;
-        });
-
-    if (segmentIt != SegmentMetas_.begin() + SegmentEnd_) {
-        YT_VERIFY(Block_);
-        SegmentRowLimit_ = (*segmentIt)->chunk_row_count();
-        return *segmentIt;
-    }
-
-    return nullptr;
-}
-
-TRef TColumnBlockHolder::GetBlock() const
-{
-    return Block_;
-}
-
-TSegmentMetas TColumnBlockHolder::GetSegmentMetas() const
-{
-    return SegmentMetas_.Slice(SegmentStart_, SegmentEnd_);
-}
-
-bool TColumnBlockHolder::NeedUpdateBlock(ui32 rowIndex) const
+bool TGroupBlockHolder::NeedUpdateBlock(ui32 rowIndex) const
 {
     return rowIndex >= BlockRowLimit_ && BlockIdIndex_ < BlockIds_.size();
 }
 
-void TColumnBlockHolder::SetBlock(TSharedRef data, const TRefCountedBlockMetaPtr& blockMeta)
+void TGroupBlockHolder::SetBlock(TSharedRef data, const TRefCountedBlockMetaPtr& blockMeta)
 {
     YT_VERIFY(BlockIdIndex_ < BlockIds_.size());
     int blockId = BlockIds_[BlockIdIndex_];
 
-    Block_ = data;
+    BlockSegmentsMeta = BlockSegmentsMetas_[BlockIdIndex_];
 
-    auto segmentIt = ExponentialSearch(
-        SegmentMetas_.begin() + SegmentStart_,
-        SegmentMetas_.end(),
-        [&] (auto segmentMetaIt) {
-            return (*segmentMetaIt)->block_index() < blockId;
-        });
-
-    auto segmentItEnd = ExponentialSearch(
-        segmentIt,
-        SegmentMetas_.end(),
-        [&] (auto segmentMetaIt) {
-            return (*segmentMetaIt)->block_index() <= blockId;
-        });
-
-    SegmentStart_ = segmentIt - SegmentMetas_.begin();
-    SegmentEnd_ = segmentItEnd - SegmentMetas_.begin();
-
+    Block = data;
     BlockRowLimit_ = blockMeta->blocks(blockId).chunk_row_count();
-    YT_VERIFY(segmentIt != segmentItEnd);
-
-    auto limitBySegment = segmentItEnd[-1]->chunk_row_count();
-    YT_VERIFY(limitBySegment == BlockRowLimit_);
 }
 
 // TODO(lukyan): Use block row limits vector instead of blockMeta.
-std::optional<ui32> TColumnBlockHolder::SkipToBlock(ui32 rowIndex, const TRefCountedBlockMetaPtr& blockMeta)
+std::optional<ui32> TGroupBlockHolder::SkipToBlock(ui32 rowIndex, const TRefCountedBlockMetaPtr& blockMeta)
 {
     if (!NeedUpdateBlock(rowIndex)) {
         return std::nullopt;
     }
 
     // Need to find block with rowIndex.
-    while (BlockIdIndex_ < BlockIds_.size() &&
-        blockMeta->blocks(BlockIds_[BlockIdIndex_]).chunk_row_count() <= rowIndex)
-    {
-        ++BlockIdIndex_;
-    }
+    BlockIdIndex_ = ExponentialSearch<ui32>(BlockIdIndex_, BlockIds_.size(), [&] (ui32 blockIdIndex) {
+        return blockMeta->blocks(BlockIds_[blockIdIndex]).chunk_row_count() <= rowIndex;
+    });
 
     // It is used for generating sentinel rows in lookup (for keys after end of chunk).
     if (BlockIdIndex_ == BlockIds_.size()) {
@@ -127,82 +61,96 @@ std::optional<ui32> TColumnBlockHolder::SkipToBlock(ui32 rowIndex, const TRefCou
     return BlockIds_[BlockIdIndex_];
 }
 
-TRange<ui32> TColumnBlockHolder::GetBlockIds() const
+TRange<ui32> TGroupBlockHolder::GetBlockIds() const
 {
     return BlockIds_;
 }
 
-std::vector<TColumnBlockHolder> CreateColumnBlockHolders(
-    const TCachedVersionedChunkMetaPtr& chunkMeta,
-    TRange<TColumnIdMapping> valueIdMapping)
+std::vector<ui16> GetGroupsIds(
+    const TPreparedChunkMeta& preparedChunkMeta,
+    ui16 keyColumnCount,
+    TRange<TColumnIdMapping> valuesIdMapping)
 {
-    std::vector<TColumnBlockHolder> columns;
-    const auto& columnMetas = chunkMeta->ColumnMeta();
-
-    // Init columns.
-    {
-        int timestampReaderIndex = chunkMeta->ColumnMeta()->columns().size() - 1;
-        const auto& columnMeta = columnMetas->columns(timestampReaderIndex);
-        columns.emplace_back(TSharedSegmentMetas(MakeRange(columnMeta.segments()), columnMetas));
+    std::vector<ui16> groupIds;
+    for (int index = 0; index < keyColumnCount; ++index) {
+        groupIds.push_back(preparedChunkMeta.GroupIdPerColumn[index]);
     }
 
-    for (int index = 0; index < chunkMeta->GetChunkKeyColumnCount(); ++index) {
-        const auto& columnMeta = columnMetas->columns(index);
-        columns.emplace_back(TSharedSegmentMetas(MakeRange(columnMeta.segments()), columnMetas));
+    for (auto [chunkSchemaIndex, readerSchemaIndex] : valuesIdMapping) {
+        groupIds.push_back(preparedChunkMeta.GroupIdPerColumn[chunkSchemaIndex]);
     }
 
-    for (size_t index = 0; index < valueIdMapping.size(); ++index) {
-        const auto& columnMeta = columnMetas->columns(valueIdMapping[index].ChunkSchemaIndex);
-        columns.emplace_back(TSharedSegmentMetas(MakeRange(columnMeta.segments()), columnMetas));
+    // TODO(lukyan): Or use first group for timestamp?
+    auto timestampGroupIndex = preparedChunkMeta.ColumnGroups.size() - 1;
+    groupIds.push_back(timestampGroupIndex);
+
+    std::sort(groupIds.begin(), groupIds.end());
+    groupIds.erase(std::unique(groupIds.begin(), groupIds.end()), groupIds.end());
+
+    return groupIds;
+}
+
+// Create group block holders using set of reading groups' ids.
+std::vector<std::unique_ptr<TGroupBlockHolder>> CreateGroupBlockHolders(
+    const TPreparedChunkMeta& preparedChunkMeta,
+    TRange<ui16> groupIds)
+{
+    std::vector<std::unique_ptr<TGroupBlockHolder>> groupHolders;
+    for (auto groupId : groupIds) {
+        groupHolders.emplace_back(std::make_unique<TGroupBlockHolder>(
+            preparedChunkMeta.ColumnGroups[groupId].BlockIds,
+            preparedChunkMeta.ColumnGroups[groupId].MergedMetas));
     }
 
-    return columns;
+    return groupHolders;
 }
 
 /////////////////////////////////////////////////////////////////////////////
 
 TBlockWindowManager::TBlockWindowManager(
-    std::vector<TColumnBlockHolder> columns,
+    std::vector<std::unique_ptr<TGroupBlockHolder>> blockHolders,
     TRefCountedBlockMetaPtr blockMeta,
     TBlockFetcherPtr blockFetcher,
-    TReaderTimeStatisticsPtr timeStatistics)
-    : Columns_(std::move(columns))
+    TReaderStatisticsPtr readerStatistics)
+    : BlockHolders_(std::move(blockHolders))
     , BlockFetcher_(std::move(blockFetcher))
-    , TimeStatistics_(timeStatistics)
+    , ReaderStatistics_(readerStatistics)
     , BlockMeta_(std::move(blockMeta))
 { }
 
 bool TBlockWindowManager::TryUpdateWindow(ui32 rowIndex)
 {
-    TValueIncrementingTimingGuard<TWallTimer> timingGuard(&TimeStatistics_->FetchBlockTime);
+    ++ReaderStatistics_->TryUpdateWindowCallCount;
+
+    TValueIncrementingTimingGuard<TWallTimer> timingGuard(&ReaderStatistics_->FetchBlockTime);
     if (FetchedBlocks_) {
         if (!FetchedBlocks_.IsSet()) {
             // Blocks has been already requested from previous Read but are not fetched yet.
-            return true;
+            return false;
         }
-
-        YT_VERIFY(FetchedBlocks_.IsSet());
 
         const auto& loadedBlocks = FetchedBlocks_.Get().ValueOrThrow();
 
         size_t index = 0;
-        for (auto& column : Columns_) {
-            if (column.NeedUpdateBlock(rowIndex)) {
+        for (auto& blockHolder : BlockHolders_) {
+            if (auto blockId = blockHolder->SkipToBlock(rowIndex, BlockMeta_)) {
+                ++ReaderStatistics_->SetBlockCallCount;
                 YT_VERIFY(index < loadedBlocks.size());
-                column.SetBlock(loadedBlocks[index++].Data, BlockMeta_);
+                blockHolder->SetBlock(loadedBlocks[index++].Data, BlockMeta_);
             }
         }
         YT_VERIFY(index == loadedBlocks.size());
 
         FetchedBlocks_.Reset();
-        return false;
+        return true;
     }
 
     // Skip to window.
     std::vector<TFuture<TBlock>> pendingBlocks;
-    for (auto& column : Columns_) {
-        if (auto blockId = column.SkipToBlock(rowIndex, BlockMeta_)) {
-            YT_VERIFY(column.NeedUpdateBlock(rowIndex));
+    for (auto& blockHolder : BlockHolders_) {
+        ++ReaderStatistics_->SkipToBlockCallCount;
+        if (auto blockId = blockHolder->SkipToBlock(rowIndex, BlockMeta_)) {
+            ++ReaderStatistics_->FetchBlockCallCount;
             pendingBlocks.push_back(BlockFetcher_->FetchBlock(*blockId));
         }
     }
@@ -210,18 +158,23 @@ bool TBlockWindowManager::TryUpdateWindow(ui32 rowIndex)
     // Not every window switch causes block updates.
     // Read windows are built by all block last keys but here only reading block set is considered.
     if (pendingBlocks.empty()) {
-        return false;
+        return true;
     }
 
     FetchedBlocks_ = AllSucceeded(std::move(pendingBlocks));
     ReadyEvent_ = FetchedBlocks_.As<void>();
 
-    return true;
+    return false;
 }
 
 TFuture<void> TBlockWindowManager::GetReadyEvent() const
 {
     return ReadyEvent_;
+}
+
+const TBlockRef* TBlockWindowManager::GetBlockHolder(ui16 index)
+{
+    return BlockHolders_[index].get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

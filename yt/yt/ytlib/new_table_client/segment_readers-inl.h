@@ -6,7 +6,6 @@
 #endif
 #undef SEGMENT_READERS_INL_H_
 
-
 namespace NYT::NNewTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,28 +22,28 @@ Y_FORCE_INLINE i64 ConvertInt<i64>(ui64 value)
     return ZigZagDecode64(value);
 }
 
-Y_FORCE_INLINE void ReadUnversionedValueData(TUnversionedValue* value, ui64 data)
+void ReadUnversionedValueData(TUnversionedValue* value, ui64 data)
 {
     value->Data.Uint64 = data;
 }
 
-Y_FORCE_INLINE void ReadUnversionedValueData(TUnversionedValue* value, i64 data)
+void ReadUnversionedValueData(TUnversionedValue* value, i64 data)
 {
     value->Data.Int64 = data;
 }
 
-Y_FORCE_INLINE void ReadUnversionedValueData(TUnversionedValue* value, double data)
+void ReadUnversionedValueData(TUnversionedValue* value, double data)
 {
     value->Data.Double = data;
 }
 
-Y_FORCE_INLINE void ReadUnversionedValueData(TUnversionedValue* value, bool data)
+void ReadUnversionedValueData(TUnversionedValue* value, bool data)
 {
     value->Data.Uint64 = 0;
     value->Data.Boolean = data;
 }
 
-Y_FORCE_INLINE void ReadUnversionedValueData(TUnversionedValue* value, TStringBuf data)
+void ReadUnversionedValueData(TUnversionedValue* value, TStringBuf data)
 {
     value->Length = data.Size();
     value->Data.String = data.Data();
@@ -52,209 +51,180 @@ Y_FORCE_INLINE void ReadUnversionedValueData(TUnversionedValue* value, TStringBu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline bool GetIsDirect(int type)
-{
-    // DirectRle/DirectSparse: 2,  DirectDense: 3
-    return type == 2 || type == 3;
-}
-
-inline bool GetIsDense(int type)
-{
-    // DictionaryDense: 1, DirectDense: 3
-    return type == 1 || type == 3;
-}
-
-inline bool GetIsDense(const NProto::TSegmentMeta& meta, EValueType dataType)
-{
-    if (dataType == EValueType::Int64 || dataType == EValueType::Uint64 || IsStringLikeType(dataType)) {
-        return GetIsDense(meta.type());
-    } else if (dataType == EValueType::Boolean || dataType == EValueType::Double) {
-        return meta.HasExtension(NProto::TDenseVersionedSegmentMeta::dense_versioned_segment_meta);
-    } else {
-        Y_UNREACHABLE();
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-inline ui32 TTimestampExtractor::GetSegmentRowLimit() const
+ui32 TScanTimestampExtractor::GetSegmentRowLimit() const
 {
     return SegmentRowOffset_ + RowCount_;
 }
 
-inline std::pair<ui32, ui32> TTimestampExtractor::GetWriteTimestampsSpan(ui32 rowIndex) const
+TTimestamp TScanTimestampExtractor::GetWriteTimestamp(ui32 position) const
+{
+    return WriteTimestamps_[position];
+}
+
+TTimestamp TScanTimestampExtractor::GetDeleteTimestamp(ui32 position) const
+{
+    return DeleteTimestamps_[position];
+}
+
+std::pair<ui32, ui32> TScanTimestampExtractor::GetWriteTimestampsSpan(ui32 rowIndex) const
 {
     auto position = rowIndex - SegmentRowOffset_;
     YT_ASSERT(position < RowCount_);
     return std::make_pair(WriteTimestampOffsets_[position], WriteTimestampOffsets_[position + 1]);
 }
 
-inline std::pair<ui32, ui32> TTimestampExtractor::GetDeleteTimestampsSpan(ui32 rowIndex) const
+std::pair<ui32, ui32> TScanTimestampExtractor::GetDeleteTimestampsSpan(ui32 rowIndex) const
 {
     auto position = rowIndex - SegmentRowOffset_;
     YT_ASSERT(position < RowCount_);
     return std::make_pair(DeleteTimestampOffsets_[position], DeleteTimestampOffsets_[position + 1]);
 }
 
-inline ui32 TTimestampExtractor::GetWriteTimestampsCount(ui32 rowIndex) const
+TRange<TTimestamp> TScanTimestampExtractor::GetWriteTimestamps(
+    ui32 rowIndex,
+    TChunkedMemoryPool* /*memoryPool*/) const
 {
-    auto [start, end] = GetWriteTimestampsSpan(rowIndex);
-    return end - start;
+    auto [begin, end] = GetWriteTimestampsSpan(rowIndex);
+    return MakeRange(WriteTimestamps_ + begin, WriteTimestamps_ + end);
 }
 
-inline ui32 TTimestampExtractor::GetDeleteTimestampsCount(ui32 rowIndex) const
+TRange<TTimestamp> TScanTimestampExtractor::GetDeleteTimestamps(
+    ui32 rowIndex,
+    TChunkedMemoryPool* /*memoryPool*/) const
 {
-    auto [start, end] = GetDeleteTimestampsSpan(rowIndex);
-    return end - start;
-}
-
-inline const TTimestamp* TTimestampExtractor::GetWriteTimestamps() const
-{
-    return WriteTimestamps_;
-}
-
-inline const TTimestamp* TTimestampExtractor::GetDeleteTimestamps() const
-{
-    return DeleteTimestamps_;
+    auto [begin, end] = GetDeleteTimestampsSpan(rowIndex);
+    return MakeRange(DeleteTimestamps_ + begin, DeleteTimestamps_ + end);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-inline void TIntegerExtractor<T>::Extract(TUnversionedValue* value, ui32 index) const
+void TScanIntegerExtractor<T>::Extract(TUnversionedValue* value, ui32 position) const
 {
-    bool isNull = IsNullBits_[index];
-    value->Type = isNull ? EValueType::Null : GetValueType<T>();
-    ReadUnversionedValueData(value, Items_[index]);
+    bool nullBit = NullBits_[position];
+    value->Type = nullBit ? EValueType::Null : GetValueType<T>();
+    ReadUnversionedValueData(value, Items_[position]);
 }
 
-template <class T>
-inline TUnversionedValue TIntegerExtractor<T>::operator[] (ui32 index) const
+void TScanDataExtractor<EValueType::Double>::Extract(TUnversionedValue* value, ui32 position) const
 {
-    TUnversionedValue result;
-    Extract(&result, index);
-    return result;
+    bool nullBit = NullBits_[position];
+    value->Type = nullBit ? EValueType::Null : EValueType::Double;
+    ReadUnversionedValueData(value, Items_[position]);
 }
 
-inline void TValueExtractor<EValueType::Double>::Extract(TUnversionedValue* value, ui32 index) const
+void TScanDataExtractor<EValueType::Boolean>::Extract(TUnversionedValue* value, ui32 position) const
 {
-    bool isNull = IsNullBits_[index];
-    value->Type = isNull ? EValueType::Null : EValueType::Double;
-    ReadUnversionedValueData(value, Items_[index]);
+    bool nullBit = NullBits_[position];
+    value->Type = nullBit ? EValueType::Null : EValueType::Boolean;
+    ReadUnversionedValueData(value, Items_[position]);
 }
 
-inline TUnversionedValue TValueExtractor<EValueType::Double>::operator[] (ui32 index) const
-{
-    TUnversionedValue result;
-    Extract(&result, index);
-    return result;
-}
+TScanBlobExtractor::TScanBlobExtractor(EValueType type)
+    : Type_(type)
+{ }
 
-inline void TValueExtractor<EValueType::Boolean>::Extract(TUnversionedValue* value, ui32 index) const
+void TScanBlobExtractor::Extract(TUnversionedValue* value, ui32 position) const
 {
-    bool isNull = IsNullBits_[index];
-    value->Type = isNull ? EValueType::Null : EValueType::Boolean;
-    ReadUnversionedValueData(value, Items_[index]);
-}
+    bool nullBit = NullBits_[position];
+    value->Type = nullBit ? EValueType::Null : Type_;
 
-inline TUnversionedValue TValueExtractor<EValueType::Boolean>::operator[] (ui32 index) const
-{
-    TUnversionedValue result;
-    Extract(&result, index);
-    return result;
-}
-
-inline void TBlobExtractor::Extract(TUnversionedValue* value, ui32 index) const
-{
-    bool isNull = IsNullBits_[index];
-    value->Type = isNull ? EValueType::Null : Type_;
-
-    auto [begin, end] = Items_[index];
+    auto [begin, end] = Items_[position];
     ReadUnversionedValueData(value, TStringBuf(Data_ + begin, Data_ + end));
 }
 
-inline TUnversionedValue TBlobExtractor::operator[] (ui32 index) const
-{
-    TUnversionedValue result;
-    Extract(&result, index);
-    return result;
-}
+TScanDataExtractor<EValueType::String>::TScanDataExtractor()
+    : TScanBlobExtractor(EValueType::String)
+{ }
+
+TScanDataExtractor<EValueType::Composite>::TScanDataExtractor()
+    : TScanBlobExtractor(EValueType::Composite)
+{ }
+
+TScanDataExtractor<EValueType::Any>::TScanDataExtractor()
+    : TScanBlobExtractor(EValueType::Any)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline void TRleBase::Reset()
+void TScanKeyIndexExtractor::Reset()
 {
     Count_ = 0;
     SegmentRowLimit_ = 0;
 }
 
-inline ui32 TRleBase::GetSegmentRowLimit() const
+ui32 TScanKeyIndexExtractor::GetSegmentRowLimit() const
 {
     return SegmentRowLimit_;
 }
 
-// Skip is allowed till SegmentRowLimit.
-inline ui32 TRleBase::SkipTo(ui32 rowIndex, ui32 position) const
+ui32 TScanKeyIndexExtractor::GetCount() const
 {
-    YT_ASSERT(position < Count_ && rowIndex >= LowerRowBound(position));
+    return Count_;
+}
+
+// Skip is allowed till SegmentRowLimit.
+ui32 TScanKeyIndexExtractor::SkipTo(ui32 rowIndex, ui32 position) const
+{
+    YT_ASSERT(position < GetCount() && rowIndex >= LowerRowBound(position));
 
     if (Y_LIKELY(rowIndex < UpperRowBound(position))) {
         return position;
     }
 
     // Skip to rowIndex.
-    position = NYT::ExponentialSearch(position + 1, Count_, [&] (auto position) {
+    position = ExponentialSearch(position, GetCount(), [&] (auto position) {
         return UpperRowBound(position) <= rowIndex;
     });
 
     return position;
 }
 
-inline ui32 TRleBase::LowerRowBound(ui32 position) const
+ui32 TScanKeyIndexExtractor::LowerRowBound(ui32 position) const
 {
     return RowIndex_[position];
 }
 
-inline ui32 TRleBase::UpperRowBound(ui32 position) const
+ui32 TScanKeyIndexExtractor::UpperRowBound(ui32 position) const
 {
     return RowIndex_[position + 1];
 }
 
-inline ui32 TVersionInfoBase::AdjustIndex(ui32 valueIdx, ui32 valueIdxEnd, ui16 id) const
+ui32 TScanVersionExtractorBase::AdjustIndex(ui32 valueIdx, ui32 valueIdxEnd, ui16 timestampId) const
 {
-    return LinearSearch(valueIdx, valueIdxEnd, [&] (auto index) {
-        return WriteTimestampIds_[index] < id;
+    return LinearSearch(valueIdx, valueIdxEnd, [&] (auto position) {
+        return WriteTimestampIds_[position] < timestampId;
     });
 }
 
-inline ui32 TVersionInfoBase::AdjustLowerIndex(ui32 valueIdx, ui32 valueIdxEnd, ui16 id) const
+ui32 TScanVersionExtractorBase::AdjustLowerIndex(ui32 valueIdx, ui32 valueIdxEnd, ui16 timestampId) const
 {
     YT_ASSERT(valueIdx != valueIdxEnd);
-    while (WriteTimestampIds_[valueIdx] < id && ++valueIdx != valueIdxEnd)
+    while (WriteTimestampIds_[valueIdx] < timestampId && ++valueIdx != valueIdxEnd)
     { }
 
     return valueIdx;
 }
 
-inline void TVersionInfo<true>::Extract(TVersionedValue* value, const TTimestamp* timestamps, ui32 index) const
+void TScanVersionExtractor<true>::ExtractVersion(TVersionedValue* value, const TTimestamp* timestamps, ui32 position) const
 {
-    if (AggregateBits_[index]) {
+    if (AggregateBits_[position]) {
         value->Flags |= NTableClient::EValueFlags::Aggregate;
     }
-    value->Timestamp = timestamps[WriteTimestampIds_[index]];
+    value->Timestamp = timestamps[WriteTimestampIds_[position]];
 }
 
-inline void TVersionInfo<false>::Extract(TVersionedValue* value, const TTimestamp* timestamps, ui32 index) const
+void TScanVersionExtractor<false>::ExtractVersion(TVersionedValue* value, const TTimestamp* timestamps, ui32 position) const
 {
-    value->Timestamp = timestamps[WriteTimestampIds_[index]];
+    value->Timestamp = timestamps[WriteTimestampIds_[position]];
 }
 
-inline ui32 TMultiValueBase::GetSegmentRowLimit() const
+ui32 TScanMultiValueIndexExtractor::GetSegmentRowLimit() const
 {
     return SegmentRowLimit_;
 }
 
-inline ui32 TMultiValueBase::SkipTo(ui32 rowIndex, ui32 position) const
+ui32 TScanMultiValueIndexExtractor::SkipTo(ui32 rowIndex, ui32 position) const
 {
     // Position can point to end of segment.
     YT_ASSERT(position <= IndexCount_ && (position == 0 || RowToValue_[position - 1].RowIndex <= rowIndex));
@@ -263,7 +233,7 @@ inline ui32 TMultiValueBase::SkipTo(ui32 rowIndex, ui32 position) const
         return position;
     }
 
-    position = NYT::ExponentialSearch(position, IndexCount_, [&] (auto position) {
+    position = ExponentialSearch(position, IndexCount_, [&] (auto position) {
         return RowToValue_[position].RowIndex < rowIndex;
     });
 
@@ -272,21 +242,116 @@ inline ui32 TMultiValueBase::SkipTo(ui32 rowIndex, ui32 position) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-TLookupIntegerExtractor<T>::TLookupIntegerExtractor(const NProto::TSegmentMeta& meta)
-    : BaseValue_(meta.GetExtension(NProto::TIntegerSegmentMeta::integer_segment_meta).min_value())
-    , IsDirect_(GetIsDirect(meta.type()))
-{ }
+ui32 TLookupTimestampExtractor::GetSegmentRowLimit() const
+{
+    return SegmentRowOffset_ + RowCount_;
+}
+
+void TLookupTimestampExtractor::ReadSegment(
+    const TMetaBase* meta,
+    const char* data,
+    TTmpBuffers* /*tmpBuffers*/)
+{
+    SegmentRowOffset_ = meta->ChunkRowCount - meta->RowCount;
+    RowCount_ = meta->RowCount;
+
+    TCompressedVectorView view(reinterpret_cast<const ui64*>(data));
+
+    const auto* timestampMeta = static_cast<const TTimestampMeta*>(meta);
+
+    BaseTimestamp_ = timestampMeta->BaseTimestamp;
+    ExpectedDeletesPerRow_ = timestampMeta->ExpectedDeletesPerRow;
+    ExpectedWritesPerRow_ = timestampMeta->ExpectedWritesPerRow;
+
+    TimestampsDict_ = view;
+    WriteTimestampIds_ = ++view;
+    DeleteTimestampIds_ = ++view;
+    WriteOffsetDiffs_ = ++view;
+    DeleteOffsetDiffs_ = ++view;
+}
+
+TTimestamp TLookupTimestampExtractor::GetDeleteTimestamp(ui32 position) const
+{
+    return BaseTimestamp_ + TimestampsDict_[DeleteTimestampIds_[position]];
+}
+
+TTimestamp TLookupTimestampExtractor::GetWriteTimestamp(ui32 position) const
+{
+    return BaseTimestamp_ + TimestampsDict_[WriteTimestampIds_[position]];
+}
+
+std::pair<ui32, ui32> TLookupTimestampExtractor::GetWriteTimestampsSpan(ui32 rowIndex) const
+{
+    return std::make_pair(GetWriteTimestampOffset(rowIndex), GetWriteTimestampOffset(rowIndex + 1));
+}
+
+std::pair<ui32, ui32> TLookupTimestampExtractor::GetDeleteTimestampsSpan(ui32 rowIndex) const
+{
+    return std::make_pair(GetDeleteTimestampOffset(rowIndex), GetDeleteTimestampOffset(rowIndex + 1));
+}
+
+TRange<TTimestamp> TLookupTimestampExtractor::GetWriteTimestamps(
+    ui32 rowIndex,
+    TChunkedMemoryPool* memoryPool) const
+{
+    auto [begin, end] = GetWriteTimestampsSpan(rowIndex);
+    auto count = end - begin;
+    auto* timestamps = reinterpret_cast<TTimestamp*>(memoryPool->AllocateAligned(sizeof(TTimestamp) * count));
+    auto startTimestamps = timestamps;
+    for (auto it = begin; it != end; ++it) {
+        *timestamps++ = GetWriteTimestamp(it);
+    }
+
+    return MakeRange(startTimestamps, timestamps);
+}
+
+TRange<TTimestamp> TLookupTimestampExtractor::GetDeleteTimestamps(
+    ui32 rowIndex,
+    TChunkedMemoryPool* memoryPool) const
+{
+    auto [begin, end] = GetDeleteTimestampsSpan(rowIndex);
+    auto count = end - begin;
+    auto* timestamps = reinterpret_cast<TTimestamp*>(memoryPool->AllocateAligned(sizeof(TTimestamp) * count));
+    auto startTimestamps = timestamps;
+    for (auto it = begin; it != end; ++it) {
+        *timestamps++ = GetDeleteTimestamp(it);
+    }
+
+    return MakeRange(startTimestamps, timestamps);
+}
+
+ui32 TLookupTimestampExtractor::GetDeleteTimestampOffset(ui32 rowIndex) const
+{
+    auto position = rowIndex - SegmentRowOffset_;
+
+    return position > 0
+        ? ExpectedDeletesPerRow_ * position + ZigZagDecode32(DeleteOffsetDiffs_[position - 1])
+        : 0;
+}
+
+ui32 TLookupTimestampExtractor::GetWriteTimestampOffset(ui32 rowIndex) const
+{
+    auto position = rowIndex - SegmentRowOffset_;
+
+    return position > 0
+        ? ExpectedWritesPerRow_ * position + ZigZagDecode32(WriteOffsetDiffs_[position - 1])
+        : 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-inline const ui64* TLookupIntegerExtractor<T>::Init(const ui64* ptr)
+const ui64* TLookupIntegerExtractor<T>::Init(const TMetaBase* meta, const ui64* ptr)
 {
+    BaseValue_ = static_cast<const TIntegerMeta*>(meta)->BaseValue;
+    Direct_ = IsDirect(meta->Type);
+
     Ptr_ = ptr;
 
     TCompressedVectorView values(ptr);
     ptr += values.GetSizeInWords();
 
-    if (IsDirect_) {
+    if (Direct_) {
         ptr += GetBitmapSize(values.GetSize());
     } else {
         ptr += TCompressedVectorView(ptr).GetSizeInWords();
@@ -296,37 +361,61 @@ inline const ui64* TLookupIntegerExtractor<T>::Init(const ui64* ptr)
 }
 
 template <class T>
-inline void TLookupIntegerExtractor<T>::Extract(TUnversionedValue* value, ui32 index) const
+void TLookupIntegerExtractor<T>::InitNull()
+{
+    BaseValue_ = 0;
+    Direct_ = true;
+
+    static ui64 Data[2] {1, 1};
+    Ptr_ = &Data[0];
+}
+
+template <class T>
+void TLookupIntegerExtractor<T>::ExtractDict(TUnversionedValue* value, ui32 position) const
 {
     auto ptr = Ptr_;
     TCompressedVectorView values(ptr);
     ptr += values.GetSizeInWords();
 
-    if (IsDirect_) {
-        TBitmap nullBits(ptr);
-        ptr += GetBitmapSize(values.GetSize());
+    TCompressedVectorView ids(ptr);
+    ptr += ids.GetSizeInWords();
+    ui32 id = ids[position];
 
-        bool isNull = nullBits[index];
-        value->Type = isNull ? EValueType::Null : GetValueType<T>();
-        ReadUnversionedValueData(value, ConvertInt<T>(BaseValue_ + values[index]));
+    if (id > 0) {
+        value->Type = GetValueType<T>();
+        ReadUnversionedValueData(value, ConvertInt<T>(BaseValue_ + values[id - 1]));
     } else {
-        TCompressedVectorView ids(ptr);
-        ptr += ids.GetSizeInWords();
-        ui32 id = ids[index];
+        value->Type = EValueType::Null;
+    }
 
-        if (id > 0) {
-            value->Type = GetValueType<T>();
-            ReadUnversionedValueData(value, ConvertInt<T>(BaseValue_ + values[id - 1]));
-        } else {
-            value->Type = EValueType::Null;
-        }
+}
+
+template <class T>
+void TLookupIntegerExtractor<T>::ExtractDirect(TUnversionedValue* value, ui32 position) const
+{
+    auto ptr = Ptr_;
+    TCompressedVectorView values(ptr);
+    ptr += values.GetSizeInWords();
+
+    TBitmap nullBits(ptr);
+    ptr += GetBitmapSize(values.GetSize());
+
+    bool nullBit = nullBits[position];
+    value->Type = nullBit ? EValueType::Null : GetValueType<T>();
+    ReadUnversionedValueData(value, ConvertInt<T>(BaseValue_ + values[position]));
+}
+
+template <class T>
+void TLookupIntegerExtractor<T>::Extract(TUnversionedValue* value, ui32 position) const
+{
+    if (Direct_) {
+        ExtractDirect(value, position);
+    } else {
+        ExtractDict(value, position);
     }
 }
 
-inline TLookupDoubleExtractor::TLookupDoubleExtractor(const NProto::TSegmentMeta& /*meta*/)
-{ }
-
-inline const ui64* TLookupDoubleExtractor::Init(const ui64* ptr)
+const ui64* TLookupDataExtractor<EValueType::Double>::Init(const TMetaBase* /*meta*/, const ui64* ptr)
 {
     Ptr_ = ptr;
 
@@ -337,25 +426,28 @@ inline const ui64* TLookupDoubleExtractor::Init(const ui64* ptr)
     return ptr;
 }
 
-inline void TLookupDoubleExtractor::Extract(TUnversionedValue* value, ui32 index) const
+void TLookupDataExtractor<EValueType::Double>::InitNull()
+{
+    static ui64 Data[3] {1, 0, 1};
+    Ptr_ = &Data[0];
+}
+
+void TLookupDataExtractor<EValueType::Double>::Extract(TUnversionedValue* value, ui32 position) const
 {
     auto ptr = Ptr_;
     ui64 count = *ptr++;
     auto items = reinterpret_cast<const double*>(ptr);
     ptr += count;
 
-    TBitmap isNullBits(ptr);
+    TBitmap nullBits(ptr);
     ptr += GetBitmapSize(count);
 
-    bool isNull = isNullBits[index];
-    value->Type = isNull ? EValueType::Null : EValueType::Double;
-    ReadUnversionedValueData(value, items[index]);
+    bool nullBit = nullBits[position];
+    value->Type = nullBit ? EValueType::Null : EValueType::Double;
+    ReadUnversionedValueData(value, items[position]);
 }
 
-inline TLookupBooleanExtractor::TLookupBooleanExtractor(const NProto::TSegmentMeta& /*meta*/)
-{ }
-
-inline const ui64* TLookupBooleanExtractor::Init(const ui64* ptr)
+const ui64* TLookupDataExtractor<EValueType::Boolean>::Init(const TMetaBase* /*meta*/, const ui64* ptr)
 {
     Ptr_ = ptr;
 
@@ -366,98 +458,139 @@ inline const ui64* TLookupBooleanExtractor::Init(const ui64* ptr)
     return ptr;
 }
 
-inline TLookupBlobExtractor::TLookupBlobExtractor(const NProto::TSegmentMeta& meta, EValueType type)
-    : ExpectedLength_(meta.GetExtension(NProto::TStringSegmentMeta::string_segment_meta).expected_length())
-    , IsDirect_(GetIsDirect(meta.type()))
-    , Type_(type)
-{ }
+void TLookupDataExtractor<EValueType::Boolean>::InitNull()
+{
+    static ui64 Data[3] {1, 0, 1};
+    Ptr_ = &Data[0];
+}
 
-inline void TLookupBooleanExtractor::Extract(TUnversionedValue* value, ui32 index) const
+void TLookupDataExtractor<EValueType::Boolean>::Extract(TUnversionedValue* value, ui32 position) const
 {
     auto ptr = Ptr_;
     ui64 count = *ptr++;
     TBitmap items(ptr);
     ptr += GetBitmapSize(count);
 
-    TBitmap isNullBits(ptr);
+    TBitmap nullBits(ptr);
     ptr += GetBitmapSize(count);
 
-    bool isNull = isNullBits[index];
-    value->Type = isNull ? EValueType::Null : EValueType::Boolean;
-    ReadUnversionedValueData(value, items[index]);
+    bool nullBit = nullBits[position];
+    value->Type = nullBit ? EValueType::Null : EValueType::Boolean;
+    ReadUnversionedValueData(value, items[position]);
 }
 
-inline void TLookupBlobExtractor::Init(const ui64* ptr)
+TLookupBlobExtractor::TLookupBlobExtractor(EValueType type)
+    : Type_(type)
+{ }
+
+void TLookupBlobExtractor::Init(const TMetaBase* meta, const ui64* ptr)
 {
+    ExpectedLength_ = static_cast<const TBlobMeta*>(meta)->ExpectedLength;
+    Direct_ = IsDirect(meta->Type);
     Ptr_ = ptr;
 }
 
-inline void TLookupBlobExtractor::Extract(TUnversionedValue* value, ui32 index) const
+void TLookupBlobExtractor::InitNull()
+{
+    ExpectedLength_ = 0;
+    Direct_ = true;
+    static ui64 Data[2] {1, 1};
+    Ptr_ = &Data[0];
+}
+
+void TLookupBlobExtractor::ExtractDict(TUnversionedValue* value, ui32 position) const
 {
     auto ptr = Ptr_;
 
-    auto getBlob = [&] (TCompressedVectorView offsets, const char* data, ui32 index) {
-        auto getOffset = [&] (ui32 index) -> ui32 {
-            if (index > 0) {
-                return ExpectedLength_ * index + ZigZagDecode32(offsets[index - 1]);
-            } else {
-                return 0;
-            }
-        };
+    // Dict: [Ids] [Offsets] [Data]
+    TCompressedVectorView ids(ptr);
+    ptr += ids.GetSizeInWords();
 
-        return TStringBuf(data + getOffset(index), data + getOffset(index + 1));
-    };
+    TCompressedVectorView offsets(ptr);
+    ptr += offsets.GetSizeInWords();
+
+    auto* data = reinterpret_cast<const char*>(ptr);
+
+    ui32 id = ids[position];
+
+    if (id > 0) {
+        value->Type = Type_;
+        ReadUnversionedValueData(value, GetBlob(offsets, data, id - 1));
+    } else {
+        value->Type = EValueType::Null;
+    }
+}
+
+void TLookupBlobExtractor::ExtractDirect(TUnversionedValue* value, ui32 position) const
+{
+    auto ptr = Ptr_;
 
     // Direct: [Offsets] [IsNullBits] [Data]
-    // Dict: [Ids] [Offsets] [Data]
-    if (IsDirect_) {
-        TCompressedVectorView offsets(ptr);
-        ptr += offsets.GetSizeInWords();
+    TCompressedVectorView offsets(ptr);
+    ptr += offsets.GetSizeInWords();
 
-        TBitmap nullBits(ptr);
-        ptr += GetBitmapSize(offsets.GetSize());
+    TBitmap nullBits(ptr);
+    ptr += GetBitmapSize(offsets.GetSize());
 
-        auto* data = reinterpret_cast<const char*>(ptr);
+    auto* data = reinterpret_cast<const char*>(ptr);
 
-        if (nullBits[index]) {
-            value->Type = EValueType::Null;
-        } else {
-            value->Type = Type_;
-            ReadUnversionedValueData(value, getBlob(offsets, data, index));
-        }
+    if (nullBits[position]) {
+        value->Type = EValueType::Null;
     } else {
-        TCompressedVectorView ids(ptr);
-        ptr += ids.GetSizeInWords();
-
-        TCompressedVectorView offsets(ptr);
-        ptr += offsets.GetSizeInWords();
-
-        auto* data = reinterpret_cast<const char*>(ptr);
-
-        ui32 id = ids[index];
-
-        if (id > 0) {
-            value->Type = Type_;
-            ReadUnversionedValueData(value, getBlob(offsets, data, id - 1));
-        } else {
-            value->Type = EValueType::Null;
-        }
+        value->Type = Type_;
+        ReadUnversionedValueData(value, GetBlob(offsets, data, position));
     }
+}
+
+void TLookupBlobExtractor::Extract(TUnversionedValue* value, ui32 position) const
+{
+    if (Direct_) {
+        ExtractDirect(value, position);
+    } else {
+        ExtractDict(value, position);
+    }
+}
+
+TStringBuf TLookupBlobExtractor::GetBlob(
+    TCompressedVectorView offsets,
+    const char* data,
+    ui32 position) const
+{
+    auto getOffset = [&] (ui32 index) -> ui32 {
+        if (index > 0) {
+            return ExpectedLength_ * index + ZigZagDecode32(offsets[index - 1]);
+        } else {
+            return 0;
+        }
+    };
+
+    return TStringBuf(data + getOffset(position), data + getOffset(position + 1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TLookupIndexReader::TLookupIndexReader(const NProto::TSegmentMeta& meta, bool isDense)
-    : RowOffset_(meta.chunk_row_count() - meta.row_count())
-    , RowLimit_(meta.chunk_row_count())
-    , IsDense_(isDense)
+TLookupDataExtractor<EValueType::String>::TLookupDataExtractor()
+    : TLookupBlobExtractor(EValueType::String)
 { }
 
-inline const ui64* TLookupIndexReader::Init(const ui64* ptr)
+TLookupDataExtractor<EValueType::Composite>::TLookupDataExtractor()
+    : TLookupBlobExtractor(EValueType::Composite)
+{ }
+
+TLookupDataExtractor<EValueType::Any>::TLookupDataExtractor()
+    : TLookupBlobExtractor(EValueType::Any)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+const ui64* TLookupKeyIndexExtractor::Init(const TMetaBase* meta, const ui64* ptr, bool dense)
 {
     Ptr_ = ptr;
+    RowOffset_ = meta->ChunkRowCount - meta->RowCount;
+    RowLimit_ = meta->ChunkRowCount;
+    Dense_ = dense;
 
-    if (!IsDense_) {
+    if (!Dense_) {
         TCompressedVectorView rowIndexes(ptr);
         ptr += rowIndexes.GetSizeInWords();
     }
@@ -465,23 +598,31 @@ inline const ui64* TLookupIndexReader::Init(const ui64* ptr)
     return ptr;
 }
 
-inline TReadSpan TLookupIndexReader::GetRowIndex(ui32 position) const
+void TLookupKeyIndexExtractor::InitNull()
 {
-    if (IsDense_) {
-        return {RowOffset_ + position, RowOffset_ + position + 1};
-    } else {
-        TCompressedVectorView rowIndexes(Ptr_);
-        auto count = rowIndexes.GetSize();
-
-        return {
-            static_cast<ui32>(rowIndexes[position]),
-            (position == count ? RowLimit_ : static_cast<ui32>(rowIndexes[position + 1]))};
-    }
+    static ui64 Data[2] = {1};
+    Ptr_ = &Data[0];
+    RowOffset_ = 0;
+    RowLimit_ = std::numeric_limits<ui32>::max();
+    Dense_ = false;
 }
 
-inline ui32 TLookupIndexReader::GetCount() const
+void TLookupKeyIndexExtractor::Reset()
 {
-    if (IsDense_) {
+    Ptr_ = nullptr;
+    RowOffset_ = 0;
+    RowLimit_ = 0;
+    Dense_ = true;
+}
+
+ui32 TLookupKeyIndexExtractor::GetSegmentRowLimit() const
+{
+    return RowLimit_;
+}
+
+ui32 TLookupKeyIndexExtractor::GetCount() const
+{
+    if (Dense_) {
         return RowLimit_ - RowOffset_;
     } else {
         TCompressedVectorView rowIndexes(Ptr_);
@@ -489,111 +630,202 @@ inline ui32 TLookupIndexReader::GetCount() const
     }
 }
 
-inline ui32 TLookupIndexReader::SkipTo(ui32 rowIndex, ui32 position) const
+ui32 TLookupKeyIndexExtractor::SkipTo(ui32 rowIndex, ui32 position) const
 {
     YT_VERIFY(rowIndex >= RowOffset_);
 
-    if (IsDense_) {
+    if (Dense_) {
         return rowIndex - RowOffset_;
     } else {
-        TCompressedVectorView rowIndexes(Ptr_);
-
-        position = BinarySearch(position, rowIndexes.GetSize(), [&] (auto position) {
-            return static_cast<ui32>(rowIndexes[position]) < (rowIndex - RowOffset_);
+        position = ExponentialSearch(position, GetCount(), [&] (auto position) {
+            return UpperRowBound(position) <= rowIndex;
         });
 
         return position;
     }
 }
 
+ui32 TLookupKeyIndexExtractor::LowerRowBound(ui32 position) const
+{
+    if (Dense_) {
+        return RowOffset_ + position;
+    } else {
+        TCompressedVectorView rowIndexes(Ptr_);
+        return rowIndexes[position] + RowOffset_;
+    }
+}
+
+ui32 TLookupKeyIndexExtractor::UpperRowBound(ui32 position) const
+{
+    if (Dense_) {
+        return RowOffset_ + position + 1;
+    } else {
+        TCompressedVectorView rowIndexes(Ptr_);
+        auto count = rowIndexes.GetSize();
+        return position + 1 == count
+            ? RowLimit_
+            : rowIndexes[position + 1] + RowOffset_;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TLookupSegmentReader<EValueType::Int64>::TLookupSegmentReader(const NProto::TSegmentMeta& meta, const ui64* ptr)
-    : TLookupIntegerExtractor<i64>(meta)
-    , TLookupIndexReader(meta, GetIsDense(meta.type()))
+template <class T>
+void DoInitSegment(
+    TLookupIntegerExtractor<T>* value,
+    TLookupKeyIndexExtractor* base,
+    const TMetaBase* meta,
+    const ui64* ptr)
 {
-    ptr = TLookupIntegerExtractor<i64>::Init(ptr);
-    TLookupIndexReader::Init(ptr);
+    ptr = value->Init(meta, ptr);
+    base->Init(meta, ptr, IsDense(meta->Type));
 }
 
-inline TUnversionedValue TLookupSegmentReader<EValueType::Int64>::GetLastValue() const
+void DoInitSegment(
+    TLookupDataExtractor<EValueType::Double>* value,
+    TLookupKeyIndexExtractor* base,
+    const TMetaBase* meta,
+    const ui64* ptr)
 {
-    TUnversionedValue result;
-    Extract(&result, GetCount() - 1);
-    return result;
+    ptr = value->Init(meta, ptr);
+    base->Init(meta, ptr, true);
 }
 
-inline TLookupSegmentReader<EValueType::Uint64>::TLookupSegmentReader(const NProto::TSegmentMeta& meta, const ui64* ptr)
-    : TLookupIntegerExtractor<ui64>(meta)
-    , TLookupIndexReader(meta, GetIsDense(meta.type()))
+void DoInitSegment(
+    TLookupDataExtractor<EValueType::Boolean>* value,
+    TLookupKeyIndexExtractor* base,
+    const TMetaBase* meta,
+    const ui64* ptr)
 {
-    ptr = TLookupIntegerExtractor<ui64>::Init(ptr);
-    TLookupIndexReader::Init(ptr);
+    ptr = value->Init(meta, ptr);
+    base->Init(meta, ptr, true);
 }
 
-inline TUnversionedValue TLookupSegmentReader<EValueType::Uint64>::GetLastValue() const
+void DoInitSegment(
+    TLookupBlobExtractor* value,
+    TLookupKeyIndexExtractor* base,
+    const TMetaBase* meta,
+    const ui64* ptr)
 {
-    TUnversionedValue result;
-    Extract(&result, GetCount() - 1);
-    return result;
+    ptr = base->Init(meta, ptr, IsDense(meta->Type));
+    value->Init(meta, ptr);
 }
 
-inline TLookupSegmentReader<EValueType::Double>::TLookupSegmentReader(const NProto::TSegmentMeta& meta, const ui64* ptr)
-    : TLookupDoubleExtractor(meta)
-    , TLookupIndexReader(meta, GetIsDense(meta.type()))
+////////////////////////////////////////////////////////////////////////////////
+
+const ui64* TLookupMultiValueIndexExtractor::Init(
+    const TMetaBase* meta,
+    const TDenseMeta* denseMeta,
+    const ui64* ptr,
+    bool dense)
 {
-    ptr = TLookupDoubleExtractor::Init(ptr);
-    TLookupIndexReader::Init(ptr);
+    YT_VERIFY(ptr);
+    Ptr_ = ptr;
+    RowOffset_ = meta->ChunkRowCount - meta->RowCount;
+    RowLimit_ = meta->ChunkRowCount;
+    Dense_ = dense;
+
+
+    if (dense) {
+        ExpectedPerRow_ = denseMeta->ExpectedPerRow;
+    } else {
+        ExpectedPerRow_ = 0;
+    }
+
+    TCompressedVectorView offsets(ptr);
+    ptr += offsets.GetSizeInWords();
+
+    return ptr;
 }
 
-inline TUnversionedValue TLookupSegmentReader<EValueType::Double>::GetLastValue() const
+ui32 TLookupMultiValueIndexExtractor::GetSegmentRowLimit() const
 {
-    TUnversionedValue result;
-    Extract(&result, GetCount() - 1);
-    return result;
+    return RowLimit_;
 }
 
-inline TLookupSegmentReader<EValueType::Boolean>::TLookupSegmentReader(const NProto::TSegmentMeta& meta, const ui64* ptr)
-    : TLookupBooleanExtractor(meta)
-    , TLookupIndexReader(meta, GetIsDense(meta.type()))
+ui32 TLookupMultiValueIndexExtractor::SkipToDense(ui32 rowIndex, ui32) const
 {
-    ptr = TLookupBooleanExtractor::Init(ptr);
-    TLookupIndexReader::Init(ptr);
+    YT_ASSERT(rowIndex >= RowOffset_);
+
+    auto indexPosition = rowIndex - RowOffset_;
+    TCompressedVectorView perRowDiff(Ptr_);
+    return indexPosition > 0
+        ? ExpectedPerRow_ * indexPosition + ZigZagDecode32(perRowDiff[indexPosition - 1])
+        : 0;
 }
 
-inline TUnversionedValue TLookupSegmentReader<EValueType::Boolean>::GetLastValue() const
+ui32 TLookupMultiValueIndexExtractor::SkipToSparse(ui32 rowIndex, ui32 position) const
 {
-    TUnversionedValue result;
-    Extract(&result, GetCount() - 1);
-    return result;
+    YT_ASSERT(rowIndex >= RowOffset_);
+
+    TCompressedVectorView rowIndexes(Ptr_);
+    ui32 count = rowIndexes.GetSize();
+    position = ExponentialSearch(position, count, [&] (auto position) {
+        return static_cast<ui32>(rowIndexes[position]) < (rowIndex - RowOffset_);
+    });
+
+    return position;
 }
 
-inline TLookupBlobReaderBase::TLookupBlobReaderBase(const NProto::TSegmentMeta& meta, const ui64* ptr, EValueType type)
-    : TLookupIndexReader(meta, GetIsDense(meta.type()))
-    , TLookupBlobExtractor(meta, type)
+ui32 TLookupMultiValueIndexExtractor::SkipTo(ui32 rowIndex, ui32 position) const
 {
-    ptr = TLookupIndexReader::Init(ptr);
-    TLookupBlobExtractor::Init(ptr);
+    if (Dense_) {
+        return SkipToDense(rowIndex, position);
+    } else {
+        return SkipToSparse(rowIndex, position);
+    }
 }
 
-inline TUnversionedValue TLookupBlobReaderBase::GetLastValue() const
+template <bool Aggregate>
+const ui64* TLookupVersionExtractor<Aggregate>::Init(const ui64* ptr)
 {
-    TUnversionedValue result;
-    Extract(&result, GetCount() - 1);
-    return result;
+    Ptr_ = ptr;
+
+    TCompressedVectorView writeTimestampIdsView(ptr);
+    ptr += writeTimestampIdsView.GetSizeInWords();
+
+    if constexpr (Aggregate) {
+        auto timestampCount = writeTimestampIdsView.GetSize();
+        ptr += GetBitmapSize(timestampCount);
+    }
+
+    return ptr;
 }
 
-inline TLookupSegmentReader<EValueType::String>::TLookupSegmentReader(const NProto::TSegmentMeta& meta, const ui64*& ptr)
-    : TLookupBlobReaderBase(meta, ptr, EValueType::String)
-{ }
+template <bool Aggregate>
+void TLookupVersionExtractor<Aggregate>::ExtractVersion(
+    TVersionedValue* value,
+    const TTimestamp* timestamps,
+    ui32 position) const
+{
+    TCompressedVectorView writeTimestampIdsView(Ptr_);
 
-inline TLookupSegmentReader<EValueType::Composite>::TLookupSegmentReader(const NProto::TSegmentMeta& meta, const ui64* ptr)
-    : TLookupBlobReaderBase(meta, ptr, EValueType::Composite)
-{ }
+    if constexpr (Aggregate) {
+        TBitmap aggregateBits(Ptr_ + writeTimestampIdsView.GetSizeInWords());
+        if (aggregateBits[position]) {
+            value->Flags |= NTableClient::EValueFlags::Aggregate;
+        }
+    }
 
-inline TLookupSegmentReader<EValueType::Any>::TLookupSegmentReader(const NProto::TSegmentMeta& meta, const ui64* ptr)
-    : TLookupBlobReaderBase(meta, ptr, EValueType::Any)
-{ }
+    // Write position and restore timestamps later.
+    value->Timestamp = timestamps[writeTimestampIdsView[position]];
+}
+
+template <bool Aggregate>
+ui32 TLookupVersionExtractor<Aggregate>::AdjustIndex(ui32 valueIdx, ui32 valueIdxEnd, ui16 timestampId) const
+{
+    TCompressedVectorView writeTimestampIdsView(Ptr_);
+
+    return LinearSearch(valueIdx, valueIdxEnd, [&] (auto position) {
+        return writeTimestampIdsView[position] < timestampId;
+    });
+}
+
+template <bool Aggregate>
+ui32 TLookupVersionExtractor<Aggregate>::AdjustLowerIndex(ui32 valueIdx, ui32 valueIdxEnd, ui16 timestampId) const
+{
+    return AdjustIndex(valueIdx, valueIdxEnd, timestampId);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -35,6 +35,7 @@ class TColumnFilter;
 class TReqLookupRows;
 class TColumnRenameDescriptor;
 class THunkChunkRef;
+class TColumnMetaExt;
 
 } // namespace NProto
 
@@ -42,6 +43,11 @@ class THunkChunkRef;
 
 using TRefCountedBlockMeta = TRefCountedProto<NProto::TBlockMetaExt>;
 using TRefCountedBlockMetaPtr = TIntrusivePtr<TRefCountedBlockMeta>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TRefCountedColumnMeta = TRefCountedProto<NProto::TColumnMetaExt>;
+using TRefCountedColumnMetaPtr = TIntrusivePtr<TRefCountedColumnMeta>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
