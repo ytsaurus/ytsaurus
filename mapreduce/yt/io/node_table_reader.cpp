@@ -410,7 +410,7 @@ void TNodeTableReader::PrepareParsing()
 {
     RowQueue_.Clear();
     Builder_.Reset(new TRowBuilder(&RowQueue_));
-    Parser_.Reset(new TYsonParser(Builder_.Get(), &Input_, YT_LIST_FRAGMENT));
+    Parser_.Reset(new NYson::TYsonParser(Builder_.Get(), &Input_, YT_LIST_FRAGMENT));
 }
 
 void TNodeTableReader::OnStreamError()

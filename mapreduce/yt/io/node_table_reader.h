@@ -112,7 +112,7 @@ private:
     TRowQueue RowQueue_;
 
     THolder<TRowBuilder> Builder_;
-    THolder<TYsonParser> Parser_;
+    THolder<NYson::TYsonParser> Parser_;
 
     std::atomic<bool> Running_{false};
     TAutoEvent RetryPrepared_;
