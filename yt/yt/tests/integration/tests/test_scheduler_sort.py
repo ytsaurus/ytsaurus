@@ -219,6 +219,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             "sort_operation_options": {
                 "min_uncompressed_block_size": 1,
                 "min_partition_size": 1,
+                "max_value_count_per_simple_sort_job": 100,
                 "max_data_slices_per_job": 100,
             },
             "operation_options": {
@@ -408,6 +409,30 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 sort_by="key",
                 spec={"merge_job_io": {"table_writer": {"max_key_weight": 2}}},
             )
+
+    @authors("psushin")
+    def test_max_value_count_per_simple_sort_job(self):
+        schema = make_schema(
+            [{"name": "key", "type": "string"}] +
+            [{"name": "value{}".format(i), "type": "string"} for i in xrange(200)]
+        )
+
+        create("table", "//tmp/t_in", attributes={"schema": schema})
+        data = [{"key" : str(i)} for i in xrange(10)]
+        shuffled_data = data[:]
+        random.shuffle(shuffled_data)
+        write_table("//tmp/t_in", shuffled_data)
+
+        create("table", "//tmp/t_out")
+
+        op = sort(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            sort_by="key",
+            spec={"use_new_partitions_heuristic": True})
+
+        assert read_table("<columns=[key]>//tmp/t_out") == data
+        assert check_operation_tasks(op, {"partition(0)", "final_sort"})
 
     @authors("psushin")
     def test_foreign(self):
@@ -2287,6 +2312,7 @@ class TestSchedulerSortCommandsNewSortedPool(TestSchedulerSortCommands):
             "sort_operation_options": {
                 "min_uncompressed_block_size": 1,
                 "min_partition_size": 1,
+                "max_value_count_per_simple_sort_job": 100,
                 "max_data_slices_per_job": 100,
             },
             "operation_options": {

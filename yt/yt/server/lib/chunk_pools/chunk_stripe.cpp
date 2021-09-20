@@ -23,6 +23,7 @@ void TChunkStripeStatistics::Persist(const TPersistenceContext& context)
     Persist(context, ChunkCount);
     Persist(context, DataWeight);
     Persist(context, RowCount);
+    Persist(context, ValueCount);
     Persist(context, MaxBlockSize);
 }
 
@@ -58,6 +59,7 @@ TChunkStripeStatistics TChunkStripe::GetStatistics() const
         result.DataWeight += dataSlice->GetDataWeight();
         result.RowCount += dataSlice->GetRowCount();
         result.ChunkCount += dataSlice->GetChunkCount();
+        result.ValueCount += dataSlice->GetValueCount();
         result.MaxBlockSize = std::max(result.MaxBlockSize, dataSlice->GetMaxBlockSize());
     }
 
@@ -106,6 +108,7 @@ TChunkStripeStatistics operator + (
     result.ChunkCount = lhs.ChunkCount + rhs.ChunkCount;
     result.DataWeight = lhs.DataWeight + rhs.DataWeight;
     result.RowCount = lhs.RowCount + rhs.RowCount;
+    result.ValueCount = lhs.ValueCount + rhs.ValueCount;
     result.MaxBlockSize = std::max(lhs.MaxBlockSize, rhs.MaxBlockSize);
     return result;
 }
@@ -117,6 +120,7 @@ TChunkStripeStatistics& operator += (
     lhs.ChunkCount += rhs.ChunkCount;
     lhs.DataWeight += rhs.DataWeight;
     lhs.RowCount += rhs.RowCount;
+    lhs.ValueCount += rhs.ValueCount;
     lhs.MaxBlockSize = std::max(lhs.MaxBlockSize, rhs.MaxBlockSize);
     return lhs;
 }
@@ -153,9 +157,11 @@ TChunkStripeStatistics TChunkStripeList::GetAggregateStatistics() const
     result.ChunkCount = TotalChunkCount;
     if (IsApproximate) {
         result.RowCount = TotalRowCount * ApproximateSizesBoostFactor;
+        result.ValueCount = TotalValueCount * ApproximateSizesBoostFactor;
         result.DataWeight = TotalDataWeight * ApproximateSizesBoostFactor;
     } else {
         result.RowCount = TotalRowCount;
+        result.ValueCount = TotalValueCount;
         result.DataWeight = TotalDataWeight;
     }
     return result;
@@ -167,6 +173,7 @@ void TChunkStripeList::AddStripe(TChunkStripePtr stripe)
     TotalChunkCount += statistics.ChunkCount;
     TotalDataWeight += statistics.DataWeight;
     TotalRowCount += statistics.RowCount;
+    TotalValueCount += statistics.ValueCount;
     Stripes.emplace_back(std::move(stripe));
 }
 
@@ -179,6 +186,7 @@ void TChunkStripeList::Persist(const TPersistenceContext& context)
     Persist(context, TotalDataWeight);
     Persist(context, LocalDataWeight);
     Persist(context, TotalRowCount);
+    Persist(context, TotalValueCount);
     Persist(context, TotalChunkCount);
     Persist(context, LocalChunkCount);
 }

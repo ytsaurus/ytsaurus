@@ -14,7 +14,7 @@ ESnapshotVersion GetCurrentSnapshotVersion()
 bool ValidateSnapshotVersion(int version)
 {
     // NB: Version can be not valid enum value, so we do not cast version to enum here.
-    return version >= ToUnderlying(ESnapshotVersion::AddShallowMerge) &&
+    return version >= ToUnderlying(ESnapshotVersion::ValueCountStatistics) &&
         version <= ToUnderlying(GetCurrentSnapshotVersion());
 }
 

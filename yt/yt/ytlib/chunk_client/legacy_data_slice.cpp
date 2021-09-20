@@ -83,6 +83,15 @@ i64 TLegacyDataSlice::GetRowCount() const
     return result;
 }
 
+i64 TLegacyDataSlice::GetValueCount() const
+{
+    i64 result = 0;
+    for (const auto& chunkSlice : ChunkSlices) {
+        result += chunkSlice->GetValueCount();
+    }
+    return result;
+}
+
 i64 TLegacyDataSlice::GetMaxBlockSize() const
 {
     i64 result = 0;

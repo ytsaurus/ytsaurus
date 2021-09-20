@@ -403,6 +403,7 @@ public:
     i64 CompressedBlockSize;
     i64 MinPartitionWeight;
     i64 MinUncompressedBlockSize;
+    i64 MaxValueCountPerSimpleSortJob;
     NChunkPools::TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
     TDataBalancerOptionsPtr DataBalancer;
 

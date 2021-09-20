@@ -53,6 +53,9 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
             ? miscExt->max_block_size()
             : DefaultMaxBlockSize;
         UniqueKeys_ = miscExt->unique_keys();
+        if (miscExt->value_count() > 0) {
+            ValuesPerRow_ = miscExt->value_count() / TotalRowCount_;
+        }
     }
 
     if (IsDynamicStore()) {
@@ -134,7 +137,8 @@ void TInputChunkBase::CheckOffsets()
     static_assert(offsetof(TInputChunkBase, CompressedDataSize_) == 160, "invalid offset");
     static_assert(offsetof(TInputChunkBase, TotalDataWeight_) == 168, "invalid offset");
     static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 176, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 184, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, ValuesPerRow_) == 184, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 188, "invalid offset");
     static_assert(offsetof(TInputChunkBase, ColumnSelectivityFactor_) == 192, "invalid offset");
     static_assert(sizeof(TInputChunkBase) == 200, "invalid sizeof");
 }
