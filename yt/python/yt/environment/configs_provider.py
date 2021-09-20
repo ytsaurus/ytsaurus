@@ -573,6 +573,10 @@ def _build_node_configs(node_dirs,
             {"external_path": node_dirs[index], "internal_path": node_dirs[index]}
         ])
 
+        changelog_config = {
+            "preallocate_size": 2 ** 20
+        }
+
         store_location_config = {
             "low_watermark": 0,
             "high_watermark": 0,
@@ -580,6 +584,9 @@ def _build_node_configs(node_dirs,
             "io_config": {
                 "enable_sync": False,
             },
+            "multiplexed_changelog": changelog_config,
+            "high_latency_split_changelog": changelog_config,
+            "low_latency_split_changelog": changelog_config,
         }
 
         layer_location_config = {

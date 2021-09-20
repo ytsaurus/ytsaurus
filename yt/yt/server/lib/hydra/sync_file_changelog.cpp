@@ -138,7 +138,7 @@ public:
             });
 
             ReadIndex(dataFile.get(), header.FirstRecordOffset);
-            ReadChangelogUntilEnd(dataFile.get(), header.FirstRecordOffset);
+            ReadDataUntilEnd(dataFile.get(), header.FirstRecordOffset);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error opening changelog");
             Error_ = ex;
@@ -198,7 +198,9 @@ public:
             CreateDataFile();
             IndexFile_.Create();
 
-            CurrentFilePosition_ = DataFile_->GetLength();
+            auto fileLength = DataFile_->GetLength();
+            CurrentFileSize_ = fileLength;
+            CurrentFilePosition_ = fileLength;
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error creating changelog");
             Error_ = ex;
@@ -334,18 +336,6 @@ public:
         YT_LOG_DEBUG("Finished truncating changelog");
     }
 
-    void Preallocate(ssize_t size)
-    {
-        YT_VERIFY(CurrentFilePosition_ <= size);
-
-        YT_LOG_DEBUG("Started preallocating changelog");
-
-        WaitFor(IOEngine_->Allocate({DataFile_, size}))
-            .ThrowOnError();
-
-        YT_LOG_DEBUG("Finished preallocating changelog");
-    }
-
 private:
     const NIO::IIOEnginePtr IOEngine_;
     const TString FileName_;
@@ -361,6 +351,7 @@ private:
     std::atomic<int> RecordCount_ = -1;
     std::optional<int> TruncatedRecordCount_;
     std::atomic<i64> CurrentFilePosition_ = -1;
+    i64 CurrentFileSize_ = -1;
 
     TIOEngineHandlePtr DataFile_;
     TAsyncFileChangelogIndex IndexFile_;
@@ -408,6 +399,7 @@ private:
         RecordCount_ = -1;
         TruncatedRecordCount_.reset();
         CurrentFilePosition_ = -1;
+        CurrentFileSize_ = -1;
     }
 
     //! Checks that the changelog is open. Throws if not.
@@ -593,10 +585,12 @@ private:
     }
 
     //! Reads changelog starting from the last indexed record until the end of file.
-    void ReadChangelogUntilEnd(TFileWrapper* dataFile, i64 firstRecordOffset)
+    void ReadDataUntilEnd(TFileWrapper* dataFile, i64 firstRecordOffset)
     {
         // Extract changelog properties from index.
         i64 fileLength = dataFile->GetLength();
+        CurrentFileSize_ = fileLength;
+
         if (IndexFile_.IsEmpty()) {
             RecordCount_ = 0;
             CurrentFilePosition_ = firstRecordOffset;
@@ -702,6 +696,7 @@ private:
             file.Close();
 
             CurrentFilePosition_ = validSize;
+            CurrentFileSize_ = validSize;
         }
 
         YT_VERIFY(validSize == CurrentFilePosition_);
@@ -854,8 +849,6 @@ private:
         int firstRecordId,
         const std::vector<TSharedRef>& records)
     {
-        i64 bytesWritten = 0;
-
         try {
             AppendSizes_.clear();
             AppendSizes_.reserve(records.size());
@@ -900,27 +893,33 @@ private:
             YT_VERIFY(AlignUp<i64>(CurrentFilePosition_.load(), ChangelogAlignment) == CurrentFilePosition_);
             YT_VERIFY(AlignUp<i64>(AppendOutput_.Size(), ChangelogAlignment) == std::ssize(AppendOutput_));
 
-            TSharedRef data(AppendOutput_.Blob().Begin(), AppendOutput_.Size(), MakeStrong(this));
+            // Preallocate file if needed.
+            auto appendSize = std::ssize(AppendOutput_);
+            auto newFilePosition = CurrentFilePosition_.load() + appendSize;
+            if (Config_->PreallocateSize && newFilePosition > CurrentFileSize_) {
+                auto newFileSize = std::max(CurrentFileSize_ + *Config_->PreallocateSize, newFilePosition);
+                WaitFor(IOEngine_->Allocate({DataFile_, newFileSize}))
+                    .ThrowOnError();
+                CurrentFileSize_ = newFileSize;
+            }
 
             // Write blob to file.
-            WaitFor(IOEngine_->Write({DataFile_, CurrentFilePosition_, {std::move(data)}}))
+            TSharedRef appendRef(AppendOutput_.Begin(), AppendOutput_.Size(), MakeStrong(this));
+            WaitFor(IOEngine_->Write({DataFile_, CurrentFilePosition_, {std::move(appendRef)}}))
                 .ThrowOnError();
 
             // Process written records (update index etc).
             IndexFile_.Append(firstRecordId, CurrentFilePosition_, AppendSizes_);
-            RecordCount_ += records.size();
-            bytesWritten = data.Size();
 
-            for (int index = 0; index < std::ssize(records); ++index) {
-                CurrentFilePosition_ += AppendSizes_[index];
-            }
+            RecordCount_ += std::ssize(records);
+            CurrentFilePosition_ = newFilePosition;
+
+            YT_LOG_DEBUG("Finished appending to changelog (BytesWritten: %v)", appendSize);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error appending to changelog");
             Error_ = ex;
             throw;
         }
-
-        YT_LOG_DEBUG("Finished appending to changelog (BytesWritten: %v)", bytesWritten);
     }
 
     template <class TRecordHeader>
@@ -1072,11 +1071,6 @@ std::vector<TSharedRef> TSyncFileChangelog::Read(
 void TSyncFileChangelog::Truncate(int recordCount)
 {
     Impl_->Truncate(recordCount);
-}
-
-void TSyncFileChangelog::Preallocate(size_t size)
-{
-    return Impl_->Preallocate(size);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

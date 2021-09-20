@@ -321,7 +321,6 @@ public:
         , QueueCountGauge_(Profiler.Gauge("/queue_count"))
         , ChangelogTruncateIOTimer_(Profiler.Timer("/changelog_truncate_io_time"))
         , ChangelogCloseIOTimer_(Profiler.Timer("/changelog_close_io_time"))
-        , ChangelogPreallocateIOTimer_(Profiler.Timer("/changelog_preallocate_io_time"))
         , ChangelogReadRecordCountGauge_(Profiler.Gauge("/changelog_read_record_count"))
         , ChangelogReadSizeGauge_(Profiler.Gauge("/changelog_read_size"))
     {
@@ -428,13 +427,6 @@ public:
             .Run(queue);
     }
 
-    TFuture<void> PreallocateQueue(const TFileChangelogQueuePtr& queue, size_t size)
-    {
-        return BIND(&TFileChangelogDispatcher::DoPreallocateQueue, MakeStrong(this))
-            .AsyncVia(queue->GetInvoker())
-            .Run(queue, size);
-    }
-
 private:
     const NIO::IIOEnginePtr IOEngine_;
     const TFileChangelogDispatcherConfigPtr Config_;
@@ -452,7 +444,6 @@ private:
     TGauge QueueCountGauge_;
     TEventTimer ChangelogTruncateIOTimer_;
     TEventTimer ChangelogCloseIOTimer_;
-    TEventTimer ChangelogPreallocateIOTimer_;
     TGauge ChangelogReadRecordCountGauge_;
     TGauge ChangelogReadSizeGauge_;
 
@@ -520,17 +511,6 @@ private:
         const auto& changelog = queue->GetChangelog();
         changelog->Close();
     }
-
-    void DoPreallocateQueue(
-        const TFileChangelogQueuePtr& queue,
-        size_t size)
-    {
-        YT_VERIFY(!queue->HasUnflushedRecords());
-        TEventTimerGuard guard(ChangelogPreallocateIOTimer_);
-        const auto& changelog = queue->GetChangelog();
-        changelog->Preallocate(size);
-    }
-
 
     IChangelogPtr DoCreateChangelog(
         const TString& path,
@@ -645,11 +625,6 @@ public:
         // NB: See #Truncate above.
         Dispatcher_->ForceFlushQueue(Queue_);
         return Dispatcher_->CloseQueue(Queue_);
-    }
-
-    TFuture<void> Preallocate(size_t size) override
-    {
-        return Dispatcher_->PreallocateQueue(Queue_, size);
     }
 
 private:

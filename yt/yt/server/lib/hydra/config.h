@@ -33,7 +33,8 @@ public:
     //! Should only be used in tests and local mode.
     bool EnableSync;
 
-    // TODO(savrus): implement this
+    //! If set, enables preallocating changelog data file to avoid excessive FS metadata
+    //! (in particular, file size) updates.
     std::optional<i64> PreallocateSize;
 
     TFileChangelogConfig()
@@ -49,6 +50,7 @@ public:
         RegisterParameter("enable_sync", EnableSync)
             .Default(true);
         RegisterParameter("preallocate_size", PreallocateSize)
+            .GreaterThan(0)
             .Default();
     }
 };

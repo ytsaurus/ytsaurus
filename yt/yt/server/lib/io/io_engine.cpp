@@ -350,8 +350,17 @@ protected:
     {
 #ifdef _linux_
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
-        if (HandleEintr(::fallocate, *request.Handle, FALLOC_FL_CONVERT_UNWRITTEN, 0, request.Size) != 0) {
-            YT_LOG_WARNING(TError::FromSystem(), "fallocate call failed");
+        int mode = EnableFallocateConvertUnwritten_.load() ? FALLOC_FL_CONVERT_UNWRITTEN : 0;
+        int result = HandleEintr(::fallocate, *request.Handle, mode, 0, request.Size) != 0;
+        if (result != 0) {
+            if ((result == EPERM || result == EINVAL) && mode == FALLOC_FL_CONVERT_UNWRITTEN) {
+                if (EnableFallocateConvertUnwritten_.exchange(false)) {
+                    YT_LOG_INFO(TError::FromSystem(), "fallocate call failed; disabling FALLOC_FL_CONVERT_UNWRITTEN mode");
+                }
+            } else {
+                THROW_ERROR_EXCEPTION(NFS::EErrorCode::IOError, "fallocate call failed")
+                    << TError::FromSystem();
+            }
         }
 #else
         Y_UNUSED(request);
@@ -419,6 +428,8 @@ private:
 
     NProfiling::TGauge SickGauge_;
     NProfiling::TGauge SickEventsGauge_;
+
+    std::atomic<bool> EnableFallocateConvertUnwritten_ = true;
 
 
     void SetSickFlag(const TError& error)
