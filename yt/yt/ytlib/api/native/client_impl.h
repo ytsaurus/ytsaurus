@@ -95,7 +95,7 @@ public:
     virtual TFuture<returnType> method signature override \
     { \
         return Execute( \
-            AsStringBuf(#method), \
+            TStringBuf(#method), \
             options, \
             BIND( \
                 &TClient::doMethod, \
