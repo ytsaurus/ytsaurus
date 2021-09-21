@@ -478,7 +478,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         YT_VERIFY(count >= 0);
 
-        QueueTotalCount_ += count;
+        SelfQueueSize_ += count;
 
         std::vector<TFuture<void>> asyncResults;
         for (const auto& throttler : Throttlers_) {
@@ -487,7 +487,7 @@ public:
 
         return AllSucceeded(asyncResults).Apply(BIND([weakThis = MakeWeak(this), count] (const TError& /* error */ ) {
             if (auto this_ = weakThis.Lock()) {
-                this_->QueueTotalCount_ -= count;
+                this_->SelfQueueSize_ -= count;
             }
         }));
     }
@@ -528,13 +528,18 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return QueueTotalCount_;
+        auto totalQueueSize = SelfQueueSize_.load();
+        for (const auto& throttler : Throttlers_) {
+            totalQueueSize += std::max<i64>(throttler->GetQueueTotalCount() - SelfQueueSize_.load(), 0);
+        }
+
+        return SelfQueueSize_;
     }
 
 private:
     const std::vector<IThroughputThrottlerPtr> Throttlers_;
 
-    std::atomic<i64> QueueTotalCount_ = {0};
+    std::atomic<i64> SelfQueueSize_ = {0};
 };
 
 IThroughputThrottlerPtr CreateCombinedThrottler(
