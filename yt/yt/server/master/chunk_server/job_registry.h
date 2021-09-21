@@ -89,15 +89,21 @@ private:
     const TCallback<void(NCellMaster::TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_ =
         BIND(&TJobRegistry::OnDynamicConfigChanged, MakeWeak(this));
 
+    bool IgnoreEdgeCapacities_ = false;
+
+    TDataCenterSet AllDataCenters_;
+
     int GetCappedSecondaryCellCount();
 
     void InitInterDCEdges();
-    void UpdateInterDCEdgeCapacities(bool force = false);
+    void UpdateInterDCEdgeCapacities();
     void InitUnsaturatedInterDCEdges();
     void UpdateInterDCEdgeConsumption(
         const TJobPtr& job,
         const NNodeTrackerServer::TDataCenter* srcDataCenter,
         int sizeMultiplier);
+
+    void UpdateAllDataCentersSet();
 
     const TDynamicChunkManagerConfigPtr& GetDynamicConfig();
     void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/ = nullptr);

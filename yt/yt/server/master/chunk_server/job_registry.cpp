@@ -45,6 +45,7 @@ TJobRegistry::TJobRegistry(
         ChunkServerProfilerRegistry.WithPrefix("/job_throttler")))
 {
     InitInterDCEdges();
+    UpdateAllDataCentersSet();
 }
 
 TJobRegistry::~TJobRegistry() = default;
@@ -189,8 +190,25 @@ void TJobRegistry::UpdateInterDCEdgeConsumption(
     }
 }
 
+void TJobRegistry::UpdateAllDataCentersSet()
+{
+    AllDataCenters_.clear();
+
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+    for (auto [dataCenterId, dataCenter] : nodeTracker->DataCenters()) {
+        if (IsObjectAlive(dataCenter)) {
+            YT_VERIFY(AllDataCenters_.insert(dataCenter).second);
+        }
+    }
+    AllDataCenters_.insert(nullptr);
+}
+
 bool TJobRegistry::HasUnsaturatedInterDCEdgeStartingFrom(const TDataCenter* srcDataCenter) const
 {
+    if (IgnoreEdgeCapacities_) {
+        return true;
+    }
+
     auto it = UnsaturatedInterDCEdges_.find(srcDataCenter);
     if (it == UnsaturatedInterDCEdges_.end()) {
         return false;
@@ -200,7 +218,8 @@ bool TJobRegistry::HasUnsaturatedInterDCEdgeStartingFrom(const TDataCenter* srcD
 
 void TJobRegistry::OnDataCenterCreated(const TDataCenter* dataCenter)
 {
-    UpdateInterDCEdgeCapacities(true);
+    UpdateInterDCEdgeCapacities();
+    UpdateAllDataCentersSet();
 
     const auto defaultCapacity = GetDynamicConfig()->InterDCLimits->GetDefaultCapacity() / GetCappedSecondaryCellCount();
 
@@ -224,6 +243,8 @@ void TJobRegistry::OnDataCenterCreated(const TDataCenter* dataCenter)
 
 void TJobRegistry::OnDataCenterDestroyed(const TDataCenter* dataCenter)
 {
+    UpdateAllDataCentersSet();
+
     InterDCEdgeCapacities_.erase(dataCenter);
     for (auto& [srcDataCenter, dstDataCenterCapacities] : InterDCEdgeCapacities_) {
         dstDataCenterCapacities.erase(dataCenter); // may be no-op
@@ -240,14 +261,8 @@ void TJobRegistry::OnDataCenterDestroyed(const TDataCenter* dataCenter)
     }
 }
 
-void TJobRegistry::UpdateInterDCEdgeCapacities(bool force)
+void TJobRegistry::UpdateInterDCEdgeCapacities()
 {
-    if (!force &&
-        GetCpuInstant() - InterDCEdgeCapacitiesLastUpdateTime_ <= GetDynamicConfig()->InterDCLimits->GetUpdateInterval())
-    {
-        return;
-    }
-
     InterDCEdgeCapacities_.clear();
 
     auto capacities = GetDynamicConfig()->InterDCLimits->GetCapacities();
@@ -291,6 +306,10 @@ void TJobRegistry::UpdateInterDCEdgeCapacities(bool force)
 
 const TJobRegistry::TDataCenterSet& TJobRegistry::GetUnsaturatedInterDCEdgesStartingFrom(const TDataCenter* dc)
 {
+    if (IgnoreEdgeCapacities_) {
+        return AllDataCenters_;
+    }
+
     return UnsaturatedInterDCEdges_[dc];
 }
 
@@ -369,6 +388,10 @@ const TDynamicChunkManagerConfigPtr& TJobRegistry::GetDynamicConfig()
 void TJobRegistry::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
     JobThrottler_->Reconfigure(GetDynamicConfig()->JobThrottler);
+
+    IgnoreEdgeCapacities_ = GetDynamicConfig()->InterDCLimits->IgnoreEdgeCapacities;
+
+    UpdateInterDCEdgeCapacities();
 }
 
 void TJobRegistry::OverrideResourceLimits(TNodeResources* resourceLimits, const TNode& node)

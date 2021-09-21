@@ -17,7 +17,9 @@ class TInterDCLimitsConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    explicit TInterDCLimitsConfig()
+    bool IgnoreEdgeCapacities;
+
+    TInterDCLimitsConfig()
     {
         RegisterParameter("default_capacity", DefaultCapacity_)
             .Default(std::numeric_limits<i64>::max())
@@ -26,7 +28,11 @@ public:
         RegisterParameter("capacities", Capacities_)
             .Default();
 
-        RegisterPostprocessor([&] () {
+        RegisterParameter("ignore_edge_capacities", IgnoreEdgeCapacities)
+            .Default(false)
+            .DontSerializeDefault();
+
+        RegisterPostprocessor([&] {
             for (const auto& [srcName, srcMap] : Capacities_) {
                 for (const auto& [dstName, capacity] : srcMap) {
                     if (capacity < 0) {
@@ -38,8 +44,6 @@ public:
                     }
                 }
             }
-
-            CpuUpdateInterval_ = NProfiling::DurationToCpuDuration(UpdateInterval_);
         });
     }
 
@@ -50,7 +54,7 @@ public:
             auto srcDataCenter = srcName.empty() ? std::nullopt : std::make_optional(srcName);
             auto& srcDataCenterCapacities = result[srcDataCenter];
             for (const auto& [dstName, capacity] : srcMap) {
-                auto dstDataCenter = srcName.empty() ? std::nullopt : std::make_optional(srcName);
+                auto dstDataCenter = dstName.empty() ? std::nullopt : std::make_optional(dstName);
                 srcDataCenterCapacities.emplace(dstDataCenter, capacity);
             }
         }
@@ -62,18 +66,11 @@ public:
         return DefaultCapacity_;
     }
 
-    NProfiling::TCpuDuration GetUpdateInterval() const
-    {
-        return CpuUpdateInterval_;
-    }
-
 private:
     // src DC -> dst DC -> data size.
     // NB: that null DC is encoded as an empty string here.
     THashMap<TString, THashMap<TString, i64>> Capacities_;
     i64 DefaultCapacity_;
-    TDuration UpdateInterval_;
-    NProfiling::TCpuDuration CpuUpdateInterval_ = {};
 };
 
 DEFINE_REFCOUNTED_TYPE(TInterDCLimitsConfig)
