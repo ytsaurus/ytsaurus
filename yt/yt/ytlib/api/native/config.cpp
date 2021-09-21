@@ -189,7 +189,8 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("hive_sync_rpc_timeout", HiveSyncRpcTimeout)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("name", Name)
+    RegisterParameter("connection_name", ConnectionName)
+        .Alias("name")
         .Default("default");
 
     RegisterParameter("permission_cache", PermissionCache)

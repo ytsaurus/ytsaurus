@@ -113,7 +113,7 @@ public:
         , LoggingTag_(Format("PrimaryCellTag: %v, ConnectionId: %v, ConnectionName: %v",
             CellTagFromId(Config_->PrimaryMaster->CellId),
             TGuid::Create(),
-            Config_->Name))
+            Config_->ConnectionName))
         , ClusterId_(MakeConnectionClusterId(Config_))
         , ChannelFactory_(CreateCachingChannelFactory(
             NRpc::NBus::CreateBusChannelFactory(Config_->BusClient),
@@ -121,7 +121,7 @@ public:
         , StickyGroupSizeCache_(Config_->EnableDynamicCacheStickyGroupSize ? New<TStickyGroupSizeCache>() : nullptr)
         , TabletSyncReplicaCache_(New<TTabletSyncReplicaCache>())
         , Logger(ApiLogger.WithRawTag(LoggingTag_))
-        , Profiler_(TProfiler("/connection").WithTag("connection_name", Config_->Name))
+        , Profiler_(TProfiler("/connection").WithTag("connection_name", Config_->ConnectionName))
     { }
 
     void Initialize()
