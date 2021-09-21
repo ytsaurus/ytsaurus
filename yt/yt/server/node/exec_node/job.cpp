@@ -1156,9 +1156,9 @@ void TJob::OnVolumePrepared(const TErrorOr<IVolumePtr>& volumeOrError)
                 << volumeOrError;
 
             // Corrupted user layers should not disable scheduler jobs.
-            if (!error.FindMatching(NDataNode::EErrorCode::LayerUnpackingFailed)) {
-                Bootstrap_->GetSlotManager()->Disable(error);
-            }
+            // if (!error.FindMatching(NDataNode::EErrorCode::LayerUnpackingFailed)) {
+            //     Bootstrap_->GetSlotManager()->Disable(error);
+            // }
 
             THROW_ERROR error;
         }
