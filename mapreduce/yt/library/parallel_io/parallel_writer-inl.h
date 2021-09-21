@@ -53,6 +53,11 @@ public:
             Path_.Append(true);
         }
 
+        auto sortedBy = Transaction_->Get(Path_.Path_ + "/@sorted");
+        if (sortedBy.AsBool()) {
+            throw TApiUsageError() << "ParallelUnorderedTableWriter cannot be used to write to sorted table " << Path_.Path_;
+        }
+
         Args_.resize(options.ThreadCount_);
         for (size_t i = 0; i < Args_.size(); ++i) {
             Args_[i] = {this, Transaction_->CreateTableWriter<T>(Path_, Options_)};
