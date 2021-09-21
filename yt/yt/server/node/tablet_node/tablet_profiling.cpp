@@ -97,6 +97,7 @@ TSelectReadCounters::TSelectReadCounters(const TProfiler& profiler)
 TWriteCounters::TWriteCounters(const TProfiler& profiler)
     : RowCount(profiler.Counter("/write/row_count"))
     , DataWeight(profiler.Counter("/write/data_weight"))
+    , ValidateResourceWallTime(profiler.Timer("/write/validate_resource_wall_time"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -80,6 +80,23 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
             and tablet_profiling.get_counter("select/cpu_time") > 0
         )
 
+    @authors("alexelexa")
+    def test_validate_resource_time_wall_time_sensor(self):
+        sync_create_cells(1)
+
+        table_path = "//tmp/{}".format(generate_uuid())
+        self._create_simple_table(table_path, dynamic_store_auto_flush_period=None)
+        sync_mount_table(table_path)
+
+        tablet_profiling = self._get_table_profiling(table_path)
+        assert tablet_profiling.get_counter("write/row_count") == 0
+        assert tablet_profiling.get_counter("write/validate_resource_wall_time") == 0
+
+        insert_rows(table_path, [{"key": 1, "value": "some_str"}])
+
+        wait(lambda: tablet_profiling.get_counter("write/row_count") == 1)
+        assert tablet_profiling.get_all_time_max("write/validate_resource_wall_time") > 0
+
     @authors("gridem")
     def test_sorted_default_enabled_tablet_node_profiling(self):
         sync_create_cells(1)
