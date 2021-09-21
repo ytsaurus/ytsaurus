@@ -82,7 +82,7 @@ protected:
         if (RemoteClusterProxy_) {
             // Form a default controller agent config.
             auto defaultConfig = New<NControllerAgent::TControllerAgentBootstrapConfig>();
-            defaultConfig->Logging = NLogging::TLogManagerConfig::CreateYtServer(
+            defaultConfig->Logging = NLogging::TLogManagerConfig::CreateYTServer(
                 /*componentName*/ "controller_agent",
                 /*directory*/ ".",
                 /*structuredCategoryToWriterName*/ {

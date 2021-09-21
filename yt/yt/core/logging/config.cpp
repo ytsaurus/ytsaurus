@@ -2,10 +2,29 @@
 #include "private.h"
 
 #include <util/string/vector.h>
+#include <util/system/env.h>
 
 #include <library/cpp/iterator/functools.h>
 
 namespace NYT::NLogging {
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+std::optional<ELogLevel> GetLogLevelFromEnv()
+{
+    auto logLevelStr = GetEnv("YT_LOG_LEVEL");
+    if (logLevelStr.empty()) {
+        return {};
+    }
+
+    // This handles most typical casings like "DEBUG", "debug", "Debug".
+    logLevelStr.to_title();
+    return TEnumTraits<ELogLevel>::FromString(logLevelStr);
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -237,25 +256,31 @@ TLogManagerConfigPtr TLogManagerConfig::CreateSilent()
     return config;
 }
 
-TLogManagerConfigPtr TLogManagerConfig::CreateYtServer(const TString& componentName, const TString& directory, const THashMap<TString, TString>& structuredCategoryToWriterName)
+TLogManagerConfigPtr TLogManagerConfig::CreateYTServer(
+    const TString& componentName,
+    const TString& directory,
+    const THashMap<TString, TString>& structuredCategoryToWriterName)
 {
     auto config = New<TLogManagerConfig>();
 
-    std::vector<ELogLevel> levels = {ELogLevel::Debug, ELogLevel::Info, ELogLevel::Error};
-    if (getenv("YT_ENABLE_TRACE_LOGGING")) {
-        levels.push_back(ELogLevel::Trace);
-    }
+    auto logLevel = GetLogLevelFromEnv().value_or(ELogLevel::Debug);
 
-    for (const auto& logLevel : levels) {
-        auto rule = New<TRuleConfig>();
-        rule->MinLevel = logLevel;
+    static const std::vector logLevels{
+        ELogLevel::Trace,
+        ELogLevel::Debug,
+        ELogLevel::Info,
+        ELogLevel::Error
+    };
 
-        // Due to historic reasons, error logs usually contain warning messages.
-        if (logLevel == ELogLevel::Error) {
-            rule->MinLevel = ELogLevel::Warning;
+    for (auto currentLogLevel : logLevels) {
+        if (currentLogLevel < logLevel) {
+            continue;
         }
 
-        rule->Writers.push_back(ToString(logLevel));
+        auto rule = New<TRuleConfig>();
+        // Due to historic reasons, error logs usually contain warning messages.
+        rule->MinLevel = currentLogLevel == ELogLevel::Error ? ELogLevel::Warning : currentLogLevel;
+        rule->Writers.push_back(ToString(currentLogLevel));
 
         auto fileWriterConfig = New<TWriterConfig>();
         fileWriterConfig->Type = EWriterType::File;
@@ -263,10 +288,10 @@ TLogManagerConfigPtr TLogManagerConfig::CreateYtServer(const TString& componentN
             "%v/%v%v.log",
             directory,
             componentName,
-            logLevel == ELogLevel::Info ? "" : "." + FormatEnum(logLevel));
+            currentLogLevel == ELogLevel::Info ? "" : "." + FormatEnum(currentLogLevel));
 
         config->Rules.push_back(rule);
-        config->Writers.emplace(ToString(logLevel), fileWriterConfig);
+        config->Writers.emplace(ToString(currentLogLevel), fileWriterConfig);
     }
 
     for (const auto& [category, writerName] : structuredCategoryToWriterName) {
@@ -311,28 +336,19 @@ TLogManagerConfigPtr TLogManagerConfig::CreateFromNode(NYTree::INodePtr node, co
 
 TLogManagerConfigPtr TLogManagerConfig::TryCreateFromEnv()
 {
-    const auto* logLevelStr = getenv("YT_LOG_LEVEL");
-    if (!logLevelStr) {
+    auto logLevel = GetLogLevelFromEnv();
+    if (!logLevel) {
         return nullptr;
     }
 
-    const char* logExcludeCategoriesStr = getenv("YT_LOG_EXCLUDE_CATEGORIES");
-    const char* logIncludeCategoriesStr = getenv("YT_LOG_INCLUDE_CATEGORIES");
+    auto logExcludeCategoriesStr = GetEnv("YT_LOG_EXCLUDE_CATEGORIES");
+    auto logIncludeCategoriesStr = GetEnv("YT_LOG_INCLUDE_CATEGORIES");
 
-    const char* const stderrWriterName = "stderr";
+    const static TString stderrWriterName = "stderr";
 
     auto rule = New<TRuleConfig>();
     rule->Writers.push_back(stderrWriterName);
-    rule->MinLevel = ELogLevel::Fatal;
-
-    if (logLevelStr) {
-        TString logLevel = logLevelStr;
-        if (!logLevel.empty()) {
-            // This handles most typical casings like "DEBUG", "debug", "Debug".
-            logLevel.to_title();
-            rule->MinLevel = TEnumTraits<ELogLevel>::FromString(logLevel);
-        }
-    }
+    rule->MinLevel = *logLevel;
 
     std::vector<TString> logExcludeCategories;
     if (logExcludeCategoriesStr) {

@@ -96,7 +96,7 @@ public:
     //! Create logging config a-la YT server config: #directory/#componentName{,.debug,.error}.log.
     //! Also allows adding structured logs. For example, pair ("RpcProxyStructuredMain", "main") would
     //! make structured messages with RpcProxyStructuredMain category go to #directory/#componentName.yson.main.log.
-    static TLogManagerConfigPtr CreateYtServer(
+    static TLogManagerConfigPtr CreateYTServer(
         const TString& componentName,
         const TString& directory = ".",
         const THashMap<TString, TString>& structuredCategoryToWriterName = {});
