@@ -146,6 +146,9 @@ private:
         TDeferredChunkMetaPtr Meta;
         TChunkId ChunkId;
         i64 CompressedDataSize;
+        i64 UncompressedDataSize;
+        i64 DataWeight;
+        i64 RowCount;
         int BlockCount;
         bool IsErasureChunk;
     };
@@ -245,9 +248,19 @@ private:
             auto chunkId = reader->GetChunkId();
             auto blockCount = blocksExt.blocks_size();
             bool isErasureChunk = erasureCodec != NErasure::ECodec::None;
-            i64 compressedDataSize = GetProtoExtension<TMiscExt>(chunkMeta->extensions()).compressed_data_size();
+            auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
 
-            return {std::move(reader), std::move(chunkMeta), chunkId, compressedDataSize, blockCount, isErasureChunk};
+            return TInputChunkState{
+                std::move(reader),
+                std::move(chunkMeta),
+                chunkId,
+                miscExt.compressed_data_size(),
+                miscExt.uncompressed_data_size(),
+                miscExt.data_weight(),
+                miscExt.row_count(),
+                blockCount,
+                isErasureChunk
+            };
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to build chunk state")
                 << ex
@@ -358,6 +371,18 @@ private:
         }
 
         InputDataStatistics_.set_chunk_count(InputDataStatistics_.chunk_count() + 1);
+
+        // NB. CompressedDataSize is updated in DoWriteBlocks, so don't update it here.
+
+        InputDataStatistics_.set_uncompressed_data_size(
+            InputDataStatistics_.uncompressed_data_size() + chunkState.UncompressedDataSize);
+        InputDataStatistics_.set_row_count(InputDataStatistics_.row_count() + chunkState.RowCount);
+        InputDataStatistics_.set_data_weight(InputDataStatistics_.data_weight() + chunkState.DataWeight);
+
+        OutputDataStatistics_.set_uncompressed_data_size(
+            OutputDataStatistics_.uncompressed_data_size() + chunkState.UncompressedDataSize);
+        OutputDataStatistics_.set_row_count(OutputDataStatistics_.row_count() + chunkState.RowCount);
+        OutputDataStatistics_.set_data_weight(OutputDataStatistics_.data_weight() + chunkState.DataWeight);
     }
 
     void AbsorbMetas()
