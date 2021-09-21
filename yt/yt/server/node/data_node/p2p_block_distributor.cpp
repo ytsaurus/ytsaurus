@@ -225,6 +225,8 @@ void TP2PBlockDistributor::DistributeBlocks()
     }), nodes.end());
     THashMap<TNodeId, TNodeDescriptor> nodeSet{nodes.begin(), nodes.end()};
 
+    const auto& distributionThrottler = Bootstrap_->GetThrottler(EDataNodeThrottlerKind::P2POut);
+
     for (size_t index = 0; index < blocks.size(); ++index) {
         const auto& block = blocks[index];
         const auto& blockId = blockIds[index];
@@ -246,6 +248,7 @@ void TP2PBlockDistributor::DistributeBlocks()
                  FormatValue(builder, *pair.second, TStringBuf());
              }));
 
+        bool firstNode = false;
         for (const auto& destinationNode : destinationNodes) {
             const auto& [nodeId, nodeDescriptor] = destinationNode;
             const auto& destinationAddress = nodeDescriptor->GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
@@ -257,6 +260,12 @@ void TP2PBlockDistributor::DistributeBlocks()
             req->SetMultiplexingBand(EMultiplexingBand::Heavy);
             req->MergeFrom(reqTemplate);
             SetRpcAttachedBlocks(req, {block});
+
+            if (!firstNode) {
+                distributionThrottler->Acquire(block.Size());
+            }
+            firstNode = true;           
+
             req->Invoke().Subscribe(BIND(
                 &TP2PBlockDistributor::OnBlockDistributed,
                 MakeWeak(this),
