@@ -92,6 +92,7 @@ struct TWriteCounters
 
     NProfiling::TCounter RowCount;
     NProfiling::TCounter DataWeight;
+    NProfiling::TEventTimer ValidateResourceWallTime;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -100,24 +100,17 @@ class Profiler(object):
             tags = {}
         tags = dict(self.fixed_tags, **tags)
 
-        if "export_summary_as_max" in kwargs:
-            export_summary_as_max = kwargs["export_summary_as_max"]
-            del kwargs["export_summary_as_max"]
-        else:
-            export_summary_as_max = True
-
-        if "read_all_projections" in kwargs:
-            read_all_projections = kwargs["read_all_projections"]
-            del kwargs["read_all_projections"]
-        else:
-            read_all_projections = False
+        export_summary_as_max = kwargs.pop("export_summary_as_max", True)
+        read_all_projections = kwargs.pop("read_all_projections", False)
+        summary_as_max_for_all_time = kwargs.pop("summary_as_max_for_all_time", False)
 
         client = create_client_with_command_params(
             self.yt_client,
             tags=tags,
             name="{}/{}".format(self.namespace, name),
             export_summary_as_max=export_summary_as_max,
-            read_all_projections=read_all_projections
+            read_all_projections=read_all_projections,
+            summary_as_max_for_all_time=summary_as_max_for_all_time,
         )
 
         try:

@@ -165,6 +165,16 @@ class DynamicTablesBase(YTEnvSetup):
                     verbose=False,
                     default=0)
 
+            def get_all_time_max(self, counter_name, tags={}):
+                return self.profiler.get(
+                    counter_name,
+                    dict(self.tags, **tags),
+                    postprocessor=lambda data: data.get('all_time_max'),
+                    summary_as_max_for_all_time=True,
+                    export_summary_as_max=True,
+                    verbose=False,
+                    default=0)
+
             def has_projections_with_tags(self, counter_name, required_tags):
                 return len(self.profiler.get_all(counter_name, required_tags, verbose=False)) > 0
 

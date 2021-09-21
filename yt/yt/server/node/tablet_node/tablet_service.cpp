@@ -148,16 +148,23 @@ private:
 
         const auto& resourceLimitsManager = Bootstrap_->GetResourceLimitsManager();
         const auto& tabletCellBundleName = Slot_->GetTabletCellBundleName();
-        resourceLimitsManager->ValidateResourceLimits(
-            tabletSnapshot->Settings.StoreWriterOptions->Account,
-            tabletSnapshot->Settings.StoreWriterOptions->MediumName,
-            tabletCellBundleName,
-            tabletSnapshot->Settings.MountConfig->InMemoryMode);
-        resourceLimitsManager->ValidateResourceLimits(
-            tabletSnapshot->Settings.HunkWriterOptions->Account,
-            tabletSnapshot->Settings.HunkWriterOptions->MediumName,
-            tabletCellBundleName,
-            EInMemoryMode::None);
+
+        {
+            auto* counters = tabletSnapshot->TableProfiler->GetWriteCounters(GetCurrentProfilingUser());
+            NProfiling::TEventTimerGuard timerGuard(counters->ValidateResourceWallTime);
+
+            resourceLimitsManager->ValidateResourceLimits(
+                tabletSnapshot->Settings.StoreWriterOptions->Account,
+                tabletSnapshot->Settings.StoreWriterOptions->MediumName,
+                tabletCellBundleName,
+                tabletSnapshot->Settings.MountConfig->InMemoryMode);
+
+            resourceLimitsManager->ValidateResourceLimits(
+                tabletSnapshot->Settings.HunkWriterOptions->Account,
+                tabletSnapshot->Settings.HunkWriterOptions->MediumName,
+                tabletCellBundleName,
+                EInMemoryMode::None);
+        }
 
         auto slotOptions = Slot_->GetOptions();
         resourceLimitsManager->ValidateResourceLimits(

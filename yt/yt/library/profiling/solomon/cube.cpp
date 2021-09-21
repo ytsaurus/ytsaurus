@@ -499,7 +499,13 @@ int TCube<T>::ReadSensorValues(
             fluent.Value(value);
             ++valuesRead;
         } else if constexpr (std::is_same_v<T, TSummarySnapshot<double>>) {
-            if (options.ExportSummaryAsMax) {
+            if (options.ExportSummaryAsMax && options.SummaryAsMaxForAllTime) {
+                fluent
+                    .BeginMap()
+                        .Item("max").Value(value.Max())
+                        .Item("all_time_max").Value(Rollup(projection, index).Max())
+                    .EndMap();
+            } else if (options.ExportSummaryAsMax) {
                 fluent.Value(value.Max());
             } else {
                 fluent
@@ -513,7 +519,13 @@ int TCube<T>::ReadSensorValues(
             }
             ++valuesRead;
         } else if constexpr (std::is_same_v<T, TSummarySnapshot<TDuration>>) {
-            if (options.ExportSummaryAsMax) {
+            if (options.ExportSummaryAsMax && options.SummaryAsMaxForAllTime) {
+                fluent
+                    .BeginMap()
+                        .Item("max").Value(value.Max().SecondsFloat())
+                        .Item("all_time_max").Value(Rollup(projection, index).Max().SecondsFloat())
+                    .EndMap();
+            } else if (options.ExportSummaryAsMax) {
                 fluent.Value(value.Max().SecondsFloat());
             } else {
                 fluent

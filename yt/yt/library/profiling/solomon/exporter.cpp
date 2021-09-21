@@ -900,6 +900,7 @@ void TSolomonExporter::TSensorService::GetSelf(TReqGet* request, TRspGet* respon
     auto tagMap = options->Find<TTagMap>("tags").value_or(TTagMap{});
     auto readAllProjections = options->Find<bool>("read_all_projections").value_or(false);
     auto exportSummaryAsMax = options->Find<bool>("export_summary_as_max").value_or(true);
+    auto summaryAsMaxForAllTime = options->Find<bool>("summary_as_max_for_all_time").value_or(false);
     YT_LOG_DEBUG("Received sensor value request (RequestId: %v, Name: %v, Tags: %v, ReadAllProjections: %v, ExportSummaryAsMax: %v)",
         context->GetRequestId(),
         name,
@@ -919,6 +920,7 @@ void TSolomonExporter::TSensorService::GetSelf(TReqGet* request, TRspGet* respon
     TTagList tags(tagMap.begin(), tagMap.end());
     TReadOptions readOptions{
         .ExportSummaryAsMax = exportSummaryAsMax,
+        .SummaryAsMaxForAllTime = summaryAsMaxForAllTime,
         .ReadAllProjections = readAllProjections};
     response->set_value(BuildYsonStringFluently()
         .Do([&] (TFluentAny fluent) {
