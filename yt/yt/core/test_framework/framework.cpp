@@ -122,7 +122,7 @@ Y_TEST_HOOK_BEFORE_RUN(GTEST_YT_SETUP)
     NYT::NYTAlloc::EnableStockpile();
     NYT::NYTAlloc::ConfigureFromEnv();
 
-    auto config = NYT::NLogging::TLogManagerConfig::CreateYtServer("unittester", GetOutputPath().GetPath());
+    auto config = NYT::NLogging::TLogManagerConfig::CreateYTServer("unittester", GetOutputPath().GetPath());
     NYT::NLogging::TLogManager::Get()->Configure(config);
     NYT::NLogging::TLogManager::Get()->EnableReopenOnSighup();
 

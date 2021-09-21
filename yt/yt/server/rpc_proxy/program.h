@@ -79,7 +79,7 @@ protected:
             auto defaultConfig = New<NRpcProxy::TProxyConfig>();
             defaultConfig->SetDefaults();
             defaultConfig->RpcPort = 9013;
-            defaultConfig->Logging = NLogging::TLogManagerConfig::CreateYtServer(
+            defaultConfig->Logging = NLogging::TLogManagerConfig::CreateYTServer(
                 /*componentName*/ "rpc_proxy",
                 /*directory*/ ".",
                 /*structuredCategoryToWriterName*/ {{"RpcProxyStructuredMain", "main"}, {"RpcProxyStructuredError", "error"}});
