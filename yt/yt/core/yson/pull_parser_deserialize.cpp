@@ -35,7 +35,7 @@ void DeserializeInteger(T& value, TYsonPullParserCursor* cursor, TStringBuf type
 #define DESERIALIZE(type) \
     void Deserialize(type& value, TYsonPullParserCursor* cursor) \
     { \
-        DeserializeInteger(value, cursor, AsStringBuf(#type)); \
+        DeserializeInteger(value, cursor, TStringBuf(#type)); \
     }
 
 DESERIALIZE(signed char)
