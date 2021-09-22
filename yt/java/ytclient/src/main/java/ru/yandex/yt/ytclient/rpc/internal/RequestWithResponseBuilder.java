@@ -109,6 +109,7 @@ public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder,
                 if (!result.isDone()) {
                     if (attachments.size() < 1 || attachments.get(0) == null) {
                         onError(new IllegalStateException("Received response without a body"));
+                        return;
                     }
                     result.complete(
                             new LazyResponse<>(
