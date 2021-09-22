@@ -16,6 +16,8 @@
 
 #include <yt/yt/core/profiling/config.h>
 
+#include <yt/yt/core/tracing/config.h>
+
 #include <yt/yt/core/service_discovery/yp/config.h>
 
 #include <yt/yt/ytlib/chunk_client/config.h>
@@ -25,6 +27,19 @@
 #include <yt/yt/library/tracing/jaeger/tracer.h>
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRpcConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    NTracing::TTracingConfigPtr Tracing;
+
+    TRpcConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TRpcConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,6 +59,7 @@ public:
     NProfiling::TSolomonExporterConfigPtr SolomonExporter;
     NLogging::TLogManagerConfigPtr Logging;
     NTracing::TJaegerTracerConfigPtr Jaeger;
+    TRpcConfigPtr Rpc;
 
     TSingletonsConfig();
 };
@@ -64,6 +80,7 @@ public:
     NProfiling::TProfileManagerDynamicConfigPtr ProfileManager;
     NLogging::TLogManagerDynamicConfigPtr Logging;
     NTracing::TJaegerTracerDynamicConfigPtr Jaeger;
+    TRpcConfigPtr Rpc;
 
     TSingletonsDynamicConfig();
 };

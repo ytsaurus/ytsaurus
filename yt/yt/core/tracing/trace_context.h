@@ -40,6 +40,11 @@ ITracerPtr GetGlobalTracer();
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void SetTracingConfig(TTracingConfigPtr config);
+TTracingConfigPtr GetTracingConfig();
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(ETraceContextState,
     (Disabled) // Used to propagate TraceId, RequestId and LoggingTag.
     (Recorded) // May be sampled later.

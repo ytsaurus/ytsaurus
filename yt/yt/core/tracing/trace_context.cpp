@@ -1,8 +1,10 @@
 #include "trace_context.h"
 #include "private.h"
+#include "config.h"
 
 #include <yt/yt/core/profiling/timing.h>
 
+#include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/shutdown.h>
 #include <yt/yt/core/misc/singleton.h>
@@ -70,6 +72,28 @@ void ShutdownTracer()
 }
 
 REGISTER_SHUTDOWN_CALLBACK(8, ShutdownTracer)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTracingConfigSingleton
+{
+    TAtomicObject<TTracingConfigPtr> Config = New<TTracingConfig>();
+};
+
+static TTracingConfigSingleton* GlobalTracingConfig()
+{
+    return LeakySingleton<TTracingConfigSingleton>();
+}
+
+void SetTracingConfig(TTracingConfigPtr config)
+{
+    GlobalTracingConfig()->Config.Store(std::move(config));
+}
+
+TTracingConfigPtr GetTracingConfig()
+{
+    return GlobalTracingConfig()->Config.Load();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -379,8 +403,10 @@ void ToProto(NProto::TTracingExt* ext, const TTraceContextPtr& context)
     ext->set_sampled(context->IsSampled());
     ext->set_debug(context->IsDebug());
 
-    if (auto baggage = context->GetBaggage()) {
-        ext->set_baggage(baggage.ToString());
+    if (GetTracingConfig()->SendBaggage) {
+        if (auto baggage = context->GetBaggage()) {
+            ext->set_baggage(baggage.ToString());
+        }
     }
 }
 

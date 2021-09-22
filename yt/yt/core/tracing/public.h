@@ -15,6 +15,8 @@ class TTracingExt;
 
 DECLARE_REFCOUNTED_CLASS(TTraceContext)
 
+DECLARE_REFCOUNTED_CLASS(TTracingConfig)
+
 using TTraceId = TGuid;
 constexpr TTraceId InvalidTraceId = {};
 
