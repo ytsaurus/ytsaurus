@@ -24,6 +24,7 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
+#include <yt/yt/core/tracing/config.h>
 #include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/core/misc/finally.h>
@@ -38,6 +39,10 @@
 
 namespace NYT::NConcurrency {
 namespace {
+
+using namespace NYson;
+using namespace NYTree;
+using namespace NTracing;
 
 using ::testing::ContainsRegex;
 
@@ -976,10 +981,6 @@ TEST_W(TSchedulerTest, TraceContextTimingPropagationViaBind)
 
 TEST_W(TSchedulerTest, TraceBaggagePropagation)
 {
-    using namespace NYson;
-    using namespace NYTree;
-    using namespace NTracing;
-
     auto traceContext = TTraceContext::NewRoot("Test");
     auto baggage = CreateEphemeralAttributes();
     baggage->Set("myKey", "myValue");
@@ -994,6 +995,43 @@ TEST_W(TSchedulerTest, TraceBaggagePropagation)
     childContext->PackBaggage(std::move(childBaggage));
 
     EXPECT_EQ(expected, result);
+}
+
+TEST_W(TSchedulerTest, TraceDisableSendBaggage)
+{
+    auto parentContext = TTraceContext::NewRoot("Test");
+    auto parentBaggage = CreateEphemeralAttributes();
+    parentBaggage->Set("myKey", "myValue");
+    parentBaggage->Set("myKey2", "myValue2");
+    parentContext->PackBaggage(parentBaggage);
+    auto parentBaggageString = ConvertToYsonString(parentBaggage);
+
+    TTracingConfigPtr originalConfig = GetTracingConfig();
+    auto guard = Finally([&] {
+        SetTracingConfig(originalConfig);
+    });
+
+    {
+        auto config = New<TTracingConfig>();
+        config->SendBaggage = true;
+        SetTracingConfig(std::move(config));
+        NTracing::NProto::TTracingExt tracingExt;
+        ToProto(&tracingExt, parentContext);
+        auto traceContext = TTraceContext::NewChildFromRpc(tracingExt, "Span");
+        auto baggage = traceContext->UnpackBaggage();
+        ASSERT_NE(baggage, nullptr);
+        EXPECT_EQ(ConvertToYsonString(baggage), parentBaggageString);
+    }
+
+    {
+        auto config = New<TTracingConfig>();
+        config->SendBaggage = false;
+        SetTracingConfig(std::move(config));
+        NTracing::NProto::TTracingExt tracingExt;
+        ToProto(&tracingExt, parentContext);
+        auto traceContext = TTraceContext::NewChildFromRpc(tracingExt, "Span");
+        EXPECT_EQ(traceContext->UnpackBaggage(), nullptr);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1167,7 +1205,7 @@ TEST_F(TSuspendableInvokerTest, SuspendResumeOnFinishedRace)
         auto error = future.Get();
         if (!error.IsOK()) {
             EXPECT_FALSE(flag);
-            YT_VERIFY(error.GetCode() == EErrorCode::Canceled);
+            YT_VERIFY(error.GetCode() == NYT::EErrorCode::Canceled);
         } else {
             EXPECT_TRUE(flag);
         }

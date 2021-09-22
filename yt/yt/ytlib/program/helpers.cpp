@@ -83,6 +83,10 @@ void ConfigureSingletons(const TSingletonsConfigPtr& config)
 
     NProfiling::TProfileManager::Get()->Configure(config->ProfileManager);
     NProfiling::TProfileManager::Get()->Start();
+
+    if (auto tracingConfig = config->Rpc->Tracing) {
+        NTracing::SetTracingConfig(tracingConfig);
+    }
 }
 
 void ReconfigureSingletons(const TSingletonsConfigPtr& config, const TSingletonsDynamicConfigPtr& dynamicConfig)
@@ -110,6 +114,12 @@ void ReconfigureSingletons(const TSingletonsConfigPtr& config, const TSingletons
     NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher->ApplyDynamic(dynamicConfig->ChunkClientDispatcher));
 
     NProfiling::TProfileManager::Get()->Reconfigure(config->ProfileManager, dynamicConfig->ProfileManager);
+
+    if (dynamicConfig->Rpc->Tracing) {
+        NTracing::SetTracingConfig(dynamicConfig->Rpc->Tracing);
+    } else if (config->Rpc->Tracing) {
+        NTracing::SetTracingConfig(config->Rpc->Tracing);
+    }
 }
 
 void StartDiagnosticDump(const TDiagnosticDumpConfigPtr& config)

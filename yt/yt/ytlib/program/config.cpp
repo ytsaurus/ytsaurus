@@ -6,6 +6,14 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRpcConfig::TRpcConfig()
+{
+    RegisterParameter("tracing", Tracing)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSingletonsConfig::TSingletonsConfig()
 {
     RegisterParameter("spinlock_hiccup_threshold", SpinlockHiccupThreshold)
@@ -31,6 +39,8 @@ TSingletonsConfig::TSingletonsConfig()
     RegisterParameter("logging", Logging)
         .Default(NLogging::TLogManagerConfig::CreateDefault());
     RegisterParameter("jaeger", Jaeger)
+        .DefaultNew();
+    RegisterParameter("rpc", Rpc)
         .DefaultNew();
 
     // COMPAT(prime@): backward compatible config for CHYT
@@ -61,6 +71,8 @@ TSingletonsDynamicConfig::TSingletonsDynamicConfig()
     RegisterParameter("logging", Logging)
         .DefaultNew();
     RegisterParameter("jaeger", Jaeger)
+        .DefaultNew();
+    RegisterParameter("rpc", Rpc)
         .DefaultNew();
 }
 
