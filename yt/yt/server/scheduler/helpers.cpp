@@ -69,12 +69,14 @@ void BuildMinimalOperationAttributes(TOperationPtr operation, TFluentMap fluent)
         .Item("suspended").Value(operation->GetSuspended());
 }
 
-void BuildFullOperationAttributes(TOperationPtr operation, TFluentMap fluent)
+void BuildFullOperationAttributes(TOperationPtr operation, bool includeOperationId, TFluentMap fluent)
 {
     const auto& initializationAttributes = operation->ControllerAttributes().InitializeAttributes;
     const auto& prepareAttributes = operation->ControllerAttributes().PrepareAttributes;
     fluent
-        .Item("operation_id").Value(operation->GetId())
+        .DoIf(includeOperationId, [&] (TFluentMap fluent) {
+            fluent.Item("operation_id").Value(operation->GetId());
+        })
         .Item("operation_type").Value(operation->GetType())
         .Item("start_time").Value(operation->GetStartTime())
         .Item("spec").Value(operation->GetSpecString())

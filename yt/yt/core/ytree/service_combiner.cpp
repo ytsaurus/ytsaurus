@@ -33,9 +33,11 @@ class TServiceCombiner::TImpl
 public:
     TImpl(
         std::vector<IYPathServicePtr> services,
-        std::optional<TDuration> keysUpdatePeriod)
+        std::optional<TDuration> keysUpdatePeriod,
+        bool updateKeysOnMissingKey)
         : Services_(std::move(services))
         , KeysUpdatePeriod_(keysUpdatePeriod)
+        , UpdateKeysOnMissingKey_(updateKeysOnMissingKey)
     {
         auto workerInvoker = TDispatcher::Get()->GetHeavyInvoker();
         auto keysUpdateCallback = BIND(&TImpl::UpdateKeys, MakeWeak(this));
@@ -74,6 +76,7 @@ private:
     const std::vector<IYPathServicePtr> Services_;
 
     std::optional<TDuration> KeysUpdatePeriod_;
+    bool UpdateKeysOnMissingKey_;
 
     NConcurrency::TPeriodicExecutorPtr UpdateKeysExecutor_;
 
@@ -101,7 +104,13 @@ private:
         tokenizer.Advance();
         tokenizer.Expect(NYPath::ETokenType::Literal);
         const auto& key = tokenizer.GetLiteralValue();
+
         auto iterator = keyMapping.find(key);
+        if (iterator == keyMapping.end() && UpdateKeysOnMissingKey_) {
+            UpdateKeys();
+            iterator = keyMapping.find(key);
+        }
+
         if (iterator == keyMapping.end()) {
             if (context->GetMethod() == "Exists") {
                 return TResolveResultHere{path};
@@ -314,8 +323,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServiceCombiner::TServiceCombiner(std::vector<IYPathServicePtr> services, std::optional<TDuration> keysUpdatePeriod)
-    : Impl_(New<TImpl>(std::move(services), keysUpdatePeriod))
+TServiceCombiner::TServiceCombiner(
+    std::vector<IYPathServicePtr> services,
+    std::optional<TDuration> keysUpdatePeriod,
+    bool updateKeysOnMissingKey)
+    : Impl_(New<TImpl>(std::move(services), keysUpdatePeriod, updateKeysOnMissingKey))
 { }
 
 TServiceCombiner::~TServiceCombiner()
