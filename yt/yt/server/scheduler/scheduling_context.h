@@ -40,7 +40,10 @@ struct TScheduleJobsStatistics
     TJobResources MaxConditionalResourceUsageDiscount;
 };
 
-void Serialize(const TScheduleJobsStatistics& event, NYson::IYsonConsumer* consumer);
+void Serialize(const TScheduleJobsStatistics& statistics, NYson::IYsonConsumer* consumer);
+
+TString FormatPreemptableInfoCompact(const TScheduleJobsStatistics& statistics);
+TString FormatScheduleJobAttemptsCompact(const TScheduleJobsStatistics& statistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

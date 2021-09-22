@@ -27,6 +27,15 @@ TString ToString(const TRunningJobStatistics& statistics)
     return ToStringViaBuilder(statistics);
 }
 
+TString FormatRunningJobStatisticsCompact(const TRunningJobStatistics& statistics)
+{
+    return Format("{TCT: %v, PCT: %v, TGT: %v, PGT: %v}",
+        statistics.TotalCpuTime,
+        statistics.PreemptableCpuTime,
+        statistics.TotalGpuTime,
+        statistics.PreemptableGpuTime);
+}
+
 void Serialize(const TRunningJobStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
     NYTree::BuildYsonFluently(consumer)

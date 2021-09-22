@@ -652,9 +652,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             "NodeId: %v, NodeAddress: %v, IsThrottling: %v, "
             "SchedulingSegment: %v, "
             "StartedJobs: {All: %v, ByPreemption: %v}, PreemptedJobs: %v, "
-            "PreemptableInfo: {UnconditionalJobCount: %v, UnconditionalDiscount: %v, "
-            "TotalConditionalJobCount: %v, MaxConditionalJobCountPerPool: %v, MaxConditionalDiscount: %v}, "
-            "ScheduleJobAttempts: {NP: %v, AP: %v, P: %v, C: %v, TO: %v}, "
+            "PreemptableInfo: %v, RunningJobStatistics: %v, ScheduleJobAttempts: %v, "
             "HasAggressivelyStarvingElements: %v",
             nodeId,
             descriptor.GetDefaultAddress(),
@@ -663,16 +661,9 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             schedulingContext->StartedJobs().size(),
             statistics.ScheduledDuringPreemption,
             schedulingContext->PreemptedJobs().size(),
-            statistics.UnconditionallyPreemptableJobCount,
-            FormatResources(statistics.UnconditionalResourceUsageDiscount),
-            statistics.TotalConditionallyPreemptableJobCount,
-            statistics.MaxConditionallyPreemptableJobCountInPool,
-            FormatResources(statistics.MaxConditionalResourceUsageDiscount),
-            statistics.NonPreemptiveScheduleJobAttempts,
-            statistics.AggressivelyPreemptiveScheduleJobAttempts,
-            statistics.PreemptiveScheduleJobAttempts,
-            statistics.ControllerScheduleJobCount,
-            statistics.ControllerScheduleJobTimedOutCount,
+            FormatPreemptableInfoCompact(statistics),
+            FormatRunningJobStatisticsCompact(node->GetRunningJobStatistics()),
+            FormatScheduleJobAttemptsCompact(statistics),
             statistics.HasAggressivelyStarvingElements);
     } else {
         ProcessScheduledAndPreemptedJobs(
