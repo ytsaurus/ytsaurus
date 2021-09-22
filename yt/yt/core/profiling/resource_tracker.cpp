@@ -174,7 +174,7 @@ int OpenPerfEvent(const int tid, const int eventType, const int eventConfig)
 
     const int fd = syscall(SYS_perf_event_open, &attr, tid, -1, -1, 0);
     if (fd == -1) {
-        YT_LOG_WARNING(
+        YT_LOG_DEBUG(
             TError::FromSystem(), 
             "Fail to open perf event descriptor (FD: %v, tid: %v, EventType: %v, EventConfig: %v", 
             fd, 
@@ -182,7 +182,7 @@ int OpenPerfEvent(const int tid, const int eventType, const int eventConfig)
             eventType, 
             eventConfig);
     } else {
-        YT_LOG_INFO(
+        YT_LOG_DEBUG(
             "Perf event descriptor opened (FD: %v, tid: %v, EventType: %v, EventConfig: %v", 
             fd, 
             tid, 
