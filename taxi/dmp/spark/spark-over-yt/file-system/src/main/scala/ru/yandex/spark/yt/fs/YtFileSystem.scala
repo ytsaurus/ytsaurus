@@ -42,10 +42,12 @@ class YtFileSystem extends YtFileSystemBase {
     if (!YtWrapper.exists(path)) {
       throw new FileNotFoundException(s"File $path is not found")
     } else {
-      val pathType = YtWrapper.pathType(path)
+      import ru.yandex.spark.yt.wrapper.cypress.YtAttributes._
+      val attributes = YtWrapper.attributes(path, attrNames = Set(`type`, compressedDataSize, modificationTime))
+      val pathType = YtWrapper.pathType(attributes)
       pathType match {
         case PathType.File => new FileStatus(
-          YtWrapper.fileSize(path), false, 1, 0, YtWrapper.modificationTimeTs(path), f
+          YtWrapper.fileSize(attributes), false, 1, 0, YtWrapper.modificationTimeTs(attributes), f
         )
         case PathType.Directory => new FileStatus(0, true, 1, 0, 0, f)
         case PathType.None => null
