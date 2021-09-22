@@ -108,7 +108,7 @@ public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder,
             public void onResponse(RpcClient sender, TResponseHeader header, List<byte[]> attachments) {
                 if (!result.isDone()) {
                     if (attachments.size() < 1 || attachments.get(0) == null) {
-                        throw new IllegalStateException("Received response without a body");
+                        onError(new IllegalStateException("Received response without a body"));
                     }
                     result.complete(
                             new LazyResponse<>(
