@@ -61,6 +61,7 @@ private:
     void ShutdownPoller(NConcurrency::IPollerPtr* poller);
 
     void DisableNetworking();
+    bool IsNetworkingDisabled();
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, PollerLock_);
     TTcpDispatcherConfigPtr Config_ = New<TTcpDispatcherConfig>();

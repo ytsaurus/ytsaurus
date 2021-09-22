@@ -63,6 +63,9 @@ public:
     //! Disables all networking. Safety measure for local runs and snapshot validation.
     void DisableNetworking();
 
+    //! Returns true if networking is disabled.
+    bool IsNetworkingDisabled();
+
 private:
     TTcpDispatcher();
 

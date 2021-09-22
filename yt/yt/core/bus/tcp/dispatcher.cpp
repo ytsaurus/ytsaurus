@@ -53,6 +53,11 @@ void TTcpDispatcher::DisableNetworking()
     Impl_->DisableNetworking();
 }
 
+bool TTcpDispatcher::IsNetworkingDisabled()
+{
+    return Impl_->IsNetworkingDisabled();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 REGISTER_SHUTDOWN_CALLBACK(6, TTcpDispatcher::StaticShutdown);
