@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -102,10 +103,11 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
             boolean pingAncestors,
             boolean sticky,
             Duration pingPeriod,
-            ScheduledExecutorService executor
+            ScheduledExecutorService executor,
+            Executor heavyExecutor
     ) {
         this(
-                new ApiServiceClient(Objects.requireNonNull(rpcClient), rpcOptions),
+                new ApiServiceClient(Objects.requireNonNull(rpcClient), rpcOptions, heavyExecutor),
                 id,
                 startTimestamp,
                 ping,

@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ForkJoinPool;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -74,7 +75,7 @@ public class DataCenterTest {
         assertThat(res.toString(), is("[test/3, test/1]"));
 
         RpcClient client = res.get(0);
-        ApiServiceClient service = new ApiServiceClient(client);
+        ApiServiceClient service = new ApiServiceClient(client, ForkJoinPool.commonPool());
         CompletableFuture<YTreeNode> response = service.listNode("//path/to/nonexistent/table");
 
         try {
@@ -121,7 +122,7 @@ public class DataCenterTest {
         assertThat(res.toString(), is("[test/3, test/1]"));
 
         RpcClient client = res.get(0);
-        ApiServiceClient service = new ApiServiceClient(client);
+        ApiServiceClient service = new ApiServiceClient(client, ForkJoinPool.commonPool());
         CompletableFuture<YTreeNode> response = service.listNode("//path/to/nonexistent/table");
         try {
             response.join();

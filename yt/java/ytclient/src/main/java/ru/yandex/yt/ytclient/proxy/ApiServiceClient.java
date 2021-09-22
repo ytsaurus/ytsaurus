@@ -107,14 +107,15 @@ import ru.yandex.yt.ytclient.wire.VersionedRowset;
 /**
  * Клиент для высокоуровневой работы с ApiService
  */
+@NonNullFields
 public class ApiServiceClient extends TransactionalClient {
     private static final Logger logger = LoggerFactory.getLogger(ApiServiceClient.class);
 
-    @Nonnull private final Executor heavyExecutor;
+    private final Executor heavyExecutor;
     @Nullable private final RpcClient rpcClient;
-    @Nonnull final RpcOptions rpcOptions;
+    final RpcOptions rpcOptions;
 
-    private ApiServiceClient(
+    public ApiServiceClient(
             @Nullable RpcClient client,
             @Nonnull RpcOptions options,
             @Nonnull Executor heavyExecutor
@@ -129,16 +130,27 @@ public class ApiServiceClient extends TransactionalClient {
         this.rpcOptions = options;
     }
 
-    public ApiServiceClient(@Nullable RpcClient client, RpcOptions options) {
+    public ApiServiceClient(
+            @Nullable RpcClient client,
+            @Nonnull RpcOptions options
+    ) {
         this(client, options, ForkJoinPool.commonPool());
     }
 
+    public ApiServiceClient(RpcOptions options, Executor heavyExecutor) {
+        this(null, options, heavyExecutor);
+    }
+
+    public ApiServiceClient(RpcClient client, Executor heavyExecutor) {
+        this(client, new RpcOptions(), heavyExecutor);
+    }
+
     public ApiServiceClient(RpcOptions options) {
-        this(null, options);
+        this(null, options, ForkJoinPool.commonPool());
     }
 
     public ApiServiceClient(RpcClient client) {
-        this(client, new RpcOptions());
+        this(client, new RpcOptions(), ForkJoinPool.commonPool());
     }
 
     /**
@@ -173,7 +185,8 @@ public class ApiServiceClient extends TransactionalClient {
                         startTransaction.getPingAncestors(),
                         startTransaction.getSticky(),
                         startTransaction.getPingPeriod().orElse(null),
-                        sender.executor());
+                        sender.executor(),
+                        heavyExecutor);
             }
 
             sender.ref();

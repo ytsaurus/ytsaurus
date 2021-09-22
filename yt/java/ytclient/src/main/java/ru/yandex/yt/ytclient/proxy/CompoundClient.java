@@ -4,6 +4,7 @@ import java.io.Closeable;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -30,8 +31,8 @@ import ru.yandex.yt.ytclient.rpc.RpcOptions;
 public abstract class CompoundClient extends ApiServiceClient implements Closeable {
     private final ScheduledExecutorService executorService;
 
-    public CompoundClient(ScheduledExecutorService executorService, RpcOptions options) {
-        super(options);
+    public CompoundClient(ScheduledExecutorService executorService, RpcOptions options, Executor heavyExecutor) {
+        super(options, heavyExecutor);
         this.executorService = executorService;
     }
 
