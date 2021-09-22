@@ -501,8 +501,9 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
             for master in master_list:
                 monitoring = get(
                     "{}/{}/orchid/monitoring/hydra".format(monitoring_prefix, master),
+                    default=None,
                     suppress_transaction_coordinator_sync=True)
-                if monitoring["state"] == "leading" and monitoring["read_only"]:
+                if monitoring is not None and monitoring["state"] == "leading" and monitoring["read_only"]:
                     return True
 
             return False

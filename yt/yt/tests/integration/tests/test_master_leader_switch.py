@@ -56,8 +56,12 @@ class TestMasterLeaderSwitch(YTEnvSetup):
 
     @authors("babenko")
     def test_switch(self):
+        def _try_get_master_grace_delay_status(rpc_address):
+            return get("//sys/primary_masters/{}/orchid/monitoring/hydra/grace_delay_status".format(rpc_address), None)
+
         def _get_master_grace_delay_status(rpc_address):
-            return get("//sys/primary_masters/{}/orchid/monitoring/hydra/grace_delay_status".format(rpc_address))
+            wait(lambda: _try_get_master_grace_delay_status(rpc_address) is not None)
+            return _try_get_master_grace_delay_status(rpc_address)
 
         old_leader_rpc_address = self._get_active_leader_address()
         new_leader_rpc_address = self._get_active_follower_address()
