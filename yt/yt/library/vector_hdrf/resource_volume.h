@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/core/misc/property.h>
+#include "property.h"
 
 #include <yt/yt/library/vector_hdrf/job_resources.h>
 

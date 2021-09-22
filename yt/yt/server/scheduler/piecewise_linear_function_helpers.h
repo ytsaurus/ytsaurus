@@ -1,8 +1,8 @@
 #pragma once
 
-#include "resource_vector.h"
-
 #include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/library/vector_hdrf/resource_vector.h>
 
 namespace NYT::NScheduler {
 

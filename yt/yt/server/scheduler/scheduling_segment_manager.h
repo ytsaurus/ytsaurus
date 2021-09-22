@@ -3,12 +3,12 @@
 #include "public.h"
 #include "node_shard.h"
 #include "persistent_scheduler_state.h"
-#include "resource_vector.h"
 #include "scheduler_strategy.h"
 
 #include <yt/yt/server/lib/scheduler/scheduling_segment_map.h>
 
 #include <yt/yt/library/profiling/producer.h>
+#include <yt/yt/library/vector_hdrf/resource_vector.h>
 
 namespace NYT::NScheduler {
 
