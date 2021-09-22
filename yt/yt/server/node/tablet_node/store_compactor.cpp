@@ -970,7 +970,7 @@ private:
         const auto& config = newNodeConfig->TabletNode->StoreCompactor;
         ThreadPool_->Configure(config->ThreadPoolSize.value_or(Config_->ThreadPoolSize));
         PartitioningSemaphore_->SetTotal(config->MaxConcurrentPartitionings.value_or(Config_->MaxConcurrentPartitionings));
-        CompactionSemaphore_->SetTotal(config->MaxConcurrentPartitionings.value_or(Config_->MaxConcurrentCompactions));
+        CompactionSemaphore_->SetTotal(config->MaxConcurrentCompactions.value_or(Config_->MaxConcurrentCompactions));
     }
 
     std::unique_ptr<TTask> MakeTask(
