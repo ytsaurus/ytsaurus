@@ -21,6 +21,7 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import java.nio.charset.StandardCharsets
 import java.time.{Duration => JDuration}
 import scala.annotation.tailrec
+import scala.collection.mutable
 import scala.concurrent.TimeoutException
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -105,15 +106,36 @@ trait YtDynTableUtils {
     exists(path) && tabletState(path) == TabletState.Mounted
   }
 
-  def createDynTableAndMount(path: String, schema: TableSchema, settings: Map[String, Any] = Map.empty, ignoreExisting: Boolean = true)(implicit yt: CompoundClient): Unit = {
-    if (isDynTablePrepared(path) && !ignoreExisting) {
+  def createDynTableAndMount(path: String,
+                             schema: TableSchema,
+                             settings: Map[String, Any] = Map.empty,
+                             ignoreExisting: Boolean = true)
+                            (implicit yt: CompoundClient): Unit = {
+    val tableExists = exists(path)
+    val tabletMounted = tableExists && tabletState(path) == TabletState.Mounted
+
+    if (tableExists && tabletMounted && !ignoreExisting) {
       throw new RuntimeException("Table already exists")
     }
-    if (!exists(path)) {
-      createDynTable(path, schema, settings)
-    }
-    if (tabletState(path) == TabletState.Unmounted) {
-      mountAndWait(path)
+
+    if (!tableExists) createDynTable(path, schema, settings)
+    if (!tabletMounted) mountAndWait(path)
+  }
+
+  private val cachedCreatedTables = mutable.Queue.empty[String]
+  private val cachedCreatedTablesMaxSize = 10
+
+  def createDynTableAndMountCached(path: String,
+                                   schema: TableSchema,
+                                   settings: Map[String, Any] = Map.empty,
+                                   ignoreExisting: Boolean = true)
+                                  (implicit yt: CompoundClient): Unit = {
+    if (!cachedCreatedTables.contains(path)) {
+      createDynTableAndMount(path, schema, settings, ignoreExisting)
+      cachedCreatedTables.enqueue(path)
+      if (cachedCreatedTables.size > cachedCreatedTablesMaxSize) {
+        cachedCreatedTables.dequeue()
+      }
     }
   }
 
@@ -190,7 +212,7 @@ trait YtDynTableUtils {
   }
 
   def tabletState(path: String)(implicit yt: CompoundClient): TabletState = {
-    TabletState.fromString(attribute(formatPath(path), "tablet_state").stringValue())
+    TabletState.fromString(attribute(formatPath(path), YtAttributes.tabletState).stringValue())
   }
 
   def remountTable(path: String)(implicit yt: CompoundClient): Unit = {

@@ -72,11 +72,23 @@ trait YtFileUtils {
     attribute(path, YtAttributes.modificationTime, transaction).stringValue()
   }
 
-  def modificationTimeTs(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Long = {
-    val str = modificationTime(path, transaction)
-    val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'")
-    val zdt = LocalDateTime.parse(str, formatter).atZone(ZoneOffset.UTC)
+  def modificationTime(attributes: Map[String, YTreeNode]): String = {
+    attributes(YtAttributes.modificationTime).stringValue()
+  }
+
+  private val tsFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'")
+
+  private def modificationTimeTs(dateTime: String): Long = {
+    val zdt = LocalDateTime.parse(dateTime, tsFormatter).atZone(ZoneOffset.UTC)
     zdt.toInstant.toEpochMilli
+  }
+
+  def modificationTimeTs(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Long = {
+    modificationTimeTs(modificationTime(path, transaction))
+  }
+
+  def modificationTimeTs(attributes: Map[String, YTreeNode]): Long = {
+    modificationTimeTs(modificationTime(attributes))
   }
 
   def fileSize(attrs: Map[String, YTreeNode]): Long = {

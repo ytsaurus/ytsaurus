@@ -10,4 +10,5 @@ object YtAttributes {
   val dataWeight = "data_weight"
   val dynamic = "dynamic"
   val modificationTime = "modification_time"
+  val tabletState = "tablet_state"
 }
