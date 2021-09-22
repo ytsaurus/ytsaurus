@@ -34,6 +34,7 @@ struct TRunningJobStatistics
 
 void FormatValue(TStringBuilderBase* builder, const TRunningJobStatistics& statistics, TStringBuf /* format */);
 TString ToString(const TRunningJobStatistics& statistics);
+TString FormatRunningJobStatisticsCompact(const TRunningJobStatistics& statistics);
 void Serialize(const TRunningJobStatistics& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////

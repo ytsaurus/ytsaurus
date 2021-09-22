@@ -51,6 +51,26 @@ void Serialize(const TScheduleJobsStatistics& statistics, IYsonConsumer* consume
     .EndMap();
 }
 
+TString FormatPreemptableInfoCompact(const TScheduleJobsStatistics& statistics)
+{
+    return Format("{UJC: %v, UD: %v, TCJC: %v, MCJCPP: %v, MCD: %v}",
+        statistics.UnconditionallyPreemptableJobCount,
+        FormatResources(statistics.UnconditionalResourceUsageDiscount),
+        statistics.TotalConditionallyPreemptableJobCount,
+        statistics.MaxConditionallyPreemptableJobCountInPool,
+        FormatResources(statistics.MaxConditionalResourceUsageDiscount));
+}
+
+TString FormatScheduleJobAttemptsCompact(const TScheduleJobsStatistics& statistics)
+{
+    return Format("{NP: %v, AP: %v, P: %v, C: %v, TO: %v}",
+        statistics.NonPreemptiveScheduleJobAttempts,
+        statistics.AggressivelyPreemptiveScheduleJobAttempts,
+        statistics.PreemptiveScheduleJobAttempts,
+        statistics.ControllerScheduleJobCount,
+        statistics.ControllerScheduleJobTimedOutCount);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchedulingContextPtr CreateSchedulingContext(

@@ -308,7 +308,7 @@ void TNodeSchedulingSegmentManager::RebalanceSegmentsInTree(
     TSchedulingSegmentMap<int> addedNodeCountPerSegment;
     TSchedulingSegmentMap<int> removedNodeCountPerSegment;
     TNodeMovePenalty totalPenalty;
-    int totalMovedNodeCount = 0;
+    std::vector<std::pair<TNodeWithMovePenalty, ESchedulingSegment>> movedNodes;
 
     auto trySatisfySegment = [&] (
         ESchedulingSegment segment,
@@ -332,7 +332,7 @@ void TNodeSchedulingSegmentManager::RebalanceSegmentsInTree(
             context->MovedNodesPerNodeShard[nodeShardId].push_back(TSetNodeSchedulingSegmentOptions{
                 .NodeId = nextAvailableNode->Id,
                 .Segment = segment});
-            ++totalMovedNodeCount;
+            movedNodes.emplace_back(TNodeWithMovePenalty{nextAvailableNode, nextAvailableNodeMovePenalty}, segment);
             totalPenalty += nextAvailableNodeMovePenalty;
 
             const auto& dataCenter = nextAvailableNode->DataCenter;
@@ -412,11 +412,18 @@ void TNodeSchedulingSegmentManager::RebalanceSegmentsInTree(
         "Finished node scheduling segments rebalancing "
         "(TotalMovedNodeCount: %v, AddedNodeCountPerSegment: %v, RemovedNodeCountPerSegment: %v, "
         "NewResourceAmountPerSegment: %v, TotalPenalty: %v)",
-        totalMovedNodeCount,
+        movedNodes.size(),
         addedNodeCountPerSegment,
         removedNodeCountPerSegment,
         currentResourceAmountPerSegment,
         totalPenalty);
+
+    for (const auto& [nodeWithPenalty, newSegment] : movedNodes) {
+        YT_LOG_DEBUG("Moving node to a new scheduling segment (Address: %v, Segment: %v, Penalty: %v)",
+            nodeWithPenalty.Descriptor->Address,
+            nodeWithPenalty.MovePenalty,
+            newSegment);
+    }
 }
 
 void TNodeSchedulingSegmentManager::GetMovableNodesInTree(
