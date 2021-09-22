@@ -306,9 +306,21 @@ private:
         } else {
             CopyRegularChunk(inputChunkSpec, outputSessionId);
         }
+    }
 
-        // Update data statistics.
+    void DoFinishCopyChunk(const TDeferredChunkMetaPtr& chunkMeta, i64 totalChunkSize)
+    {
+        auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
+
+        // NB. Compressed data size is already updated for each block in DoCopy, so skip it here.
         DataStatistics_.set_chunk_count(DataStatistics_.chunk_count() + 1);
+        DataStatistics_.set_uncompressed_data_size(
+            DataStatistics_.uncompressed_data_size() + miscExt.uncompressed_data_size());
+        DataStatistics_.set_row_count(DataStatistics_.row_count() + miscExt.row_count());
+        DataStatistics_.set_data_weight(DataStatistics_.data_weight() + miscExt.data_weight());
+
+        TotalSize_ -= totalChunkSize;
+        CopiedChunkCount_ += 1;
     }
 
     void CopyErasureChunk(const TChunkSpec& inputChunkSpec, NChunkClient::TSessionId outputSessionId)
@@ -481,8 +493,7 @@ private:
             .AsyncVia(GetRemoteCopyInvoker())
             .Run(writers, chunkMeta, outputSessionId));
 
-        TotalSize_ -= totalChunkSize;
-        CopiedChunkCount_ += 1;
+        DoFinishCopyChunk(chunkMeta, totalChunkSize);
     }
 
     //! Waits until enough parts were copied to perform repair.
@@ -683,8 +694,7 @@ private:
             .AsyncVia(GetRemoteCopyInvoker())
             .Run(writer, chunkMeta, outputSessionId));
 
-        TotalSize_ -= totalChunkSize;
-        CopiedChunkCount_ += 1;
+        DoFinishCopyChunk(chunkMeta, totalChunkSize);
     }
 
     void FinalizeRegularChunk(
