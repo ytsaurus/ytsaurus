@@ -15,6 +15,8 @@ import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -144,7 +146,7 @@ public class YtClient extends CompoundClient {
     }
 
     private YtClient(BuilderWithDefaults builder) {
-        super(builder.busConnector.executorService(), builder.builder.options);
+        super(builder.busConnector.executorService(), builder.builder.options, builder.builder.heavyExecutor);
 
         builder.builder.validate();
 
@@ -173,7 +175,8 @@ public class YtClient extends CompoundClient {
                     builder.builder.proxyRole,
                     builder.credentials,
                     rpcClientFactory,
-                    builder.builder.options);
+                    builder.builder.options,
+                    builder.builder.heavyExecutor);
         } else {
             poolProvider = new OldClientPoolProvider(
                     busConnector,
@@ -183,7 +186,8 @@ public class YtClient extends CompoundClient {
                     rpcClientFactory,
                     builder.credentials,
                     builder.builder.compression,
-                    builder.builder.options);
+                    builder.builder.options,
+                    builder.builder.heavyExecutor);
         }
     }
 
@@ -313,7 +317,9 @@ public class YtClient extends CompoundClient {
         final List<ClientPoolService> dataCenterList = new ArrayList<>();
         final String localDcName;
         final RpcOptions options;
+        final Executor heavyExecutor;
 
+        @SuppressWarnings("checkstyle:ParameterNumber")
         NewClientPoolProvider(
             BusConnector connector,
             List<YtCluster> clusters,
@@ -321,10 +327,12 @@ public class YtClient extends CompoundClient {
             @Nullable String proxyRole,
             RpcCredentials credentials,
             RpcClientFactory rpcClientFactory,
-            RpcOptions options
+            RpcOptions options,
+            Executor heavyExecutor
         ) {
             this.options = options;
             this.localDcName = localDataCenterName;
+            this.heavyExecutor = heavyExecutor;
 
             final EventLoopGroup eventLoopGroup = connector.eventLoopGroup();
             final Random random = new Random();
@@ -423,7 +431,7 @@ public class YtClient extends CompoundClient {
                     List<ApiServiceClient> clients =
                             result.computeIfAbsent(clientPoolService.getDataCenterName(), k -> new ArrayList<>());
                     for (RpcClient curClient : aliveClients) {
-                        clients.add(new ApiServiceClient(curClient, options));
+                        clients.add(new ApiServiceClient(curClient, options, heavyExecutor));
                     }
                 }
             } finally {
@@ -482,6 +490,7 @@ public class YtClient extends CompoundClient {
         private final ConcurrentHashMap<PeriodicDiscoveryListener, Boolean> discoveriesFailed
                 = new ConcurrentHashMap<>();
         private final CompletableFuture<Void> waiting = new CompletableFuture<>();
+        private final Executor heavyExecutor;
 
         /*
          * Кэширующая обертка для ytClient. Обертка кэширует бэкенды, которые доступны для запроса.
@@ -501,11 +510,13 @@ public class YtClient extends CompoundClient {
                 RpcClientFactory rpcClientFactory,
                 RpcCredentials credentials,
                 RpcCompression compression,
-                RpcOptions options
+                RpcOptions options,
+                Executor heavyExecutor
         ) {
             dataCenters = new DataCenter[clusters.size()];
             discovery = new ArrayList<>();
             this.options = options;
+            this.heavyExecutor = heavyExecutor;
 
             if (options.getUseClientsCache() && options.getClientsCacheSize() > 0
                     && options.getClientCacheExpiration() != null
@@ -587,7 +598,7 @@ public class YtClient extends CompoundClient {
             for (DataCenter dc : dataCenters) {
                 result.put(
                         dc.getName(),
-                        dc.getAliveDestinations(slot -> new ApiServiceClient(slot.getClient(), options))
+                        dc.getAliveDestinations(slot -> new ApiServiceClient(slot.getClient(), options, heavyExecutor))
                 );
             }
             return result;
@@ -661,6 +672,7 @@ public class YtClient extends CompoundClient {
         RpcCompression compression = new RpcCompression();
         RpcOptions options = new RpcOptions();
         boolean enableValidation = true;
+        Executor heavyExecutor = ForkJoinPool.commonPool();
 
         Builder() {
         }
@@ -693,6 +705,17 @@ public class YtClient extends CompoundClient {
         public Builder setSharedBusConnector(BusConnector connector) {
             this.busConnector = connector;
             isBusConnectorOwner = false;
+            return this;
+        }
+
+        /**
+         * Set heavy executor for YT client. This is used for deserialization of lookup/select response.
+         * By default, ForkJoinPool.commonPool().
+         * @param heavyExecutor
+         * @return self
+         */
+        public Builder setHeavyExecutor(Executor heavyExecutor) {
+            this.heavyExecutor = heavyExecutor;
             return this;
         }
 

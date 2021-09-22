@@ -6,6 +6,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ForkJoinPool;
 
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -34,7 +35,7 @@ public class DefaultRpcBusClientTest {
                     new InetSocketAddress("localhost", server.getPort()));
 
             try (rpcClient) {
-                var api = new ApiServiceClient(rpcClient, options);
+                var api = new ApiServiceClient(rpcClient, options, ForkJoinPool.commonPool());
                 var listNodeFuture = api.listNode("/");
 
                 waitFuture(listNodeFuture, 5000);

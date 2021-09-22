@@ -10,6 +10,7 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -127,7 +128,7 @@ public final class ExamplesUtil {
         try (BusConnector connector = createConnector()) {
             try (RpcClient rpcClient = createRpcClient(connector, credentials, host, YT_PORT)) {
                 ApiServiceClient serviceClient = new ApiServiceClient(rpcClient,
-                        new RpcOptions().setGlobalTimeout(Duration.ofSeconds(15)));
+                        new RpcOptions().setGlobalTimeout(Duration.ofSeconds(15)), ForkJoinPool.commonPool());
                 consumer.accept(serviceClient);
             }
         }
