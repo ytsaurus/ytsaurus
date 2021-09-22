@@ -150,6 +150,11 @@ void TTcpDispatcher::TImpl::DisableNetworking()
     NetworkingDisabled_.store(true);
 }
 
+bool TTcpDispatcher::TImpl::IsNetworkingDisabled()
+{
+    return NetworkingDisabled_.load();
+}
+
 void TTcpDispatcher::TImpl::ValidateNetworkingNotDisabled(EMessageDirection messageDirection) const
 {
     if (Y_UNLIKELY(NetworkingDisabled_.load())) {

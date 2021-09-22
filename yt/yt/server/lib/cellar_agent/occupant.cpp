@@ -72,6 +72,8 @@
 
 #include <yt/yt/core/profiling/profile_manager.h>
 
+#include <yt/yt/core/bus/tcp/dispatcher.h>
+
 #include <yt/yt/core/rpc/response_keeper.h>
 #include <yt/yt/core/rpc/server.h>
 
@@ -439,7 +441,7 @@ public:
             std::vector<ITransactionParticipantProviderPtr> providers;
 
             // NB: Should not start synchronizer while validating snapshot.
-            if (GetCellId()) {
+            if (!NBus::TTcpDispatcher::Get()->IsNetworkingDisabled()) {
                 connection->GetClusterDirectorySynchronizer()->Start();
                 providers = {
                     CreateTransactionParticipantProvider(connection),
