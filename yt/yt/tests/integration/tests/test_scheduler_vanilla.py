@@ -323,7 +323,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             job_id = jobs[0]
             try:
                 interrupt_job(job_id)
-            except YtError() as e:
+            except YtError as e:
                 # Sometimes job proxy may finish before it manages to send Interrupt reply.
                 # This is not an error.
                 socket_was_closed_error_code = 100
