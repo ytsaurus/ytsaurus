@@ -53,8 +53,8 @@ using TError = TErrorOr<void>;
 template <class T>
 struct TErrorTraits;
 
-class TStreamSaveContext;
 class TStreamLoadContext;
+class TStreamSaveContext;
 
 struct TEntitySerializationContext;
 class TEntityStreamSaveContext;
