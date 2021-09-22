@@ -72,7 +72,7 @@ class TestClockServer(YTEnvSetup):
         cell_id = get("//sys/timestamp_providers/{}/orchid/config/clock_cell/cell_id".format(rpc_address))
 
         def try_get_last_snapshot_id():
-            return get("//sys/timestamp_providers/{}/orchid/monitoring/hydra/last_snapshot_id".format(rpc_address))
+            return get("//sys/timestamp_providers/{}/orchid/monitoring/hydra/last_snapshot_id".format(rpc_address), None)
 
         def get_last_snapshot_id():
             wait(lambda: try_get_last_snapshot_id() is not None)
