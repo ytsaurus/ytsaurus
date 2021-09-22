@@ -2213,7 +2213,7 @@ private:
         TotalResourceLimitsProfiler_.Init(SchedulerProfiler.WithPrefix("/total_resource_limits"));
         TotalResourceUsageProfiler_.Init(SchedulerProfiler.WithPrefix("/total_resource_usage"));
         NodeSchedulingSegmentManager_.SetProfilingEnabled(true);
-    
+
         SchedulerProfiler.AddFuncGauge("/jobs/registered_job_count", MakeStrong(this), [this] {
             return GetActiveJobCount();
         });
@@ -3129,26 +3129,27 @@ private:
 
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Do(BIND(&NScheduler::BuildFullOperationAttributes, operation))
+                .Do(BIND(&NScheduler::BuildFullOperationAttributes, operation, /*includeOperationId*/ false))
                 .DoIf(static_cast<bool>(agent), [&] (TFluentMap fluent) {
                     fluent
                         .Item("agent_id").Value(agent->GetId());
                 })
                 .OptionalItem("alias", operation->Alias())
-                .Item("progress").BeginMap()
-                    .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_, operation->GetId()))
-                .EndMap()
-                .Item("brief_progress").BeginMap()
-                    .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, Strategy_, operation->GetId()))
-                .EndMap()
             .EndMap();
     }
 
     IYPathServicePtr CreateOperationOrchidService(const TOperationPtr& operation)
     {
-        auto operationOrchidProducer = BIND(&TImpl::BuildOperationOrchid, MakeStrong(this), operation);
-        return IYPathService::FromProducer(operationOrchidProducer)
-            ->Via(GetControlInvoker(EControlQueue::DynamicOrchid));
+        auto operationAttributesOrchidService =
+            IYPathService::FromProducer(BIND(&TImpl::BuildOperationOrchid, MakeStrong(this), operation))
+                ->Via(GetControlInvoker(EControlQueue::DynamicOrchid));
+        return New<TServiceCombiner>(
+            std::vector<IYPathServicePtr>{
+                New<TOperationService>(this, operation),
+                operationAttributesOrchidService,
+            },
+            /*cacheUpdatePeriod*/ std::nullopt,
+            /*updateKeysOnMissing*/ true);
     }
 
     void RegisterOperationAlias(const TOperationPtr& operation)
@@ -4360,12 +4361,78 @@ private:
         return UserToDefaultPoolMap_;
     }
 
+    class TOperationService
+        : public TVirtualMapBase
+    {
+    public:
+        TOperationService(const TScheduler::TImpl* scheduler, const TOperationPtr& operation)
+            : TVirtualMapBase(/*owningNode*/ nullptr)
+            , Operation_(operation)
+            , OperationIdService_(
+                IYPathService::FromProducer(BIND([operationId = operation->GetId()] (IYsonConsumer* consumer) {
+                     BuildYsonFluently(consumer).Value(operationId);
+                })))
+            , OperationProgressService_(
+                IYPathService::FromProducer(
+                    BIND([strategy = scheduler->Strategy_, operationId = operation->GetId()] (IYsonConsumer* consumer) {
+                        BuildYsonFluently(consumer)
+                            .BeginMap()
+                                .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, strategy, operationId))
+                            .EndMap();
+                    }))
+                    ->Via(scheduler->GetControlInvoker(EControlQueue::DynamicOrchid)))
+            , OperationBriefProgressService_(
+                IYPathService::FromProducer(
+                    BIND([strategy = scheduler->Strategy_, operationId = operation->GetId()] (IYsonConsumer* consumer) {
+                        BuildYsonFluently(consumer)
+                            .BeginMap()
+                                .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, strategy, operationId))
+                            .EndMap();
+                    }))
+                    ->Via(scheduler->GetControlInvoker(EControlQueue::DynamicOrchid)))
+        { }
+
+        i64 GetSize() const override
+        {
+            return 3;
+        }
+
+        std::vector<TString> GetKeys(i64 limit) const override
+        {
+            std::vector<TString> keys{"operation_id", "progress", "brief_progress"};
+            if (limit < std::ssize(keys)) {
+                keys.resize(limit);
+            }
+            return keys;
+        }
+
+        IYPathServicePtr FindItemService(TStringBuf key) const override
+        {
+            if (key == "operation_id") {
+                return OperationIdService_;
+            } else if (key == "progress") {
+                return OperationProgressService_;
+            } else if (key == "brief_progress") {
+                return OperationBriefProgressService_;
+            } else {
+                return nullptr;
+            }
+        }
+
+    private:
+        const TOperationPtr Operation_;
+
+        IYPathServicePtr OperationIdService_;
+        IYPathServicePtr OperationProgressService_;
+        IYPathServicePtr OperationBriefProgressService_;
+    };
+
     class TOperationsService
         : public TVirtualMapBase
     {
     public:
         explicit TOperationsService(const TScheduler::TImpl* scheduler)
-            : TVirtualMapBase(nullptr /* owningNode */)
+            : TVirtualMapBase(/*owningNode*/ nullptr)
             , Scheduler_(scheduler)
         { }
 
@@ -4433,7 +4500,7 @@ private:
     {
     public:
         explicit TJobsService(const TScheduler::TImpl* scheduler)
-            : TVirtualMapBase(nullptr /* owningNode */)
+            : TVirtualMapBase(/*owningNode*/ nullptr)
             , Scheduler_(scheduler)
         { }
 

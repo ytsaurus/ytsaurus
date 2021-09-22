@@ -12,7 +12,8 @@ class TServiceCombiner
 public:
     explicit TServiceCombiner(
         std::vector<IYPathServicePtr> services,
-        std::optional<TDuration> keysUpdatePeriod = std::nullopt);
+        std::optional<TDuration> keysUpdatePeriod = std::nullopt,
+        bool updateKeysOnMissingKey = false);
 
     void SetUpdatePeriod(TDuration period);
 

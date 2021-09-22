@@ -250,7 +250,7 @@ public:
 
         auto attributes = ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
-                .Do(BIND(&BuildFullOperationAttributes, operation))
+                .Do(BIND(&BuildFullOperationAttributes, operation, /*includeOperationId*/ true))
                 .Item("brief_spec").Value(operation->BriefSpecString())
             .EndMap());
 

@@ -19,7 +19,7 @@ namespace NYT::NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 void BuildMinimalOperationAttributes(TOperationPtr operation, NYTree::TFluentMap fluent);
-void BuildFullOperationAttributes(TOperationPtr operation, NYTree::TFluentMap fluent);
+void BuildFullOperationAttributes(TOperationPtr operation, bool includeOperationId, NYTree::TFluentMap fluent);
 void BuildMutableOperationAttributes(TOperationPtr operation, NYTree::TFluentMap fluent);
 
 ////////////////////////////////////////////////////////////////////////////////
