@@ -1,12 +1,11 @@
 #pragma once
 
-#include <yt/yt/server/scheduler/resource_vector.h>
-#include <yt/yt/server/scheduler/resource_volume.h>
-
 // Used for TJobResourcesConfig.
 #include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/library/vector_hdrf/job_resources.h>
+#include <yt/yt/library/vector_hdrf/resource_vector.h>
+#include <yt/yt/library/vector_hdrf/resource_volume.h>
 
 namespace NYT::NFairShare {
 

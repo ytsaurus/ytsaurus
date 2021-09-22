@@ -1,5 +1,7 @@
 #pragma once
 
+#include "property.h"
+
 // TODO(ignat): migrate to enum class
 #include <library/cpp/ytalloc/core/misc/enum.h>
 
@@ -22,66 +24,21 @@ class TJobResources
     : public TEmptyJobResourcesBase
 {
 public:
-    inline i64 GetUserSlots() const
-    {
-        return UserSlots_;
-    }
-    inline void SetUserSlots(i64 slots)
-    {
-        UserSlots_ = slots;
-    }
+    DEFINE_BYVAL_RW_PROPERTY(i64, UserSlots);
+    DEFINE_BYVAL_RW_PROPERTY(TCpuResource, Cpu);
+    DEFINE_BYVAL_RW_PROPERTY(int, Gpu);
+    DEFINE_BYVAL_RW_PROPERTY(i64, Memory);
+    DEFINE_BYVAL_RW_PROPERTY(i64, Network);
     
-    inline TCpuResource GetCpu() const
-    {
-        return Cpu_;
-    }
-    inline void SetCpu(TCpuResource cpu)
-    {
-        Cpu_ = cpu;
-    }
+public:
     inline void SetCpu(double cpu)
     {
         Cpu_ = TCpuResource(cpu);
     }
     
-    inline int GetGpu() const
-    {
-        return Gpu_;
-    }
-    void SetGpu(int gpu)
-    {
-        Gpu_ = gpu;
-    }
-    
-    inline i64 GetMemory() const
-    {
-        return Memory_;
-    }
-    void SetMemory(i64 memory)
-    {
-        Memory_ = memory;
-    }
-    
-    inline i64 GetNetwork() const
-    {
-        return Network_;
-    }
-    void SetNetwork(i64 network)
-    {
-        Network_ = network;
-    }
-    
-public:
     TJobResources() = default;
 
     static TJobResources Infinite();
-
-private:
-    i64 UserSlots_{};
-    TCpuResource Cpu_{};
-    int Gpu_{};
-    i64 Memory_{};
-    i64 Network_{};
 };
 
 #define ITERATE_JOB_RESOURCES(XX) \

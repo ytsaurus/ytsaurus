@@ -1,8 +1,5 @@
 #pragma once
 
-#include "resource_vector.h"
-#include "resource_volume.h"
-
 #include <yt/yt/library/profiling/producer.h>
 
 #include <yt/yt/core/yson/consumer.h>
@@ -10,6 +7,9 @@
 #include <yt/yt/core/ytree/node.h>
 
 #include <yt/yt/core/misc/string_builder.h>
+
+#include <yt/yt/library/vector_hdrf/resource_vector.h>
+#include <yt/yt/library/vector_hdrf/resource_volume.h>
 
 namespace NYT::NScheduler {
 

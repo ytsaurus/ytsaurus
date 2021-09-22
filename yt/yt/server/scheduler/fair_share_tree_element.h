@@ -3,7 +3,6 @@
 #include "fair_share_strategy_operation_controller.h"
 #include "job.h"
 #include "private.h"
-#include "resource_vector.h"
 #include "resource_tree.h"
 #include "resource_tree_element.h"
 #include "scheduler_strategy.h"
@@ -25,6 +24,8 @@
 #include <yt/yt/core/concurrency/spinlock.h>
 
 #include <yt/yt/core/misc/historic_usage_aggregator.h>
+
+#include <yt/yt/library/vector_hdrf/resource_vector.h>
 
 namespace NYT::NScheduler {
 
