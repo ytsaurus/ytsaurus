@@ -265,7 +265,7 @@ const TNode::TMapType& TYtError::GetAttributes() const
 TString TYtError::GetYsonText() const
 {
     TStringStream out;
-    TYsonWriter writer(&out, YF_TEXT);
+    TYsonWriter writer(&out, NYson::EYsonFormat::Text);
     SerializeError(*this, &writer);
     return std::move(out.Str());
 }

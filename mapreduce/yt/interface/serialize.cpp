@@ -528,7 +528,7 @@ void Serialize(const NTi::TTypePtr& type, IYsonConsumer* consumer)
 
 void Deserialize(NTi::TTypePtr& type, const TNode& node)
 {
-    auto yson = NodeToYsonString(node, YF_BINARY);
+    auto yson = NodeToYsonString(node, NYson::EYsonFormat::Binary);
     type = NTi::NIo::DeserializeYson(*NTi::HeapFactory(), yson);
 }
 

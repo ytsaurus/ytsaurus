@@ -13,7 +13,7 @@ class TNodeTableWriter
     : public INodeWriterImpl
 {
 public:
-    explicit TNodeTableWriter(THolder<TProxyOutput> output, EYsonFormat format = YF_BINARY);
+    explicit TNodeTableWriter(THolder<TProxyOutput> output, ::NYson::EYsonFormat format = ::NYson::EYsonFormat::Binary);
     ~TNodeTableWriter() override;
 
     void AddRow(const TNode& row, size_t tableIndex) override;

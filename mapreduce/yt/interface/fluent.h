@@ -657,7 +657,7 @@ BuildYsonFluentlyWithState(::TIntrusivePtr<TState> state)
 
 /// Create a fluent adapter returning a `TString` with corresponding YSON when construction is finished.
 inline TFluentYsonBuilder::TAny<TFluentYsonHolder<TFluentYsonWriterState>>
-BuildYsonStringFluently(EYsonFormat format = YF_TEXT)
+BuildYsonStringFluently(EYsonFormat format = ::NYson::EYsonFormat::Text)
 {
     ::TIntrusivePtr<TFluentYsonWriterState> state(new TFluentYsonWriterState(format));
     return BuildYsonFluentlyWithState(state);
