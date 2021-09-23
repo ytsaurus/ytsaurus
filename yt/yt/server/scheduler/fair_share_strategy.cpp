@@ -181,7 +181,7 @@ public:
         for (const auto& treeId : *unknownTreeIds) {
             treeIdToPoolNameMap.erase(treeId);
         }
-        auto state = New<TFairShareStrategyOperationState>(operation, Config);
+        auto state = New<TFairShareStrategyOperationState>(operation, Config, Host->GetNodeShardInvokers().size());
         state->TreeIdToPoolNameMap() = std::move(treeIdToPoolNameMap);
 
         YT_VERIFY(OperationIdToOperationState_.insert(

@@ -14,7 +14,8 @@ class TFairShareStrategyOperationController
 public:
     TFairShareStrategyOperationController(
         IOperationStrategyHost* operation,
-        const TFairShareStrategyOperationControllerConfigPtr& config);
+        const TFairShareStrategyOperationControllerConfigPtr& config,
+        int NodeShardCount);
 
     void DecreaseConcurrentScheduleJobCalls(int nodeShardId);
     void IncreaseConcurrentScheduleJobCalls(int nodeShardId);
@@ -27,6 +28,8 @@ public:
     
     void UpdateMinNeededJobResources();
 
+    void ComputeMaxConcurrentControllerScheduleJobCallsPerNodeShard();
+    int GetMaxConcurrentControllerScheduleJobCallsPerNodeShard() const;
     void CheckMaxScheduleJobCallsOverdraft(int maxScheduleJobCalls, bool* isMaxScheduleJobCallsViolated) const;
     bool IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(
         const ISchedulingContextPtr& schedulingContext,
@@ -74,6 +77,8 @@ private:
     };
     std::array<TStateShard, MaxNodeShardCount> StateShards_;
 
+    const int NodeShardCount_;
+    int MaxConcurrentControllerScheduleJobCallsPerNodeShard;
     mutable int ScheduleJobCallsOverdraft_ = 0;
 
     std::atomic<NProfiling::TCpuDuration> ScheduleJobControllerThrottlingBackoff_;

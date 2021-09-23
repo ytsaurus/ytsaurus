@@ -93,8 +93,8 @@ public:
     //! Limit on the number of concurrent calls to ScheduleJob of single controller.
     int MaxConcurrentControllerScheduleJobCalls;
 
-    //! Limit on the number of concurrent calls to ScheduleJob of single controller per node shard.
-    int MaxConcurrentControllerScheduleJobCallsPerNodeShard;
+    //! How much times averaged MaxConcurrentControllerScheduleJobCalls can be exceeded on each NodeShard.
+    double ConcurrentControllerScheduleJobCallsRegularization;
 
     //! Maximum allowed time for single job scheduling.
     TDuration ScheduleJobTimeLimit;

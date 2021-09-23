@@ -21,7 +21,8 @@ public:
 public:
     TFairShareStrategyOperationState(
         IOperationStrategyHost* host,
-        const TFairShareStrategyOperationControllerConfigPtr& config);
+        const TFairShareStrategyOperationControllerConfigPtr& config,
+        int NodeShardCount);
 
     void UpdateConfig(const TFairShareStrategyOperationControllerConfigPtr& config);
 

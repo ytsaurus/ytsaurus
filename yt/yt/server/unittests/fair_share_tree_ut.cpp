@@ -509,7 +509,7 @@ protected:
         TOperationFairShareTreeRuntimeParametersPtr operationOptions = nullptr,
         TStrategyOperationSpecPtr operationSpec = nullptr)
     {
-        auto operationController = New<TFairShareStrategyOperationController>(operation, SchedulerConfig_);
+        auto operationController = New<TFairShareStrategyOperationController>(operation, SchedulerConfig_, host->GetNodeShardInvokers().size());
         if (!operationOptions) {
             operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
             operationOptions->Weight = 1.0;
