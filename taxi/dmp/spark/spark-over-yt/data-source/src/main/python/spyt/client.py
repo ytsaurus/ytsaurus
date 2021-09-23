@@ -336,6 +336,11 @@ def stop(spark, exception=None):
         )
     )
 
+
+def is_stopped(spark):
+    spark._jsc.sc().isStopped()
+
+
 def yt_client(spark):
     yt_proxy = spark.conf.get("spark.hadoop.yt.proxy")
     yt_token = spark.conf.get("spark.hadoop.yt.token")
