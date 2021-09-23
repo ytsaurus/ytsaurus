@@ -191,11 +191,16 @@ DEFINE_REFCOUNTED_TYPE(TWrappedThrottler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TThrottlers
+DECLARE_REFCOUNTED_STRUCT(TThrottlers)
+
+struct TThrottlers final
 {
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, Lock);
     THashMap<TString, TWeakPtr<TWrappedThrottler>> Throttlers;
 };
+
+
+DEFINE_REFCOUNTED_TYPE(TThrottlers)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -212,7 +217,7 @@ public:
         TGroupId groupId,
         TDistributedThrottlerConfigPtr config,
         TRealmId realmId,
-        TThrottlers* throttlers,
+        TThrottlersPtr throttlers,
         NLogging::TLogger logger,
         int shardCount = 16)
         : TServiceBase(
@@ -227,7 +232,7 @@ public:
             std::move(invoker),
             BIND(&TDistributedThrottlerService::UpdateLimits, MakeWeak(this)),
             config->LimitUpdatePeriod))
-        , Throttlers_(throttlers)
+        , Throttlers_(std::move(throttlers))
         , Logger(std::move(logger))
         , ShardCount_(shardCount)
         , Config_(std::move(config))
@@ -368,7 +373,7 @@ private:
     const IDiscoveryClientPtr DiscoveryClient_;
     const TString GroupId_;
     const TPeriodicExecutorPtr UpdatePeriodicExecutor_;
-    TThrottlers* const Throttlers_;
+    const TThrottlersPtr Throttlers_;
     const NLogging::TLogger Logger;
     const int ShardCount_;
 
@@ -730,7 +735,7 @@ public:
             GroupId_,
             Config_.Load(),
             RealmId_,
-            &Throttlers_,
+            Throttlers_,
             Logger))
     {
         auto* attributes = MemberClient_->GetAttributes();
@@ -746,8 +751,8 @@ public:
         TDuration throttleRpcTimeout) override
     {
         auto findThrottler = [&] (const TString& throttlerId) -> IReconfigurableThroughputThrottlerPtr {
-            auto it = Throttlers_.Throttlers.find(throttlerId);
-            if (it == Throttlers_.Throttlers.end()) {
+            auto it = Throttlers_->Throttlers.find(throttlerId);
+            if (it == Throttlers_->Throttlers.end()) {
                 return nullptr;
             }
             auto throttler = it->second.Lock();
@@ -759,14 +764,14 @@ public:
         };
 
         {
-            auto guard = ReaderGuard(Throttlers_.Lock);
+            auto guard = ReaderGuard(Throttlers_->Lock);
             if (auto throttler = findThrottler(throttlerId)) {
                 return throttler;
             }
         }
 
         {
-            auto guard = WriterGuard(Throttlers_.Lock);
+            auto guard = WriterGuard(Throttlers_->Lock);
             if (auto throttler = findThrottler(throttlerId)) {
                 return throttler;
             }
@@ -783,7 +788,7 @@ public:
                 // NB: Could be null.
                 wrappedThrottler->SetLeaderChannel(LeaderChannel_);
             }
-            Throttlers_.Throttlers[throttlerId] = wrappedThrottler;
+            Throttlers_->Throttlers[throttlerId] = wrappedThrottler;
 
             YT_LOG_DEBUG("Distributed throttler created (ThrottlerId: %v)", throttlerId);
             return wrappedThrottler;
@@ -807,8 +812,8 @@ public:
         DistributedThrottlerService_->Reconfigure(config);
 
         {
-            auto guard = ReaderGuard(Throttlers_.Lock);
-            for (const auto& [throttlerId, weakThrottler] : Throttlers_.Throttlers) {
+            auto guard = ReaderGuard(Throttlers_->Lock);
+            for (const auto& [throttlerId, weakThrottler] : Throttlers_->Throttlers) {
                 auto throttler = weakThrottler.Lock();
                 if (!throttler) {
                     continue;
@@ -863,9 +868,9 @@ private:
 
     const NLogging::TLogger Logger;
     TAtomicObject<TDistributedThrottlerConfigPtr> Config_;
-    const TDistributedThrottlerServicePtr DistributedThrottlerService_;
 
-    TThrottlers Throttlers_;
+    const TThrottlersPtr Throttlers_ = New<TThrottlers>();
+    const TDistributedThrottlerServicePtr DistributedThrottlerService_;
 
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, Lock_);
     std::optional<TMemberId> LeaderId_;
@@ -894,8 +899,8 @@ private:
         THashMap<TString, TWrappedThrottlerPtr> throttlers;
         std::vector<TString> deadThrottlerIds;
         {
-            auto guard = ReaderGuard(Throttlers_.Lock);
-            for (const auto& [throttlerId, throttler] : Throttlers_.Throttlers) {
+            auto guard = ReaderGuard(Throttlers_->Lock);
+            for (const auto& [throttlerId, throttler] : Throttlers_->Throttlers) {
                 if (auto throttlerPtr = throttler.Lock()) {
                     YT_VERIFY(throttlers.emplace(throttlerId, throttlerPtr).second);
                 } else {
@@ -905,9 +910,9 @@ private:
         }
 
         if (!deadThrottlerIds.empty()) {
-            auto guard = WriterGuard(Throttlers_.Lock);
+            auto guard = WriterGuard(Throttlers_->Lock);
             for (const auto& throttlerId : deadThrottlerIds) {
-                Throttlers_.Throttlers.erase(throttlerId);
+                Throttlers_->Throttlers.erase(throttlerId);
             }
         }
 
@@ -1044,8 +1049,8 @@ private:
         }
 
         if (Config_.Load()->Mode == EDistributedThrottlerMode::Precise) {
-            auto guard = ReaderGuard(Throttlers_.Lock);
-            for (const auto& [throttlerId, weakThrottler] : Throttlers_.Throttlers) {
+            auto guard = ReaderGuard(Throttlers_->Lock);
+            for (const auto& [throttlerId, weakThrottler] : Throttlers_->Throttlers) {
                 auto throttler = weakThrottler.Lock();
                 if (!throttler) {
                     continue;
