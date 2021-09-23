@@ -14,14 +14,17 @@ using namespace NControllerAgent;
 
 TFairShareStrategyOperationController::TFairShareStrategyOperationController(
     IOperationStrategyHost* operation,
-    const TFairShareStrategyOperationControllerConfigPtr& config)
+    const TFairShareStrategyOperationControllerConfigPtr& config,
+    int NodeShardCount)
     : Controller_(operation->GetControllerStrategyHost())
     , OperationId_(operation->GetId())
     , Logger(StrategyLogger.WithTag("OperationId: %v", OperationId_))
     , Config_(config)
+    , NodeShardCount_(NodeShardCount)
     , ScheduleJobControllerThrottlingBackoff_(
         DurationToCpuDuration(config->ControllerThrottling->ScheduleJobStartBackoffTime))
 {
+    ComputeMaxConcurrentControllerScheduleJobCallsPerNodeShard();
     YT_VERIFY(Controller_);
 }
 
@@ -71,6 +74,18 @@ TJobResources TFairShareStrategyOperationController::GetAggregatedMinNeededJobRe
 void TFairShareStrategyOperationController::UpdateMinNeededJobResources()
 {
     Controller_->UpdateMinNeededJobResources();
+}
+
+void TFairShareStrategyOperationController::ComputeMaxConcurrentControllerScheduleJobCallsPerNodeShard()
+{
+    MaxConcurrentControllerScheduleJobCallsPerNodeShard = static_cast<int>(
+        Config_.Load()->MaxConcurrentControllerScheduleJobCalls * Config_.Load()->ConcurrentControllerScheduleJobCallsRegularization / NodeShardCount_);
+    MaxConcurrentControllerScheduleJobCallsPerNodeShard = std::max(MaxConcurrentControllerScheduleJobCallsPerNodeShard, 1);
+}
+
+int TFairShareStrategyOperationController::GetMaxConcurrentControllerScheduleJobCallsPerNodeShard() const
+{
+    return MaxConcurrentControllerScheduleJobCallsPerNodeShard;
 }
 
 void TFairShareStrategyOperationController::CheckMaxScheduleJobCallsOverdraft(
@@ -215,6 +230,7 @@ bool TFairShareStrategyOperationController::IsSaturatedInTentativeTree(TCpuInsta
 void TFairShareStrategyOperationController::UpdateConfig(const TFairShareStrategyOperationControllerConfigPtr& config)
 {
     Config_.Store(config);
+    ComputeMaxConcurrentControllerScheduleJobCallsPerNodeShard();
 }
 
 TFairShareStrategyOperationControllerConfigPtr TFairShareStrategyOperationController::GetConfig()

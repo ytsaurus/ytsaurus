@@ -46,9 +46,10 @@ using namespace NControllerAgent;
 
 TFairShareStrategyOperationState::TFairShareStrategyOperationState(
     IOperationStrategyHost* host,
-    const TFairShareStrategyOperationControllerConfigPtr& config)
+    const TFairShareStrategyOperationControllerConfigPtr& config,
+    int NodeShardCount)
     : Host_(host)
-    , Controller_(New<TFairShareStrategyOperationController>(host, config))
+    , Controller_(New<TFairShareStrategyOperationController>(host, config, NodeShardCount))
 { }
 
 TPoolName TFairShareStrategyOperationState::GetPoolNameByTreeId(const TString& treeId) const

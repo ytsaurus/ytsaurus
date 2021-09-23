@@ -3338,7 +3338,7 @@ bool TSchedulerOperationElement::IsMaxConcurrentScheduleJobCallsPerNodeShardViol
 {
     return Controller_->IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(
         schedulingContext,
-        ControllerConfig_->MaxConcurrentControllerScheduleJobCallsPerNodeShard);
+        Controller_->GetMaxConcurrentControllerScheduleJobCallsPerNodeShard());
 }
 
 bool TSchedulerOperationElement::HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const

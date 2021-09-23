@@ -48,9 +48,9 @@ TFairShareStrategyOperationControllerConfig::TFairShareStrategyOperationControll
         .Default(100)
         .GreaterThan(0);
 
-    RegisterParameter("max_concurrent_controller_schedule_job_calls_per_node_shard", MaxConcurrentControllerScheduleJobCallsPerNodeShard)
-        .Default(5)
-        .GreaterThan(0);
+    RegisterParameter("concurrent_controller_schedule_job_calls_regularization", ConcurrentControllerScheduleJobCallsRegularization)
+        .Default(2.0)
+        .GreaterThanOrEqual(1.0);
 
     RegisterParameter("schedule_job_time_limit", ScheduleJobTimeLimit)
         .Default(TDuration::Seconds(30));
