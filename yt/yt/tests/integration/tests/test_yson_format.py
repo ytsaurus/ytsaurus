@@ -15,11 +15,13 @@ import yt.yson as yson
 
 import pytest
 
+import uuid
+
 ##################################################################
 
 
 def _prepare_table(type, optimize_for):
-    path = "//tmp/table"
+    path = "//tmp/{}".format(str(uuid.uuid4()))
     schema = make_schema(
         [
             {
