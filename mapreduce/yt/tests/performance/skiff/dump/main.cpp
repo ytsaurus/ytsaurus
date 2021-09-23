@@ -29,7 +29,7 @@ int main(int argc, const char** argv) {
     auto schema = CreateVariant16Schema({CreateSkiffSchema(client->Get(cypressPath + "/@schema"))});
     {
         TOFStream schemaDump(schemaLocalPath);
-        TYsonWriter writer(&schemaDump, YF_PRETTY);
+        TYsonWriter writer(&schemaDump, NYson::EYsonFormat::Pretty);
         Serialize(schema, &writer);
     }
     {

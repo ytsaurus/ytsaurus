@@ -651,6 +651,6 @@ void Out<NYT::TSortColumn>(IOutputStream& os, const NYT::TSortColumn& sortColumn
     if (sortColumn.SortOrder() == NYT::ESortOrder::SO_ASCENDING) {
         os << sortColumn.Name();
     } else {
-        os << NYT::BuildYsonStringFluently(NYT::EYsonFormat::YF_TEXT).Value(sortColumn);
+        os << NYT::BuildYsonStringFluently(NYson::EYsonFormat::Text).Value(sortColumn);
     }
 }
