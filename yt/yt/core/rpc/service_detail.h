@@ -768,6 +768,13 @@ protected:
      */
     virtual std::vector<TString> SuggestAddresses();
 
+    //! Part of #DoConfigure
+    //! #DoConfigure configures already registered methods.
+    //! Configures sensor types for methods which will be registerd after this function call
+    void DoConfigureHistogramTimer(
+        const TServiceCommonConfigPtr& configDefaults,
+        const TServiceConfigPtr& config);
+
     //! A typed implementation of #Configure.
     void DoConfigure(
         const TServiceCommonConfigPtr& configDefaults,
