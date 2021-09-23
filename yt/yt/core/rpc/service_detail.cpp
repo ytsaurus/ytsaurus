@@ -2012,6 +2012,22 @@ void TServiceBase::ValidateRequestFeatures(const IServiceContextPtr& context)
     }
 }
 
+void TServiceBase::DoConfigureHistogramTimer(
+    const TServiceCommonConfigPtr& configDefaults,
+    const TServiceConfigPtr& config)
+{
+    THistogramConfigPtr finalConfig = nullptr;
+    if (config->HistogramTimerProfiling) {
+        finalConfig = config->HistogramTimerProfiling;
+    } else if (configDefaults->HistogramTimerProfiling) {
+        finalConfig = configDefaults->HistogramTimerProfiling;
+    }
+    if (finalConfig) {
+        const auto guard = Guard(HistogramConfigLock_);
+        HistogramTimerProfiling = finalConfig;
+    }
+}
+
 void TServiceBase::DoConfigure(
     const TServiceCommonConfigPtr& configDefaults,
     const TServiceConfigPtr& config)
@@ -2029,18 +2045,7 @@ void TServiceBase::DoConfigure(
         AuthenticationQueueSizeLimit_.store(config->AuthenticationQueueSizeLimit.value_or(DefaultAuthenticationQueueSizeLimit));
         PendingPayloadsTimeout_.store(config->PendingPayloadsTimeout.value_or(DefaultPendingPayloadsTimeout));
 
-        {
-            THistogramConfigPtr finalConfig = nullptr;
-            if (config->HistogramTimerProfiling) {
-                finalConfig = config->HistogramTimerProfiling;
-            } else if (configDefaults->HistogramTimerProfiling) {
-                 finalConfig = configDefaults->HistogramTimerProfiling;
-            }
-            if (finalConfig) {
-                const auto guard = Guard(HistogramConfigLock_);
-                HistogramTimerProfiling = finalConfig;
-            }
-        }
+        DoConfigureHistogramTimer(configDefaults, config);
 
         for (const auto& [methodName, runtimeInfo] : MethodMap_) {
             auto methodIt = config->Methods.find(methodName);
