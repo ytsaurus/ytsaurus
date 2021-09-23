@@ -470,23 +470,23 @@ bool IsKeys(const TSharedRange<TLegacyKey>&)
 }
 
 std::vector<TBlockFetcher::TBlockInfo> BuildBlockInfos(
-    std::vector<TRange<ui32>> columnsBlockIndexes,
+    std::vector<TRange<ui32>> groupBlockIndexes,
     TRange<TSpanMatching> windows,
     const TRefCountedBlockMetaPtr& blockMetas)
 {
-    auto columnCount = columnsBlockIndexes.size();
-    std::vector<ui32> perColumnBlockRowLimits(columnCount, 0);
+    auto groupCount = groupBlockIndexes.size();
+    std::vector<ui32> perGroupBlockRowLimits(groupCount, 0);
 
     std::vector<TBlockFetcher::TBlockInfo> blockInfos;
     for (auto window : windows) {
         auto startRowIndex = window.Chunk.Lower;
 
-        for (ui16 columnId = 0; columnId < columnCount; ++columnId) {
-            if (startRowIndex < perColumnBlockRowLimits[columnId]) {
+        for (ui16 groupId = 0; groupId < groupCount; ++groupId) {
+            if (startRowIndex < perGroupBlockRowLimits[groupId]) {
                 continue;
             }
 
-            auto& blockIndexes = columnsBlockIndexes[columnId];
+            auto& blockIndexes = groupBlockIndexes[groupId];
 
             auto blockIt = ExponentialSearch(blockIndexes.begin(), blockIndexes.end(), [&] (auto blockIt) {
                 const auto& blockMeta = blockMetas->blocks(*blockIt);
@@ -497,7 +497,7 @@ std::vector<TBlockFetcher::TBlockInfo> BuildBlockInfos(
 
             if (blockIt != blockIndexes.end()) {
                 const auto& blockMeta = blockMetas->blocks(*blockIt);
-                perColumnBlockRowLimits[columnId] = blockMeta.chunk_row_count();
+                perGroupBlockRowLimits[groupId] = blockMeta.chunk_row_count();
 
                 TBlockFetcher::TBlockInfo blockInfo;
                 blockInfo.Index = *blockIt;

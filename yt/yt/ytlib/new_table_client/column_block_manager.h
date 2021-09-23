@@ -19,7 +19,7 @@ public:
     TGroupBlockHolder(const TGroupBlockHolder&) = delete;
     TGroupBlockHolder(TGroupBlockHolder&&) = default;
 
-    TGroupBlockHolder(TRange<ui32> blockIds, std::vector<TSharedRef> blockSegmentsMetas);
+    TGroupBlockHolder(TRange<ui32> blockIds, TRange<TSharedRef> blockSegmentsMetas);
 
     bool NeedUpdateBlock(ui32 rowIndex) const;
 
@@ -32,7 +32,7 @@ public:
 
 private:
     const TRange<ui32> BlockIds_;
-    std::vector<TSharedRef> BlockSegmentsMetas_;
+    const TRange<TSharedRef> BlockSegmentsMetas_;
 
     ui32 BlockRowLimit_ = 0;
     ui32 BlockIdIndex_ = 0;

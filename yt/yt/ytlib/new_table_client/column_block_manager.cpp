@@ -19,7 +19,7 @@ using NProfiling::TWallTimer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGroupBlockHolder::TGroupBlockHolder(TRange<ui32> blockIds, std::vector<TSharedRef> blockSegmentsMetas)
+TGroupBlockHolder::TGroupBlockHolder(TRange<ui32> blockIds, TRange<TSharedRef> blockSegmentsMetas)
     : BlockIds_(blockIds)
     , BlockSegmentsMetas_(blockSegmentsMetas)
 { }
