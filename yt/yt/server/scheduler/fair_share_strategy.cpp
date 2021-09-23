@@ -640,6 +640,7 @@ public:
             // COMAPT(ignat)
             .OptionalItem("default_fair_share_tree", DefaultTreeId_)
             .OptionalItem("default_pool_tree", DefaultTreeId_)
+            .Item("last_metering_statistics_update_time").Value(LastMeteringStatisticsUpdateTime_)
             .Item("scheduling_info_per_pool_tree").DoMapFor(treeIds, [&] (TFluentMap fluent, const TString& treeId) {
                 auto tree = FindTree(treeId);
                 if (!tree) {
