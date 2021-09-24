@@ -582,7 +582,7 @@ public:
 
 private:
     TStringStream Output;
-    TYsonWriter Writer;
+    ::NYson::TYsonWriter Writer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
