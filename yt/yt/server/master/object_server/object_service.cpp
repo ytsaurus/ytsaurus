@@ -1776,6 +1776,12 @@ private:
         // Check for forwarding errors.
         for (auto index = 0; index < TotalSubrequestCount_; ++index) {
             auto& subrequest = Subrequests_[index];
+
+            if (subrequest.Uncertain) {
+                uncertainIndexes.push_back(index);
+                continue;
+            }
+
             if (!subrequest.Completed) {
                 if (subrequest.LocallyStarted) {
                     // Possible for mutating subrequests when boomerangs are
@@ -1784,11 +1790,6 @@ private:
                     uncertainIndexes.push_back(index);
                 }
 
-                continue;
-            }
-
-            if (subrequest.Uncertain) {
-                uncertainIndexes.push_back(index);
                 continue;
             }
 
