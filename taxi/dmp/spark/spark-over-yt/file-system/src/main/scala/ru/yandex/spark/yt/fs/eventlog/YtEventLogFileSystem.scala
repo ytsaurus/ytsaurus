@@ -157,7 +157,7 @@ class YtEventLogFileSystem extends FileSystem with LogLazy {
     val meta_path = getMetaPath(hadoopPathToYt(f))
     implicit val ytClient: CompoundClient = yt
 
-    val pathType = YtWrapper.pathType(hadoopPathToYt(f))
+    val pathType = YtWrapper.pathType(hadoopPathToYt(f), None)
     pathType match {
       case PathType.Table =>
         if (!existsTable(f)) {
@@ -218,7 +218,7 @@ class YtEventLogFileSystem extends FileSystem with LogLazy {
     if (!YtWrapper.exists(tablePathStr)) {
       throw new FileNotFoundException(s"Path $tablePathStr doesn't exist")
     } else {
-      val parentPathType = YtWrapper.pathType(tablePathStr)
+      val parentPathType = YtWrapper.pathType(tablePathStr, None)
       parentPathType match {
         case PathType.Table =>
           if (!existsTable(tablePath)) {
@@ -237,7 +237,7 @@ class YtEventLogFileSystem extends FileSystem with LogLazy {
           if (!YtWrapper.exists(fStr)) {
             throw new FileNotFoundException(s"Path $fStr doesn't exist")
           } else {
-            val pathType = YtWrapper.pathType(fStr)
+            val pathType = YtWrapper.pathType(fStr, None)
             pathType match {
               case PathType.Table =>
                 new FileStatus(0, true, 1, 0, YtWrapper.modificationTimeTs(fStr), f)

@@ -1,11 +1,13 @@
 package ru.yandex.spark.yt.wrapper.cypress
 
 import org.slf4j.LoggerFactory
+import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.inside.yt.kosher.cypress.YPath
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
-import ru.yandex.spark.yt.wrapper.YtWrapper.RichLogger
+import ru.yandex.spark.yt.wrapper.YtWrapper
+import ru.yandex.spark.yt.wrapper.YtWrapper.{RichLogger, attribute}
 import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient}
 import ru.yandex.yt.ytclient.proxy.request._
 
 trait YtCypressUtils {
@@ -40,16 +42,25 @@ trait YtCypressUtils {
   }
 
   def listDir(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Array[String] = {
+    listDir(YPath.simple(formatPath(path)), transaction)
+  }
+
+  def listDir(path: YPath, transaction: Option[String])(implicit yt: CompoundClient): Array[String] = {
     log.debug(s"List directory: $path, transaction $transaction")
     import scala.collection.JavaConverters._
-    val request = new ListNode(formatPath(path)).optionalTransaction(transaction)
+    val request = new ListNode(path).optionalTransaction(transaction)
     val response = yt.listNode(request).join().asList()
     response.asScala.view.map(_.stringValue()).toArray
   }
 
-  def move(src: String, dst: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Unit = {
-    log.debug(s"Move: $src -> $dst, transaction $transaction")
-    yt.moveNode(new MoveNode(formatPath(src), formatPath(dst)).optionalTransaction(transaction)).join()
+  def move(src: String, dst: String, transaction: Option[String] = None, force: Boolean = false)
+          (implicit yt: CompoundClient): Unit = {
+    log.debug(s"Move: $src -> $dst, transaction $transaction, force: $force")
+    yt.moveNode(
+      new MoveNode(formatPath(src), formatPath(dst))
+        .setForce(force)
+        .optionalTransaction(transaction)
+    ).join()
   }
 
   def remove(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Unit = {
@@ -76,9 +87,13 @@ trait YtCypressUtils {
     }
   }
 
-  def pathType(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): PathType = {
+  def pathType(path: YPath, transaction: Option[String] = None)(implicit yt: CompoundClient): PathType = {
     val objectType = attribute(path, YtAttributes.`type`, transaction).stringValue()
     PathType.fromString(objectType)
+  }
+
+  def pathType(path: String, transaction: Option[String])(implicit yt: CompoundClient): PathType = {
+    pathType(YPath.simple(formatPath(path)), transaction)
   }
 
   def pathType(attrs: Map[String, YTreeNode]): PathType = {
@@ -87,27 +102,41 @@ trait YtCypressUtils {
 
   def exists(path: String)(implicit yt: CompoundClient): Boolean = exists(path, None)
 
-  def exists(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Boolean = {
+  def exists(path: String, transaction: Option[String])(implicit yt: CompoundClient): Boolean = {
+    exists(YPath.simple(formatPath(path)), transaction)
+  }
+
+  def exists(path: YPath, transaction: Option[String] = None)(implicit yt: CompoundClient): Boolean = {
     log.debug(s"Exists: $path, transaction $transaction")
-    val request = new ExistsNode(s"${formatPath(path)}/@").optionalTransaction(transaction)
+    val request = new ExistsNode(path.allAttributes()).optionalTransaction(transaction)
     yt.existsNode(request).join().booleanValue()
+  }
+
+  def attribute(path: YPath, attrName: String, transaction: Option[String])
+               (implicit yt: CompoundClient): YTreeNode = {
+    log.debug(s"Get attribute: $path/@$attrName, transaction $transaction")
+    val request = new GetNode(path.attribute(attrName)).optionalTransaction(transaction)
+    yt.getNode(request).join()
   }
 
   def attribute(path: String, attrName: String, transaction: Option[String] = None)
                (implicit yt: CompoundClient): YTreeNode = {
-    log.debug(s"Get attribute: $path/@$attrName, transaction $transaction")
-    val request = new GetNode(s"${formatPath(path)}/@$attrName").optionalTransaction(transaction)
-    yt.getNode(request).join()
+    attribute(YPath.simple(formatPath(path)), attrName, transaction)
   }
 
-  def attributes(path: String, transaction: Option[String] = None, attrNames: Set[String] = Set.empty)
+  def attributes(path: YPath, transaction: Option[String] = None, attrNames: Set[String] = Set.empty)
                 (implicit yt: CompoundClient): Map[String, YTreeNode] = {
     import scala.collection.JavaConverters._
     log.debug(s"Get attributes: $path/@$attrNames, transaction $transaction")
-    val request = new GetNode(s"${formatPath(path)}/@").optionalTransaction(transaction)
+    val request = new GetNode(path.allAttributes()).optionalTransaction(transaction)
     val map = yt.getNode(request).join().asMap().asScala
     val filteredMap = if (attrNames.nonEmpty) map.filterKeys(attrNames.contains) else map
     filteredMap.toMap
+  }
+
+  def attributes(path: String, transaction: Option[String], attrNames: Set[String])
+                (implicit yt: CompoundClient): Map[String, YTreeNode] = {
+    attributes(YPath.simple(formatPath(path)), transaction, attrNames)
   }
 
   def setAttribute(path: String, attrName: String, attrValue: YTreeNode, transaction: Option[String] = None)
@@ -160,5 +189,34 @@ trait YtCypressUtils {
     log.debug(s"Concatenate: ${from.mkString(",")} -> $to, transaction $transaction")
     val request = new ConcatenateNodes(from.map(formatPath), formatPath(to)).optionalTransaction(transaction)
     yt.concatenateNodes(request).join()
+  }
+
+  def lockNode(path: String, transaction: String, mode: LockMode)
+              (implicit yt: CompoundClient): String = {
+    lockNode(YPath.simple(formatPath(path)), transaction, mode)
+  }
+
+  def lockNode(path: YPath, transaction: String, mode: LockMode = LockMode.Snapshot)
+              (implicit yt: CompoundClient): String = {
+    yt.lockNode(new LockNode(path, mode).optionalTransaction(Some(transaction))).join().nodeId.toString
+  }
+
+  def lockCount(path: String)(implicit yt: CompoundClient): Long = {
+    attribute(path, "lock_count").longValue()
+  }
+
+  def lockCount(path: YPath)(implicit yt: CompoundClient): Long = {
+    YtWrapper.attribute(path, "lock_count", None).longValue()
+  }
+
+  def objectPath(path: String, transaction: Option[String])
+                (implicit yt: CompoundClient): YPath = {
+    val nodeId = attribute(path, "id", transaction).stringValue()
+    YPath.objectRoot(GUID.valueOf(nodeId))
+  }
+
+  def objectPath(path: String, transaction: String)
+                (implicit yt: CompoundClient): YPath = {
+    objectPath(path, Some(transaction))
   }
 }

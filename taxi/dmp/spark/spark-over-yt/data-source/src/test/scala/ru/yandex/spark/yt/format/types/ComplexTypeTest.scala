@@ -1,4 +1,4 @@
-package ru.yandex.spark.yt.format
+package ru.yandex.spark.yt.format.types
 
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkException
@@ -8,7 +8,7 @@ import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.YsonEncoder
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.common.utils.TypeUtils
-import ru.yandex.spark.yt.format.tmp._
+import ru.yandex.spark.yt.format._
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 

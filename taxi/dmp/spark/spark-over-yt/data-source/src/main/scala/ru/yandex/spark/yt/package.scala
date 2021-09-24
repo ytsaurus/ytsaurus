@@ -2,9 +2,9 @@ package ru.yandex.spark
 
 import org.apache.spark.sql._
 import org.apache.spark.sql.types._
-import ru.yandex.spark.yt.format.conf.YtTableSparkSettings
+import ru.yandex.spark.yt.format.conf.YtTableSparkSettings._
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import ru.yandex.spark.yt.fs.conf.ConfigEntry
+import ru.yandex.spark.yt.fs.conf._
 import ru.yandex.spark.yt.fs.GlobalTableSettings
 import ru.yandex.spark.yt.serializers.{SchemaConverter, YtLogicalType}
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
@@ -42,7 +42,7 @@ package object yt {
     }
 
     def enableArrow(enable: Boolean): DataFrameReader = {
-      reader.option(YtTableSparkSettings.ArrowEnabled.name, enable.toString)
+      reader.option(ArrowEnabled, enable)
     }
 
     def enableArrow: DataFrameReader = {
@@ -51,6 +51,19 @@ package object yt {
 
     def disableArrow: DataFrameReader = {
       enableArrow(false)
+    }
+
+    def transaction(id: String): DataFrameReader = {
+      reader.option(Transaction, id)
+    }
+
+    def timestamp(ts: Long): DataFrameReader = {
+      reader.option(Timestamp, ts)
+    }
+
+    def option[T](entry: ConfigEntry[T], value: T): DataFrameReader = {
+      val stringValue = entry.set(value)
+      reader.option(entry.name, stringValue)
     }
   }
 
@@ -63,7 +76,7 @@ package object yt {
     }
 
     def optimizeFor(optimizeMode: OptimizeMode): DataFrameWriter[T] = {
-      writer.option(YtTableSparkSettings.OptimizeFor, optimizeMode.name)
+      writer.option(OptimizeFor, optimizeMode.name)
     }
 
     def optimizeFor(optimizeMode: String): DataFrameWriter[T] = {
@@ -71,11 +84,11 @@ package object yt {
     }
 
     def sortedBy(cols: String*): DataFrameWriter[T] = {
-      writer.option(YtTableSparkSettings.SortColumns, cols)
+      writer.option(SortColumns, cols)
     }
 
     def schemaHint(schemaHint: Map[String, YtLogicalType]): DataFrameWriter[T] = {
-      writer.option(YtTableSparkSettings.WriteSchemaHint, schemaHint)
+      writer.option(WriteSchemaHint, schemaHint)
     }
 
     def schemaHint(field: (String, YtLogicalType), fields: (String, YtLogicalType)*): DataFrameWriter[T] = {

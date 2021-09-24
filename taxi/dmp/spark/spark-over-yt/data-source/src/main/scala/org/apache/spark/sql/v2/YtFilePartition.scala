@@ -41,18 +41,20 @@ object YtFilePartition {
                          partitionValues: InternalRow): PartitionedFile = {
     YtPath.fromPath(file.getPath) match {
       case yp: YtDynamicPath =>
-        new YtPartitionedFile(yp.stringPath, yp.beginKey, yp.endKey, 0, 1, file.getLen, isDynamic = true, yp.keyColumns)
+        new YtPartitionedFile(yp.toStringPath, yp.beginKey, yp.endKey, 0, 1, file.getLen,
+          isDynamic = true, yp.keyColumns, file.getModificationTime)
       case p =>
         PartitionedFile(partitionValues, p.toUri.toString, offset, size, Array.empty)
     }
   }
 
-  def getPartitionedFile(path: YtStaticPath,
+  def getPartitionedFile(file: FileStatus,
+                         path: YtStaticPath,
                          rowOffset: Long,
                          rowCount: Long,
                          byteSize: Long): PartitionedFile = {
-    new YtPartitionedFile(path.stringPath, Array.empty, Array.empty, path.beginRow + rowOffset,
-      path.beginRow + rowOffset + rowCount, byteSize, isDynamic = false, Nil)
+    new YtPartitionedFile(path.toStringPath, Array.empty, Array.empty, path.attrs.beginRow + rowOffset,
+      path.attrs.beginRow + rowOffset + rowCount, byteSize, isDynamic = false, Nil, file.getModificationTime)
   }
 
   def splitFiles(sparkSession: SparkSession,
@@ -73,16 +75,15 @@ object YtFilePartition {
     if (isSplitable) {
       YtPath.fromPath(file.getPath) match {
         case yp: YtStaticPath =>
-          val maxSplitRows = Math.max(1, Math.ceil(maxSplitBytes.toDouble / file.getLen  * yp.rowCount).toLong)
+          val maxSplitRows = Math.max(1, Math.ceil(maxSplitBytes.toDouble / file.getLen * yp.rowCount).toLong)
           split(yp.rowCount, maxSplitRows) { case (offset, size) =>
-            getPartitionedFile(yp, offset, size, size * file.getBlockSize)
+            getPartitionedFile(file, yp, offset, size, size * file.getBlockSize)
           }
         case _ =>
           split(file.getLen, maxSplitBytes) { case (offset, size) =>
             getPartitionedFile(file, offset, size, partitionValues)
           }
       }
-
     } else {
       Seq(getPartitionedFile(file, 0, file.getLen, partitionValues))
     }

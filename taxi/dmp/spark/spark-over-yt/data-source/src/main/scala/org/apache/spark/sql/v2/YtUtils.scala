@@ -5,18 +5,19 @@ import org.apache.spark.SparkException
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types.{BinaryType, StructType}
 import org.apache.spark.sql.yson.YsonType
+import ru.yandex.spark.yt.fs.YPathEnriched.ypath
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import ru.yandex.spark.yt.fs.YtPath
+import ru.yandex.spark.yt.fs.{YPathEnriched, YtPath}
 import ru.yandex.spark.yt.serializers.SchemaConverter
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 object YtUtils {
-  private def getFilePath(fileStatus: FileStatus): String = {
+  private def getTablePath(fileStatus: FileStatus): YPathEnriched = {
     fileStatus.getPath match {
-      case ytPath: YtPath => ytPath.stringPath
-      case p => YtPath.basePath(p)
+      case ytPath: YtPath => ytPath.ypath
+      case p => ypath(p.getParent)
     }
   }
 
@@ -36,10 +37,10 @@ object YtUtils {
     }
   }
 
-  private def getSchema(sparkSession: SparkSession, path: String, parameters: Map[String, String])
+  private def getSchema(sparkSession: SparkSession, path: YPathEnriched, parameters: Map[String, String])
                        (implicit client: CompoundClient): StructType = {
     val schemaHint = SchemaConverter.schemaHint(parameters)
-    val schemaTree = YtWrapper.attribute(path, "schema")
+    val schemaTree = YtWrapper.attribute(path.toYPath, "schema", path.transaction)
     val sparkSchema = SchemaConverter.sparkSchema(schemaTree, schemaHint)
     getCompatibleSchema(sparkSession, sparkSchema)
   }
@@ -56,9 +57,9 @@ object YtUtils {
                  (implicit client: CompoundClient = getClient(sparkSession)): Option[StructType] = {
     val enableMerge = parameters.get("mergeschema")
       .orElse(sparkSession.conf.getOption("spark.sql.yt.mergeSchema")).exists(_.toBoolean)
-    val (_, allSchemas) = files.foldLeft((Set.empty[String], List.empty[FileWithSchema])) {
+    val (_, allSchemas) = files.foldLeft((Set.empty[YPathEnriched], List.empty[FileWithSchema])) {
       case ((curSet, schemas), fileStatus) =>
-        val path = getFilePath(fileStatus)
+        val path = getTablePath(fileStatus)
         if (curSet.contains(path)) {
           (curSet, schemas)
         } else {

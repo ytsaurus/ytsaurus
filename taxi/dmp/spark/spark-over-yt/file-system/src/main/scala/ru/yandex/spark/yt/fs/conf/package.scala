@@ -2,7 +2,7 @@ package ru.yandex.spark.yt.fs
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkConf
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.{DataFrameReader, SQLContext, SparkSession}
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
@@ -48,6 +48,30 @@ package object conf {
 
     override def getYtConf(name: String): Option[String] = {
       sparkConf.getOption(s"$configurationPrefix.$name")
+    }
+
+    def setYtConf(name: String, value: Any): SparkConf = {
+      sparkConf.set(s"$configurationPrefix.$name", value.toString)
+    }
+
+    def setYtConf[T](configEntry: ConfigEntry[T], value: T): SparkConf = {
+      setYtConf(configEntry.name, configEntry.set(value))
+    }
+  }
+
+  implicit class SparkYtSparkSession(spark: SparkSession) extends ConfProvider {
+    private val configurationPrefix = "spark.yt"
+
+    override def getYtConf(name: String): Option[String] = {
+      spark.conf.getOption(s"$configurationPrefix.$name")
+    }
+
+    def setYtConf(name: String, value: Any): Unit = {
+      spark.conf.set(s"$configurationPrefix.$name", value.toString)
+    }
+
+    def setYtConf[T](configEntry: ConfigEntry[T], value: T): Unit = {
+      setYtConf(configEntry.name, configEntry.set(value))
     }
   }
 

@@ -1,6 +1,6 @@
 package ru.yandex.spark.yt.format.conf
 
-import ru.yandex.spark.yt.fs.conf.{BooleanConfigEntry, DurationSecondsConfigEntry, IntConfigEntry}
+import ru.yandex.spark.yt.fs.conf.{BooleanConfigEntry, DurationSecondsConfigEntry, IntConfigEntry, StringConfigEntry}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -34,6 +34,16 @@ object SparkYtConfiguration {
 
     case object PingInterval extends DurationSecondsConfigEntry(s"$prefix.pingInterval", Some(30 seconds))
 
+  }
+
+  object GlobalTransaction {
+    private val prefix = "globalTransaction"
+
+    case object Timeout extends DurationSecondsConfigEntry(s"$prefix.timeout", Some(2 minutes))
+
+    case object Enabled extends BooleanConfigEntry(s"$prefix.enabled", Some(false))
+
+    case object Id extends StringConfigEntry(s"$prefix.id", None)
   }
 
 }

@@ -159,6 +159,6 @@ class YtFileSystemTest extends FlatSpec with Matchers with LocalYtClient with Tm
     }
 
     YtWrapper.exists(tmpPath) shouldEqual true
-    YtWrapper.fileSize(tmpPath) shouldEqual text.length
+    YtWrapper.fileSize(tmpPath, None) shouldEqual text.length
   }
 }

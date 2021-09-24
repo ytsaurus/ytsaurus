@@ -1,8 +1,6 @@
 package ru.yandex.spark.yt.test
 
-import java.io.{ByteArrayInputStream, InputStream}
-import java.nio.charset.StandardCharsets
-
+import ru.yandex.inside.yt.kosher.cypress.YPath
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeNodeUtils
 import ru.yandex.inside.yt.kosher.impl.ytree.`object`.YTreeSerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
@@ -17,18 +15,32 @@ import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.request.{ObjectType, WriteTable}
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 
+import java.io.{ByteArrayInputStream, InputStream}
+import java.nio.charset.StandardCharsets
 import scala.annotation.tailrec
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
 trait TestUtils {
+  val longColumnSchema: TableSchema = new TableSchema.Builder()
+    .setUniqueKeys(false)
+    .addValue("value", ColumnValueType.INT64)
+    .build()
+
   def createEmptyTable(path: String, schema: TableSchema)
                       (implicit yt: CompoundClient): Unit = {
     import scala.collection.JavaConverters._
     yt.createNode(path, ObjectType.Table, Map("schema" -> schema.toYTree).asJava).join()
   }
 
-  def readTableAsYson(path: String, schema: TableSchema)(implicit yt: CompoundClient): Seq[YTreeNode] = {
+  def readTableAsYson(path: String, transaction: Option[String] = None)
+                     (implicit yt: CompoundClient): Seq[YTreeNode] = {
+    readTableAsYson(YPath.simple(YtWrapper.formatPath(path)), transaction)
+  }
+
+  def readTableAsYson(path: YPath, transaction: Option[String])
+                     (implicit yt: CompoundClient): Seq[YTreeNode] = {
+    val schema = TableSchema.fromYTree(YtWrapper.attribute(path, "schema", transaction))
     val deser = new WireRowDeserializer[YTreeNode] with WireValueDeserializer[Unit] {
       private var builder = new YTreeBuilder().beginMap()
 
@@ -61,7 +73,7 @@ trait TestUtils {
 
       override def onBytes(bytes: Array[Byte]): Unit = builder.value(bytes)
     }
-    YtWrapper.readTable(path, deser, 1 minute).toList
+    YtWrapper.readTable(path, deser, 1 minute, transaction).toList
   }
 
   def writeTableFromYson(rows: Seq[String], path: String, schema: TableSchema,
@@ -114,6 +126,12 @@ trait TestUtils {
       out.close()
     }
   }
+
+  def writeFileFromString(input: String, path: String)
+                         (implicit yt: CompoundClient): Unit = {
+    writeFileFromStream(new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8)), path)
+  }
+
 
   def writeFileFromResource(inputPath: String, path: String)
                            (implicit yt: CompoundClient): Unit = {
