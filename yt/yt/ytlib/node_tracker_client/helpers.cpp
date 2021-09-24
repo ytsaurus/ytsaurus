@@ -135,7 +135,7 @@ TString FormatResources(const TNodeResources& resources)
         "ReplicationSlots: %v, ReplicationDataSize: %vMB, "
         "RemovalSlots: %v, "
         "RepairSlots: %v, RepairDataSize: %vMB, "
-        "SealSlots: %v"
+        "SealSlots: %v, "
         "MergeSlots: %v, MergeDataSize: %vMB"
         "}",
         resources.user_slots(),
