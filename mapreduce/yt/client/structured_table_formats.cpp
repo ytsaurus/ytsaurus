@@ -160,7 +160,7 @@ TVector<TRichYPath> GetPathList(
             return jobSchemaInferenceResult->at(tableIndex);
         }
         if (std::holds_alternative<TYdlTableStructure>(table.Description)) {
-            return CreateTableSchema(Get<TYdlTableStructure>(table.Description).Type);
+            return CreateTableSchema(std::get<TYdlTableStructure>(table.Description).Type);
         }
         if (inferSchemaFromDescriptions) {
             return GetTableSchema(table.Description);
@@ -428,14 +428,14 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateNodeYdlFormat(
     TVector<NTi::TTypePtr> descriptorList;
 
     NTi::TTypePtr jobDescriptor =
-        Get<TYdlStructuredRowStream>(GetJobStreamDescription(job, direction)).Type;
+        std::get<TYdlStructuredRowStream>(GetJobStreamDescription(job, direction)).Type;
     Y_ENSURE(!structuredTableList.empty(),
              "empty " << direction << " tables for job " << TJobFactory::Get()->GetJobName(&job));
 
     for (const auto& table : structuredTableList) {
         NTi::TTypePtr descriptor = nullptr;
         if (std::holds_alternative<TYdlTableStructure>(table.Description)) {
-            descriptor = Get<TYdlTableStructure>(table.Description).Type;
+            descriptor = std::get<TYdlTableStructure>(table.Description).Type;
         } else if (table.RichYPath) {
             ThrowUnsupportedStructureDescription(direction, table, job);
         }
@@ -490,7 +490,7 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateProtobufFormat(
         };
     }
     const ::google::protobuf::Descriptor* const jobDescriptor =
-        Get<TProtobufStructuredRowStream>(GetJobStreamDescription(job, direction)).Descriptor;
+        std::get<TProtobufStructuredRowStream>(GetJobStreamDescription(job, direction)).Descriptor;
     Y_ENSURE(!structuredTableList.empty(),
              "empty " << direction << " tables for job " << TJobFactory::Get()->GetJobName(&job));
 
@@ -498,7 +498,7 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateProtobufFormat(
     for (const auto& table : structuredTableList) {
         const ::google::protobuf::Descriptor* descriptor = nullptr;
         if (std::holds_alternative<TProtobufTableStructure>(table.Description)) {
-            descriptor = Get<TProtobufTableStructure>(table.Description).Descriptor;
+            descriptor = std::get<TProtobufTableStructure>(table.Description).Descriptor;
         } else if (table.RichYPath) {
             ThrowUnsupportedStructureDescription(direction, table, job);
         }
