@@ -1048,7 +1048,7 @@ void AddStructMember(
     } else if (std::holds_alternative<NTi::TTypePtr>(typeOrOtherColumns)) {
         members->push_back(NTi::TStructType::TOwnedMember(
             GetColumnName(innerFieldDescriptor),
-            Get<NTi::TTypePtr>(std::move(typeOrOtherColumns))));
+            std::get<NTi::TTypePtr>(std::move(typeOrOtherColumns))));
     } else {
         Y_FAIL();
     }
@@ -1076,8 +1076,8 @@ void AddOneofField(
                 *innerFieldDescriptor,
                 defaultFieldOptions,
                 cycleChecker);
-            if (removeOptionality && std::holds_alternative<NTi::TTypePtr>(type) && Get<NTi::TTypePtr>(type)->IsOptional()) {
-                type = Get<NTi::TTypePtr>(type)->AsOptional()->GetItemType();
+            if (removeOptionality && std::holds_alternative<NTi::TTypePtr>(type) && std::get<NTi::TTypePtr>(type)->IsOptional()) {
+                type = std::get<NTi::TTypePtr>(type)->AsOptional()->GetItemType();
             }
             AddStructMember(fieldDescriptor, *innerFieldDescriptor, std::move(type), members);
         }
@@ -1170,12 +1170,12 @@ NTi::TTypePtr GetMapType(
             Y_VERIFY(message->field_count() == 2);
             auto keyVariant = GetScalarFieldType(*message->field(0), TProtobufFieldOptions{});
             Y_VERIFY(std::holds_alternative<EValueType>(keyVariant));
-            auto key = Get<EValueType>(keyVariant);
+            auto key = std::get<EValueType>(keyVariant);
             TProtobufFieldOptions embeddedOptions;
             embeddedOptions.SerializationMode = EProtobufSerializationMode::Yt;
             auto valueVariant = GetFieldType(*message->field(1), embeddedOptions, cycleChecker);
             Y_VERIFY(std::holds_alternative<NTi::TTypePtr>(valueVariant));
-            auto value = Get<NTi::TTypePtr>(valueVariant);
+            auto value = std::get<NTi::TTypePtr>(valueVariant);
             Y_VERIFY(value->IsOptional());
             value = value->AsOptional()->GetItemType();
             auto dict = NTi::Dict(ToTypeV3(key, true), value);
@@ -1212,7 +1212,7 @@ TTypePtrOrOtherColumns GetFieldType(
         if (std::holds_alternative<TOtherColumns>(scalarType)) {
             return TOtherColumns{};
         } else if (std::holds_alternative<EValueType>(scalarType)) {
-            type = ToTypeV3(Get<EValueType>(scalarType), true);
+            type = ToTypeV3(std::get<EValueType>(scalarType), true);
         } else {
             Y_FAIL();
         }
