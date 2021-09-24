@@ -1563,7 +1563,7 @@ def add_compression_benchmark_parser(add_parser):
     parser.add_argument("--sample-size", type=int, default=10**9, help="approximate table's sample fragment size in bytes")
     parser.add_argument("--format", default="json", choices=["json", "csv"], help="output format")
     parser.add_argument("--max-operations", type=int, default=10, help="max count of parallel operations")
-    parser.add_argument("--time-limit-sec", type=int, default=100, help="time limit for one operation in seconds")
+    parser.add_argument("--time-limit-sec", type=int, default=200, help="time limit for one operation in seconds")
 
 def sky_share(**kwargs):
     print_to_output(yt.sky_share(**kwargs))

@@ -41,8 +41,8 @@ class TestRunCompressionBenchmarks(object):
         for codec in self.CODECS:
             assert codec in results
 
-        assert results["brotli_11"]["cpu_write"] == "Timed out"
-        assert results["brotli_11"]["cpu_read"] == "Not launched"
+        assert results["brotli_11"]["codec/cpu/encode"] == "Timed out"
+        assert results["brotli_11"]["codec/cpu/decode"] == "Not launched"
 
     @authors("egor-gutrov")
     def test_empty_table(self):
