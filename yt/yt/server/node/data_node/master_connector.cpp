@@ -540,6 +540,7 @@ private:
 
         const auto& masterCellTags = Bootstrap_->GetMasterCellTags();
         auto cellTag = masterCellTags[JobHeartbeatCellIndex_];
+        JobHeartbeatCellIndex_ = (JobHeartbeatCellIndex_ + 1) % masterCellTags.size();
 
         auto state = GetMasterConnectorState(cellTag);
         if (state == EMasterConnectorState::Online) {
@@ -577,8 +578,6 @@ private:
                 return;
             }
         }
-
-        JobHeartbeatCellIndex_ = (JobHeartbeatCellIndex_ + 1) % masterCellTags.size();
 
         ScheduleJobHeartbeat(/* immediately */ false);
     }
