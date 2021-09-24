@@ -167,12 +167,14 @@ func GetPythonPaths(pythonVersion string) []string {
 
 	var contribPathsPy2 = []string{
 		"contrib/python/importlib-metadata/py2",
+		"contrib/python/more-itertools/py2",
 	}
 
-	// Python3 uses py2 importlib-metadata since it is python3-compatible
-	// and contrib/python/importlib-metadata/py3 requires python3 with version >= 3.6
 	var contribPathsPy3 = []string{
+		// Python3 uses py2 importlib-metadata since it is python3-compatible
+		// and contrib/python/importlib-metadata/py3 requires python3 with version >= 3.6
 		"contrib/python/importlib-metadata/py2",
+		"contrib/python/more-itertools/py3",
 	}
 
 	var sharedLibraries = []string{
