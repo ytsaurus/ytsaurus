@@ -144,7 +144,7 @@ private:
         TAuthenticatedUserGuard userGuard(securityManager);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Preparing table mount (TableId: %v, TransactionId: %v, %v, "
-            "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, TargetCellIds: %v, Freeze: %v, MountTimestamp: %v)",
+            "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, TargetCellIds: %v, Freeze: %v, MountTimestamp: %llx)",
             tableId,
             transaction->GetId(),
             NRpc::GetCurrentAuthenticationIdentity(),
@@ -213,7 +213,7 @@ private:
         auto targetCellIds = FromProto<std::vector<TTabletCellId>>(request->target_cell_ids());
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Committing table mount (TableId: %v, TransactionId: %v, %v, "
-            "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, TargetCellIds: %v, Freeze: %v, MountTimestamp: %v)",
+            "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, TargetCellIds: %v, Freeze: %v, MountTimestamp: %llx)",
             tableId,
             transaction->GetId(),
             NRpc::GetCurrentAuthenticationIdentity(),
@@ -260,7 +260,7 @@ private:
         auto targetCellIds = FromProto<std::vector<TTabletCellId>>(request->target_cell_ids());
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Aborting table mount (TableId: %v, TransactionId: %v, %v, "
-            "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, TargetCellIds: %v, Freeze: %v, MountTimestamp: %v)",
+            "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, TargetCellIds: %v, Freeze: %v, MountTimestamp: %llx)",
             tableId,
             transaction->GetId(),
             NRpc::GetCurrentAuthenticationIdentity(),

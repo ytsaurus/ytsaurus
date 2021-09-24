@@ -1010,7 +1010,7 @@ private:
 
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet mounted (%v, MountRevision: %llx, Keys: %v .. %v, "
             "StoreCount: %v, HunkChunkCount: %v, PartitionCount: %v, TotalRowCount: %v, TrimmedRowCount: %v, Atomicity: %v, "
-            "CommitOrdering: %v, Frozen: %v, UpstreamReplicaId: %v, RetainedTimestamp: %v, SchemaId: %v)",
+            "CommitOrdering: %v, Frozen: %v, UpstreamReplicaId: %v, RetainedTimestamp: %llx, SchemaId: %v)",
             tablet->GetLoggingTag(),
             mountRevision,
             pivotKey,

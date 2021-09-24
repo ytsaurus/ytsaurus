@@ -857,7 +857,7 @@ private:
             };
 
             YT_LOG_DEBUG("Started serving remote dynamic store read request "
-                "(TabletId: %v, StoreId: %v, Timestamp: %v, ReadSessionId: %v, "
+                "(TabletId: %v, StoreId: %v, Timestamp: %llx, ReadSessionId: %v, "
                 "LowerBound: %v, UpperBound: %v, ColumnFilter: %v, RequestId: %v)",
                 tabletId,
                 storeId,
