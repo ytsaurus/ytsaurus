@@ -1,0 +1,34 @@
+package NYT.NArbitrageService.NProto;
+
+option go_package = "a.yandex-team.ru/yt/go/proto/ytlib/arbitrage_client";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetStatus
+{ };
+
+message TRspGetStatus
+{
+    message TResource
+    {
+        required string kind = 1;
+        required int64 usage = 2;
+        required int64 demand = 3;
+    }
+    repeated TResource resources = 1;
+};
+
+message TReqSetTarget
+{
+    message TResource
+    {
+        required string kind = 1;
+        required int64 target = 2;
+    }
+    repeated TResource resources = 1;
+}
+
+message TRspSetTarget
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
