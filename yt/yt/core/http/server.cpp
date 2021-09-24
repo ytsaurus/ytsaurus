@@ -251,6 +251,10 @@ private:
                 }
             }));
 
+            if (Config_->NoDelay) {
+                connection->SetNoDelay();
+            }
+
             DoHandleConnection(connection, connectionId);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Unhandled exception (ConnectionId: %v)");

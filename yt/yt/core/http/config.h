@@ -48,6 +48,9 @@ public:
 
     bool CancelFiberOnConnectionClose;
 
+    //! Disables Nagle's algorithm.
+    bool NoDelay;
+
     //! This field is not accessible from config.
     bool IsHttps = false;
 
