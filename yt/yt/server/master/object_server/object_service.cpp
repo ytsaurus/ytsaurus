@@ -1248,17 +1248,21 @@ private:
                             batch.Indexes);
 
                         const auto& batchRsp = batchRspOrError.Value();
-                        for (int index = 0; index < batchRsp->GetSize(); ++index) {
-                            auto responseMessage = batchRsp->GetResponseMessage(index);
-                            if (!responseMessage) {
-                                continue;
-                            }
-                            auto& subrequest = Subrequests_[batch.Indexes[index]];
-                            subrequest.Revision = batchRsp->GetRevision(index);
-                            OnSuccessfullSubresponse(&subrequest, std::move(responseMessage));
-                        }
                         for (auto index : batchRsp->GetUncertainRequestIndexes()) {
                             MarkSubrequestAsUncertain(batch.Indexes[index]);
+                        }
+                        for (int index = 0; index < batchRsp->GetSize(); ++index) {
+                            auto* subrequest = &Subrequests_[batch.Indexes[index]];
+                            if (subrequest->Uncertain.load()) {
+                                continue;
+                            }
+                            auto responseMessage = batchRsp->GetResponseMessage(index);
+                            if (responseMessage) {
+                                subrequest->Revision = batchRsp->GetRevision(index);
+                                OnSuccessfullSubresponse(subrequest, std::move(responseMessage));
+                            } else {
+                                OnMissingSubresponse(subrequest);
+                            }
                         }
                     } else {
                         const auto& forwardingError = batchRspOrError;
@@ -1715,6 +1719,20 @@ private:
                 subrequest->Revision,
                 true);
         }
+
+        ReleaseReplyLock();
+    }
+
+    void OnMissingSubresponse(TSubrequest* subrequest)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        // Missing subresponses are only possible for remote subrequests, and
+        // there should be no trace contexts for them.
+        YT_ASSERT(!subrequest->TraceContext);
+
+        YT_VERIFY(!subrequest->Uncertain.load());
+        YT_VERIFY(!subrequest->Completed.load());
 
         ReleaseReplyLock();
     }
