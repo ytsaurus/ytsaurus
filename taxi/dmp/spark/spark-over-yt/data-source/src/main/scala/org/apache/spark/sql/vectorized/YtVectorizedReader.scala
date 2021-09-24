@@ -23,7 +23,7 @@ class YtVectorizedReader(split: YtInputSplit,
     if (split.schema.nonEmpty) {
       val path = split.ytPath
       if (arrowEnabled) {
-        val stream = YtWrapper.readTableArrowStream(path, timeout = timeout)
+        val stream = YtWrapper.readTableArrowStream(path, timeout)
         new ArrowBatchReader(stream, totalRowCount, split.schema)
       } else {
         val schema = split.schema

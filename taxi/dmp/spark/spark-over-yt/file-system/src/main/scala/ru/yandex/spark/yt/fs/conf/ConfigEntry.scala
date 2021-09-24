@@ -34,6 +34,10 @@ class IntConfigEntry(name: String, default: Option[Int] = None) extends ConfigEn
   override def get(value: String): Int = value.toInt
 }
 
+class LongConfigEntry(name: String, default: Option[Long] = None) extends ConfigEntry[Long](name, default) {
+  override def get(value: String): Long = value.toLong
+}
+
 class BooleanConfigEntry(name: String, default: Option[Boolean] = None) extends ConfigEntry[Boolean](name, default) {
   override def get(value: String): Boolean = value.toBoolean
 }

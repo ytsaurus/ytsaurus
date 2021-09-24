@@ -1,6 +1,7 @@
 package ru.yandex.spark.yt.wrapper.file
 
 import org.slf4j.LoggerFactory
+import ru.yandex.inside.yt.kosher.cypress.YPath
 
 import java.io.OutputStream
 import java.time.format.DateTimeFormatter
@@ -24,8 +25,13 @@ trait YtFileUtils {
 
   def readFile(path: String, transaction: Option[String] = None, timeout: Duration = 1 minute)
               (implicit yt: CompoundClient): YtFileInputStream = {
+    readFile(YPath.simple(formatPath(path)), transaction, timeout)
+  }
+
+  def readFile(path: YPath, transaction: Option[String], timeout: Duration)
+              (implicit yt: CompoundClient): YtFileInputStream = {
     log.debug(s"Read file: $path, transaction: $transaction")
-    val fileReader = yt.readFile(new ReadFile(formatPath(path)).optionalTransaction(transaction)).join()
+    val fileReader = yt.readFile(new ReadFile(path.toString).optionalTransaction(transaction)).join()
     new YtFileInputStream(fileReader, timeout)
   }
 
@@ -39,7 +45,8 @@ trait YtFileUtils {
     }
   }
 
-  def createFile(path: String, transaction: Option[String] = None, force: Boolean = false)(implicit yt: CompoundClient): Unit = {
+  def createFile(path: String, transaction: Option[String] = None, force: Boolean = false)
+                (implicit yt: CompoundClient): Unit = {
     log.debug(s"Create file: $path, transaction: $transaction")
     val request = new CreateNode(formatPath(path), ObjectType.File).optionalTransaction(transaction).setForce(force)
     yt.createNode(request).join()
@@ -60,12 +67,29 @@ trait YtFileUtils {
     new YtFileOutputStream(writer, ytRpcClient)
   }
 
-  def writeFile(path: String, timeout: Duration, transaction: Option[String])(implicit yt: CompoundClient): OutputStream = {
+  def writeFile(path: String, timeout: Duration, transaction: Option[String])
+               (implicit yt: CompoundClient): OutputStream = {
     writeFile(path, timeout, None, transaction)
   }
 
-  def fileSize(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Long = {
+  def fileSize(path: YPath, transaction: Option[String] = None)(implicit yt: CompoundClient): Long = {
     attribute(path, YtAttributes.compressedDataSize, transaction).longValue()
+  }
+
+  def fileSize(path: String, transaction: Option[String])(implicit yt: CompoundClient): Long = {
+    attribute(path, YtAttributes.compressedDataSize, transaction).longValue()
+  }
+
+  def fileSize(attrs: Map[String, YTreeNode]): Long = {
+    attrs(YtAttributes.compressedDataSize).longValue()
+  }
+
+  def modificationTimeTs(path: YPath, transaction: Option[String])(implicit yt: CompoundClient): Long = {
+    modificationTimeTs(modificationTime(path, transaction))
+  }
+
+  def modificationTime(path: YPath, transaction: Option[String])(implicit yt: CompoundClient): String = {
+    attribute(path, YtAttributes.modificationTime, transaction).stringValue()
   }
 
   def modificationTime(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): String = {
@@ -89,9 +113,5 @@ trait YtFileUtils {
 
   def modificationTimeTs(attributes: Map[String, YTreeNode]): Long = {
     modificationTimeTs(modificationTime(attributes))
-  }
-
-  def fileSize(attrs: Map[String, YTreeNode]): Long = {
-    attrs(YtAttributes.compressedDataSize).longValue()
   }
 }

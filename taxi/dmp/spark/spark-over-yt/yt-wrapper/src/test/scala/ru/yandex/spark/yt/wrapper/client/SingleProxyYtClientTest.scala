@@ -44,7 +44,7 @@ class SingleProxyYtClientTest extends FlatSpec with Matchers with LocalYt with T
     )
 
     writeTableFromYson(data, tmpPath, schema)
-    val res = readTableAsYson(tmpPath, schema).map(YTreeTextSerializer.serialize)
+    val res = readTableAsYson(tmpPath).map(YTreeTextSerializer.serialize)
 
     res should contain theSameElementsAs data
   }

@@ -764,7 +764,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
   }
 
   it should "merge small chunks in reading plan" in {
-    val data = (1 to 1000).toDF().repartition(1000)
+    val data = (1 to 100).toDF().repartition(100)
     data.write.yt(tmpPath)
 
     val partitions = withConf(FILES_OPEN_COST_IN_BYTES, "1") {

@@ -5,7 +5,7 @@ object Dependencies {
   lazy val circeYamlVersion = "0.12.0"
   lazy val scalatestVersion = "3.0.8"
   lazy val sparkVersion = "3.0.1"
-  lazy val sparkForkVersion = "3.0.1-fork-1.9.3"
+  lazy val sparkForkVersion = "3.0.1-fork-1.17.0"
   lazy val yandexIcebergVersion = "8582813"
   lazy val slf4jVersion = "1.7.28"
   lazy val scalatraVersion = "2.7.0"
@@ -60,16 +60,11 @@ object Dependencies {
   )
 
   lazy val yandexIceberg = Seq(
-    "ru.yandex" % "java-ytclient" % yandexIcebergVersion
-    //      excludeAll (
-    //            ExclusionRule(organization = "ru.yandex", name = "java-ytclient")
-    //      ExclusionRule(organization = "ru.yandex", name = "yt-client-protos"),
-    //    ),
-    //    "ru.yandex" % "java-ytclient" % "custom-3"
-    //  excludeAll (
-    //      ExclusionRule(organization = "ru.yandex", name = "yt-client-protos")
-    //    ),
-    //    "ru.yandex" % "yt-client-protos" % "custom"
+    "ru.yandex" % "java-ytclient" % "custom"
+      excludeAll (
+      ExclusionRule(organization = "ru.yandex", name = "iceberg-inside-yt-core")
+    ),
+    "ru.yandex" % "iceberg-inside-yt-core" % "custom"
   ).map(_ excludeAll(
     ExclusionRule(organization = "com.fasterxml.jackson.core"),
     ExclusionRule(organization = "org.apache.commons"),

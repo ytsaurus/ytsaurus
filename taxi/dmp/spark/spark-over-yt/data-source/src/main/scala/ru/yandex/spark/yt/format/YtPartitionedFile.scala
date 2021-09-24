@@ -10,13 +10,18 @@ class YtPartitionedFile(val path: String,
                         val endRow: Long,
                         val byteSize: Long,
                         val isDynamic: Boolean,
-                        val keyColumns: Seq[String])
+                        val keyColumns: Seq[String],
+                        val modificationTs: Long)
   extends PartitionedFile(
     partitionValues = YtPartitionedFile.emptyInternalRow,
     filePath = path,
     start = beginRow,
     length = byteSize
-  )
+  ) {
+  def copy(path: String): YtPartitionedFile = {
+    new YtPartitionedFile(path, beginKey, endKey, beginRow, endRow, byteSize, isDynamic, keyColumns, modificationTs)
+  }
+}
 
 object YtPartitionedFile {
   private val emptyInternalRow = new GenericInternalRow(new Array[Any](0))

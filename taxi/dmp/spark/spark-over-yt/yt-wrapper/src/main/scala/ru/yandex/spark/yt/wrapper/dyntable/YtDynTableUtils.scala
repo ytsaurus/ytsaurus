@@ -1,6 +1,7 @@
 package ru.yandex.spark.yt.wrapper.dyntable
 
 import org.slf4j.LoggerFactory
+import ru.yandex.inside.yt.kosher.cypress.YPath
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeNodeUtils
 import ru.yandex.inside.yt.kosher.impl.ytree.`object`.YTreeSerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
@@ -13,7 +14,7 @@ import ru.yandex.spark.yt.wrapper.YtWrapper.{createTable, createTransaction}
 import ru.yandex.spark.yt.wrapper.cypress.{YtAttributes, YtCypressUtils}
 import ru.yandex.spark.yt.wrapper.table.YtTableSettings
 import ru.yandex.yson.YsonConsumer
-import ru.yandex.yt.ytclient.proxy.request.{GetTablePivotKeys, WriteTable}
+import ru.yandex.yt.ytclient.proxy.request.{GetTablePivotKeys, ReshardTable, WriteTable}
 import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient, ModifyRowsRequest, SelectRowsRequest}
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 
@@ -45,16 +46,20 @@ trait YtDynTableUtils {
     }
   }
 
-  def pivotKeysYson(path: String)(implicit yt: CompoundClient): Seq[YTreeNode] = {
+  def pivotKeysYson(path: YPath)(implicit yt: CompoundClient): Seq[YTreeNode] = {
     import scala.collection.JavaConverters._
     log.debug(s"Get pivot keys for $path")
     yt
-      .getTablePivotKeys(new GetTablePivotKeys(formatPath(path)))
+      .getTablePivotKeys(new GetTablePivotKeys(path.justPath().toString))
       .join()
       .asScala
   }
 
   def pivotKeys(path: String)(implicit yt: CompoundClient): Seq[PivotKey] = {
+    pivotKeys(YPath.simple(formatPath(path)))
+  }
+
+  def pivotKeys(path: YPath)(implicit yt: CompoundClient): Seq[PivotKey] = {
     pivotKeysYson(path).map(serialiseYson)
   }
 
@@ -74,6 +79,16 @@ trait YtDynTableUtils {
   def mountTable(path: String)(implicit yt: CompoundClient): Unit = {
     log.debug(s"Mount table: $path")
     yt.mountTable(formatPath(path)).join()
+  }
+
+  def mountTableSync(path: String, timeout: Duration)(implicit yt: CompoundClient): Unit = {
+    mountTable(path)
+    waitState(path, TabletState.Mounted, timeout)
+  }
+
+  def unmountTableSync(path: String, timeout: Duration)(implicit yt: CompoundClient): Unit = {
+    unmountTable(path)
+    waitState(path, TabletState.Unmounted, timeout)
   }
 
   def unmountTable(path: String)(implicit yt: CompoundClient): Unit = {
@@ -217,6 +232,30 @@ trait YtDynTableUtils {
 
   def remountTable(path: String)(implicit yt: CompoundClient): Unit = {
     yt.remountTable(formatPath(path)).join()
+  }
+
+  def maxAvailableTimestamp(path: YPath, transaction: Option[String] = None)
+                           (implicit yt: CompoundClient): Long = {
+    if (isDynamicStoreReadEnabled(path, transaction)) {
+      yt.generateTimestamps().join().getValue
+    } else {
+      attribute(path, "unflushed_timestamp", transaction).longValue() - 1
+    }
+  }
+
+  def isDynamicStoreReadEnabled(path: YPath, transaction: Option[String] = None)
+                               (implicit yt: CompoundClient): Boolean = {
+    attribute(path, "enable_dynamic_store_read", transaction).boolValue()
+  }
+
+  def reshardTable(path: String, schema: TableSchema, pivotKeys: Seq[Seq[Any]])
+                  (implicit yt: CompoundClient): Unit = {
+    import scala.collection.JavaConverters._
+    val request = new ReshardTable(YPath.simple(formatPath(path))).setSchema(schema)
+    pivotKeys.foreach { key =>
+      request.addPivotKey(key.asJava)
+    }
+    yt.reshardTable(request).join()
   }
 
   sealed abstract class TabletState(val name: String)

@@ -19,7 +19,7 @@ class YtDynTableUtilsTest extends FlatSpec with Matchers with LocalYtClient with
   }
 
   it should "get non empty pivotKeys" in {
-    prepareTestTable(tmpPath, testData, Seq("[]", "[3]", "[6;12]"))
+    prepareTestTable(tmpPath, testData, Seq(Seq(), Seq(3), Seq(6, 12)))
     YtWrapper.pivotKeys(tmpPath).map(str) should contain theSameElementsInOrderAs Seq(
       "{}", """{"a"=3}""", """{"a"=6;"b"=12}"""
     )

@@ -1,9 +1,9 @@
 package ru.yandex.spark.yt.wrapper.transaction
 
 import java.time.{Duration => JDuration}
-
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.common.GUID
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper._
 import ru.yandex.yt.ytclient.proxy.request._
@@ -94,6 +94,10 @@ trait YtTransactionUtils {
     }
   }
 
+  def transactionExists(transaction: String)(implicit yt: CompoundClient): Boolean = {
+    yt.existsNode(s"//sys/transactions/$transaction").get()
+  }
+
   implicit class RichGetLikeRequest[T <: GetLikeReq[_]](val request: T) {
     def optionalTransaction(transaction: Option[String]): T = {
       transaction.map { t =>
@@ -130,6 +134,14 @@ trait YtTransactionUtils {
     def optionalTransaction(transaction: Option[String]): T = {
       transaction.map { t =>
         request.setTransactionOptions(new TransactionalOptions(GUID.valueOf(t))).asInstanceOf[T]
+      }.getOrElse(request)
+    }
+  }
+
+  implicit class RichReadTableRequest[T <: ReadTable[_]](val request: T) {
+    def optionalTransaction(transaction: Option[String]): T = {
+      transaction.map { t =>
+        request.setTransactionalOptions(new TransactionalOptions(GUID.valueOf(t))).asInstanceOf[T]
       }.getOrElse(request)
     }
   }

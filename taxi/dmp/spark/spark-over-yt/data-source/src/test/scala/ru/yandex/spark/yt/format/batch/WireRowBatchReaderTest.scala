@@ -23,7 +23,7 @@ class WireRowBatchReaderTest extends FlatSpec with Matchers with ReadBatchRows w
     val data = Seq.fill(rowCount)((r.nextInt, r.nextDouble))
     val df = data.toDF("a", "b")
     df.coalesce(1).write.yt(tmpPath)
-    val rowIterator = YtWrapper.readTable(tmpPath, ArrayAnyDeserializer.getOrCreate(df.schema), 10 seconds)
+    val rowIterator = YtWrapper.readTable(tmpPath, ArrayAnyDeserializer.getOrCreate(df.schema), 10 seconds, None)
 
     val reader = new WireRowBatchReader(rowIterator, batchMaxSize, rowCount, df.schema)
     val res = readFully(reader, df.schema, batchMaxSize)

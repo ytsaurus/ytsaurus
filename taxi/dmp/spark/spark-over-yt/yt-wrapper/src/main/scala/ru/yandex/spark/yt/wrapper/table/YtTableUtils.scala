@@ -56,29 +56,33 @@ trait YtTableUtils {
     yt.createNode(request).join()
   }
 
-  def readTable[T](path: YPath, deserializer: WireRowDeserializer[T], timeout: Duration = 1 minute)
+  def readTable[T](path: String, deserializer: WireRowDeserializer[T], timeout: Duration, transaction: Option[String])
                   (implicit yt: CompoundClient): TableIterator[T] = {
-    readTable(path.toString, deserializer, timeout)
+    readTable(YPath.simple(formatPath(path)), deserializer, timeout, transaction)
   }
 
-  def readTable[T](path: String, deserializer: WireRowDeserializer[T], timeout: Duration)
+  def readTable[T](path: YPath, deserializer: WireRowDeserializer[T], timeout: Duration = 1 minute,
+                   transaction: Option[String] = None)
                   (implicit yt: CompoundClient): TableIterator[T] = {
     val request = new ReadTable(path, deserializer)
       .setOmitInaccessibleColumns(true)
       .setUnordered(true)
+      .optionalTransaction(transaction)
     val reader = yt.readTable(request).join()
     new TableIterator(reader, timeout)
   }
 
-  def readTableArrowStream(path: YPath, timeout: Duration = 1 minute)
+  def readTableArrowStream(path: YPath, timeout: Duration = 1 minute,
+                           transaction: Option[String] = None)
                           (implicit yt: CompoundClient): YtArrowInputStream = {
-    readTableArrowStream(path.toString, timeout)
+    readTableArrowStream(path.toString, timeout, transaction)
   }
 
-  def readTableArrowStream(path: String, timeout: Duration)
+  def readTableArrowStream(path: String, timeout: Duration, transaction: Option[String])
                           (implicit yt: CompoundClient): YtArrowInputStream = {
     val request = new ReadTable[ByteBuffer](path, null.asInstanceOf[WireRowDeserializer[ByteBuffer]])
       .setDesiredRowsetFormat(ERowsetFormat.RF_ARROW)
+      .optionalTransaction(transaction)
     val reader = yt.readTable(request, new TableAttachmentByteBufferReader).join()
     new TableCopyByteStream(reader, timeout)
   }

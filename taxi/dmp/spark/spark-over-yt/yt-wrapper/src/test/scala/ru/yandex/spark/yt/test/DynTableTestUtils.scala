@@ -2,6 +2,7 @@ package ru.yandex.spark.yt.test
 
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.YtWrapper
+import ru.yandex.spark.yt.wrapper.YtWrapper.{createTable, insertRows, mountTableSync, reshardTable, unmountTableSync}
 import ru.yandex.spark.yt.wrapper.table.YtTableSettings
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.tables.{ColumnSchema, ColumnSortOrder, ColumnValueType, TableSchema}
@@ -12,7 +13,7 @@ import scala.language.postfixOps
 trait DynTableTestUtils {
   self: LocalYtClient =>
 
-  private val testSchema = new TableSchema.Builder()
+  val testSchema: TableSchema = new TableSchema.Builder()
     .setUniqueKeys(false)
     .add(new ColumnSchema("a", ColumnValueType.INT64, ColumnSortOrder.ASCENDING))
     .add(new ColumnSchema("b", ColumnValueType.INT64, ColumnSortOrder.ASCENDING))
@@ -20,28 +21,17 @@ trait DynTableTestUtils {
     .build()
   private val testSchemaYt = testSchema.toYTree
 
-  def testData: Seq[TestRow] = (1 to 10).map(i => TestRow(i, i * 2, ('a'.toInt + i).toChar.toString))
+  val testData: Seq[TestRow] = (1 to 10).map(i => TestRow(i, i * 2, ('a'.toInt + i).toChar.toString))
+  val testRow: TestRow = TestRow(100, 100, "new_row")
 
-  def prepareTestTable(path: String, data: Seq[TestRow], pivotKeys: Seq[String]): Unit = {
-    import scala.collection.JavaConverters._
-    YtWrapper.createTable(path, TestTableSettings(testSchemaYt, isDynamic = true, sortColumns = Seq("a", "b")))
-    YtWrapper.mountTable(path)
-    YtWrapper.waitState(path, YtWrapper.TabletState.Mounted, 10 seconds)
-    YtWrapper.insertRows(path, testSchema, data.map(r => r.productIterator.toList.asJava).asJava, None)
-    YtWrapper.unmountTable(path)
-    YtWrapper.waitState(path, YtWrapper.TabletState.Unmounted, 10 seconds)
-    if (pivotKeys.nonEmpty) reshardTable(path, pivotKeys)
-    YtWrapper.mountTable(path)
-    YtWrapper.waitState(path, YtWrapper.TabletState.Mounted, 10 seconds)
+  def prepareTestTable(path: String, data: Seq[TestRow], pivotKeys: Seq[Seq[Any]]): Unit = {
+    createTable(path, TestTableSettings(testSchemaYt, isDynamic = true, sortColumns = Seq("a", "b")))
+    mountTableSync(path, 10 seconds)
+    insertRows(path, testSchema, data.map(r => r.productIterator.toList))
+    unmountTableSync(path, 10 seconds)
+    if (pivotKeys.nonEmpty) reshardTable(path, testSchema, pivotKeys)
+    mountTableSync(path, 10 seconds)
   }
-
-  def reshardTable(path: String, pivotKeys: Seq[String])(implicit yt: CompoundClient): Unit = {
-    import scala.language.postfixOps
-    import sys.process._
-
-    s"yt --proxy localhost:8000 reshard-table $path ${pivotKeys.mkString(" ")}" !
-  }
-
 }
 
 case class TestTableSettings(ytSchema: YTreeNode,

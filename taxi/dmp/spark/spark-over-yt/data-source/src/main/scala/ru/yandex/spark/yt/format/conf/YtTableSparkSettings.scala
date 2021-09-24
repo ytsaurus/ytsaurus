@@ -35,6 +35,10 @@ object YtTableSparkSettings {
 
   case object Dynamic extends BooleanConfigEntry("dynamic")
 
+  case object Transaction extends StringConfigEntry("transaction")
+
+  case object Timestamp extends LongConfigEntry("timestamp")
+
   // write
   case object IsTable extends BooleanConfigEntry("is_table", Some(false))
 

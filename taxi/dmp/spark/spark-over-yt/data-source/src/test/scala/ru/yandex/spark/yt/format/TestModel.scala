@@ -1,4 +1,4 @@
-package ru.yandex.spark.yt.format.tmp
+package ru.yandex.spark.yt.format
 
 case class A(field1: Int, field2: Option[String])
 
