@@ -68,7 +68,7 @@ def get_stats_list(stats):
         codec = x["codec"]
         match = CODEC_WITH_LEVEL_PATTERN.match(codec)
         if not match:
-            return (x, 0)
+            return (codec, 0)
         else:
             name = match.group(1)
             level = int(match.group(2))
@@ -95,6 +95,9 @@ def run(table, time_limit_sec, max_operations, sample_size, all_codecs, client=N
     client = yt.YtClient(config=yt.config.config)
     tmp_dir = client.config["remote_temp_tables_directory"] + "/compression-benchmarks"
     input_table_attributes = client.get(table + "/@")
+    if input_table_attributes["dynamic"]:
+        raise yt.YtError("Given table is dynamic. Benchmark can work only with static tables")
+
     sample_rows = compute_row_count(input_table_attributes, sample_size)
     optimize_for = input_table_attributes["optimize_for"]
     compression_codec_list = get_compression_codec_list(client, all_codecs)
@@ -150,13 +153,13 @@ def run(table, time_limit_sec, max_operations, sample_size, all_codecs, client=N
                     )
                 stats[codec] = {}
                 stats[codec]["compression_ratio"] = compression_ratio
-                stats[codec]["cpu_write"] = cpu_write
+                stats[codec]["codec/cpu/encode"] = cpu_write
 
             operation_id_list = []
 
             for (codec, table) in zip(compression_codec_list, temp_tables):
                 if stats[codec]["compression_ratio"] == TIMED_OUT:
-                    stats[codec]["cpu_read"] = NOT_LAUNCHED
+                    stats[codec]["codec/cpu/decode"] = NOT_LAUNCHED
                     operation_id_list.append(None)
                     continue
 
@@ -187,7 +190,7 @@ def run(table, time_limit_sec, max_operations, sample_size, all_codecs, client=N
                         operation_info,
                         "progress/job_statistics/codec/cpu/decode/{}/$/completed/map/sum".format(codec)
                     )
-                stats[codec]["cpu_read"] = cpu_read
+                stats[codec]["codec/cpu/decode"] = cpu_read
         client.abort_transaction(tx)
     return stats
 
@@ -201,7 +204,7 @@ def run_compression_benchmarks(table, format, time_limit_sec, max_operations, sa
         assert format == "csv"
         writer = csv.DictWriter(
             sys.stdout,
-            fieldnames=["codec", "compression_ratio", "cpu_write", "cpu_read"]
+            fieldnames=["codec", "compression_ratio", "codec/cpu/encode", "codec/cpu/decode"]
         )
         writer.writeheader()
         for stat in stats_list:
