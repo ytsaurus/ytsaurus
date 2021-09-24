@@ -161,6 +161,7 @@ using namespace NTableClient;
 using namespace NQueryClient;
 using namespace NProfiling;
 using namespace NScheduler;
+using namespace NVectorHdrf;
 using namespace NEventLog;
 using namespace NLogging;
 using namespace NYTAlloc;
@@ -4471,7 +4472,7 @@ void TOperationControllerBase::UpdateTask(const TTaskPtr& task)
         newPendingJobCount,
         oldTotalJobCount,
         newTotalJobCount,
-        FormatResources(CachedNeededResources));
+        CachedNeededResources);
 
     task->CheckCompleted();
 }
@@ -4600,7 +4601,7 @@ void TOperationControllerBase::TryScheduleJob(
             task->GetTitle(),
             address,
             locality,
-            FormatResources(jobLimits),
+            jobLimits,
             task->GetPendingDataWeight(),
             task->GetPendingJobCount());
 

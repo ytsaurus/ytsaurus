@@ -7,7 +7,9 @@
 
 #include <yt/yt/library/numeric/fixed_point_number.h>
 
-namespace NYT::NScheduler {
+#include <optional>
+
+namespace NYT::NVectorHdrf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,4 +107,35 @@ TJobResources Min(const TJobResources& lhs, const TJobResources& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+class TJobResourcesConfig
+{
+public:
+    std::optional<int> UserSlots;
+    std::optional<double> Cpu;
+    std::optional<int> Network;
+    std::optional<i64> Memory;
+    std::optional<int> Gpu;
+
+    template <class T>
+    void ForEachResource(T processResource)
+    {
+        processResource(&TJobResourcesConfig::UserSlots, EJobResourceType::UserSlots);
+        processResource(&TJobResourcesConfig::Cpu, EJobResourceType::Cpu);
+        processResource(&TJobResourcesConfig::Network, EJobResourceType::Network);
+        processResource(&TJobResourcesConfig::Memory, EJobResourceType::Memory);
+        processResource(&TJobResourcesConfig::Gpu, EJobResourceType::Gpu);
+    }
+
+    bool IsNonTrivial()
+    {
+        bool isNonTrivial = false;
+        ForEachResource([&, this] (auto TJobResourcesConfig::* resourceDataMember, EJobResourceType /* resourceType */) {
+            isNonTrivial |= (this->*resourceDataMember).has_value();
+        });
+        return isNonTrivial;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NVectorHdrf

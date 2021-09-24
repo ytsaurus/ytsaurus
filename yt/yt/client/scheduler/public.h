@@ -117,17 +117,6 @@ DEFINE_ENUM(EInterruptReason,
     ((Unknown)            (4))
 );
 
-DEFINE_ENUM(ESchedulingMode,
-    (Fifo)
-    (FairShare)
-);
-
-DEFINE_ENUM(EFifoSortParameter,
-    (Weight)
-    (StartTime)
-    (PendingJobCount)
-);
-
 DEFINE_ENUM(EAutoMergeMode,
     (Disabled)
     (Relaxed)

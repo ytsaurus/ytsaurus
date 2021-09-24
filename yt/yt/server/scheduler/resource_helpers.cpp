@@ -1,10 +1,20 @@
 #include "resource_helpers.h"
+#include "fair_share_update.h"
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
-namespace NYT::NScheduler {
+namespace NYT {
+    
+namespace NScheduler {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobResources ToJobResources(const TJobResourcesConfigPtr& config, TJobResources defaultValue)
+{
+    return NVectorHdrf::ToJobResources(*config, defaultValue);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +44,89 @@ TJobResources GetAdjustedResourceLimits(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ProfileResourceVector(
+    NProfiling::ISensorWriter* writer,
+    const THashSet<EJobResourceType>& resourceTypes,
+    const TResourceVector& resourceVector,
+    const TString& prefix)
+{
+    for (auto resourceType : resourceTypes) {
+        writer->AddGauge(
+            prefix + "/" + FormatEnum(resourceType),
+            resourceVector[resourceType]);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ProfileResourceVolume(
+    NProfiling::ISensorWriter* writer,
+    const TResourceVolume& volume,
+    const TString& prefix)
+{
+    #define XX(name, Name) writer->AddGauge(prefix + "/" #name, static_cast<double>(volume.Get##Name()));
+    ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NScheduler
+
+namespace NVectorHdrf {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TResourceVolume& volume, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            #define XX(name, Name) .Item(#name).Value(volume.Get##Name())
+            ITERATE_JOB_RESOURCES(XX)
+            #undef XX
+        .EndMap();
+}
+
+void Deserialize(TResourceVolume& volume, NYTree::INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    #define XX(name, Name) \
+        if (auto child = mapNode->FindChild(#name)) { \
+            auto value = volume.Get##Name(); \
+            Deserialize(value, child); \
+            volume.Set##Name(value); \
+        }
+    ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+}
+
+void Serialize(const TResourceVector& resourceVector, NYson::IYsonConsumer* consumer)
+{
+    auto fluent = NYTree::BuildYsonFluently(consumer).BeginMap();
+    for (int index = 0; index < ResourceCount; ++index) {
+        fluent
+            .Item(FormatEnum(TResourceVector::GetResourceTypeById(index)))
+            .Value(resourceVector[index]);
+    }
+    fluent.EndMap();
+}
+
+void FormatValue(TStringBuilderBase* builder, const TResourceVolume& volume, TStringBuf /* format */)
+{
+    builder->AppendFormat(
+        "{UserSlots: %.2f, Cpu: %v, Gpu: %.2f, Memory: %.2fMBs, Network: %.2f}",
+        volume.GetUserSlots(),
+        volume.GetCpu(),
+        volume.GetGpu(),
+        volume.GetMemory() / 1_MB,
+        volume.GetNetwork());
+}
+
+TString ToString(const TResourceVolume& volume)
+{
+    return ToStringViaBuilder(volume);
+}
+
 void FormatValue(TStringBuilderBase* builder, const TResourceVector& resourceVector, TStringBuf format)
 {
     auto getResourceSuffix = [] (EJobResourceType resourceType) {
@@ -62,71 +155,8 @@ void FormatValue(TStringBuilderBase* builder, const TResourceVector& resourceVec
     builder->AppendChar(']');
 }
 
-void ProfileResourceVector(
-    NProfiling::ISensorWriter* writer,
-    const THashSet<EJobResourceType>& resourceTypes,
-    const TResourceVector& resourceVector,
-    const TString& prefix)
-{
-    for (auto resourceType : resourceTypes) {
-        writer->AddGauge(
-            prefix + "/" + FormatEnum(resourceType),
-            resourceVector[resourceType]);
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProfileResourceVolume(
-    NProfiling::ISensorWriter* writer,
-    const TResourceVolume& volume,
-    const TString& prefix)
-{
-    #define XX(name, Name) writer->AddGauge(prefix + "/" #name, static_cast<double>(volume.Get##Name()));
-    ITERATE_JOB_RESOURCES(XX)
-    #undef XX
-}
+} // namespace NVectorHdrf
 
-void Serialize(const TResourceVolume& volume, NYson::IYsonConsumer* consumer)
-{
-    NYTree::BuildYsonFluently(consumer)
-        .BeginMap()
-            #define XX(name, Name) .Item(#name).Value(volume.Get##Name())
-            ITERATE_JOB_RESOURCES(XX)
-            #undef XX
-        .EndMap();
-}
-
-void Deserialize(TResourceVolume& volume, NYTree::INodePtr node)
-{
-    auto mapNode = node->AsMap();
-    #define XX(name, Name) \
-        if (auto child = mapNode->FindChild(#name)) { \
-            auto value = volume.Get##Name(); \
-            Deserialize(value, child); \
-            volume.Set##Name(value); \
-        }
-    ITERATE_JOB_RESOURCES(XX)
-    #undef XX
-}
-
-void FormatValue(TStringBuilderBase* builder, const TResourceVolume& volume, TStringBuf /* format */)
-{
-    builder->AppendFormat(
-        "{UserSlots: %.2f, Cpu: %v, Gpu: %.2f, Memory: %.2fMBs, Network: %.2f}",
-        volume.GetUserSlots(),
-        volume.GetCpu(),
-        volume.GetGpu(),
-        volume.GetMemory() / 1_MB,
-        volume.GetNetwork());
-}
-
-TString ToString(const TResourceVolume& volume)
-{
-    return ToStringViaBuilder(volume);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NScheduler
-
+} // namespace NYT

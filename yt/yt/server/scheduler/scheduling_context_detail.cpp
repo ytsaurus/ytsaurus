@@ -16,7 +16,7 @@ namespace NYT::NScheduler {
 
 using namespace NObjectClient;
 using namespace NControllerAgent;
-using NFairShare::ToJobResources;
+using NVectorHdrf::ToJobResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,7 +34,7 @@ TSchedulingContextBase::TSchedulingContextBase(
     , MediumDirectory_(mediumDirectory)
     , MinSpareJobResources_(
         Config_->MinSpareJobResourcesOnNode
-        ? ToJobResources(*Config_->MinSpareJobResourcesOnNode, TJobResources())
+        ? ToJobResources(*(Config_->MinSpareJobResourcesOnNode).value(), TJobResources())
         : TJobResources())
     , ResourceUsage_(Node_->GetResourceUsage())
     , ResourceLimits_(Node_->GetResourceLimits())

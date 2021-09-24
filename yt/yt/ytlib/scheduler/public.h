@@ -6,7 +6,23 @@
 
 #include <yt/yt/ytlib/job_tracker_client/public.h>
 
+#include <yt/yt/library/vector_hdrf/public.h>
+#include <yt/yt/library/vector_hdrf/job_resources.h>
+#include <yt/yt/library/vector_hdrf/resource_vector.h>
+#include <yt/yt/library/vector_hdrf/resource_volume.h>
+
 namespace NYT::NScheduler {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using NVectorHdrf::EIntegralGuaranteeType;
+using NVectorHdrf::ESchedulingMode;
+using NVectorHdrf::EJobResourceType;
+using NVectorHdrf::TCpuResource;
+using NVectorHdrf::TJobResources;
+using NVectorHdrf::TResourceVector;
+using NVectorHdrf::TResourceVolume;
+using NVectorHdrf::ResourceCount;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,6 +73,12 @@ DEFINE_ENUM(EPreemptionMode,
 DEFINE_ENUM(EEnablePorto,
     ((Isolate) (0))
     ((None)    (1))
+);
+
+DEFINE_ENUM(EFifoSortParameter,
+    (Weight)
+    (StartTime)
+    (PendingJobCount)
 );
 
 DEFINE_ENUM(ESchedulingSegment,
@@ -115,7 +137,6 @@ DECLARE_REFCOUNTED_CLASS(TJobCpuMonitorConfig)
 DECLARE_REFCOUNTED_CLASS(TExperimentOperationSpec)
 
 struct TDiskQuota;
-class TJobResources;
 class TJobResourcesWithQuota;
 
 class TSchedulerServiceProxy;

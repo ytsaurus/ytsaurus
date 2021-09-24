@@ -643,7 +643,7 @@ protected:
         std::optional<TInstant> previousUpdateTime = std::nullopt,
         bool checkForStarvation = false)
     {
-		NFairShare::TFairShareUpdateContext context(
+		NVectorHdrf::TFairShareUpdateContext context(
             /* totalResourceLimits */ host->GetResourceLimits(TreeConfig_->NodesFilter),
             TreeConfig_->MainResource,
             TreeConfig_->IntegralGuarantees->PoolCapacitySaturationPeriod,
@@ -659,7 +659,7 @@ protected:
 
         rootElement->PreUpdate(&context);
 
-		NFairShare::TFairShareUpdateExecutor updateExecutor(rootElement, &context);
+		NVectorHdrf::TFairShareUpdateExecutor updateExecutor(rootElement, &context);
 		updateExecutor.Run();
 
 		rootElement->PostUpdate(&fairSharePostUpdateContext, &manageSegmentsContext);

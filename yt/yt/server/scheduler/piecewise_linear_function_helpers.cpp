@@ -6,6 +6,8 @@ namespace NYT::NScheduler {
 
 namespace NDetail {
 
+using namespace NVectorHdrf;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TScalarPiecewiseLinearFunction ExtractComponent(int resourceIndex, const TVectorPiecewiseLinearFunction& vecFunc)

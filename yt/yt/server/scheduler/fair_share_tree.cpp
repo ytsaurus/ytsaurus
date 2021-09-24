@@ -42,6 +42,11 @@ using namespace NYTree;
 using namespace NProfiling;
 using namespace NControllerAgent;
 
+using NVectorHdrf::TFairShareUpdateExecutor;
+using NVectorHdrf::TFairShareUpdateContext;
+using NVectorHdrf::SerializeDominant;
+using NVectorHdrf::RatioComparisonPrecision;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TFairShareStrategyOperationState::TFairShareStrategyOperationState(
@@ -1105,7 +1110,7 @@ private:
 
         ResourceTree_->PerformPostponedActions();
 
-        NFairShare::TFairShareUpdateContext updateContext(
+        TFairShareUpdateContext updateContext(
             /* totalResourceLimits */ StrategyHost_->GetResourceLimits(Config_->NodesFilter),
             Config_->MainResource,
             Config_->IntegralGuarantees->PoolCapacitySaturationPeriod,
@@ -1143,7 +1148,7 @@ private:
                 {
                     TEventTimerGuard timer(FairShareUpdateTimer_);
 
-                    NFairShare::TFairShareUpdateExecutor updateExecutor(rootElement, &updateContext);
+                    TFairShareUpdateExecutor updateExecutor(rootElement, &updateContext);
                     updateExecutor.Run();
 
                     rootElement->PostUpdate(&fairSharePostUpdateContext, &manageSegmentsContext);
@@ -2619,7 +2624,7 @@ private:
             // COMPAT(ignat): remove it after UI and other tools migration.
             .Item("fair_share_ratio").Value(MaxComponent(attributes.FairShare.Total))
             .Item("detailed_fair_share").Value(attributes.FairShare)
-            .Item("detailed_dominant_fair_share").Do(std::bind(&NFairShare::SerializeDominant, attributes.FairShare, std::placeholders::_1))
+            .Item("detailed_dominant_fair_share").Do(std::bind(&SerializeDominant, attributes.FairShare, std::placeholders::_1))
 
             .Item("promised_fair_share").Value(attributes.PromisedFairShare)
             .Item("promised_dominant_fair_share").Value(MaxComponent(attributes.PromisedFairShare))

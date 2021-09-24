@@ -1,15 +1,16 @@
 #include "serialize.h"
+#include "resource_helpers.h"
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
-namespace NYT {
-
-namespace NFairShare {
+namespace NYT::NVectorHdrf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void Serialize(const TDetailedFairShare& detailedFairShare, NYson::IYsonConsumer* consumer)
 {
+    using NVectorHdrf::Serialize;
+
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
             .Item("strong_guarantee").Value(detailedFairShare.StrongGuarantee)
@@ -32,25 +33,4 @@ void SerializeDominant(const TDetailedFairShare& detailedFairShare, NYTree::TFlu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFairShare
-
-namespace NScheduler {
-
-////////////////////////////////////////////////////////////////////////////////
-
-void Serialize(const TResourceVector& resourceVector, NYson::IYsonConsumer* consumer)
-{
-    auto fluent = NYTree::BuildYsonFluently(consumer).BeginMap();
-    for (int index = 0; index < ResourceCount; ++index) {
-        fluent
-            .Item(FormatEnum(TResourceVector::GetResourceTypeById(index)))
-            .Value(resourceVector[index]);
-    }
-    fluent.EndMap();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NScheduler
-
-} // namespace NYT
+} // namespace NYT::NVectorHdrf

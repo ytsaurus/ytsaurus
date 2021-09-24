@@ -12,7 +12,22 @@
 
 #include <yt/yt/library/profiling/producer.h>
 
-namespace NYT::NScheduler {
+namespace NYT {
+
+namespace NVectorHdrf {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TJobResources& resources, NYson::IYsonConsumer* consumer);
+void Deserialize(TJobResources& resources, NYTree::INodePtr node);
+
+void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TStringBuf /* format */);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NVectorHdrf
+
+namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,8 +35,6 @@ TJobResources ToJobResources(const NNodeTrackerClient::NProto::TNodeResources& n
 NNodeTrackerClient::NProto::TNodeResources ToNodeResources(const TJobResources& jobResources);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-void Serialize(const TJobResources& resources, NYson::IYsonConsumer* consumer);
 
 void SerializeDiskQuota(
     const TDiskQuota& quota,
@@ -31,8 +44,6 @@ void SerializeJobResourcesWithQuota(
     const TJobResourcesWithQuota& resources,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
     NYson::IYsonConsumer* consumer);
-
-void Deserialize(TJobResources& resources, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,11 +57,9 @@ TString FormatResourceUsage(
     const TJobResources& limits,
     const NNodeTrackerClient::NProto::TDiskResources& diskResources,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
+
 TString FormatResources(const TJobResources& resources);
-
 TString FormatResources(const TJobResourcesWithQuota& resources);
-
-void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TStringBuf /* format */);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,6 +122,8 @@ struct TJobResourcesSerializer
 
 namespace NProto {
 
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(NScheduler::NProto::TDiskQuota* protoDiskQuota, const NScheduler::TDiskQuota& diskQuota);
 void FromProto(NScheduler::TDiskQuota* diskQuota, const NScheduler::NProto::TDiskQuota& protoDiskQuota);
 
@@ -122,20 +133,20 @@ void FromProto(NScheduler::TJobResources* resources, const NScheduler::NProto::T
 void ToProto(NScheduler::NProto::TJobResourcesWithQuota* protoResources, const NScheduler::TJobResourcesWithQuota& resources);
 void FromProto(NScheduler::TJobResourcesWithQuota* resources, const NScheduler::NProto::TJobResourcesWithQuota& protoResources);
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NProto
 
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NScheduler
+} // namespace NScheduler
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace NYT {
 
 template <class C>
 struct TSerializerTraits<NScheduler::TJobResources, C, void>
 {
     typedef NScheduler::TJobResourcesSerializer TSerializer;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

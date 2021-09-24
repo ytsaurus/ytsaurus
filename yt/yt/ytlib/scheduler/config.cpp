@@ -27,6 +27,8 @@ using namespace NSecurityClient;
 using namespace NTableClient;
 using namespace NTransactionClient;
 
+using NVectorHdrf::EIntegralGuaranteeType;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static void ValidateOperationAcl(const TSerializableAccessControlList& acl)

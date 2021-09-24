@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/job_tracker_client/public.h>
 
+#include <yt/yt/library/vector_hdrf/job_resources.h>
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,9 +47,10 @@ DEFINE_ENUM(EControllerState,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using NVectorHdrf::TJobResources;
+
 using NScheduler::TOperationId;
 using NScheduler::TJobId;
-using NScheduler::TJobResources;
 using NScheduler::EAbortReason;
 using NScheduler::EInterruptReason;
 using NScheduler::EOperationType;

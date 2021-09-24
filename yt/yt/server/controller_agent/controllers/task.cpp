@@ -464,7 +464,7 @@ void TTask::ScheduleJob(
         !CanSatisfyDiskQuotaRequests(context->DiskResources(), {neededResources.GetDiskQuota()}))
     {
         YT_LOG_DEBUG("Job actual resource demand is not met (AvailableJobResources: %v, AvailableDiskResources: %v, NeededResources: %v)",
-            FormatResources(jobLimits),
+            jobLimits,
             NNodeTrackerClient::ToString(context->DiskResources(), TaskHost_->GetMediumDirectory()),
             neededResources.GetDiskQuota());
         CheckResourceDemandSanity(neededResources);

@@ -12,7 +12,7 @@
 
 #include <yt/yt/core/logging/log.h>
 
-namespace NYT::NFairShare {
+namespace NYT::NVectorHdrf {
 
 using namespace NConcurrency;
 using namespace NProfiling;
@@ -54,22 +54,22 @@ void TSchedulableAttributes::SetFairShare(const TResourceVector& fairShare)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobResources ToJobResources(const TJobResourcesConfigPtr& config, TJobResources defaultValue)
+TJobResources ToJobResources(const TJobResourcesConfig& config, TJobResources defaultValue)
 {
-    if (config->UserSlots) {
-        defaultValue.SetUserSlots(*config->UserSlots);
+    if (config.UserSlots) {
+        defaultValue.SetUserSlots(*config.UserSlots);
     }
-    if (config->Cpu) {
-        defaultValue.SetCpu(*config->Cpu);
+    if (config.Cpu) {
+        defaultValue.SetCpu(*config.Cpu);
     }
-    if (config->Network) {
-        defaultValue.SetNetwork(*config->Network);
+    if (config.Network) {
+        defaultValue.SetNetwork(*config.Network);
     }
-    if (config->Memory) {
-        defaultValue.SetMemory(*config->Memory);
+    if (config.Memory) {
+        defaultValue.SetMemory(*config.Memory);
     }
-    if (config->Gpu) {
-        defaultValue.SetGpu(*config->Gpu);
+    if (config.Gpu) {
+        defaultValue.SetGpu(*config.Gpu);
     }
     return defaultValue;
 }
@@ -138,7 +138,7 @@ void TElement::CheckFairShareFeasibility() const
     if (isFairShareSignificantlyGreaterThanDemandShare) {
         std::vector<NScheduler::EJobResourceType> significantlyGreaterResources;
         for (auto resource : TEnumTraits<NScheduler::EJobResourceType>::GetDomainValues()) {
-            if (demandShare[resource] + NScheduler::RatioComputationPrecision <= fairShare[resource]) {
+            if (demandShare[resource] + RatioComputationPrecision <= fairShare[resource]) {
                 significantlyGreaterResources.push_back(resource);
             }
         }
@@ -270,7 +270,7 @@ void TCompositeElement::DetermineEffectiveStrongGuaranteeResources(TFairShareUpd
 
         auto& childEffectiveGuaranteeResources = child->Attributes().EffectiveStrongGuaranteeResources;
         childEffectiveGuaranteeResources = ToJobResources(
-            child->GetStrongGuaranteeResourcesConfig(),
+            *child->GetStrongGuaranteeResourcesConfig(),
             /* defaultValue */ {});
         totalExplicitChildrenGuaranteeResources += childEffectiveGuaranteeResources;
 
@@ -316,7 +316,7 @@ void TCompositeElement::DetermineEffectiveStrongGuaranteeResources(TFairShareUpd
             double scalingFactor = residualGuarantee / totalImplicitChildrenGuarantee;
             for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
                 auto* child = GetChild(childIndex);
-                if ((child->GetStrongGuaranteeResourcesConfig().Get()->*resourceDataMember).has_value()) {
+                if ((child->GetStrongGuaranteeResourcesConfig()->*resourceDataMember).has_value()) {
                     continue;
                 }
 
@@ -1411,4 +1411,4 @@ void TFairShareUpdateExecutor::IncreaseHierarchicalIntegralShare(TElement* eleme
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NFairShare
+} // namespace NYT::NVectorHdrf

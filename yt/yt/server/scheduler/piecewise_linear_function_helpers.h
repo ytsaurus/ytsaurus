@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/library/vector_hdrf/resource_vector.h>
@@ -16,13 +18,13 @@ static const double CompressFunctionEpsilon = 1e-15;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TScalarPiecewiseLinearFunction ExtractComponent(int resourceIndex, const TVectorPiecewiseLinearFunction& vecFunc);
+NVectorHdrf::TScalarPiecewiseLinearFunction ExtractComponent(int resourceIndex, const NVectorHdrf::TVectorPiecewiseLinearFunction& vecFunc);
 
-TScalarPiecewiseSegment ExtractComponent(int resourceIndex, const TVectorPiecewiseSegment& vecSegment);
+NVectorHdrf::TScalarPiecewiseSegment ExtractComponent(int resourceIndex, const NVectorHdrf::TVectorPiecewiseSegment& vecSegment);
 
 //! Transposed representation of a vector-valued segment, where its individual components are stored as separate scalar-valued vectors.
-using TUnpackedVectorPiecewiseSegment = std::vector<TScalarPiecewiseSegment>;
-TUnpackedVectorPiecewiseSegment UnpackVectorSegment(const TVectorPiecewiseSegment& vecSegment);
+using TUnpackedVectorPiecewiseSegment = std::vector<NVectorHdrf::TScalarPiecewiseSegment>;
+TUnpackedVectorPiecewiseSegment UnpackVectorSegment(const NVectorHdrf::TVectorPiecewiseSegment& vecSegment);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,7 +39,7 @@ void VerifyNondecreasing(const TPiecewiseFunction& vecFunc, const NLogging::TLog
 //! so if the orientation of vectors U and V is positive, then it means that V is "above" U (the same for negative/below).
 //!
 //! Returns the orientation of two segments.
-int CompareSegments(const TScalarPiecewiseSegment& firstSegment, const TScalarPiecewiseSegment& secondSegment);
+int CompareSegments(const NVectorHdrf::TScalarPiecewiseSegment& firstSegment, const NVectorHdrf::TScalarPiecewiseSegment& secondSegment);
 
 //! Returns the segment that connects the start of |firstSegment| with the end of |secondSegment|.
 template <class TSegment>
@@ -60,8 +62,8 @@ TUnpackedVectorPiecewiseSegmentBounds GetBounds(const TUnpackedVectorPiecewiseSe
 //! Unfortunately, we couldn't think of an efficient algorithm that solves this problem exactly,
 //! so here we implemented a greedy algorithm, that gives a good approximation (we think).
 //! Details: https://wiki.yandex-team.ru/yt/internal/hdrfv-function-compression/.
-TVectorPiecewiseLinearFunction CompressFunction(
-    const TVectorPiecewiseLinearFunction& vecFunc,
+NVectorHdrf::TVectorPiecewiseLinearFunction CompressFunction(
+    const NVectorHdrf::TVectorPiecewiseLinearFunction& vecFunc,
     double epsilon);
 
 ////////////////////////////////////////////////////////////////////////////////

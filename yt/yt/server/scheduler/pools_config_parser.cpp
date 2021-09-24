@@ -103,7 +103,7 @@ bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const TString& par
         }
 
 
-        bool childIsFifo = updatePoolAction.PoolConfig->Mode == ESchedulingMode::Fifo;
+        bool childIsFifo = updatePoolAction.PoolConfig->Mode == NVectorHdrf::ESchedulingMode::Fifo;
         UpdatePoolActions.push_back(std::move(updatePoolAction));
         YT_VERIFY(ParsedPoolNames_.insert(childName).second);
 
