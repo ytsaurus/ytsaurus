@@ -39,7 +39,9 @@ public:
     {
         Items_.emplace_back(TItem{value, -count});
         if (IsValid() && HasBucket(value)) {
-            View_.Count[GetBucketIndex(value)] -= count;
+            auto& valueCount = View_.Count[GetBucketIndex(value)];
+            valueCount -= count;
+            YT_VERIFY(valueCount >= 0);
         }
     }
 
