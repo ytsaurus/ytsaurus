@@ -242,6 +242,25 @@ void SerializeViolatedMasterMemoryLimits(
 {
     BuildYsonFluently(consumer)
         .BeginMap()
+            .Item("total").Value(violatedLimits.Total)
+            .Item("chunk_host").Value(violatedLimits.ChunkHost)
+            .Item("per_cell").DoMapFor(
+                violatedLimits.PerCell,
+                [&] (TFluentMap fluent, auto pair) {
+                    fluent
+                        .Item(multicellManager->GetMasterCellName(pair.first))
+                        .Value(pair.second);
+            })
+        .EndMap();
+}
+
+void SerializeViolatedMasterMemoryLimitsInBooleanFormat(
+    const TMasterMemoryLimits& violatedLimits,
+    NYson::IYsonConsumer* consumer,
+    const NCellMaster::TMulticellManagerPtr& multicellManager)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
             .Item("total").Value(violatedLimits.Total != 0)
             .Item("chunk_host").Value(violatedLimits.ChunkHost != 0)
             .Item("per_cell").DoMapFor(

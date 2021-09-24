@@ -50,14 +50,19 @@ void SerializeMasterMemoryLimits(
     NYson::IYsonConsumer* consumer,
     const NCellMaster::TMulticellManagerPtr& multicellManager);
 
+void DeserializeMasterMemoryLimits(
+    TMasterMemoryLimits& limits,
+    NYTree::INodePtr node,
+    const NCellMaster::TMulticellManagerPtr& multicellManager);
+
 void SerializeViolatedMasterMemoryLimits(
     const TMasterMemoryLimits& violatedLimits,
     NYson::IYsonConsumer* consumer,
     const NCellMaster::TMulticellManagerPtr& multicellManager);
 
-void DeserializeMasterMemoryLimits(
-    TMasterMemoryLimits& limits,
-    NYTree::INodePtr node,
+void SerializeViolatedMasterMemoryLimitsInBooleanFormat(
+    const TMasterMemoryLimits& violatedLimits,
+    NYson::IYsonConsumer* consumer,
     const NCellMaster::TMulticellManagerPtr& multicellManager);
 
 ////////////////////////////////////////////////////////////////////////////////

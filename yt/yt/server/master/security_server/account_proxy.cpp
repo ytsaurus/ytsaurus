@@ -4,6 +4,8 @@
 #include "security_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
@@ -149,6 +151,7 @@ private:
             .SetMandatory(true)
             .SetPresent(!isRootAccount));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ViolatedResourceLimits)
+            .SetOpaque(true)
             .SetPresent(!isRootAccount));
 
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RecursiveResourceUsage));
@@ -241,44 +244,28 @@ private:
                 if (IsRootAccount()) {
                     break;
                 }
-                const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-                auto cellTags = multicellManager->GetSecondaryCellTags();
-                cellTags.push_back(multicellManager->GetPrimaryCellTag());
+                auto violatedLimits = account->GetViolatedResourceLimits(
+                    Bootstrap_,
+                    Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager->EnableTabletResourceValidation);
+                SerializeViolatedClusterResourceLimitsInBooleanFormat(
+                    violatedLimits,
+                    consumer,
+                    Bootstrap_,
+                    /* serializeDiskSpace */ true);
 
-                // TODO(shakurov): introduce TAccount::GetViolatedResourceLimits
-                // and make use of it here.
-                BuildYsonFluently(consumer)
-                    .BeginMap()
-                        .Item("disk_space").Value(account->IsDiskSpaceLimitViolated())
-                        .Item("disk_space_per_medium").DoMapFor(chunkManager->Media(),
-                            [&] (TFluentMap fluent, const std::pair<TMediumId, TMedium*>& pair) {
-                                const auto* medium = pair.second;
-                                fluent
-                                    .Item(medium->GetName()).Value(account->IsDiskSpaceLimitViolated(medium->GetIndex()));
-                            })
-                        .Item("node_count").Value(account->IsNodeCountLimitViolated())
-                        .Item("chunk_count").Value(account->IsChunkCountLimitViolated())
-                        .Item("tablet_count").Value(account->IsTabletCountLimitViolated())
-                        .Item("tablet_static_memory").Value(account->IsTabletStaticMemoryLimitViolated())
-                        .Item("master_memory")
-                            .BeginMap()
-                                .Item("total").Value(account->IsMasterMemoryLimitViolated())
-                                .Item("chunk_host").Value(account->IsChunkHostMasterMemoryLimitViolated(multicellManager))
-                                .Item("per_cell").DoMapFor(cellTags, [&] (TFluentMap fluent, TCellTag cellTag) {
-                                    fluent
-                                        .Item(multicellManager->GetMasterCellName(cellTag)).Value(account->IsMasterMemoryLimitViolated(cellTag));
-                                })
-                            .EndMap()
-                    .EndMap();
                 return true;
             }
 
             case EInternedAttributeKey::RecursiveViolatedResourceLimits: {
-                const auto& securityManager = Bootstrap_->GetSecurityManager();
+                auto violatedLimits = account->GetRecursiveViolatedResourceLimits(
+                    Bootstrap_,
+                    Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager->EnableTabletResourceValidation);
+                SerializeViolatedClusterResourceLimits(
+                    violatedLimits,
+                    consumer,
+                    Bootstrap_);
 
-                auto violatedLimits = securityManager->GetAccountRecursiveViolatedResourceLimits(account);
-                SerializeClusterResourceLimits(violatedLimits, consumer, Bootstrap_, /* serializeDiskSpace */ false);
                 return true;
             }
 

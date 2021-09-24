@@ -139,6 +139,15 @@ public:
     TClusterResources ComputeTotalChildrenResourceUsage(bool committed) const;
     TAccountMulticellStatistics ComputeTotalChildrenMulticellStatistics() const;
 
+    //! Returns violated limits of the account considering its ancestors.
+    TViolatedClusterResourceLimits GetViolatedResourceLimits(
+        NCellMaster::TBootstrap* bootstrap,
+        bool enableTabletResourceValidation) const;
+    //! Returns violated limits of the account considering its successors.
+    TViolatedClusterResourceLimits GetRecursiveViolatedResourceLimits(
+        NCellMaster::TBootstrap* bootstrap,
+        bool enableTabletResourceValidation) const;
+
     int GetMergeJobRateLimit() const;
     void SetMergeJobRateLimit(int mergeJobRateLimit);
 

@@ -36,9 +36,7 @@ public:
 
     bool IsViolatedBy(const TClusterResourceLimits& rhs) const;
 
-    // TODO(shakurov): introduce a separate TViolatedResourceLimits type.
-    using TViolatedResourceLimits = TClusterResourceLimits;
-    TViolatedResourceLimits GetViolatedBy(const TClusterResourceLimits& usage) const;
+    TViolatedClusterResourceLimits GetViolatedBy(const TClusterResourceLimits& usage) const;
 
     const NChunkClient::TMediumMap<i64>& DiskSpace() const;
 
@@ -77,6 +75,30 @@ private:
     TMasterMemoryLimits MasterMemory_;
 };
 
+class TViolatedClusterResourceLimits
+{
+public:
+    TViolatedClusterResourceLimits();
+
+    DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TViolatedClusterResourceLimits, i64, NodeCount);
+    DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TViolatedClusterResourceLimits, i64, ChunkCount);
+    DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TViolatedClusterResourceLimits, int, TabletCount);
+    DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TViolatedClusterResourceLimits, i64, TabletStaticMemory);
+
+    TMasterMemoryLimits& MasterMemory();
+    const TMasterMemoryLimits& MasterMemory() const;
+    void SetMasterMemory(TMasterMemoryLimits masterMemoryLimits) &;
+
+    const NChunkClient::TMediumMap<i64>& DiskSpace() const;
+
+    void SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &;
+    void AddToMediumDiskSpace(int mediumIndex, i64 diskSpaceDelta);
+
+private:
+    NChunkClient::TMediumMap<i64> DiskSpace_;
+    TMasterMemoryLimits MasterMemory_;
+};
+
 // NB: this serialization requires access to chunk and multicell managers and
 // cannot be easily integrated into yson serialization framework.
 
@@ -86,15 +108,26 @@ void SerializeClusterResourceLimits(
     const NCellMaster::TBootstrap* bootstrap,
     bool serializeDiskSpace);
 
-void SerializeViolatedClusterResourceLimits(
-    const TClusterResourceLimits::TViolatedResourceLimits& violatedResourceLimits,
-    NYson::IYsonConsumer* consumer,
-    const NCellMaster::TBootstrap* bootstrap);
-
 void DeserializeClusterResourceLimits(
     TClusterResourceLimits& resourceLimits,
     NYTree::INodePtr node,
     const NCellMaster::TBootstrap* bootstrap);
+
+void SerializeViolatedClusterResourceLimits(
+    const TViolatedClusterResourceLimits& violatedResourceLimits,
+    NYson::IYsonConsumer* consumer,
+    const NCellMaster::TBootstrap* bootstrap);
+
+void SerializeViolatedClusterResourceLimitsInCompactFormat(
+    const TViolatedClusterResourceLimits& violatedResourceLimits,
+    NYson::IYsonConsumer* consumer,
+    const NCellMaster::TBootstrap* bootstrap);
+
+void SerializeViolatedClusterResourceLimitsInBooleanFormat(
+    const TViolatedClusterResourceLimits& violatedResourceLimits,
+    NYson::IYsonConsumer* consumer,
+    const NCellMaster::TBootstrap* bootstrap,
+    bool serializeDiskSpace);
 
 ////////////////////////////////////////////////////////////////////////////////
 
