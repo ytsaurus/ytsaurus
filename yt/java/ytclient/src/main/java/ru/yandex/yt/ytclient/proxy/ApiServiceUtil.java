@@ -34,8 +34,17 @@ public class ApiServiceUtil {
     /**
      * Конвертирует исходные сырые значения в значения колонок по указанной схеме
      */
-    public static void convertKeyColumns(List<UnversionedValue> row, TableSchema schema, List<?> values) {
-        for (int id = 0; id < schema.getKeyColumnsCount(); ++id) {
+    public static void convertKeyColumns(
+            List<UnversionedValue> row,
+            TableSchema schema,
+            List<?> values,
+            boolean allowMissingColumns
+    ) {
+        int columnsCount = schema.getKeyColumnsCount();
+        if (allowMissingColumns && values.size() < columnsCount) {
+            columnsCount = values.size();
+        }
+        for (int id = 0; id < columnsCount; ++id) {
             ColumnSchema column = schema.getColumns().get(id);
             ColumnValueType type = column.getType();
             Object value = UnversionedValue.convertValueTo(values.get(id), type);
@@ -44,6 +53,10 @@ public class ApiServiceUtil {
             }
             row.add(new UnversionedValue(id, type, false, value));
         }
+    }
+
+    public static void convertKeyColumns(List<UnversionedValue> row, TableSchema schema, List<?> values) {
+        convertKeyColumns(row, schema, values, false);
     }
 
     public static void convertValueColumns(
@@ -140,9 +153,9 @@ public class ApiServiceUtil {
     }
 
     public static <T> void deserializeVersionedRowset(TRowsetDescriptor descriptor,
-            List<byte[]> attachments,
-            YTreeObjectSerializer<T> serializer,
-            ConsumerSource<T> consumer
+                                                      List<byte[]> attachments,
+                                                      YTreeObjectSerializer<T> serializer,
+                                                      ConsumerSource<T> consumer
     ) {
         deserializeVersionedRowset(descriptor, attachments,
                 schema -> MappedRowsetDeserializer.forClass(schema, serializer, consumer));
