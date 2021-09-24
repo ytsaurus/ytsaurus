@@ -14,7 +14,7 @@ class TExtendedJobResources
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(i64, UserSlots);
-    DEFINE_BYVAL_RW_PROPERTY(NScheduler::TCpuResource, Cpu);
+    DEFINE_BYVAL_RW_PROPERTY(NVectorHdrf::TCpuResource, Cpu);
     DEFINE_BYVAL_RW_PROPERTY(int, Gpu);
     DEFINE_BYVAL_RW_PROPERTY(i64, JobProxyMemory);
     DEFINE_BYVAL_RW_PROPERTY(i64, UserJobMemory);
@@ -23,7 +23,7 @@ public:
 
     void SetCpu(double cpu)
     {
-        Cpu_ = NScheduler::TCpuResource(cpu);
+        Cpu_ = NVectorHdrf::TCpuResource(cpu);
     }
 
 public:

@@ -29,9 +29,9 @@
 
 namespace NYT::NScheduler {
 
-using NFairShare::TSchedulableAttributes;
-using NFairShare::TDetailedFairShare;
-using NFairShare::TIntegralResourcesState;
+using NVectorHdrf::TSchedulableAttributes;
+using NVectorHdrf::TDetailedFairShare;
+using NVectorHdrf::TIntegralResourcesState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -311,7 +311,7 @@ protected:
     TJobResources SchedulingTagFilterResourceLimits_;
 
     // These attributes are calculated during fair share update and further used in schedule jobs.
-    NFairShare::TSchedulableAttributes Attributes_;
+    NVectorHdrf::TSchedulableAttributes Attributes_;
 
     // Used everywhere.
     TSchedulerCompositeElement* Parent_ = nullptr;
@@ -337,7 +337,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerElement
-    : public virtual NFairShare::TElement
+    : public virtual NVectorHdrf::TElement
     , public TSchedulerElementFixedState
 {
 public:
@@ -387,7 +387,7 @@ public:
     //! Pre fair share update methods.
     // At this stage we prepare attributes that need to be computed in the control thread
     // in a thread-unsafe manner.
-    virtual void PreUpdateBottomUp(NFairShare::TFairShareUpdateContext* context);
+    virtual void PreUpdateBottomUp(NVectorHdrf::TFairShareUpdateContext* context);
 
     TJobResources GetSchedulingTagFilterResourceLimits() const;
     TJobResources GetTotalResourceLimits() const;
@@ -396,7 +396,7 @@ public:
 
     virtual void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const = 0;
 
-    //! Fair share update methods that implements NFairShare::TElement interface.
+    //! Fair share update methods that implements NVectorHdrf::TElement interface.
     virtual const TJobResources& GetResourceDemand() const override;
     virtual const TJobResources& GetResourceUsageAtUpdate() const override;
     virtual const TJobResources& GetResourceLimits() const override;
@@ -407,7 +407,7 @@ public:
     virtual const TSchedulableAttributes& Attributes() const override;
 
     virtual TElement* GetParentElement() const override;
-    virtual TJobResourcesConfigPtr GetStrongGuaranteeResourcesConfig() const override;
+    virtual const NVectorHdrf::TJobResourcesConfig* GetStrongGuaranteeResourcesConfig() const override;
 
     TInstant GetStartTime() const;
 
@@ -557,7 +557,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerCompositeElement
-    : public virtual NFairShare::TCompositeElement
+    : public virtual NVectorHdrf::TCompositeElement
     , public TSchedulerElement
     , public TSchedulerCompositeElementFixedState
 {
@@ -610,15 +610,15 @@ public:
     virtual std::vector<EFifoSortParameter> GetFifoSortParameters() const = 0;
 
     //! Pre fair share update methods.
-    virtual void PreUpdateBottomUp(NFairShare::TFairShareUpdateContext* context) override;
+    virtual void PreUpdateBottomUp(NVectorHdrf::TFairShareUpdateContext* context) override;
 
-    //! Fair share update methods that implements NFairShare::TCompositeElement interface.
+    //! Fair share update methods that implements NVectorHdrf::TCompositeElement interface.
     virtual TElement* GetChild(int index) override final;
     virtual const TElement* GetChild(int index) const override final;
     virtual int GetChildrenCount() const override final;
 
     virtual ESchedulingMode GetMode() const override final;
-    virtual bool HasHigherPriorityInFifoMode(const NFairShare::TElement* lhs, const NFairShare::TElement* rhs) const override final;
+    virtual bool HasHigherPriorityInFifoMode(const NVectorHdrf::TElement* lhs, const NVectorHdrf::TElement* rhs) const override final;
 
     //! Post fair share update methods.
     virtual void UpdateStarvationAttributes(TInstant now, bool enablePoolStarvation) override;
@@ -732,7 +732,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerPoolElement
-    : public NFairShare::TPool
+    : public NVectorHdrf::TPool
     , public TSchedulerCompositeElement
     , public TSchedulerPoolElementFixedState
 {
@@ -789,9 +789,9 @@ public:
     // Used to manipulate with SchedulingTagFilterIndex.
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
 
-    //! Fair share update methods that implements NFairShare::TPool interface.
+    //! Fair share update methods that implements NVectorHdrf::TPool interface.
     virtual bool AreDetailedLogsEnabled() const override final;
-    virtual TJobResourcesConfigPtr GetStrongGuaranteeResourcesConfig() const override;
+    virtual const NVectorHdrf::TJobResourcesConfig* GetStrongGuaranteeResourcesConfig() const override;
 
     virtual double GetSpecifiedBurstRatio() const override;
     virtual double GetSpecifiedResourceFlowRatio() const override;
@@ -1042,7 +1042,7 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerOperationElementSharedState)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerOperationElement
-    : public NFairShare::TOperationElement
+    : public NVectorHdrf::TOperationElement
     , public TSchedulerElement
     , public TSchedulerOperationElementFixedState
 {
@@ -1082,7 +1082,7 @@ public:
 
     void InitOrUpdateSchedulingSegment(ESegmentedSchedulingMode mode);
 
-    virtual TJobResourcesConfigPtr GetStrongGuaranteeResourcesConfig() const override;
+    virtual const NVectorHdrf::TJobResourcesConfig* GetStrongGuaranteeResourcesConfig() const override;
     virtual TResourceVector GetMaxShare() const override;
 
     //! Trunk node interface.
@@ -1131,9 +1131,9 @@ public:
     TInstant GetLastScheduleJobSuccessTime() const;
 
     //! Pre fair share update methods.
-    virtual void PreUpdateBottomUp(NFairShare::TFairShareUpdateContext* context) override;
+    virtual void PreUpdateBottomUp(NVectorHdrf::TFairShareUpdateContext* context) override;
 
-    //! Fair share update methods that implements NFairShare::TOperationElement interface.
+    //! Fair share update methods that implements NVectorHdrf::TOperationElement interface.
     virtual TResourceVector GetBestAllocationShare() const override;
 
     //! Post fair share update methods.
@@ -1274,7 +1274,7 @@ public:
 };
 
 class TSchedulerRootElement
-    : public NFairShare::TRootElement
+    : public NVectorHdrf::TRootElement
     , public TSchedulerCompositeElement
     , public TSchedulerRootElementFixedState
 {
@@ -1315,9 +1315,9 @@ public:
 
     //! Pre fair share update methods.
     // Computes various lightweight attributes in the tree. Must be called in control thread.
-    void PreUpdate(NFairShare::TFairShareUpdateContext* context);
+    void PreUpdate(NVectorHdrf::TFairShareUpdateContext* context);
 
-    //! Fair share update methods that implements NFairShare::TRootElement interface.
+    //! Fair share update methods that implements NVectorHdrf::TRootElement interface.
     virtual double GetSpecifiedBurstRatio() const override;
     virtual double GetSpecifiedResourceFlowRatio() const override;
 

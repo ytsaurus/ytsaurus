@@ -14,9 +14,14 @@ namespace NYT::NSchedulerPoolServer {
 
 using namespace NCellMaster;
 using namespace NObjectServer;
-using namespace NScheduler;
 using namespace NYTree;
 using namespace NYson;
+
+using NScheduler::TPoolConfigPtr;
+using NScheduler::TFairShareStrategyTreeConfigPtr;
+using NVectorHdrf::ESchedulingMode;
+using NVectorHdrf::EJobResourceType;
+using NVectorHdrf::TJobResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,8 +73,8 @@ void TSchedulerPool::ValidateChildrenCompatibility()
     }
 
     // TODO(renadeen): move children validation to pool config?
-    FullConfig()->StrongGuaranteeResources->ForEachResource([this] (auto TJobResourcesConfig::* resourceDataMember, EJobResourceType resourceType) {
-        using TResource = typename std::remove_reference_t<decltype(std::declval<TJobResourcesConfig>().*resourceDataMember)>::value_type;
+    FullConfig()->StrongGuaranteeResources->ForEachResource([this] (auto NVectorHdrf::TJobResourcesConfig::* resourceDataMember, EJobResourceType resourceType) {
+        using TResource = typename std::remove_reference_t<decltype(std::declval<NVectorHdrf::TJobResourcesConfig>().*resourceDataMember)>::value_type;
 
         ValidateChildrenGuaranteeSum<TResource>("Strong guarantee", resourceType, [&] (const TPoolConfigPtr& config) -> std::optional<TResource> {
             return config->StrongGuaranteeResources.Get()->*resourceDataMember;
@@ -98,7 +103,7 @@ void TSchedulerPool::ValidateChildrenCompatibility()
         }
     }
 
-    if (!KeyToChild().empty() && FullConfig()->Mode == NScheduler::ESchedulingMode::Fifo) {
+    if (!KeyToChild().empty() && FullConfig()->Mode == ESchedulingMode::Fifo) {
         THROW_ERROR_EXCEPTION("Pool %Qv cannot have subpools since it is in FIFO mode")
             << TErrorAttribute("pool_name", GetName());
     }
@@ -118,7 +123,7 @@ void TSchedulerPool::DoValidateStrongGuarantees(const TFairShareStrategyTreeConf
 {
     bool hasMainResourceGuarantee = false;
     bool hasAnyResourceGuarantee = false;
-    FullConfig()->StrongGuaranteeResources->ForEachResource([&] (auto TJobResourcesConfig::* resourceDataMember, EJobResourceType resourceType) {
+    FullConfig()->StrongGuaranteeResources->ForEachResource([&] (auto NVectorHdrf::TJobResourcesConfig::* resourceDataMember, EJobResourceType resourceType) {
         bool hasResourse = (FullConfig()->StrongGuaranteeResources.Get()->*resourceDataMember).has_value();
         hasAnyResourceGuarantee |= hasResourse;
         if (resourceType == poolTreeConfig->MainResource) {

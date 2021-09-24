@@ -4,7 +4,7 @@ namespace NYT::NScheduler {
 
 using namespace NProfiling;
 
-using NFairShare::ToJobResources;
+using NVectorHdrf::ToJobResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 

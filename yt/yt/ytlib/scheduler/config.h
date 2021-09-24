@@ -40,6 +40,9 @@
 
 #include <yt/yt/core/misc/phoenix.h>
 
+#include <yt/yt/library/vector_hdrf/public.h>
+#include <yt/yt/library/vector_hdrf/job_resources.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,36 +80,9 @@ void Serialize(const TPoolName& value, NYson::IYsonConsumer* consumer);
 
 class TJobResourcesConfig
     : public NYTree::TYsonSerializable
+    , public NVectorHdrf::TJobResourcesConfig
 {
 public:
-    std::optional<int> UserSlots;
-    std::optional<double> Cpu;
-    std::optional<int> Network;
-    std::optional<i64> Memory;
-    std::optional<int> Gpu;
-
-    template <class T>
-    void ForEachResource(T processResource)
-    {
-        // NB(renadeen): must be in sync with the lines below.
-        YT_VERIFY(GetParameterCount() == 5);
-
-        processResource(&TJobResourcesConfig::UserSlots, EJobResourceType::UserSlots);
-        processResource(&TJobResourcesConfig::Cpu, EJobResourceType::Cpu);
-        processResource(&TJobResourcesConfig::Network, EJobResourceType::Network);
-        processResource(&TJobResourcesConfig::Memory, EJobResourceType::Memory);
-        processResource(&TJobResourcesConfig::Gpu, EJobResourceType::Gpu);
-    }
-
-    bool IsNonTrivial()
-    {
-        bool isNonTrivial = false;
-        ForEachResource([&, this] (auto TJobResourcesConfig::* resourceDataMember, EJobResourceType /* resourceType */) {
-            isNonTrivial |= (this->*resourceDataMember).has_value();
-        });
-        return isNonTrivial;
-    }
-
     TJobResourcesConfig();
 };
 
@@ -180,7 +156,7 @@ class TEphemeralSubpoolConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    ESchedulingMode Mode;
+    NVectorHdrf::ESchedulingMode Mode;
 
     std::optional<int> MaxRunningOperationCount;
     std::optional<int> MaxOperationCount;
@@ -194,19 +170,11 @@ DEFINE_REFCOUNTED_TYPE(TEphemeralSubpoolConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EIntegralGuaranteeType,
-    (None)
-    (Burst)
-    (Relaxed)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TPoolIntegralGuaranteesConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    EIntegralGuaranteeType GuaranteeType;
+    NVectorHdrf::EIntegralGuaranteeType GuaranteeType;
 
     TJobResourcesConfigPtr ResourceFlow;
 
@@ -229,7 +197,7 @@ class TPoolConfig
     , public TPoolPreemptionConfig
 {
 public:
-    ESchedulingMode Mode;
+    NVectorHdrf::ESchedulingMode Mode;
 
     std::optional<int> MaxRunningOperationCount;
     std::optional<int> MaxOperationCount;

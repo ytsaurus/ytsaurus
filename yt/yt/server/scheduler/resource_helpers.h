@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/library/profiling/producer.h>
 
 #include <yt/yt/core/yson/consumer.h>
@@ -11,7 +13,13 @@
 #include <yt/yt/library/vector_hdrf/resource_vector.h>
 #include <yt/yt/library/vector_hdrf/resource_volume.h>
 
-namespace NYT::NScheduler {
+namespace NYT {
+
+namespace NScheduler {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobResources ToJobResources(const TJobResourcesConfigPtr& config, TJobResources defaultValue);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,8 +32,6 @@ TJobResources GetAdjustedResourceLimits(
     const TMemoryDistribution& execNodeMemoryDistribution);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-void FormatValue(TStringBuilderBase* builder, const TResourceVector& resourceVector, TStringBuf format);
 
 void ProfileResourceVector(
     NProfiling::ISensorWriter* writer,
@@ -40,14 +46,28 @@ void ProfileResourceVolume(
     const TResourceVolume& volume,
     const TString& prefix);
 
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NScheduler
+
+namespace NVectorHdrf {
+
+////////////////////////////////////////////////////////////////////////////////
+
 void Serialize(const TResourceVolume& volume, NYson::IYsonConsumer* consumer);
 void Deserialize(TResourceVolume& volume, NYTree::INodePtr node);
+
+void Serialize(const TResourceVector& resourceVector, NYson::IYsonConsumer* consumer);
 
 void FormatValue(TStringBuilderBase* builder, const TResourceVolume& volume, TStringBuf /* format */);
 TString ToString(const TResourceVolume& volume);
 
+void FormatValue(TStringBuilderBase* builder, const TResourceVector& resourceVector, TStringBuf format);
+
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NVectorHdrf
+
+} // namespace NYT
 
 

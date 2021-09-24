@@ -9,9 +9,9 @@
 
 #include <yt/yt/core/profiling/profiler.h>
 
-#include <yt/yt/library/profiling/sensor.h>
-
 #include <yt/yt/client/scheduler/private.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NScheduler {
 

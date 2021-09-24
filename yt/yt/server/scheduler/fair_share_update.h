@@ -7,26 +7,7 @@
 #include <yt/yt/library/vector_hdrf/resource_vector.h>
 #include <yt/yt/library/vector_hdrf/resource_volume.h>
 
-namespace NYT::NFairShare {
-
-////////////////////////////////////////////////////////////////////////////////
-
-using NScheduler::TJobResources;
-using NScheduler::TResourceVector;
-using NScheduler::TResourceVolume;
-using NScheduler::EJobResourceType;
-using NScheduler::EIntegralGuaranteeType;
-using NScheduler::TJobResourcesConfig;
-using NScheduler::TJobResourcesConfigPtr;
-using NScheduler::ESchedulingMode;
-using NScheduler::ResourceCount;
-using NScheduler::RatioComparisonPrecision;
-using NScheduler::RatioComputationPrecision;
-
-using TVectorPiecewiseSegment = NScheduler::TVectorPiecewiseSegment;
-using TScalarPiecewiseSegment = NScheduler::TScalarPiecewiseSegment;
-using TVectorPiecewiseLinearFunction = NScheduler::TVectorPiecewiseLinearFunction;
-using TScalarPiecewiseLinearFunction = NScheduler::TScalarPiecewiseLinearFunction;
+namespace NYT::NVectorHdrf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,7 +85,7 @@ struct TSchedulableAttributes
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobResources ToJobResources(const TJobResourcesConfigPtr& config, TJobResources defaultValue);
+TJobResources ToJobResources(const TJobResourcesConfig& config, TJobResources defaultValue);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,7 +98,7 @@ public:
     // New method - should incapsulate ResourceLimits_ calculation logic and BestAllocation logic for operations.
     virtual const TJobResources& GetResourceLimits() const = 0;
 
-    virtual TJobResourcesConfigPtr GetStrongGuaranteeResourcesConfig() const = 0;
+    virtual const TJobResourcesConfig* GetStrongGuaranteeResourcesConfig() const = 0;
     virtual double GetWeight() const = 0;
 
     virtual TSchedulableAttributes& Attributes() = 0;
@@ -369,5 +350,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NFairShare
+} // namespace NYT::NVectorHdrf
 

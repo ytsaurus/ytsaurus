@@ -10,7 +10,7 @@
 
 #include <cmath>
 
-namespace NYT::NScheduler {
+namespace NYT::NVectorHdrf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,5 +111,5 @@ using TScalarPiecewiseLinearFunction = TPiecewiseLinearFunction<double>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NVectorHdrf
 

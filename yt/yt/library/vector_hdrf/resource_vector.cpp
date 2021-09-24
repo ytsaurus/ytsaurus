@@ -1,6 +1,6 @@
 #include "resource_vector.h"
 
-namespace NYT::NScheduler {
+namespace NYT::NVectorHdrf {
 
 ////////////////////////////////////////////////////////////////////////////////
     
@@ -32,5 +32,5 @@ TResourceVector TResourceVector::FromJobResources(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NVectorHdrf
 

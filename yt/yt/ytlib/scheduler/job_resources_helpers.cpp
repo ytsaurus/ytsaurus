@@ -6,13 +6,59 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
-namespace NYT::NScheduler {
+#include <yt/yt/library/vector_hdrf/job_resources.h>
+
+namespace NYT {
 
 using namespace NYson;
 using namespace NYTree;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NProfiling;
+
+namespace NVectorHdrf {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TJobResources& resources, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+    #define XX(name, Name) .Item(#name).Value(resources.Get##Name())
+    ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+        .EndMap();
+}
+
+void Deserialize(TJobResources& resources, INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    #define XX(name, Name) \
+        if (auto child = mapNode->FindChild(#name)) { \
+            auto value = resources.Get##Name(); \
+            Deserialize(value, child); \
+            resources.Set##Name(value); \
+        }
+    ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+}
+
+void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TStringBuf /* format */)
+{
+    builder->AppendFormat(
+        "{UserSlots: %v, Cpu: %v, Gpu: %v, Memory: %vMB, Network: %v}",
+        resources.GetUserSlots(),
+        resources.GetCpu(),
+        resources.GetGpu(),
+        resources.GetMemory() / 1_MB,
+        resources.GetNetwork());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NVectorHdrf
+
+namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,16 +81,6 @@ TNodeResources ToNodeResources(const TJobResources& jobResources)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-void Serialize(const TJobResources& resources, IYsonConsumer* consumer)
-{
-    BuildYsonFluently(consumer)
-        .BeginMap()
-    #define XX(name, Name) .Item(#name).Value(resources.Get##Name())
-    ITERATE_JOB_RESOURCES(XX)
-    #undef XX
-        .EndMap();
-}
 
 void SerializeDiskQuota(
     const TDiskQuota& quota,
@@ -73,19 +109,6 @@ void SerializeJobResourcesWithQuota(
                     SerializeDiskQuota(resources.GetDiskQuota(), mediumDirectory, fluent.GetConsumer());
                 })
         .EndMap();
-}
-
-void Deserialize(TJobResources& resources, INodePtr node)
-{
-    auto mapNode = node->AsMap();
-    #define XX(name, Name) \
-        if (auto child = mapNode->FindChild(#name)) { \
-            auto value = resources.Get##Name(); \
-            Deserialize(value, child); \
-            resources.Set##Name(value); \
-        }
-    ITERATE_JOB_RESOURCES(XX)
-    #undef XX
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -134,17 +157,6 @@ TString FormatResourceUsage(
 TString FormatResources(const TJobResources& resources)
 {
     return Format(
-        "{UserSlots: %v, Cpu: %v, Gpu: %v, Memory: %vMB, Network: %v}",
-        resources.GetUserSlots(),
-        resources.GetCpu(),
-        resources.GetGpu(),
-        resources.GetMemory() / 1_MB,
-        resources.GetNetwork());
-}
-
-void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TStringBuf /* format */)
-{
-    builder->AppendFormat(
         "{UserSlots: %v, Cpu: %v, Gpu: %v, Memory: %vMB, Network: %v}",
         resources.GetUserSlots(),
         resources.GetCpu(),
@@ -286,4 +298,6 @@ void FromProto(NScheduler::TJobResourcesWithQuota* resources, const NScheduler::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NScheduler
+
+} // namespace NYT

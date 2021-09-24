@@ -6,7 +6,7 @@
 
 #include <util/datetime/base.h>
 
-namespace NYT::NScheduler {
+namespace NYT::NVectorHdrf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,5 +51,5 @@ TResourceVolume operator * (const TResourceVolume& lhs, double rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NVectorHdrf
 

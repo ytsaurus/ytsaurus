@@ -31,7 +31,7 @@ using namespace NProfiling;
 using namespace NControllerAgent;
 
 using NProfiling::CpuDurationToDuration;
-using NFairShare::ToJobResources;
+using NVectorHdrf::ToJobResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -286,7 +286,7 @@ void TSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& 
     TreeConfig_ = config;
 }
 
-void TSchedulerElement::PreUpdateBottomUp(NFairShare::TFairShareUpdateContext* context)
+void TSchedulerElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdateContext* context)
 {
     YT_VERIFY(Mutable_);
 
@@ -427,7 +427,7 @@ double TSchedulerElement::GetWeight() const
     }
     double selfGuaranteeDominantShare = MaxComponent(Attributes().StrongGuaranteeShare) + Attributes().TotalResourceFlowRatio;
 
-    if (selfGuaranteeDominantShare < RatioComputationPrecision) {
+    if (selfGuaranteeDominantShare < NVectorHdrf::RatioComputationPrecision) {
         return 1.0;
     }
 
@@ -436,7 +436,7 @@ double TSchedulerElement::GetWeight() const
         parentGuaranteeDominantShare = MaxComponent(GetParent()->Attributes().StrongGuaranteeShare) + GetParent()->Attributes().TotalResourceFlowRatio;
     }
 
-    if (parentGuaranteeDominantShare < RatioComputationPrecision) {
+    if (parentGuaranteeDominantShare < NVectorHdrf::RatioComputationPrecision) {
         return 1.0;
     }
 
@@ -470,16 +470,16 @@ const TJobResources& TSchedulerElement::GetResourceLimits() const
     return ResourceLimits_;
 }
 
-TJobResourcesConfigPtr TSchedulerElement::GetStrongGuaranteeResourcesConfig() const
+const NVectorHdrf::TJobResourcesConfig* TSchedulerElement::GetStrongGuaranteeResourcesConfig() const
 {
     return nullptr;
 }
 
 TJobResources TSchedulerElement::GetSpecifiedStrongGuaranteeResources() const
 {
-    auto guaranteeConfig = GetStrongGuaranteeResourcesConfig();
+    const auto* guaranteeConfig = GetStrongGuaranteeResourcesConfig();
     YT_VERIFY(guaranteeConfig);
-    return ToJobResources(guaranteeConfig, {});
+    return NVectorHdrf::ToJobResources(*guaranteeConfig, {});
 }
 
 TSchedulerCompositeElement* TSchedulerElement::GetMutableParent()
@@ -492,7 +492,7 @@ const TSchedulerCompositeElement* TSchedulerElement::GetParent() const
     return Parent_;
 }
 
-NFairShare::TElement* TSchedulerElement::GetParentElement() const
+NVectorHdrf::TElement* TSchedulerElement::GetParentElement() const
 {
     return Parent_;
 }
@@ -938,7 +938,7 @@ void TSchedulerCompositeElement::UpdateTreeConfig(const TFairShareStrategyTreeCo
     updateChildrenConfig(DisabledChildren_);
 }
 
-void TSchedulerCompositeElement::PreUpdateBottomUp(NFairShare::TFairShareUpdateContext* context)
+void TSchedulerCompositeElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdateContext* context)
 {
     YT_VERIFY(Mutable_);
 
@@ -1273,12 +1273,12 @@ void TSchedulerCompositeElement::CollectResourceTreeOperationElements(std::vecto
     }
 }
 
-NFairShare::TElement* TSchedulerCompositeElement::GetChild(int index)
+NVectorHdrf::TElement* TSchedulerCompositeElement::GetChild(int index)
 {
     return EnabledChildren_[index].Get();
 }
 
-const NFairShare::TElement* TSchedulerCompositeElement::GetChild(int index) const
+const NVectorHdrf::TElement* TSchedulerCompositeElement::GetChild(int index) const
 {
     return EnabledChildren_[index].Get();
 }
@@ -1293,7 +1293,7 @@ ESchedulingMode TSchedulerCompositeElement::GetMode() const
     return Mode_;
 }
 
-bool TSchedulerCompositeElement::HasHigherPriorityInFifoMode(const NFairShare::TElement* lhs, const NFairShare::TElement* rhs) const
+bool TSchedulerCompositeElement::HasHigherPriorityInFifoMode(const NVectorHdrf::TElement* lhs, const NVectorHdrf::TElement* rhs) const
 {
     const auto* lhsElement = dynamic_cast<const TSchedulerElement*>(lhs);
     const auto* rhsElement = dynamic_cast<const TSchedulerElement*>(rhs);
@@ -1596,9 +1596,9 @@ std::optional<double> TSchedulerPoolElement::GetSpecifiedWeight() const
     return Config_->Weight;
 }
 
-TJobResourcesConfigPtr TSchedulerPoolElement::GetStrongGuaranteeResourcesConfig() const
+const NVectorHdrf::TJobResourcesConfig* TSchedulerPoolElement::GetStrongGuaranteeResourcesConfig() const
 {
-    return Config_->StrongGuaranteeResources;
+    return Config_->StrongGuaranteeResources.Get();
 }
 
 TResourceVector TSchedulerPoolElement::GetMaxShare() const
@@ -2574,7 +2574,7 @@ std::optional<TDuration> TSchedulerOperationElement::GetSpecifiedFairShareStarva
 void TSchedulerOperationElement::DisableNonAliveElements()
 { }
 
-void TSchedulerOperationElement::PreUpdateBottomUp(NFairShare::TFairShareUpdateContext* context)
+void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdateContext* context)
 {
     YT_VERIFY(Mutable_);
 
@@ -2629,7 +2629,7 @@ void TSchedulerOperationElement::UpdatePreemptionAttributes()
     // It is necessary since some job's resource usage may increase before the next fair share update,
     //  and in this case we don't want any jobs to become preemptable
     bool isDominantFairShareEqualToDominantDemandShare =
-        TResourceVector::Near(Attributes_.FairShare.Total, Attributes_.DemandShare, RatioComparisonPrecision) &&
+        TResourceVector::Near(Attributes_.FairShare.Total, Attributes_.DemandShare, NVectorHdrf::RatioComparisonPrecision) &&
         !Dominates(TResourceVector::Epsilon(), Attributes_.DemandShare);
 
     bool newPreemptableValue = !isDominantFairShareEqualToDominantDemandShare;
@@ -3080,9 +3080,9 @@ std::optional<double> TSchedulerOperationElement::GetSpecifiedWeight() const
     return RuntimeParameters_->Weight;
 }
 
-TJobResourcesConfigPtr TSchedulerOperationElement::GetStrongGuaranteeResourcesConfig() const
+const NVectorHdrf::TJobResourcesConfig* TSchedulerOperationElement::GetStrongGuaranteeResourcesConfig() const
 {
-    return Spec_->StrongGuaranteeResources;
+    return Spec_->StrongGuaranteeResources.Get();
 }
 
 TResourceVector TSchedulerOperationElement::GetMaxShare() const
@@ -3185,7 +3185,7 @@ const TSchedulerElement* TSchedulerOperationElement::FindPreemptionBlockingAnces
 
         // NB: We want to use *local* satisfaction ratio here.
         double localSatisfactionRatio = element->ComputeLocalSatisfactionRatio(element->GetCurrentResourceUsage(dynamicAttributesList));
-        if (config->PreemptionCheckSatisfaction && localSatisfactionRatio < threshold + RatioComparisonPrecision) {
+        if (config->PreemptionCheckSatisfaction && localSatisfactionRatio < threshold + NVectorHdrf::RatioComparisonPrecision) {
             OperationElementSharedState_->UpdatePreemptionStatusStatistics(element == this
                 ? EOperationPreemptionStatus::ForbiddenSinceUnsatisfied
                 : EOperationPreemptionStatus::AllowedConditionally);
@@ -3703,7 +3703,7 @@ void TSchedulerRootElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigP
     TSchedulerCompositeElement::UpdateTreeConfig(config);
 }
 
-void TSchedulerRootElement::PreUpdate(NFairShare::TFairShareUpdateContext* context)
+void TSchedulerRootElement::PreUpdate(NVectorHdrf::TFairShareUpdateContext* context)
 {
     YT_VERIFY(Mutable_);
 

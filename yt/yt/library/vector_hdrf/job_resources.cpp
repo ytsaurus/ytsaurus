@@ -1,6 +1,6 @@
 #include "job_resources.h"
 
-namespace NYT::NScheduler {
+namespace NYT::NVectorHdrf {
 
 using std::round;
 
@@ -238,5 +238,5 @@ TJobResources Min(const TJobResources& lhs, const TJobResources& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NVectorHdrf
 
