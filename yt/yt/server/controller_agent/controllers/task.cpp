@@ -904,9 +904,11 @@ void TTask::ReinstallJob(std::function<void()> releaseOutputCookie)
 
 void TTask::ReleaseJobletResources(TJobletPtr joblet, bool waitForSnapshot)
 {
-    TaskHost_->RemoveValueFromEstimatedHistogram(joblet);
-    if (EstimatedInputDataWeightHistogram_) {
-        EstimatedInputDataWeightHistogram_->RemoveValue(joblet->InputStripeList->TotalDataWeight);
+    if (!joblet->Speculative) {
+        TaskHost_->RemoveValueFromEstimatedHistogram(joblet);
+        if (EstimatedInputDataWeightHistogram_) {
+            EstimatedInputDataWeightHistogram_->RemoveValue(joblet->InputStripeList->TotalDataWeight);
+        }
     }
     TaskHost_->ReleaseChunkTrees(joblet->ChunkListIds, /* recursive */ true, waitForSnapshot);
 }
