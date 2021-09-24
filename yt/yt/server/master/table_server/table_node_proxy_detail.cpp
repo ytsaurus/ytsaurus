@@ -263,6 +263,9 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TableChunkFormatStatistics)
         .SetExternal(isExternal)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkStatistics)
+        .SetExternal(isExternal && isDynamic)
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableTabletBalancer)
         .SetWritable(true)
         .SetRemovable(true)
@@ -925,6 +928,16 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
             };
 
             return ComputeChunkStatistics(Bootstrap_, chunkList, optimizeForExtractor);
+        }
+
+        case EInternedAttributeKey::HunkStatistics: {
+            if (isExternal) {
+                break;
+            }
+            if (!table->IsDynamic()) {
+                break;
+            }
+            return ComputeHunkStatistics(Bootstrap_, chunkList);
         }
 
         case EInternedAttributeKey::Schema:

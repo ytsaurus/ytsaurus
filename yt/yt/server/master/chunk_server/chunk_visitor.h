@@ -84,6 +84,12 @@ TFuture<NYson::TYsonString> ComputeChunkStatistics(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFuture<NYson::TYsonString> ComputeHunkStatistics(
+    NCellMaster::TBootstrap* bootstrap,
+    TChunkList* chunkList);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkServer
 
 #define CHUNK_VISITOR_INL_H
