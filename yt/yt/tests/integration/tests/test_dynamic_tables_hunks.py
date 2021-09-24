@@ -126,6 +126,14 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         assert get("//tmp/t/@chunk_format_statistics/hunk_default/chunk_count") == 1
 
+        hunk_statistics = get("//tmp/t/@hunk_statistics")
+        assert hunk_statistics["hunk_chunk_count"] == 1
+        assert hunk_statistics["store_chunk_count"] == 1
+        assert hunk_statistics["hunk_count"] == 10
+        assert hunk_statistics["referenced_hunk_count"] == 10
+        assert hunk_statistics["total_hunk_length"] == 260
+        assert hunk_statistics["total_referenced_hunk_length"] == 260
+
         sync_mount_table("//tmp/t")
 
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
@@ -186,6 +194,14 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             {"chunk_id": hunk_chunk_id2, "hunk_count": 10, "total_hunk_length": 270}
         ]
 
+        hunk_statistics = get("//tmp/t/@hunk_statistics")
+        assert hunk_statistics["hunk_chunk_count"] == 2
+        assert hunk_statistics["store_chunk_count"] == 2
+        assert hunk_statistics["hunk_count"] == 20
+        assert hunk_statistics["referenced_hunk_count"] == 20
+        assert hunk_statistics["total_hunk_length"] == 530
+        assert hunk_statistics["total_referenced_hunk_length"] == 530
+
         sync_mount_table("//tmp/t")
 
         assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
@@ -204,6 +220,14 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             {"chunk_id": hunk_chunk_id1, "hunk_count": 10, "total_hunk_length": 260},
             {"chunk_id": hunk_chunk_id2, "hunk_count": 10, "total_hunk_length": 270},
         ])
+
+        hunk_statistics = get("//tmp/t/@hunk_statistics")
+        assert hunk_statistics["hunk_chunk_count"] == 2
+        assert hunk_statistics["store_chunk_count"] == 1
+        assert hunk_statistics["hunk_count"] == 20
+        assert hunk_statistics["referenced_hunk_count"] == 20
+        assert hunk_statistics["total_hunk_length"] == 530
+        assert hunk_statistics["total_referenced_hunk_length"] == 530
 
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
@@ -328,6 +352,14 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         chunk_id_before_compaction = chunk_ids_before_compaction[0]
         assert get("#{}/@hunk_chunk_refs".format(chunk_id_before_compaction)) == []
 
+        hunk_statistics = get("//tmp/t/@hunk_statistics")
+        assert hunk_statistics["hunk_chunk_count"] == 0
+        assert hunk_statistics["store_chunk_count"] == 1
+        assert hunk_statistics["hunk_count"] == 0
+        assert hunk_statistics["referenced_hunk_count"] == 0
+        assert hunk_statistics["total_hunk_length"] == 0
+        assert hunk_statistics["total_referenced_hunk_length"] == 0
+
         sync_mount_table("//tmp/t")
 
         sync_compact_table("//tmp/t")
@@ -342,6 +374,14 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(get("#{}/@hunk_chunk_refs".format(compacted_store_id)), [
             {"chunk_id": hunk_chunk_id, "hunk_count": 10, "total_hunk_length": 260},
         ])
+
+        hunk_statistics = get("//tmp/t/@hunk_statistics")
+        assert hunk_statistics["hunk_chunk_count"] == 1
+        assert hunk_statistics["store_chunk_count"] == 1
+        assert hunk_statistics["hunk_count"] == 10
+        assert hunk_statistics["referenced_hunk_count"] == 10
+        assert hunk_statistics["total_hunk_length"] == 260
+        assert hunk_statistics["total_referenced_hunk_length"] == 260
 
     @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
@@ -367,6 +407,14 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             {"chunk_id": hunk_chunk_id, "hunk_count": 10, "total_hunk_length": 260},
         ])
 
+        hunk_statistics = get("//tmp/t/@hunk_statistics")
+        assert hunk_statistics["hunk_chunk_count"] == 1
+        assert hunk_statistics["store_chunk_count"] == 1
+        assert hunk_statistics["hunk_count"] == 10
+        assert hunk_statistics["referenced_hunk_count"] == 10
+        assert hunk_statistics["total_hunk_length"] == 260
+        assert hunk_statistics["total_referenced_hunk_length"] == 260
+
         sync_mount_table("//tmp/t")
 
         sync_compact_table("//tmp/t")
@@ -376,6 +424,14 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert len(store_chunk_ids) == 1
         store_chunk_id = store_chunk_ids[0]
         assert get("#{}/@hunk_chunk_refs".format(store_chunk_id)) == []
+
+        hunk_statistics = get("//tmp/t/@hunk_statistics")
+        assert hunk_statistics["hunk_chunk_count"] == 0
+        assert hunk_statistics["store_chunk_count"] == 1
+        assert hunk_statistics["hunk_count"] == 0
+        assert hunk_statistics["referenced_hunk_count"] == 0
+        assert hunk_statistics["total_hunk_length"] == 0
+        assert hunk_statistics["total_referenced_hunk_length"] == 0
 
     @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
@@ -398,6 +454,14 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(get("#{}/@hunk_chunk_refs".format(store_chunk_id)), [
             {"chunk_id": hunk_chunk_id0, "hunk_count": 10, "total_hunk_length": 260},
         ])
+
+        hunk_statistics = get("//tmp/t/@hunk_statistics")
+        assert hunk_statistics["hunk_chunk_count"] == 1
+        assert hunk_statistics["store_chunk_count"] == 1
+        assert hunk_statistics["hunk_count"] == 10
+        assert hunk_statistics["referenced_hunk_count"] == 10
+        assert hunk_statistics["total_hunk_length"] == 260
+        assert hunk_statistics["total_referenced_hunk_length"] == 260
 
         sync_mount_table("//tmp/t")
         delete_rows("//tmp/t", keys[1:])
@@ -432,6 +496,14 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         chunk_ids_before_compaction2 = get("//tmp/t/@chunk_ids")
         assert len(chunk_ids_before_compaction2) == 2
 
+        hunk_statistics = get("//tmp/t/@hunk_statistics")
+        assert hunk_statistics["hunk_chunk_count"] == 1
+        assert hunk_statistics["store_chunk_count"] == 1
+        assert hunk_statistics["hunk_count"] == 10
+        assert hunk_statistics["referenced_hunk_count"] == 1
+        assert hunk_statistics["total_hunk_length"] == 260
+        assert hunk_statistics["total_referenced_hunk_length"] == 26
+
         set("//tmp/t/@forced_store_compaction_revision", 1)
         remount_table("//tmp/t")
 
@@ -452,6 +524,14 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         ])
         assert get("#{}/@hunk_count".format(hunk_chunk_id2)) == 1
         assert get("#{}/@total_hunk_length".format(hunk_chunk_id2)) == 26
+
+        hunk_statistics = get("//tmp/t/@hunk_statistics")
+        assert hunk_statistics["hunk_chunk_count"] == 1
+        assert hunk_statistics["store_chunk_count"] == 1
+        assert hunk_statistics["hunk_count"] == 1
+        assert hunk_statistics["referenced_hunk_count"] == 1
+        assert hunk_statistics["total_hunk_length"] == 26
+        assert hunk_statistics["total_referenced_hunk_length"] == 26
 
     @authors("ifsmirnov")
     @pytest.mark.parametrize("in_memory_mode", ["compressed", "uncompressed"])

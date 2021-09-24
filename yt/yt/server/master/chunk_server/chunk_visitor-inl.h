@@ -23,8 +23,8 @@ public:
         TKeyExtractor keyExtractor,
         TPredicate predicate)
         : TChunkVisitorBase(bootstrap, chunkList)
-        , KeyExtractor_(keyExtractor)
-        , Predicate_(predicate)
+        , KeyExtractor_(std::move(keyExtractor))
+        , Predicate_(std::move(predicate))
     { }
 
 private:
@@ -117,7 +117,7 @@ TFuture<NYson::TYsonString> ComputeChunkStatistics(
     return ComputeChunkStatistics(
         bootstrap,
         chunkList,
-        keyExtractor,
+        std::move(keyExtractor),
         [] (const TChunk* /*chunk*/) { return true; });
 }
 
@@ -131,8 +131,8 @@ TFuture<NYson::TYsonString> ComputeChunkStatistics(
     auto visitor = New<TChunkStatisticsVisitor<TKeyExtractor, TPredicate>>(
         bootstrap,
         chunkList,
-        keyExtractor,
-        predicate);
+        std::move(keyExtractor),
+        std::move(predicate));
     return visitor->Run();
 }
 

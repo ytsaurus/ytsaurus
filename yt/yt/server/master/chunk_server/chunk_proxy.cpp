@@ -790,17 +790,17 @@ private:
             }
 
             case EInternedAttributeKey::HunkCount:
-                if (auto hunkChunkmiscExt = chunk->ChunkMeta()->FindExtension<THunkChunkMiscExt>()) {
+                if (auto hunkChunkMiscExt = chunk->ChunkMeta()->FindExtension<THunkChunkMiscExt>()) {
                     BuildYsonFluently(consumer)
-                        .Value(hunkChunkmiscExt->hunk_count());
+                        .Value(hunkChunkMiscExt->hunk_count());
                     return true;
                 }
                 break;
 
             case EInternedAttributeKey::TotalHunkLength:
-                if (auto hunkChunkmiscExt = chunk->ChunkMeta()->FindExtension<THunkChunkMiscExt>()) {
+                if (auto hunkChunkMiscExt = chunk->ChunkMeta()->FindExtension<THunkChunkMiscExt>()) {
                     BuildYsonFluently(consumer)
-                        .Value(hunkChunkmiscExt->total_hunk_length());
+                        .Value(hunkChunkMiscExt->total_hunk_length());
                     return true;
                 }
                 break;

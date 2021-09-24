@@ -1,5 +1,9 @@
 #include "chunk_visitor.h"
 
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NChunkClient;
@@ -92,6 +96,101 @@ void TChunkIdsAttributeVisitor::OnSuccess()
     Writer_.OnEndList();
     Writer_.Flush();
     Promise_.Set(TYsonString(Stream_.Str()));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class THunkStatisticsVisitor
+    : public TChunkVisitorBase
+{
+public:
+    using TChunkVisitorBase::TChunkVisitorBase;
+
+private:
+    int HunkChunkCount_ = 0;
+    int StoreChunkCount_ = 0;
+    i64 HunkCount_ = 0;
+    i64 TotalHunkLength_ = 0;
+    i64 ReferencedHunkCount_ = 0;
+    i64 TotalReferencedHunkLength_ = 0;
+
+
+    virtual bool OnChunk(
+        TChunk* chunk,
+        TChunkList* /*parent*/,
+        std::optional<i64> /*rowIndex*/,
+        std::optional<int> /*tabletIndex*/,
+        const NChunkClient::TReadLimit& /*startLimit*/,
+        const NChunkClient::TReadLimit& /*endLimit*/,
+        TTransactionId /*timestampTransactionId*/) override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        switch (chunk->GetChunkType()) {
+            case EChunkType::Table:
+                StoreChunkCount_ += 1;
+                if (auto hunkChunkRefsExt = chunk->ChunkMeta()->FindExtension<NTableClient::NProto::THunkChunkRefsExt>()) {
+                    for (const auto& protoRef : hunkChunkRefsExt->refs()) {
+                        ReferencedHunkCount_ += protoRef.hunk_count();
+                        TotalReferencedHunkLength_ += protoRef.total_hunk_length();
+                    }
+                }
+                break;
+
+            case EChunkType::Hunk:
+                if (auto hunkChunkMiscExt = chunk->ChunkMeta()->FindExtension<NTableClient::NProto::THunkChunkMiscExt>()) {
+                    HunkChunkCount_ += 1;
+                    HunkCount_ += hunkChunkMiscExt->hunk_count();
+                    TotalHunkLength_ += hunkChunkMiscExt->total_hunk_length();
+                }
+                break;
+
+            default:
+                break;
+        }
+
+        return true;
+    }
+
+    virtual bool OnChunkView(TChunkView* /*chunkView*/) override
+    {
+        return false;
+    }
+
+    virtual bool OnDynamicStore(
+        TDynamicStore* /*dynamicStore*/,
+        std::optional<int> /*tabletIndex*/,
+        const NChunkClient::TReadLimit& /*startLimit*/,
+        const NChunkClient::TReadLimit& /*endLimit*/) override
+    {
+        return true;
+    }
+
+    virtual void OnSuccess() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto result = BuildYsonStringFluently()
+            .BeginMap()
+                .Item("hunk_chunk_count").Value(HunkChunkCount_)
+                .Item("store_chunk_count").Value(StoreChunkCount_)
+                .Item("hunk_count").Value(HunkCount_)
+                .Item("total_hunk_length").Value(TotalHunkLength_)
+                .Item("total_referenced_hunk_length").Value(TotalReferencedHunkLength_)
+                .Item("referenced_hunk_count").Value(ReferencedHunkCount_)
+            .EndMap();
+        Promise_.Set(result);
+    }
+};
+
+TFuture<TYsonString> ComputeHunkStatistics(
+    NCellMaster::TBootstrap* bootstrap,
+    TChunkList* chunkList)
+{
+    auto visitor = New<THunkStatisticsVisitor>(
+        bootstrap,
+        chunkList);
+    return visitor->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
