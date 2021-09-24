@@ -25,7 +25,7 @@ namespace NYT {
 TString NodeListToYsonString(const TNode::TListType& nodes)
 {
     TStringStream stream;
-    TYsonWriter writer(&stream, NYson::EYsonFormat::Binary, YT_LIST_FRAGMENT);
+    ::NYson::TYsonWriter writer(&stream, NYson::EYsonFormat::Binary, YT_LIST_FRAGMENT);
     auto list = BuildYsonListFluently(&writer);
     for (const auto& node : nodes) {
         list.Item().Value(node);

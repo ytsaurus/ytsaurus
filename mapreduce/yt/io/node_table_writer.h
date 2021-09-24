@@ -25,7 +25,7 @@ public:
 
 private:
     THolder<TProxyOutput> Output_;
-    TVector<THolder<TYsonWriter>> Writers_;
+    TVector<THolder<::NYson::TYsonWriter>> Writers_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

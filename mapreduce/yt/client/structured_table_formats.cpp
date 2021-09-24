@@ -50,7 +50,7 @@ TString CreateSkiffConfig(const NSkiff::TSkiffSchemaPtr& schema)
 {
     TString result;
     TStringOutput stream(result);
-    TYsonWriter writer(&stream);
+    ::NYson::TYsonWriter writer(&stream);
     Serialize(schema, &writer);
     return result;
 }
