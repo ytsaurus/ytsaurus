@@ -387,6 +387,120 @@ TAccountMulticellStatistics TAccount::ComputeTotalChildrenMulticellStatistics() 
     return result;
 }
 
+TViolatedClusterResourceLimits TAccount::GetViolatedResourceLimits(
+    NCellMaster::TBootstrap* bootstrap,
+    bool enableTabletResourceValidation) const
+{
+    const auto& multicellManager = bootstrap->GetMulticellManager();
+
+    auto primaryCellTag = multicellManager->GetPrimaryCellTag();
+    const auto& cellTags = multicellManager->GetSecondaryCellTags();
+
+    TViolatedClusterResourceLimits violatedLimits;
+    for (auto* account = this; account; account = account->GetParent()) {
+        if (account->IsNodeCountLimitViolated()) {
+            violatedLimits.SetNodeCount(1);
+        }
+        if (account->IsChunkCountLimitViolated()) {
+            violatedLimits.SetChunkCount(1);
+        }
+
+        if (enableTabletResourceValidation) {
+            if (account->IsTabletCountLimitViolated()) {
+                violatedLimits.SetTabletCount(1);
+            }
+            if (account->IsTabletStaticMemoryLimitViolated()) {
+                violatedLimits.SetTabletStaticMemory(1);
+            }
+        }
+
+        for (const auto& [mediumIndex, usage] : account->ClusterStatistics().ResourceUsage.DiskSpace()) {
+            if (account->IsDiskSpaceLimitViolated(mediumIndex)) {
+                violatedLimits.SetMediumDiskSpace(mediumIndex, 1);
+            } else {
+                violatedLimits.AddToMediumDiskSpace(mediumIndex, 0);
+            }
+        }
+        for (const auto& [mediumIndex, usage] : account->ClusterResourceLimits().DiskSpace()) {
+            violatedLimits.AddToMediumDiskSpace(mediumIndex, 0);
+        }
+
+        if (account->IsMasterMemoryLimitViolated()) {
+            violatedLimits.MasterMemory().Total = 1;
+        }
+        if (account->IsChunkHostMasterMemoryLimitViolated(multicellManager)) {
+            violatedLimits.MasterMemory().ChunkHost = 1;
+        }
+        if (account->IsMasterMemoryLimitViolated(primaryCellTag)) {
+            violatedLimits.MasterMemory().PerCell[primaryCellTag] = 1;
+        }
+        for (auto cellTag : cellTags) {
+            if (account->IsMasterMemoryLimitViolated(cellTag)) {
+                violatedLimits.MasterMemory().PerCell[cellTag] = 1;
+            }
+        }
+    }
+
+    return violatedLimits;
+}
+
+TViolatedClusterResourceLimits TAccount::GetRecursiveViolatedResourceLimits(
+    NCellMaster::TBootstrap* bootstrap,
+    bool enableTabletResourceValidation) const
+{
+    const auto& multicellManager = bootstrap->GetMulticellManager();
+
+    auto primaryCellTag = multicellManager->GetPrimaryCellTag();
+    const auto& cellTags = multicellManager->GetSecondaryCellTags();
+
+    return AccumulateOverMapObjectSubtree(
+        this,
+        TViolatedClusterResourceLimits(),
+        [&] (const TAccount* account, TViolatedClusterResourceLimits* violatedLimits) {
+            if (account->IsNodeCountLimitViolated()) {
+                violatedLimits->SetNodeCount(violatedLimits->GetNodeCount() + 1);
+            }
+            if (account->IsChunkCountLimitViolated()) {
+                violatedLimits->SetChunkCount(violatedLimits->GetChunkCount() + 1);
+            }
+
+            if (enableTabletResourceValidation) {
+                if (account->IsTabletCountLimitViolated()) {
+                    violatedLimits->SetTabletCount(violatedLimits->GetTabletCount() + 1);
+                }
+                if (account->IsTabletStaticMemoryLimitViolated()) {
+                    violatedLimits->SetTabletStaticMemory(violatedLimits->GetTabletStaticMemory() + 1);
+                }
+            }
+
+            for (const auto& [mediumIndex, usage] : account->ClusterStatistics().ResourceUsage.DiskSpace()) {
+                if (account->IsDiskSpaceLimitViolated(mediumIndex)) {
+                    violatedLimits->AddToMediumDiskSpace(mediumIndex, 1);
+                } else {
+                    violatedLimits->AddToMediumDiskSpace(mediumIndex, 0);
+                }
+            }
+            for (const auto& [mediumIndex, usage] : account->ClusterResourceLimits().DiskSpace()) {
+                violatedLimits->AddToMediumDiskSpace(mediumIndex, 0);
+            }
+
+            if (account->IsMasterMemoryLimitViolated()) {
+                ++violatedLimits->MasterMemory().Total;
+            }
+            if (account->IsChunkHostMasterMemoryLimitViolated(multicellManager)) {
+                ++violatedLimits->MasterMemory().ChunkHost;
+            }
+            if (account->IsMasterMemoryLimitViolated(primaryCellTag)) {
+                ++violatedLimits->MasterMemory().PerCell[primaryCellTag];
+            }
+            for (auto cellTag : cellTags) {
+                if (account->IsMasterMemoryLimitViolated(cellTag)) {
+                    ++violatedLimits->MasterMemory().PerCell[cellTag];
+                }
+            }
+        });
+}
+
 int TAccount::GetMergeJobRateLimit() const
 {
     return MergeJobRateLimit_;

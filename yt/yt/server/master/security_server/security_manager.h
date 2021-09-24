@@ -160,10 +160,6 @@ public:
      */
     TAccount* GetChunkWiseAccountingMigrationAccount();
 
-    using TViolatedResourceLimits = TClusterResourceLimits;
-    //! Returns recursive violated resource limits for account's subtree.
-    TViolatedResourceLimits GetAccountRecursiveViolatedResourceLimits(const TAccount* account) const;
-
     //! Sets |resourceLimits| as |account|'s cluster resource limits.
     //! Throws if that would violate the invariants.
     void TrySetResourceLimits(TAccount* account, const TClusterResourceLimits& resourceLimits);
@@ -185,7 +181,7 @@ public:
         const NChunkServer::TChunk* chunk,
         const NChunkServer::TChunkRequisition& requisition,
         i64 delta);
-    
+
     //! Updates resources of account resource usage lease.
     void UpdateAccountResourceUsageLease(
         TAccountResourceUsageLease* accountResourceUsageLease,

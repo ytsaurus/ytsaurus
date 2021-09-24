@@ -10,7 +10,8 @@ from yt_commands import (
     sync_unmount_table, sync_reshard_table, get_singular_chunk_id,
     multicell_sleep, set_account_disk_space_limit, get_account_disk_space, get_account_committed_disk_space,
     create_dynamic_table, get_chunk_owner_disk_space, cluster_resources_equal, master_memory_sleep,
-    assert_true_for_all_cells, wait_true_for_all_cells, gc_collect, get_driver)
+    assert_true_for_all_cells, wait_true_for_all_cells, gc_collect, get_driver,
+    raises_yt_error)
 
 from yt.yson import to_yson_type, YsonEntity
 from yt.common import YtError
@@ -3447,6 +3448,27 @@ class TestAccountTree(AccountsTestSuiteBase):
         assert get("//sys/accounts/yt-test/@parent_name") == "yt-prod"
         assert get("//sys/accounts/yt-test/@path") == "//sys/account_tree/yt/yt-prod/yt-test"
 
+    @authors("akozhikhov")
+    def test_error_upon_resource_limit_violation(self):
+        create_medium("nvme1")
+
+        create_account("yt", attributes={"resource_limits": {"disk_space_per_medium": {"default": 1}}})
+        create_account("yt2", attributes={"resource_limits": {"disk_space_per_medium": {"default": 2, "nvme1": 1}}})
+
+        with raises_yt_error("violated_resources {'disk_space_per_medium': {'default': 1L, 'nvme1': 1L}}"):
+            set("//sys/account_tree/yt2/@parent_name", "yt")
+
+        set("//sys/accounts/yt/@resource_limits/disk_space_per_medium", {"default": 2})
+        with raises_yt_error("violated_resources {'disk_space_per_medium': {'nvme1': 1L}}"):
+            set("//sys/account_tree/yt2/@parent_name", "yt")
+
+        set("//sys/accounts/yt/@resource_limits/disk_space_per_medium", {"default": 1, "nvme1": 1})
+        with raises_yt_error("violated_resources {'disk_space_per_medium': {'default': 1L}}"):
+            set("//sys/account_tree/yt2/@parent_name", "yt")
+
+        set("//sys/accounts/yt/@resource_limits/disk_space_per_medium", {"default": 2, "nvme1": 1})
+        set("//sys/account_tree/yt2/@parent_name", "yt")
+
     @authors("shakurov")
     def test_recursive_violated_resource_limits(self):
         create_medium("hdd7")
@@ -3470,7 +3492,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("yt-prod", "yt", attributes={"resource_limits": limits_x})
 
         no_violated_limits = self._build_resource_limits()
-        no_violated_limits["disk_space_per_medium"] = {}
+        no_violated_limits["disk_space_per_medium"] = {"default": 0}
 
         assert get("//sys/accounts/yt/@recursive_violated_resource_limits") == no_violated_limits
         assert get("//sys/accounts/yt-dev/@recursive_violated_resource_limits") == no_violated_limits
@@ -3508,7 +3530,7 @@ class TestAccountTree(AccountsTestSuiteBase):
             "chunk_count": 0,
             "tablet_count": 1,
             "tablet_static_memory": 1,
-            "disk_space_per_medium": {},
+            "disk_space_per_medium": {"default": 0},
             "master_memory":
             {
                 "total": 0,
@@ -3562,7 +3584,7 @@ class TestAccountTree(AccountsTestSuiteBase):
                 "chunk_count": 0,
                 "tablet_count": 0,
                 "tablet_static_memory": 0,
-                "disk_space_per_medium": {"hdd7": 1},
+                "disk_space_per_medium": {"hdd7": 1, "default": 0},
                 "master_memory":
                 {
                     "total": 0,

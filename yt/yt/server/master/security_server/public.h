@@ -72,9 +72,10 @@ struct TPermissionCheckOptions;
 struct TPermissionCheckResult;
 struct TPermissionCheckResponse;
 
-class TClusterResourceLimits;
 class TClusterResources;
 class TRichClusterResources;
+class TClusterResourceLimits;
+class TViolatedClusterResourceLimits;
 
 class TDetailedMasterMemory;
 

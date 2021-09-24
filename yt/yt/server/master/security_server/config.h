@@ -70,7 +70,7 @@ public:
 
         RegisterParameter("enable_distributed_throttler", EnableDistributedThrottler)
             .Default(false);
-        
+
         RegisterParameter("max_account_subtree_size", MaxAccountSubtreeSize)
             .Default(1000);
     }

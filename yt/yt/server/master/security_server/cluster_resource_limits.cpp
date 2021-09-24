@@ -194,37 +194,36 @@ bool TClusterResourceLimits::IsViolatedBy(const TClusterResourceLimits& rhs) con
         MasterMemory_.IsViolatedBy(rhs.MasterMemory());
 }
 
-TClusterResourceLimits::TViolatedResourceLimits TClusterResourceLimits::GetViolatedBy(
+TViolatedClusterResourceLimits TClusterResourceLimits::GetViolatedBy(
     const TClusterResourceLimits& rhs) const
 {
     if (this == &rhs) {
         return {};
     }
 
-    auto result = TViolatedResourceLimits()
-        .SetNodeCount(NodeCount_ < rhs.NodeCount_)
-        .SetChunkCount(ChunkCount_ < rhs.ChunkCount_)
-        .SetTabletCount(TabletCount_ < rhs.TabletCount_)
-        .SetTabletStaticMemory(TabletStaticMemory_ < rhs.TabletStaticMemory_)
-        .SetMasterMemory(MasterMemory_.GetViolatedBy(rhs.MasterMemory_));
+    TViolatedClusterResourceLimits result;
+    result.SetNodeCount(NodeCount_ < rhs.NodeCount_);
+    result.SetChunkCount(ChunkCount_ < rhs.ChunkCount_);
+    result.SetTabletCount(TabletCount_ < rhs.TabletCount_);
+    result.SetTabletStaticMemory(TabletStaticMemory_ < rhs.TabletStaticMemory_);
+    result.SetMasterMemory(MasterMemory_.GetViolatedBy(rhs.MasterMemory_));
 
     for (auto [mediumIndex, diskSpace] : DiskSpace()) {
         auto usageDiskSpace = rhs.DiskSpace().lookup(mediumIndex);
         if (diskSpace < usageDiskSpace) {
-            result.SetMediumDiskSpace(mediumIndex, 1);
+            result.SetMediumDiskSpace(mediumIndex, diskSpace < usageDiskSpace);
         }
     }
 
     for (auto [mediumIndex, usageDiskSpace] : rhs.DiskSpace()) {
         auto diskSpace = DiskSpace().lookup(mediumIndex);
         if (diskSpace < usageDiskSpace) {
-            result.SetMediumDiskSpace(mediumIndex, 1);
+            result.SetMediumDiskSpace(mediumIndex, diskSpace < usageDiskSpace);
         }
     }
 
     return result;
 }
-
 
 TClusterResourceLimits& TClusterResourceLimits::operator += (const TClusterResourceLimits& other)
 {
@@ -334,6 +333,44 @@ bool TClusterResourceLimits::operator == (const TClusterResourceLimits& other) c
     return true;
 }
 
+TViolatedClusterResourceLimits::TViolatedClusterResourceLimits()
+    : NodeCount_(0)
+    , ChunkCount_(0)
+    , TabletCount_(0)
+    , TabletStaticMemory_(0)
+    , DiskSpace_{}
+{ }
+
+TMasterMemoryLimits& TViolatedClusterResourceLimits::MasterMemory()
+{
+    return MasterMemory_;
+}
+
+const TMasterMemoryLimits& TViolatedClusterResourceLimits::MasterMemory() const
+{
+    return MasterMemory_;
+}
+
+void TViolatedClusterResourceLimits::SetMasterMemory(TMasterMemoryLimits masterMemoryLimits) &
+{
+    MasterMemory_ = std::move(masterMemoryLimits);
+}
+
+const TMediumMap<i64>& TViolatedClusterResourceLimits::DiskSpace() const
+{
+    return DiskSpace_;
+}
+
+void TViolatedClusterResourceLimits::SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &
+{
+    DiskSpace_[mediumIndex] = diskSpace;
+}
+
+void TViolatedClusterResourceLimits::AddToMediumDiskSpace(int mediumIndex, i64 diskSpaceDelta)
+{
+    DiskSpace_[mediumIndex] += diskSpaceDelta;
+}
+
 void SerializeClusterResourceLimits(
     const TClusterResourceLimits& resourceLimits,
     NYson::IYsonConsumer* consumer,
@@ -384,43 +421,6 @@ void SerializeClusterResourceLimits(
         .EndMap();
 }
 
-void SerializeViolatedClusterResourceLimits(
-    const TClusterResourceLimits::TViolatedResourceLimits& violatedResourceLimits,
-    NYson::IYsonConsumer* consumer,
-    const TBootstrap* bootstrap)
-{
-    const auto& chunkManager = bootstrap->GetChunkManager();
-    const auto& multicellManager = bootstrap->GetMulticellManager();
-
-    auto fluent = BuildYsonFluently(consumer)
-        .BeginMap();
-    fluent
-        .Item("node_count").Value(violatedResourceLimits.GetNodeCount() != 0)
-        .Item("chunk_count").Value(violatedResourceLimits.GetChunkCount() != 0)
-        .Item("tablet_count").Value(violatedResourceLimits.GetTabletCount() != 0)
-        .Item("tablet_static_memory").Value(violatedResourceLimits.GetTabletStaticMemory() != 0)
-        .Item("disk_space_per_medium").DoMapFor(
-            violatedResourceLimits.DiskSpace(),
-            [&] (TFluentMap fluent, auto pair) {
-                auto [mediumIndex, mediumDiskSpace] = pair;
-                const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                if (!IsObjectAlive(medium) || medium->GetCache()) {
-                    return;
-                }
-                fluent.Item(medium->GetName()).Value(mediumDiskSpace != 0);
-            })
-        .Item("master_memory");
-
-    SerializeViolatedMasterMemoryLimits(
-        violatedResourceLimits.MasterMemory(),
-        fluent.GetConsumer(),
-        multicellManager);
-
-    fluent
-        .EndMap();
-
-}
-
 void DeserializeClusterResourceLimits(
     TClusterResourceLimits& resourceLimits,
     NYTree::INodePtr node,
@@ -451,6 +451,157 @@ void DeserializeClusterResourceLimits(
     }
 
     resourceLimits = std::move(result);
+}
+
+void SerializeViolatedClusterResourceLimits(
+    const TViolatedClusterResourceLimits& violatedResourceLimits,
+    NYson::IYsonConsumer* consumer,
+    const TBootstrap* bootstrap)
+{
+    const auto& chunkManager = bootstrap->GetChunkManager();
+    const auto& multicellManager = bootstrap->GetMulticellManager();
+
+    auto fluent = BuildYsonFluently(consumer)
+        .BeginMap();
+    fluent
+        .Item("node_count").Value(violatedResourceLimits.GetNodeCount())
+        .Item("chunk_count").Value(violatedResourceLimits.GetChunkCount())
+        .Item("tablet_count").Value(violatedResourceLimits.GetTabletCount())
+        .Item("tablet_static_memory").Value(violatedResourceLimits.GetTabletStaticMemory())
+        .Item("disk_space_per_medium").DoMapFor(
+            violatedResourceLimits.DiskSpace(),
+            [&] (TFluentMap fluent, auto pair) {
+                auto [mediumIndex, mediumDiskSpace] = pair;
+                const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                if (!IsObjectAlive(medium) || medium->GetCache()) {
+                    return;
+                }
+                fluent.Item(medium->GetName()).Value(mediumDiskSpace);
+            })
+        .Item("master_memory");
+
+    SerializeViolatedMasterMemoryLimits(
+        violatedResourceLimits.MasterMemory(),
+        fluent.GetConsumer(),
+        multicellManager);
+
+    fluent
+        .EndMap();
+}
+
+void SerializeViolatedClusterResourceLimitsInCompactFormat(
+    const TViolatedClusterResourceLimits& violatedResourceLimits,
+    NYson::IYsonConsumer* consumer,
+    const NCellMaster::TBootstrap* bootstrap)
+{
+    const auto& chunkManager = bootstrap->GetChunkManager();
+    const auto& multicellManager = bootstrap->GetMulticellManager();
+
+    auto fluent = BuildYsonFluently(consumer)
+        .BeginMap();
+    fluent
+        .DoIf(violatedResourceLimits.GetNodeCount() > 0, [&] (TFluentMap fluent) {
+            fluent.Item("node_count").Value(violatedResourceLimits.GetNodeCount());
+        })
+        .DoIf(violatedResourceLimits.GetChunkCount() > 0, [&] (TFluentMap fluent) {
+            fluent.Item("chunk_count").Value(violatedResourceLimits.GetChunkCount());
+        })
+        .DoIf(violatedResourceLimits.GetTabletCount() > 0, [&] (TFluentMap fluent) {
+            fluent.Item("tablet_count").Value(violatedResourceLimits.GetTabletCount());
+        })
+        .DoIf(violatedResourceLimits.GetTabletStaticMemory() > 0, [&] (TFluentMap fluent) {
+            fluent.Item("tablet_static_memory").Value(violatedResourceLimits.GetTabletStaticMemory());
+        });
+
+    bool diskSpaceLimitViolated = false;
+    for (auto [mediumIndex, mediumDiskSpace] : violatedResourceLimits.DiskSpace()) {
+        const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+        if (!IsObjectAlive(medium) || medium->GetCache() || mediumDiskSpace == 0) {
+            continue;
+        }
+        diskSpaceLimitViolated = true;
+        break;
+    }
+
+    fluent
+        .DoIf(diskSpaceLimitViolated, [&] (TFluentMap fluent) {
+            fluent.Item("disk_space_per_medium").DoMapFor(
+                violatedResourceLimits.DiskSpace(),
+                [&] (TFluentMap fluent, auto pair) {
+                    auto [mediumIndex, mediumDiskSpace] = pair;
+                    const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                    if (!IsObjectAlive(medium) || medium->GetCache() || mediumDiskSpace == 0) {
+                        return;
+                    }
+                    fluent.Item(medium->GetName()).Value(mediumDiskSpace);
+                });
+        });
+
+    if (violatedResourceLimits.MasterMemory().Total > 0 ||
+        violatedResourceLimits.MasterMemory().ChunkHost > 0 ||
+        !violatedResourceLimits.MasterMemory().PerCell.empty())
+    {
+        fluent
+            .Item("master_memory");
+        SerializeViolatedMasterMemoryLimits(
+            violatedResourceLimits.MasterMemory(),
+            fluent.GetConsumer(),
+            multicellManager);
+    }
+
+    fluent
+        .EndMap();
+}
+
+void SerializeViolatedClusterResourceLimitsInBooleanFormat(
+    const TViolatedClusterResourceLimits& violatedResourceLimits,
+    NYson::IYsonConsumer* consumer,
+    const NCellMaster::TBootstrap* bootstrap,
+    bool serializeDiskSpace)
+{
+    const auto& chunkManager = bootstrap->GetChunkManager();
+    const auto& multicellManager = bootstrap->GetMulticellManager();
+
+    auto fluent = BuildYsonFluently(consumer)
+        .BeginMap();
+    fluent
+        .Item("node_count").Value(violatedResourceLimits.GetNodeCount() != 0)
+        .Item("chunk_count").Value(violatedResourceLimits.GetChunkCount() != 0)
+        .Item("tablet_count").Value(violatedResourceLimits.GetTabletCount() != 0)
+        .Item("tablet_static_memory").Value(violatedResourceLimits.GetTabletStaticMemory() != 0)
+        .Item("disk_space_per_medium").DoMapFor(
+            violatedResourceLimits.DiskSpace(),
+            [&] (TFluentMap fluent, auto pair) {
+                auto [mediumIndex, mediumDiskSpace] = pair;
+                const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                if (!IsObjectAlive(medium) || medium->GetCache()) {
+                    return;
+                }
+                fluent.Item(medium->GetName()).Value(mediumDiskSpace != 0);
+            })
+        .DoIf(serializeDiskSpace, [&] (TFluentMap fluent) {
+            fluent
+                .Item("disk_space").Value(std::any_of(
+                    violatedResourceLimits.DiskSpace().begin(),
+                    violatedResourceLimits.DiskSpace().end(),
+                    [&] (auto pair) {
+                        auto [mediumIndex, mediumDiskSpace] = pair;
+                        const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                        if (!IsObjectAlive(medium) || medium->GetCache()) {
+                            return false;
+                        }
+                        return mediumDiskSpace != 0;
+                    }));
+        })
+        .Item("master_memory");
+
+    SerializeViolatedMasterMemoryLimitsInBooleanFormat(
+        violatedResourceLimits.MasterMemory(),
+        fluent.GetConsumer(),
+        multicellManager);
+
+    fluent
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

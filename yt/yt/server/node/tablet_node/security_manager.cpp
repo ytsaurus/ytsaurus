@@ -37,12 +37,11 @@ struct TResourceLimitsKey
     // Hasher.
     operator size_t() const
     {
-        size_t result = 0;
-        HashCombine(result, Account);
-        HashCombine(result, TabletCellBundle);
-        HashCombine(result, MediumName);
-        HashCombine(result, InMemoryMode);
-        return result;
+        return MultiHash(
+            Account,
+            TabletCellBundle,
+            MediumName,
+            InMemoryMode);
     }
 
     // Comparer.

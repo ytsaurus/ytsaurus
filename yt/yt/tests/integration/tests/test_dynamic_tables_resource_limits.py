@@ -393,6 +393,30 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
         sync_mount_table("//tmp/t2")
         insert_rows("//tmp/t2", [{"key": 2, "value": "2"}])
 
+    @authors("akozhikhov")
+    def test_parent_account_violation(self):
+        create_account("parent")
+        create_account("child", "parent")
+
+        set("//sys/accounts/parent/@resource_limits/tablet_count", 2)
+        set("//sys/accounts/parent/@resource_limits/tablet_static_memory", 1)
+        set("//sys/accounts/child/@resource_limits/tablet_count", 2)
+        set("//sys/accounts/child/@resource_limits/tablet_static_memory", 1)
+
+        sync_create_cells(1)
+
+        self._create_sorted_table("//tmp/t1", account="child", in_memory_mode="compressed")
+        sync_mount_table("//tmp/t1")
+
+        self._create_sorted_table("//tmp/t2", account="parent", in_memory_mode="compressed")
+        sync_mount_table("//tmp/t2")
+
+        insert_rows("//tmp/t2", [{"key": 1, "value": "1"}])
+        sync_flush_table("//tmp/t2")
+
+        with raises_yt_error("tablet static"):
+            insert_rows("//tmp/t1", [{"key": 1, "value": "1"}])
+
     @authors("ifsmirnov")
     def test_snapshot_account_resource_limits_violation(self):
         create_account("test_account")

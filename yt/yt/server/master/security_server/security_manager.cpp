@@ -628,59 +628,6 @@ public:
         return GetBuiltin(ChunkWiseAccountingMigrationAccount_);
     }
 
-    TViolatedResourceLimits GetAccountRecursiveViolatedResourceLimits(const TAccount* account) const
-    {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        const auto& dynamicConfig = GetDynamicConfig();
-        const auto& cellTags = multicellManager->GetSecondaryCellTags();
-        auto primaryCellTag = multicellManager->GetPrimaryCellTag();
-
-        return AccumulateOverMapObjectSubtree(
-            account,
-            TViolatedResourceLimits(),
-            [&] (const TAccount* account, TViolatedResourceLimits* violatedLimits) {
-                if (account->IsNodeCountLimitViolated()) {
-                    violatedLimits->SetNodeCount(violatedLimits->GetNodeCount() + 1);
-                }
-                if (account->IsChunkCountLimitViolated()) {
-                    violatedLimits->SetChunkCount(violatedLimits->GetChunkCount() + 1);
-                }
-
-                for (const auto& [mediumIndex, usage] : account->ClusterStatistics().ResourceUsage.DiskSpace()) {
-                    if (account->IsDiskSpaceLimitViolated(mediumIndex)) {
-                        violatedLimits->AddToMediumDiskSpace(mediumIndex, 1);
-                    }
-                }
-
-                if (dynamicConfig->EnableTabletResourceValidation) {
-                    if (account->IsTabletCountLimitViolated()) {
-                        violatedLimits->SetTabletCount(violatedLimits->GetTabletCount() + 1);
-                    }
-                    if (account->IsTabletStaticMemoryLimitViolated()) {
-                        violatedLimits->SetTabletStaticMemory(violatedLimits->GetTabletStaticMemory() + 1);
-                    }
-                }
-
-                if (account->IsMasterMemoryLimitViolated()) {
-                    violatedLimits->MasterMemory().Total += 1;
-                }
-
-                if (account->IsChunkHostMasterMemoryLimitViolated(multicellManager)) {
-                    violatedLimits->MasterMemory().ChunkHost += 1;
-                }
-
-                if (account->IsMasterMemoryLimitViolated(primaryCellTag)) {
-                    violatedLimits->MasterMemory().PerCell[primaryCellTag] += 1;
-                }
-
-                for (auto cellTag : cellTags) {
-                    if (account->IsMasterMemoryLimitViolated(cellTag)) {
-                        violatedLimits->MasterMemory().PerCell[cellTag] += 1;
-                    }
-                }
-            });
-    }
-
     template <class... TArgs>
     void ThrowWithDetailedViolatedResources(
         const TClusterResourceLimits& limits, const TClusterResourceLimits& usage, TArgs&&... args)
@@ -689,7 +636,7 @@ public:
 
         TStringStream output;
         TYsonWriter writer(&output, EYsonFormat::Binary);
-        SerializeViolatedClusterResourceLimits(violatedResources, &writer, Bootstrap_);
+        SerializeViolatedClusterResourceLimitsInCompactFormat(violatedResources, &writer, Bootstrap_);
         writer.Flush();
 
         THROW_ERROR(TError(std::forward<TArgs>(args)...)
@@ -4433,11 +4380,6 @@ TAccount* TSecurityManager::GetIntermediateAccount()
 TAccount* TSecurityManager::GetChunkWiseAccountingMigrationAccount()
 {
     return Impl_->GetChunkWiseAccountingMigrationAccount();
-}
-
-TSecurityManager::TViolatedResourceLimits TSecurityManager::GetAccountRecursiveViolatedResourceLimits(const TAccount* account) const
-{
-    return Impl_->GetAccountRecursiveViolatedResourceLimits(account);
 }
 
 void TSecurityManager::TrySetResourceLimits(TAccount* account, const TClusterResourceLimits& resourceLimits)
