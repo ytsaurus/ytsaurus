@@ -960,7 +960,7 @@ private:
 
         context->SetRequestInfo("TransactionType: %v, TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
             "Timeout: %v, Deadline: %v, AutoAbort: %v, "
-            "Sticky: %v, Ping: %v, PingAncestors: %v, Atomicity: %v, Durability: %v, StartTimestamp: %v",
+            "Sticky: %v, Ping: %v, PingAncestors: %v, Atomicity: %v, Durability: %v, StartTimestamp: %llx",
             transactionType,
             options.Id,
             options.ParentId,
@@ -989,7 +989,7 @@ private:
                     StickyTransactionPool_->RegisterTransaction(transaction);
                 }
 
-                context->SetResponseInfo("TransactionId: %v, StartTimestamp: %v",
+                context->SetResponseInfo("TransactionId: %v, StartTimestamp: %llx",
                     transaction->GetId(),
                     transaction->GetStartTimestamp());
             });
@@ -2909,7 +2909,7 @@ private:
             &options,
             request->Attachments());
 
-        context->SetRequestInfo("Path: %v, RowCount: %v, Timestamp: %v",
+        context->SetRequestInfo("Path: %v, RowCount: %v, Timestamp: %llx",
             request->path(),
             keys.Size(),
             options.Timestamp);
@@ -2966,7 +2966,7 @@ private:
             &options,
             request->Attachments());
 
-        context->SetRequestInfo("Path: %v, RowCount: %v, Timestamp: %v",
+        context->SetRequestInfo("Path: %v, RowCount: %v, Timestamp: %llx",
             request->path(),
             keys.Size(),
             options.Timestamp);
@@ -3061,7 +3061,7 @@ private:
                 request->Attachments().size());
         }
 
-        context->SetRequestInfo("Timestamp: %v, Subrequests: %v",
+        context->SetRequestInfo("Timestamp: %llx, Subrequests: %v",
             options.Timestamp,
             MakeFormattableView(
                 subrequests,

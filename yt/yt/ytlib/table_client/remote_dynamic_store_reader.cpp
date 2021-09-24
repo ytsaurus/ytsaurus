@@ -442,7 +442,7 @@ private:
 
         req->set_timestamp(Timestamp_);
 
-        YT_LOG_DEBUG("Collected remote dynamic store reader parameters (Range: <%v .. %v>, Timestamp: %v, ColumnFilter: %v)",
+        YT_LOG_DEBUG("Collected remote dynamic store reader parameters (Range: <%v .. %v>, Timestamp: %llx, ColumnFilter: %v)",
             lowerLimit,
             upperLimit,
             Timestamp_,

@@ -533,7 +533,7 @@ private:
                         TabletSnapshot_->TabletId);
                 }
 
-                YT_LOG_TRACE("Using row from cache (CacheRow: %v, Revision: %v, ReadTimestamp: %v, DynamicRows: %v)",
+                YT_LOG_TRACE("Using row from cache (CacheRow: %v, Revision: %v, ReadTimestamp: %llx, DynamicRows: %v)",
                     cachedItem->GetVersionedRow(),
                     cachedItem->Revision.load(),
                     Timestamp_,
