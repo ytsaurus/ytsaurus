@@ -1,3 +1,4 @@
+#ifdef __linux__
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/misc/proc.h>
@@ -108,3 +109,4 @@ TEST(TProcTest, TestGetSelfMemoryMappings)
 
 } // namespace
 } // namespace NYT
+#endif
