@@ -48,6 +48,9 @@ TServerConfig::TServerConfig()
 
     RegisterParameter("cancel_fiber_on_connection_close", CancelFiberOnConnectionClose)
         .Default(false);
+
+    RegisterParameter("nodelay", NoDelay)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
