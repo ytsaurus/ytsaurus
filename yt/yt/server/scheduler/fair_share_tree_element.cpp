@@ -2726,12 +2726,29 @@ void TSchedulerOperationElement::PrescheduleJob(
 {
     auto& attributes = context->DynamicAttributesFor(this);
 
-    // Reset operation element activeness (it can be active after scheduling without preepmtion).
-    attributes.Active = false;
+    CheckForDeactivation(context, operationCriterion);
+    if (!attributes.Active) {
+        return;
+    }
 
+    UpdateDynamicAttributes(&context->DynamicAttributesList(), context->ChildHeapMap());
+
+    ++context->StageState()->ActiveTreeSize;
+    ++context->StageState()->ActiveOperationCount;
+}
+
+void TSchedulerOperationElement::CheckForDeactivation(
+    TScheduleJobsContext* context,
+    EPrescheduleJobOperationCriterion operationCriterion)
+{
     auto onOperationDeactivated = [&] (EDeactivationReason reason) {
         OnOperationDeactivated(context, reason);
     };
+
+    auto& attributes = context->DynamicAttributesFor(this);
+
+    // Reset operation element activeness (it can be active after scheduling without preepmtion).
+    attributes.Active = false;
 
     if (!IsAlive() || !OperationElementSharedState_->Enabled()) {
         onOperationDeactivated(EDeactivationReason::IsNotAlive);
@@ -2792,12 +2809,6 @@ void TSchedulerOperationElement::PrescheduleJob(
 
     // NB: we explicitely set Active flag to avoid another call to IsAlive().
     attributes.Active = true;
-    UpdateDynamicAttributes(&context->DynamicAttributesList(), context->ChildHeapMap());
-
-    if (attributes.Active) {
-        ++context->StageState()->ActiveTreeSize;
-        ++context->StageState()->ActiveOperationCount;
-    }
 }
 
 bool TSchedulerOperationElement::HasAggressivelyStarvingElements(TScheduleJobsContext* /*context*/) const

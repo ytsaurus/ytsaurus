@@ -1155,6 +1155,8 @@ public:
         const TChildHeapMap& childHeapMap) override final;
 
     virtual const TJobResources& CalculateCurrentResourceUsage(TScheduleJobsContext* context) override final;
+    
+    void CheckForDeactivation(TScheduleJobsContext* context, EPrescheduleJobOperationCriterion operationCriterion);
 
     void UpdateCurrentResourceUsage(TScheduleJobsContext* context);
     bool IsUsageOutdated(TScheduleJobsContext* context) const;
