@@ -39,6 +39,11 @@ inline const NLogging::TLogger& TSchedulerElement::GetLogger() const
     return Logger;
 }
 
+inline const TString& TSchedulerElement::GetLoggingTags() const
+{
+    return Logger.GetTag();
+}
+
 inline bool TSchedulerElement::IsActive(const TDynamicAttributesList& dynamicAttributesList) const
 {
     return dynamicAttributesList[GetTreeIndex()].Active;

@@ -1,12 +1,6 @@
 #include "piecewise_linear_function_helpers.h"
 
-namespace NYT::NScheduler {
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NDetail {
-
-using namespace NVectorHdrf;
+namespace NYT::NVectorHdrf::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,7 +75,7 @@ TUnpackedVectorPiecewiseSegmentBounds GetBounds(const TUnpackedVectorPiecewiseSe
 TVectorPiecewiseLinearFunction CompressFunction(const TVectorPiecewiseLinearFunction& vecFunc, double epsilon)
 {
     const auto& functionSegments = vecFunc.Segments();
-    YT_VERIFY(!functionSegments.empty());
+    Y_VERIFY(!functionSegments.empty());
 
     TVectorPiecewiseLinearFunction::TBuilder builder;
 
@@ -139,8 +133,4 @@ TVectorPiecewiseLinearFunction CompressFunction(const TVectorPiecewiseLinearFunc
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDetail
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NScheduler
+} // namespace NYT::NVectorHdrf::NDetail

@@ -1,5 +1,4 @@
 #include "fair_share_update.h"
-#include "piecewise_linear_function_helpers.h"
 #include "resource_helpers.h"
 
 // NB: Used to create errors with TJobResources.
@@ -11,6 +10,8 @@
 #include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/library/vector_hdrf/piecewise_linear_function_helpers.h>
 
 namespace NYT::NVectorHdrf {
 
@@ -175,7 +176,7 @@ void TElement::PrepareFairShareFunctions(TFairShareUpdateContext* context)
         context->PrepareFairShareByFitFactorTotalTime += timer.GetElapsedCpuTime();
     }
     YT_VERIFY(FairShareByFitFactor_.has_value());
-    NScheduler::NDetail::VerifyNondecreasing(*FairShareByFitFactor_, GetLogger());
+    NDetail::VerifyNondecreasing(*FairShareByFitFactor_, GetLoggingTags());
     YT_VERIFY(FairShareByFitFactor_->IsTrimmed());
 
     {
@@ -186,7 +187,7 @@ void TElement::PrepareFairShareFunctions(TFairShareUpdateContext* context)
     YT_VERIFY(MaxFitFactorBySuggestion_.has_value());
     YT_VERIFY(MaxFitFactorBySuggestion_->LeftFunctionBound() == 0.0);
     YT_VERIFY(MaxFitFactorBySuggestion_->RightFunctionBound() == 1.0);
-    NScheduler::NDetail::VerifyNondecreasing(*MaxFitFactorBySuggestion_, GetLogger());
+    NDetail::VerifyNondecreasing(*MaxFitFactorBySuggestion_, GetLoggingTags());
     YT_VERIFY(MaxFitFactorBySuggestion_->IsTrimmed());
 
     {
@@ -197,15 +198,15 @@ void TElement::PrepareFairShareFunctions(TFairShareUpdateContext* context)
     YT_VERIFY(FairShareBySuggestion_.has_value());
     YT_VERIFY(FairShareBySuggestion_->LeftFunctionBound() == 0.0);
     YT_VERIFY(FairShareBySuggestion_->RightFunctionBound() == 1.0);
-    NScheduler::NDetail::VerifyNondecreasing(*FairShareBySuggestion_, GetLogger());
+    NDetail::VerifyNondecreasing(*FairShareBySuggestion_, GetLoggingTags());
     YT_VERIFY(FairShareBySuggestion_->IsTrimmed());
 
     {
         TWallTimer timer;
-        *FairShareBySuggestion_ = NScheduler::NDetail::CompressFunction(*FairShareBySuggestion_, NScheduler::NDetail::CompressFunctionEpsilon);
+        *FairShareBySuggestion_ = NDetail::CompressFunction(*FairShareBySuggestion_, NDetail::CompressFunctionEpsilon);
         context->CompressFunctionTotalTime += timer.GetElapsedCpuTime();
     }
-    NScheduler::NDetail::VerifyNondecreasing(*FairShareBySuggestion_, GetLogger());
+    NDetail::VerifyNondecreasing(*FairShareBySuggestion_, GetLoggingTags());
 
     AreFairShareFunctionsPrepared_ = true;
 }
@@ -218,7 +219,7 @@ void TElement::PrepareMaxFitFactorBySuggestion(TFairShareUpdateContext* context)
 
     for (int r = 0; r < NScheduler::ResourceCount; r++) {
         // Fsbff stands for "FairShareByFitFactor".
-        auto fsbffComponent = NScheduler::NDetail::ExtractComponent(r, *FairShareByFitFactor_);
+        auto fsbffComponent = NDetail::ExtractComponent(r, *FairShareByFitFactor_);
         YT_VERIFY(fsbffComponent.IsTrimmed());
 
         double limit = Attributes().LimitsShare[r];

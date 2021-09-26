@@ -347,6 +347,7 @@ public:
     virtual TString GetTreeId() const;
 
     virtual const NLogging::TLogger& GetLogger() const override;
+    virtual const TString& GetLoggingTags() const override;
     virtual bool AreDetailedLogsEnabled() const override;
 
     virtual TString GetLoggingString() const;
