@@ -499,7 +499,10 @@ private:
         NonSolidMainDataSlices_.clear();
 
         for (auto& dataSlice : Reversed(toBuffer)) {
-            BufferDomain_.PushFront(std::move(dataSlice));
+            auto& destinationDomain = PrimaryComparator_.IsInteriorEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound) && !EnableKeyGuarantee_
+                ? SolidDomain_
+                : BufferDomain_;
+            destinationDomain.PushFront(std::move(dataSlice));
         }
     }
 
