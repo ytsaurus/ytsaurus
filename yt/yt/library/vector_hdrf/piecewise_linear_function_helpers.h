@@ -1,16 +1,11 @@
 #pragma once
 
 #include "public.h"
-
-#include <yt/yt/core/logging/log.h>
+#include "logging.h"
 
 #include <yt/yt/library/vector_hdrf/resource_vector.h>
 
-namespace NYT::NScheduler {
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NDetail {
+namespace NYT::NVectorHdrf::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +24,7 @@ TUnpackedVectorPiecewiseSegment UnpackVectorSegment(const NVectorHdrf::TVectorPi
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TPiecewiseFunction>
-void VerifyNondecreasing(const TPiecewiseFunction& vecFunc, const NLogging::TLogger& logger);
+void VerifyNondecreasing(const TPiecewiseFunction& vecFunc, const TString& loggingTags);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,11 +63,7 @@ NVectorHdrf::TVectorPiecewiseLinearFunction CompressFunction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDetail
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NScheduler
+} // namespace NYT::NVectorHdrf::NDetail
 
 #define PIECEWISE_LINEAR_FUNCTION_HELPERS_H_
 #include "piecewise_linear_function_helpers-inl.h"

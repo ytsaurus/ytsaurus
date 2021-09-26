@@ -5,18 +5,13 @@
 #include "piecewise_linear_function_helpers.h"
 #endif
 
-namespace NYT::NScheduler {
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NDetail {
+namespace NYT::NVectorHdrf::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TPiecewiseFunction>
-void VerifyNondecreasing(const TPiecewiseFunction& vecFunc, const NLogging::TLogger& logger)
+void VerifyNondecreasing(const TPiecewiseFunction& vecFunc, const TString& loggingTags)
 {
-    const auto& Logger = logger;
     using TValue = typename TPiecewiseFunction::TValueType;
 
     auto dominates = [&] (const TValue& lhs, const TValue& rhs) -> bool {
@@ -28,12 +23,19 @@ void VerifyNondecreasing(const TPiecewiseFunction& vecFunc, const NLogging::TLog
     };
 
     for (const auto& segment : vecFunc.Segments()) {
-        YT_LOG_FATAL_IF(!dominates(segment.RightValue(), segment.LeftValue()),
-            "The vector function is decreasing at segment {%.16v, %.16v}. Values at bounds: {%.16v, %.16v}",
+        if (dominates(segment.RightValue(), segment.LeftValue())) {
+            continue;
+        }
+
+        YT_VECTOR_HDRF_LOG_ERROR(
+            "The vector function is decreasing at segment {%.16lf, %.16lf} (BoundValues: {%.16lf, %.16lf}, %s)",
             segment.LeftBound(),
             segment.RightBound(),
             segment.LeftValue(),
-            segment.RightValue());
+            segment.RightValue(),
+            loggingTags.c_str());
+        
+        Y_VERIFY_DEBUG(false);
     }
 }
 
@@ -49,8 +51,4 @@ TSegment ConnectSegments(const TSegment& firstSegment, const TSegment& secondSeg
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDetail
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NScheduler
+} // namespace NYT::NVectorHdrf::NDetail
