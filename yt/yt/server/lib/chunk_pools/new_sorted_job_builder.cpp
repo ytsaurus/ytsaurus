@@ -201,8 +201,20 @@ public:
             LogDetails(endpoints);
             BuildJobs(endpoints);
         }
+
+        InputStreamIndexToLastDataSlice_.assign(InputStreamDirectory_.GetDescriptorCount(), nullptr);
+
         for (auto& job : Jobs_) {
+            if (job.GetIsBarrier()) {
+                continue;
+            }
             job.Finalize();
+        }
+
+        for (auto& job : Jobs_) {
+            if (job.GetIsBarrier()) {
+                continue;
+            }
             ValidateJob(&job);
         }
 
@@ -255,7 +267,7 @@ public:
             // effort in verification of this fact.
 
             auto validatePair = [&] (
-                int index,
+                int inputStreamIndex,
                 const TComparator& comparator,
                 const TLegacyDataSlicePtr& lhs,
                 const TLegacyDataSlicePtr& rhs)
@@ -292,24 +304,52 @@ public:
                     }
                 }
                 YT_LOG_ERROR(
-                    "Error validating slice order guarantee (Index: %v, Lhs: %v, Rhs: %v)",
-                    index,
+                    "Error validating slice order guarantee (InputStreamIndex: %v, Lhs: %v, Rhs: %v)",
+                    inputStreamIndex,
                     GetDataSliceDebugString(lhs),
                     GetDataSliceDebugString(rhs));
+                LogStructured();
                 // Actually a safe core dump.
                 YT_VERIFY(false && "Slice order guarantee violation");
             };
 
+            // Validate slice order between slices in each stripe.
             for (const auto& stripe : job->GetStripeList()->Stripes) {
+                auto inputStreamIndex = stripe->GetInputStreamIndex();
                 for (int index = 0; index + 1 < std::ssize(stripe->DataSlices); ++index) {
                     validatePair(
-                        index,
-                        InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsPrimary()
+                        inputStreamIndex,
+                        InputStreamDirectory_.GetDescriptor(inputStreamIndex).IsPrimary()
                             ? PrimaryComparator_
                             : ForeignComparator_,
                         stripe->DataSlices[index],
                         stripe->DataSlices[index + 1]);
                 }
+            }
+
+            // Validate slice order between primary stripes.
+            for (const auto& stripe : job->GetStripeList()->Stripes) {
+                auto inputStreamIndex = stripe->GetInputStreamIndex();
+                if (InputStreamDirectory_.GetDescriptor(inputStreamIndex).IsForeign()) {
+                    continue;
+                }
+                if (stripe->DataSlices.empty()) {
+                    continue;
+                }
+                if (static_cast<int>(InputStreamIndexToLastDataSlice_.size()) <= inputStreamIndex) {
+                    InputStreamIndexToLastDataSlice_.resize(inputStreamIndex + 1, nullptr);
+                }
+                auto& lastDataSlice = InputStreamIndexToLastDataSlice_[inputStreamIndex];
+                const auto& firstDataSlice = stripe->DataSlices.front();
+                const auto& newLastDataSlice = stripe->DataSlices.back();
+                if (lastDataSlice) {
+                    validatePair(
+                        inputStreamIndex,
+                        PrimaryComparator_,
+                        lastDataSlice,
+                        firstDataSlice);
+                }
+                lastDataSlice = newLastDataSlice;
             }
         }
     }
@@ -378,6 +418,8 @@ private:
 
     //! Contains last data slice for each input stream in order to validate important requirement
     //! for sorted pool: lower bounds and upper bounds must be monotonic among each input stream.
+    //! Used in two contexts: in order to validate added input data slices and in order to validate
+    //! resulting data slices produced by builder.
     std::vector<TLegacyDataSlicePtr> InputStreamIndexToLastDataSlice_;
 
     //! Used for structured logging.
@@ -497,7 +539,7 @@ private:
         }
     }
 
-    void LogStructured()
+    void LogStructured() const
     {
         if (!Logger.IsLevelEnabled(ELogLevel::Trace)) {
             return;
@@ -546,19 +588,24 @@ private:
                 StructuredLogger
                     .WithStructuredTag("batch_kind", TStringBuf("job_data_slices")));
             for (const auto& job : Jobs_) {
+                if (job.GetIsBarrier()) {
+                    continue;
+                }
+                std::vector<TLegacyDataSlicePtr> dataSlices;
                 for (const auto& stripe : job.GetStripeList()->Stripes) {
                     for (const auto& dataSlice : stripe->DataSlices) {
-                        batcher.AddItemFluently()
-                            .Value(dataSlice);
+                        dataSlices.push_back(dataSlice);
                     }
                 }
+                batcher.AddItemFluently()
+                    .Value(dataSlices);
             }
         }
 
         {
             TStructuredLogBatcher batcher(
                 StructuredLogger
-                .WithStructuredTag("batch_kind", TStringBuf("jobs")));
+                    .WithStructuredTag("batch_kind", TStringBuf("jobs")));
             for (const auto& job : Jobs_) {
                 if (job.GetIsBarrier()) {
                     continue;
@@ -567,6 +614,7 @@ private:
                     .Value(job);
             }
         }
+
     }
 
     i64 GetDataWeightPerJob() const

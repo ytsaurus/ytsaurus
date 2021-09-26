@@ -84,6 +84,17 @@ void TNewJobStub::Finalize()
 
         return lhsSlice->GetRangeIndex() < rhsSlice->GetRangeIndex();
     });
+
+    //    Ideally, there should be no need in such sorting.
+    //
+    //    for (const auto& stripe : StripeList_->Stripes) {
+    //        std::stable_sort(stripe->DataSlices.begin(), stripe->DataSlices.end(), [&] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
+    //            if (lhs->Tag && rhs->Tag && *lhs->Tag != *rhs->Tag) {
+    //                return *lhs->Tag < *rhs->Tag;
+    //            }
+    //            return lhs->GetSliceIndex() < rhs->GetSliceIndex();
+    //        });
+//    }
 }
 
 i64 TNewJobStub::GetDataWeight() const
