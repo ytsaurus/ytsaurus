@@ -1,5 +1,7 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import java.util.Optional;
+
 import javax.annotation.Nullable;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
@@ -35,9 +37,17 @@ public abstract class GetLikeReq<T extends GetLikeReq<T>> extends TransactionalR
         return path;
     }
 
+    public Optional<ColumnFilter> getAttributes() {
+        return Optional.ofNullable(attributes);
+    }
+
     public T setAttributes(@Nullable ColumnFilter cf) {
         this.attributes = cf;
         return self();
+    }
+
+    public Optional<Integer> getMaxSize() {
+        return Optional.ofNullable(maxSize);
     }
 
     public T setMaxSize(int maxSize) {
@@ -45,9 +55,17 @@ public abstract class GetLikeReq<T extends GetLikeReq<T>> extends TransactionalR
         return self();
     }
 
+    public Optional<MasterReadOptions> getMasterReadOptions() {
+        return Optional.ofNullable(masterReadOptions);
+    }
+
     public T setMasterReadOptions(@Nullable MasterReadOptions mo) {
         this.masterReadOptions = mo;
         return self();
+    }
+
+    public Optional<SuppressableAccessTrackingOptions> getSuppressableAccessTrackingOptions() {
+        return Optional.ofNullable(suppressableAccessTrackingOptions);
     }
 
     public T setSuppressableAccessTrackingOptions(@Nullable SuppressableAccessTrackingOptions s) {
