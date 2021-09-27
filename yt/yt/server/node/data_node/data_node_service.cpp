@@ -403,6 +403,8 @@ private:
             blockCache->PutP2PBlock(blockId, EBlockType::CompressedData, block);
         }
 
+        response->set_expiration_deadline(ToProto<i64>(Config_->PeerUpdateExpirationTime.ToDeadLine()));
+        
         context->Reply();
     }
 
