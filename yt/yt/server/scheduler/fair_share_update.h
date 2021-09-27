@@ -1,9 +1,10 @@
 #pragma once
 
-// Used for TJobResourcesConfig.
-#include <yt/yt/ytlib/scheduler/config.h>
+#include <yt/yt/core/misc/format.h>
+#include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/library/vector_hdrf/job_resources.h>
+#include <yt/yt/library/vector_hdrf/public.h>
 #include <yt/yt/library/vector_hdrf/resource_vector.h>
 #include <yt/yt/library/vector_hdrf/resource_volume.h>
 
