@@ -11,6 +11,29 @@ object CommonPlugin extends AutoPlugin {
 
   override def requires = JvmPlugin && YtPublishPlugin
 
+  object autoImport {
+    val clusterShadeRules = Seq(ShadeRule.rename(
+      "ru.yandex.spark.yt.submit.*" -> "ru.yandex.spark.yt.submit.@1",
+      "ru.yandex.spark.yt.fs.YtFileSystem" -> "ru.yandex.spark.yt.fs.YtFileSystem",
+      "ru.yandex.spark.yt.fs.eventlog.YtEventLogFileSystem" -> "ru.yandex.spark.yt.fs.eventlog.YtEventLogFileSystem",
+      "ru.yandex.misc.log.**" -> "ru.yandex.misc.log.@1",
+      "ru.yandex.**" -> "shadedyandex.ru.yandex.@1",
+      "org.asynchttpclient.**" -> "shadedyandex.org.asynchttpclient.@1",
+      "org.objenesis.**" -> "shadedyandex.org.objenesis.@1",
+      "com.google.protobuf.**" -> "shadedyandex.com.google.protobuf.@1",
+      "NYT.**" -> "shadedyandex.NYT.@1"
+    ).inAll)
+
+    val clientShadeRules = Seq(ShadeRule.rename(
+      "ru.yandex.spark.yt.wrapper.**" -> "shadeddatasource.ru.yandex.spark.yt.wrapper.@1",
+      "ru.yandex.yt.**" -> "shadeddatasource.ru.yandex.yt.@1",
+      "ru.yandex.inside.**" -> "shadeddatasource.ru.yandex.inside.@1",
+      "org.objenesis.**" -> "shadeddatasource.org.objenesis.@1",
+      "com.google.protobuf.**" -> "shadeddatasource.com.google.protobuf.@1",
+      "NYT.**" -> "shadeddatasource.NYT.@1"
+    ).inAll)
+  }
+
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
     externalResolvers := Resolver.combineDefaultResolvers(resolvers.value.toVector, mavenCentral = false),
     resolvers += Resolver.mavenLocal,

@@ -1,3 +1,4 @@
+import CommonPlugin.autoImport._
 import Dependencies._
 import sbtrelease.ReleasePlugin.autoImport.releaseProcess
 import spyt.DebianPackagePlugin.autoImport._
@@ -7,7 +8,6 @@ import spyt.SpytPlugin.autoImport._
 import spyt.TarArchiverPlugin.autoImport._
 import spyt.YtPublishPlugin.autoImport._
 import spyt.ZipPlugin.autoImport._
-import spyt._
 
 lazy val `yt-wrapper` = (project in file("yt-wrapper"))
   .enablePlugins(BuildInfoPlugin)
@@ -40,7 +40,8 @@ lazy val `spark-submit` = (project in file("spark-submit"))
     libraryDependencies ++= scaldingArgs,
     libraryDependencies ++= py4j,
     libraryDependencies ++= yandexIceberg.map(_ % Provided) ++ spark ++ circe.map(_ % Provided) ++ logging.map(_ % Provided),
-    assembly / assemblyJarName := s"spark-yt-submit.jar"
+    assembly / assemblyJarName := s"spark-yt-submit.jar",
+    assembly / assemblyShadeRules ++= clusterShadeRules
   )
 
 lazy val `submit-client` = (project in file("submit-client"))
@@ -75,16 +76,7 @@ lazy val `data-source` = (project in file("data-source"))
         YtPublishFile(zip.value, publishDir, proxy = None)
       )
     },
-    assembly / assemblyShadeRules ++= Seq(
-      ShadeRule.rename(
-        "ru.yandex.spark.yt.wrapper.**" -> "shadeddatasource.ru.yandex.spark.yt.wrapper.@1",
-        "ru.yandex.yt.**" -> "shadeddatasource.ru.yandex.yt.@1",
-        "ru.yandex.inside.**" -> "shadeddatasource.ru.yandex.inside.@1",
-        "org.objenesis.**" -> "shadeddatasource.org.objenesis.@1",
-        "com.google.protobuf.**" -> "shadeddatasource.com.google.protobuf.@1",
-        "NYT.**" -> "shadeddatasource.NYT.@1"
-      ).inAll
-    ),
+    assembly / assemblyShadeRules ++= clientShadeRules,
     assembly / test := {}
   )
 
@@ -101,18 +93,7 @@ lazy val `file-system` = (project in file("file-system"))
         val oldStrategy = (assembly / assemblyMergeStrategy).value
         oldStrategy(x)
     },
-    assembly / assemblyShadeRules ++= Seq(
-      ShadeRule.rename(
-        "ru.yandex.spark.yt.fs.YtFileSystem" -> "ru.yandex.spark.yt.fs.YtFileSystem",
-        "ru.yandex.spark.yt.fs.eventlog.YtEventLogFileSystem" -> "ru.yandex.spark.yt.fs.eventlog.YtEventLogFileSystem",
-        "ru.yandex.misc.log.**" -> "ru.yandex.misc.log.@1",
-        "ru.yandex.**" -> "shadedyandex.ru.yandex.@1",
-        "org.asynchttpclient.**" -> "shadedyandex.org.asynchttpclient.@1",
-        "org.objenesis.**" -> "shadedyandex.org.objenesis.@1",
-        "com.google.protobuf.**" -> "shadedyandex.com.google.protobuf.@1",
-        "NYT.**" -> "shadedyandex.NYT.@1"
-      ).inAll
-    ),
+    assembly / assemblyShadeRules ++= clusterShadeRules,
     assembly / test := {}
   )
 
