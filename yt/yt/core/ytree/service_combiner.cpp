@@ -97,27 +97,45 @@ private:
 
     TResolveResult ResolveRecursive(const TYPath& path, const NRpc::IServiceContextPtr& context) override
     {
-        auto guard = Guard(KeyMappingSpinLock_);
-        const auto& keyMapping = KeyMapping_.ValueOrThrow();
-
         NYPath::TTokenizer tokenizer(path);
         tokenizer.Advance();
         tokenizer.Expect(NYPath::ETokenType::Literal);
         const auto& key = tokenizer.GetLiteralValue();
 
-        auto iterator = keyMapping.find(key);
-        if (iterator == keyMapping.end() && UpdateKeysOnMissingKey_) {
-            UpdateKeys();
-            iterator = keyMapping.find(key);
+        IYPathServicePtr foundService = nullptr;
+        THashMap<TString, IYPathServicePtr>::const_iterator keyIterator;
+        {
+            auto guard = Guard(KeyMappingSpinLock_);
+            const auto& keyMapping = KeyMapping_.ValueOrThrow();
+
+            keyIterator = keyMapping.find(key);
+            if (keyIterator == keyMapping.end()) {
+                if (UpdateKeysOnMissingKey_) {
+                    guard.Release();
+                    UpdateKeys();
+                }
+            } else {
+                foundService = keyIterator->second;
+            }
         }
 
-        if (iterator == keyMapping.end()) {
+        if (!foundService && UpdateKeysOnMissingKey_) {
+            auto guard = Guard(KeyMappingSpinLock_);
+            const auto& keyMapping = KeyMapping_.ValueOrThrow();
+
+            keyIterator = keyMapping.find(key);
+            if (keyIterator != keyMapping.end()) {
+                foundService = keyIterator->second;
+            }
+        }
+
+        if (!foundService) {
             if (context->GetMethod() == "Exists") {
                 return TResolveResultHere{path};
             }
             THROW_ERROR_EXCEPTION("Node has no child with key %Qv", ToYPathLiteral(key));
         }
-        return TResolveResultThere{iterator->second, "/" + path};
+        return TResolveResultThere{foundService, "/" + path};
     }
 
 
