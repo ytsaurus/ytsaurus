@@ -18,6 +18,15 @@ public class ColumnFilter {
     public ColumnFilter() {
     }
 
+    public boolean isAllColumns() {
+        return columns == null;
+    }
+
+    @Nullable
+    public Collection<String> getColumns() {
+        return columns;
+    }
+
     public static ColumnFilter of(String... columns) {
         ColumnFilter result = new ColumnFilter();
         result.columns = Arrays.asList(columns);

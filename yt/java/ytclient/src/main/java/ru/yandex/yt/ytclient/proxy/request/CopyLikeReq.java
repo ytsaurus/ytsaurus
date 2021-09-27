@@ -55,7 +55,7 @@ public abstract class CopyLikeReq<T extends CopyLikeReq<T>> extends MutateNode<T
         return self();
     }
 
-    public boolean getForce(boolean force) {
+    public boolean getForce() {
         return force;
     }
 
