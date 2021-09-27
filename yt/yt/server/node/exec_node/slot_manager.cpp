@@ -308,7 +308,8 @@ void TSlotManager::OnJobProxyBuildInfoUpdated(const TError& error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (!Config_->Testing->SkipJobProxyUnavailableAlert) {
+    // TODO(gritukan): Most likely #IsExecNode condition will not be required after bootstraps split.
+    if (!Config_->Testing->SkipJobProxyUnavailableAlert && Bootstrap_->IsExecNode()) {
         auto guard = Guard(SpinLock_);
 
         auto& alert = Alerts_[ESlotManagerAlertType::JobProxyUnavailable];
