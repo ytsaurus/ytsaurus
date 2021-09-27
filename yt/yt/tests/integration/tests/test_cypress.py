@@ -1101,15 +1101,12 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/a/b/c/d", recursive=True)
         assert exists("//tmp/a/b/c/d")
 
-    @authors("kiselyovp")
+    @authors("kvk1920")
     def test_create_object_ignore_existing(self):
-        with pytest.raises(YtError):
-            create_user("u", ignore_existing=True)
-        with pytest.raises(YtError):
-            create_group("g", ignore_existing=True)
-        create_user("u")
-        with pytest.raises(YtError):
-            create_user("u", ignore_existing=True)
+        user_u = create_user("u", ignore_existing=True)
+        group_g = create_group("g", ignore_existing=True)
+        assert create_user("u", ignore_existing=True) == user_u
+        assert create_group("g", ignore_existing=True) == group_g
 
     @authors("kiselyovp")
     def test_remove_from_virtual_map(self):
