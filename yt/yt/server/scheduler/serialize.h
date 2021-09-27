@@ -2,6 +2,8 @@
 
 #include "fair_share_update.h"
 
+#include <yt/yt/core/ytree/fluent.h>
+
 #include <yt/yt/library/vector_hdrf/resource_vector.h>
 
 namespace NYT::NVectorHdrf {

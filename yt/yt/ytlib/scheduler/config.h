@@ -3,7 +3,6 @@
 #include "public.h"
 #include "helpers.h"
 #include "job_resources.h"
-#include "config.h"
 
 #include <yt/yt/ytlib/api/native/config.h>
 

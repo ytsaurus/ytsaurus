@@ -1,6 +1,7 @@
 #include "resource_helpers.h"
 #include "fair_share_update.h"
 
+#include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/core/ytree/fluent.h>
