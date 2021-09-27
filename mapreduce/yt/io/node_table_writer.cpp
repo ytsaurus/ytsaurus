@@ -12,7 +12,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeTableWriter::TNodeTableWriter(THolder<TProxyOutput> output, EYsonFormat format)
+TNodeTableWriter::TNodeTableWriter(THolder<TProxyOutput> output, NYson::EYsonFormat format)
     : Output_(std::move(output))
 {
     for (size_t i = 0; i < Output_->GetStreamCount(); ++i) {
