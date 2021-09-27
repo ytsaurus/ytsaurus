@@ -566,7 +566,7 @@ class TFluentYsonWriterState
 public:
     using TValue = TString;
 
-    explicit TFluentYsonWriterState(EYsonFormat format)
+    explicit TFluentYsonWriterState(::NYson::EYsonFormat format)
         : Writer(&Output, format)
     { }
 
@@ -657,7 +657,7 @@ BuildYsonFluentlyWithState(::TIntrusivePtr<TState> state)
 
 /// Create a fluent adapter returning a `TString` with corresponding YSON when construction is finished.
 inline TFluentYsonBuilder::TAny<TFluentYsonHolder<TFluentYsonWriterState>>
-BuildYsonStringFluently(EYsonFormat format = ::NYson::EYsonFormat::Text)
+BuildYsonStringFluently(::NYson::EYsonFormat format = ::NYson::EYsonFormat::Text)
 {
     ::TIntrusivePtr<TFluentYsonWriterState> state(new TFluentYsonWriterState(format));
     return BuildYsonFluentlyWithState(state);
