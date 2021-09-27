@@ -1,10 +1,13 @@
 #pragma once
 
-#include <yt/yt/client/table_client/key.h>
-
 #include "public.h"
 #include "store.h"
 #include "partition.h"
+
+#include <yt/yt/core/misc/public.h>
+
+#include <yt/yt/client/table_client/key.h>
+
 
 namespace NYT::NLsm {
 
@@ -36,14 +39,17 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, EdenOverlappingStoreCount);
     DEFINE_BYVAL_RW_PROPERTY(int, CriticalPartitionCount);
 
-    bool IsPhysicallySorted() const;
-
     // Ordered.
     DEFINE_BYREF_RW_PROPERTY(std::vector<std::unique_ptr<TStore>>, Stores);
+
+public:
+    bool IsPhysicallySorted() const;
 
     TStore* FindActiveStore() const;
 
     void CopyMetaFrom(const TTablet* tablet);
+
+    void Persist(const TStreamPersistenceContext& context);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTablet)

@@ -1,9 +1,11 @@
 #pragma once
 
-#include <yt/yt/client/table_client/key.h>
-
 #include "public.h"
 #include "store.h"
+
+#include <yt/yt/core/misc/public.h>
+
+#include <yt/yt/client/table_client/key.h>
 
 namespace NYT::NLsm {
 
@@ -33,13 +35,12 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(i64, CompressedDataSize);
     DEFINE_BYVAL_RW_PROPERTY(i64, UncompressedDataSize);
 
+public:
+    bool IsEden() const;
+
     void CopyMetaFrom(const TPartition* partition);
 
-public:
-    bool IsEden() const
-    {
-        return Index_ == EdenIndex;
-    }
+    void Persist(const TStreamPersistenceContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
