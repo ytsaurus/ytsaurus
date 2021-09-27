@@ -38,6 +38,15 @@ struct TMemoryDigest
     }
 };
 
+TString ToString(const TMemoryDigest& memoryDigest)
+{
+    return Format("{TotalUsage: %v, PassiveUsage: %v, BackingUsage: %v, Limit: %v}",
+        memoryDigest.TotalUsage,
+        memoryDigest.PassiveUsage,
+        memoryDigest.BackingUsage,
+        memoryDigest.Limit);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStoreRotator
@@ -98,7 +107,7 @@ public:
                 YT_VERIFY(store);
                 if (store->GetCompressedDataSize() >= MinForcedFlushDataSize_) {
                     auto guard = Guard(SpinLock_);
-                    ForcedRotationCandidates_[bundleName].push_back(store);
+                    ForcedRotationCandidates_.push_back(store);
                     SavedTablets_.push_back(MakeStrong(store->GetTablet()));
                 }
             }
@@ -111,8 +120,6 @@ public:
 
     virtual TLsmActionBatch BuildOverallLsmActions() override
     {
-        TLsmActionBatch batch;
-
         MemoryDigest_.Limit = BackendState_.DynamicMemoryLimit;
         MemoryDigest_.TotalUsage = BackendState_.DynamicMemoryUsage;
 
@@ -121,26 +128,14 @@ public:
             BundleMemoryDigests_[bundleName].TotalUsage = state.DynamicMemoryUsage;
         }
 
-        for (const auto& [bundleName, candidates] : ForcedRotationCandidates_) {
-            if (candidates.empty()) {
-                continue;
-            }
-
-            batch.MergeWith(PickForcedRotationFinalists(
-                candidates,
-                bundleName,
-                BackendState_.Bundles[bundleName],
-                &BundleMemoryDigests_[bundleName]));
-        }
-
-        return batch;
+        return PickForcedRotationFinalists();
     }
 
 private:
     TLsmBackendState BackendState_;
     TMemoryDigest MemoryDigest_;
     THashMap<TString, TMemoryDigest> BundleMemoryDigests_;
-    THashMap<TString, std::vector<TStore*>> ForcedRotationCandidates_;
+    std::vector<TStore*> ForcedRotationCandidates_;
     std::vector<TTabletPtr> SavedTablets_;
     bool EnableForcedRotationBackingMemoryAccounting_;
     double ForcedRotationMemoryRatio_;
@@ -205,71 +200,69 @@ private:
         return digest;
     }
 
-    TLsmActionBatch PickForcedRotationFinalists(
-        std::vector<TStore*> candidates,
-        const TString& bundleName,
-        const TTabletCellBundleState& bundleState,
-        TMemoryDigest* bundleMemoryDigest)
+    TLsmActionBatch PickForcedRotationFinalists()
     {
-        auto isRotationForced = [&] {
-            // Per-bundle memory pressure.
-            if (bundleState.EnablePerBundleMemoryLimit) {
-                if (IsRotationForced(
-                    *bundleMemoryDigest,
-                    bundleState.EnableForcedRotationBackingMemoryAccounting,
-                    bundleState.ForcedRotationMemoryRatio))
-                {
-                    return true;
-                }
+        auto isRotationForcedPerBundle = [&] (
+            const auto& bundleState,
+            const auto& bundleMemoryDigest)
+        {
+            if (!bundleState.EnablePerBundleMemoryLimit) {
+                return false;
             }
 
-            // Global memory pressure.
             return IsRotationForced(
-                MemoryDigest_,
-                EnableForcedRotationBackingMemoryAccounting_,
-                ForcedRotationMemoryRatio_);
+                bundleMemoryDigest,
+                bundleState.EnableForcedRotationBackingMemoryAccounting,
+                bundleState.ForcedRotationMemoryRatio);
         };
 
-        // Order candidates by increasing memory usage.
+        // Order candidates by decreasing memory usage.
         std::sort(
-            candidates.begin(),
-            candidates.end(),
+            ForcedRotationCandidates_.begin(),
+            ForcedRotationCandidates_.end(),
             [&] (const auto* lhs, const auto* rhs) {
-                return lhs->GetDynamicMemoryUsage() < rhs->GetDynamicMemoryUsage();
+                return lhs->GetDynamicMemoryUsage() > rhs->GetDynamicMemoryUsage();
             });
 
         TLsmActionBatch batch;
+        for (auto* store : ForcedRotationCandidates_) {
+            const auto& bundleName = store->GetTablet()->TabletCellBundle();
+            const auto& bundleState = BackendState_.Bundles[bundleName];
+            auto& bundleMemoryDigest = BundleMemoryDigests_[bundleName];
 
-        // Pick the heaviest candidates until no more rotations are needed.
-        while (isRotationForced() && !candidates.empty()) {
-            auto candidate = candidates.back();
-            candidates.pop_back();
+            TStringBuf reason;
 
-            YT_LOG_INFO("Scheduling store rotation due to memory pressure condition (%v, "
-                "GlobalMemory: {TotalUsage: %v, PassiveUsage: %v, BackingUsage: %v, Limit: %v}, "
-                "Bundle: %v, "
-                "BundleMemory: {TotalUsage: %v, PassiveUsage: %v, BackingUsage: %v, Limit: %v}, "
+            if (IsRotationForced(
+                MemoryDigest_,
+                EnableForcedRotationBackingMemoryAccounting_,
+                ForcedRotationMemoryRatio_))
+            {
+                reason = "global memory pressure condition";
+            } else if (isRotationForcedPerBundle(bundleState, bundleMemoryDigest)) {
+                reason = "per-bundle memory pressure condition";
+            } else {
+                continue;
+            }
+
+            YT_LOG_INFO("Scheduling store rotation due to %v (%v, "
+                "GlobalMemory: %v, Bundle: %v, BundleMemory: %v, "
                 "TabletMemoryUsage: %v, ForcedRotationMemoryRatio: %v)",
-                candidate->GetTablet()->GetLoggingTag(),
-                MemoryDigest_.TotalUsage,
-                MemoryDigest_.PassiveUsage,
-                MemoryDigest_.BackingUsage,
-                MemoryDigest_.Limit,
+                reason,
+                store->GetTablet()->GetLoggingTag(),
+                MemoryDigest_,
                 bundleName,
-                bundleMemoryDigest->TotalUsage,
-                bundleMemoryDigest->PassiveUsage,
-                bundleMemoryDigest->BackingUsage,
-                bundleMemoryDigest->Limit,
-                candidate->GetDynamicMemoryUsage(),
+                bundleMemoryDigest,
+                store->GetDynamicMemoryUsage(),
                 bundleState.ForcedRotationMemoryRatio);
 
             batch.Rotations.push_back(TRotateStoreRequest{
-                .Tablet = MakeStrong(candidate->GetTablet()),
+                .Tablet = MakeStrong(store->GetTablet()),
                 .Reason = EStoreRotationReason::Forced,
+
             });
 
-            MemoryDigest_.PassiveUsage += candidate->GetDynamicMemoryUsage();
-            bundleMemoryDigest->PassiveUsage += candidate->GetDynamicMemoryUsage();
+            MemoryDigest_.PassiveUsage += store->GetDynamicMemoryUsage();
+            bundleMemoryDigest.PassiveUsage += store->GetDynamicMemoryUsage();
         }
 
         return batch;
