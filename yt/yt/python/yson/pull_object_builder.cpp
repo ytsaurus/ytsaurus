@@ -22,26 +22,10 @@ TPullObjectBuilder::TPullObjectBuilder(
     bool alwaysCreateAttributes,
     const std::optional<TString>& encoding)
     : Cursor_(parser)
-    , YsonMap(GetYsonTypeClass("YsonMap"), /* owned */ true)
-    , YsonList(GetYsonTypeClass("YsonList"), /* owned */ true)
-    , YsonString(GetYsonTypeClass("YsonString"), /* owned */ true)
-#if PY_MAJOR_VERSION >= 3
-    , YsonUnicode(GetYsonTypeClass("YsonUnicode"), /* owned */ true)
-#endif
-    , YsonInt64(GetYsonTypeClass("YsonInt64"), /* owned */ true)
-    , YsonUint64(GetYsonTypeClass("YsonUint64"), /* owned */ true)
-    , YsonDouble(GetYsonTypeClass("YsonDouble"), /* owned */ true)
-    , YsonBoolean(GetYsonTypeClass("YsonBoolean"), /* owned */ true)
-    , YsonEntity(GetYsonTypeClass("YsonEntity"), /* owned */ true)
     , AlwaysCreateAttributes_(alwaysCreateAttributes)
     , Encoding_(encoding)
     , KeyCache_(/* enable */ true, Encoding_)
 {
-#if PY_MAJOR_VERSION >= 3
-    if (auto ysonStringProxyClass = NPython::FindYsonTypeClass("YsonStringProxy")) {
-        YsonStringProxy = Py::Callable(ysonStringProxyClass, /* owned */ true);
-    }
-#endif
     Tuple0_ = PyObjectPtr(PyTuple_New(0));
     if (!Tuple0_) {
         throw Py::Exception();
@@ -62,8 +46,19 @@ TPullObjectBuilder::TPullObjectBuilder(
 
 PyObjectPtr TPullObjectBuilder::ParseObject(bool hasAttributes)
 {
+    static auto* YsonStringClass = GetYsonTypeClass("YsonString");
+    #if PY_MAJOR_VERSION >= 3
+    static auto* YsonUnicodeClass = GetYsonTypeClass("YsonUnicode");
+    static auto* YsonStringProxyClass = FindYsonTypeClass("YsonStringProxy");
+    #endif
+    static auto* YsonInt64Class = GetYsonTypeClass("YsonInt64");
+    static auto* YsonUint64Class = GetYsonTypeClass("YsonUint64");
+    static auto* YsonDoubleClass = GetYsonTypeClass("YsonDouble");
+    static auto* YsonBooleanClass = GetYsonTypeClass("YsonBoolean");
+    static auto* YsonEntityClass = GetYsonTypeClass("YsonEntity");
+
     auto current = Cursor_.GetCurrent();
-    Py::Callable* constructor = nullptr;
+    PyObject* constructor = nullptr;
 
     PyObjectPtr result;
     switch (current.GetType()) {
@@ -84,28 +79,28 @@ PyObjectPtr TPullObjectBuilder::ParseObject(bool hasAttributes)
         } case EYsonItemType::EntityValue: {
             result = PyObjectPtr(Py::new_reference_to(Py_None));
             Cursor_.Next();
-            constructor = &YsonEntity;
+            constructor = YsonEntityClass;
             break;
         } case EYsonItemType::BooleanValue: {
             result = PyObjectPtr(PyBool_FromLong(current.UncheckedAsBoolean()));
             Cursor_.Next();
-            constructor = &YsonBoolean;
+            constructor = YsonBooleanClass;
             break;
         } case EYsonItemType::Int64Value: {
             result = PyObjectPtr(PyLong_FromLongLong(current.UncheckedAsInt64()));
             Cursor_.Next();
-            constructor = &YsonInt64;
+            constructor = YsonInt64Class;
             break;
         } case EYsonItemType::Uint64Value: {
             result = PyObjectPtr(PyLong_FromUnsignedLongLong(current.UncheckedAsUint64()));
             hasAttributes = true;
             Cursor_.Next();
-            constructor = &YsonUint64;
+            constructor = YsonUint64Class;
             break;
         } case EYsonItemType::DoubleValue: {
             result = PyObjectPtr(PyFloat_FromDouble(current.UncheckedAsDouble()));
             Cursor_.Next();
-            constructor = &YsonDouble;
+            constructor = YsonDoubleClass;
             break;
         } case EYsonItemType::StringValue: {
             TStringBuf str = current.UncheckedAsString();
@@ -123,18 +118,18 @@ PyObjectPtr TPullObjectBuilder::ParseObject(bool hasAttributes)
                     throw Py::Exception();
                 }
                 result = PyObjectPtr(PyUnicode_AsUTF8String(decodedString.get()));
-                constructor = &YsonString;
+                constructor = YsonStringClass;
 #else
                 if (decodedString) {
                     result = std::move(decodedString);
-                    constructor = &YsonUnicode;
+                    constructor = YsonUnicodeClass;
                 } else {
                     // COMPAT(levysotsky)
-                    if (!YsonStringProxy) {
+                    if (!YsonStringProxyClass) {
                         throw Py::Exception();
                     }
                     PyErr_Clear();
-                    result = PyObjectPtr(PyObject_CallObject(YsonStringProxy->ptr(), Tuple0_.get()));
+                    result = PyObjectPtr(PyObject_CallObject(YsonStringProxyClass, Tuple0_.get()));
                     if (!result) {
                         throw Py::Exception();
                     }
@@ -146,7 +141,7 @@ PyObjectPtr TPullObjectBuilder::ParseObject(bool hasAttributes)
 #endif
             } else {
                 result = std::move(bytes);
-                constructor = &YsonString;
+                constructor = YsonStringClass;
             }
             break;
         }
@@ -171,7 +166,7 @@ PyObjectPtr TPullObjectBuilder::ParseObject(bool hasAttributes)
             throw Py::Exception();
         }
         Y_VERIFY(constructor);
-        result = PyObjectPtr(PyObject_CallObject(constructor->ptr(), Tuple1_.get()));
+        result = PyObjectPtr(PyObject_CallObject(constructor, Tuple1_.get()));
         if (!result) {
             throw Py::Exception();
         }
@@ -181,9 +176,11 @@ PyObjectPtr TPullObjectBuilder::ParseObject(bool hasAttributes)
 
 PyObjectPtr TPullObjectBuilder::ParseList(bool hasAttributes)
 {
+    static PyObject* YsonListClass = GetYsonTypeClass("YsonList");
+
     PyObjectPtr listObj;
     if (hasAttributes || AlwaysCreateAttributes_) {
-        listObj = PyObjectPtr(PyObject_CallObject(YsonList.ptr(), Tuple0_.get()));
+        listObj = PyObjectPtr(PyObject_CallObject(YsonListClass, Tuple0_.get()));
     } else {
         listObj = PyObjectPtr(PyList_New(0));
     }
@@ -205,11 +202,12 @@ PyObjectPtr TPullObjectBuilder::ParseList(bool hasAttributes)
 
 PyObjectPtr TPullObjectBuilder::ParseMap(EYsonItemType endType, bool hasAttributes)
 {
-    PyObjectPtr dictObj;
+    static PyObject* YsonMapClass = GetYsonTypeClass("YsonMap");
 
+    PyObjectPtr dictObj;
     // If endType == EndAttributes, we are reading attributes, so we should not wrap them to YsonMap.
     if ((hasAttributes || AlwaysCreateAttributes_) && endType != EYsonItemType::EndAttributes) {
-        dictObj = PyObjectPtr(PyObject_CallObject(YsonMap.ptr(), Tuple0_.get()));
+        dictObj = PyObjectPtr(PyObject_CallObject(YsonMapClass, Tuple0_.get()));
     } else {
         dictObj = PyObjectPtr(PyDict_New());
     }

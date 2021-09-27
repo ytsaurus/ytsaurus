@@ -37,20 +37,7 @@ public:
     PyObjectPtr ParseObjectLazy(bool hasAttributes = false);
 
 private:
-    // TODO(egor-gutrov): initialize py objects once
     NYT::NYson::TYsonPullParserCursor Cursor_;
-    Py::Callable YsonMap;
-    Py::Callable YsonList;
-    Py::Callable YsonString;
-#if PY_MAJOR_VERSION >= 3
-    Py::Callable YsonUnicode;
-    std::optional<Py::Callable> YsonStringProxy;
-#endif
-    Py::Callable YsonInt64;
-    Py::Callable YsonUint64;
-    Py::Callable YsonDouble;
-    Py::Callable YsonBoolean;
-    Py::Callable YsonEntity;
 
     bool AlwaysCreateAttributes_;
     std::optional<TString> Encoding_;
