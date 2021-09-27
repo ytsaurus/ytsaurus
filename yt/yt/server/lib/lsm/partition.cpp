@@ -1,8 +1,15 @@
 #include "partition.h"
 
+#include <yt/yt/core/misc/serialize.h>
+
 namespace NYT::NLsm {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+bool TPartition::IsEden() const
+{
+    return Index_ == EdenIndex;
+}
 
 void TPartition::CopyMetaFrom(const TPartition* partition)
 {
@@ -23,6 +30,25 @@ void TPartition::CopyMetaFrom(const TPartition* partition)
 
     CompressedDataSize_ = partition->CompressedDataSize_;
     UncompressedDataSize_ = partition->UncompressedDataSize_;
+}
+
+void TPartition::Persist(const TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Id_);
+    Persist(context, Index_);
+    Persist(context, PivotKey_);
+    Persist(context, NextPivotKey_);
+    Persist<TVectorSerializer<TUniquePtrSerializer<>>>(context, Stores_);
+    Persist(context, State_);
+    Persist(context, CompactionTime_);
+    Persist(context, AllowedSplitTime_);
+    Persist(context, SamplingRequestTime_);
+    Persist(context, SamplingTime_);
+    Persist(context, IsImmediateSplitRequested_);
+    Persist(context, CompressedDataSize_);
+    Persist(context, UncompressedDataSize_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

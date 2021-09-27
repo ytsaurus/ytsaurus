@@ -1,5 +1,9 @@
 #include "tablet.h"
 
+#include <yt/yt/core/misc/serialize.h>
+
+#include <yt/yt/server/lib/tablet_node/config.h>
+
 namespace NYT::NLsm {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,6 +45,51 @@ void TTablet::CopyMetaFrom(const TTablet* tablet)
     OverlappingStoreCount_ = tablet->OverlappingStoreCount_;
     EdenOverlappingStoreCount_ = tablet->EdenOverlappingStoreCount_;
     CriticalPartitionCount_ = tablet->CriticalPartitionCount_;
+}
+
+void TTablet::Persist(const TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Id_);
+    Persist(context, CellId_);
+    Persist(context, TabletCellBundle_);
+    Persist(context, PhysicallySorted_);
+    Persist(context, Mounted_);
+    Persist<TNonNullableIntrusivePtrSerializer<>>(context, MountConfig_);
+    Persist(context, MountRevision_);
+    Persist(context, LoggingTag_);
+    Persist(context, IsRotationPossible_);
+    Persist(context, IsForcedRotationPossible_);
+    Persist(context, IsRotationPossible_);
+    Persist(context, IsForcedRotationPossible_);
+    Persist(context, IsOverflowRotationNeeded_);
+    Persist(context, IsPeriodicRotationNeeded_);
+    Persist(context, PeriodicRotationMilestone_);
+    Persist<TVectorSerializer<TUniquePtrSerializer<>>>(context, Partitions_);
+    Persist<TUniquePtrSerializer<>>(context, Eden_);
+    Persist(context, OverlappingStoreCount_);
+    Persist(context, EdenOverlappingStoreCount_);
+    Persist(context, CriticalPartitionCount_);
+    Persist<TVectorSerializer<TUniquePtrSerializer<>>>(context, Stores_);
+
+    if (context.IsLoad()) {
+        auto onPartition = [&] (auto& partition) {
+            partition->SetTablet(this);
+            for (auto& store : partition->Stores()) {
+                store->SetTablet(this);
+            }
+        };
+        if (Eden_) {
+            onPartition(Eden_);
+        }
+        for (auto& partition : Partitions_) {
+            onPartition(partition);
+        }
+        for (auto& store : Stores_) {
+            store->SetTablet(this);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

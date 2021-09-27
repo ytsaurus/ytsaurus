@@ -1,8 +1,10 @@
 #pragma once
 
-#include <yt/yt/client/table_client/key.h>
-
 #include "public.h"
+
+#include <yt/yt/core/misc/public.h>
+
+#include <yt/yt/client/table_client/key.h>
 
 namespace NYT::NLsm {
 
@@ -46,10 +48,7 @@ public:
     // Nothing here yet.
 
 public:
-    bool IsOrdered() const;
-    bool IsSorted() const;
-    bool IsDynamic() const;
-    bool IsChunk() const;
+    void Persist(const TStreamPersistenceContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
