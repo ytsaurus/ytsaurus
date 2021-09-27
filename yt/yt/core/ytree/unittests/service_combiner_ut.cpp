@@ -109,6 +109,36 @@ TEST(TYPathServiceCombinerTest, DynamicAndStatic)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TYPathServiceCombinerTest, UpdateKeysOnMissingKey)
+{
+    IYPathServicePtr dynamicService = GetEphemeralNodeFactory()->CreateMap();
+    IYPathServicePtr staticService = IYPathService::FromProducer(BIND([] (IYsonConsumer* consumer) {
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("static_key1").Value(-1)
+                    .Item("static_key2").Value(false)
+                    .Item("error_key").Value("this key will be shared leading to an error")
+                .EndMap();
+        }));
+
+    auto combinedService = New<TServiceCombiner>(std::vector<IYPathServicePtr> { staticService, dynamicService }, TDuration::Seconds(100), /*updateKeysOnMissingKey*/ true);
+
+    EXPECT_EQ(true, SyncYPathExists(combinedService, "/static_key1"));
+    EXPECT_EQ(false, SyncYPathExists(combinedService, "/dynamic_key1"));
+    EXPECT_EQ(true, SyncYPathExists(combinedService, "/error_key"));
+    EXPECT_EQ((std::vector<TString> { "static_key1", "static_key2", "error_key" }), SyncYPathList(combinedService, ""));
+
+    SyncYPathSet(dynamicService, "/dynamic_key1", ConvertToYsonString(3.1415926));
+    SyncYPathSet(dynamicService, "/dynamic_key2", TYsonString(TStringBuf("#")));
+
+    EXPECT_EQ(true, SyncYPathExists(combinedService, "/static_key1"));
+    EXPECT_EQ(true, SyncYPathExists(combinedService, "/dynamic_key1"));
+    EXPECT_EQ(true, SyncYPathExists(combinedService, "/error_key"));
+    EXPECT_EQ((std::vector<TString> { "static_key1", "static_key2", "error_key", "dynamic_key1", "dynamic_key2" }), SyncYPathList(combinedService, ""));
+    EXPECT_EQ(TYsonString(TStringBuf("#")), SyncYPathGet(combinedService, "/dynamic_key2"));
+}
+
+////////////////////////////////////////////////////////////////////////////////
 } // namespace
 } // namespace NYT::NYTree
 

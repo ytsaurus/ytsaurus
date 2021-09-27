@@ -1245,18 +1245,13 @@ class TestSchedulerConfig(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False)
-        wait(lambda: exists(op.get_path() + "/@full_spec"))
-        # XXX(ignat)
-        for spec_type in ("full_spec",):
-            assert get(op.get_path() + "/@{}/data_weight_per_job".format(spec_type)) == 2000
-            assert (
-                get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/data_weight_per_job".format(op.id, spec_type))
-                == 2000
-            )
-            assert (
-                get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(op.id, spec_type))
-                == 10
-            )
+
+        full_spec_path = "//sys/scheduler/orchid/scheduler/operations/{0}/full_spec".format(op.id)
+        wait(lambda: exists(full_spec_path))
+
+        assert get("{}/data_weight_per_job".format(full_spec_path)) == 2000
+        assert get("{}/max_failed_job_count".format(full_spec_path)) == 10
+
         op.abort()
 
         op = reduce(
@@ -1267,35 +1262,20 @@ class TestSchedulerConfig(YTEnvSetup):
             track=False,
         )
         wait(lambda: op.get_state() == "running")
-        time.sleep(1)
-        # XXX(ignat)
-        for spec_type in ("full_spec",):
-            assert get(op.get_path() + "/@{}/data_weight_per_job".format(spec_type)) == 1000
-            assert (
-                get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/data_weight_per_job".format(op.id, spec_type))
-                == 1000
-            )
-            assert (
-                get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(op.id, spec_type))
-                == 10
-            )
+
+        full_spec_path = "//sys/scheduler/orchid/scheduler/operations/{0}/full_spec".format(op.id)
+        wait(lambda: exists(full_spec_path))
+
+        assert get("{}/data_weight_per_job".format(full_spec_path)) == 1000
+        assert get("{}/max_failed_job_count".format(full_spec_path)) == 10
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
 
         op.ensure_running()
 
-        # XXX(ignat)
-        for spec_type in ("full_spec",):
-            assert get(op.get_path() + "/@{}/data_weight_per_job".format(spec_type)) == 1000
-            assert (
-                get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/data_weight_per_job".format(op.id, spec_type))
-                == 1000
-            )
-            assert (
-                get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(op.id, spec_type))
-                == 10
-            )
+        assert get("{}/data_weight_per_job".format(full_spec_path)) == 1000
+        assert get("{}/max_failed_job_count".format(full_spec_path)) == 10
 
         op.abort()
 
