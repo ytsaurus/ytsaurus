@@ -964,10 +964,10 @@ public:
             .Default(512_MB);
 
         RegisterParameter("store_locations", StoreLocations)
-            .Default({});
+            .Default();
 
         RegisterParameter("cache_locations", CacheLocations)
-            .NonEmpty();
+            .Default();
 
         RegisterParameter("volume_manager", VolumeManager)
             .DefaultNew();
