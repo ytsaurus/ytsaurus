@@ -291,6 +291,9 @@ public:
         TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
+    std::optional<TObject*> FindObjectByAttributes(
+        const NYTree::IAttributeDictionary* attributes) override;
+
 private:
     TImpl* const Owner_;
 
@@ -329,6 +332,9 @@ public:
     TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override;
+
+    std::optional<TObject*> FindObjectByAttributes(
+        const NYTree::IAttributeDictionary* attributes) override;
 
 private:
     TImpl* const Owner_;
@@ -4219,6 +4225,14 @@ TObject* TSecurityManager::TUserTypeHandler::CreateObject(
     return Owner_->CreateUser(name, hintId);
 }
 
+std::optional<TObject*> TSecurityManager::TUserTypeHandler::FindObjectByAttributes(
+    const NYTree::IAttributeDictionary* attributes)
+{
+    auto name = attributes->Get<TString>("name");
+
+    return Owner_->FindUserByNameOrAlias(name, /* activeLifeStageOnly */ true);
+}
+
 IObjectProxyPtr TSecurityManager::TUserTypeHandler::DoGetProxy(
     TUser* user,
     TTransaction* /*transaction*/)
@@ -4259,6 +4273,14 @@ void TSecurityManager::TGroupTypeHandler::DoZombifyObject(TGroup* group)
 {
     TObjectTypeHandlerWithMapBase::DoZombifyObject(group);
     Owner_->DestroyGroup(group);
+}
+
+std::optional<TObject*> TSecurityManager::TGroupTypeHandler::FindObjectByAttributes(
+    const NYTree::IAttributeDictionary* attributes)
+{
+    auto name = attributes->Get<TString>("name");
+
+    return Owner_->FindGroupByNameOrAlias(name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

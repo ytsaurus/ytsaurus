@@ -1614,11 +1614,12 @@ def create_user(name, **kwargs):
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
     driver = kwargs.get("driver")
-    execute_command("create", kwargs)
+    result = execute_command("create", kwargs)
     wait(
         lambda: exists("//sys/users/{0}".format(name), driver=driver)
         and get("//sys/users/{0}/@life_stage".format(name), driver=driver) == "creation_committed"
     )
+    return result
 
 
 def remove_user(name, **kwargs):
@@ -1669,7 +1670,7 @@ def create_group(name, **kwargs):
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
-    execute_command("create", kwargs)
+    return execute_command("create", kwargs)
 
 
 def remove_group(name, **kwargs):

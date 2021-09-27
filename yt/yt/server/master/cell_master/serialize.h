@@ -199,6 +199,7 @@ DEFINE_ENUM(EMasterReign,
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1800))  // ignat
     ((VirtualMutations)                                             (1801))  // gritukan
+    ((CreateUserIgnoreExisting)                                     (1802))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////
