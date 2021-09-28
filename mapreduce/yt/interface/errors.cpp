@@ -37,7 +37,7 @@ static void WriteErrorDescription(const TYtError& error, IOutputStream* out)
     }
 }
 
-static void SerializeError(const TYtError& error, IYsonConsumer* consumer)
+static void SerializeError(const TYtError& error, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginMap();
     {
