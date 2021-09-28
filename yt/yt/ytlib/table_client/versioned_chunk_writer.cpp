@@ -437,24 +437,21 @@ public:
             std::move(blockCache))
         , DataToBlockFlush_(Config_->BlockSize)
     {
-        // Only scan-optimized version for now.
-        THashMap<TString, TDataBlockWriter*> groupBlockWriters;
-        for (const auto& columnSchema : Schema_->Columns()) {
-            if (columnSchema.Group() && groupBlockWriters.find(*columnSchema.Group()) == groupBlockWriters.end()) {
-                auto blockWriter = std::make_unique<TDataBlockWriter>();
-                groupBlockWriters[*columnSchema.Group()] = blockWriter.get();
-                BlockWriters_.emplace_back(std::move(blockWriter));
-            }
-        }
-
-        auto getBlockWriter = [&] (const NTableClient::TColumnSchema& columnSchema) -> TDataBlockWriter* {
-            if (columnSchema.Group()) {
-                return groupBlockWriters[*columnSchema.Group()];
-            } else {
-                BlockWriters_.emplace_back(std::make_unique<TDataBlockWriter>());
-                return BlockWriters_.back().get();
-            }
+        auto createBlockWriter = [&] {
+            BlockWriters_.emplace_back(std::make_unique<TDataBlockWriter>());
+            return BlockWriters_.back().get();
         };
+
+        // 1. Timestamp and key columns are always stored in one group block.
+        // 2. Store all columns (including timestamp) in one group block if
+        //    all columns (key and value) have the same group in schema.
+
+        auto mainBlockWriter = createBlockWriter();
+
+        // Timestamp column.
+        TimestampWriter_ = CreateTimestampWriter(mainBlockWriter);
+
+        std::optional<TString> keyGroupFromSchema;
 
         // Key columns.
         for (int keyColumnIndex = 0; keyColumnIndex < Schema_->GetKeyColumnCount(); ++keyColumnIndex) {
@@ -462,25 +459,45 @@ public:
             ValueColumnWriters_.emplace_back(CreateUnversionedColumnWriter(
                 keyColumnIndex,
                 columnSchema,
-                getBlockWriter(columnSchema)));
+                mainBlockWriter));
+
+            if (keyColumnIndex == 0) {
+                keyGroupFromSchema = columnSchema.Group();
+            } else if (keyGroupFromSchema != columnSchema.Group()) {
+                keyGroupFromSchema.reset();
+            }
         }
 
-        // Non-key columns.
+        THashMap<TString, TDataBlockWriter*> groupBlockWriters;
+        if (keyGroupFromSchema) {
+            groupBlockWriters[*keyGroupFromSchema] = mainBlockWriter;
+        }
+
+        // Value columns.
         for (
             int valueColumnIndex = Schema_->GetKeyColumnCount();
             valueColumnIndex < std::ssize(Schema_->Columns());
             ++valueColumnIndex)
         {
             const auto& columnSchema = Schema_->Columns()[valueColumnIndex];
+
+            TDataBlockWriter* blockWriter = nullptr;
+            if (columnSchema.Group()) {
+                auto [it, inserted] = groupBlockWriters.emplace(*columnSchema.Group(), nullptr);
+                if (inserted) {
+                    it->second = createBlockWriter();
+                }
+
+                blockWriter = it->second;
+            } else {
+                blockWriter = createBlockWriter();
+            }
+
             ValueColumnWriters_.emplace_back(CreateVersionedColumnWriter(
                 valueColumnIndex,
                 columnSchema,
-                getBlockWriter(columnSchema)));
+                blockWriter));
         }
-
-        auto blockWriter = std::make_unique<TDataBlockWriter>();
-        TimestampWriter_ = CreateTimestampWriter(blockWriter.get());
-        BlockWriters_.emplace_back(std::move(blockWriter));
 
         YT_VERIFY(BlockWriters_.size() > 1);
     }
