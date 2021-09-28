@@ -445,7 +445,6 @@ public:
         // 1. Timestamp and key columns are always stored in one group block.
         // 2. Store all columns (including timestamp) in one group block if
         //    all columns (key and value) have the same group in schema.
-
         auto mainBlockWriter = createBlockWriter();
 
         // Timestamp column.
@@ -499,7 +498,7 @@ public:
                 blockWriter));
         }
 
-        YT_VERIFY(BlockWriters_.size() > 1);
+        YT_VERIFY(BlockWriters_.size() > 0);
     }
 
     i64 GetCompressedDataSize() const override
