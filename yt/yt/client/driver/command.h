@@ -67,7 +67,7 @@ void ProduceSingleOutputValue(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCommandBase
-    : public NYTree::TYsonSerializableLite
+    : public virtual NYTree::TYsonSerializableLite
     , public ICommand
 {
 protected:

@@ -17,6 +17,7 @@ public:
         .SetAcceptsBaggage(false));
 
     DEFINE_RPC_PROXY_METHOD(NProto, SyncAlienCells);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetCellDescriptors);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

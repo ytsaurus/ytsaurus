@@ -254,6 +254,8 @@ DEFINE_ENUM(EObjectType,
     ((ChaosCellBundle)              (1201))
     ((ChaosCellMap)                 (1202))
     ((ChaosCellBundleMap)           (1203))
+    ((ReplicationCard)              (1204))
+    ((ReplicationCardTableReplica)  (1205))
 );
 
 //! A bit mask marking schema types.

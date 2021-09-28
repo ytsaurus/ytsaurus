@@ -1,0 +1,36 @@
+package NYT.NChaosClient.NProto;
+
+import "yt/ytlib/transaction_client/proto/action.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSuspendCoordinator
+{ }
+
+message TRspSuspendCoordinator
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqResumeCoordinator
+{ }
+
+message TRspResumeCoordinator
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRegisterTransactionActions
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required uint64 transaction_start_timestamp = 2;
+    required int64 transaction_timeout = 3;
+    required uint64 signature = 4;
+    repeated NYT.NTransactionClient.NProto.TTransactionActionData actions = 5;
+}
+
+message TRspRegisterTransactionActions
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

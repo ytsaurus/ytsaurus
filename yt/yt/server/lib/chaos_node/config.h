@@ -12,15 +12,49 @@ namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChaosCellSynchronizerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration SyncPeriod;
+
+    TChaosCellSynchronizerConfig()
+    {
+        RegisterParameter("sync_period", SyncPeriod)
+            .Default(TDuration::Seconds(30));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TChaosCellSynchronizerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChaosManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    TChaosCellSynchronizerConfigPtr ChaosCellSynchronizer;
+
     TChaosManagerConfig()
-    { }
+    {
+        RegisterParameter("chaos_cell_synchronizer", ChaosCellSynchronizer)
+            .DefaultNew();
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TChaosManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCoordinatorManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TCoordinatorManagerConfig()
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCoordinatorManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,6 +89,8 @@ public:
 
     TChaosManagerConfigPtr ChaosManager;
 
+    TCoordinatorManagerConfigPtr CoordinatorManager;
+
     TDuration SlotScanPeriod;
 
     TChaosNodeConfig()
@@ -64,6 +100,8 @@ public:
         RegisterParameter("transaction_manager", TransactionManager)
             .DefaultNew();
         RegisterParameter("chaos_manager", ChaosManager)
+            .DefaultNew();
+        RegisterParameter("coordinator_manager", CoordinatorManager)
             .DefaultNew();
         RegisterParameter("slot_scan_period", SlotScanPeriod)
             .Default(TDuration::Seconds(1));

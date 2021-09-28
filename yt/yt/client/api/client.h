@@ -5,6 +5,8 @@
 
 #include <yt/yt/client/cypress_client/public.h>
 
+#include <yt/yt/client/chaos_client/replication_card.h>
+
 #include <yt/yt/client/job_tracker_client/public.h>
 
 #include <yt/yt/client/journal_client/public.h>
@@ -285,6 +287,45 @@ struct TBalanceTabletCellsOptions
     , public TMutatingOptions
 {
     bool KeepActions = false;
+};
+
+struct TCreateReplicationCardOptions
+    : public TTimeoutOptions
+    , public TMutatingOptions
+{ };
+
+struct TGetReplicationCardOptions
+    : public TTimeoutOptions
+{
+    bool IncludeCoordinators = false;
+    bool IncludeProgress = false;
+    bool IncludeHistory = false;
+};
+
+struct TCreateReplicationCardReplicaOptions
+    : public TTimeoutOptions
+    , public TMutatingOptions
+{ };
+
+struct TRemoveReplicationCardReplicaOptions
+    : public TTimeoutOptions
+    , public TMutatingOptions
+{ };
+
+struct TAlterReplicationCardReplicaOptions
+    : public TTimeoutOptions
+    , public TMutatingOptions
+{
+    std::optional<NChaosClient::EReplicaMode> Mode;
+    std::optional<bool> Enabled;
+    std::optional<NYTree::TYPath> TablePath;
+};
+
+struct TUpdateReplicationProgressOptions
+    : public TTimeoutOptions
+    , public TMutatingOptions
+{
+    NChaosClient::TReplicationProgress Progress;
 };
 
 struct TAddMemberOptions
@@ -1527,6 +1568,35 @@ struct IClient
         const TString& tabletCellBundle,
         const std::vector<NYPath::TYPath>& movableTables,
         const TBalanceTabletCellsOptions& options = {}) = 0;
+
+    virtual TFuture<NChaosClient::TReplicationCardToken> CreateReplicationCard(
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        const TCreateReplicationCardOptions& options = {}) = 0;
+
+    virtual TFuture<NChaosClient::TReplicationCardPtr> GetReplicationCard(
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        const TGetReplicationCardOptions& options = {}) = 0;
+
+    virtual TFuture<NChaosClient::TReplicaId> CreateReplicationCardReplica(
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        const NChaosClient::TReplicaInfo& replica,
+        const TCreateReplicationCardReplicaOptions& options = {}) = 0;
+
+    virtual TFuture<void> RemoveReplicationCardReplica(
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicaId replicaId,
+        const TRemoveReplicationCardReplicaOptions& options = {}) = 0;
+
+    virtual TFuture<void> AlterReplicationCardReplica(
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicaId replicaId,
+        const TAlterReplicationCardReplicaOptions& options = {}) = 0;
+
+    virtual TFuture<void> UpdateReplicationProgress(
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicaId replicaId,
+        const TUpdateReplicationProgressOptions& options = {}) = 0;
+
 
     virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath& path,

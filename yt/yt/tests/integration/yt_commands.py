@@ -1840,6 +1840,25 @@ def create_medium(name, **kwargs):
     execute_command("create", kwargs)
 
 
+def create_replication_card(**kwargs):
+    return execute_command("create_replication_card", kwargs, parse_yson=True)
+
+
+def get_replication_card(**kwargs):
+    return execute_command("get_replication_card", kwargs, parse_yson=True)
+
+
+def create_replication_card_replica(**kwargs):
+    return execute_command("create_replication_card_replica", kwargs, parse_yson=True)
+
+
+def remove_replication_card_replica(**kwargs):
+    return execute_command("remove_replication_card_replica", kwargs, parse_yson=True)
+
+
+def alter_replication_card_replica(**kwargs):
+    return execute_command("alter_replication_card_replica", kwargs, parse_yson=True)
+
 #########################################
 # Helpers:
 

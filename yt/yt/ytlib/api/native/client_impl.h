@@ -32,6 +32,8 @@
 
 #include <yt/yt/library/syncmap/map.h>
 
+#include <yt/yt/client/chaos_client/replication_card.h>
+
 #include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/ypath/public.h>
@@ -202,6 +204,34 @@ public:
         const std::vector< NYPath::TYPath>& movableTables,
         const TBalanceTabletCellsOptions& options),
         (tabletCellBundle, movableTables, options))
+    IMPLEMENT_METHOD(NChaosClient::TReplicationCardToken, CreateReplicationCard, (
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        const TCreateReplicationCardOptions& options),
+        (replicationCardToken, options))
+    IMPLEMENT_METHOD(NChaosClient::TReplicationCardPtr, GetReplicationCard, (
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        const TGetReplicationCardOptions& options = {}),
+        (replicationCardToken, options))
+    IMPLEMENT_METHOD(NChaosClient::TReplicaId, CreateReplicationCardReplica, (
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        const NChaosClient::TReplicaInfo& replica,
+        const TCreateReplicationCardReplicaOptions& options = {}),
+        (replicationCardToken, replica, options))
+    IMPLEMENT_METHOD(void, RemoveReplicationCardReplica, (
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicaId replicaId,
+        const TRemoveReplicationCardReplicaOptions& options = {}),
+        (replicationCardToken, replicaId, options))
+    IMPLEMENT_METHOD(void, AlterReplicationCardReplica, (
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicaId replicaId,
+        const TAlterReplicationCardReplicaOptions& options = {}),
+        (replicationCardToken, replicaId, options))
+    IMPLEMENT_METHOD(void, UpdateReplicationProgress, (
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicaId replicaId,
+        const TUpdateReplicationProgressOptions& options = {}),
+        (replicationCardToken, replicaId, options))
 
     IMPLEMENT_METHOD(NYson::TYsonString, GetNode, (
         const NYPath::TYPath& path,
@@ -760,13 +790,39 @@ private:
 
     std::vector<NTabletClient::TTabletActionId> DoBalanceTabletCells(
         const TString& tabletCellBundle,
-        const std::vector< NYPath::TYPath>& movableTables,
+        const std::vector<NYPath::TYPath>& movableTables,
         const TBalanceTabletCellsOptions& options);
+
+    //
+    // Chaos.
+    //
+    NChaosClient::TReplicationCardToken DoCreateReplicationCard(
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        const TCreateReplicationCardOptions& options);
+    NChaosClient::TReplicationCardPtr DoGetReplicationCard(
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        const TGetReplicationCardOptions& options);
+    NChaosClient::TReplicaId DoCreateReplicationCardReplica(
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        const NChaosClient::TReplicaInfo& replica,
+        const TCreateReplicationCardReplicaOptions& options);
+    void DoRemoveReplicationCardReplica(
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicaId replicaId,
+        const TRemoveReplicationCardReplicaOptions& options);
+    void DoAlterReplicationCardReplica(
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicaId replicaId,
+        const TAlterReplicationCardReplicaOptions& options);
+    void DoUpdateReplicationProgress(
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicaId replicaId,
+        const TUpdateReplicationProgressOptions& options);
+    NRpc::IChannelPtr GetChaosChannel(NObjectClient::TCellId chaosCellId);
 
     //
     // Cypress.
     //
-
     NYson::TYsonString DoGetNode(
         const NYPath::TYPath& path,
         const TGetNodeOptions& options);

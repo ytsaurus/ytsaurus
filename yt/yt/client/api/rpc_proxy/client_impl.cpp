@@ -20,6 +20,8 @@
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
 
+#include <yt/yt/client/chaos_client/replication_card.h>
+
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
 
 #include <yt/yt/client/scheduler/operation_id_or_alias.h>
@@ -45,6 +47,7 @@ using NYT::ToProto;
 using NYT::FromProto;
 
 using namespace NRpc;
+using namespace NChaosClient;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
@@ -558,6 +561,52 @@ TFuture<std::vector<TTabletActionId>> TClient::BalanceTabletCells(
         const auto& rsp = rspOrError.ValueOrThrow();
         return FromProto<std::vector<TTabletActionId>>(rsp->tablet_actions());
     }));
+}
+
+TFuture<NChaosClient::TReplicationCardToken> TClient::CreateReplicationCard(
+    const NChaosClient::TReplicationCardToken& /*replicationCardToken*/,
+    const TCreateReplicationCardOptions& /*options*/)
+{
+    YT_UNIMPLEMENTED();
+}
+
+TFuture<NChaosClient::TReplicationCardPtr> TClient::GetReplicationCard(
+    const NChaosClient::TReplicationCardToken& /*replicationCardToken*/,
+    const TGetReplicationCardOptions& /*options*/)
+{
+    YT_UNIMPLEMENTED();
+}
+
+TFuture<TReplicaId> TClient::CreateReplicationCardReplica(
+    const NChaosClient::TReplicationCardToken& /*replicationCardToken*/,
+    const NChaosClient::TReplicaInfo& /*replica*/,
+    const TCreateReplicationCardReplicaOptions& /*options*/)
+{
+    YT_UNIMPLEMENTED();
+}
+
+TFuture<void> TClient::RemoveReplicationCardReplica(
+    const NChaosClient::TReplicationCardToken& /*replicationCardToken*/,
+    NChaosClient::TReplicaId /*replicaId*/,
+    const TRemoveReplicationCardReplicaOptions& /*options*/)
+{
+    YT_UNIMPLEMENTED();
+}
+
+TFuture<void> TClient::AlterReplicationCardReplica(
+    const NChaosClient::TReplicationCardToken& /*replicationCardToken*/,
+    NChaosClient::TReplicaId /*replicaId*/,
+    const TAlterReplicationCardReplicaOptions& /*options*/)
+{
+    YT_UNIMPLEMENTED();
+}
+
+TFuture<void> TClient::UpdateReplicationProgress(
+    const NChaosClient::TReplicationCardToken& /*replicationCardToken*/,
+    NChaosClient::TReplicaId /*replicaId*/,
+    const TUpdateReplicationProgressOptions& /*options*/)
+{
+    YT_UNIMPLEMENTED();
 }
 
 TFuture<void> TClient::AddMember(

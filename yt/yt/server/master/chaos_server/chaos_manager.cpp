@@ -26,6 +26,7 @@ namespace NYT::NChaosServer {
 
 using namespace NCellMaster;
 using namespace NCellServer;
+using namespace NCellarClient;
 using namespace NHydra;
 using namespace NObjectClient;
 
@@ -89,6 +90,22 @@ public:
             return nullptr;
         }
         return cell->As<TChaosCell>();
+    }
+
+    virtual TChaosCell* GetChaosCellOrThrow(TChaosCellId cellId) const override
+    {
+        auto* cell = FindChaosCell(cellId);
+        if (!cell) {
+            THROW_ERROR_EXCEPTION("Unknown chaos cell %v", cellId);
+        }
+        return cell;
+    }
+
+    virtual TChaosCellBundle* GetChaosCellBundleByNameOrThrow(const TString& name) const override
+    {
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        auto* cellBundle = cellManager->GetCellBundleByNameOrThrow(name, ECellarType::Chaos, true);
+        return cellBundle->As<TChaosCellBundle>();
     }
 
 private:

@@ -1,0 +1,71 @@
+package NYT.NChaosClient.NProto;
+
+import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCreateReplicationCard
+{ }
+
+message TRspCreateReplicationCard
+{
+    required TReplicationCardToken replication_card_token = 1;
+}
+
+message TReqGetReplicationCard
+{
+    required TReplicationCardToken replication_card_token = 1;
+    required bool request_coordinators = 2;
+    required bool request_replication_progress = 3;
+    required bool request_history = 4;
+}
+
+message TRspGetReplicationCard
+{
+    required TReplicationCard replication_card = 1;
+}
+
+message TReqCreateTableReplica
+{
+    required TReplicationCardToken replication_card_token = 1;
+    required TReplicaInfo replica_info = 2;
+}
+
+message TRspCreateTableReplica
+{
+    required NYT.NProto.TGuid replica_id = 1; // NChaosClient::TReplicaId
+}
+
+message TReqRemoveTableReplica
+{
+    required TReplicationCardToken replication_card_token = 1;
+    required NYT.NProto.TGuid replica_id = 2; // NChaosClient::TReplicaId
+}
+
+message TRspRemoveTableReplica
+{ }
+
+message TReqAlterTableReplica
+{
+    required TReplicationCardToken replication_card_token = 1;
+    required NYT.NProto.TGuid replica_id = 2; // NChaosClient::TReplicaId
+    optional int32 mode = 3; // NChaosClient::EReplicaMode;
+    optional int32 state = 4; // NChaosClient::EReplicaState;
+    optional string table_path = 5;
+}
+
+message TRspAlterTableReplica
+{ }
+
+message TReqUpdateReplicationProgress
+{
+    required TReplicationCardToken replication_card_token = 1;
+    required NYT.NProto.TGuid replica_id = 2; // NChaosClient::TReplicaId;
+    required TReplicationProgress replication_progress = 3;
+}
+
+message TRspUpdateReplicationProgress
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

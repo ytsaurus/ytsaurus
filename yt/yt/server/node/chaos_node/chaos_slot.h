@@ -38,6 +38,7 @@ struct IChaosSlot
     static constexpr NCellarClient::ECellarType CellarType = NCellarClient::ECellarType::Chaos;
 
     virtual NHydra::TCellId GetCellId() const = 0;
+    virtual const TString& GetCellBundleName() const = 0;
     virtual NHydra::EPeerState GetAutomatonState() const = 0;
 
     virtual NHydra::IDistributedHydraManagerPtr GetHydraManager() const = 0;
@@ -56,6 +57,7 @@ struct IChaosSlot
     virtual NHiveServer::TMailbox* GetMasterMailbox() = 0;
 
     virtual const IChaosManagerPtr& GetChaosManager() const = 0;
+    virtual const ICoordinatorManagerPtr& GetCoordinatorManager() const = 0;
 
     virtual NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) = 0;
 };

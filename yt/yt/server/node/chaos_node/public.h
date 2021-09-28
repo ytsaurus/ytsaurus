@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/transaction_client/public.h>
 
+#include <yt/yt/client/chaos_client/replication_card.h>
+
 #include <yt/yt/core/misc/intrusive_ptr.h>
 
 #include <yt/yt/core/misc/enum.h>
@@ -19,7 +21,9 @@ DECLARE_REFCOUNTED_CLASS(TChaosAutomaton)
 DECLARE_REFCOUNTED_STRUCT(ISlotManager)
 DECLARE_REFCOUNTED_STRUCT(IChaosSlot)
 DECLARE_REFCOUNTED_STRUCT(IChaosManager)
+DECLARE_REFCOUNTED_STRUCT(ICoordinatorManager)
 DECLARE_REFCOUNTED_STRUCT(ITransactionManager)
+DECLARE_REFCOUNTED_STRUCT(IChaosCellSynchronizer)
 
 enum class EChaosSnapshotVersion;
 class TSaveContext;
@@ -29,7 +33,11 @@ using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext
 DEFINE_ENUM(EAutomatonThreadQueue,
     (Default)
     (Mutation)
+    (EraCommencer)
 );
+
+using TReplicationCardId = NChaosClient::TReplicationCardId;
+DECLARE_ENTITY_TYPE(TReplicationCard, NChaosClient::TReplicationCardId, NObjectClient::TDirectObjectIdHash)
 
 using TTransactionId = NTransactionClient::TTransactionId;
 DECLARE_ENTITY_TYPE(TTransaction, TTransactionId, ::THash<TTransactionId>)
