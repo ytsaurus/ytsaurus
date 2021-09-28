@@ -12,6 +12,7 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.util.SerializableConfiguration
+import ru.yandex.spark.yt.format.YtPartitionedFile
 import ru.yandex.spark.yt.fs.YtDynamicPath
 
 import java.util.Locale
@@ -98,7 +99,7 @@ case class YtScan(sparkSession: SparkSession,
           maxSplitBytes = maxSplitBytes,
           partitionValues = partitionValues
         )
-      }.toArray.sortBy(_.length)(implicitly[Ordering[Long]].reverse)
+      }.toArray.sorted(YtFilePartition.partitionedFilesOrdering)
     }
 
     if (splitFiles.length == 1) {
@@ -110,7 +111,8 @@ case class YtScan(sparkSession: SparkSession,
       }
     }
 
-    FilePartition.getFilePartitions(sparkSession, splitFiles, maxSplitBytes)
+    val partitions = YtFilePartition.getFilePartitions(sparkSession, splitFiles, maxSplitBytes)
+    partitions
   }
 }
 

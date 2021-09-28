@@ -1,6 +1,5 @@
 package org.apache.spark.sql.v2
 
-import org.apache.hadoop.fs.Path
 import org.apache.hadoop.mapreduce.{InputSplit, RecordReader, TaskAttemptContext}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.internal.Logging
@@ -16,9 +15,7 @@ import org.apache.spark.util.SerializableConfiguration
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read.VectorizedCapacity
 import ru.yandex.spark.yt.format.{YtInputSplit, YtPartitionedFile}
-import ru.yandex.spark.yt.fs.YPathEnriched.{YtObjectPath, YtRootPath}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import ru.yandex.spark.yt.fs.YtTableFileSystem
 import ru.yandex.spark.yt.fs.conf._
 import ru.yandex.spark.yt.serializers.InternalRowDeserializer
 import ru.yandex.spark.yt.wrapper.YtWrapper
