@@ -13,6 +13,7 @@ from yt.common import (
     update_inplace,
     update,
     date_string_to_datetime,
+    uuid_to_parts,
 )
 
 from yt.packages.six.moves import xrange, builtins
@@ -1127,9 +1128,9 @@ class Operation(object):
                 raise
             return 0
 
-    def get_running_jobs(self):
+    def get_running_jobs(self, verbose=False):
         jobs_path = self.get_path() + "/controller_orchid/running_jobs"
-        return get(jobs_path, verbose=False, default={})
+        return get(jobs_path, verbose=verbose, default={})
 
     def get_runtime_state(self, **kwargs):
         return get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(self.id), **kwargs)
@@ -1290,6 +1291,12 @@ class Operation(object):
         return "//sys/controller_agents/instances/{}/orchid/controller_agent/operations/{}".format(
             controller_agent, self.id
         )
+
+    def lookup_in_archive(self):
+        id_hi, id_lo = uuid_to_parts(self.id)
+        rows = lookup_rows("//sys/operations_archive/ordered_by_id", [{"id_hi": id_hi, "id_lo": id_lo}])
+        assert len(rows) == 1
+        return rows[0]
 
 
 def create_tmpdir(prefix):
