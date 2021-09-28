@@ -1472,7 +1472,7 @@ private:
             auto traceGuard = QueueTrace_.CreateTraceGuard("JournalWriter:FlushBlocks", node->FirstPendingRowIndex, {});
 
             req->Invoke().Subscribe(
-                BIND(&TImpl::OnBlocksWritten, MakeWeak(this), CurrentChunkSession_, node, flushRowCount)
+                BIND_DONT_CAPTURE_TRACE_CONTEXT(&TImpl::OnBlocksWritten, MakeWeak(this), CurrentChunkSession_, node, flushRowCount)
                     .Via(Invoker_));
         }
 
