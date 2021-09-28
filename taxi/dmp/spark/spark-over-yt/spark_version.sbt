@@ -1,3 +1,3 @@
 import spyt.SpytPlugin.autoImport._
 
-ThisBuild / spytSparkPythonVersion := "3.0.1+1.17.1"
+ThisBuild / spytSparkPythonVersion := "3.0.1+1.17.2"
