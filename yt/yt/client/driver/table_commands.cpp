@@ -2,11 +2,7 @@
 #include "config.h"
 
 #include <yt/yt/client/api/rowset.h>
-#include <yt/yt/client/api/transaction.h>
 #include <yt/yt/client/api/skynet.h>
-#include <yt/yt/client/api/table_reader.h>
-
-#include <yt/yt/client/query_client/query_statistics.h>
 
 #include <yt/yt/client/table_client/adapters.h>
 #include <yt/yt/client/table_client/table_output.h>
@@ -14,7 +10,6 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 #include <yt/yt/client/table_client/versioned_writer.h>
-#include <yt/yt/client/table_client/columnar_statistics.h>
 #include <yt/yt/client/table_client/table_consumer.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
@@ -27,17 +22,17 @@
 
 namespace NYT::NDriver {
 
-using namespace NYson;
-using namespace NYTree;
-using namespace NFormats;
+using namespace NApi;
 using namespace NChunkClient;
-using namespace NQueryClient;
 using namespace NConcurrency;
-using namespace NTransactionClient;
+using namespace NFormats;
 using namespace NHiveClient;
+using namespace NQueryClient;
 using namespace NTableClient;
 using namespace NTabletClient;
-using namespace NApi;
+using namespace NTransactionClient;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

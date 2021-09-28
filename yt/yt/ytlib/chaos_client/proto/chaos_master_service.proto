@@ -1,6 +1,8 @@
 package NYT.NChaosClient.NProto;
 
 import "yt/ytlib/chaos_client/proto/alien_cell.proto";
+import "yt/ytlib/hive/proto/cell_directory.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,6 +14,17 @@ message TReqSyncAlienCells
 message TRspSyncAlienCells
 {
     repeated TAlienCellDescriptor cell_descriptors = 1;
+}
+
+message TReqGetCellDescriptors
+{
+    repeated NYT.NProto.TGuid cell_ids = 1;
+    optional string cell_bundle = 2;
+}
+
+message TRspGetCellDescriptors
+{
+    repeated NYT.NHiveClient.NProto.TCellDescriptor cell_descriptors = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

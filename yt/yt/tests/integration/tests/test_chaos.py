@@ -1,8 +1,8 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait, execute_command, get_driver, sync_create_cells,
-    get, set)
+    authors, wait, execute_command, get_driver, get, set, sync_create_cells,
+    create_replication_card, get_replication_card, create_replication_card_replica)
 
 from yt.common import YtError
 import yt.yson as yson
@@ -182,3 +182,28 @@ class TestChaos(YTEnvSetup):
 
         for index, driver in enumerate(self._get_drivers()):
             _check(get("#{0}/@peers".format(cell_id), driver=driver), index)
+
+    @authors("savrus")
+    def test_replication_card(self):
+        self._create_chaos_cell_bundle("c")
+        cell_id = self._sync_create_chaos_cell("c")
+
+        chaos_node = get("#{0}/@peers/0/address".format(cell_id))
+        set("//sys/cluster_nodes/{0}/@user_tags/end".format(chaos_node), "chaos_node")
+
+        card_id = create_replication_card(chaos_cell_id=cell_id)
+        print card_id
+        replicas = [
+            {"cluster": "primary", "content_type": "data", "mode": "sync", "table_path": "//tmp/t"},
+            {"cluster": "remote_0", "content_type": "queue", "mode": "sync", "table_path": "//tmp/r0"},
+            {"cluster": "remote_1", "content_type": "data", "mode": "async", "table_path": "//tmp/r1"}
+        ]
+        for replica in replicas:
+            create_replication_card_replica(
+                chaos_cell_id=cell_id,
+                replication_card_id=card_id,
+                replica_info=replica)
+        card = get_replication_card(chaos_cell_id=cell_id, replication_card_id=card_id)
+        assert len(card["replicas"]) == 3
+        card_replicas = [{key: r[key] for key in replicas[0].keys()} for r in card["replicas"]]
+        assert_items_equal(card_replicas, replicas)

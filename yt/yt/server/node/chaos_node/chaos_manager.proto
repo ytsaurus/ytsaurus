@@ -1,0 +1,62 @@
+package NYT.NChaosNode.NProto;
+
+import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TShortcut
+{
+    required NYT.NProto.TGuid replication_card_id = 1;
+    required uint64 era = 2; // TReplicationEra
+}
+
+message TReqGrantShortcuts
+{
+    required NYT.NProto.TGuid chaos_cell_id = 1;
+    repeated TShortcut shortcuts = 2;
+}
+
+message TRspGrantShortcuts
+{
+    required NYT.NProto.TGuid coordinator_cell_id = 1;
+    required bool suspended = 2;
+    repeated TShortcut shortcuts = 3;
+}
+
+message TReqRevokeShortcuts
+{
+    required NYT.NProto.TGuid chaos_cell_id = 1;
+    repeated TShortcut shortcuts = 2;
+}
+
+message TRspRevokeShortcuts
+{
+    required NYT.NProto.TGuid coordinator_cell_id = 1;
+    repeated TShortcut shortcuts = 2;
+}
+
+message TReqCommenceNewReplicationEra
+{
+    required NYT.NProto.TGuid replication_card_id = 1; // NChaosClient::TReplicationCardId
+    required uint64 replication_era = 2; // NChaosClient::TReplicationEra
+    required uint64 timestamp = 3; // NTransactionClient::TTimestamp
+}
+
+message TReqUpdateCoordinatorCells
+{
+    repeated NYT.NProto.TGuid add_coordinator_cell_ids = 1;
+    repeated NYT.NProto.TGuid remove_coordinator_cell_ids = 2;
+}
+
+message TReqSuspendCoordinator
+{
+    required NYT.NProto.TGuid coordinator_cell_id = 1;
+}
+
+message TReqResumeCoordinator
+{
+    required NYT.NProto.TGuid coordinator_cell_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

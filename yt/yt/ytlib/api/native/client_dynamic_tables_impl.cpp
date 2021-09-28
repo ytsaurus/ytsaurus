@@ -6,6 +6,11 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/ytlib/chaos_client/chaos_master_service_proxy.h>
+#include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
+
+#include <yt/yt/ytlib/chaos_client/proto/chaos_node_service.pb.h>
+
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/client/table_client/wire_protocol.h>
@@ -34,7 +39,10 @@
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
+#include <yt/yt/ytlib/hydra/config.h>
+
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
+#include <yt/yt/ytlib/node_tracker_client/node_addresses_provider.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
@@ -42,7 +50,16 @@
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
-#include <yt/yt/ytlib/chaos_client/chaos_master_service_proxy.h>
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
+
+#include <yt/yt/client/chaos_client/replication_card.h>
+#include <yt/yt/client/chaos_client/replication_card_serialization.h>
+
+#include <yt/yt/core/rpc/bus/channel.h>
+
+#include <yt/yt/core/rpc/balancing_channel.h>
+#include <yt/yt/core/rpc/retrying_channel.h>
+#include <yt/yt/core/rpc/config.h>
 
 #include <library/cpp/int128/int128.h>
 
@@ -52,6 +69,7 @@ using namespace NChaosClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NHiveClient;
+using namespace NHydra;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NProfiling;
@@ -1639,6 +1657,153 @@ std::vector<TAlienCellDescriptor> TClient::DoSyncAlienCells(
         .ValueOrThrow();
 
     return FromProto<std::vector<TAlienCellDescriptor>>(res->cell_descriptors());
+}
+
+IChannelPtr TClient::GetChaosChannel(TCellId chaosCellId)
+{
+    const auto& cellDirectory = GetNativeConnection()->GetCellDirectory();
+    if (auto channel = cellDirectory->FindChannel(chaosCellId, EPeerKind::LeaderOrFollower)) {
+        return channel;
+    }
+
+    auto channel = GetMasterChannelOrThrow(EMasterChannelKind::Follower, PrimaryMasterCellTag); 
+    auto proxy = TChaosMasterServiceProxy(channel);
+    auto req = proxy.GetCellDescriptors();
+    
+    ToProto(req->mutable_cell_ids(), std::vector<TCellId>{chaosCellId});
+
+    auto res = WaitFor(req->Invoke())
+        .ValueOrThrow();
+
+    auto descriptors = FromProto<std::vector<TCellDescriptor>>(res->cell_descriptors());
+    YT_VERIFY(std::ssize(descriptors) == 1);
+
+    cellDirectory->ReconfigureCell(descriptors[0]);
+    return cellDirectory->GetChannelOrThrow(chaosCellId, EPeerKind::LeaderOrFollower);
+}
+
+TReplicationCardToken TClient::DoCreateReplicationCard(
+    const TReplicationCardToken& replicationCardToken,
+    const TCreateReplicationCardOptions& options)
+{
+    auto channel = GetChaosChannel(replicationCardToken.ChaosCellId);
+    auto proxy = TChaosServiceProxy(channel);
+    auto req = proxy.CreateReplicationCard();
+    SetMutationId(req, options);
+
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+
+    return FromProto<TReplicationCardToken>(rsp->replication_card_token());
+}
+
+TReplicationCardPtr TClient::DoGetReplicationCard(
+    const TReplicationCardToken& replicationCardToken,
+    const TGetReplicationCardOptions& options)
+{
+    auto channel = GetChaosChannel(replicationCardToken.ChaosCellId);
+    auto proxy = TChaosServiceProxy(channel);
+    auto req = proxy.GetReplicationCard();
+
+    ToProto(req->mutable_replication_card_token(), replicationCardToken);
+    req->set_request_coordinators(options.IncludeCoordinators);
+    req->set_request_replication_progress(options.IncludeProgress);
+    req->set_request_history(options.IncludeHistory);
+
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+
+    auto replicationCard = New<TReplicationCard>();
+    FromProto(replicationCard.Get(), rsp->replication_card());
+
+    YT_LOG_DEBUG("Got replication card (ReplicationCardId: %v, ReplicationCard: %v)",
+        replicationCardToken.ReplicationCardId,
+        *replicationCard);
+
+    return replicationCard;
+}
+
+NChaosClient::TReplicaId TClient::DoCreateReplicationCardReplica(
+    const TReplicationCardToken& replicationCardToken,
+    const TReplicaInfo& replicaInfo,
+    const TCreateReplicationCardReplicaOptions& options)
+{
+    auto channel = GetChaosChannel(replicationCardToken.ChaosCellId);
+    auto proxy = TChaosServiceProxy(channel);
+    auto req = proxy.CreateTableReplica();
+    SetMutationId(req, options);
+
+    ToProto(req->mutable_replication_card_token(), replicationCardToken);
+    ToProto(req->mutable_replica_info(), replicaInfo);
+
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+
+    return FromProto<TReplicaId>(rsp->replica_id());
+}
+
+void TClient::DoRemoveReplicationCardReplica(
+    const TReplicationCardToken& replicationCardToken,
+    TReplicaId replicaId,
+    const TRemoveReplicationCardReplicaOptions& options)
+{
+    auto channel = GetChaosChannel(replicationCardToken.ChaosCellId);
+    auto proxy = TChaosServiceProxy(channel);
+    auto req = proxy.RemoveTableReplica();
+    SetMutationId(req, options);
+
+    ToProto(req->mutable_replication_card_token(), replicationCardToken);
+    ToProto(req->mutable_replica_id(), replicaId);
+
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
+void TClient::DoAlterReplicationCardReplica(
+    const TReplicationCardToken& replicationCardToken,
+    TReplicaId replicaId,
+    const TAlterReplicationCardReplicaOptions& options)
+{
+    auto channel = GetChaosChannel(replicationCardToken.ChaosCellId);
+    auto proxy = TChaosServiceProxy(channel);
+    auto req = proxy.AlterTableReplica();
+    SetMutationId(req, options);
+
+    ToProto(req->mutable_replication_card_token(), replicationCardToken);
+    ToProto(req->mutable_replica_id(), replicaId);
+    if (options.Mode) {
+        if (!IsStableReplicaMode(*options.Mode)) {
+            THROW_ERROR_EXCEPTION("Invalid mode %Qlv", *options.Mode);
+        }
+        req->set_mode(ToProto<i32>(*options.Mode));
+    }
+    if (options.Enabled) {
+        req->set_state(ToProto<i32>(*options.Enabled));
+    }
+    if (options.TablePath) {
+        req->set_table_path(*options.TablePath);
+    }
+
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
+void TClient::DoUpdateReplicationProgress(
+    const TReplicationCardToken& replicationCardToken,
+    TReplicaId replicaId,
+    const TUpdateReplicationProgressOptions& options)
+{
+    auto channel = GetChaosChannel(replicationCardToken.ChaosCellId);
+    auto proxy = TChaosServiceProxy(channel);
+    auto req = proxy.UpdateReplicationProgress();
+    SetMutationId(req, options);
+
+    ToProto(req->mutable_replication_card_token(), replicationCardToken);
+    ToProto(req->mutable_replica_id(), replicaId);
+    ToProto(req->mutable_replication_progress(), options.Progress);
+
+    WaitFor(req->Invoke())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

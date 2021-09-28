@@ -1,11 +1,15 @@
 #include "chaos_service.h"
 
 #include "alien_cell.h"
+#include "chaos_cell.h"
+#include "chaos_cell_bundle.h"
 #include "chaos_manager.h"
 #include "private.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/master_hydra_service.h>
+
+#include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 
 #include <yt/yt/ytlib/chaos_client/chaos_master_service_proxy.h>
 
@@ -15,6 +19,7 @@ namespace NYT::NChaosServer {
 
 using namespace NCellMaster;
 using namespace NChaosClient;
+using namespace NHiveClient;
 using namespace NRpc;
 
 using NYT::FromProto;
@@ -34,6 +39,9 @@ public:
             ChaosServerLogger)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncAlienCells)
+            .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChaosService))
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetCellDescriptors)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChaosService))
             .SetHeavy(true));
     }
@@ -78,6 +86,36 @@ private:
         context->SetResponseInfo("CellCount: %v",
             response->cell_descriptors_size());
 
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetCellDescriptors)
+    {
+        auto cellIds = FromProto<std::vector<TChaosCellId>>(request->cell_ids());
+        auto cellBundleName = request->has_cell_bundle()
+            ? std::make_optional(request->cell_bundle())
+            : std::nullopt;
+
+        context->SetRequestInfo("CellIds: %v, CellBundle: %v",
+            cellIds,
+            cellBundleName);
+
+        const auto& chaosManager = Bootstrap_->GetChaosManager();
+        std::vector<TCellDescriptor> cellDescriptors;
+
+        for (auto cellId : cellIds) {
+            auto* cell = chaosManager->GetChaosCellOrThrow(cellId);
+            cellDescriptors.push_back(cell->GetDescriptor());
+        }
+
+        if (cellBundleName) {
+            auto* cellBundle = chaosManager->GetChaosCellBundleByNameOrThrow(*cellBundleName);
+            for (auto* cell : cellBundle->Cells()) {
+                cellDescriptors.push_back(cell->GetDescriptor());
+            }
+        }
+
+        ToProto(response->mutable_cell_descriptors(), cellDescriptors);
         context->Reply();
     }
 };

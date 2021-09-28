@@ -12,12 +12,12 @@ class TObjectBase
     : public NHydra::TEntityBase
 {
 public:
+    explicit TObjectBase(NObjectClient::TObjectId id);
+
     NObjectClient::TObjectId GetId() const;
 
 protected:
     const NObjectClient::TObjectId Id_;
-
-    explicit TObjectBase(NObjectClient::TObjectId id);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

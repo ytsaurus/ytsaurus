@@ -32,6 +32,7 @@ message TReqGetClusterMeta
     optional bool populate_master_cache_node_addresses = 5;
     optional bool populate_timestamp_provider_node_addresses = 6;
     optional bool populate_features = 7;
+    optional bool populate_chaos_cache_node_addresses = 8 [default = false];
 }
 
 message TRspGetClusterMeta
@@ -43,6 +44,7 @@ message TRspGetClusterMeta
     repeated string master_cache_node_addresses = 5;
     repeated string timestamp_provider_node_addresses = 6;
     optional bytes features = 7; // YSON
+    repeated string chaos_cache_node_addresses = 8;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -278,6 +278,34 @@ public:
         const std::vector<NYPath::TYPath>& movableTables,
         const TBalanceTabletCellsOptions& options), (override));
 
+    MOCK_METHOD(TFuture<NChaosClient::TReplicationCardToken>, CreateReplicationCard, (
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        const TCreateReplicationCardOptions& options), (override));
+
+    MOCK_METHOD(TFuture<NChaosClient::TReplicationCardPtr>, GetReplicationCard, (
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        const TGetReplicationCardOptions& options), (override));
+
+    MOCK_METHOD(TFuture<NChaosClient::TReplicaId>, CreateReplicationCardReplica, (
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        const NChaosClient::TReplicaInfo& replica,
+        const TCreateReplicationCardReplicaOptions& options), (override));
+
+    MOCK_METHOD(TFuture<void>, RemoveReplicationCardReplica, (
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicaId replicaId,
+        const TRemoveReplicationCardReplicaOptions& options), (override));
+
+    MOCK_METHOD(TFuture<void>, AlterReplicationCardReplica, (
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicaId replicaId,
+        const TAlterReplicationCardReplicaOptions& options), (override));
+
+    MOCK_METHOD(TFuture<void>, UpdateReplicationProgress, (
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicaId replicaId,
+        const TUpdateReplicationProgressOptions& options), (override));
+
     MOCK_METHOD(TFuture<TSkynetSharePartsLocationsPtr>, LocateSkynetShare, (
         const NYPath::TRichYPath& path,
         const TLocateSkynetShareOptions& options), (override));

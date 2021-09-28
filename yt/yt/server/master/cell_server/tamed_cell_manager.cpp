@@ -890,7 +890,8 @@ public:
         if (!cellBundle) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
-                "No such tablet cell bundle %Qv",
+                "No such %v cell bundle %Qlv",
+                cellarType,
                 name);
         }
 

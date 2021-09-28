@@ -1,4 +1,5 @@
 #include "driver.h"
+#include "chaos_commands.h"
 #include "command.h"
 #include "config.h"
 #include "cypress_commands.h"
@@ -125,173 +126,179 @@ public:
             RegisterCommand<command>( \
                 TCommandDescriptor{name, EDataType::inDataType, EDataType::outDataType, isVolatile, isHeavy}); \
 
-        REGISTER    (TStartTransactionCommand,            "start_tx",                      Null,       Structured, true,  false, ApiVersion3);
-        REGISTER    (TPingTransactionCommand,             "ping_tx",                       Null,       Null,       true,  false, ApiVersion3);
-        REGISTER    (TCommitTransactionCommand,           "commit_tx",                     Null,       Null,       true,  false, ApiVersion3);
-        REGISTER    (TAbortTransactionCommand,            "abort_tx",                      Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TStartTransactionCommand,             "start_tx",                        Null,       Structured, true,  false, ApiVersion3);
+        REGISTER    (TPingTransactionCommand,              "ping_tx",                         Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TCommitTransactionCommand,            "commit_tx",                       Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TAbortTransactionCommand,             "abort_tx",                        Null,       Null,       true,  false, ApiVersion3);
 
-        REGISTER    (TStartTransactionCommand,            "start_transaction",             Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TPingTransactionCommand,             "ping_transaction",              Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TCommitTransactionCommand,           "commit_transaction",            Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TAbortTransactionCommand,            "abort_transaction",             Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TStartTransactionCommand,             "start_transaction",               Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TPingTransactionCommand,              "ping_transaction",                Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TCommitTransactionCommand,            "commit_transaction",              Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TAbortTransactionCommand,             "abort_transaction",               Null,       Structured, true,  false, ApiVersion4);
 
-        REGISTER_ALL(TGenerateTimestampCommand,           "generate_timestamp",            Null,       Structured, false, false);
+        REGISTER_ALL(TGenerateTimestampCommand,            "generate_timestamp",              Null,       Structured, false, false);
 
-        REGISTER_ALL(TCreateCommand,                      "create",                        Null,       Structured, true,  false);
-        REGISTER_ALL(TGetCommand,                         "get",                           Null,       Structured, false, false);
-        REGISTER_ALL(TListCommand,                        "list",                          Null,       Structured, false, false);
-        REGISTER_ALL(TLockCommand,                        "lock",                          Null,       Structured, true,  false);
+        REGISTER_ALL(TCreateCommand,                       "create",                          Null,       Structured, true,  false);
+        REGISTER_ALL(TGetCommand,                          "get",                             Null,       Structured, false, false);
+        REGISTER_ALL(TListCommand,                         "list",                            Null,       Structured, false, false);
+        REGISTER_ALL(TLockCommand,                         "lock",                            Null,       Structured, true,  false);
 
-        REGISTER    (TUnlockCommand,                      "unlock",                        Null,       Null,       true,  false, ApiVersion3);
-        REGISTER    (TUnlockCommand,                      "unlock",                        Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TUnlockCommand,                       "unlock",                          Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TUnlockCommand,                       "unlock",                          Null,       Structured, true,  false, ApiVersion4);
 
-        REGISTER_ALL(TCopyCommand,                        "copy",                          Null,       Structured, true,  false);
-        REGISTER_ALL(TMoveCommand,                        "move",                          Null,       Structured, true,  false);
-        REGISTER_ALL(TLinkCommand,                        "link",                          Null,       Structured, true,  false);
-        REGISTER_ALL(TExistsCommand,                      "exists",                        Null,       Structured, false, false);
+        REGISTER_ALL(TCopyCommand,                         "copy",                            Null,       Structured, true,  false);
+        REGISTER_ALL(TMoveCommand,                         "move",                            Null,       Structured, true,  false);
+        REGISTER_ALL(TLinkCommand,                         "link",                            Null,       Structured, true,  false);
+        REGISTER_ALL(TExistsCommand,                       "exists",                          Null,       Structured, false, false);
 
-        REGISTER    (TConcatenateCommand,                 "concatenate",                   Null,       Null,       true,  false, ApiVersion3);
-        REGISTER    (TRemoveCommand,                      "remove",                        Null,       Null,       true,  false, ApiVersion3);
-        REGISTER    (TSetCommand,                         "set",                           Structured, Null,       true,  false, ApiVersion3);
+        REGISTER    (TConcatenateCommand,                  "concatenate",                     Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TRemoveCommand,                       "remove",                          Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TSetCommand,                          "set",                             Structured, Null,       true,  false, ApiVersion3);
 
-        REGISTER    (TConcatenateCommand,                 "concatenate",                   Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TRemoveCommand,                      "remove",                        Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TSetCommand,                         "set",                           Structured, Structured, true,  false, ApiVersion4);
-        REGISTER    (TMultisetAttributesCommand,          "multiset_attributes",           Structured, Structured, true,  false, ApiVersion4);
-        REGISTER    (TExternalizeCommand,                 "externalize",                   Null,       Null,       true,  false, ApiVersion4);
-        REGISTER    (TInternalizeCommand,                 "internalize",                   Null,       Null,       true,  false, ApiVersion4);
+        REGISTER    (TConcatenateCommand,                  "concatenate",                     Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TRemoveCommand,                       "remove",                          Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TSetCommand,                          "set",                             Structured, Structured, true,  false, ApiVersion4);
+        REGISTER    (TMultisetAttributesCommand,           "multiset_attributes",             Structured, Structured, true,  false, ApiVersion4);
+        REGISTER    (TExternalizeCommand,                  "externalize",                     Null,       Null,       true,  false, ApiVersion4);
+        REGISTER    (TInternalizeCommand,                  "internalize",                     Null,       Null,       true,  false, ApiVersion4);
 
-        REGISTER    (TWriteFileCommand,                   "write_file",                    Binary,     Null,       true,  true,  ApiVersion3);
-        REGISTER    (TWriteFileCommand,                   "write_file",                    Binary,     Structured, true,  true,  ApiVersion4);
-        REGISTER_ALL(TReadFileCommand,                    "read_file",                     Null,       Binary,     false, true );
+        REGISTER    (TWriteFileCommand,                    "write_file",                      Binary,     Null,       true,  true,  ApiVersion3);
+        REGISTER    (TWriteFileCommand,                    "write_file",                      Binary,     Structured, true,  true,  ApiVersion4);
+        REGISTER_ALL(TReadFileCommand,                     "read_file",                       Null,       Binary,     false, true );
 
-        REGISTER_ALL(TGetFileFromCacheCommand,            "get_file_from_cache",           Null,       Structured, false, false);
-        REGISTER_ALL(TPutFileToCacheCommand,              "put_file_to_cache",             Null,       Structured, true,  false);
+        REGISTER_ALL(TGetFileFromCacheCommand,             "get_file_from_cache",             Null,       Structured, false, false);
+        REGISTER_ALL(TPutFileToCacheCommand,               "put_file_to_cache",               Null,       Structured, true,  false);
 
-        REGISTER    (TWriteTableCommand,                  "write_table",                   Tabular,    Null,       true,  true , ApiVersion3);
-        REGISTER    (TWriteTableCommand,                  "write_table",                   Tabular,    Structured, true,  true , ApiVersion4);
-        REGISTER_ALL(TGetTableColumnarStatisticsCommand,  "get_table_columnar_statistics", Null,       Structured, false, false);
-        REGISTER_ALL(TReadTableCommand,                   "read_table",                    Null,       Tabular,    false, true );
-        REGISTER_ALL(TReadBlobTableCommand,               "read_blob_table",               Null,       Binary,     false, true );
-        REGISTER_ALL(TLocateSkynetShareCommand,           "locate_skynet_share",           Null,       Structured, false, true );
+        REGISTER    (TWriteTableCommand,                   "write_table",                     Tabular,    Null,       true,  true , ApiVersion3);
+        REGISTER    (TWriteTableCommand,                   "write_table",                     Tabular,    Structured, true,  true , ApiVersion4);
+        REGISTER_ALL(TGetTableColumnarStatisticsCommand,   "get_table_columnar_statistics",   Null,       Structured, false, false);
+        REGISTER_ALL(TReadTableCommand,                    "read_table",                      Null,       Tabular,    false, true );
+        REGISTER_ALL(TReadBlobTableCommand,                "read_blob_table",                 Null,       Binary,     false, true );
+        REGISTER_ALL(TLocateSkynetShareCommand,            "locate_skynet_share",             Null,       Structured, false, true );
 
-        REGISTER    (TInsertRowsCommand,                  "insert_rows",                   Tabular,    Null,       true,  true , ApiVersion3);
-        REGISTER    (TLockRowsCommand,                    "lock_rows",                     Tabular,    Null,       true,  true , ApiVersion3);
-        REGISTER    (TDeleteRowsCommand,                  "delete_rows",                   Tabular,    Null,       true,  true , ApiVersion3);
-        REGISTER    (TTrimRowsCommand,                    "trim_rows",                     Null,       Null,       true,  true , ApiVersion3);
+        REGISTER    (TInsertRowsCommand,                   "insert_rows",                     Tabular,    Null,       true,  true , ApiVersion3);
+        REGISTER    (TLockRowsCommand,                     "lock_rows",                       Tabular,    Null,       true,  true , ApiVersion3);
+        REGISTER    (TDeleteRowsCommand,                   "delete_rows",                     Tabular,    Null,       true,  true , ApiVersion3);
+        REGISTER    (TTrimRowsCommand,                     "trim_rows",                       Null,       Null,       true,  true , ApiVersion3);
 
-        REGISTER    (TInsertRowsCommand,                  "insert_rows",                   Tabular,    Structured, true,  true , ApiVersion4);
-        REGISTER    (TLockRowsCommand,                    "lock_rows",                     Tabular,    Structured, true,  true , ApiVersion4);
-        REGISTER    (TDeleteRowsCommand,                  "delete_rows",                   Tabular,    Structured, true,  true , ApiVersion4);
-        REGISTER    (TTrimRowsCommand,                    "trim_rows",                     Null,       Structured, true,  true , ApiVersion4);
+        REGISTER    (TInsertRowsCommand,                   "insert_rows",                     Tabular,    Structured, true,  true , ApiVersion4);
+        REGISTER    (TLockRowsCommand,                     "lock_rows",                       Tabular,    Structured, true,  true , ApiVersion4);
+        REGISTER    (TDeleteRowsCommand,                   "delete_rows",                     Tabular,    Structured, true,  true , ApiVersion4);
+        REGISTER    (TTrimRowsCommand,                     "trim_rows",                       Null,       Structured, true,  true , ApiVersion4);
 
-        REGISTER_ALL(TExplainQueryCommand,                "explain_query",                 Null,       Structured, false, true );
-        REGISTER_ALL(TSelectRowsCommand,                  "select_rows",                   Null,       Tabular,    false, true );
-        REGISTER_ALL(TLookupRowsCommand,                  "lookup_rows",                   Tabular,    Tabular,    false, true );
+        REGISTER_ALL(TExplainQueryCommand,                 "explain_query",                   Null,       Structured, false, true );
+        REGISTER_ALL(TSelectRowsCommand,                   "select_rows",                     Null,       Tabular,    false, true );
+        REGISTER_ALL(TLookupRowsCommand,                   "lookup_rows",                     Tabular,    Tabular,    false, true );
 
-        REGISTER    (TEnableTableReplicaCommand,          "enable_table_replica",          Null,       Null,       true,  false, ApiVersion3);
-        REGISTER    (TDisableTableReplicaCommand,         "disable_table_replica",         Null,       Null,       true,  false, ApiVersion3);
-        REGISTER    (TAlterTableReplicaCommand,           "alter_table_replica",           Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TEnableTableReplicaCommand,           "enable_table_replica",            Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TDisableTableReplicaCommand,          "disable_table_replica",           Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TAlterTableReplicaCommand,            "alter_table_replica",             Null,       Null,       true,  false, ApiVersion3);
 
-        REGISTER    (TEnableTableReplicaCommand,          "enable_table_replica",          Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TDisableTableReplicaCommand,         "disable_table_replica",         Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TAlterTableReplicaCommand,           "alter_table_replica",           Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TEnableTableReplicaCommand,           "enable_table_replica",            Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TDisableTableReplicaCommand,          "disable_table_replica",           Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TAlterTableReplicaCommand,            "alter_table_replica",             Null,       Structured, true,  false, ApiVersion4);
 
-        REGISTER_ALL(TGetInSyncReplicasCommand,           "get_in_sync_replicas",          Tabular,    Structured, false, true );
+        REGISTER_ALL(TGetInSyncReplicasCommand,            "get_in_sync_replicas",            Tabular,    Structured, false, true );
 
-        REGISTER    (TMountTableCommand,                  "mount_table",                   Null,       Null,       true,  false, ApiVersion3);
-        REGISTER    (TUnmountTableCommand,                "unmount_table",                 Null,       Null,       true,  false, ApiVersion3);
-        REGISTER    (TRemountTableCommand,                "remount_table",                 Null,       Null,       true,  false, ApiVersion3);
-        REGISTER    (TFreezeTableCommand,                 "freeze_table",                  Null,       Null,       true,  false, ApiVersion3);
-        REGISTER    (TUnfreezeTableCommand,               "unfreeze_table",                Null,       Null,       true,  false, ApiVersion3);
-        REGISTER    (TReshardTableCommand,                "reshard_table",                 Null,       Null,       true,  false, ApiVersion3);
-        REGISTER    (TAlterTableCommand,                  "alter_table",                   Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TMountTableCommand,                   "mount_table",                     Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TUnmountTableCommand,                 "unmount_table",                   Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TRemountTableCommand,                 "remount_table",                   Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TFreezeTableCommand,                  "freeze_table",                    Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TUnfreezeTableCommand,                "unfreeze_table",                  Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TReshardTableCommand,                 "reshard_table",                   Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TAlterTableCommand,                   "alter_table",                     Null,       Null,       true,  false, ApiVersion3);
 
-        REGISTER    (TMountTableCommand,                  "mount_table",                   Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TUnmountTableCommand,                "unmount_table",                 Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TRemountTableCommand,                "remount_table",                 Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TFreezeTableCommand,                 "freeze_table",                  Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TUnfreezeTableCommand,               "unfreeze_table",                Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TReshardTableCommand,                "reshard_table",                 Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TAlterTableCommand,                  "alter_table",                   Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TMountTableCommand,                   "mount_table",                     Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TUnmountTableCommand,                 "unmount_table",                   Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TRemountTableCommand,                 "remount_table",                   Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TFreezeTableCommand,                  "freeze_table",                    Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TUnfreezeTableCommand,                "unfreeze_table",                  Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TReshardTableCommand,                 "reshard_table",                   Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TAlterTableCommand,                   "alter_table",                     Null,       Structured, true,  false, ApiVersion4);
 
-        REGISTER    (TGetTablePivotKeysCommand,           "get_table_pivot_keys",          Null,       Structured, false, false, ApiVersion4);
-        REGISTER    (TGetTabletInfosCommand,              "get_tablet_infos",              Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TGetTablePivotKeysCommand,            "get_table_pivot_keys",            Null,       Structured, false, false, ApiVersion4);
+        REGISTER    (TGetTabletInfosCommand,               "get_tablet_infos",                Null,       Structured, true,  false, ApiVersion4);
 
-        REGISTER_ALL(TReshardTableAutomaticCommand,       "reshard_table_automatic",       Null,       Structured, true,  false);
-        REGISTER_ALL(TBalanceTabletCellsCommand,          "balance_tablet_cells",          Null,       Structured, true,  false);
+        REGISTER_ALL(TReshardTableAutomaticCommand,        "reshard_table_automatic",         Null,       Structured, true,  false);
+        REGISTER_ALL(TBalanceTabletCellsCommand,           "balance_tablet_cells",            Null,       Structured, true,  false);
 
-        REGISTER    (TMergeCommand,                       "merge",                         Null,       Structured, true,  false, ApiVersion3);
-        REGISTER    (TEraseCommand,                       "erase",                         Null,       Structured, true,  false, ApiVersion3);
-        REGISTER    (TMapCommand,                         "map",                           Null,       Structured, true,  false, ApiVersion3);
-        REGISTER    (TSortCommand,                        "sort",                          Null,       Structured, true,  false, ApiVersion3);
-        REGISTER    (TReduceCommand,                      "reduce",                        Null,       Structured, true,  false, ApiVersion3);
-        REGISTER    (TJoinReduceCommand,                  "join_reduce",                   Null,       Structured, true,  false, ApiVersion3);
-        REGISTER    (TMapReduceCommand,                   "map_reduce",                    Null,       Structured, true,  false, ApiVersion3);
-        REGISTER    (TRemoteCopyCommand,                  "remote_copy",                   Null,       Structured, true,  false, ApiVersion3);
+        REGISTER    (TCreateReplicationCardCommand,        "create_replication_card",         Null,       Structured, false, false, ApiVersion4);
+        REGISTER    (TGetReplicationCardCommand,           "get_replication_card",            Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TCreateReplicationCardReplicaCommand, "create_replication_card_replica", Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TRemoveReplicationCardReplicaCommand, "remove_replication_card_replica", Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TAlterReplicationCardReplicaCommand,  "alter_replication_card_replica",  Null,       Structured, true,  false, ApiVersion4);
 
-        REGISTER    (TStartOperationCommand,              "start_op",                      Null,       Structured, true,  false, ApiVersion3);
-        REGISTER    (TAbortOperationCommand,              "abort_op",                      Null,       Null,       true,  false, ApiVersion3);
-        REGISTER    (TSuspendOperationCommand,            "suspend_op",                    Null,       Null,       true,  false, ApiVersion3);
-        REGISTER    (TResumeOperationCommand,             "resume_op",                     Null,       Null,       true,  false, ApiVersion3);
-        REGISTER    (TCompleteOperationCommand,           "complete_op",                   Null,       Null,       true,  false, ApiVersion3);
-        REGISTER    (TUpdateOperationParametersCommand,   "update_op_parameters",          Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TMergeCommand,                        "merge",                           Null,       Structured, true,  false, ApiVersion3);
+        REGISTER    (TEraseCommand,                        "erase",                           Null,       Structured, true,  false, ApiVersion3);
+        REGISTER    (TMapCommand,                          "map",                             Null,       Structured, true,  false, ApiVersion3);
+        REGISTER    (TSortCommand,                         "sort",                            Null,       Structured, true,  false, ApiVersion3);
+        REGISTER    (TReduceCommand,                       "reduce",                          Null,       Structured, true,  false, ApiVersion3);
+        REGISTER    (TJoinReduceCommand,                   "join_reduce",                     Null,       Structured, true,  false, ApiVersion3);
+        REGISTER    (TMapReduceCommand,                    "map_reduce",                      Null,       Structured, true,  false, ApiVersion3);
+        REGISTER    (TRemoteCopyCommand,                   "remote_copy",                     Null,       Structured, true,  false, ApiVersion3);
 
-        REGISTER    (TStartOperationCommand,              "start_operation",               Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TAbortOperationCommand,              "abort_operation",               Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TSuspendOperationCommand,            "suspend_operation",             Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TResumeOperationCommand,             "resume_operation",              Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TCompleteOperationCommand,           "complete_operation",            Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TUpdateOperationParametersCommand,   "update_operation_parameters",   Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TStartOperationCommand,               "start_op",                        Null,       Structured, true,  false, ApiVersion3);
+        REGISTER    (TAbortOperationCommand,               "abort_op",                        Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TSuspendOperationCommand,             "suspend_op",                      Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TResumeOperationCommand,              "resume_op",                       Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TCompleteOperationCommand,            "complete_op",                     Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TUpdateOperationParametersCommand,    "update_op_parameters",            Null,       Null,       true,  false, ApiVersion3);
 
-        REGISTER_ALL(TParseYPathCommand,                  "parse_ypath",                   Null,       Structured, false, false);
+        REGISTER    (TStartOperationCommand,               "start_operation",                 Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TAbortOperationCommand,               "abort_operation",                 Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TSuspendOperationCommand,             "suspend_operation",               Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TResumeOperationCommand,              "resume_operation",                Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TCompleteOperationCommand,            "complete_operation",              Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TUpdateOperationParametersCommand,    "update_operation_parameters",     Null,       Structured, true,  false, ApiVersion4);
 
-        REGISTER    (TAddMemberCommand,                   "add_member",                    Null,       Null,       true,  false, ApiVersion3);
-        REGISTER    (TRemoveMemberCommand,                "remove_member",                 Null,       Null,       true,  false, ApiVersion3);
+        REGISTER_ALL(TParseYPathCommand,                   "parse_ypath",                     Null,       Structured, false, false);
 
-        REGISTER    (TAddMemberCommand,                   "add_member",                    Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TRemoveMemberCommand,                "remove_member",                 Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TAddMemberCommand,                    "add_member",                      Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TRemoveMemberCommand,                 "remove_member",                   Null,       Null,       true,  false, ApiVersion3);
 
-        REGISTER_ALL(TCheckPermissionCommand,             "check_permission",              Null,       Structured, false, false);
-        REGISTER_ALL(TCheckPermissionByAclCommand,        "check_permission_by_acl",       Null,       Structured, false, false);
+        REGISTER    (TAddMemberCommand,                    "add_member",                      Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TRemoveMemberCommand,                 "remove_member",                   Null,       Structured, true,  false, ApiVersion4);
 
-        REGISTER    (TTransferAccountResourcesCommand,    "transfer_account_resources",    Null,       Structured, true,  false, ApiVersion4);
+        REGISTER_ALL(TCheckPermissionCommand,              "check_permission",                Null,       Structured, false, false);
+        REGISTER_ALL(TCheckPermissionByAclCommand,         "check_permission_by_acl",         Null,       Structured, false, false);
 
-        REGISTER    (TWriteJournalCommand,                "write_journal",                 Tabular,    Null,       true,  true , ApiVersion3);
-        REGISTER    (TWriteJournalCommand,                "write_journal",                 Tabular,    Structured, true,  true , ApiVersion4);
-        REGISTER_ALL(TReadJournalCommand,                 "read_journal",                  Null,       Tabular,    false, true );
-        REGISTER    (TTruncateJournalCommand,             "truncate_journal",              Null,       Null,       true,  false, ApiVersion4);
+        REGISTER    (TTransferAccountResourcesCommand,     "transfer_account_resources",      Null,       Structured, true,  false, ApiVersion4);
 
-        REGISTER_ALL(TGetJobInputCommand,                 "get_job_input",                 Null,       Binary,     false, true );
-        REGISTER_ALL(TGetJobInputPathsCommand,            "get_job_input_paths",           Null,       Structured, false, true );
-        REGISTER_ALL(TGetJobStderrCommand,                "get_job_stderr",                Null,       Binary,     false, true );
-        REGISTER_ALL(TGetJobFailContextCommand,           "get_job_fail_context",          Null,       Binary,     false, true );
-        REGISTER_ALL(TGetJobSpecCommand,                  "get_job_spec",                  Null,       Structured, false, true );
-        REGISTER_ALL(TListOperationsCommand,              "list_operations",               Null,       Structured, false, false);
-        REGISTER_ALL(TListJobsCommand,                    "list_jobs",                     Null,       Structured, false, false);
-        REGISTER_ALL(TGetJobCommand,                      "get_job",                       Null,       Structured, false, false);
-        REGISTER_ALL(TPollJobShellCommand,                "poll_job_shell",                Null,       Structured, true,  false);
-        REGISTER_ALL(TGetOperationCommand,                "get_operation",                 Null,       Structured, false, false);
+        REGISTER    (TWriteJournalCommand,                 "write_journal",                   Tabular,    Null,       true,  true , ApiVersion3);
+        REGISTER    (TWriteJournalCommand,                 "write_journal",                   Tabular,    Structured, true,  true , ApiVersion4);
+        REGISTER_ALL(TReadJournalCommand,                  "read_journal",                    Null,       Tabular,    false, true );
+        REGISTER    (TTruncateJournalCommand,              "truncate_journal",                Null,       Null,       true,  false, ApiVersion4);
 
-        REGISTER    (TDumpJobContextCommand,              "dump_job_context",              Null,       Null,       true,  false, ApiVersion3);
-        REGISTER    (TAbandonJobCommand,                  "abandon_job",                   Null,       Null,       false, false, ApiVersion3);
-        REGISTER    (TAbortJobCommand,                    "abort_job",                     Null,       Null,       false, false, ApiVersion3);
+        REGISTER_ALL(TGetJobInputCommand,                  "get_job_input",                   Null,       Binary,     false, true );
+        REGISTER_ALL(TGetJobInputPathsCommand,             "get_job_input_paths",             Null,       Structured, false, true );
+        REGISTER_ALL(TGetJobStderrCommand,                 "get_job_stderr",                  Null,       Binary,     false, true );
+        REGISTER_ALL(TGetJobFailContextCommand,            "get_job_fail_context",            Null,       Binary,     false, true );
+        REGISTER_ALL(TGetJobSpecCommand,                   "get_job_spec",                    Null,       Structured, false, true );
+        REGISTER_ALL(TListOperationsCommand,               "list_operations",                 Null,       Structured, false, false);
+        REGISTER_ALL(TListJobsCommand,                     "list_jobs",                       Null,       Structured, false, false);
+        REGISTER_ALL(TGetJobCommand,                       "get_job",                         Null,       Structured, false, false);
+        REGISTER_ALL(TPollJobShellCommand,                 "poll_job_shell",                  Null,       Structured, true,  false);
+        REGISTER_ALL(TGetOperationCommand,                 "get_operation",                   Null,       Structured, false, false);
 
-        REGISTER    (TDumpJobContextCommand,              "dump_job_context",              Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TAbandonJobCommand,                  "abandon_job",                   Null,       Structured, false, false, ApiVersion4);
-        REGISTER    (TAbortJobCommand,                    "abort_job",                     Null,       Structured, false, false, ApiVersion4);
+        REGISTER    (TDumpJobContextCommand,               "dump_job_context",                Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TAbandonJobCommand,                   "abandon_job",                     Null,       Null,       false, false, ApiVersion3);
+        REGISTER    (TAbortJobCommand,                     "abort_job",                       Null,       Null,       false, false, ApiVersion3);
 
-        REGISTER_ALL(TGetVersionCommand,                  "get_version",                   Null,       Structured, false, false);
-        REGISTER_ALL(TGetSupportedFeaturesCommand,        "get_supported_features",        Null,       Structured, false, false);
+        REGISTER    (TDumpJobContextCommand,               "dump_job_context",                Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TAbandonJobCommand,                   "abandon_job",                     Null,       Structured, false, false, ApiVersion4);
+        REGISTER    (TAbortJobCommand,                     "abort_job",                       Null,       Structured, false, false, ApiVersion4);
 
-        REGISTER_ALL(TExecuteBatchCommand,                "execute_batch",                 Null,       Structured, true,  false);
+        REGISTER_ALL(TGetVersionCommand,                   "get_version",                     Null,       Structured, false, false);
+        REGISTER_ALL(TGetSupportedFeaturesCommand,         "get_supported_features",          Null,       Structured, false, false);
 
-        REGISTER    (TDiscoverProxiesCommand,             "discover_proxies",              Null,       Structured, false, false, ApiVersion4);
+        REGISTER_ALL(TExecuteBatchCommand,                 "execute_batch",                   Null,       Structured, true,  false);
 
-        REGISTER_ALL(TBuildSnapshotCommand,               "build_snapshot",                Null,       Structured, true,  false);
-        REGISTER_ALL(TBuildMasterSnapshotsCommand,        "build_master_snapshots",        Null,       Structured, true,  false);
-        REGISTER_ALL(TSwitchLeaderCommand,                "switch_leader",                 Null,       Structured, true,  false);
-        REGISTER_ALL(TRepairExecNodeCommand,              "repair_exec_node",              Null,       Structured, true,  false);
+        REGISTER    (TDiscoverProxiesCommand,              "discover_proxies",                Null,       Structured, false, false, ApiVersion4);
+
+        REGISTER_ALL(TBuildSnapshotCommand,                "build_snapshot",                  Null,       Structured, true,  false);
+        REGISTER_ALL(TBuildMasterSnapshotsCommand,         "build_master_snapshots",          Null,       Structured, true,  false);
+        REGISTER_ALL(TSwitchLeaderCommand,                 "switch_leader",                   Null,       Structured, true,  false);
+        REGISTER_ALL(TRepairExecNodeCommand,               "repair_exec_node",                Null,       Structured, true,  false);
 
 #undef REGISTER
 #undef REGISTER_ALL

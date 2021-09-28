@@ -6,6 +6,9 @@
 #include "serialize.h"
 #include "slot_manager.h"
 #include "chaos_manager.h"
+#include "chaos_service.h"
+#include "coordinator_manager.h"
+#include "coordinator_service.h"
 #include "transaction_manager.h"
 
 #include <yt/yt/server/lib/cellar_agent/automaton_invoker_hood.h>
@@ -85,6 +88,13 @@ public:
         return Occupant_->GetCellId();
     }
 
+    const TString& GetCellBundleName() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Occupant_->GetCellBundleName();
+    }
+
     EPeerState GetAutomatonState() const override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -149,6 +159,13 @@ public:
         return ChaosManager_;
     }
 
+    const ICoordinatorManagerPtr& GetCoordinatorManager() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return CoordinatorManager_;
+    }
+
     TObjectId GenerateId(EObjectType type) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -182,6 +199,11 @@ public:
             this,
             Bootstrap_);
 
+        CoordinatorManager_ = CreateCoordinatorManager(
+            Config_->CoordinatorManager,
+            this,
+            Bootstrap_);
+
         TransactionManager_ = CreateTransactionManager(
             Config_->TransactionManager,
             this,
@@ -192,11 +214,18 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        ChaosService_ = CreateChaosService(this);
+        CoordinatorService_ = CreateCoordinatorService(this);
+
         ChaosManager_->Initialize();
     }
 
     void RegisterRpcServices() override
-    { }
+    {
+        const auto& rpcServer = Bootstrap_->GetRpcServer();
+        rpcServer->RegisterService(ChaosService_);
+        rpcServer->RegisterService(CoordinatorService_);
+    }
 
     void Stop() override
     {
@@ -233,7 +262,8 @@ public:
 
         return orchid
             ->AddChild("transactions", TransactionManager_->GetOrchidService())
-            ->AddChild("chaos", ChaosManager_->GetOrchidService());
+            ->AddChild("chaos_manager", ChaosManager_->GetOrchidService())
+            ->AddChild("coordinator_manager", CoordinatorManager_->GetOrchidService());
     }
 
     NProfiling::TRegistry GetProfiler() override
@@ -286,6 +316,7 @@ private:
     const NProfiling::TTagIdList ProfilingTagIds_;
 
     IChaosManagerPtr ChaosManager_;
+    ICoordinatorManagerPtr CoordinatorManager_;
 
     ITransactionManagerPtr TransactionManager_;
 

@@ -103,6 +103,34 @@ public:
         const std::vector<NYPath::TYPath>& movableTables,
         const NApi::TBalanceTabletCellsOptions& options) override;
 
+    virtual TFuture<NChaosClient::TReplicationCardToken> CreateReplicationCard(
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        const TCreateReplicationCardOptions& options = {}) override;
+
+    virtual TFuture<NChaosClient::TReplicationCardPtr> GetReplicationCard(
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        const TGetReplicationCardOptions& options = {}) override;
+
+    virtual TFuture<NChaosClient::TReplicaId> CreateReplicationCardReplica(
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        const NChaosClient::TReplicaInfo& replica,
+        const TCreateReplicationCardReplicaOptions& options = {}) override;
+
+    virtual TFuture<void> RemoveReplicationCardReplica(
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicaId replicaId,
+        const TRemoveReplicationCardReplicaOptions& options = {}) override;
+
+    virtual TFuture<void> AlterReplicationCardReplica(
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicaId replicaId,
+        const TAlterReplicationCardReplicaOptions& options = {}) override;
+
+    virtual TFuture<void> UpdateReplicationProgress(
+        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicaId replicaId,
+        const TUpdateReplicationProgressOptions& options = {}) override;
+
     // Files
     virtual TFuture<NApi::TGetFileFromCacheResult> GetFileFromCache(
         const TString& md5,

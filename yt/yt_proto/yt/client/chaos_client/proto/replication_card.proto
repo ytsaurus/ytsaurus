@@ -1,0 +1,52 @@
+package NYT.NChaosClient.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReplicationProgress
+{
+    message TSegment
+    {
+        required bytes lower_key = 1;
+        required uint64 timestamp = 2;
+    }
+
+    repeated TSegment segments = 1;
+    required bytes upper_key = 2;
+}
+
+message TReplicaHistoryItem
+{
+    required uint64 era = 1;
+    required uint64 timestamp = 2;
+    required int32 mode = 3;
+    required int32 state = 4;
+}
+
+message TReplicaInfo
+{
+    optional NYT.NProto.TGuid replica_id = 1;
+    required string cluster = 2;
+    required string table_path = 3;
+    required int32 content_type = 4;
+    required int32 mode = 5;
+    required int32 state = 6;
+    optional TReplicationProgress progress = 7;
+    repeated TReplicaHistoryItem history = 8;
+}
+
+message TReplicationCard
+{
+    repeated TReplicaInfo replicas = 1;
+    repeated NYT.NProto.TGuid coordinator_cell_ids = 2;
+    required uint64 era = 3;
+}
+
+message TReplicationCardToken
+{
+    required NYT.NProto.TGuid chaos_cell_id = 1;
+    required NYT.NProto.TGuid replication_card_id = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
