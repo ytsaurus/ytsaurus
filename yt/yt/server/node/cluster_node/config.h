@@ -226,6 +226,8 @@ public:
 
     double TotalCpu;
 
+    bool UseInstanceLimitsTracker;
+
     TResourceLimitsDynamicConfig()
     {
         RegisterParameter("user_jobs", UserJobs)
@@ -246,6 +248,9 @@ public:
 
         RegisterParameter("total_cpu", TotalCpu)
             .Default(0);
+
+        RegisterParameter("use_instance_limits_tracker", UseInstanceLimitsTracker)
+            .Default(true);
 
         RegisterPostprocessor([&] {
             if (UserJobs) {

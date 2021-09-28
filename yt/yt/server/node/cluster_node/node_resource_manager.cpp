@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
+#include <yt/yt/server/node/job_agent/job_controller.h>
+
 #include <yt/yt/server/lib/containers/instance_limits_tracker.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
@@ -77,6 +79,40 @@ double TNodeResourceManager::GetJobsCpuLimit() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return JobsCpuLimit_;
+}
+
+double TNodeResourceManager::GetCpuUsage() const
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto config = Bootstrap_->GetConfig()->ResourceLimits;
+    auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits;
+
+    double cpuUsage = 0;
+
+    // Node dedicated CPU.
+    cpuUsage += dynamicConfig->NodeDedicatedCpu.value_or(*config->NodeDedicatedCpu);
+
+    // User jobs.
+    cpuUsage += GetJobResourceUsage().cpu();
+
+    // Tablet cells.
+    if (Bootstrap_->IsTabletNode()) {
+        const auto& tabletSlotManager = Bootstrap_->GetTabletNodeBootstrap()->GetSlotManager();
+        if (tabletSlotManager) {
+            double cpuPerTabletSlot = dynamicConfig->CpuPerTabletSlot.value_or(*config->CpuPerTabletSlot);
+            cpuUsage += tabletSlotManager->GetUsedCpu(cpuPerTabletSlot);
+        }
+    }
+
+    return cpuUsage;
+}
+
+i64 TNodeResourceManager::GetMemoryUsage() const
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    return Bootstrap_->GetMemoryUsageTracker()->GetTotalUsed();
 }
 
 void TNodeResourceManager::SetResourceLimitsOverride(const TNodeResourceLimitsOverrides& resourceLimitsOverride)
@@ -206,7 +242,8 @@ void TNodeResourceManager::UpdateMemoryFootprint()
             memoryCategory == EMemoryCategory::Footprint ||
             memoryCategory == EMemoryCategory::AllocFragmentation ||
             memoryCategory == EMemoryCategory::TmpfsLayers ||
-            memoryCategory == EMemoryCategory::SystemJobs) {
+            memoryCategory == EMemoryCategory::SystemJobs)
+        {
             continue;
         }
 
@@ -258,6 +295,19 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
 
     JobsCpuLimit_.store(newJobsCpuLimit);
     JobsCpuLimitUpdated_.Fire();
+}
+
+NNodeTrackerClient::NProto::TNodeResources TNodeResourceManager::GetJobResourceUsage() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return WaitFor(BIND([this, this_ = MakeStrong(this)] {
+        const auto& jobController = Bootstrap_->GetJobController();
+        return jobController->GetResourceUsage(/*includeWaiting*/ true);
+    })
+        .AsyncVia(Bootstrap_->GetJobInvoker())
+        .Run())
+        .ValueOrThrow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

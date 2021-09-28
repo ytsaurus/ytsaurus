@@ -1,4 +1,6 @@
 #include "bootstrap.h"
+
+#include "arbitrage_service.h"
 #include "config.h"
 #include "batching_chunk_service.h"
 #include "dynamic_config_manager.h"
@@ -807,6 +809,7 @@ private:
 
         NetworkStatistics_ = std::make_unique<TNetworkStatistics>(Config_->DataNode);
 
+        RpcServer_->RegisterService(CreateArbitrageService(this));
         NodeResourceManager_ = New<TNodeResourceManager>(this);
 
         if (Config_->CoreDumper) {
@@ -1114,6 +1117,17 @@ private:
         for (const auto& service : CachingObjectServices_) {
             service->Reconfigure(newConfig->CachingObjectService);
         }
+
+    #ifdef __linux__
+        if (InstanceLimitsTracker_) {
+            auto useInstanceLimitsTracker = newConfig->ResourceLimits->UseInstanceLimitsTracker;
+            if (useInstanceLimitsTracker) {
+                InstanceLimitsTracker_->Start();
+            } else {
+                InstanceLimitsTracker_->Stop();
+            }
+        }
+    #endif
     }
 
     void PopulateAlerts(std::vector<TError>* alerts)

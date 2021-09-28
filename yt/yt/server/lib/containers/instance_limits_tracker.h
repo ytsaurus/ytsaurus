@@ -24,6 +24,7 @@ public:
         TDuration updatePeriod);
 
     void Start();
+    void Stop();
 
 private:
     void DoUpdateLimits();
@@ -34,6 +35,8 @@ private:
 
     std::optional<double> CpuLimit_;
     std::optional<i64> MemoryLimit_;
+
+    bool Running_ = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInstanceLimitsTracker)
