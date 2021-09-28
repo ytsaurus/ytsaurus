@@ -35,7 +35,7 @@ void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSch
         newColumn.LogicalType());
     try {
         if (oldColumn.GetPhysicalType() != newColumn.GetPhysicalType()) {
-            THROW_ERROR_EXCEPTION("Cannot change physical type from %Qlv to Qlv",
+            THROW_ERROR_EXCEPTION("Cannot change physical type from %Qlv to %Qlv",
                 oldColumn.GetPhysicalType(),
                 newColumn.GetPhysicalType());
         }
