@@ -73,7 +73,7 @@ void TRowQueue::Stop()
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRowBuilder
-    : public TYsonConsumerBase
+    : public NYson::TYsonConsumerBase
 {
 public:
     explicit TRowBuilder(TRowQueue* queue);

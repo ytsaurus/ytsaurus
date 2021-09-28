@@ -154,7 +154,7 @@ NSkiff::TSkiffSchemaPtr CreateSkiffSchema(
     return CreateSkiffSchema(schema, options);
 }
 
-void Serialize(const NSkiff::TSkiffSchemaPtr& schema, IYsonConsumer* consumer)
+void Serialize(const NSkiff::TSkiffSchemaPtr& schema, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginMap();
     if (schema->GetName().size() > 0) {

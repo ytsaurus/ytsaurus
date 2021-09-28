@@ -29,7 +29,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(const TSortColumn& sortColumn, IYsonConsumer* consumer)
+void Serialize(const TSortColumn& sortColumn, NYson::IYsonConsumer* consumer)
 {
     if (sortColumn.SortOrder() == ESortOrder::SO_ASCENDING) {
         Serialize(sortColumn.Name(), consumer);
@@ -55,7 +55,7 @@ void Deserialize(TSortColumn& sortColumn, const TNode& node)
 }
 
 template <class T, class TDerived>
-void SerializeOneOrMany(const TOneOrMany<T, TDerived>& oneOrMany, IYsonConsumer* consumer)
+void SerializeOneOrMany(const TOneOrMany<T, TDerived>& oneOrMany, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).List(oneOrMany.Parts_);
 }
@@ -66,7 +66,7 @@ void DeserializeOneOrMany(TOneOrMany<T, TDerived>& oneOrMany, const TNode& node)
     Deserialize(oneOrMany.Parts_, node);
 }
 
-void Serialize(const TKey& key, IYsonConsumer* consumer)
+void Serialize(const TKey& key, NYson::IYsonConsumer* consumer)
 {
     SerializeOneOrMany(key, consumer);
 }
@@ -76,7 +76,7 @@ void Deserialize(TKey& key, const TNode& node)
     DeserializeOneOrMany(key, node);
 }
 
-void Serialize(const TSortColumns& sortColumns, IYsonConsumer* consumer)
+void Serialize(const TSortColumns& sortColumns, NYson::IYsonConsumer* consumer)
 {
     SerializeOneOrMany(sortColumns, consumer);
 }
@@ -86,7 +86,7 @@ void Deserialize(TSortColumns& sortColumns, const TNode& node)
     DeserializeOneOrMany(sortColumns, node);
 }
 
-void Serialize(const TColumnNames& columnNames, IYsonConsumer* consumer)
+void Serialize(const TColumnNames& columnNames, NYson::IYsonConsumer* consumer)
 {
     SerializeOneOrMany(columnNames, consumer);
 }
@@ -154,7 +154,7 @@ void Deserialize(EErasureCodecAttr& erasureCodec, const TNode& node)
     erasureCodec = FromString<EErasureCodecAttr>(node.AsString());
 }
 
-void Serialize(const TColumnSchema& columnSchema, IYsonConsumer* consumer)
+void Serialize(const TColumnSchema& columnSchema, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginMap()
         .Item("name").Value(columnSchema.Name())
@@ -287,7 +287,7 @@ void Deserialize(TColumnSchema& columnSchema, const TNode& node)
     }
 }
 
-void Serialize(const TTableSchema& tableSchema, IYsonConsumer* consumer)
+void Serialize(const TTableSchema& tableSchema, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginAttributes()
         .Item("strict").Value(tableSchema.Strict())
@@ -306,7 +306,7 @@ void Deserialize(TTableSchema& tableSchema, const TNode& node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(const TKeyBound& keyBound, IYsonConsumer* consumer)
+void Serialize(const TKeyBound& keyBound, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginList()
         .Item().Value(::ToString(keyBound.Relation()))
@@ -330,7 +330,7 @@ void Deserialize(TKeyBound& keyBound, const TNode& node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(const TReadLimit& readLimit, IYsonConsumer* consumer)
+void Serialize(const TReadLimit& readLimit, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginMap()
         .DoIf(readLimit.KeyBound_.Defined(), [&] (TFluentMap fluent) {
@@ -361,7 +361,7 @@ void Deserialize(TReadLimit& readLimit, const TNode& node)
     DESERIALIZE_ITEM("tablet_index", readLimit.TabletIndex_);
 }
 
-void Serialize(const TReadRange& readRange, IYsonConsumer* consumer)
+void Serialize(const TReadRange& readRange, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginMap()
         .DoIf(!IsTrivial(readRange.LowerLimit_), [&] (TFluentMap fluent) {
@@ -384,7 +384,7 @@ void Deserialize(TReadRange& readRange, const TNode& node)
     DESERIALIZE_ITEM("exact", readRange.Exact_);
 }
 
-void Serialize(const THashMap<TString, TString>& renameColumns, ::NYson::IYsonConsumer* consumer)
+void Serialize(const THashMap<TString, TString>& renameColumns, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .DoMapFor(renameColumns, [] (TFluentMap fluent, const auto& item) {
@@ -392,7 +392,7 @@ void Serialize(const THashMap<TString, TString>& renameColumns, ::NYson::IYsonCo
         });
 }
 
-void Serialize(const TRichYPath& path, IYsonConsumer* consumer)
+void Serialize(const TRichYPath& path, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginAttributes()
         .DoIf(!path.Ranges_.empty(), [&] (TFluentAttributes fluent) {
@@ -489,7 +489,7 @@ void Deserialize(TRichYPath& path, const TNode& node)
     Deserialize(path.Path_, node);
 }
 
-void Serialize(const TAttributeFilter& filter, IYsonConsumer* consumer)
+void Serialize(const TAttributeFilter& filter, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).List(filter.Attributes_);
 }
@@ -502,7 +502,7 @@ void Deserialize(TTableColumnarStatistics& statistics, const TNode& node)
     DESERIALIZE_ITEM("timestamp_total_weight", statistics.TimestampTotalWeight);
 }
 
-void Serialize(const TGUID& value, IYsonConsumer* consumer)
+void Serialize(const TGUID& value, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).Value(GetGuidAsString(value));
 }
@@ -520,7 +520,7 @@ void Deserialize(TTabletInfo& value, const TNode& node)
     DESERIALIZE_ITEM("barrier_timestamp", value.BarrierTimestamp)
 }
 
-void Serialize(const NTi::TTypePtr& type, IYsonConsumer* consumer)
+void Serialize(const NTi::TTypePtr& type, NYson::IYsonConsumer* consumer)
 {
     auto yson = NTi::NIo::SerializeYson(type.Get());
     ParseYsonStringBuffer(yson, consumer);
