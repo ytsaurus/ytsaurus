@@ -10,6 +10,7 @@ trait TmpDir extends BeforeAndAfterEach with BeforeAndAfterAll {
 
   def testDir: String = s"//tmp/test-${self.getClass.getCanonicalName}"
   val tmpPath = s"$testDir/test-${UUID.randomUUID()}"
+  val hadoopTmpPath = s"ytTable:${tmpPath.drop(1)}"
 
 
   override def beforeAll(): Unit = {

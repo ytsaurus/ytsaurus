@@ -2,8 +2,10 @@ package ru.yandex.spark.yt.fs
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkConf
+import org.apache.spark.network.util.ByteUnit
 import org.apache.spark.sql.{DataFrameReader, SQLContext, SparkSession}
 import org.apache.spark.sql.internal.SQLConf
+import org.apache.spark.sql.internal.SQLConf.buildConf
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
@@ -11,6 +13,11 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import scala.util.Try
 
 package object conf {
+  val YT_MIN_PARTITION_BYTES = buildConf("spark.yt.minPartitionBytes")
+    .doc("The minimum number of bytes to pack into a single partition when reading YT tables.")
+    .version("2.0.0")
+    .bytesConf(ByteUnit.BYTE)
+    .createWithDefaultString("1G")
 
   trait ConfProvider {
     def getYtConf(name: String): Option[String]

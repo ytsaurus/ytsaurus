@@ -2,10 +2,9 @@ package ru.yandex.spark.launcher.rest
 
 import io.circe._
 import io.circe.parser._
-import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{FlatSpec, Matchers}
 
-class ByopDiscoveryServiceTest extends FlatSpec with Matchers with TableDrivenPropertyChecks {
+class ByopDiscoveryServiceTest extends FlatSpec with Matchers {
   behavior of "ByopDiscoveryTest"
 
   private val hosts = Seq(

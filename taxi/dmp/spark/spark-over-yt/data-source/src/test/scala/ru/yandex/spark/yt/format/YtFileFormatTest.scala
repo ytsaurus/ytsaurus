@@ -5,7 +5,7 @@ import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.execution.InputAdapter
 import org.apache.spark.sql.internal.SQLConf
-import org.apache.spark.sql.internal.SQLConf.{PARALLEL_PARTITION_DISCOVERY_THRESHOLD, _}
+import org.apache.spark.sql.internal.SQLConf._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.v2.YtUtils
 import org.apache.spark.sql.yson.UInt64Long.{fromStringUdf, toStringUdf}
@@ -750,28 +750,6 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     a[SparkException] shouldBe thrownBy {
       spark.read.yt(table1, table2)
     }
-  }
-
-  it should "split large chunks in reading plan" in {
-    val data = (1 to 10).toDF().coalesce(1)
-    data.write.yt(tmpPath)
-
-    val partitions = withConf(FILES_MAX_PARTITION_BYTES, "4B") {
-      spark.read.yt(tmpPath).rdd.partitions
-    }
-
-    partitions.length shouldEqual 10
-  }
-
-  it should "merge small chunks in reading plan" in {
-    val data = (1 to 100).toDF().repartition(100)
-    data.write.yt(tmpPath)
-
-    val partitions = withConf(FILES_OPEN_COST_IN_BYTES, "1") {
-      spark.read.yt(tmpPath).rdd.partitions
-    }
-
-    partitions.length shouldEqual defaultParallelism +- 1
   }
 
   it should "infer table's schema one time" in {

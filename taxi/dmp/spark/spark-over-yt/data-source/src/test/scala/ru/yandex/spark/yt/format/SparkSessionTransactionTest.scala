@@ -40,6 +40,7 @@ class SparkSessionTransactionTest extends FlatSpec with Matchers with LocalYtCli
   private def prepareSparkSession(): SparkSession = {
     LocalSpark.stop()
     val sparkConf = LocalSpark.defaultSparkConf
+      .clone()
       .setYtConf(GlobalTransaction.Enabled, true)
       .set(SPARK_SESSION_LISTENERS.key, classOf[GlobalTransactionSparkListener].getCanonicalName)
     SparkSession.builder().master(s"local[1]").config(sparkConf).getOrCreate()
