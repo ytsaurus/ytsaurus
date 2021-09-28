@@ -1925,6 +1925,11 @@ TNodeResources TJobController::GetResourceLimits() const
     return Impl_->GetResourceLimits();
 }
 
+TNodeResources TJobController::GetResourceUsage(bool includeWaiting) const
+{
+    return Impl_->GetResourceUsage(includeWaiting);
+}
+
 void TJobController::SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits)
 {
     Impl_->SetResourceLimitsOverrides(resourceLimits);

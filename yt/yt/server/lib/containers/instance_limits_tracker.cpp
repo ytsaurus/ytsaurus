@@ -26,8 +26,20 @@ TInstanceLimitsTracker::TInstanceLimitsTracker(
 
 void TInstanceLimitsTracker::Start()
 {
-    Executor_->Start();
-    YT_LOG_INFO("Instance limits tracker started");
+    if (!Running_) {
+        Executor_->Start();
+        Running_ = true;
+        YT_LOG_INFO("Instance limits tracker started");
+    }
+}
+
+void TInstanceLimitsTracker::Stop()
+{
+    if (Running_) {
+        Executor_->Stop();
+        Running_ = false;
+        YT_LOG_INFO("Instance limits tracker stopped");
+    }
 }
 
 void TInstanceLimitsTracker::DoUpdateLimits()

@@ -1,11 +1,11 @@
-package NYT.NArbitrageService.NProto;
+package NYT.NArbitrageClient.NProto;
 
 option go_package = "a.yandex-team.ru/yt/go/proto/ytlib/arbitrage_client";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetStatus
-{ };
+{ }
 
 message TRspGetStatus
 {

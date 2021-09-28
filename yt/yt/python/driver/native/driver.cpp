@@ -8,6 +8,8 @@
 
 #include <yt/yt/ytlib/api/connection.h>
 
+#include <yt/yt/ytlib/arbitrage_service/arbitrage_service_proxy.h>
+
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/job_tracker_client/public.h>
@@ -47,10 +49,10 @@ public:
 
         try {
             configNode = ConvertToNode(configDict);
-
             auto connection = CreateConnection(configNode);
+            Connection_ = connection;
             auto driverConfig = ConvertTo<TDriverConfigPtr>(configNode);
-            driver = CreateDriver(connection, driverConfig);
+            driver = CreateDriver(std::move(connection), std::move(driverConfig));
         } catch(const std::exception& ex) {
             throw Py::RuntimeError(TString("Error creating driver\n") + ex.what());
         }
@@ -74,6 +76,7 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(build_master_snapshots, BuildMasterSnapshots, "Forces to build snapshots for all master cells");
         PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GCCollect, "Runs garbage collection");
         PYCXX_ADD_KEYWORDS_METHOD(clear_metadata_caches, ClearMetadataCaches, "Clears metadata caches");
+        PYCXX_ADD_KEYWORDS_METHOD(set_node_resource_targets, SetNodeResourceTargets, "Sets cluster node resource targets");
 
         behaviors().readyType();
     }
@@ -223,6 +226,49 @@ public:
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, ClearMetadataCaches)
 
+    Py::Object SetNodeResourceTargets(Py::Tuple& args, Py::Dict& kwargs)
+    {
+        auto connection = Connection_.Lock();
+        auto nativeConnection = DynamicPointerCast<NApi::NNative::IConnection>(connection);
+        if (!nativeConnection) {
+            throw CreateYtError("'set_node_resource_targets' cannot be used without native connection");
+        }
+
+        if (!HasArgument(args, kwargs, "address")) {
+            throw CreateYtError("Missing argument 'address'");
+        }
+        auto pyAddress = ExtractArgument(args, kwargs, "address");
+        auto address = ConvertStringObjectToString(pyAddress);
+        if (!HasArgument(args, kwargs, "cpu_limit")) {
+            throw CreateYtError("Missing argument 'cpu_limit'");
+        }
+        auto cpuLimit = static_cast<i64>(Py::Int(ExtractArgument(args, kwargs, "cpu_limit")));
+        if (!HasArgument(args, kwargs, "memory_limit")) {
+            throw CreateYtError("Missing argument 'memory_limit'");
+        }
+        auto memoryLimit = static_cast<i64>(Py::Int(ExtractArgument(args, kwargs, "memory_limit")));
+
+        try {
+            auto channel = nativeConnection->GetChannelFactory()->CreateChannel(address);
+            NArbitrageClient::TArbitrageServiceProxy proxy(channel);
+            auto req = proxy.SetTarget();
+            {
+                auto* cpuResource = req->add_resources();
+                cpuResource->set_kind("cpu");
+                cpuResource->set_target(cpuLimit);
+            }
+            {
+                auto* memoryResource = req->add_resources();
+                memoryResource->set_kind("memory");
+                memoryResource->set_target(memoryLimit);
+            }
+            WaitFor(req->Invoke())
+                .ThrowOnError();
+            return Py::None();
+        } CATCH_AND_CREATE_YT_ERROR("Failed to set cluster node resource targets");
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, SetNodeResourceTargets)
+
     PYCXX_DECLARE_DRIVER_METHODS(TDriver)
 
     Py::Type GetDriverType() const override
@@ -231,6 +277,8 @@ public:
     }
 
 private:
+    TWeakPtr<IConnection> Connection_;
+
     IClientPtr CreateClient()
     {
         auto options = TClientOptions::FromUser(NSecurityClient::RootUserName);

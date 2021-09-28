@@ -78,6 +78,9 @@ public:
     //! Returns the maximum allowed resource usage.
     NNodeTrackerClient::NProto::TNodeResources GetResourceLimits() const;
 
+    //! Returns resource usage of running jobs.
+    NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(bool includeWaiting) const;
+
     //! Checks dynamic config to see if job proxy profiling is disabled.
     bool IsJobProxyProfilingDisabled() const;
 

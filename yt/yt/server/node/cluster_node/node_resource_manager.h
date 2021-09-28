@@ -26,6 +26,9 @@ public:
     */
     double GetJobsCpuLimit() const;
 
+    double GetCpuUsage() const;
+    i64 GetMemoryUsage() const;
+
     // TODO(gritukan): Drop it in favour of dynamic config.
     void SetResourceLimitsOverride(const NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides& resourceLimitsOverride);
 
@@ -54,6 +57,8 @@ private:
     void UpdateMemoryLimits();
     void UpdateMemoryFootprint();
     void UpdateJobsCpuLimit();
+
+    NNodeTrackerClient::NProto::TNodeResources GetJobResourceUsage() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeResourceManager)

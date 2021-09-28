@@ -370,6 +370,7 @@ def execute_command(
     response_parameters = parameters.pop("response_parameters", None)
 
     yson_format = yson.to_yson_type("yson", attributes={"format": "text"})
+
     description = driver.get_command_descriptor(command_name)
     if description.input_type() != "null" and parameters.get("input_format") is None:
         parameters["input_format"] = yson_format
@@ -1491,6 +1492,13 @@ def switch_leader(cell_id, new_leader_address):
 def repair_exec_node(address, locations):
     parameters = {"address": address, "locations": locations}
     return execute_command("repair_exec_node", parameters, parse_yson=True)
+
+
+def set_node_resource_targets(address, cpu_limit, memory_limit):
+    _get_driver(driver=None).set_node_resource_targets(
+        address=address,
+        cpu_limit=cpu_limit,
+        memory_limit=memory_limit)
 
 
 def get_version():
