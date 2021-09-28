@@ -304,7 +304,7 @@ def connect(num_executors=5,
 
     # backward compatibility of SPYT-48
     if spark.conf.get("spark.sql.files.maxPartitionBytes") == "5000000":
-        spark.conf.set("spark.sql.files.maxPartitionBytes", "512Mb")
+        spark.conf.set("spark.sql.files.maxPartitionBytes", "2Gb")
 
     return spark
 
