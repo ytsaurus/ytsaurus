@@ -15,12 +15,14 @@ import ru.yandex.spark.yt.wrapper.cypress.{YtAttributes, YtCypressUtils}
 import ru.yandex.spark.yt.wrapper.table.YtTableSettings
 import ru.yandex.yson.YsonConsumer
 import ru.yandex.yt.ytclient.proxy.request.{GetTablePivotKeys, ReshardTable, WriteTable}
-import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient, ModifyRowsRequest, SelectRowsRequest}
+import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient, ModifyRowsRequest, RetryPolicy, SelectRowsRequest}
+import ru.yandex.yt.ytclient.rpc.AlwaysSwitchRpcFailoverPolicy
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import java.nio.charset.StandardCharsets
 import java.time.{Duration => JDuration}
+import java.util.concurrent.{ExecutorService, Executors}
 import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.concurrent.TimeoutException
@@ -35,6 +37,7 @@ trait YtDynTableUtils {
 
   type PivotKey = Array[Byte]
   val emptyPivotKey: PivotKey = serialiseYson(new YTreeBuilder().beginMap().endMap().build())
+  private val executor = Executors.newSingleThreadExecutor
 
   def serialiseYson(node: YTreeNode): Array[Byte] = {
     val baos = new ByteArrayOutputStream
@@ -171,12 +174,16 @@ trait YtDynTableUtils {
                  parentTransaction: Option[ApiServiceTransaction] = None)(implicit yt: CompoundClient): Seq[YTreeMapNode] = {
     import scala.collection.JavaConverters._
     val request = SelectRowsRequest.of(s"""* from [${formatPath(path)}] ${condition.map("where " + _).mkString}""")
+    waitState(path, TabletState.Mounted, 60 seconds)
 
-    runUnderTransaction(parentTransaction)(transaction => {
-      waitState(path, TabletState.Mounted, 60 seconds)
-      val selected = transaction.selectRows(request).get(10, MINUTES)
-      selected.getRows.asScala.map(x => x.toYTreeMap(schema)).toList
-    })
+    val rowsFuture = yt.retryWithTabletTransaction(
+      _.selectRows(request),
+      executor,
+      RetryPolicy.attemptLimited(3, RetryPolicy.fromRpcFailoverPolicy(new AlwaysSwitchRpcFailoverPolicy))
+    )
+
+    val selected = rowsFuture.join()
+    selected.getRows.asScala.map(x => x.toYTreeMap(schema)).toList
   }
 
   private def processModifyRowsRequest(request: ModifyRowsRequest,
