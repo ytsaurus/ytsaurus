@@ -254,7 +254,7 @@ private:
                     break;
 
                 case EStoreState::ActiveDynamic:
-                    backingMemoryUsage += memoryUsage;
+                    activeMemoryUsage += memoryUsage;
                     break;
 
                 case EStoreState::Persistent:
