@@ -1,28 +1,23 @@
 package ru.yandex.spark.yt.wrapper.dyntable
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.cypress.YPath
-import ru.yandex.inside.yt.kosher.impl.ytree.YTreeNodeUtils
-import ru.yandex.inside.yt.kosher.impl.ytree.`object`.YTreeSerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.{YTreeBinarySerializer, YTreeTextSerializer}
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer
 import ru.yandex.inside.yt.kosher.ytree.{YTreeMapNode, YTreeNode}
-import ru.yandex.misc.reflection.ClassX
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
-import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.YtWrapper.{createTable, createTransaction}
 import ru.yandex.spark.yt.wrapper.cypress.{YtAttributes, YtCypressUtils}
 import ru.yandex.spark.yt.wrapper.table.YtTableSettings
-import ru.yandex.yson.YsonConsumer
-import ru.yandex.yt.ytclient.proxy.request.{GetTablePivotKeys, ReshardTable, WriteTable}
-import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient, ModifyRowsRequest, RetryPolicy, SelectRowsRequest}
+import ru.yandex.yt.ytclient.proxy.request.{GetTablePivotKeys, ReshardTable}
+import ru.yandex.yt.ytclient.proxy._
 import ru.yandex.yt.ytclient.rpc.AlwaysSwitchRpcFailoverPolicy
-import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
+import ru.yandex.yt.ytclient.tables.TableSchema
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-import java.nio.charset.StandardCharsets
+import java.io.ByteArrayOutputStream
 import java.time.{Duration => JDuration}
-import java.util.concurrent.{ExecutorService, Executors}
+import java.util.concurrent.Executors
 import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.concurrent.TimeoutException
@@ -37,7 +32,7 @@ trait YtDynTableUtils {
 
   type PivotKey = Array[Byte]
   val emptyPivotKey: PivotKey = serialiseYson(new YTreeBuilder().beginMap().endMap().build())
-  private val executor = Executors.newSingleThreadExecutor
+  private val executor = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder().setDaemon(true).build())
 
   def serialiseYson(node: YTreeNode): Array[Byte] = {
     val baos = new ByteArrayOutputStream
