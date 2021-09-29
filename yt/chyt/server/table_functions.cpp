@@ -74,7 +74,7 @@ public:
 
         auto protoSpecString = Base64Decode(base64EncodedSpec);
         NProto::TSubquerySpec protoSpec;
-        protoSpec.ParseFromString(protoSpecString);
+        Y_PROTOBUF_SUPPRESS_NODISCARD protoSpec.ParseFromString(protoSpecString);
         subquerySpec = NYT::FromProto<TSubquerySpec>(protoSpec);
     }
 
