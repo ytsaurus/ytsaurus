@@ -1149,7 +1149,7 @@ TEST(TProtobufToYsonTest, Success)
     }
 
     TEST_PROLOGUE()
-    message.SerializeToCodedStream(&codedStream);
+    Y_PROTOBUF_SUPPRESS_NODISCARD message.SerializeToCodedStream(&codedStream);
     TEST_EPILOGUE(TMessage)
 
     auto writtenNode = ConvertToNode(TYsonString(yson));
@@ -1280,7 +1280,7 @@ TEST(TProtobufToYsonTest, Casing)
     message.set_crazy_field(3);
 
     TEST_PROLOGUE()
-    message.SerializeToCodedStream(&codedStream);
+    Y_PROTOBUF_SUPPRESS_NODISCARD message.SerializeToCodedStream(&codedStream);
     TEST_EPILOGUE(TCamelCaseStyleMessage)
 
     auto writtenNode = ConvertToNode(TYsonString(yson));
