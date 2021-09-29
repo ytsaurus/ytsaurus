@@ -1,22 +1,18 @@
 package ru.yandex.spark.yt.test
 
 import org.apache.spark.SparkConf
-import org.apache.spark.internal.config.FallbackConfigEntry
 import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanExec
 import org.apache.spark.sql.execution.{SparkPlan, SparkStrategy}
-import org.apache.spark.sql.internal.SQLConf.{FILES_OPEN_COST_IN_BYTES, FILE_COMMIT_PROTOCOL_CLASS}
-import org.apache.spark.sql.{DataFrame, DataFrameReader, SparkSession, Strategy}
+import org.apache.spark.sql.internal.SQLConf.FILE_COMMIT_PROTOCOL_CLASS
+import org.apache.spark.sql.{DataFrame, SparkSession, Strategy}
 import org.apache.spark.yt.test.Utils
 import org.apache.spark.yt.test.Utils.{SparkConfigEntry, defaultConfValue}
 import org.scalatest.TestSuite
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter._
 import ru.yandex.spark.yt.test.LocalSpark.defaultSparkConf
-import ru.yandex.spark.yt.wrapper.YtWrapper.createTransaction
 import ru.yandex.spark.yt.wrapper.client.{YtClientProvider, YtRpcClient}
 
 import scala.annotation.tailrec
-import scala.concurrent.duration._
-
 
 trait LocalSpark extends LocalYtClient {
   self: TestSuite =>
