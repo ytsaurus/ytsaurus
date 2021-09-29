@@ -1601,7 +1601,7 @@ private:
                 std::unique_ptr<Message> message(MessageFactory::generated_factory()->GetPrototype(messageType->GetUnderlying())->New());
                 converter.Deserializer(message.get(), node);
                 SerializedMessage_.clear();
-                message->SerializeToString(&SerializedMessage_);
+                Y_PROTOBUF_SUPPRESS_NODISCARD message->SerializeToString(&SerializedMessage_);
                 WriteTag();
                 BodyCodedStream_.WriteVarint64(SerializedMessage_.length());
                 BodyCodedStream_.WriteRaw(SerializedMessage_.begin(), static_cast<int>(SerializedMessage_.length()));
