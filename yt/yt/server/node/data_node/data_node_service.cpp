@@ -621,10 +621,7 @@ private:
             i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
             response->set_net_queue_size(netQueueSize);
 
-            bool netThrottling = netQueueSize > limit;
-            response->set_net_throttling(netThrottling);
-
-            return netThrottling;
+            return netQueueSize > limit;
         };
 
         auto netThrottling = checkNetThrottling(Config_->NetOutThrottlingLimit);
@@ -679,6 +676,7 @@ private:
             }
         }
 
+        response->set_net_throttling(netThrottling);
         ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
 
         int blocksWithData = 0;
