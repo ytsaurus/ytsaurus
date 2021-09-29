@@ -680,7 +680,10 @@ private:
 
         if (PrerequisiteTransaction_) {
             YT_LOG_DEBUG("Checking prerequisite transaction");
-            return PrerequisiteTransaction_->Ping();
+            TTransactionPingOptions options{
+                .EnableRetries = true
+            };
+            return PrerequisiteTransaction_->Ping(options);
         } else {
             return MakeFuture<void>(TError("No prerequisite transaction is attached"));
         }
