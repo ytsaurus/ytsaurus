@@ -39,24 +39,28 @@ public:
 
     DECLARE_RPC_SERVICE_METHOD(NArbitrageClient::NProto, GetStatus)
     {
-        auto setResourceStatus = [&] (TStringBuf kind, i64 usage) {
+        auto setResourceStatus = [&] (TStringBuf kind, i64 usage, i64 demand) {
             auto* resource = response->add_resources();
             resource->set_kind(ToString(kind));
             resource->set_usage(usage);
-            // TODO(gritukan): Implement demand estimation.
-            resource->set_demand(0);
+            resource->set_demand(demand);
         };
 
         const auto& nodeResourceManager = Bootstrap_->GetNodeResourceManager();
         auto cpuUsage = std::ceil(nodeResourceManager->GetCpuUsage());
+        auto cpuDemand = std::ceil(nodeResourceManager->GetCpuDemand());
         auto memoryUsage = nodeResourceManager->GetMemoryUsage();
+        auto memoryDemand = nodeResourceManager->GetMemoryDemand();
 
-        context->SetResponseInfo("CpuUsage: %v, MemoryUsage: %v",
+        context->SetResponseInfo(
+            "CpuUsage: %v, CpuDemand: %v, MemoryUsage: %v, MemoryDemand: %v",
             cpuUsage,
-            memoryUsage);
+            cpuDemand,
+            memoryUsage,
+            memoryDemand);
 
-        setResourceStatus(CpuResourceName, cpuUsage);
-        setResourceStatus(MemoryResourceName, memoryUsage);
+        setResourceStatus(CpuResourceName, cpuUsage, cpuDemand);
+        setResourceStatus(MemoryResourceName, memoryUsage, memoryDemand);
 
         context->Reply();
     }
