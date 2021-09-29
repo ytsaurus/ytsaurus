@@ -2275,7 +2275,7 @@ private:
                             std::unique_ptr<Message> message(MessageFactory::generated_factory()->GetPrototype(messageType->GetUnderlying())->New());
                             PooledString_.resize(length);
                             CodedStream_.ReadRaw(PooledString_.data(), PooledString_.size());
-                            message->ParseFromArray(PooledString_.data(), PooledString_.size());
+                            Y_PROTOBUF_SUPPRESS_NODISCARD message->ParseFromArray(PooledString_.data(), PooledString_.size());
                             converter.Serializer(Consumer_, message.get());
                             YPathStack_.Pop();
                         } else {
