@@ -29,6 +29,9 @@ public:
     double GetCpuUsage() const;
     i64 GetMemoryUsage() const;
 
+    double GetCpuDemand() const;
+    i64 GetMemoryDemand() const;
+
     // TODO(gritukan): Drop it in favour of dynamic config.
     void SetResourceLimitsOverride(const NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides& resourceLimitsOverride);
 
@@ -59,6 +62,10 @@ private:
     void UpdateJobsCpuLimit();
 
     NNodeTrackerClient::NProto::TNodeResources GetJobResourceUsage() const;
+
+    double GetTabletSlotCpu() const;
+
+    TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> GetMemoryLimits() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeResourceManager)

@@ -97,13 +97,7 @@ double TNodeResourceManager::GetCpuUsage() const
     cpuUsage += GetJobResourceUsage().cpu();
 
     // Tablet cells.
-    if (Bootstrap_->IsTabletNode()) {
-        const auto& tabletSlotManager = Bootstrap_->GetTabletNodeBootstrap()->GetSlotManager();
-        if (tabletSlotManager) {
-            double cpuPerTabletSlot = dynamicConfig->CpuPerTabletSlot.value_or(*config->CpuPerTabletSlot);
-            cpuUsage += tabletSlotManager->GetUsedCpu(cpuPerTabletSlot);
-        }
-    }
+    cpuUsage += GetTabletSlotCpu();
 
     return cpuUsage;
 }
@@ -113,6 +107,41 @@ i64 TNodeResourceManager::GetMemoryUsage() const
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     return Bootstrap_->GetMemoryUsageTracker()->GetTotalUsed();
+}
+
+double TNodeResourceManager::GetCpuDemand() const
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto config = Bootstrap_->GetConfig()->ResourceLimits;
+    auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits;
+
+    double cpuDemand = 0;
+
+    // Node dedicated CPU.
+    cpuDemand += dynamicConfig->NodeDedicatedCpu.value_or(*config->NodeDedicatedCpu);
+
+    // Tablet cells.
+    cpuDemand += GetTabletSlotCpu();
+
+    return cpuDemand;
+}
+
+i64 TNodeResourceManager::GetMemoryDemand() const
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto limits = GetMemoryLimits();
+
+    i64 memoryDemand = 0;
+    for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
+        const auto& limit = limits[category];
+        if (limit->Type != EMemoryLimitType::Dynamic) {
+            memoryDemand += *limit->Value;
+        }
+    }
+
+    return memoryDemand;
 }
 
 void TNodeResourceManager::SetResourceLimitsOverride(const TNodeResourceLimitsOverrides& resourceLimitsOverride)
@@ -138,56 +167,12 @@ void TNodeResourceManager::UpdateMemoryLimits()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     const auto& config = Bootstrap_->GetConfig()->ResourceLimits;
-    auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits;
-
-    auto getMemoryLimit = [&] (EMemoryCategory category) {
-        auto memoryLimit = dynamicConfig->MemoryLimits[category];
-        if (!memoryLimit) {
-            memoryLimit = config->MemoryLimits[category];
-        }
-
-        return memoryLimit;
-    };
-
-    i64 freeMemoryWatermark = dynamicConfig->FreeMemoryWatermark.value_or(*config->FreeMemoryWatermark);
-    i64 totalDynamicMemory = TotalMemory_ - freeMemoryWatermark;
-
     const auto& memoryUsageTracker = Bootstrap_->GetMemoryUsageTracker();
 
+    auto limits = GetMemoryLimits();
+
+    // TODO(gritukan): Subtract watermark?
     memoryUsageTracker->SetTotalLimit(TotalMemory_);
-
-    int dynamicCategoryCount = 0;
-    TEnumIndexedVector<EMemoryCategory, i64> newLimits;
-    for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
-        auto memoryLimit = getMemoryLimit(category);
-
-        if (!memoryLimit || !memoryLimit->Type || memoryLimit->Type == EMemoryLimitType::None) {
-            newLimits[category] = std::numeric_limits<i64>::max();
-            totalDynamicMemory -= memoryUsageTracker->GetUsed(category);
-        } else if (memoryLimit->Type == EMemoryLimitType::Static) {
-            newLimits[category] = *memoryLimit->Value;
-            totalDynamicMemory -= *memoryLimit->Value;
-        } else {
-            ++dynamicCategoryCount;
-        }
-    }
-
-    if (dynamicCategoryCount > 0) {
-        auto dynamicMemoryPerCategory = std::max<i64>(totalDynamicMemory / dynamicCategoryCount, 0);
-        for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
-            auto memoryLimit = getMemoryLimit(category);
-            if (memoryLimit && memoryLimit->Type == EMemoryLimitType::Dynamic) {
-                newLimits[category] = dynamicMemoryPerCategory;
-            }
-        }
-    }
-
-    if (ResourceLimitsOverride_.has_system_memory()) {
-        newLimits[EMemoryCategory::SystemJobs] = ResourceLimitsOverride_.system_memory();
-    }
-    if (ResourceLimitsOverride_.has_user_memory()) {
-        newLimits[EMemoryCategory::UserJobs] = ResourceLimitsOverride_.user_memory();
-    }
 
     for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
         if (ExternalMemoryCategories.contains(category)) {
@@ -195,7 +180,7 @@ void TNodeResourceManager::UpdateMemoryLimits()
         }
 
         auto oldLimit = memoryUsageTracker->GetExplicitLimit(category);
-        auto newLimit = newLimits[category];
+        auto newLimit = *limits[category]->Value;
 
         if (std::abs(oldLimit - newLimit) > config->MemoryAccountingTolerance) {
             YT_LOG_INFO("Updating memory category limit (Category: %v, OldLimit: %v, NewLimit: %v)",
@@ -283,13 +268,7 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
             newJobsCpuLimit = Bootstrap_->GetConfig()->ExecNode->JobController->ResourceLimits->Cpu;
         }
 
-        if (Bootstrap_->IsTabletNode()) {
-            const auto& tabletSlotManager = Bootstrap_->GetTabletNodeBootstrap()->GetSlotManager();
-            if (tabletSlotManager) {
-                double cpuPerTabletSlot = dynamicConfig->CpuPerTabletSlot.value_or(*config->CpuPerTabletSlot);
-                newJobsCpuLimit -= tabletSlotManager->GetUsedCpu(cpuPerTabletSlot);
-            }
-        }
+        newJobsCpuLimit -= GetTabletSlotCpu();
     }
     newJobsCpuLimit = std::max<double>(newJobsCpuLimit, 0);
 
@@ -308,6 +287,92 @@ NNodeTrackerClient::NProto::TNodeResources TNodeResourceManager::GetJobResourceU
         .AsyncVia(Bootstrap_->GetJobInvoker())
         .Run())
         .ValueOrThrow();
+}
+
+double TNodeResourceManager::GetTabletSlotCpu() const
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (!Bootstrap_->IsTabletNode()) {
+        return false;
+    }
+
+    const auto& config = Bootstrap_->GetConfig()->ResourceLimits;
+    const auto& dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits;
+
+    if (const auto& tabletSlotManager = Bootstrap_->GetTabletNodeBootstrap()->GetSlotManager()) {
+        double cpuPerTabletSlot = dynamicConfig->CpuPerTabletSlot.value_or(*config->CpuPerTabletSlot);
+        return tabletSlotManager->GetUsedCpu(cpuPerTabletSlot);
+    } else {
+        return 0;
+    }
+}
+
+TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> TNodeResourceManager::GetMemoryLimits() const
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> limits;
+
+    const auto& config = Bootstrap_->GetConfig()->ResourceLimits;
+    auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits;
+
+    auto getMemoryLimit = [&] (EMemoryCategory category) {
+        auto memoryLimit = dynamicConfig->MemoryLimits[category];
+        if (!memoryLimit) {
+            memoryLimit = config->MemoryLimits[category];
+        }
+
+        return memoryLimit;
+    };
+
+    i64 freeMemoryWatermark = dynamicConfig->FreeMemoryWatermark.value_or(*config->FreeMemoryWatermark);
+    i64 totalDynamicMemory = TotalMemory_ - freeMemoryWatermark;
+
+    const auto& memoryUsageTracker = Bootstrap_->GetMemoryUsageTracker();
+
+    int dynamicCategoryCount = 0;
+    TEnumIndexedVector<EMemoryCategory, i64> newLimits;
+    for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
+        auto memoryLimit = getMemoryLimit(category);
+        auto& limit = limits[category];
+        limit = New<TMemoryLimit>();
+
+        if (ExternalMemoryCategories.contains(category)) {
+            limit->Type = EMemoryLimitType::None;
+            limit->Value = memoryUsageTracker->GetLimit(category);
+        } else if (!memoryLimit || !memoryLimit->Type || memoryLimit->Type == EMemoryLimitType::None) {
+            limit->Type = EMemoryLimitType::None;
+            limit->Value = std::numeric_limits<i64>::max();
+            totalDynamicMemory -= memoryUsageTracker->GetUsed(category);
+        } else if (memoryLimit->Type == EMemoryLimitType::Static) {
+            limit->Type = EMemoryLimitType::Static;
+            limit->Value = *memoryLimit->Value;
+            totalDynamicMemory -= *memoryLimit->Value;
+        } else {
+            limit->Type = EMemoryLimitType::Dynamic;
+            ++dynamicCategoryCount;
+        }
+    }
+
+    if (dynamicCategoryCount > 0) {
+        auto dynamicMemoryPerCategory = std::max<i64>(totalDynamicMemory / dynamicCategoryCount, 0);
+        for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
+            auto& limit = limits[category];
+            if (limit->Type == EMemoryLimitType::Dynamic) {
+                limit->Value = dynamicMemoryPerCategory;
+            }
+        }
+    }
+
+    if (ResourceLimitsOverride_.has_system_memory()) {
+        limits[EMemoryCategory::SystemJobs]->Value = ResourceLimitsOverride_.system_memory();
+    }
+    if (ResourceLimitsOverride_.has_user_memory()) {
+        limits[EMemoryCategory::UserJobs]->Value = ResourceLimitsOverride_.user_memory();
+    }
+
+    return limits;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
