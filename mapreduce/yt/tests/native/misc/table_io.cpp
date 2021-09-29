@@ -1631,7 +1631,7 @@ Y_UNIT_TEST_SUITE(StreamReaders)
     TString SerializeProto(const Message& row)
     {
         TString data;
-        row.SerializeToString(&data);
+        Y_PROTOBUF_SUPPRESS_NODISCARD row.SerializeToString(&data);
         auto len = static_cast<ui32>(data.size());
         auto lenStr = TString(reinterpret_cast<char*>(&len), sizeof(len));
         auto dataWithLen = lenStr + data;
