@@ -22,7 +22,7 @@ object YtFilePartition {
     val defaultMaxSplitBytes =
       sparkSession.sessionState.conf.filesMaxPartitionBytes
     val minSplitBytes = org.apache.spark.network.util.JavaUtils.byteStringAs(
-      sparkSession.sessionState.conf.getConfString(YT_MIN_PARTITION_BYTES),
+      sparkSession.sessionState.conf.getConfString(YT_MIN_PARTITION_BYTES, "1G"),
       ByteUnit.BYTE
     )
 
