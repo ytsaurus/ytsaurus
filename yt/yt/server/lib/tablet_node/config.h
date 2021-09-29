@@ -169,6 +169,12 @@ public:
     i64 MinHunkCompactionTotalHunkLength;
     double MaxHunkCompactionGarbageRatio;
 
+    i64 MaxHunkCompactionSize;
+    i64 HunkCompactionSizeBase;
+    double HunkCompactionSizeRatio;
+    int MinHunkCompactionChunkCount;
+    int MaxHunkCompactionChunkCount;
+
     TTableMountConfig()
     {
         RegisterParameter("tablet_cell_bundle", TabletCellBundle)
@@ -400,6 +406,22 @@ public:
             .InRange(0.0, 1.0)
             .Default(0.5);
 
+        RegisterParameter("max_hunk_compaction_size", MaxHunkCompactionSize)
+            .GreaterThan(0)
+            .Default(8_MB);
+        RegisterParameter("hunk_compaction_size_base", HunkCompactionSizeBase)
+            .GreaterThan(0)
+            .Default(16_MB);
+        RegisterParameter("hunk_compaction_size_ratio", HunkCompactionSizeRatio)
+            .GreaterThan(1.0)
+            .Default(100.0);
+        RegisterParameter("min_hunk_compaction_chunk_count", MinHunkCompactionChunkCount)
+            .GreaterThan(1)
+            .Default(2);
+        RegisterParameter("max_hunk_compaction_chunk_count", MaxHunkCompactionChunkCount)
+            .GreaterThan(1)
+            .Default(5);
+
         RegisterPostprocessor([&] () {
             if (MaxDynamicStoreRowCount > MaxDynamicStoreValueCount) {
                 THROW_ERROR_EXCEPTION("\"max_dynamic_store_row_count\" must be less than or equal to \"max_dynamic_store_value_count\"");
@@ -418,6 +440,9 @@ public:
             }
             if (MaxCompactionStoreCount < MinCompactionStoreCount) {
                 THROW_ERROR_EXCEPTION("\"max_compaction_store_count\" must be greater than or equal to \"min_compaction_chunk_count\"");
+            }
+            if (MaxHunkCompactionChunkCount < MinHunkCompactionChunkCount) {
+                THROW_ERROR_EXCEPTION("\"max_hunk_compaction_chunk_count\" must be greater than or equal to \"min_hunk_compaction_chunk_count\"");
             }
             if (EnableLookupHashTable && InMemoryMode != NTabletClient::EInMemoryMode::Uncompressed) {
                 THROW_ERROR_EXCEPTION("\"enable_lookup_hash_table\" can only be true if \"in_memory_mode\" is \"uncompressed\"");
