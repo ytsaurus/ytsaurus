@@ -111,6 +111,7 @@ DEFINE_ENUM(EHunkCompactionReason,
     (None)
     (ForcedCompaction)
     (GarbageRatioTooHigh)
+    (HunkChunkTooSmall)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1909,6 +1910,14 @@ private:
             static_cast<double>(hunkChunk->GetReferencedTotalHunkLength()) / hunkChunk->GetTotalHunkLength() < 1.0 - mountConfig->MaxHunkCompactionGarbageRatio;
     }
 
+    static bool IsSmallHunkCompactionNeeded(
+        const TTablet* tablet,
+        const THunkChunkPtr& hunkChunk)
+    {
+        const auto& mountConfig = tablet->GetSettings().MountConfig;
+        return hunkChunk->GetTotalHunkLength() <= mountConfig->MaxHunkCompactionSize;
+    }
+
     static EHunkCompactionReason GetHunkCompactionReason(
         const TTablet* tablet,
         const THunkChunkPtr& hunkChunk)
@@ -1921,24 +1930,39 @@ private:
             return EHunkCompactionReason::GarbageRatioTooHigh;
         }
 
+        if (IsSmallHunkCompactionNeeded(tablet, hunkChunk)) {
+            return EHunkCompactionReason::HunkChunkTooSmall;
+        }
+
         return EHunkCompactionReason::None;
     }
 
     THashSet<TChunkId> PickCompactableHunkChunkIds(
         const TTablet* tablet,
-        const TTabletSnapshotPtr& tabletSnapshot,
         const std::vector<TSortedChunkStorePtr>& stores,
         const NLogging::TLogger& logger)
     {
         const auto& Logger = logger;
-        THashSet<TChunkId> result;
+        const auto& mountConfig = tablet->GetSettings().MountConfig;
+
+        // Forced or garbage ratio too high. Will be compacted unconditionally.
+        THashSet<TChunkId> finalistIds;
+
+        // Too small hunk chunks. Will be compacted only if there are enough of them.
+        THashSet<THunkChunkPtr> candidates;
+
         for (const auto& store : stores) {
             for (const auto& hunkRef : store->HunkChunkRefs()) {
                 const auto& hunkChunk = hunkRef.HunkChunk;
                 auto compactionReason = GetHunkCompactionReason(tablet, hunkChunk);
-                if (compactionReason != EHunkCompactionReason::None) {
-                    if (result.insert(hunkChunk->GetId()).second) {
-                        YT_LOG_DEBUG_IF(tabletSnapshot->Settings.MountConfig->EnableLsmVerboseLogging,
+
+                if (compactionReason == EHunkCompactionReason::None) {
+                    continue;
+                } else if (compactionReason == EHunkCompactionReason::HunkChunkTooSmall) {
+                    candidates.insert(hunkChunk);
+                } else {
+                    if (finalistIds.insert(hunkChunk->GetId()).second) {
+                        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                             "Hunk chunk is picked for compaction (HunkChunkId: %v, Reason: %v)",
                             hunkChunk->GetId(),
                             compactionReason);
@@ -1946,9 +1970,59 @@ private:
                 }
             }
         }
-        return result;
-    }
 
+        // Fast path.
+        if (ssize(candidates) < mountConfig->MinHunkCompactionChunkCount)
+        {
+            return finalistIds;
+        }
+
+        std::vector<THunkChunkPtr> sortedCandidates(
+            candidates.begin(),
+            candidates.end());
+        std::sort(
+            sortedCandidates.begin(),
+            sortedCandidates.end(),
+            [] (const auto& lhs, const auto& rhs) {
+                return lhs->GetTotalHunkLength() < rhs->GetTotalHunkLength();
+            });
+
+        for (int i = 0; i < ssize(sortedCandidates); ++i) {
+            i64 totalSize = 0;
+            int j = i;
+            while (j < ssize(sortedCandidates)) {
+                if (j - i == mountConfig->MaxHunkCompactionChunkCount) {
+                    break;
+                }
+
+                i64 size = sortedCandidates[j]->GetTotalHunkLength();
+                if (size > mountConfig->HunkCompactionSizeBase &&
+                    totalSize > 0 &&
+                    size > totalSize * mountConfig->HunkCompactionSizeRatio)
+                {
+                    break;
+                }
+
+                totalSize += size;
+                ++j;
+            }
+
+            if (j - i >= mountConfig->MinHunkCompactionChunkCount) {
+                while (i < j) {
+                    const auto& candidate = sortedCandidates[i];
+                    YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
+                        "Hunk chunk is picked for compaction (HunkChunkId: %v, Reason: %v)",
+                        candidate->GetId(),
+                        EHunkCompactionReason::HunkChunkTooSmall);
+                    InsertOrCrash(finalistIds, candidate->GetId());
+                    ++i;
+                }
+                break;
+            }
+        }
+
+        return finalistIds;
+    }
 
     IVersionedReaderPtr CreateReader(
         TTablet* tablet,
@@ -1978,7 +2052,6 @@ private:
             tablet->GetPhysicalSchema(),
             PickCompactableHunkChunkIds(
                 tablet,
-                tabletSnapshot,
                 stores,
                 logger),
             chunkReadOptions);

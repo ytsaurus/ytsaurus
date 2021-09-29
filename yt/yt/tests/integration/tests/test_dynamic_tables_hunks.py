@@ -149,6 +149,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
     def test_compaction(self, optimize_for):
         sync_create_cells(1)
         self._create_table(optimize_for=optimize_for)
+        set("//tmp/t/@max_hunk_compaction_size", 1)
 
         sync_mount_table("//tmp/t")
         rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
@@ -903,3 +904,24 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         wait(lambda: inline_hunk_value_count.get_delta() == 10)
         wait(lambda: ref_hunk_value_count.get_delta() == 5)
+
+    @authors("ifsmirnov")
+    def test_small_hunk_compaction(self):
+        sync_create_cells(1)
+        self._create_table()
+        set("//tmp/t/@max_hunk_compaction_chunk_count", 2)
+        sync_mount_table("//tmp/t")
+
+        for i in range(3):
+            insert_rows("//tmp/t", [{"key": i, "value": "verylongvalue" + str(i)}])
+            sync_flush_table("//tmp/t")
+
+        wait(lambda: get("//tmp/t/@chunk_count") == 1 + 2)
+        (store_chunk_id, ) = self._get_store_chunk_ids("//tmp/t")
+        assert len(get("#{}/@hunk_chunk_refs".format(store_chunk_id))) == 2
+
+        set("//tmp/t/@forced_store_compaction_revision", 1)
+        remount_table("//tmp/t")
+        wait(lambda: get("//tmp/t/@chunk_count") == 1 + 1)
+        (store_chunk_id, ) = self._get_store_chunk_ids("//tmp/t")
+        assert len(get("#{}/@hunk_chunk_refs".format(store_chunk_id))) == 1
