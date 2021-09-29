@@ -115,13 +115,19 @@ private:
         return Result;
     }
 
+    static TRetryChecker GetPingRetryChecker()
+    {
+        static const auto Result = BIND(&IsRetriableError);
+        return Result;
+    }
+
     static TRetryChecker GetCheckDownedParticipantsRetryChecker()
     {
         static const auto Result = BIND(&IsRetriableError);
         return Result;
     }
 
-    TTransactionSupervisorServiceProxy MakeSupervisorProxy(IChannelPtr channel, TRetryChecker retryChecker = {})
+    TTransactionSupervisorServiceProxy MakeSupervisorProxy(IChannelPtr channel, TRetryChecker retryChecker)
     {
         if (retryChecker) {
             channel = CreateRetryingChannel(Config_, std::move(channel), std::move(retryChecker));
@@ -1034,7 +1040,7 @@ private:
     }
 
 
-    TFuture<void> SendPing(const TTransactionPingOptions& /*options*/ = {})
+    TFuture<void> SendPing(const TTransactionPingOptions& options = {})
     {
         std::vector<TFuture<void>> asyncResults;
         for (auto cellId : GetRegisteredParticipantIds()) {
@@ -1051,7 +1057,9 @@ private:
                 continue;
             }
 
-            auto proxy = Owner_->MakeSupervisorProxy(std::move(channel));
+            auto proxy = Owner_->MakeSupervisorProxy(
+                std::move(channel),
+                options.EnableRetries ? Owner_->GetPingRetryChecker() : TRetryChecker());
             auto req = proxy.PingTransaction();
             req->SetUser(Owner_->User_);
             ToProto(req->mutable_transaction_id(), Id_);
