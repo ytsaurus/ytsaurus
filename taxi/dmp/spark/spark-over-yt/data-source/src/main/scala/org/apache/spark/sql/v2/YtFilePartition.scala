@@ -21,8 +21,11 @@ object YtFilePartition {
                     maybeReadParallelism: Option[Int]): Long = {
     val defaultMaxSplitBytes =
       sparkSession.sessionState.conf.filesMaxPartitionBytes
-    val minSplitBytes =
-      sparkSession.sessionState.conf.getConf(YT_MIN_PARTITION_BYTES)
+    val minSplitBytes = org.apache.spark.network.util.JavaUtils.byteStringAs(
+      sparkSession.sessionState.conf.getConfString(YT_MIN_PARTITION_BYTES),
+      ByteUnit.BYTE
+    )
+
     val openCostInBytes = sparkSession.sessionState.conf.filesOpenCostInBytes
     val defaultParallelism = sparkSession.sparkContext.defaultParallelism
     val totalBytes = selectedPartitions.flatMap(_.files.map(_.getLen + openCostInBytes)).sum

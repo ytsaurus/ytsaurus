@@ -13,11 +13,7 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import scala.util.Try
 
 package object conf {
-  val YT_MIN_PARTITION_BYTES = buildConf("spark.yt.minPartitionBytes")
-    .doc("The minimum number of bytes to pack into a single partition when reading YT tables.")
-    .version("2.0.0")
-    .bytesConf(ByteUnit.BYTE)
-    .createWithDefaultString("1G")
+  val YT_MIN_PARTITION_BYTES = "spark.yt.minPartitionBytes"
 
   trait ConfProvider {
     def getYtConf(name: String): Option[String]

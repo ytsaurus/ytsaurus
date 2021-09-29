@@ -25,7 +25,7 @@ class AutoPartitioningTest extends FlatSpec with Matchers with LocalSpark with T
     data.toDF().coalesce(1).write.yt(tmpPath)
 
     val (partitions, res) = withConf(FILES_MAX_PARTITION_BYTES, "4B") {
-      withConf(YT_MIN_PARTITION_BYTES, "4B") {
+      withConf(YT_MIN_PARTITION_BYTES, "4B", Some("1Gb")) {
         val df = spark.read.yt(tmpPath)
         (df.rdd.partitions, df.as[Long].collect())
       }
@@ -43,7 +43,7 @@ class AutoPartitioningTest extends FlatSpec with Matchers with LocalSpark with T
     repartition(data.toDS(), 100).write.yt(tmpPath)
 
     val (partitions, res) = withConf(FILES_OPEN_COST_IN_BYTES, "0") {
-      withConf(YT_MIN_PARTITION_BYTES, "0B") {
+      withConf(YT_MIN_PARTITION_BYTES, "0B", Some("1Gb")) {
         val df = spark.read.yt(tmpPath)
         (df.rdd.partitions, df.as[Long].collect())
       }
@@ -83,7 +83,7 @@ class AutoPartitioningTest extends FlatSpec with Matchers with LocalSpark with T
     repartition(data2.toDS(), 40).write.yt(s"$tmpPath/2")
 
     val (partitions, res) = withConf(FILES_OPEN_COST_IN_BYTES, "0") {
-      withConf(YT_MIN_PARTITION_BYTES, "0B") {
+      withConf(YT_MIN_PARTITION_BYTES, "0B", Some("1Gb")) {
         val df = spark.read.yt(tmpPath)
         (df.rdd.partitions, df.as[Long].collect())
       }
@@ -106,7 +106,7 @@ class AutoPartitioningTest extends FlatSpec with Matchers with LocalSpark with T
     prepareTestTable(tmpPath, testData, pivotKeys)
 
     val (partitions, res) = withConf(FILES_OPEN_COST_IN_BYTES, "1") {
-      withConf(YT_MIN_PARTITION_BYTES, "0B") {
+      withConf(YT_MIN_PARTITION_BYTES, "0B", Some("1Gb")) {
         val df = spark.read.yt(tmpPath)
         (df.rdd.partitions, df.as[TestRow].collect())
       }
