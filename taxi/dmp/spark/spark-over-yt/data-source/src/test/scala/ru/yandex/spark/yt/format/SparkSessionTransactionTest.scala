@@ -19,29 +19,44 @@ class SparkSessionTransactionTest extends FlatSpec with Matchers with LocalYtCli
       """{value = 1}""",
       """{value = 2}"""
     ), tmpPath, longColumnSchema)
-    val spark = prepareSparkSession()
+    val spark = prepareSparkSession(true)
     import spark.implicits._
 
-    val transaction = spark.ytConf(GlobalTransaction.Id)
-    YtWrapper.transactionExists(transaction) shouldBe true
-    try {
+    val transaction = try {
+      val tr = spark.ytConf(GlobalTransaction.Id)
+      YtWrapper.transactionExists(tr) shouldBe true
       val df = spark.read.yt(tmpPath)
       YtWrapper.lockCount(tmpPath) shouldEqual 1
 
       YtWrapper.remove(tmpPath)
 
       df.as[Long].collect() should contain theSameElementsAs Seq(1, 2)
+
+      tr
     } finally {
       spark.stop()
     }
     YtWrapper.transactionExists(transaction) shouldBe false
   }
 
-  private def prepareSparkSession(): SparkSession = {
+  it should "not create transaction if global transaction option is disabled" in {
+    writeTableFromYson(Seq(
+      """{value = 1}""",
+      """{value = 2}"""
+    ), tmpPath, longColumnSchema)
+    val spark = prepareSparkSession(false)
+    try {
+      spark.getYtConf(GlobalTransaction.Id).isEmpty shouldBe true
+    } finally {
+      spark.stop()
+    }
+  }
+
+  private def prepareSparkSession(globalTransactionEnabled: Boolean): SparkSession = {
     LocalSpark.stop()
     val sparkConf = LocalSpark.defaultSparkConf
       .clone()
-      .setYtConf(GlobalTransaction.Enabled, true)
+      .setYtConf(GlobalTransaction.Enabled, globalTransactionEnabled)
       .set(SPARK_SESSION_LISTENERS.key, classOf[GlobalTransactionSparkListener].getCanonicalName)
     SparkSession.builder().master(s"local[1]").config(sparkConf).getOrCreate()
   }
