@@ -51,6 +51,39 @@ TString ToString(const TTablePtr& table)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Workaround until we support descending sort order.
+TTableSchemaPtr RemoveDescendingSortOrder(const TTableSchemaPtr& schema)
+{
+    bool foundDescendingSortOrder = false;
+    for (const auto& column : schema->Columns()) {
+        if (column.SortOrder() == ESortOrder::Descending) {
+            foundDescendingSortOrder = true;
+            break;
+        }
+    }
+    // Fast path.
+    if (!foundDescendingSortOrder) {
+        return schema;
+    }
+
+    auto columns = schema->Columns();
+    foundDescendingSortOrder = false;
+
+    for (auto& column : columns) {
+        if (column.SortOrder() == ESortOrder::Descending) {
+            foundDescendingSortOrder = true;
+        }
+        // Delete sort order from all columns after descending sort order.
+        if (foundDescendingSortOrder) {
+            column.SetSortOrder(std::nullopt);
+        }
+    }
+
+    return New<TTableSchema>(std::move(columns), schema->GetStrict(), schema->GetUniqueKeys());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::vector<TTablePtr> FetchTables(
     const NApi::NNative::IClientPtr& client,
     THost* host,
@@ -155,6 +188,10 @@ std::vector<TTablePtr> FetchTables(
     }
 
     throwOnErrors();
+
+    for (auto& table : tables) {
+        table->Schema = RemoveDescendingSortOrder(table->Schema);
+    }
 
     for (const auto& table : tables) {
         YT_LOG_TRACE(
