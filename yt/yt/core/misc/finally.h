@@ -1,6 +1,7 @@
 #pragma once
 
-#include "common.h"
+#include <utility>
+#include <type_traits>
 
 namespace NYT {
 
