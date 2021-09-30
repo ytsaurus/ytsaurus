@@ -1733,7 +1733,10 @@ std::vector<TStreamDescriptor> TOperationControllerBase::GetAutoMergeStreamDescr
             streamDescriptors[index].ImmediatelyUnstageChunkLists = true;
             streamDescriptors[index].RequiresRecoveryInfo = true;
             streamDescriptors[index].IsFinalOutput = false;
-            streamDescriptors[index].TargetDescriptor = AutoMergeTask_->GetVertexDescriptor();
+            // NB. The vertex descriptor for auto merge task must be empty, as TAutoMergeTask builds both input
+            // and output edges. The underlying operation must not build an output edge, as it doesn't know
+            // whether the resulting vertex is shallow_auto_merge or auto_merge.
+            streamDescriptors[index].TargetDescriptor = TDataFlowGraph::TVertexDescriptor();
             streamDescriptors[index].PartitionTag = autoMergeTaskTableIndex++;
             if (intermediateDataAccount) {
                 streamDescriptors[index].TableWriterOptions->Account = *intermediateDataAccount;

@@ -114,6 +114,11 @@ TString TTask::GetTitle() const
     return ToString(GetJobType());
 }
 
+void TTask::AddJobTypeToJoblet(const TJobletPtr& joblet) const
+{
+    joblet->JobType = GetJobType();
+}
+
 TDataFlowGraph::TVertexDescriptor TTask::GetVertexDescriptor() const
 {
     return FormatEnum(GetJobType());
@@ -299,6 +304,13 @@ void TTask::UpdateTask()
 
 void TTask::RegisterInGraph()
 {
+    DoRegisterInGraph();
+    UpdateTask();
+    CheckCompleted();
+}
+
+void TTask::DoRegisterInGraph()
+{
     auto progressCounter = GetChunkPoolOutput()->GetJobCounter();
     TaskHost_->GetDataFlowGraph()
         ->RegisterCounter(GetVertexDescriptor(), progressCounter, GetJobType());
@@ -307,8 +319,6 @@ void TTask::RegisterInGraph()
         GetVertexDescriptor(),
         CompetitiveJobManager_.GetProgressCounter(),
         GetJobType());
-    UpdateTask();
-    CheckCompleted();
 }
 
 void TTask::RegisterInGraph(TDataFlowGraph::TVertexDescriptor inputVertex)
@@ -492,15 +502,14 @@ void TTask::ScheduleJob(
 
     joblet->DebugArtifactsAccount = TaskHost_->GetSpec()->DebugArtifactsAccount;
 
-    auto jobType = GetJobType();
+    AddJobTypeToJoblet(joblet);
     scheduleJobResult->StartDescriptor.emplace(
         joblet->JobId,
-        jobType,
+        joblet->JobType,
         neededResources.ToJobResources(),
         IsJobInterruptible());
 
     joblet->Restarted = restarted;
-    joblet->JobType = jobType;
     joblet->NodeDescriptor = context->GetNodeDescriptor();
 
     if (userJobSpec && userJobSpec->Monitoring->Enable) {
@@ -521,7 +530,7 @@ void TTask::ScheduleJob(
         "UserJobMemoryReserveFactor: %v, ResourceLimits: %v, Speculative: %v, JobSpeculationTimeout: %v)",
         joblet->JobId,
         TaskHost_->GetOperationId(),
-        jobType,
+        joblet->JobType,
         address,
         jobIndex,
         joblet->OutputCookie,
@@ -769,6 +778,42 @@ bool TTask::CanLoseJobs() const
     return false;
 }
 
+void TTask::DoUpdateOutputEdgesForJob(
+    const TDataFlowGraph::TVertexDescriptor& vertex,
+    const THashMap<int, NChunkClient::NProto::TDataStatistics>& dataStatistics)
+{
+    for (int index = 0; index < std::ssize(StreamDescriptors_); ++index) {
+        const auto& targetVertex = StreamDescriptors_[index].TargetDescriptor;
+        // If target vertex is unknown it is derived class' responsibility to update statistics.
+        if (!targetVertex.empty()) {
+            TaskHost_->GetDataFlowGraph()->UpdateEdgeJobDataStatistics(
+                vertex,
+                targetVertex,
+                dataStatistics.Value(index, NChunkClient::NProto::TDataStatistics()));
+        }
+    }
+}
+
+void TTask::UpdateInputEdges(const NChunkClient::NProto::TDataStatistics& dataStatistics, const TJobletPtr& /*joblet*/)
+{
+    // TODO(gritukan): Create a virtual source task and get rid of this hack.
+    if (InputVertex_ == TDataFlowGraph::SourceDescriptor) {
+        TaskHost_->GetDataFlowGraph()->UpdateEdgeTeleportDataStatistics(InputVertex_, GetVertexDescriptor(), dataStatistics);
+    }
+}
+
+void TTask::UpdateOutputEdgesForTeleport(const NChunkClient::NProto::TDataStatistics& dataStatistics)
+{
+    TaskHost_->GetDataFlowGraph()->UpdateEdgeTeleportDataStatistics(GetVertexDescriptor(), TDataFlowGraph::SinkDescriptor, dataStatistics);
+}
+
+void TTask::UpdateOutputEdgesForJob(
+        const THashMap<int, NChunkClient::NProto::TDataStatistics>& dataStatistics,
+        const TJobletPtr& /*joblet*/)
+{
+    DoUpdateOutputEdgesForJob(GetVertexDescriptor(), dataStatistics);
+}
+
 void TTask::OnChunkTeleported(TInputChunkPtr chunk, std::any /*tag*/)
 {
     NChunkClient::NProto::TDataStatistics dataStatistics;
@@ -779,14 +824,8 @@ void TTask::OnChunkTeleported(TInputChunkPtr chunk, std::any /*tag*/)
     dataStatistics.set_chunk_count(1);
     dataStatistics.set_data_weight(chunk->GetDataWeight());
 
-    auto vertexDescriptor = GetVertexDescriptor();
-
-    // TODO(gritukan): Create a virtual source task and get rid of this hack.
-    if (InputVertex_ == TDataFlowGraph::SourceDescriptor) {
-        TaskHost_->GetDataFlowGraph()->UpdateEdgeTeleportDataStatistics(InputVertex_, vertexDescriptor, dataStatistics);
-    }
-
-    TaskHost_->GetDataFlowGraph()->UpdateEdgeTeleportDataStatistics(vertexDescriptor, TDataFlowGraph::SinkDescriptor, dataStatistics);
+    UpdateInputEdges(dataStatistics, nullptr);
+    UpdateOutputEdgesForTeleport(dataStatistics);
 }
 
 bool TTask::IsSimpleTask() const
@@ -834,23 +873,8 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
 
         YT_VERIFY(InputVertex_ != "");
 
-        auto vertex = GetVertexDescriptor();
-
-        // TODO(gritukan): Create a virtual source task and get rid of this hack.
-        if (InputVertex_ == TDataFlowGraph::SourceDescriptor) {
-            TaskHost_->GetDataFlowGraph()->UpdateEdgeTeleportDataStatistics(InputVertex_, vertex, inputStatistics);
-        }
-
-        for (int index = 0; index < std::ssize(StreamDescriptors_); ++index) {
-            const auto& targetVertex = StreamDescriptors_[index].TargetDescriptor;
-            // If target vertex is unknown it is derived class' responsibility to update statistics.
-            if (!targetVertex.empty()) {
-                TaskHost_->GetDataFlowGraph()->UpdateEdgeJobDataStatistics(
-                    vertex,
-                    targetVertex,
-                    outputStatisticsMap[index]);
-            }
-        }
+        UpdateInputEdges(inputStatistics, joblet);
+        UpdateOutputEdgesForJob(outputStatisticsMap, joblet);
     } else {
         auto& chunkListIds = joblet->ChunkListIds;
         // NB: we should release these chunk lists only when information about this job being abandoned

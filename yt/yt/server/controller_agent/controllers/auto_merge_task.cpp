@@ -140,6 +140,7 @@ TAutoMergeTask::TAutoMergeTask(
     i64 maxDataWeightPerJob,
     std::vector<TStreamDescriptor> streamDescriptors)
     : TTask(taskHost, std::move(streamDescriptors))
+    , FakeProgressCounters_{New<TProgressCounter>(), New<TProgressCounter>()}
     , EnableShallowMerge_(taskHost->GetSpec()->AutoMerge->EnableShallowMerge)
 {
     ChunkPools_.reserve(StreamDescriptors_.size());
@@ -189,6 +190,57 @@ TAutoMergeTask::TAutoMergeTask(
     InitAutoMergeJobSpecTemplates();
 }
 
+void TAutoMergeTask::DoRegisterInGraph()
+{
+    for (auto jobType : TEnumTraits<EMergeJobType>::GetDomainValues()) {
+        // NB. The registered counters are never updated, as the data from these counters is not used anywhere.
+        TaskHost_->GetDataFlowGraph()
+            ->RegisterCounter(GetVertexDescriptorForMergeType(jobType), FakeProgressCounters_[jobType],
+                              jobType == EMergeJobType::Deep ? EJobType::UnorderedMerge : EJobType::ShallowMerge);
+    }
+}
+
+EMergeJobType TAutoMergeTask::GetMergeTypeFromJobType(EJobType jobType)
+{
+    YT_VERIFY(jobType == EJobType::ShallowMerge || jobType == EJobType::UnorderedMerge);
+    return jobType == EJobType::ShallowMerge ? EMergeJobType::Shallow : EMergeJobType::Deep;
+}
+
+EMergeJobType TAutoMergeTask::GetMergeTypeFromJoblet(const TJobletPtr& joblet)
+{
+    if (joblet) {
+        return GetMergeTypeFromJobType(joblet->JobType);
+    }
+    return EnableShallowMerge_.load() ? EMergeJobType::Shallow : EMergeJobType::Deep;
+}
+
+void TAutoMergeTask::UpdateInputEdges(
+    const NChunkClient::NProto::TDataStatistics& dataStatistics,
+    const TJobletPtr& joblet)
+{
+    TaskHost_->GetDataFlowGraph()->UpdateEdgeJobDataStatistics(
+        InputVertex_,
+        GetVertexDescriptorForMergeType(GetMergeTypeFromJoblet(joblet)),
+        dataStatistics);
+}
+
+void TAutoMergeTask::UpdateOutputEdgesForTeleport(const NChunkClient::NProto::TDataStatistics& dataStatistics)
+{
+    TaskHost_->GetDataFlowGraph()->UpdateEdgeTeleportDataStatistics(
+        GetVertexDescriptorForMergeType(GetMergeTypeFromJoblet(nullptr)),
+        TDataFlowGraph::SinkDescriptor,
+        dataStatistics);
+}
+
+void TAutoMergeTask::UpdateOutputEdgesForJob(
+    const THashMap<int, NChunkClient::NProto::TDataStatistics>& dataStatistics,
+    const TJobletPtr& joblet)
+{
+    DoUpdateOutputEdgesForJob(
+        GetVertexDescriptorForMergeType(GetMergeTypeFromJoblet(joblet)),
+        dataStatistics);
+}
+
 TString TAutoMergeTask::GetTitle() const
 {
     return Format("AutoMerge");
@@ -197,6 +249,18 @@ TString TAutoMergeTask::GetTitle() const
 TDataFlowGraph::TVertexDescriptor TAutoMergeTask::GetVertexDescriptor() const
 {
     return "auto_merge";
+}
+
+TDataFlowGraph::TVertexDescriptor TAutoMergeTask::GetVertexDescriptorForMergeType(EMergeJobType type) const
+{
+    switch (type) {
+        case EMergeJobType::Shallow:
+            return "shallow_auto_merge";
+        case EMergeJobType::Deep:
+            return "auto_merge";
+        default:
+            YT_ABORT();
+    }
 }
 
 TExtendedJobResources TAutoMergeTask::GetNeededResources(const TJobletPtr& joblet) const
@@ -221,6 +285,11 @@ EJobType TAutoMergeTask::GetJobType() const
     return EJobType::UnorderedMerge;
 }
 
+void TAutoMergeTask::AddJobTypeToJoblet(const TJobletPtr& joblet) const
+{
+    joblet->JobType = EnableShallowMerge_.load() ? EJobType::ShallowMerge : EJobType::UnorderedMerge;
+}
+
 TExtendedJobResources TAutoMergeTask::GetMinNeededResourcesHeavy() const
 {
     auto result = TaskHost_->GetAutoMergeResources(
@@ -234,8 +303,7 @@ void TAutoMergeTask::BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::
     VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
     auto poolIndex = *joblet->InputStripeList->PartitionTag;
-    const auto mergeType = EnableShallowMerge_.load() ? EMergeJobType::Shallow : EMergeJobType::Deep;
-    jobSpec->CopyFrom(GetJobSpecTemplate(GetTableIndex(poolIndex), mergeType));
+    jobSpec->CopyFrom(GetJobSpecTemplate(GetTableIndex(poolIndex), GetMergeTypeFromJoblet(joblet)));
     AddSequentialInputSpec(jobSpec, joblet);
     AddOutputTableSpecs(jobSpec, joblet);
 }
