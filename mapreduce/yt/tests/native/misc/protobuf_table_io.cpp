@@ -356,9 +356,9 @@ public:
                 writer->AddRow(row);
 
                 TString embedded1Serialized;
-                embedded1.SerializeToString(&embedded1Serialized);
+                Y_PROTOBUF_SUPPRESS_NODISCARD embedded1.SerializeToString(&embedded1Serialized);
                 TString embedded2Serialized;
-                embedded2.SerializeToString(&embedded2Serialized);
+                Y_PROTOBUF_SUPPRESS_NODISCARD embedded2.SerializeToString(&embedded2Serialized);
                 protobufSerializedValues.push_back(TVector<TString>{embedded1Serialized, embedded2Serialized});
 
                 nodeSerializedValues.push_back(TVector<TNode>{
