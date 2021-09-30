@@ -369,6 +369,8 @@ public:
 
     void ClearCellStatistics();
 
+    void ClearDestroyedReplicas();
+
     void AdvanceDestroyedReplicasIterator();
     void ResetDestroyedReplicasIterator();
 
