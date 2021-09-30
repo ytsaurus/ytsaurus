@@ -2024,6 +2024,9 @@ private:
     bool NeedRecomputeApprovedReplicaCount_ = false;
     bool NeedPokeChunkViewsWithZeroRefCounter_ = false;
 
+    // COMPAT(aleksandra-zh)
+    bool NeedClearDestroyedReplicaQueues_ = false;
+
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TBufferedProducerPtr BufferedProducer_;
@@ -3378,6 +3381,9 @@ private:
         NeedPokeChunkViewsWithZeroRefCounter_ = context.GetVersion() < EMasterReign::DropDanglingChunkViews20_3 ||
             (context.GetVersion() >= EMasterReign::SlotLocationStatisticsInNodeNode &&
                 context.GetVersion() < EMasterReign::DropDanglingChunkViews);
+
+        // COMPAT(aleksandra-zh)
+        NeedClearDestroyedReplicaQueues_ = context.GetVersion() < EMasterReign::FixZombieReplicaRemoval;
     }
 
     void OnBeforeSnapshotLoaded() override
@@ -3518,6 +3524,11 @@ private:
             }
         }
 
+        if (NeedClearDestroyedReplicaQueues_) {
+            for (auto [_, node] : Bootstrap_->GetNodeTracker()->Nodes()) {
+                node->ClearDestroyedReplicas();
+            }
+        }
         YT_LOG_INFO("Finished initializing chunks");
     }
 
@@ -4187,19 +4198,20 @@ private:
             return nullptr;
         }
 
+        auto isDestroyed = node->RemoveDestroyedReplica(chunkIdWithIndexes);
+        if (isDestroyed) {
+            --DestroyedReplicaCount_;
+        }
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "%v chunk replica removed (ChunkId: %v, Address: %v, NodeId: %v)",
+            isDestroyed ? "Destroyed" : "Unknown",
+            chunkIdWithIndexes,
+            node->GetDefaultAddress(),
+            nodeId);
+
         auto* chunk = FindChunk(chunkIdWithIndex.Id);
         // NB: Chunk could already be a zombie but we still need to remove the replica.
         if (!chunk) {
-            auto isDestroyed = node->RemoveDestroyedReplica(chunkIdWithIndexes);
-            if (isDestroyed) {
-                --DestroyedReplicaCount_;
-            }
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-                "%v chunk replica removed (ChunkId: %v, Address: %v, NodeId: %v)",
-                isDestroyed ? "Destroyed" : "Unknown",
-                chunkIdWithIndexes,
-                node->GetDefaultAddress(),
-                nodeId);
             return nullptr;
         }
 

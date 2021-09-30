@@ -616,8 +616,7 @@ void TNode::ClearReplicas()
     Replicas_.clear();
     UnapprovedReplicas_.clear();
     RandomReplicaIters_.clear();
-    DestroyedReplicas_.clear();
-    ResetDestroyedReplicasIterator();
+    ClearDestroyedReplicas();
 }
 
 void TNode::AddUnapprovedReplica(TChunkPtrWithIndexes replica, TInstant timestamp)
@@ -638,6 +637,12 @@ void TNode::ApproveReplica(TChunkPtrWithIndexes replica)
         DoRemoveJournalReplicas(replica);
         YT_VERIFY(DoAddReplica(replica));
     }
+}
+
+void TNode::ClearDestroyedReplicas()
+{
+    DestroyedReplicas_.clear();
+    ResetDestroyedReplicasIterator();
 }
 
 bool TNode::AddDestroyedReplica(const TChunkIdWithIndexes& replica)
