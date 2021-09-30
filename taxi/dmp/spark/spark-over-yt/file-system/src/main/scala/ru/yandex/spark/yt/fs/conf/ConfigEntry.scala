@@ -3,6 +3,7 @@ package ru.yandex.spark.yt.fs.conf
 import io.circe._
 import io.circe.parser._
 import io.circe.syntax._
+import ru.yandex.spark.yt.wrapper.Utils.parseDuration
 
 import scala.concurrent.duration._
 
@@ -43,7 +44,7 @@ class BooleanConfigEntry(name: String, default: Option[Boolean] = None) extends 
 }
 
 class DurationSecondsConfigEntry(name: String, default: Option[Duration] = None) extends ConfigEntry[Duration](name, default) {
-  override def get(value: String): Duration = value.toInt.seconds
+  override def get(value: String): Duration = parseDuration(value)
 }
 
 class StringConfigEntry(name: String, default: Option[String] = None) extends ConfigEntry[String](name, default) {
