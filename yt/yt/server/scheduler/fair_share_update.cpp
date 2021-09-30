@@ -5,6 +5,7 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+// TODO(ignat): move finally to library
 #include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -15,7 +16,6 @@
 
 namespace NYT::NVectorHdrf {
 
-using namespace NConcurrency;
 using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1178,8 +1178,6 @@ TFairShareUpdateExecutor::TFairShareUpdateExecutor(
 void TFairShareUpdateExecutor::Run()
 {
     const auto& Logger = FairShareLogger;
-
-    TForbidContextSwitchGuard contextSwitchGuard;
 
     TWallTimer timer;
 
