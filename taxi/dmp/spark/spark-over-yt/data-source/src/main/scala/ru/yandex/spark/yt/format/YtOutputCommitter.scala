@@ -171,7 +171,6 @@ object YtOutputCommitter {
   def createTransaction(conf: Configuration, confEntry: StringConfigEntry, parent: Option[String]): String = {
     implicit val yt: CompoundClient = YtClientProvider.ytClient(ytClientConfiguration(conf))
     val transactionTimeout = conf.ytConf(SparkYtConfiguration.Transaction.Timeout)
-    val pingInterval = conf.ytConf(SparkYtConfiguration.Transaction.PingInterval)
 
     val transaction = YtWrapper.createTransaction(parent, transactionTimeout)
     try {
