@@ -165,6 +165,7 @@ public:
     virtual NChunkPools::IChunkPoolOutputPtr GetChunkPoolOutput() const = 0;
 
     virtual EJobType GetJobType() const = 0;
+    virtual void AddJobTypeToJoblet(const TJobletPtr& joblet) const;
 
     //! Return a chunk mapping that is used to substitute input chunks when job spec is built.
     //! Base implementation returns task's own mapping.
@@ -231,6 +232,18 @@ protected:
 
     virtual void OnChunkTeleported(NChunkClient::TInputChunkPtr chunk, std::any tag);
 
+    void DoUpdateOutputEdgesForJob(
+        const TDataFlowGraph::TVertexDescriptor& vertex,
+        const THashMap<int, NChunkClient::NProto::TDataStatistics>& dataStatistics);
+
+    virtual void UpdateInputEdges(
+        const NChunkClient::NProto::TDataStatistics& dataStatistics,
+        const TJobletPtr& joblet);
+    virtual void UpdateOutputEdgesForTeleport(const NChunkClient::NProto::TDataStatistics& dataStatistics);
+    virtual void UpdateOutputEdgesForJob(
+        const THashMap<int, NChunkClient::NProto::TDataStatistics>& dataStatistics,
+        const TJobletPtr& joblet);
+
     void ReinstallJob(std::function<void()> releaseOutputCookie);
 
     void ReleaseJobletResources(TJobletPtr joblet, bool waitForSnapshot);
@@ -264,6 +277,8 @@ protected:
         TJobletPtr joblet,
         NChunkPools::TChunkStripeKey key = NChunkPools::TChunkStripeKey(),
         bool processEmptyStripes = false);
+
+    virtual void DoRegisterInGraph();
 
     static std::vector<NChunkPools::TChunkStripePtr> BuildChunkStripes(
         google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs,

@@ -413,13 +413,15 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
             for direction in data_flow
         }
 
+        merge_vertex = "shallow_auto_merge" if self.ENABLE_SHALLOW_MERGE else "auto_merge"
+
         assert len(directions) == 3
         assert directions[("input", "map")]["job_data_statistics"]["chunk_count"] == 0
         assert directions[("input", "map")]["teleport_data_statistics"]["chunk_count"] == 15
-        assert directions[("map", "auto_merge")]["job_data_statistics"]["chunk_count"] == 15
-        assert directions[("map", "auto_merge")]["teleport_data_statistics"]["chunk_count"] == 0
-        assert directions[("auto_merge", "output")]["job_data_statistics"]["chunk_count"] == 2
-        assert directions[("auto_merge", "output")]["teleport_data_statistics"]["chunk_count"] == 8
+        assert directions[("map", merge_vertex)]["job_data_statistics"]["chunk_count"] == 15
+        assert directions[("map", merge_vertex)]["teleport_data_statistics"]["chunk_count"] == 0
+        assert directions[(merge_vertex, "output")]["job_data_statistics"]["chunk_count"] == 2
+        assert directions[(merge_vertex, "output")]["teleport_data_statistics"]["chunk_count"] == 8
 
     @authors("max42")
     @pytest.mark.timeout(60)
@@ -741,6 +743,41 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
             assert transaction_chunk_count <= 40
             assert chunk_count <= 40
 
+    @authors("gepardo")
+    @pytest.mark.parametrize("op_type", ["map", "reduce"])
+    def test_data_flow_graph(self, op_type):
+        create("table", "//tmp/t_in",
+               attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
+        create("table", "//tmp/t_out")
+        for i in range(10):
+            write_table("<append=%true>//tmp/t_in", [{"a": i}])
+
+        run_op = map if op_type == "map" else reduce
+        op = run_op(
+            in_="//tmp/t_in",
+            out=["//tmp/t_out"],
+            command="cat",
+            reduce_by=["a"],  # ignored for maps
+            spec={
+                "auto_merge": {
+                    "mode": "manual",
+                    "chunk_count_per_merge_job": 2,
+                    "max_intermediate_chunk_count": 100,
+                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
+                },
+                "data_size_per_job": 1,
+                "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
+            },
+        )
+        self._verify_auto_merge_job_types(op)
+
+        merge_name = "shallow_auto_merge" if self.ENABLE_SHALLOW_MERGE else "auto_merge"
+        op_name = "sorted_reduce" if op_type == "reduce" else "map"
+        data_flow_graph = get(op.get_path() + "/@progress/data_flow_graph")
+        data_weight = data_flow_graph["edges"][op_name][merge_name]["statistics"]["data_weight"]
+        assert data_weight > 0
+        assert data_flow_graph["edges"][merge_name]["sink"]["statistics"]["data_weight"] == data_weight
+
 
 class TestSchedulerShallowAutoMerge(TestSchedulerAutoMerge):
     ENABLE_SHALLOW_MERGE = True
@@ -778,3 +815,11 @@ class TestSchedulerAutoMergeAborted(TestSchedulerAutoMergeBase):
         assert get("//tmp/t_out/@chunk_count") == 5
         content = read_table("//tmp/t_out")
         assert sorted(content) == sorted(data)
+
+        data_flow_graph = get(op.get_path() + "/@progress/data_flow_graph")
+        data_weight = data_flow_graph["edges"]["map"]["auto_merge"]["statistics"]["data_weight"]
+        assert data_weight > 0
+        assert data_flow_graph["edges"]["auto_merge"]["sink"]["statistics"]["data_weight"] == data_weight
+
+        assert data_flow_graph["edges"].get("map", {}).get("shallow_auto_merge", {}).get("statistics", {}).get("data_weight", 0) == 0
+        assert data_flow_graph["edges"].get("shallow_auto_merge", {}).get("sink", {}).get("statistics", {}).get("data_weight", 0) == 0

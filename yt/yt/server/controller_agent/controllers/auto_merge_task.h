@@ -79,6 +79,7 @@ public:
 
     virtual TString GetTitle() const override;
     virtual TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const override;
+    TDataFlowGraph::TVertexDescriptor GetVertexDescriptorForMergeType(EMergeJobType type) const;
 
     virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override;
 
@@ -87,6 +88,7 @@ public:
     virtual NChunkPools::IChunkPoolOutputPtr GetChunkPoolOutput() const override;
 
     virtual EJobType GetJobType() const override;
+    void AddJobTypeToJoblet(const TJobletPtr& joblet) const override;
 
     virtual void OnJobStarted(TJobletPtr joblet) override;
     virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override;
@@ -113,6 +115,16 @@ protected:
 
     virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override;
 
+    void DoRegisterInGraph() override;
+
+    void UpdateInputEdges(
+        const NChunkClient::NProto::TDataStatistics& dataStatistics,
+        const TJobletPtr& joblet) override;
+    void UpdateOutputEdgesForTeleport(const NChunkClient::NProto::TDataStatistics& dataStatistics) override;
+    void UpdateOutputEdgesForJob(
+        const THashMap<int, NChunkClient::NProto::TDataStatistics>& dataStatistics,
+        const TJobletPtr& joblet) override;
+
 private:
     using TJobSpec = NJobTrackerClient::NProto::TJobSpec;
 
@@ -128,6 +140,8 @@ private:
 
     std::vector<TEnumIndexedVector<EMergeJobType, TJobSpec>> JobSpecTemplates_;
 
+    TEnumIndexedVector<EMergeJobType, TProgressCounterPtr> FakeProgressCounters_;
+
     std::atomic<bool> EnableShallowMerge_;
 
     void UpdateSelf();
@@ -136,6 +150,9 @@ private:
 
     const TJobSpec& GetJobSpecTemplate(int tableIndex, EMergeJobType type) const;
     void InitAutoMergeJobSpecTemplates();
+
+    EMergeJobType GetMergeTypeFromJobType(EJobType jobType);
+    EMergeJobType GetMergeTypeFromJoblet(const TJobletPtr& joblet);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAutoMergeTask);
