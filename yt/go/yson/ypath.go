@@ -1,6 +1,8 @@
 package yson
 
 import (
+	"fmt"
+
 	"golang.org/x/xerrors"
 )
 
@@ -11,12 +13,17 @@ func SliceYPathAttrs(ypath []byte) (n int, err error) {
 	var s scanner
 	s.reset(StreamNode)
 
+	var hasAttrs bool
+	var hasSpace bool
 	var depth int
 	for i := 0; i < len(ypath); i++ {
 		c := ypath[i]
 		if depth == 0 && (c == '#' || c == '/') {
-			n = i
-			return
+			if !hasAttrs && hasSpace {
+				return 0, fmt.Errorf("ypath: unexpected space in the begining")
+			}
+
+			return i, nil
 		}
 
 		op := s.step(&s, ypath[i])
@@ -26,12 +33,14 @@ func SliceYPathAttrs(ypath []byte) (n int, err error) {
 			return
 
 		case scanBeginAttrs:
+			hasAttrs = true
 			depth++
 
 		case scanEndAttrs, scanEndList, scanEndMap:
 			depth--
 
 		case scanSkipSpace:
+			hasSpace = true
 
 		default:
 			if depth == 0 {
