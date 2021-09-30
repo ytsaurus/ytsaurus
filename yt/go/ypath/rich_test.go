@@ -17,15 +17,15 @@ func TestParse(t *testing.T) {
 			expected: &Rich{Path: Root},
 		},
 		{
-			input:    "  /",
+			input:    " <> /",
 			expected: &Rich{Path: "/"},
 		},
 		{
-			input:    "  //foo bar",
+			input:    " <> //foo bar",
 			expected: &Rich{Path: "//foo bar"},
 		},
 		{
-			input:    "  //\\xaa\\xff\\xAA\\xFF",
+			input:    "//\\xaa\\xff\\xAA\\xFF",
 			expected: &Rich{Path: "//\\xaa\\xff\\xAA\\xFF"},
 		},
 		{
@@ -153,6 +153,7 @@ func TestParseInvalid(t *testing.T) {
 		"//t[(a,",
 		"//t[(",
 		"//t[",
+		" //tmp/parse",
 	} {
 		_, err := Parse(testCase)
 		t.Logf("got error: %v", err)

@@ -16,6 +16,7 @@ func TestSliceYPathAttrs(t *testing.T) {
 		{"<>   #abc", 5, false},
 		{"<append=%true; keys=[1;2;3;];>#abc", 30, false},
 
+		{"   #abc", 0, true},
 		{"", 0, true},
 		{"  ", 0, true},
 		{"<><>#", 0, true},
