@@ -85,11 +85,19 @@ DB::Settings PrepareLeafJobSettings(const DB::Settings& settings)
     newSettings.max_concurrent_queries_for_user = 0;
     newSettings.max_memory_usage_for_user = 0;
 
+    newSettings.max_query_size = 0;
+
+    newSettings.max_result_bytes = 0;
+    newSettings.max_result_rows = 0;
+
     // Set as unchanged to avoid sending to remote server.
     newSettings.max_concurrent_queries_for_user.changed = false;
     newSettings.max_memory_usage_for_user.changed = false;
 
-    newSettings.max_query_size = 0;
+    newSettings.max_query_size.changed = false;
+
+    newSettings.max_result_bytes.changed = false;
+    newSettings.max_result_rows.changed = false;
 
     return newSettings;
 }
