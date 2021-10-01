@@ -97,69 +97,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableField {
-public:
-    struct TAny {
-        TString Value;
-    };
-    struct TComposite {
-        TString Value;
-    };
-    using TValue = std::variant<nullptr_t, i64, ui64, double, bool, TString, TAny, TComposite>;
-
-public:
-    template <typename T>
-    TTableField(TString name, T value)
-        : Name_(std::move(name))
-        , Value_(std::move(value))
-    { }
-
-    template <>
-    TTableField(TString name, TStringBuf value)
-        : Name_(std::move(name))
-        , Value_(TString(value))
-    { }
-
-    TTableField(TString name, NTableClient::EValueType valueType, TStringBuf value)
-        : Name_(std::move(name))
-        , Value_(ToValue(valueType, TString(value)))
-    { }
-
-    NTableClient::TUnversionedValue ToUnversionedValue(const NTableClient::TNameTablePtr& nameTable) const;
-
-    static TValue ExtractValue(const NTableClient::TUnversionedValue& value);
-
-private:
-    static TValue ToValue(NTableClient::EValueType valueType, TStringBuf value) {
-        using namespace NTableClient;
-        if (valueType == EValueType::String) {
-            return TString(value);
-        } else if (valueType == EValueType::Any) {
-            return TAny{TString(value)};
-        } else if (valueType == EValueType::Composite) {
-            return TComposite{TString(value)};
-        } else {
-            YT_ABORT();
-        }
-    }
-
-private:
-    TString Name_;
-    TValue Value_;
-};
-
-bool operator ==(const TTableField::TAny& lhs, const TTableField::TAny& rhs);
-bool operator !=(const TTableField::TAny& lhs, const TTableField::TAny& rhs);
-bool operator ==(const TTableField::TComposite& lhs, const TTableField::TComposite& rhs);
-bool operator !=(const TTableField::TComposite& lhs, const TTableField::TComposite& rhs);
-
-////////////////////////////////////////////////////////////////////////////////
-
-NTableClient::TUnversionedOwningRow MakeRow(const std::vector<NTableClient::TUnversionedValue>& values);
-NTableClient::TUnversionedOwningRow MakeRow(
-    const NTableClient::TNameTablePtr& nameTable,
-    const std::initializer_list<TTableField>& values);
-
 i64 GetInt64(const NTableClient::TUnversionedValue& row);
 ui64 GetUint64(const NTableClient::TUnversionedValue& row);
 double GetDouble(const NTableClient::TUnversionedValue& row);

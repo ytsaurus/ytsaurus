@@ -7,85 +7,6 @@ namespace NYT {
 
 using namespace NTableClient;
 
-
-////////////////////////////////////////////////////////////////////////////////
-
-NTableClient::TUnversionedValue TTableField::ToUnversionedValue(const NTableClient::TNameTablePtr& nameTable) const
-{
-    const int valueId = nameTable->GetIdOrRegisterName(Name_);
-    return std::visit([valueId] (const auto& value) -> TUnversionedValue {
-        using T = std::decay_t<decltype(value)>;
-        if constexpr (std::is_same_v<T, i64>) {
-            return MakeUnversionedInt64Value(value, valueId);
-        } else if constexpr (std::is_same_v<T, ui64>) {
-            return MakeUnversionedUint64Value(value, valueId);
-        } else if constexpr (std::is_same_v<T, double>) {
-            return MakeUnversionedDoubleValue(value, valueId);
-        } else if constexpr (std::is_same_v<T, bool>) {
-            return MakeUnversionedBooleanValue(value, valueId);
-        } else if constexpr (std::is_same_v<T, TString>) {
-            return MakeUnversionedStringValue(value, valueId);
-        } else if constexpr (std::is_same_v<T, TAny>) {
-            return MakeUnversionedAnyValue(value.Value, valueId);
-        } else if constexpr (std::is_same_v<T, TComposite>) {
-            return MakeUnversionedCompositeValue(value.Value, valueId);
-        } else {
-            static_assert(std::is_same_v<T, std::nullptr_t>);
-            return MakeUnversionedSentinelValue(EValueType::Null, valueId);
-        }
-    }, Value_);
-}
-
-TTableField::TValue TTableField::ExtractValue(const NTableClient::TUnversionedValue& value)
-{
-    auto getString = [] (const TUnversionedValue& value) {
-        return TString(value.Data.String, value.Length);
-    };
-    switch (value.Type) {
-        case EValueType::Null:
-            return nullptr;
-        case EValueType::Int64:
-            return value.Data.Int64;
-        case EValueType::Uint64:
-            return value.Data.Uint64;
-        case EValueType::Boolean:
-            return value.Data.Boolean;
-        case EValueType::Double:
-            return value.Data.Double;
-        case EValueType::String:
-            return getString(value);
-        case EValueType::Any:
-            return TAny{getString(value)};
-        case EValueType::Composite:
-            return TComposite{getString(value)};
-        case EValueType::Min:
-        case EValueType::Max:
-        case EValueType::TheBottom:
-            break;
-    }
-    YT_ABORT();
-}
-
-bool operator ==(const TTableField::TAny& lhs, const TTableField::TAny& rhs)
-{
-    return lhs.Value == rhs.Value;
-}
-
-bool operator !=(const TTableField::TAny& lhs, const TTableField::TAny& rhs)
-{
-    return !(lhs == rhs);
-}
-
-bool operator ==(const TTableField::TComposite& lhs, const TTableField::TComposite& rhs)
-{
-    return lhs.Value == rhs.Value;
-}
-
-bool operator !=(const TTableField::TComposite& lhs, const TTableField::TComposite& rhs)
-{
-    return !(lhs.Value == rhs.Value);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 static void EnsureTypesMatch(EValueType expected, EValueType actual)
@@ -95,26 +16,6 @@ static void EnsureTypesMatch(EValueType expected, EValueType actual)
             expected,
             actual);
     }
-}
-
-TUnversionedOwningRow MakeRow(const std::vector<TUnversionedValue>& values)
-{
-    TUnversionedOwningRowBuilder builder;
-    for (const auto& v : values) {
-        builder.AddValue(v);
-    }
-    return builder.FinishRow();
-}
-
-NTableClient::TUnversionedOwningRow MakeRow(
-    const NTableClient::TNameTablePtr& nameTable,
-    const std::initializer_list<TTableField>& values)
-{
-    TUnversionedOwningRowBuilder builder;
-    for (const auto& v : values) {
-        builder.AddValue(v.ToUnversionedValue(nameTable));
-    }
-    return builder.FinishRow();
 }
 
 i64 GetInt64(const TUnversionedValue& row)

@@ -11,10 +11,11 @@ namespace NYT::NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NLogicalTypeShortcuts;
+using namespace NNamedValue;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TValueExample::TValueExample(TLogicalTypePtr logicalType, TTableField::TValue value, TString prettyYson)
+TValueExample::TValueExample(TLogicalTypePtr logicalType, TNamedValue::TValue value, TString prettyYson)
     : LogicalType(std::move(logicalType))
     , Value(std::move(value))
     , PrettyYson(std::move(prettyYson))

@@ -11,6 +11,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/library/named_value/named_value.h>
+
 #include <limits>
 
 namespace NYT::NFormats {
@@ -22,6 +24,8 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
 using namespace NTableClient;
+
+using NNamedValue::MakeRow;
 
 INodePtr ParseJsonToNode(TStringBuf string)
 {
@@ -38,44 +42,14 @@ INodePtr ParseJsonToNode(TStringBuf string)
     return builder.Finish();
 }
 
-template <typename TBase>
-class TWriterForWebJsonBase
-    : public TBase
+class TWriterForWebJson
+    : public ::testing::Test
 {
 protected:
-    TNameTablePtr NameTable_;
-    TWebJsonFormatConfigPtr Config_;
-
+    TNameTablePtr NameTable_ = New<TNameTable>();
+    TWebJsonFormatConfigPtr Config_ = New<TWebJsonFormatConfig>();
     TStringStream OutputStream_;
-
     ISchemalessFormatWriterPtr Writer_;
-
-    int KeyAId_ = -1;
-    int KeyBId_ = -1;
-    int KeyCId_ = -1;
-    int KeyDId_ = -1;
-    int KeyNonAsciiId_ = -1;
-
-    int TableIndexColumnId_ = -1;
-    int RowIndexColumnId_ = -1;
-    int TabletIndexColumnId_ = -1;
-
-    TWriterForWebJsonBase()
-    {
-        NameTable_ = New<TNameTable>();
-
-        KeyAId_ = NameTable_->RegisterName("column_a");
-        KeyBId_ = NameTable_->RegisterName("column_b");
-        KeyCId_ = NameTable_->RegisterName("column_c");
-        // We do not register KeyD intentionally.
-        KeyNonAsciiId_ = NameTable_->RegisterName("column_non_ascii_\xd0\x81");
-
-        TableIndexColumnId_ = NameTable_->RegisterName(TableIndexColumnName);
-        RowIndexColumnId_ = NameTable_->RegisterName(RowIndexColumnName);
-        TabletIndexColumnId_ = NameTable_->RegisterName(TabletIndexColumnName);
-
-        Config_ = New<TWebJsonFormatConfig>();
-    }
 
     void CreateStandardWriter(const std::vector<TTableSchemaPtr>& schemas = {New<TTableSchema>()})
     {
@@ -87,31 +61,28 @@ protected:
     }
 };
 
-class TWriterForWebJson
-    : public TWriterForWebJsonBase<::testing::Test>
-{ };
-
 TEST_F(TWriterForWebJson, Simple)
 {
     Config_->MaxAllColumnNamesCount = 2;
 
     CreateStandardWriter();
 
-    TUnversionedRowBuilder row1;
-    row1.AddValue(MakeUnversionedUint64Value(100500, KeyAId_));
-    row1.AddValue(MakeUnversionedBooleanValue(true, KeyBId_));
-    row1.AddValue(MakeUnversionedStringValue("row1_c", KeyCId_));
-    row1.AddValue(MakeUnversionedInt64Value(0, RowIndexColumnId_));
-
-    TUnversionedRowBuilder row2;
-    row2.AddValue(MakeUnversionedStringValue("row2_c", KeyCId_));
-    row2.AddValue(MakeUnversionedStringValue("row2_b", KeyBId_));
-    row2.AddValue(MakeUnversionedInt64Value(1, RowIndexColumnId_));
-
-    std::vector<TUnversionedRow> rows = {row1.GetRow(), row2.GetRow()};
-
-    EXPECT_EQ(true, Writer_->Write(rows));
-    WaitFor(Writer_->Close()).ThrowOnError();
+    bool written = Writer_->Write({
+        MakeRow(NameTable_, {
+            {"column_a", 100500u},
+            {"column_b", true},
+            {"column_c", "row1_c"},
+            {RowIndexColumnName, 0},
+        }).Get(),
+        MakeRow(NameTable_, {
+            {"column_c", "row2_c"},
+            {"column_b", "row2_b"},
+            {RowIndexColumnName, 1},
+        }).Get(),
+    });
+    EXPECT_TRUE(written);
+    WaitFor(Writer_->Close())
+        .ThrowOnError();
 
     TString expectedOutput =
         "{"
@@ -158,22 +129,21 @@ TEST_F(TWriterForWebJson, SliceColumnsByMaxCount)
     Config_->MaxSelectedColumnCount = 2;
 
     CreateStandardWriter();
-
-    TUnversionedRowBuilder row1;
-    row1.AddValue(MakeUnversionedStringValue("row1_a", KeyAId_));
-    row1.AddValue(MakeUnversionedStringValue("row1_b", KeyBId_));
-    row1.AddValue(MakeUnversionedStringValue("row1_c", KeyCId_));
-
-    TUnversionedRowBuilder row2;
-    row2.AddValue(MakeUnversionedStringValue("row2_c", KeyCId_));
-    row2.AddValue(MakeUnversionedStringValue("row2_b", KeyBId_));
-
-    TUnversionedRowBuilder row3;
-    row3.AddValue(MakeUnversionedStringValue("row3_c", KeyCId_));
-
-    std::vector<TUnversionedRow> rows = {row1.GetRow(), row2.GetRow(), row3.GetRow()};
-
-    EXPECT_EQ(true, Writer_->Write(rows));
+    bool written = Writer_->Write({
+        MakeRow(NameTable_, {
+            {"column_a", "row1_a"},
+            {"column_b", "row1_b"},
+            {"column_c", "row1_c"},
+        }).Get(),
+        MakeRow(NameTable_, {
+            {"column_c", "row2_c"},
+            {"column_b", "row2_b"},
+        }).Get(),
+        MakeRow(NameTable_, {
+            {"column_c", "row3_c"},
+        }).Get(),
+    });
+    EXPECT_TRUE(written);
     Writer_->Close();
 
     TString expectedOutput =
@@ -217,21 +187,21 @@ TEST_F(TWriterForWebJson, SliceStrings)
 
     CreateStandardWriter();
 
-    TUnversionedRowBuilder row1;
-    row1.AddValue(MakeUnversionedStringValue("row1_b", KeyBId_));
-    row1.AddValue(MakeUnversionedStringValue("rooooow1_c", KeyCId_));
-    row1.AddValue(MakeUnversionedStringValue("row1_a", KeyAId_));
-
-    TUnversionedRowBuilder row2;
-    row2.AddValue(MakeUnversionedStringValue("row2_c", KeyCId_));
-    row2.AddValue(MakeUnversionedStringValue("rooow2_b", KeyBId_));
-
-    TUnversionedRowBuilder row3;
-    row3.AddValue(MakeUnversionedStringValue("row3_c", KeyCId_));
-
-    std::vector<TUnversionedRow> rows = {row1.GetRow(), row2.GetRow(), row3.GetRow()};
-
-    EXPECT_EQ(true, Writer_->Write(rows));
+    bool written = Writer_->Write({
+        MakeRow(NameTable_, {
+            {"column_b", "row1_b"},
+            {"column_c", "rooooow1_c"},
+            {"column_a", "row1_a"},
+        }).Get(),
+        MakeRow(NameTable_, {
+            {"column_c", "row2_c"},
+            {"column_b", "rooow2_b"},
+        }).Get(),
+        MakeRow(NameTable_, {
+            {"column_c", "row3_c"},
+        }).Get(),
+    });
+    EXPECT_TRUE(written);
     Writer_->Close();
 
     TString expectedOutput =
@@ -289,22 +259,23 @@ TEST_F(TWriterForWebJson, ReplaceAnyWithNull)
 
     CreateStandardWriter();
 
-    TUnversionedRowBuilder row1;
-    row1.AddValue(MakeUnversionedAnyValue("{key=a}", KeyBId_));
-    row1.AddValue(MakeUnversionedStringValue("row1_c", KeyCId_));
-    row1.AddValue(MakeUnversionedStringValue("row1_a", KeyAId_));
-
-    TUnversionedRowBuilder row2;
-    row2.AddValue(MakeUnversionedAnyValue("{key=aaaaaa}", KeyCId_));
-    row2.AddValue(MakeUnversionedStringValue("row2_b", KeyBId_));
-
-    TUnversionedRowBuilder row3;
-    row3.AddValue(MakeUnversionedStringValue("row3_c", KeyCId_));
-
-    std::vector<TUnversionedRow> rows = {row1.GetRow(), row2.GetRow(), row3.GetRow()};
-
-    EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close();
+    bool written = Writer_->Write({
+        MakeRow(NameTable_, {
+            {"column_b", EValueType::Any, "{key=a}"},
+            {"column_c", "row1_c"},
+            {"column_a", "row1_a"},
+        }).Get(),
+        MakeRow(NameTable_, {
+            {"column_c", EValueType::Any, "{key=aaaaaa}"},
+            {"column_b", "row2_b"},
+        }).Get(),
+        MakeRow(NameTable_, {
+            {"column_c", "row3_c"},
+        }).Get(),
+    });
+    EXPECT_TRUE(written);
+    WaitFor(Writer_->Close())
+        .ThrowOnError();
 
     TString expectedOutput =
         "{"
@@ -362,15 +333,16 @@ TEST_F(TWriterForWebJson, SkipSystemColumns)
 
     CreateStandardWriter();
 
-    TUnversionedRowBuilder row;
-    row.AddValue(MakeUnversionedInt64Value(0, TableIndexColumnId_));
-    row.AddValue(MakeUnversionedInt64Value(1, RowIndexColumnId_));
-    row.AddValue(MakeUnversionedInt64Value(2, TabletIndexColumnId_));
-
-    std::vector<TUnversionedRow> rows = {row.GetRow()};
-
-    EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close();
+    bool written = Writer_->Write({
+        MakeRow(NameTable_, {
+            {TableIndexColumnName, 0},
+            {RowIndexColumnName, 1},
+            {TabletIndexColumnName, 2},
+        }).Get(),
+    });
+    EXPECT_TRUE(written);
+    WaitFor(Writer_->Close())
+        .ThrowOnError();
 
     TString expectedOutput =
         "{"
@@ -408,16 +380,17 @@ TEST_F(TWriterForWebJson, SkipUnregisteredColumns)
     CreateStandardWriter();
 
     TUnversionedRowBuilder row;
-    row.AddValue(MakeUnversionedBooleanValue(true, KeyDId_));
+    int keyDId = -1;
+    row.AddValue(MakeUnversionedBooleanValue(true, keyDId));
     std::vector<TUnversionedRow> rows = {row.GetRow()};
 
     EXPECT_EQ(true, Writer_->Write(rows));
 
-    KeyDId_ = NameTable_->RegisterName("column_d");
+    keyDId = NameTable_->RegisterName("column_d");
 
     rows.clear();
     row.Reset();
-    row.AddValue(MakeUnversionedBooleanValue(true, KeyDId_));
+    row.AddValue(MakeUnversionedBooleanValue(true, keyDId));
     rows.push_back(row.GetRow());
 
     EXPECT_EQ(true, Writer_->Write(rows));
@@ -457,17 +430,17 @@ TEST_F(TWriterForWebJson, SliceColumnsByName)
 
     CreateStandardWriter();
 
-    TUnversionedRowBuilder row;
-    row.AddValue(MakeUnversionedUint64Value(100500, KeyAId_));
-    row.AddValue(MakeUnversionedDoubleValue(0.42, KeyBId_));
-    row.AddValue(MakeUnversionedStringValue("abracadabra", KeyCId_));
-    row.AddValue(MakeUnversionedInt64Value(10, TabletIndexColumnId_));
-
-    std::vector<TUnversionedRow> rows = {row.GetRow()};
-
-    EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close();
-
+    bool written = Writer_->Write({
+        MakeRow(NameTable_, {
+            {"column_a", 100500u},
+            {"column_b", 0.42},
+            {"column_c", "abracadabra"},
+            {TabletIndexColumnName, 10},
+        }).Get(),
+    });
+    EXPECT_TRUE(written);
+    WaitFor(Writer_->Close())
+        .ThrowOnError();
     auto result = ParseJsonToNode(OutputStream_.Str());
 
     TString expectedOutput =
@@ -575,10 +548,10 @@ void CheckYqlTypeAndValue(
 }
 
 #define CHECK_YQL_TYPE_AND_VALUE(row, name, expectedType, expectedValue, yqlTypes) \
-    { \
+    do { \
         SCOPED_TRACE(name); \
         CheckYqlTypeAndValue(row, name, expectedType, expectedValue, yqlTypes); \
-    }
+    } while (0)
 
 TEST_F(TWriterForWebJson, YqlValueFormat_SimpleTypes)
 {
@@ -589,32 +562,28 @@ TEST_F(TWriterForWebJson, YqlValueFormat_SimpleTypes)
     CreateStandardWriter(std::vector{New<TTableSchema>(), New<TTableSchema>()});
 
     {
-        TUnversionedOwningRowBuilder builder;
-        std::vector<TUnversionedOwningRow> rows;
-
-        builder.AddValue(MakeUnversionedUint64Value(100500, KeyAId_));
-        builder.AddValue(MakeUnversionedBooleanValue(true, KeyBId_));
-        builder.AddValue(MakeUnversionedStringValue("row1_c", KeyCId_));
-        builder.AddValue(MakeUnversionedInt64Value(0, RowIndexColumnId_));
-        builder.AddValue(MakeUnversionedInt64Value(0, TableIndexColumnId_));
-        rows.push_back(builder.FinishRow());
-
-        // Here come rows from the second table.
-
-        builder.AddValue(MakeUnversionedStringValue("row2_c", KeyCId_));
-        builder.AddValue(MakeUnversionedStringValue("row2_b", KeyBId_));
-        builder.AddValue(MakeUnversionedInt64Value(0, RowIndexColumnId_));
-        builder.AddValue(MakeUnversionedInt64Value(1, TableIndexColumnId_));
-        rows.push_back(builder.FinishRow());
-
-        builder.AddValue(MakeUnversionedInt64Value(-100500, KeyAId_));
-        builder.AddValue(MakeUnversionedAnyValue("{x=2;y=3}", KeyBId_));
-        builder.AddValue(MakeUnversionedDoubleValue(2.71828, KeyCId_));
-        builder.AddValue(MakeUnversionedInt64Value(1, RowIndexColumnId_));
-        rows.push_back(builder.FinishRow());
-
-        std::vector<TUnversionedRow> nonOwningRows(rows.begin(), rows.end());
-        EXPECT_EQ(true, Writer_->Write(nonOwningRows));
+        bool written = Writer_->Write({
+            MakeRow(NameTable_, {
+                {"column_a", 100500u},
+                {"column_b", true},
+                {"column_c", "row1_c"},
+                {RowIndexColumnName, 0},
+                {TableIndexColumnName, 0},
+            }).Get(),
+            MakeRow(NameTable_, {
+                {"column_c", "row2_c"},
+                {"column_b", "row2_b"},
+                {RowIndexColumnName, 1},
+                {TableIndexColumnName, 0},
+            }).Get(),
+            MakeRow(NameTable_, {
+                {"column_a", -100500},
+                {"column_b", EValueType::Any, "{x=2;y=3}"},
+                {"column_c", 2.71828},
+                {RowIndexColumnName, 1},
+            }).Get(),
+        });
+        EXPECT_TRUE(written);
         Writer_->Close().Get().ThrowOnError();
     }
 
@@ -691,14 +660,13 @@ TEST_F(TWriterForWebJson, ColumnNameEncoding)
     CreateStandardWriter();
 
     {
-        TUnversionedOwningRowBuilder builder;
-        std::vector<TUnversionedOwningRow> rows;
-        builder.AddValue(MakeUnversionedUint64Value(100500, KeyAId_));
-        builder.AddValue(MakeUnversionedInt64Value(-100500, KeyNonAsciiId_));
-        rows.push_back(builder.FinishRow());
-
-        std::vector<TUnversionedRow> nonOwningRows(rows.begin(), rows.end());
-        EXPECT_EQ(true, Writer_->Write(nonOwningRows));
+        bool written = Writer_->Write({
+            MakeRow(NameTable_, {
+                {"column_a", 100500u},
+                {"column_non_ascii_\xd0\x81", -100500},
+            }).Get()
+        });
+        EXPECT_TRUE(written);
         Writer_->Close().Get().ThrowOnError();
     }
 
@@ -930,125 +898,129 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
     ])")));
 
     CreateStandardWriter(std::vector{firstSchema, secondSchema});
-
-    // "column_d" is registered but present only in second schema.
-    KeyDId_ = NameTable_->RegisterName("column_d");
-
     {
-        TUnversionedOwningRowBuilder builder;
-        std::vector<TUnversionedOwningRow> rows;
+        bool written = Writer_->Write({
+            MakeRow(NameTable_, {
+                {"column_a", EValueType::Composite, R"([-1; -2; -5])"},
+                {
+                    "column_b",
+                    EValueType::Composite,
+                    R"([
+                        "key";
+                        "value";
+                        [0; 7];
+                        [1; #];
+                        [[1; "a"]; [2; "b"]];
+                        99;
+                        100u;
+                        101u;
+                        102u;
+                        103;
+                        "[\"a\", {\"b\": 42}]";
+                        -3.25;
+                    ])",
+                },
+                {"column_c", EValueType::Composite, R"([[[#]; "value"]; [["key"]; #]])"},
+                {"column_d", -49},
+                {TableIndexColumnName, 0},
+                {RowIndexColumnName, 0},
+            }).Get(),
+            MakeRow(NameTable_, {
+                {"column_a", EValueType::Composite, R"([0; -2; -5; 177])"},
+                {
+                    "column_b",
+                    EValueType::Composite,
+                    R"([
+                        "key1";
+                        "value1";
+                        [1; %false];
+                        [1; #];
+                        [];
+                        199;
+                        0u;
+                        1101u;
+                        1102u;
+                        1103;
+                        "null";
+                        0.0;
+                    ])",
+                },
+                {"column_c", EValueType::Composite, R"([[#; #]; [["key1"]; #]])"},
+                {"column_d", 49u},
+                {RowIndexColumnName, 1},
+            }).Get(),
+            MakeRow(NameTable_, {
+                {"column_a", EValueType::Composite, "[]"},
+                {
+                    "column_b",
+                    EValueType::Composite,
+                    R"([
+                        "key2";
+                        "value2";
+                        [0; 127];
+                        [1; %true];
+                        [[0; ""]];
+                        399;
+                        30u;
+                        3101u;
+                        3202u;
+                        3103;
+                        "{\"x\": false}";
+                        1e10;
+                    ])"
+                },
+                {"column_c", EValueType::Composite, "[[[key]; #]]"},
+                {"column_d", "49"},
+                {RowIndexColumnName, 2},
+            }).Get(),
 
-        builder.AddValue(MakeUnversionedCompositeValue(R"([-1; -2; -5])", KeyAId_));
-        builder.AddValue(MakeUnversionedCompositeValue(
-            R"([
-                "key";
-                "value";
-                [0; 7];
-                [1; #];
-                [[1; "a"]; [2; "b"]];
-                99;
-                100u;
-                101u;
-                102u;
-                103;
-                "[\"a\", {\"b\": 42}]";
-                -3.25;
-            ])",
-            KeyBId_));
-        builder.AddValue(MakeUnversionedCompositeValue(R"([[[#]; "value"]; [["key"]; #]])", KeyCId_));
-        builder.AddValue(MakeUnversionedInt64Value(-49, KeyDId_));
-        builder.AddValue(MakeUnversionedInt64Value(0, TableIndexColumnId_));
-        builder.AddValue(MakeUnversionedInt64Value(0, RowIndexColumnId_));
-        rows.push_back(builder.FinishRow());
+            MakeRow(NameTable_, {
+                {"column_a", nullptr},
+                {
+                    "column_b",
+                    EValueType::Composite,
+                    // First string is valid UTF-8, the second one should be Base64 encoded.
+                    "["
+                    "\"\xC3\xBF\";"
+                    "\"\xFA\xFB\xFC\xFD\";"
+                    R"(
+                        [0; 127];
+                        [1; %true];
+                        [[-1; "-1"]; [0; ""]];
+                        499;
+                        40u;
+                        4101u;
+                        4202u;
+                        4103;
+                        "{}";
+                        -2.125;
+                    ])",
+                },
+                {"column_c", EValueType::Composite, "[]"},
+                {"column_d", EValueType::Any, "{x=49}"},
+                {RowIndexColumnName, 3},
+            }).Get(),
 
-        builder.AddValue(MakeUnversionedCompositeValue(R"([0; -2; -5; 177])", KeyAId_));
-        builder.AddValue(MakeUnversionedCompositeValue(
-            R"([
-                "key1";
-                "value1";
-                [1; %false];
-                [1; #];
-                [];
-                199;
-                0u;
-                1101u;
-                1102u;
-                1103;
-                "null";
-                0.0;
-            ])",
-            KeyBId_));
-        builder.AddValue(MakeUnversionedCompositeValue(R"([[#; #]; [["key1"]; #]])", KeyCId_));
-        builder.AddValue(MakeUnversionedUint64Value(49, KeyDId_));
-        builder.AddValue(MakeUnversionedInt64Value(1, RowIndexColumnId_));
-        rows.push_back(builder.FinishRow());
+            // Here come rows from the second table.
+            MakeRow(NameTable_, {
+                {"column_a", EValueType::Composite, "[0; #]"},
+                {"column_b", nullptr},
+                {"column_c", nullptr},
+                {"column_d", -49},
+                {TableIndexColumnName, 1},
+                {RowIndexColumnName, 0},
+            }).Get(),
 
-        builder.AddValue(MakeUnversionedCompositeValue(R"([])", KeyAId_));
-        builder.AddValue(MakeUnversionedCompositeValue(
-            R"([
-                "key2";
-                "value2";
-                [0; 127];
-                [1; %true];
-                [[0; ""]];
-                399;
-                30u;
-                3101u;
-                3202u;
-                3103;
-                "{\"x\": false}";
-                1e10;
-            ])",
-            KeyBId_));
-        builder.AddValue(MakeUnversionedCompositeValue(R"([[["key"]; #]])", KeyCId_));
-        builder.AddValue(MakeUnversionedStringValue("49", KeyDId_));
-        builder.AddValue(MakeUnversionedInt64Value(2, RowIndexColumnId_));
-        rows.push_back(builder.FinishRow());
-
-        builder.AddValue(MakeUnversionedNullValue(KeyAId_));
-        // First string is valid UTF-8, the second one should be Base64 encoded.
-        builder.AddValue(MakeUnversionedCompositeValue(
-            "["
-                "\"\xC3\xBF\";"
-                "\"\xFA\xFB\xFC\xFD\";"
-            R"(
-                [0; 127];
-                [1; %true];
-                [[-1; "-1"]; [0; ""]];
-                499;
-                40u;
-                4101u;
-                4202u;
-                4103;
-                "{}";
-                -2.125;
-            ])",
-            KeyBId_));
-        builder.AddValue(MakeUnversionedCompositeValue(R"([])", KeyCId_));
-        builder.AddValue(MakeUnversionedAnyValue("{x=49}", KeyDId_));
-        builder.AddValue(MakeUnversionedInt64Value(3, RowIndexColumnId_));
-        rows.push_back(builder.FinishRow());
-
-        // Here come rows from the second table.
-
-        builder.AddValue(MakeUnversionedCompositeValue(R"([0; #])", KeyAId_));
-        builder.AddValue(MakeUnversionedNullValue(KeyBId_));
-        builder.AddValue(MakeUnversionedNullValue(KeyCId_));
-        builder.AddValue(MakeUnversionedInt64Value(-49, KeyDId_));
-        builder.AddValue(MakeUnversionedInt64Value(1, TableIndexColumnId_));
-        builder.AddValue(MakeUnversionedInt64Value(0, RowIndexColumnId_));
-        rows.push_back(builder.FinishRow());
-
-        builder.AddValue(MakeUnversionedCompositeValue(R"([1; {z=z}])", KeyAId_));
-        builder.AddValue(MakeUnversionedNullValue(KeyBId_));
-        builder.AddValue(MakeUnversionedCompositeValue(R"([#])", KeyCId_));
-        builder.AddValue(MakeUnversionedNullValue(KeyDId_));
-        builder.AddValue(MakeUnversionedInt64Value(1, TableIndexColumnId_));
-        builder.AddValue(MakeUnversionedInt64Value(1, RowIndexColumnId_));
-        rows.push_back(builder.FinishRow());
-
-        std::vector<TUnversionedRow> nonOwningRows(rows.begin(), rows.end());
-        EXPECT_EQ(true, Writer_->Write(nonOwningRows));
+            MakeRow(NameTable_, {
+                {"column_a", EValueType::Composite, "[1; {z=z}]"},
+                {"column_b", nullptr},
+                {"column_c", EValueType::Composite, "[#]"},
+                {"column_d", nullptr},
+                {TableIndexColumnName, 1},
+                {RowIndexColumnName, 1},
+            }).Get(),
+        });
+        EXPECT_TRUE(written);
         Writer_->Close().Get().ThrowOnError();
     }
 
@@ -1321,45 +1293,52 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Incomplete)
     auto yqlTypeB = ConvertToNode(TYsonString(TStringBuf(R"(["DataType"; "Yson"])")));
     auto yqlTypeC = ConvertToNode(TYsonString(TStringBuf(R"(["OptionalType"; ["DataType"; "String"]])")));
     {
-        TUnversionedOwningRowBuilder builder;
-        builder.AddValue(MakeUnversionedCompositeValue(R"([
-            -1;
-            [
-                [
-                    0;
-                    [
-                        [-2; "UTF:)" + TString("\xF0\x90\x8D\x88") + "\xF0\x90\x8D\x88" + R"("];
-                        [2; "!UTF:)" + TString("\xFA\xFB\xFC\xFD\xFA\xFB\xFC\xFD") + R"("];
-                        [0; ""];
-                    ]
-                ];
-                [
-                    1;
-                    "{kinda_long_key = kinda_even_longer_value}"
-                ];
-                [
-                    0;
-                    [
-                        [0; "One more quite long string"];
-                        [1; "One more quite long string"];
-                        [2; "One more quite long string"];
-                        [3; "One more quite long string"];
-                        [4; "One more quite long string"];
-                        [5; "One more quite long string"];
-                    ]
-                ];
-                [
-                    1;
-                    "{kinda_long_key = kinda_even_longer_value}"
-                ];
-            ];
-            "I'm short";
-            424242238133245
-        ])", KeyAId_));
-        builder.AddValue(MakeUnversionedAnyValue("{kinda_long_key = kinda_even_longer_value}", KeyBId_));
-        builder.AddValue(MakeUnversionedStringValue("One more quite long string", KeyCId_));
         CreateStandardWriter({schema});
-        EXPECT_EQ(true, Writer_->Write({builder.FinishRow()}));
+        bool written = Writer_->Write({
+            MakeRow(NameTable_, {
+                {
+                    "column_a",
+                    EValueType::Composite,
+                    R"([
+                        -1;
+                        [
+                            [
+                                0;
+                                [
+                    [-2; "UTF:)" + TString("\xF0\x90\x8D\x88") + "\xF0\x90\x8D\x88" + R"("];
+                    [2; "!UTF:)" + TString("\xFA\xFB\xFC\xFD\xFA\xFB\xFC\xFD") + R"("];
+                                    [0; ""];
+                                ]
+                            ];
+                            [
+                                1;
+                                "{kinda_long_key = kinda_even_longer_value}"
+                            ];
+                            [
+                                0;
+                                [
+                                    [0; "One more quite long string"];
+                                    [1; "One more quite long string"];
+                                    [2; "One more quite long string"];
+                                    [3; "One more quite long string"];
+                                    [4; "One more quite long string"];
+                                    [5; "One more quite long string"];
+                                ]
+                            ];
+                            [
+                                1;
+                                "{kinda_long_key = kinda_even_longer_value}"
+                            ];
+                        ];
+                        "I'm short";
+                        424242238133245
+                    ])"
+                },
+                {"column_b", EValueType::Any, "{kinda_long_key = kinda_even_longer_value}"},
+                {"column_c", "One more quite long string"},
+            }).Get(),
+        });
+        EXPECT_TRUE(written);
         Writer_->Close().Get().ThrowOnError();
     }
 
@@ -1450,16 +1429,13 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Any)
 
     CreateStandardWriter({schema});
     {
-        TUnversionedOwningRowBuilder builder;
-        builder.AddValue(MakeUnversionedAnyValue("{x=y;z=2}", KeyAId_));
-        EXPECT_EQ(true, Writer_->Write({builder.FinishRow()}));
-        builder.AddValue(MakeUnversionedBooleanValue(true, KeyAId_));
-        EXPECT_EQ(true, Writer_->Write({builder.FinishRow()}));
-        builder.AddValue(MakeUnversionedInt64Value(-42, KeyAId_));
-        EXPECT_EQ(true, Writer_->Write({builder.FinishRow()}));
-        builder.AddValue(MakeUnversionedUint64Value(42u, KeyAId_));
-        EXPECT_EQ(true, Writer_->Write({builder.FinishRow()}));
-
+        bool written = Writer_->Write({
+            MakeRow(NameTable_, {{"column_a", EValueType::Any, "{x=y;z=2}"}}).Get(),
+            MakeRow(NameTable_, {{"column_a", true}}).Get(),
+            MakeRow(NameTable_, {{"column_a", -42}}).Get(),
+            MakeRow(NameTable_, {{"column_a", 42u}}).Get(),
+        });
+        EXPECT_TRUE(written);
         Writer_->Close().Get().ThrowOnError();
     }
 
@@ -1547,9 +1523,10 @@ TEST_F(TWriterForWebJson, YqlValueFormat_CompositeNoSchema)
 
     CreateStandardWriter({schema});
     {
-        TUnversionedOwningRowBuilder builder;
-        builder.AddValue(MakeUnversionedCompositeValue("[1;2]", KeyAId_));
-        EXPECT_EQ(true, Writer_->Write({builder.FinishRow()}));
+        bool written = Writer_->Write({
+            MakeRow(NameTable_, {{"column_a", EValueType::Composite, "[1;2]"}}).Get(),
+        });
+        EXPECT_TRUE(written);
         Writer_->Close().Get().ThrowOnError();
     }
 
