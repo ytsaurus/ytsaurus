@@ -2,6 +2,7 @@ package ru.yandex.yt.ytclient.proxy;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -24,10 +25,15 @@ import javax.annotation.Nullable;
 import io.netty.channel.EventLoopGroup;
 import org.asynchttpclient.AsyncHttpClient;
 import org.asynchttpclient.DefaultAsyncHttpClientConfig;
+import org.asynchttpclient.RequestBuilder;
+import org.asynchttpclient.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
+import ru.yandex.inside.yt.kosher.common.YtFormat;
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer;
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.misc.SerializedExecutorService;
@@ -770,5 +776,132 @@ class ClientPool implements DataCenterRpcClientPool {
         public String toString() {
             return String.format("[%s/%s]", guid, hostPort);
         }
+    }
+}
+
+interface ProxyGetter {
+    CompletableFuture<List<HostPort>> getProxies();
+}
+
+@NonNullApi
+@NonNullFields
+class HttpProxyGetter implements ProxyGetter {
+    AsyncHttpClient httpClient;
+    String balancerHost;
+    @Nullable String role;
+    @Nullable String token;
+
+    HttpProxyGetter(AsyncHttpClient httpClient, String balancerHost, @Nullable String role, @Nullable String token) {
+        this.httpClient = httpClient;
+        this.balancerHost = balancerHost;
+        this.role = role;
+        this.token = token;
+    }
+
+    @Override
+    public CompletableFuture<List<HostPort>> getProxies() {
+        String discoverProxiesUrl = String.format("http://%s/api/v4/discover_proxies?type=rpc", balancerHost);
+        if (role != null) {
+            discoverProxiesUrl += "&role=" + role;
+        }
+        RequestBuilder requestBuilder = new RequestBuilder()
+                .setUrl(discoverProxiesUrl)
+                .setHeader("X-YT-Header-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
+                .setHeader("X-YT-Output-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT));
+        if (token != null) {
+            // NB. token should be set https://st.yandex-team.ru/YTADMINREQ-25316#60c516ddf76e1021d1143001
+            requestBuilder.setHeader("Authorization", String.format("OAuth %s", token));
+        }
+        CompletableFuture<Response> responseFuture =
+                httpClient.executeRequest(requestBuilder.build()).toCompletableFuture();
+
+        CompletableFuture<List<HostPort>> resultFuture = responseFuture.thenApply((response) -> {
+            // TODO: this should use common library of raw requests.
+            if (response.getStatusCode() != 200) {
+                StringBuilder builder = new StringBuilder();
+                builder.append("Error: ");
+                builder.append(response.getStatusCode());
+                builder.append("\n");
+
+                for (Map.Entry<String, String> entry : response.getHeaders()) {
+                    builder.append(entry.getKey());
+                    builder.append("=");
+                    builder.append(entry.getValue());
+                    builder.append("\n");
+                }
+
+                builder.append(new String(response.getResponseBodyAsBytes()));
+                builder.append("\n");
+
+                throw new RuntimeException(builder.toString());
+            }
+
+            YTreeNode node = YTreeTextSerializer.deserialize(response.getResponseBodyAsStream());
+            return node
+                    .mapNode()
+                    .getOrThrow("proxies")
+                    .asList()
+                    .stream()
+                    .map(YTreeNode::stringValue)
+                    .map(HostPort::parse)
+                    .collect(Collectors.toList());
+        });
+        resultFuture.whenComplete((result, error) -> responseFuture.cancel(true));
+        return resultFuture;
+    }
+}
+
+@NonNullFields
+@NonNullApi
+class RpcProxyGetter implements ProxyGetter {
+    final List<HostPort> initialProxyList;
+    final @Nullable RpcClientPool clientPool;
+    final @Nullable String role;
+    final String dataCenterName;
+    final RpcClientFactory clientFactory;
+    final RpcOptions options;
+    final Random random;
+
+    RpcProxyGetter(
+            List<HostPort> initialProxyList,
+            @Nullable RpcClientPool clientPool,
+            @Nullable String role,
+            String dataCenterName,
+            RpcClientFactory clientFactory,
+            RpcOptions options,
+            Random random
+    ) {
+        this.initialProxyList = Collections.unmodifiableList(initialProxyList);
+        this.clientPool = clientPool;
+        this.role = role;
+        this.dataCenterName = dataCenterName;
+        this.clientFactory = clientFactory;
+        this.options = options;
+        this.random = random;
+    }
+
+    @Override
+    public CompletableFuture<List<HostPort>> getProxies() {
+        CompletableFuture<Void> releaseClientFuture = new CompletableFuture<>();
+        RpcClient rpcClient = null;
+        if (clientPool != null) {
+            CompletableFuture<RpcClient> clientFuture = clientPool.peekClient(releaseClientFuture);
+            if (clientFuture.isDone() && !clientFuture.isCompletedExceptionally()) {
+                rpcClient = clientFuture.join();
+            }
+        }
+        if (rpcClient == null) {
+            HostPort address = initialProxyList.get(random.nextInt(initialProxyList.size()));
+            rpcClient = clientFactory.create(address, dataCenterName);
+        }
+
+        DiscoveryServiceClient client = new DiscoveryServiceClient(rpcClient, options);
+
+        CompletableFuture<List<String>> requestResult = client.discoverProxies(role);
+        CompletableFuture<List<HostPort>> resultFuture = requestResult
+                .thenApply(result -> result.stream().map(HostPort::parse).collect(Collectors.toList()));
+
+        resultFuture.whenComplete((result, error) -> releaseClientFuture.complete(null));
+        return resultFuture;
     }
 }
