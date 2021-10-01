@@ -1815,6 +1815,8 @@ void TTask::FinalizeFeatures()
     ControllerFeatures_.AddSingular("wall_time", GetWallTime().MilliSeconds());
     ControllerFeatures_.AddSingular("exhaust_time", GetExhaustTime().MilliSeconds());
     ControllerFeatures_.AddSingular("job_statistics", BuildYsonNodeFluently().Value(AggregatedJobStatistics_));
+
+    ControllerFeatures_.CalculateJobSatisticsAverage();
 }
 
 void TTask::OnPendingJobCountUpdated()
