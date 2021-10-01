@@ -112,7 +112,6 @@ public class TemporaryClusterErrorsTest {
         RpcOptions options = new RpcOptions();
         options.setGlobalTimeout(Duration.ofSeconds(1));
         options.setProxyUpdateTimeout(Duration.ofMillis(100));
-        options.setNewDiscoveryServiceEnabled(true);
         YtClient client = new YtClient(
                 connector,
                 List.of(new YtCluster("localhost", LocalYt.getHost(), LocalYt.getPort())),

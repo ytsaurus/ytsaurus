@@ -31,7 +31,7 @@ public class YtClientMiscellaneousTest {
     public static List<RpcOptions> getRpcOptions() {
         return List.of(
                 new RpcOptions(),
-                new RpcOptions().setNewDiscoveryServiceEnabled(true)
+                new RpcOptions()
         );
     }
 

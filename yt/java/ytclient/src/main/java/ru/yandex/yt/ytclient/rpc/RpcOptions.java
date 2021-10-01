@@ -317,22 +317,8 @@ public class RpcOptions {
         this.preferableDiscoveryMethod = preferableDiscoveryMethod;
     }
 
-    /**
-     * @see #setNewDiscoveryServiceEnabled
-     */
     public boolean isNewDiscoveryServiceEnabled() {
         return newDiscoveryServiceEnabled;
-    }
-
-    /**
-     * Whether or not to use new discovery service.
-     *
-     * <p> This option is temporary and we are going to move all clients to new discovery service.
-     * Once we are sure our new service is pretty stable this option will be removed.
-     */
-    public RpcOptions setNewDiscoveryServiceEnabled(boolean newDiscoveryServiceEnabled) {
-        this.newDiscoveryServiceEnabled = newDiscoveryServiceEnabled;
-        return this;
     }
 
     /**
@@ -346,9 +332,6 @@ public class RpcOptions {
      * Set acknowledgement timeout.
      *
      * Client will fail request if acknowledgement is not received within this timeout.
-     * Works only with newDiscoveryServiceEnabled
-     *
-     * @see #setNewDiscoveryServiceEnabled
      */
     public RpcOptions setAcknowledgementTimeout(@Nullable Duration acknowledgementTimeout) {
         this.acknowledgementTimeout = acknowledgementTimeout;
