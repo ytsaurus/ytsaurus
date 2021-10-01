@@ -13,6 +13,7 @@
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/validate_logical_type.h>
 
+#include <yt/yt/library/named_value/named_value.h>
 #include <yt/yt/library/skiff_ext/schema_match.h>
 
 #include <yt/yt/core/yson/string.h>
@@ -31,6 +32,7 @@ namespace NYT {
 namespace {
 
 using namespace NFormats;
+using namespace NNamedValue;
 using namespace NSkiff;
 using namespace NSkiffExt;
 using namespace NTableClient;
@@ -355,7 +357,7 @@ ISchemalessFormatWriterPtr CreateSkiffWriter(
 TString TableToSkiff(
     const TLogicalTypePtr& logicalType,
     const std::shared_ptr<TSkiffSchema>& typeSchema,
-    const TTableField::TValue& value)
+    const TNamedValue::TValue& value)
 {
     auto schema = CreateSingleValueTableSchema(logicalType);
     auto skiffSchema = CreateTupleSchema({
@@ -385,7 +387,7 @@ TString TableToSkiff(
     return result.substr(2);
 }
 
-TTableField::TValue SkiffToTable(
+TNamedValue::TValue SkiffToTable(
     const TLogicalTypePtr& logicalType,
     const std::shared_ptr<TSkiffSchema>& typeSchema,
     const TString& skiffValue)
@@ -407,7 +409,7 @@ TTableField::TValue SkiffToTable(
             rowCollector.Size());
     }
     auto value = rowCollector.GetRowValue(0, "value");
-    return TTableField::ExtractValue(value);
+    return TNamedValue::ExtractValue(value);
 }
 
 #define CHECK_BIDIRECTIONAL_CONVERSION(logicalTypeArg, skiffSchemaArg, tableValueArg, hexSkiffArg) \
@@ -415,7 +417,7 @@ TTableField::TValue SkiffToTable(
         try {                                                                                      \
             TLogicalTypePtr logicalType = (logicalTypeArg);                                        \
             std::shared_ptr<TSkiffSchema> skiffSchema = (skiffSchemaArg);                          \
-            TTableField::TValue tableValue = (tableValueArg);                                      \
+            TNamedValue::TValue tableValue = (tableValueArg);                                      \
             TString hexSkiff = (hexSkiffArg);                                                      \
             auto nameTable = New<TNameTable>();                                                    \
             auto actualSkiff = TableToSkiff(logicalType, skiffSchema, tableValue);                 \
@@ -492,41 +494,41 @@ void TestAllWireTypes(bool useSchema)
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, tableSchemas);
 
         writer->Write({
-            MakeRow({
-                MakeUnversionedInt64Value(-1, nameTable->GetIdOrRegisterName("int64")),
-                MakeUnversionedUint64Value(2, nameTable->GetIdOrRegisterName("uint64")),
-                MakeUnversionedDoubleValue(3.0, nameTable->GetIdOrRegisterName("double_1")),
-                MakeUnversionedDoubleValue(3.0, nameTable->GetIdOrRegisterName("double_2")),
-                MakeUnversionedBooleanValue(true, nameTable->GetIdOrRegisterName("boolean")),
-                MakeUnversionedStringValue("four", nameTable->GetIdOrRegisterName("string32")),
-                MakeUnversionedNullValue(nameTable->GetIdOrRegisterName("null")),
+            MakeRow(nameTable, {
+                {"int64", -1},
+                {"uint64", 2u},
+                {"double_1", 3.0},
+                {"double_2", 3.0},
+                {"boolean", true},
+                {"string32", "four"},
+                {"null", nullptr},
 
-                MakeUnversionedInt64Value(-5, nameTable->GetIdOrRegisterName("opt_int64")),
-                MakeUnversionedUint64Value(6, nameTable->GetIdOrRegisterName("opt_uint64")),
-                MakeUnversionedDoubleValue(7.0, nameTable->GetIdOrRegisterName("opt_double_1")),
-                MakeUnversionedDoubleValue(7.0, nameTable->GetIdOrRegisterName("opt_double_2")),
-                MakeUnversionedBooleanValue(false, nameTable->GetIdOrRegisterName("opt_boolean")),
-                MakeUnversionedStringValue("eight", nameTable->GetIdOrRegisterName("opt_string32")),
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+                {"opt_int64", -5},
+                {"opt_uint64", 6u},
+                {"opt_double_1", 7.0},
+                {"opt_double_2", 7.0},
+                {"opt_boolean", false},
+                {"opt_string32", "eight"},
+                {TableIndexColumnName, 0},
             }).Get(),
         });
         writer->Write({
-            MakeRow({
-                MakeUnversionedInt64Value(-9, nameTable->GetIdOrRegisterName("int64")),
-                MakeUnversionedUint64Value(10, nameTable->GetIdOrRegisterName("uint64")),
-                MakeUnversionedDoubleValue(11.0, nameTable->GetIdOrRegisterName("double_1")),
-                MakeUnversionedDoubleValue(11.0, nameTable->GetIdOrRegisterName("double_2")),
-                MakeUnversionedBooleanValue(false, nameTable->GetIdOrRegisterName("boolean")),
-                MakeUnversionedStringValue("twelve", nameTable->GetIdOrRegisterName("string32")),
-                MakeUnversionedNullValue(nameTable->GetIdOrRegisterName("null")),
+            MakeRow(nameTable, {
+                {"int64", -9},
+                {"uint64", 10u},
+                {"double_1", 11.0},
+                {"double_2", 11.0},
+                {"boolean", false},
+                {"string32", "twelve"},
+                {"null", nullptr},
 
-                MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("opt_int64")),
-                MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("opt_uint64")),
-                MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("opt_double_1")),
-                MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("opt_double_2")),
-                MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("opt_boolean")),
-                MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("opt_string32")),
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+                {"opt_int64", nullptr},
+                {"opt_uint64", nullptr},
+                {"opt_double_1", nullptr},
+                {"opt_double_2", nullptr},
+                {"opt_boolean", nullptr},
+                {"opt_string32", nullptr},
+                {TableIndexColumnName, 0},
             }).Get()
         });
 
@@ -607,7 +609,7 @@ TEST(TSkiffWriter, TestAllWireTypesWithSchema)
 class TSkiffYsonWireTypeP
     : public ::testing::TestWithParam<std::tuple<
         TLogicalTypePtr,
-        TTableField::TValue,
+        TNamedValue::TValue,
         TString
     >>
 {
@@ -683,7 +685,7 @@ TEST_P(TSkiffYsonWireTypeP, Test)
     parser->Read(actualSkiffDataStream.Str());
     parser->Finish();
     auto actualValue = rowCollector.GetRowValue(0, "column");
-    EXPECT_EQ(actualValue, TTableField("column", value).ToUnversionedValue(nameTable));
+    EXPECT_EQ(actualValue, TNamedValue("column", value).ToUnversionedValue(nameTable));
 }
 
 TEST(TSkiffWriter, TestYsonWireType)
@@ -704,78 +706,78 @@ TEST(TSkiffWriter, TestYsonWireType)
 
         // Row 0 (Null)
         writer->Write({
-            MakeRow({
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+            MakeRow(nameTable, {
+                {TableIndexColumnName, 0},
 
-                MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("yson32")),
-                MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("opt_yson32")),
+                {"yson32", nullptr},
+                {"opt_yson32", nullptr},
             }).Get(),
         });
 
         // Row 1 (Int64)
         writer->Write({
-            MakeRow({
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+            MakeRow(nameTable, {
+                {TableIndexColumnName, 0},
 
-                MakeUnversionedInt64Value(-5, nameTable->GetIdOrRegisterName("yson32")),
-                MakeUnversionedInt64Value(-6, nameTable->GetIdOrRegisterName("opt_yson32")),
+                {"yson32", -5},
+                {"opt_yson32", -6},
             }).Get(),
         });
 
         // Row 2 (Uint64)
         writer->Write({
-            MakeRow({
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+            MakeRow(nameTable, {
+                {TableIndexColumnName, 0},
 
-                MakeUnversionedUint64Value(42, nameTable->GetIdOrRegisterName("yson32")),
-                MakeUnversionedUint64Value(43, nameTable->GetIdOrRegisterName("opt_yson32")),
+                {"yson32", 42u},
+                {"opt_yson32", 43u},
             }).Get(),
         });
 
         // Row 3 ((Double)
         writer->Write({
-            MakeRow({
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+            MakeRow(nameTable, {
+                {TableIndexColumnName, 0},
 
-                MakeUnversionedDoubleValue(2.7182818, nameTable->GetIdOrRegisterName("yson32")),
-                MakeUnversionedDoubleValue(3.1415926, nameTable->GetIdOrRegisterName("opt_yson32")),
+                {"yson32", 2.7182818},
+                {"opt_yson32", 3.1415926},
             }).Get(),
         });
 
         // Row 4 ((Boolean)
         writer->Write({
-            MakeRow({
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+            MakeRow(nameTable, {
+                {TableIndexColumnName, 0},
 
-                MakeUnversionedBooleanValue(true, nameTable->GetIdOrRegisterName("yson32")),
-                MakeUnversionedBooleanValue(false, nameTable->GetIdOrRegisterName("opt_yson32")),
+                {"yson32", true},
+                {"opt_yson32", false},
             }).Get(),
         });
 
         // Row 5 ((String)
         writer->Write({
-            MakeRow({
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+            MakeRow(nameTable, {
+                {TableIndexColumnName, 0},
 
-                MakeUnversionedStringValue("Yin", nameTable->GetIdOrRegisterName("yson32")),
-                MakeUnversionedStringValue("Yang", nameTable->GetIdOrRegisterName("opt_yson32")),
+                {"yson32", "Yin"},
+                {"opt_yson32", "Yang"},
             }).Get(),
         });
 
         // Row 6 ((Any)
         writer->Write({
-            MakeRow({
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+            MakeRow(nameTable, {
+                {TableIndexColumnName, 0},
 
-                MakeUnversionedAnyValue("{foo=bar;}", nameTable->GetIdOrRegisterName("yson32")),
-                MakeUnversionedAnyValue("{bar=baz;}", nameTable->GetIdOrRegisterName("opt_yson32")),
+                {"yson32", EValueType::Any, "{foo=bar;}"},
+                {"opt_yson32", EValueType::Any, "{bar=baz;}"},
             }).Get(),
         });
 
         // Row 7 ((missing optional values)
         writer->Write({
-            MakeRow({
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+            MakeRow(nameTable, {
+                {TableIndexColumnName, 0},
             }).Get(),
         });
 
@@ -855,7 +857,7 @@ class TSkiffFormatSmallIntP
 : public ::testing::TestWithParam<std::tuple<
     std::shared_ptr<TSkiffSchema>,
     TLogicalTypePtr,
-    TTableField::TValue,
+    TNamedValue::TValue,
     TString
 >>
 {
@@ -885,8 +887,8 @@ public:
         {
             auto listSkiffSchema = CreateRepeatedVariant8Schema({CreateSimpleTypeSchema(wireType)});
             auto listSkiffData = TString(3, 0) + skiffValue + TString(1, '\xff');
-            auto listValue = TTableField::TValue{
-                TTableField::TComposite{
+            auto listValue = TNamedValue::TValue{
+                TNamedValue::TComposite{
                     BuildYsonStringFluently()
                         .BeginList()
                         .Item().Value(value)
@@ -1017,7 +1019,7 @@ TEST_P(TSkiffFormatSmallIntP, Test)
     parser->Finish();
     auto actualValue = rowCollector.GetRowValue(0, "column");
 
-    EXPECT_EQ(actualValue, TTableField("common", value).ToUnversionedValue(nameTable));
+    EXPECT_EQ(actualValue, TNamedValue("common", value).ToUnversionedValue(nameTable));
 }
 
 TEST(TSkiffWriter, TestBadSmallIntegers)
@@ -1026,7 +1028,7 @@ TEST(TSkiffWriter, TestBadSmallIntegers)
     auto writeSkiffValue = [] (
         std::shared_ptr<TSkiffSchema>&& typeSchema,
         TLogicalTypePtr logicalType,
-        TTableField::TValue value)
+        TNamedValue::TValue value)
     {
         TStringStream result;
         auto skiffSchema = CreateTupleSchema({
@@ -1287,23 +1289,19 @@ TEST_P(TSkiffWriterSingular, TestOptionalSingular)
         TStringOutput resultStream(result);
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, tableSchemas);
         // Row 0
-        writer->Write(
-            {
-                MakeRow(
-                    {
-                        MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
-                        MakeUnversionedNullValue(nameTable->GetIdOrRegisterName("opt_null")),
-                    }).Get(),
-            });
+        writer->Write({
+            MakeRow(nameTable, {
+                {TableIndexColumnName, 0},
+                {"opt_null", nullptr},
+            }).Get(),
+        });
         // Row 1
-        writer->Write(
-            {
-                MakeRow(
-                    {
-                        MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
-                        MakeUnversionedCompositeValue("[#]", nameTable->GetIdOrRegisterName("opt_null")),
-                    }).Get(),
-            });
+        writer->Write({
+            MakeRow(nameTable, {
+                {TableIndexColumnName, 0},
+                {"opt_null", EValueType::Composite, "[#]"},
+            }).Get(),
+        });
         writer->Close()
             .Get()
             .ThrowOnError();
@@ -1342,29 +1340,29 @@ TEST(TSkiffWriter, TestRearrange)
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()});
 
         writer->Write({
-            MakeRow({
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
-                MakeUnversionedInt64Value(1, nameTable->GetIdOrRegisterName("number")),
-                MakeUnversionedStringValue("one", nameTable->GetIdOrRegisterName("eng")),
-                MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("rus")),
+            MakeRow(nameTable, {
+                {TableIndexColumnName, 0},
+                {"number", 1},
+                {"eng", "one"},
+                {"rus", nullptr},
             }).Get()
         });
 
         writer->Write({
-            MakeRow({
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
-                MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("eng")),
-                MakeUnversionedInt64Value(2, nameTable->GetIdOrRegisterName("number")),
-                MakeUnversionedStringValue("dva", nameTable->GetIdOrRegisterName("rus")),
+            MakeRow(nameTable, {
+                {TableIndexColumnName, 0},
+                {"eng", nullptr},
+                {"number", 2},
+                {"rus", "dva"},
             }).Get()
         });
 
         writer->Write({
-            MakeRow({
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
-                MakeUnversionedStringValue("tri", nameTable->GetIdOrRegisterName("rus")),
-                MakeUnversionedStringValue("three", nameTable->GetIdOrRegisterName("eng")),
-                MakeUnversionedInt64Value(3, nameTable->GetIdOrRegisterName("number")),
+            MakeRow(nameTable, {
+                {TableIndexColumnName, 0},
+                {"rus", "tri"},
+                {"eng", "three"},
+                {"number", 3},
             }).Get()
         });
 
@@ -1416,9 +1414,9 @@ TEST(TSkiffWriter, TestMissingRequiredField)
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()});
 
         writer->Write({
-            MakeRow({
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
-                MakeUnversionedInt64Value(1, nameTable->GetIdOrRegisterName("number")),
+            MakeRow(nameTable, {
+                {TableIndexColumnName, 0},
+                {"number", 1},
             }).Get()
         });
         writer->Close()
@@ -1446,40 +1444,40 @@ TEST(TSkiffWriter, TestSparse)
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()});
 
     writer->Write({
-        MakeRow({
-            MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
-            MakeUnversionedInt64Value(-1, nameTable->GetIdOrRegisterName("int64")),
-            MakeUnversionedStringValue("minus one", nameTable->GetIdOrRegisterName("string32")),
+        MakeRow(nameTable, {
+            {TableIndexColumnName, 0},
+            {"int64", -1},
+            {"string32", "minus one"},
         }).Get(),
     });
 
     writer->Write({
-        MakeRow({
-            MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
-            MakeUnversionedStringValue("minus five", nameTable->GetIdOrRegisterName("string32")),
-            MakeUnversionedInt64Value(-5, nameTable->GetIdOrRegisterName("int64")),
+        MakeRow(nameTable, {
+            {TableIndexColumnName, 0},
+            {"string32", "minus five"},
+            {"int64", -5},
         }).Get(),
     });
 
     writer->Write({
-        MakeRow({
-            MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
-            MakeUnversionedUint64Value(42, nameTable->GetIdOrRegisterName("uint64")),
+        MakeRow(nameTable, {
+            {TableIndexColumnName, 0},
+            {"uint64", 42u},
         }).Get(),
     });
 
     writer->Write({
-        MakeRow({
-            MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
-            MakeUnversionedInt64Value(-8, nameTable->GetIdOrRegisterName("int64")),
-            MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("uint64")),
-            MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("string32")),
+        MakeRow(nameTable, {
+            {TableIndexColumnName, 0},
+            {"int64", -8},
+            {"uint64", nullptr},
+            {"string32", nullptr},
         }).Get(),
     });
 
     writer->Write({
-        MakeRow({
-            MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+        MakeRow(nameTable, {
+            {TableIndexColumnName, 0},
         }).Get(),
     });
 
@@ -1539,9 +1537,9 @@ TEST(TSkiffWriter, TestMissingFields)
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()});
 
         writer->Write({
-            MakeRow({
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
-                MakeUnversionedStringValue("four", nameTable->GetIdOrRegisterName("unknown_column")),
+            MakeRow(nameTable, {
+                {TableIndexColumnName, 0},
+                {"unknown_column", "four"},
             }).Get(),
         });
         writer->Close()
@@ -1561,9 +1559,9 @@ TEST(TSkiffWriter, TestMissingFields)
         ASSERT_TRUE(unknownColumnId < nameTable->GetId("value"));
 
         writer->Write({
-            MakeRow({
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
-                MakeUnversionedStringValue("four", nameTable->GetIdOrRegisterName("unknown_column")),
+            MakeRow(nameTable, {
+                {TableIndexColumnName, 0},
+                {"unknown_column", "four"},
             }).Get(),
         });
         writer->Close()
@@ -1592,23 +1590,24 @@ TEST(TSkiffWriter, TestOtherColumns)
 
     // Row 0.
     writer->Write({
-        MakeRow({
-            MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
-            MakeUnversionedStringValue("foo", nameTable->GetIdOrRegisterName("string_column")),
+        MakeRow(nameTable, {
+            {TableIndexColumnName, 0},
+            {"string_column", "foo"},
         }).Get(),
     });
+
     // Row 1.
     writer->Write({
-        MakeRow({
-            MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
-            MakeUnversionedInt64Value(42, nameTable->GetIdOrRegisterName("int64_column")),
+        MakeRow(nameTable, {
+            {TableIndexColumnName, 0},
+            {"int64_column", 42},
         }).Get(),
     });
     // Row 2.
     writer->Write({
-        MakeRow({
-            MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
-            MakeUnversionedStringValue("bar", nameTable->GetIdOrRegisterName("other_string_column")),
+        MakeRow(nameTable, {
+            {TableIndexColumnName, 0},
+            {"other_string_column", "bar"},
         }).Get(),
     });
     writer->Close()
@@ -1657,23 +1656,23 @@ TEST(TSkiffWriter, TestKeySwitch)
 
     writer->Write({
         // Row 0.
-        MakeRow({
-            MakeUnversionedStringValue("one", nameTable->GetIdOrRegisterName("value")),
-            MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+        MakeRow(nameTable, {
+            {"value", "one"},
+            {TableIndexColumnName, 0},
         }).Get(),
     });
     // Row 1.
     writer->Write({
-        MakeRow({
-            MakeUnversionedStringValue("one", nameTable->GetIdOrRegisterName("value")),
-            MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+        MakeRow(nameTable, {
+            {"value", "one"},
+            {TableIndexColumnName, 0},
         }).Get(),
     });
     // Row 2.
     writer->Write({
-        MakeRow({
-            MakeUnversionedStringValue("two", nameTable->GetIdOrRegisterName("value")),
-            MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+        MakeRow(nameTable, {
+            {"value", "two"},
+            {TableIndexColumnName, 0},
         }).Get(),
     });
     writer->Close()
@@ -1717,16 +1716,16 @@ TEST(TSkiffWriter, TestEndOfStream)
 
     // Row 0.
     writer->Write({
-        MakeRow({
-            MakeUnversionedStringValue("zero", nameTable->GetIdOrRegisterName("value")),
-            MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+        MakeRow(nameTable, {
+            {"value", "zero"},
+            {TableIndexColumnName, 0},
         }).Get(),
     });
     // Row 1.
     writer->Write({
-        MakeRow({
-            MakeUnversionedStringValue("one", nameTable->GetIdOrRegisterName("value")),
-            MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+        MakeRow(nameTable, {
+            {"value", "one"},
+            {TableIndexColumnName, 0},
         }).Get(),
     });
     writer->Close()
@@ -1773,20 +1772,16 @@ TEST(TSkiffWriter, TestRowRangeIndex)
         std::optional<int> RowIndex;
     };
     auto generateUnversionedRow = [] (const TRow& row, const TNameTablePtr& nameTable) {
-        std::vector<TUnversionedValue> values = {
-            MakeUnversionedInt64Value(row.TableIndex, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+        std::vector<TNamedValue> values = {
+            {TableIndexColumnName, row.TableIndex},
         };
         if (row.RangeIndex) {
-            values.emplace_back(
-                MakeUnversionedInt64Value(*row.RangeIndex, nameTable->GetIdOrRegisterName(RangeIndexColumnName))
-            );
+            values.emplace_back(RangeIndexColumnName, *row.RangeIndex);
         }
         if (row.RowIndex) {
-            values.emplace_back(
-                MakeUnversionedInt64Value(*row.RowIndex, nameTable->GetIdOrRegisterName(RowIndexColumnName))
-            );
+            values.push_back({RowIndexColumnName, *row.RowIndex});
         }
-        return MakeRow(values);
+        return MakeRow(nameTable, values);
     };
 
     auto skiffWrite = [generateUnversionedRow] (const std::vector<TRow>& rows, const std::shared_ptr<TSkiffSchema>& skiffSchema) {
@@ -1974,11 +1969,10 @@ TEST(TSkiffWriter, TestRowIndexOnlyOrRangeIndexOnly)
 
         // Row 0.
         writer->Write({
-            MakeRow(
-                {
-                    MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(columnName)),
-                }).Get(),
-            });
+            MakeRow(nameTable, {
+                {columnName, 0},
+            }).Get(),
+        });
         writer->Close()
             .Get()
             .ThrowOnError();
@@ -2031,9 +2025,9 @@ TEST(TSkiffWriter, TestComplexType)
 
         // Row 0.
         writer->Write({
-            MakeRow({
-                MakeUnversionedCompositeValue("[foo;[[0; 1];[2;3]]]", nameTable->GetIdOrRegisterName("value")),
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+            MakeRow(nameTable, {
+                {"value", EValueType::Composite, "[foo;[[0; 1];[2;3]]]"},
+                {TableIndexColumnName, 0},
             }).Get(),
         });
         writer->Close()
@@ -2086,9 +2080,9 @@ TEST(TSkiffWriter, TestEmptyComplexType)
 
         // Row 0.
         writer->Write({
-            MakeRow({
-                MakeUnversionedNullValue(nameTable->GetIdOrRegisterName("value")),
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+            MakeRow(nameTable, {
+                {"value", nullptr},
+                {TableIndexColumnName, 0},
             }).Get(),
         });
         writer->Close()
@@ -2133,9 +2127,9 @@ TEST(TSkiffWriter, TestSparseComplexType)
 
         // Row 0.
         writer->Write({
-            MakeRow({
-                MakeUnversionedCompositeValue("[foo;bar;]", nameTable->GetIdOrRegisterName("value")),
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+            MakeRow(nameTable, {
+                {"value", EValueType::Composite, "[foo;bar;]"},
+                {TableIndexColumnName, 0},
             }).Get(),
         });
         writer->Close()
@@ -2186,9 +2180,9 @@ TEST(TSkiffWriter, TestSparseComplexTypeWithExtraOptional)
 
     // Row 0.
     writer->Write({
-        MakeRow({
-            MakeUnversionedCompositeValue("[foo;bar;]", nameTable->GetIdOrRegisterName("value")),
-            MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+        MakeRow(nameTable, {
+            {"value", EValueType::Composite, "[foo;bar;]"},
+            {TableIndexColumnName, 0},
         }).Get(),
     });
     writer->Close()
@@ -2253,9 +2247,11 @@ TEST(TSkiffWriter, TestMissingComplexColumn)
         TStringStream resultStream;
         auto writer = CreateSkiffWriter(optionalSkiffSchema, nameTable, &resultStream, std::vector{New<TTableSchema>()});
         writer->Write({
-            MakeRow({ }).Get(),
-            MakeRow({ MakeUnversionedNullValue(nameTable->GetIdOrRegisterName("opt_list")), }).Get(),
-            MakeRow({ }).Get(),
+            MakeRow(nameTable, { }).Get(),
+            MakeRow(nameTable, {
+                {"opt_list", nullptr},
+            }).Get(),
+            MakeRow(nameTable, { }).Get(),
         });
         writer->Close()
             .Get()
@@ -2810,7 +2806,6 @@ TEST(TSkiffFormat, TestTimestamp)
     CHECK_BIDIRECTIONAL_CONVERSION(Timestamp(), CreateSimpleTypeSchema(EWireType::Uint64), 42ull, "2A000000" "00000000");
     CHECK_BIDIRECTIONAL_CONVERSION(Interval(), CreateSimpleTypeSchema(EWireType::Int64), 42, "2A000000" "00000000");
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

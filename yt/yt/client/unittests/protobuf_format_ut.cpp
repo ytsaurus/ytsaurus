@@ -20,6 +20,8 @@
 #include <yt/yt/client/table_client/value_consumer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/library/named_value/named_value.h>
+
 #include <util/random/fast.h>
 
 #include <google/protobuf/text_format.h>
@@ -38,6 +40,7 @@ using namespace NConcurrency;
 using namespace NProtobufFormatTest;
 
 using ::google::protobuf::FileDescriptor;
+using NNamedValue::MakeRow;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,16 +107,6 @@ TProtobufFormatConfigPtr ParseFormatConfigFromNode(const INodePtr& configNode)
     config->Load(configNode);
     return config;
 };
-
-TUnversionedOwningRow MakeRow(const std::initializer_list<TUnversionedValue>& rows)
-{
-    TUnversionedOwningRowBuilder builder;
-    for (const auto& r : rows) {
-        builder.AddValue(r);
-    }
-
-    return builder.FinishRow();
-}
 
 TString LenvalBytes(const ::google::protobuf::Message& message)
 {
@@ -907,7 +900,6 @@ TEST(TProtobufFormat, TestWriteEnumerationString)
     auto config = CreateAllFieldsConfig(EProtoFormatType::Structured);
 
     auto nameTable = New<TNameTable>();
-    auto enumId = nameTable->RegisterName("Enum");
 
     TString result;
     TStringOutput resultStream(result);
@@ -921,13 +913,13 @@ TEST(TProtobufFormat, TestWriteEnumerationString)
         0);
 
     writer->Write({
-        MakeRow({
-            MakeUnversionedStringValue("MinusFortyTwo", enumId),
+        MakeRow(nameTable, {
+            {"Enum", "MinusFortyTwo"}
         }).Get()
     });
     writer->Write({
-        MakeRow({
-            MakeUnversionedStringValue("Three", enumId),
+        MakeRow(nameTable, {
+            {"Enum", "Three"},
         }).Get()
     });
 
@@ -980,7 +972,6 @@ TEST(TProtobufFormat, TestWriteEnumerationInt)
         .Value("protobuf");
 
     auto nameTable = New<TNameTable>();
-    auto enumId = nameTable->RegisterName("Enum");
 
     auto writeAndParseRow = [&] (TUnversionedRow row, TMessage* message) {
         TString result;
@@ -1012,8 +1003,8 @@ TEST(TProtobufFormat, TestWriteEnumerationInt)
     {
         TMessage message;
         writeAndParseRow(
-            MakeRow({
-                MakeUnversionedInt64Value(-42, enumId),
+            MakeRow(nameTable, {
+                {"Enum", -42},
             }).Get(),
             &message);
         ASSERT_EQ(message.enum_field(), EEnum::MinusFortyTwo);
@@ -1021,8 +1012,8 @@ TEST(TProtobufFormat, TestWriteEnumerationInt)
     {
         TMessage message;
         writeAndParseRow(
-            MakeRow({
-                MakeUnversionedInt64Value(std::numeric_limits<i32>::max(), enumId),
+            MakeRow(nameTable, {
+                {"Enum", static_cast<ui64>(std::numeric_limits<i32>::max())},
             }).Get(),
             &message);
         ASSERT_EQ(message.enum_field(), EEnum::MaxInt32);
@@ -1030,8 +1021,8 @@ TEST(TProtobufFormat, TestWriteEnumerationInt)
     {
         TMessage message;
         writeAndParseRow(
-            MakeRow({
-                MakeUnversionedUint64Value(std::numeric_limits<i32>::max(), enumId),
+            MakeRow(nameTable, {
+                {"Enum", std::numeric_limits<i32>::max()},
             }).Get(),
             &message);
         ASSERT_EQ(message.enum_field(), EEnum::MaxInt32);
@@ -1039,8 +1030,8 @@ TEST(TProtobufFormat, TestWriteEnumerationInt)
     {
         TMessage message;
         writeAndParseRow(
-            MakeRow({
-                MakeUnversionedInt64Value(std::numeric_limits<i32>::min(), enumId),
+            MakeRow(nameTable, {
+                {"Enum", std::numeric_limits<i32>::min()},
             }).Get(),
             &message);
         ASSERT_EQ(message.enum_field(), EEnum::MinInt32);
@@ -1049,24 +1040,24 @@ TEST(TProtobufFormat, TestWriteEnumerationInt)
     TMessage message;
     ASSERT_THROW(
         writeAndParseRow(
-            MakeRow({
-                MakeUnversionedInt64Value(static_cast<i64>(std::numeric_limits<i32>::max()) + 1, enumId),
+            MakeRow(nameTable, {
+                {"Enum", static_cast<i64>(std::numeric_limits<i32>::max()) + 1},
             }).Get(),
             &message),
         TErrorException);
 
     ASSERT_THROW(
         writeAndParseRow(
-            MakeRow({
-                MakeUnversionedInt64Value(static_cast<i64>(std::numeric_limits<i32>::min()) - 1, enumId),
+            MakeRow(nameTable, {
+                {"Enum", static_cast<i64>(std::numeric_limits<i32>::min()) - 1},
             }).Get(),
             &message),
         TErrorException);
 
     ASSERT_THROW(
         writeAndParseRow(
-            MakeRow({
-                MakeUnversionedUint64Value(static_cast<i64>(std::numeric_limits<i32>::max()) + 1, enumId),
+            MakeRow(nameTable, {
+                {"Enum", static_cast<ui64>(std::numeric_limits<i32>::max()) + 1},
             }).Get(),
             &message),
         TErrorException);
@@ -1090,8 +1081,6 @@ TEST(TProtobufFormat, TestWriteZeroColumns)
         .Value("protobuf");
 
     auto nameTable = New<TNameTable>();
-    auto int64Id = nameTable->RegisterName("Int64");
-    auto stringId = nameTable->RegisterName("String");
 
     TString result;
     TStringOutput resultStream(result);
@@ -1105,12 +1094,12 @@ TEST(TProtobufFormat, TestWriteZeroColumns)
         0);
 
     writer->Write({
-        MakeRow({
-            MakeUnversionedInt64Value(-1, int64Id),
-            MakeUnversionedStringValue("this_is_string", stringId),
+        MakeRow(nameTable, {
+            {"Int64", -1},
+            {"String", "this_is_string"},
         }).Get()
     });
-    writer->Write({MakeRow({ }).Get()});
+    writer->Write({MakeRow(nameTable, { }).Get()});
 
     writer->Close()
         .Get()
@@ -1141,8 +1130,6 @@ TEST(TProtobufFormat, TestTabletIndex)
         .EndMap());
 
     auto nameTable = New<TNameTable>();
-    auto int64FieldId = nameTable->RegisterName("int64_field");
-    auto tabletIndexId = nameTable->RegisterName(TabletIndexColumnName);
 
     TString result;
     TStringOutput resultStream(result);
@@ -1159,13 +1146,13 @@ TEST(TProtobufFormat, TestTabletIndex)
         0);
 
     writer->Write({
-        MakeRow({
-            MakeUnversionedInt64Value(1LL << 50, tabletIndexId),
-            MakeUnversionedInt64Value(-2345, int64FieldId),
+        MakeRow(nameTable, {
+            {TabletIndexColumnName, 1LL << 50},
+            {"int64_field", -2345},
         }).Get(),
-        MakeRow({
-            MakeUnversionedInt64Value(12, tabletIndexId),
-            MakeUnversionedInt64Value(2345, int64FieldId),
+        MakeRow(nameTable, {
+            {TabletIndexColumnName, 12},
+            {"int64_field", 2345},
         }).Get(),
     });
 
@@ -3716,42 +3703,17 @@ TMessage WriteRow(
 TEST_F(TProtobufFormatCompat, Write)
 {
     auto nameTable = TNameTable::FromSchema(*GetLateSchema());
-    auto aId = nameTable->GetIdOrThrow("a");
-    auto bId = nameTable->GetIdOrThrow("b");
-    auto cId = nameTable->GetIdOrThrow("c");
-
     auto config = GetSecondMiddleConfig();
 
     auto writeRow = [&] (TUnversionedRow row, const TTableSchemaPtr& schema) {
         return WriteRow<NYT::TCompatMessage>(row, config, schema, nameTable);
     };
 
-    auto aEarlyValue = MakeUnversionedCompositeValue("[0; -24]", aId);
-    auto aMiddleValue = MakeUnversionedCompositeValue("[1; foobar]", aId);
-    auto aLateValue = MakeUnversionedCompositeValue("[2; %true]", aId);
-    auto bFirstValue = MakeUnversionedCompositeValue("[foo]", bId);
-    auto bSecondValue = MakeUnversionedCompositeValue("[foo; bar]", bId);
-    auto bThirdValue = MakeUnversionedCompositeValue("[foo; bar; spam]", bId);
-    auto cValue = MakeUnversionedCompositeValue("[%false; %true; %false]", cId);
-
-    TUnversionedOwningRowBuilder builder;
-    builder.AddValue(aEarlyValue);
-    auto earlyRow = builder.FinishRow();
-    builder.AddValue(aMiddleValue);
-    builder.AddValue(bFirstValue);
-    auto firstMiddleRow = builder.FinishRow();
-    builder.AddValue(aMiddleValue);
-    builder.AddValue(bSecondValue);
-    auto secondMiddleRow = builder.FinishRow();
-    builder.AddValue(aMiddleValue);
-    builder.AddValue(bThirdValue);
-    auto thirdMiddleRow = builder.FinishRow();
-    builder.AddValue(aLateValue);
-    builder.AddValue(cValue);
-    builder.AddValue(bThirdValue);
-    auto lateRow = builder.FinishRow();
-
     {
+        auto earlyRow = MakeRow(nameTable, {
+            {"a", EValueType::Composite, "[0; -24]"}
+        });
+
         SCOPED_TRACE("early");
         auto message = writeRow(earlyRow, GetEarlySchema());
         EXPECT_EQ(message.f1(), -24);
@@ -3759,6 +3721,11 @@ TEST_F(TProtobufFormatCompat, Write)
         EXPECT_EQ(message.has_b(), false);
     }
     {
+        auto firstMiddleRow = MakeRow(nameTable, {
+            {"a", EValueType::Composite, "[1; foobar]"},
+            {"b", EValueType::Composite, "[foo]"},
+        });
+
         SCOPED_TRACE("firstMiddle");
         auto message = writeRow(firstMiddleRow, GetFirstMiddleSchema());
         EXPECT_FALSE(message.has_f1());
@@ -3767,6 +3734,11 @@ TEST_F(TProtobufFormatCompat, Write)
         EXPECT_EQ(message.b().has_y(), false);
     }
     {
+        auto secondMiddleRow = MakeRow(nameTable, {
+            {"a", EValueType::Composite, "[1; foobar]"},
+            {"b", EValueType::Composite, "[foo; bar]"},
+        });
+
         SCOPED_TRACE("secondMiddle");
         auto message = writeRow(secondMiddleRow, GetSecondMiddleSchema());
         EXPECT_FALSE(message.has_f1());
@@ -3775,6 +3747,11 @@ TEST_F(TProtobufFormatCompat, Write)
         EXPECT_EQ(message.b().y(), "bar");
     }
     {
+        auto thirdMiddleRow = MakeRow(nameTable, {
+            {"a", EValueType::Composite, "[1; foobar]"},
+            {"b", EValueType::Composite, "[foo; bar; spam]"},
+        });
+
         SCOPED_TRACE("thirdMiddle");
         auto message = writeRow(thirdMiddleRow, GetThirdMiddleSchema());
         EXPECT_FALSE(message.has_f1());
@@ -3783,6 +3760,12 @@ TEST_F(TProtobufFormatCompat, Write)
         EXPECT_EQ(message.b().y(), "bar");
     }
     {
+        auto lateRow = MakeRow(nameTable, {
+            {"a", EValueType::Composite, "[2; %true]"},
+            {"c", EValueType::Composite, "[%false; %true; %false]"},
+            {"b", EValueType::Composite, "[foo; bar; spam]"},
+        });
+
         SCOPED_TRACE("late");
         auto message = writeRow(lateRow, GetLateSchema());
         EXPECT_FALSE(message.has_f1());
