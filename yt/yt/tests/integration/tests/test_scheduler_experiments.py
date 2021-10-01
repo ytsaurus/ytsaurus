@@ -794,7 +794,17 @@ class TestJobStatisticFeatures(YTEnvSetup):
             assert features["job_statistics." + component + ".block_io.bytes_read.completed.sum"] is not None
             assert features["job_statistics." + component + ".max_memory.completed.sum"] > 0
 
+            assert features["job_statistics." + component + ".cpu.user.completed.avg"] > 0
+            assert features["job_statistics." + component + ".cpu.system.completed.avg"] > 0
+            assert features["job_statistics." + component + ".cpu.context_switches.completed.avg"] is not None
+            assert features["job_statistics." + component + ".cpu.peak_thread_count.completed.max"] is not None
+            assert features["job_statistics." + component + ".cpu.wait.completed.avg"] is not None
+            assert features["job_statistics." + component + ".cpu.throttled.completed.avg"] is not None
+            assert features["job_statistics." + component + ".block_io.bytes_read.completed.avg"] is not None
+            assert features["job_statistics." + component + ".max_memory.completed.avg"] > 0
+
         assert features["job_statistics.user_job.cumulative_memory_mb_sec.completed.sum"] > 0
+        assert features["job_statistics.user_job.cumulative_memory_mb_sec.completed.avg"] > 0
 
 
 class TestListOperationFilterExperiments(YTEnvSetup):

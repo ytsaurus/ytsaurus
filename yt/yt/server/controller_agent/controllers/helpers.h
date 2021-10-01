@@ -32,6 +32,7 @@ public:
     void AddSingular(TStringBuf name, double value);
     void AddSingular(const TString& name, const NYTree::INodePtr& node);
     void AddCounted(TStringBuf name, double value);
+    void CalculateJobSatisticsAverage();
 
 private:
     THashMap<TString, NYson::TYsonString> Tags_;

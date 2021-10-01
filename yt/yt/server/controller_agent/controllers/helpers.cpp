@@ -119,6 +119,26 @@ void TControllerFeatures::AddCounted(TStringBuf name, double value)
     Features_[countFeature] += 1;
 }
 
+void TControllerFeatures::CalculateJobSatisticsAverage()
+{
+    static const TString SumSuffix = ".sum";
+    static const TString CountSuffix = ".count";
+    static const TString AvgSuffix = ".avg";
+    static const TString JobStatisticsPrefix = "job_statistics.";
+    for (const auto& [sumFeature, sum] : Features_) {
+        if (sumFeature.StartsWith(JobStatisticsPrefix) && sumFeature.EndsWith(SumSuffix)) {
+            auto feature = sumFeature;
+            feature.resize(std::ssize(feature) - std::ssize(SumSuffix));
+            auto countFeature = feature + CountSuffix;
+            auto avgFeature = feature + AvgSuffix;
+            auto it = Features_.find(countFeature);
+            if (it != Features_.end() && it->second != 0) {
+                Features_[avgFeature] = sum / it->second;
+            }
+        }
+    }
+}
+
 void Serialize(const TControllerFeatures& features, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginMap()
