@@ -318,7 +318,7 @@ TStructuredJobTableList ApplyProtobufColumnFilters(
         if (!std::holds_alternative<TProtobufTableStructure>(table.Description)) {
             continue;
         }
-        const auto& descriptor = ::Get<TProtobufTableStructure>(table.Description).Descriptor;
+        const auto& descriptor = std::get<TProtobufTableStructure>(table.Description).Descriptor;
         if (!descriptor) {
             continue;
         }
@@ -875,14 +875,14 @@ private:
     void UploadBinary(const TJobBinaryConfig& jobBinary)
     {
         if (std::holds_alternative<TJobBinaryLocalPath>(jobBinary)) {
-            auto binaryLocalPath = ::Get<TJobBinaryLocalPath>(jobBinary);
+            auto binaryLocalPath = std::get<TJobBinaryLocalPath>(jobBinary);
             auto opts = TAddLocalFileOptions().PathInJob("cppbinary");
             if (binaryLocalPath.MD5CheckSum) {
                 opts.MD5CheckSum(*binaryLocalPath.MD5CheckSum);
             }
             UploadLocalFile(binaryLocalPath.Path, opts, /* isApiFile */ true);
         } else if (std::holds_alternative<TJobBinaryCypressPath>(jobBinary)) {
-            auto binaryCypressPath = ::Get<TJobBinaryCypressPath>(jobBinary);
+            auto binaryCypressPath = std::get<TJobBinaryCypressPath>(jobBinary);
             TRichYPath ytPath = TConfig::Get()->ApiFilePathOptions;
             ytPath.Path(binaryCypressPath.Path);
             if (binaryCypressPath.TransactionId) {
@@ -946,7 +946,7 @@ private:
         } else if (std::holds_alternative<TJobBinaryLocalPath>(jobBinary)) {
             const bool isLocalMode = IsLocalMode();
             if (isLocalMode) {
-                binaryPathInsideJob = TFsPath(::Get<TJobBinaryLocalPath>(jobBinary).Path).RealPath();
+                binaryPathInsideJob = TFsPath(std::get<TJobBinaryLocalPath>(jobBinary).Path).RealPath();
             }
         }
         Y_ASSERT(!std::holds_alternative<TJobBinaryDefault>(jobBinary));
