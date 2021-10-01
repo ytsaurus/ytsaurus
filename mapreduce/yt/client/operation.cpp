@@ -864,6 +864,9 @@ private:
         if (isExecutable) {
             cypressPath.Executable(true);
         }
+        if (options.BypassArtifactCache_) {
+            cypressPath.BypassArtifactCache(*options.BypassArtifactCache_);
+        }
 
         if (ShouldMountSandbox()) {
             TotalFileSize_ += RoundUpFileSize(stat.Size);

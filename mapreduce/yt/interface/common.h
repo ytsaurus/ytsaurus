@@ -606,7 +606,7 @@ struct TRichYPath
     FLUENT_FIELD_OPTION(EErasureCodecAttr, ErasureCodec);
     FLUENT_FIELD_OPTION(EOptimizeForAttr, OptimizeFor);
 
-    // @brief This attribute is used when specifying the files required for an operation.
+    // @brief Do not put file used in operation into node cache
     //
     // If BypassArtifactCache == true, file will be loaded into the job's sandbox bypassing the cache on the YT node.
     // It helps jobs that use tmpfs to start faster,
