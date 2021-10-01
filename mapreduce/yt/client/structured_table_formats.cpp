@@ -107,7 +107,7 @@ struct TGetTableStructureDescriptionStringImpl {
 
 TString GetTableStructureDescriptionString(const TTableStructure& tableStructure)
 {
-    return ::Visit(TGetTableStructureDescriptionStringImpl(), tableStructure);
+    return std::visit(TGetTableStructureDescriptionStringImpl(), tableStructure);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -264,7 +264,7 @@ std::pair <TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateFormat(
     bool allowFormatFromTableAttribute)
 {
     auto jobStreamDescription = GetJobStreamDescription(job, direction);
-    auto method = ::Visit(TFormatSwitcher(), jobStreamDescription);
+    auto method = std::visit(TFormatSwitcher(), jobStreamDescription);
     return (this->*method)(
         job,
         direction,
@@ -555,7 +555,7 @@ struct TGetTableSchemaImpl
 
 TMaybe<TTableSchema> GetTableSchema(const TTableStructure& tableStructure)
 {
-    return Visit(TGetTableSchemaImpl(), tableStructure);
+    return std::visit(TGetTableSchemaImpl(), tableStructure);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

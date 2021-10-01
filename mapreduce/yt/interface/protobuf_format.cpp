@@ -170,7 +170,7 @@ EWrapperFieldFlag::Enum OptionToFieldFlag(TFieldOption option)
         }
     };
 
-    return Visit(TVisitor(), option);
+    return std::visit(TVisitor(), option);
 }
 
 EWrapperMessageFlag::Enum OptionToMessageFlag(TMessageOption option)
@@ -190,7 +190,7 @@ EWrapperMessageFlag::Enum OptionToMessageFlag(TMessageOption option)
         }
     };
 
-    return Visit(TVisitor(), option);
+    return std::visit(TVisitor(), option);
 }
 
 EWrapperOneofFlag::Enum OptionToOneofFlag(TOneofOption option)
@@ -210,7 +210,7 @@ EWrapperOneofFlag::Enum OptionToOneofFlag(TOneofOption option)
         }
     };
 
-    return Visit(TVisitor(), option);
+    return std::visit(TVisitor(), option);
 }
 
 
@@ -306,7 +306,7 @@ void ParseProtobufFieldOptions(
 {
     TParseProtobufFieldOptionsVisitor visitor;
     for (auto flag : flags) {
-        Visit(visitor, FieldFlagToOption(flag));
+        std::visit(visitor, FieldFlagToOption(flag));
     }
     if (visitor.Type) {
         fieldOptions->Type = *visitor.Type;
@@ -328,7 +328,7 @@ void ParseProtobufMessageOptions(
 {
     TParseProtobufMessageOptionsVisitor visitor;
     for (auto flag : flags) {
-        Visit(visitor, MessageFlagToOption(flag));
+        std::visit(visitor, MessageFlagToOption(flag));
     }
     if (visitor.FieldSortOrder) {
         messageOptions->FieldSortOrder = *visitor.FieldSortOrder;
@@ -341,7 +341,7 @@ void ParseProtobufOneofOptions(
 {
     TParseProtobufOneofOptionsVisitor visitor;
     for (auto flag : flags) {
-        Visit(visitor, OneofFlagToOption(flag));
+        std::visit(visitor, OneofFlagToOption(flag));
     }
     if (visitor.Mode) {
         messageOptions->Mode = *visitor.Mode;
@@ -1276,7 +1276,7 @@ TTableSchema CreateTableSchemaImpl(
         } else if (std::holds_alternative<NTi::TTypePtr>(type)) {
             TColumnSchema column;
             column.Name(GetColumnName(fieldDescriptor));
-            column.Type(std::move(Get<NTi::TTypePtr>(type)));
+            column.Type(std::move(std::get<NTi::TTypePtr>(type)));
             result.AddColumn(std::move(column));
         } else {
             Y_FAIL();
