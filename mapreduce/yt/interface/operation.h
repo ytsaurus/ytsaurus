@@ -638,6 +638,12 @@ struct TAddLocalFileOptions
     /// If not specified it is computed by this library.
     /// If this argument is provided, the user can some cpu and disk IO.
     FLUENT_FIELD_OPTION(TString, MD5CheckSum);
+
+    ///
+    /// @brief Do not put file into node cache
+    ///
+    /// @see NYT::TRichYPath::BypassArtifactCache
+    FLUENT_FIELD_OPTION(bool, BypassArtifactCache);
 };
 
 ///
