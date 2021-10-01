@@ -1,33 +1,22 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
 import com.google.protobuf.MessageLite;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -39,10 +28,8 @@ import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
 import ru.yandex.yt.rpc.TStreamingPayloadHeader;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
-import ru.yandex.yt.ytclient.proxy.internal.DataCenter;
 import ru.yandex.yt.ytclient.proxy.internal.DiscoveryMethod;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
-import ru.yandex.yt.ytclient.proxy.internal.Manifold;
 import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactory;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientPool;
@@ -167,28 +154,15 @@ public class YtClient extends CompoundClient {
                             builder.credentials,
                             builder.builder.compression);
 
-        if (builder.builder.options.isNewDiscoveryServiceEnabled()) {
-            poolProvider = new NewClientPoolProvider(
-                    busConnector,
-                    builder.builder.clusters,
-                    builder.builder.preferredClusterName,
-                    builder.builder.proxyRole,
-                    builder.credentials,
-                    rpcClientFactory,
-                    builder.builder.options,
-                    builder.builder.heavyExecutor);
-        } else {
-            poolProvider = new OldClientPoolProvider(
-                    busConnector,
-                    builder.builder.clusters,
-                    builder.builder.preferredClusterName,
-                    builder.builder.proxyRole,
-                    rpcClientFactory,
-                    builder.credentials,
-                    builder.builder.compression,
-                    builder.builder.options,
-                    builder.builder.heavyExecutor);
-        }
+        this.poolProvider = new ClientPoolProvider(
+                busConnector,
+                builder.builder.clusters,
+                builder.builder.preferredClusterName,
+                builder.builder.proxyRole,
+                builder.credentials,
+                rpcClientFactory,
+                builder.builder.options,
+                builder.builder.heavyExecutor);
     }
 
     /**
@@ -214,7 +188,6 @@ public class YtClient extends CompoundClient {
         }
     }
 
-    @SuppressWarnings("unused")
     public Map<String, List<ApiServiceClient>> getAliveDestinations() {
         return poolProvider.getAliveDestinations();
     }
@@ -302,17 +275,8 @@ public class YtClient extends CompoundClient {
         );
     }
 
-    private interface ClientPoolProvider extends AutoCloseable {
-        void close();
-        CompletableFuture<Void> waitProxies();
-        Map<String, List<ApiServiceClient>> getAliveDestinations();
-        List<RpcClient> oldSelectDestinations();
-        RpcClientPool getClientPool();
-        CompletableFuture<Integer> banClient(String address);
-    }
-
     @NonNullApi
-    static class NewClientPoolProvider implements ClientPoolProvider {
+    static class ClientPoolProvider implements AutoCloseable {
         final MultiDcClientPool multiDcClientPool;
         final List<ClientPoolService> dataCenterList = new ArrayList<>();
         final String localDcName;
@@ -320,7 +284,7 @@ public class YtClient extends CompoundClient {
         final Executor heavyExecutor;
 
         @SuppressWarnings("checkstyle:ParameterNumber")
-        NewClientPoolProvider(
+        ClientPoolProvider(
             BusConnector connector,
             List<YtCluster> clusters,
             @Nullable String localDataCenterName,
@@ -402,7 +366,6 @@ public class YtClient extends CompoundClient {
             }
         }
 
-        @Override
         public CompletableFuture<Void> waitProxies() {
             CompletableFuture<Void> result = new CompletableFuture<>();
             CompletableFuture<RpcClient> client = multiDcClientPool.peekClient(result);
@@ -417,7 +380,6 @@ public class YtClient extends CompoundClient {
             return result;
         }
 
-        @Override
         public Map<String, List<ApiServiceClient>> getAliveDestinations() {
             Map<String, List<ApiServiceClient>> result = new HashMap<>();
 
@@ -440,7 +402,6 @@ public class YtClient extends CompoundClient {
             return result;
         }
 
-        @Override
         public List<RpcClient> oldSelectDestinations() {
             final int resultSize = 3;
             List<RpcClient> result = new ArrayList<>();
@@ -469,194 +430,12 @@ public class YtClient extends CompoundClient {
             return result;
         }
 
-        @Override
         public RpcClientPool getClientPool() {
             return new NonRepeatingClientPool(multiDcClientPool);
         }
 
-        @Override
         public CompletableFuture<Integer> banClient(String address) {
             return multiDcClientPool.banClient(address);
-        }
-    }
-
-    @NonNullApi
-    static class OldClientPoolProvider implements ClientPoolProvider {
-        private final DataCenter[] dataCenters;
-        private final List<PeriodicDiscovery> discovery;
-        private final DataCenter localDataCenter;
-        private final RpcOptions options;
-        private final Random random = new Random();
-        private final ConcurrentHashMap<PeriodicDiscoveryListener, Boolean> discoveriesFailed
-                = new ConcurrentHashMap<>();
-        private final CompletableFuture<Void> waiting = new CompletableFuture<>();
-        private final Executor heavyExecutor;
-
-        /*
-         * Кэширующая обертка для ytClient. Обертка кэширует бэкенды, которые доступны для запроса.
-         * Это позволяет избежать постоянные блокировки.
-         * Помимо этого обертка убирает копирование хостов на каждый запрос и делает возможность ретраить запрос больше 3 раз.
-         *
-         * Включается опцией useClientsCache = true и clientsCacheSize > 0
-         */
-        private final @Nullable LoadingCache<Object, List<RpcClient>> clientsCache;
-
-        @SuppressWarnings("checkstyle:ParameterNumber")
-        OldClientPoolProvider(
-                BusConnector connector,
-                List<YtCluster> clusters,
-                @Nullable String localDataCenterName,
-                @Nullable String proxyRole,
-                RpcClientFactory rpcClientFactory,
-                RpcCredentials credentials,
-                RpcCompression compression,
-                RpcOptions options,
-                Executor heavyExecutor
-        ) {
-            dataCenters = new DataCenter[clusters.size()];
-            discovery = new ArrayList<>();
-            this.options = options;
-            this.heavyExecutor = heavyExecutor;
-
-            if (options.getUseClientsCache() && options.getClientsCacheSize() > 0
-                    && options.getClientCacheExpiration() != null
-                    && options.getClientCacheExpiration().toMillis() > 0
-            ) {
-                this.clientsCache = CacheBuilder.newBuilder()
-                        .maximumSize(options.getClientsCacheSize())
-                        .expireAfterAccess(options.getClientCacheExpiration().toMillis(), TimeUnit.MILLISECONDS)
-                        .build(CacheLoader.from(() -> {
-                            final List<RpcClient> clients = Arrays.stream(dataCenters)
-                                    .map(DataCenter::getAliveDestinations)
-                                    .flatMap(Collection::stream)
-                                    .collect(Collectors.toList());
-                            Collections.shuffle(clients, random);
-                            return new RandomList<>(random, clients); // TODO: Временное решение, будет исправлено позже
-                        }));
-            } else {
-                this.clientsCache = null;
-            }
-
-            int dataCenterIndex = 0;
-            DataCenter tmpLocalDataCenter = null;
-            for (YtCluster entry : clusters) {
-                final String dataCenterName = entry.name;
-
-                final DataCenter currentDataCenter = new DataCenter(dataCenterName, -1.0, options);
-
-                dataCenters[dataCenterIndex++] = currentDataCenter;
-
-                if (dataCenterName.equals(localDataCenterName)) {
-                    tmpLocalDataCenter = currentDataCenter;
-                }
-
-                final PeriodicDiscoveryListener listener = new PeriodicDiscoveryListener() {
-                    @Override
-                    public void onProxiesSet(Set<HostPort> proxies) {
-                        if (!proxies.isEmpty()) {
-                            currentDataCenter.setProxies(proxies, rpcClientFactory, random);
-                            waiting.complete(null);
-                        }
-                    }
-
-                    @Override
-                    public void onError(Throwable e) {
-                        discoveriesFailed.put(this, true);
-                        if (discoveriesFailed.size() == clusters.size()) {
-                            waiting.completeExceptionally(e);
-                        }
-                    }
-                };
-
-                discovery.add(
-                        new PeriodicDiscovery(
-                                dataCenterName,
-                                entry.addresses,
-                                entry.proxyRole.orElse(proxyRole),
-                                entry.getClusterUrl(),
-                                connector,
-                                options,
-                                credentials,
-                                compression,
-                                listener));
-            }
-
-            for (PeriodicDiscovery d : discovery) {
-                d.start();
-            }
-            this.localDataCenter = tmpLocalDataCenter;
-        }
-
-        @Override
-        public RpcClientPool getClientPool() {
-            return RpcClientPool.collectionPool(selectDestinations());
-        }
-
-        @Override
-        public Map<String, List<ApiServiceClient>> getAliveDestinations() {
-            final Map<String, List<ApiServiceClient>> result = new HashMap<>();
-            for (DataCenter dc : dataCenters) {
-                result.put(
-                        dc.getName(),
-                        dc.getAliveDestinations(slot -> new ApiServiceClient(slot.getClient(), options, heavyExecutor))
-                );
-            }
-            return result;
-        }
-
-        @Override
-        public List<RpcClient> oldSelectDestinations() {
-            return selectDestinations();
-        }
-
-        @Override
-        public void close() {
-            for (PeriodicDiscovery disco : discovery) {
-                disco.close();
-            }
-
-            for (DataCenter dc : dataCenters) {
-                dc.close();
-            }
-        }
-
-        @Override
-        public CompletableFuture<Void> waitProxies() {
-            return waitProxiesImpl().thenRun(clientsCache != null ?
-                    clientsCache::invalidateAll : () -> {
-            });
-        }
-
-        @Override
-        public CompletableFuture<Integer> banClient(String address) {
-            throw new RuntimeException("not implemented");
-        }
-
-        private CompletableFuture<Void> waitProxiesImpl() {
-            int proxies = 0;
-            for (DataCenter dataCenter : dataCenters) {
-                proxies += dataCenter.getAliveDestinations().size();
-            }
-            if (proxies > 0) {
-                return CompletableFuture.completedFuture(null);
-            } else if (discoveriesFailed.size() == dataCenters.length) {
-                waiting.completeExceptionally(new IllegalStateException("cannot initialize proxies"));
-                return waiting;
-            } else {
-                return waiting;
-            }
-        }
-
-        private List<RpcClient> selectDestinations() {
-            if (clientsCache != null) {
-                return clientsCache.getUnchecked(KEY);
-            } else {
-                return Manifold.selectDestinations(
-                        dataCenters, 3,
-                        localDataCenter != null,
-                        random,
-                        !options.getRandomizeDcs());
-            }
         }
     }
 
@@ -898,148 +677,5 @@ public class YtClient extends CompoundClient {
                 credentials = RpcCredentials.loadFromEnvironment();
             }
         }
-    }
-}
-
-class RandomList<T> implements List<T> {
-    private final Random random;
-    private final List<T> data;
-
-    RandomList(final Random random, final List<T> data) {
-        this.random = random;
-        this.data = data;
-    }
-
-    @Override
-    public int size() {
-        return data.size();
-    }
-
-    @Override
-    public boolean isEmpty() {
-        return data.isEmpty();
-    }
-
-    @Override
-    public boolean contains(final Object o) {
-        return data.contains(o);
-    }
-
-    @Nonnull
-    @Override
-    public Iterator<T> iterator() {
-        return new Iterator<T>() {
-            @Override
-            public boolean hasNext() {
-                return !isEmpty();
-            }
-
-            @Override
-            public T next() {
-                // NB. Base class implementation returns random element each time.
-                return get(0);
-            }
-        };
-    }
-
-    @Nonnull
-    @Override
-    public Object[] toArray() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Nonnull
-    @Override
-    public <T1> T1[] toArray(@Nonnull final T1[] a) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean add(final T t) {
-        return true;
-    }
-
-    @Override
-    public boolean remove(final Object o) {
-        return true;
-    }
-
-    @Override
-    public boolean containsAll(@Nonnull final Collection<?> c) {
-        return data.containsAll(c);
-    }
-
-    @Override
-    public boolean addAll(@Nonnull final Collection<? extends T> c) {
-        return true;
-    }
-
-    @Override
-    public boolean addAll(final int index, @Nonnull final Collection<? extends T> c) {
-        return true;
-    }
-
-    @Override
-    public boolean removeAll(@Nonnull final Collection<?> c) {
-        return true;
-    }
-
-    @Override
-    public boolean retainAll(@Nonnull final Collection<?> c) {
-        return true;
-    }
-
-    @Override
-    public void clear() {
-    }
-
-    @Override
-    public T get(final int index) {
-        return data.get(random.nextInt(data.size()));
-    }
-
-    @Override
-    public T set(final int index, final T element) {
-        return null;
-    }
-
-    @Override
-    public void add(final int index, final T element) {
-    }
-
-    @Override
-    public T remove(final int index) {
-        return null;
-    }
-
-    @Override
-    public int indexOf(final Object o) {
-        return data.indexOf(o);
-    }
-
-    @Override
-    public int lastIndexOf(final Object o) {
-        return data.lastIndexOf(o);
-    }
-
-
-    @Nonnull
-    @Override
-    public ListIterator<T> listIterator() {
-        throw new UnsupportedOperationException();
-    }
-
-
-    @Nonnull
-    @Override
-    public ListIterator<T> listIterator(final int index) {
-        throw new UnsupportedOperationException();
-    }
-
-
-    @Nonnull
-    @Override
-    public List<T> subList(final int fromIndex, final int toIndex) {
-        return this;
     }
 }
