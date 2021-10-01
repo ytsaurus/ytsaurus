@@ -41,7 +41,6 @@ public class YtClientTestBase {
     }
 
     public final YtFixture createYtFixture(RpcOptions rpcOptions) {
-        rpcOptions.setNewDiscoveryServiceEnabled(true);
         var address = LocalYt.getAddress();
         var yt = YtClient.builder()
                 .setCluster(address)

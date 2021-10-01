@@ -27,7 +27,6 @@ public class DefaultRpcBusClientTest {
              var connector = new DefaultBusConnector())
         {
             var options = new RpcOptions()
-                    .setNewDiscoveryServiceEnabled(true)
                     .setAcknowledgementTimeout(Duration.ofMillis(500));
 
             var rpcClient = new DefaultRpcBusClient(

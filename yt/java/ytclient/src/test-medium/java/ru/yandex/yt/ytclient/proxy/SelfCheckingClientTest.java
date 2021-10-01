@@ -38,7 +38,6 @@ public class SelfCheckingClientTest extends YtClientTestBase {
     @Test
     public void test() {
         RpcOptions rpcOptions = new RpcOptions();
-        rpcOptions.setNewDiscoveryServiceEnabled(true);
         var ytFixture = createYtFixture(rpcOptions);
         var yt = ytFixture.yt;
 
