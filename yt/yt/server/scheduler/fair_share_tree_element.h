@@ -38,10 +38,17 @@ using NVectorHdrf::TIntegralResourcesState;
 static constexpr int UnassignedTreeIndex = -1;
 static constexpr int UndefinedSlotIndex = -1;
 static constexpr int EmptySchedulingTagFilterIndex = -1;
+static constexpr int UndefinedSchedulingIndex = -1;
+static constexpr int SchedulingIndexProfilingRangeCount = 12;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr double InfiniteSatisfactionRatio = 1e+9;
+
+////////////////////////////////////////////////////////////////////////////////
+
+int SchedulingIndexToProfilingRangeIndex(int schedulingIndex);
+TString FormatProfilingRangeIndex(int rangeIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -153,6 +160,8 @@ struct TScheduleJobsProfilingCounters
     NProfiling::TCounter ScheduleJobFailureCount;
 
     TEnumIndexedVector<NControllerAgent::EScheduleJobFailReason, NProfiling::TCounter> ControllerScheduleJobFail;
+    std::array<NProfiling::TCounter, SchedulingIndexProfilingRangeCount + 1> SchedulingIndexCounters;
+    std::array<NProfiling::TCounter, SchedulingIndexProfilingRangeCount + 1> MaxSchedulingIndexCounters;
 };
 
 struct TFairShareScheduleJobResult
@@ -204,6 +213,7 @@ private:
         int ScheduleJobAttemptCount = 0;
         int ScheduleJobFailureCount = 0;
         TEnumIndexedVector<EDeactivationReason, int> DeactivationReasons;
+        THashMap<int, int> SchedulingIndexToScheduleJobAttemptCount;
     };
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<bool>, CanSchedule);
@@ -249,7 +259,7 @@ public:
 
     void StartStage(TScheduleJobsStage* schedulingStage, const TString& stageName);
 
-    void ProfileStageTimingsAndLogStatistics();
+    void ProfileAndLogStatisticsOfStage();
 
     void FinishStage();
 
@@ -266,7 +276,7 @@ private:
 
     NProfiling::TWallTimer Timer_;
 
-    void ProfileStageTimings();
+    void ProfileStageStatistics();
 
     void LogStageStatistics();
 };
@@ -327,6 +337,9 @@ protected:
 
     // Assigned in postupdate, used in schedule jobs.
     int TreeIndex_ = UnassignedTreeIndex;
+
+    // Index of operation element in order of scheduling priorities.
+    int SchedulingIndex_ = UndefinedSchedulingIndex;
 
     // Flag indicates that we can change fields of scheduler elements.
     bool Mutable_ = true;
@@ -436,6 +449,9 @@ public:
 
     int GetTreeIndex() const;
 
+    int GetSchedulingIndex() const;
+    void SetSchedulingIndex(int index);
+
     bool IsActive(const TDynamicAttributesList& dynamicAttributesList) const;
     bool AreResourceLimitsViolated() const;
 
@@ -495,7 +511,7 @@ protected:
     // This method reuses common code with schedule jobs logic to calculate dynamic attributes.
     virtual void UpdateSchedulableAttributesFromDynamicAttributes(
         TDynamicAttributesList* dynamicAttributesList,
-        const TChildHeapMap& childHeapMap);
+        TChildHeapMap* childHeapMap);
 
     virtual bool IsSchedulable() const = 0;
     virtual void BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) = 0;
@@ -680,7 +696,7 @@ protected:
 
     virtual void UpdateSchedulableAttributesFromDynamicAttributes(
         TDynamicAttributesList* dynamicAttributesList,
-        const TChildHeapMap& childHeapMap) override;
+        TChildHeapMap* childHeapMap) override;
 
     virtual void CollectOperationSchedulingSegmentContexts(
         THashMap<TOperationId, TOperationSchedulingSegmentContext>* operationContexts) const override;
@@ -693,7 +709,7 @@ protected:
     virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const = 0;
     virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const = 0;
 
-    void UpdateChild(TScheduleJobsContext* context, TSchedulerElement* child);
+    void UpdateChild(TChildHeapMap& childHeapMap, TSchedulerElement* child);
 
 private:
     friend class TSchedulerElement;
@@ -1363,6 +1379,7 @@ private:
     // Post fair share update methods.
     void ManageSchedulingSegments(TManageTreeSchedulingSegmentsContext* manageSegmentsContext);
     void UpdateCachedJobPreemptionStatusesIfNecessary(TFairSharePostUpdateContext* context) const;
+    void BuildSchedulableIndices(TDynamicAttributesList* dynamicAttributesList, TChildHeapMap* childHeapMap);
 
     virtual bool CanAcceptFreeVolume() const override;
     virtual bool ShouldDistributeFreeVolumeAmongChildren() const override;

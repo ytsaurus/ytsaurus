@@ -9,6 +9,16 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline int TSchedulerElement::GetSchedulingIndex() const
+{
+    return SchedulingIndex_;
+}
+
+inline void TSchedulerElement::SetSchedulingIndex(int index)
+{
+    SchedulingIndex_ = index;
+}
+
 inline int TSchedulerElement::GetTreeIndex() const
 {
     return TreeIndex_;
