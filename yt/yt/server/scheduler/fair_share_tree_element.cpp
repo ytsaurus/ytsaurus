@@ -2,7 +2,6 @@
 
 #include "fair_share_tree.h"
 #include "helpers.h"
-// #include "piecewise_linear_function_helpers.h"
 #include "resource_tree_element.h"
 #include "scheduling_context.h"
 
@@ -35,6 +34,28 @@ using NVectorHdrf::ToJobResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+int SchedulingIndexToProfilingRangeIndex(int schedulingIndex)
+{
+    return std::min(
+        static_cast<int>((schedulingIndex == 0) ? 0 : (MostSignificantBit(schedulingIndex) + 1)),
+        SchedulingIndexProfilingRangeCount);
+}
+
+TString FormatProfilingRangeIndex(int rangeIndex)
+{
+    switch (rangeIndex) {
+        case 0:
+        case 1:
+            return ToString(rangeIndex);
+        case SchedulingIndexProfilingRangeCount:
+            return Format("%v-inf", 1 << (SchedulingIndexProfilingRangeCount - 1));
+        default:
+            return Format("%v-%v", 1 << (rangeIndex - 1), (1 << rangeIndex) - 1);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 static const TString InvalidCustomProfilingTag("invalid");
 
 static const TNonOwningJobSet EmptyJobSet;
@@ -59,6 +80,14 @@ TScheduleJobsProfilingCounters::TScheduleJobsProfilingCounters(
         ControllerScheduleJobFail[reason] = profiler
             .WithTag("reason", FormatEnum(reason))
             .Counter("/controller_schedule_job_fail");
+    }
+    for (int rangeIndex = 0; rangeIndex <= SchedulingIndexProfilingRangeCount; ++rangeIndex) {
+        SchedulingIndexCounters[rangeIndex] = profiler
+            .WithTag("scheduling_index", FormatProfilingRangeIndex(rangeIndex))
+            .Counter("/operation_scheduling_index_attempt_count");
+        MaxSchedulingIndexCounters[rangeIndex] = profiler
+            .WithTag("scheduling_index", FormatProfilingRangeIndex(rangeIndex))
+            .Counter("/max_operation_scheduling_index");
     }
 }
 
@@ -166,13 +195,13 @@ void TScheduleJobsContext::StartStage(TScheduleJobsStage* schedulingStage, const
     Timer_ = TWallTimer();
 }
 
-void TScheduleJobsContext::ProfileStageTimingsAndLogStatistics()
+void TScheduleJobsContext::ProfileAndLogStatisticsOfStage()
 {
     YT_VERIFY(StageState_);
 
     StageState_->TotalDuration = Timer_.GetElapsedTime();
 
-    ProfileStageTimings();
+    ProfileStageStatistics();
 
     if (StageState_->ScheduleJobAttemptCount > 0 && EnableSchedulingInfoLogging_) {
         LogStageStatistics();
@@ -183,12 +212,12 @@ void TScheduleJobsContext::FinishStage()
 {
     YT_VERIFY(StageState_);
 
-    ProfileStageTimingsAndLogStatistics();
+    ProfileAndLogStatisticsOfStage();
 
     StageState_ = std::nullopt;
 }
 
-void TScheduleJobsContext::ProfileStageTimings()
+void TScheduleJobsContext::ProfileStageStatistics()
 {
     if (!Initialized_) {
         return;
@@ -223,6 +252,16 @@ void TScheduleJobsContext::ProfileStageTimings()
 
     for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
         profilingCounters->ControllerScheduleJobFail[reason].Increment(StageState_->FailedScheduleJob[reason]);
+    }
+
+    int maxSchedulingIndex = UndefinedSchedulingIndex;
+    for (auto [schedulingIndex, count] : StageState_->SchedulingIndexToScheduleJobAttemptCount) {
+        int rangeIndex = SchedulingIndexToProfilingRangeIndex(schedulingIndex);
+        profilingCounters->SchedulingIndexCounters[rangeIndex].Increment(count);
+        maxSchedulingIndex = std::max(maxSchedulingIndex, schedulingIndex);
+    }
+    if (maxSchedulingIndex >= 0) {
+        profilingCounters->MaxSchedulingIndexCounters[SchedulingIndexToProfilingRangeIndex(maxSchedulingIndex)].Increment();
     }
 }
 
@@ -342,13 +381,13 @@ void TSchedulerElement::UpdatePreemptionAttributes()
 
 void TSchedulerElement::UpdateSchedulableAttributesFromDynamicAttributes(
     TDynamicAttributesList* dynamicAttributesList,
-    const TChildHeapMap& childHeapMap)
+    TChildHeapMap* childHeapMap)
 {
     YT_VERIFY(Mutable_);
 
     auto& attributes = (*dynamicAttributesList)[GetTreeIndex()];
 
-    UpdateDynamicAttributes(dynamicAttributesList, childHeapMap);
+    UpdateDynamicAttributes(dynamicAttributesList, *childHeapMap);
 
     Attributes_.SatisfactionRatio = attributes.SatisfactionRatio;
     Attributes_.LocalSatisfactionRatio = ComputeLocalSatisfactionRatio(ResourceUsageAtUpdate_);
@@ -994,13 +1033,23 @@ void TSchedulerCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpd
 
 void TSchedulerCompositeElement::UpdateSchedulableAttributesFromDynamicAttributes(
     TDynamicAttributesList* dynamicAttributesList,
-    const TChildHeapMap& childHeapMap)
+    TChildHeapMap* childHeapMap)
 {
     for (const auto& child : EnabledChildren_) {
         child->UpdateSchedulableAttributesFromDynamicAttributes(dynamicAttributesList, childHeapMap);
     }
 
     TSchedulerElement::UpdateSchedulableAttributesFromDynamicAttributes(dynamicAttributesList, childHeapMap);
+    
+    EmplaceOrCrash(
+        *childHeapMap,
+        GetTreeIndex(),
+        TChildHeap{
+            SchedulableChildren_,
+            dynamicAttributesList,
+            this,
+            Mode_
+        });
 }
 
 void TSchedulerCompositeElement::UpdateDynamicAttributes(
@@ -1463,10 +1512,10 @@ void TSchedulerCompositeElement::InitializeChildHeap(TScheduleJobsContext* conte
         });
 }
 
-void TSchedulerCompositeElement::UpdateChild(TScheduleJobsContext* context, TSchedulerElement* child)
+void TSchedulerCompositeElement::UpdateChild(TChildHeapMap& childHeapMap, TSchedulerElement* child)
 {
-    auto it = context->ChildHeapMap().find(GetTreeIndex());
-    if (it != context->ChildHeapMap().end()) {
+    auto it = childHeapMap.find(GetTreeIndex());
+    if (it != childHeapMap.end()) {
         auto& childHeap = it->second;
         childHeap.Update(child);
     }
@@ -2709,7 +2758,7 @@ void TSchedulerOperationElement::UpdateCurrentResourceUsage(TScheduleJobsContext
 
     auto resourceUsageDelta = resourceUsageAfterUpdate - resourceUsageBeforeUpdate;
 
-    GetMutableParent()->UpdateChild(context, this);
+    GetMutableParent()->UpdateChild(context->ChildHeapMap(), this);
     UpdateAncestorsDynamicAttributes(context, resourceUsageDelta);
 }
 
@@ -2858,7 +2907,7 @@ void TSchedulerOperationElement::UpdateAncestorsDynamicAttributes(
         }
 
         if (parent->GetMutableParent()) {
-            parent->GetMutableParent()->UpdateChild(context, parent);
+            parent->GetMutableParent()->UpdateChild(context->ChildHeapMap(), parent);
         }
 
         parent = parent->GetMutableParent();
@@ -2870,7 +2919,7 @@ void TSchedulerOperationElement::DeactivateOperation(TScheduleJobsContext* conte
     auto& attributes = context->DynamicAttributesList()[GetTreeIndex()];
     YT_VERIFY(attributes.Active);
     attributes.Active = false;
-    GetMutableParent()->UpdateChild(context, this);
+    GetMutableParent()->UpdateChild(context->ChildHeapMap(), this);
     UpdateAncestorsDynamicAttributes(context, /* deltaResourceUsage */ TJobResources());
     OnOperationDeactivated(context, reason);
 }
@@ -2880,7 +2929,7 @@ void TSchedulerOperationElement::ActivateOperation(TScheduleJobsContext* context
     auto& attributes = context->DynamicAttributesList()[GetTreeIndex()];
     YT_VERIFY(!attributes.Active);
     attributes.Active = true;
-    GetMutableParent()->UpdateChild(context, this);
+    GetMutableParent()->UpdateChild(context->ChildHeapMap(), this);
     UpdateAncestorsDynamicAttributes(context, /* deltaResourceUsage */ TJobResources(), /* checkAncestorsActiveness */ false);
 }
 
@@ -2942,6 +2991,10 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
         RecordHeartbeat(heartbeatSnapshot);
         context->StageState()->PackingRecordHeartbeatDuration += timer.GetElapsedTime();
     };
+
+    int schedulingIndex = GetSchedulingIndex();
+    YT_VERIFY(schedulingIndex != UndefinedSchedulingIndex);
+    ++context->StageState()->SchedulingIndexToScheduleJobAttemptCount[schedulingIndex];
 
     if (auto blockedReason = CheckBlocked(context->SchedulingContext())) {
         deactivateOperationElement(*blockedReason);
@@ -3756,8 +3809,10 @@ void TSchedulerRootElement::PostUpdate(
 
     // We calculate SatisfactionRatio by computing dynamic attributes using the same algorithm as during the scheduling phase.
     TDynamicAttributesList dynamicAttributesList{static_cast<size_t>(TreeSize_)};
-    TChildHeapMap emptyChildHeapMap;
-    UpdateSchedulableAttributesFromDynamicAttributes(&dynamicAttributesList, emptyChildHeapMap);
+    TChildHeapMap childHeapMap;
+    UpdateSchedulableAttributesFromDynamicAttributes(&dynamicAttributesList, &childHeapMap);
+
+    BuildSchedulableIndices(&dynamicAttributesList, &childHeapMap);
 
     ManageSchedulingSegments(manageSegmentsContext);
 
@@ -3946,6 +4001,32 @@ void TSchedulerRootElement::BuildResourceDistributionInfo(TFluentMap fluent) con
         .Item("undistributed_resources").Value(info.UndistributedResources)
         .Item("undistributed_resource_flow").Value(info.UndistributedResourceFlow)
         .Item("undistributed_burst_guarantee_resources").Value(info.UndistributedBurstGuaranteeResources);
+}
+
+void TSchedulerRootElement::BuildSchedulableIndices(TDynamicAttributesList* dynamicAttributesList, TChildHeapMap* childHeapMap)
+{
+    auto& attributes = (*dynamicAttributesList)[GetTreeIndex()];
+
+    int schedulingIndex = 0;
+
+    TSchedulerOperationElement* bestLeafDescendant = nullptr;
+    while (true) {
+        if (!attributes.Active) {
+            break;
+        }
+
+        bestLeafDescendant = attributes.BestLeafDescendant;
+        bestLeafDescendant->SetSchedulingIndex(schedulingIndex++);
+        
+        (*dynamicAttributesList)[bestLeafDescendant->GetTreeIndex()].Active = false;
+
+        TSchedulerElement* current = bestLeafDescendant;
+        while (auto* parent = current->GetMutableParent()) {
+            parent->UpdateChild(*childHeapMap, current);
+            parent->UpdateDynamicAttributes(dynamicAttributesList, *childHeapMap);
+            current = parent;
+        }
+    }
 }
 
 void TSchedulerRootElement::ManageSchedulingSegments(TManageTreeSchedulingSegmentsContext* manageSegmentsContext)
