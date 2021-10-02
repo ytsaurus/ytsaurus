@@ -1833,7 +1833,8 @@ TPoolConfig::TPoolConfig()
     RegisterParameter("config_preset", ConfigPreset)
         .Default();
 
-    RegisterParameter("truncate_fifo_pool_unsatisfied_child_fair_share", TruncateFifoPoolUnsatisfiedChildFairShare)
+    RegisterParameter("enable_fair_share_truncation_in_fifo_pool", EnableFairShareTruncationInFifoPool)
+        .Alias("truncate_fifo_pool_unsatisfied_child_fair_share")
         .Default();
 
     RegisterParameter("metering_tags", MeteringTags)
@@ -1934,6 +1935,8 @@ TStrategyOperationSpec::TStrategyOperationSpec()
         .Default();
     RegisterParameter("enable_limiting_ancestor_check", EnableLimitingAncestorCheck)
         .Default(true);
+    RegisterParameter("is_gang", IsGang)
+        .Default(false);
 
     RegisterPostprocessor([&] {
         if (SchedulingSegmentDataCenters && SchedulingSegmentDataCenters->size() >= MaxSchedulingSegmentDataCenterCount) {

@@ -818,7 +818,7 @@ public:
 
     virtual THashSet<TString> GetAllowedProfilingTags() const override;
 
-    virtual bool ShouldTruncateUnsatisfiedChildFairShareInFifoPool() const override;
+    virtual bool IsFairShareTruncationInFifoPoolEnabled() const override;
 
 protected:
     //! Pre fair share update methods.
@@ -1136,6 +1136,7 @@ public:
 
     //! Fair share update methods that implements NVectorHdrf::TOperationElement interface.
     virtual TResourceVector GetBestAllocationShare() const override;
+    virtual bool IsGang() const override;
 
     //! Post fair share update methods.
     TInstant GetLastNonStarvingTime() const;
@@ -1339,7 +1340,7 @@ public:
     //! Other methods.
     virtual THashSet<TString> GetAllowedProfilingTags() const override;
 
-    virtual bool ShouldTruncateUnsatisfiedChildFairShareInFifoPool() const override;
+    virtual bool IsFairShareTruncationInFifoPoolEnabled() const override;
 
     virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* meteringMap) const override;
 

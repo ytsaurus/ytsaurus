@@ -292,7 +292,8 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("pool_config_presets", PoolConfigPresets)
         .Default();
 
-    RegisterParameter("truncate_fifo_pool_unsatisfied_child_fair_share", TruncateFifoPoolUnsatisfiedChildFairShare)
+    RegisterParameter("enable_fair_share_truncation_in_fifo_pool", EnableFairShareTruncationInFifoPool)
+        .Alias("truncate_fifo_pool_unsatisfied_child_fair_share")
         .Default(false);
 
     RegisterParameter("enable_conditional_preemption", EnableConditionalPreemption)

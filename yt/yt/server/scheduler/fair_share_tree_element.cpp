@@ -1693,10 +1693,10 @@ THashSet<TString> TSchedulerPoolElement::GetAllowedProfilingTags() const
     return Config_->AllowedProfilingTags;
 }
 
-bool TSchedulerPoolElement::ShouldTruncateUnsatisfiedChildFairShareInFifoPool() const
+bool TSchedulerPoolElement::IsFairShareTruncationInFifoPoolEnabled() const
 {
-    return Config_->TruncateFifoPoolUnsatisfiedChildFairShare.value_or(
-        TreeConfig_->TruncateFifoPoolUnsatisfiedChildFairShare);
+    return Config_->EnableFairShareTruncationInFifoPool.value_or(
+        TreeConfig_->EnableFairShareTruncationInFifoPool);
 }
 
 bool TSchedulerPoolElement::IsInferringChildrenWeightsFromHistoricUsageEnabled() const
@@ -3278,6 +3278,11 @@ TResourceVector TSchedulerOperationElement::GetBestAllocationShare() const
     return PersistentAttributes_.BestAllocationShare;
 }
 
+bool TSchedulerOperationElement::IsGang() const
+{
+    return Spec_->IsGang;
+}
+
 bool TSchedulerOperationElement::OnJobStarted(
     TJobId jobId,
     const TJobResources& resourceUsage,
@@ -3840,10 +3845,9 @@ THashSet<TString> TSchedulerRootElement::GetAllowedProfilingTags() const
     return {};
 }
 
-bool TSchedulerRootElement::ShouldTruncateUnsatisfiedChildFairShareInFifoPool() const
+bool TSchedulerRootElement::IsFairShareTruncationInFifoPoolEnabled() const
 {
-    // NB(eshcherbin): Not proud of this.
-    return TreeConfig_->TruncateFifoPoolUnsatisfiedChildFairShare;
+    return TreeConfig_->EnableFairShareTruncationInFifoPool;
 }
 
 bool TSchedulerRootElement::CanAcceptFreeVolume() const
