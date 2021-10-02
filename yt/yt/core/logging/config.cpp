@@ -48,7 +48,7 @@ TWriterConfig::TWriterConfig()
         .Default();
     RegisterParameter("enable_system_messages", EnableSystemMessages)
         .Alias("enable_control_messages")
-        .Default(true);
+        .Default();
     RegisterParameter("enable_source_location", EnableSourceLocation)
         .Default(false);
 
@@ -75,6 +75,11 @@ TWriterConfig::TWriterConfig()
 ELogFamily TWriterConfig::GetFamily() const
 {
     return Format == ELogFormat::PlainText ? ELogFamily::PlainText : ELogFamily::Structured;
+}
+
+bool TWriterConfig::AreSystemMessagesEnabled() const
+{
+    return EnableSystemMessages.value_or(GetFamily() == ELogFamily::PlainText);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
