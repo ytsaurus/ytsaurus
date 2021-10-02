@@ -2,7 +2,7 @@
 
 from yt.testlib import authors, yatest_common
 
-from yt.wrapper.errors import YtHttpResponseError
+from yt.wrapper.errors import create_http_response_error, YtRpcUnavailable
 from yt.wrapper.common import (update, unlist, parse_bool, dict_depth,
                                is_prefix, prefix, first_not_none, merge_blobs_by_size,
                                datetime_to_string, date_string_to_timestamp, chunk_iter_list,
@@ -117,9 +117,24 @@ def test_error_pickling():
     pickled_error = pickle.dumps(error)
     assert pickle.loads(pickled_error).message == error.message
 
-    error = YtHttpResponseError({"code": 10, "message": "error"}, url="http://aaa.bbb", headers={}, params={})
+    error = create_http_response_error(
+        {"code": 10, "message": "error"},
+        url="http://aaa.bbb", request_headers={}, response_headers={}, params={})
     pickled_error = pickle.dumps(error)
-    assert pickle.loads(pickled_error).message == error.message
+    loaded_error = pickle.loads(pickled_error)
+    assert loaded_error.url == error.url
+    assert loaded_error.message == error.message
+
+    error = create_http_response_error(
+        {"code": 105, "message": "RPC unavailable"},
+        url="http://aaa.bbb",  request_headers={}, response_headers={}, params={})
+    assert isinstance(error, YtRpcUnavailable)
+
+    pickled_error = pickle.dumps(error)
+    loaded_error = pickle.loads(pickled_error)
+    assert isinstance(loaded_error, YtRpcUnavailable)
+    assert loaded_error.url == error.url
+    assert loaded_error.message == error.message
 
 @authors("ignat")
 def test_error_str():
@@ -127,12 +142,9 @@ def test_error_str():
     assert "10" in str(error)
 
     # Check for YsonEntity in params.
-    error = YtHttpResponseError(
+    error = create_http_response_error(
         {"code": 10, "message": "error"},
-        url="http://a.b",
-        headers={},
-        params={"x": yt.yson.YsonEntity()},
-    )
+        url="http://a.b", request_headers={}, response_headers={}, params={"x": yt.yson.YsonEntity()})
     assert "null" in str(error)
 
 @authors("ostyakov")

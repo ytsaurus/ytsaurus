@@ -4,13 +4,9 @@ from .common import hide_auth_headers_in_request_info
 
 import yt.common
 
-from yt.common import YtError, PrettyPrintableDict, get_value
+from yt.common import YtError, YtResponseError, PrettyPrintableDict, get_value
 
 from yt.yson import yson_to_json
-
-from yt.packages.six import iteritems
-
-from copy import deepcopy
 
 class YtOperationFailedError(YtError):
     """Operation failed during waiting completion."""
@@ -36,157 +32,150 @@ class YtOperationFailedError(YtError):
 
         super(YtOperationFailedError, self).__init__(message, attributes=attributes, inner_errors=inner_errors)
 
-class YtResponseError(yt.common.YtResponseError):
-    """Another incarnation of YtResponseError."""
-    def __init__(self, *args, **kwargs):
-        super(YtResponseError, self).__init__(*args, **kwargs)
-        if self.is_request_queue_size_limit_exceeded():
-            self.__class__ = YtRequestQueueSizeLimitExceeded
-        # Deprecated.
-        elif self.contains_code(904):
-            self.__class__ = YtRequestRateLimitExceeded
-        elif self.is_master_disconnected():
-            self.__class__ = YtMasterDisconnectedError
-        elif self.is_concurrent_operations_limit_reached():
-            self.__class__ = YtConcurrentOperationsLimitExceeded
-        elif self.is_request_timed_out():
-            self.__class__ = YtRequestTimedOut
-        elif self.is_no_such_transaction():
-            self.__class__ = YtNoSuchTransaction
-        elif self.is_account_limit_exceeded():
-            self.__class__ = YtAccountLimitExceeded
-        elif self.is_master_communication_error():
-            self.__class__ = YtMasterCommunicationError
-        elif self.is_chunk_unavailable():
-            self.__class__ = YtChunkUnavailable
-        elif self.is_concurrent_transaction_lock_conflict():
-            self.__class__ = YtConcurrentTransactionLockConflict
-        elif self.is_tablet_transaction_lock_conflict():
-            self.__class__ = YtTabletTransactionLockConflict
-        elif self.is_cypress_transaction_lock_conflict():
-            self.__class__ = YtCypressTransactionLockConflict
-        elif self.is_tablet_in_intermediate_state():
-            self.__class__ = YtTabletIsInIntermediateState
-        elif self.is_no_such_tablet():
-            self.__class__ = YtNoSuchTablet
-        elif self.is_tablet_not_mounted():
-            self.__class__ = YtTabletNotMounted
-        elif self.is_rpc_unavailable():
-            self.__class__ = YtRpcUnavailable
-        elif self.is_all_target_nodes_failed():
-            self.__class__ = YtAllTargetNodesFailed
-        elif self.is_transport_error():
-            self.__class__ = YtTransportError
-        elif self.is_operation_progress_outdated():
-            self.__class__ = YtOperationProgressOutdated
-        elif self.is_resolve_error():
-            self.__class__ = YtResolveError
-        elif self.is_row_is_blocked():
-            self.__class__ = YtRowIsBlocked
-        elif self.is_blocked_row_wait_timeout():
-            self.__class__ = YtBlockedRowWaitTimeout
-        else:
-            pass
+# COMPAT
+YtHttpResponseError = yt.common.YtResponseError
 
-class YtHttpResponseError(YtResponseError):
-    """Reponse error recieved from http proxy with additional http request information."""
-    def __init__(self, error, url, headers, params):
-        super(YtHttpResponseError, self).__init__(error)
-        self.url = url
-        self.headers = deepcopy(headers)
-        self.params = params
-        self.message = "Received HTTP response with error"
-        self.attributes.update({
-            "url": url,
-            "headers": PrettyPrintableDict(get_value(self.headers, {})),
-            "params": PrettyPrintableDict(yson_to_json(get_value(self.params, {}))),
-            "transparent": True})
+def create_response_error(underlying_error):
+    sample_error = YtResponseError(underlying_error)
+    if sample_error.is_request_queue_size_limit_exceeded():
+        error = YtRequestQueueSizeLimitExceeded(underlying_error)
+    elif sample_error.is_master_disconnected():
+        error = YtMasterDisconnectedError(underlying_error)
+    elif sample_error.is_concurrent_operations_limit_reached():
+        error = YtConcurrentOperationsLimitExceeded(underlying_error)
+    elif sample_error.is_request_timed_out():
+        error = YtRequestTimedOut(underlying_error)
+    elif sample_error.is_no_such_transaction():
+        error = YtNoSuchTransaction(underlying_error)
+    elif sample_error.is_account_limit_exceeded():
+        error = YtAccountLimitExceeded(underlying_error)
+    elif sample_error.is_master_communication_error():
+        error = YtMasterCommunicationError(underlying_error)
+    elif sample_error.is_chunk_unavailable():
+        error = YtChunkUnavailable(underlying_error)
+    elif sample_error.is_concurrent_transaction_lock_conflict():
+        error = YtConcurrentTransactionLockConflict(underlying_error)
+    elif sample_error.is_tablet_transaction_lock_conflict():
+        error = YtTabletTransactionLockConflict(underlying_error)
+    elif sample_error.is_cypress_transaction_lock_conflict():
+        error = YtCypressTransactionLockConflict(underlying_error)
+    elif sample_error.is_tablet_in_intermediate_state():
+        error = YtTabletIsInIntermediateState(underlying_error)
+    elif sample_error.is_no_such_tablet():
+        error = YtNoSuchTablet(underlying_error)
+    elif sample_error.is_tablet_not_mounted():
+        error = YtTabletNotMounted(underlying_error)
+    elif sample_error.is_rpc_unavailable():
+        error = YtRpcUnavailable(underlying_error)
+    elif sample_error.is_all_target_nodes_failed():
+        error = YtAllTargetNodesFailed(underlying_error)
+    elif sample_error.is_transport_error():
+        error = YtTransportError(underlying_error)
+    elif sample_error.is_operation_progress_outdated():
+        error = YtOperationProgressOutdated(underlying_error)
+    elif sample_error.is_resolve_error():
+        error = YtResolveError(underlying_error)
+    elif sample_error.is_row_is_blocked():
+        error = YtRowIsBlocked(underlying_error)
+    elif sample_error.is_blocked_row_wait_timeout():
+        error = YtBlockedRowWaitTimeout(underlying_error)
+    else:
+        error = sample_error
+    return error
 
-    def __reduce__(self):
-        return (YtHttpResponseError, (self.error, self.url, self.headers, self.params))
 
-# TODO(ignat): All concrete errors below should be inherited from YtResponseError
+def create_http_response_error(underlying_error, url, request_headers, response_headers, params):
+    error = create_response_error(underlying_error)
+    error.message = "Received HTTP response with error"
+    error.attributes.update({
+        "url": url,
+        "request_headers": PrettyPrintableDict(get_value(request_headers, {})),
+        "response_headers": PrettyPrintableDict(get_value(response_headers, {})),
+        "params": PrettyPrintableDict(yson_to_json(get_value(params, {}))),
+        "transparent": True})
+    return error
 
-class YtRequestRateLimitExceeded(YtHttpResponseError):
+
+class YtRequestRateLimitExceeded(YtResponseError):
     """Request rate limit exceeded error.
        It is used in retries."""
     pass
 
-class YtRequestQueueSizeLimitExceeded(YtHttpResponseError):
+class YtRequestQueueSizeLimitExceeded(YtResponseError):
     """Request queue size limit exceeded error.
        It is used in retries.
     """
     pass
 
-class YtRpcUnavailable(YtHttpResponseError):
+class YtRpcUnavailable(YtResponseError):
     """Rpc unavailable error.
        It is used in retries.
     """
     pass
 
-class YtConcurrentOperationsLimitExceeded(YtHttpResponseError):
+class YtConcurrentOperationsLimitExceeded(YtResponseError):
     """Concurrent operations limit exceeded.
        It is used in retries."""
     pass
 
-class YtMasterDisconnectedError(YtHttpResponseError):
+class YtMasterDisconnectedError(YtResponseError):
     """Indicates that master has disconnected from scheduler.
        It is used in retries."""
     pass
 
-class YtRequestTimedOut(YtHttpResponseError):
+class YtRequestTimedOut(YtResponseError):
     """Request timed out.
        It is used in retries."""
     pass
 
-class YtNoSuchTransaction(YtHttpResponseError):
+class YtNoSuchTransaction(YtResponseError):
     """No such transaction.
        It is used in retries."""
     pass
 
-class YtAccountLimitExceeded(YtHttpResponseError):
+class YtAccountLimitExceeded(YtResponseError):
     """Account limit exceeded, used to avoid excessive retries."""
     pass
 
-class YtMasterCommunicationError(YtHttpResponseError):
+class YtMasterCommunicationError(YtResponseError):
     """Master communication error.
        It is used in retries."""
     pass
 
-class YtChunkUnavailable(YtHttpResponseError):
+class YtChunkUnavailable(YtResponseError):
     """Chunk unavalable error
        It is used in read retries"""
     pass
 
-class YtCypressTransactionLockConflict(YtHttpResponseError):
+class YtCypressTransactionLockConflict(YtResponseError):
     """Concurrent transaction lock conflict error.
        It is used in upload_file_to_cache retries."""
     pass
 
-class YtTabletTransactionLockConflict(YtHttpResponseError):
+class YtTabletTransactionLockConflict(YtResponseError):
     """Tablet transaction lock conflict error."""
     pass
 
 # Deprecated.
 YtConcurrentTransactionLockConflict = YtCypressTransactionLockConflict
 
-class YtNoSuchService(YtHttpResponseError):
+class YtNoSuchService(YtResponseError):
     """No such service error"""
     pass
 
-class YtTabletIsInIntermediateState(YtHttpResponseError):
+class YtTabletIsInIntermediateState(YtResponseError):
     """Tablet is in intermediate state error"""
     pass
 
-class YtNoSuchTablet(YtHttpResponseError):
+class YtNoSuchTablet(YtResponseError):
     """No such tablet error"""
     pass
 
-class YtTabletNotMounted(YtHttpResponseError):
+class YtTabletNotMounted(YtResponseError):
     """Tablet is not mounted error"""
     pass
 
-class YtTransportError(YtHttpResponseError):
+class YtTransportError(YtResponseError):
     """Transpotr error"""
     pass
 
@@ -231,22 +220,22 @@ class YtTransactionPingError(BaseException):
     """Raised in signal handler when thread was unable to ping transaction."""
     pass
 
-class YtAllTargetNodesFailed(YtHttpResponseError):
+class YtAllTargetNodesFailed(YtResponseError):
     """Failed to write chunk since all target nodes have failed."""
     pass
 
-class YtOperationProgressOutdated(YtHttpResponseError):
+class YtOperationProgressOutdated(YtResponseError):
     """Operation progress in Cypress is outdated while archive request failed."""
     pass
 
-class YtResolveError(YtHttpResponseError):
+class YtResolveError(YtResponseError):
     """Cypress node not found"""
     pass
 
-class YtRowIsBlocked(YtHttpResponseError):
+class YtRowIsBlocked(YtResponseError):
     """Row is blocked"""
     pass
 
-class YtBlockedRowWaitTimeout(YtHttpResponseError):
+class YtBlockedRowWaitTimeout(YtResponseError):
     """Timed out waiting on blocked row"""
     pass

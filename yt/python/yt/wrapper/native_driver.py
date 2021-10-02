@@ -1,6 +1,6 @@
 from .config import get_config, get_option, set_option
 from .common import require, generate_int64, update
-from .errors import YtResponseError, YtError
+from .errors import create_response_error, YtError
 from .string_iter_io import StringIterIO
 from .response_stream import ResponseStream
 from .http_helpers import get_proxy_url, get_token
@@ -210,7 +210,7 @@ def chunk_iter(stream, response, size):
     while True:
         if response.is_set():
             if not response.is_ok():
-                raise YtResponseError(response.error())
+                raise create_response_error(response.error())
             else:
                 break
         yield stream.read(size)
@@ -282,7 +282,7 @@ def make_request(command_name, params,
     if return_content:
         response.wait()
         if not response.is_ok():
-            error = YtResponseError(response.error())
+            error = create_response_error(response.error())
             error.message = "Received driver response with error"
             raise error
         if output_stream is not None and not isinstance(output_stream, NullStream):
@@ -291,10 +291,10 @@ def make_request(command_name, params,
     else:
         def process_error(request):
             if response.is_set() and not response.is_ok():
-                raise YtResponseError(response.error())
+                raise create_response_error(response.error())
 
         if response.is_set() and not response.is_ok():
-            raise YtResponseError(response.error())
+            raise create_response_error(response.error())
 
         return ResponseStream(
             lambda: response,

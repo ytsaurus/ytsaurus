@@ -4,10 +4,10 @@ from __future__ import print_function
 from .conftest import authors
 from .helpers import set_config_option
 
-from yt.common import update
+from yt.common import update, YtResponseError
 from yt.wrapper.driver import make_request, get_api_version
 from yt.yson import loads, YsonString, YsonUnicode, YsonError, to_yson_type
-from yt.wrapper import YtHttpResponseError, YtError, YtResponseError, YsonFormat, YPath
+from yt.wrapper import YtError, YsonFormat, YPath
 from yt.ypath import YPathError, parse_ypath
 
 from yt.packages.six.moves import xrange
@@ -117,7 +117,7 @@ class TestParseYpath(object):
             assert obj1 == obj2
 
         for path in FAILED_TEST_PATHS:
-            with pytest.raises((YtHttpResponseError, YtResponseError)):
+            with pytest.raises(YtResponseError):
                 make_parse_ypath_request(path)
             with pytest.raises((YtError, TypeError, YsonError, YPathError)):
                 parse_ypath(path)
