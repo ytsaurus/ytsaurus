@@ -262,7 +262,7 @@ private:
 
         MaybePlanJob();
         if (IsObjectAlive(Account_)) {
-            Account_->IncrementMergeJobRate(-1);
+            Account_->IncrementChunkMergerNodeTraversals(-1);
         }
 
         auto nodeId = Node_->GetId();
@@ -357,6 +357,10 @@ private:
             LastChunkListId_ = ParentChunkListId_;
             JobsForLastChunkList_ = 1;
         }
+
+        const auto& mergeJobThrottler = Account_->MergeJobThrottler();
+        // May overdraft a lot.
+        mergeJobThrottler->Acquire(1);
 
         auto nodeId = Node_->GetId();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -932,10 +936,13 @@ void TChunkMerger::ProcessTouchedNodes()
             continue;
         }
 
-        auto maxRate = account->GetMergeJobRateLimit();
+        auto maxNodeCount = account->GetChunkMergerNodeTraversalConcurrency();
+        const auto& mergeJobThrottler = account->MergeJobThrottler();
         while (!queue.empty() &&
-            account->GetMergeJobRate() < maxRate &&
-            std::ssize(JobsAwaitingNodeHeartbeat_) < config->QueueSizeLimit)
+            !mergeJobThrottler->IsOverdraft() &&
+            account->GetChunkMergerNodeTraversals() < maxNodeCount &&
+            std::ssize(JobsAwaitingNodeHeartbeat_) < config->QueueSizeLimit &&
+            std::ssize(RunningJobs_) < config->MaxRunningJobCount)
         {
             auto nodeId = queue.front();
             queue.pop();
@@ -944,7 +951,7 @@ void TChunkMerger::ProcessTouchedNodes()
             auto* node = FindChunkOwner(nodeId);
 
             if (CanScheduleMerge(node)) {
-                account->IncrementMergeJobRate(1);
+                account->IncrementChunkMergerNodeTraversals(1);
                 New<TMergeChunkVisitor>(
                     Bootstrap_,
                     node,

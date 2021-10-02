@@ -197,6 +197,7 @@ DEFINE_ENUM(EMasterReign,
     ((CollocationTypeAttribute)                                     (1668))  // gritukan
     ((RecomputeUnrecognizedDynamicConfigOptions)                    (1669))  // shakurov
     ((FixZombieReplicaRemoval)                                      (1670))  // aleksandra-zh
+    ((MoreChunkMergerLimits)                                        (1671))  // aleksandra-zh
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1800))  // ignat
     ((VirtualMutations)                                             (1801))  // gritukan

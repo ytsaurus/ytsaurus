@@ -82,7 +82,7 @@ class TestChunkMerger(YTEnvSetup):
 
         set("{}/@chunk_merger_mode".format(table_path), merge_mode)
         set("//sys/accounts/{}/@merge_job_rate_limit".format(account), 10)
-
+        set("//sys/accounts/{}/@chunk_merger_node_traversal_concurrency".format(account), 1)
         wait(lambda: get("{}/@resource_usage/chunk_count".format(table_path)) == 1)
         assert read_table(table_path) == rows
 
@@ -102,9 +102,18 @@ class TestChunkMerger(YTEnvSetup):
             set("//tmp/t/@chunk_merger_mode", "sdjkfhdskj")
 
         create_account("a")
+
         assert get("//sys/accounts/a/@merge_job_rate_limit") == 0
         set("//sys/accounts/a/@merge_job_rate_limit", 7)
+        with pytest.raises(YtError):
+            set("//sys/accounts/a/@merge_job_rate_limit", -1)
         assert get("//sys/accounts/a/@merge_job_rate_limit") == 7
+
+        assert get("//sys/accounts/a/@chunk_merger_node_traversal_concurrency") == 0
+        set("//sys/accounts/a/@chunk_merger_node_traversal_concurrency", 12)
+        with pytest.raises(YtError):
+            set("//sys/accounts/a/@chunk_merger_node_traversal_concurrency", -1)
+        assert get("//sys/accounts/a/@chunk_merger_node_traversal_concurrency") == 12
 
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
@@ -146,6 +155,7 @@ class TestChunkMerger(YTEnvSetup):
         set("//sys/@config/chunk_manager/chunk_merger/enable", True)
         set("//tmp/t/@chunk_merger_mode", "auto")
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
 
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
 
@@ -163,6 +173,7 @@ class TestChunkMerger(YTEnvSetup):
         set("//sys/@config/chunk_manager/chunk_merger/min_shallow_merge_chunk_count", 3)
         set("//tmp/t/@chunk_merger_mode", "auto")
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
 
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 2)
 
@@ -215,6 +226,7 @@ class TestChunkMerger(YTEnvSetup):
 
         set("//tmp/t/@chunk_merger_mode", "deep")
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
 
         wait(lambda: get("//tmp/t/@is_being_merged"))
 
@@ -236,6 +248,7 @@ class TestChunkMerger(YTEnvSetup):
 
         set("//tmp/t/@chunk_merger_mode", "deep")
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
 
         for _ in range(10):
             wait(lambda: self._get_chunk_merger_txs() > 0)
@@ -267,6 +280,7 @@ class TestChunkMerger(YTEnvSetup):
         assert get("//tmp/t1/@resource_usage/chunk_count") > 1
 
         set("//sys/accounts/a/@merge_job_rate_limit", 10)
+        set("//sys/accounts/a/@chunk_merger_node_traversal_concurrency", 1)
         write_table("<append=true>//tmp/t1", {"c": "d"})
 
         wait(lambda: get("//tmp/t1/@resource_usage/chunk_count") == 1)
@@ -320,6 +334,7 @@ class TestChunkMerger(YTEnvSetup):
 
         set("//tmp/t/@chunk_merger_mode", "deep")
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
 
         for i in range(3):
             write_table("<append=true>//tmp/t", {str(2 * i): str(2 * i)})
@@ -337,6 +352,7 @@ class TestChunkMerger(YTEnvSetup):
 
         set("//tmp/t/@chunk_merger_mode", "deep")
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
 
         wait(lambda: get("//tmp/t/@is_being_merged"))
 
@@ -365,6 +381,7 @@ class TestChunkMerger(YTEnvSetup):
 
         set("//tmp/t/@chunk_merger_mode", "deep")
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
 
         wait(lambda: get("//tmp/t/@is_being_merged"))
 
@@ -446,6 +463,7 @@ class TestChunkMerger(YTEnvSetup):
 
         set("//tmp/t/@chunk_merger_mode", merge_mode)
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
 
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") <= 2)
         assert read_table("//tmp/t") == rows
@@ -471,9 +489,11 @@ class TestChunkMerger(YTEnvSetup):
 
         with pytest.raises(YtError):
             set("//sys/accounts/a/@merge_job_rate_limit", 10, authenticated_user="u")
+            set("//sys/accounts/a/@chunk_merger_node_traversal_concurrency", 10, authenticated_user="u")
 
         with pytest.raises(YtError):
             set("//sys/accounts/b/@merge_job_rate_limit", 10, authenticated_user="u")
+            set("//sys/accounts/b/@chunk_merger_node_traversal_concurrency", 10, authenticated_user="u")
 
         create("table", "//tmp/t")
         with pytest.raises(YtError):
@@ -508,6 +528,7 @@ class TestChunkMerger(YTEnvSetup):
 
         set("//tmp/t2/@chunk_merger_mode", "deep")
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
 
         # Just do not crash, please.
         sleep(10)
@@ -771,6 +792,7 @@ class TestChunkMerger(YTEnvSetup):
 
         set("//tmp/t/@chunk_merger_mode", "deep")
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
         merged_rows = read_table("//tmp/t")
 
@@ -793,6 +815,7 @@ class TestChunkMerger(YTEnvSetup):
         info = read_table("//tmp/d/t")
 
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
 
         wait(lambda: get("//tmp/d/t/@resource_usage/chunk_count") == 1)
         assert read_table("//tmp/d/t") == info
@@ -833,6 +856,7 @@ class TestChunkMerger(YTEnvSetup):
         def run():
             set("//sys/@config/chunk_manager/chunk_merger/enable", True)
             set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+            set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
             for i in range(TABLE_COUNT):
                 create_table("//tmp/t{}".format(i))
                 write_table("<append=true>//tmp/t{}".format(i), {"a": "b"})

@@ -120,6 +120,18 @@ private:
         }
     }
 
+    void ValidateSuperuser(TInternedAttributeKey key)
+    {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+        if (!securityManager->IsSuperuser(user)) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AuthorizationError,
+                "Access denied: only superusers can change %Qv",
+                key.Unintern());
+        }
+    }
+
     bool IsRootAccount() const
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -161,6 +173,9 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TotalChildrenResourceLimits)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MergeJobRateLimit)
+            .SetWritable(true)
+            .SetWritePermission(EPermission::Administer));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkMergerNodeTraversalConcurrency)
             .SetWritable(true)
             .SetWritePermission(EPermission::Administer));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Abc)
@@ -281,6 +296,12 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::ChunkMergerNodeTraversalConcurrency: {
+                BuildYsonFluently(consumer)
+                    .Value(account->GetChunkMergerNodeTraversalConcurrency());
+                return true;
+            }
+
             case EInternedAttributeKey::Abc: {
                 if (account->GetAbcConfig()) {
                     BuildYsonFluently(consumer)
@@ -325,15 +346,24 @@ private:
             }
 
             case EInternedAttributeKey::MergeJobRateLimit: {
-                auto* user = securityManager->GetAuthenticatedUser();
-                if (!securityManager->IsSuperuser(user)) {
-                    THROW_ERROR_EXCEPTION(
-                        NSecurityClient::EErrorCode::AuthorizationError,
-                        "Access denied: only superusers can change merge job rate limit");
-                }
+                ValidateSuperuser(key);
 
                 auto mergeJobRateLimit = ConvertTo<int>(value);
+                if (mergeJobRateLimit < 0) {
+                    THROW_ERROR_EXCEPTION("%Qv cannot be negative", key.Unintern());
+                }
                 account->SetMergeJobRateLimit(mergeJobRateLimit);
+                return true;
+            }
+
+            case EInternedAttributeKey::ChunkMergerNodeTraversalConcurrency: {
+                ValidateSuperuser(key);
+
+                auto chunkMergerNodeTraversalConcurrency = ConvertTo<int>(value);
+                if (chunkMergerNodeTraversalConcurrency < 0) {
+                    THROW_ERROR_EXCEPTION("%Qv cannot be negative", key.Unintern());
+                }
+                account->SetChunkMergerNodeTraversalConcurrency(chunkMergerNodeTraversalConcurrency);
                 return true;
             }
 

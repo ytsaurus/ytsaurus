@@ -577,6 +577,7 @@ class TestMedia(YTEnvSetup):
 
         set("//tmp/t/@chunk_merger_mode", merge_mode)
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
 
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
         assert read_table("//tmp/t") == info
@@ -607,6 +608,7 @@ class TestMedia(YTEnvSetup):
 
         set("//tmp/t/@chunk_merger_mode", merge_mode)
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
 
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
         assert read_table("//tmp/t") == info
@@ -633,6 +635,7 @@ class TestMedia(YTEnvSetup):
 
         set("//tmp/t/@chunk_merger_mode", "deep")
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
 
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
 
