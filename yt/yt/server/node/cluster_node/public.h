@@ -32,6 +32,8 @@ using NNodeTrackerClient::EMemoryCategory;
 using TNodeMemoryTracker = TMemoryUsageTracker<EMemoryCategory, TString>;
 using TNodeMemoryTrackerPtr = TIntrusivePtr<TNodeMemoryTracker>;
 
+using TMasterEpoch = int;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,

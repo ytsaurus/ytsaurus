@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/node/cluster_node/public.h>
+
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 #include <yt/yt/ytlib/chunk_client/block.h>
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
@@ -49,6 +51,9 @@ struct ISession
 
     //! Returns the session type.
     virtual ESessionType GetType() const = 0;
+
+    //! Returns the master epoch of session.
+    virtual NClusterNode::TMasterEpoch GetMasterEpoch() const = 0;
 
     //! Returns the workload descriptor provided by the client during handshake.
     virtual const TWorkloadDescriptor& GetWorkloadDescriptor() const = 0;

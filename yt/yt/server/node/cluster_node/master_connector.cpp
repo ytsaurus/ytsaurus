@@ -220,6 +220,13 @@ public:
         return NodeId_.load();
     }
 
+    TMasterEpoch GetEpoch() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Epoch_.load();
+    }
+
     bool UseNewHeartbeats() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -253,6 +260,8 @@ private:
     IInvokerPtr MasterConnectionInvoker_;
 
     std::atomic<TNodeId> NodeId_ = InvalidNodeId;
+
+    std::atomic<TMasterEpoch> Epoch_ = 0;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, LocalDescriptorLock_);
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
@@ -336,6 +345,7 @@ private:
         MasterConnectionInvoker_ = MasterConnectionContext_->CreateInvoker(Bootstrap_->GetControlInvoker());
 
         NodeId_.store(InvalidNodeId);
+        Epoch_++;
 
         Bootstrap_->GetLegacyMasterConnector()->Reset();
 

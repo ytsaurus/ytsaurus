@@ -33,6 +33,7 @@ TSessionBase::TSessionBase(
     , Options_(options)
     , Location_(location)
     , Lease_(std::move(lease))
+    , MasterEpoch_(Bootstrap_->GetMasterEpoch())
     , SessionInvoker_(CreateSerializedInvoker(Location_->GetAuxPoolInvoker()))
     , Logger(DataNodeLogger.WithTag("LocationId: %v, ChunkId: %v",
         Location_->GetId(),
@@ -69,6 +70,13 @@ ESessionType TSessionBase::GetType() const
         default:
             return ESessionType::User;
     }
+}
+
+TMasterEpoch TSessionBase::GetMasterEpoch() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return MasterEpoch_;
 }
 
 const TWorkloadDescriptor& TSessionBase::GetWorkloadDescriptor() const
