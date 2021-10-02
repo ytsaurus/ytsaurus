@@ -79,6 +79,13 @@ struct IMasterConnector
     */
     virtual NNodeTrackerClient::TNodeId GetNodeId() const = 0;
 
+    //! Returns a counter that is incremented after each master unregistration.
+    /*!
+    *  \note
+    *  Thread affinity: any
+    */
+    virtual TMasterEpoch GetEpoch() const = 0;
+
     //! Returns |True| if new heartbeats are used for communication with master.
     /*!
     *  \note

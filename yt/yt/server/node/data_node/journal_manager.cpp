@@ -1124,7 +1124,7 @@ private:
                 .ValueOrThrow();
 
             YT_VERIFY(IdToChangelog_.emplace(chunkId, changelog).second);
-            chunkStore->RegisterNewChunk(chunk);
+            chunkStore->RegisterNewChunk(chunk, /*session*/ nullptr);
 
             return changelog;
         }

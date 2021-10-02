@@ -27,33 +27,35 @@ public:
         TStoreLocationPtr location,
         NConcurrency::TLease lease);
 
-    virtual TChunkId GetChunkId() const& override;
-    virtual TSessionId GetId() const& override;
-    virtual ESessionType GetType() const override;
-    virtual const TWorkloadDescriptor& GetWorkloadDescriptor() const override;
+    TChunkId GetChunkId() const& override;
+    TSessionId GetId() const& override;
+    ESessionType GetType() const override;
+    NClusterNode::TMasterEpoch GetMasterEpoch() const override;
+
+    const TWorkloadDescriptor& GetWorkloadDescriptor() const override;
     const TStoreLocationPtr& GetStoreLocation() const override;
 
-    virtual TFuture<void> Start() override;
+    TFuture<void> Start() override;
 
-    virtual void Ping() override;
+    void Ping() override;
 
-    virtual void Cancel(const TError& error) override;
+    void Cancel(const TError& error) override;
 
-    virtual TFuture<NChunkClient::NProto::TChunkInfo> Finish(
+    TFuture<NChunkClient::NProto::TChunkInfo> Finish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         std::optional<int> blockCount) override;
 
-    virtual TFuture<void> PutBlocks(
+    TFuture<void> PutBlocks(
         int startBlockIndex,
         const std::vector<NChunkClient::TBlock>& blocks,
         bool enableCaching) override;
 
-    virtual TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> SendBlocks(
+    TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> SendBlocks(
         int startBlockIndex,
         int blockCount,
         const NNodeTrackerClient::TNodeDescriptor& targetDescriptor) override;
 
-    virtual TFuture<void> FlushBlocks(int blockIndex) override;
+    TFuture<void> FlushBlocks(int blockIndex) override;
 
     DEFINE_SIGNAL_OVERRIDE(void(const TError& error), Finished);
 
@@ -64,6 +66,7 @@ protected:
     const TSessionOptions Options_;
     const TStoreLocationPtr Location_;
     const NConcurrency::TLease Lease_;
+    const NClusterNode::TMasterEpoch MasterEpoch_;
 
     const IInvokerPtr SessionInvoker_;
 

@@ -409,18 +409,23 @@ TChunkInfo TBlobSession::OnFinished(const TError& error)
     ReleaseSpace();
 
     if (Error_.IsOK()) {
-        auto descriptor = TChunkDescriptor(
-            GetChunkId(),
-            Pipeline_->GetChunkInfo().disk_space());
+        try {
+            auto descriptor = TChunkDescriptor(
+                GetChunkId(),
+                Pipeline_->GetChunkInfo().disk_space());
 
-        auto chunk = New<TStoredBlobChunk>(
-            Bootstrap_,
-            Location_,
-            descriptor,
-            Pipeline_->GetChunkMeta());
+            auto chunk = New<TStoredBlobChunk>(
+                Bootstrap_,
+                Location_,
+                descriptor,
+                Pipeline_->GetChunkMeta());
 
-        const auto& chunkStore = Bootstrap_->GetChunkStore();
-        chunkStore->RegisterNewChunk(chunk);
+            const auto& chunkStore = Bootstrap_->GetChunkStore();
+            chunkStore->RegisterNewChunk(chunk, /*session*/ this);
+        } catch (const std::exception& ex) {
+            YT_LOG_DEBUG(ex, "Failed to finish session");
+            Error_ = TError(ex);
+        }
     }
 
     Finished_.Fire(Error_);

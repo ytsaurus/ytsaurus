@@ -39,7 +39,7 @@ public:
     void Initialize();
 
     //! Registers a just-written chunk.
-    void RegisterNewChunk(const IChunkPtr& chunk);
+    void RegisterNewChunk(const IChunkPtr& chunk, const ISessionPtr& session);
 
     //! Triggers another round of master notification for a chunk that is already registered.
     /*!

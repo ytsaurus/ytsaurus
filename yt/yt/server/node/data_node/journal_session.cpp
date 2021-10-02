@@ -45,7 +45,7 @@ TFuture<void> TJournalSession::DoStart()
         ChunkUpdateGuard_ = TChunkUpdateGuard::Acquire(Chunk_);
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
-        chunkStore->RegisterNewChunk(Chunk_);
+        chunkStore->RegisterNewChunk(Chunk_, /*session*/ this);
     }).AsyncVia(SessionInvoker_));
 }
 

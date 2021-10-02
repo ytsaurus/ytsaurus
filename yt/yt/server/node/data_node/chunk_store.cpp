@@ -94,7 +94,7 @@ void TChunkStore::InitializeLocation(const TStoreLocationPtr& location)
     location->Start();
 }
 
-void TChunkStore::RegisterNewChunk(const IChunkPtr& chunk)
+void TChunkStore::RegisterNewChunk(const IChunkPtr& chunk, const ISessionPtr& session)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -109,6 +109,13 @@ void TChunkStore::RegisterNewChunk(const IChunkPtr& chunk)
 
     {
         auto guard = WriterGuard(ChunkMapLock_);
+
+        auto masterEpoch = Bootstrap_->GetMasterEpoch();
+        if (session && masterEpoch != session->GetMasterEpoch()) {
+            THROW_ERROR_EXCEPTION("Node has reconnected to master during chunk upload")
+                << TErrorAttribute("session_master_epoch", session->GetMasterEpoch())
+                << TErrorAttribute("current_master_epoch", masterEpoch);
+        }
 
         auto oldChunk = DoFindExistingChunk(chunk).Chunk;
         YT_LOG_FATAL_IF(

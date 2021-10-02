@@ -67,6 +67,8 @@ private:
     void UnregisterSession(const ISessionPtr& session);
 
     void OnLocationDisabled(const TLocationPtr& location);
+
+    void OnMasterDisconnected();
 };
 
 DEFINE_REFCOUNTED_TYPE(TSessionManager)

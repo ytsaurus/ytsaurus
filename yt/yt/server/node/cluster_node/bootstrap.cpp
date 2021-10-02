@@ -445,6 +445,11 @@ public:
         return MasterConnector_->GetNodeId();
     }
 
+    TMasterEpoch GetMasterEpoch() const override
+    {
+        return MasterConnector_->GetEpoch();
+    }
+
     const TNodeDirectoryPtr& GetNodeDirectory() const override
     {
         return MasterConnection_->GetNodeDirectory();
@@ -1327,6 +1332,11 @@ bool TBootstrapBase::IsConnected() const
 TNodeId TBootstrapBase::GetNodeId() const
 {
     return Bootstrap_->GetNodeId();
+}
+
+TMasterEpoch TBootstrapBase::GetMasterEpoch() const
+{
+    return Bootstrap_->GetMasterEpoch();
 }
 
 const TNodeDirectoryPtr& TBootstrapBase::GetNodeDirectory() const

@@ -59,6 +59,9 @@ void TSessionManager::Initialize()
         location->SubscribeDisabled(
             BIND(&TSessionManager::OnLocationDisabled, MakeWeak(this), location));
     }
+
+    Bootstrap_->SubscribeMasterDisconnected(
+        BIND(&TSessionManager::OnMasterDisconnected, MakeWeak(this)));
 }
 
 ISessionPtr TSessionManager::FindSession(TSessionId sessionId)
@@ -261,6 +264,21 @@ void TSessionManager::OnLocationDisabled(const TLocationPtr& location)
         if (location == session->GetStoreLocation()) {
             session->Cancel(TError("Target location is disabled"));
         }
+    }
+}
+
+void TSessionManager::OnMasterDisconnected()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    THashMap<TSessionId, ISessionPtr> sessionMap;
+    {
+        auto guard = ReaderGuard(SessionMapLock_);
+        sessionMap = SessionMap_;
+    }
+
+    for (const auto& [sessionId, session] : sessionMap) {
+        session->Cancel(TError("Node has disconnected from master"));
     }
 }
 
