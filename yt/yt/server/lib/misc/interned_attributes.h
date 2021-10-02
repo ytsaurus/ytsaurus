@@ -118,6 +118,7 @@
     XX(EnableByUserProfiling, enable_by_user_profiling) \
     XX(EnableDetailedLogs, enable_detailed_logs) \
     XX(EnableDetailedProfiling, enable_detailed_profiling) \
+    XX(EnableFairShareTruncationInFifoPool, enable_fair_share_truncation_in_fifo_pool) \
     XX(EnableTabletBalancer, enable_tablet_balancer) \
     XX(EnableDynamicStoreRead, enable_dynamic_store_read) \
     XX(EnableReplicatedTableTracker, enable_replicated_table_tracker) \

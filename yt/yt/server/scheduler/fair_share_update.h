@@ -110,6 +110,7 @@ public:
     virtual bool IsRoot() const;
     virtual bool IsOperation() const;
     TPool* AsPool();
+    TOperationElement* AsOperation();
 
     virtual TString GetId() const = 0;
 
@@ -171,7 +172,7 @@ public:
     virtual double GetSpecifiedBurstRatio() const = 0;
     virtual double GetSpecifiedResourceFlowRatio() const = 0;
 
-    virtual bool ShouldTruncateUnsatisfiedChildFairShareInFifoPool() const = 0;
+    virtual bool IsFairShareTruncationInFifoPoolEnabled() const = 0;
     virtual bool CanAcceptFreeVolume() const = 0;
     virtual bool ShouldDistributeFreeVolumeAmongChildren() const = 0;
 
@@ -208,7 +209,9 @@ private:
         bool strictMode = true);
 
     TChildSuggestions GetChildSuggestionsFifo(double fitFactor);
+    bool ShouldTruncateChildSuggestionFifo(const TChildSuggestions& childSuggestions, int childIndex) const;
     TChildSuggestions GetChildSuggestionsNormal(double fitFactor);
+    bool ShouldTruncateChildSuggestionNormal(const TChildSuggestions& childSuggestions, int childIndex) const;
 
     friend class TPool;
     friend class TRootElement;
@@ -274,6 +277,8 @@ public:
     virtual bool IsOperation() const override;
 
     virtual TResourceVector GetBestAllocationShare() const = 0;
+
+    virtual bool IsGang() const = 0;
 
 private:
     virtual void PrepareFairShareByFitFactor(TFairShareUpdateContext* context) override;

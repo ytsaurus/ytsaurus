@@ -224,7 +224,8 @@ public:
 
     std::optional<TString> ConfigPreset;
 
-    std::optional<bool> TruncateFifoPoolUnsatisfiedChildFairShare;
+    // Overrides the same option in tree config.
+    std::optional<bool> EnableFairShareTruncationInFifoPool;
 
     THashMap<TString, TString> MeteringTags;
 
@@ -368,6 +369,8 @@ public:
     std::optional<THashSet<TString>> SchedulingSegmentDataCenters;
 
     bool EnableLimitingAncestorCheck;
+
+    bool IsGang;
 
     TStrategyOperationSpec();
 

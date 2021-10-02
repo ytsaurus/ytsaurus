@@ -280,7 +280,7 @@ public:
 
     THashMap<TString, NYTree::INodePtr> PoolConfigPresets;
 
-    bool TruncateFifoPoolUnsatisfiedChildFairShare;
+    bool EnableFairShareTruncationInFifoPool;
 
     bool EnableConditionalPreemption;
 

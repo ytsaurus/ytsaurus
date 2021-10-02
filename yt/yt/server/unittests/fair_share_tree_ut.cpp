@@ -1695,7 +1695,7 @@ TEST_F(TFairShareTreeTest, TruncateUnsatisfiedChildFairShareInFifoPools)
     auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
 
     auto poolConfig = New<TPoolConfig>();
-    poolConfig->TruncateFifoPoolUnsatisfiedChildFairShare = true;
+    poolConfig->EnableFairShareTruncationInFifoPool = true;
     poolConfig->Mode = ESchedulingMode::Fifo;
 
     auto rootElement = CreateTestRootElement(host.Get());
@@ -1715,8 +1715,10 @@ TEST_F(TFairShareTreeTest, TruncateUnsatisfiedChildFairShareInFifoPools)
     auto operationAFirst = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList({jobResources}));
     auto operationElementAFirst = CreateTestOperationElement(host.Get(), operationAFirst.Get(), poolA.Get(), operationOptions);
 
+    auto gangOperationSpec = New<TStrategyOperationSpec>();
+    gangOperationSpec->IsGang = true;
     auto operationASecond = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList({jobResources}));
-    auto operationElementASecond = CreateTestOperationElement(host.Get(), operationASecond.Get(), poolA.Get(), operationOptions);
+    auto operationElementASecond = CreateTestOperationElement(host.Get(), operationASecond.Get(), poolA.Get(), operationOptions, gangOperationSpec);
 
     auto operationBFirst = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList({jobResources}));
     auto operationElementBFirst = CreateTestOperationElement(host.Get(), operationBFirst.Get(), poolB.Get(), operationOptions);
@@ -1726,18 +1728,19 @@ TEST_F(TFairShareTreeTest, TruncateUnsatisfiedChildFairShareInFifoPools)
 
     DoFairShareUpdate(host.Get(), rootElement);
 
-    EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), operationElementAFirst->Attributes().DemandShare);
-    EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), operationElementASecond->Attributes().DemandShare);
-    EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), operationElementBFirst->Attributes().DemandShare);
-    EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), operationElementBSecond->Attributes().DemandShare);
+    const TResourceVector unit = {1.0, 1.0, 0.0, 1.0, 0.0};
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.3), operationElementAFirst->Attributes().DemandShare);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.3), operationElementASecond->Attributes().DemandShare);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.3), operationElementBFirst->Attributes().DemandShare);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.3), operationElementBSecond->Attributes().DemandShare);
 
-    EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), operationElementAFirst->Attributes().FairShare.Total);
-    EXPECT_EQ(TResourceVector({0.0, 0.0, 0.0, 0.0, 0.0}), operationElementASecond->Attributes().FairShare.Total);
-    EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), operationElementBFirst->Attributes().FairShare.Total);
-    EXPECT_EQ(TResourceVector({0.0, 0.0, 0.0, 0.0, 0.0}), operationElementBSecond->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.3), operationElementAFirst->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.0), operationElementASecond->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.3), operationElementBFirst->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.2), operationElementBSecond->Attributes().FairShare.Total);
 
-    EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), poolA->Attributes().FairShare.Total);
-    EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), poolB->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.3), poolA->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector(unit * 0.5), poolB->Attributes().FairShare.Total);
 }
 
 TEST_F(TFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandRatio)
