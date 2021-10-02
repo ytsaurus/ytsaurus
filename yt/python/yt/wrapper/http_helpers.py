@@ -3,7 +3,7 @@ from .common import require, get_value, total_seconds, generate_uuid, generate_t
 from .retries import Retrier, default_chaos_monkey
 from .errors import (YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError,
                      YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
-                     YtRequestTimedOut, YtRetriableError, YtTransportError, YtNoSuchTransaction)
+                     YtRequestTimedOut, YtRetriableError, YtTransportError, YtNoSuchTransaction, create_http_response_error)
 from .framing import unframed_iter_content
 from .command import parse_commands
 from .format import JsonFormat, YsonFormat
@@ -214,8 +214,12 @@ def _process_request_backoff(current_time, client):
 def raise_for_token(response, request_info):
     request_id = response.headers.get("X-YT-Request-ID", "missing")
     proxy = response.headers.get("X-YT-Proxy")
-
-    response_error = YtHttpResponseError(error=response.error(), **request_info)
+    error_exc = create_http_response_error(
+        response.error(),
+        url=request_info["url"],
+        request_headers=request_info["headers"],
+        response_headers=dict(**response.headers),
+        params=request_info["params"])
     raise YtTokenError(
 	"Your request {0} has failed to authenticate at {1}. "
 	"Make sure that you have provided an OAuth token with the request. "
@@ -223,7 +227,7 @@ def raise_for_token(response, request_info):
 	"If the error persists and system keeps rejecting your token, "
 	"please kindly submit a request to https://st.yandex-team.ru/createTicket?queue=YTADMINREQ"
         .format(request_id, proxy),
-        inner_errors=[response_error])
+        inner_errors=[error_exc])
 
 def _raise_for_status(response, request_info):
     if response.status_code in (500, 503):
@@ -231,7 +235,13 @@ def _raise_for_status(response, request_info):
     if response.status_code == 401:
         raise_for_token(response, request_info)
     if not response.is_ok():
-        raise YtHttpResponseError(error=response.error(), **request_info)
+        error_exc = create_http_response_error(
+            response.error(),
+            url=request_info["url"],
+            request_headers=request_info["headers"],
+            response_headers=dict(**response.headers),
+            params=request_info["params"])
+        raise error_exc
 
 
 class RequestRetrier(Retrier):

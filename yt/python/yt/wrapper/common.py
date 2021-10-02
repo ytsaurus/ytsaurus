@@ -87,10 +87,14 @@ def hide_auth_headers(headers):
     return headers
 
 def hide_auth_headers_in_request_info(request_info):
-    if "headers" in request_info:
-        request_info = deepcopy(request_info)
-        request_info["headers"] = hide_auth_headers(request_info["headers"])
-    return request_info
+    copied_request_info = None
+    for key in ("headers", "request_header", "response_headers"):
+        if key not in request_info:
+            continue
+        if copied_request_info is None:
+            copied_request_info = deepcopy(request_info)
+        copied_request_info[key] = hide_auth_headers(request_info[key])
+    return copied_request_info if copied_request_info is not None else request_info
 
 
 def compose(*args):

@@ -7,11 +7,13 @@ import yt.wrapper as yt
 import pytest
 
 def _create_error(code):
-    return yt.YtResponseError(error={"code": 1,
-                                     "inner_errors": [
-                                         {"code": code,
-                                          "inner_errors": [] }
-                                     ]})
+    return yt.YtResponseError({
+        "code": 1,
+        "inner_errors": [{
+           "code": code,
+           "inner_errors": [],
+        }]
+    })
 
 @authors("bidzilya", "ignat")
 def test_response_error():

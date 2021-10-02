@@ -3,8 +3,8 @@ from .config import get_config, get_option, set_option
 from .compression import get_compressor, has_compressor
 from .common import (require, generate_uuid, get_version, total_seconds, forbidden_inside_job, get_started_by_short,
                      hide_secure_vault)
-from .errors import (YtError, YtHttpResponseError, YtProxyUnavailable,
-                     YtConcurrentOperationsLimitExceeded, YtRequestTimedOut)
+from .errors import (YtError, YtProxyUnavailable, YtConcurrentOperationsLimitExceeded, YtRequestTimedOut,
+                     create_http_response_error)
 from .format import JsonFormat
 from .http_helpers import (make_request_with_retries, get_token, get_http_api_version, get_http_api_commands,
                            get_proxy_url, get_error_from_headers, get_header_format, ProxyProvider)
@@ -279,7 +279,13 @@ def make_request(command_name,
 
         error = get_error_from_headers(trailers)
         if error is not None:
-            raise YtHttpResponseError(error=json.loads(error), **response.request_info)
+            error_exception = create_http_response_error(
+                json.loads(error),
+                url=response.request_info["url"],
+                request_headers=response.request_info["headers"],
+                response_headers=trailers,
+                params=response.request_info["params"])
+            raise error_exception
 
         if response.framing_error is not None:
             raise response.framing_error
