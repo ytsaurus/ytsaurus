@@ -857,7 +857,7 @@ private:
             switch (writerConfig->Format) {
                 case ELogFormat::PlainText:
                     formatter = std::make_unique<TPlainTextLogFormatter>(
-                        writerConfig->EnableSystemMessages,
+                        writerConfig->AreSystemMessagesEnabled(),
                         writerConfig->EnableSourceLocation);
                     break;
                 case ELogFormat::Json: [[fallthrough]];
@@ -865,7 +865,7 @@ private:
                     formatter = std::make_unique<TStructuredLogFormatter>(
                         writerConfig->Format,
                         writerConfig->CommonFields,
-                        writerConfig->EnableSystemMessages);
+                        writerConfig->AreSystemMessagesEnabled());
                     break;
                 default:
                     YT_ABORT();

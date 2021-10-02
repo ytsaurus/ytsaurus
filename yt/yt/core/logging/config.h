@@ -21,10 +21,11 @@ public:
     ECompressionMethod CompressionMethod;
     int CompressionLevel;
     THashMap<TString, NYTree::INodePtr> CommonFields;
-    bool EnableSystemMessages;
+    std::optional<bool> EnableSystemMessages;
     bool EnableSourceLocation;
 
     ELogFamily GetFamily() const;
+    bool AreSystemMessagesEnabled() const;
 
     TWriterConfig();
 };
