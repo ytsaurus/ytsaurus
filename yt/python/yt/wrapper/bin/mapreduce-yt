@@ -698,6 +698,8 @@ Examples:
         attributes["replication_factor"] = replication_factor
 
     if args.codec is not None:
+        if args.codec == "quicklz":
+            raise YtError("Codec \"quicklz\" is not supported anymore")
         attributes["compression_codec"] = args.codec
 
     if config["yamr_mode"]["create_schema_on_tables"]:
