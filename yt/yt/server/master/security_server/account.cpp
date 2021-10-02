@@ -11,6 +11,8 @@
 
 #include <yt/yt/ytlib/object_client/config.h>
 
+#include <yt/yt/core/concurrency/throughput_throttler.h>
+
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -136,6 +138,7 @@ TAccountMulticellStatistics SubtractAccountMulticellStatistics(
 
 TAccount::TAccount(TAccountId id, bool isRoot)
     : TNonversionedMapObjectBase<TAccount>(id, isRoot)
+    , MergeJobThrottler_(CreateReconfigurableThroughputThrottler(New<TThroughputThrottlerConfig>(0)))
 { }
 
 TString TAccount::GetLowercaseObjectName() const
@@ -169,6 +172,7 @@ void TAccount::Save(NCellMaster::TSaveContext& context) const
         Save(context, *AbcConfig_);
     }
     Save(context, FolderId_);
+    Save(context, ChunkMergerNodeTraversalConcurrency_);
 }
 
 void TAccount::Load(NCellMaster::TLoadContext& context)
@@ -184,6 +188,7 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
     // COMPAT(aleksandra-zh)
     if (context.GetVersion() >= EMasterReign::MasterMergeJobs) {
         Load(context, MergeJobRateLimit_);
+        MergeJobThrottler_->SetLimit(MergeJobRateLimit_);
     }
 
     // COMPAT(cookiedoth)
@@ -211,6 +216,11 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
             Load(context, *AbcConfig_);
         }
         Load(context, FolderId_);
+    }
+
+    // COMPAT(aleksandra-zh)
+    if (context.GetVersion() >= EMasterReign::MoreChunkMergerLimits) {
+        Load(context, ChunkMergerNodeTraversalConcurrency_);
     }
 }
 
@@ -509,16 +519,17 @@ int TAccount::GetMergeJobRateLimit() const
 void TAccount::SetMergeJobRateLimit(int mergeJobRateLimit)
 {
     MergeJobRateLimit_ = mergeJobRateLimit;
+    MergeJobThrottler_->SetLimit(MergeJobRateLimit_);
 }
 
-int TAccount::GetMergeJobRate() const
+int TAccount::GetChunkMergerNodeTraversals() const
 {
-    return MergeJobRate_;
+    return ChunkMergerNodeTraversals_;
 }
 
-void TAccount::IncrementMergeJobRate(int value)
+void TAccount::IncrementChunkMergerNodeTraversals(int value)
 {
-    MergeJobRate_ += value;
+    ChunkMergerNodeTraversals_ += value;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -228,6 +228,7 @@ public:
     int SessionFinalizationBatchSize;
 
     int QueueSizeLimit;
+    int MaxRunningJobCount;
 
     TDynamicChunkMergerConfig()
     {
@@ -282,6 +283,9 @@ public:
 
         RegisterParameter("queue_size_limit", QueueSizeLimit)
             .GreaterThan(0)
+            .Default(100000);
+        RegisterParameter("max_running_job_count", MaxRunningJobCount)
+            .GreaterThan(1)
             .Default(100000);
     }
 };

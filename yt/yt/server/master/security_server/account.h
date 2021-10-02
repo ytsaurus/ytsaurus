@@ -65,6 +65,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TAccountStatistics, ClusterStatistics);
     DEFINE_BYREF_RW_PROPERTY(TClusterResourceLimits, ClusterResourceLimits);
     DEFINE_BYVAL_RW_PROPERTY(bool, AllowChildrenLimitOvercommit);
+    DEFINE_BYVAL_RW_PROPERTY(int, ChunkMergerNodeTraversalConcurrency, 0);
 
     // COMPAT(kiselyovp)
     DEFINE_BYVAL_RW_PROPERTY(TString, LegacyName);
@@ -74,6 +75,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TAbcConfigPtr, AbcConfig);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, FolderId);
+
+    DEFINE_BYREF_RO_PROPERTY(NConcurrency::IReconfigurableThroughputThrottlerPtr, MergeJobThrottler);
 
 public:
     explicit TAccount(TAccountId id, bool isRoot = false);
@@ -151,12 +154,12 @@ public:
     int GetMergeJobRateLimit() const;
     void SetMergeJobRateLimit(int mergeJobRateLimit);
 
-    int GetMergeJobRate() const;
-    void IncrementMergeJobRate(int value);
+    int GetChunkMergerNodeTraversals() const;
+    void IncrementChunkMergerNodeTraversals(int value);
 
 private:
     int MergeJobRateLimit_ = 0;
-    int MergeJobRate_ = 0;
+    int ChunkMergerNodeTraversals_ = 0;
 
     virtual TString GetRootName() const override;
 };
