@@ -467,6 +467,10 @@ void TStoreManagerBase::Mount(
         }
     }
 
+    for (const auto& [_, hunkChunk] : Tablet_->HunkChunkMap()) {
+        Tablet_->UpdateDanglingHunkChunks(hunkChunk);
+    }
+
     // NB: Active store must be created _after_ chunk stores to make sure it receives
     // the right starting row index (for ordered tablets only).
     if (createDynamicStore) {

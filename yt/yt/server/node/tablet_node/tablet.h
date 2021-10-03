@@ -448,6 +448,7 @@ public:
     void UpdatePreparedStoreRefCount(const THunkChunkPtr& hunkChunk, int delta);
     void UpdateHunkChunkRef(const THunkChunkRef& ref, int delta);
     const THashSet<THunkChunkPtr>& DanglingHunkChunks() const;
+    void UpdateDanglingHunkChunks(const THunkChunkPtr& hunkChunk);
 
     TTableReplicaInfo* FindReplicaInfo(TTableReplicaId id);
     TTableReplicaInfo* GetReplicaInfoOrThrow(TTableReplicaId id);
@@ -585,8 +586,6 @@ private:
 
     void UpdateOverlappingStoreCount();
     int ComputeEdenOverlappingStoreCount() const;
-
-    void UpdateDanglingHunkChunks(const THunkChunkPtr& hunkChunk);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

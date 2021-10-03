@@ -477,16 +477,6 @@ TChunkStoreBase::TChunkStoreBase(
 
     if (addStoreDescriptor) {
         ChunkMeta_->CopyFrom(addStoreDescriptor->chunk_meta());
-        if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(ChunkMeta_->extensions())) {
-            HunkChunkRefs_.reserve(optionalHunkChunkRefsExt->refs_size());
-            for (const auto& ref : optionalHunkChunkRefsExt->refs()) {
-                HunkChunkRefs_.push_back({
-                    .HunkChunk = Tablet_->GetHunkChunk(FromProto<TChunkId>(ref.chunk_id())),
-                    .HunkCount = ref.hunk_count(),
-                    .TotalHunkLength = ref.total_hunk_length()
-                });
-            }
-        }
     }
 }
 
@@ -496,6 +486,17 @@ void TChunkStoreBase::Initialize()
 
     SetInMemoryMode(Tablet_->GetSettings().MountConfig->InMemoryMode);
     MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_->extensions());
+
+    if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(ChunkMeta_->extensions())) {
+        HunkChunkRefs_.reserve(optionalHunkChunkRefsExt->refs_size());
+        for (const auto& ref : optionalHunkChunkRefsExt->refs()) {
+            HunkChunkRefs_.push_back({
+                .HunkChunk = Tablet_->GetHunkChunk(FromProto<TChunkId>(ref.chunk_id())),
+                .HunkCount = ref.hunk_count(),
+                .TotalHunkLength = ref.total_hunk_length()
+            });
+        }
+    }
 }
 
 const TChunkMeta& TChunkStoreBase::GetChunkMeta() const
