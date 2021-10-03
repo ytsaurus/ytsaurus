@@ -181,7 +181,6 @@ TSortedDynamicRowRef TSortedStoreManager::ModifyRow(
                 break;
             }
             const auto& columnIndexToLockIndex = Tablet_->ColumnIndexToLockIndex();
-
             for (int index = KeyColumnCount_; index < static_cast<int>(row.GetCount()); ++index) {
                 const auto& value = row[index];
                 int lockIndex = columnIndexToLockIndex[value.Id];
@@ -240,6 +239,9 @@ void TSortedStoreManager::LockRow(TTransaction* transaction, bool prelock, const
     } else {
         transaction->LockedRows().push_back(rowRef);
     }
+
+    auto* tablet = rowRef.Store->GetTablet();
+    tablet->SetLockedRowCount(tablet->GetLockedRowCount() + 1);
 }
 
 void TSortedStoreManager::ConfirmRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
@@ -262,12 +264,18 @@ void TSortedStoreManager::CommitRow(TTransaction* transaction, const TSortedDyna
         CheckForUnlockedStore(rowRef.Store);
         ActiveStore_->CommitRow(transaction, migratedRow, rowRef.LockMask);
     }
+
+    auto* tablet = rowRef.Store->GetTablet();
+    tablet->SetLockedRowCount(tablet->GetLockedRowCount() - 1);
 }
 
 void TSortedStoreManager::AbortRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
 {
     rowRef.Store->AbortRow(transaction, rowRef.Row, rowRef.LockMask);
     CheckForUnlockedStore(rowRef.Store);
+
+    auto* tablet = rowRef.Store->GetTablet();
+    tablet->SetLockedRowCount(tablet->GetLockedRowCount() - 1);
 }
 
 IDynamicStore* TSortedStoreManager::GetActiveStore() const

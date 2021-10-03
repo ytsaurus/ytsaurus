@@ -303,6 +303,12 @@ public:
                 : std::nullopt;
             ValidateMemoryLimit(poolTag);
 
+            if (versioned) {
+                ValidateVersionedWriteBarrier(tablet);
+            } else {
+                ValidateUnversionedWriteBarrier(tablet);
+            }
+
             auto tabletId = tablet->GetId();
             const auto& storeManager = tablet->GetStoreManager();
 
@@ -359,6 +365,12 @@ public:
                 PrelockedTablets_.push(tablet);
                 LockTablet(tablet);
 
+                if (versioned) {
+                    tablet->SetInFlightVersionedWriteCount(tablet->GetInFlightVersionedWriteCount() + 1);
+                } else {
+                    tablet->SetInFlightUnversionedWriteCount(tablet->GetInFlightUnversionedWriteCount() + 1);
+                }
+
                 TReqWriteRows hydraRequest;
                 ToProto(hydraRequest.mutable_transaction_id(), transactionId);
                 hydraRequest.set_transaction_start_timestamp(transactionStartTimestamp);
@@ -383,6 +395,7 @@ public:
                     transactionId,
                     tablet->GetMountRevision(),
                     adjustedSignature,
+                    versioned,
                     lockless,
                     writeRecord,
                     identity));
@@ -1440,6 +1453,7 @@ private:
         TTransactionId transactionId,
         NHydra::TRevision mountRevision,
         TTransactionSignature signature,
+        bool versioned,
         bool lockless,
         const TTransactionWriteRecord& writeRecord,
         const NRpc::TAuthenticationIdentity& identity,
@@ -1455,6 +1469,12 @@ private:
         auto finallyGuard = Finally([&]() {
             UnlockTablet(tablet);
         });
+
+        if (versioned) {
+            tablet->SetInFlightVersionedWriteCount(tablet->GetInFlightVersionedWriteCount() - 1);
+        } else {
+            tablet->SetInFlightUnversionedWriteCount(tablet->GetInFlightUnversionedWriteCount() - 1);
+        }
 
         if (mountRevision != tablet->GetMountRevision()) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Mount revision mismatch; write ignored "
@@ -3383,8 +3403,7 @@ private:
 
     void StopTabletEpoch(TTablet* tablet)
     {
-        const auto& storeManager = tablet->GetStoreManager();
-        if (storeManager) {
+        if (const auto& storeManager = tablet->GetStoreManager()) {
             // Store Manager could be null if snapshot loading is aborted.
             storeManager->StopEpoch();
         }
@@ -3395,6 +3414,9 @@ private:
         for (auto& [replicaId, replicaInfo] : tablet->Replicas()) {
             StopTableReplicaEpoch(&replicaInfo);
         }
+
+        tablet->SetInFlightUnversionedWriteCount(0);
+        tablet->SetInFlightVersionedWriteCount(0);
     }
 
 
@@ -3468,6 +3490,9 @@ private:
                 .Item("hash_table_size").Value(tablet->GetHashTableSize())
                 .Item("overlapping_store_count").Value(tablet->GetOverlappingStoreCount())
                 .Item("retained_timestamp").Value(tablet->GetRetainedTimestamp())
+                .Item("in_flight_unversioned_write_count").Value(tablet->GetInFlightUnversionedWriteCount())
+                .Item("in_flight_versioned_write_count").Value(tablet->GetInFlightVersionedWriteCount())
+                .Item("locked_row_count").Value(tablet->GetLockedRowCount())
                 .Item("config")
                     .BeginAttributes()
                         .Item("opaque").Value(true)
@@ -3742,12 +3767,35 @@ private:
         }
     }
 
-
-    void UpdateTabletSnapshot(TTablet* tablet, std::optional<TLockManagerEpoch> epoch = std::nullopt)
+    static void ValidateUnversionedWriteBarrier(TTablet* tablet)
     {
-        if (!IsRecovery()) {
-            const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
-            snapshotStore->RegisterTabletSnapshot(Slot_, tablet, epoch);
+        if (tablet->GetInFlightVersionedWriteCount() > 0) {
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::UnversionedWriteBlocked,
+                "Tablet cannot accept unversioned writes since some versioned writes are still in-flight")
+                << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("table_path", tablet->GetTablePath())
+                << TErrorAttribute("in_flight_versioned_write_count", tablet->GetInFlightVersionedWriteCount());
+        }
+    }
+
+    static void ValidateVersionedWriteBarrier(TTablet* tablet)
+    {
+        if (tablet->GetInFlightUnversionedWriteCount() > 0) {
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::VersionedWriteBlocked,
+                "Tablet cannot accept versioned writes since some unversioned writes are still in-flight")
+                << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("table_path", tablet->GetTablePath())
+                << TErrorAttribute("in_flight_unversioned_write_count", tablet->GetInFlightUnversionedWriteCount());
+        }
+        if (tablet->GetLockedRowCount() > 0) {
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::VersionedWriteBlocked,
+                "Tablet cannot accept versioned writes since some of its rows are still locked by unversioned writes")
+                << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("table_path", tablet->GetTablePath())
+                << TErrorAttribute("locked_row_count", tablet->GetLockedRowCount());
         }
     }
 
@@ -3771,6 +3819,15 @@ private:
     {
         if (transaction->GetState() != ETransactionState::Active) {
             transaction->ThrowInvalidState();
+        }
+    }
+
+
+    void UpdateTabletSnapshot(TTablet* tablet, std::optional<TLockManagerEpoch> epoch = std::nullopt)
+    {
+        if (!IsRecovery()) {
+            const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+            snapshotStore->RegisterTabletSnapshot(Slot_, tablet, epoch);
         }
     }
 
