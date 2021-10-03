@@ -385,6 +385,15 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::IChunkFragmentReaderPtr, ChunkFragmentReader);
 
+    // The number of in-flight write mutations involving unversioned rowsets.
+    DEFINE_BYVAL_RW_PROPERTY(int, InFlightUnversionedWriteCount);
+    // The number of in-flight write mutations involving versioned rowsets.
+    DEFINE_BYVAL_RW_PROPERTY(int, InFlightVersionedWriteCount);
+
+    // The number of rows in |TTransaction::LockedRows| and |TTransaction::PrelockedRows|
+    // referencing this particular tablet.
+    DEFINE_BYVAL_RW_PROPERTY(int, LockedRowCount);
+
 public:
     TTablet(
         TTabletId tabletId,
