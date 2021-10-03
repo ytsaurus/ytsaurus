@@ -1,5 +1,10 @@
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/private.h>
+
+#include <yt/yt/server/node/tablet_node/serialize.h>
+
+#include <yt/yt/server/lib/misc/cluster_connection.h>
 
 #include <yt/yt/ytlib/program/program.h>
 #include <yt/yt/ytlib/program/program_config_mixin.h>
@@ -42,6 +47,14 @@ public:
             .StoreMappedResult(&ValidateSnapshot_, &CheckPathExistsArgMapper)
             .RequiredArgument("SNAPSHOT");
         Opts_
+            .AddLongOption(
+                "remote-cluster-proxy",
+                "if set, cluster connection will be downloaded from //sys/@cluster_connection "
+                "and tablet node will be run. ")
+            .StoreResult(&RemoteClusterProxy_)
+            .RequiredArgument("CLUSTER")
+            .Optional();
+        Opts_
             .AddLongOption("sleep-after-initialize", "sleep for 10s after calling TBootstrap::Initialize()")
             .SetFlag(&SleepAfterInitialize_)
             .NoArgument();
@@ -75,8 +88,42 @@ protected:
             return;
         }
 
-        auto config = GetConfig();
-        auto configNode = GetConfigNode();
+        TClusterNodeConfigPtr config;
+        NYTree::INodePtr configNode;
+        if (RemoteClusterProxy_) {
+            // Form a default cluster node config.
+            auto defaultConfig = New<TClusterNodeConfig>();
+            defaultConfig->Logging = NLogging::TLogManagerConfig::CreateYTServer(/*componentName*/ "cluster_node");
+            defaultConfig->RpcPort = 9012;
+
+            // Increase memory limits.
+            defaultConfig->ResourceLimits->TotalMemory = 30_GB;
+
+            // Create a tablet node config with 5 tablet slots.
+            defaultConfig->Flavors = {NNodeTrackerClient::ENodeFlavor::Tablet};
+            defaultConfig->UseNewHeartbeats = true;
+            auto& tabletCellarConfig = defaultConfig->CellarNode->CellarManager->Cellars[NCellarClient::ECellarType::Tablet];
+            tabletCellarConfig = New<NCellarAgent::TCellarConfig>();
+            tabletCellarConfig->Size = 5;
+
+            defaultConfig->ClusterConnection = New<TClusterNodeConnectionConfig>();
+
+            // Dump it into node and apply patch from config file (if present).
+            configNode = NYTree::ConvertToNode(defaultConfig);
+            if (auto configNodePatch = GetConfigNode(/*returnNullIfNotSupplied*/ true)) {
+                configNode = NYTree::PatchNode(configNode, configNodePatch);
+            }
+            // Finally load it back.
+            config = New<TClusterNodeConfig>();
+            config->SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
+            config->Load(configNode);
+
+            // WARNING: Changing cell reign in local mode is very bad idea. Think twice before doing it!
+            NTabletNode::SetReignChangeAllowed(/*allowed*/ false);
+        } else {
+            config = GetConfig();
+            configNode = GetConfigNode();
+        }
 
         if (ValidateSnapshot_) {
             NBus::TTcpDispatcher::Get()->DisableNetworking();
@@ -88,6 +135,12 @@ protected:
 
         ConfigureSingletons(config);
         StartDiagnosticDump(config);
+
+        if (RemoteClusterProxy_) {
+            // Set controller agent cluster connection.
+            auto clusterConnectionNode = DownloadClusterConnection(RemoteClusterProxy_, ClusterNodeLogger);
+            config->ClusterConnection->Load(clusterConnectionNode);
+        }
 
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems
@@ -108,6 +161,7 @@ protected:
 
 private:
     TString ValidateSnapshot_;
+    TString RemoteClusterProxy_;
     bool SleepAfterInitialize_ = false;
 };
 
