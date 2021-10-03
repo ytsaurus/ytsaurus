@@ -848,14 +848,22 @@ protected:
                 }
             }
 
+            auto partitionIndex = GetPartitionIndex(joblet->InputStripeList);
+            const auto& partition = Controller_->PartitionsByLevels[Level_][partitionIndex];
+            const auto& shuffleChunkPool = partition->ShuffleChunkPool;
+
+            if (IsFinal()) {
+                for (const auto& finalPartition : partition->Children) {
+                    // Check if final partition is large enough to start sorted merge.
+                    Controller_->IsSortedMergeNeeded(finalPartition);
+                }
+            }
+
             // NB: don't move it to OnTaskCompleted since jobs may run after the task has been completed.
             // Kick-start sort and unordered merge tasks.
             Controller_->CheckSortStartThreshold();
             Controller_->CheckMergeStartThreshold();
 
-            auto partitionIndex = GetPartitionIndex(joblet->InputStripeList);
-            const auto& partition = Controller_->PartitionsByLevels[Level_][partitionIndex];
-            const auto& shuffleChunkPool = partition->ShuffleChunkPool;
             if (shuffleChunkPool->GetTotalDataSliceCount() > Controller_->Spec->MaxShuffleDataSliceCount) {
                 Controller_->OnOperationFailed(TError("Too many data slices in shuffle pool, try to decrease size of intermediate data or split operation into several smaller ones")
                     << TErrorAttribute("shuffle_data_slice_count", shuffleChunkPool->GetTotalDataSliceCount())
