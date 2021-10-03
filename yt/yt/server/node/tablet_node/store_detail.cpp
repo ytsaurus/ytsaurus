@@ -771,7 +771,7 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(
             YT_LOG_DEBUG("Cached local chunk reader is no longer valid");
         }
 
-        if (ReaderConfig_->PreferLocalReplicas) {
+        if (ChunkRegistry_ && ReaderConfig_->PreferLocalReplicas) {
             auto chunk = ChunkRegistry_->FindChunk(ChunkId_);
             if (IsLocalChunkValid(chunk)) {
                 createLocalReaders(chunk);
@@ -1013,7 +1013,7 @@ TChunkReplicaList TChunkStoreBase::GetReplicas(NNodeTrackerClient::TNodeId local
     }
 
     auto localChunk = CachedWeakChunk_.Lock();
-    if (!localChunk) {
+    if (ChunkRegistry_ && !localChunk) {
         localChunk = ChunkRegistry_->FindChunk(ChunkId_);
     }
 

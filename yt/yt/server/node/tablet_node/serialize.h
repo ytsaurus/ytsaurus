@@ -8,6 +8,14 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// If reign change is disallowed, tablet node will crash if cell snapshot reign
+// differs from node reign. This is useful for local mode where occasional cell
+// state migration may end up with a disaster.
+void SetReignChangeAllowed(bool allowed);
+bool IsReignChangeAllowed();
+
+////////////////////////////////////////////////////////////////////////////////
+
 NHydra::TReign GetCurrentReign();
 bool ValidateSnapshotReign(NHydra::TReign);
 NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);

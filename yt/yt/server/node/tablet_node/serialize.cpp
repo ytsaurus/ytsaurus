@@ -8,6 +8,20 @@ using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool ReignChangeAllowed = true;
+
+void SetReignChangeAllowed(bool allowed)
+{
+    ReignChangeAllowed = allowed;
+}
+
+bool IsReignChangeAllowed()
+{
+    return ReignChangeAllowed;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TReign GetCurrentReign()
 {
     return ToUnderlying(TEnumTraits<ETabletReign>::GetMaxValue());
@@ -26,6 +40,10 @@ bool ValidateSnapshotReign(TReign reign)
 NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
 {
     YT_VERIFY(reign <= GetCurrentReign());
+
+    if (!IsReignChangeAllowed()) {
+        YT_VERIFY(reign == GetCurrentReign());
+    }
 
     if (reign < GetCurrentReign()) {
         return EFinalRecoveryAction::BuildSnapshotAndRestart;
