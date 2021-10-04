@@ -926,6 +926,9 @@ void TChunkMerger::ProcessTouchedNodes()
     YT_VERIFY(IsLeader());
 
     const auto& config = GetDynamicConfig();
+    if (!config->Enable) {
+        return;
+    }
 
     std::vector<TAccount*> accountsToRemove;
     const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1203,7 +1206,7 @@ void TChunkMerger::OnDynamicConfigChanged(TDynamicClusterConfigPtr)
     auto enable = config->Enable;
 
     if (Enabled_ && !enable) {
-        YT_LOG_INFO("Chunk merger is disabled, see //sys/@config");
+        YT_LOG_INFO("Chunk merger is disabled");
         Enabled_ = false;
     }
 
