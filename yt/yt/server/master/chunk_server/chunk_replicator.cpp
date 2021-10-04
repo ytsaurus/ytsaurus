@@ -1726,7 +1726,7 @@ void TChunkReplicator::ScheduleGlobalChunkRefresh(
 void TChunkReplicator::OnRefresh()
 {
     if (!GetDynamicConfig()->EnableChunkRefresh) {
-        YT_LOG_DEBUG("Chunk refresh disabled, see //sys/@config");
+        YT_LOG_DEBUG("Chunk refresh disabled");
         return;
     }
 
@@ -1829,7 +1829,7 @@ void TChunkReplicator::OnCheckEnabledPrimary()
 {
     if (!GetDynamicConfig()->EnableChunkReplicator) {
         if (!Enabled_ || *Enabled_) {
-            YT_LOG_INFO("Chunk replicator is disabled, see //sys/@config");
+            YT_LOG_INFO("Chunk replicator disabled");
         }
         Enabled_ = false;
         return;
@@ -2055,7 +2055,7 @@ void TChunkReplicator::OnRequisitionUpdate()
     }
 
     if (!GetDynamicConfig()->EnableChunkRequisitionUpdate) {
-        YT_LOG_DEBUG("Chunk requisition update disabled, see //sys/@config");
+        YT_LOG_DEBUG("Chunk requisition update disabled");
         return;
     }
 

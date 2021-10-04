@@ -322,7 +322,7 @@ private:
         auto enabledInConfig = GetDynamicConfig()->EnableChunkSealer;
 
         if (!enabledInConfig && Enabled_) {
-            YT_LOG_INFO("Chunk sealer disabled, see //sys/@config");
+            YT_LOG_INFO("Chunk sealer disabled");
             Enabled_ = false;
             return;
         }
