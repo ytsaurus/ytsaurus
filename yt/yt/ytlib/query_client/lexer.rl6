@@ -1,5 +1,8 @@
 #include <yt/yt/ytlib/query_client/lexer.h>
 
+#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
+
+
 #include <util/system/defaults.h>
 #include <util/string/cast.h>
 #include <util/string/escape.h>
