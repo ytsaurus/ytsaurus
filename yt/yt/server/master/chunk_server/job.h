@@ -89,7 +89,7 @@ public:
     virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
 
 private:
-    TChunk* Chunk_;
+    TChunk* const Chunk_;
 
     static NNodeTrackerClient::NProto::TNodeResources GetResourceUsage();
 };
@@ -116,8 +116,8 @@ public:
     virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
 
 private:
-    TChunk* Chunk_;
-    bool Decommission_;
+    TChunk* const Chunk_;
+    const bool Decommission_;
 
     static NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(TChunk* chunk, i64 jobMemoryUsage);
 };
@@ -138,7 +138,7 @@ public:
     virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
 
 private:
-    TChunkPtrWithIndexes ChunkWithIndexes_;
+    const TChunkPtrWithIndexes ChunkWithIndexes_;
 
     static NNodeTrackerClient::NProto::TNodeResources GetResourceUsage();
 };
@@ -166,8 +166,8 @@ public:
     virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
 
 private:
-    TChunkVector InputChunks_;
-    NChunkClient::NProto::TChunkMergerWriterOptions ChunkMergerWriterOptions_;
+    const TChunkVector InputChunks_;
+    const NChunkClient::NProto::TChunkMergerWriterOptions ChunkMergerWriterOptions_;
 
     static NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(const TChunkVector& inputChunks);
 };

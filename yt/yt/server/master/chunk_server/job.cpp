@@ -99,6 +99,7 @@ void TRemovalJob::FillJobSpec(NCellMaster::TBootstrap* bootstrap, TJobSpec* jobS
     ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(ChunkIdWithIndexes_));
     jobSpecExt->set_medium_index(ChunkIdWithIndexes_.MediumIndex);
     if (!Chunk_) {
+        jobSpecExt->set_chunk_is_dead(true);
         return;
     }
 
