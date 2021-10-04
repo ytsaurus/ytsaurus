@@ -47,7 +47,7 @@ import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
-public class ApiServiceTransaction extends TransactionalClient implements AutoCloseable {
+public class ApiServiceTransaction implements TransactionalClient, AutoCloseable {
     enum State {
         ACTIVE,
         COMMITTING,
@@ -56,7 +56,7 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
     }
     private static final Logger logger = LoggerFactory.getLogger(ApiServiceTransaction.class);
 
-    private final ApiServiceClient client;
+    private final ApiServiceClientImpl client;
     private final GUID id;
     private final YtTimestamp startTimestamp;
     private final boolean ping;
@@ -70,7 +70,7 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
 
     @SuppressWarnings("checkstyle:ParameterNumber")
     ApiServiceTransaction(
-            ApiServiceClient client,
+            ApiServiceClientImpl client,
             GUID id,
             YtTimestamp startTimestamp,
             boolean ping,
@@ -107,7 +107,7 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
             Executor heavyExecutor
     ) {
         this(
-                new ApiServiceClient(Objects.requireNonNull(rpcClient), rpcOptions, heavyExecutor),
+                new ApiServiceClientImpl(Objects.requireNonNull(rpcClient), rpcOptions, heavyExecutor),
                 id,
                 startTimestamp,
                 ping,

@@ -18,6 +18,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.proxy.ApiServiceClient;
+import ru.yandex.yt.ytclient.proxy.ApiServiceClientImpl;
 import ru.yandex.yt.ytclient.proxy.YtClient;
 import ru.yandex.yt.ytclient.proxy.YtCluster;
 import ru.yandex.yt.ytclient.rpc.DefaultRpcBusClient;
@@ -127,7 +128,7 @@ public final class ExamplesUtil {
     public static void runExample(Consumer<ApiServiceClient> consumer, RpcCredentials credentials, String host) {
         try (BusConnector connector = createConnector()) {
             try (RpcClient rpcClient = createRpcClient(connector, credentials, host, YT_PORT)) {
-                ApiServiceClient serviceClient = new ApiServiceClient(rpcClient,
+                ApiServiceClient serviceClient = new ApiServiceClientImpl(rpcClient,
                         new RpcOptions().setGlobalTimeout(Duration.ofSeconds(15)), ForkJoinPool.commonPool());
                 consumer.accept(serviceClient);
             }

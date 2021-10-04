@@ -43,121 +43,115 @@ import ru.yandex.yt.ytclient.wire.VersionedRowset;
  *
  * @see YtClient
  */
-public abstract class TransactionalClient {
-    public abstract CompletableFuture<UnversionedRowset> lookupRows(AbstractLookupRowsRequest<?> request);
+public interface TransactionalClient {
+    CompletableFuture<UnversionedRowset> lookupRows(AbstractLookupRowsRequest<?> request);
 
-    public abstract <T> CompletableFuture<List<T>> lookupRows(
+    <T> CompletableFuture<List<T>> lookupRows(
             AbstractLookupRowsRequest<?> request,
             YTreeObjectSerializer<T> serializer
     );
 
-    public abstract CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?> request);
+    CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?> request);
 
-    public abstract <T> CompletableFuture<List<T>> versionedLookupRows(
+    <T> CompletableFuture<List<T>> versionedLookupRows(
             AbstractLookupRowsRequest<?> request,
             YTreeObjectSerializer<T> serializer
     );
 
-    public abstract CompletableFuture<UnversionedRowset> selectRows(SelectRowsRequest request);
+    CompletableFuture<UnversionedRowset> selectRows(SelectRowsRequest request);
 
-    public abstract <T> CompletableFuture<List<T>> selectRows(
+    <T> CompletableFuture<List<T>> selectRows(
             SelectRowsRequest request,
             YTreeObjectSerializer<T> serializer
     );
 
-    public abstract CompletableFuture<GUID> createNode(CreateNode req);
+    CompletableFuture<GUID> createNode(CreateNode req);
 
-    public abstract CompletableFuture<Void> removeNode(RemoveNode req);
+    CompletableFuture<Void> removeNode(RemoveNode req);
 
-    public abstract CompletableFuture<Void> setNode(SetNode req);
+    CompletableFuture<Void> setNode(SetNode req);
 
-    public abstract CompletableFuture<YTreeNode> getNode(GetNode req);
+    CompletableFuture<YTreeNode> getNode(GetNode req);
 
-    public abstract CompletableFuture<YTreeNode> listNode(ListNode req);
+    CompletableFuture<YTreeNode> listNode(ListNode req);
 
-    public abstract CompletableFuture<LockNodeResult> lockNode(LockNode req);
+    CompletableFuture<LockNodeResult> lockNode(LockNode req);
 
-    public abstract CompletableFuture<GUID> copyNode(CopyNode req);
+    CompletableFuture<GUID> copyNode(CopyNode req);
 
-    public abstract CompletableFuture<GUID> linkNode(LinkNode req);
+    CompletableFuture<GUID> linkNode(LinkNode req);
 
-    public abstract CompletableFuture<GUID> moveNode(MoveNode req);
+    CompletableFuture<GUID> moveNode(MoveNode req);
 
-    public abstract CompletableFuture<Boolean> existsNode(ExistsNode req);
+    CompletableFuture<Boolean> existsNode(ExistsNode req);
 
-    public abstract CompletableFuture<Void> concatenateNodes(ConcatenateNodes req);
+    CompletableFuture<Void> concatenateNodes(ConcatenateNodes req);
 
-    public abstract <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req);
+    <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req);
 
-    public abstract <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable<T> req);
+    <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable<T> req);
 
-    public abstract CompletableFuture<FileReader> readFile(ReadFile req);
+    CompletableFuture<FileReader> readFile(ReadFile req);
 
-    public abstract CompletableFuture<FileWriter> writeFile(WriteFile req);
+    CompletableFuture<FileWriter> writeFile(WriteFile req);
 
-    public abstract CompletableFuture<GUID> startOperation(StartOperation req);
+    CompletableFuture<GUID> startOperation(StartOperation req);
 
-    public abstract CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req);
+    CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req);
 
-    //
-    // Convenience methods
-    //
-    // NB. Some of the methods are not final since users have already overriden them :(
-    //
-
-    public final CompletableFuture<YTreeNode> getNode(String path) {
+    default CompletableFuture<YTreeNode> getNode(String path) {
         return getNode(path, null);
     }
 
-    public final CompletableFuture<YTreeNode> getNode(String path, @Nullable Duration requestTimeout) {
+    default CompletableFuture<YTreeNode> getNode(String path, @Nullable Duration requestTimeout) {
         return getNode(new GetNode(path).setTimeout(requestTimeout));
     }
 
-    public final CompletableFuture<YTreeNode> listNode(String path) {
+    default CompletableFuture<YTreeNode> listNode(String path) {
         return listNode(path, null);
     }
 
-    public final CompletableFuture<YTreeNode> listNode(String path, @Nullable Duration requestTimeout) {
+    default CompletableFuture<YTreeNode> listNode(String path, @Nullable Duration requestTimeout) {
         return listNode(new ListNode(path).setTimeout(requestTimeout));
     }
 
-    public final CompletableFuture<Void> setNode(String path, byte[] data) {
+    default CompletableFuture<Void> setNode(String path, byte[] data) {
         return setNode(path, data, null);
     }
 
-    public final CompletableFuture<Void> setNode(String path, byte[] data, @Nullable Duration requestTimeout) {
+    default CompletableFuture<Void> setNode(String path, byte[] data, @Nullable Duration requestTimeout) {
         return setNode(new SetNode(path, data).setTimeout(requestTimeout));
     }
 
-    public final CompletableFuture<Void> setNode(String path, YTreeNode data) {
+    default CompletableFuture<Void> setNode(String path, YTreeNode data) {
         return setNode(path, data.toBinary());
     }
 
-    public final CompletableFuture<Void> setNode(String path, YTreeNode data, @Nullable Duration requestTimeout) {
+    default CompletableFuture<Void> setNode(String path, YTreeNode data, @Nullable Duration requestTimeout) {
         return setNode(path, data.toBinary(), requestTimeout);
     }
 
-    public CompletableFuture<Boolean> existsNode(String path) {
+    default CompletableFuture<Boolean> existsNode(String path) {
         return existsNode(path, null);
     }
 
-    public final CompletableFuture<Boolean> existsNode(String path, @Nullable Duration requestTimeout) {
+    default CompletableFuture<Boolean> existsNode(String path, @Nullable Duration requestTimeout) {
         return existsNode(new ExistsNode(path).setTimeout(requestTimeout));
     }
 
-    public final CompletableFuture<GUID> createNode(String path, ObjectType type) {
+    default CompletableFuture<GUID> createNode(String path, ObjectType type) {
         return createNode(new CreateNode(path, type));
     }
 
-    public final CompletableFuture<GUID> createNode(String path, ObjectType type, @Nullable Duration requestTimeout) {
+    default CompletableFuture<GUID> createNode(String path, ObjectType type, @Nullable Duration requestTimeout) {
         return createNode(new CreateNode(path, type).setTimeout(requestTimeout));
     }
 
-    public final CompletableFuture<GUID> createNode(String path, ObjectType type, Map<String, YTreeNode> attributes) {
+    default CompletableFuture<GUID> createNode(String path, ObjectType type, Map<String, YTreeNode> attributes) {
         return createNode(path, type, attributes, null);
     }
 
-    public final CompletableFuture<GUID> createNode(
+    default CompletableFuture<GUID> createNode(
             String path,
             ObjectType type,
             Map<String, YTreeNode> attributes,
@@ -166,43 +160,43 @@ public abstract class TransactionalClient {
         return createNode(new CreateNode(path, type, attributes).setTimeout(requestTimeout));
     }
 
-    public final CompletableFuture<Void> removeNode(String path) {
+    default CompletableFuture<Void> removeNode(String path) {
         return removeNode(new RemoveNode(path));
     }
 
-    public CompletableFuture<LockNodeResult> lockNode(String path, LockMode mode) {
+    default CompletableFuture<LockNodeResult> lockNode(String path, LockMode mode) {
         return lockNode(path, mode, null);
     }
 
-    public CompletableFuture<LockNodeResult> lockNode(String path, LockMode mode, @Nullable Duration requestTimeout) {
+    default CompletableFuture<LockNodeResult> lockNode(String path, LockMode mode, @Nullable Duration requestTimeout) {
         return lockNode(new LockNode(path, mode).setTimeout(requestTimeout));
     }
 
-    public final CompletableFuture<GUID> copyNode(String src, String dst) {
+    default CompletableFuture<GUID> copyNode(String src, String dst) {
         return copyNode(src, dst, null);
     }
 
-    public final CompletableFuture<GUID> copyNode(String src, String dst, @Nullable Duration requestTimeout) {
+    default CompletableFuture<GUID> copyNode(String src, String dst, @Nullable Duration requestTimeout) {
         return copyNode(new CopyNode(src, dst).setTimeout(requestTimeout));
     }
 
-    public final CompletableFuture<GUID> moveNode(String from, String to) {
+    default CompletableFuture<GUID> moveNode(String from, String to) {
         return moveNode(from, to, null);
     }
 
-    public final CompletableFuture<GUID> moveNode(String from, String to, @Nullable Duration requestTimeout) {
+    default CompletableFuture<GUID> moveNode(String from, String to, @Nullable Duration requestTimeout) {
         return moveNode(new MoveNode(from, to).setTimeout(requestTimeout));
     }
 
-    public final CompletableFuture<GUID> linkNode(String src, String dst) {
+    default CompletableFuture<GUID> linkNode(String src, String dst) {
         return linkNode(new LinkNode(src, dst));
     }
 
-    public final CompletableFuture<Void> concatenateNodes(String[] from, String to) {
+    default CompletableFuture<Void> concatenateNodes(String[] from, String to) {
         return concatenateNodes(from, to, null);
     }
 
-    public final CompletableFuture<Void> concatenateNodes(String[] from, String to, @Nullable Duration requestTimeout) {
+    default CompletableFuture<Void> concatenateNodes(String[] from, String to, @Nullable Duration requestTimeout) {
         return concatenateNodes(new ConcatenateNodes(from, to).setTimeout(requestTimeout));
     }
 }

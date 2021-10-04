@@ -33,7 +33,7 @@ import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
-public class MockYtClient extends TransactionalClient {
+public class MockYtClient implements TransactionalClient {
     private Map<String, Deque<Callable<CompletableFuture<?>>>> mocks = new HashMap<>();
     private Map<String, Long> timesCalled = new HashMap<>();
 

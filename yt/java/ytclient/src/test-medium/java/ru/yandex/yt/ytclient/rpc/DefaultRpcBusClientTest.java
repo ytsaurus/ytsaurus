@@ -13,7 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
-import ru.yandex.yt.ytclient.proxy.ApiServiceClient;
+import ru.yandex.yt.ytclient.proxy.ApiServiceClientImpl;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static ru.yandex.yt.testlib.FutureUtils.getError;
@@ -34,7 +34,7 @@ public class DefaultRpcBusClientTest {
                     new InetSocketAddress("localhost", server.getPort()));
 
             try (rpcClient) {
-                var api = new ApiServiceClient(rpcClient, options, ForkJoinPool.commonPool());
+                var api = new ApiServiceClientImpl(rpcClient, options, ForkJoinPool.commonPool());
                 var listNodeFuture = api.listNode("/");
 
                 waitFuture(listNodeFuture, 5000);
