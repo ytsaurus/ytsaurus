@@ -543,6 +543,7 @@ bool TSortedChunkStore::CheckRowLocks(
 
     auto* transaction = context->Transaction;
     context->Error = TError(
+        NTabletClient::EErrorCode::CannotCheckConflictsAgainstChunkStore,
         "Checking for transaction conflicts against chunk stores is not supported; "
         "consider reducing transaction duration or increasing store retention time")
         << TErrorAttribute("transaction_id", transaction->GetId())
