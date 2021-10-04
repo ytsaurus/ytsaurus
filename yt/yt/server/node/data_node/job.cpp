@@ -507,6 +507,14 @@ protected:
         DoSetFinished(EJobState::Aborted, error);
     }
 
+    IChunkPtr FindLocalChunk(TChunkId chunkId, int mediumIndex)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        const auto& chunkStore = Bootstrap_->GetChunkStore();
+        return chunkStore->FindChunk(chunkId, mediumIndex);
+    }
+
     IChunkPtr GetLocalChunkOrThrow(TChunkId chunkId, int mediumIndex)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -567,16 +575,26 @@ private:
         int mediumIndex = JobSpecExt_.medium_index();
         auto replicas = FromProto<TChunkReplicaList>(JobSpecExt_.replicas());
         auto replicasExpirationDeadline = FromProto<TInstant>(JobSpecExt_.replicas_expiration_deadline());
+        auto chunkIsDead = JobSpecExt_.chunk_is_dead();
 
-        YT_LOG_INFO("Chunk removal job started (ChunkId: %v@%v, Replicas: %v, ReplicasExpirationDeadline: %v)",
+        YT_LOG_INFO("Chunk removal job started (ChunkId: %v@%v, Replicas: %v, ReplicasExpirationDeadline: %v, ChunkIsDead: %v)",
             chunkId,
             mediumIndex,
             replicas,
-            replicasExpirationDeadline);
+            replicasExpirationDeadline,
+            chunkIsDead);
 
         // TODO(ifsmirnov, akozhikhov): Consider DRT here.
 
-        auto chunk = GetLocalChunkOrThrow(chunkId, mediumIndex);
+        auto chunk = chunkIsDead
+            ? FindLocalChunk(chunkId, mediumIndex)
+            : GetLocalChunkOrThrow(chunkId, mediumIndex);
+        if (!chunk) {
+            YT_VERIFY(chunkIsDead);
+            YT_LOG_INFO("Dead chunk is missing, reporting success");
+            return;
+        }
+
         const auto& chunkStore = Bootstrap_->GetChunkStore();
         WaitFor(chunkStore->RemoveChunk(chunk))
             .ThrowOnError();

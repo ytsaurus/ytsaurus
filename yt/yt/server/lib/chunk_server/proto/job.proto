@@ -49,6 +49,10 @@ message TRemoveChunkJobSpecExt
 
     // Time to keep and suggest #replicas to others.
     optional uint64 replicas_expiration_deadline = 4;
+
+    // If true and the chunk is actually missing at node, the job is considered successful
+    // rather than failed.
+    optional bool chunk_is_dead = 5;
 }
 
 message TRepairChunkJobSpecExt
