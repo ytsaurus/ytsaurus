@@ -56,7 +56,7 @@ import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolderImpl;
  *      When all internal threads of YtClient are blocked by such callbacks
  *      YtClient becomes unable to send requests and receive responses.
  */
-public class YtClient extends CompoundClient {
+public class YtClient extends CompoundClientImpl {
     private static final Object KEY = new Object();
 
     private final BusConnector busConnector;
@@ -393,7 +393,7 @@ public class YtClient extends CompoundClient {
                     List<ApiServiceClient> clients =
                             result.computeIfAbsent(clientPoolService.getDataCenterName(), k -> new ArrayList<>());
                     for (RpcClient curClient : aliveClients) {
-                        clients.add(new ApiServiceClient(curClient, options, heavyExecutor));
+                        clients.add(new ApiServiceClientImpl(curClient, options, heavyExecutor));
                     }
                 }
             } finally {

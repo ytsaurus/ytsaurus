@@ -220,7 +220,7 @@ public class YtClientCypressTest extends YtClientTestBase {
         int totalBanned = 0;
         for (var destinationList : aliveDestinations.values()) {
             for (var destination : destinationList) {
-                var proxy = destination.getRpcProxyAddress();
+                var proxy = ((ApiServiceClientImpl) destination).getRpcProxyAddress();
                 yt.banProxy(proxy).join();
                 totalBanned += 1;
             }
