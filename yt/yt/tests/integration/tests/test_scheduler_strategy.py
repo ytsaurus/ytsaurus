@@ -5537,5 +5537,6 @@ class TestFifoPools(YTEnvSetup):
             wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op2.id) + "/detailed_fair_share/total/cpu"), 0.2))
             wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op.id) + "/usage_share/cpu"), 0.0))
 
-        set("//sys/pool_trees/default/fifo/@enable_fair_share_truncation_in_fifo_pool", False)
+        set("//sys/pool_trees/default/@config/enable_fair_share_truncation_in_fifo_pool", False)
+        wait(lambda: not get(scheduler_orchid_default_pool_tree_config_path() + "/enable_fair_share_truncation_in_fifo_pool"))
         wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op2.id) + "/detailed_fair_share/total/cpu"), 0.2))
