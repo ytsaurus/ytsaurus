@@ -73,7 +73,7 @@ public:
         for (const auto& output : context.GetOutputFileList()) {
             outputs.push_back(MakeHolder<TOFStream>(output));
         }
-        auto rows = NodeFromYsonStream(&input, EYsonType::YT_LIST_FRAGMENT);
+        auto rows = NodeFromYsonStream(&input, ::NYson::EYsonType::ListFragment);
         int tableIndex = 0;
         for (const auto& row : rows.AsList()) {
             if (row.IsNull()) {

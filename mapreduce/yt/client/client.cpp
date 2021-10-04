@@ -890,7 +890,7 @@ TNode::TListType TClient::LookupRows(
     TRequestConfig config;
     config.IsHeavy = true;
     auto result = RetryRequestWithPolicy(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, header, body, config);
-    return NodeFromYsonString(result.Response, YT_LIST_FRAGMENT).AsList();
+    return NodeFromYsonString(result.Response, ::NYson::EYsonType::ListFragment).AsList();
 }
 
 TNode::TListType TClient::SelectRows(
@@ -921,7 +921,7 @@ TNode::TListType TClient::SelectRows(
     TRequestConfig config;
     config.IsHeavy = true;
     auto result = RetryRequestWithPolicy(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, header, {}, config);
-    return NodeFromYsonString(result.Response, YT_LIST_FRAGMENT).AsList();
+    return NodeFromYsonString(result.Response, ::NYson::EYsonType::ListFragment).AsList();
 }
 
 void TClient::AlterTableReplica(const TReplicaId& replicaId, const TAlterTableReplicaOptions& options)
