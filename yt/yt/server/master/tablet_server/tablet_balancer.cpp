@@ -732,7 +732,7 @@ private:
 
         if (!Config_->EnableTabletBalancer) {
             if (Enabled_) {
-                YT_LOG_INFO("Tablet balancer is disabled, see master config");
+                YT_LOG_INFO("Tablet balancer disabled");
             }
             Enabled_ = false;
             return;
@@ -742,7 +742,7 @@ private:
 
         if (!balancerConfig->EnableTabletBalancer) {
             if (Enabled_) {
-                YT_LOG_INFO("Tablet balancer is disabled, see //sys/@config");
+                YT_LOG_INFO("Tablet balancer disabled");
             }
             Enabled_ = false;
             return;
