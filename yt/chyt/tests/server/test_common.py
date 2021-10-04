@@ -1382,6 +1382,30 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with raises_yt_error(QueryFailedError):
                 clique.make_query("select 1 as a", headers={"User-Agent": "banned_user_agent"})
 
+    @authors("dakovalkov")
+    def test_result_limits(self):
+        create("table", "//tmp/t_in", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        create("table", "//tmp/t_out", attributes={"schema": [{"name": "a", "type": "int64"}]})
+
+        # Create several chunks because result limits are block-based.
+        row_count = 5
+        for i in range(row_count):
+            write_table("<append=%true>//tmp/t_in", [{"a": i}])
+
+        with Clique(1) as clique:
+            select_query = 'select * from "//tmp/t_in"'
+            insert_query = 'insert into "<append=%false>//tmp/t_out" ' + select_query
+
+            def check_with_castom_settings(settings):
+                # CH adds +1 to the result limits, so it actually can return 2 rows if the limit is 1.
+                assert 1 <= len(clique.make_query(select_query, settings=settings)) <= 2
+                # Limits should not be applied for 'insert' queries.
+                clique.make_query(insert_query, settings=settings)
+                assert get("//tmp/t_out/@row_count") == row_count
+
+            check_with_castom_settings({"max_result_rows": 1, "result_overflow_mode": "break"})
+            check_with_castom_settings({"max_result_bytes": 1, "result_overflow_mode": "break"})
+
 
 class TestClickHouseNoCache(ClickHouseTestBase):
     def setup(self):
