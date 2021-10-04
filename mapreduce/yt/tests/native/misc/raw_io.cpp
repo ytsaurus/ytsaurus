@@ -71,7 +71,7 @@ Y_UNIT_TEST_SUITE(RawIo)
 
         auto client = testFixture.GetClient();
         auto reader = client->CreateRawReader(testFixture.GetWorkingDir() + "/table", TFormat::YsonBinary(), TTableReaderOptions());
-        auto res = NodeFromYsonString(reader->ReadAll(), YT_LIST_FRAGMENT);
+        auto res = NodeFromYsonString(reader->ReadAll(), ::NYson::EYsonType::ListFragment);
 
         TMaybe<ui32> rangeIndex;
         TMaybe<ui64> rowIndex;
@@ -90,7 +90,7 @@ Y_UNIT_TEST_SUITE(RawIo)
         auto reader = client->CreateRawReader(testFixture.GetWorkingDir() + "/table", TFormat::YsonBinary(), TTableReaderOptions());
         {
             reader->Retry(Nothing(), Nothing());
-            auto res = NodeFromYsonString(reader->ReadAll(), YT_LIST_FRAGMENT);
+            auto res = NodeFromYsonString(reader->ReadAll(), ::NYson::EYsonType::ListFragment);
 
             TMaybe<ui32> rangeIndex;
             TMaybe<ui64> rowIndex;
@@ -102,7 +102,7 @@ Y_UNIT_TEST_SUITE(RawIo)
         }
         {
             reader->Retry(Nothing(), 0ull);
-            auto res = NodeFromYsonString(reader->ReadAll(), YT_LIST_FRAGMENT);
+            auto res = NodeFromYsonString(reader->ReadAll(), ::NYson::EYsonType::ListFragment);
 
             TMaybe<ui32> rangeIndex;
             TMaybe<ui64> rowIndex;
@@ -114,7 +114,7 @@ Y_UNIT_TEST_SUITE(RawIo)
         }
         {
             reader->Retry(Nothing(), 5ull);
-            auto res = NodeFromYsonString(reader->ReadAll(), YT_LIST_FRAGMENT);
+            auto res = NodeFromYsonString(reader->ReadAll(), ::NYson::EYsonType::ListFragment);
 
             TMaybe<ui32> rangeIndex;
             TMaybe<ui64> rowIndex;
@@ -135,7 +135,7 @@ Y_UNIT_TEST_SUITE(RawIo)
         auto reader = client->CreateRawReader(testFixture.GetWorkingDir() + "/table", TFormat::YsonBinary(), TTableReaderOptions());
         reader->ReadAll();
         reader->Retry(Nothing(), 9ull);
-        auto res = NodeFromYsonString(reader->ReadAll(), YT_LIST_FRAGMENT);
+        auto res = NodeFromYsonString(reader->ReadAll(), ::NYson::EYsonType::ListFragment);
 
         TMaybe<ui32> rangeIndex;
         TMaybe<ui64> rowIndex;
@@ -159,7 +159,7 @@ Y_UNIT_TEST_SUITE(RawIo)
             .UpperLimit(TReadLimit().RowIndex(5)));
 
         auto reader = client->CreateRawReader(path, TFormat::YsonBinary(), TTableReaderOptions());
-        auto res = NodeFromYsonString(reader->ReadAll(), YT_LIST_FRAGMENT);
+        auto res = NodeFromYsonString(reader->ReadAll(), ::NYson::EYsonType::ListFragment);
 
         TMaybe<ui32> rangeIndex;
         TMaybe<ui64> rowIndex;
@@ -190,7 +190,7 @@ Y_UNIT_TEST_SUITE(RawIo)
 
         {
             reader->Retry(Nothing(), Nothing());
-            auto res = NodeFromYsonString(reader->ReadAll(), YT_LIST_FRAGMENT);
+            auto res = NodeFromYsonString(reader->ReadAll(), ::NYson::EYsonType::ListFragment);
 
             TMaybe<ui32> rangeIndex;
             TMaybe<ui64> rowIndex;
@@ -204,7 +204,7 @@ Y_UNIT_TEST_SUITE(RawIo)
         }
         {
             reader->Retry(0, 3);
-            auto res = NodeFromYsonString(reader->ReadAll(), YT_LIST_FRAGMENT);
+            auto res = NodeFromYsonString(reader->ReadAll(), ::NYson::EYsonType::ListFragment);
 
             TMaybe<ui32> rangeIndex;
             TMaybe<ui64> rowIndex;
@@ -218,7 +218,7 @@ Y_UNIT_TEST_SUITE(RawIo)
         }
         {
             reader->Retry(1, 12);
-            auto res = NodeFromYsonString(reader->ReadAll(), YT_LIST_FRAGMENT);
+            auto res = NodeFromYsonString(reader->ReadAll(), ::NYson::EYsonType::ListFragment);
 
             TMaybe<ui32> rangeIndex;
             TMaybe<ui64> rowIndex;

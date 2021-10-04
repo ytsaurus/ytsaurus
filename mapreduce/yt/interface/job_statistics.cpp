@@ -311,7 +311,7 @@ IOutputStream* GetStatisticsStream()
 template <typename T>
 void WriteCustomStatisticsAny(TStringBuf path, const T& value)
 {
-    ::NYson::TYsonWriter writer(GetStatisticsStream(), NYson::EYsonFormat::Binary, YT_LIST_FRAGMENT);
+    ::NYson::TYsonWriter writer(GetStatisticsStream(), NYson::EYsonFormat::Binary, ::NYson::EYsonType::ListFragment);
     int depth = 0;
     size_t begin = 0;
     size_t end = 0;
@@ -344,7 +344,7 @@ void WriteCustomStatisticsAny(TStringBuf path, const T& value)
 
 void WriteCustomStatistics(const TNode& statistics)
 {
-    NYson::TYsonWriter writer(GetStatisticsStream(), NYson::EYsonFormat::Binary, YT_LIST_FRAGMENT);
+    NYson::TYsonWriter writer(GetStatisticsStream(), NYson::EYsonFormat::Binary, ::NYson::EYsonType::ListFragment);
     Serialize(statistics, &writer);
 }
 
