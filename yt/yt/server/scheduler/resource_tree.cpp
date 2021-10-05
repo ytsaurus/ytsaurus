@@ -49,14 +49,17 @@ void TResourceTree::AttachParent(const TResourceTreeElementPtr& element, const T
 void TResourceTree::ChangeParent(
     const TResourceTreeElementPtr& element,
     const TResourceTreeElementPtr& newParent,
-    const std::optional<std::vector<TResourceTreeElementPtr>>& operationElements)
+    const std::optional<std::vector<TResourceTreeElementPtr>>& descendantOperationElements)
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
     auto structureGuard = WriterGuard(StructureLock_);
 
-    if (operationElements) {
-        DoInitializeResourceUsageFor(element, *operationElements);
+    // NB: provided descendant operation elements indicate that resource usage of the element must be explicitly calculated 
+    // for correct transfer of ancestor's resource usage.
+    bool calculateTransientResourceUsage = descendantOperationElements.has_value();
+    if (calculateTransientResourceUsage) {
+        DoInitializeResourceUsageFor(element, *descendantOperationElements);
     }
 
     IncrementStructureLockWriteCount();
@@ -75,7 +78,7 @@ void TResourceTree::ChangeParent(
     DoIncreaseHierarchicalResourceUsage(newParent, element->ResourceUsage_);
     DoIncreaseHierarchicalResourceUsagePrecommit(newParent, element->ResourceUsagePrecommit_);
 
-    if (operationElements) {
+    if (calculateTransientResourceUsage) {
         element->ResourceUsage_ = TJobResources();
         element->ResourceUsagePrecommit_ = TJobResources();
     }

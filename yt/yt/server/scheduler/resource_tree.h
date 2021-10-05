@@ -48,8 +48,9 @@ public:
     void ChangeParent(
         const TResourceTreeElementPtr& element,
         const TResourceTreeElementPtr& newParent,
-        // NB: this argument is required for correct transfer of resource usage.
-        const std::optional<std::vector<TResourceTreeElementPtr>>& operationElements);
+        // NB: this argument indicates that resource usage of the element must be explicitly calculated 
+        // for correct transfer of ancestor's resource usage.
+        const std::optional<std::vector<TResourceTreeElementPtr>>& descendantOperationElements);
     void ScheduleDetachParent(const TResourceTreeElementPtr& element);
     void ReleaseResources(const TResourceTreeElementPtr& element, bool markAsNonAlive);
 
