@@ -1403,7 +1403,6 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
             ++ChunkReplacementSucceded_;
             ++chunkReplacementSucceded;
             ChunkCountSaving_ += std::ssize(chunkIds) - 1;
-            chunkManager->ScheduleChunkRequisitionUpdate(newChunk);
         } else {
             YT_LOG_DEBUG_IF(
                 IsMutationLoggingEnabled(),
@@ -1438,6 +1437,9 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     chunkOwner->SnapshotStatistics() = newRootChunkList->Statistics().ToDataStatistics();
 
     objectManager->RefObject(newRootChunkList);
+
+    chunkManager->ScheduleChunkRequisitionUpdate(rootChunkList);
+    chunkManager->ScheduleChunkRequisitionUpdate(newRootChunkList);
 
     YT_LOG_DEBUG_IF(
         IsMutationLoggingEnabled(),

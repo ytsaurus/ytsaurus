@@ -259,7 +259,7 @@ class TestChunkMerger(YTEnvSetup):
         assert read_table("//tmp/t") == rows
 
     @authors("aleksandra-zh")
-    def test_merge_job_accounting(self):
+    def test_merge_job_accounting1(self):
         create_account("a")
         create("table", "//tmp/t1", attributes={"account": "a"})
 
@@ -268,11 +268,27 @@ class TestChunkMerger(YTEnvSetup):
         write_table("<append=true>//tmp/t1", {"c": "d"})
 
         create_account("b")
-        create("table", "//tmp/t2", attributes={"account": "b"})
+        copy("//tmp/t1", "//tmp/t2")
+        set("//tmp/t2/@account", "b")
 
-        write_table("<append=true>//tmp/t2", {"a": "b"})
-        write_table("<append=true>//tmp/t2", {"b": "c"})
-        write_table("<append=true>//tmp/t2", {"c": "d"})
+        self._wait_for_merge("//tmp/t2", "deep", "b")
+
+        wait(lambda: get("//sys/accounts/b/@resource_usage/chunk_count") == 1)
+
+        self._abort_chunk_merger_txs()
+
+    @authors("aleksandra-zh")
+    def test_merge_job_accounting2(self):
+        create_account("a")
+        create("table", "//tmp/t1", attributes={"account": "a"})
+
+        write_table("<append=true>//tmp/t1", {"a": "b"})
+        write_table("<append=true>//tmp/t1", {"b": "c"})
+        write_table("<append=true>//tmp/t1", {"c": "d"})
+
+        create_account("b")
+        copy("//tmp/t1", "//tmp/t2")
+        set("//tmp/t2/@account", "b")
 
         set("//tmp/t1/@chunk_merger_mode", "deep")
         self._wait_for_merge("//tmp/t2", "deep", "b")
