@@ -242,10 +242,10 @@ private:
         auto guard = Guard(SpinLock_);
 
         Limit_ = limit.value_or(-1);
+        Period_ = period;
         TDelayedExecutor::CancelAndClear(UpdateCookie_);
         auto now = NProfiling::GetInstant();
         if (limit && *limit > 0) {
-            Period_ = period;
             auto lastUpdated = LastUpdated_.load();
             auto millisecondsPassed = (now - lastUpdated).MilliSeconds();
             auto deltaAvailable = static_cast<i64>(millisecondsPassed * *limit / 1000);
