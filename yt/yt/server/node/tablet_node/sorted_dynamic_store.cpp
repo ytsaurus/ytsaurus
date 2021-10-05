@@ -357,18 +357,18 @@ protected:
             auto list = dynamicRow.GetFixedValueList(columnIndex, KeyColumnCount_, ColumnLockCount_);
 
             ExtractByTimestamp(
-                    list,
-                    NullTimestamp,
-                    latestWriteTimestamp,
-                    [&] (const TDynamicValue& value) {
-                        if (value.Revision > Revision_) {
-                            return;
-                        }
+                list,
+                NullTimestamp,
+                latestWriteTimestamp,
+                [&] (const TDynamicValue& value) {
+                    if (value.Revision > Revision_) {
+                        return;
+                    }
 
-                        auto* versionedValue = &VersionedValues_.emplace_back();
-                        ProduceVersionedValue(versionedValue, columnIndex, value);
-                        WriteTimestamps_.push_back(versionedValue->Timestamp);
-                    });
+                    auto* versionedValue = &VersionedValues_.emplace_back();
+                    ProduceVersionedValue(versionedValue, columnIndex, value);
+                    WriteTimestamps_.push_back(versionedValue->Timestamp);
+                });
         }
         std::sort(WriteTimestamps_.begin(), WriteTimestamps_.end(), std::greater<TTimestamp>());
         WriteTimestamps_.erase(
@@ -529,57 +529,39 @@ protected:
         TTimestamp maxTimestamp,
         const TValueExtractor& valueExtractor)
     {
-        while (list) {
-            if (list.GetSize() > 0 && Store_->TimestampFromRevision(ExtractRevision(list[0])) <= maxTimestamp) {
-                break;
+        for (; list; list = list.GetSuccessor()) {
+            if (list.GetSize() == 0) {
+                // Skip empty list.
+                continue;
             }
-            list = list.GetSuccessor();
-        }
 
-        if (!list) {
-            return;
-        }
+            if (Store_->TimestampFromRevision(ExtractRevision(list[0])) > maxTimestamp) {
+                // Skip list since all of its timestamps are greater than maxTimestamp.
+                continue;
+            }
 
-        while (list) {
-            if (list.GetSize() > 0) {
-                if (Store_->TimestampFromRevision(ExtractRevision(list[list.GetSize() - 1])) <= minTimestamp) {
+            const auto* begin = list.Begin();
+            const auto* end = list.End();
+            if (Store_->TimestampFromRevision(ExtractRevision(*(end - 1))) > maxTimestamp) {
+                // Adjust end to skip all timestamps that are greater than maxTimestamp.
+                end = std::lower_bound(
+                    begin,
+                    end,
+                    maxTimestamp,
+                    [&] (const T& element, TTimestamp value) {
+                        return Store_->TimestampFromRevision(ExtractRevision(element)) <= value;
+                    });
+            }
+
+            for (const auto* current = end - 1; current >= begin; --current) {
+                if (Store_->TimestampFromRevision(ExtractRevision(*current)) < minTimestamp) {
+                    // Interrupt upon reaching the first timestamp that is less than minTimstamp.
                     return;
                 }
-
-                auto* begin = list.Begin();
-                auto* end = list.End();
-
-                if (Store_->TimestampFromRevision(ExtractRevision(*begin)) <= minTimestamp) {
-                    begin = std::lower_bound(
-                        begin,
-                        end,
-                        minTimestamp,
-                        [&] (const T& element, TTimestamp value) {
-                            return Store_->TimestampFromRevision(ExtractRevision(element)) <= value;
-                        });
-                }
-
-                if (end - begin > 0 && Store_->TimestampFromRevision(ExtractRevision(*(end - 1))) > maxTimestamp) {
-                    end = std::lower_bound(
-                        begin,
-                        end,
-                        maxTimestamp,
-                        [&] (const T& element, TTimestamp value) {
-                            return Store_->TimestampFromRevision(ExtractRevision(element)) <= value;
-                        });
-                }
-
-                while (begin < end) {
-                    --end;
-                    valueExtractor(*end);
-                }
-
+                valueExtractor(*current);
             }
-
-            list = list.GetSuccessor();
         }
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
