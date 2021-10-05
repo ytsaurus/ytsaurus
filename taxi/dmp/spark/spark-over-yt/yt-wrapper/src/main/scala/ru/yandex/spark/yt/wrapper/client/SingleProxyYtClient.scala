@@ -1,8 +1,7 @@
 package ru.yandex.spark.yt.wrapper.client
 
 import java.net.InetSocketAddress
-import java.util.concurrent.CompletableFuture
-
+import java.util.concurrent.{CompletableFuture, ForkJoinPool}
 import com.google.protobuf.MessageLite
 import io.netty.channel.nio.NioEventLoopGroup
 import ru.yandex.spark.yt.wrapper.YtJavaConverters.toJavaDuration
@@ -17,7 +16,8 @@ import scala.language.postfixOps
 class SingleProxyYtClient(connector: BusConnector,
                           rpcCredentials: RpcCredentials,
                           rpcOptions: RpcOptions,
-                          address: HostPort) extends CompoundClient(connector.executorService(), rpcOptions) {
+                          address: HostPort)
+  extends CompoundClient(connector.executorService(), rpcOptions, ForkJoinPool.commonPool) {
 
   private val client = SingleProxyYtClient.createClient(address, connector, rpcCredentials)
   private val rpcClientPool = new RpcClientPool {
