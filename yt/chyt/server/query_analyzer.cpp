@@ -347,7 +347,14 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
     const auto& joinLeftKeys = joinLeftKeysAst->children;
     const auto& joinRightKeys = joinRightKeysAst->children;
 
-    YT_VERIFY(joinLeftKeys.size() == joinRightKeys.size());
+    // This condition fails sometimes in multiple join due to a bug in ClickHouse.
+    // https://github.com/ClickHouse/ClickHouse/issues/29734
+    // https://st.yandex-team.ru/CHYT-679
+    // Throw an exception instead of YT_VERIFY to avoid a clique crash until the bug is fixed.
+    // YT_VERIFY(joinLeftKeys.size() == joinRightKeys.size());
+    if (joinLeftKeys.size() != joinRightKeys.size()) {
+        THROW_ERROR_EXCEPTION("Unexpected join condition; see CHYT-679 for more details");
+    }
 
     int joinKeySize = joinLeftKeys.size();
 
