@@ -278,7 +278,7 @@ public:
         if (MultipleTables_ || Map_.empty()) {
             return nullptr;
         }
- 
+
         // Any tablet snapshot would suffice.
         auto tabletSnapshot = Map_.begin()->second;
         return NTableClient::CreateHunkChunkReaderStatistics(
@@ -385,7 +385,7 @@ private:
     const NRpc::TAuthenticationIdentity Identity_;
 
     TTabletSnapshotCache TabletSnapshots_;
- 
+
     TClientChunkReadOptions ChunkReadOptions_;
 
     typedef std::function<ISchemafulUnversionedReaderPtr()> TSubreaderCreator;
@@ -792,7 +792,7 @@ private:
             pushKeys();
         }
 
-        YT_LOG_DEBUG("Splitting ranges (RangesCount: %v, KeysCount: %v)", rangesCount, keysCount);
+        YT_LOG_DEBUG("Splitting ranges (RangesCount: %v, KeyCount: %v)", rangesCount, keysCount);
 
         auto splits = Split(std::move(dataSourcesByTablet), rowBuffer);
 
