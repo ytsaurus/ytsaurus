@@ -75,6 +75,8 @@ public:
         , SuccessfulParseUserTicketCountCounter_(profiler.Counter("/successful_parse_user_ticket_count"))
         , FailedParseUserTicketCountCounter_(profiler.Counter("/failed_parse_user_ticket_count"))
         , ClientErrorCountCounter_(profiler.Counter("/client_error_count"))
+        , ParseServiceTicketCountCounter_(profiler.Counter("/parse_service_ticket_count"))
+        , FailedParseServiceTicketCountCounter_(profiler.Counter("/failed_parse_service_ticket_count"))
     {
         if (Config_->ClientEnableUserTicketChecking || Config_->ClientEnableServiceTicketFetching) {
             MakeClient();
@@ -141,6 +143,35 @@ public:
         }
     }
 
+    TParsedServiceTicket ParseServiceTicket(const TString& ticket) override
+    {
+        if (!Config_->ClientEnableServiceTicketChecking) {
+            THROW_ERROR_EXCEPTION("Parsing service tickets disabled");
+        }
+
+        YT_LOG_DEBUG("Parsing user ticket: %v", NUtils::RemoveTicketSignature(ticket));
+        ParseServiceTicketCountCounter_.Increment();
+
+        try {
+            CheckClient();
+            auto serviceTicket = Client_->CheckServiceTicket(ticket);
+            if (!serviceTicket) {
+                THROW_ERROR_EXCEPTION(TString(StatusToString(serviceTicket.GetStatus())));
+            }
+
+            TParsedServiceTicket result;
+            result.TvmId = serviceTicket.GetSrc();
+
+            return result;
+        } catch (const std::exception& ex) {
+            auto error = TError(NRpc::EErrorCode::Unavailable, "TVM call failed") << TError(ex);
+            YT_LOG_WARNING(error);
+            FailedParseServiceTicketCountCounter_.Increment();
+            THROW_ERROR error;
+        }
+    }
+
+
 private:
     const TDefaultTvmServiceConfigPtr Config_;
 
@@ -156,34 +187,48 @@ private:
 
     NProfiling::TCounter ClientErrorCountCounter_;
 
+    NProfiling::TCounter ParseServiceTicketCountCounter_;
+    NProfiling::TCounter FailedParseServiceTicketCountCounter_;
+
 private:
     void MakeClient()
     {
         YT_LOG_INFO("Creating TvmClient");
 
-        NTvmApi::TClientSettings settings;
-        settings.SetSelfTvmId(Config_->ClientSelfId);
-        if (!Config_->ClientDiskCacheDir.empty()) {
-            settings.SetDiskCacheDir(Config_->ClientDiskCacheDir);
-        }
-        if (!Config_->TvmHost.empty() && Config_->TvmPort != 0) {
-            settings.SetTvmHostPort(Config_->TvmHost, Config_->TvmPort);
-        }
-        if (Config_->ClientEnableUserTicketChecking) {
-            auto env = FromString<EBlackboxEnv>(Config_->ClientBlackboxEnv);
-            settings.EnableUserTicketChecking(env);
-        }
-        if (Config_->ClientEnableServiceTicketFetching) {
-            NTvmApi::TClientSettings::TDstMap dsts;
-            for (const auto& [alias, dst] : Config_->ClientDstMap) {
-                dsts[alias] = dst;
-            }
-            settings.EnableServiceTicketsFetchOptions(Config_->ClientSelfSecret, std::move(dsts));
-        }
+        if (Config_->UseTvmTool) {
+            NTvmTool::TClientSettings settings(Config_->TvmToolSelfAlias);
+            settings.SetPort(Config_->TvmToolPort);
+            settings.SetAuthToken(Config_->TvmToolAuthToken);
 
-        // If TVM is unreachable _and_ there are no cached keys, this will throw.
-        // We'll just crash and restart.
-        Client_ = std::make_unique<TTvmClient>(settings, MakeIntrusive<TTvmLoggerAdapter>());
+            Client_ = std::make_unique<TTvmClient>(settings, MakeIntrusive<TTvmLoggerAdapter>());
+        } else {
+            NTvmApi::TClientSettings settings;
+            settings.SetSelfTvmId(Config_->ClientSelfId);
+            if (!Config_->ClientDiskCacheDir.empty()) {
+                settings.SetDiskCacheDir(Config_->ClientDiskCacheDir);
+            }
+            if (!Config_->TvmHost.empty() && Config_->TvmPort != 0) {
+                settings.SetTvmHostPort(Config_->TvmHost, Config_->TvmPort);
+            }
+            if (Config_->ClientEnableUserTicketChecking) {
+                auto env = FromString<EBlackboxEnv>(Config_->ClientBlackboxEnv);
+                settings.EnableUserTicketChecking(env);
+            }
+            if (Config_->ClientEnableServiceTicketFetching) {
+                NTvmApi::TClientSettings::TDstMap dsts;
+                for (const auto& [alias, dst] : Config_->ClientDstMap) {
+                    dsts[alias] = dst;
+                }
+                settings.EnableServiceTicketsFetchOptions(Config_->ClientSelfSecret, std::move(dsts));
+            }
+            if (Config_->ClientEnableServiceTicketChecking) {
+                settings.EnableServiceTicketChecking();
+            }
+
+            // If TVM is unreachable _and_ there are no cached keys, this will throw.
+            // We'll just crash and restart.
+            Client_ = std::make_unique<TTvmClient>(settings, MakeIntrusive<TTvmLoggerAdapter>());
+        }
     }
 
     void CheckClient()

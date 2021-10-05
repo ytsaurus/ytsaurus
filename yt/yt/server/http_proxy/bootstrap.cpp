@@ -154,12 +154,12 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     driverV4Config->AsMap()->AddChild("api_version", ConvertToNode<i64>(4));
     DriverV4_ = CreateDriver(Connection_, ConvertTo<TDriverConfigPtr>(driverV4Config));
 
-    auto authenticationManager = New<TAuthenticationManager>(
+    AuthenticationManager_ = New<TAuthenticationManager>(
         Config_->Auth,
         Poller_,
         RootClient_);
-    TokenAuthenticator_ = authenticationManager->GetTokenAuthenticator();
-    CookieAuthenticator_ = authenticationManager->GetCookieAuthenticator();
+    TokenAuthenticator_ = AuthenticationManager_->GetTokenAuthenticator();
+    CookieAuthenticator_ = AuthenticationManager_->GetCookieAuthenticator();
 
     HttpAuthenticator_ = New<THttpAuthenticator>(this);
 
@@ -282,6 +282,11 @@ const IAccessCheckerPtr& TBootstrap::GetAccessChecker() const
 const THttpAuthenticatorPtr& TBootstrap::GetHttpAuthenticator() const
 {
     return HttpAuthenticator_;
+}
+
+const NAuth::TAuthenticationManagerPtr& TBootstrap::GetAuthenticationManager() const
+{
+    return AuthenticationManager_;
 }
 
 const ITokenAuthenticatorPtr& TBootstrap::GetTokenAuthenticator() const

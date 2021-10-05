@@ -41,13 +41,19 @@ TString FormatUserIP(const NNet::TNetworkAddress& address)
         });
 }
 
+TString GetLoginForTvmId(TTvmId tvmId)
+{
+    return "tvm:" + ToString(tvmId);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const THashSet<TString> PrivateUrlParams{
     "userip",
     "oauth_token",
     "sessionid",
-    "sslsessionid"
+    "sslsessionid",
+    "user_ticket",
 };
 
 void TSafeUrlBuilder::AppendString(TStringBuf str)

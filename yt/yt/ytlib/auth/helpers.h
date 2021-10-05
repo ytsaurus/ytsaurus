@@ -64,6 +64,8 @@ THashedCredentials HashCredentials(const NRpc::NProto::TCredentialsExt& credenti
 
 void Serialize(const THashedCredentials& hashedCredentials, NYson::IYsonConsumer* consumer);
 
+TString GetLoginForTvmId(TTvmId tvmId);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NAuth

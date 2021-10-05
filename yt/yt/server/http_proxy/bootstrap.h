@@ -56,6 +56,7 @@ public:
     const TCoordinatorPtr& GetCoordinator() const;
     const IAccessCheckerPtr& GetAccessChecker() const;
     const THttpAuthenticatorPtr& GetHttpAuthenticator() const;
+    const NAuth::TAuthenticationManagerPtr& GetAuthenticationManager() const;
     const NAuth::ITokenAuthenticatorPtr& GetTokenAuthenticator() const;
     const NAuth::ICookieAuthenticatorPtr& GetCookieAuthenticator() const;
     const IDynamicConfigManagerPtr& GetDynamicConfigManager() const;
@@ -86,6 +87,7 @@ private:
     NDriver::IDriverPtr DriverV3_;
     NDriver::IDriverPtr DriverV4_;
 
+    NAuth::TAuthenticationManagerPtr AuthenticationManager_;
     NAuth::ITokenAuthenticatorPtr TokenAuthenticator_;
     NAuth::ICookieAuthenticatorPtr CookieAuthenticator_;
     THttpAuthenticatorPtr HttpAuthenticator_;

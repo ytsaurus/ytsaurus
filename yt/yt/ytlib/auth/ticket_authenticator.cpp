@@ -55,6 +55,36 @@ public:
                 ticketHash));
     }
 
+    TFuture<TAuthenticationResult> Authenticate(
+        const TServiceTicketCredentials& credentials) override
+    {
+        const auto& ticket = credentials.Ticket;
+        auto ticketHash = GetCryptoHash(ticket);
+
+        YT_LOG_DEBUG("Validating service ticket (TicketHash: %v)",
+            ticketHash);
+
+        try {
+            auto parsedTicket = TvmService_->ParseServiceTicket(ticket);
+
+            TAuthenticationResult result;
+            result.Login = GetLoginForTvmId(parsedTicket.TvmId);
+            result.Realm = "tvm:service-ticket";
+
+            YT_LOG_DEBUG("Ticket authentication successful (TicketHash: %v, Login: %v, Realm: %v)",
+                ticketHash,
+                result.Login,
+                result.Realm);
+
+            return MakeFuture(result);
+        } catch (const std::exception& ex) {
+            TError error(ex);
+            YT_LOG_DEBUG(error, "Parsing service ticket failed (TicketHash: %v)",
+                ticketHash);
+            return MakeFuture<TAuthenticationResult>(error);
+        }
+    }
+
 private:
     const TBlackboxTicketAuthenticatorConfigPtr Config_;
     const IBlackboxServicePtr BlackboxService_;
@@ -159,20 +189,30 @@ public:
         }
 
         const auto& ext = context.Header->GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
-        if (!ext.has_user_ticket()) {
-            return std::nullopt;
+        if (ext.has_user_ticket()) {
+            TTicketCredentials credentials;
+            credentials.Ticket = ext.user_ticket();
+            return Underlying_->Authenticate(credentials).Apply(
+                BIND([=] (const TAuthenticationResult& authResult) {
+                    NRpc::TAuthenticationResult rpcResult;
+                    rpcResult.User = authResult.Login;
+                    rpcResult.Realm = authResult.Realm;
+                    rpcResult.UserTicket = authResult.UserTicket;
+                    return rpcResult;
+                }));
+        } else if (ext.has_service_ticket()) {
+            TServiceTicketCredentials credentials;
+            credentials.Ticket = ext.service_ticket();
+            return Underlying_->Authenticate(credentials).Apply(
+                BIND([=] (const TAuthenticationResult& authResult) {
+                    NRpc::TAuthenticationResult rpcResult;
+                    rpcResult.User = authResult.Login;
+                    rpcResult.Realm = authResult.Realm;
+                    return rpcResult;
+                }));
         }
 
-        TTicketCredentials credentials;
-        credentials.Ticket = ext.user_ticket();
-        return Underlying_->Authenticate(credentials).Apply(
-            BIND([=] (const TAuthenticationResult& authResult) {
-                NRpc::TAuthenticationResult rpcResult;
-                rpcResult.User = authResult.Login;
-                rpcResult.Realm = authResult.Realm;
-                rpcResult.UserTicket = authResult.UserTicket;
-                return rpcResult;
-            }));
+        return std::nullopt;
     }
 private:
     const ITicketAuthenticatorPtr Underlying_;
