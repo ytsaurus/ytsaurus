@@ -22,6 +22,9 @@ struct ITvmService
 
     // Decode user ticket contents. Throws on failure.
     virtual TParsedTicket ParseUserTicket(const TString& ticket) = 0;
+
+    // Decode service ticket contents. Throws on failure.
+    virtual TParsedServiceTicket ParseServiceTicket(const TString& ticket) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITvmService)

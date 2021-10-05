@@ -97,6 +97,7 @@ message TCredentialsExt
     optional string session_id = 4;
     optional string ssl_session_id = 5;
     optional string user_ticket = 6;
+    optional string service_ticket = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

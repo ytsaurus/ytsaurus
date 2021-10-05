@@ -17,6 +17,9 @@ struct ITicketAuthenticator
 {
     virtual TFuture<TAuthenticationResult> Authenticate(
         const TTicketCredentials& credentials) = 0;
+
+    virtual TFuture<TAuthenticationResult> Authenticate(
+        const TServiceTicketCredentials& credentials) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITicketAuthenticator)

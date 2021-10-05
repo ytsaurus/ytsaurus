@@ -5,8 +5,11 @@
 
 #include <yt/yt/ytlib/auth/config.h>
 #include <yt/yt/ytlib/auth/token_authenticator.h>
+#include <yt/yt/ytlib/auth/ticket_authenticator.h>
 #include <yt/yt/ytlib/auth/cookie_authenticator.h>
 #include <yt/yt/ytlib/auth/helpers.h>
+#include <yt/yt/ytlib/auth/tvm_service.h>
+#include <yt/yt/ytlib/auth/authentication_manager.h>
 
 #include <yt/yt/core/http/http.h>
 #include <yt/yt/core/http/helpers.h>
@@ -42,6 +45,7 @@ void SetStatusFromAuthError(const NHttp::IResponseWriterPtr& rsp, const TError& 
 THttpAuthenticator::THttpAuthenticator(TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
     , Config_(Bootstrap_->GetConfig()->Auth)
+    , AuthenticationManager_(Bootstrap_->GetAuthenticationManager())
     , TokenAuthenticator_(Bootstrap_->GetTokenAuthenticator())
     , CookieAuthenticator_(Bootstrap_->GetCookieAuthenticator())
 {
@@ -159,7 +163,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
         if (!CookieAuthenticator_) {
             return TError(
                 NRpc::EErrorCode::InvalidCredentials,
-                "Client has provided a cookie but not cookie authenticator is configured");
+                "Client has provided a cookie but no cookie authenticator is configured");
         }
 
         auto authResult = WaitFor(CookieAuthenticator_->Authenticate(credentials));
@@ -189,6 +193,48 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
         }
 
         return TAuthenticationResultAndToken{authResult.Value(), TString()};
+    }
+
+    static const TString UserTicketHeaderName("X-Ya-User-Ticket");
+    if (auto userTicketHeader = request->GetHeaders()->Find(UserTicketHeaderName)) {
+        const auto& ticketAuthenticator = AuthenticationManager_->GetTicketAuthenticator();
+
+        TTicketCredentials credentials;
+        credentials.Ticket = *userTicketHeader;
+
+        if (!ticketAuthenticator) {
+            return TError(
+                NRpc::EErrorCode::InvalidCredentials,
+                "Client has provided a user ticket, but no ticket authenticator is configured");
+        }
+
+        auto authResult = WaitFor(ticketAuthenticator->Authenticate(credentials));
+        if (!authResult.IsOK()) {
+            return TError(authResult);
+        }
+
+        return TAuthenticationResultAndToken{authResult.Value(), {}};
+    }
+
+    static const TString ServiceTicketHeaderName("X-Ya-Service-Ticket");
+    if (auto serviceTicketHeader = request->GetHeaders()->Find(ServiceTicketHeaderName)) {
+        const auto& ticketAuthenticator = AuthenticationManager_->GetTicketAuthenticator();
+
+        TServiceTicketCredentials credentials;
+        credentials.Ticket = *serviceTicketHeader;
+
+        if (!ticketAuthenticator) {
+            return TError(
+                NRpc::EErrorCode::InvalidCredentials,
+                "Client has provided a service ticket, but no ticket authenticator is configured");
+        }
+
+        auto authResult = WaitFor(ticketAuthenticator->Authenticate(credentials));
+        if (!authResult.IsOK()) {
+            return TError(authResult);
+        }
+
+        return TAuthenticationResultAndToken{authResult.Value(), {}};
     }
 
     return TError(

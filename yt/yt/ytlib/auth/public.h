@@ -93,6 +93,11 @@ struct TTicketCredentials
     TString Ticket;
 };
 
+struct TServiceTicketCredentials
+{
+    TString Ticket;
+};
+
 struct TAuthenticationResult
 {
     TString Login;
@@ -104,6 +109,13 @@ struct TParsedTicket
 {
     ui64 DefaultUid;
     THashSet<TString> Scopes;
+};
+
+typedef ui64 TTvmId;
+
+struct TParsedServiceTicket
+{
+    TTvmId TvmId;
 };
 
 inline bool operator ==(

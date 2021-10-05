@@ -42,6 +42,7 @@ private:
     TBootstrap* Bootstrap_;
 
     const NAuth::TAuthenticationManagerConfigPtr Config_;
+    const NAuth::TAuthenticationManagerPtr AuthenticationManager_;
     const NAuth::ITokenAuthenticatorPtr TokenAuthenticator_;
     const NAuth::ICookieAuthenticatorPtr CookieAuthenticator_;
 };

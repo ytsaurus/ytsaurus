@@ -83,6 +83,8 @@ class TDefaultTvmServiceConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    bool UseTvmTool;
+
     // TvmClient settings
     ui32 ClientSelfId = 0;
     TString ClientDiskCacheDir;
@@ -97,8 +99,16 @@ public:
     TString ClientSelfSecret;
     THashMap<TString, ui32> ClientDstMap;
 
+    bool ClientEnableServiceTicketChecking = false;
+
+    TString TvmToolSelfAlias;
+    int TvmToolPort = 0;
+    TString TvmToolAuthToken;
+
     TDefaultTvmServiceConfig()
     {
+        RegisterParameter("use_tvm_tool", UseTvmTool)
+            .Default(false);
         RegisterParameter("client_self_id", ClientSelfId)
             .Default(0);
         RegisterParameter("client_disk_cache_dir", ClientDiskCacheDir)
@@ -116,6 +126,15 @@ public:
         RegisterParameter("client_self_secret", ClientSelfSecret)
             .Optional();
         RegisterParameter("client_dst_map", ClientDstMap)
+            .Optional();
+        RegisterParameter("client_enable_service_ticket_checking", ClientEnableServiceTicketChecking)
+            .Default(false);
+
+        RegisterParameter("tvm_tool_self_alias", TvmToolSelfAlias)
+            .Optional();
+        RegisterParameter("tvm_tool_port", TvmToolPort)
+            .Optional();
+        RegisterParameter("tvm_tool_auth_token", TvmToolAuthToken)
             .Optional();
     }
 };

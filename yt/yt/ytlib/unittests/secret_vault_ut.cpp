@@ -103,6 +103,11 @@ private:
         {
             THROW_ERROR_EXCEPTION("Not implemented");
         }
+
+        TParsedServiceTicket ParseServiceTicket(const TString& /*ticket*/) override
+        {
+            THROW_ERROR_EXCEPTION("Not implemented");
+        }
     };
 
     TMockHttpServer MockHttpServer_;
