@@ -1556,6 +1556,8 @@ private:
                 counters->RowCount.Increment(writeRecord.RowCount);
                 counters->DataWeight.Increment(writeRecord.DataWeight);
 
+                FinishTabletCommit(tablet, nullptr, context.CommitTimestamp);
+
                 YT_LOG_DEBUG("Non-atomic rows committed (TransactionId: %v, TabletId: %v, "
                     "RowCount: %v, WriteRecordSize: %v, ActualTimestamp: %llx)",
                     transactionId,
