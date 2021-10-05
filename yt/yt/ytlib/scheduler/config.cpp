@@ -133,148 +133,148 @@ void Serialize(const TPoolName& value, NYson::IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobIOConfig::TJobIOConfig()
+void TJobIOConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("table_reader", TableReader)
+    registrar.Parameter("table_reader", &TJobIOConfig::TableReader)
         .DefaultNew();
-    RegisterParameter("table_writer", TableWriter)
+    registrar.Parameter("table_writer", &TJobIOConfig::TableWriter)
         .DefaultNew();
-    RegisterParameter("dynamic_table_writer", DynamicTableWriter)
-        .DefaultNew();
-
-    RegisterParameter("control_attributes", ControlAttributes)
+    registrar.Parameter("dynamic_table_writer", &TJobIOConfig::DynamicTableWriter)
         .DefaultNew();
 
-    RegisterParameter("error_file_writer", ErrorFileWriter)
+    registrar.Parameter("control_attributes", &TJobIOConfig::ControlAttributes)
         .DefaultNew();
 
-    RegisterParameter("buffer_row_count", BufferRowCount)
+    registrar.Parameter("error_file_writer", &TJobIOConfig::ErrorFileWriter)
+        .DefaultNew();
+
+    registrar.Parameter("buffer_row_count", &TJobIOConfig::BufferRowCount)
         .Default(10 * 1000)
         .GreaterThan(0);
 
-    RegisterParameter("pipe_io_pool_size", PipeIOPoolSize)
+    registrar.Parameter("pipe_io_pool_size", &TJobIOConfig::PipeIOPoolSize)
         .Default(1)
         .GreaterThan(0);
 
-    RegisterParameter("block_cache", BlockCache)
+    registrar.Parameter("block_cache", &TJobIOConfig::BlockCache)
         .DefaultNew();
 
-    RegisterParameter("testing_options", Testing)
+    registrar.Parameter("testing_options", &TJobIOConfig::Testing)
         .DefaultNew();
 
-    RegisterPreprocessor([&] () {
-        ErrorFileWriter->UploadReplicationFactor = 1;
+    registrar.Preprocessor([] (TJobIOConfig* config) {
+        config->ErrorFileWriter->UploadReplicationFactor = 1;
 
-        DynamicTableWriter->DesiredChunkSize = 256_MB;
-        DynamicTableWriter->BlockSize = 256_KB;
+        config->DynamicTableWriter->DesiredChunkSize = 256_MB;
+        config->DynamicTableWriter->BlockSize = 256_KB;
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTestingOperationOptions::TTestingOperationOptions()
+void TTestingOperationOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("scheduling_delay", SchedulingDelay)
+    registrar.Parameter("scheduling_delay", &TTestingOperationOptions::SchedulingDelay)
         .Default();
-    RegisterParameter("scheduling_delay_type", SchedulingDelayType)
+    registrar.Parameter("scheduling_delay_type", &TTestingOperationOptions::SchedulingDelayType)
         .Default(ESchedulingDelayType::Sync);
-    RegisterParameter("delay_inside_revive", DelayInsideRevive)
+    registrar.Parameter("delay_inside_revive", &TTestingOperationOptions::DelayInsideRevive)
         .Default();
-    RegisterParameter("delay_inside_initialize", DelayInsideInitialize)
+    registrar.Parameter("delay_inside_initialize", &TTestingOperationOptions::DelayInsideInitialize)
         .Default();
-    RegisterParameter("delay_inside_prepare", DelayInsidePrepare)
+    registrar.Parameter("delay_inside_prepare", &TTestingOperationOptions::DelayInsidePrepare)
         .Default();
-    RegisterParameter("delay_inside_suspend", DelayInsideSuspend)
+    registrar.Parameter("delay_inside_suspend", &TTestingOperationOptions::DelayInsideSuspend)
         .Default();
-    RegisterParameter("delay_inside_materialize", DelayInsideMaterialize)
+    registrar.Parameter("delay_inside_materialize", &TTestingOperationOptions::DelayInsideMaterialize)
         .Default();
-    RegisterParameter("delay_inside_operation_commit", DelayInsideOperationCommit)
+    registrar.Parameter("delay_inside_operation_commit", &TTestingOperationOptions::DelayInsideOperationCommit)
         .Default();
-    RegisterParameter("delay_after_materialize", DelayAfterMaterialize)
+    registrar.Parameter("delay_after_materialize", &TTestingOperationOptions::DelayAfterMaterialize)
         .Default();
-    RegisterParameter("delay_inside_abort", DelayInsideAbort)
+    registrar.Parameter("delay_inside_abort", &TTestingOperationOptions::DelayInsideAbort)
         .Default();
-    RegisterParameter("delay_inside_register_jobs_from_revived_operation", DelayInsideRegisterJobsFromRevivedOperation)
+    registrar.Parameter("delay_inside_register_jobs_from_revived_operation", &TTestingOperationOptions::DelayInsideRegisterJobsFromRevivedOperation)
         .Default();
-    RegisterParameter("delay_inside_validate_runtime_parameters", DelayInsideValidateRuntimeParameters)
+    registrar.Parameter("delay_inside_validate_runtime_parameters", &TTestingOperationOptions::DelayInsideValidateRuntimeParameters)
         .Default();
-    RegisterParameter("delay_before_start", DelayBeforeStart)
+    registrar.Parameter("delay_before_start", &TTestingOperationOptions::DelayBeforeStart)
         .Default();
-    RegisterParameter("delay_inside_operation_commit_stage", DelayInsideOperationCommitStage)
+    registrar.Parameter("delay_inside_operation_commit_stage", &TTestingOperationOptions::DelayInsideOperationCommitStage)
         .Default();
-    RegisterParameter("no_delay_on_second_entrance_to_commit", NoDelayOnSecondEntranceToCommit)
+    registrar.Parameter("no_delay_on_second_entrance_to_commit", &TTestingOperationOptions::NoDelayOnSecondEntranceToCommit)
         .Default(false);
-    RegisterParameter("controller_failure", ControllerFailure)
+    registrar.Parameter("controller_failure", &TTestingOperationOptions::ControllerFailure)
         .Default();
-    RegisterParameter("get_job_spec_delay", GetJobSpecDelay)
+    registrar.Parameter("get_job_spec_delay", &TTestingOperationOptions::GetJobSpecDelay)
         .Default();
-    RegisterParameter("fail_get_job_spec", FailGetJobSpec)
+    registrar.Parameter("fail_get_job_spec", &TTestingOperationOptions::FailGetJobSpec)
         .Default(false);
-    RegisterParameter("testing_speculative_launch_mode", TestingSpeculativeLaunchMode)
+    registrar.Parameter("testing_speculative_launch_mode", &TTestingOperationOptions::TestingSpeculativeLaunchMode)
         .Default(ETestingSpeculativeLaunchMode::None);
-    RegisterParameter("allocation_size", AllocationSize)
+    registrar.Parameter("allocation_size", &TTestingOperationOptions::AllocationSize)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(100_GB)
         .Default();
-    RegisterParameter("cancellation_stage", CancelationStage)
+    registrar.Parameter("cancellation_stage", &TTestingOperationOptions::CancelationStage)
         .Default();
-    RegisterParameter("build_job_spec_proto_delay", BuildJobSpecProtoDelay)
+    registrar.Parameter("build_job_spec_proto_delay", &TTestingOperationOptions::BuildJobSpecProtoDelay)
         .Default();
-    RegisterParameter("test_job_speculation_timeout", TestJobSpeculationTimeout)
+    registrar.Parameter("test_job_speculation_timeout", &TTestingOperationOptions::TestJobSpeculationTimeout)
         .Default(false);
-    RegisterParameter("crash_controller_agent", CrashControllerAgent)
+    registrar.Parameter("crash_controller_agent", &TTestingOperationOptions::CrashControllerAgent)
         .Default(false);
-    RegisterParameter("throw_exception_during_operation_abort", ThrowExceptionDuringOprationAbort)
+    registrar.Parameter("throw_exception_during_operation_abort", &TTestingOperationOptions::ThrowExceptionDuringOprationAbort)
         .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobSplitterConfig::TJobSplitterConfig()
+void TJobSplitterConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_job_splitting", EnableJobSplitting)
+    registrar.Parameter("enable_job_splitting", &TJobSplitterConfig::EnableJobSplitting)
         .Default(true);
 
-    RegisterParameter("enable_job_speculation", EnableJobSpeculation)
+    registrar.Parameter("enable_job_speculation", &TJobSplitterConfig::EnableJobSpeculation)
         .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoMergeConfig::TAutoMergeConfig()
+void TAutoMergeConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("job_io", JobIO)
+    registrar.Parameter("job_io", &TAutoMergeConfig::JobIO)
         .DefaultNew();
-    RegisterParameter("max_intermediate_chunk_count", MaxIntermediateChunkCount)
+    registrar.Parameter("max_intermediate_chunk_count", &TAutoMergeConfig::MaxIntermediateChunkCount)
         .Default()
         .GreaterThanOrEqual(1);
-    RegisterParameter("chunk_count_per_merge_job", ChunkCountPerMergeJob)
+    registrar.Parameter("chunk_count_per_merge_job", &TAutoMergeConfig::ChunkCountPerMergeJob)
         .Default()
         .GreaterThanOrEqual(1);
-    RegisterParameter("chunk_size_threshold", ChunkSizeThreshold)
+    registrar.Parameter("chunk_size_threshold", &TAutoMergeConfig::ChunkSizeThreshold)
         .Default(128_MB)
         .GreaterThanOrEqual(1);
-    RegisterParameter("mode", Mode)
+    registrar.Parameter("mode", &TAutoMergeConfig::Mode)
         .Default(EAutoMergeMode::Disabled);
-    RegisterParameter("enable_shallow_merge", EnableShallowMerge)
+    registrar.Parameter("enable_shallow_merge", &TAutoMergeConfig::EnableShallowMerge)
         .Default(false);
-    RegisterParameter("allow_unknown_extensions", AllowUnknownExtensions)
-        .Default(false);
-
-    RegisterParameter("use_intermediate_data_account", UseIntermediateDataAccount)
+    registrar.Parameter("allow_unknown_extensions",  &TAutoMergeConfig::AllowUnknownExtensions)
         .Default(false);
 
-    RegisterPostprocessor([&] {
-        if (Mode == EAutoMergeMode::Manual) {
-            if (!MaxIntermediateChunkCount || !ChunkCountPerMergeJob) {
+    registrar.Parameter("use_intermediate_data_account", &TAutoMergeConfig::UseIntermediateDataAccount)
+        .Default(false);
+
+    registrar.Postprocessor([] (TAutoMergeConfig* config) {
+        if (config->Mode == EAutoMergeMode::Manual) {
+            if (!config->MaxIntermediateChunkCount || !config->ChunkCountPerMergeJob) {
                 THROW_ERROR_EXCEPTION(
                     "Maximum intermediate chunk count and chunk count per merge job "
                     "should both be present when using relaxed mode of auto merge");
             }
-            if (*MaxIntermediateChunkCount < *ChunkCountPerMergeJob) {
+            if (*config->MaxIntermediateChunkCount < *config->ChunkCountPerMergeJob) {
                 THROW_ERROR_EXCEPTION("Maximum intermediate chunk count cannot be less than chunk count per merge job")
-                    << TErrorAttribute("max_intermediate_chunk_count", *MaxIntermediateChunkCount)
-                    << TErrorAttribute("chunk_count_per_merge_job", *ChunkCountPerMergeJob);
+                    << TErrorAttribute("max_intermediate_chunk_count", *config->MaxIntermediateChunkCount)
+                    << TErrorAttribute("chunk_count_per_merge_job", *config->ChunkCountPerMergeJob);
             }
         }
     });
@@ -282,54 +282,54 @@ TAutoMergeConfig::TAutoMergeConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTentativeTreeEligibilityConfig::TTentativeTreeEligibilityConfig()
+void TTentativeTreeEligibilityConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("sample_job_count", SampleJobCount)
+    registrar.Parameter("sample_job_count", &TTentativeTreeEligibilityConfig::SampleJobCount)
         .Default(10)
         .GreaterThan(0);
 
-    RegisterParameter("max_tentative_job_duration_ratio", MaxTentativeJobDurationRatio)
+    registrar.Parameter("max_tentative_job_duration_ratio", &TTentativeTreeEligibilityConfig::MaxTentativeJobDurationRatio)
         .Default(10.0)
         .GreaterThan(0.0);
 
-    RegisterParameter("min_job_duration", MinJobDuration)
+    registrar.Parameter("min_job_duration", &TTentativeTreeEligibilityConfig::MinJobDuration)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("ignore_missing_pool_trees", IgnoreMissingPoolTrees)
+    registrar.Parameter("ignore_missing_pool_trees", &TTentativeTreeEligibilityConfig::IgnoreMissingPoolTrees)
         .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSamplingConfig::TSamplingConfig()
+void TSamplingConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("sampling_rate", SamplingRate)
+    registrar.Parameter("sampling_rate", &TSamplingConfig::SamplingRate)
         .Default();
 
-    RegisterParameter("max_total_slice_count", MaxTotalSliceCount)
+    registrar.Parameter("max_total_slice_count", &TSamplingConfig::MaxTotalSliceCount)
         .Default();
 
-    RegisterParameter("io_block_size", IOBlockSize)
+    registrar.Parameter("io_block_size", &TSamplingConfig::IOBlockSize)
         .Default(16_MB);
 
-    RegisterPostprocessor([&] {
-        if (SamplingRate && (*SamplingRate < 0.0 || *SamplingRate > 1.0)) {
+    registrar.Postprocessor([] (TSamplingConfig* config) {
+        if (config->SamplingRate && (*config->SamplingRate < 0.0 || *config->SamplingRate > 1.0)) {
             THROW_ERROR_EXCEPTION("Sampling rate should be in range [0.0, 1.0]")
-                << TErrorAttribute("sampling_rate", SamplingRate);
+                << TErrorAttribute("sampling_rate", config->SamplingRate);
         }
-        if (MaxTotalSliceCount && *MaxTotalSliceCount <= 0) {
+        if (config->MaxTotalSliceCount && *config->MaxTotalSliceCount <= 0) {
             THROW_ERROR_EXCEPTION("max_total_slice_count should be positive")
-                << TErrorAttribute("max_total_slice_count", MaxTotalSliceCount);
+                << TErrorAttribute("max_total_slice_count", config->MaxTotalSliceCount);
         }
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTmpfsVolumeConfig::TTmpfsVolumeConfig()
+void TTmpfsVolumeConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("size", Size);
-    RegisterParameter("path", Path);
+    registrar.Parameter("size", &TTmpfsVolumeConfig::Size);
+    registrar.Parameter("path", &TTmpfsVolumeConfig::Path);
 }
 
 void ToProto(NScheduler::NProto::TTmpfsVolume* protoTmpfsVolume, const TTmpfsVolumeConfig& tmpfsVolumeConfig)
@@ -346,18 +346,18 @@ void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NScheduler::NProto::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDiskRequestConfig::TDiskRequestConfig()
+void TDiskRequestConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("disk_space", DiskSpace);
-    RegisterParameter("inode_count", InodeCount)
+    registrar.Parameter("disk_space", &TDiskRequestConfig::DiskSpace);
+    registrar.Parameter("inode_count", &TDiskRequestConfig::InodeCount)
         .Default();
-    RegisterParameter("medium_name", MediumName)
+    registrar.Parameter("medium_name", &TDiskRequestConfig::MediumName)
         .Default(std::nullopt);
-    RegisterParameter("account", Account)
+    registrar.Parameter("account", &TDiskRequestConfig::Account)
         .Default(std::nullopt);
 
-    RegisterPostprocessor([&] {
-        if (Account && !MediumName) {
+    registrar.Postprocessor([&] (TDiskRequestConfig* config) {
+        if (config->Account && !config->MediumName) {
             THROW_ERROR_EXCEPTION("\"medium_name\" is required in disk request if account is specified");
         }
     });
@@ -379,25 +379,25 @@ void ToProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobShell::TJobShell()
+void TJobShell::Register(TRegistrar registrar)
 {
-    RegisterParameter("name", Name);
+    registrar.Parameter("name", &TJobShell::Name);
 
-    RegisterParameter("subcontainer", Subcontainer)
+    registrar.Parameter("subcontainer", &TJobShell::Subcontainer)
         .Default();
 
-    RegisterParameter("owners", Owners)
+    registrar.Parameter("owners", &TJobShell::Owners)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserJobMonitoringConfig::TUserJobMonitoringConfig()
+void TUserJobMonitoringConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable", Enable)
+    registrar.Parameter("enable", &TUserJobMonitoringConfig::Enable)
         .Default(false);
 
-    RegisterParameter("sensor_names", SensorNames)
+    registrar.Parameter("sensor_names", &TUserJobMonitoringConfig::SensorNames)
         .Default(GetDefaultSensorNames());
 }
 
@@ -421,239 +421,239 @@ const std::vector<TString>& TUserJobMonitoringConfig::GetDefaultSensorNames()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TColumnarStatisticsConfig::TColumnarStatisticsConfig()
+void TColumnarStatisticsConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enabled", Enabled)
+    registrar.Parameter("enabled", &TColumnarStatisticsConfig::Enabled)
         .Default(false);
 
-    RegisterParameter("mode", Mode)
+    registrar.Parameter("mode", &TColumnarStatisticsConfig::Mode)
         .Default(EColumnarStatisticsFetcherMode::Fallback);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationSpecBase::TOperationSpecBase()
+void TOperationSpecBase::Register(TRegistrar registrar)
 {
-    SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
+    registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
 
-    RegisterParameter("intermediate_data_account", IntermediateDataAccount)
+    registrar.Parameter("intermediate_data_account", &TOperationSpecBase::IntermediateDataAccount)
         .Default("intermediate");
-    RegisterParameter("intermediate_compression_codec", IntermediateCompressionCodec)
+    registrar.Parameter("intermediate_compression_codec", &TOperationSpecBase::IntermediateCompressionCodec)
         .Default(NCompression::ECodec::Lz4);
-    RegisterParameter("intermediate_data_replication_factor", IntermediateDataReplicationFactor)
+    registrar.Parameter("intermediate_data_replication_factor", &TOperationSpecBase::IntermediateDataReplicationFactor)
         .Default(2);
-    RegisterParameter("intermediate_data_sync_on_close", IntermediateDataSyncOnClose)
+    registrar.Parameter("intermediate_data_sync_on_close", &TOperationSpecBase::IntermediateDataSyncOnClose)
         .Default(false);
-    RegisterParameter("intermediate_data_medium", IntermediateDataMediumName)
+    registrar.Parameter("intermediate_data_medium", &TOperationSpecBase::IntermediateDataMediumName)
         .Default(NChunkClient::DefaultStoreMediumName);
 
-    RegisterParameter("debug_artifacts_account", DebugArtifactsAccount)
+    registrar.Parameter("debug_artifacts_account", &TOperationSpecBase::DebugArtifactsAccount)
         .Alias("job_node_account")
         .Default(NSecurityClient::TmpAccountName);
 
-    RegisterParameter("unavailable_chunk_strategy", UnavailableChunkStrategy)
+    registrar.Parameter("unavailable_chunk_strategy", &TOperationSpecBase::UnavailableChunkStrategy)
         .Default(EUnavailableChunkAction::Wait);
-    RegisterParameter("unavailable_chunk_tactics", UnavailableChunkTactics)
+    registrar.Parameter("unavailable_chunk_tactics", &TOperationSpecBase::UnavailableChunkTactics)
         .Default(EUnavailableChunkAction::Wait);
 
-    RegisterParameter("max_data_weight_per_job", MaxDataWeightPerJob)
+    registrar.Parameter("max_data_weight_per_job", &TOperationSpecBase::MaxDataWeightPerJob)
         .Alias("max_data_size_per_job")
         .Default(200_GB)
         .GreaterThan(0);
-    RegisterParameter("max_primary_data_weight_per_job", MaxPrimaryDataWeightPerJob)
+    registrar.Parameter("max_primary_data_weight_per_job", &TOperationSpecBase::MaxPrimaryDataWeightPerJob)
         .Default(std::numeric_limits<i64>::max())
         .GreaterThan(0);
 
-    RegisterParameter("max_failed_job_count", MaxFailedJobCount)
+    registrar.Parameter("max_failed_job_count", &TOperationSpecBase::MaxFailedJobCount)
         .Default(10)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(10000);
-    RegisterParameter("max_stderr_count", MaxStderrCount)
+    registrar.Parameter("max_stderr_count", &TOperationSpecBase::MaxStderrCount)
         .Default(10)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(150);
-    RegisterParameter("max_core_info_count", MaxCoreInfoCount)
+    registrar.Parameter("max_core_info_count", &TOperationSpecBase::MaxCoreInfoCount)
         .Default(10)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(150);
 
-    RegisterParameter("job_proxy_memory_overcommit_limit", JobProxyMemoryOvercommitLimit)
+    registrar.Parameter("job_proxy_memory_overcommit_limit", &TOperationSpecBase::JobProxyMemoryOvercommitLimit)
         .Default()
         .GreaterThanOrEqual(0);
 
-    RegisterParameter("job_proxy_ref_counted_tracker_log_period", JobProxyRefCountedTrackerLogPeriod)
+    registrar.Parameter("job_proxy_ref_counted_tracker_log_period", &TOperationSpecBase::JobProxyRefCountedTrackerLogPeriod)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("title", Title)
+    registrar.Parameter("title", &TOperationSpecBase::Title)
         .Default();
 
-    RegisterParameter("time_limit", TimeLimit)
+    registrar.Parameter("time_limit", &TOperationSpecBase::TimeLimit)
         .Default();
 
-    RegisterParameter("time_limit_job_fail_timeout", TimeLimitJobFailTimeout)
+    registrar.Parameter("time_limit_job_fail_timeout", &TOperationSpecBase::TimeLimitJobFailTimeout)
         .Default(TDuration::Minutes(2));
 
-    RegisterParameter("testing", TestingOperationOptions)
+    registrar.Parameter("testing", &TOperationSpecBase::TestingOperationOptions)
         .DefaultNew();
 
-    RegisterParameter("owners", Owners)
+    registrar.Parameter("owners", &TOperationSpecBase::Owners)
         .Default();
 
-    RegisterParameter("acl", Acl)
+    registrar.Parameter("acl", &TOperationSpecBase::Acl)
         .Default();
 
-    RegisterParameter("add_authenticated_user_to_acl", AddAuthenticatedUserToAcl)
+    registrar.Parameter("add_authenticated_user_to_acl", &TOperationSpecBase::AddAuthenticatedUserToAcl)
         .Default(true);
 
-    RegisterParameter("secure_vault", SecureVault)
+    registrar.Parameter("secure_vault", &TOperationSpecBase::SecureVault)
         .Default();
 
-    RegisterParameter("enable_secure_vault_variables_in_job_shell", EnableSecureVaultVariablesInJobShell)
+    registrar.Parameter("enable_secure_vault_variables_in_job_shell", &TOperationSpecBase::EnableSecureVaultVariablesInJobShell)
         .Default(true);
 
-    RegisterParameter("suspend_operation_if_account_limit_exceeded", SuspendOperationIfAccountLimitExceeded)
+    registrar.Parameter("suspend_operation_if_account_limit_exceeded", &TOperationSpecBase::SuspendOperationIfAccountLimitExceeded)
         .Default(false);
 
-    RegisterParameter("suspend_operation_after_materialization", SuspendOperationAfterMaterialization)
+    registrar.Parameter("suspend_operation_after_materialization", &TOperationSpecBase::SuspendOperationAfterMaterialization)
         .Default(false);
 
-    RegisterParameter("min_locality_input_data_weight", MinLocalityInputDataWeight)
+    registrar.Parameter("min_locality_input_data_weight", &TOperationSpecBase::MinLocalityInputDataWeight)
         .GreaterThanOrEqual(0)
         .Default(1_GB);
 
-    RegisterParameter("auto_merge", AutoMerge)
+    registrar.Parameter("auto_merge", &TOperationSpecBase::AutoMerge)
         .DefaultNew();
 
-    RegisterParameter("job_proxy_memory_digest", JobProxyMemoryDigest)
-        .DefaultNew(0.5, 2.0, 1.0);
+    registrar.Parameter("job_proxy_memory_digest", &TOperationSpecBase::JobProxyMemoryDigest)
+        .DefaultCtor([] { return New<TLogDigestConfig>(0.5, 2.0, 1.0);});
 
-    RegisterParameter("fail_on_job_restart", FailOnJobRestart)
+    registrar.Parameter("fail_on_job_restart", &TOperationSpecBase::FailOnJobRestart)
         .Default(false);
 
-    RegisterParameter("enable_job_splitting", EnableJobSplitting)
+    registrar.Parameter("enable_job_splitting", &TOperationSpecBase::EnableJobSplitting)
         .Default(true);
 
-    RegisterParameter("slice_erasure_chunks_by_parts", SliceErasureChunksByParts)
+    registrar.Parameter("slice_erasure_chunks_by_parts", &TOperationSpecBase::SliceErasureChunksByParts)
         .Default(false);
 
-    RegisterParameter("enable_compatible_storage_mode", EnableCompatibleStorageMode)
+    registrar.Parameter("enable_compatible_storage_mode", &TOperationSpecBase::EnableCompatibleStorageMode)
         .Default(false);
 
-    RegisterParameter("enable_legacy_live_preview", EnableLegacyLivePreview)
+    registrar.Parameter("enable_legacy_live_preview", &TOperationSpecBase::EnableLegacyLivePreview)
         .Default();
 
-    RegisterParameter("started_by", StartedBy)
+    registrar.Parameter("started_by", &TOperationSpecBase::StartedBy)
         .Default();
-    RegisterParameter("annotations", Annotations)
+    registrar.Parameter("annotations", &TOperationSpecBase::Annotations)
         .Default();
 
     // COMPAT(gritukan): Drop it in favor of `Annotations["description"]'.
-    RegisterParameter("description", Description)
+    registrar.Parameter("description", &TOperationSpecBase::Description)
         .Default();
 
-    RegisterParameter("use_columnar_statistics", UseColumnarStatistics)
+    registrar.Parameter("use_columnar_statistics", &TOperationSpecBase::UseColumnarStatistics)
         .Default(false);
 
-    RegisterParameter("ban_nodes_with_failed_jobs", BanNodesWithFailedJobs)
+    registrar.Parameter("ban_nodes_with_failed_jobs", &TOperationSpecBase::BanNodesWithFailedJobs)
         .Default(false);
-    RegisterParameter("ignore_job_failures_at_banned_nodes", IgnoreJobFailuresAtBannedNodes)
+    registrar.Parameter("ignore_job_failures_at_banned_nodes", &TOperationSpecBase::IgnoreJobFailuresAtBannedNodes)
         .Default(false);
-    RegisterParameter("fail_on_all_nodes_banned", FailOnAllNodesBanned)
+    registrar.Parameter("fail_on_all_nodes_banned", &TOperationSpecBase::FailOnAllNodesBanned)
         .Default(true);
 
-    RegisterParameter("sampling", Sampling)
+    registrar.Parameter("sampling", &TOperationSpecBase::Sampling)
         .DefaultNew();
 
-    RegisterParameter("alias", Alias)
+    registrar.Parameter("alias", &TOperationSpecBase::Alias)
         .Default();
 
-    RegisterParameter("omit_inaccessible_columns", OmitInaccessibleColumns)
+    registrar.Parameter("omit_inaccessible_columns", &TOperationSpecBase::OmitInaccessibleColumns)
         .Default(false);
 
-    RegisterParameter("additional_security_tags", AdditionalSecurityTags)
+    registrar.Parameter("additional_security_tags", &TOperationSpecBase::AdditionalSecurityTags)
         .Default();
 
-    RegisterParameter("waiting_job_timeout", WaitingJobTimeout)
+    registrar.Parameter("waiting_job_timeout", &TOperationSpecBase::WaitingJobTimeout)
         .Default(std::nullopt)
         .GreaterThanOrEqual(TDuration::Seconds(10))
         .LessThanOrEqual(TDuration::Minutes(10));
 
-    RegisterParameter("job_speculation_timeout", JobSpeculationTimeout)
+    registrar.Parameter("job_speculation_timeout", &TOperationSpecBase::JobSpeculationTimeout)
         .Default()
         .GreaterThan(TDuration::Zero());
 
-    RegisterParameter("atomicity", Atomicity)
+    registrar.Parameter("atomicity", &TOperationSpecBase::Atomicity)
         .Default(EAtomicity::Full);
 
-    RegisterParameter("job_cpu_monitor", JobCpuMonitor)
+    registrar.Parameter("job_cpu_monitor", &TOperationSpecBase::JobCpuMonitor)
         .DefaultNew();
 
-    RegisterParameter("enable_dynamic_store_read", EnableDynamicStoreRead)
+    registrar.Parameter("enable_dynamic_store_read", &TOperationSpecBase::EnableDynamicStoreRead)
         .Default();
 
-    RegisterParameter("controller_agent_tag", ControllerAgentTag)
+    registrar.Parameter("controller_agent_tag", &TOperationSpecBase::ControllerAgentTag)
         .Default("default");
 
-    RegisterParameter("job_shells", JobShells)
+    registrar.Parameter("job_shells", &TOperationSpecBase::JobShells)
         .Default();
 
-    RegisterParameter("job_splitter", JobSplitter)
+    registrar.Parameter("job_splitter", &TOperationSpecBase::JobSplitter)
         .DefaultNew();
 
-    RegisterParameter("experiment_overrides", ExperimentOverrides)
+    registrar.Parameter("experiment_overrides", &TOperationSpecBase::ExperimentOverrides)
         .Default();
 
-    RegisterParameter("enable_trace_logging", EnableTraceLogging)
+    registrar.Parameter("enable_trace_logging", &TOperationSpecBase::EnableTraceLogging)
         .Default(false);
 
-    RegisterParameter("input_table_columnar_statistics", InputTableColumnarStatistics)
+    registrar.Parameter("input_table_columnar_statistics", &TOperationSpecBase::InputTableColumnarStatistics)
         .DefaultNew();
-    RegisterParameter("user_file_columnar_statistics", UserFileColumnarStatistics)
+    registrar.Parameter("user_file_columnar_statistics", &TOperationSpecBase::UserFileColumnarStatistics)
         .DefaultNew();
 
-    RegisterParameter("enabled_profilers", EnabledProfilers)
+    registrar.Parameter("enabled_profilers", &TOperationSpecBase::EnabledProfilers)
         .Default();
-    RegisterParameter("profiling_probability", ProfilingProbability)
+    registrar.Parameter("profiling_probability", &TOperationSpecBase::ProfilingProbability)
         .Default();
-    RegisterParameter("force_job_proxy_tracing", ForceJobProxyTracing)
+    registrar.Parameter("force_job_proxy_tracing", &TOperationSpecBase::ForceJobProxyTracing)
         .Default(false);
-    RegisterParameter("suspend_on_job_failure", SuspendOnJobFailure)
+    registrar.Parameter("suspend_on_job_failure", &TOperationSpecBase::SuspendOnJobFailure)
         .Default(false);
 
-    RegisterParameter("job_testing_options", JobTestingOptions)
+    registrar.Parameter("job_testing_options", &TOperationSpecBase::JobTestingOptions)
         .Default();
 
-    RegisterPostprocessor([&] {
-        if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
-            UnavailableChunkTactics == EUnavailableChunkAction::Skip)
+    registrar.Postprocessor([] (TOperationSpecBase* spec) {
+        if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
+            spec->UnavailableChunkTactics == EUnavailableChunkAction::Skip)
         {
             THROW_ERROR_EXCEPTION("Your tactics conflicts with your strategy, Luke!");
         }
 
-        if (SecureVault) {
-            for (const auto& name : SecureVault->GetKeys()) {
+        if (spec->SecureVault) {
+            for (const auto& name : spec->SecureVault->GetKeys()) {
                 ValidateEnvironmentVariableName(name);
             }
         }
 
-        if (Alias && !Alias->StartsWith(OperationAliasPrefix)) {
+        if (spec->Alias && !spec->Alias->StartsWith(OperationAliasPrefix)) {
             THROW_ERROR_EXCEPTION("Operation alias should start with %Qv", OperationAliasPrefix)
-                << TErrorAttribute("operation_alias", Alias);
+                << TErrorAttribute("operation_alias", spec->Alias);
         }
 
         constexpr int MaxAnnotationsYsonTextLength = 10_KB;
-        if (ConvertToYsonString(Annotations, EYsonFormat::Text).AsStringBuf().size() > MaxAnnotationsYsonTextLength) {
+        if (ConvertToYsonString(spec->Annotations, EYsonFormat::Text).AsStringBuf().size() > MaxAnnotationsYsonTextLength) {
             THROW_ERROR_EXCEPTION("Length of annotations YSON text representation should not exceed %v",
                 MaxAnnotationsYsonTextLength);
         }
 
-        ValidateOperationAcl(Acl);
-        ProcessAclAndOwnersParameters(&Acl, &Owners);
-        ValidateSecurityTags(AdditionalSecurityTags);
+        ValidateOperationAcl(spec->Acl);
+        ProcessAclAndOwnersParameters(&spec->Acl, &spec->Owners);
+        ValidateSecurityTags(spec->AdditionalSecurityTags);
 
         {
             THashSet<TString> jobShellNames;
-            for (const auto& jobShell : JobShells) {
+            for (const auto& jobShell : spec->JobShells) {
                 if (!jobShellNames.emplace(jobShell->Name).second) {
                     THROW_ERROR_EXCEPTION("Job shell names should be distinct")
                         << TErrorAttribute("duplicate_shell_name", jobShell->Name);
@@ -661,12 +661,12 @@ TOperationSpecBase::TOperationSpecBase()
             }
         }
 
-        if (UseColumnarStatistics) {
-            InputTableColumnarStatistics->Enabled = true;
-            UserFileColumnarStatistics->Enabled = true;
+        if (spec->UseColumnarStatistics) {
+            spec->InputTableColumnarStatistics->Enabled = true;
+            spec->UserFileColumnarStatistics->Enabled = true;
         }
 
-        if (ProfilingProbability && *ProfilingProbability * EnabledProfilers.size() > 1.0) {
+        if (spec->ProfilingProbability && *spec->ProfilingProbability * spec->EnabledProfilers.size() > 1.0) {
             THROW_ERROR_EXCEPTION("Profiling probability is too high");
         }
     });
@@ -674,160 +674,160 @@ TOperationSpecBase::TOperationSpecBase()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTaskOutputStreamConfig::TTaskOutputStreamConfig()
+void TTaskOutputStreamConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("schema", Schema)
+    registrar.Parameter("schema", &TTaskOutputStreamConfig::Schema)
         .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserJobSpec::TUserJobSpec()
+void TUserJobSpec::Register(TRegistrar registrar)
 {
-    RegisterParameter("task_title", TaskTitle)
+    registrar.Parameter("task_title", &TUserJobSpec::TaskTitle)
         .Default();
-    RegisterParameter("file_paths", FilePaths)
+    registrar.Parameter("file_paths", &TUserJobSpec::FilePaths)
         .Default();
-    RegisterParameter("layer_paths", LayerPaths)
+    registrar.Parameter("layer_paths", &TUserJobSpec::LayerPaths)
         .Default();
-    RegisterParameter("format", Format)
+    registrar.Parameter("format", &TUserJobSpec::Format)
         .Default();
-    RegisterParameter("input_format", InputFormat)
+    registrar.Parameter("input_format", &TUserJobSpec::InputFormat)
         .Default();
-    RegisterParameter("output_format", OutputFormat)
+    registrar.Parameter("output_format", &TUserJobSpec::OutputFormat)
         .Default();
-    RegisterParameter("output_streams", OutputStreams)
+    registrar.Parameter("output_streams", &TUserJobSpec::OutputStreams)
         .Default();
-    RegisterParameter("enable_input_table_index", EnableInputTableIndex)
+    registrar.Parameter("enable_input_table_index", &TUserJobSpec::EnableInputTableIndex)
         .Default();
-    RegisterParameter("environment", Environment)
+    registrar.Parameter("environment", &TUserJobSpec::Environment)
         .Default();
-    RegisterParameter("cpu_limit", CpuLimit)
+    registrar.Parameter("cpu_limit", &TUserJobSpec::CpuLimit)
         .Default(1)
         .GreaterThanOrEqual(0);
-    RegisterParameter("gpu_limit", GpuLimit)
+    registrar.Parameter("gpu_limit", &TUserJobSpec::GpuLimit)
         .Default(0)
         .GreaterThanOrEqual(0);
-    RegisterParameter("port_count", PortCount)
+    registrar.Parameter("port_count", &TUserJobSpec::PortCount)
         .Default(0)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(50);
-    RegisterParameter("job_time_limit", JobTimeLimit)
+    registrar.Parameter("job_time_limit", &TUserJobSpec::JobTimeLimit)
         .Alias("exec_time_limit")
         .Default()
         .GreaterThanOrEqual(TDuration::Seconds(1));
-    RegisterParameter("prepare_time_limit", PrepareTimeLimit)
+    registrar.Parameter("prepare_time_limit", &TUserJobSpec::PrepareTimeLimit)
         .Default(TDuration::Minutes(45))
         .GreaterThanOrEqual(TDuration::Minutes(1));
-    RegisterParameter("memory_limit", MemoryLimit)
+    registrar.Parameter("memory_limit", &TUserJobSpec::MemoryLimit)
         .Default(512_MB)
         .GreaterThan(0)
         .LessThanOrEqual(1_TB);
-    RegisterParameter("memory_reserve_factor", MemoryReserveFactor)
+    registrar.Parameter("memory_reserve_factor", &TUserJobSpec::MemoryReserveFactor)
         .Default();
-    RegisterParameter("user_job_memory_digest_default_value", UserJobMemoryDigestDefaultValue)
+    registrar.Parameter("user_job_memory_digest_default_value", &TUserJobSpec::UserJobMemoryDigestDefaultValue)
         .Default(0.5)
         .GreaterThan(0.)
         .LessThanOrEqual(1.);
-    RegisterParameter("user_job_memory_digest_lower_bound", UserJobMemoryDigestLowerBound)
+    registrar.Parameter("user_job_memory_digest_lower_bound", &TUserJobSpec::UserJobMemoryDigestLowerBound)
         .Default(0.05)
         .GreaterThan(0.)
         .LessThanOrEqual(1.);
-    RegisterParameter("include_memory_mapped_files", IncludeMemoryMappedFiles)
+    registrar.Parameter("include_memory_mapped_files", &TUserJobSpec::IncludeMemoryMappedFiles)
         .Default(true);
-    RegisterParameter("use_yamr_descriptors", UseYamrDescriptors)
+    registrar.Parameter("use_yamr_descriptors", &TUserJobSpec::UseYamrDescriptors)
         .Default(false);
-    RegisterParameter("check_input_fully_consumed", CheckInputFullyConsumed)
+    registrar.Parameter("check_input_fully_consumed", &TUserJobSpec::CheckInputFullyConsumed)
         .Default(false);
-    RegisterParameter("max_stderr_size", MaxStderrSize)
+    registrar.Parameter("max_stderr_size", &TUserJobSpec::MaxStderrSize)
         .Default(5_MB)
         .GreaterThan(0)
         .LessThanOrEqual(1_GB);
 
-    RegisterParameter("custom_statistics_count_limit", CustomStatisticsCountLimit)
+    registrar.Parameter("custom_statistics_count_limit", &TUserJobSpec::CustomStatisticsCountLimit)
         .Default(128)
         .GreaterThan(0)
         .LessThanOrEqual(1024);
-    RegisterParameter("tmpfs_size", TmpfsSize)
+    registrar.Parameter("tmpfs_size", &TUserJobSpec::TmpfsSize)
         .Default()
         .GreaterThan(0);
-    RegisterParameter("tmpfs_path", TmpfsPath)
+    registrar.Parameter("tmpfs_path", &TUserJobSpec::TmpfsPath)
         .Default();
-    RegisterParameter("tmpfs_volumes", TmpfsVolumes)
+    registrar.Parameter("tmpfs_volumes", &TUserJobSpec::TmpfsVolumes)
         .Default();
-    RegisterParameter("disk_space_limit", DiskSpaceLimit)
+    registrar.Parameter("disk_space_limit", &TUserJobSpec::DiskSpaceLimit)
         .Default()
         .GreaterThanOrEqual(0);
-    RegisterParameter("inode_limit", InodeLimit)
+    registrar.Parameter("inode_limit", &TUserJobSpec::InodeLimit)
         .Default()
         .GreaterThanOrEqual(0);
-    RegisterParameter("disk_request", DiskRequest)
+    registrar.Parameter("disk_request", &TUserJobSpec::DiskRequest)
         .Default();
-    RegisterParameter("copy_files", CopyFiles)
+    registrar.Parameter("copy_files", &TUserJobSpec::CopyFiles)
         .Default(false);
-    RegisterParameter("deterministic", Deterministic)
+    registrar.Parameter("deterministic", &TUserJobSpec::Deterministic)
         .Default(false);
-    RegisterParameter("use_porto_memory_tracking", UsePortoMemoryTracking)
+    registrar.Parameter("use_porto_memory_tracking", &TUserJobSpec::UsePortoMemoryTracking)
         .Default(false);
-    RegisterParameter("set_container_cpu_limit", SetContainerCpuLimit)
+    registrar.Parameter("set_container_cpu_limit", &TUserJobSpec::SetContainerCpuLimit)
         .Default(false);
-    RegisterParameter("force_core_dump", ForceCoreDump)
+    registrar.Parameter("force_core_dump", &TUserJobSpec::ForceCoreDump)
         .Default(false);
-    RegisterParameter("interruption_signal", InterruptionSignal)
+    registrar.Parameter("interruption_signal", &TUserJobSpec::InterruptionSignal)
         .Default();
-    RegisterParameter("restart_exit_code", RestartExitCode)
+    registrar.Parameter("restart_exit_code", &TUserJobSpec::RestartExitCode)
         .Default();
-    RegisterParameter("enable_gpu_layers", EnableGpuLayers)
+    registrar.Parameter("enable_gpu_layers", &TUserJobSpec::EnableGpuLayers)
         .Default(true);
-    RegisterParameter("cuda_toolkit_version", CudaToolkitVersion)
+    registrar.Parameter("cuda_toolkit_version", &TUserJobSpec::CudaToolkitVersion)
         .Default();
-    RegisterParameter("gpu_check_layer_name", GpuCheckLayerName)
+    registrar.Parameter("gpu_check_layer_name", &TUserJobSpec::GpuCheckLayerName)
         .Default();
-    RegisterParameter("gpu_check_binary_path", GpuCheckBinaryPath)
+    registrar.Parameter("gpu_check_binary_path", &TUserJobSpec::GpuCheckBinaryPath)
         .Default();
-    RegisterParameter("job_speculation_timeout", JobSpeculationTimeout)
+    registrar.Parameter("job_speculation_timeout", &TUserJobSpec::JobSpeculationTimeout)
         .Default()
         .GreaterThan(TDuration::Zero());
-    RegisterParameter("network_project", NetworkProject)
+    registrar.Parameter("network_project", &TUserJobSpec::NetworkProject)
         .Default();
-    RegisterParameter("enable_porto", EnablePorto)
+    registrar.Parameter("enable_porto", &TUserJobSpec::EnablePorto)
         .Default();
-    RegisterParameter("fail_job_on_core_dump", FailJobOnCoreDump)
+    registrar.Parameter("fail_job_on_core_dump", &TUserJobSpec::FailJobOnCoreDump)
         .Default(true);
-    RegisterParameter("make_rootfs_writable", MakeRootFSWritable)
+    registrar.Parameter("make_rootfs_writable", &TUserJobSpec::MakeRootFSWritable)
         .Default(false);
-    RegisterParameter("use_smaps_memory_tracker", UseSMapsMemoryTracker)
+    registrar.Parameter("use_smaps_memory_tracker", &TUserJobSpec::UseSMapsMemoryTracker)
         .Default(false);
-    RegisterParameter("monitoring", Monitoring)
+    registrar.Parameter("monitoring", &TUserJobSpec::Monitoring)
         .DefaultNew();
 
-    RegisterParameter("system_layer_path", SystemLayerPath)
+    registrar.Parameter("system_layer_path", &TUserJobSpec::SystemLayerPath)
         .Default();
 
-    RegisterParameter("supported_profilers", SupportedProfilers)
+    registrar.Parameter("supported_profilers", &TUserJobSpec::SupportedProfilers)
         .Default();
 
-    RegisterPostprocessor([&] () {
-        if ((TmpfsSize || TmpfsPath) && !TmpfsVolumes.empty()) {
+    registrar.Postprocessor([] (TUserJobSpec* spec) {
+        if ((spec->TmpfsSize || spec->TmpfsPath) && !spec->TmpfsVolumes.empty()) {
             THROW_ERROR_EXCEPTION(
                 "Options \"tmpfs_size\" and \"tmpfs_path\" cannot be specified "
                 "simultaneously with \"tmpfs_volumes\"")
-                << TErrorAttribute("tmpfs_size", TmpfsSize)
-                << TErrorAttribute("tmpfs_path", TmpfsPath)
-                << TErrorAttribute("tmpfs_volumes", TmpfsVolumes);
+                << TErrorAttribute("tmpfs_size", spec->TmpfsSize)
+                << TErrorAttribute("tmpfs_path", spec->TmpfsPath)
+                << TErrorAttribute("tmpfs_volumes", spec->TmpfsVolumes);
         }
 
-        if (TmpfsPath) {
+        if (spec->TmpfsPath) {
             auto volume = New<TTmpfsVolumeConfig>();
-            volume->Size = TmpfsSize ? *TmpfsSize : MemoryLimit;
-            volume->Path = *TmpfsPath;
-            TmpfsVolumes.push_back(volume);
-            TmpfsPath = std::nullopt;
-            TmpfsSize = std::nullopt;
+            volume->Size = spec->TmpfsSize ? *spec->TmpfsSize : spec->MemoryLimit;
+            volume->Path = *spec->TmpfsPath;
+            spec->TmpfsVolumes.push_back(volume);
+            spec->TmpfsPath = std::nullopt;
+            spec->TmpfsSize = std::nullopt;
         }
 
         i64 totalTmpfsSize = 0;
-        for (const auto& volume : TmpfsVolumes) {
+        for (const auto& volume : spec->TmpfsVolumes) {
             if (!NFS::IsPathRelativeAndInvolvesNoTraversal(volume->Path)) {
                 THROW_ERROR_EXCEPTION("Tmpfs path %v does not point inside the sandbox directory",
                     volume->Path);
@@ -836,73 +836,73 @@ TUserJobSpec::TUserJobSpec()
         }
 
         // Memory reserve should greater than or equal to tmpfs_size (see YT-5518 for more details).
-        if (totalTmpfsSize > MemoryLimit) {
+        if (totalTmpfsSize > spec->MemoryLimit) {
             THROW_ERROR_EXCEPTION("Total size of tmpfs volumes must be less than or equal to memory limit")
                 << TErrorAttribute("tmpfs_size", totalTmpfsSize)
-                << TErrorAttribute("memory_limit", MemoryLimit);
+                << TErrorAttribute("memory_limit", spec->MemoryLimit);
         }
 
-        for (int i = 0; i < std::ssize(TmpfsVolumes); ++i) {
-            for (int j = 0; j < std::ssize(TmpfsVolumes); ++j) {
+        for (int i = 0; i < std::ssize(spec->TmpfsVolumes); ++i) {
+            for (int j = 0; j < std::ssize(spec->TmpfsVolumes); ++j) {
                 if (i == j) {
                     continue;
                 }
 
-                auto lhsFsPath = TFsPath(TmpfsVolumes[i]->Path);
-                auto rhsFsPath = TFsPath(TmpfsVolumes[j]->Path);
+                auto lhsFsPath = TFsPath(spec->TmpfsVolumes[i]->Path);
+                auto rhsFsPath = TFsPath(spec->TmpfsVolumes[j]->Path);
                 if (lhsFsPath.IsSubpathOf(rhsFsPath)) {
                     THROW_ERROR_EXCEPTION("Path of tmpfs volume %Qv is prefix of other tmpfs volume %Qv",
-                        TmpfsVolumes[i]->Path,
-                        TmpfsVolumes[j]->Path);
+                        spec->TmpfsVolumes[i]->Path,
+                        spec->TmpfsVolumes[j]->Path);
                 }
             }
         }
 
-        if (MemoryReserveFactor) {
-            UserJobMemoryDigestLowerBound = UserJobMemoryDigestDefaultValue = *MemoryReserveFactor;
+        if (spec->MemoryReserveFactor) {
+            spec->UserJobMemoryDigestLowerBound = spec->UserJobMemoryDigestDefaultValue = *spec->MemoryReserveFactor;
         }
 
-        auto memoryDigestLowerLimit = static_cast<double>(totalTmpfsSize) / MemoryLimit;
-        UserJobMemoryDigestDefaultValue = std::min(
+        auto memoryDigestLowerLimit = static_cast<double>(totalTmpfsSize) / spec->MemoryLimit;
+        spec->UserJobMemoryDigestDefaultValue = std::min(
             1.0,
-            std::max(UserJobMemoryDigestDefaultValue, memoryDigestLowerLimit)
+            std::max(spec->UserJobMemoryDigestDefaultValue, memoryDigestLowerLimit)
         );
-        UserJobMemoryDigestLowerBound = std::min(
+        spec->UserJobMemoryDigestLowerBound = std::min(
             1.0,
-            std::max(UserJobMemoryDigestLowerBound, memoryDigestLowerLimit)
+            std::max(spec->UserJobMemoryDigestLowerBound, memoryDigestLowerLimit)
         );
-        UserJobMemoryDigestDefaultValue = std::max(UserJobMemoryDigestLowerBound, UserJobMemoryDigestDefaultValue);
+        spec->UserJobMemoryDigestDefaultValue = std::max(spec->UserJobMemoryDigestLowerBound, spec->UserJobMemoryDigestDefaultValue);
 
-        for (const auto& [variableName, _] : Environment) {
+        for (const auto& [variableName, _] : spec->Environment) {
             ValidateEnvironmentVariableName(variableName);
         }
 
-        for (auto& path : FilePaths) {
+        for (auto& path : spec->FilePaths) {
             path = path.Normalize();
         }
 
-        if (!DiskSpaceLimit && InodeLimit) {
+        if (!spec->DiskSpaceLimit && spec->InodeLimit) {
             THROW_ERROR_EXCEPTION("Option \"inode_limit\" can be specified only with \"disk_space_limit\"");
         }
 
-        if (DiskSpaceLimit && DiskRequest) {
+        if (spec->DiskSpaceLimit && spec->DiskRequest) {
             THROW_ERROR_EXCEPTION(
                 "Options \"disk_space_limit\" and \"inode_limit\" cannot be specified "
                 "together with \"disk_request\"")
-                << TErrorAttribute("disk_space_limit", DiskSpaceLimit)
-                << TErrorAttribute("inode_limit", InodeLimit)
-                << TErrorAttribute("disk_request", DiskRequest);
+                << TErrorAttribute("disk_space_limit", spec->DiskSpaceLimit)
+                << TErrorAttribute("inode_limit", spec->InodeLimit)
+                << TErrorAttribute("disk_request", spec->DiskRequest);
         }
 
-        if (DiskSpaceLimit) {
-            DiskRequest = New<TDiskRequestConfig>();
-            DiskRequest->DiskSpace = *DiskSpaceLimit;
-            DiskRequest->InodeCount = InodeLimit;
-            DiskSpaceLimit = std::nullopt;
-            InodeLimit = std::nullopt;
+        if (spec->DiskSpaceLimit) {
+            spec->DiskRequest = New<TDiskRequestConfig>();
+            spec->DiskRequest->DiskSpace = *spec->DiskSpaceLimit;
+            spec->DiskRequest->InodeCount = spec->InodeLimit;
+            spec->DiskSpaceLimit = std::nullopt;
+            spec->InodeLimit = std::nullopt;
         }
 
-        if (MakeRootFSWritable && LayerPaths.empty()) {
+        if (spec->MakeRootFSWritable && spec->LayerPaths.empty()) {
             THROW_ERROR_EXCEPTION("Option \"make_rootfs_writable\" cannot be set without specifying \"layer_paths\"");
         }
     });
@@ -919,9 +919,9 @@ void TUserJobSpec::InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPt
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOptionalUserJobSpec::TOptionalUserJobSpec()
+void TOptionalUserJobSpec::Register(TRegistrar registrar)
 {
-    RegisterParameter("command", Command)
+    registrar.BaseClassParameter("command", &TUserJobSpec::Command)
         .Default();
 }
 
@@ -932,40 +932,40 @@ bool TOptionalUserJobSpec::IsNontrivial() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMandatoryUserJobSpec::TMandatoryUserJobSpec()
+void TMandatoryUserJobSpec::Register(TRegistrar registrar)
 {
-    RegisterParameter("command", Command);
+    registrar.BaseClassParameter("command", &TUserJobSpec::Command);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TVanillaTaskSpec::TVanillaTaskSpec()
+void TVanillaTaskSpec::Register(TRegistrar registrar)
 {
-    RegisterParameter("job_count", JobCount)
+    registrar.Parameter("job_count", &TVanillaTaskSpec::JobCount)
         .GreaterThanOrEqual(1);
-    RegisterParameter("job_io", JobIO)
+    registrar.Parameter("job_io", &TVanillaTaskSpec::JobIO)
         .DefaultNew();
-    RegisterParameter("output_table_paths", OutputTablePaths)
+    registrar.Parameter("output_table_paths", &TVanillaTaskSpec::OutputTablePaths)
         .Default();
-    RegisterParameter("restart_completed_jobs", RestartCompletedJobs)
+    registrar.Parameter("restart_completed_jobs", &TVanillaTaskSpec::RestartCompletedJobs)
         .Default(false);
 
-    RegisterPostprocessor([&] {
-        OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
+    registrar.Postprocessor([] (TVanillaTaskSpec* spec) {
+        spec->OutputTablePaths = NYT::NYPath::Normalize(spec->OutputTablePaths);
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TInputlyQueryableSpec::TInputlyQueryableSpec()
+void TInputlyQueryableSpec::Register(TRegistrar registrar)
 {
-    RegisterParameter("input_query", InputQuery)
+    registrar.Parameter("input_query", &TInputlyQueryableSpec::InputQuery)
         .Default();
-    RegisterParameter("input_schema", InputSchema)
+    registrar.Parameter("input_schema", &TInputlyQueryableSpec::InputSchema)
         .Default();
 
-    RegisterPostprocessor([&] () {
-        if (InputSchema && !InputQuery) {
+    registrar.Postprocessor([] (TInputlyQueryableSpec* spec) {
+        if (spec->InputSchema && !spec->InputQuery) {
             THROW_ERROR_EXCEPTION("Found \"input_schema\" without \"input_query\" in operation spec");
         }
     });
@@ -973,35 +973,35 @@ TInputlyQueryableSpec::TInputlyQueryableSpec()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationWithUserJobSpec::TOperationWithUserJobSpec()
+void TOperationWithUserJobSpec::Register(TRegistrar registrar)
 {
-    RegisterParameter("stderr_table_path", StderrTablePath)
+    registrar.Parameter("stderr_table_path", &TOperationWithUserJobSpec::StderrTablePath)
         .Default();
-    RegisterParameter("stderr_table_writer", StderrTableWriter)
+    registrar.Parameter("stderr_table_writer", &TOperationWithUserJobSpec::StderrTableWriter)
         // TODO(babenko): deprecate this
         .Alias("stderr_table_writer_config")
         .DefaultNew();
 
-    RegisterParameter("core_table_path", CoreTablePath)
+    registrar.Parameter("core_table_path", &TOperationWithUserJobSpec::CoreTablePath)
         .Default();
-    RegisterParameter("core_table_writer", CoreTableWriter)
+    registrar.Parameter("core_table_writer", &TOperationWithUserJobSpec::CoreTableWriter)
         // TODO(babenko): deprecate this
         .Alias("core_table_writer_config")
         .DefaultNew();
 
-    RegisterParameter("enable_cuda_gpu_core_dump", EnableCudaGpuCoreDump)
+    registrar.Parameter("enable_cuda_gpu_core_dump", &TOperationWithUserJobSpec::EnableCudaGpuCoreDump)
         .Default(false);
 
-    RegisterPostprocessor([&] {
-        if (StderrTablePath) {
-            *StderrTablePath = StderrTablePath->Normalize();
+    registrar.Postprocessor([] (TOperationWithUserJobSpec* spec) {
+        if (spec->StderrTablePath) {
+            *spec->StderrTablePath = spec->StderrTablePath->Normalize();
         }
 
-        if (CoreTablePath) {
-            *CoreTablePath = CoreTablePath->Normalize();
+        if (spec->CoreTablePath) {
+            *spec->CoreTablePath = spec->CoreTablePath->Normalize();
         }
 
-        if (EnableCudaGpuCoreDump && !CoreTablePath) {
+        if (spec->EnableCudaGpuCoreDump && !spec->CoreTablePath) {
             THROW_ERROR_EXCEPTION("\"enable_cuda_gpu_core_dump\" option requires \"core_table_path\" options to be set");
         }
     });
@@ -1009,261 +1009,261 @@ TOperationWithUserJobSpec::TOperationWithUserJobSpec()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSimpleOperationSpecBase::TSimpleOperationSpecBase()
+void TSimpleOperationSpecBase::Register(TRegistrar registrar)
 {
-    RegisterParameter("data_weight_per_job", DataWeightPerJob)
+    registrar.Parameter("data_weight_per_job", &TSimpleOperationSpecBase::DataWeightPerJob)
         .Alias("data_size_per_job")
         .Default()
         .GreaterThan(0);
-    RegisterParameter("job_count", JobCount)
+    registrar.Parameter("job_count", &TSimpleOperationSpecBase::JobCount)
         .Default()
         .GreaterThan(0);
-    RegisterParameter("max_job_count", MaxJobCount)
+    registrar.Parameter("max_job_count", &TSimpleOperationSpecBase::MaxJobCount)
         .Default()
         .GreaterThan(0);
-    RegisterParameter("force_job_size_adjuster", ForceJobSizeAdjuster)
+    registrar.Parameter("force_job_size_adjuster", &TSimpleOperationSpecBase::ForceJobSizeAdjuster)
         .Default(false);
-    RegisterParameter("locality_timeout", LocalityTimeout)
+    registrar.Parameter("locality_timeout", &TSimpleOperationSpecBase::LocalityTimeout)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("job_io", JobIO)
+    registrar.Parameter("job_io", &TSimpleOperationSpecBase::JobIO)
         .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUnorderedOperationSpecBase::TUnorderedOperationSpecBase()
+void TUnorderedOperationSpecBase::Register(TRegistrar registrar)
 {
-    RegisterParameter("input_table_paths", InputTablePaths)
+    registrar.Parameter("input_table_paths", &TUnorderedOperationSpecBase::InputTablePaths)
         .NonEmpty();
 
-    RegisterPreprocessor([&] () {
-        JobIO->TableReader->MaxBufferSize = 256_MB;
+    registrar.Preprocessor([] (TUnorderedOperationSpecBase* spec) {
+        spec->JobIO->TableReader->MaxBufferSize = 256_MB;
     });
 
-    RegisterPostprocessor([&] {
-        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
+    registrar.Preprocessor([] (TUnorderedOperationSpecBase* spec) {
+        spec->InputTablePaths = NYT::NYPath::Normalize(spec->InputTablePaths);
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMapOperationSpec::TMapOperationSpec()
+void TMapOperationSpec::Register(TRegistrar registrar)
 {
-    RegisterParameter("mapper", Mapper)
+    registrar.Parameter("mapper", &TMapOperationSpec::Mapper)
         .DefaultNew();
-    RegisterParameter("output_table_paths", OutputTablePaths)
+    registrar.Parameter("output_table_paths", &TMapOperationSpec::OutputTablePaths)
         .Default();
-    RegisterParameter("ordered", Ordered)
+    registrar.Parameter("ordered", &TMapOperationSpec::Ordered)
         .Default(false);
 
-    RegisterPostprocessor([&] {
-        OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
+    registrar.Postprocessor([] (TMapOperationSpec* spec) {
+        spec->OutputTablePaths = NYT::NYPath::Normalize(spec->OutputTablePaths);
 
-        Mapper->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
-        Mapper->TaskTitle = "Mapper";
+        spec->Mapper->InitEnableInputTableIndex(spec->InputTablePaths.size(), spec->JobIO);
+        spec->Mapper->TaskTitle = "Mapper";
 
-        ValidateNoOutputStreams(Mapper, EOperationType::Map);
+        ValidateNoOutputStreams(spec->Mapper, EOperationType::Map);
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUnorderedMergeOperationSpec::TUnorderedMergeOperationSpec()
+void TUnorderedMergeOperationSpec::Register(TRegistrar registrar)
 {
-    RegisterParameter("output_table_path", OutputTablePath);
-    RegisterParameter("combine_chunks", CombineChunks)
+    registrar.Parameter("output_table_path", &TUnorderedMergeOperationSpec::OutputTablePath);
+    registrar.Parameter("combine_chunks", &TUnorderedMergeOperationSpec::CombineChunks)
         .Default(false);
-    RegisterParameter("force_transform", ForceTransform)
+    registrar.Parameter("force_transform", &TUnorderedMergeOperationSpec::ForceTransform)
         .Default(false);
-    RegisterParameter("schema_inference_mode", SchemaInferenceMode)
+    registrar.Parameter("schema_inference_mode", &TUnorderedMergeOperationSpec::SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
 
-    RegisterPostprocessor([&] {
-        OutputTablePath = OutputTablePath.Normalize();
+    registrar.Postprocessor([] (TUnorderedMergeOperationSpec* spec) {
+        spec->OutputTablePath = spec->OutputTablePath.Normalize();
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMergeOperationSpec::TMergeOperationSpec()
+void TMergeOperationSpec::Register(TRegistrar registrar)
 {
-    RegisterParameter("input_table_paths", InputTablePaths)
+    registrar.Parameter("input_table_paths", &TMergeOperationSpec::InputTablePaths)
         .NonEmpty();
-    RegisterParameter("output_table_path", OutputTablePath);
-    RegisterParameter("mode", Mode)
+    registrar.Parameter("output_table_path", &TMergeOperationSpec::OutputTablePath);
+    registrar.Parameter("mode", &TMergeOperationSpec::Mode)
         .Default(EMergeMode::Unordered);
-    RegisterParameter("combine_chunks", CombineChunks)
+    registrar.Parameter("combine_chunks", &TMergeOperationSpec::CombineChunks)
         .Default(false);
-    RegisterParameter("force_transform", ForceTransform)
+    registrar.Parameter("force_transform", &TMergeOperationSpec::ForceTransform)
         .Default(false);
-    RegisterParameter("merge_by", MergeBy)
+    registrar.Parameter("merge_by", &TMergeOperationSpec::MergeBy)
         .Default();
-    RegisterParameter("schema_inference_mode", SchemaInferenceMode)
+    registrar.Parameter("schema_inference_mode", &TMergeOperationSpec::SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
 
-    RegisterPostprocessor([&] {
-        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
-        OutputTablePath = OutputTablePath.Normalize();
+    registrar.Postprocessor([] (TMergeOperationSpec* spec) {
+        spec->InputTablePaths = NYT::NYPath::Normalize(spec->InputTablePaths);
+        spec->OutputTablePath = spec->OutputTablePath.Normalize();
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEraseOperationSpec::TEraseOperationSpec()
+void TEraseOperationSpec::Register(TRegistrar registrar)
 {
-    RegisterParameter("table_path", TablePath);
-    RegisterParameter("combine_chunks", CombineChunks)
+    registrar.Parameter("table_path", &TEraseOperationSpec::TablePath);
+    registrar.Parameter("combine_chunks", &TEraseOperationSpec::CombineChunks)
         .Default(false);
-    RegisterParameter("schema_inference_mode", SchemaInferenceMode)
+    registrar.Parameter("schema_inference_mode", &TEraseOperationSpec::SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
 
-    RegisterPostprocessor([&] {
-        TablePath = TablePath.Normalize();
+    registrar.Postprocessor([&] (TEraseOperationSpec* spec) {
+        spec->TablePath = spec->TablePath.Normalize();
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSortedOperationSpec::TSortedOperationSpec()
+void TSortedOperationSpec::Register(TRegistrar registrar)
 {
-    RegisterParameter("use_new_sorted_pool", UseNewSortedPool)
+    registrar.Parameter("use_new_sorted_pool", &TSortedOperationSpec::UseNewSortedPool)
         .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReduceOperationSpec::TReduceOperationSpec()
+void TReduceOperationSpec::Register(TRegistrar registrar)
 {
-    RegisterParameter("reducer", Reducer)
+    registrar.Parameter("reducer", &TReduceOperationSpec::Reducer)
         .DefaultNew();
-    RegisterParameter("input_table_paths", InputTablePaths)
+    registrar.Parameter("input_table_paths", &TReduceOperationSpec::InputTablePaths)
         .NonEmpty();
-    RegisterParameter("output_table_paths", OutputTablePaths)
+    registrar.Parameter("output_table_paths", &TReduceOperationSpec::OutputTablePaths)
         .Default();
 
-    RegisterParameter("reduce_by", ReduceBy)
+    registrar.Parameter("reduce_by", &TReduceOperationSpec::ReduceBy)
         .Default();
-    RegisterParameter("sort_by", SortBy)
+    registrar.Parameter("sort_by", &TReduceOperationSpec::SortBy)
         .Default();
-    RegisterParameter("join_by", JoinBy)
-        .Default();
-
-    RegisterParameter("enable_key_guarantee", EnableKeyGuarantee)
+    registrar.Parameter("join_by", &TReduceOperationSpec::JoinBy)
         .Default();
 
-    RegisterParameter("pivot_keys", PivotKeys)
+    registrar.Parameter("enable_key_guarantee", &TReduceOperationSpec::EnableKeyGuarantee)
         .Default();
 
-    RegisterParameter("validate_key_column_types", ValidateKeyColumnTypes)
+    registrar.Parameter("pivot_keys", &TReduceOperationSpec::PivotKeys)
+        .Default();
+
+    registrar.Parameter("validate_key_column_types", &TReduceOperationSpec::ValidateKeyColumnTypes)
         .Default(true);
 
-    RegisterParameter("consider_only_primary_size", ConsiderOnlyPrimarySize)
+    registrar.Parameter("consider_only_primary_size", &TReduceOperationSpec::ConsiderOnlyPrimarySize)
         .Default(false);
 
-    RegisterParameter("slice_foreign_chunks", SliceForeignChunks)
+    registrar.Parameter("slice_foreign_chunks", &TReduceOperationSpec::SliceForeignChunks)
         .Default(false);
 
-    RegisterPostprocessor([&] () {
-        NTableClient::ValidateSortColumns(JoinBy);
-        NTableClient::ValidateSortColumns(ReduceBy);
-        NTableClient::ValidateSortColumns(SortBy);
+    registrar.Postprocessor([] (TReduceOperationSpec* spec) {
+        NTableClient::ValidateSortColumns(spec->JoinBy);
+        NTableClient::ValidateSortColumns(spec->ReduceBy);
+        NTableClient::ValidateSortColumns(spec->SortBy);
 
-        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
-        OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
+        spec->InputTablePaths = NYT::NYPath::Normalize(spec->InputTablePaths);
+        spec->OutputTablePaths = NYT::NYPath::Normalize(spec->OutputTablePaths);
 
         bool hasPrimary = false;
-        for (const auto& path : InputTablePaths) {
+        for (const auto& path : spec->InputTablePaths) {
             hasPrimary |= path.GetPrimary();
         }
         if (hasPrimary) {
-            for (auto& path: InputTablePaths) {
+            for (auto& path: spec->InputTablePaths) {
                 path.Attributes().Set("foreign", !path.GetPrimary());
                 path.Attributes().Remove("primary");
             }
         }
 
-        Reducer->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
-        Reducer->TaskTitle = "Reducer";
+        spec->Reducer->InitEnableInputTableIndex(spec->InputTablePaths.size(), spec->JobIO);
+        spec->Reducer->TaskTitle = "Reducer";
 
-        ValidateNoOutputStreams(Reducer, EOperationType::Reduce);
+        ValidateNoOutputStreams(spec->Reducer, EOperationType::Reduce);
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSortOperationSpecBase::TSortOperationSpecBase()
+void TSortOperationSpecBase::Register(TRegistrar registrar)
 {
-    RegisterParameter("input_table_paths", InputTablePaths)
+    registrar.Parameter("input_table_paths", &TSortOperationSpecBase::InputTablePaths)
         .NonEmpty();
-    RegisterParameter("partition_count", PartitionCount)
+    registrar.Parameter("partition_count", &TSortOperationSpecBase::PartitionCount)
         .Default()
         .GreaterThan(0);
-    RegisterParameter("max_partition_factor", MaxPartitionFactor)
+    registrar.Parameter("max_partition_factor", &TSortOperationSpecBase::MaxPartitionFactor)
         .Default()
         .GreaterThan(1);
-    RegisterParameter("partition_data_weight", PartitionDataWeight)
+    registrar.Parameter("partition_data_weight", &TSortOperationSpecBase::PartitionDataWeight)
         .Alias("partition_data_size")
         .Default()
         .GreaterThan(0);
-    RegisterParameter("data_weight_per_sort_job", DataWeightPerShuffleJob)
+    registrar.Parameter("data_weight_per_sort_job", &TSortOperationSpecBase::DataWeightPerShuffleJob)
         .Alias("data_size_per_sort_job")
         .Default(2_GB)
         .GreaterThan(0);
-    RegisterParameter("data_weight_per_intermediate_partition_job", DataWeightPerIntermediatePartitionJob)
+    registrar.Parameter("data_weight_per_intermediate_partition_job", &TSortOperationSpecBase::DataWeightPerIntermediatePartitionJob)
         .Default(2_GB)
         .GreaterThan(0);
-    RegisterParameter("max_chunk_slice_per_shuffle_job", MaxChunkSlicePerShuffleJob)
+    registrar.Parameter("max_chunk_slice_per_shuffle_job", &TSortOperationSpecBase::MaxChunkSlicePerShuffleJob)
         .Default(8000)
         .GreaterThan(0);
-    RegisterParameter("max_chunk_slice_per_intermediate_partition_job", MaxChunkSlicePerIntermediatePartitionJob)
+    registrar.Parameter("max_chunk_slice_per_intermediate_partition_job", &TSortOperationSpecBase::MaxChunkSlicePerIntermediatePartitionJob)
         .Default(8000)
         .GreaterThan(0);
-    RegisterParameter("shuffle_start_threshold", ShuffleStartThreshold)
+    registrar.Parameter("shuffle_start_threshold", &TSortOperationSpecBase::ShuffleStartThreshold)
         .Default(0.75)
         .InRange(0.0, 1.0);
-    RegisterParameter("merge_start_threshold", MergeStartThreshold)
+    registrar.Parameter("merge_start_threshold", &TSortOperationSpecBase::MergeStartThreshold)
         .Default(0.9)
         .InRange(0.0, 1.0);
-    RegisterParameter("sort_locality_timeout", SortLocalityTimeout)
+    registrar.Parameter("sort_locality_timeout", &TSortOperationSpecBase::SortLocalityTimeout)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("shuffle_network_limit", ShuffleNetworkLimit)
+    registrar.Parameter("shuffle_network_limit", &TSortOperationSpecBase::ShuffleNetworkLimit)
         .Default(0);
-    RegisterParameter("max_shuffle_data_slice_count", MaxShuffleDataSliceCount)
+    registrar.Parameter("max_shuffle_data_slice_count", &TSortOperationSpecBase::MaxShuffleDataSliceCount)
         .GreaterThan(0)
         .Default(10'000'000);
-    RegisterParameter("max_shuffle_job_count", MaxShuffleJobCount)
+    registrar.Parameter("max_shuffle_job_count", &TSortOperationSpecBase::MaxShuffleJobCount)
         .GreaterThan(0)
         .Default(200'000);
-    RegisterParameter("max_merge_data_slice_count", MaxMergeDataSliceCount)
+    registrar.Parameter("max_merge_data_slice_count", &TSortOperationSpecBase::MaxMergeDataSliceCount)
         .GreaterThan(0)
         .Default(10'000'000);
-    RegisterParameter("sort_by", SortBy)
+    registrar.Parameter("sort_by", &TSortOperationSpecBase::SortBy)
         .Default();
-    RegisterParameter("enable_partitioned_data_balancing", EnablePartitionedDataBalancing)
+    registrar.Parameter("enable_partitioned_data_balancing", &TSortOperationSpecBase::EnablePartitionedDataBalancing)
         .Default(true);
-    RegisterParameter("enable_intermediate_output_recalculation", EnableIntermediateOutputRecalculation)
+    registrar.Parameter("enable_intermediate_output_recalculation", &TSortOperationSpecBase::EnableIntermediateOutputRecalculation)
         .Default(true);
-    RegisterParameter("pivot_keys", PivotKeys)
+    registrar.Parameter("pivot_keys", &TSortOperationSpecBase::PivotKeys)
         .Default();
-    RegisterParameter("use_new_partitions_heuristic", UseNewPartitionsHeuristic)
+    registrar.Parameter("use_new_partitions_heuristic", &TSortOperationSpecBase::UseNewPartitionsHeuristic)
         .Default(false);
-    RegisterParameter("partition_size_factor", PartitionSizeFactor)
+    registrar.Parameter("partition_size_factor", &TSortOperationSpecBase::PartitionSizeFactor)
         .GreaterThan(0)
         .LessThanOrEqual(1)
         .Default(0.7);
-    RegisterParameter("use_new_sorted_pool", UseNewSortedPool)
+    registrar.Parameter("use_new_sorted_pool", &TSortOperationSpecBase::UseNewSortedPool)
         .Default(false);
-    RegisterParameter("new_partitions_heuristic_probability", NewPartitionsHeuristicProbability)
+    registrar.Parameter("new_partitions_heuristic_probability", &TSortOperationSpecBase::NewPartitionsHeuristicProbability)
         .Default(0)
         .InRange(0, 256);
 
-    RegisterPostprocessor([&] {
-        NTableClient::ValidateSortColumns(SortBy);
+    registrar.Postprocessor([] (TSortOperationSpecBase* spec) {
+        NTableClient::ValidateSortColumns(spec->SortBy);
 
-        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
+        spec->InputTablePaths = NYT::NYPath::Normalize(spec->InputTablePaths);
 
         // Validate pivot_keys.
-        for (const auto& pivotKey : PivotKeys) {
+        for (const auto& pivotKey : spec->PivotKeys) {
             try {
                 for (const auto& value : pivotKey) {
                     ValidateDataValueType(value.Type);
@@ -1272,21 +1272,21 @@ TSortOperationSpecBase::TSortOperationSpecBase()
                 THROW_ERROR_EXCEPTION(TError("Pivot keys are invalid") << ex);
             }
 
-            if (pivotKey.GetCount() > std::ssize(SortBy)) {
+            if (pivotKey.GetCount() > std::ssize(spec->SortBy)) {
                 THROW_ERROR_EXCEPTION("Pivot key cannot be longer than sort_by")
                     << TErrorAttribute("key", pivotKey)
-                    << TErrorAttribute("sort_by", SortBy);
+                    << TErrorAttribute("sort_by", spec->SortBy);
             }
         }
 
-        auto sortComparator = GetComparator(SortBy);
-        for (int index = 0; index + 1 < std::ssize(PivotKeys); ++index) {
-            const auto& upperBound = TKeyBound::FromRow() < PivotKeys[index];
-            const auto& nextUpperBound = TKeyBound::FromRow() < PivotKeys[index + 1];
+        auto sortComparator = GetComparator(spec->SortBy);
+        for (int index = 0; index + 1 < std::ssize(spec->PivotKeys); ++index) {
+            const auto& upperBound = TKeyBound::FromRow() < spec->PivotKeys[index];
+            const auto& nextUpperBound = TKeyBound::FromRow() < spec->PivotKeys[index + 1];
             if (sortComparator.CompareKeyBounds(upperBound, nextUpperBound) >= 0) {
                 THROW_ERROR_EXCEPTION("Pivot keys should should form a strictly increasing sequence")
-                    << TErrorAttribute("pivot_key", PivotKeys[index])
-                    << TErrorAttribute("next_pivot_key", PivotKeys[index + 1])
+                    << TErrorAttribute("pivot_key", spec->PivotKeys[index])
+                    << TErrorAttribute("next_pivot_key", spec->PivotKeys[index + 1])
                     << TErrorAttribute("comparator", sortComparator);
             }
         }
@@ -1295,71 +1295,71 @@ TSortOperationSpecBase::TSortOperationSpecBase()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSortOperationSpec::TSortOperationSpec()
+void TSortOperationSpec::Register(TRegistrar registrar)
 {
-    RegisterParameter("output_table_path", OutputTablePath);
-    RegisterParameter("samples_per_partition", SamplesPerPartition)
+    registrar.Parameter("output_table_path", &TSortOperationSpec::OutputTablePath);
+    registrar.Parameter("samples_per_partition", &TSortOperationSpec::SamplesPerPartition)
         .Default(1000)
         .GreaterThan(1);
-    RegisterParameter("partition_job_io", PartitionJobIO)
+    registrar.BaseClassParameter("partition_job_io", &TSortOperationSpec::PartitionJobIO)
         .DefaultNew();
-    RegisterParameter("sort_job_io", SortJobIO)
+    registrar.BaseClassParameter("sort_job_io", &TSortOperationSpec::SortJobIO)
         .DefaultNew();
-    RegisterParameter("merge_job_io", MergeJobIO)
+    registrar.BaseClassParameter("merge_job_io", &TSortOperationSpec::MergeJobIO)
         .DefaultNew();
 
     // Provide custom names for shared settings.
-    RegisterParameter("partition_job_count", PartitionJobCount)
+    registrar.BaseClassParameter("partition_job_count", &TSortOperationSpec::PartitionJobCount)
         .Default()
         .GreaterThan(0);
-    RegisterParameter("data_weight_per_partition_job", DataWeightPerPartitionJob)
+    registrar.BaseClassParameter("data_weight_per_partition_job", &TSortOperationSpec::DataWeightPerPartitionJob)
         .Alias("data_size_per_partition_job")
         .Default()
         .GreaterThan(0);
-    RegisterParameter("simple_sort_locality_timeout", SimpleSortLocalityTimeout)
+    registrar.BaseClassParameter("simple_sort_locality_timeout", &TSortOperationSpec::SimpleSortLocalityTimeout)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("simple_merge_locality_timeout", SimpleMergeLocalityTimeout)
+    registrar.BaseClassParameter("simple_merge_locality_timeout", &TSortOperationSpec::SimpleMergeLocalityTimeout)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("partition_locality_timeout", PartitionLocalityTimeout)
+    registrar.BaseClassParameter("partition_locality_timeout", &TSortOperationSpec::PartitionLocalityTimeout)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("merge_locality_timeout", MergeLocalityTimeout)
+    registrar.BaseClassParameter("merge_locality_timeout", &TSortOperationSpec::MergeLocalityTimeout)
         .Default(TDuration::Minutes(1));
 
-    RegisterParameter("max_input_data_weight", MaxInputDataWeight)
+    registrar.Parameter("max_input_data_weight", &TSortOperationSpec::MaxInputDataWeight)
         .GreaterThan(0)
         .Default(5_PB);
 
-    RegisterParameter("schema_inference_mode", SchemaInferenceMode)
+    registrar.Parameter("schema_inference_mode", &TSortOperationSpec::SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
 
-    RegisterParameter("data_weight_per_sorted_merge_job", DataWeightPerSortedJob)
+    registrar.BaseClassParameter("data_weight_per_sorted_merge_job", &TSortOperationSpec::DataWeightPerSortedJob)
         .Alias("data_size_per_sorted_merge_job")
         .Default();
 
-    RegisterPreprocessor([&] () {
-        PartitionJobIO->TableReader->MaxBufferSize = 1_GB;
-        PartitionJobIO->TableWriter->MaxBufferSize = 2_GB;
+    registrar.Preprocessor([] (TSortOperationSpec* spec) {
+        spec->PartitionJobIO->TableReader->MaxBufferSize = 1_GB;
+        spec->PartitionJobIO->TableWriter->MaxBufferSize = 2_GB;
 
-        SortJobIO->TableReader->MaxBufferSize = 1_GB;
-        SortJobIO->TableReader->RetryCount = 3;
-        SortJobIO->TableReader->PassCount = 50;
+        spec->SortJobIO->TableReader->MaxBufferSize = 1_GB;
+        spec->SortJobIO->TableReader->RetryCount = 3;
+        spec->SortJobIO->TableReader->PassCount = 50;
 
         // Output slices must be small enough to make reasonable jobs in sorted chunk pool.
-        SortJobIO->TableWriter->DesiredChunkWeight = 256_MB;
-        MergeJobIO->TableReader->RetryCount = 3;
-        MergeJobIO->TableReader->PassCount = 50;
+        spec->SortJobIO->TableWriter->DesiredChunkWeight = 256_MB;
+        spec->MergeJobIO->TableReader->RetryCount = 3;
+        spec->MergeJobIO->TableReader->PassCount = 50;
 
-        MapSelectivityFactor = 1.0;
+        spec->MapSelectivityFactor = 1.0;
     });
 
-    RegisterPostprocessor([&] {
-        OutputTablePath = OutputTablePath.Normalize();
+    registrar.Postprocessor([&] (TSortOperationSpec* spec) {
+        spec->OutputTablePath = spec->OutputTablePath.Normalize();
 
-        if (SortBy.empty()) {
+        if (spec->SortBy.empty()) {
             THROW_ERROR_EXCEPTION("\"sort_by\" option should be set in Sort operations");
         }
 
-        if (Sampling && Sampling->SamplingRate) {
+        if (spec->Sampling && spec->Sampling->SamplingRate) {
             THROW_ERROR_EXCEPTION("Sampling in sort operation is not supported");
         }
     });
@@ -1367,55 +1367,55 @@ TSortOperationSpec::TSortOperationSpec()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMapReduceOperationSpec::TMapReduceOperationSpec()
+void TMapReduceOperationSpec::Register(TRegistrar registrar)
 {
-    RegisterParameter("output_table_paths", OutputTablePaths)
+    registrar.Parameter("output_table_paths", &TMapReduceOperationSpec::OutputTablePaths)
         .NonEmpty();
-    RegisterParameter("reduce_by", ReduceBy)
+    registrar.Parameter("reduce_by", &TMapReduceOperationSpec::ReduceBy)
         .Default();
     // Mapper can be absent -- leave it null by default.
-    RegisterParameter("mapper", Mapper)
+    registrar.Parameter("mapper", &TMapReduceOperationSpec::Mapper)
         .Default();
     // ReduceCombiner can be absent -- leave it null by default.
-    RegisterParameter("reduce_combiner", ReduceCombiner)
+    registrar.Parameter("reduce_combiner", &TMapReduceOperationSpec::ReduceCombiner)
         .Default();
-    RegisterParameter("reducer", Reducer)
+    registrar.Parameter("reducer", &TMapReduceOperationSpec::Reducer)
         .DefaultNew();
-    RegisterParameter("map_job_io", PartitionJobIO)
+    registrar.BaseClassParameter("map_job_io", &TMapReduceOperationSpec::PartitionJobIO)
         .DefaultNew();
-    RegisterParameter("sort_job_io", SortJobIO)
+    registrar.BaseClassParameter("sort_job_io", &TMapReduceOperationSpec::SortJobIO)
         .DefaultNew();
-    RegisterParameter("reduce_job_io", MergeJobIO)
+    registrar.BaseClassParameter("reduce_job_io", &TMapReduceOperationSpec::MergeJobIO)
         .DefaultNew();
 
-    RegisterParameter("mapper_output_table_count", MapperOutputTableCount)
+    registrar.Parameter("mapper_output_table_count", &TMapReduceOperationSpec::MapperOutputTableCount)
         .Default(0)
         .GreaterThanOrEqual(0);
 
     // Provide custom names for shared settings.
-    RegisterParameter("map_job_count", PartitionJobCount)
+    registrar.BaseClassParameter("map_job_count", &TMapReduceOperationSpec::PartitionJobCount)
         .Default()
         .GreaterThan(0);
-    RegisterParameter("data_weight_per_map_job", DataWeightPerPartitionJob)
+    registrar.BaseClassParameter("data_weight_per_map_job", &TMapReduceOperationSpec::DataWeightPerPartitionJob)
         .Alias("data_size_per_map_job")
         .Default()
         .GreaterThan(0);
-    RegisterParameter("map_locality_timeout", PartitionLocalityTimeout)
+    registrar.BaseClassParameter("map_locality_timeout", &TMapReduceOperationSpec::PartitionLocalityTimeout)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("reduce_locality_timeout", MergeLocalityTimeout)
+    registrar.BaseClassParameter("reduce_locality_timeout", &TMapReduceOperationSpec::MergeLocalityTimeout)
         .Default(TDuration::Minutes(1));
-    RegisterParameter("map_selectivity_factor", MapSelectivityFactor)
+    registrar.BaseClassParameter("map_selectivity_factor", &TMapReduceOperationSpec::MapSelectivityFactor)
         .Default(1.0)
         .GreaterThan(0);
 
-    RegisterParameter("data_weight_per_reduce_job", DataWeightPerSortedJob)
+    registrar.BaseClassParameter("data_weight_per_reduce_job", &TMapReduceOperationSpec::DataWeightPerSortedJob)
         .Alias("data_size_per_reduce_job")
         .Default();
 
-    RegisterParameter("force_reduce_combiners", ForceReduceCombiners)
+    registrar.Parameter("force_reduce_combiners", &TMapReduceOperationSpec::ForceReduceCombiners)
         .Default(false);
 
-    RegisterParameter("ordered", Ordered)
+    registrar.Parameter("ordered", &TMapReduceOperationSpec::Ordered)
         .Default(false);
 
     // The following settings are inherited from base but make no sense for map-reduce:
@@ -1423,22 +1423,22 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
     //   SimpleMergeLocalityTimeout
     //   MapSelectivityFactor
 
-    RegisterPreprocessor([&] () {
-        PartitionJobIO->TableReader->MaxBufferSize = 256_MB;
-        PartitionJobIO->TableWriter->MaxBufferSize = 2_GB;
+    registrar.Preprocessor([] (TMapReduceOperationSpec* spec) {
+        spec->PartitionJobIO->TableReader->MaxBufferSize = 256_MB;
+        spec->PartitionJobIO->TableWriter->MaxBufferSize = 2_GB;
 
-        SortJobIO->TableReader->MaxBufferSize = 1_GB;
+        spec->SortJobIO->TableReader->MaxBufferSize = 1_GB;
         // Output slices must be small enough to make reasonable jobs in sorted chunk pool.
-        SortJobIO->TableWriter->DesiredChunkWeight = 256_MB;
+        spec->SortJobIO->TableWriter->DesiredChunkWeight = 256_MB;
 
-        SortJobIO->TableReader->RetryCount = 3;
-        SortJobIO->TableReader->PassCount = 50;
+        spec->SortJobIO->TableReader->RetryCount = 3;
+        spec->SortJobIO->TableReader->PassCount = 50;
 
-        MergeJobIO->TableReader->RetryCount = 3;
-        MergeJobIO->TableReader->PassCount = 50 ;
+        spec->MergeJobIO->TableReader->RetryCount = 3;
+        spec->MergeJobIO->TableReader->PassCount = 50 ;
     });
 
-    RegisterPostprocessor([&] () {
+    registrar.Postprocessor([] (TMapReduceOperationSpec* spec) {
         auto throwError = [] (NTableClient::EControlAttribute attribute, const TString& jobType) {
             THROW_ERROR_EXCEPTION(
                 "%Qlv control attribute is not supported by %Qlv jobs in map-reduce operation",
@@ -1456,50 +1456,50 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
                 throwError(NTableClient::EControlAttribute::TabletIndex, jobType);
             }
         };
-        if (ForceReduceCombiners && !HasNontrivialReduceCombiner()) {
+        if (spec->ForceReduceCombiners && !spec->HasNontrivialReduceCombiner()) {
             THROW_ERROR_EXCEPTION("Found \"force_reduce_combiners\" without nontrivial \"reduce_combiner\" in operation spec");
         }
-        validateControlAttributes(MergeJobIO->ControlAttributes, "reduce");
-        validateControlAttributes(SortJobIO->ControlAttributes, "reduce_combiner");
+        validateControlAttributes(spec->MergeJobIO->ControlAttributes, "reduce");
+        validateControlAttributes(spec->SortJobIO->ControlAttributes, "reduce_combiner");
 
-        if (HasNontrivialReduceCombiner()) {
-            if (MergeJobIO->ControlAttributes->EnableTableIndex != SortJobIO->ControlAttributes->EnableTableIndex) {
+        if (spec->HasNontrivialReduceCombiner()) {
+            if (spec->MergeJobIO->ControlAttributes->EnableTableIndex != spec->SortJobIO->ControlAttributes->EnableTableIndex) {
                 THROW_ERROR_EXCEPTION("%Qlv control attribute must be the same for \"reduce\" and \"reduce_combiner\" jobs",
                     NTableClient::EControlAttribute::TableIndex);
             }
         }
 
-        if (!ReduceBy.empty()) {
-            NTableClient::ValidateKeyColumns(ReduceBy);
+        if (!spec->ReduceBy.empty()) {
+            NTableClient::ValidateKeyColumns(spec->ReduceBy);
         }
 
-        if (ReduceBy.empty()) {
-            ReduceBy = GetColumnNames(SortBy);
+        if (spec->ReduceBy.empty()) {
+            spec->ReduceBy = GetColumnNames(spec->SortBy);
         }
 
-        if (SortBy.empty()) {
-            for (const auto& reduceColumn : ReduceBy) {
-                SortBy.push_back(TColumnSortSchema{
+        if (spec->SortBy.empty()) {
+            for (const auto& reduceColumn : spec->ReduceBy) {
+                spec->SortBy.push_back(TColumnSortSchema{
                     .Name = reduceColumn,
                     .SortOrder = ESortOrder::Ascending
                 });
             }
         }
 
-        if (ReduceBy.empty() && SortBy.empty()) {
+        if (spec->ReduceBy.empty() && spec->SortBy.empty()) {
             THROW_ERROR_EXCEPTION("At least one of the \"sort_by\" or \"reduce_by\" fields shold be specified");
         }
 
-        if (HasNontrivialMapper()) {
-            for (const auto& stream : Mapper->OutputStreams) {
-                if (stream->Schema->GetSortColumns() != SortBy) {
+        if (spec->HasNontrivialMapper()) {
+            for (const auto& stream : spec->Mapper->OutputStreams) {
+                if (stream->Schema->GetSortColumns() != spec->SortBy) {
                     THROW_ERROR_EXCEPTION("Schemas of mapper output streams should have exactly "
                         "\"sort_by\" sort column prefix")
                         << TErrorAttribute("violating_schema", stream->Schema)
-                        << TErrorAttribute("sort_by", SortBy);
+                        << TErrorAttribute("sort_by", spec->SortBy);
                 }
-                auto sortColumnNames = GetColumnNames(SortBy);
-                const auto& firstStream = Mapper->OutputStreams.front();
+                auto sortColumnNames = GetColumnNames(spec->SortBy);
+                const auto& firstStream = spec->Mapper->OutputStreams.front();
                 if (*stream->Schema->Filter(sortColumnNames) != *firstStream->Schema->Filter(sortColumnNames)) {
                     THROW_ERROR_EXCEPTION("Key columns of mapper output streams should have the same names and types")
                         << TErrorAttribute("lhs_schema", firstStream->Schema)
@@ -1508,56 +1508,56 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
             }
         }
 
-        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
-        OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
+        spec->InputTablePaths = NYT::NYPath::Normalize(spec->InputTablePaths);
+        spec->OutputTablePaths = NYT::NYPath::Normalize(spec->OutputTablePaths);
 
-        if (HasNontrivialMapper()) {
-            Mapper->InitEnableInputTableIndex(InputTablePaths.size(), PartitionJobIO);
-            Mapper->TaskTitle = "Mapper";
+        if (spec->HasNontrivialMapper()) {
+            spec->Mapper->InitEnableInputTableIndex(spec->InputTablePaths.size(), spec->PartitionJobIO);
+            spec->Mapper->TaskTitle = "Mapper";
         }
 
         auto intermediateStreamCount = 1;
-        if (HasNontrivialMapper()) {
-            if (!Mapper->OutputStreams.empty()) {
-                intermediateStreamCount = Mapper->OutputStreams.size();
+        if (spec->HasNontrivialMapper()) {
+            if (!spec->Mapper->OutputStreams.empty()) {
+                intermediateStreamCount = spec->Mapper->OutputStreams.size();
             }
         } else {
-            if (MergeJobIO->ControlAttributes->EnableTableIndex) {
-                intermediateStreamCount = InputTablePaths.size();
+            if (spec->MergeJobIO->ControlAttributes->EnableTableIndex) {
+                intermediateStreamCount = spec->InputTablePaths.size();
             }
         }
 
         if (intermediateStreamCount > 1) {
-            if (!HasNontrivialMapper()) {
-                PartitionJobIO->ControlAttributes->EnableTableIndex = true;
+            if (!spec->HasNontrivialMapper()) {
+                spec->PartitionJobIO->ControlAttributes->EnableTableIndex = true;
             }
-            MergeJobIO->ControlAttributes->EnableTableIndex = true;
-            SortJobIO->ControlAttributes->EnableTableIndex = true;
+            spec->MergeJobIO->ControlAttributes->EnableTableIndex = true;
+            spec->SortJobIO->ControlAttributes->EnableTableIndex = true;
         }
 
-        if (HasNontrivialReduceCombiner()) {
+        if (spec->HasNontrivialReduceCombiner()) {
             if (intermediateStreamCount > 1) {
                 THROW_ERROR_EXCEPTION("Nontrivial reduce combiner is not allowed with several intermediate streams");
             }
-            ReduceCombiner->InitEnableInputTableIndex(intermediateStreamCount, SortJobIO);
-            ReduceCombiner->TaskTitle = "Reduce combiner";
+            spec->ReduceCombiner->InitEnableInputTableIndex(intermediateStreamCount, spec->SortJobIO);
+            spec->ReduceCombiner->TaskTitle = "Reduce combiner";
         }
 
-        Reducer->InitEnableInputTableIndex(intermediateStreamCount, MergeJobIO);
-        Reducer->TaskTitle = "Reducer";
+        spec->Reducer->InitEnableInputTableIndex(intermediateStreamCount, spec->MergeJobIO);
+        spec->Reducer->TaskTitle = "Reducer";
 
-        if (Sampling && Sampling->SamplingRate) {
-            MapSelectivityFactor *= *Sampling->SamplingRate;
+        if (spec->Sampling && spec->Sampling->SamplingRate) {
+            spec->MapSelectivityFactor *= *spec->Sampling->SamplingRate;
         }
 
-        if (MapperOutputTableCount >= std::ssize(OutputTablePaths) ||
-            (HasNontrivialMapper() && !Mapper->OutputStreams.empty() && MapperOutputTableCount >= std::ssize(Mapper->OutputStreams)))
+        if (spec->MapperOutputTableCount >= std::ssize(spec->OutputTablePaths) ||
+            (spec->HasNontrivialMapper() && !spec->Mapper->OutputStreams.empty() && spec->MapperOutputTableCount >= std::ssize(spec->Mapper->OutputStreams)))
         {
             THROW_ERROR_EXCEPTION(
                 "There should be at least one non-mapper output table; maybe you need Map operation instead?")
-                << TErrorAttribute("mapper_output_table_count", MapperOutputTableCount)
-                << TErrorAttribute("output_table_count", OutputTablePaths.size())
-                << TErrorAttribute("mapper_output_stream_count", Mapper->OutputStreams.size());
+                << TErrorAttribute("mapper_output_table_count", spec->MapperOutputTableCount)
+                << TErrorAttribute("output_table_count", spec->OutputTablePaths.size())
+                << TErrorAttribute("mapper_output_stream_count", spec->Mapper->OutputStreams.size());
         }
     });
 }
@@ -1582,54 +1582,54 @@ bool TMapReduceOperationSpec::HasSchemafulIntermediateStreams() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRemoteCopyOperationSpec::TRemoteCopyOperationSpec()
+void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
 {
-    RegisterParameter("cluster_name", ClusterName)
+    registrar.Parameter("cluster_name", &TRemoteCopyOperationSpec::ClusterName)
         .Default();
-    RegisterParameter("input_table_paths", InputTablePaths)
+    registrar.Parameter("input_table_paths", &TRemoteCopyOperationSpec::InputTablePaths)
         .NonEmpty();
-    RegisterParameter("output_table_path", OutputTablePath);
-    RegisterParameter("network_name", NetworkName)
+    registrar.Parameter("output_table_path", &TRemoteCopyOperationSpec::OutputTablePath);
+    registrar.Parameter("network_name", &TRemoteCopyOperationSpec::NetworkName)
         .Default();
-    RegisterParameter("cluster_connection", ClusterConnection)
+    registrar.Parameter("cluster_connection", &TRemoteCopyOperationSpec::ClusterConnection)
         .Default();
-    RegisterParameter("max_chunk_count_per_job", MaxChunkCountPerJob)
+    registrar.Parameter("max_chunk_count_per_job", &TRemoteCopyOperationSpec::MaxChunkCountPerJob)
         .Default(1000);
-    RegisterParameter("copy_attributes", CopyAttributes)
+    registrar.Parameter("copy_attributes", &TRemoteCopyOperationSpec::CopyAttributes)
         .Default(false);
-    RegisterParameter("attribute_keys", AttributeKeys)
+    registrar.Parameter("attribute_keys", &TRemoteCopyOperationSpec::AttributeKeys)
         .Default();
-    RegisterParameter("concurrency", Concurrency)
+    registrar.Parameter("concurrency", &TRemoteCopyOperationSpec::Concurrency)
         .Default(4);
-    RegisterParameter("block_buffer_size", BlockBufferSize)
+    registrar.Parameter("block_buffer_size", &TRemoteCopyOperationSpec::BlockBufferSize)
         .Default(64_MB);
-    RegisterParameter("schema_inference_mode", SchemaInferenceMode)
+    registrar.Parameter("schema_inference_mode", &TRemoteCopyOperationSpec::SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
-    RegisterParameter("delay_in_copy_chunk", DelayInCopyChunk)
+    registrar.Parameter("delay_in_copy_chunk", &TRemoteCopyOperationSpec::DelayInCopyChunk)
         .Default(TDuration::Zero());
-    RegisterParameter("erasure_chunk_repair_delay", ErasureChunkRepairDelay)
+    registrar.Parameter("erasure_chunk_repair_delay", &TRemoteCopyOperationSpec::ErasureChunkRepairDelay)
         .Default(TDuration::Minutes(15));
-    RegisterParameter("repair_erasure_chunks", RepairErasureChunks)
+    registrar.Parameter("repair_erasure_chunks", &TRemoteCopyOperationSpec::RepairErasureChunks)
         .Default(false);
 
-    RegisterPreprocessor([&] {
+    registrar.Preprocessor([] (TRemoteCopyOperationSpec* spec) {
         // NB: in remote copy operation chunks are never decompressed,
         // so the data weight does not affect anything.
-        MaxDataWeightPerJob = std::numeric_limits<i64>::max();
+        spec->MaxDataWeightPerJob = std::numeric_limits<i64>::max();
     });
-    RegisterPostprocessor([&] {
-        if (InputTablePaths.size() > 1) {
+    registrar.Postprocessor([] (TRemoteCopyOperationSpec* spec) {
+        if (spec->InputTablePaths.size() > 1) {
             THROW_ERROR_EXCEPTION("Multiple tables in remote copy are not supported");
         }
 
-        InputTablePaths = NYPath::Normalize(InputTablePaths);
-        OutputTablePath = OutputTablePath.Normalize();
+        spec->InputTablePaths = NYPath::Normalize(spec->InputTablePaths);
+        spec->OutputTablePath = spec->OutputTablePath.Normalize();
 
-        if (!ClusterName && !ClusterConnection) {
+        if (!spec->ClusterName && !spec->ClusterConnection) {
             THROW_ERROR_EXCEPTION("Neither cluster name nor cluster connection specified.");
         }
 
-        if (Sampling && Sampling->SamplingRate) {
+        if (spec->Sampling && spec->Sampling->SamplingRate) {
             THROW_ERROR_EXCEPTION("You do not want sampling in remote copy operation :)");
         }
     });
@@ -1637,13 +1637,13 @@ TRemoteCopyOperationSpec::TRemoteCopyOperationSpec()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TVanillaOperationSpec::TVanillaOperationSpec()
+void TVanillaOperationSpec::Register(TRegistrar registrar)
 {
-    RegisterParameter("tasks", Tasks)
+    registrar.Parameter("tasks", &TVanillaOperationSpec::Tasks)
         .NonEmpty();
 
-    RegisterPostprocessor([&] {
-        for (const auto& [taskName, taskSpec] : Tasks) {
+    registrar.Postprocessor([] (TVanillaOperationSpec* spec) {
+        for (const auto& [taskName, taskSpec] : spec->Tasks) {
             if (taskName.empty()) {
                 THROW_ERROR_EXCEPTION("Empty task names are not allowed");
             }
@@ -1653,7 +1653,7 @@ TVanillaOperationSpec::TVanillaOperationSpec()
             ValidateNoOutputStreams(taskSpec, EOperationType::Vanilla);
         }
 
-        if (Sampling && Sampling->SamplingRate) {
+        if (spec->Sampling && spec->Sampling->SamplingRate) {
             THROW_ERROR_EXCEPTION("You do not want sampling in vanilla operation :)");
         }
     });
@@ -1661,70 +1661,70 @@ TVanillaOperationSpec::TVanillaOperationSpec()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobResourcesConfig::TJobResourcesConfig()
+void TJobResourcesConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("user_slots", UserSlots)
+    registrar.BaseClassParameter("user_slots", &TJobResourcesConfig::UserSlots)
         .Default()
         .GreaterThanOrEqual(0);
-    RegisterParameter("cpu", Cpu)
+    registrar.BaseClassParameter("cpu", &TJobResourcesConfig::Cpu)
         .Default()
         .GreaterThanOrEqual(0);
-    RegisterParameter("network", Network)
+    registrar.BaseClassParameter("network", &TJobResourcesConfig::Network)
         .Default()
         .GreaterThanOrEqual(0);
-    RegisterParameter("memory", Memory)
+    registrar.BaseClassParameter("memory", &TJobResourcesConfig::Memory)
         .Default()
         .GreaterThanOrEqual(0);
-    RegisterParameter("gpu", Gpu)
+    registrar.BaseClassParameter("gpu", &TJobResourcesConfig::Gpu)
         .Default()
         .GreaterThanOrEqual(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCommonPreemptionConfig::TCommonPreemptionConfig()
+void TCommonPreemptionConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_aggressive_starvation", EnableAggressiveStarvation)
+    registrar.Parameter("enable_aggressive_starvation", &TCommonPreemptionConfig::EnableAggressiveStarvation)
         .Default();
 }
 
-TPoolPreemptionConfig::TPoolPreemptionConfig()
+void TPoolPreemptionConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("fair_share_starvation_timeout", FairShareStarvationTimeout)
+    registrar.Parameter("fair_share_starvation_timeout", &TPoolPreemptionConfig::FairShareStarvationTimeout)
         .Alias("fair_share_preemption_timeout")
         .Default();
-    RegisterParameter("fair_share_starvation_tolerance", FairShareStarvationTolerance)
+    registrar.Parameter("fair_share_starvation_tolerance", &TPoolPreemptionConfig::FairShareStarvationTolerance)
         .InRange(0.0, 1.0)
         .Default();
 
-    RegisterParameter("allow_aggressive_preemption", AllowAggressivePreemption)
+    registrar.Parameter("allow_aggressive_preemption", &TPoolPreemptionConfig::AllowAggressivePreemption)
         .Alias("allow_aggressive_starvation_preemption")
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchedulableConfig::TSchedulableConfig()
+void TSchedulableConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("weight", Weight)
+    registrar.Parameter("weight", &TSchedulableConfig::Weight)
         .Default()
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
 
-    RegisterParameter("max_share_ratio", MaxShareRatio)
+    registrar.Parameter("max_share_ratio", &TSchedulableConfig::MaxShareRatio)
         .Default()
         .InRange(0.0, 1.0);
-    RegisterParameter("resource_limits", ResourceLimits)
+    registrar.Parameter("resource_limits", &TSchedulableConfig::ResourceLimits)
         .DefaultNew();
 
-    RegisterParameter("strong_guarantee_resources", StrongGuaranteeResources)
+    registrar.Parameter("strong_guarantee_resources", &TSchedulableConfig::StrongGuaranteeResources)
         .Alias("min_share_resources")
         .DefaultNew();
-    RegisterParameter("scheduling_tag_filter", SchedulingTagFilter)
+    registrar.Parameter("scheduling_tag_filter", &TSchedulableConfig::SchedulingTagFilter)
         .Alias("scheduling_tag")
         .Default();
 
-    RegisterPostprocessor([&] {
-        if (SchedulingTagFilter.Size() > MaxSchedulingTagRuleCount) {
+    registrar.Postprocessor([&] (TSchedulableConfig* config) {
+        if (config->SchedulingTagFilter.Size() > MaxSchedulingTagRuleCount) {
             THROW_ERROR_EXCEPTION("Specifying more than %v tokens in scheduling tag filter is not allowed",
                  MaxSchedulingTagRuleCount);
         }
@@ -1733,111 +1733,109 @@ TSchedulableConfig::TSchedulableConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExtendedSchedulableConfig::TExtendedSchedulableConfig()
+void TExtendedSchedulableConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("pool", Pool)
+    registrar.Parameter("pool", &TExtendedSchedulableConfig::Pool)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEphemeralSubpoolConfig::TEphemeralSubpoolConfig()
+void TEphemeralSubpoolConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("mode", Mode)
+    registrar.Parameter("mode", &TEphemeralSubpoolConfig::Mode)
         .Default(ESchedulingMode::FairShare);
 
-    RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
-        .Default()
-        .GreaterThanOrEqual(0);
+    registrar.Parameter("max_running_operation_count", &TEphemeralSubpoolConfig::MaxRunningOperationCount)
+        .Default(10);
 
-    RegisterParameter("max_operation_count", MaxOperationCount)
-        .Default()
-        .GreaterThanOrEqual(0);
+    registrar.Parameter("max_operation_count", &TEphemeralSubpoolConfig::MaxOperationCount)
+        .Default(10);
 
-    RegisterParameter("resource_limits", ResourceLimits)
+    registrar.Parameter("resource_limits", &TEphemeralSubpoolConfig::ResourceLimits)
         .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPoolIntegralGuaranteesConfig::TPoolIntegralGuaranteesConfig()
+void TPoolIntegralGuaranteesConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("guarantee_type", GuaranteeType)
+    registrar.Parameter("guarantee_type", &TPoolIntegralGuaranteesConfig::GuaranteeType)
         .Default(EIntegralGuaranteeType::None);
 
-    RegisterParameter("burst_guarantee_resources", BurstGuaranteeResources)
+    registrar.Parameter("burst_guarantee_resources", &TPoolIntegralGuaranteesConfig::BurstGuaranteeResources)
         .DefaultNew();
 
-    RegisterParameter("resource_flow", ResourceFlow)
+    registrar.Parameter("resource_flow", &TPoolIntegralGuaranteesConfig::ResourceFlow)
         .DefaultNew();
 
-    RegisterParameter("relaxed_share_multiplier_limit", RelaxedShareMultiplierLimit)
+    registrar.Parameter("relaxed_share_multiplier_limit", &TPoolIntegralGuaranteesConfig::RelaxedShareMultiplierLimit)
         .InRange(1, 10)
         .Default();
 
-    RegisterParameter("can_accept_free_volume", CanAcceptFreeVolume)
+    registrar.Parameter("can_accept_free_volume", &TPoolIntegralGuaranteesConfig::CanAcceptFreeVolume)
         .Default(true);
 
-    RegisterParameter("should_distribute_free_volume_among_children", ShouldDistributeFreeVolumeAmongChildren)
+    registrar.Parameter("should_distribute_free_volume_among_children", &TPoolIntegralGuaranteesConfig::ShouldDistributeFreeVolumeAmongChildren)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPoolConfig::TPoolConfig()
+void TPoolConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("mode", Mode)
+    registrar.Parameter("mode", &TPoolConfig::Mode)
         .Default(ESchedulingMode::FairShare);
 
-    RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
+    registrar.Parameter("max_running_operation_count", &TPoolConfig::MaxRunningOperationCount)
         .Default()
         .GreaterThanOrEqual(0);
 
-    RegisterParameter("max_operation_count", MaxOperationCount)
+    registrar.Parameter("max_operation_count", &TPoolConfig::MaxOperationCount)
         .Default()
         .GreaterThanOrEqual(0);
 
-    RegisterParameter("fifo_sort_parameters", FifoSortParameters)
+    registrar.Parameter("fifo_sort_parameters", &TPoolConfig::FifoSortParameters)
         .Default({EFifoSortParameter::Weight, EFifoSortParameter::StartTime})
         .NonEmpty();
 
-    RegisterParameter("forbid_immediate_operations", ForbidImmediateOperations)
+    registrar.Parameter("forbid_immediate_operations", &TPoolConfig::ForbidImmediateOperations)
         .Default(false);
 
-    RegisterParameter("create_ephemeral_subpools", CreateEphemeralSubpools)
+    registrar.Parameter("create_ephemeral_subpools", &TPoolConfig::CreateEphemeralSubpools)
         .Default(false);
 
-    RegisterParameter("ephemeral_subpool_config", EphemeralSubpoolConfig)
+    registrar.Parameter("ephemeral_subpool_config", &TPoolConfig::EphemeralSubpoolConfig)
         .DefaultNew();
 
-    RegisterParameter("infer_children_weights_from_historic_usage", InferChildrenWeightsFromHistoricUsage)
+    registrar.Parameter("infer_children_weights_from_historic_usage", &TPoolConfig::InferChildrenWeightsFromHistoricUsage)
         .Default(false);
-    RegisterParameter("historic_usage_config", HistoricUsageConfig)
+    registrar.Parameter("historic_usage_config", &TPoolConfig::HistoricUsageConfig)
         .DefaultNew();
 
-    RegisterParameter("allowed_profiling_tags", AllowedProfilingTags)
+    registrar.Parameter("allowed_profiling_tags", &TPoolConfig::AllowedProfilingTags)
         .Default();
 
-    RegisterParameter("enable_by_user_profiling", EnableByUserProfiling)
+    registrar.Parameter("enable_by_user_profiling", &TPoolConfig::EnableByUserProfiling)
         .Default();
 
-    RegisterParameter("abc", Abc)
+    registrar.Parameter("abc", &TPoolConfig::Abc)
         .Default();
 
-    RegisterParameter("integral_guarantees", IntegralGuarantees)
+    registrar.Parameter("integral_guarantees", &TPoolConfig::IntegralGuarantees)
         .DefaultNew();
 
-    RegisterParameter("enable_detailed_logs", EnableDetailedLogs)
+    registrar.Parameter("enable_detailed_logs", &TPoolConfig::EnableDetailedLogs)
         .Default(false);
 
-    RegisterParameter("config_preset", ConfigPreset)
+    registrar.Parameter("config_preset", &TPoolConfig::ConfigPreset)
         .Default();
 
-    RegisterParameter("enable_fair_share_truncation_in_fifo_pool", EnableFairShareTruncationInFifoPool)
+    registrar.Parameter("enable_fair_share_truncation_in_fifo_pool", &TPoolConfig::EnableFairShareTruncationInFifoPool)
         .Alias("truncate_fifo_pool_unsatisfied_child_fair_share")
         .Default();
 
-    RegisterParameter("metering_tags", MeteringTags)
+    registrar.Parameter("metering_tags", &TPoolConfig::MeteringTags)
         .Default();
 }
 
@@ -1869,28 +1867,28 @@ void TPoolConfig::Validate()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareStrategyPackingConfig::TFairShareStrategyPackingConfig()
+void TFairShareStrategyPackingConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable", Enable)
+    registrar.Parameter("enable", &TFairShareStrategyPackingConfig::Enable)
         .Default(false);
 
-    RegisterParameter("metric", Metric)
+    registrar.Parameter("metric", &TFairShareStrategyPackingConfig::Metric)
         .Default(EPackingMetricType::AngleLength);
 
-    RegisterParameter("max_better_past_snapshots", MaxBetterPastSnapshots)
+    registrar.Parameter("max_better_past_snapshots", &TFairShareStrategyPackingConfig::MaxBetterPastSnapshots)
         .Default(2);
-    RegisterParameter("absolute_metric_value_tolerance", AbsoluteMetricValueTolerance)
+    registrar.Parameter("absolute_metric_value_tolerance", &TFairShareStrategyPackingConfig::AbsoluteMetricValueTolerance)
         .Default(0.05)
         .GreaterThanOrEqual(0.0);
-    RegisterParameter("relative_metric_value_tolerance", RelativeMetricValueTolerance)
+    registrar.Parameter("relative_metric_value_tolerance", &TFairShareStrategyPackingConfig::RelativeMetricValueTolerance)
         .Default(1.5)
         .GreaterThanOrEqual(1.0);
-    RegisterParameter("min_window_size_for_schedule", MinWindowSizeForSchedule)
+    registrar.Parameter("min_window_size_for_schedule", &TFairShareStrategyPackingConfig::MinWindowSizeForSchedule)
         .Default(0)
         .GreaterThanOrEqual(0);
-    RegisterParameter("max_heartbeat_window_size", MaxHearbeatWindowSize)
+    registrar.Parameter("max_heartbeat_window_size", &TFairShareStrategyPackingConfig::MaxHearbeatWindowSize)
         .Default(10);
-    RegisterParameter("max_heartbeat_age", MaxHeartbeatAge)
+    registrar.Parameter("max_heartbeat_age", &TFairShareStrategyPackingConfig::MaxHeartbeatAge)
         .Default(TDuration::Hours(1));
 }
 
@@ -1898,53 +1896,53 @@ TFairShareStrategyPackingConfig::TFairShareStrategyPackingConfig()
 
 static constexpr int MaxSchedulingSegmentDataCenterCount = 8;
 
-TStrategyOperationSpec::TStrategyOperationSpec()
+void TStrategyOperationSpec::Register(TRegistrar registrar)
 {
-    RegisterParameter("pool", Pool)
+    registrar.Parameter("pool", &TStrategyOperationSpec::Pool)
         .Default();
-    RegisterParameter("scheduling_options_per_pool_tree", SchedulingOptionsPerPoolTree)
+    registrar.Parameter("scheduling_options_per_pool_tree", &TStrategyOperationSpec::SchedulingOptionsPerPoolTree)
         .Alias("fair_share_options_per_pool_tree")
         .Default();
-    RegisterParameter("pool_trees", PoolTrees)
+    registrar.Parameter("pool_trees", &TStrategyOperationSpec::PoolTrees)
         .Default();
-    RegisterParameter("max_concurrent_schedule_job_calls", MaxConcurrentControllerScheduleJobCalls)
+    registrar.Parameter("max_concurrent_schedule_job_calls", &TStrategyOperationSpec::MaxConcurrentControllerScheduleJobCalls)
         .Alias("max_concurrent_controller_schedule_job_calls")
         .Default();
-    RegisterParameter("schedule_in_single_tree", ScheduleInSingleTree)
+    registrar.Parameter("schedule_in_single_tree", &TStrategyOperationSpec::ScheduleInSingleTree)
         .Default(false);
-    RegisterParameter("tentative_pool_trees", TentativePoolTrees)
+    registrar.Parameter("tentative_pool_trees", &TStrategyOperationSpec::TentativePoolTrees)
         .Default();
-    RegisterParameter("use_default_tentative_pool_trees", UseDefaultTentativePoolTrees)
+    registrar.Parameter("use_default_tentative_pool_trees", &TStrategyOperationSpec::UseDefaultTentativePoolTrees)
         .Default(false);
-    RegisterParameter("tentative_tree_eligibility", TentativeTreeEligibility)
+    registrar.Parameter("tentative_tree_eligibility", &TStrategyOperationSpec::TentativeTreeEligibility)
         .DefaultNew();
-    RegisterParameter("update_preemptable_jobs_list_logging_period", UpdatePreemptableJobsListLoggingPeriod)
+    registrar.Parameter("update_preemptable_jobs_list_logging_period", &TStrategyOperationSpec::UpdatePreemptableJobsListLoggingPeriod)
         .Default(1000);
-    RegisterParameter("custom_profiling_tag", CustomProfilingTag)
+    registrar.Parameter("custom_profiling_tag", &TStrategyOperationSpec::CustomProfilingTag)
         .Default();
-    RegisterParameter("max_unpreemptable_job_count", MaxUnpreemptableRunningJobCount)
+    registrar.Parameter("max_unpreemptable_job_count", &TStrategyOperationSpec::MaxUnpreemptableRunningJobCount)
         .Default();
-    RegisterParameter("max_speculative_job_count_per_task", MaxSpeculativeJobCountPerTask)
+    registrar.Parameter("max_speculative_job_count_per_task", &TStrategyOperationSpec::MaxSpeculativeJobCountPerTask)
         .Default(10);
     // TODO(ignat): move it to preemption settings.
-    RegisterParameter("preemption_mode", PreemptionMode)
+    registrar.Parameter("preemption_mode", &TStrategyOperationSpec::PreemptionMode)
         .Default(EPreemptionMode::Normal);
-    RegisterParameter("scheduling_segment", SchedulingSegment)
+    registrar.Parameter("scheduling_segment", &TStrategyOperationSpec::SchedulingSegment)
         .Default();
-    RegisterParameter("scheduling_segment_data_centers", SchedulingSegmentDataCenters)
+    registrar.Parameter("scheduling_segment_data_centers", &TStrategyOperationSpec::SchedulingSegmentDataCenters)
         .Default();
-    RegisterParameter("enable_limiting_ancestor_check", EnableLimitingAncestorCheck)
+    registrar.Parameter("enable_limiting_ancestor_check", &TStrategyOperationSpec::EnableLimitingAncestorCheck)
         .Default(true);
-    RegisterParameter("is_gang", IsGang)
+    registrar.Parameter("is_gang", &TStrategyOperationSpec::IsGang)
         .Default(false);
 
-    RegisterPostprocessor([&] {
-        if (SchedulingSegmentDataCenters && SchedulingSegmentDataCenters->size() >= MaxSchedulingSegmentDataCenterCount) {
+    registrar.Postprocessor([] (TStrategyOperationSpec* spec) {
+        if (spec->SchedulingSegmentDataCenters && spec->SchedulingSegmentDataCenters->size() >= MaxSchedulingSegmentDataCenterCount) {
             THROW_ERROR_EXCEPTION("%Qv size must be not greater than %v",
                 "scheduling_segment_data_centers",
                 MaxSchedulingSegmentDataCenterCount);
         }
-        if (ScheduleInSingleTree && (TentativePoolTrees || UseDefaultTentativePoolTrees)) {
+        if (spec->ScheduleInSingleTree && (spec->TentativePoolTrees || spec->UseDefaultTentativePoolTrees)) {
             THROW_ERROR_EXCEPTION("%Qv option cannot be used simultaneously with tentative pool trees (check %Qv and %Qv)",
                 "schedule_in_single_tree",
                 "tentative_pool_trees",
@@ -1955,88 +1953,88 @@ TStrategyOperationSpec::TStrategyOperationSpec()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationFairShareTreeRuntimeParameters::TOperationFairShareTreeRuntimeParameters()
+void TOperationFairShareTreeRuntimeParameters::Register(TRegistrar registrar)
 {
-    RegisterParameter("weight", Weight)
+    registrar.Parameter("weight", &TOperationFairShareTreeRuntimeParameters::Weight)
         .Optional()
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
-    RegisterParameter("pool", Pool);
-    RegisterParameter("resource_limits", ResourceLimits)
+    registrar.Parameter("pool", &TOperationFairShareTreeRuntimeParameters::Pool);
+    registrar.Parameter("resource_limits", &TOperationFairShareTreeRuntimeParameters::ResourceLimits)
         .DefaultNew();
-    RegisterParameter("enable_detailed_logs", EnableDetailedLogs)
+    registrar.Parameter("enable_detailed_logs", &TOperationFairShareTreeRuntimeParameters::EnableDetailedLogs)
         .Default(false);
-    RegisterParameter("tentative", Tentative)
+    registrar.Parameter("tentative", &TOperationFairShareTreeRuntimeParameters::Tentative)
         .Default(false);
-    RegisterParameter("scheduling_segment_data_center", SchedulingSegmentDataCenter)
+    registrar.Parameter("scheduling_segment_data_center", &TOperationFairShareTreeRuntimeParameters::SchedulingSegmentDataCenter)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationRuntimeParameters::TOperationRuntimeParameters()
+void TOperationRuntimeParameters::Register(TRegistrar registrar)
 {
-    RegisterParameter("owners", Owners)
+    registrar.Parameter("owners", &TOperationRuntimeParameters::Owners)
         .Optional();
-    RegisterParameter("acl", Acl)
-        .Optional();
-
-    RegisterParameter("scheduling_options_per_pool_tree", SchedulingOptionsPerPoolTree);
-
-    RegisterParameter("annotations", Annotations)
+    registrar.Parameter("acl", &TOperationRuntimeParameters::Acl)
         .Optional();
 
-    RegisterParameter("erased_trees", ErasedTrees)
+    registrar.Parameter("scheduling_options_per_pool_tree", &TOperationRuntimeParameters::SchedulingOptionsPerPoolTree);
+
+    registrar.Parameter("annotations", &TOperationRuntimeParameters::Annotations)
         .Optional();
 
-    RegisterPostprocessor([&] {
-        ValidateOperationAcl(Acl);
-        ProcessAclAndOwnersParameters(&Acl, &Owners);
+    registrar.Parameter("erased_trees", &TOperationRuntimeParameters::ErasedTrees)
+        .Optional();
+
+    registrar.Postprocessor([] (TOperationRuntimeParameters* parameters) {
+        ValidateOperationAcl(parameters->Acl);
+        ProcessAclAndOwnersParameters(&parameters->Acl, &parameters->Owners);
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationFairShareTreeRuntimeParametersUpdate::TOperationFairShareTreeRuntimeParametersUpdate()
+void TOperationFairShareTreeRuntimeParametersUpdate::Register(TRegistrar registrar)
 {
-    RegisterParameter("weight", Weight)
+    registrar.Parameter("weight", &TOperationFairShareTreeRuntimeParametersUpdate::Weight)
         .Optional()
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
-    RegisterParameter("pool", Pool)
+    registrar.Parameter("pool", &TOperationFairShareTreeRuntimeParametersUpdate::Pool)
         .Optional();
-    RegisterParameter("resource_limits", ResourceLimits)
+    registrar.Parameter("resource_limits", &TOperationFairShareTreeRuntimeParametersUpdate::ResourceLimits)
         .Default();
-    RegisterParameter("enable_detailed_logs", EnableDetailedLogs)
+    registrar.Parameter("enable_detailed_logs", &TOperationFairShareTreeRuntimeParametersUpdate::EnableDetailedLogs)
         .Optional();
 
-    RegisterPostprocessor([&] {
-        if (Pool.has_value()) {
-            ValidatePoolName(Pool->ToString());
+    registrar.Postprocessor([] (TOperationFairShareTreeRuntimeParametersUpdate* update) {
+        if (update->Pool.has_value()) {
+            ValidatePoolName(update->Pool->ToString());
         }
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationRuntimeParametersUpdate::TOperationRuntimeParametersUpdate()
+void TOperationRuntimeParametersUpdate::Register(TRegistrar registrar)
 {
-    RegisterParameter("pool", Pool)
+    registrar.Parameter("pool", &TOperationRuntimeParametersUpdate::Pool)
         .Optional();
-    RegisterParameter("weight", Weight)
+    registrar.Parameter("weight", &TOperationRuntimeParametersUpdate::Weight)
         .Optional()
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
-    RegisterParameter("acl", Acl)
+    registrar.Parameter("acl", &TOperationRuntimeParametersUpdate::Acl)
         .Optional();
-    RegisterParameter("scheduling_options_per_pool_tree", SchedulingOptionsPerPoolTree)
+    registrar.Parameter("scheduling_options_per_pool_tree", &TOperationRuntimeParametersUpdate::SchedulingOptionsPerPoolTree)
         .Default();
-    RegisterParameter("annotations", Annotations)
+    registrar.Parameter("annotations", &TOperationRuntimeParametersUpdate::Annotations)
         .Optional();
 
-    RegisterPostprocessor([&] {
-        if (Acl.has_value()) {
-            ValidateOperationAcl(*Acl);
+    registrar.Postprocessor([] (TOperationRuntimeParametersUpdate* update) {
+        if (update->Acl.has_value()) {
+            ValidateOperationAcl(*update->Acl);
         }
-        if (Pool.has_value()) {
-            ValidatePoolName(*Pool);
+        if (update->Pool.has_value()) {
+            ValidatePoolName(*update->Pool);
         }
     });
 }
@@ -2074,7 +2072,7 @@ TOperationFairShareTreeRuntimeParametersPtr UpdateFairShareTreeRuntimeParameters
         if (!origin) {
             return NYTree::ConvertTo<TOperationFairShareTreeRuntimeParametersPtr>(ConvertToNode(update));
         }
-        return UpdateYsonSerializable(origin, ConvertToNode(update));
+        return UpdateYsonStruct(origin, ConvertToNode(update));
     } catch (const std::exception& exception) {
         THROW_ERROR_EXCEPTION("Error updating operation fair share tree runtime parameters")
             << exception;
@@ -2086,7 +2084,7 @@ TOperationRuntimeParametersPtr UpdateRuntimeParameters(
     const TOperationRuntimeParametersUpdatePtr& update)
 {
     YT_VERIFY(origin);
-    auto result = CloneYsonSerializable(origin);
+    auto result = CloneYsonStruct(origin);
     if (update->Acl) {
         result->Acl = *update->Acl;
     }
@@ -2129,46 +2127,46 @@ TSchedulerConnectionConfig::TSchedulerConnectionConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobCpuMonitorConfig::TJobCpuMonitorConfig()
+void TJobCpuMonitorConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_cpu_reclaim", EnableCpuReclaim)
+    registrar.Parameter("enable_cpu_reclaim", &TJobCpuMonitorConfig::EnableCpuReclaim)
         .Default(false);
 
-    RegisterParameter("check_period", CheckPeriod)
+    registrar.Parameter("check_period", &TJobCpuMonitorConfig::CheckPeriod)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("start_delay", StartDelay)
+    registrar.Parameter("start_delay", &TJobCpuMonitorConfig::StartDelay)
         .Default(TDuration::Zero());
 
-    RegisterParameter("smoothing_factor", SmoothingFactor)
+    registrar.Parameter("smoothing_factor", &TJobCpuMonitorConfig::SmoothingFactor)
         .InRange(0, 1)
         .Default(0.1);
 
-    RegisterParameter("relative_upper_bound", RelativeUpperBound)
+    registrar.Parameter("relative_upper_bound", &TJobCpuMonitorConfig::RelativeUpperBound)
         .InRange(0, 1)
         .Default(0.9);
 
-    RegisterParameter("relative_lower_bound", RelativeLowerBound)
+    registrar.Parameter("relative_lower_bound", &TJobCpuMonitorConfig::RelativeLowerBound)
         .InRange(0, 1)
         .Default(0.6);
 
-    RegisterParameter("increase_coefficient", IncreaseCoefficient)
+    registrar.Parameter("increase_coefficient", &TJobCpuMonitorConfig::IncreaseCoefficient)
         .InRange(1, 2)
         .Default(1.45);
 
-    RegisterParameter("decrease_coefficient", DecreaseCoefficient)
+    registrar.Parameter("decrease_coefficient", &TJobCpuMonitorConfig::DecreaseCoefficient)
         .InRange(0, 1)
         .Default(0.97);
 
-    RegisterParameter("vote_window_size", VoteWindowSize)
+    registrar.Parameter("vote_window_size", &TJobCpuMonitorConfig::VoteWindowSize)
         .GreaterThan(0)
         .Default(5);
 
-    RegisterParameter("vote_decision_threshold", VoteDecisionThreshold)
+    registrar.Parameter("vote_decision_threshold", &TJobCpuMonitorConfig::VoteDecisionThreshold)
         .GreaterThan(0)
         .Default(3);
 
-    RegisterParameter("min_cpu_limit", MinCpuLimit)
+    registrar.Parameter("min_cpu_limit", &TJobCpuMonitorConfig::MinCpuLimit)
         .InRange(0, 1)
         .Default(1);
 }

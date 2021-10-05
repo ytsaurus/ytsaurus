@@ -171,7 +171,7 @@ void TPoolsConfigParser::ValidatePoolPresetConfig(const TString& presetName, con
             << ex;
     }
 
-    auto unrecognized = presetConfig->GetUnrecognizedRecursively();
+    auto unrecognized = presetConfig->GetRecursiveUnrecognized();
     if (unrecognized && unrecognized->GetChildCount() > 0) {
         THROW_ERROR_EXCEPTION("Config of preset %Qv contains unrecognized options",
             presetName)

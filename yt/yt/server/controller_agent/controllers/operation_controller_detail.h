@@ -763,7 +763,7 @@ protected:
     //! Return a pointer to `YsonSerializable` object that represents
     //! the fully typed operation spec which know more than a simple
     //! `TOperationSpecBase::Spec`.
-    virtual NYTree::TYsonSerializablePtr GetTypedSpec() const = 0;
+    virtual NYTree::TYsonStructPtr GetTypedSpec() const = 0;
 
     void ExtractInterruptDescriptor(TCompletedJobSummary& jobSummary, const TJobletPtr& joblet) const;
 

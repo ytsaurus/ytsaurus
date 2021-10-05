@@ -571,7 +571,7 @@ void ParseSpec(
     for (const auto& [treeId, optionPerPoolTree] : strategySpec->SchedulingOptionsPerPoolTree) {
         preprocessedSpec->CustomSpecPerTree.emplace(
             treeId,
-            UpdateYsonSerializable(strategySpec, ConvertToNode(optionPerPoolTree)));
+            UpdateYsonStruct(strategySpec, ConvertToNode(optionPerPoolTree)));
     }
 }
 

@@ -320,7 +320,7 @@ public:
         return TStringBuf();
     }
 
-    TYsonSerializablePtr GetTypedSpec() const override
+    TYsonStructPtr GetTypedSpec() const override
     {
         return Spec_;
     }

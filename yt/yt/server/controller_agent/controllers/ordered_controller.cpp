@@ -631,7 +631,7 @@ private:
         return {EJobType::OrderedMerge};
     }
 
-    TYsonSerializablePtr GetTypedSpec() const override
+    TYsonStructPtr GetTypedSpec() const override
     {
         return Spec_;
     }
@@ -840,7 +840,7 @@ private:
         ValidateUserFileCount(Spec_->Mapper, "mapper");
     }
 
-    TYsonSerializablePtr GetTypedSpec() const override
+    TYsonStructPtr GetTypedSpec() const override
     {
         return Spec_;
     }
@@ -1042,7 +1042,7 @@ private:
         return EJobType::OrderedMerge;
     }
 
-    TYsonSerializablePtr GetTypedSpec() const override
+    TYsonStructPtr GetTypedSpec() const override
     {
         return Spec_;
     }
@@ -1365,7 +1365,7 @@ private:
         return std::numeric_limits<i64>::max() / 4;
     }
 
-    TYsonSerializablePtr GetTypedSpec() const override
+    TYsonStructPtr GetTypedSpec() const override
     {
         return Spec_;
     }

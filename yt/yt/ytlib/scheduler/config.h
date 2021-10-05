@@ -33,7 +33,7 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/permission.h>
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/misc/arithmetic_formula.h>
 
@@ -78,11 +78,13 @@ void Serialize(const TPoolName& value, NYson::IYsonConsumer* consumer);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobResourcesConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
     , public NVectorHdrf::TJobResourcesConfig
 {
 public:
-    TJobResourcesConfig();
+    REGISTER_YSON_STRUCT(TJobResourcesConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobResourcesConfig)
@@ -90,17 +92,18 @@ DEFINE_REFCOUNTED_TYPE(TJobResourcesConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCommonPreemptionConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     std::optional<bool> EnableAggressiveStarvation;
 
-    TCommonPreemptionConfig();
+    REGISTER_YSON_STRUCT(TCommonPreemptionConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 class TPoolPreemptionConfig
-    : public virtual NYTree::TYsonSerializable
-    , public TCommonPreemptionConfig
+    : public TCommonPreemptionConfig
 {
 public:
     // The following settings override scheduler configuration is specified.
@@ -109,7 +112,9 @@ public:
 
     std::optional<bool> AllowAggressivePreemption;
 
-    TPoolPreemptionConfig();
+    REGISTER_YSON_STRUCT(TPoolPreemptionConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TPoolPreemptionConfig)
@@ -117,7 +122,7 @@ DEFINE_REFCOUNTED_TYPE(TPoolPreemptionConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulableConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     std::optional<double> Weight;
@@ -133,7 +138,9 @@ public:
 
     TBooleanFormula SchedulingTagFilter;
 
-    TSchedulableConfig();
+    REGISTER_YSON_STRUCT(TSchedulableConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -144,7 +151,9 @@ class TExtendedSchedulableConfig
 public:
     std::optional<TString> Pool;
 
-    TExtendedSchedulableConfig();
+    REGISTER_YSON_STRUCT(TExtendedSchedulableConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TExtendedSchedulableConfig)
@@ -152,7 +161,7 @@ DEFINE_REFCOUNTED_TYPE(TExtendedSchedulableConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEphemeralSubpoolConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NVectorHdrf::ESchedulingMode Mode;
@@ -162,7 +171,9 @@ public:
 
     TJobResourcesConfigPtr ResourceLimits;
 
-    TEphemeralSubpoolConfig();
+    REGISTER_YSON_STRUCT(TEphemeralSubpoolConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TEphemeralSubpoolConfig)
@@ -170,7 +181,7 @@ DEFINE_REFCOUNTED_TYPE(TEphemeralSubpoolConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPoolIntegralGuaranteesConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NVectorHdrf::EIntegralGuaranteeType GuaranteeType;
@@ -184,7 +195,9 @@ public:
     bool CanAcceptFreeVolume;
     std::optional<bool> ShouldDistributeFreeVolumeAmongChildren;
 
-    TPoolIntegralGuaranteesConfig();
+    REGISTER_YSON_STRUCT(TPoolIntegralGuaranteesConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TPoolIntegralGuaranteesConfig)
@@ -229,9 +242,11 @@ public:
 
     THashMap<TString, TString> MeteringTags;
 
-    TPoolConfig();
-
     void Validate();
+
+    REGISTER_YSON_STRUCT(TPoolConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TPoolConfig)
@@ -239,7 +254,7 @@ DEFINE_REFCOUNTED_TYPE(TPoolConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTentativeTreeEligibilityConfig
-    : public virtual NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     // The number of jobs of a task that have to finish before we allow any more
@@ -259,7 +274,9 @@ public:
 
     bool IgnoreMissingPoolTrees;
 
-    TTentativeTreeEligibilityConfig();
+    REGISTER_YSON_STRUCT(TTentativeTreeEligibilityConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTentativeTreeEligibilityConfig)
@@ -267,7 +284,7 @@ DEFINE_REFCOUNTED_TYPE(TTentativeTreeEligibilityConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSamplingConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! The probability for each particular row to remain in the output.
@@ -281,7 +298,9 @@ public:
     //! Size of IO block to consider when calculating the lower bound for sampling job size.
     i64 IOBlockSize;
 
-    TSamplingConfig();
+    REGISTER_YSON_STRUCT(TSamplingConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSamplingConfig)
@@ -294,7 +313,7 @@ DEFINE_ENUM(EPackingMetricType,
 );
 
 class TFairShareStrategyPackingConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     bool Enable;
@@ -308,7 +327,9 @@ public:
     int MaxHearbeatWindowSize;
     TDuration MaxHeartbeatAge;
 
-    TFairShareStrategyPackingConfig();
+    REGISTER_YSON_STRUCT(TFairShareStrategyPackingConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyPackingConfig)
@@ -372,7 +393,9 @@ public:
 
     bool IsGang;
 
-    TStrategyOperationSpec();
+    REGISTER_YSON_STRUCT(TStrategyOperationSpec);
+
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TStrategyOperationSpec, 0x22fc73fa);
@@ -383,7 +406,7 @@ DEFINE_REFCOUNTED_TYPE(TStrategyOperationSpec);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobIOConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NTableClient::TTableReaderConfigPtr TableReader;
@@ -401,21 +424,25 @@ public:
     NChunkClient::TBlockCacheConfigPtr BlockCache;
 
     class TTestingOptions
-        : public TYsonSerializable
+        : public NYTree::TYsonStruct
     {
     public:
         TDuration PipeDelay;
 
-        TTestingOptions()
+        REGISTER_YSON_STRUCT(TTestingOptions);
+
+        static void Register(TRegistrar registrar)
         {
-            RegisterParameter("pipe_delay", PipeDelay)
+            registrar.Parameter("pipe_delay", &TTestingOptions::PipeDelay)
                 .Default();
         }
     };
 
     TIntrusivePtr<TTestingOptions> Testing;
 
-    TJobIOConfig();
+    REGISTER_YSON_STRUCT(TJobIOConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobIOConfig)
@@ -451,7 +478,7 @@ DEFINE_ENUM(ETestingSpeculativeLaunchMode,
 )
 
 class TTestingOperationOptions
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<TDuration> SchedulingDelay;
@@ -510,7 +537,9 @@ public:
 
     bool ThrowExceptionDuringOprationAbort;
 
-    TTestingOperationOptions();
+    REGISTER_YSON_STRUCT(TTestingOperationOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTestingOperationOptions)
@@ -519,14 +548,16 @@ DEFINE_REFCOUNTED_TYPE(TTestingOperationOptions)
 
 // TODO(gritukan): Move some of the heuristics options from NControllerAgent::TJobSplitterConfig here.
 class TJobSplitterConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool EnableJobSplitting;
 
     bool EnableJobSpeculation;
 
-    TJobSplitterConfig();
+    REGISTER_YSON_STRUCT(TJobSplitterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobSplitterConfig)
@@ -534,7 +565,7 @@ DEFINE_REFCOUNTED_TYPE(TJobSplitterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAutoMergeConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TJobIOConfigPtr JobIO;
@@ -555,7 +586,9 @@ public:
     //! when EnableShallowMerge is set to true.
     bool AllowUnknownExtensions;
 
-    TAutoMergeConfig();
+    REGISTER_YSON_STRUCT(TAutoMergeConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAutoMergeConfig)
@@ -563,13 +596,15 @@ DEFINE_REFCOUNTED_TYPE(TAutoMergeConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTmpfsVolumeConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     i64 Size;
     TString Path;
 
-    TTmpfsVolumeConfig();
+    REGISTER_YSON_STRUCT(TTmpfsVolumeConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTmpfsVolumeConfig)
@@ -580,7 +615,7 @@ void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NScheduler::NProto::
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDiskRequestConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     i64 DiskSpace;
@@ -589,7 +624,9 @@ public:
     std::optional<int> MediumIndex;
     std::optional<TString> Account;
 
-    TDiskRequestConfig();
+    REGISTER_YSON_STRUCT(TDiskRequestConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiskRequestConfig)
@@ -601,7 +638,7 @@ void ToProto(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobShell
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TString Name;
@@ -610,7 +647,9 @@ public:
 
     std::vector<TString> Owners;
 
-    TJobShell();
+    REGISTER_YSON_STRUCT(TJobShell);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobShell)
@@ -618,13 +657,15 @@ DEFINE_REFCOUNTED_TYPE(TJobShell)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserJobMonitoringConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enable;
     std::vector<TString> SensorNames;
 
-    TUserJobMonitoringConfig();
+    REGISTER_YSON_STRUCT(TUserJobMonitoringConfig);
+
+    static void Register(TRegistrar registrar);
 
 private:
     static const std::vector<TString>& GetDefaultSensorNames();
@@ -635,14 +676,16 @@ DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TColumnarStatisticsConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enabled;
 
     NTableClient::EColumnarStatisticsFetcherMode Mode;
 
-    TColumnarStatisticsConfig();
+    REGISTER_YSON_STRUCT(TColumnarStatisticsConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TColumnarStatisticsConfig)
@@ -839,7 +882,9 @@ public:
 
     NYTree::IMapNodePtr JobTestingOptions;
 
-    TOperationSpecBase();
+    REGISTER_YSON_STRUCT(TOperationSpecBase);
+
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TOperationSpecBase, 0xf0494353);
@@ -851,12 +896,14 @@ DEFINE_REFCOUNTED_TYPE(TOperationSpecBase);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTaskOutputStreamConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NTableClient::TTableSchemaPtr Schema;
 
-    TTaskOutputStreamConfig();
+    REGISTER_YSON_STRUCT(TTaskOutputStreamConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTaskOutputStreamConfig);
@@ -864,7 +911,7 @@ DEFINE_REFCOUNTED_TYPE(TTaskOutputStreamConfig);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserJobSpec
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TString Command;
@@ -978,9 +1025,11 @@ public:
 
     std::vector<TString> SupportedProfilers;
 
-    TUserJobSpec();
-
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
+
+    REGISTER_YSON_STRUCT(TUserJobSpec);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TUserJobSpec)
@@ -991,7 +1040,9 @@ class TMandatoryUserJobSpec
     : public TUserJobSpec
 {
 public:
-    TMandatoryUserJobSpec();
+    REGISTER_YSON_STRUCT(TMandatoryUserJobSpec);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMandatoryUserJobSpec)
@@ -1004,7 +1055,9 @@ class TOptionalUserJobSpec
 public:
     bool IsNontrivial() const;
 
-    TOptionalUserJobSpec();
+    REGISTER_YSON_STRUCT(TOptionalUserJobSpec);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOptionalUserJobSpec)
@@ -1024,7 +1077,9 @@ public:
 
     bool RestartCompletedJobs;
 
-    TVanillaTaskSpec();
+    REGISTER_YSON_STRUCT(TVanillaTaskSpec);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TVanillaTaskSpec)
@@ -1032,13 +1087,15 @@ DEFINE_REFCOUNTED_TYPE(TVanillaTaskSpec)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TInputlyQueryableSpec
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     std::optional<TString> InputQuery;
     std::optional<NTableClient::TTableSchema> InputSchema;
 
-    TInputlyQueryableSpec();
+    REGISTER_YSON_STRUCT(TInputlyQueryableSpec);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputlyQueryableSpec)
@@ -1046,7 +1103,7 @@ DEFINE_REFCOUNTED_TYPE(TInputlyQueryableSpec)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperationWithUserJobSpec
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     std::optional<NYPath::TRichYPath> StderrTablePath;
@@ -1057,7 +1114,9 @@ public:
 
     bool EnableCudaGpuCoreDump;
 
-    TOperationWithUserJobSpec();
+    REGISTER_YSON_STRUCT(TOperationWithUserJobSpec);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationWithUserJobSpec)
@@ -1082,7 +1141,9 @@ public:
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
 
-    TSimpleOperationSpecBase();
+    REGISTER_YSON_STRUCT(TSimpleOperationSpecBase);
+
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSimpleOperationSpecBase, 0x7819ae12);
@@ -1099,7 +1160,9 @@ class TUnorderedOperationSpecBase
 public:
     std::vector<NYPath::TRichYPath> InputTablePaths;
 
-    TUnorderedOperationSpecBase();
+    REGISTER_YSON_STRUCT(TUnorderedOperationSpecBase);
+
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationSpecBase, 0x79aafe77);
@@ -1118,7 +1181,9 @@ public:
     std::vector<NYPath::TRichYPath> OutputTablePaths;
     bool Ordered;
 
-    TMapOperationSpec();
+    REGISTER_YSON_STRUCT(TMapOperationSpec);
+
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapOperationSpec, 0x4aa00f9d);
@@ -1138,7 +1203,9 @@ public:
     bool ForceTransform;
     ESchemaInferenceMode SchemaInferenceMode;
 
-    TUnorderedMergeOperationSpec();
+    REGISTER_YSON_STRUCT(TUnorderedMergeOperationSpec);
+
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationSpec, 0x969d7fbc);
@@ -1168,7 +1235,9 @@ public:
 
     ESchemaInferenceMode SchemaInferenceMode;
 
-    TMergeOperationSpec();
+    REGISTER_YSON_STRUCT(TMergeOperationSpec);
+
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMergeOperationSpec, 0x646bd8cb);
@@ -1182,6 +1251,12 @@ class TOrderedMergeOperationSpec
     : public TMergeOperationSpec
     , public TInputlyQueryableSpec
 {
+public:
+    REGISTER_YSON_STRUCT(TOrderedMergeOperationSpec);
+
+    static void Register(TRegistrar)
+    { }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeOperationSpec, 0xff44f136);
 };
@@ -1189,12 +1264,14 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSortedOperationSpec
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     bool UseNewSortedPool;
 
-    TSortedOperationSpec();
+    REGISTER_YSON_STRUCT(TSortedOperationSpec);
+
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedOperationSpec, 0xaa7471bf);
@@ -1210,6 +1287,12 @@ class TSortedMergeOperationSpec
     : public TMergeOperationSpec
     , public TSortedOperationSpec
 {
+public:
+    REGISTER_YSON_STRUCT(TSortedMergeOperationSpec);
+
+    static void Register(TRegistrar)
+    { }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeOperationSpec, 0x213a54d6);
 };
@@ -1226,7 +1309,9 @@ public:
     bool CombineChunks;
     ESchemaInferenceMode SchemaInferenceMode;
 
-    TEraseOperationSpec();
+    REGISTER_YSON_STRUCT(TEraseOperationSpec);
+
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TEraseOperationSpec, 0xbaec2ff5);
@@ -1261,7 +1346,9 @@ public:
 
     bool SliceForeignChunks;
 
-    TReduceOperationSpec();
+    REGISTER_YSON_STRUCT(TReduceOperationSpec);
+
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpec, 0x7353c0af);
@@ -1355,7 +1442,9 @@ public:
 
     int NewPartitionsHeuristicProbability;
 
-    TSortOperationSpecBase();
+    REGISTER_YSON_STRUCT(TSortOperationSpecBase);
+
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortOperationSpecBase, 0xdd19ecde);
@@ -1380,7 +1469,9 @@ public:
     //! Hard limit on the size of allowed input data weight.
     i64 MaxInputDataWeight;
 
-    TSortOperationSpec();
+    REGISTER_YSON_STRUCT(TSortOperationSpec);
+
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortOperationSpec, 0xa6709f80);
@@ -1414,11 +1505,13 @@ public:
     // Turn map phase into ordered map.
     bool Ordered;
 
-    TMapReduceOperationSpec();
-
     bool HasNontrivialMapper() const;
     bool HasNontrivialReduceCombiner() const;
     bool HasSchemafulIntermediateStreams() const;
+
+    REGISTER_YSON_STRUCT(TMapReduceOperationSpec);
+
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationSpec, 0x99837bbc);
@@ -1461,7 +1554,9 @@ public:
     //! are missing at the source cluster.
     bool RepairErasureChunks;
 
-    TRemoteCopyOperationSpec();
+    REGISTER_YSON_STRUCT(TRemoteCopyOperationSpec);
+
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyOperationSpec, 0x3c0ce9c0);
@@ -1479,7 +1574,9 @@ public:
     //! Map consisting of pairs <task_name, task_spec>.
     THashMap<TString, TVanillaTaskSpecPtr> Tasks;
 
-    TVanillaOperationSpec();
+    REGISTER_YSON_STRUCT(TVanillaOperationSpec);
+
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaOperationSpec, 0x001004fe);
@@ -1490,7 +1587,7 @@ DEFINE_REFCOUNTED_TYPE(TVanillaOperationSpec)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperationFairShareTreeRuntimeParameters
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<double> Weight;
@@ -1504,13 +1601,15 @@ public:
     bool Tentative;
     std::optional<TString> SchedulingSegmentDataCenter;
 
-    TOperationFairShareTreeRuntimeParameters();
+    REGISTER_YSON_STRUCT(TOperationFairShareTreeRuntimeParameters);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationFairShareTreeRuntimeParameters)
 
 class TOperationRuntimeParameters
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     // COMPAT(levysotsky): We need to support both |Owners| and |Acl|
@@ -1523,7 +1622,9 @@ public:
     // Erased trees of operation, should be used only for information purposes.
     std::vector<TString> ErasedTrees;
 
-    TOperationRuntimeParameters();
+    REGISTER_YSON_STRUCT(TOperationRuntimeParameters);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationRuntimeParameters)
@@ -1531,7 +1632,7 @@ DEFINE_REFCOUNTED_TYPE(TOperationRuntimeParameters)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperationFairShareTreeRuntimeParametersUpdate
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<double> Weight;
@@ -1540,13 +1641,15 @@ public:
     // Can only be set by an administrator.
     std::optional<bool> EnableDetailedLogs;
 
-    TOperationFairShareTreeRuntimeParametersUpdate();
+    REGISTER_YSON_STRUCT(TOperationFairShareTreeRuntimeParametersUpdate);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationFairShareTreeRuntimeParametersUpdate)
 
 class TOperationRuntimeParametersUpdate
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<double> Weight;
@@ -1555,11 +1658,13 @@ public:
     THashMap<TString, TOperationFairShareTreeRuntimeParametersUpdatePtr> SchedulingOptionsPerPoolTree;
     std::optional<NYTree::IMapNodePtr> Annotations;
 
-    TOperationRuntimeParametersUpdate();
-
     bool ContainsPool() const;
 
     NYTree::EPermissionSet GetRequiredPermissions() const;
+
+    REGISTER_YSON_STRUCT(TOperationRuntimeParametersUpdate);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationRuntimeParametersUpdate)
@@ -1598,7 +1703,7 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerConnectionConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobCpuMonitorConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool EnableCpuReclaim;
@@ -1619,7 +1724,9 @@ public:
 
     double MinCpuLimit;
 
-    TJobCpuMonitorConfig();
+    REGISTER_YSON_STRUCT(TJobCpuMonitorConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobCpuMonitorConfig)

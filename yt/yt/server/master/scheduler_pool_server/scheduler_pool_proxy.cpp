@@ -200,7 +200,7 @@ void TSchedulerPoolProxy::ValidateAfterAttachChild(const TString& key, const TPr
 }
 
 void TSchedulerPoolProxy::ValidateNoAliasClash(
-    const TYsonSerializablePtr& config,
+    const TYsonStructPtr& config,
     const TSpecifiedAttributesMap& specifiedAttributes,
     TInternedAttributeKey key)
 {

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <cmath>
 
@@ -11,7 +11,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogDigestConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     // We will round each sample x to the range from [(1 - RelativePrecision)*x, (1 + RelativePrecision)*x].
@@ -34,35 +34,37 @@ public:
         DefaultValue = defaultValue;
     }
 
-    TLogDigestConfig()
+    REGISTER_YSON_STRUCT(TLogDigestConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("relative_precision", RelativePrecision)
+        registrar.Parameter("relative_precision", &TLogDigestConfig::RelativePrecision)
             .Default(0.01)
             .GreaterThan(0);
 
-        RegisterParameter("lower_bound", LowerBound)
+        registrar.Parameter("lower_bound", &TLogDigestConfig::LowerBound)
             .GreaterThan(0);
 
-        RegisterParameter("upper_bound", UpperBound)
+        registrar.Parameter("upper_bound", &TLogDigestConfig::UpperBound)
             .GreaterThan(0);
 
-        RegisterParameter("default_value", DefaultValue);
+        registrar.Parameter("default_value", &TLogDigestConfig::DefaultValue);
 
-        RegisterPostprocessor([&] () {
+        registrar.Postprocessor([] (TLogDigestConfig* config) {
             // If there are more than 1000 buckets, the implementation of TLogDigest
             // becomes inefficient since it stores information about at least that many buckets.
             const int maxBucketCount = 1000;
-            double bucketCount = log(UpperBound / LowerBound) / log(1 + RelativePrecision);
+            double bucketCount = log(config->UpperBound / config->LowerBound) / log(1 + config->RelativePrecision);
             if (bucketCount > maxBucketCount) {
                 THROW_ERROR_EXCEPTION("Bucket count is too large")
                     << TErrorAttribute("bucket_count", bucketCount)
                     << TErrorAttribute("max_bucket_count", maxBucketCount);
             }
-            if (DefaultValue && (*DefaultValue < LowerBound || *DefaultValue > UpperBound)) {
-                THROW_ERROR_EXCEPTION("Default value should be between lower bound and uppper bound")
-                    << TErrorAttribute("default_value", *DefaultValue)
-                    << TErrorAttribute("lower_bound", LowerBound)
-                    << TErrorAttribute("upper_bound", UpperBound);
+            if (config->DefaultValue && (*config->DefaultValue < config->LowerBound || *config->DefaultValue > config->UpperBound)) {
+                THROW_ERROR_EXCEPTION("Default value should be between lower bound and upper bound")
+                    << TErrorAttribute("default_value", *config->DefaultValue)
+                    << TErrorAttribute("lower_bound", config->LowerBound)
+                    << TErrorAttribute("upper_bound", config->UpperBound);
             }
         });
     }
@@ -78,7 +80,7 @@ DEFINE_ENUM(EHistoricUsageAggregationMode,
 );
 
 class THistoricUsageConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     EHistoricUsageAggregationMode AggregationMode;
@@ -89,12 +91,14 @@ public:
     //! EMA for unevenly spaced time series was adapted from here: https://clck.ru/HaGZs
     double EmaAlpha;
 
-    THistoricUsageConfig()
+    REGISTER_YSON_STRUCT(THistoricUsageConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("aggregation_mode", AggregationMode)
+        registrar.Parameter("aggregation_mode", &THistoricUsageConfig::AggregationMode)
             .Default(EHistoricUsageAggregationMode::None);
 
-        RegisterParameter("ema_alpha", EmaAlpha)
+        registrar.Parameter("ema_alpha", &THistoricUsageConfig::EmaAlpha)
             // TODO(eshcherbin): Adjust.
             .Default(1.0 / (24.0 * 60.0 * 60.0))
             .GreaterThanOrEqual(0.0);

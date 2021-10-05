@@ -3762,7 +3762,7 @@ private:
         return Spec->SortBy;
     }
 
-    TYsonSerializablePtr GetTypedSpec() const override
+    TYsonStructPtr GetTypedSpec() const override
     {
         return Spec;
     }
@@ -4645,7 +4645,7 @@ private:
         return sortColumns;
     }
 
-    TYsonSerializablePtr GetTypedSpec() const override
+    TYsonStructPtr GetTypedSpec() const override
     {
         return Spec;
     }

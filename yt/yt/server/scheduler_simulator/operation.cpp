@@ -87,7 +87,7 @@ NScheduler::TStrategyOperationSpecPtr TOperation::GetStrategySpecForTree(const T
     auto spec = GetStrategySpec();
     auto optionsIt = spec->SchedulingOptionsPerPoolTree.find(treeId);
     if (optionsIt != spec->SchedulingOptionsPerPoolTree.end()) {
-        spec = UpdateYsonSerializable(spec, ConvertToNode(optionsIt->second));
+        spec = UpdateYsonStruct(spec, ConvertToNode(optionsIt->second));
     }
     return spec;
 }
