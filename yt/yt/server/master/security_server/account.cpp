@@ -532,6 +532,11 @@ void TAccount::IncrementChunkMergerNodeTraversals(int value)
     ChunkMergerNodeTraversals_ += value;
 }
 
+void TAccount::ResetChunkMergerNodeTraversals()
+{
+    ChunkMergerNodeTraversals_ = 0;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer
