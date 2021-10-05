@@ -156,6 +156,7 @@ public:
 
     int GetChunkMergerNodeTraversals() const;
     void IncrementChunkMergerNodeTraversals(int value);
+    void ResetChunkMergerNodeTraversals();
 
 private:
     int MergeJobRateLimit_ = 0;

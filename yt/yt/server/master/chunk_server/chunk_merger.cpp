@@ -191,6 +191,8 @@ public:
         objectManager->EphemeralRefObject(Account_);
         objectManager->EphemeralRefObject(Node_);
 
+        Account_->IncrementChunkMergerNodeTraversals(1);
+
         YT_LOG_DEBUG("Traversal started (NodeId: %v, RootChunkListId: %v)",
             Node_->GetId(),
             Node_->GetChunkList()->GetId());
@@ -647,6 +649,11 @@ void TChunkMerger::ResetTransientState()
     RunningJobs_ = {};
     RunningSessions_ = {};
     SessionsAwaitingFinalizaton_ = {};
+
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    for (auto [accountId, account] : securityManager->Accounts()) {
+        account->ResetChunkMergerNodeTraversals();
+    }
 }
 
 bool TChunkMerger::IsMergeTransactionAlive() const
@@ -954,7 +961,6 @@ void TChunkMerger::ProcessTouchedNodes()
             auto* node = FindChunkOwner(nodeId);
 
             if (CanScheduleMerge(node)) {
-                account->IncrementChunkMergerNodeTraversals(1);
                 New<TMergeChunkVisitor>(
                     Bootstrap_,
                     node,
