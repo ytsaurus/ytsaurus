@@ -55,6 +55,31 @@ public class YtClientCypressTest extends YtClientTestBase {
         assertThat(errorsCount, is(2));
     }
 
+    @Test
+    public void testDelayedExistsNode() throws Exception {
+        OutageController outageController = new OutageController();
+        TestingOptions testingOptions = new TestingOptions().setOutageController(outageController);
+
+        var ytFixture = createYtFixture(new RpcOptions().setTestingOptions(testingOptions));
+        var tablePath = ytFixture.testDirectory.child("static-table");
+        var yt = ytFixture.yt;
+
+        yt.existsNode(tablePath.toString()).get(2, TimeUnit.SECONDS);
+
+        outageController.addDelays("ExistsNode", 2, Duration.ofMillis(500));
+        outageController.addDelays("OtherQuery", 2, Duration.ofSeconds(3));
+
+        for (int retryId = 0; retryId < 2; ++retryId) {
+            long start = System.currentTimeMillis();
+            yt.existsNode(tablePath.toString()).join();
+            assertThat("Has delay=500ms", System.currentTimeMillis() - start > 500);
+        }
+
+        long start = System.currentTimeMillis();
+        yt.existsNode(tablePath.toString()).join();
+        assertThat("No delay", System.currentTimeMillis() - start < 400);
+    }
+
     @Test(timeout = 1000000)
     public void testBanningProxyReadingWritingTable() throws Exception {
         var ytFixture = createYtFixture();
