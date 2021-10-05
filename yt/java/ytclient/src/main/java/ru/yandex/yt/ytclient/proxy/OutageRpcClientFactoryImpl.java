@@ -1,8 +1,12 @@
 package ru.yandex.yt.ytclient.proxy;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
@@ -21,7 +25,6 @@ import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.RpcRequest;
 import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
-
 
 @NonNullApi
 @NonNullFields
@@ -125,7 +128,15 @@ class OutageRpcClient extends RpcClientWrapper {
             RpcClientResponseHandler handler,
             RpcOptions options
     ) {
-        return super.send(sender, request, wrapHandler(handler, request.header.getMethod()), options);
+        String method = request.header.getMethod();
+        Optional<Duration> delay = controller.pollDelay(method);
+        if (delay.isPresent()) {
+            ScheduledFuture<RpcClientRequestControl> task = executor().schedule(
+                    () -> super.send(sender, request, wrapHandler(handler, method), options),
+                    delay.get().toNanos(), TimeUnit.NANOSECONDS);
+            return new OutageRpcClientRequestControl(task);
+        }
+        return super.send(sender, request, wrapHandler(handler, method), options);
     }
 
     @Override
@@ -136,6 +147,34 @@ class OutageRpcClient extends RpcClientWrapper {
             RpcOptions options
     ) {
         return super.startStream(sender, request, wrapConsumer(consumer, request.header.getMethod()), options);
+    }
+}
+
+@NonNullFields
+@NonNullApi
+class OutageRpcClientRequestControl implements RpcClientRequestControl {
+    final ScheduledFuture<RpcClientRequestControl> task;
+
+    OutageRpcClientRequestControl(ScheduledFuture<RpcClientRequestControl> task) {
+        this.task = task;
+    }
+
+    @Override
+    public boolean cancel() {
+        boolean result = false;
+        if (!task.isDone()) {
+            result = task.cancel(false);
+        }
+        if (result) {
+            return true;
+        }
+        try {
+            return task.get().cancel();
+        } catch (ExecutionException | InterruptedException ex) {
+            return false;
+        } catch (CancellationException ex) {
+            return true;
+        }
     }
 }
 
