@@ -67,9 +67,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, AllowChildrenLimitOvercommit);
     DEFINE_BYVAL_RW_PROPERTY(int, ChunkMergerNodeTraversalConcurrency, 0);
 
-    // COMPAT(kiselyovp)
-    DEFINE_BYVAL_RW_PROPERTY(TString, LegacyName);
-
     //! Transient property.
     DEFINE_BYREF_RW_PROPERTY(TDetailedMasterMemory, DetailedMasterMemoryUsage);
 
