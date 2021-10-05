@@ -901,6 +901,10 @@ private:
             return;
         }
 
+        {
+            TNullTraceContextGuard nullGuard;
+            YT_LOG_DEBUG("Request logging suppressed (RequestId: %v)", GetRequestId());
+        }
         NLogging::TLogManager::Get()->SuppressRequest(GetRequestId());
     }
 
