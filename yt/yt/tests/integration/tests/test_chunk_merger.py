@@ -799,6 +799,46 @@ class TestChunkMerger(YTEnvSetup):
         assert _schematize_rows(rows, schema2) == _schematize_rows(merged_rows, schema2)
 
     @authors("aleksandra-zh")
+    def test_alter_schema_shallow(self):
+        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
+        set("//sys/@config/chunk_manager/chunk_merger/max_chunk_count", 10)
+
+        schema1 = make_schema(
+            [
+                {"name": "key", "type": "int64"},
+                {"name": "value", "type": "string"},
+            ]
+        )
+        schema2 = make_schema(
+            [
+                {"name": "key", "type": "int64"},
+                {"name": "another_value", "type": "string"},
+                {"name": "value", "type": "string"},
+            ]
+        )
+
+        create("table", "//tmp/t", attributes={"schema": schema1})
+        write_table("<append=true>//tmp/t", {"key": 1, "value": "a"})
+        alter_table("//tmp/t", schema=schema2)
+        write_table("<append=true>//tmp/t", {"key": 2, "another_value": "z", "value": "b"})
+        write_table("<append=true>//tmp/t", {"key": 3, "value": "c"})
+        create("table", "//tmp/t1", attributes={"schema": schema2})
+        write_table("<append=true>//tmp/t1", {"key": 4, "another_value": "x", "value": "e"})
+        concatenate(["//tmp/t1", "//tmp/t", "//tmp/t1", "//tmp/t"], "//tmp/t")
+
+        rows = read_table("//tmp/t")
+
+        set("//tmp/t/@chunk_merger_mode", "shallow")
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
+
+        sleep(5)
+
+        wait(lambda: not get("//tmp/t/@is_being_merged"))
+        merged_rows = read_table("//tmp/t")
+        assert _schematize_rows(rows, schema2) == _schematize_rows(merged_rows, schema2)
+
+    @authors("aleksandra-zh")
     @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
     def test_inherit_chunk_merger_mode(self, merge_mode):
         set("//sys/@config/chunk_manager/chunk_merger/enable", True)
