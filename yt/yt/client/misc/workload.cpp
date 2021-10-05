@@ -10,7 +10,7 @@
 #include <yt/yt/core/rpc/service.h>
 #include <yt/yt/core/rpc/dispatcher.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT {
 
@@ -103,29 +103,31 @@ IInvokerPtr GetCompressionInvoker(const TWorkloadDescriptor& workloadDescriptor)
 
 struct TSerializableWorkloadDescriptor
     : public TWorkloadDescriptor
-    , public TYsonSerializableLite
+    , public TYsonStructLite
 {
-    TSerializableWorkloadDescriptor()
+    REGISTER_YSON_STRUCT_LITE(TSerializableWorkloadDescriptor);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("category", Category);
-        RegisterParameter("band", Band)
+        registrar.BaseClassParameter("category", &TWorkloadDescriptor::Category);
+        registrar.BaseClassParameter("band", &TWorkloadDescriptor::Band)
             .Default(0);
-        RegisterParameter("annotations", Annotations)
+        registrar.BaseClassParameter("annotations", &TWorkloadDescriptor::Annotations)
             .Default();
     }
 };
 
 void Serialize(const TWorkloadDescriptor& descriptor, IYsonConsumer* consumer)
 {
-    TSerializableWorkloadDescriptor wrapper;
+    TSerializableWorkloadDescriptor wrapper = TSerializableWorkloadDescriptor::Create();
     static_cast<TWorkloadDescriptor&>(wrapper) = descriptor;
-    Serialize(static_cast<const TYsonSerializableLite&>(wrapper), consumer);
+    Serialize(static_cast<const TYsonStructLite&>(wrapper), consumer);
 }
 
 void Deserialize(TWorkloadDescriptor& descriptor, INodePtr node)
 {
-    TSerializableWorkloadDescriptor wrapper;
-    Deserialize(static_cast<TYsonSerializableLite&>(wrapper), node);
+    TSerializableWorkloadDescriptor wrapper = TSerializableWorkloadDescriptor::Create();
+    Deserialize(static_cast<TYsonStructLite&>(wrapper), node);
     descriptor = static_cast<TWorkloadDescriptor&>(wrapper);
 }
 

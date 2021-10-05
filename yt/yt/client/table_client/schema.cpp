@@ -7,7 +7,7 @@
 #include <yt/yt/core/ytree/serialize.h>
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
@@ -234,38 +234,40 @@ static void RunColumnSchemaPostprocessor(
 }
 
 struct TSerializableColumnSchema
-    : public TYsonSerializableLite
+    : public TYsonStructLite
     , private TColumnSchema
 {
-    TSerializableColumnSchema()
+    REGISTER_YSON_STRUCT_LITE(TSerializableColumnSchema);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("name", Name_)
+        registrar.BaseClassParameter("name", &TSerializableColumnSchema::Name_)
             .NonEmpty();
-        RegisterParameter("type", LogicalTypeV1_)
+        registrar.Parameter("type", &TSerializableColumnSchema::LogicalTypeV1_)
             .Default(std::nullopt);
-        RegisterParameter("required", RequiredV1_)
+        registrar.Parameter("required", &TSerializableColumnSchema::RequiredV1_)
             .Default(std::nullopt);
-        RegisterParameter("type_v3", LogicalTypeV3_)
+        registrar.Parameter("type_v3", &TSerializableColumnSchema::LogicalTypeV3_)
             .Default();
-        RegisterParameter("lock", Lock_)
+        registrar.BaseClassParameter("lock", &TSerializableColumnSchema::Lock_)
             .Default();
-        RegisterParameter("expression", Expression_)
+        registrar.BaseClassParameter("expression", &TSerializableColumnSchema::Expression_)
             .Default();
-        RegisterParameter("aggregate", Aggregate_)
+        registrar.BaseClassParameter("aggregate", &TSerializableColumnSchema::Aggregate_)
             .Default();
-        RegisterParameter("sort_order", SortOrder_)
+        registrar.BaseClassParameter("sort_order", &TSerializableColumnSchema::SortOrder_)
             .Default();
-        RegisterParameter("group", Group_)
+        registrar.BaseClassParameter("group", &TSerializableColumnSchema::Group_)
             .Default();
-        RegisterParameter("max_inline_hunk_size", MaxInlineHunkSize_)
+        registrar.BaseClassParameter("max_inline_hunk_size", &TSerializableColumnSchema::MaxInlineHunkSize_)
             .Default();
 
-        RegisterPostprocessor([&] {
+        registrar.Postprocessor([] (TSerializableColumnSchema* schema) {
             RunColumnSchemaPostprocessor(
-                *this,
-                LogicalTypeV1_,
-                RequiredV1_,
-                LogicalTypeV3_ ? LogicalTypeV3_->LogicalType : nullptr);
+                *schema,
+                schema->LogicalTypeV1_,
+                schema->RequiredV1_,
+                schema->LogicalTypeV3_ ? schema->LogicalTypeV3_->LogicalType : nullptr);
         });
     }
 
@@ -333,15 +335,15 @@ void FormatValue(TStringBuilderBase* builder, const TColumnSchema& schema, TStri
 
 void Serialize(const TColumnSchema& schema, IYsonConsumer* consumer)
 {
-    TSerializableColumnSchema wrapper;
+    TSerializableColumnSchema wrapper = TSerializableColumnSchema::Create();
     wrapper.SetColumnSchema(schema);
-    Serialize(static_cast<const TYsonSerializableLite&>(wrapper), consumer);
+    Serialize(static_cast<const TYsonStructLite&>(wrapper), consumer);
 }
 
 void Deserialize(TColumnSchema& schema, INodePtr node)
 {
-    TSerializableColumnSchema wrapper;
-    Deserialize(static_cast<TYsonSerializableLite&>(wrapper), node);
+    TSerializableColumnSchema wrapper = TSerializableColumnSchema::Create();
+    Deserialize(static_cast<TYsonStructLite&>(wrapper), node);
     schema = wrapper.GetColumnSchema();
 }
 

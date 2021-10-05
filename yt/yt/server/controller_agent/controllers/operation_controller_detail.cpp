@@ -760,7 +760,7 @@ void TOperationControllerBase::InitializeStructures()
 
 void TOperationControllerBase::InitUnrecognizedSpec()
 {
-    UnrecognizedSpec_ = GetTypedSpec()->GetUnrecognizedRecursively();
+    UnrecognizedSpec_ = GetTypedSpec()->GetRecursiveUnrecognized();
 }
 
 void TOperationControllerBase::FillInitializeResult(TOperationControllerInitializeResult* result)

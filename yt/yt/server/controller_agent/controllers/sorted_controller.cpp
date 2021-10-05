@@ -919,7 +919,7 @@ protected:
         return {EJobType::SortedMerge};
     }
 
-    TYsonSerializablePtr GetTypedSpec() const override
+    TYsonStructPtr GetTypedSpec() const override
     {
         return Spec_;
     }
@@ -1151,7 +1151,7 @@ public:
         return Spec_->ConsiderOnlyPrimarySize ? 0 : ForeignInputDataWeight;
     }
 
-    TYsonSerializablePtr GetTypedSpec() const override
+    TYsonStructPtr GetTypedSpec() const override
     {
         return Spec_;
     }

@@ -660,7 +660,7 @@ private:
         return true;
     }
 
-    TYsonSerializablePtr GetTypedSpec() const override
+    TYsonStructPtr GetTypedSpec() const override
     {
         return Spec;
     }
@@ -808,7 +808,7 @@ private:
         }
     }
 
-    TYsonSerializablePtr GetTypedSpec() const override
+    TYsonStructPtr GetTypedSpec() const override
     {
         return Spec;
     }

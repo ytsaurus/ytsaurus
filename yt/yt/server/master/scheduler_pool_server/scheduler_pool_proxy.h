@@ -63,7 +63,7 @@ private:
         const std::function<void(const NScheduler::TPoolConfigPtr&, const TString&)>& update);
 
     void ValidateNoAliasClash(
-        const NYTree::TYsonSerializablePtr& config,
+        const NYTree::TYsonStructPtr& config,
         const TSpecifiedAttributesMap& specifiedAttributes,
         NYTree::TInternedAttributeKey key);
 };
