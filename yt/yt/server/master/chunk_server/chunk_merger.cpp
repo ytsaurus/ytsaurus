@@ -1384,6 +1384,14 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
             continue;
         }
 
+        if (!newChunk->IsConfirmed()) {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: new chunk is not confirmed (NodeId: %v, ChunkId: %v)",
+                nodeId,
+                newChunkId);
+            ++ChunkReplacementFailed_;
+            continue;
+        }
+
         auto chunkIds = FromProto<std::vector<TChunkId>>(replacement.old_chunk_ids());
         if (chunkReplacer.ReplaceChunkSequence(newChunk, chunkIds)) {
             YT_LOG_DEBUG_IF(
