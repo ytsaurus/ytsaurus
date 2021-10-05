@@ -854,6 +854,8 @@ private:
 
     virtual std::optional<double> GetSpecifiedWeight() const override;
 
+    const TSchedulerCompositeElement* GetNearestAncestorWithResourceLimits(const TSchedulerCompositeElement* element) const;
+
     void DoSetConfig(TPoolConfigPtr newConfig);
 };
 

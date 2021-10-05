@@ -1820,6 +1820,17 @@ void TSchedulerPoolElement::AttachParent(TSchedulerCompositeElement* parent)
         parent->GetId());
 }
 
+const TSchedulerCompositeElement* TSchedulerPoolElement::GetNearestAncestorWithResourceLimits(const TSchedulerCompositeElement* element) const
+{
+    do {
+        if (element->PersistentAttributes().AppliedResourceLimits != TJobResources::Infinite()) {
+            return element;
+        }
+    } while (element = element->GetParent());
+
+    return nullptr;
+}
+
 void TSchedulerPoolElement::ChangeParent(TSchedulerCompositeElement* newParent)
 {
     YT_VERIFY(Mutable_);
@@ -1827,25 +1838,21 @@ void TSchedulerPoolElement::ChangeParent(TSchedulerCompositeElement* newParent)
     YT_VERIFY(newParent);
     YT_VERIFY(Parent_ != newParent);
 
+    auto oldParent = Parent_;
+    bool enabled = Parent_->IsEnabledChild(this);
+    
     Parent_->IncreaseOperationCount(-OperationCount());
     Parent_->IncreaseRunningOperationCount(-RunningOperationCount());
-    bool enabled = Parent_->IsEnabledChild(this);
     Parent_->RemoveChild(this);
 
-    auto oldParentId = Parent_->GetId();
     Parent_ = newParent;
 
-    bool destinationHasSpecifiedResourceLimits = false;
-    {
-        const auto* currentParent = newParent;
-        while (currentParent != nullptr) {
-            destinationHasSpecifiedResourceLimits = destinationHasSpecifiedResourceLimits ||
-                (currentParent->PersistentAttributes().AppliedResourceLimits != TJobResources::Infinite());
-            currentParent = currentParent->GetParent();
-        }
-    }
+    auto* sourceAncestorWithResourceLimits = GetNearestAncestorWithResourceLimits(oldParent);
+    auto* destinationAncestorWithResourceLimits = GetNearestAncestorWithResourceLimits(newParent);
 
-    if (PersistentAttributes_.AppliedResourceLimits == TJobResources::Infinite() && destinationHasSpecifiedResourceLimits) {
+    if (PersistentAttributes_.AppliedResourceLimits == TJobResources::Infinite() && 
+        sourceAncestorWithResourceLimits != destinationAncestorWithResourceLimits)
+    {
         std::vector<TResourceTreeElementPtr> descendantOperationElements;
         CollectResourceTreeOperationElements(&descendantOperationElements);
 
@@ -1857,7 +1864,7 @@ void TSchedulerPoolElement::ChangeParent(TSchedulerCompositeElement* newParent)
         TreeHost_->GetResourceTree()->ChangeParent(
             ResourceTreeElement_,
             newParent->ResourceTreeElement_,
-            /* descendantOperationElements */ std::nullopt);
+            /*descendantOperationElements*/ std::nullopt);
     }
 
     Parent_->AddChild(this, enabled);
@@ -1865,8 +1872,8 @@ void TSchedulerPoolElement::ChangeParent(TSchedulerCompositeElement* newParent)
     Parent_->IncreaseRunningOperationCount(RunningOperationCount());
 
     YT_LOG_INFO("Parent pool is changed (NewParent: %v, OldParent: %v)",
-        Parent_->GetId(),
-        oldParentId);
+        newParent->GetId(),
+        oldParent->GetId());
 }
 
 void TSchedulerPoolElement::DetachParent()
@@ -2856,7 +2863,7 @@ void TSchedulerOperationElement::CheckForDeactivation(
         return;
     }
 
-    // NB: we explicitely set Active flag to avoid another call to IsAlive().
+    // NB: we explicitly set Active flag to avoid another call to IsAlive().
     attributes.Active = true;
 }
 
@@ -3591,7 +3598,7 @@ void TSchedulerOperationElement::ChangeParent(TSchedulerCompositeElement* parent
     TreeHost_->GetResourceTree()->ChangeParent(
         ResourceTreeElement_,
         parent->ResourceTreeElement_,
-        /* descendantOperationElements */ std::nullopt);
+        /*descendantOperationElements*/ std::nullopt);
 
     RunningInThisPoolTree_ = false;  // for consistency
     Parent_->IncreaseOperationCount(1);

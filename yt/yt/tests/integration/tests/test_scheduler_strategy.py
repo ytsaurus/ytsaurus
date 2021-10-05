@@ -404,6 +404,26 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         release_breakpoint()
         op.track()
 
+    @authors("renadeen")
+    def test_move_does_not_lose_resource_usage_in_source_ancestor(self):
+        create_pool(
+            "pool_with_limits",
+            attributes={"resource_limits": {"cpu": 1}})
+
+        create_pool("pool_without_limits", parent_name="pool_with_limits")
+
+        op1 = run_sleeping_vanilla(spec={"pool": "pool_without_limits"})
+        wait(lambda: op1.get_running_jobs())
+
+        move(
+            "//sys/pool_trees/default/pool_with_limits/pool_without_limits",
+            "//sys/pool_trees/default/pool_without_limits")
+
+        op2 = run_sleeping_vanilla(spec={"pool": "pool_with_limits"})
+        # Resource usage in parent pool wasn't transfered and new jobs weren't scheduled as resource_limits exceeded.
+        wait(lambda: op2.get_running_jobs())
+
+
 ##################################################################
 
 
