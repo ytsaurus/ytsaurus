@@ -84,7 +84,8 @@ def _get_yt_binary_path(binary, custom_paths):
 def _get_yt_versions(custom_paths):
     result = OrderedDict()
     binaries = ["ytserver-master", "ytserver-node", "ytserver-scheduler", "ytserver-controller-agent",
-                "ytserver-http-proxy", "ytserver-proxy", "ytserver-job-proxy", "ytserver-clock", "ytserver-discovery",
+                "ytserver-http-proxy", "ytserver-proxy", "ytserver-job-proxy",
+                "ytserver-clock", "ytserver-discovery", "ytserver-cell-balancer",
                 "ytserver-exec", "ytserver-tools", "ytserver-timestamp-provider", "ytserver-master-cache"]
     for binary in binaries:
         binary_path = _get_yt_binary_path(binary, custom_paths=custom_paths)
@@ -166,7 +167,7 @@ class YTInstance(object):
                 if not os.path.exists(ytserver_all_path):
                     raise YtError("ytserver-all binary is missing at path " + ytserver_all_path)
                 makedirp(self.bin_path)
-                programs = ["master", "clock", "node", "job-proxy", "exec",
+                programs = ["master", "clock", "node", "job-proxy", "exec", "cell-balancer",
                             "proxy", "http-proxy", "tools", "scheduler", "discovery",
                             "controller-agent", "timestamp-provider", "master-cache"]
                 for program in programs:
@@ -255,6 +256,7 @@ class YTInstance(object):
                 "discovery": self._make_service_dirs("discovery", self.yt_config.discovery_server_count),
                 "timestamp_provider": self._make_service_dirs("timestamp_provider",
                                                               self.yt_config.timestamp_provider_count),
+                "cell-balancer": self._make_service_dirs("cell-balancer", self.yt_config.cell_balancer_count),
                 "scheduler": self._make_service_dirs("scheduler", self.yt_config.scheduler_count),
                 "controller_agent": self._make_service_dirs("controller_agent", self.yt_config.controller_agent_count),
                 "node": self._make_service_dirs("node", self.yt_config.node_count),
@@ -276,6 +278,7 @@ class YTInstance(object):
         logger.info("  master caches         %d", self.yt_config.master_cache_count)
         logger.info("  schedulers            %d", self.yt_config.scheduler_count)
         logger.info("  controller agents     %d", self.yt_config.controller_agent_count)
+        logger.info("  cell balancers        %d", self.yt_config.cell_balancer_count)
 
         if self.yt_config.secondary_cell_count > 0:
             logger.info("  secondary cells       %d", self.yt_config.secondary_cell_count)
@@ -321,6 +324,8 @@ class YTInstance(object):
             self._prepare_http_proxies(cluster_configuration["http_proxy"])
         if self.yt_config.rpc_proxy_count > 0:
             self._prepare_rpc_proxies(cluster_configuration["rpc_proxy"], cluster_configuration["rpc_client"])
+        if self.yt_config.cell_balancer_count > 0:
+            self._prepare_cell_balancers(cluster_configuration["cell_balancer"])
 
         self._prepare_drivers(
             cluster_configuration["driver"],
@@ -386,6 +391,9 @@ class YTInstance(object):
 
             if self.yt_config.rpc_proxy_count > 0:
                 self.start_rpc_proxy(sync=False)
+
+            if self.yt_config.cell_balancer_count > 0:
+                self.start_cell_balancers(sync=False)
 
             self.synchronize()
 
@@ -459,7 +467,7 @@ class YTInstance(object):
             killed_services.add("watcher")
 
         for name in ["http_proxy", "node", "chaos_node", "scheduler", "controller_agent", "master",
-                     "rpc_proxy", "timestamp_provider", "master_caches"]:
+                     "rpc_proxy", "timestamp_provider", "master_caches", "cell_balancer"]:
             if name in self.configs:
                 self.kill_service(name)
                 killed_services.add(name)
@@ -540,6 +548,15 @@ class YTInstance(object):
                 .format(self.yt_config.fqdn,
                         get_value_from_config(config, "monitoring_port", "master_cache"))
                 for config in self.configs["master_cache"]]
+
+    def get_cell_balancer_monitoring_addresses(self):
+        if self.yt_config.cell_balancer_count == 0:
+            raise YtError("Cell balancers are not started")
+        return ["{0}:{1}"
+                .format(
+                    self.yt_config.fqdn,
+                    get_value_from_config(config, "monitoring_port", "cell_balancer"))
+                for config in self.configs["cell_balancer"]]
 
     def kill_schedulers(self, indexes=None):
         self.kill_service("scheduler", indexes=indexes)
@@ -1058,6 +1075,43 @@ class YTInstance(object):
 
         self._wait_or_skip(
             lambda: self._wait_for(timestamp_providers_ready, "timestamp_provider", max_wait_time=20),
+            sync)
+
+    def _prepare_cell_balancers(self, cell_balancer_configs):
+        for cell_balancer_index in xrange(self.yt_config.cell_balancer_count):
+            cell_balancer_config_name = "cell_balancer-{0}.yson".format(cell_balancer_index)
+            config_path = os.path.join(self.configs_path, cell_balancer_config_name)
+            if self._load_existing_environment:
+                if not os.path.isfile(config_path):
+                    raise YtError("Cell balancer config {0} not found. It is possible that you requested "
+                                  "more cell balancers than configs exist".format(config_path))
+                config = read_config(config_path)
+            else:
+                config = cell_balancer_configs[cell_balancer_index]
+                write_config(config, config_path)
+
+            self.configs["cell_balancer"].append(config)
+            self.config_paths["cell_balancer"].append(config_path)
+            self._service_processes["cell_balancer"].append(None)
+
+    def start_cell_balancers(self, sync=True):
+        self._run_yt_component("cell-balancer", name="cell_balancer")
+
+        def cell_balancers_ready():
+            self._validate_processes_are_running("cell_balancer")
+
+            addresses = self.get_cell_balancer_monitoring_addresses()
+            try:
+                for address in addresses:
+                    resp = requests.get("http://{0}/orchid".format(address))
+                    resp.raise_for_status()
+            except (requests.exceptions.RequestException, socket.error):
+                return False, traceback.format_exc()
+
+            return True
+
+        self._wait_or_skip(
+            lambda: self._wait_for(cell_balancers_ready, "cell_balancer", max_wait_time=20),
             sync)
 
     def _list_nodes(self, pick_chaos=False):

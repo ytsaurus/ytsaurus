@@ -90,6 +90,7 @@ PROGRAMS = [("master", "master/bin"),
             ("tools", "tools/bin"),
             ("scheduler", "scheduler/bin"),
             ("controller-agent", "controller_agent/bin"),
+            ("cell-balancer", "cell_balancer/bin"),
             ("master-cache", "master_cache/bin")]
 
 def prepare_yt_binaries(destination,

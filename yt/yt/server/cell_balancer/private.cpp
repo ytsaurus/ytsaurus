@@ -1,0 +1,13 @@
+#include "private.h"
+
+namespace NYT::NCellBalancer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+const NLogging::TLogger CellBalancerLogger("CellBalancer");
+
+const NProfiling::TRegistry CellBalancerProfiler("/cell_balancer");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NCellBalancer
