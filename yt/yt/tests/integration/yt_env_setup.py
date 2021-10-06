@@ -214,6 +214,7 @@ class YTEnvSetup(object):
     DRIVER_BACKEND = "native"
     NODE_PORT_SET_SIZE = None
     ARTIFACT_COMPONENTS = {}
+    NUM_CELL_BALANCERS = 0
 
     DELTA_DRIVER_CONFIG = {}
     DELTA_RPC_DRIVER_CONFIG = {}
@@ -313,6 +314,7 @@ class YTEnvSetup(object):
             defer_secondary_cell_start=cls.get_param("DEFER_SECONDARY_CELL_START", index),
             clock_count=cls.get_param("NUM_CLOCKS", index),
             timestamp_provider_count=cls.get_param("NUM_TIMESTAMP_PROVIDERS", index),
+            cell_balancer_count=cls.get_param("NUM_CELL_BALANCERS", index),
             discovery_server_count=cls.get_param("NUM_DISCOVERY_SERVERS", index),
             node_count=cls.get_param("NUM_NODES", index),
             defer_node_start=cls.get_param("DEFER_NODE_START", index),

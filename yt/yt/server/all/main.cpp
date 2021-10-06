@@ -12,6 +12,7 @@
 #include <yt/yt/server/discovery_server/program.h>
 #include <yt/yt/server/timestamp_provider/program.h>
 #include <yt/yt/server/master_cache/program.h>
+#include <yt/yt/server/cell_balancer/program.h>
 
 #include <yt/yt/ytlib/program/program.h>
 
@@ -62,6 +63,7 @@ int main(int argc, const char** argv)
         {"ytserver-discovery", [&] { return NYT::NClusterDiscoveryServer::TClusterDiscoveryServerProgram().Run(argc, argv); }},
         {"ytserver-timestamp-provider", [&] { return NYT::NTimestampProvider::TTimestampProviderProgram().Run(argc, argv); }},
         {"ytserver-master-cache", [&] { return NYT::NMasterCache::TMasterCacheProgram().Run(argc, argv); }},
+        {"ytserver-cell-balancer", [&] { return NYT::NCellBalancer::TCellBalancerProgram().Run(argc, argv); }},
     };
 
     for (const auto program : programs) {

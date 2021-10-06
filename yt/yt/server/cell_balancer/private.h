@@ -1,0 +1,23 @@
+#pragma once
+
+#include <yt/yt/library/profiling/sensor.h>
+
+#include <yt/yt/core/logging/log.h>
+
+namespace NYT::NCellBalancer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TCellBalancerConfig)
+
+struct IBootstrap;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const NLogging::TLogger CellBalancerLogger;
+
+extern const NProfiling::TRegistry CellBalancerProfiler;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NCellBalancer

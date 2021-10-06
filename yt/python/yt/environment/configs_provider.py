@@ -64,6 +64,12 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         ports_generator,
         logs_dir)
 
+    cell_balancer_configs, cell_balancer_addresses = _build_cell_balancer_configs(
+        yt_config,
+        ports_generator,
+        logs_dir,
+    )
+
     node_configs, node_addresses = _build_node_configs(
         dirs["node"],
         dirs["node_tmpfs"],
@@ -161,6 +167,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         "clock": clock_configs,
         "discovery": discovery_configs,
         "timestamp_provider": timestamp_provider_configs,
+        "cell_balancer": cell_balancer_configs,
         "driver": driver_configs,
         "rpc_driver": rpc_driver_config,
         "scheduler": scheduler_configs,
@@ -395,6 +402,30 @@ def _build_timestamp_provider_configs(yt_config,
         config["monitoring_port"] = next(ports_generator)
         config["logging"] = _init_logging(logs_dir,
                                           "timestamp-provider-" + str(index),
+                                          yt_config,
+                                          log_errors_to_stderr=True)
+
+        configs.append(config)
+        addresses.append("localhost:{}".format(config["rpc_port"]))
+
+    return configs, addresses
+
+
+def _build_cell_balancer_configs(yt_config,
+                                 ports_generator,
+                                 logs_dir):
+    configs = []
+    addresses = []
+
+    for index in xrange(yt_config.cell_balancer_count):
+        config = default_config.get_cell_balancer_config()
+
+        init_singletons(config, yt_config.fqdn, "cell_balancer", {"cell_balancer_index": str(index)})
+
+        config["rpc_port"] = next(ports_generator)
+        config["monitoring_port"] = next(ports_generator)
+        config["logging"] = _init_logging(logs_dir,
+                                          "cell-balancer-" + str(index),
                                           yt_config,
                                           log_errors_to_stderr=True)
 
