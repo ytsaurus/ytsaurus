@@ -45,6 +45,13 @@ public abstract class RetryPolicy {
     }
 
     /**
+     * Create retry policy that will retry all errors.
+     */
+    public static RetryPolicy retryAll(int attemptLimit) {
+        return new AttemptLimitedRetryPolicy(attemptLimit, new RetryAllPolicy());
+    }
+
+    /**
      * Create retry policy that will retry given set of error codes.
      */
     public static RetryPolicy forCodes(Collection<Integer> errorCodes) {
@@ -187,6 +194,13 @@ public abstract class RetryPolicy {
         @Override
         public Optional<Duration> getBackoffDuration(Throwable error, RpcOptions options) {
             return Optional.empty();
+        }
+    }
+
+    static class RetryAllPolicy extends RetryPolicy {
+        @Override
+        public Optional<Duration> getBackoffDuration(Throwable error, RpcOptions options) {
+            return Optional.of(Duration.ZERO);
         }
     }
 }
