@@ -47,7 +47,7 @@ import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
-public class ApiServiceTransaction implements TransactionalClient, AutoCloseable {
+public class ApiServiceTransaction implements TransactionalClient, AutoCloseable, Abortable {
     enum State {
         ACTIVE,
         COMMITTING,

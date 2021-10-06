@@ -95,6 +95,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.rpc.RpcRequestsTestingController;
 import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
@@ -188,6 +189,13 @@ public class ApiServiceClientImpl implements ApiServiceClient {
 
             sender.ref();
             result.getTransactionCompleteFuture().whenComplete((ignored, ex) -> sender.unref());
+
+            RpcRequestsTestingController rpcRequestsTestingController =
+                    rpcOptions.getTestingOptions().getRpcRequestsTestingController();
+            if (rpcRequestsTestingController != null) {
+                rpcRequestsTestingController.addStartedTransaction(id);
+            }
+
             logger.debug("New transaction {} has started by {}", id, builder);
             return result;
         });
@@ -717,6 +725,10 @@ public class ApiServiceClientImpl implements ApiServiceClient {
 
     @Override
     public <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable<T> req) {
+        if (req.getNeedRetries()) {
+            throw new IllegalStateException("Cannot write table with retries in ApiServiceClient");
+        }
+
         RpcClientRequestBuilder<TReqWriteTable.Builder, TRspWriteTable>
                 builder = ApiServiceMethodTable.WRITE_TABLE.createRequestBuilder(rpcOptions);
 

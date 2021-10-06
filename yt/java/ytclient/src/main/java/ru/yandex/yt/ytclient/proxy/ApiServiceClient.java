@@ -72,7 +72,6 @@ public interface ApiServiceClient extends TransactionalClient {
         return abortTransaction(new AbortTransaction(id));
     }
 
-
     CompletableFuture<List<YTreeNode>> getTablePivotKeys(GetTablePivotKeys req);
 
     CompletableFuture<GUID> createObject(CreateObject req);
@@ -221,7 +220,6 @@ public interface ApiServiceClient extends TransactionalClient {
 
     <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req,
                                                     TableAttachmentReader<T> reader);
-
     default CompletableFuture<TableReader<byte[]>> readTableDirect(ReadTableDirect req) {
         return readTable(req, TableAttachmentReader.BYPASS);
     }

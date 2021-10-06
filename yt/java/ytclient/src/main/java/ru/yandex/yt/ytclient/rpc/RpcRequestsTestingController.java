@@ -15,6 +15,7 @@ import ru.yandex.yt.rpc.TRequestHeader;
 public class RpcRequestsTestingController {
     private Map<GUID, List<Pair<TRequestHeader, Object>>> requestIdToRequest = new HashMap<>();
     private Map<String, List<GUID>> methodToRequestIds = new HashMap<>();
+    private List<GUID> startedTransactions = new ArrayList<>();
 
     public void addRequest(TRequestHeader requestHeader, Object requestBody) {
         synchronized (this) {
@@ -48,6 +49,17 @@ public class RpcRequestsTestingController {
         }
     }
 
+    public void addStartedTransaction(GUID transactionId) {
+        synchronized (this) {
+            startedTransactions.add(transactionId);
+        }
+    }
+
+    public List<GUID> getStartedTransactions() {
+        synchronized (this) {
+            return new ArrayList<>(startedTransactions);
+        }
+    }
 
     public void clear() {
         synchronized (this) {

@@ -8,27 +8,46 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 
 @NonNullApi
 @NonNullFields
 public class OutageController {
-    private final Map<String, Queue<Throwable>> requestTypeToErrors = new HashMap<>();
+    private final Map<String, Queue<Optional<Throwable>>> requestTypeToErrors = new HashMap<>();
     private final Map<String, Queue<Duration>> requestTypeToDelays = new HashMap<>();
+    private Map<GUID, Optional<Throwable>> requestToError = new HashMap<>();
 
     /**
      * Planning more fails of 'requestType' queries.
      * So 'count' calls of 'requestType' queries will fail with error = 'exception'.
      * @return self
      */
-    public OutageController addFails(String requestType, int count, Exception exception) {
+    public OutageController addFails(String requestType, int count, Throwable exception) {
         synchronized (this) {
             for (int idx = 0; idx < count; ++idx) {
                 if (!requestTypeToErrors.containsKey(requestType)) {
                     requestTypeToErrors.put(requestType, new LinkedList<>());
                 }
-                requestTypeToErrors.get(requestType).add(Objects.requireNonNull(exception));
+                requestTypeToErrors.get(requestType).add(Optional.of(Objects.requireNonNull(exception)));
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Planning more OKs of 'requestType' queries.
+     * So 'count' calls of 'requestType' queries won't fail
+     * @return self
+     */
+    public OutageController addOk(String requestType, int count) {
+        synchronized (this) {
+            for (int idx = 0; idx < count; ++idx) {
+                if (!requestTypeToErrors.containsKey(requestType)) {
+                    requestTypeToErrors.put(requestType, new LinkedList<>());
+                }
+                requestTypeToErrors.get(requestType).add(Optional.empty());
             }
         }
         return this;
@@ -73,13 +92,22 @@ public class OutageController {
         return delay != null ? Optional.of(delay) : Optional.empty();
     }
 
-    Optional<Throwable> pollError(String requestType) {
-        Throwable error = null;
+    Optional<Throwable> pollError(String requestType, GUID requestId) {
+        Optional<Throwable> error = Optional.empty();
         synchronized (this) {
-            if (requestTypeToErrors.containsKey(requestType)) {
-                error = requestTypeToErrors.get(requestType).poll();
+            if (requestToError.containsKey(requestId)) {
+                error = requestToError.get(requestId);
+            } else {
+                if (requestTypeToErrors.containsKey(requestType)) {
+                    Optional<Throwable> maybeError = requestTypeToErrors.get(requestType).poll();
+                    if (maybeError != null) {
+                        error = maybeError;
+                    }
+                }
+                requestToError.put(requestId, error);
             }
+
         }
-        return error != null ? Optional.of(error) : Optional.empty();
+        return error;
     }
 }
