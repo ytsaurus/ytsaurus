@@ -9,6 +9,7 @@ import java.util.List;
 
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.MessageLite;
+import io.netty.buffer.ByteBuf;
 
 import ru.yandex.yt.ytclient.object.WireProtocolWriteable;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
@@ -293,7 +294,7 @@ public class WireProtocolWriter {
         }
     }
 
-    private void writeRowCount(int rowCount) {
+    public void writeRowCount(int rowCount) {
         writeLong(WireProtocol.validateRowCount(rowCount));
     }
 
@@ -313,6 +314,17 @@ public class WireProtocolWriter {
         for (T row : rows) {
             writeUnversionedRow(row, serializer, idMapping);
         }
+    }
+
+    public <T> void writeUnversionedRowsetWithoutCount(List<T> rows, WireRowSerializer<T> serializer, int[] idMapping) {
+        for (T row : rows) {
+            writeUnversionedRow(row, serializer, idMapping);
+        }
+    }
+
+    public <T> void writeUnversionedRowset(ByteBuf serializedRows, int rowsCount) {
+        writeRowCount(rowsCount);
+        writeable.onBytes(serializedRows.array());
     }
 
     public <T> void writeUnversionedRowset(List<T> rows, WireRowSerializer<T> serializer, KeyFieldsOnlyFunction func) {

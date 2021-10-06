@@ -67,6 +67,17 @@ public class YtClientTestBase {
         Throwable error = null;
         for (var fixture : ytFixtures) {
             try (var yt = fixture.yt) {
+                var rpcRequestsTestingController = yt.rpcOptions.getTestingOptions().getRpcRequestsTestingController();
+                if (rpcRequestsTestingController != null) {
+                    var transactionIds = rpcRequestsTestingController.getStartedTransactions();
+                    for (GUID transactionId : transactionIds) {
+                        try {
+                            yt.abortTransaction(transactionId).join();
+                        } catch (Exception ex) {
+                        }
+                    }
+                }
+
                 yt.removeNode(new RemoveNode(fixture.testDirectory).setForce(true)).join();
             } catch (Throwable ex) {
                 if (error == null) {

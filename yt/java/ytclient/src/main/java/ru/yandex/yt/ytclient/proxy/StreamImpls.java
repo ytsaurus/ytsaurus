@@ -2,17 +2,28 @@ package ru.yandex.yt.ytclient.proxy;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import NYT.NChunkClient.NProto.DataStatistics;
@@ -25,6 +36,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import ru.yandex.bolts.collection.Tuple2;
+import ru.yandex.inside.yt.kosher.common.GUID;
+import ru.yandex.inside.yt.kosher.cypress.YPath;
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
 import ru.yandex.yt.rpc.TStreamingPayloadHeader;
@@ -39,9 +54,18 @@ import ru.yandex.yt.rpcproxy.TWriteTableMeta;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
 import ru.yandex.yt.ytclient.proxy.internal.SlidingWindow;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
+import ru.yandex.yt.ytclient.proxy.request.ColumnFilter;
+import ru.yandex.yt.ytclient.proxy.request.CreateNode;
+import ru.yandex.yt.ytclient.proxy.request.GetNode;
+import ru.yandex.yt.ytclient.proxy.request.LockMode;
+import ru.yandex.yt.ytclient.proxy.request.LockNode;
+import ru.yandex.yt.ytclient.proxy.request.ObjectType;
+import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
+import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
+import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.Codec;
@@ -123,6 +147,7 @@ abstract class StreamBase<RspType extends Message> implements RpcStreamConsumer 
     @Override
     public void onError(Throwable error) {
         logger.error("Error", error);
+
         result.completeExceptionally(error);
     }
 
@@ -311,7 +336,7 @@ abstract class StreamWriterImpl<T extends Message> extends StreamBase<T> impleme
     @Override
     public void onFeedback(RpcClient sender, TStreamingFeedbackHeader header, List<byte[]> attachments) {
         if (!attachments.isEmpty()) {
-            throw new IllegalArgumentException("protocol error");
+            throw new IllegalArgumentException("protocol error in onFeedback");
         }
 
         synchronized (lock) {
@@ -343,7 +368,7 @@ abstract class StreamWriterImpl<T extends Message> extends StreamBase<T> impleme
             if (!startUpload.isDone()) {
                 startUpload.complete(payloadAttachments);
             } else {
-                throw new IllegalArgumentException("protocol error");
+                throw new IllegalArgumentException("protocol error in onPayload");
             }
         }
 
@@ -419,12 +444,63 @@ abstract class StreamWriterImpl<T extends Message> extends StreamBase<T> impleme
     }
 }
 
-class RowsSerializer<T> {
+
+@NonNullApi
+interface RawTableWriter extends Abortable<Void> {
+    boolean write(byte[] attachment);
+
+    // Finishes a table writing.
+    CompletableFuture<?> finish();
+
+    // Aborts a table writing.
+    Void abort();
+
+    // Wait it before trying to write again.
+    CompletableFuture<Void> readyEvent();
+}
+
+@NonNullApi
+class RawTableWriterImpl extends StreamWriterImpl<TRspWriteTable>
+        implements RawTableWriter, RpcStreamConsumer {
+    RawTableWriterImpl(long windowSize, long packetSize) {
+        super(windowSize, packetSize);
+    }
+
+    @Override
+    protected Parser<TRspWriteTable> responseParser() {
+        return TRspWriteTable.parser();
+    }
+
+    @Override
+    public boolean write(byte[] attachment) {
+        return push(attachment);
+    }
+
+    @Override
+    public CompletableFuture<?> finish() {
+        return close();
+    }
+
+    @Override
+    public Void abort() {
+        cancel();
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> readyEvent() {
+        return super.readyEvent();
+    }
+}
+
+@NonNullApi
+@NonNullFields
+class TableRowsSerializer<T> {
     private TRowsetDescriptor rowsetDescriptor = TRowsetDescriptor.newBuilder().build();
     private final WireRowSerializer<T> rowSerializer;
     private final Map<String, Integer> column2id = new HashMap<>();
 
-    RowsSerializer(WireRowSerializer<T> rowSerializer) {
+    TableRowsSerializer(WireRowSerializer<T> rowSerializer) {
         this.rowSerializer = Objects.requireNonNull(rowSerializer);
     }
 
@@ -436,15 +512,54 @@ class RowsSerializer<T> {
         return rowsetDescriptor;
     }
 
+    public ByteBuf serializeRows(List<T> rows, TableSchema schema) {
+        TRowsetDescriptor currentDescriptor = getCurrentRowsetDescriptor(schema);
+        int[] idMapping = getIdMapping(rows, schema);
+
+        ByteBuf buf = Unpooled.buffer();
+        writeMergedRowWithoutCount(buf, currentDescriptor, rows, idMapping);
+
+        updateRowsetDescriptor(currentDescriptor);
+
+        return buf;
+    }
+
+    public byte[] serialize(ByteBuf serializedRows, int rowsCount) throws IOException {
+        ByteBuf buf = Unpooled.buffer();
+
+        // parts
+        buf.writeIntLE(2);
+
+        int descriptorSizeIndex = buf.writerIndex();
+        buf.writeLongLE(0); // reserve space
+
+        writeDescriptor(buf, rowsetDescriptor);
+
+        buf.setLongLE(descriptorSizeIndex, buf.writerIndex() - descriptorSizeIndex - 8);
+
+        int mergedRowSizeIndex = buf.writerIndex();
+        buf.writeLongLE(0); // reserve space
+
+        writeMergedRow(buf, serializedRows, rowsCount);
+
+        buf.setLongLE(mergedRowSizeIndex, buf.writerIndex() - mergedRowSizeIndex - 8);
+
+        return bufToArray(buf);
+    }
+
     public byte[] serialize(List<T> rows, TableSchema schema) throws IOException {
-        Iterator<T> it = rows.iterator();
-        if (!it.hasNext()) {
-            throw new IllegalStateException();
-        }
+        TRowsetDescriptor currentDescriptor = getCurrentRowsetDescriptor(schema);
+        int[] idMapping = getIdMapping(rows, schema);
 
-        T first = it.next();
-        boolean isUnversionedRows = first instanceof List && ((List<?>) first).get(0) instanceof UnversionedRow;
+        ByteBuf buf = Unpooled.buffer();
+        writeRowsData(buf, currentDescriptor, rows, idMapping);
 
+        updateRowsetDescriptor(currentDescriptor);
+
+        return bufToArray(buf);
+    }
+
+    private TRowsetDescriptor getCurrentRowsetDescriptor(TableSchema schema) {
         TRowsetDescriptor.Builder builder = TRowsetDescriptor.newBuilder();
 
         for (ColumnSchema descriptor : schema.getColumns()) {
@@ -458,9 +573,17 @@ class RowsSerializer<T> {
             }
         }
 
-        ByteBuf buf = Unpooled.buffer();
+        return builder.build();
+    }
 
-        TRowsetDescriptor currentDescriptor = builder.build();
+    private int[] getIdMapping(List<T> rows, TableSchema schema) {
+        Iterator<T> it = rows.iterator();
+        if (!it.hasNext()) {
+            throw new IllegalStateException();
+        }
+
+        T first = it.next();
+        boolean isUnversionedRows = first instanceof List && ((List<?>) first).get(0) instanceof UnversionedRow;
 
         int[] idMapping = isUnversionedRows
                 ? new int[column2id.size()]
@@ -481,8 +604,20 @@ class RowsSerializer<T> {
             }
         }
 
-        writeRowsData(buf, currentDescriptor, rows, idMapping);
+        return idMapping;
+    }
 
+    private void updateRowsetDescriptor(TRowsetDescriptor currentDescriptor) {
+        if (currentDescriptor.getNameTableEntriesCount() > 0) {
+            TRowsetDescriptor.Builder merged = TRowsetDescriptor.newBuilder();
+            merged.mergeFrom(rowsetDescriptor);
+            merged.addAllNameTableEntries(currentDescriptor.getNameTableEntriesList());
+            rowsetDescriptor = merged.build();
+        }
+    }
+
+    private byte[] bufToArray(ByteBuf buf) {
+        buf.array();
         byte[] attachment = new byte[buf.readableBytes()];
         buf.readBytes(attachment, 0, attachment.length);
 
@@ -490,17 +625,10 @@ class RowsSerializer<T> {
             throw new IllegalStateException();
         }
 
-        if (currentDescriptor.getNameTableEntriesCount() > 0) {
-            TRowsetDescriptor.Builder merged = TRowsetDescriptor.newBuilder();
-            merged.mergeFrom(rowsetDescriptor);
-            merged.addAllNameTableEntries(currentDescriptor.getNameTableEntriesList());
-            rowsetDescriptor = merged.build();
-        }
-
         return attachment;
     }
 
-    private void writeDescriptorDelta(ByteBuf buf, TRowsetDescriptor descriptor) throws IOException {
+    private void writeDescriptor(ByteBuf buf, TRowsetDescriptor descriptor) throws IOException {
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         CodedOutputStream os = CodedOutputStream.newInstance(byteArrayOutputStream);
         descriptor.writeTo(os);
@@ -519,9 +647,28 @@ class RowsSerializer<T> {
         }
     }
 
+    private void writeMergedRowWithoutCount(ByteBuf buf, TRowsetDescriptor descriptor, List<T> rows, int[] idMapping) {
+        WireProtocolWriter writer = new WireProtocolWriter();
+        rowSerializer.updateSchema(descriptor);
+        writer.writeUnversionedRowsetWithoutCount(rows, rowSerializer, idMapping);
+
+        for (byte[] bytes : writer.finish()) {
+            buf.writeBytes(bytes);
+        }
+    }
+
+    private void writeMergedRow(ByteBuf buf, ByteBuf serializedRows, int rowsCount) {
+        WireProtocolWriter writer = new WireProtocolWriter();
+        writer.writeUnversionedRowset(serializedRows, rowsCount);
+
+        for (byte[] bytes : writer.finish()) {
+            buf.writeBytes(bytes);
+        }
+    }
+
     private void writeRowsData(
             ByteBuf buf,
-            TRowsetDescriptor descriptor,
+            TRowsetDescriptor descriptorDelta,
             List<T> rows,
             int[] idMapping
     ) throws IOException {
@@ -529,37 +676,430 @@ class RowsSerializer<T> {
         buf.writeIntLE(2);
 
         int descriptorDeltaSizeIndex = buf.writerIndex();
-        buf.writeLongLE(0); // reserve space
+        buf.writeLongLE(0);  // reserve space
 
-        writeDescriptorDelta(buf, descriptor);
+        writeDescriptor(buf, descriptorDelta);
 
         buf.setLongLE(descriptorDeltaSizeIndex, buf.writerIndex() - descriptorDeltaSizeIndex - 8);
 
         int mergedRowSizeIndex = buf.writerIndex();
-        buf.writeLongLE(0); // reserve space
+        buf.writeLongLE(0);  // reserve space
 
-        writeMergedRow(buf, descriptor, rows, idMapping);
+        writeMergedRow(buf, descriptorDelta, rows, idMapping);
 
         buf.setLongLE(mergedRowSizeIndex, buf.writerIndex() - mergedRowSizeIndex - 8);
     }
 }
 
-class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> implements TableWriter<T>, RpcStreamConsumer {
-    private TableSchema schema;
-    private RowsSerializer rowsSerializer;
+@NonNullApi
+@NonNullFields
+class WriteTask<T> {
+    final byte[] data;
+    final RetryPolicy retryPolicy;
+    final CompletableFuture<Void> handled;
+    final int index;
 
-    TableWriterImpl(long windowSize, long packetSize, WireRowSerializer<T> serializer) {
-        super(windowSize, packetSize);
-        this.rowsSerializer = new RowsSerializer(serializer);
+    WriteTask(Buffer<T> buffer, TableRowsSerializer<T> rowsSerializer, RetryPolicy retryPolicy, int index) {
+        this.data = buffer.finish(rowsSerializer);
+        this.retryPolicy = retryPolicy;
+        this.handled = buffer.handled;
+        this.index = index;
+    }
+}
+
+@NonNullApi
+@NonNullFields
+class Buffer<T> {
+    final ByteBuf buffer;
+    final CompletableFuture<Void> handled = new CompletableFuture<>();
+    int rowsCount = 0;
+
+    Buffer() {
+        this.buffer =  Unpooled.buffer();
     }
 
+    public int size() {
+        return buffer.readableBytes();
+    }
+
+    public void write(ByteBuf buf) {
+        buffer.writeBytes(buf);
+    }
+
+    public byte[] finish(TableRowsSerializer<T> rowsSerializer) {
+        try {
+            return rowsSerializer.serialize(buffer, rowsCount);
+        } catch (IOException ex) {
+            throw new RuntimeException("Serialization was failed, but it wasn't expected");
+        }
+    }
+}
+
+@NonNullApi
+@NonNullFields
+class InitResult {
+    ApiServiceTransaction transaction;
+    TableSchema schema;
+
+    InitResult(ApiServiceTransaction transaction, TableSchema schema) {
+        this.transaction = transaction;
+        this.schema = schema;
+    }
+}
+
+interface Abortable<T> {
+    T abort();
+}
+
+@NonNullApi
+@NonNullFields
+class RetryingTableWriterImpl<T> implements TableWriter<T> {
+    static final Logger logger = LoggerFactory.getLogger(RetryingTableWriterImpl.class);
+
+    final ApiServiceClient apiServiceClient;
+    final ScheduledExecutorService executor;
+    final WriteTable<T> secondaryReq;
+    final RpcOptions rpcOptions;
+    final TableRowsSerializer<T> rowsSerializer;
+
+    final Queue<WriteTask<T>> writeTasks = new ConcurrentLinkedQueue<>();
+    final Set<Abortable<?>> processing = new HashSet<>();
+    final Queue<CompletableFuture<Void>> handledEvents = new ConcurrentLinkedQueue<>();
+
+    final Semaphore semaphore;
+
+    final CompletableFuture<InitResult> init;
+    final CompletableFuture<Void> result = new CompletableFuture<>();
+    final CompletableFuture<Void> firstBufferHandled;
+
+    volatile WriteTable<T> req;
+    @Nullable private volatile Buffer<T> buffer;
+
+    volatile boolean canceled = false;
+    volatile boolean closed = false;
+    int nextWriteTaskIndex = 0;
+
+    volatile CompletableFuture<Void> readyEvent = CompletableFuture.completedFuture(null);
+
+    RetryingTableWriterImpl(
+            ApiServiceClient apiServiceClient,
+            ScheduledExecutorService executor,
+            WriteTable<T> req,
+            RpcOptions rpcOptions
+    ) {
+        Objects.requireNonNull(req.getYPath());
+
+        this.apiServiceClient = apiServiceClient;
+        this.executor = executor;
+        this.rpcOptions = rpcOptions;
+
+        this.req = new WriteTable<>(req);
+        this.req.setNeedRetries(false);
+        this.secondaryReq = new WriteTable<>(this.req);
+        this.secondaryReq.setPath(this.secondaryReq.getYPath().append(true));
+
+        this.rowsSerializer = new TableRowsSerializer<>(this.req.getSerializer());
+
+        YPath path = this.req.getYPath();
+        boolean append = path.getAppend().orElse(false);
+        LockMode lockMode = append ? LockMode.Shared : LockMode.Exclusive;
+
+        this.semaphore = new Semaphore(this.req.getMaxWritesInFlight());
+
+        Buffer<T> firstBuffer = new Buffer<>();
+        firstBufferHandled = firstBuffer.handled;
+        this.buffer = firstBuffer;
+
+        this.init = apiServiceClient.startTransaction(StartTransaction.master())
+                .thenCompose(transaction -> {
+                    CompletableFuture<?> createNodeFuture;
+                    if (!append) {
+                        createNodeFuture = transaction.createNode(
+                                new CreateNode(path, ObjectType.Table).setIgnoreExisting(true));
+                    } else {
+                        createNodeFuture = CompletableFuture.completedFuture(transaction);
+                    }
+                    return createNodeFuture
+                            .thenCompose(unused -> transaction.lockNode(new LockNode(path, lockMode)))
+                            .thenCompose(unused -> transaction.getNode(
+                                    new GetNode(path.justPath()).setAttributes(ColumnFilter.of("schema"))))
+                            .thenApply(node -> new InitResult(
+                                    transaction, TableSchema.fromYTree(node.getAttributeOrThrow("schema"))));
+                });
+
+        this.init.handle((initResult, ex) -> {
+            if (ex != null) {
+                cancel();
+            }
+            return null;
+        });
+    }
+
+    @Override
     public WireRowSerializer<T> getRowSerializer() {
         return rowsSerializer.getRowSerializer();
     }
 
+    private boolean addAbortable(Abortable<?> abortable) {
+        boolean wantAbort = false;
+        synchronized (this) {
+            if (canceled) {
+                wantAbort = true;
+            }
+            processing.add(abortable);
+        }
+        if (wantAbort) {
+            abortable.abort();
+            return true;
+        }
+        return false;
+    }
+
+    private synchronized void removeAbortable(Abortable<?> abortable) {
+        processing.remove(abortable);
+    }
+
+    private <R extends Abortable<?>, U> CompletableFuture<U> tryWith(
+            CompletableFuture<R> abortableFuture,
+            Function<R, CompletableFuture<U>> function
+    ) {
+        return abortableFuture.thenCompose(abortable -> {
+            if (addAbortable(abortable)) {
+                // No need to call `function`.
+                return RpcUtil.failedFuture(new IllegalStateException("Already canceled"));
+            }
+
+            CompletableFuture<U> functionResult = function.apply(abortable);
+            functionResult.whenComplete((res, ex) -> {
+                if (ex != null) {
+                    abortable.abort();
+                }
+                removeAbortable(abortable);
+            });
+            return functionResult;
+        });
+    }
+
+    private <U> U checkedGet(CompletableFuture<U> future) {
+        if (!future.isDone() && future.isCompletedExceptionally()) {
+            throw new IllegalArgumentException("internal error");
+        }
+        return future.join();
+    }
+
+    private void processWriteTask(WriteTask<T> writeTask) {
+        if (canceled) {
+            // `RetryingWriter.cancel()` was called, no need to process buffers more.
+            return;
+        }
+
+        writeTask.retryPolicy.onNewAttempt();
+
+        GUID parentTxId = checkedGet(init).transaction.getId();
+        CompletableFuture<ApiServiceTransaction> localTransactionFuture = apiServiceClient.startTransaction(
+                StartTransaction.master().setParentId(parentTxId));
+
+        tryWith(localTransactionFuture, localTransaction -> {
+            CompletableFuture<RawTableWriter> writerFuture = localTransaction.writeTable(req)
+                     .thenApply(writer -> (RawTableWriter) writer);
+
+            return tryWith(writerFuture, writer -> writer.readyEvent()
+                    .thenCompose(unused -> {
+                        boolean writeResult = writer.write(writeTask.data);
+                        if (!writeResult) {
+                            throw new IllegalStateException("internal error");
+                        }
+                        return writer.finish();
+                    }).thenCompose(unused -> localTransaction.commit()).thenApply(unused -> {
+                        this.req = this.secondaryReq;
+                        writeTask.handled.complete(null);
+                        semaphore.release();
+
+                        if (!writeTasks.isEmpty()) {
+                            tryStartProcessWriteTask();
+                        }
+                        return null;
+                    })
+            );
+        }).handle((unused, ex) -> {
+            if (ex == null) {
+                return null;
+            }
+
+            Optional<Duration> backoff = writeTask.retryPolicy.getBackoffDuration(ex, rpcOptions);
+            if (!backoff.isPresent()) {
+                writeTask.handled.completeExceptionally(ex);
+                result.completeExceptionally(ex);
+                return null;
+            }
+
+            logger.debug("Got error, we will retry it in {} seconds, message='{}'",
+                    backoff.get().toNanos() / 1000000000, ex.getMessage());
+
+            executor.schedule(
+                    () -> processWriteTask(writeTask),
+                    backoff.get().toNanos(),
+                    TimeUnit.NANOSECONDS);
+
+            return null;
+        });
+    }
+
+    private void tryStartProcessWriteTask() {
+        if (!semaphore.tryAcquire()) {
+            // Max flights inflight limit was reached.
+            return;
+        }
+
+        executor.execute(() -> {
+            WriteTask<T> writeTask = writeTasks.peek();
+            if (writeTask == null) {
+                semaphore.release();
+                return;
+            }
+
+            if (!firstBufferHandled.isDone() && writeTask.index > 0) {
+                // This means that that first buffer is already being processed, but it isn't finished yet.
+                semaphore.release();
+                return;
+            }
+
+            writeTask = writeTasks.poll();
+            if (writeTask == null) {
+                semaphore.release();
+                return;
+            }
+
+            synchronized (this) {
+                if (canceled) {
+                    return;
+                }
+                if (buffer == null && !closed) {
+                    buffer = new Buffer<>();
+                    readyEvent.complete(null);
+                }
+            }
+
+            processWriteTask(writeTask);
+        });
+    }
+
+    private void flushBuffer(boolean lastBuffer) {
+        Buffer<T> currentBuffer = buffer;
+        if (currentBuffer == null) {
+            return;
+        }
+
+        if (lastBuffer && currentBuffer.size() == 0) {
+            buffer = null;
+            return;
+        }
+
+        WriteTask<T> writeTask = new WriteTask<>(
+                currentBuffer, rowsSerializer, rpcOptions.getRetryPolicyFactory().get(), nextWriteTaskIndex++);
+        writeTasks.add(writeTask);
+        handledEvents.add(currentBuffer.handled);
+
+        if (!lastBuffer && writeTasks.size() <= req.getMaxWritesInFlight()) {
+            buffer = new Buffer<>();
+        } else {
+            buffer = null;
+            readyEvent = new CompletableFuture<>();
+        }
+
+        tryStartProcessWriteTask();
+    }
+
     @Override
-    protected Parser<TRspWriteTable> responseParser() {
-        return TRspWriteTable.parser();
+    public boolean write(List<T> rows, TableSchema schema) {
+        if (!init.isDone() || result.isCompletedExceptionally()) {
+            return false;
+        }
+
+        if (closed || canceled) {
+            return false;
+        }
+
+        Buffer<T> currentBuffer = buffer;
+        if (currentBuffer == null) {
+            return false;
+        }
+
+        ByteBuf serializedRows = rowsSerializer.serializeRows(rows, schema);
+        currentBuffer.write(serializedRows);
+        currentBuffer.rowsCount += rows.size();
+
+        if (currentBuffer.size() >= req.getChunkSize()) {
+            flushBuffer(false);
+        }
+
+        return true;
+    }
+
+    @Override
+    public CompletableFuture<Void> readyEvent() {
+        if (result.isCompletedExceptionally()) {
+            return result;
+        }
+
+        return CompletableFuture.anyOf(result, CompletableFuture.allOf(init, readyEvent))
+                .thenCompose(unused -> CompletableFuture.completedFuture(null));
+    }
+
+    @Override
+    public CompletableFuture<?> close() {
+        synchronized (this) {
+            closed = true;
+            flushBuffer(true);
+        }
+
+        return init.thenCompose(initResult -> CompletableFuture.anyOf(result, CompletableFuture.allOf(
+                handledEvents.toArray(new CompletableFuture<?>[0]))).thenApply(unused -> initResult)
+        ).thenCompose(initResult -> initResult.transaction.commit()
+        ).whenComplete((unused, ex) -> {
+            // Exception will be saved after this stage.
+            if (ex != null) {
+                cancel();
+            }
+        });
+    }
+
+    @Override
+    public TRowsetDescriptor getRowsetDescriptor() {
+        return rowsSerializer.getRowsetDescriptor();
+    }
+
+    @Override
+    public CompletableFuture<TableSchema> getTableSchema() {
+        return init.thenApply(initResult -> initResult.schema);
+    }
+
+    @Override
+    public synchronized void cancel() {
+        canceled = true;
+        buffer = null;
+        readyEvent = new CompletableFuture<>();
+
+        for (Abortable<?> abortable : processing) {
+            abortable.abort();
+        }
+
+        init.join().transaction.abort();
+    }
+}
+
+@NonNullApi
+class TableWriterImpl<T> extends RawTableWriterImpl implements TableWriter<T>, RpcStreamConsumer {
+    @Nullable private TableSchema schema;
+    @Nonnull final TableRowsSerializer<T> rowsSerializer;
+
+    TableWriterImpl(long windowSize, long packetSize, WireRowSerializer<T> serializer) {
+        super(windowSize, packetSize);
+        this.rowsSerializer = new TableRowsSerializer<>(serializer);
+    }
+
+    public WireRowSerializer<T> getRowSerializer() {
+        return rowsSerializer.getRowSerializer();
     }
 
     public CompletableFuture<TableWriter<T>> startUpload() {
@@ -589,9 +1129,8 @@ class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> implements Tab
 
     @Override
     public boolean write(List<T> rows, TableSchema schema) throws IOException {
-        byte[] attachment = rowsSerializer.serialize(rows, schema);
-
-        return push(attachment);
+        byte[] serializedRows = rowsSerializer.serialize(rows, schema);
+        return write(serializedRows);
     }
 
     @Override

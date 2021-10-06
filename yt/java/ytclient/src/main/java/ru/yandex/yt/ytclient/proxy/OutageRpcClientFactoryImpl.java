@@ -2,12 +2,14 @@ package ru.yandex.yt.ytclient.proxy;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpc.TResponseHeader;
@@ -25,6 +27,7 @@ import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.RpcRequest;
 import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
+import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 @NonNullApi
 @NonNullFields
@@ -39,11 +42,11 @@ class OutageRpcClient extends RpcClientWrapper {
         this.controller = controller;
     }
 
-    private RpcClientResponseHandler wrapHandler(RpcClientResponseHandler handler, String method) {
+    private RpcClientResponseHandler wrapHandler(RpcClientResponseHandler handler, String method, GUID requestId) {
         return new RpcClientResponseHandler() {
             @Override
             public void onResponse(RpcClient sender, TResponseHeader header, List<byte[]> attachments) {
-                Optional<Throwable> error = controller.pollError(method);
+                Optional<Throwable> error = Objects.requireNonNull(controller.pollError(method, requestId));
                 if (!error.isPresent()) {
                     handler.onResponse(sender, header, attachments);
                     return;
@@ -64,7 +67,7 @@ class OutageRpcClient extends RpcClientWrapper {
         };
     }
 
-    private RpcStreamConsumer wrapConsumer(RpcStreamConsumer consumer, String method) {
+    private RpcStreamConsumer wrapConsumer(RpcStreamConsumer consumer, String method, GUID requestId) {
         return new RpcStreamConsumer() {
             @Override
             public void onStartStream(RpcClientStreamControl control) {
@@ -73,7 +76,7 @@ class OutageRpcClient extends RpcClientWrapper {
 
             @Override
             public void onFeedback(RpcClient sender, TStreamingFeedbackHeader header, List<byte[]> attachments) {
-                Optional<Throwable> error = controller.pollError(method);
+                Optional<Throwable> error = Objects.requireNonNull(controller.pollError(method, requestId));
                 if (!error.isPresent()) {
                     consumer.onFeedback(sender, header, attachments);
                     return;
@@ -84,7 +87,7 @@ class OutageRpcClient extends RpcClientWrapper {
 
             @Override
             public void onPayload(RpcClient sender, TStreamingPayloadHeader header, List<byte[]> attachments) {
-                Optional<Throwable> error = controller.pollError(method);
+                Optional<Throwable> error = Objects.requireNonNull(controller.pollError(method, requestId));
                 if (!error.isPresent()) {
                     consumer.onPayload(sender, header, attachments);
                     return;
@@ -100,7 +103,7 @@ class OutageRpcClient extends RpcClientWrapper {
 
             @Override
             public void onResponse(RpcClient sender, TResponseHeader header, List<byte[]> attachments) {
-                Optional<Throwable> error = controller.pollError(method);
+                Optional<Throwable> error = Objects.requireNonNull(controller.pollError(method, requestId));
                 if (!error.isPresent()) {
                     consumer.onResponse(sender, header, attachments);
                     return;
@@ -132,11 +135,21 @@ class OutageRpcClient extends RpcClientWrapper {
         Optional<Duration> delay = controller.pollDelay(method);
         if (delay.isPresent()) {
             ScheduledFuture<RpcClientRequestControl> task = executor().schedule(
-                    () -> super.send(sender, request, wrapHandler(handler, method), options),
+                    () -> super.send(
+                            sender,
+                            request,
+                            wrapHandler(handler, method, RpcUtil.fromProto(request.header.getRequestId())),
+                            options
+                    ),
                     delay.get().toNanos(), TimeUnit.NANOSECONDS);
             return new OutageRpcClientRequestControl(task);
         }
-        return super.send(sender, request, wrapHandler(handler, method), options);
+        return super.send(
+                sender,
+                request,
+                wrapHandler(handler, method, RpcUtil.fromProto(request.header.getRequestId())),
+                options
+        );
     }
 
     @Override
@@ -146,7 +159,12 @@ class OutageRpcClient extends RpcClientWrapper {
             RpcStreamConsumer consumer,
             RpcOptions options
     ) {
-        return super.startStream(sender, request, wrapConsumer(consumer, request.header.getMethod()), options);
+        return super.startStream(
+                sender,
+                request,
+                wrapConsumer(consumer, request.header.getMethod(), RpcUtil.fromProto(request.header.getRequestId())),
+                options
+        );
     }
 }
 

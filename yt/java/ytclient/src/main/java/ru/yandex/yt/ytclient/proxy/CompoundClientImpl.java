@@ -23,6 +23,7 @@ import ru.yandex.yt.ytclient.misc.ScheduledSerializedExecutorService;
 import ru.yandex.yt.ytclient.proxy.request.MountTable;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
 import ru.yandex.yt.ytclient.proxy.request.UnmountTable;
+import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
 /**
@@ -51,6 +52,17 @@ public abstract class CompoundClientImpl extends ApiServiceClientImpl implements
                 rpcOptions
         );
         return tabletTransactionRetrier.run();
+    }
+
+    @Override
+    public <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable<T> req) {
+        if (req.getNeedRetries()) {
+            return CompletableFuture.completedFuture(
+                            new RetryingTableWriterImpl<>(this, executorService, req, rpcOptions))
+                    .thenCompose(writer -> writer.readyEvent().thenApply(unused -> writer));
+        }
+
+        return super.writeTable(req);
     }
 
     @Override
