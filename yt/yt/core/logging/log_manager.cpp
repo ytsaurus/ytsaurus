@@ -384,10 +384,13 @@ public:
 
     void Configure(INodePtr node)
     {
-        Configure(TLogManagerConfig::CreateFromNode(node));
+        Configure(
+            TLogManagerConfig::CreateFromNode(node),
+            /*fromEnv*/ false,
+            /*sync*/ true);
     }
 
-    void Configure(TLogManagerConfigPtr config, bool fromEnv = false)
+    void Configure(TLogManagerConfigPtr config, bool fromEnv, bool sync)
     {
         if (LoggingThread_->IsShutdown()) {
             return;
@@ -409,13 +412,18 @@ public:
             DequeueExecutor_->ScheduleOutOfBand();
         }
 
-        future.Get();
+        if (sync) {
+            future.Get();
+        }
     }
 
     void ConfigureFromEnv()
     {
         if (auto config = TLogManagerConfig::TryCreateFromEnv()) {
-            Configure(std::move(config), true);
+            Configure(
+                std::move(config),
+                /*fromEnv*/ true,
+                /*sync*/ true);
         }
     }
 
@@ -1426,9 +1434,9 @@ void TLogManager::StaticShutdown()
     Get()->Shutdown();
 }
 
-void TLogManager::Configure(TLogManagerConfigPtr config)
+void TLogManager::Configure(TLogManagerConfigPtr config, bool sync)
 {
-    Impl_->Configure(std::move(config));
+    Impl_->Configure(std::move(config), /*fromEnv*/ false, sync);
 }
 
 void TLogManager::ConfigureFromEnv()
