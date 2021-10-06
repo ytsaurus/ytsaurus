@@ -71,7 +71,8 @@ class YtConfig(object):
                  cell_tag=None,
                  python_binary=None,
                  enable_debug_logging=None,
-                 start_timeout=None):
+                 start_timeout=None,
+                 enable_structured_logging=None):
 
         self.fqdn = get_value(fqdn, "localhost")
         self.yt_id = yt_id
@@ -99,6 +100,7 @@ class YtConfig(object):
         self.node_chunk_store_quota = node_chunk_store_quota
 
         self.enable_debug_logging = enable_debug_logging
+        self.enable_structured_logging = enable_structured_logging
 
         self.cell_tag = cell_tag
         self.python_binary = python_binary
@@ -292,6 +294,8 @@ class YtStuff(object):
 
             if get_value(self.config.enable_debug_logging, True):
                 args += ["--enable-debug-logging"]
+            if get_value(self.config.enable_structured_logging, True):
+                args += ["--enable-structured-logging"]
 
             if self.config.wait_tablet_cell_initialization:
                 args += ["--wait-tablet-cell-initialization"]
