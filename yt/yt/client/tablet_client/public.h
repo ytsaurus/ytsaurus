@@ -64,8 +64,8 @@ DEFINE_ENUM(EErrorCode,
     ((SyncReplicaIsNotWritten)                (1724))
     ((RequestThrottled)                       (1725))
     ((ColumnNotFound)                         (1726))
-    ((VersionedWriteBlocked)                  (1727))
-    ((UnversionedWriteBlocked)                (1728))
+    ((ReplicatorWriteBlockedByUser)           (1727))
+    ((UserWriteBlockedByReplicator)           (1728))
     ((CannotCheckConflictsAgainstChunkStore)  (1729))
 );
 
