@@ -651,12 +651,12 @@ public:
             auto& writerTableDescription = TableDescriptionList_.back();
             writerTableDescription.HasOtherColumns = commonTableDescription.HasOtherColumns;
             writerTableDescription.HasSparseColumns = !commonTableDescription.SparseFieldDescriptionList.empty();
-            writerTableDescription.KeySwitchFieldIndex = commonTableDescription.KeySwitchFieldIndex.value_or(MissingSystemColumn);
+            writerTableDescription.KeySwitchFieldIndex = MissingSystemColumn;
 
-            writerTableDescription.RowIndexFieldIndex = commonTableDescription.RowIndexFieldIndex.value_or(MissingSystemColumn);
+            writerTableDescription.RowIndexFieldIndex = MissingSystemColumn;
             writerTableDescription.RowIndexMode = commonTableDescription.RowIndexMode;
 
-            writerTableDescription.RangeIndexFieldIndex = commonTableDescription.RangeIndexFieldIndex.value_or(MissingSystemColumn);
+            writerTableDescription.RangeIndexFieldIndex = MissingSystemColumn;
             writerTableDescription.RangeIndexMode = commonTableDescription.RangeIndexMode;
 
             auto& knownFields = writerTableDescription.KnownFields;
@@ -721,17 +721,25 @@ public:
                         << ex;
                 }
             };
-
+            
+            size_t nextDenseIndex = 0;
             for (size_t i = 0; i < denseFieldDescriptionList.size(); ++i) {
                 const auto& denseField = denseFieldDescriptionList[i];
                 const auto id = NameTable_->GetIdOrRegisterName(denseField.Name());
                 ResizeToContainIndex(&knownFields, id);
                 YT_VERIFY(knownFields[id].EncodingPart == ESkiffWriterColumnType::Unknown);
-                knownFields[id] = TSkiffEncodingInfo::Dense(i);
+
+                if (denseField.Schema()->GetWireType() == EWireType::Nothing) {
+                    knownFields[id] = TSkiffEncodingInfo::Skip();
+                    continue;
+                }
 
                 TUnversionedValueToSkiffConverter converter;
                 try {
                     if (denseField.Name() == RowIndexColumnName) {
+                        writerTableDescription.RowIndexFieldIndex = nextDenseIndex;
+                        knownFields[id] = TSkiffEncodingInfo::RowIndex(nextDenseIndex);
+
                         auto method =
                             commonTableDescription.RowIndexMode == ERowRangeIndexMode::Incremental
                             ? (&TRowAndRangeIndexWriter::WriteRowIndex<ERowRangeIndexMode::Incremental>)
@@ -744,6 +752,9 @@ public:
                             std::placeholders::_2,
                             std::placeholders::_3);
                     } else if (denseField.Name() == RangeIndexColumnName) {
+                        writerTableDescription.RangeIndexFieldIndex = nextDenseIndex;
+                        knownFields[id] = TSkiffEncodingInfo::RangeIndex(nextDenseIndex);
+
                         auto method =
                             commonTableDescription.RangeIndexMode == ERowRangeIndexMode::Incremental
                             ? (&TRowAndRangeIndexWriter::WriteRangeIndex<ERowRangeIndexMode::Incremental>)
@@ -756,6 +767,10 @@ public:
                             std::placeholders::_2,
                             std::placeholders::_3);
                     } else {
+                        if (denseField.Name() == KeySwitchColumnName) {
+                            writerTableDescription.KeySwitchFieldIndex = nextDenseIndex;
+                        }
+                        knownFields[id] = TSkiffEncodingInfo::Dense(nextDenseIndex);
                         converter = createComplexValueConverter(denseField, /*sparse*/ false);
                     }
                 } catch (const std::exception& ex) {
@@ -764,6 +779,7 @@ public:
                         << ex;
                 }
                 denseFieldWriterInfos.emplace_back(converter, id);
+                ++nextDenseIndex;
             }
 
             const auto& sparseFieldDescriptionList = commonTableDescription.SparseFieldDescriptionList;
@@ -786,15 +802,10 @@ public:
             const auto systemColumnMaxId = Max(GetTableIndexColumnId(), GetRangeIndexColumnId(), GetRowIndexColumnId());
             ResizeToContainIndex(&knownFields, systemColumnMaxId);
             knownFields[GetTableIndexColumnId()] = TSkiffEncodingInfo::Skip();
-            knownFields[GetRangeIndexColumnId()] = TSkiffEncodingInfo::Skip();
-            if (commonTableDescription.RangeIndexFieldIndex) {
-                knownFields[GetRangeIndexColumnId()] = TSkiffEncodingInfo::RangeIndex(*commonTableDescription.RangeIndexFieldIndex);
-            } else {
+            if (writerTableDescription.RangeIndexFieldIndex == MissingSystemColumn) {
                 knownFields[GetRangeIndexColumnId()] = TSkiffEncodingInfo::Skip();
             }
-            if (commonTableDescription.RowIndexFieldIndex) {
-                knownFields[GetRowIndexColumnId()] = TSkiffEncodingInfo::RowIndex(*commonTableDescription.RowIndexFieldIndex);
-            } else {
+            if (writerTableDescription.RowIndexFieldIndex == MissingSystemColumn) {
                 knownFields[GetRowIndexColumnId()] = TSkiffEncodingInfo::Skip();
             }
         }

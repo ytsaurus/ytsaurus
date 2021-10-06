@@ -2261,6 +2261,199 @@ TEST(TSkiffWriter, TestMissingComplexColumn)
     }
 }
 
+TEST(TSkiffWriter, TestSkippedFields)
+{
+    auto skiffSchema = CreateTupleSchema({
+        CreateSimpleTypeSchema(EWireType::Int64)->SetName("number"),
+        CreateSimpleTypeSchema(EWireType::Nothing)->SetName("string"),
+        CreateVariant8Schema({
+            CreateSimpleTypeSchema(EWireType::Nothing),
+            CreateSimpleTypeSchema(EWireType::Int64),
+        })->SetName(RangeIndexColumnName),
+        CreateVariant8Schema({
+            CreateSimpleTypeSchema(EWireType::Nothing),
+            CreateSimpleTypeSchema(EWireType::Int64),
+        })->SetName(RowIndexColumnName),
+        CreateSimpleTypeSchema(EWireType::Double)->SetName("double"),
+    });
+    auto tableSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("number", EValueType::Int64),
+        TColumnSchema("string", EValueType::String),
+        TColumnSchema("double", EValueType::Double),
+    });
+
+    auto nameTable = New<TNameTable>();
+    TString result;
+    {
+        TStringOutput resultStream(result);
+        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {tableSchema});
+
+        writer->Write({
+            MakeRow(nameTable, {
+                {"number", 1},
+                {"string", "hello"},
+                {RangeIndexColumnName, 0},
+                {RowIndexColumnName, 0},
+                {"double", 1.5},
+            }).Get()
+        });
+        writer->Write({
+            MakeRow(nameTable, {
+                {"number", 1},
+                {RangeIndexColumnName, 5},
+                {RowIndexColumnName, 1},
+                {"double", 2.5},
+            }).Get()
+        });
+        writer->Close()
+            .Get()
+            .ThrowOnError();
+        
+        TStringInput resultInput(result);
+        TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
+
+        // row 0
+        ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
+        ASSERT_EQ(checkedSkiffParser.ParseInt64(), 1);
+        ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 1);
+        ASSERT_EQ(checkedSkiffParser.ParseInt64(), 0);
+        ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 1);
+        ASSERT_EQ(checkedSkiffParser.ParseInt64(), 0);
+        ASSERT_EQ(checkedSkiffParser.ParseDouble(), 1.5);
+        // row 1
+        ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
+        ASSERT_EQ(checkedSkiffParser.ParseInt64(), 1);
+        ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 1);
+        ASSERT_EQ(checkedSkiffParser.ParseInt64(), 5);
+        ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 1);
+        ASSERT_EQ(checkedSkiffParser.ParseInt64(), 1);
+        ASSERT_EQ(checkedSkiffParser.ParseDouble(), 2.5);
+        ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
+        checkedSkiffParser.ValidateFinished();
+    }
+    
+}
+
+TEST(TSkiffWriter, TestSkippedFieldsOutOfRange)
+{
+    auto skiffSchema = CreateTupleSchema({
+        CreateSimpleTypeSchema(EWireType::Nothing)->SetName("string"),
+        CreateVariant8Schema({
+            CreateSimpleTypeSchema(EWireType::Nothing),
+            CreateSimpleTypeSchema(EWireType::Int64),
+        })->SetName(RangeIndexColumnName),
+    });
+    auto tableSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("string", EValueType::String),
+    });
+
+    auto nameTable = New<TNameTable>();
+    TString result;
+    {
+        TStringOutput resultStream(result);
+        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {tableSchema});
+
+        writer->Write({
+            MakeRow(nameTable, {
+                {"string", "hello"},
+                {RangeIndexColumnName, 0},
+            }).Get()
+        });
+        writer->Write({
+            MakeRow(nameTable, {
+                {RangeIndexColumnName, 5},
+            }).Get()
+        });
+        writer->Close()
+            .Get()
+            .ThrowOnError();
+        
+        TStringInput resultInput(result);
+        TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
+
+        // row 0
+        ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
+        ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 1);
+        ASSERT_EQ(checkedSkiffParser.ParseInt64(), 0);
+        // row 1
+        ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
+        ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 1);
+        ASSERT_EQ(checkedSkiffParser.ParseInt64(), 5);
+        ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
+        checkedSkiffParser.ValidateFinished();
+    }
+    
+}
+
+TEST(TSkiffWriter, TestSkippedFieldsAndKeySwitch)
+{
+    auto skiffSchema = CreateTupleSchema({
+        CreateSimpleTypeSchema(EWireType::String32)->SetName("value"),
+        CreateSimpleTypeSchema(EWireType::Nothing)->SetName("skipped"),
+        CreateSimpleTypeSchema(EWireType::Boolean)->SetName("$key_switch"),
+        CreateSimpleTypeSchema(EWireType::Int64)->SetName("value1"),
+    });
+    TStringStream resultStream;
+    auto nameTable = New<TNameTable>();
+    auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()}, 1);
+
+    writer->Write({
+        // Row 0.
+        MakeRow(nameTable, {
+            {"value", "one"},
+            {"value1", 0},
+            {TableIndexColumnName, 0},
+        }).Get(),
+    });
+    // Row 1.
+    writer->Write({
+        MakeRow(nameTable, {
+            {"value", "one"},
+            {"value1", 1},
+            {TableIndexColumnName, 0},
+        }).Get(),
+    });
+    // Row 2.
+    writer->Write({
+        MakeRow(nameTable, {
+            {"value", "two"},
+            {"value1", 2},
+            {TableIndexColumnName, 0},
+        }).Get(),
+    });
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    TStringInput resultInput(resultStream.Str());
+    TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
+
+    TString buf;
+
+    // row 0
+    ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
+    ASSERT_EQ(checkedSkiffParser.ParseString32(), "one");
+    ASSERT_EQ(checkedSkiffParser.ParseBoolean(), false);
+    ASSERT_EQ(checkedSkiffParser.ParseInt64(), 0);
+
+    // row 1
+    ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
+    ASSERT_EQ(checkedSkiffParser.ParseString32(), "one");
+    ASSERT_EQ(checkedSkiffParser.ParseBoolean(), false);
+    ASSERT_EQ(checkedSkiffParser.ParseInt64(), 1);
+
+    // row 2
+    ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
+    ASSERT_EQ(checkedSkiffParser.ParseString32(), "two");
+    ASSERT_EQ(checkedSkiffParser.ParseBoolean(), true);
+    ASSERT_EQ(checkedSkiffParser.ParseInt64(), 2);
+
+    // end
+    ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
+    checkedSkiffParser.ValidateFinished();
+    
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TSkiffParser, Simple)
