@@ -36,7 +36,7 @@ public:
 
     static void StaticShutdown();
 
-    void Configure(TLogManagerConfigPtr config);
+    void Configure(TLogManagerConfigPtr config, bool sync = true);
 
     void ConfigureFromEnv();
     bool IsConfiguredFromEnv();

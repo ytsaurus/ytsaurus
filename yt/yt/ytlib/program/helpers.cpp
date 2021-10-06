@@ -99,7 +99,9 @@ void ReconfigureSingletons(const TSingletonsConfigPtr& config, const TSingletons
     }
 
     if (!NLogging::TLogManager::Get()->IsConfiguredFromEnv()) {
-        NLogging::TLogManager::Get()->Configure(config->Logging->ApplyDynamic(dynamicConfig->Logging));
+        NLogging::TLogManager::Get()->Configure(
+            config->Logging->ApplyDynamic(dynamicConfig->Logging),
+            /*sync*/ false);
     }
 
     auto tracer = NTracing::GetGlobalTracer();
