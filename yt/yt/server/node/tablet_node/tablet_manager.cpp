@@ -260,6 +260,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        const auto& identity = NRpc::GetCurrentAuthenticationIdentity();
+        bool replicatorWrite = IsReplicatorWrite(identity);
+
         TTablet* tablet = nullptr;
         const auto& transactionManager = Slot_->GetTransactionManager();
 
@@ -302,12 +305,7 @@ public:
                 ? tablet->GetPoolTagByMemoryCategory(EMemoryCategory::TabletDynamic)
                 : std::nullopt;
             ValidateMemoryLimit(poolTag);
-
-            if (versioned) {
-                ValidateVersionedWriteBarrier(tablet);
-            } else {
-                ValidateUnversionedWriteBarrier(tablet);
-            }
+            ValidateWriteBarrier(replicatorWrite, tablet);
 
             auto tabletId = tablet->GetId();
             const auto& storeManager = tablet->GetStoreManager();
@@ -365,11 +363,7 @@ public:
                 PrelockedTablets_.push(tablet);
                 LockTablet(tablet);
 
-                if (versioned) {
-                    tablet->SetInFlightVersionedWriteCount(tablet->GetInFlightVersionedWriteCount() + 1);
-                } else {
-                    tablet->SetInFlightUnversionedWriteCount(tablet->GetInFlightUnversionedWriteCount() + 1);
-                }
+                IncrementTabletInFlightMutationCount(tablet, replicatorWrite, +1);
 
                 TReqWriteRows hydraRequest;
                 ToProto(hydraRequest.mutable_transaction_id(), transactionId);
@@ -384,8 +378,6 @@ public:
                 hydraRequest.set_row_count(writeRecord.RowCount);
                 hydraRequest.set_data_weight(writeRecord.DataWeight);
                 ToProto(hydraRequest.mutable_sync_replica_ids(), syncReplicaIds);
-
-                const auto& identity = NRpc::GetCurrentAuthenticationIdentity();
                 NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, identity);
 
                 auto mutation = CreateMutation(Slot_->GetHydraManager(), hydraRequest);
@@ -395,7 +387,6 @@ public:
                     transactionId,
                     tablet->GetMountRevision(),
                     adjustedSignature,
-                    versioned,
                     lockless,
                     writeRecord,
                     identity));
@@ -818,12 +809,17 @@ private:
         for (auto* transaction : transactions) {
             YT_VERIFY(!transaction->GetTransient());
 
+            bool replicatorWrite = IsReplicatorWrite(transaction);
+
             for (const auto& record : transaction->ImmediateLockedWriteLog()) {
                 auto* tablet = FindTablet(record.TabletId);
                 if (!tablet) {
                     // NB: Tablet could be missing if it was, e.g., forcefully removed.
                     continue;
                 }
+
+                WriteLogsMemoryTrackerGuard_.IncrementSize(record.GetByteSize());
+                IncrementTabletPendingWriteRecordCount(tablet, replicatorWrite, +1);
 
                 TWireProtocolReader reader(record.Data);
                 const auto& storeManager = tablet->GetStoreManager();
@@ -841,6 +837,9 @@ private:
                     continue;
                 }
 
+                WriteLogsMemoryTrackerGuard_.IncrementSize(record.GetByteSize());
+                IncrementTabletPendingWriteRecordCount(tablet, replicatorWrite, +1);
+
                 LockTablet(tablet);
                 transaction->LockedTablets().push_back(tablet);
             }
@@ -852,6 +851,9 @@ private:
                     continue;
                 }
 
+                WriteLogsMemoryTrackerGuard_.IncrementSize(record.GetByteSize());
+                IncrementTabletPendingWriteRecordCount(tablet, replicatorWrite, +1);
+
                 LockTablet(tablet);
                 transaction->LockedTablets().push_back(tablet);
 
@@ -859,11 +861,6 @@ private:
                     tablet->SetDelayedLocklessRowCount(tablet->GetDelayedLocklessRowCount() + record.RowCount);
                 }
             }
-
-            WriteLogsMemoryTrackerGuard_.IncrementSize(
-                GetTransactionWriteLogMemoryUsage(transaction->ImmediateLockedWriteLog()) +
-                GetTransactionWriteLogMemoryUsage(transaction->ImmediateLocklessWriteLog()) +
-                GetTransactionWriteLogMemoryUsage(transaction->DelayedLocklessWriteLog()));
 
             if (transaction->IsPrepared()) {
                 PrepareLockedRows(transaction);
@@ -1453,13 +1450,13 @@ private:
         TTransactionId transactionId,
         NHydra::TRevision mountRevision,
         TTransactionSignature signature,
-        bool versioned,
         bool lockless,
         const TTransactionWriteRecord& writeRecord,
         const NRpc::TAuthenticationIdentity& identity,
         TMutationContext* /*context*/) noexcept
     {
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
+        bool replicatorWrite = IsReplicatorWrite(identity);
 
         auto atomicity = AtomicityFromTransactionId(transactionId);
 
@@ -1470,11 +1467,7 @@ private:
             UnlockTablet(tablet);
         });
 
-        if (versioned) {
-            tablet->SetInFlightVersionedWriteCount(tablet->GetInFlightVersionedWriteCount() - 1);
-        } else {
-            tablet->SetInFlightUnversionedWriteCount(tablet->GetInFlightUnversionedWriteCount() - 1);
-        }
+        IncrementTabletInFlightMutationCount(tablet, replicatorWrite, -1);
 
         if (mountRevision != tablet->GetMountRevision()) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Mount revision mismatch; write ignored "
@@ -1523,7 +1516,7 @@ private:
                 auto* writeLog = immediate
                     ? (lockless ? &transaction->ImmediateLocklessWriteLog() : &transaction->ImmediateLockedWriteLog())
                     : &transaction->DelayedLocklessWriteLog();
-                EnqueueTransactionWriteRecord(transaction, writeLog, writeRecord, signature);
+                EnqueueTransactionWriteRecord(transaction, tablet, writeLog, writeRecord, signature);
 
                 YT_LOG_DEBUG_UNLESS(writeLog == &transaction->ImmediateLockedWriteLog(),
                     "Rows batched (TabletId: %v, TransactionId: %v, WriteRecordSize: %v, Immediate: %v, Lockless: %v)",
@@ -1623,7 +1616,7 @@ private:
                 auto* writeLog = immediate
                     ? (lockless ? &transaction->ImmediateLocklessWriteLog() : &transaction->ImmediateLockedWriteLog())
                     : &transaction->DelayedLocklessWriteLog();
-                EnqueueTransactionWriteRecord(transaction, writeLog, writeRecord, signature);
+                EnqueueTransactionWriteRecord(transaction, tablet, writeLog, writeRecord, signature);
 
                 if (immediate && !lockless) {
                     TWriteContext context;
@@ -2928,8 +2921,8 @@ private:
         updateProfileCounters(transaction->ImmediateLocklessWriteLog());
         updateProfileCounters(transaction->DelayedLocklessWriteLog());
 
-        ClearTransactionWriteLog(&transaction->ImmediateLockedWriteLog());
-        ClearTransactionWriteLog(&transaction->ImmediateLocklessWriteLog());
+        DropTransactionWriteLog(transaction, &transaction->ImmediateLockedWriteLog());
+        DropTransactionWriteLog(transaction, &transaction->ImmediateLocklessWriteLog());
     }
 
     void OnTransactionSerialized(TTransaction* transaction) noexcept
@@ -2986,7 +2979,7 @@ private:
 
         UnlockLockedTablets(transaction);
 
-        ClearTransactionWriteLog(&transaction->DelayedLocklessWriteLog());
+        DropTransactionWriteLog(transaction, &transaction->DelayedLocklessWriteLog());
     }
 
     void OnTransactionAborted(TTransaction* transaction)
@@ -3065,9 +3058,9 @@ private:
             }
         }
 
-        ClearTransactionWriteLog(&transaction->ImmediateLockedWriteLog());
-        ClearTransactionWriteLog(&transaction->ImmediateLocklessWriteLog());
-        ClearTransactionWriteLog(&transaction->DelayedLocklessWriteLog());
+        DropTransactionWriteLog(transaction, &transaction->ImmediateLockedWriteLog());
+        DropTransactionWriteLog(transaction, &transaction->ImmediateLocklessWriteLog());
+        DropTransactionWriteLog(transaction, &transaction->DelayedLocklessWriteLog());
     }
 
     void OnTransactionTransientReset(TTransaction* transaction)
@@ -3111,17 +3104,9 @@ private:
     }
 
 
-    static i64 GetTransactionWriteLogMemoryUsage(const TTransactionWriteLog& writeLog)
-    {
-        i64 result = 0;
-        for (const auto& record : writeLog) {
-            result += record.GetByteSize();
-        }
-        return result;
-    }
-
     void EnqueueTransactionWriteRecord(
         TTransaction* transaction,
+        TTablet* tablet,
         TTransactionWriteLog* writeLog,
         const TTransactionWriteRecord& record,
         TTransactionSignature signature)
@@ -3129,14 +3114,29 @@ private:
         WriteLogsMemoryTrackerGuard_.IncrementSize(record.GetByteSize());
         writeLog->Enqueue(record);
         transaction->SetPersistentSignature(transaction->GetPersistentSignature() + signature);
+
+        bool replicatorWrite = IsReplicatorWrite(transaction);
+        IncrementTabletPendingWriteRecordCount(tablet, replicatorWrite, +1);
     }
 
-    void ClearTransactionWriteLog(TTransactionWriteLog* writeLog)
+    void DropTransactionWriteLog(
+        TTransaction* transaction,
+        TTransactionWriteLog* writeLog)
     {
+        bool replicatorWrite = IsReplicatorWrite(transaction);
+
         i64 byteSize = 0;
         for (const auto& record : *writeLog) {
             byteSize += record.GetByteSize();
+
+            auto* tablet = FindTablet(record.TabletId);
+            if (!tablet) {
+                continue;
+            }
+
+            IncrementTabletPendingWriteRecordCount(tablet, replicatorWrite, -1);
         }
+
         WriteLogsMemoryTrackerGuard_.IncrementSize(-byteSize);
         writeLog->Clear();
     }
@@ -3417,8 +3417,8 @@ private:
             StopTableReplicaEpoch(&replicaInfo);
         }
 
-        tablet->SetInFlightUnversionedWriteCount(0);
-        tablet->SetInFlightVersionedWriteCount(0);
+        tablet->SetInFlightUserMutationCount(0);
+        tablet->SetInFlightReplicatorMutationCount(0);
     }
 
 
@@ -3492,9 +3492,10 @@ private:
                 .Item("hash_table_size").Value(tablet->GetHashTableSize())
                 .Item("overlapping_store_count").Value(tablet->GetOverlappingStoreCount())
                 .Item("retained_timestamp").Value(tablet->GetRetainedTimestamp())
-                .Item("in_flight_unversioned_write_count").Value(tablet->GetInFlightUnversionedWriteCount())
-                .Item("in_flight_versioned_write_count").Value(tablet->GetInFlightVersionedWriteCount())
-                .Item("locked_row_count").Value(tablet->GetLockedRowCount())
+                .Item("in_flight_user_mutation_count").Value(tablet->GetInFlightUserMutationCount())
+                .Item("in_flight_replicator_mutation_count").Value(tablet->GetInFlightReplicatorMutationCount())
+                .Item("pending_user_write_record_count").Value(tablet->GetPendingUserWriteRecordCount())
+                .Item("pending_replicator_write_record_count").Value(tablet->GetPendingReplicatorWriteRecordCount())
                 .Item("config")
                     .BeginAttributes()
                         .Item("opaque").Value(true)
@@ -3769,35 +3770,73 @@ private:
         }
     }
 
-    static void ValidateUnversionedWriteBarrier(TTablet* tablet)
+
+    static bool IsReplicatorWrite(const NRpc::TAuthenticationIdentity& identity)
     {
-        if (tablet->GetInFlightVersionedWriteCount() > 0) {
-            THROW_ERROR_EXCEPTION(
-                NTabletClient::EErrorCode::UnversionedWriteBlocked,
-                "Tablet cannot accept unversioned writes since some versioned writes are still in-flight")
-                << TErrorAttribute("tablet_id", tablet->GetId())
-                << TErrorAttribute("table_path", tablet->GetTablePath())
-                << TErrorAttribute("in_flight_versioned_write_count", tablet->GetInFlightVersionedWriteCount());
+        return identity.User == NSecurityClient::ReplicatorUserName;
+    }
+
+    static bool IsReplicatorWrite(TTransaction* transaction)
+    {
+        return IsReplicatorWrite(transaction->AuthenticationIdentity());
+    }
+
+
+    static void IncrementTabletInFlightMutationCount(TTablet* tablet, bool replicatorWrite, int delta)
+    {
+        if (replicatorWrite) {
+            tablet->SetInFlightReplicatorMutationCount(tablet->GetInFlightReplicatorMutationCount() + delta);
+        } else {
+            tablet->SetInFlightUserMutationCount(tablet->GetInFlightUserMutationCount() + delta);
         }
     }
 
-    static void ValidateVersionedWriteBarrier(TTablet* tablet)
+    static void IncrementTabletPendingWriteRecordCount(TTablet* tablet, bool replicatorWrite, int delta)
     {
-        if (tablet->GetInFlightUnversionedWriteCount() > 0) {
-            THROW_ERROR_EXCEPTION(
-                NTabletClient::EErrorCode::VersionedWriteBlocked,
-                "Tablet cannot accept versioned writes since some unversioned writes are still in-flight")
-                << TErrorAttribute("tablet_id", tablet->GetId())
-                << TErrorAttribute("table_path", tablet->GetTablePath())
-                << TErrorAttribute("in_flight_unversioned_write_count", tablet->GetInFlightUnversionedWriteCount());
+        if (replicatorWrite) {
+            tablet->SetPendingReplicatorWriteRecordCount(tablet->GetPendingReplicatorWriteRecordCount() + delta);
+        } else {
+            tablet->SetPendingUserWriteRecordCount(tablet->GetPendingUserWriteRecordCount() + delta);
         }
-        if (tablet->GetLockedRowCount() > 0) {
-            THROW_ERROR_EXCEPTION(
-                NTabletClient::EErrorCode::VersionedWriteBlocked,
-                "Tablet cannot accept versioned writes since some of its rows are still locked by unversioned writes")
-                << TErrorAttribute("tablet_id", tablet->GetId())
-                << TErrorAttribute("table_path", tablet->GetTablePath())
-                << TErrorAttribute("locked_row_count", tablet->GetLockedRowCount());
+    }
+
+
+    static void ValidateWriteBarrier(bool replicatorWrite, TTablet* tablet)
+    {
+        if (replicatorWrite) {
+            if (tablet->GetInFlightUserMutationCount() > 0) {
+                THROW_ERROR_EXCEPTION(
+                    NTabletClient::EErrorCode::ReplicatorWriteBlockedByUser,
+                    "Tablet cannot accept replicator writes since some user mutations are still in flight")
+                    << TErrorAttribute("tablet_id", tablet->GetId())
+                    << TErrorAttribute("table_path", tablet->GetTablePath())
+                    << TErrorAttribute("in_flight_mutation_count", tablet->GetInFlightUserMutationCount());
+            }
+            if (tablet->GetPendingUserWriteRecordCount() > 0) {
+                THROW_ERROR_EXCEPTION(
+                    NTabletClient::EErrorCode::ReplicatorWriteBlockedByUser,
+                    "Tablet cannot accept replicator writes since some user writes are still pending")
+                    << TErrorAttribute("tablet_id", tablet->GetId())
+                    << TErrorAttribute("table_path", tablet->GetTablePath())
+                    << TErrorAttribute("pending_write_record_count", tablet->GetPendingUserWriteRecordCount());
+            }
+        } else {
+            if (tablet->GetInFlightReplicatorMutationCount() > 0) {
+                THROW_ERROR_EXCEPTION(
+                    NTabletClient::EErrorCode::UserWriteBlockedByReplicator,
+                    "Tablet cannot accept user writes since some replicator mutations are still in flight")
+                    << TErrorAttribute("tablet_id", tablet->GetId())
+                    << TErrorAttribute("table_path", tablet->GetTablePath())
+                    << TErrorAttribute("in_flight_mutation_count", tablet->GetInFlightReplicatorMutationCount());
+            }
+            if (tablet->GetPendingReplicatorWriteRecordCount() > 0) {
+                THROW_ERROR_EXCEPTION(
+                    NTabletClient::EErrorCode::UserWriteBlockedByReplicator,
+                    "Tablet cannot accept user writes since some replicator writes are still pending")
+                    << TErrorAttribute("tablet_id", tablet->GetId())
+                    << TErrorAttribute("table_path", tablet->GetTablePath())
+                    << TErrorAttribute("pending_write_record_count", tablet->GetPendingReplicatorWriteRecordCount());
+            }
         }
     }
 
