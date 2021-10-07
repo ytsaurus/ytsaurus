@@ -471,7 +471,7 @@ TOperation TClient::DoGetOperationImpl(
 
     getOperationFutures.push_back(archiveFuture.As<void>());
 
-    WaitFor(AllSet<void>(getOperationFutures))
+    WaitFor(AllSet<void>(getOperationFutures, TFutureCombinerOptions{.PropagateCancelationToInput = false}))
         .ValueOrThrow();
 
     auto [cypressResult, operationNodeModificationTime] = cypressFuture.Get()
