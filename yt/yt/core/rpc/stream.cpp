@@ -80,24 +80,28 @@ void TAttachmentsInputStream::EnqueuePayload(const TStreamingPayload& payload)
         DoEnqueuePayload(payload, payload.Attachments);
     } else {
         CompressionInvoker_->Invoke(
-            BIND(&TAttachmentsInputStream::CompressAndEnqueuePayload, MakeWeak(this), payload));
+            BIND(&TAttachmentsInputStream::DecompressAndEnqueuePayload, MakeWeak(this), payload));
     }
 }
 
-void TAttachmentsInputStream::CompressAndEnqueuePayload(const TStreamingPayload& payload)
+void TAttachmentsInputStream::DecompressAndEnqueuePayload(const TStreamingPayload& payload)
 {
-    std::vector<TSharedRef> decompressedAttachments;
-    decompressedAttachments.reserve(payload.Attachments.size());
-    auto* codec = NCompression::GetCodec(payload.Codec);
-    for (const auto& attachment : payload.Attachments) {
-        TSharedRef decompressedAttachment;
-        if (attachment) {
-            TMemoryZoneGuard guard(payload.MemoryZone);
-            decompressedAttachment = codec->Decompress(attachment);
+    try {
+        std::vector<TSharedRef> decompressedAttachments;
+        decompressedAttachments.reserve(payload.Attachments.size());
+        auto* codec = NCompression::GetCodec(payload.Codec);
+        for (const auto& attachment : payload.Attachments) {
+            TSharedRef decompressedAttachment;
+            if (attachment) {
+                TMemoryZoneGuard guard(payload.MemoryZone);
+                decompressedAttachment = codec->Decompress(attachment);
+            }
+            decompressedAttachments.push_back(std::move(decompressedAttachment));
         }
-        decompressedAttachments.push_back(std::move(decompressedAttachment));
+        DoEnqueuePayload(payload, decompressedAttachments);
+    } catch (const std::exception& ex) {
+        Abort(ex, false);
     }
-    DoEnqueuePayload(payload, decompressedAttachments);
 }
 
 void TAttachmentsInputStream::DoEnqueuePayload(
@@ -147,10 +151,10 @@ void TAttachmentsInputStream::DoEnqueuePayload(
     }
 }
 
-void TAttachmentsInputStream::Abort(const TError& error)
+void TAttachmentsInputStream::Abort(const TError& error, bool fireAborted)
 {
     auto guard = Guard(Lock_);
-    DoAbort(guard, error);
+    DoAbort(guard, error, fireAborted);
 }
 
 void TAttachmentsInputStream::AbortUnlessClosed(const TError& error, bool fireAborted)

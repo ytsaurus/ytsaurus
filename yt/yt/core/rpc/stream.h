@@ -39,7 +39,7 @@ public:
     virtual TFuture<TSharedRef> Read() override;
 
     void EnqueuePayload(const TStreamingPayload& payload);
-    void Abort(const TError& error);
+    void Abort(const TError& error, bool fireAborted = true);
     void AbortUnlessClosed(const TError& error, bool fireAborted = true);
     TStreamingFeedback GetFeedback() const;
 
@@ -69,10 +69,10 @@ private:
     TPromise<TSharedRef> Promise_;
     NConcurrency::TDelayedExecutorCookie TimeoutCookie_;
 
-    std::atomic<ssize_t> ReadPosition_ = {0};
+    std::atomic<ssize_t> ReadPosition_ = 0;
     bool Closed_ = false;
 
-    void CompressAndEnqueuePayload(const TStreamingPayload& payload);
+    void DecompressAndEnqueuePayload(const TStreamingPayload& payload);
     void DoEnqueuePayload(
         const TStreamingPayload& payload,
         const std::vector<TSharedRef>& decompressedAttachments);

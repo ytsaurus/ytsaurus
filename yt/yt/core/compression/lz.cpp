@@ -277,8 +277,24 @@ void Lz4Decompress(StreamSource* source, TBlob* sink)
         source,
         sink,
         [] (const char* input, size_t inputSize, char* output, size_t outputSize) {
+            if (inputSize > Max<int>()) {
+                THROW_ERROR_EXCEPTION("Cannot decompress LZ4 data: input size is too big")
+                    << TErrorAttribute("size", inputSize);
+            }
+            if (outputSize > Max<int>()) {
+                THROW_ERROR_EXCEPTION("Cannot decompress LZ4 data: output size is too big")
+                    << TErrorAttribute("size", outputSize);
+            }
             int rv = LZ4_decompress_fast(input, output, static_cast<int>(outputSize));
-            YT_VERIFY(rv > 0 && rv == static_cast<int>(inputSize));
+            if (rv < 0) {
+                THROW_ERROR_EXCEPTION("Cannot decompress LZ4 data: LZ4_decompress_fast returned an error")
+                    << TErrorAttribute("error", rv);
+            }
+            if (rv != static_cast<int>(inputSize)) {
+                THROW_ERROR_EXCEPTION("Cannot decompress LZ4 data: returned size mismatch")
+                    << TErrorAttribute("expected_size", inputSize)
+                    << TErrorAttribute("actual_size", rv);
+            }
         }
     );
 }
@@ -306,7 +322,15 @@ void QuickLzDecompress(StreamSource* source, TBlob* sink)
         [] (const char* input, size_t /*inputSize*/, char* output, size_t outputSize) {
             qlz_state_decompress state;
             auto rv = qlz_decompress(input, output, &state);
-            YT_VERIFY(rv > 0 && rv == outputSize);
+            if (rv < 0) {
+                THROW_ERROR_EXCEPTION("Cannot decompress QuickLZ data: qlz_decompress returned an error")
+                    << TErrorAttribute("error", rv);
+            }
+            if (rv != outputSize) {
+                THROW_ERROR_EXCEPTION("Cannot decompress QuickLZ data: returned size mismatch")
+                    << TErrorAttribute("expected_size", outputSize)
+                    << TErrorAttribute("actual_size", rv);
+            }
         }
     );
 }
