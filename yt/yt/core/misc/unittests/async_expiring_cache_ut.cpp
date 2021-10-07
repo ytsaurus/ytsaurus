@@ -29,6 +29,11 @@ public:
         return Count_;
     }
 
+    TAsyncExpiringCacheConfigPtr GetConfig() const
+    {
+        return TAsyncExpiringCache::GetConfig();
+    }
+
 protected:
     TFuture<int> DoGet(const int& /*key*/, bool /*isPeriodicUpdate*/) noexcept override
     {
@@ -101,7 +106,7 @@ TEST(TAsyncExpiringCacheTest, TestBackgroundUpdate)
     EXPECT_LE(std::abs(expected - actual), 50);
 }
 
-TEST(TAsyncExpiringCacheTest, TestEntryRemoval)
+TEST(TAsyncExpiringCacheTest, TestConcurrentAccess)
 {
     auto config = New<TAsyncExpiringCacheConfig>();
     config->RefreshTime = TDuration::MilliSeconds(100);
@@ -125,6 +130,15 @@ TEST(TAsyncExpiringCacheTest, TestEntryRemoval)
             .AsyncVia(threadPool->GetInvoker())
             .Run());
     }
+
+    config = New<TAsyncExpiringCacheConfig>();
+    config->RefreshTime = TDuration::MilliSeconds(50);
+    config->ExpireAfterAccessTime = TDuration::MilliSeconds(10);
+    config->ExpireAfterSuccessfulUpdateTime = TDuration::MilliSeconds(10);
+    config->ExpireAfterFailedUpdateTime = TDuration::MilliSeconds(10);
+
+    cache->Reconfigure(config);
+
     WaitFor(AllSucceeded(asyncResult))
         .ThrowOnError();
 
@@ -140,6 +154,28 @@ TEST(TAsyncExpiringCacheTest, TestEntryRemoval)
     int expected = duration / 100;
 
     EXPECT_GE(expected, actual);
+}
+
+TEST(TAsyncExpiringCacheTest, TestReconfigure)
+{
+    auto config = New<TAsyncExpiringCacheConfig>();
+    config->RefreshTime = TDuration::MilliSeconds(100);
+    auto cache = New<TSimpleExpiringCache>(config, 0.9);
+
+    EXPECT_EQ(cache->GetConfig()->RefreshTime, TDuration::MilliSeconds(100));
+
+    config = New<TAsyncExpiringCacheConfig>();
+    config->RefreshTime = TDuration::MilliSeconds(50);
+    config->ExpireAfterAccessTime = TDuration::MilliSeconds(10);
+    config->ExpireAfterSuccessfulUpdateTime = TDuration::MilliSeconds(10);
+    config->ExpireAfterFailedUpdateTime = TDuration::MilliSeconds(10);
+
+    cache->Reconfigure(config);
+
+    EXPECT_EQ(cache->GetConfig()->RefreshTime, TDuration::MilliSeconds(50));
+    EXPECT_EQ(cache->GetConfig()->ExpireAfterAccessTime, TDuration::MilliSeconds(10));
+    EXPECT_EQ(cache->GetConfig()->ExpireAfterSuccessfulUpdateTime, TDuration::MilliSeconds(10));
+    EXPECT_EQ(cache->GetConfig()->ExpireAfterFailedUpdateTime, TDuration::MilliSeconds(10));
 }
 
 TEST(TAsyncExpiringCacheTest, TestAccessTime1)
