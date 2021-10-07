@@ -194,6 +194,8 @@ private:
         };
 
         CellarManager_->Reconfigure(getCellarManagerConfig());
+        
+        ResourceLimitsManager_->Reconfigure(newConfig->TabletNode->SecurityManager);
     }
 };
 

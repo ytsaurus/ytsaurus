@@ -38,6 +38,8 @@ public:
         const TString& mediumName,
         const std::optional<TString>& tabletCellBundle = std::nullopt,
         NTabletClient::EInMemoryMode inMemoryMode = NTabletClient::EInMemoryMode::None);
+    
+    virtual void Reconfigure(const TSecurityManagerDynamicConfigPtr& config);
 
 private:
     class TImpl;

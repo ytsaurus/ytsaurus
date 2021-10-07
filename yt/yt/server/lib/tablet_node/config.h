@@ -872,6 +872,21 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
 
+class TSecurityManagerDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TAsyncExpiringCacheConfigPtr ResourceLimitsCache;
+
+    TSecurityManagerDynamicConfig()
+    {
+        RegisterParameter("resource_limits_cache", ResourceLimitsCache)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSecurityManagerDynamicConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterConnectorConfig
@@ -984,6 +999,7 @@ public:
     TDuration IncrementalStructuredTabletHeartbeatPeriod;
 
     TMasterConnectorDynamicConfigPtr MasterConnector;
+    TSecurityManagerDynamicConfigPtr SecurityManager;
 
     TTabletNodeDynamicConfig()
     {
@@ -1021,6 +1037,9 @@ public:
             .Default(TDuration::Seconds(5));
 
         RegisterParameter("master_connector", MasterConnector)
+            .DefaultNew();
+        
+        RegisterParameter("security_manager", SecurityManager)
             .DefaultNew();
     }
 };

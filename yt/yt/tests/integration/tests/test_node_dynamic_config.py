@@ -1,10 +1,19 @@
 from yt_env_setup import YTEnvSetup, wait, Restarter, NODES_SERVICE
 
 from yt_commands import (
-    authors, exists, get, set, ls, create, remove,
-    read_table, write_table,
-    run_test_vanilla, get_applied_node_dynamic_config,
-    sync_create_cells)
+    authors,
+    exists,
+    get,
+    set,
+    ls,
+    create,
+    remove,
+    read_table,
+    write_table,
+    run_test_vanilla,
+    get_applied_node_dynamic_config,
+    sync_create_cells,
+)
 
 import yt_error_codes
 
@@ -429,6 +438,32 @@ class TestNodeDynamicConfig(YTEnvSetup):
             }
         }
         set("//sys/cluster_nodes/@config", config)
-        key = "//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/"\
-              "effective_config/tablet_node/versioned_chunk_meta_cache/capacity"
+        key = (
+            "//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/"
+            "effective_config/tablet_node/versioned_chunk_meta_cache/capacity"
+        )
         wait(lambda: get(key.format(nodes[0])) == 300, ignore_exceptions=True)
+
+    @authors("orlovorlov")
+    def test_security_manager_config_in_dynamic_config_manager(self):
+        nodes = ls("//sys/cluster_nodes")
+        set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[0]), ["nodeA"])
+
+        config = {
+            "nodeA": {
+                "tablet_node": {
+                    "security_manager": {
+                        "resource_limits_cache": {
+                            "expire_after_access_time": 10,
+                        },
+                    }
+                }
+            }
+        }
+        set("//sys/cluster_nodes/@config", config)
+
+        key = (
+            "//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/"
+            "effective_config/tablet_node/security_manager/resource_limits_cache/expire_after_access_time"
+        )
+        wait(lambda: get(key.format(nodes[0])) == 10, ignore_exceptions=True)

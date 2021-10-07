@@ -93,8 +93,10 @@ private:
         auto client = Bootstrap_->GetMasterClient();
         auto options = TGetNodeOptions();
         options.ReadFrom = EMasterChannelKind::Cache;
-        options.ExpireAfterSuccessfulUpdateTime = Config_->ExpireAfterSuccessfulUpdateTime;
-        options.ExpireAfterFailedUpdateTime = Config_->ExpireAfterFailedUpdateTime;
+
+        auto config = GetConfig();
+        options.ExpireAfterSuccessfulUpdateTime = config->ExpireAfterSuccessfulUpdateTime;
+        options.ExpireAfterFailedUpdateTime = config->ExpireAfterFailedUpdateTime;
 
         auto accountTabletStaticValidationEnabledAsync = client->GetNode(
             "//sys/@config/security_manager/enable_tablet_resource_validation",
@@ -254,6 +256,11 @@ public:
         result.ThrowOnError();
     }
 
+    void ReconfigureResourceLimitsCache(TAsyncExpiringCacheConfigPtr config)
+    {
+        ResourceLimitsCache_->Reconfigure(std::move(config));
+    }
+
 private:
     const TSecurityManagerConfigPtr Config_;
     NCellarNode::IBootstrap* const Bootstrap_;
@@ -289,6 +296,11 @@ void TSecurityManager::ValidateResourceLimits(
     EInMemoryMode inMemoryMode)
 {
     Impl_->ValidateResourceLimits(account, mediumName, tabletCellBundle, inMemoryMode);
+}
+
+void TSecurityManager::Reconfigure(const TSecurityManagerDynamicConfigPtr& config)
+{
+    Impl_->ReconfigureResourceLimitsCache(config->ResourceLimitsCache);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

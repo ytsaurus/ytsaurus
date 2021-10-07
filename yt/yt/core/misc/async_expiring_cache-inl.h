@@ -34,8 +34,8 @@ TAsyncExpiringCache<TKey, TValue>::TAsyncExpiringCache(
     TAsyncExpiringCacheConfigPtr config,
     NLogging::TLogger logger,
     NProfiling::TProfiler profiler)
-    : Config_(std::move(config))
-    , Logger_(std::move(logger))
+    : Logger_(std::move(logger))
+    , Config_(std::move(config))
     , HitCounter_(profiler.Counter("/hit"))
     , MissedCounter_(profiler.Counter("/miss"))
     , SizeCounter_(profiler.Gauge("/size"))
@@ -45,6 +45,13 @@ TAsyncExpiringCache<TKey, TValue>::TAsyncExpiringCache(
             BIND(&TAsyncExpiringCache::UpdateAll, MakeWeak(this)),
             *Config_->RefreshTime);
     }
+}
+    
+template <class TKey, class TValue>
+TAsyncExpiringCacheConfigPtr TAsyncExpiringCache<TKey, TValue>::GetConfig() const
+{
+    auto guard = ReaderGuard(SpinLock_);
+    return Config_;
 }
 
 template <class TKey, class TValue>
@@ -280,10 +287,11 @@ void TAsyncExpiringCache<TKey, TValue>::Set(const TKey& key, TErrorOr<TValue> va
 {
     auto isValueOK = valueOrError.IsOK();
     auto now = NProfiling::GetCpuInstant();
-    auto accessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
-    auto expirationTime = isValueOK ? Config_->ExpireAfterSuccessfulUpdateTime : Config_->ExpireAfterFailedUpdateTime;
 
     auto guard = WriterGuard(SpinLock_);
+    
+    auto accessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
+    auto expirationTime = isValueOK ? Config_->ExpireAfterSuccessfulUpdateTime : Config_->ExpireAfterFailedUpdateTime;
 
     if (auto it = Map_.find(key); it != Map_.end()) {
         const auto& entry = it->second;
@@ -513,9 +521,12 @@ void TAsyncExpiringCache<TKey, TValue>::UpdateAll()
     std::vector<TKey> expiredKeys;
 
     auto now = NProfiling::GetCpuInstant();
+    TDuration refreshTime;
 
     {
         auto guard = ReaderGuard(SpinLock_);
+        refreshTime = *Config_->RefreshTime;
+
         for (const auto& [key, entry] : Map_) {
             if (entry->Promise.IsSet()) {
                 if (now > entry->AccessDeadline) {
@@ -551,10 +562,17 @@ void TAsyncExpiringCache<TKey, TValue>::UpdateAll()
     if (entries.empty()) {
         NConcurrency::TDelayedExecutor::Submit(
             BIND(&TAsyncExpiringCache::UpdateAll, MakeWeak(this)),
-            *Config_->RefreshTime);
+            refreshTime);
     } else {
         InvokeGetMany(entries, keys, /* isPeriodicUpdate */ true);
     }
+}
+
+template <class TKey, class TValue>
+void TAsyncExpiringCache<TKey, TValue>::Reconfigure(TAsyncExpiringCacheConfigPtr config)
+{
+    auto guard = WriterGuard(SpinLock_);
+    Config_.Swap(config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

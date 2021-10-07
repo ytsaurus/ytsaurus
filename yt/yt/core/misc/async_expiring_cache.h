@@ -45,8 +45,10 @@ public:
 
     void Clear();
 
+    void Reconfigure(TAsyncExpiringCacheConfigPtr config);
+
 protected:
-    const TAsyncExpiringCacheConfigPtr Config_;
+    TAsyncExpiringCacheConfigPtr GetConfig() const;
 
     virtual TFuture<TValue> DoGet(
         const TKey& key,
@@ -68,6 +70,8 @@ protected:
 
 private:
     const NLogging::TLogger Logger_;
+
+    TAsyncExpiringCacheConfigPtr Config_;
 
     struct TEntry
         : public TRefCounted

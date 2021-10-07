@@ -41,6 +41,9 @@ public:
         const std::optional<TString>& /*tabletCellBundle*/,
         NTabletClient::EInMemoryMode /*inMemoryMode*/)
     { }
+    
+    virtual void Reconfigure(const NTabletNode::TSecurityManagerDynamicConfigPtr& /*config*/)
+    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
