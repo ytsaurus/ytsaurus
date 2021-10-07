@@ -17,9 +17,10 @@ func TestProxySet(t *testing.T) {
 	)
 
 	set := &ProxySet{
-		UpdatePeriod: time.Second,
-		BanDuration:  time.Second,
-		UpdateFn:     func() ([]string, error) { return updateResult, updateErr },
+		UpdatePeriod:  time.Second,
+		BanDuration:   time.Second,
+		UpdateFn:      func() ([]string, error) { return updateResult, updateErr },
+		ActiveSetSize: 5,
 	}
 
 	_, err := set.PickRandom(context.Background())
@@ -69,4 +70,18 @@ func TestProxySet(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 
 	require.Equal(t, []string{"a", "b", "c", "d"}, pickRepeatedly())
+
+	updateErr = nil
+	updateResult = []string{"a", "b", "c", "d", "e", "f", "g"}
+	time.Sleep(time.Second)
+
+	active := pickRepeatedly()
+	require.Len(t, active, 5)
+
+	proxy := active[0]
+	set.BanProxy(proxy)
+
+	active = pickRepeatedly()
+	require.Len(t, active, 5)
+	require.NotContains(t, proxy, active)
 }

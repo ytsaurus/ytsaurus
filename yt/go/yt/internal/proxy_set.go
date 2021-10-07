@@ -19,8 +19,9 @@ func (b proxyBan) expired(banDuration time.Duration) bool {
 }
 
 const (
-	defaultUpdatePeriod = time.Second * 30
-	defaultBanDuration  = 5 * time.Minute
+	defaultUpdatePeriod  = time.Second * 30
+	defaultBanDuration   = 5 * time.Minute
+	defaultActiveSetSize = 50
 )
 
 type ProxySet struct {
@@ -32,14 +33,18 @@ type ProxySet struct {
 
 	mu sync.Mutex
 
-	all            []string
+	all            []string // all = banned + active + inactive
 	updateErr      error
 	updateDone     chan struct{}
 	updating       bool
 	lastUpdateTime time.Time
 
-	alive      []string
-	aliveIndex map[string]int
+	ActiveSetSize int
+	active        []string
+	activeIndex   map[string]int
+
+	inactive      []string
+	inactiveIndex map[string]int
 }
 
 func (s *ProxySet) updatePeriod() time.Duration {
@@ -58,12 +63,20 @@ func (s *ProxySet) banDuration() time.Duration {
 	}
 }
 
+func (s *ProxySet) activeSetSize() int {
+	if s.ActiveSetSize != 0 {
+		return s.ActiveSetSize
+	} else {
+		return defaultActiveSetSize
+	}
+}
+
 var errProxyListEmpty = errors.New("proxy list is empty")
 
 func (s *ProxySet) doPickRandom() (string, bool) {
 	switch {
-	case len(s.alive) != 0:
-		return s.alive[rand.Intn(len(s.alive))], true
+	case len(s.active) != 0:
+		return s.active[rand.Intn(len(s.active))], true
 
 	case len(s.all) != 0:
 		return s.all[rand.Intn(len(s.all))], true
@@ -123,8 +136,38 @@ func (s *ProxySet) updateProxies(updateDone chan struct{}) {
 
 	s.updateErr = nil
 	s.all = proxyList
-	s.alive = alive
-	s.aliveIndex = aliveIndex
+
+	s.updateInactiveSet(alive)
+	s.updateActiveSet()
+}
+
+func (s *ProxySet) updateInactiveSet(alive []string) {
+	inactive := []string{}
+	inactiveIndex := map[string]int{}
+	for _, proxy := range alive {
+		if _, ok := s.activeIndex[proxy]; !ok {
+			inactiveIndex[proxy] = len(inactive)
+			inactive = append(inactive, proxy)
+		}
+	}
+
+	s.inactive = inactive
+	s.inactiveIndex = inactiveIndex
+}
+
+func (s *ProxySet) updateActiveSet() {
+	for len(s.active) < s.activeSetSize() && len(s.inactive) > 0 {
+		proxy := s.inactive[rand.Intn(len(s.inactive))]
+
+		s.removeInactive(proxy)
+
+		if s.activeIndex == nil {
+			s.activeIndex = map[string]int{}
+		}
+
+		s.activeIndex[proxy] = len(s.active)
+		s.active = append(s.active, proxy)
+	}
 }
 
 func (s *ProxySet) scheduleUpdate(force bool) (updateDone <-chan struct{}) {
@@ -182,20 +225,45 @@ func (s *ProxySet) BanProxy(name string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	bannedIndex, ok := s.aliveIndex[name]
+	s.removeActive(name)
+	s.removeInactive(name)
+
+	s.updateActiveSet()
+}
+
+func (s *ProxySet) removeActive(proxy string) {
+	bannedIndex, ok := s.activeIndex[proxy]
 	if !ok {
 		return
 	}
 
-	delete(s.aliveIndex, name)
-	if bannedIndex+1 == len(s.alive) {
-		s.alive = s.alive[:bannedIndex]
+	delete(s.activeIndex, proxy)
+	if bannedIndex+1 == len(s.active) {
+		s.active = s.active[:bannedIndex]
 	} else {
-		last := len(s.alive) - 1
+		last := len(s.active) - 1
 
-		s.aliveIndex[s.alive[last]] = bannedIndex
-		s.alive[bannedIndex] = s.alive[last]
-		s.alive = s.alive[:last]
+		s.activeIndex[s.active[last]] = bannedIndex
+		s.active[bannedIndex] = s.active[last]
+		s.active = s.active[:last]
+	}
+}
+
+func (s *ProxySet) removeInactive(proxy string) {
+	bannedIndex, ok := s.inactiveIndex[proxy]
+	if !ok {
+		return
+	}
+
+	delete(s.inactiveIndex, proxy)
+	if bannedIndex+1 == len(s.inactive) {
+		s.inactive = s.inactive[:bannedIndex]
+	} else {
+		last := len(s.inactive) - 1
+
+		s.inactiveIndex[s.inactive[last]] = bannedIndex
+		s.inactive[bannedIndex] = s.inactive[last]
+		s.inactive = s.inactive[:last]
 	}
 }
 
