@@ -23,12 +23,23 @@ message TAllyReplicasInfo
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TP2PBarrier
+{
+    required NYT.NProto.TGuid session_id = 1;
+    required uint64 iteration = 2;
+
+    // Workaround for hedging. See note in replication_reader.cpp.
+    optional int32 if_node_id = 3;
+}
+
 message TPeerDescriptor
 {
     required int32 block_index = 1;
     repeated int32 node_ids = 3;
 
     reserved 2;
+
+    optional TP2PBarrier delivery_barier = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,6 +143,7 @@ message TReqPopulateCache
         required TBlockId block_id = 1;
         optional NYT.NNodeTrackerClient.NProto.TNodeDescriptor source_descriptor = 2;
     }
+
     repeated TBlock blocks = 1;
     repeated fixed64 block_checksums = 2;
 }
@@ -139,6 +151,26 @@ message TReqPopulateCache
 message TRspPopulateCache
 {
     required uint64 expiration_deadline = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUpdateP2PBlocks
+{
+    required int32 source_node_id = 7;
+    required NYT.NProto.TGuid session_id = 1;
+    required uint64 iteration = 2;
+
+    required NYT.NProto.TGuid chunk_id = 3;
+    repeated int32 block_indexes = 4;
+    repeated fixed64 block_checksums = 5;
+
+    required bool drop_blocks = 6 [default = false];
+}
+
+message TRspUpdateP2PBlocks
+{
+    required bool session_created = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -202,6 +234,8 @@ message TReqGetBlockSet
     // COMPAT(babenko): drop once all clusters support ProbeBlockSet
     optional bool fetch_from_disk = 8 [default = true];
     optional int32 peer_node_id = 9;
+
+    repeated TP2PBarrier wait_barriers = 11;
 
     reserved 3;
 }

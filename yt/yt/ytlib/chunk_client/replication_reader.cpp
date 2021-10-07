@@ -1516,6 +1516,9 @@ private:
     //! Maps peer addresses to block indexes.
     THashMap<TString, THashSet<int>> PeerBlocksMap_;
 
+    //! address -> block_index -> (session_id, iteration).
+    THashMap<TNodeId, THashMap<int, NChunkClient::NProto::TP2PBarrier>> P2PDeliveryBarrier_;
+
     struct TBlockWithCookie
     {
         int BlockIndex;
@@ -1539,6 +1542,7 @@ private:
         }
 
         PeerBlocksMap_.clear();
+        P2PDeliveryBarrier_.clear();
         auto blockIndexes = GetUnfetchedBlockIndexes();
         for (const auto& [address, peer] : Peers_) {
             PeerBlocksMap_[address] = THashSet<int>(blockIndexes.begin(), blockIndexes.end());
@@ -1575,7 +1579,6 @@ private:
         bool addedNewPeers = false;
         for (const auto& peerDescriptor : probeResult.PeerDescriptors) {
             int blockIndex = peerDescriptor.block_index();
-            TBlockId blockId(ChunkId_, blockIndex);
             for (auto peerNodeId : peerDescriptor.node_ids()) {
                 auto maybeSuggestedDescriptor = NodeDirectory_->FindDescriptor(peerNodeId);
                 if (!maybeSuggestedDescriptor) {
@@ -1599,8 +1602,14 @@ private:
                     YT_LOG_DEBUG("Block peer descriptor received (Block: %v, SuggestedAddress: %v)",
                         blockIndex,
                         *suggestedAddress);
+
+                    if (peerDescriptor.has_delivery_barier()) {
+                        P2PDeliveryBarrier_[peerNodeId].emplace(
+                            blockIndex,
+                            peerDescriptor.delivery_barier());
+                    }
                 } else {
-                    YT_LOG_WARNING("Peer suggestion ignored, required network is missing (SuggestedAddress: %v, Networks: )",
+                    YT_LOG_WARNING("Peer suggestion ignored, required network is missing (SuggestedAddress: %v, Networks: %v)",
                         maybeSuggestedDescriptor->GetDefaultAddress(),
                         Networks_);
                 }
@@ -1791,6 +1800,8 @@ private:
             req->set_peer_expiration_deadline(ToProto<ui64>(expirationDeadline));
         }
 
+        FillP2PBarriers(req->mutable_wait_barriers(), peers, blockIndexes);
+
         NProfiling::TWallTimer dataWaitTimer;
         auto rspOrError = WaitFor(req->Invoke());
         SessionOptions_.ChunkReaderStatistics->DataWaitTime += dataWaitTimer.GetElapsedValue();
@@ -1907,6 +1918,42 @@ private:
 
         cancelAll(TError("Block was not sent by node"));
         return true;
+    }
+
+    void FillP2PBarriers(
+        google::protobuf::RepeatedPtrField<NProto::TP2PBarrier>* barriers,
+        const TPeerList& peerList,
+        const std::vector<int>& blockIndexes)
+    {
+        // We need a way of sending two separate requests to the two different nodes.
+        // And there is no way of doing this with hedging channel.
+        // So we send all barriers to both nodes, and filter them in data node service.
+
+        for (const auto& peer : peerList) {
+            auto blockBarriers = P2PDeliveryBarrier_.find(peer.NodeId);
+            if (blockBarriers == P2PDeliveryBarrier_.end()) {
+                continue;
+            }
+
+            THashMap<TGuid, ui64> maxBarrier;
+            for (int blockIndex : blockIndexes) {
+                auto it = blockBarriers->second.find(blockIndex);
+                if (it == blockBarriers->second.end()) {
+                    continue;
+                }
+
+                auto sessionId = FromProto<TGuid>(it->second.session_id());
+                maxBarrier[sessionId] = std::max(maxBarrier[sessionId], it->second.iteration());
+            }
+
+            for (const auto& [sessionId, iteration] : maxBarrier) {
+                auto wait = barriers->Add();
+
+                ToProto(wait->mutable_session_id(), sessionId);
+                wait->set_iteration(iteration);
+                wait->set_if_node_id(peer.NodeId);
+            }
+        }
     }
 
     void FetchBlocksFromCache(const std::vector<TBlockWithCookie>& blocks)

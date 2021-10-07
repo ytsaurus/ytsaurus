@@ -12,6 +12,7 @@
 #include "network_statistics.h"
 #include "block_peer_table.h"
 #include "p2p_block_distributor.h"
+#include "p2p.h"
 #include "session.h"
 #include "session_manager.h"
 #include "table_schema_cache.h"
@@ -129,6 +130,9 @@ public:
             .SetQueueSizeLimit(5000)
             .SetConcurrencyLimit(5000)
             .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateP2PBlocks)
+            .SetQueueSizeLimit(5000)
+            .SetConcurrencyLimit(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlocks)
             .SetQueueSizeLimit(5000)
             .SetConcurrencyLimit(5000)
@@ -408,6 +412,43 @@ private:
         context->Reply();
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdateP2PBlocks)
+    {
+        auto sessionId = FromProto<TGuid>(request->session_id());
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+
+        context->SetRequestInfo("SessionId: %v, Iteration: %v, ReceivedBlockCount: %v, DropBlocks: %v",
+            sessionId,
+            request->iteration(),
+            request->block_indexes_size(),
+            request->drop_blocks());
+
+        ValidateConnected();
+
+        const auto& blockCache = Bootstrap_->GetP2PBlockCache();
+        if (request->drop_blocks()) {
+            blockCache->DropBlocks(sessionId, chunkId);
+        } else {
+            auto blocks = GetRpcAttachedBlocks(request, true /* validateChecksums */);
+            if (std::ssize(blocks) != request->block_indexes_size()) {
+                THROW_ERROR_EXCEPTION("Number of attached blocks is different from blocks field length")
+                    << TErrorAttribute("attached_block_count", blocks.size())
+                    << TErrorAttribute("blocks_length", request->block_indexes_size());
+            }
+
+            blockCache->HoldBlocks(
+                sessionId,
+                chunkId,
+                FromProto<std::vector<int>>(request->block_indexes()),
+                blocks);
+        }
+
+        bool sessionCreated = blockCache->FinishSessionIteration(request->source_node_id(), sessionId, request->iteration());
+        response->set_session_created(sessionCreated);
+
+        context->Reply();
+    }
+
     template <class TContext>
     void SuggestPeersWithBlocks(
         const TContext& context,
@@ -441,14 +482,39 @@ private:
                 peerList->AddPeer(requesterNodeId, requesterExpirationTime);
             }
         }
+    }
 
+    template <class TContext>
+    void SuggestAllyReplicas(const TContext& context)
+    {
         const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
+
+        const auto* request = &context->Request();
+        auto* response = &context->Response();
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
         if (auto allyReplicas = allyReplicaManager->GetAllyReplicas(chunkId)) {
             ToProto(response->mutable_ally_replicas(), allyReplicas);
             YT_LOG_DEBUG("Ally replicas suggested (ChunkId: %v, Replicas: %v)",
                 chunkId,
                 allyReplicas.Replicas);
+        }
+    }
+
+    void AddBlockPeers(
+        google::protobuf::RepeatedPtrField<TPeerDescriptor>* peers,
+        const std::vector<TP2PSuggestion>& blockPeers)
+    {
+        for (const auto& suggestion : blockPeers) {
+            auto peerDescriptor = peers->Add();
+
+            peerDescriptor->set_block_index(suggestion.BlockIndex);
+            ToProto(peerDescriptor->mutable_node_ids(), suggestion.Peers);
+
+            auto barrier = peerDescriptor->mutable_delivery_barier();
+
+            barrier->set_iteration(suggestion.P2PIteration);
+            ToProto(barrier->mutable_session_id(), suggestion.P2PSessionId);
         }
     }
 
@@ -555,18 +621,24 @@ private:
         response->set_net_throttling(netThrottling);
 
         SuggestPeersWithBlocks(context);
+        SuggestAllyReplicas(context);
+
+        const auto& p2pManager = Bootstrap_->GetP2PManager();
+        AddBlockPeers(response->mutable_peer_descriptors(), p2pManager->OnBlockProbe(chunkId, blockIndexes));
 
         context->SetResponseInfo(
             "HasCompleteChunk: %v, "
             "NetThrottling: %v, NetOutQueueSize: %v, NetThrottlerQueueSize: %v, "
-            "DiskThrottling: %v, DiskReadQueueSize: %v, DiskThrottlerQueueSize: %v",
+            "DiskThrottling: %v, DiskReadQueueSize: %v, DiskThrottlerQueueSize: %v "
+            "PeerDescriptorCount: %v",
             hasCompleteChunk,
             netThrottling,
             netOutQueueSize,
             netThrottlerQueueSize,
             diskThrottling,
             diskReadQueueSize,
-            diskThrottlerQueueSize);
+            diskThrottlerQueueSize,
+            response->peer_descriptors_size());
 
         context->Reply();
     }
@@ -637,9 +709,22 @@ private:
             context,
             requesterNodeId,
             requesterExpirationDeadline);
+        SuggestAllyReplicas(context);
 
         auto chunkReaderStatistics = New<TChunkReaderStatistics>();
 
+        const auto& p2pBlockCache = Bootstrap_->GetP2PBlockCache();
+        for (const auto& barrier : request->wait_barriers()) {
+            if (static_cast<TNodeId>(barrier.if_node_id()) != Bootstrap_->GetNodeId()) {
+                continue;
+            }
+
+            auto p2pSessionId = FromProto<TGuid>(barrier.session_id());
+            WaitFor(p2pBlockCache->WaitSessionIteration(p2pSessionId, barrier.iteration()))
+                .ThrowOnError();
+        }
+
+        std::vector<TBlock> blocks;
         if (fetchFromCache || fetchFromDisk) {
             TChunkReadOptions options;
             options.WorkloadDescriptor = workloadDescriptor;
@@ -658,16 +743,24 @@ private:
                 blockIndexes,
                 options);
 
-            auto blocks = WaitFor(asyncBlocks)
+            blocks = WaitFor(asyncBlocks)
                 .ValueOrThrow();
-            for (int index = 0; index < std::ssize(blocks) && index < std::ssize(blockIndexes); ++index) {
-                if (const auto& block = blocks[index]) {
-                    Bootstrap_->GetP2PBlockDistributor()->OnBlockRequested(
-                        TBlockId(chunkId, blockIndexes[index]),
-                        block.Size());
-                }
-            }
+        }
 
+        for (int index = 0; index < std::ssize(blocks) && index < std::ssize(blockIndexes); ++index) {
+            if (const auto& block = blocks[index]) {
+                Bootstrap_->GetP2PBlockDistributor()->OnBlockRequested(
+                    TBlockId(chunkId, blockIndexes[index]),
+                    block.Size());
+            }
+        }
+
+        // NB: p2p manager might steal blocks and assign null values.
+        const auto& p2pManager = Bootstrap_->GetP2PManager();
+        std::vector<TP2PSuggestion> blockPeers = p2pManager->OnBlockRead(chunkId, blockIndexes, &blocks);
+        AddBlockPeers(response->mutable_peer_descriptors(), blockPeers);
+
+        if (!blocks.empty()) {
             if (!checkNetThrottling(Config_->GetNetOutThrottlingHardLimit())) {
                 SetRpcAttachedBlocks(response, blocks);
             } else if (!netThrottling) {
