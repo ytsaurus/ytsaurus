@@ -563,8 +563,13 @@ public:
 
     virtual TFuture<void> Throttle(i64 count) override
     {
-        Underlying_->Acquire(count);
-        return Stealer_->Throttle(count);
+        auto future = Stealer_->Throttle(count);
+        future.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+            if (error.IsOK()) {
+                Underlying_->Acquire(count);
+            }
+        }));
+        return future;
     }
 
     virtual bool TryAcquire(i64 count) override
