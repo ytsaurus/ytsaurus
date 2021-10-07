@@ -7,6 +7,7 @@
 #include "chunk_registry.h"
 #include "config.h"
 #include "location.h"
+#include "p2p.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 
@@ -76,10 +77,23 @@ public:
             auto chunk = chunkRegistry->FindChunk(chunkId);
             auto type = TypeFromId(DecodeChunkId(chunkId).Id);
             if (!chunk) {
-                std::vector<TBlock> blocks;
-                // During block peering, data nodes exchange individual blocks.
-                // Thus the cache may contain a block not bound to any chunk in the registry.
-                // We must look for these blocks.
+                const auto& p2pBlockCache = Bootstrap_->GetP2PBlockCache();
+
+                // New P2P implementation stores blocks in separate block cache.
+                auto blocks = p2pBlockCache->LookupBlocks(chunkId, blockIndexes);
+
+                size_t bytesRead = 0;
+                for (const auto& block : blocks) {
+                    if (block) {
+                        bytesRead += block.Size();
+                    }
+                }
+                if (bytesRead > 0) {
+                    options.ChunkReaderStatistics->DataBytesReadFromCache += bytesRead;
+                    return MakeFuture(blocks);
+                }
+
+                // Old P2P implementation stores blocks in shared block cache.
                 if (options.BlockCache &&
                     options.FetchFromCache &&
                     (type == EObjectType::Chunk || type == EObjectType::ErasureChunk))

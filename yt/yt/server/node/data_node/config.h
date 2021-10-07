@@ -25,6 +25,76 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TP2PConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool Enabled;
+
+    int BlockCacheSize;
+    int BlockSizeThreshold;
+    int MaxBlockSpanLength;
+
+    TDuration TickPeriod;
+
+    TDuration IterationWaitTimeout;
+    int MaxWaitingRequests;
+
+    TDuration BlockCooldownTimeout;
+
+    std::vector<int> HotBlockThreshold;
+    std::vector<int> SecondHotBlockThreshold;
+    std::vector<int> HotBlockReplicaCount;
+
+    TP2PConfig()
+    {
+        RegisterParameter("enabled", Enabled)
+            .Default(true);
+
+        // Low default to prevent OOMs in yt-local.
+        RegisterParameter("block_cache_size", BlockCacheSize)
+            .Default(1_MB);
+
+        RegisterParameter("block_size_threshold", BlockSizeThreshold)
+            .Default(32_KB);
+
+        RegisterParameter("max_block_span_length", MaxBlockSpanLength)
+            .Default(128_MB);
+
+        RegisterParameter("tick_period", TickPeriod)
+            .Default(TDuration::Seconds(15));
+
+        RegisterParameter("iteration_wait_timeout", IterationWaitTimeout)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("max_waiting_requests", MaxWaitingRequests)
+            .Default(128);
+
+        RegisterParameter("block_cooldown_timeout", BlockCooldownTimeout)
+            .Default(TDuration::Minutes(5));
+
+        RegisterParameter("hot_block_threshold", HotBlockThreshold)
+            .Default({10});
+        RegisterParameter("second_hot_block_threshold", SecondHotBlockThreshold)
+            .Default({5});
+        RegisterParameter("hot_block_replica_count", HotBlockReplicaCount)
+            .Default({10});
+
+        RegisterPostprocessor([this] {
+            if (HotBlockThreshold.size() != SecondHotBlockThreshold.size()) {
+                THROW_ERROR_EXCEPTION("\"hot_block_threshold\" and \"second_hot_block_threshold\" must have the same length");
+            }
+
+            if (HotBlockThreshold.size() != HotBlockReplicaCount.size()) {
+                THROW_ERROR_EXCEPTION("\"hot_block_threshold\" and \"hot_block_replica_count\" must have the same length");
+            }
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TP2PConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBlockPeerTableConfig
     : public NYTree::TYsonSerializable
 {
@@ -890,6 +960,9 @@ public:
     //! Master connector config.
     TMasterConnectorConfigPtr MasterConnector;
 
+    //! Config for the new P2P implementation.
+    TP2PConfigPtr P2P;
+
     TDataNodeConfig()
     {
         RegisterParameter("lease_transaction_timeout", LeaseTransactionTimeout)
@@ -1087,6 +1160,9 @@ public:
             .Default(TDuration::Minutes(5));
 
         RegisterParameter("master_connector", MasterConnector)
+            .DefaultNew();
+
+        RegisterParameter("p2p", P2P)
             .DefaultNew();
 
         RegisterPreprocessor([&] {

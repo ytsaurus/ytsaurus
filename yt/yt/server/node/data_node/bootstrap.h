@@ -45,6 +45,8 @@ struct IBootstrap
     // P2P stuff.
     virtual const TBlockPeerTablePtr& GetBlockPeerTable() const = 0;
     virtual const TP2PBlockDistributorPtr& GetP2PBlockDistributor() const = 0;
+    virtual const TP2PBlockCachePtr& GetP2PBlockCache() const = 0;
+    virtual const TP2PManagerPtr& GetP2PManager() const = 0;
 
     // Caches.
     virtual const TTableSchemaCachePtr& GetTableSchemaCache() const = 0;

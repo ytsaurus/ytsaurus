@@ -14,6 +14,7 @@
 #include "master_connector.h"
 #include "medium_updater.h"
 #include "p2p_block_distributor.h"
+#include "p2p.h"
 #include "private.h"
 #include "session_manager.h"
 #include "skynet_http_handler.h"
@@ -164,6 +165,8 @@ public:
 
         BlockPeerTable_ = New<TBlockPeerTable>(this);
         P2PBlockDistributor_ = New<TP2PBlockDistributor>(this);
+        P2PBlockCache_ = New<TP2PBlockCache>(GetConfig()->DataNode->P2P);
+        P2PManager_ = New<TP2PManager>(GetConfig()->DataNode->P2P);
 
         TableSchemaCache_ = New<TTableSchemaCache>(GetConfig()->DataNode->TableSchemaCache);
 
@@ -316,6 +319,16 @@ public:
         return P2PBlockDistributor_;
     }
 
+    const TP2PBlockCachePtr& GetP2PBlockCache() const override
+    {
+        return P2PBlockCache_;
+    }
+
+    const TP2PManagerPtr& GetP2PManager() const override
+    {
+        return P2PManager_;
+    }
+
     const TTableSchemaCachePtr& GetTableSchemaCache() const override
     {
         return TableSchemaCache_;
@@ -345,6 +358,8 @@ private:
 
     TBlockPeerTablePtr BlockPeerTable_;
     TP2PBlockDistributorPtr P2PBlockDistributor_;
+    TP2PBlockCachePtr P2PBlockCache_;
+    TP2PManagerPtr P2PManager_;
 
     TTableSchemaCachePtr TableSchemaCache_;
 

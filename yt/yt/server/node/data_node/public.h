@@ -99,6 +99,10 @@ DECLARE_REFCOUNTED_CLASS(TLookupSession)
 
 DECLARE_REFCOUNTED_CLASS(TMediumUpdater)
 
+DECLARE_REFCOUNTED_CLASS(TP2PBlockCache)
+DECLARE_REFCOUNTED_CLASS(TP2PManager)
+DECLARE_REFCOUNTED_CLASS(TP2PConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,
