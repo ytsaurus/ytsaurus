@@ -165,15 +165,6 @@ public:
         }
     }
 
-    void Clear() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        TMasterAutomatonPart::Clear();
-
-        StatisticsUpdateRequests_.Clear();
-    }
-
     void ScheduleStatisticsUpdate(
         TChunkOwnerBase* chunkOwner,
         bool updateDataStatistics,
@@ -427,6 +418,28 @@ public:
         }
     }
 
+    void Clear() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::Clear();
+
+        MasterTableSchemaMap_.Clear();
+        TableSchemaToObjectMap_.clear();
+        EmptyMasterTableSchema_ = nullptr;
+        TableCollocationMap_.Clear();
+        StatisticsUpdateRequests_.Clear();
+    }
+
+    void SetZeroState() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TCompositeAutomatonPart::SetZeroState();
+
+        InitBuiltins();
+    }
+
     void LoadStatisticsUpdateRequests(NCellMaster::TLoadContext& context)
     {
         Load(context, StatisticsUpdateRequests_);
@@ -478,6 +491,9 @@ public:
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
+        // Likely to be noop: once created, builtins are loaded from snapshot, too.
+        InitBuiltins();
+
         // COMPAT(shakurov)
         if (NeedFixEmptyMasterTableSchemaRefCounter_) {
             GetEmptyMasterTableSchema()->RefObject();
@@ -521,7 +537,8 @@ public:
 
     TMasterTableSchema* GetEmptyMasterTableSchema()
     {
-        return GetBuiltin(EmptyMasterTableSchema_);
+        YT_VERIFY(EmptyMasterTableSchema_);
+        return EmptyMasterTableSchema_;
     }
 
     void SetTableSchema(TTableNode* table, TMasterTableSchema* schema)
@@ -631,15 +648,6 @@ public:
         YT_VERIFY(!FindMasterTableSchema(tableSchemaId));
 
         return DoCreateMasterTableSchema(tableSchemaId, tableSchema);
-    }
-
-    TMasterTableSchema* GetBuiltin(TMasterTableSchema*& builtin)
-    {
-        if (!builtin) {
-            InitBuiltins();
-        }
-        YT_VERIFY(builtin);
-        return builtin;
     }
 
     void InitBuiltins()
