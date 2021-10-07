@@ -38,7 +38,8 @@ DEFINE_ENUM(ESnapshotVersion,
     ((StructuredTagsInLogger)               (300615))
     ((AddShallowMerge)                      (300616))
     ((AggregateJobStatistics)               (300617))
-    ((ValueCountStatistics)                 (300618))
+    ((AccountResourceUsageLeaseMap)         (300618))
+    ((ValueCountStatistics)                 (300619))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

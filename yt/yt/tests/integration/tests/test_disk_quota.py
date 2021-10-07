@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE
 
 from yt_commands import (
     authors, wait, events_on_fs, create, ls, get, set, exists,
@@ -898,6 +898,11 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
         {
             "controller_agent": {
                 "obligatory_account_mediums": ["ssd"],
+                "snapshot_period": 500,
+                "snapshot_writer": {
+                    "upload_replication_factor": 1,
+                    "min_upload_replication_factor": 1,
+                }
             },
         })
     DELTA_NODE_CONFIG = {
@@ -1042,3 +1047,89 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
 
         # Check that operation is successful since accounting is disabled.
         start_op("ssd", "my_account", 1024 * 1024, track=True)
+
+    @authors("ignat")
+    def test_enable_accounting_after_revive(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "bar"}])
+        create("table", "//tmp/out")
+
+        create_account("my_account")
+        set("//sys/accounts/my_account/@resource_limits/disk_space_per_medium/ssd", 1024 * 1024)
+
+        update_controller_agent_config("enable_master_resource_usage_accounting", False)
+
+        def start_op(medium_type, account, disk_space, track, sleep_seconds=100):
+            disk_request = {"disk_space": disk_space}
+            if medium_type is not None:
+                disk_request["medium_name"] = medium_type
+                if account is not None:
+                    disk_request["account"] = account
+
+            return map(
+                command="cat; echo $(pwd) >&2; sleep {}".format(sleep_seconds),
+                in_="//tmp/in",
+                out="//tmp/out",
+                spec={
+                    "mapper": {
+                        "disk_request": disk_request
+                    },
+                    "max_failed_job_count": 1,
+                },
+                track=track,
+            )
+
+        op = start_op("ssd", "my_account", 1024 * 1024, track=False)
+
+        time.sleep(1)
+        assert get("//sys/accounts/my_account/@resource_usage/disk_space_per_medium/ssd") == 0
+
+        op.wait_for_fresh_snapshot()
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            update_controller_agent_config("enable_master_resource_usage_accounting", True, wait_for_update=False)
+
+        wait(lambda: op.get_state() == "running")
+
+        time.sleep(1)
+        assert get("//sys/accounts/my_account/@resource_usage/disk_space_per_medium/ssd") == 0
+
+    @authors("ignat")
+    def test_revive(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "bar"}])
+        create("table", "//tmp/out")
+
+        create_account("my_account")
+        set("//sys/accounts/my_account/@resource_limits/disk_space_per_medium/ssd", 1024 * 1024)
+
+        def start_op(medium_type, account, disk_space, track, sleep_seconds=100):
+            disk_request = {"disk_space": disk_space}
+            if medium_type is not None:
+                disk_request["medium_name"] = medium_type
+                if account is not None:
+                    disk_request["account"] = account
+
+            return map(
+                command="cat; echo $(pwd) >&2; sleep {}".format(sleep_seconds),
+                in_="//tmp/in",
+                out="//tmp/out",
+                spec={
+                    "mapper": {
+                        "disk_request": disk_request
+                    },
+                    "max_failed_job_count": 1,
+                },
+                track=track,
+            )
+
+        op = start_op("ssd", "my_account", 1024 * 1024, track=False)
+
+        wait(lambda: get("//sys/accounts/my_account/@resource_usage/disk_space_per_medium/ssd") == 1024 * 1024)
+
+        op.wait_for_fresh_snapshot()
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        wait(lambda: op.get_state() == "running")
+
+        assert get("//sys/accounts/my_account/@resource_usage/disk_space_per_medium/ssd") == 1024 * 1024
