@@ -1191,10 +1191,6 @@ public:
                         Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>(100_MB);
                         break;
 
-                    case ETabletNodeThrottlerKind::UserBackendIn:
-                        Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>(500_MB);
-                        break;
-
                     default:
                         Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>();
                 }
