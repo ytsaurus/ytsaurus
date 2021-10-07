@@ -1263,9 +1263,9 @@ bool TOperationControllerBase::IsTransactionNeeded(ETransactionType type) const
 {
     switch (type) {
         case ETransactionType::Async:
-            return IsIntermediateLivePreviewSupported() || IsOutputLivePreviewSupported() || GetStderrTablePath() || HasDiskRequestsWithSpecifiedAccount();
+            return IsIntermediateLivePreviewSupported() || IsOutputLivePreviewSupported() || GetStderrTablePath();
         case ETransactionType::Input:
-            return !GetInputTablePaths().empty() || HasUserJobFiles();
+            return !GetInputTablePaths().empty() || HasUserJobFiles() || HasDiskRequestsWithSpecifiedAccount();
         case ETransactionType::Output:
         case ETransactionType::OutputCompletion:
             // NB: cannot replace with OutputTables_.empty() here because output tables are not ready yet.
@@ -4739,7 +4739,7 @@ void TOperationControllerBase::IncreaseAccountResourceUsageLease(const std::opti
 {
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
-    if (!account || !Config->EnableMasterResourceUsageAccounting) {
+    if (!account || !EnableMasterResourceUsageAccounting_) {
         return;
     }
 
@@ -6943,7 +6943,8 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
         }
     }
 
-    if (Config->EnableMasterResourceUsageAccounting) {
+    EnableMasterResourceUsageAccounting_ = Config->EnableMasterResourceUsageAccounting;
+    if (EnableMasterResourceUsageAccounting_) {
         // TODO(ignat): use batching here.
         for (const auto& account : accounts) {
             ValidateAccountPermission(account, EPermission::Use);
@@ -6953,11 +6954,10 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
 
             auto req = TMasterYPathProxy::CreateObject();
             req->set_type(static_cast<int>(EObjectType::AccountResourceUsageLease));
-            // SetTransactionId(req, AsyncTransaction->GetId());
 
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("account", account);
-            attributes->Set("transaction_id", AsyncTransaction->GetId());
+            attributes->Set("transaction_id", InputTransaction->GetId());
             ToProto(req->mutable_object_attributes(), *attributes);
 
             auto rsp = WaitFor(proxy.Execute(req))
@@ -9240,6 +9240,11 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::MainResourceConsumptionPerTree) {
         Persist(context, MainResourceConsumptionPerTree_);
     }
+    
+    if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::AccountResourceUsageLeaseMap) {
+        Persist(context, EnableMasterResourceUsageAccounting_);
+        Persist(context, AccountResourceUsageLeaseMap_);
+    }
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already initialized.
@@ -9365,6 +9370,14 @@ void TOperationControllerBase::TLivePreviewChunkDescriptor::Persist(const TPersi
 
     Persist(context, VertexDescriptor);
     Persist(context, LivePreviewIndex);
+}
+
+void TOperationControllerBase::TResourceUsageLeaseInfo::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, LeaseId);
+    Persist(context, DiskQuota);
 }
 
 void TOperationControllerBase::RegisterLivePreviewChunk(

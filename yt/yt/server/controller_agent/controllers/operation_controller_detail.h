@@ -1215,10 +1215,13 @@ private:
 
     THashMap<NChunkClient::TInputChunkPtr, TLivePreviewChunkDescriptor> LivePreviewChunks_;
 
+    bool EnableMasterResourceUsageAccounting_ = false;
     struct TResourceUsageLeaseInfo
     {
         NSecurityClient::TAccountResourceUsageLeaseId LeaseId;
         NScheduler::TDiskQuota DiskQuota;
+
+        void Persist(const TPersistenceContext& context);
     };
     THashMap<TString, TResourceUsageLeaseInfo> AccountResourceUsageLeaseMap_;
 
