@@ -20,6 +20,7 @@ public class SelectRowsRequest
         implements HighLevelRequest<TReqSelectRows.Builder> {
     private final String query;
     @Nullable private YtTimestamp timestamp;
+    @Nullable private YtTimestamp retentionTimestamp;
     @Nullable private Long inputRowsLimit;
     @Nullable private Long outputRowsLimit;
     @Nullable private Boolean failOnIncompleteResult;
@@ -47,6 +48,15 @@ public class SelectRowsRequest
 
     public Optional<YtTimestamp> getTimestamp() {
         return Optional.ofNullable(timestamp);
+    }
+
+    public SelectRowsRequest setRetentionTimestamp(@Nullable YtTimestamp retentionTimestamp) {
+        this.retentionTimestamp = retentionTimestamp;
+        return this;
+    }
+
+    public Optional<YtTimestamp> getRetentionTimestamp() {
+        return Optional.ofNullable(retentionTimestamp);
     }
 
     public SelectRowsRequest setInputRowsLimit(long inputRowsLimit) {
@@ -116,6 +126,9 @@ public class SelectRowsRequest
         builder.body().setQuery(getQuery());
         if (getTimestamp().isPresent()) {
             builder.body().setTimestamp(getTimestamp().get().getValue());
+        }
+        if (getRetentionTimestamp().isPresent()) {
+            builder.body().setRetentionTimestamp(getRetentionTimestamp().get().getValue());
         }
         if (getInputRowsLimit().isPresent()) {
             builder.body().setInputRowLimit(getInputRowsLimit().getAsLong());

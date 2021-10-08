@@ -7,7 +7,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import javax.annotation.Nullable;
+
 import ru.yandex.inside.yt.kosher.common.YtTimestamp;
+import ru.yandex.lang.NonNullApi;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpcproxy.TReqLookupRows;
 import ru.yandex.yt.rpcproxy.TReqVersionedLookupRows;
@@ -16,11 +19,13 @@ import ru.yandex.yt.ytclient.proxy.request.RequestBase;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
+@NonNullApi
 public abstract class AbstractLookupRowsRequest<R extends AbstractLookupRowsRequest<R>> extends RequestBase<R> {
     private final String path;
     private final TableSchema schema;
     private final List<String> lookupColumns = new ArrayList<>();
-    private YtTimestamp timestamp;
+    @Nullable private YtTimestamp timestamp;
+    @Nullable private YtTimestamp retentionTimestamp;
 
     // NB. Java default of keepMissingRows is different from YT default for historical reasons,
     // now we have to keep backward compatibility.
@@ -56,6 +61,16 @@ public abstract class AbstractLookupRowsRequest<R extends AbstractLookupRowsRequ
 
     public Optional<YtTimestamp> getTimestamp() {
         return Optional.ofNullable(timestamp);
+    }
+
+    @SuppressWarnings("unchecked")
+    public R setRetentionTimestamp(YtTimestamp retentionTimestamp) {
+        this.retentionTimestamp = retentionTimestamp;
+        return (R) this;
+    }
+
+    public Optional<YtTimestamp> getRetentionTimestamp() {
+        return Optional.ofNullable(retentionTimestamp);
     }
 
     public TableSchema getSchema() {
@@ -104,6 +119,9 @@ public abstract class AbstractLookupRowsRequest<R extends AbstractLookupRowsRequ
                 builder.body().setKeepMissingRows(getKeepMissingRows());
                 if (getTimestamp().isPresent()) {
                     builder.body().setTimestamp(getTimestamp().get().getValue());
+                }
+                if (getRetentionTimestamp().isPresent()) {
+                    builder.body().setRetentionTimestamp(getRetentionTimestamp().get().getValue());
                 }
                 builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(getSchema()));
                 serializeRowsetTo(builder.attachments());
