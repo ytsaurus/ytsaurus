@@ -54,6 +54,8 @@ public:
 
     TDuration QueueStallTimeout;
 
+    TDuration ReconnectPeriod;
+
     i64 MaxRequestSize;
 
     i64 MaxBatchSize;
@@ -116,6 +118,7 @@ private:
 
     NRpc::IChannelPtr CollectorChannel_;
     NRpc::NGrpc::TChannelConfigPtr OpenChannelConfig_;
+    TInstant ChannelReopenTime_;
 
     void Flush();
     void DequeueAll(const TJaegerTracerConfigPtr& config);

@@ -11,6 +11,7 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/serialize.h>
+#include <yt/yt/core/utilex/random.h>
 
 #include <util/string/cast.h>
 #include <util/string/reverse.h>
@@ -68,6 +69,8 @@ TJaegerTracerConfig::TJaegerTracerConfig()
         .Default(1_GB);
     RegisterParameter("subsampling_rate", SubsamplingRate)
         .Default();
+    RegisterParameter("reconnect_period", ReconnectPeriod)
+        .Default(TDuration::Minutes(15));
 
     RegisterParameter("service_name", ServiceName)
         .Default();
@@ -374,11 +377,16 @@ void TJaegerTracer::Flush()
             return;
         }
 
+        if (CollectorChannel_ && TInstant::Now() > ChannelReopenTime_) {
+            CollectorChannel_.Reset();
+        }
+
         if (!CollectorChannel_ || OpenChannelConfig_ != config->CollectorChannelConfig) {
             OpenChannelConfig_.Reset();
 
             CollectorChannel_ = NGrpc::CreateGrpcChannel(config->CollectorChannelConfig);
             OpenChannelConfig_ = config->CollectorChannelConfig;
+            ChannelReopenTime_ = TInstant::Now() + config->ReconnectPeriod + RandomDuration(config->ReconnectPeriod);
         }
 
         TJaegerCollectorProxy proxy(CollectorChannel_);
