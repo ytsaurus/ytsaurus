@@ -7,12 +7,14 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import ru.yandex.lang.NonNullApi;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedValue;
 import ru.yandex.yt.ytclient.wire.WireProtocolWriter;
 
+@NonNullApi
 public class LookupRowsRequest extends AbstractLookupRowsRequest<LookupRowsRequest> {
     private final List<UnversionedRow> filters = new ArrayList<>();
 
