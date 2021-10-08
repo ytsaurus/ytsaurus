@@ -38,7 +38,7 @@ public class Example01CypressOperations {
             // Для всех запросов есть полная версия метода, где можно передать объект запроса, указав там продвинутые
             // опции.
             CompletableFuture<YTreeNode> getResult = client.getNode(
-                    new GetNode("//home/ermolovd/yt-tutorial")
+                    new GetNode("//home/dev/tutorial")
                     .setAttributes(ColumnFilter.of("account", "row_count"))
                     .setTimeout(Duration.ofSeconds(10))
             );
