@@ -4,6 +4,7 @@ import org.apache.hadoop.fs.Path
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.execution.InputAdapter
+import org.apache.spark.sql.functions._
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.SQLConf._
 import org.apache.spark.sql.types._
@@ -611,6 +612,18 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     res.select("a").collect() should contain theSameElementsAs Seq(
       Row(UInt64Long(1L)), Row(UInt64Long(2L)), Row(null)
     )
+  }
+
+  it should "fail when need unchecked cast UInt64Long" in {
+    Seq(UInt64Long(1L), UInt64Long(2L), UInt64Long(2L), UInt64Long(2L), UInt64Long(3L), UInt64Long(1L))
+      .toDF("a").write.yt(tmpPath)
+
+    val res = spark.read.yt(tmpPath)
+
+//    res.agg(countDistinct("a")).collect() returns correct value: Array(Row(3))
+    a[IllegalStateException] shouldBe thrownBy {
+      res.groupBy("a").count().collect()
+    }
   }
 
   it should "write and read big uint64" in {
