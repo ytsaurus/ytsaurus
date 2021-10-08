@@ -322,10 +322,6 @@ void QuickLzDecompress(StreamSource* source, TBlob* sink)
         [] (const char* input, size_t /*inputSize*/, char* output, size_t outputSize) {
             qlz_state_decompress state;
             auto rv = qlz_decompress(input, output, &state);
-            if (rv < 0) {
-                THROW_ERROR_EXCEPTION("Cannot decompress QuickLZ data: qlz_decompress returned an error")
-                    << TErrorAttribute("error", rv);
-            }
             if (rv != outputSize) {
                 THROW_ERROR_EXCEPTION("Cannot decompress QuickLZ data: returned size mismatch")
                     << TErrorAttribute("expected_size", outputSize)
