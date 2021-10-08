@@ -142,7 +142,7 @@ TString OptionToFieldFlagName(TFieldOption option)
         }
     };
 
-    return EWrapperFieldFlag_Enum_Name(Visit(TVisitor(), option));
+    return EWrapperFieldFlag_Enum_Name(std::visit(TVisitor(), option));
 }
 
 TString OptionToMessageFlagName(TMessageOption option)
@@ -162,7 +162,7 @@ TString OptionToMessageFlagName(TMessageOption option)
         }
     };
 
-    return EWrapperMessageFlag_Enum_Name(Visit(TVisitor(), option));
+    return EWrapperMessageFlag_Enum_Name(std::visit(TVisitor(), option));
 }
 
 TString OptionToOneofFlagName(TOneofOption option)
@@ -182,7 +182,7 @@ TString OptionToOneofFlagName(TOneofOption option)
         }
     };
 
-    return EWrapperOneofFlag_Enum_Name(Visit(TVisitor(), option));
+    return EWrapperOneofFlag_Enum_Name(std::visit(TVisitor(), option));
 }
 
 
@@ -278,7 +278,7 @@ void ParseProtobufFieldOptions(
 {
     TParseProtobufFieldOptionsVisitor visitor;
     for (auto flag : flags) {
-        Visit(visitor, FieldFlagToOption(flag));
+        std::visit(visitor, FieldFlagToOption(flag));
     }
     if (visitor.Type) {
         fieldOptions->Type = *visitor.Type;
@@ -300,7 +300,7 @@ void ParseProtobufMessageOptions(
 {
     TParseProtobufMessageOptionsVisitor visitor;
     for (auto flag : flags) {
-        Visit(visitor, MessageFlagToOption(flag));
+        std::visit(visitor, MessageFlagToOption(flag));
     }
     if (visitor.FieldSortOrder) {
         messageOptions->FieldSortOrder = *visitor.FieldSortOrder;
@@ -313,7 +313,7 @@ void ParseProtobufOneofOptions(
 {
     TParseProtobufOneofOptionsVisitor visitor;
     for (auto flag : flags) {
-        Visit(visitor, OneofFlagToOption(flag));
+        std::visit(visitor, OneofFlagToOption(flag));
     }
     if (visitor.Mode) {
         messageOptions->Mode = *visitor.Mode;
