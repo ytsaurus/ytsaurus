@@ -256,9 +256,9 @@ public:
         result.ThrowOnError();
     }
 
-    void ReconfigureResourceLimitsCache(TAsyncExpiringCacheConfigPtr config)
+    void Reconfigure(const TSecurityManagerDynamicConfigPtr& config)
     {
-        ResourceLimitsCache_->Reconfigure(std::move(config));
+        ResourceLimitsCache_->Reconfigure(config->ResourceLimitsCache ? config->ResourceLimitsCache : Config_->ResourceLimitsCache);
     }
 
 private:
@@ -300,7 +300,7 @@ void TSecurityManager::ValidateResourceLimits(
 
 void TSecurityManager::Reconfigure(const TSecurityManagerDynamicConfigPtr& config)
 {
-    Impl_->ReconfigureResourceLimitsCache(config->ResourceLimitsCache);
+    Impl_->Reconfigure(config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

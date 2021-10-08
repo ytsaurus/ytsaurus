@@ -881,7 +881,7 @@ public:
     TSecurityManagerDynamicConfig()
     {
         RegisterParameter("resource_limits_cache", ResourceLimitsCache)
-            .DefaultNew();
+            .Default();
     }
 };
 
@@ -1038,7 +1038,7 @@ public:
 
         RegisterParameter("master_connector", MasterConnector)
             .DefaultNew();
-        
+
         RegisterParameter("security_manager", SecurityManager)
             .DefaultNew();
     }
