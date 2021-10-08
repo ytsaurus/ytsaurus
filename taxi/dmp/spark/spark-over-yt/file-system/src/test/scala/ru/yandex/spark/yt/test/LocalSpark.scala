@@ -112,4 +112,5 @@ object LocalSpark {
     .set("spark.ui.enabled", "false")
     .set("spark.hadoop.yt.read.arrow.enabled", "true")
     .set("spark.sql.adaptive.enabled", "true")
+    .set("spark.sql.extensions", "ru.yandex.spark.yt.format.YtSparkExtensions")
 }
