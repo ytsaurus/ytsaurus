@@ -26,7 +26,7 @@ public:
         : CheckItemCallback_(checkItemCallback)
     { }
 
-    void OnListItem()
+    void OnListItem() override
     {
         if (Balance_ == -1) {
             Balance_ = 0;
@@ -35,58 +35,58 @@ public:
         }
     }
 
-    void OnKeyedItem(TStringBuf /*key*/)
+    void OnKeyedItem(TStringBuf /*key*/) override
     { }
 
-    void OnBeginAttributes()
+    void OnBeginAttributes() override
     {
         Balance_++;
     }
 
-    void OnEndAttributes()
+    void OnEndAttributes() override
     {
         Balance_--;
     }
 
-    void OnRaw(TStringBuf /*yson*/, NYson::EYsonType /*type*/)
+    void OnRaw(TStringBuf /*yson*/, NYson::EYsonType /*type*/) override
     {
         YT_ABORT();
     }
 
-    void OnStringScalar(TStringBuf /*value*/)
+    void OnStringScalar(TStringBuf /*value*/) override
     { }
 
-    void OnInt64Scalar(i64 /*value*/)
+    void OnInt64Scalar(i64 /*value*/) override
     { }
 
-    void OnUint64Scalar(ui64 /*value*/)
+    void OnUint64Scalar(ui64 /*value*/) override
     { }
 
-    void OnDoubleScalar(double /*value*/)
+    void OnDoubleScalar(double /*value*/) override
     { }
 
-    void OnBooleanScalar(bool /*value*/)
+    void OnBooleanScalar(bool /*value*/) override
     { }
 
-    void OnEntity()
+    void OnEntity() override
     { }
 
-    void OnBeginList()
+    void OnBeginList() override
     {
         Balance_++;
     }
 
-    void OnEndList()
+    void OnEndList() override
     {
         Balance_--;
     }
 
-    void OnBeginMap()
+    void OnBeginMap() override
     {
         Balance_++;
     }
 
-    void OnEndMap()
+    void OnEndMap() override
     {
         Balance_--;
     }

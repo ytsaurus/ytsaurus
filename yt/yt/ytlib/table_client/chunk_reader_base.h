@@ -29,13 +29,13 @@ public:
 
     ~TChunkReaderBase();
 
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
 
-    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override;
+    NChunkClient::TCodecStatistics GetDecompressionStatistics() const override;
 
-    virtual bool IsFetchingCompleted() const override;
+    bool IsFetchingCompleted() const override;
 
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
+    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
 
 protected:
     const NChunkClient::TBlockFetcherConfigPtr Config_;

@@ -44,7 +44,7 @@ public:
         Forward(TreeBuilder_.get());
     }
 
-    virtual T Finish()
+    T Finish() override
     {
         switch (YsonType_) {
             case NYson::EYsonType::ListFragment:

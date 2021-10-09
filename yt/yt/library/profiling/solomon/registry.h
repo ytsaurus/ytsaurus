@@ -40,66 +40,66 @@ class TSolomonRegistry
 public:
     explicit TSolomonRegistry();
 
-    virtual ICounterImplPtr RegisterCounter(
+    ICounterImplPtr RegisterCounter(
         const TString& name,
         const TTagSet& tags,
         TSensorOptions options) override;
 
-    virtual ITimeCounterImplPtr RegisterTimeCounter(
+    ITimeCounterImplPtr RegisterTimeCounter(
         const TString& name,
         const TTagSet& tags,
         TSensorOptions options) override;
 
-    virtual IGaugeImplPtr RegisterGauge(
+    IGaugeImplPtr RegisterGauge(
         const TString& name,
         const TTagSet& tags,
         TSensorOptions options) override;
 
-    virtual ITimeGaugeImplPtr RegisterTimeGauge(
+    ITimeGaugeImplPtr RegisterTimeGauge(
         const TString& name,
         const TTagSet& tags,
         TSensorOptions options) override;
 
-    virtual ISummaryImplPtr RegisterSummary(
+    ISummaryImplPtr RegisterSummary(
         const TString& name,
         const TTagSet& tags,
         TSensorOptions options) override;
 
-    virtual IGaugeImplPtr RegisterGaugeSummary(
+    IGaugeImplPtr RegisterGaugeSummary(
         const TString& name,
         const TTagSet& tags,
         TSensorOptions options) override;
 
-    virtual ITimeGaugeImplPtr RegisterTimeGaugeSummary(
+    ITimeGaugeImplPtr RegisterTimeGaugeSummary(
         const TString& name,
         const TTagSet& tags,
         TSensorOptions options) override;
 
-    virtual ITimerImplPtr RegisterTimerSummary(
+    ITimerImplPtr RegisterTimerSummary(
         const TString& name,
         const TTagSet& tags,
         TSensorOptions options) override;
 
-    virtual ITimerImplPtr RegisterTimerHistogram(
+    ITimerImplPtr RegisterTimerHistogram(
         const TString& name,
         const TTagSet& tags,
         TSensorOptions options) override;
 
-    virtual void RegisterFuncCounter(
+    void RegisterFuncCounter(
         const TString& name,
         const TTagSet& tags,
         TSensorOptions options,
         const TRefCountedPtr& owner,
         std::function<i64()> reader) override;
 
-    virtual void RegisterFuncGauge(
+    void RegisterFuncGauge(
         const TString& name,
         const TTagSet& tags,
         TSensorOptions options,
         const TRefCountedPtr& owner,
         std::function<double()> reader) override;
 
-    virtual void RegisterProducer(
+    void RegisterProducer(
         const TString& prefix,
         const TTagSet& tags,
         TSensorOptions options,

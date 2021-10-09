@@ -21,17 +21,17 @@ public:
         : Queue_(CreateFairShareActionQueue(threadName, queueNames, queueToBucket))
     { }
 
-    virtual void Shutdown() override
+    void Shutdown() override
     {
         Queue_->Shutdown();
     }
 
-    virtual const IInvokerPtr& GetInvoker(EQueue queue) const override
+    const IInvokerPtr& GetInvoker(EQueue queue) const override
     {
         return Queue_->GetInvoker(static_cast<int>(queue));
     }
 
-    virtual void Reconfigure(const THashMap<TString, double>& newBucketWeights) override
+    void Reconfigure(const THashMap<TString, double>& newBucketWeights) override
     {
         Queue_->Reconfigure(newBucketWeights);
     }

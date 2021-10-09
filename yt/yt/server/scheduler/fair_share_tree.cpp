@@ -660,7 +660,7 @@ public:
         return {LastPoolsNodeUpdateError_, true};
     }
     
-    virtual TError ValidateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) override
+    TError ValidateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) override
     {
         if (!Config_->UseUserDefaultParentPoolMap) {
             return TError();
@@ -2190,7 +2190,7 @@ private:
         return RootElement_;
     }
 
-    virtual void ActualizeEphemeralPoolParents(const THashMap<TString, TString>& userToDefaultPoolMap) override
+    void ActualizeEphemeralPoolParents(const THashMap<TString, TString>& userToDefaultPoolMap) override
     {
         for (const auto& [_, ephemeralPools] : UserToEphemeralPoolsInDefaultPool_) {
             for (const auto& poolName : ephemeralPools) {

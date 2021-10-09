@@ -12,19 +12,19 @@ class TChannelWrapper
 public:
     explicit TChannelWrapper(IChannelPtr underlyingChannel);
 
-    virtual const TString& GetEndpointDescription() const override;
-    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
-    virtual TNetworkId GetNetworkId() const override;
+    const TString& GetEndpointDescription() const override;
+    const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
+    TNetworkId GetNetworkId() const override;
 
-    virtual IClientRequestControlPtr Send(
+    IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override;
 
-    virtual void Terminate(const TError& error) override;
+    void Terminate(const TError& error) override;
 
-    virtual void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override;
-    virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& callback) override;
+    void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override;
+    void UnsubscribeTerminated(const TCallback<void(const TError&)>& callback) override;
 
 protected:
     const IChannelPtr UnderlyingChannel_;
@@ -40,10 +40,10 @@ class TClientRequestControlThunk
 public:
     void SetUnderlying(IClientRequestControlPtr underlying);
 
-    virtual void Cancel() override;
+    void Cancel() override;
 
-    virtual TFuture<void> SendStreamingPayload(const TStreamingPayload& payload) override;
-    virtual TFuture<void> SendStreamingFeedback(const TStreamingFeedback& feedback) override;
+    TFuture<void> SendStreamingPayload(const TStreamingPayload& payload) override;
+    TFuture<void> SendStreamingFeedback(const TStreamingFeedback& feedback) override;
 
 private:
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);

@@ -22,8 +22,8 @@ class TSchedulerPool
 public:
     explicit TSchedulerPool(NCypressClient::TObjectId id, bool isRoot = false);
 
-    virtual TString GetLowercaseObjectName() const override;
-    virtual TString GetCapitalizedObjectName() const override;
+    TString GetLowercaseObjectName() const override;
+    TString GetCapitalizedObjectName() const override;
 
     // NB: exception is raised upon validation fails. Caller is obliged to restore correct state.
     void ValidateAll();
@@ -75,8 +75,8 @@ class TSchedulerPoolTree
 public:
     explicit TSchedulerPoolTree(NCypressClient::TObjectId id);
 
-    virtual TString GetLowercaseObjectName() const override;
-    virtual TString GetCapitalizedObjectName() const override;
+    TString GetLowercaseObjectName() const override;
+    TString GetCapitalizedObjectName() const override;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

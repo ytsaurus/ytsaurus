@@ -38,28 +38,28 @@ class TChunkBase
     : public IChunk
 {
 public:
-    virtual TChunkId GetId() const override;
-    virtual const TLocationPtr& GetLocation() const override;
-    virtual TString GetFileName() const override;
+    TChunkId GetId() const override;
+    const TLocationPtr& GetLocation() const override;
+    TString GetFileName() const override;
 
-    virtual int GetVersion() const override;
-    virtual int IncrementVersion() override;
+    int GetVersion() const override;
+    int IncrementVersion() override;
 
-    virtual TFuture<void> PrepareToReadChunkFragments(
+    TFuture<void> PrepareToReadChunkFragments(
         const NChunkClient::TClientChunkReadOptions& options) override;
-    virtual NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+    NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor) override;
 
-    virtual void AcquireReadLock() override;
-    virtual void ReleaseReadLock() override;
+    void AcquireReadLock() override;
+    void ReleaseReadLock() override;
 
-    virtual void AcquireUpdateLock() override;
-    virtual void ReleaseUpdateLock() override;
+    void AcquireUpdateLock() override;
+    void ReleaseUpdateLock() override;
 
-    virtual TFuture<void> ScheduleRemove() override;
-    virtual bool IsRemoveScheduled() const override;
+    TFuture<void> ScheduleRemove() override;
+    bool IsRemoveScheduled() const override;
 
-    virtual void TrySweepReader() override;
+    void TrySweepReader() override;
 
 protected:
     NClusterNode::IBootstrapBase* const Bootstrap_;

@@ -29,10 +29,10 @@ public:
 
     void WriteRow(TVersionedRow row);
 
-    virtual TBlock FlushBlock() override;
+    TBlock FlushBlock() override;
 
-    virtual i64 GetBlockSize() const override;
-    virtual i64 GetRowCount() const override;
+    i64 GetBlockSize() const override;
+    i64 GetRowCount() const override;
 
     static int GetKeySize(int keyColumnCount, int schemaColumnCount);
     static int GetPaddedKeySize(int keyColumnCount, int schemaColumnCount);

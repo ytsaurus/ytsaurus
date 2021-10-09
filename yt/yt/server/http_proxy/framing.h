@@ -23,9 +23,9 @@ public:
     TFuture<void> WriteDataFrame(const TSharedRef& buffer);
     TFuture<void> WriteKeepAliveFrame();
 
-    virtual TFuture<void> Write(const TSharedRef& buffer) override;
-    virtual TFuture<void> Flush() override;
-    virtual TFuture<void> Close() override;
+    TFuture<void> Write(const TSharedRef& buffer) override;
+    TFuture<void> Flush() override;
+    TFuture<void> Close() override;
 
 private:
     const NConcurrency::IFlushableAsyncOutputStreamPtr Underlying_;

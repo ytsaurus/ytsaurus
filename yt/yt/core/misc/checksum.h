@@ -26,7 +26,7 @@ public:
     TChecksum GetChecksum() const;
 
 protected:
-    virtual size_t DoRead(void* buf, size_t len);
+    size_t DoRead(void* buf, size_t len) override;
 
 private:
     IInputStream* const Input_;
@@ -43,9 +43,9 @@ public:
     TChecksum GetChecksum() const;
 
 protected:
-    virtual void DoWrite(const void* buf, size_t len);
-    virtual void DoFlush();
-    virtual void DoFinish();
+    void DoWrite(const void* buf, size_t len) override;
+    void DoFlush() override;
+    void DoFinish() override;
 
 private:
     IOutputStream* const Output_;

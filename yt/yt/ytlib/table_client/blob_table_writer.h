@@ -55,9 +55,9 @@ public:
     NScheduler::NProto::TOutputResult GetOutputResult() const;
 
 private:
-    virtual void DoWrite(const void* buf, size_t size) override;
-    virtual void DoFlush() override;
-    virtual void DoFinish() override;
+    void DoWrite(const void* buf, size_t size) override;
+    void DoFlush() override;
+    void DoFinish() override;
 
 private:
     TUnversionedOwningRow BlobIdColumnValues_;

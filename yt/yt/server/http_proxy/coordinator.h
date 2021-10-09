@@ -130,7 +130,7 @@ class THostsHandler
 public:
     explicit THostsHandler(TCoordinatorPtr coordinator);
 
-    virtual void HandleRequest(
+    void HandleRequest(
         const NHttp::IRequestPtr& req,
         const NHttp::IResponseWriterPtr& rsp) override;
 
@@ -148,7 +148,7 @@ class TPingHandler
 public:
     explicit TPingHandler(TCoordinatorPtr coordinator);
 
-    virtual void HandleRequest(
+    void HandleRequest(
         const NHttp::IRequestPtr& req,
         const NHttp::IResponseWriterPtr& rsp) override;
 
@@ -207,7 +207,7 @@ class TDiscoverVersionsHandlerV1
 public:
     using TDiscoverVersionsHandler::TDiscoverVersionsHandler;
 
-    virtual void HandleRequest(
+    void HandleRequest(
         const NHttp::IRequestPtr& req,
         const NHttp::IResponseWriterPtr& rsp) override;
 };
@@ -222,7 +222,7 @@ class TDiscoverVersionsHandlerV2
 public:
     using TDiscoverVersionsHandler::TDiscoverVersionsHandler;
 
-    virtual void HandleRequest(
+    void HandleRequest(
         const NHttp::IRequestPtr& req,
         const NHttp::IResponseWriterPtr& rsp) override;
 };

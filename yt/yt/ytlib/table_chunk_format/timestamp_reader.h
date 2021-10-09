@@ -24,7 +24,7 @@ public:
         const char* data,
         NTableClient::TTimestamp timestamp = NTableClient::AllCommittedTimestamp);
 
-    virtual void SkipToRowIndex(i64 rowIndex) override;
+    void SkipToRowIndex(i64 rowIndex) override;
 
     NTableClient::TTimestamp GetDeleteTimestamp() const
     {
@@ -107,7 +107,7 @@ public:
         const NProto::TColumnMeta& meta,
         NTableClient::TTimestamp timestamp);
 
-    virtual i64 GetReadyUpperRowIndex() const override
+    i64 GetReadyUpperRowIndex() const override
     {
         if (CurrentSegmentIndex_ == ColumnMeta_.segments_size()) {
             return CurrentRowIndex_;
@@ -122,17 +122,17 @@ protected:
     std::unique_ptr<TTimestampSegmentReader> SegmentReader_;
 
 
-    virtual ISegmentReaderBase* GetCurrentSegmentReader() const override
+    ISegmentReaderBase* GetCurrentSegmentReader() const override
     {
         return SegmentReader_.get();
     }
 
-    virtual void ResetCurrentSegmentReader() override
+    void ResetCurrentSegmentReader() override
     {
         SegmentReader_.reset();
     }
 
-    virtual void CreateCurrentSegmentReader() override
+    void CreateCurrentSegmentReader() override
     {
         SegmentReader_.reset(new TTimestampSegmentReader(
             CurrentSegmentMeta(),
@@ -212,7 +212,7 @@ class TLookupTransactionTimestampReader
 public:
     using TTransactionTimestampReaderBase::TTransactionTimestampReaderBase;
 
-    virtual void SkipToRowIndex(i64 rowIndex) override
+    void SkipToRowIndex(i64 rowIndex) override
     {
         DoSkipPreparedRows();
         TTransactionTimestampReaderBase::SkipToRowIndex(rowIndex);
@@ -248,7 +248,7 @@ class TLookupTransactionAllVersionsTimestampReader
 public:
     using TTransactionTimestampReaderBase::TTransactionTimestampReaderBase;
 
-    virtual void SkipToRowIndex(i64 rowIndex) override
+    void SkipToRowIndex(i64 rowIndex) override
     {
         DoSkipPreparedRows();
         TTransactionTimestampReaderBase::SkipToRowIndex(rowIndex);

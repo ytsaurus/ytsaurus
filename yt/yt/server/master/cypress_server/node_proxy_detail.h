@@ -34,27 +34,27 @@ public:
         NTransactionServer::TTransaction* transaction,
         TCypressNode* trunkNode);
 
-    virtual std::unique_ptr<NYTree::ITransactionalNodeFactory> CreateFactory() const override;
-    virtual std::unique_ptr<ICypressNodeFactory> CreateCypressFactory(
+    std::unique_ptr<NYTree::ITransactionalNodeFactory> CreateFactory() const override;
+    std::unique_ptr<ICypressNodeFactory> CreateCypressFactory(
         NSecurityServer::TAccount* account,
         const TNodeFactoryOptions& options) const override;
 
-    virtual NYPath::TYPath GetPath() const override;
+    NYPath::TYPath GetPath() const override;
 
-    virtual NTransactionServer::TTransaction* GetTransaction() const override;
+    NTransactionServer::TTransaction* GetTransaction() const override;
 
-    virtual TCypressNode* GetTrunkNode() const override;
+    TCypressNode* GetTrunkNode() const override;
 
-    virtual NYTree::ICompositeNodePtr GetParent() const override;
-    virtual void SetParent(const NYTree::ICompositeNodePtr& parent) override;
+    NYTree::ICompositeNodePtr GetParent() const override;
+    void SetParent(const NYTree::ICompositeNodePtr& parent) override;
 
-    virtual const NYTree::IAttributeDictionary& Attributes() const override;
-    virtual NYTree::IAttributeDictionary* MutableAttributes() override;
+    const NYTree::IAttributeDictionary& Attributes() const override;
+    NYTree::IAttributeDictionary* MutableAttributes() override;
 
     virtual void ValidateStorageParametersUpdate();
     virtual void ValidateLockPossible();
 
-    virtual void GetBasicAttributes(TGetBasicAttributesContext* context) override;
+    void GetBasicAttributes(TGetBasicAttributesContext* context) override;
 
 protected:
     class TCustomAttributeDictionary
@@ -64,11 +64,11 @@ protected:
         explicit TCustomAttributeDictionary(TNontemplateCypressNodeProxyBase* proxy);
 
         // IAttributeDictionary members
-        virtual std::vector<TString> ListKeys() const override;
-        virtual std::vector<TKeyValuePair> ListPairs() const override;
-        virtual NYson::TYsonString FindYson(TStringBuf key) const override;
-        virtual void SetYson(const TString& key, const NYson::TYsonString& value) override;
-        virtual bool Remove(const TString& key) override;
+        std::vector<TString> ListKeys() const override;
+        std::vector<TKeyValuePair> ListPairs() const override;
+        NYson::TYsonString FindYson(TStringBuf key) const override;
+        void SetYson(const TString& key, const NYson::TYsonString& value) override;
+        bool Remove(const TString& key) override;
 
     private:
         TNontemplateCypressNodeProxyBase* const Proxy_;
@@ -90,50 +90,50 @@ protected:
     bool ExpirationTimeoutRenewalSuppressed_ = false;
 
 
-    virtual NObjectServer::TVersionedObjectId GetVersionedId() const override;
-    virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;
+    NObjectServer::TVersionedObjectId GetVersionedId() const override;
+    NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override;
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
+    bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+    TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override;
     TFuture<NYson::TYsonString> GetExternalBuiltinAttributeAsync(NYTree::TInternedAttributeKey key);
-    virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
-    virtual bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
+    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
 
     virtual TCypressNode* FindClosestAncestorWithAnnotation(TCypressNode* node);
 
-    virtual void BeforeInvoke(const NRpc::IServiceContextPtr& context) override;
-    virtual void AfterInvoke(const NRpc::IServiceContextPtr& context) override;
-    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    void BeforeInvoke(const NRpc::IServiceContextPtr& context) override;
+    void AfterInvoke(const NRpc::IServiceContextPtr& context) override;
+    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
-    virtual void GetSelf(
+    void GetSelf(
         TReqGet* request,
         TRspGet* response,
         const TCtxGetPtr& context) override;
 
-    virtual void DoRemoveSelf() override;
+    void DoRemoveSelf() override;
 
     // Suppress access handling in the cases below.
-    virtual void GetAttribute(
+    void GetAttribute(
         const NYTree::TYPath& path,
         TReqGet* request,
         TRspGet* response,
         const TCtxGetPtr& context) override;
-    virtual void ListAttribute(
+    void ListAttribute(
         const NYTree::TYPath& path,
         TReqList* request,
         TRspList* response,
         const TCtxListPtr& context) override;
-    virtual void ExistsSelf(
+    void ExistsSelf(
         TReqExists* request,
         TRspExists* response,
         const TCtxExistsPtr& context) override;
-    virtual void ExistsRecursive(
+    void ExistsRecursive(
         const NYTree::TYPath& path,
         TReqExists* request,
         TRspExists* response,
         const TCtxExistsPtr& context) override;
-    virtual void ExistsAttribute(
+    void ExistsAttribute(
         const NYTree::TYPath& path,
         TReqExists* request,
         TRspExists* response,
@@ -169,10 +169,10 @@ protected:
 
     ICypressNodeProxyPtr GetProxy(TCypressNode* trunkNode) const;
 
-    virtual SmallVector<TCypressNode*, 1> ListDescendants(TCypressNode* node) override;
+    SmallVector<TCypressNode*, 1> ListDescendants(TCypressNode* node) override;
 
     // TSupportsPermissions members
-    virtual void ValidatePermission(
+    void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission,
         const TString& /* user */ = "") override;
@@ -251,18 +251,18 @@ class TNontemplateCompositeCypressNodeProxyBase
     , public virtual NYTree::ICompositeNode
 {
 public:
-    virtual TIntrusivePtr<const NYTree::ICompositeNode> AsComposite() const override;
-    virtual TIntrusivePtr<NYTree::ICompositeNode> AsComposite() override;
+    TIntrusivePtr<const NYTree::ICompositeNode> AsComposite() const override;
+    TIntrusivePtr<NYTree::ICompositeNode> AsComposite() override;
 
 protected:
     using TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
-    virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
-    virtual bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
+    bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
 
-    virtual bool CanHaveChildren() const override;
+    bool CanHaveChildren() const override;
 
 private:
     void SetReplicationFactor(int replicationFactor);
@@ -281,11 +281,11 @@ class TInheritedAttributeDictionary
 public:
     explicit TInheritedAttributeDictionary(NCellMaster::TBootstrap* bootstrap);
 
-    virtual std::vector<TString> ListKeys() const override;
-    virtual std::vector<TKeyValuePair> ListPairs() const override;
-    virtual NYson::TYsonString FindYson(TStringBuf key) const override;
-    virtual void SetYson(const TString& key, const NYson::TYsonString& value) override;
-    virtual bool Remove(const TString& key) override;
+    std::vector<TString> ListKeys() const override;
+    std::vector<TKeyValuePair> ListPairs() const override;
+    NYson::TYsonString FindYson(TStringBuf key) const override;
+    void SetYson(const TString& key, const NYson::TYsonString& value) override;
+    bool Remove(const TString& key) override;
 
     TCompositeNodeBase::TAttributes& Attributes();
 
@@ -364,17 +364,17 @@ private:
 public:
     using TBase::TBase;
 
-    virtual NYTree::ENodeType GetType() const override
+    NYTree::ENodeType GetType() const override
     {
         return NDetail::TCypressScalarTypeTraits<TValue>::NodeType;
     }
 
-    virtual typename NMpl::TCallTraits<TValue>::TType GetValue() const override
+    typename NMpl::TCallTraits<TValue>::TType GetValue() const override
     {
         return this->GetThisImpl()->Value();
     }
 
-    virtual void SetValue(typename NMpl::TCallTraits<TValue>::TType value) override
+    void SetValue(typename NMpl::TCallTraits<TValue>::TType value) override
     {
         this->ValidateValue(value);
         this->LockThisImpl()->Value() = value;
@@ -435,7 +435,7 @@ private:
 
 BEGIN_DEFINE_SCALAR_TYPE(String, TString)
     protected:
-        virtual void ValidateValue(const TString& value) override
+        void ValidateValue(const TString& value) override
         {
             auto length = std::ssize(value);
             auto limit = GetDynamicCypressManagerConfig()->MaxStringNodeLength;
@@ -479,39 +479,39 @@ public:
 public:
     using TBase::TBase;
 
-    virtual void Clear() override;
-    virtual int GetChildCount() const override;
-    virtual std::vector< std::pair<TString, NYTree::INodePtr> > GetChildren() const override;
-    virtual std::vector<TString> GetKeys() const override;
-    virtual NYTree::INodePtr FindChild(const TString& key) const override;
-    virtual bool AddChild(const TString& key, const NYTree::INodePtr& child) override;
-    virtual bool RemoveChild(const TString& key) override;
-    virtual void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
-    virtual void RemoveChild(const NYTree::INodePtr& child) override;
-    virtual std::optional<TString> FindChildKey(const NYTree::IConstNodePtr& child) override;
+    void Clear() override;
+    int GetChildCount() const override;
+    std::vector< std::pair<TString, NYTree::INodePtr> > GetChildren() const override;
+    std::vector<TString> GetKeys() const override;
+    NYTree::INodePtr FindChild(const TString& key) const override;
+    bool AddChild(const TString& key, const NYTree::INodePtr& child) override;
+    bool RemoveChild(const TString& key) override;
+    void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
+    void RemoveChild(const NYTree::INodePtr& child) override;
+    std::optional<TString> FindChildKey(const NYTree::IConstNodePtr& child) override;
 
 private:
-    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
-    virtual void SetChildNode(
+    void SetChildNode(
         NYTree::INodeFactory* factory,
         const NYPath::TYPath& path,
         const NYTree::INodePtr& child,
         bool recursive) override;
 
-    virtual int GetMaxChildCount() const override;
-    virtual int GetMaxKeyLength() const override;
+    int GetMaxChildCount() const override;
+    int GetMaxKeyLength() const override;
 
-    virtual TResolveResult ResolveRecursive(
+    TResolveResult ResolveRecursive(
         const NYPath::TYPath& path,
         const NRpc::IServiceContextPtr& context) override;
 
-    virtual void ListSelf(
+    void ListSelf(
         TReqList* request,
         TRspList* response,
         const TCtxListPtr& context) override;
 
-    virtual void SetRecursive(
+    void SetRecursive(
         const NYTree::TYPath& path,
         TReqSet* request,
         TRspSet* response,
@@ -539,30 +539,30 @@ public:
 public:
     using TBase::TBase;
 
-    virtual void Clear() override;
-    virtual int GetChildCount() const override;
-    virtual std::vector<NYTree::INodePtr> GetChildren() const override;
-    virtual NYTree::INodePtr FindChild(int index) const override;
-    virtual void AddChild(const NYTree::INodePtr& child, int beforeIndex = -1) override;
-    virtual bool RemoveChild(int index) override;
-    virtual void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
-    virtual void RemoveChild(const NYTree::INodePtr& child) override;
-    virtual std::optional<int> FindChildIndex(const NYTree::IConstNodePtr& child) override;
+    void Clear() override;
+    int GetChildCount() const override;
+    std::vector<NYTree::INodePtr> GetChildren() const override;
+    NYTree::INodePtr FindChild(int index) const override;
+    void AddChild(const NYTree::INodePtr& child, int beforeIndex = -1) override;
+    bool RemoveChild(int index) override;
+    void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
+    void RemoveChild(const NYTree::INodePtr& child) override;
+    std::optional<int> FindChildIndex(const NYTree::IConstNodePtr& child) override;
 
 private:
-    virtual void SetChildNode(
+    void SetChildNode(
         NYTree::INodeFactory* factory,
         const NYPath::TYPath& path,
         const NYTree::INodePtr& child,
         bool recursive) override;
 
-    virtual int GetMaxChildCount() const override;
+    int GetMaxChildCount() const override;
 
-    virtual TResolveResult ResolveRecursive(
+    TResolveResult ResolveRecursive(
         const NYPath::TYPath& path,
         const NRpc::IServiceContextPtr& context) override;
 
-    virtual void SetRecursive(
+    void SetRecursive(
         const NYTree::TYPath& path,
         TReqSet* request,
         TRspSet* response,

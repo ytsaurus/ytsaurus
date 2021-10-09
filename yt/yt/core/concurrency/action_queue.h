@@ -23,7 +23,7 @@ public:
 
     virtual ~TActionQueue();
 
-    virtual void Shutdown() override;
+    void Shutdown() override;
 
     const IInvokerPtr& GetInvoker();
 

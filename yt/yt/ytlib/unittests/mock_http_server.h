@@ -40,7 +40,7 @@ private:
     public:
         TCallback GetCallback();
         void SetCallback(TCallback callback);
-        virtual TClientRequest* CreateClient() override;
+        TClientRequest* CreateClient() override;
 
     private:
         class TRequest
@@ -48,7 +48,7 @@ private:
         {
         public:
             explicit TRequest(THttpServerImpl* owner);
-            virtual bool Reply(void* opaque) override;
+            bool Reply(void* opaque) override;
 
         private:
             THttpServerImpl* const Owner_;

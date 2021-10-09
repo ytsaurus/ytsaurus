@@ -90,10 +90,10 @@ public:
         const TString& path,
         bool copyEnv = true,
         TDuration pollPeriod = TDuration::MilliSeconds(100));
-    virtual void Kill(int signal) override;
-    virtual NNet::IConnectionWriterPtr GetStdInWriter() override;
-    virtual NNet::IConnectionReaderPtr GetStdOutReader() override;
-    virtual NNet::IConnectionReaderPtr GetStdErrReader() override;
+    void Kill(int signal) override;
+    NNet::IConnectionWriterPtr GetStdInWriter() override;
+    NNet::IConnectionReaderPtr GetStdOutReader() override;
+    NNet::IConnectionReaderPtr GetStdErrReader() override;
 
 private:
     const TDuration PollPeriod_;
@@ -111,7 +111,7 @@ private:
     std::vector<TSpawnAction> SpawnActions_;
 
     void AddDup2FileAction(int oldFD, int newFD);
-    virtual void DoSpawn() override;
+    void DoSpawn() override;
     void SpawnChild();
     void ValidateSpawnResult();
     void AsyncPeriodicTryWait();

@@ -18,19 +18,19 @@ public:
     IAttributeDictionary* GetAttributes() const;
 
 protected:
-    virtual void OnMyStringScalar(TStringBuf value) override;
-    virtual void OnMyInt64Scalar(i64 value) override;
-    virtual void OnMyUint64Scalar(ui64 value) override;
-    virtual void OnMyDoubleScalar(double value) override;
-    virtual void OnMyBooleanScalar(bool value) override;
-    virtual void OnMyEntity() override;
-    virtual void OnMyBeginList() override;
+    void OnMyStringScalar(TStringBuf value) override;
+    void OnMyInt64Scalar(i64 value) override;
+    void OnMyUint64Scalar(ui64 value) override;
+    void OnMyDoubleScalar(double value) override;
+    void OnMyBooleanScalar(bool value) override;
+    void OnMyEntity() override;
+    void OnMyBeginList() override;
 
-    virtual void OnMyKeyedItem(TStringBuf key) override;
-    virtual void OnMyBeginMap() override;
-    virtual void OnMyEndMap() override;
-    virtual void OnMyBeginAttributes() override;
-    virtual void OnMyEndAttributes()override;
+    void OnMyKeyedItem(TStringBuf key) override;
+    void OnMyBeginMap() override;
+    void OnMyEndMap() override;
+    void OnMyBeginAttributes() override;
+    void OnMyEndAttributes()override;
 
 private:
     IAttributeDictionary* const Attributes;

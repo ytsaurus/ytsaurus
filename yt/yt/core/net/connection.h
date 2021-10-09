@@ -76,7 +76,7 @@ struct IConnection
     virtual bool SetNoDelay() = 0;
     virtual bool SetKeepAlive() = 0;
 
-    virtual TFuture<void> Abort() override = 0;
+    TFuture<void> Abort() override = 0;
 
     // SubscribePeerDisconnect is best effort and is not guaranteed to fire.
     virtual void SubscribePeerDisconnect(TCallback<void()> cb) = 0;

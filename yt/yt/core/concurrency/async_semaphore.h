@@ -92,9 +92,9 @@ public:
         i64 totalSlots,
         NProfiling::TGauge gauge);
 
-    virtual void Release(i64 slots = 1) override;
-    virtual void Acquire(i64 slots = 1) override;
-    virtual bool TryAcquire(i64 slots = 1) override;
+    void Release(i64 slots = 1) override;
+    void Acquire(i64 slots = 1) override;
+    bool TryAcquire(i64 slots = 1) override;
 
 private:
     NProfiling::TGauge Gauge_;

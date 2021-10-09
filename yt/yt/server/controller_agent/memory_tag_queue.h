@@ -74,7 +74,7 @@ private:
     void UpdateStatistics();
     void UpdateStatisticsIfNeeded();
 
-    virtual void CollectSensors(NProfiling::ISensorWriter* writer) override;
+    void CollectSensors(NProfiling::ISensorWriter* writer) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

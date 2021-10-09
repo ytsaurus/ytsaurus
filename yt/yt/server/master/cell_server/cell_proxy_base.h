@@ -28,10 +28,10 @@ public:
 protected:
     using TBase = NObjectServer::TNonversionedObjectProxyBase<TCellBase>;
 
-    virtual void ValidateRemoval() override;
-    virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override;
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+    void ValidateRemoval() override;
+    void RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override;
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
+    bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
 
 private:
     int GetMaxHydraFileId(const NYPath::TYPath& path) const;

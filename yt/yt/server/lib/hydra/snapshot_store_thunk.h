@@ -10,9 +10,9 @@ class TSnapshotStoreThunk
     : public ISnapshotStore
 {
 public:
-    virtual ISnapshotReaderPtr CreateReader(int snapshotId) override;
-    virtual ISnapshotWriterPtr CreateWriter(int snapshotId, const NProto::TSnapshotMeta& meta) override;
-    virtual TFuture<int> GetLatestSnapshotId(int maxSnapshotId) override;
+    ISnapshotReaderPtr CreateReader(int snapshotId) override;
+    ISnapshotWriterPtr CreateWriter(int snapshotId, const NProto::TSnapshotMeta& meta) override;
+    TFuture<int> GetLatestSnapshotId(int maxSnapshotId) override;
 
     void SetUnderlying(ISnapshotStorePtr underlying);
 

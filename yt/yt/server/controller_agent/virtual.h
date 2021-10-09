@@ -25,22 +25,22 @@ public:
         const THashSet<NChunkClient::TInputChunkPtr>& chunks,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
 
-    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
     // TSupportsAttributes overrides
-    virtual ISystemAttributeProvider* GetBuiltinAttributeProvider() override;
+    ISystemAttributeProvider* GetBuiltinAttributeProvider() override;
 
     // ISystemAttributeProvider overrides
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual const THashSet<NYTree::TInternedAttributeKey>& GetBuiltinAttributeKeys() override;
-    virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override;
-    virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
-    virtual bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
+    const THashSet<NYTree::TInternedAttributeKey>& GetBuiltinAttributeKeys() override;
+    bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+    TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override;
+    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
 
-    virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
+    void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
 
-    virtual void DoWriteAttributesFragment(
+    void DoWriteAttributesFragment(
         NYT::NYson::IAsyncYsonConsumer* consumer,
         const std::optional<std::vector<TString>>& attributeKeys,
         bool stable) override;

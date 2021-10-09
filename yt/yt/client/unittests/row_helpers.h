@@ -24,30 +24,30 @@ public:
         , NameTable_(std::move(nameTable))
     { }
 
-    virtual const NTableClient::TNameTablePtr& GetNameTable() const override
+    const NTableClient::TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
     }
 
-    virtual const NTableClient::TTableSchemaPtr& GetSchema() const override
+    const NTableClient::TTableSchemaPtr& GetSchema() const override
     {
         return Schema_;
     }
 
-    virtual bool GetAllowUnknownColumns() const override
+    bool GetAllowUnknownColumns() const override
     {
         return true;
     }
 
-    virtual void OnBeginRow() override
+    void OnBeginRow() override
     { }
 
-    virtual void OnValue(const NTableClient::TUnversionedValue& value) override
+    void OnValue(const NTableClient::TUnversionedValue& value) override
     {
         Builder_.AddValue(value);
     }
 
-    virtual void OnEndRow() override
+    void OnEndRow() override
     {
         RowList_.emplace_back(Builder_.FinishRow());
     }

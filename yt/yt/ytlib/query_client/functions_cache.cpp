@@ -381,7 +381,7 @@ public:
         , Invoker_(std::move(invoker))
     { }
 
-    virtual TFuture<std::vector<TExternalFunctionSpec>> FetchFunctions(
+    TFuture<std::vector<TExternalFunctionSpec>> FetchFunctions(
         const TString& udfRegistryPath,
         const std::vector<TString>& names) override
     {
@@ -418,7 +418,7 @@ private:
             }));
     }
 
-    virtual TFuture<std::vector<TErrorOr<TExternalFunctionSpec>>> DoGetMany(
+    TFuture<std::vector<TErrorOr<TExternalFunctionSpec>>> DoGetMany(
         const std::vector<std::pair<TString, TString>>& keys,
         bool /*isPeriodicUpdate*/) noexcept override
     {

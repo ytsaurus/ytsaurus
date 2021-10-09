@@ -22,13 +22,13 @@ private:
 public:
     explicit TChunkOwnerTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
-    virtual NObjectServer::ETypeFlags GetFlags() const override;
+    NObjectServer::ETypeFlags GetFlags() const override;
 
-    virtual NYTree::ENodeType GetNodeType() const override;
+    NYTree::ENodeType GetNodeType() const override;
 
-    virtual bool IsSupportedInheritableAttribute(const TString& key) const override;
+    bool IsSupportedInheritableAttribute(const TString& key) const override;
 
-    virtual bool HasBranchedChangesImpl(TChunkOwner* originatingNode, TChunkOwner* branchedNode) override;
+    bool HasBranchedChangesImpl(TChunkOwner* originatingNode, TChunkOwner* branchedNode) override;
 
 protected:
     NLogging::TLogger Logger;
@@ -41,37 +41,37 @@ protected:
         NErasure::ECodec erasureCodec,
         NChunkServer::EChunkListKind rootChunkListKind = NChunkServer::EChunkListKind::Static);
 
-    virtual void DoDestroy(TChunkOwner* node) override;
+    void DoDestroy(TChunkOwner* node) override;
 
-    virtual void DoBranch(
+    void DoBranch(
         const TChunkOwner* originatingNode,
         TChunkOwner* branchedNode,
         const NCypressServer::TLockRequest& lockRequest) override;
 
-    virtual void DoLogBranch(
+    void DoLogBranch(
         const TChunkOwner* originatingNode,
         TChunkOwner* branchedNode,
         const NCypressServer::TLockRequest& lockRequest) override;
 
-    virtual void DoMerge(
+    void DoMerge(
         TChunkOwner* originatingNode,
         TChunkOwner* branchedNode) override;
 
-    virtual void DoLogMerge(
+    void DoLogMerge(
         TChunkOwner* originatingNode,
         TChunkOwner* branchedNode) override;
 
-    virtual void DoClone(
+    void DoClone(
         TChunkOwner* sourceNode,
         TChunkOwner* clonedTrunkNode,
         NCypressServer::ICypressNodeFactory* factory,
         NCypressServer::ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
 
-    virtual void DoBeginCopy(
+    void DoBeginCopy(
         TChunkOwner* node,
         NCypressServer::TBeginCopyContext* context) override;
-    virtual void DoEndCopy(
+    void DoEndCopy(
         TChunkOwner* trunkNode,
         NCypressServer::TEndCopyContext* context,
         NCypressServer::ICypressNodeFactory* factory) override;

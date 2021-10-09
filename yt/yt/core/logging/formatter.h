@@ -45,10 +45,10 @@ public:
         bool enableControlMessages = true,
         bool enableSourceLocation = false);
 
-    virtual i64  WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const override;
-    virtual void WriteLogReopenSeparator(IOutputStream* outputStream) const override;
-    virtual void WriteLogStartEvent(IOutputStream* outputStream) const override;
-    virtual void WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, TStringBuf skippedBy) const override;
+    i64  WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const override;
+    void WriteLogReopenSeparator(IOutputStream* outputStream) const override;
+    void WriteLogStartEvent(IOutputStream* outputStream) const override;
+    void WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, TStringBuf skippedBy) const override;
 
 private:
     const std::unique_ptr<TMessageBuffer> Buffer_;
@@ -68,10 +68,10 @@ public:
         const THashMap<TString, NYTree::INodePtr>& commonFields,
         bool enableControlMessages = true);
 
-    virtual i64 WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const override;
-    virtual void WriteLogReopenSeparator(IOutputStream* outputStream) const override;
-    virtual void WriteLogStartEvent(IOutputStream* outputStream) const override;
-    virtual void WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, TStringBuf skippedBy) const override;
+    i64 WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const override;
+    void WriteLogReopenSeparator(IOutputStream* outputStream) const override;
+    void WriteLogStartEvent(IOutputStream* outputStream) const override;
+    void WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, TStringBuf skippedBy) const override;
 
 private:
     ELogFormat Format_;

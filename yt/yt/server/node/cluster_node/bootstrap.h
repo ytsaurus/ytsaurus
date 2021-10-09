@@ -199,84 +199,84 @@ public:
 public:
     explicit TBootstrapBase(IBootstrapBase* bootstrap);
 
-    virtual const TNodeMemoryTrackerPtr& GetMemoryUsageTracker() const override;
-    virtual const TNodeResourceManagerPtr& GetNodeResourceManager() const override;
+    const TNodeMemoryTrackerPtr& GetMemoryUsageTracker() const override;
+    const TNodeResourceManagerPtr& GetNodeResourceManager() const override;
 
-    virtual const NConcurrency::IThroughputThrottlerPtr& GetTotalInThrottler() const override;
-    virtual const NConcurrency::IThroughputThrottlerPtr& GetTotalOutThrottler() const override;
-    virtual const NConcurrency::IThroughputThrottlerPtr& GetReadRpsOutThrottler() const override;
+    const NConcurrency::IThroughputThrottlerPtr& GetTotalInThrottler() const override;
+    const NConcurrency::IThroughputThrottlerPtr& GetTotalOutThrottler() const override;
+    const NConcurrency::IThroughputThrottlerPtr& GetReadRpsOutThrottler() const override;
 
-    virtual const TClusterNodeConfigPtr& GetConfig() const override;
-    virtual const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override;
+    const TClusterNodeConfigPtr& GetConfig() const override;
+    const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override;
 
-    virtual const IInvokerPtr& GetControlInvoker() const override;
-    virtual const IInvokerPtr& GetJobInvoker() const override;
-    virtual const IInvokerPtr& GetMasterConnectionInvoker() const override;
-    virtual const IInvokerPtr& GetStorageLightInvoker() const override;
-    virtual const IPrioritizedInvokerPtr& GetStorageHeavyInvoker() const override;
+    const IInvokerPtr& GetControlInvoker() const override;
+    const IInvokerPtr& GetJobInvoker() const override;
+    const IInvokerPtr& GetMasterConnectionInvoker() const override;
+    const IInvokerPtr& GetStorageLightInvoker() const override;
+    const IPrioritizedInvokerPtr& GetStorageHeavyInvoker() const override;
 
-    virtual const NApi::NNative::IClientPtr& GetMasterClient() const override;
-    virtual const NApi::NNative::IConnectionPtr& GetMasterConnection() const override;
-    virtual NRpc::IChannelPtr GetMasterChannel(NObjectClient::TCellTag cellTag) override;
+    const NApi::NNative::IClientPtr& GetMasterClient() const override;
+    const NApi::NNative::IConnectionPtr& GetMasterConnection() const override;
+    NRpc::IChannelPtr GetMasterChannel(NObjectClient::TCellTag cellTag) override;
 
-    virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const override;
+    NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const override;
 
-    virtual NObjectClient::TCellId GetCellId() const override;
-    virtual NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const override;
-    virtual const NObjectClient::TCellTagList& GetMasterCellTags() const override;
-    virtual std::vector<TString> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const override;
+    NObjectClient::TCellId GetCellId() const override;
+    NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const override;
+    const NObjectClient::TCellTagList& GetMasterCellTags() const override;
+    std::vector<TString> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const override;
 
-    virtual const NDataNode::TLegacyMasterConnectorPtr& GetLegacyMasterConnector() const override;
-    virtual bool UseNewHeartbeats() const override;
+    const NDataNode::TLegacyMasterConnectorPtr& GetLegacyMasterConnector() const override;
+    bool UseNewHeartbeats() const override;
 
-    virtual void ResetAndRegisterAtMaster() override;
+    void ResetAndRegisterAtMaster() override;
 
-    virtual bool IsConnected() const override;
-    virtual NNodeTrackerClient::TNodeId GetNodeId() const override;
-    virtual TMasterEpoch GetMasterEpoch() const override;
+    bool IsConnected() const override;
+    NNodeTrackerClient::TNodeId GetNodeId() const override;
+    TMasterEpoch GetMasterEpoch() const override;
 
-    virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const override;
+    const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const override;
 
-    virtual NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const override;
-    virtual std::optional<TString> GetDefaultNetworkName() const override;
-    virtual TString GetDefaultLocalAddressOrThrow() const override;
+    NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const override;
+    std::optional<TString> GetDefaultNetworkName() const override;
+    TString GetDefaultLocalAddressOrThrow() const override;
 
-    virtual const NHttp::IServerPtr& GetHttpServer() const override;
-    virtual const NRpc::IServerPtr& GetRpcServer() const override;
+    const NHttp::IServerPtr& GetHttpServer() const override;
+    const NRpc::IServerPtr& GetRpcServer() const override;
 
-    virtual const NChunkClient::IBlockCachePtr& GetBlockCache() const override;
-    virtual const NChunkClient::IClientBlockCachePtr& GetClientBlockCache() const override;
-    virtual const NDataNode::IChunkMetaManagerPtr& GetChunkMetaManager() const override;
-    virtual const NTabletNode::IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const override;
+    const NChunkClient::IBlockCachePtr& GetBlockCache() const override;
+    const NChunkClient::IClientBlockCachePtr& GetClientBlockCache() const override;
+    const NDataNode::IChunkMetaManagerPtr& GetChunkMetaManager() const override;
+    const NTabletNode::IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const override;
 
-    virtual const NYTree::IMapNodePtr& GetOrchidRoot() const override;
+    const NYTree::IMapNodePtr& GetOrchidRoot() const override;
 
-    virtual bool IsReadOnly() const override;
-    virtual bool Decommissioned() const override;
+    bool IsReadOnly() const override;
+    bool Decommissioned() const override;
 
-    virtual NDataNode::TNetworkStatistics& GetNetworkStatistics() const override;
+    NDataNode::TNetworkStatistics& GetNetworkStatistics() const override;
 
-    virtual const NDataNode::IChunkRegistryPtr& GetChunkRegistry() const override;
+    const NDataNode::IChunkRegistryPtr& GetChunkRegistry() const override;
 
-    virtual const NDataNode::IBlobReaderCachePtr& GetBlobReaderCache() const override;
+    const NDataNode::IBlobReaderCachePtr& GetBlobReaderCache() const override;
 
-    virtual const NJobAgent::TJobControllerPtr& GetJobController() const override;
+    const NJobAgent::TJobControllerPtr& GetJobController() const override;
 
-    virtual NExecNode::EJobEnvironmentType GetJobEnvironmentType() const override;
+    NExecNode::EJobEnvironmentType GetJobEnvironmentType() const override;
 
-    virtual const THashSet<NNodeTrackerClient::ENodeFlavor>& GetFlavors() const override;
+    const THashSet<NNodeTrackerClient::ENodeFlavor>& GetFlavors() const override;
 
-    virtual bool IsDataNode() const override;
-    virtual bool IsExecNode() const override;
-    virtual bool IsCellarNode() const override;
-    virtual bool IsTabletNode() const override;
-    virtual bool IsChaosNode() const override;
+    bool IsDataNode() const override;
+    bool IsExecNode() const override;
+    bool IsCellarNode() const override;
+    bool IsTabletNode() const override;
+    bool IsChaosNode() const override;
 
-    virtual NCellarNode::IBootstrap* GetCellarNodeBootstrap() const override;
-    virtual NDataNode::IBootstrap* GetDataNodeBootstrap() const override;
-    virtual NExecNode::IBootstrap* GetExecNodeBootstrap() const override;
-    virtual NChaosNode::IBootstrap* GetChaosNodeBootstrap() const override;
-    virtual NTabletNode::IBootstrap* GetTabletNodeBootstrap() const override;
+    NCellarNode::IBootstrap* GetCellarNodeBootstrap() const override;
+    NDataNode::IBootstrap* GetDataNodeBootstrap() const override;
+    NExecNode::IBootstrap* GetExecNodeBootstrap() const override;
+    NChaosNode::IBootstrap* GetChaosNodeBootstrap() const override;
+    NTabletNode::IBootstrap* GetTabletNodeBootstrap() const override;
 
 private:
     IBootstrapBase* const Bootstrap_;

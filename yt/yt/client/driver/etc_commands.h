@@ -33,7 +33,7 @@ class TAddMemberCommand
     : public TUpdateMembershipCommand<NApi::TAddMemberOptions>
 {
 private:
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,7 +42,7 @@ class TRemoveMemberCommand
     : public TUpdateMembershipCommand<NApi::TRemoveMemberOptions>
 {
 private:
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,7 +56,7 @@ public:
 private:
     TString Path;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,7 +65,7 @@ class TGetVersionCommand
     : public TCommandBase
 {
 private:
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -74,7 +74,7 @@ class TGetSupportedFeaturesCommand
     : public TCommandBase
 {
 private:
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,7 +90,7 @@ private:
     NYPath::TRichYPath Path;
     NYTree::EPermission Permission;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,7 +106,7 @@ private:
     NYTree::EPermission Permission;
     NYTree::INodePtr Acl;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -122,7 +122,7 @@ private:
     TString DestinationAccount;
     NYTree::INodePtr ResourceDelta;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -157,7 +157,7 @@ private:
 
     class TRequestExecutor;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -176,7 +176,7 @@ private:
     NApi::EProxyType Type;
     TString Role;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -191,7 +191,7 @@ private:
     TString TabletCellBundle;
     std::vector<NYPath::TYPath> MovableTables;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -35,8 +35,8 @@ public:
         const TString& rangeIndexColumnName,
         const TString& rowIndexColumnName);
 
-    Py::Object iter();
-    PyObject* iternext();
+    Py::Object iter() override;
+    PyObject* iternext() override;
 
     static void InitType();
 

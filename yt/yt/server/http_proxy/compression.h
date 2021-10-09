@@ -12,9 +12,9 @@ class TSharedRefOutputStream
     : public NConcurrency::IFlushableAsyncOutputStream
 {
 public:
-    virtual TFuture<void> Write(const TSharedRef& buffer) override;
-    virtual TFuture<void> Flush() override;
-    virtual TFuture<void> Close() override;
+    TFuture<void> Write(const TSharedRef& buffer) override;
+    TFuture<void> Flush() override;
+    TFuture<void> Close() override;
 
     const std::vector<TSharedRef>& GetRefs() const;
 

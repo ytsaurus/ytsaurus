@@ -62,8 +62,8 @@ public:
 public:
     explicit TTabletAction(TTabletActionId id);
 
-    virtual TString GetLowercaseObjectName() const override;
-    virtual TString GetCapitalizedObjectName() const override;
+    TString GetLowercaseObjectName() const override;
+    TString GetCapitalizedObjectName() const override;
 
     //! Save ids of the participating tablets for future retrieval.
     //! Subsequent calls have no effect.

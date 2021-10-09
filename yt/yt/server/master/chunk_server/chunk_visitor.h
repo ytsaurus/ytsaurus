@@ -29,7 +29,7 @@ protected:
         NCellMaster::TBootstrap* bootstrap,
         TChunkList* chunkList);
 
-    virtual void OnFinish(const TError& error) override;
+    void OnFinish(const TError& error) override;
     virtual void OnSuccess() = 0;
 };
 
@@ -47,7 +47,7 @@ private:
     TStringStream Stream_;
     NYson::TBufferedBinaryYsonWriter Writer_;
 
-    virtual bool OnChunk(
+    bool OnChunk(
         TChunk* chunk,
         TChunkList* /*parent*/,
         std::optional<i64> /*rowIndex*/,
@@ -56,15 +56,15 @@ private:
         const NChunkClient::TReadLimit& /*endLimit*/,
         TTransactionId /*timestampTransactionId*/) override;
 
-    virtual bool OnChunkView(TChunkView* /*chunkView*/) override;
+    bool OnChunkView(TChunkView* /*chunkView*/) override;
 
-    virtual bool OnDynamicStore(
+    bool OnDynamicStore(
         TDynamicStore* /*dynamicStore*/,
         std::optional<int> /*tabletIndex*/,
         const NChunkClient::TReadLimit& /*startLimit*/,
         const NChunkClient::TReadLimit& /*endLimit*/) override;
 
-    virtual void OnSuccess() override;
+    void OnSuccess() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

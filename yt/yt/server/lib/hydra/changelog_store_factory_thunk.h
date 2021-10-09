@@ -10,7 +10,7 @@ class TChangelogStoreFactoryThunk
     : public IChangelogStoreFactory
 {
 public:
-    virtual TFuture<IChangelogStorePtr> Lock() override;
+    TFuture<IChangelogStorePtr> Lock() override;
 
     void SetUnderlying(IChangelogStoreFactoryPtr underlying);
 

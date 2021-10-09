@@ -84,8 +84,8 @@ public:
     static void DisablePerThreadCache();
 
 protected:
-    virtual void DoReset() override;
-    virtual void DoPreallocate(size_t newLength) override;
+    void DoReset() override;
+    void DoPreallocate(size_t newLength) override;
 
 private:
     struct TPerThreadCache

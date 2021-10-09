@@ -46,13 +46,13 @@ public:
 public:
     explicit TTabletCell(TTabletCellId id);
 
-    virtual TString GetLowercaseObjectName() const override;
-    virtual TString GetCapitalizedObjectName() const override;
+    TString GetLowercaseObjectName() const override;
+    TString GetCapitalizedObjectName() const override;
 
-    virtual void Save(NCellMaster::TSaveContext& context) const override;
-    virtual void Load(NCellMaster::TLoadContext& context) override;
+    void Save(NCellMaster::TSaveContext& context) const override;
+    void Load(NCellMaster::TLoadContext& context) override;
 
-    virtual NHiveClient::TCellDescriptor GetDescriptor() const override;
+    NHiveClient::TCellDescriptor GetDescriptor() const override;
 
     //! Recompute cluster statistics from multicell statistics.
     void RecomputeClusterStatistics();

@@ -75,7 +75,7 @@ public:
     /*!
      *  After this call #Enqueue has no effect.
      */
-    virtual void Shutdown() override;
+    void Shutdown() override;
 
     //! Enqueues a new sample for processing.
     void Enqueue(const TQueuedSample& sample);

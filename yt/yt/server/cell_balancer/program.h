@@ -21,7 +21,7 @@ public:
     TCellBalancerProgram();
 
 protected:
-    virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override;
+    void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -83,7 +83,7 @@ protected:
         const std::function<void(NYson::IYsonConsumer*)>& producer);
 
 public:
-    virtual void Execute(ICommandContextPtr context) override;
+    void Execute(ICommandContextPtr context) override;
 };
 
 template <class TOptions>

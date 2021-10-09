@@ -88,7 +88,7 @@ public:
         NTableClient::EValueType valueType,
         std::optional<NTableClient::ESortOrder> sortOrder);
 
-    virtual i64 EstimateDataWeight(i64 lowerRowIndex, i64 upperRowIndex) override;
+    i64 EstimateDataWeight(i64 lowerRowIndex, i64 upperRowIndex) override;
 
 protected:
     const TRef Data_;
@@ -134,7 +134,7 @@ public:
         , ValueExtractor_(data, meta)
     { }
 
-    virtual i64 GetLowerRowIndex(const NTableClient::TUnversionedValue& value, i64 upperRowIndex) const override
+    i64 GetLowerRowIndex(const NTableClient::TUnversionedValue& value, i64 upperRowIndex) const override
     {
         YT_VERIFY(SortOrder_);
         i64 index = BinarySearch(
@@ -148,7 +148,7 @@ public:
         return SegmentStartRowIndex_ + index;
     }
 
-    virtual i64 GetUpperRowIndex(const NTableClient::TUnversionedValue& value, i64 upperRowIndex) const override
+    i64 GetUpperRowIndex(const NTableClient::TUnversionedValue& value, i64 upperRowIndex) const override
     {
         YT_VERIFY(SortOrder_);
         i64 index = BinarySearch(
@@ -162,35 +162,35 @@ public:
         return SegmentStartRowIndex_ + index;
     }
 
-    virtual void SkipToRowIndex(i64 rowIndex) override
+    void SkipToRowIndex(i64 rowIndex) override
     {
         YT_VERIFY(GetSegmentRowIndex(rowIndex) >= SegmentRowIndex_);
         SegmentRowIndex_ = GetSegmentRowIndex(rowIndex);
     }
 
-    virtual NTableClient::TUnversionedValue GetLastValue() const override
+    NTableClient::TUnversionedValue GetLastValue() const override
     {
         NTableClient::TUnversionedValue value;
         SetValue(&value, Meta_.row_count() - 1);
         return value;
     }
 
-    virtual i64 ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override
+    i64 ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override
     {
         return DoReadValues(rows);
     }
 
-    virtual i64 ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) override
+    i64 ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) override
     {
         return DoReadValues(rows);
     }
 
-    virtual int GetBatchColumnCount() override
+    int GetBatchColumnCount() override
     {
         return ValueExtractor_.GetBatchColumnCount();
     }
 
-    virtual void ReadColumnarBatch(
+    void ReadColumnarBatch(
         TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> columns,
         i64 rowCount) override
     {
@@ -265,7 +265,7 @@ public:
         , ValueExtractor_(data, meta)
     { }
 
-    virtual void SkipToRowIndex(i64 rowIndex) override
+    void SkipToRowIndex(i64 rowIndex) override
     {
         auto segmentRowIndex = GetSegmentRowIndex(rowIndex);
         YT_VERIFY(segmentRowIndex >= SegmentRowIndex_);
@@ -281,14 +281,14 @@ public:
         }
     }
 
-    virtual NTableClient::TUnversionedValue GetLastValue() const override
+    NTableClient::TUnversionedValue GetLastValue() const override
     {
         NTableClient::TUnversionedValue value;
         SetValue(&value, ValueExtractor_.GetValueCount() - 1);
         return value;
     }
 
-    virtual i64 GetLowerRowIndex(const NTableClient::TUnversionedValue& value, i64 rowIndexLimit) const override
+    i64 GetLowerRowIndex(const NTableClient::TUnversionedValue& value, i64 rowIndexLimit) const override
     {
         YT_VERIFY(SortOrder_);
         i64 upperValueIndex = GetUpperValueIndex(rowIndexLimit);
@@ -304,7 +304,7 @@ public:
         return std::min(GetValueLowerRowIndex(valueIndex), rowIndexLimit);
     }
 
-    virtual i64 GetUpperRowIndex(const NTableClient::TUnversionedValue& value, i64 rowIndexLimit) const override
+    i64 GetUpperRowIndex(const NTableClient::TUnversionedValue& value, i64 rowIndexLimit) const override
     {
         YT_VERIFY(SortOrder_);
         i64 upperValueIndex = GetUpperValueIndex(rowIndexLimit);
@@ -320,22 +320,22 @@ public:
         return std::min(GetValueLowerRowIndex(valueIndex), rowIndexLimit);
     }
 
-    virtual i64 ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override
+    i64 ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override
     {
         return DoReadValues(rows);
     }
 
-    virtual i64 ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) override
+    i64 ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) override
     {
         return DoReadValues(rows);
     }
 
-    virtual int GetBatchColumnCount() override
+    int GetBatchColumnCount() override
     {
         return ValueExtractor_.GetBatchColumnCount();
     }
 
-    virtual void ReadColumnarBatch(
+    void ReadColumnarBatch(
         TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> columns,
         i64 rowCount) override
     {
@@ -421,18 +421,18 @@ class TColumnReaderBase
 public:
     explicit TColumnReaderBase(const NProto::TColumnMeta& columnMeta);
 
-    virtual void Rearm() override;
-    virtual void SetCurrentBlock(TSharedRef block, int blockIndex) override;
+    void Rearm() override;
+    void SetCurrentBlock(TSharedRef block, int blockIndex) override;
 
-    virtual void SkipToRowIndex(i64 rowIndex) override;
-    virtual i64 GetCurrentRowIndex() const override;
-    virtual i64 GetBlockUpperRowIndex() const override;
-    virtual i64 GetReadyUpperRowIndex() const override;
+    void SkipToRowIndex(i64 rowIndex) override;
+    i64 GetCurrentRowIndex() const override;
+    i64 GetBlockUpperRowIndex() const override;
+    i64 GetReadyUpperRowIndex() const override;
 
-    virtual int GetCurrentBlockIndex() const override;
-    virtual std::optional<int> GetNextBlockIndex() const override;
+    int GetCurrentBlockIndex() const override;
+    std::optional<int> GetNextBlockIndex() const override;
 
-    virtual int GetCurrentSegmentIndex() const override;
+    int GetCurrentSegmentIndex() const override;
 
 protected:
     const NProto::TColumnMeta& ColumnMeta_;
@@ -476,14 +476,14 @@ public:
         int columnId,
         std::optional<NTableClient::ESortOrder> sortOrder);
 
-    virtual void ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override;
-    virtual void ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) override;
+    void ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override;
+    void ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) override;
 
-    virtual int GetBatchColumnCount() override;
-    virtual void ReadColumnarBatch(
+    int GetBatchColumnCount() override;
+    void ReadColumnarBatch(
         TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> columns,
         i64 rowCount) override;
-    virtual i64 EstimateDataWeight(i64 lowerRowIndex, i64 upperRowIndex) override;
+    i64 EstimateDataWeight(i64 lowerRowIndex, i64 upperRowIndex) override;
 
 protected:
     const int ColumnIndex_;
@@ -493,9 +493,9 @@ protected:
     std::unique_ptr<IUnversionedSegmentReader> SegmentReader_;
 
 
-    virtual ISegmentReaderBase* GetCurrentSegmentReader() const override;
-    virtual void ResetCurrentSegmentReader() override;
-    virtual void CreateCurrentSegmentReader() override;
+    ISegmentReaderBase* GetCurrentSegmentReader() const override;
+    void ResetCurrentSegmentReader() override;
+    void CreateCurrentSegmentReader() override;
 
     virtual std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(
         int segmentIndex,
@@ -761,13 +761,13 @@ public:
             columnSchema)
     { }
 
-    virtual void SkipToRowIndex(i64 rowIndex) override
+    void SkipToRowIndex(i64 rowIndex) override
     {
         YT_VERIFY(GetSegmentRowIndex(rowIndex) >= SegmentRowIndex_);
         SegmentRowIndex_ = GetSegmentRowIndex(rowIndex);
     }
 
-    virtual i64 ReadValues(
+    i64 ReadValues(
         TMutableRange<NTableClient::TMutableVersionedRow> rows,
         TRange<std::pair<ui32, ui32>> timestampIndexRanges,
         bool produceAllVersions) override
@@ -787,7 +787,7 @@ public:
         return rangeRowIndex;
     }
 
-    virtual i64 ReadAllValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override
+    i64 ReadAllValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override
     {
         i64 rangeRowIndex = 0;
         while (rangeRowIndex < std::ssize(rows) && SegmentRowIndex_ < Meta_.row_count()) {
@@ -801,7 +801,7 @@ public:
         return rangeRowIndex;
     }
 
-    virtual void ReadValueCounts(TMutableRange<ui32> valueCounts) const override
+    void ReadValueCounts(TMutableRange<ui32> valueCounts) const override
     {
         YT_VERIFY(SegmentRowIndex_ + std::ssize(valueCounts) <= Meta_.row_count());
 
@@ -857,7 +857,7 @@ public:
             columnSchema)
     { }
 
-    virtual void SkipToRowIndex(i64 rowIndex) override
+    void SkipToRowIndex(i64 rowIndex) override
     {
         YT_VERIFY(GetSegmentRowIndex(rowIndex) >= SegmentRowIndex_);
 
@@ -868,7 +868,7 @@ public:
         }
     }
 
-    virtual i64 ReadValues(
+    i64 ReadValues(
         TMutableRange<NTableClient::TMutableVersionedRow> rows,
         TRange<std::pair<ui32, ui32>> timestampIndexRanges,
         bool produceAllVersions) override
@@ -914,7 +914,7 @@ public:
         return rangeRowIndex;
     }
 
-    virtual i64 ReadAllValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override
+    i64 ReadAllValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override
     {
         i64 rangeRowIndex = 0;
         while (rangeRowIndex < std::ssize(rows) && SegmentRowIndex_ < Meta_.row_count()) {
@@ -953,7 +953,7 @@ public:
         return rangeRowIndex;
     }
 
-    virtual void ReadValueCounts(TMutableRange<ui32> valueCounts) const override
+    void ReadValueCounts(TMutableRange<ui32> valueCounts) const override
     {
         YT_VERIFY(SegmentRowIndex_ + std::ssize(valueCounts) <= Meta_.row_count());
 
@@ -1042,14 +1042,14 @@ public:
         int columnId,
         const NTableClient::TColumnSchema& columnSchema);
 
-    virtual void ReadValueCounts(TMutableRange<ui32> valueCounts) override;
+    void ReadValueCounts(TMutableRange<ui32> valueCounts) override;
 
-    virtual void ReadValues(
+    void ReadValues(
         TMutableRange<NTableClient::TMutableVersionedRow> rows,
         TRange<std::pair<ui32, ui32>> timestampIndexRanges,
         bool produceAllVersions) override;
 
-    virtual void ReadAllValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override;
+    void ReadAllValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override;
 
 protected:
     const int ColumnId_;
@@ -1058,9 +1058,9 @@ protected:
     std::unique_ptr<IVersionedSegmentReader> SegmentReader_;
 
 
-    virtual ISegmentReaderBase* GetCurrentSegmentReader() const override;
-    virtual void ResetCurrentSegmentReader() override;
-    virtual void CreateCurrentSegmentReader() override;
+    ISegmentReaderBase* GetCurrentSegmentReader() const override;
+    void ResetCurrentSegmentReader() override;
+    void CreateCurrentSegmentReader() override;
 
     virtual std::unique_ptr<IVersionedSegmentReader> CreateSegmentReader(int segmentIndex) = 0;
 

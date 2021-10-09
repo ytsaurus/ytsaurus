@@ -23,81 +23,81 @@ class TServiceContextBase
     : public IServiceContext
 {
 public:
-    virtual const NProto::TRequestHeader& GetRequestHeader() const override;
-    virtual TSharedRefArray GetRequestMessage() const override;
+    const NProto::TRequestHeader& GetRequestHeader() const override;
+    TSharedRefArray GetRequestMessage() const override;
 
-    virtual TRequestId GetRequestId() const override;
-    virtual NYT::NBus::TTcpDispatcherStatistics GetBusStatistics() const override;
-    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
+    TRequestId GetRequestId() const override;
+    NYT::NBus::TTcpDispatcherStatistics GetBusStatistics() const override;
+    const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
 
-    virtual std::optional<TInstant> GetStartTime() const override;
-    virtual std::optional<TDuration> GetTimeout() const override;
-    virtual TInstant GetArriveInstant() const override;
-    virtual std::optional<TInstant> GetRunInstant() const override;
-    virtual std::optional<TInstant> GetFinishInstant() const override;
-    virtual std::optional<TDuration> GetWaitDuration() const override;
-    virtual std::optional<TDuration> GetExecutionDuration() const override;
+    std::optional<TInstant> GetStartTime() const override;
+    std::optional<TDuration> GetTimeout() const override;
+    TInstant GetArriveInstant() const override;
+    std::optional<TInstant> GetRunInstant() const override;
+    std::optional<TInstant> GetFinishInstant() const override;
+    std::optional<TDuration> GetWaitDuration() const override;
+    std::optional<TDuration> GetExecutionDuration() const override;
 
-    virtual NTracing::TTraceContextPtr GetTraceContext() const override;
-    virtual std::optional<TDuration> GetTraceContextTime() const override;
+    NTracing::TTraceContextPtr GetTraceContext() const override;
+    std::optional<TDuration> GetTraceContextTime() const override;
 
-    virtual bool IsRetry() const override;
-    virtual TMutationId GetMutationId() const override;
+    bool IsRetry() const override;
+    TMutationId GetMutationId() const override;
 
-    virtual const TString& GetService() const override;
-    virtual const TString& GetMethod() const override;
-    virtual TRealmId GetRealmId() const override;
-    virtual const TAuthenticationIdentity& GetAuthenticationIdentity() const override;
+    const TString& GetService() const override;
+    const TString& GetMethod() const override;
+    TRealmId GetRealmId() const override;
+    const TAuthenticationIdentity& GetAuthenticationIdentity() const override;
 
     //! \note Thread affinity: any
-    virtual bool IsReplied() const override;
+    bool IsReplied() const override;
 
-    virtual void Reply(const TError& error) override;
-    virtual void Reply(const TSharedRefArray& responseMessage) override;
+    void Reply(const TError& error) override;
+    void Reply(const TSharedRefArray& responseMessage) override;
     using IServiceContext::Reply;
 
-    virtual void SetComplete() override;
+    void SetComplete() override;
 
     //! \note Thread affinity: any
-    virtual TFuture<TSharedRefArray> GetAsyncResponseMessage() const override;
+    TFuture<TSharedRefArray> GetAsyncResponseMessage() const override;
 
-    virtual const TSharedRefArray& GetResponseMessage() const override;
+    const TSharedRefArray& GetResponseMessage() const override;
 
-    virtual void SubscribeCanceled(const TClosure& callback) override;
-    virtual void UnsubscribeCanceled(const TClosure& callback) override;
+    void SubscribeCanceled(const TClosure& callback) override;
+    void UnsubscribeCanceled(const TClosure& callback) override;
 
-    virtual void SubscribeReplied(const TClosure& callback) override;
-    virtual void UnsubscribeReplied(const TClosure& callback) override;
+    void SubscribeReplied(const TClosure& callback) override;
+    void UnsubscribeReplied(const TClosure& callback) override;
 
-    virtual bool IsCanceled() const override;
-    virtual void Cancel() override;
+    bool IsCanceled() const override;
+    void Cancel() override;
 
-    virtual const TError& GetError() const override;
+    const TError& GetError() const override;
 
-    virtual TSharedRef GetRequestBody() const override;
+    TSharedRef GetRequestBody() const override;
 
-    virtual TSharedRef GetResponseBody() override;
-    virtual void SetResponseBody(const TSharedRef& responseBody) override;
+    TSharedRef GetResponseBody() override;
+    void SetResponseBody(const TSharedRef& responseBody) override;
 
-    virtual std::vector<TSharedRef>& RequestAttachments() override;
-    virtual NConcurrency::IAsyncZeroCopyInputStreamPtr GetRequestAttachmentsStream() override;
+    std::vector<TSharedRef>& RequestAttachments() override;
+    NConcurrency::IAsyncZeroCopyInputStreamPtr GetRequestAttachmentsStream() override;
 
-    virtual std::vector<TSharedRef>& ResponseAttachments() override;
-    virtual NConcurrency::IAsyncZeroCopyOutputStreamPtr GetResponseAttachmentsStream() override;
+    std::vector<TSharedRef>& ResponseAttachments() override;
+    NConcurrency::IAsyncZeroCopyOutputStreamPtr GetResponseAttachmentsStream() override;
 
-    virtual const NProto::TRequestHeader& RequestHeader() const override;
-    virtual NProto::TRequestHeader& RequestHeader() override;
+    const NProto::TRequestHeader& RequestHeader() const override;
+    NProto::TRequestHeader& RequestHeader() override;
 
-    virtual void SetRawRequestInfo(TString info, bool incremental) override;
-    virtual void SetRawResponseInfo(TString info, bool incremental) override;
+    void SetRawRequestInfo(TString info, bool incremental) override;
+    void SetRawResponseInfo(TString info, bool incremental) override;
 
-    virtual const NLogging::TLogger& GetLogger() const override;
-    virtual NLogging::ELogLevel GetLogLevel() const override;
+    const NLogging::TLogger& GetLogger() const override;
+    NLogging::ELogLevel GetLogLevel() const override;
 
-    virtual bool IsPooled() const override;
+    bool IsPooled() const override;
 
-    virtual NCompression::ECodec GetResponseCodec() const override;
-    virtual void SetResponseCodec(NCompression::ECodec codec) override;
+    NCompression::ECodec GetResponseCodec() const override;
+    void SetResponseCodec(NCompression::ECodec codec) override;
 
 protected:
     const std::unique_ptr<NProto::TRequestHeader> RequestHeader_;
@@ -161,76 +161,76 @@ class TServiceContextWrapper
 public:
     explicit TServiceContextWrapper(IServiceContextPtr underlyingContext);
 
-    virtual const NProto::TRequestHeader& GetRequestHeader() const override;
-    virtual TSharedRefArray GetRequestMessage() const override;
+    const NProto::TRequestHeader& GetRequestHeader() const override;
+    TSharedRefArray GetRequestMessage() const override;
 
-    virtual NRpc::TRequestId GetRequestId() const override;
-    virtual NYT::NBus::TTcpDispatcherStatistics GetBusStatistics() const override;
-    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
+    NRpc::TRequestId GetRequestId() const override;
+    NYT::NBus::TTcpDispatcherStatistics GetBusStatistics() const override;
+    const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
 
-    virtual std::optional<TInstant> GetStartTime() const override;
-    virtual std::optional<TDuration> GetTimeout() const override;
-    virtual TInstant GetArriveInstant() const override;
-    virtual std::optional<TInstant> GetRunInstant() const override;
-    virtual std::optional<TInstant> GetFinishInstant() const override;
-    virtual std::optional<TDuration> GetWaitDuration() const override;
-    virtual std::optional<TDuration> GetExecutionDuration() const override;
+    std::optional<TInstant> GetStartTime() const override;
+    std::optional<TDuration> GetTimeout() const override;
+    TInstant GetArriveInstant() const override;
+    std::optional<TInstant> GetRunInstant() const override;
+    std::optional<TInstant> GetFinishInstant() const override;
+    std::optional<TDuration> GetWaitDuration() const override;
+    std::optional<TDuration> GetExecutionDuration() const override;
 
-    virtual NTracing::TTraceContextPtr GetTraceContext() const override;
-    virtual std::optional<TDuration> GetTraceContextTime() const override;
+    NTracing::TTraceContextPtr GetTraceContext() const override;
+    std::optional<TDuration> GetTraceContextTime() const override;
 
-    virtual bool IsRetry() const override;
-    virtual TMutationId GetMutationId() const override;
+    bool IsRetry() const override;
+    TMutationId GetMutationId() const override;
 
-    virtual const TString& GetService() const override;
-    virtual const TString& GetMethod() const override;
-    virtual TRealmId GetRealmId() const override;
-    virtual const TAuthenticationIdentity& GetAuthenticationIdentity() const override;
+    const TString& GetService() const override;
+    const TString& GetMethod() const override;
+    TRealmId GetRealmId() const override;
+    const TAuthenticationIdentity& GetAuthenticationIdentity() const override;
 
-    virtual bool IsReplied() const override;
-    virtual void Reply(const TError& error) override;
-    virtual void Reply(const TSharedRefArray& responseMessage) override;
+    bool IsReplied() const override;
+    void Reply(const TError& error) override;
+    void Reply(const TSharedRefArray& responseMessage) override;
 
-    virtual void SetComplete() override;
+    void SetComplete() override;
 
-    virtual TFuture<TSharedRefArray> GetAsyncResponseMessage() const override;
-    virtual const TSharedRefArray& GetResponseMessage() const override;
+    TFuture<TSharedRefArray> GetAsyncResponseMessage() const override;
+    const TSharedRefArray& GetResponseMessage() const override;
 
-    virtual void SubscribeCanceled(const TClosure& callback) override;
-    virtual void UnsubscribeCanceled(const TClosure& callback) override;
+    void SubscribeCanceled(const TClosure& callback) override;
+    void UnsubscribeCanceled(const TClosure& callback) override;
 
-    virtual void SubscribeReplied(const TClosure& callback) override;
-    virtual void UnsubscribeReplied(const TClosure& callback) override;
+    void SubscribeReplied(const TClosure& callback) override;
+    void UnsubscribeReplied(const TClosure& callback) override;
 
-    virtual bool IsCanceled() const override;
-    virtual void Cancel() override;
+    bool IsCanceled() const override;
+    void Cancel() override;
 
-    virtual const TError& GetError() const override;
+    const TError& GetError() const override;
 
-    virtual TSharedRef GetRequestBody() const override;
+    TSharedRef GetRequestBody() const override;
 
-    virtual TSharedRef GetResponseBody() override;
-    virtual void SetResponseBody(const TSharedRef& responseBody) override;
+    TSharedRef GetResponseBody() override;
+    void SetResponseBody(const TSharedRef& responseBody) override;
 
-    virtual std::vector<TSharedRef>& RequestAttachments() override;
-    virtual NConcurrency::IAsyncZeroCopyInputStreamPtr GetRequestAttachmentsStream() override;
+    std::vector<TSharedRef>& RequestAttachments() override;
+    NConcurrency::IAsyncZeroCopyInputStreamPtr GetRequestAttachmentsStream() override;
 
-    virtual std::vector<TSharedRef>& ResponseAttachments() override;
-    virtual NConcurrency::IAsyncZeroCopyOutputStreamPtr GetResponseAttachmentsStream() override;
+    std::vector<TSharedRef>& ResponseAttachments() override;
+    NConcurrency::IAsyncZeroCopyOutputStreamPtr GetResponseAttachmentsStream() override;
 
-    virtual const NProto::TRequestHeader& RequestHeader() const override;
-    virtual NProto::TRequestHeader& RequestHeader() override;
+    const NProto::TRequestHeader& RequestHeader() const override;
+    NProto::TRequestHeader& RequestHeader() override;
 
-    virtual void SetRawRequestInfo(TString info, bool incremental) override;
-    virtual void SetRawResponseInfo(TString info, bool incremental) override;
+    void SetRawRequestInfo(TString info, bool incremental) override;
+    void SetRawResponseInfo(TString info, bool incremental) override;
 
-    virtual const NLogging::TLogger& GetLogger() const override;
-    virtual NLogging::ELogLevel GetLogLevel() const override;
+    const NLogging::TLogger& GetLogger() const override;
+    NLogging::ELogLevel GetLogLevel() const override;
 
-    virtual bool IsPooled() const override;
+    bool IsPooled() const override;
 
-    virtual NCompression::ECodec GetResponseCodec() const override;
-    virtual void SetResponseCodec(NCompression::ECodec codec) override;
+    NCompression::ECodec GetResponseCodec() const override;
+    void SetResponseCodec(NCompression::ECodec codec) override;
 
 protected:
     const IServiceContextPtr UnderlyingContext_;
@@ -243,16 +243,16 @@ class TServerBase
     : public IServer
 {
 public:
-    virtual void RegisterService(IServicePtr service) override;
-    virtual bool UnregisterService(IServicePtr service) override;
+    void RegisterService(IServicePtr service) override;
+    bool UnregisterService(IServicePtr service) override;
 
-    virtual IServicePtr FindService(const TServiceId& serviceId) const override;
-    virtual IServicePtr GetServiceOrThrow(const TServiceId& serviceId) const override;
+    IServicePtr FindService(const TServiceId& serviceId) const override;
+    IServicePtr GetServiceOrThrow(const TServiceId& serviceId) const override;
 
-    virtual void Configure(TServerConfigPtr config) override;
+    void Configure(TServerConfigPtr config) override;
 
-    virtual void Start() override;
-    virtual TFuture<void> Stop(bool graceful) override;
+    void Start() override;
+    TFuture<void> Stop(bool graceful) override;
 
 protected:
     const NLogging::TLogger Logger;

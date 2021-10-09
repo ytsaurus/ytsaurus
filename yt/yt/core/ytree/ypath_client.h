@@ -24,50 +24,50 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::any, Tag);
 
 public:
-    virtual NRpc::TRequestId GetRequestId() const override;
-    virtual NRpc::TRealmId GetRealmId() const override;
-    virtual const TString& GetMethod() const override;
-    virtual const TString& GetService() const override;
+    NRpc::TRequestId GetRequestId() const override;
+    NRpc::TRealmId GetRealmId() const override;
+    const TString& GetMethod() const override;
+    const TString& GetService() const override;
 
     using NRpc::IClientRequest::DeclareClientFeature;
     using NRpc::IClientRequest::RequireServerFeature;
 
-    virtual void DeclareClientFeature(int featureId) override;
-    virtual void RequireServerFeature(int featureId) override;
+    void DeclareClientFeature(int featureId) override;
+    void RequireServerFeature(int featureId) override;
 
-    virtual const TString& GetUser() const override;
-    virtual void SetUser(const TString& user) override;
+    const TString& GetUser() const override;
+    void SetUser(const TString& user) override;
 
-    virtual const TString& GetUserTag() const override;
-    virtual void SetUserTag(const TString& tag) override;
+    const TString& GetUserTag() const override;
+    void SetUserTag(const TString& tag) override;
 
-    virtual void SetUserAgent(const TString& userAgent) override;
+    void SetUserAgent(const TString& userAgent) override;
 
-    virtual bool GetRetry() const override;
-    virtual void SetRetry(bool value) override;
+    bool GetRetry() const override;
+    void SetRetry(bool value) override;
 
-    virtual NRpc::TMutationId GetMutationId() const override;
-    virtual void SetMutationId(NRpc::TMutationId id) override;
+    NRpc::TMutationId GetMutationId() const override;
+    void SetMutationId(NRpc::TMutationId id) override;
 
-    virtual size_t GetHash() const override;
+    size_t GetHash() const override;
 
-    virtual const NRpc::NProto::TRequestHeader& Header() const override;
-    virtual NRpc::NProto::TRequestHeader& Header() override;
+    const NRpc::NProto::TRequestHeader& Header() const override;
+    NRpc::NProto::TRequestHeader& Header() override;
 
-    virtual bool IsStreamingEnabled() const override;
+    bool IsStreamingEnabled() const override;
 
-    virtual const NRpc::TStreamingParameters& ClientAttachmentsStreamingParameters() const override;
-    virtual NRpc::TStreamingParameters& ClientAttachmentsStreamingParameters() override;
+    const NRpc::TStreamingParameters& ClientAttachmentsStreamingParameters() const override;
+    NRpc::TStreamingParameters& ClientAttachmentsStreamingParameters() override;
 
-    virtual const NRpc::TStreamingParameters& ServerAttachmentsStreamingParameters() const override;
-    virtual NRpc::TStreamingParameters& ServerAttachmentsStreamingParameters() override;
+    const NRpc::TStreamingParameters& ServerAttachmentsStreamingParameters() const override;
+    NRpc::TStreamingParameters& ServerAttachmentsStreamingParameters() override;
 
-    virtual NConcurrency::IAsyncZeroCopyOutputStreamPtr GetRequestAttachmentsStream() const override;
-    virtual NConcurrency::IAsyncZeroCopyInputStreamPtr GetResponseAttachmentsStream() const override;
+    NConcurrency::IAsyncZeroCopyOutputStreamPtr GetRequestAttachmentsStream() const override;
+    NConcurrency::IAsyncZeroCopyInputStreamPtr GetResponseAttachmentsStream() const override;
 
-    virtual bool IsLegacyRpcCodecsEnabled() override;
+    bool IsLegacyRpcCodecsEnabled() override;
 
-    virtual TSharedRefArray Serialize() override;
+    TSharedRefArray Serialize() override;
 
 protected:
     explicit TYPathRequest(const NRpc::NProto::TRequestHeader& header);
@@ -113,7 +113,7 @@ public:
     { }
 
 protected:
-    virtual TSharedRef SerializeBody() const override
+    TSharedRef SerializeBody() const override
     {
         return SerializeProtoToRefWithEnvelope(*this);
     }
@@ -147,7 +147,7 @@ class TTypedYPathResponse
     , public TResponseMessage
 {
 protected:
-    virtual bool TryDeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = {}) override
+    bool TryDeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = {}) override
     {
         return codecId
             ? TryDeserializeProtoWithCompression(this, data, *codecId)

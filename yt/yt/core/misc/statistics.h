@@ -108,7 +108,7 @@ private:
     const std::unique_ptr<NYTree::ITreeBuilder> TreeBuilder_;
     const TSampleHandler SampleHandler_;
 
-    virtual void OnMyListItem() override;
+    void OnMyListItem() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

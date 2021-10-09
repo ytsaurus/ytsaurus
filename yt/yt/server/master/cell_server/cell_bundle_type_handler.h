@@ -21,8 +21,8 @@ public:
     explicit TCellBundleTypeHandlerBase(
         NCellMaster::TBootstrap* bootstrap);
 
-    virtual NObjectServer::ETypeFlags GetFlags() const override;
-    virtual NObjectServer::TObject* FindObject(NObjectClient::TObjectId id) override;
+    NObjectServer::ETypeFlags GetFlags() const override;
+    NObjectServer::TObject* FindObject(NObjectClient::TObjectId id) override;
 
 protected:
     using TBase = NObjectServer::TObjectTypeHandlerBase<TImpl>;
@@ -32,10 +32,10 @@ protected:
         NYTree::IAttributeDictionary* attributes,
         NTabletClient::TTabletCellOptionsPtr options);
 
-    virtual NObjectClient::TCellTagList DoGetReplicationCellTags(const TImpl* /*cellBundle*/) override;
-    virtual NSecurityServer::TAccessControlDescriptor* DoFindAcd(TImpl* cellBundle) override;
-    virtual void DoZombifyObject(TImpl* cellBundle) override;
-    virtual void DoDestroyObject(TImpl* cellBundle) override;
+    NObjectClient::TCellTagList DoGetReplicationCellTags(const TImpl* /*cellBundle*/) override;
+    NSecurityServer::TAccessControlDescriptor* DoFindAcd(TImpl* cellBundle) override;
+    void DoZombifyObject(TImpl* cellBundle) override;
+    void DoDestroyObject(TImpl* cellBundle) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

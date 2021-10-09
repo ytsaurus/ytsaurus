@@ -62,16 +62,16 @@ public:
         NApi::NNative::IClientPtr client,
         const NLogging::TLogger& logger);
 
-    virtual void AddChunk(TInputChunkPtr chunk) override;
-    virtual int GetChunkCount() const override;
+    void AddChunk(TInputChunkPtr chunk) override;
+    int GetChunkCount() const override;
 
-    virtual TFuture<void> Fetch() override;
+    TFuture<void> Fetch() override;
 
     //! Set cancelable context for the fetcher.
     //! NB: if invoker is cancelable, do not ever forget to provide its cancelable context;
     //! otherwise internal promise inside fetcher may never be set and WaitFor on the fetch future
     //! will never succeed, leading to fiber leak (refer to YT-11643 for example).
-    virtual void SetCancelableContext(TCancelableContextPtr cancelableContext) override;
+    void SetCancelableContext(TCancelableContextPtr cancelableContext) override;
 
 protected:
     const TFetcherConfigPtr Config_;

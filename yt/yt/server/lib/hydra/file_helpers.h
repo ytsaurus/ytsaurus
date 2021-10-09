@@ -71,9 +71,9 @@ public:
     i64 GetLength() const;
 
 protected:
-    virtual void DoWrite(const void* buf, size_t len);
-    virtual void DoFlush();
-    virtual void DoFinish();
+    void DoWrite(const void* buf, size_t len) override;
+    void DoFlush() override;
+    void DoFinish() override;
 
 private:
     IOutputStream* Output;

@@ -170,10 +170,10 @@ public:
 public:
     TDecimalLogicalType(int precision, int scale);
 
-    virtual size_t GetMemoryUsage() const override;
-    virtual int GetTypeComplexity() const override;
-    virtual void ValidateNode(const TWalkContext& context) const override;
-    virtual bool IsNullable() const override;
+    size_t GetMemoryUsage() const override;
+    int GetTypeComplexity() const override;
+    void ValidateNode(const TWalkContext& context) const override;
+    bool IsNullable() const override;
 
     Y_FORCE_INLINE int GetPrecision() const;
     Y_FORCE_INLINE int GetScale() const;
@@ -198,10 +198,10 @@ public:
     // Cached value of GetElement()->IsNullable(), useful for performance reasons.
     Y_FORCE_INLINE bool IsElementNullable() const;
 
-    virtual size_t GetMemoryUsage() const override;
-    virtual int GetTypeComplexity() const override;
-    virtual void ValidateNode(const TWalkContext& context) const override;
-    virtual bool IsNullable() const override;
+    size_t GetMemoryUsage() const override;
+    int GetTypeComplexity() const override;
+    void ValidateNode(const TWalkContext& context) const override;
+    bool IsNullable() const override;
 
 private:
     const TLogicalTypePtr Element_;
@@ -218,10 +218,10 @@ public:
 
     Y_FORCE_INLINE ESimpleLogicalValueType GetElement() const;
 
-    virtual size_t GetMemoryUsage() const override;
-    virtual int GetTypeComplexity() const override;
-    virtual void ValidateNode(const TWalkContext& context) const override;
-    virtual bool IsNullable() const override;
+    size_t GetMemoryUsage() const override;
+    int GetTypeComplexity() const override;
+    void ValidateNode(const TWalkContext& context) const override;
+    bool IsNullable() const override;
 
 private:
     ESimpleLogicalValueType Element_;
@@ -237,10 +237,10 @@ public:
 
     Y_FORCE_INLINE const TLogicalTypePtr& GetElement() const;
 
-    virtual size_t GetMemoryUsage() const override;
-    virtual int GetTypeComplexity() const override;
-    virtual void ValidateNode(const TWalkContext& context) const override;
-    virtual bool IsNullable() const override;
+    size_t GetMemoryUsage() const override;
+    int GetTypeComplexity() const override;
+    void ValidateNode(const TWalkContext& context) const override;
+    bool IsNullable() const override;
 
 private:
     TLogicalTypePtr Element_;
@@ -299,10 +299,10 @@ public:
     TStructLogicalTypeBase(ELogicalMetatype metatype, std::vector<TStructField> fields);
     Y_FORCE_INLINE const std::vector<TStructField>& GetFields() const;
 
-    virtual size_t GetMemoryUsage() const override;
-    virtual int GetTypeComplexity() const override;
-    virtual void ValidateNode(const TWalkContext& context) const override;
-    virtual bool IsNullable() const override;
+    size_t GetMemoryUsage() const override;
+    int GetTypeComplexity() const override;
+    void ValidateNode(const TWalkContext& context) const override;
+    bool IsNullable() const override;
 
 private:
     std::vector<TStructField> Fields_;
@@ -318,10 +318,10 @@ public:
 
     Y_FORCE_INLINE const std::vector<TLogicalTypePtr>& GetElements() const;
 
-    virtual size_t GetMemoryUsage() const override;
-    virtual int GetTypeComplexity() const override;
-    virtual void ValidateNode(const TWalkContext& context) const override;
-    virtual bool IsNullable() const override;
+    size_t GetMemoryUsage() const override;
+    int GetTypeComplexity() const override;
+    void ValidateNode(const TWalkContext& context) const override;
+    bool IsNullable() const override;
 
 private:
     std::vector<TLogicalTypePtr> Elements_;
@@ -374,10 +374,10 @@ public:
     Y_FORCE_INLINE const TLogicalTypePtr& GetKey() const;
     Y_FORCE_INLINE const TLogicalTypePtr& GetValue() const;
 
-    virtual size_t GetMemoryUsage() const override;
-    virtual int GetTypeComplexity() const override;
-    virtual void ValidateNode(const TWalkContext& context) const override;
-    virtual bool IsNullable() const override;
+    size_t GetMemoryUsage() const override;
+    int GetTypeComplexity() const override;
+    void ValidateNode(const TWalkContext& context) const override;
+    bool IsNullable() const override;
 
 private:
     TLogicalTypePtr Key_;
@@ -395,10 +395,10 @@ public:
     Y_FORCE_INLINE const TString& GetTag() const;
     Y_FORCE_INLINE const TLogicalTypePtr& GetElement() const;
 
-    virtual size_t GetMemoryUsage() const override;
-    virtual int GetTypeComplexity() const override;
-    virtual void ValidateNode(const TWalkContext& context) const override;
-    virtual bool IsNullable() const override;
+    size_t GetMemoryUsage() const override;
+    int GetTypeComplexity() const override;
+    void ValidateNode(const TWalkContext& context) const override;
+    bool IsNullable() const override;
 
 private:
     const TString Tag_;

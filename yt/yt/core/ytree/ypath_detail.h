@@ -70,13 +70,13 @@ class TYPathServiceBase
     : public virtual IYPathService
 {
 public:
-    virtual void Invoke(const NRpc::IServiceContextPtr& context) override;
-    virtual TResolveResult Resolve(const TYPath& path, const NRpc::IServiceContextPtr& context) override;
-    virtual void DoWriteAttributesFragment(
+    void Invoke(const NRpc::IServiceContextPtr& context) override;
+    TResolveResult Resolve(const TYPath& path, const NRpc::IServiceContextPtr& context) override;
+    void DoWriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
         const std::optional<std::vector<TString>>& attributeKeys,
         bool stable) override;
-    virtual bool ShouldHideAttributes() override;
+    bool ShouldHideAttributes() override;
 
 protected:
     virtual void BeforeInvoke(const NRpc::IServiceContextPtr& context);
@@ -198,41 +198,41 @@ protected:
     //! Can be |nullptr|.
     virtual ISystemAttributeProvider* GetBuiltinAttributeProvider();
 
-    virtual TResolveResult ResolveAttributes(
+    TResolveResult ResolveAttributes(
         const NYPath::TYPath& path,
         const NRpc::IServiceContextPtr& context) override;
 
-    virtual void GetAttribute(
+    void GetAttribute(
         const TYPath& path,
         TReqGet* request,
         TRspGet* response,
         const TCtxGetPtr& context) override;
 
-    virtual void ListAttribute(
+    void ListAttribute(
         const TYPath& path,
         TReqList* request,
         TRspList* response,
         const TCtxListPtr& context) override;
 
-    virtual void ExistsAttribute(
+    void ExistsAttribute(
         const TYPath& path,
         TReqExists* request,
         TRspExists* response,
         const TCtxExistsPtr& context) override;
 
-    virtual void SetAttribute(
+    void SetAttribute(
         const TYPath& path,
         TReqSet* request,
         TRspSet* response,
         const TCtxSetPtr& context) override;
 
-    virtual void RemoveAttribute(
+    void RemoveAttribute(
         const TYPath& path,
         TReqRemove* request,
         TRspRemove* response,
         const TCtxRemovePtr& context) override;
 
-    virtual void SetAttributes(
+    void SetAttributes(
         const TYPath& path,
         TReqMultisetAttributes* request,
         TRspMultisetAttributes* response) override;
@@ -244,11 +244,11 @@ private:
     public:
         explicit TCombinedAttributeDictionary(TSupportsAttributes* owner);
 
-        virtual std::vector<TString> ListKeys() const override;
-        virtual std::vector<TKeyValuePair> ListPairs() const override;
-        virtual NYson::TYsonString FindYson(TStringBuf key) const override;
-        virtual void SetYson(const TString& key, const NYson::TYsonString& value) override;
-        virtual bool Remove(const TString& key) override;
+        std::vector<TString> ListKeys() const override;
+        std::vector<TKeyValuePair> ListPairs() const override;
+        NYson::TYsonString FindYson(TStringBuf key) const override;
+        void SetYson(const TString& key, const NYson::TYsonString& value) override;
+        bool Remove(const TString& key) override;
 
     private:
         TSupportsAttributes* const Owner_;
@@ -344,19 +344,19 @@ protected:
     void ThrowInvalidType(ENodeType actualType);
     virtual ENodeType GetExpectedType() = 0;
 
-    virtual void OnMyStringScalar(TStringBuf value) override;
-    virtual void OnMyInt64Scalar(i64 value) override;
-    virtual void OnMyUint64Scalar(ui64 value) override;
-    virtual void OnMyDoubleScalar(double value) override;
-    virtual void OnMyBooleanScalar(bool value) override;
-    virtual void OnMyEntity() override;
+    void OnMyStringScalar(TStringBuf value) override;
+    void OnMyInt64Scalar(i64 value) override;
+    void OnMyUint64Scalar(ui64 value) override;
+    void OnMyDoubleScalar(double value) override;
+    void OnMyBooleanScalar(bool value) override;
+    void OnMyEntity() override;
 
-    virtual void OnMyBeginList() override;
+    void OnMyBeginList() override;
 
-    virtual void OnMyBeginMap() override;
+    void OnMyBeginMap() override;
 
-    virtual void OnMyBeginAttributes() override;
-    virtual void OnMyEndAttributes() override;
+    void OnMyBeginAttributes() override;
+    void OnMyEndAttributes() override;
 
 protected:
     class TAttributesSetter;
@@ -399,45 +399,45 @@ class TNodeSetter
     };
 
 BEGIN_SETTER(String, TString)
-    virtual void OnMyStringScalar(TStringBuf value) override
+    void OnMyStringScalar(TStringBuf value) override
     {
         Node_->SetValue(TString(value));
     }
 END_SETTER()
 
 BEGIN_SETTER(Int64, i64)
-    virtual void OnMyInt64Scalar(i64 value) override
+    void OnMyInt64Scalar(i64 value) override
     {
         Node_->SetValue(value);
     }
 
-    virtual void OnMyUint64Scalar(ui64 value) override
+    void OnMyUint64Scalar(ui64 value) override
     {
         Node_->SetValue(CheckedIntegralCast<i64>(value));
     }
 END_SETTER()
 
 BEGIN_SETTER(Uint64,  ui64)
-    virtual void OnMyInt64Scalar(i64 value) override
+    void OnMyInt64Scalar(i64 value) override
     {
         Node_->SetValue(CheckedIntegralCast<ui64>(value));
     }
 
-    virtual void OnMyUint64Scalar(ui64 value) override
+    void OnMyUint64Scalar(ui64 value) override
     {
         Node_->SetValue(value);
     }
 END_SETTER()
 
 BEGIN_SETTER(Double, double)
-    virtual void OnMyDoubleScalar(double value) override
+    void OnMyDoubleScalar(double value) override
     {
         Node_->SetValue(value);
     }
 END_SETTER()
 
 BEGIN_SETTER(Boolean, bool)
-    virtual void OnMyBooleanScalar(bool value) override
+    void OnMyBooleanScalar(bool value) override
     {
         Node_->SetValue(value);
     }
@@ -464,17 +464,17 @@ private:
     TString ItemKey_;
 
 
-    virtual ENodeType GetExpectedType() override
+    ENodeType GetExpectedType() override
     {
         return ENodeType::Map;
     }
 
-    virtual void OnMyBeginMap() override
+    void OnMyBeginMap() override
     {
         Map_->Clear();
     }
 
-    virtual void OnMyKeyedItem(TStringBuf key) override
+    void OnMyKeyedItem(TStringBuf key) override
     {
         ItemKey_ = key;
         TreeBuilder_->BeginTree();
@@ -487,7 +487,7 @@ private:
         ItemKey_.clear();
     }
 
-    virtual void OnMyEndMap() override
+    void OnMyEndMap() override
     {
         // Just do nothing.
     }
@@ -509,17 +509,17 @@ private:
     IListNode* const List_;
 
 
-    virtual ENodeType GetExpectedType() override
+    ENodeType GetExpectedType() override
     {
         return ENodeType::List;
     }
 
-    virtual void OnMyBeginList() override
+    void OnMyBeginList() override
     {
         List_->Clear();
     }
 
-    virtual void OnMyListItem() override
+    void OnMyListItem() override
     {
         TreeBuilder_->BeginTree();
         Forward(TreeBuilder_, [this] {
@@ -527,7 +527,7 @@ private:
         });
     }
 
-    virtual void OnMyEndList() override
+    void OnMyEndList() override
     {
         // Just do nothing.
     }
@@ -545,12 +545,12 @@ public:
     { }
 
 private:
-    virtual ENodeType GetExpectedType() override
+    ENodeType GetExpectedType() override
     {
         return ENodeType::Entity;
     }
 
-    virtual void OnMyEntity() override
+    void OnMyEntity() override
     {
         // Just do nothing.
     }

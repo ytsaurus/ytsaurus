@@ -15,10 +15,10 @@ class TAsyncStreamPipe
     , public IAsyncOutputStream
 {
 public:
-    virtual TFuture<TSharedRef> Read() override;
+    TFuture<TSharedRef> Read() override;
 
-    virtual TFuture<void> Write(const TSharedRef& buffer) override;
-    virtual TFuture<void> Close() override;
+    TFuture<void> Write(const TSharedRef& buffer) override;
+    TFuture<void> Close() override;
 
     TFuture<void> Abort(const TError& error);
 

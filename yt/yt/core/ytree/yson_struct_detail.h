@@ -84,16 +84,16 @@ class TYsonStructMeta
     : public IYsonStructMeta
 {
 public:
-    virtual void SetDefaultsOfInitializedStruct(TYsonStructBase* target) const override;
+    void SetDefaultsOfInitializedStruct(TYsonStructBase* target) const override;
 
-    virtual const THashMap<TString, IYsonStructParameterPtr>& GetParameterMap() const override;
-    virtual const std::vector<std::pair<TString, IYsonStructParameterPtr>>& GetParameterSortedList() const override;
-    virtual const THashSet<TString>& GetRegisteredKeys() const override;
+    const THashMap<TString, IYsonStructParameterPtr>& GetParameterMap() const override;
+    const std::vector<std::pair<TString, IYsonStructParameterPtr>>& GetParameterSortedList() const override;
+    const THashSet<TString>& GetRegisteredKeys() const override;
 
     IYsonStructParameterPtr GetParameter(const TString& keyOrAlias) const override;
-    virtual void LoadParameter(TYsonStructBase* target, const TString& key, const NYTree::INodePtr& node, EMergeStrategy mergeStrategy) const override;
+    void LoadParameter(TYsonStructBase* target, const TString& key, const NYTree::INodePtr& node, EMergeStrategy mergeStrategy) const override;
 
-    virtual void Postprocess(TYsonStructBase* target, const TYPath& path) const override;
+    void Postprocess(TYsonStructBase* target, const TYPath& path) const override;
 
     void LoadStruct(
         TYsonStructBase* target,
@@ -102,12 +102,12 @@ public:
         bool setDefaults,
         const TYPath& path) const override;
 
-    virtual IMapNodePtr GetRecursiveUnrecognized(const TYsonStructBase* target) const override;
+    IMapNodePtr GetRecursiveUnrecognized(const TYsonStructBase* target) const override;
 
     void RegisterParameter(TString key, IYsonStructParameterPtr parameter) override;
-    virtual void RegisterPreprocessor(std::function<void(TYsonStructBase*)> preprocessor) override;
-    virtual void RegisterPostprocessor(std::function<void(TYsonStructBase*)> postprocessor) override;
-    virtual void SetUnrecognizedStrategy(EUnrecognizedStrategy strategy) override;
+    void RegisterPreprocessor(std::function<void(TYsonStructBase*)> preprocessor) override;
+    void RegisterPostprocessor(std::function<void(TYsonStructBase*)> postprocessor) override;
+    void SetUnrecognizedStrategy(EUnrecognizedStrategy strategy) override;
 
     void FinishInitialization();
 
@@ -146,7 +146,7 @@ class TYsonFieldAccessor
 {
 public:
     explicit TYsonFieldAccessor(TYsonStructField<TStruct, TValue> field);
-    virtual TValue& GetValue(const TYsonStructBase* source) override;
+    TValue& GetValue(const TYsonStructBase* source) override;
 
 private:
     TYsonStructField<TStruct, TValue> Field_;
@@ -166,22 +166,22 @@ public:
         TString key,
         std::unique_ptr<IYsonFieldAccessor<TValue>> fieldAccessor);
 
-    virtual void Load(
+    void Load(
         TYsonStructBase* self,
         NYTree::INodePtr node,
         const TLoadParameterOptions& options) override;
-    virtual void SafeLoad(
+    void SafeLoad(
         TYsonStructBase* self,
         NYTree::INodePtr node,
         const TLoadParameterOptions& options,
         const std::function<void()>& validate) override;
-    virtual void Postprocess(const TYsonStructBase* self, const NYPath::TYPath& path) const override;
-    virtual void SetDefaultsInitialized(TYsonStructBase* self) override;
-    virtual void Save(const TYsonStructBase* self, NYson::IYsonConsumer* consumer) const override;
-    virtual bool CanOmitValue(const TYsonStructBase* self) const override;
-    virtual const TString& GetKey() const override;
-    virtual const std::vector<TString>& GetAliases() const override;
-    virtual IMapNodePtr GetRecursiveUnrecognized(const TYsonStructBase* self) const override;
+    void Postprocess(const TYsonStructBase* self, const NYPath::TYPath& path) const override;
+    void SetDefaultsInitialized(TYsonStructBase* self) override;
+    void Save(const TYsonStructBase* self, NYson::IYsonConsumer* consumer) const override;
+    bool CanOmitValue(const TYsonStructBase* self) const override;
+    const TString& GetKey() const override;
+    const std::vector<TString>& GetAliases() const override;
+    IMapNodePtr GetRecursiveUnrecognized(const TYsonStructBase* self) const override;
 
     // Mark as optional.
     TYsonStructParameter& Optional();

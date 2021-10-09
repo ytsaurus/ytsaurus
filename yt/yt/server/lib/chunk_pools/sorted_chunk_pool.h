@@ -51,7 +51,7 @@ struct IChunkSliceFetcherFactory
 {
     virtual NTableClient::IChunkSliceFetcherPtr CreateChunkSliceFetcher() = 0;
 
-    virtual void Persist(const TPersistenceContext& context) = 0;
+    void Persist(const TPersistenceContext& context) override = 0;
 };
 
 IChunkSliceFetcherFactoryPtr CreateCallbackChunkSliceFetcherFactory(

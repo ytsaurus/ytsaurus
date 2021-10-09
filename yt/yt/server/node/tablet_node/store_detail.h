@@ -39,23 +39,23 @@ public:
     ~TStoreBase();
 
     // IStore implementation.
-    virtual TStoreId GetId() const override;
-    virtual TTablet* GetTablet() const override;
+    TStoreId GetId() const override;
+    TTablet* GetTablet() const override;
 
-    virtual bool IsEmpty() const override;
+    bool IsEmpty() const override;
 
-    virtual EStoreState GetStoreState() const override;
-    virtual void SetStoreState(EStoreState state) override;
+    EStoreState GetStoreState() const override;
+    void SetStoreState(EStoreState state) override;
 
     void SetMemoryTracker(NClusterNode::TNodeMemoryTrackerPtr memoryTracker);
-    virtual i64 GetDynamicMemoryUsage() const override;
+    i64 GetDynamicMemoryUsage() const override;
 
-    virtual void Initialize() override;
+    void Initialize() override;
 
-    virtual void Save(TSaveContext& context) const override;
-    virtual void Load(TLoadContext& context) override;
+    void Save(TSaveContext& context) const override;
+    void Load(TLoadContext& context) override;
 
-    virtual void BuildOrchidYson(NYTree::TFluentMap fluent) override;
+    void BuildOrchidYson(NYTree::TFluentMap fluent) override;
 
 protected:
     const TTabletManagerConfigPtr Config_;
@@ -111,34 +111,34 @@ public:
     i64 Unlock();
 
     // IStore implementation.
-    virtual TTimestamp GetMinTimestamp() const override;
-    virtual TTimestamp GetMaxTimestamp() const override;
+    TTimestamp GetMinTimestamp() const override;
+    TTimestamp GetMaxTimestamp() const override;
 
     //! Sets the store state, as expected.
     //! Additionally, when the store transitions from |ActiveDynamic| to |PassiveDynamic|,
     //! invokes #OnSetPassive.
-    virtual void SetStoreState(EStoreState state) override;
+    void SetStoreState(EStoreState state) override;
 
-    virtual i64 GetCompressedDataSize() const override;
-    virtual i64 GetUncompressedDataSize() const override;
+    i64 GetCompressedDataSize() const override;
+    i64 GetUncompressedDataSize() const override;
 
     // IDynamicStore implementation.
-    virtual EStoreFlushState GetFlushState() const override;
-    virtual void SetFlushState(EStoreFlushState state) override;
+    EStoreFlushState GetFlushState() const override;
+    void SetFlushState(EStoreFlushState state) override;
 
-    virtual i64 GetValueCount() const override;
-    virtual i64 GetLockCount() const override;
+    i64 GetValueCount() const override;
+    i64 GetLockCount() const override;
 
-    virtual i64 GetPoolSize() const override;
-    virtual i64 GetPoolCapacity() const override;
+    i64 GetPoolSize() const override;
+    i64 GetPoolCapacity() const override;
 
-    virtual TInstant GetLastFlushAttemptTimestamp() const override;
-    virtual void UpdateFlushAttemptTimestamp() override;
+    TInstant GetLastFlushAttemptTimestamp() const override;
+    void UpdateFlushAttemptTimestamp() override;
 
-    virtual void BuildOrchidYson(NYTree::TFluentMap fluent) override;
+    void BuildOrchidYson(NYTree::TFluentMap fluent) override;
 
-    virtual bool IsDynamic() const override;
-    virtual IDynamicStorePtr AsDynamic() override;
+    bool IsDynamic() const override;
+    IDynamicStorePtr AsDynamic() override;
 
 protected:
     //! Some sanity checks may need the tablet's atomicity mode but the tablet may die.
@@ -159,7 +159,7 @@ protected:
 
     virtual void OnSetPassive() = 0;
 
-    virtual NNodeTrackerClient::EMemoryCategory GetMemoryCategory() const override;
+    NNodeTrackerClient::EMemoryCategory GetMemoryCategory() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -184,67 +184,67 @@ public:
         NApi::NNative::IClientPtr client,
         const NNodeTrackerClient::TNodeDescriptor& localDescriptor);
 
-    virtual void Initialize() override;
+    void Initialize() override;
 
     // IStore implementation.
-    virtual TTimestamp GetMinTimestamp() const override;
-    virtual TTimestamp GetMaxTimestamp() const override;
+    TTimestamp GetMinTimestamp() const override;
+    TTimestamp GetMaxTimestamp() const override;
 
-    virtual i64 GetCompressedDataSize() const override;
-    virtual i64 GetUncompressedDataSize() const override;
-    virtual i64 GetRowCount() const override;
+    i64 GetCompressedDataSize() const override;
+    i64 GetUncompressedDataSize() const override;
+    i64 GetRowCount() const override;
 
     void Save(TSaveContext& context) const override;
     void Load(TLoadContext& context) override;
 
-    virtual TCallback<void(TSaveContext&)> AsyncSave() override;
-    virtual void AsyncLoad(TLoadContext& context) override;
+    TCallback<void(TSaveContext&)> AsyncSave() override;
+    void AsyncLoad(TLoadContext& context) override;
 
-    virtual void BuildOrchidYson(NYTree::TFluentMap fluent) override;
+    void BuildOrchidYson(NYTree::TFluentMap fluent) override;
 
     // IChunkStore implementation.
-    virtual TInstant GetCreationTime() const override;
+    TInstant GetCreationTime() const override;
 
-    virtual void SetBackingStore(IDynamicStorePtr store) override;
-    virtual bool HasBackingStore() const override;
-    virtual IDynamicStorePtr GetBackingStore() override;
+    void SetBackingStore(IDynamicStorePtr store) override;
+    bool HasBackingStore() const override;
+    IDynamicStorePtr GetBackingStore() override;
 
-    virtual EStorePreloadState GetPreloadState() const override;
-    virtual void SetPreloadState(EStorePreloadState state) override;
+    EStorePreloadState GetPreloadState() const override;
+    void SetPreloadState(EStorePreloadState state) override;
 
-    virtual bool IsPreloadAllowed() const override;
-    virtual void UpdatePreloadAttempt(bool isBackoff) override;
+    bool IsPreloadAllowed() const override;
+    void UpdatePreloadAttempt(bool isBackoff) override;
 
-    virtual TFuture<void> GetPreloadFuture() const override;
-    virtual void SetPreloadFuture(TFuture<void> future) override;
+    TFuture<void> GetPreloadFuture() const override;
+    void SetPreloadFuture(TFuture<void> future) override;
 
-    virtual EStoreCompactionState GetCompactionState() const override;
-    virtual void SetCompactionState(EStoreCompactionState state) override;
+    EStoreCompactionState GetCompactionState() const override;
+    void SetCompactionState(EStoreCompactionState state) override;
 
-    virtual void UpdateCompactionAttempt() override;
-    virtual TInstant GetLastCompactionTimestamp() const override;
+    void UpdateCompactionAttempt() override;
+    TInstant GetLastCompactionTimestamp() const override;
 
-    virtual bool IsChunk() const override;
-    virtual IChunkStorePtr AsChunk() override;
+    bool IsChunk() const override;
+    IChunkStorePtr AsChunk() override;
 
-    virtual TReaders GetReaders(std::optional<EWorkloadCategory> workloadCategory) override;
-    virtual TTabletStoreReaderConfigPtr GetReaderConfig() override;
-    virtual void InvalidateCachedReaders(const TTableSettings& settings) override;
+    TReaders GetReaders(std::optional<EWorkloadCategory> workloadCategory) override;
+    TTabletStoreReaderConfigPtr GetReaderConfig() override;
+    void InvalidateCachedReaders(const TTableSettings& settings) override;
 
-    virtual NTabletClient::EInMemoryMode GetInMemoryMode() const override;
-    virtual void SetInMemoryMode(NTabletClient::EInMemoryMode mode) override;
+    NTabletClient::EInMemoryMode GetInMemoryMode() const override;
+    void SetInMemoryMode(NTabletClient::EInMemoryMode mode) override;
 
-    virtual void Preload(TInMemoryChunkDataPtr chunkData) override;
+    void Preload(TInMemoryChunkDataPtr chunkData) override;
 
-    virtual NChunkClient::TChunkId GetChunkId() const override;
-    virtual TTimestamp GetOverrideTimestamp() const override;
+    NChunkClient::TChunkId GetChunkId() const override;
+    TTimestamp GetOverrideTimestamp() const override;
 
-    virtual NChunkClient::TChunkReplicaList GetReplicas(
+    NChunkClient::TChunkReplicaList GetReplicas(
         NNodeTrackerClient::TNodeId localNodeId) const override;
 
-    virtual const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const override;
+    const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const override;
 
-    virtual const std::vector<THunkChunkRef>& HunkChunkRefs() const override;
+    const std::vector<THunkChunkRef>& HunkChunkRefs() const override;
 
 protected:
     IBootstrap* const Bootstrap_;
@@ -282,7 +282,7 @@ protected:
 
     NChunkClient::IBlockCachePtr GetBlockCache();
 
-    virtual NNodeTrackerClient::EMemoryCategory GetMemoryCategory() const override;
+    NNodeTrackerClient::EMemoryCategory GetMemoryCategory() const override;
 
     NTableClient::TChunkStatePtr FindPreloadedChunkState();
 
@@ -318,11 +318,11 @@ class TSortedStoreBase
     : public ISortedStore
 {
 public:
-    virtual TPartition* GetPartition() const override;
-    virtual void SetPartition(TPartition* partition) override;
+    TPartition* GetPartition() const override;
+    void SetPartition(TPartition* partition) override;
 
-    virtual bool IsSorted() const override;
-    virtual ISortedStorePtr AsSorted() override;
+    bool IsSorted() const override;
+    ISortedStorePtr AsSorted() override;
 
 protected:
     TPartition* Partition_ = nullptr;
@@ -334,11 +334,11 @@ class TOrderedStoreBase
     : public IOrderedStore
 {
 public:
-    virtual bool IsOrdered() const override;
-    virtual IOrderedStorePtr AsOrdered() override;
+    bool IsOrdered() const override;
+    IOrderedStorePtr AsOrdered() override;
 
-    virtual i64 GetStartingRowIndex() const override;
-    virtual void SetStartingRowIndex(i64 value) override;
+    i64 GetStartingRowIndex() const override;
+    void SetStartingRowIndex(i64 value) override;
 
     void Save(TSaveContext& context) const override;
     void Load(TLoadContext& context) override;

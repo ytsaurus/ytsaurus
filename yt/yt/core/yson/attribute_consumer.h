@@ -16,23 +16,23 @@ public:
     explicit TAttributeFragmentConsumer(IAsyncYsonConsumer* underlyingConsumer);
     ~TAttributeFragmentConsumer();
 
-    virtual void OnStringScalar(TStringBuf value) override;
-    virtual void OnInt64Scalar(i64 value) override;
-    virtual void OnUint64Scalar(ui64 value) override;
-    virtual void OnDoubleScalar(double value) override;
-    virtual void OnBooleanScalar(bool value) override;
-    virtual void OnEntity() override;
-    virtual void OnBeginList() override;
-    virtual void OnListItem() override;
-    virtual void OnEndList() override;
-    virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(TStringBuf key) override;
-    virtual void OnEndMap() override;
-    virtual void OnBeginAttributes() override;
-    virtual void OnEndAttributes() override;
+    void OnStringScalar(TStringBuf value) override;
+    void OnInt64Scalar(i64 value) override;
+    void OnUint64Scalar(ui64 value) override;
+    void OnDoubleScalar(double value) override;
+    void OnBooleanScalar(bool value) override;
+    void OnEntity() override;
+    void OnBeginList() override;
+    void OnListItem() override;
+    void OnEndList() override;
+    void OnBeginMap() override;
+    void OnKeyedItem(TStringBuf key) override;
+    void OnEndMap() override;
+    void OnBeginAttributes() override;
+    void OnEndAttributes() override;
     using IAsyncYsonConsumer::OnRaw;
-    virtual void OnRaw(TStringBuf yson, EYsonType type) override;
-    virtual void OnRaw(TFuture<TYsonString> asyncStr) override;
+    void OnRaw(TStringBuf yson, EYsonType type) override;
+    void OnRaw(TFuture<TYsonString> asyncStr) override;
 
 private:
     IAsyncYsonConsumer* const UnderlyingConsumer_;
@@ -56,23 +56,23 @@ public:
         IAsyncYsonConsumer* underlyingConsumer,
         TString key);
 
-    virtual void OnStringScalar(TStringBuf value) override;
-    virtual void OnInt64Scalar(i64 value) override;
-    virtual void OnUint64Scalar(ui64 value) override;
-    virtual void OnDoubleScalar(double value) override;
-    virtual void OnBooleanScalar(bool value) override;
-    virtual void OnEntity() override;
-    virtual void OnBeginList() override;
-    virtual void OnListItem() override;
-    virtual void OnEndList() override;
-    virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(TStringBuf key) override;
-    virtual void OnEndMap() override;
-    virtual void OnBeginAttributes() override;
-    virtual void OnEndAttributes() override;
+    void OnStringScalar(TStringBuf value) override;
+    void OnInt64Scalar(i64 value) override;
+    void OnUint64Scalar(ui64 value) override;
+    void OnDoubleScalar(double value) override;
+    void OnBooleanScalar(bool value) override;
+    void OnEntity() override;
+    void OnBeginList() override;
+    void OnListItem() override;
+    void OnEndList() override;
+    void OnBeginMap() override;
+    void OnKeyedItem(TStringBuf key) override;
+    void OnEndMap() override;
+    void OnBeginAttributes() override;
+    void OnEndAttributes() override;
     using IYsonConsumer::OnRaw;
-    virtual void OnRaw(TStringBuf yson, EYsonType type) override;
-    virtual void OnRaw(TFuture<TYsonString> asyncStr) override;
+    void OnRaw(TStringBuf yson, EYsonType type) override;
+    void OnRaw(TFuture<TYsonString> asyncStr) override;
 
 private:
     IAsyncYsonConsumer* const UnderlyingConsumer_;

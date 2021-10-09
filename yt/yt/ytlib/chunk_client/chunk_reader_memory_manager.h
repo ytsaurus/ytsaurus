@@ -75,24 +75,24 @@ public:
         TChunkReaderMemoryManagerOptions options,
         TWeakPtr<IReaderMemoryManagerHost> hostMemoryManager = nullptr);
 
-    virtual i64 GetRequiredMemorySize() const override;
+    i64 GetRequiredMemorySize() const override;
 
-    virtual i64 GetDesiredMemorySize() const override;
+    i64 GetDesiredMemorySize() const override;
 
-    virtual i64 GetReservedMemorySize() const override;
+    i64 GetReservedMemorySize() const override;
 
-    virtual void SetReservedMemorySize(i64 size) override;
+    void SetReservedMemorySize(i64 size) override;
 
-    virtual const NProfiling::TTagList& GetProfilingTagList() const override;
+    const NProfiling::TTagList& GetProfilingTagList() const override;
 
-    virtual void AddChunkReaderInfo(TGuid chunkReaderId) override;
+    void AddChunkReaderInfo(TGuid chunkReaderId) override;
 
-    virtual void AddReadSessionInfo(TGuid readSessionId) override;
+    void AddReadSessionInfo(TGuid readSessionId) override;
 
-    virtual TGuid GetId() const override;
+    TGuid GetId() const override;
 
     //! Called by fetcher when all blocks were fetched.
-    virtual void Finalize() override;
+    void Finalize() override;
 
     //! Always succeeds, possibly with overcommit.
     TMemoryUsageGuardPtr Acquire(i64 size);

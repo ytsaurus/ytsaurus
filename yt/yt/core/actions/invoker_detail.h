@@ -12,11 +12,11 @@ class TInvokerWrapper
 {
 public:
     //! Schedules invocation of a given callback.
-    virtual void Invoke(TClosure callback) override;
+    void Invoke(TClosure callback) override;
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-    virtual NConcurrency::TThreadId GetThreadId() const override;
-    virtual bool CheckAffinity(const IInvokerPtr& invoker) const override;
+    NConcurrency::TThreadId GetThreadId() const override;
+    bool CheckAffinity(const IInvokerPtr& invoker) const override;
 #endif
 
 protected:

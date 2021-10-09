@@ -24,7 +24,7 @@ public:
     void Start();
 
 protected:
-    virtual std::vector<TString> GetInstanceTags() const override;
+    std::vector<TString> GetInstanceTags() const override;
 
 private:
     IBootstrap* const Bootstrap_;

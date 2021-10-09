@@ -36,16 +36,16 @@ public:
         TObjectTypeMetadata* metadata,
         TObject* object);
 
-    virtual bool ShouldHideAttributes() override;
+    bool ShouldHideAttributes() override;
 
     // IObjectProxy members
-    virtual TObjectId GetId() const override;
-    virtual TObject* GetObject() const override;
-    virtual NTransactionServer::TTransaction* GetTransaction() const override;
-    virtual const NYTree::IAttributeDictionary& Attributes() const override;
-    virtual NYTree::IAttributeDictionary* MutableAttributes() override;
-    virtual void Invoke(const NRpc::IServiceContextPtr& context) override;
-    virtual void DoWriteAttributesFragment(
+    TObjectId GetId() const override;
+    TObject* GetObject() const override;
+    NTransactionServer::TTransaction* GetTransaction() const override;
+    const NYTree::IAttributeDictionary& Attributes() const override;
+    NYTree::IAttributeDictionary* MutableAttributes() override;
+    void Invoke(const NRpc::IServiceContextPtr& context) override;
+    void DoWriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
         const std::optional<std::vector<TString>>& attributeKeys,
         bool stable) override;
@@ -85,15 +85,15 @@ protected:
     //! Returns the ACD for the object or |nullptr| is none exists.
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() = 0;
 
-    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
     // NYTree::TSupportsAttributes members
-    virtual void SetAttribute(
+    void SetAttribute(
         const NYTree::TYPath& path,
         TReqSet* request,
         TRspSet* response,
         const TCtxSetPtr& context) override;
-    virtual void RemoveAttribute(
+    void RemoveAttribute(
         const NYTree::TYPath& path,
         TReqRemove* request,
         TRspRemove* response,
@@ -101,16 +101,16 @@ protected:
 
     void ReplicateAttributeUpdate(const NRpc::IServiceContextPtr& context);
 
-    virtual NYTree::IAttributeDictionary* GetCustomAttributes() override;
-    virtual NYTree::ISystemAttributeProvider* GetBuiltinAttributeProvider() override;
+    NYTree::IAttributeDictionary* GetCustomAttributes() override;
+    NYTree::ISystemAttributeProvider* GetBuiltinAttributeProvider() override;
 
     // NYTree::ISystemAttributeProvider members
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual const THashSet<NYTree::TInternedAttributeKey>& GetBuiltinAttributeKeys() override;
-    virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override;
-    virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
-    virtual bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
+    const THashSet<NYTree::TInternedAttributeKey>& GetBuiltinAttributeKeys() override;
+    bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+    TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override;
+    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
 
     //! Called before attribute #key is updated (added, removed or changed).
     virtual void ValidateCustomAttributeUpdate(
@@ -133,7 +133,7 @@ protected:
     void ValidateNoTransaction();
 
     // TSupportsPermissions members
-    virtual void ValidatePermission(
+    void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission,
         const TString& /* user */ = {}) override;
@@ -150,7 +150,7 @@ protected:
             : Owner_(owner)
         { }
 
-        virtual void ValidatePermission(
+        void ValidatePermission(
             NYTree::EPermissionCheckScope scope,
             NYTree::EPermission permission,
             const TString& user = {}) override
@@ -160,7 +160,7 @@ protected:
             }
         }
 
-        virtual void ValidatePermission(
+        void ValidatePermission(
             TObject* object,
             NYTree::EPermission permission) override
         {
@@ -217,11 +217,11 @@ protected:
         explicit TCustomAttributeDictionary(TNontemplateNonversionedObjectProxyBase* proxy);
 
         // IAttributeDictionary members
-        virtual std::vector<TString> ListKeys() const override;
-        virtual std::vector<TKeyValuePair> ListPairs() const override;
-        virtual NYson::TYsonString FindYson(TStringBuf key) const override;
-        virtual void SetYson(const TString& key, const NYson::TYsonString& value) override;
-        virtual bool Remove(const TString& key) override;
+        std::vector<TString> ListKeys() const override;
+        std::vector<TKeyValuePair> ListPairs() const override;
+        NYson::TYsonString FindYson(TStringBuf key) const override;
+        void SetYson(const TString& key, const NYson::TYsonString& value) override;
+        bool Remove(const TString& key) override;
 
     private:
         TNontemplateNonversionedObjectProxyBase* const Proxy_;
@@ -232,16 +232,16 @@ protected:
 
     TCustomAttributeDictionaryPtr CustomAttributesImpl_;
 
-    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
-    virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
+    void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
 
     virtual void ValidateRemoval();
 
-    virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override;
+    void RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override;
 
-    virtual TVersionedObjectId GetVersionedId() const override;
-    virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;
+    TVersionedObjectId GetVersionedId() const override;
+    NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

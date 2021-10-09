@@ -162,7 +162,7 @@ public:
     NObjectClient::TCellTagList GetCellTagsToSyncWithAfterInvocation() const;
 
 private:
-    virtual void ConstructReplicationRequests() override;
+    void ConstructReplicationRequests() override;
 
     NObjectClient::TCellTagList UnsyncedRemoteTransactionCells_;
 };
@@ -239,7 +239,7 @@ public:
 private:
     std::unique_ptr<NHydra::TMutation> Mutation_;
 
-    virtual void ConstructReplicationRequests() override;
+    void ConstructReplicationRequests() override;
 
     TFuture<TSharedRefArray> BeginRequestInResponseKeeper();
     TFuture<TSharedRefArray> FindRequestInResponseKeeper();

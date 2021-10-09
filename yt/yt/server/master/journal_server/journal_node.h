@@ -22,10 +22,10 @@ public:
 public:
     using TBase::TBase;
 
-    virtual void Save(NCellMaster::TSaveContext& context) const override;
-    virtual void Load(NCellMaster::TLoadContext& context) override;
+    void Save(NCellMaster::TSaveContext& context) const override;
+    void Load(NCellMaster::TLoadContext& context) override;
 
-    virtual void BeginUpload(const TBeginUploadContext& context) override;
+    void BeginUpload(const TBeginUploadContext& context) override;
 
     TJournalNode* GetTrunkNode();
     const TJournalNode* GetTrunkNode() const;
@@ -33,8 +33,8 @@ public:
     bool GetSealed() const;
     void SetSealed(bool value);
 
-    virtual NSecurityServer::TClusterResources GetDeltaResourceUsage() const override;
-    virtual NSecurityServer::TClusterResources GetTotalResourceUsage() const override;
+    NSecurityServer::TClusterResources GetDeltaResourceUsage() const override;
+    NSecurityServer::TClusterResources GetTotalResourceUsage() const override;
 
 private:
     // Only maintained at trunk nodes.

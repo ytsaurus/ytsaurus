@@ -20,7 +20,7 @@ struct TContextTrackingInserter
         llvm::Instruction* instruction,
         const llvm::Twine& name,
         llvm::BasicBlock* basicBlock,
-        llvm::BasicBlock::iterator insertPoint) const
+        llvm::BasicBlock::iterator insertPoint) const override
     {
         ValuesInContext.insert(static_cast<llvm::Value*>(instruction));
 

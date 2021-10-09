@@ -43,7 +43,7 @@ private:
 
     //! Return ready event and start wait timer if it is not already active.
     //! This method is intended for external use, but not for accessing ready event from subclasses, thus private.
-    virtual TFuture<void> GetReadyEvent() const override;
+    TFuture<void> GetReadyEvent() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

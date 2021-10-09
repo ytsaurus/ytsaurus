@@ -61,10 +61,10 @@ private:
     i64 Size_ = 0;
     int BlockCount_ = 0;
 
-    virtual TFuture<void> DoStart() override;
+    TFuture<void> DoStart() override;
     void OnStarted(const TError& error);
 
-    virtual TFuture<void> DoPutBlocks(
+    TFuture<void> DoPutBlocks(
         int startBlockIndex,
         const std::vector<NChunkClient::TBlock>& blocks,
         bool enableCaching) override;
@@ -73,17 +73,17 @@ private:
         int endBlockIndex,
         const TError& error);
 
-    virtual TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> DoSendBlocks(
+    TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> DoSendBlocks(
         int startBlockIndex,
         int blockCount,
         const NNodeTrackerClient::TNodeDescriptor& targetDescriptor) override;
 
-    virtual TFuture<NIO::TIOCounters> DoFlushBlocks(int blockIndex) override;
+    TFuture<NIO::TIOCounters> DoFlushBlocks(int blockIndex) override;
     NIO::TIOCounters OnBlockFlushed(int blockIndex);
 
-    virtual void DoCancel(const TError& error) override;
+    void DoCancel(const TError& error) override;
 
-    virtual TFuture<NChunkClient::NProto::TChunkInfo> DoFinish(
+    TFuture<NChunkClient::NProto::TChunkInfo> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         std::optional<int> blockCount) override;
     NChunkClient::NProto::TChunkInfo OnFinished(const TError& error);

@@ -24,27 +24,27 @@ protected:
 
     virtual IYPathServicePtr FindItemService(TStringBuf key) const = 0;
 
-    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
-    virtual TResolveResult ResolveRecursive(const TYPath& path, const NRpc::IServiceContextPtr& context) override;
-    virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
-    virtual void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override;
-    virtual void RemoveRecursive(
+    TResolveResult ResolveRecursive(const TYPath& path, const NRpc::IServiceContextPtr& context) override;
+    void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
+    void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override;
+    void RemoveRecursive(
         const TYPath &path,
         TReqRemove* request,
         TRspRemove* response,
         const TCtxRemovePtr& context) override;
 
     // TSupportsAttributes overrides
-    virtual ISystemAttributeProvider* GetBuiltinAttributeProvider() override;
+    ISystemAttributeProvider* GetBuiltinAttributeProvider() override;
 
     // ISystemAttributeProvider overrides
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual const THashSet<TInternedAttributeKey>& GetBuiltinAttributeKeys() override;
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override;
-    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const NYson::TYsonString& value) override;
-    virtual bool RemoveBuiltinAttribute(TInternedAttributeKey key) override;
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
+    const THashSet<TInternedAttributeKey>& GetBuiltinAttributeKeys() override;
+    bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+    TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override;
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    bool RemoveBuiltinAttribute(TInternedAttributeKey key) override;
 
 private:
     const INodePtr OwningNode_;
@@ -63,11 +63,11 @@ public:
 
     ~TCompositeMapService();
 
-    virtual std::vector<TString> GetKeys(i64 limit = std::numeric_limits<i64>::max()) const override;
-    virtual i64 GetSize() const override;
-    virtual IYPathServicePtr FindItemService(TStringBuf key) const override;
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+    std::vector<TString> GetKeys(i64 limit = std::numeric_limits<i64>::max()) const override;
+    i64 GetSize() const override;
+    IYPathServicePtr FindItemService(TStringBuf key) const override;
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
+    bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
 
     TIntrusivePtr<TCompositeMapService> AddChild(const TString& key, IYPathServicePtr service);
     TIntrusivePtr<TCompositeMapService> AddAttribute(TInternedAttributeKey key, NYson::TYsonCallback producer);
@@ -96,21 +96,21 @@ protected:
     virtual i64 GetSize() const = 0;
     virtual IYPathServicePtr FindItemService(int index) const = 0;
 
-    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
-    virtual TResolveResult ResolveRecursive(const TYPath& path, const NRpc::IServiceContextPtr& context) override;
-    virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
+    TResolveResult ResolveRecursive(const TYPath& path, const NRpc::IServiceContextPtr& context) override;
+    void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
 
     // TSupportsAttributes overrides
-    virtual ISystemAttributeProvider* GetBuiltinAttributeProvider() override;
+    ISystemAttributeProvider* GetBuiltinAttributeProvider() override;
 
     // ISystemAttributeProvider overrides
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual const THashSet<TInternedAttributeKey>& GetBuiltinAttributeKeys() override;
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override;
-    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const NYson::TYsonString& value) override;
-    virtual bool RemoveBuiltinAttribute(TInternedAttributeKey key) override;
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
+    const THashSet<TInternedAttributeKey>& GetBuiltinAttributeKeys() override;
+    bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+    TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override;
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    bool RemoveBuiltinAttribute(TInternedAttributeKey key) override;
 
 private:
     TSystemBuiltinAttributeKeysCache BuiltinAttributeKeysCache_;

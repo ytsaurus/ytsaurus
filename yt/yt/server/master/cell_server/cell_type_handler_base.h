@@ -21,8 +21,8 @@ public:
     explicit TCellTypeHandlerBase(
         NCellMaster::TBootstrap* bootstrap);
 
-    virtual NObjectServer::ETypeFlags GetFlags() const override;
-    virtual NObjectServer::TObject* FindObject(NObjectClient::TObjectId id) override;
+    NObjectServer::ETypeFlags GetFlags() const override;
+    NObjectServer::TObject* FindObject(NObjectClient::TObjectId id) override;
 
 protected:
     using TBase = NObjectServer::TObjectTypeHandlerBase<TImpl>;
@@ -30,9 +30,9 @@ protected:
     NObjectServer::TObject* DoCreateObject(
         std::unique_ptr<TCellBase> holder,
         NYTree::IAttributeDictionary* attributes);
-    virtual NObjectClient::TCellTagList DoGetReplicationCellTags(const TImpl* /*cell*/) override;
-    virtual void DoZombifyObject(TImpl* cell) override;
-    virtual void DoDestroyObject(TImpl* cell) override;
+    NObjectClient::TCellTagList DoGetReplicationCellTags(const TImpl* /*cell*/) override;
+    void DoZombifyObject(TImpl* cell) override;
+    void DoDestroyObject(TImpl* cell) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

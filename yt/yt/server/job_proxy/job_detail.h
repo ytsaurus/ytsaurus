@@ -34,18 +34,18 @@ class TJob
 public:
     explicit TJob(IJobHost* host);
 
-    virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
-    virtual TString GetStderr() override;
-    virtual std::optional<TString> GetFailContext() override;
-    virtual std::optional<NJobAgent::TJobProfile> GetProfile() override;
-    virtual const NCoreDump::TCoreInfos& GetCoreInfos() const override;
-    virtual NYson::TYsonString PollJobShell(
+    std::vector<NChunkClient::TChunkId> DumpInputContext() override;
+    TString GetStderr() override;
+    std::optional<TString> GetFailContext() override;
+    std::optional<NJobAgent::TJobProfile> GetProfile() override;
+    const NCoreDump::TCoreInfos& GetCoreInfos() const override;
+    NYson::TYsonString PollJobShell(
         const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
         const NYson::TYsonString& parameters) override;
-    virtual void Fail() override;
-    virtual TCpuStatistics GetCpuStatistics() const override;
-    virtual i64 GetStderrSize() const override;
-    virtual TSharedRef DumpSensors() override;
+    void Fail() override;
+    TCpuStatistics GetCpuStatistics() const override;
+    i64 GetStderrSize() const override;
+    TSharedRef DumpSensors() override;
 
 protected:
     IJobHost* Host_;
@@ -62,24 +62,24 @@ class TSimpleJobBase
 public:
     explicit TSimpleJobBase(IJobHost* host);
 
-    virtual void Initialize() override;
+    void Initialize() override;
 
-    virtual NJobTrackerClient::NProto::TJobResult Run() override;
+    NJobTrackerClient::NProto::TJobResult Run() override;
 
-    virtual void Cleanup() override;
+    void Cleanup() override;
 
-    virtual void PrepareArtifacts() override;
+    void PrepareArtifacts() override;
 
-    virtual double GetProgress() const override;
+    double GetProgress() const override;
 
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
-    virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor() const override;
+    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
+    NChunkClient::TInterruptDescriptor GetInterruptDescriptor() const override;
 
-    virtual TStatistics GetStatistics() const override;
+    TStatistics GetStatistics() const override;
 
     virtual bool ShouldSendBoundaryKeys() const;
 
-    virtual void Interrupt() override;
+    void Interrupt() override;
 
 protected:
     const NJobTrackerClient::NProto::TJobSpec& JobSpec_;

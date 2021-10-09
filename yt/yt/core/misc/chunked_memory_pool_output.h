@@ -21,8 +21,8 @@ public:
     std::vector<TMutableRef> FinishAndGetRefs();
 
 private:
-    virtual size_t DoNext(void** ptr) override;
-    virtual void DoUndo(size_t size) override;
+    size_t DoNext(void** ptr) override;
+    void DoUndo(size_t size) override;
 
 private:
     TChunkedMemoryPool* const Pool_;

@@ -23,10 +23,10 @@ protected:
 
     TEnqueuedAction CurrentAction_;
 
-    virtual TClosure BeginExecute() override;
-    virtual void EndExecute() override;
+    TClosure BeginExecute() override;
+    void EndExecute() override;
 
-    virtual void OnStart() override;
+    void OnStart() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareQueueSchedulerThread)

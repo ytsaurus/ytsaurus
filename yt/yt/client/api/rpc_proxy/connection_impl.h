@@ -32,20 +32,20 @@ public:
     const TConnectionConfigPtr& GetConfig();
 
     // IConnection implementation
-    virtual NObjectClient::TCellTag GetCellTag() override;
-    virtual const TString& GetLoggingTag() override;
-    virtual const TString& GetClusterId() override;
+    NObjectClient::TCellTag GetCellTag() override;
+    const TString& GetLoggingTag() override;
+    const TString& GetClusterId() override;
 
-    virtual IInvokerPtr GetInvoker() override;
+    IInvokerPtr GetInvoker() override;
 
-    virtual NApi::IClientPtr CreateClient(const NApi::TClientOptions& options) override;
-    virtual NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
+    NApi::IClientPtr CreateClient(const NApi::TClientOptions& options) override;
+    NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
         NHiveClient::TCellId cellId,
         const NApi::TTransactionParticipantOptions& options) override;
 
-    virtual void ClearMetadataCaches() override;
+    void ClearMetadataCaches() override;
 
-    virtual void Terminate() override;
+    void Terminate() override;
 
 private:
     friend class TClient;

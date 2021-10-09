@@ -147,20 +147,20 @@ public:
     TTableNode* GetTrunkNode();
     const TTableNode* GetTrunkNode() const;
 
-    virtual void EndUpload(const TEndUploadContext& context) override;
+    void EndUpload(const TEndUploadContext& context) override;
 
-    virtual NSecurityServer::TClusterResources GetDeltaResourceUsage() const override;
-    virtual NSecurityServer::TClusterResources GetTotalResourceUsage() const override;
+    NSecurityServer::TClusterResources GetDeltaResourceUsage() const override;
+    NSecurityServer::TClusterResources GetTotalResourceUsage() const override;
 
-    virtual NSecurityServer::TDetailedMasterMemory GetDetailedMasterMemoryUsage() const override;
+    NSecurityServer::TDetailedMasterMemory GetDetailedMasterMemoryUsage() const override;
 
-    virtual NTabletServer::TTabletResources GetTabletResourceUsage() const override;
+    NTabletServer::TTabletResources GetTabletResourceUsage() const override;
     void RecomputeTabletMasterMemoryUsage();
 
-    virtual bool IsSorted() const override;
+    bool IsSorted() const override;
 
-    virtual void Save(NCellMaster::TSaveContext& context) const override;
-    virtual void Load(NCellMaster::TLoadContext& context) override;
+    void Save(NCellMaster::TSaveContext& context) const override;
+    void Load(NCellMaster::TLoadContext& context) override;
 
     void SaveTableSchema(NCellMaster::TSaveContext& context) const;
     void LoadTableSchema(NCellMaster::TLoadContext& context);

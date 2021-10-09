@@ -28,7 +28,7 @@ public:
 
     void Configure(const TDispatcherConfigPtr& config);
 
-    virtual void Shutdown() override;
+    void Shutdown() override;
 
     NYT::NBus::TTosLevel GetTosLevelForBand(EMultiplexingBand band, TNetworkId networkId);
 

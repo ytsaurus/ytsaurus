@@ -63,7 +63,7 @@ struct IJobSizeConstraints
     virtual void UpdateInputDataWeight(i64 inputDataWeight) = 0;
     virtual void UpdatePrimaryInputDataWeight(i64 primaryInputDataWeight) = 0;
 
-    virtual void Persist(const TPersistenceContext& context) = 0;
+    void Persist(const TPersistenceContext& context) override = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobSizeConstraints)

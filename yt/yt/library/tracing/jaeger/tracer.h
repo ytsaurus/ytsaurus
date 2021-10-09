@@ -95,9 +95,9 @@ public:
 
     void Configure(const TJaegerTracerConfigPtr& config);
 
-    virtual void Stop() override;
+    void Stop() override;
 
-    virtual void Enqueue(TTraceContextPtr trace) override;
+    void Enqueue(TTraceContextPtr trace) override;
 
 private:
     const NConcurrency::TActionQueuePtr ActionQueue_;

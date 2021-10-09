@@ -41,10 +41,10 @@ public:
         const NApi::TMasterReadOptions& options = NApi::TMasterReadOptions{});
 
 protected:
-    virtual TFuture<NYTree::IAttributeDictionaryPtr> DoGet(
+    TFuture<NYTree::IAttributeDictionaryPtr> DoGet(
         const NYPath::TYPath& path,
         bool isPeriodicUpdate) noexcept override;
-    virtual TFuture<std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>>> DoGetMany(
+    TFuture<std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>>> DoGetMany(
         const std::vector<NYPath::TYPath>& paths,
         bool isPeriodicUpdate) noexcept override;
 

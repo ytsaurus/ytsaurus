@@ -360,7 +360,7 @@ public:
     const NConcurrency::IThroughputThrottlerPtr& GetInThrottler(const TWorkloadDescriptor& descriptor) const;
 
     //! Removes a chunk permanently or moves it to the trash.
-    virtual void RemoveChunkFiles(TChunkId chunkId, bool force) override;
+    void RemoveChunkFiles(TChunkId chunkId, bool force) override;
 
 private:
     const TStoreLocationConfigPtr Config_;
@@ -398,17 +398,17 @@ private:
     void RemoveTrashFiles(const TTrashChunkEntry& entry);
     void MoveChunkFilesToTrash(TChunkId chunkId);
 
-    virtual i64 GetAdditionalSpace() const override;
+    i64 GetAdditionalSpace() const override;
 
     std::optional<TChunkDescriptor> RepairBlobChunk(TChunkId chunkId);
     std::optional<TChunkDescriptor> RepairJournalChunk(TChunkId chunkId);
-    virtual std::optional<TChunkDescriptor> RepairChunk(TChunkId chunkId) override;
+    std::optional<TChunkDescriptor> RepairChunk(TChunkId chunkId) override;
 
-    virtual std::vector<TString> GetChunkPartNames(TChunkId chunkId) const override;
-    virtual bool ShouldSkipFileName(const TString& fileName) const override;
+    std::vector<TString> GetChunkPartNames(TChunkId chunkId) const override;
+    bool ShouldSkipFileName(const TString& fileName) const override;
 
-    virtual void DoStart() override;
-    virtual std::vector<TChunkDescriptor> DoScan() override;
+    void DoStart() override;
+    std::vector<TChunkDescriptor> DoScan() override;
 
 };
 
@@ -433,9 +433,9 @@ private:
     const NConcurrency::IThroughputThrottlerPtr InThrottler_;
 
     std::optional<TChunkDescriptor> Repair(TChunkId chunkId, const TString& metaSuffix);
-    virtual std::optional<TChunkDescriptor> RepairChunk(TChunkId chunkId) override;
+    std::optional<TChunkDescriptor> RepairChunk(TChunkId chunkId) override;
 
-    virtual std::vector<TString> GetChunkPartNames(TChunkId chunkId) const override;
+    std::vector<TString> GetChunkPartNames(TChunkId chunkId) const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCacheLocation)

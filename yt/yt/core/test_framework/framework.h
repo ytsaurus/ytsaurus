@@ -77,12 +77,12 @@ public:
         , Description_(description)
     { }
 
-    virtual bool MatchAndExplain(T value, ::testing::MatchResultListener* /*listener*/) const override
+    bool MatchAndExplain(T value, ::testing::MatchResultListener* /*listener*/) const override
     {
         return Predicate_(value);
     }
 
-    virtual void DescribeTo(std::ostream* os) const override
+    void DescribeTo(std::ostream* os) const override
     {
         *os << Description_;
     }

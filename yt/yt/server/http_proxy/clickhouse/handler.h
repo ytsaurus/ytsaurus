@@ -26,7 +26,7 @@ class TClickHouseHandler
 public:
     explicit TClickHouseHandler(TBootstrap* bootstrap);
 
-    virtual void HandleRequest(
+    void HandleRequest(
         const NHttp::IRequestPtr& req,
         const NHttp::IResponseWriterPtr& rsp) override;
 

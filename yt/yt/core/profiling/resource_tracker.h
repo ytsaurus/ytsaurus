@@ -34,7 +34,7 @@ public:
     double GetSystemCpu();
     double GetCpuWait();
 
-    virtual void CollectSensors(ISensorWriter* writer) override;
+    void CollectSensors(ISensorWriter* writer) override;
 
     void Configure(const TProfileManagerConfigPtr& config);
     void Reconfigure(const TProfileManagerConfigPtr& config, const TProfileManagerDynamicConfigPtr& dynamicConfig);

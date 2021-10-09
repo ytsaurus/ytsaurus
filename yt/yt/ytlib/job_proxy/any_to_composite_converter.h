@@ -19,11 +19,11 @@ public:
         std::vector<NTableClient::TTableSchemaPtr>& schemas,
         const NTableClient::TNameTablePtr& nameTable);
 
-    virtual TFuture<void> GetReadyEvent() override;
-    virtual bool Write(TRange<NTableClient::TUnversionedRow> rows) override;
-    virtual TBlob GetContext() const override;
-    virtual i64 GetWrittenSize() const override;
-    virtual TFuture<void> Close() override;
+    TFuture<void> GetReadyEvent() override;
+    bool Write(TRange<NTableClient::TUnversionedRow> rows) override;
+    TBlob GetContext() const override;
+    i64 GetWrittenSize() const override;
+    TFuture<void> Close() override;
 
 private:
     NFormats::ISchemalessFormatWriterPtr UnderlyingWriter_;

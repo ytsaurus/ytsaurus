@@ -21,279 +21,279 @@ public:
         TConnectionPtr connection,
         const TClientOptions& options);
 
-    virtual void Terminate() override;
-    virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() override;
-    virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override;
+    void Terminate() override;
+    const NTabletClient::ITableMountCachePtr& GetTableMountCache() override;
+    const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override;
 
     // Transactions
-    virtual NApi::ITransactionPtr AttachTransaction(
+    NApi::ITransactionPtr AttachTransaction(
         NTransactionClient::TTransactionId transactionId,
         const NApi::TTransactionAttachOptions& options) override;
 
     // Tables
-    virtual TFuture<void> MountTable(
+    TFuture<void> MountTable(
         const NYPath::TYPath& path,
         const NApi::TMountTableOptions& options) override;
 
-    virtual TFuture<void> UnmountTable(
+    TFuture<void> UnmountTable(
         const NYPath::TYPath& path,
         const NApi::TUnmountTableOptions& options) override;
 
-    virtual TFuture<void> RemountTable(
+    TFuture<void> RemountTable(
         const NYPath::TYPath& path,
         const NApi::TRemountTableOptions& options) override;
 
-    virtual TFuture<void> FreezeTable(
+    TFuture<void> FreezeTable(
         const NYPath::TYPath& path,
         const NApi::TFreezeTableOptions& options) override;
 
-    virtual TFuture<void> UnfreezeTable(
+    TFuture<void> UnfreezeTable(
         const NYPath::TYPath& path,
         const NApi::TUnfreezeTableOptions& options) override;
 
-    virtual TFuture<void> ReshardTable(
+    TFuture<void> ReshardTable(
         const NYPath::TYPath& path,
         const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
         const NApi::TReshardTableOptions& options) override;
 
-    virtual TFuture<void> ReshardTable(
+    TFuture<void> ReshardTable(
         const NYPath::TYPath& path,
         int tabletCount,
         const NApi::TReshardTableOptions& options) override;
 
-    virtual TFuture<std::vector<NTabletClient::TTabletActionId>> ReshardTableAutomatic(
+    TFuture<std::vector<NTabletClient::TTabletActionId>> ReshardTableAutomatic(
         const NYPath::TYPath& path,
         const NApi::TReshardTableAutomaticOptions& options) override;
 
-    virtual TFuture<void> TrimTable(
+    TFuture<void> TrimTable(
         const NYPath::TYPath& path,
         int tabletIndex,
         i64 trimmedRowCount,
         const NApi::TTrimTableOptions& options) override;
 
-    virtual TFuture<void> AlterTable(
+    TFuture<void> AlterTable(
         const NYPath::TYPath& path,
         const NApi::TAlterTableOptions& options) override;
 
-    virtual TFuture<void> AlterTableReplica(
+    TFuture<void> AlterTableReplica(
         NTabletClient::TTableReplicaId replicaId,
         const NApi::TAlterTableReplicaOptions& options) override;
 
-    virtual TFuture<NYson::TYsonString> GetTablePivotKeys(
+    TFuture<NYson::TYsonString> GetTablePivotKeys(
         const NYPath::TYPath& path,
         const TGetTablePivotKeysOptions& options) override;
 
-    virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
+    TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
         const NYPath::TYPath& path,
         const NTableClient::TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const NApi::TGetInSyncReplicasOptions& options) override;
 
-    virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
+    TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
         const NYPath::TYPath& path,
         const NApi::TGetInSyncReplicasOptions& options) override;
 
-    virtual TFuture<std::vector<NApi::TTabletInfo>> GetTabletInfos(
+    TFuture<std::vector<NApi::TTabletInfo>> GetTabletInfos(
         const NYPath::TYPath& path,
         const std::vector<int>& tabletIndexes,
         const NApi::TGetTabletsInfoOptions& options) override;
 
-    virtual TFuture<std::vector<NTabletClient::TTabletActionId>> BalanceTabletCells(
+    TFuture<std::vector<NTabletClient::TTabletActionId>> BalanceTabletCells(
         const TString& tabletCellBundle,
         const std::vector<NYPath::TYPath>& movableTables,
         const NApi::TBalanceTabletCellsOptions& options) override;
 
-    virtual TFuture<NChaosClient::TReplicationCardToken> CreateReplicationCard(
+    TFuture<NChaosClient::TReplicationCardToken> CreateReplicationCard(
         const NChaosClient::TReplicationCardToken& replicationCardToken,
         const TCreateReplicationCardOptions& options = {}) override;
 
-    virtual TFuture<NChaosClient::TReplicationCardPtr> GetReplicationCard(
+    TFuture<NChaosClient::TReplicationCardPtr> GetReplicationCard(
         const NChaosClient::TReplicationCardToken& replicationCardToken,
         const TGetReplicationCardOptions& options = {}) override;
 
-    virtual TFuture<NChaosClient::TReplicaId> CreateReplicationCardReplica(
+    TFuture<NChaosClient::TReplicaId> CreateReplicationCardReplica(
         const NChaosClient::TReplicationCardToken& replicationCardToken,
         const NChaosClient::TReplicaInfo& replica,
         const TCreateReplicationCardReplicaOptions& options = {}) override;
 
-    virtual TFuture<void> RemoveReplicationCardReplica(
+    TFuture<void> RemoveReplicationCardReplica(
         const NChaosClient::TReplicationCardToken& replicationCardToken,
         NChaosClient::TReplicaId replicaId,
         const TRemoveReplicationCardReplicaOptions& options = {}) override;
 
-    virtual TFuture<void> AlterReplicationCardReplica(
+    TFuture<void> AlterReplicationCardReplica(
         const NChaosClient::TReplicationCardToken& replicationCardToken,
         NChaosClient::TReplicaId replicaId,
         const TAlterReplicationCardReplicaOptions& options = {}) override;
 
-    virtual TFuture<void> UpdateReplicationProgress(
+    TFuture<void> UpdateReplicationProgress(
         const NChaosClient::TReplicationCardToken& replicationCardToken,
         NChaosClient::TReplicaId replicaId,
         const TUpdateReplicationProgressOptions& options = {}) override;
 
     // Files
-    virtual TFuture<NApi::TGetFileFromCacheResult> GetFileFromCache(
+    TFuture<NApi::TGetFileFromCacheResult> GetFileFromCache(
         const TString& md5,
         const NApi::TGetFileFromCacheOptions& options) override;
 
-    virtual TFuture<NApi::TPutFileToCacheResult> PutFileToCache(
+    TFuture<NApi::TPutFileToCacheResult> PutFileToCache(
         const NYPath::TYPath& path,
         const TString& expectedMD5,
         const NApi::TPutFileToCacheOptions& options) override;
 
     // Security
-    virtual TFuture<void> AddMember(
+    TFuture<void> AddMember(
         const TString& group,
         const TString& member,
         const NApi::TAddMemberOptions& options) override;
 
-    virtual TFuture<void> RemoveMember(
+    TFuture<void> RemoveMember(
         const TString& group,
         const TString& member,
         const NApi::TRemoveMemberOptions& options) override;
 
-    virtual TFuture<TCheckPermissionResponse> CheckPermission(
+    TFuture<TCheckPermissionResponse> CheckPermission(
         const TString& user,
         const NYPath::TYPath& path,
         NYTree::EPermission permission,
         const NApi::TCheckPermissionOptions& options) override;
 
-    virtual TFuture<TCheckPermissionByAclResult> CheckPermissionByAcl(
+    TFuture<TCheckPermissionByAclResult> CheckPermissionByAcl(
         const std::optional<TString>& user,
         NYTree::EPermission permission,
         NYTree::INodePtr acl,
         const NApi::TCheckPermissionByAclOptions& options) override;
 
-    virtual TFuture<void> TransferAccountResources(
+    TFuture<void> TransferAccountResources(
         const TString& srcAccount,
         const TString& dstAccount,
         NYTree::INodePtr resourceDelta,
         const TTransferAccountResourcesOptions& options) override;
 
     // Scheduler
-    virtual TFuture<NScheduler::TOperationId> StartOperation(
+    TFuture<NScheduler::TOperationId> StartOperation(
         NScheduler::EOperationType type,
         const NYson::TYsonString& spec,
         const NApi::TStartOperationOptions& options) override;
 
-    virtual TFuture<void> AbortOperation(
+    TFuture<void> AbortOperation(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const NApi::TAbortOperationOptions& options) override;
 
-    virtual TFuture<void> SuspendOperation(
+    TFuture<void> SuspendOperation(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const NApi::TSuspendOperationOptions& options) override;
 
-    virtual TFuture<void> ResumeOperation(
+    TFuture<void> ResumeOperation(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const NApi::TResumeOperationOptions& options) override;
 
-    virtual TFuture<void> CompleteOperation(
+    TFuture<void> CompleteOperation(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const NApi::TCompleteOperationOptions& options) override;
 
-    virtual TFuture<void> UpdateOperationParameters(
+    TFuture<void> UpdateOperationParameters(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const NYson::TYsonString& parameters,
         const NApi::TUpdateOperationParametersOptions& options) override;
 
-    virtual TFuture<TOperation> GetOperation(
+    TFuture<TOperation> GetOperation(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const NApi::TGetOperationOptions& options) override;
 
-    virtual TFuture<void> DumpJobContext(
+    TFuture<void> DumpJobContext(
         NJobTrackerClient::TJobId jobId,
         const NYPath::TYPath& path,
         const NApi::TDumpJobContextOptions& options) override;
 
-    virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> GetJobInput(
+    TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> GetJobInput(
         NJobTrackerClient::TJobId jobId,
         const NApi::TGetJobInputOptions& options) override;
 
-    virtual TFuture<NYson::TYsonString> GetJobInputPaths(
+    TFuture<NYson::TYsonString> GetJobInputPaths(
         NJobTrackerClient::TJobId jobId,
         const NApi::TGetJobInputPathsOptions& options) override;
 
-    virtual TFuture<NYson::TYsonString> GetJobSpec(
+    TFuture<NYson::TYsonString> GetJobSpec(
         NJobTrackerClient::TJobId jobId,
         const NApi::TGetJobSpecOptions& options) override;
 
-    virtual TFuture<TSharedRef> GetJobStderr(
+    TFuture<TSharedRef> GetJobStderr(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NJobTrackerClient::TJobId jobId,
         const NApi::TGetJobStderrOptions& options) override;
 
-    virtual TFuture<TSharedRef> GetJobFailContext(
+    TFuture<TSharedRef> GetJobFailContext(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NJobTrackerClient::TJobId jobId,
         const NApi::TGetJobFailContextOptions& options) override;
 
-    virtual TFuture<NApi::TListOperationsResult> ListOperations(
+    TFuture<NApi::TListOperationsResult> ListOperations(
         const NApi::TListOperationsOptions& options) override;
 
-    virtual TFuture<NApi::TListJobsResult> ListJobs(
+    TFuture<NApi::TListJobsResult> ListJobs(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const NApi::TListJobsOptions&) override;
 
-    virtual TFuture<NYson::TYsonString> GetJob(
+    TFuture<NYson::TYsonString> GetJob(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NJobTrackerClient::TJobId jobId,
         const NApi::TGetJobOptions& options) override;
 
-    virtual TFuture<void> AbandonJob(
+    TFuture<void> AbandonJob(
         NJobTrackerClient::TJobId job_id,
         const NApi::TAbandonJobOptions& options) override;
 
-    virtual TFuture<NYson::TYsonString> PollJobShell(
+    TFuture<NYson::TYsonString> PollJobShell(
         NJobTrackerClient::TJobId jobId,
         const std::optional<TString>& shellName,
         const NYson::TYsonString& parameters,
         const NApi::TPollJobShellOptions& options) override;
 
-    virtual TFuture<void> AbortJob(
+    TFuture<void> AbortJob(
         NJobTrackerClient::TJobId jobId,
         const NApi::TAbortJobOptions& options) override;
 
     // Metadata
-    virtual TFuture<NApi::TClusterMeta> GetClusterMeta(
+    TFuture<NApi::TClusterMeta> GetClusterMeta(
         const NApi::TGetClusterMetaOptions&) override;
 
-    virtual TFuture<void> CheckClusterLiveness(
+    TFuture<void> CheckClusterLiveness(
         const TCheckClusterLivenessOptions&) override;
 
-    virtual TFuture<NApi::TSkynetSharePartsLocationsPtr> LocateSkynetShare(
+    TFuture<NApi::TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath&,
         const NApi::TLocateSkynetShareOptions&) override;
 
-    virtual TFuture<std::vector<NTableClient::TColumnarStatistics>> GetColumnarStatistics(
+    TFuture<std::vector<NTableClient::TColumnarStatistics>> GetColumnarStatistics(
         const std::vector<NYPath::TRichYPath>& path,
         const NApi::TGetColumnarStatisticsOptions& options) override;
 
-    virtual TFuture<void> TruncateJournal(
+    TFuture<void> TruncateJournal(
         const NYPath::TYPath& path,
         i64 rowCount,
         const NApi::TTruncateJournalOptions& options) override;
 
     // Administration
-    virtual TFuture<int> BuildSnapshot(
+    TFuture<int> BuildSnapshot(
         const NApi::TBuildSnapshotOptions& options) override;
 
-    virtual TFuture<TCellIdToSnapshotIdMap> BuildMasterSnapshots(
+    TFuture<TCellIdToSnapshotIdMap> BuildMasterSnapshots(
         const TBuildMasterSnapshotsOptions& options) override;
 
-    virtual TFuture<void> SwitchLeader(
+    TFuture<void> SwitchLeader(
         NHydra::TCellId cellId,
         const TString& newLeaderAddress,
         const TSwitchLeaderOptions& options) override;
 
-    virtual TFuture<void> GCCollect(
+    TFuture<void> GCCollect(
         const NApi::TGCCollectOptions& options) override;
 
-    virtual TFuture<void> KillProcess(
+    TFuture<void> KillProcess(
         const TString& address,
         const NApi::TKillProcessOptions& options) override;
 
-    virtual TFuture<TString> WriteCoreDump(
+    TFuture<TString> WriteCoreDump(
         const TString& address,
         const NApi::TWriteCoreDumpOptions& options) override;
 
@@ -301,11 +301,11 @@ public:
         const TString& address,
         const TWriteLogBarrierOptions& options) override;
 
-    virtual TFuture<TString> WriteOperationControllerCoreDump(
+    TFuture<TString> WriteOperationControllerCoreDump(
         NJobTrackerClient::TOperationId operationId,
         const NApi::TWriteOperationControllerCoreDumpOptions& options) override;
 
-    virtual TFuture<void> RepairExecNode(
+    TFuture<void> RepairExecNode(
         const TString& address,
         const TRepairExecNodeOptions& options) override;
 
@@ -322,11 +322,11 @@ private:
 
     NRpc::IChannelPtr MaybeCreateRetryingChannel(NRpc::IChannelPtr channel, bool retryProxyBanned);
 
-    virtual TConnectionPtr GetRpcProxyConnection() override;
-    virtual TClientPtr GetRpcProxyClient() override;
-    virtual NRpc::IChannelPtr GetChannel() override;
-    virtual NRpc::IChannelPtr GetStickyChannel() override;
-    virtual NRpc::IChannelPtr WrapStickyChannel(NRpc::IChannelPtr) override;
+    TConnectionPtr GetRpcProxyConnection() override;
+    TClientPtr GetRpcProxyClient() override;
+    NRpc::IChannelPtr GetChannel() override;
+    NRpc::IChannelPtr GetStickyChannel() override;
+    NRpc::IChannelPtr WrapStickyChannel(NRpc::IChannelPtr) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)

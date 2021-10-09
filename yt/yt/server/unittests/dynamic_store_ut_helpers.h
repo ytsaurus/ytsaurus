@@ -62,38 +62,38 @@ class TDynamicStoreTestBase
 {
 protected:
     // ITabletContext implementation.
-    virtual TCellId GetCellId() override
+    TCellId GetCellId() override
     {
         return NullCellId;
     }
 
-    virtual const TString& GetTabletCellBundleName() override
+    const TString& GetTabletCellBundleName() override
     {
         const static TString TabletCellBundleName;
         return TabletCellBundleName;
     }
 
-    virtual EPeerState GetAutomatonState() override
+    EPeerState GetAutomatonState() override
     {
         return EPeerState::Leading;
     }
 
-    virtual IColumnEvaluatorCachePtr GetColumnEvaluatorCache() override
+    IColumnEvaluatorCachePtr GetColumnEvaluatorCache() override
     {
         return ColumnEvaluatorCache_;
     }
 
-    virtual NTabletNode::IRowComparerProviderPtr GetRowComparerProvider() override
+    NTabletNode::IRowComparerProviderPtr GetRowComparerProvider() override
     {
         return RowComparerProvider_;
     }
 
-    virtual TObjectId GenerateId(EObjectType /*type*/) override
+    TObjectId GenerateId(EObjectType /*type*/) override
     {
         return TObjectId::Create();
     }
 
-    virtual IStorePtr CreateStore(
+    IStorePtr CreateStore(
         TTablet* tablet,
         EStoreType type,
         TStoreId storeId,
@@ -115,7 +115,7 @@ protected:
         }
     }
 
-    virtual THunkChunkPtr CreateHunkChunk(
+    THunkChunkPtr CreateHunkChunk(
         TTablet* /*tablet*/,
         TChunkId /*chunkId*/,
         const NTabletNode::NProto::TAddHunkChunkDescriptor* /*descriptor*/) override
@@ -123,22 +123,22 @@ protected:
         YT_ABORT();
     }
 
-    virtual TTransactionManagerPtr GetTransactionManager() override
+    TTransactionManagerPtr GetTransactionManager() override
     {
         return nullptr;
     }
 
-    virtual NRpc::IServerPtr GetLocalRpcServer() override
+    NRpc::IServerPtr GetLocalRpcServer() override
     {
         return nullptr;
     }
 
-    virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() override
+    NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() override
     {
         return NNodeTrackerClient::NullNodeDescriptor();
     }
 
-    virtual NClusterNode::TNodeMemoryTrackerPtr GetMemoryUsageTracker() override
+    NClusterNode::TNodeMemoryTrackerPtr GetMemoryUsageTracker() override
     {
         return nullptr;
     }
@@ -149,7 +149,7 @@ protected:
     }
 
 
-    virtual void SetUp() override
+    void SetUp() override
     {
         auto schema = GetSchema();
 
@@ -406,7 +406,7 @@ class TStoreManagerTestBase
 protected:
     virtual IStoreManagerPtr GetStoreManager() = 0;
 
-    virtual void SetupTablet() override
+    void SetupTablet() override
     {
         auto storeManager = GetStoreManager();
         storeManager->StartEpoch(nullptr);

@@ -25,7 +25,7 @@ protected:
     virtual TFuture<void> DoSyncWithUpstream();
 
 private:
-    virtual bool IsUp(const TCtxDiscoverPtr& context) override;
+    bool IsUp(const TCtxDiscoverPtr& context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

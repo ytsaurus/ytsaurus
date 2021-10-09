@@ -26,8 +26,8 @@ private:
     bool Unordered;
     bool StartRowIndexOnly;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
-    virtual bool HasResponseParameters() const override;
+    void DoExecute(ICommandContextPtr context) override;
+    bool HasResponseParameters() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,7 +49,7 @@ private:
     i64 Offset;
     i64 PartSize;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,7 +63,7 @@ public:
 private:
     NYPath::TRichYPath Path;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,7 +79,7 @@ private:
     NYTree::INodePtr TableWriter;
     i64 MaxRowBufferSize;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,7 +95,7 @@ private:
     NTableClient::EColumnarStatisticsFetcherMode FetcherMode;
     std::optional<int> MaxChunksPerNodeFetch;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -126,7 +126,7 @@ public:
     TMountTableCommand();
 
 private:
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,7 +138,7 @@ public:
     TUnmountTableCommand();
 
 private:
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,7 +147,7 @@ class TRemountTableCommand
     : public TTabletCommandBase<NApi::TRemountTableOptions>
 {
 public:
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -156,7 +156,7 @@ class TFreezeTableCommand
     : public TTabletCommandBase<NApi::TFreezeTableOptions>
 {
 private:
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -165,7 +165,7 @@ class TUnfreezeTableCommand
     : public TTabletCommandBase<NApi::TUnfreezeTableOptions>
 {
 public:
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -180,7 +180,7 @@ private:
     std::optional<std::vector<NTableClient::TLegacyOwningKey>> PivotKeys;
     std::optional<int> TabletCount;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -192,7 +192,7 @@ public:
     TReshardTableAutomaticCommand();
 
 private:
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -206,7 +206,7 @@ public:
 private:
     NYPath::TRichYPath Path;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -226,8 +226,8 @@ private:
     TString Query;
     bool EnableStatistics = false;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
-    virtual bool HasResponseParameters() const override;
+    void DoExecute(ICommandContextPtr context) override;
+    bool HasResponseParameters() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -246,7 +246,7 @@ public:
 private:
     TString Query;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -263,7 +263,7 @@ private:
     bool Update;
     bool Aggregate;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -286,7 +286,7 @@ private:
     bool Versioned;
     NTableClient::TRetentionConfigPtr RetentionConfig;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -301,7 +301,7 @@ private:
     NYPath::TRichYPath Path;
     bool AllKeys;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -316,7 +316,7 @@ private:
     NYTree::INodePtr TableWriter;
     NYPath::TRichYPath Path;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -333,7 +333,7 @@ private:
     std::vector<TString> Locks;
     NTableClient::ELockType LockType;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -349,7 +349,7 @@ private:
     int TabletIndex;
     i64 TrimmedRowCount;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -363,7 +363,7 @@ public:
 private:
     NTabletClient::TTableReplicaId ReplicaId;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -377,7 +377,7 @@ public:
 private:
     NTabletClient::TTableReplicaId ReplicaId;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -391,7 +391,7 @@ public:
 private:
     NTabletClient::TTableReplicaId ReplicaId;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -406,7 +406,7 @@ private:
     NYPath::TYPath Path;
     std::vector<int> TabletIndexes;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -420,7 +420,7 @@ public:
 private:
     NYPath::TYPath Path;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

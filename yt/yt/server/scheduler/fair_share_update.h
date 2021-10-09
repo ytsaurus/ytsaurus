@@ -181,18 +181,18 @@ private:
 
     std::vector<TElement*> SortedChildren_;
 
-    virtual void PrepareFairShareFunctions(TFairShareUpdateContext* context) override;
-    virtual void PrepareFairShareByFitFactor(TFairShareUpdateContext* context) override;
+    void PrepareFairShareFunctions(TFairShareUpdateContext* context) override;
+    void PrepareFairShareByFitFactor(TFairShareUpdateContext* context) override;
     void PrepareFairShareByFitFactorFifo(TFairShareUpdateContext* context);
     void PrepareFairShareByFitFactorNormal(TFairShareUpdateContext* context);
 
-    virtual void AdjustStrongGuarantees(const TFairShareUpdateContext* context) override;
-    virtual void InitIntegralPoolLists(TFairShareUpdateContext* context) override;
-    virtual void DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context) override;
-    virtual void UpdateCumulativeAttributes(TFairShareUpdateContext* context) override;
+    void AdjustStrongGuarantees(const TFairShareUpdateContext* context) override;
+    void InitIntegralPoolLists(TFairShareUpdateContext* context) override;
+    void DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context) override;
+    void UpdateCumulativeAttributes(TFairShareUpdateContext* context) override;
     void UpdateOverflowAndAcceptableVolumesRecursively();
-    virtual void DistributeFreeVolume() override;
-    virtual TResourceVector DoUpdateFairShare(double suggestion, TFairShareUpdateContext* context) override;
+    void DistributeFreeVolume() override;
+    TResourceVector DoUpdateFairShare(double suggestion, TFairShareUpdateContext* context) override;
 
     void PrepareFifoPool();
 
@@ -236,7 +236,7 @@ public:
     virtual EIntegralGuaranteeType GetIntegralGuaranteeType() const = 0;
 
 private:
-    virtual void InitIntegralPoolLists(TFairShareUpdateContext* context) override;
+    void InitIntegralPoolLists(TFairShareUpdateContext* context) override;
 
     void UpdateAccumulatedResourceVolume(TFairShareUpdateContext* context);
 
@@ -252,11 +252,11 @@ class TRootElement
     : public virtual TCompositeElement
 {
 public:
-    virtual bool IsRoot() const override;
+    bool IsRoot() const override;
 
 private:
-    virtual void DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context) override;
-    virtual void UpdateCumulativeAttributes(TFairShareUpdateContext* context) override;
+    void DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context) override;
+    void UpdateCumulativeAttributes(TFairShareUpdateContext* context) override;
 
     void ValidateAndAdjustSpecifiedGuarantees(TFairShareUpdateContext* context);
 
@@ -274,17 +274,17 @@ class TOperationElement
     : public virtual TElement
 {
 public:
-    virtual bool IsOperation() const override;
+    bool IsOperation() const override;
 
     virtual TResourceVector GetBestAllocationShare() const = 0;
 
     virtual bool IsGang() const = 0;
 
 private:
-    virtual void PrepareFairShareByFitFactor(TFairShareUpdateContext* context) override;
+    void PrepareFairShareByFitFactor(TFairShareUpdateContext* context) override;
 
-    virtual TResourceVector DoUpdateFairShare(double suggestion, TFairShareUpdateContext* context) override;
-    virtual TResourceVector ComputeLimitsShare(const TFairShareUpdateContext* context) const override;
+    TResourceVector DoUpdateFairShare(double suggestion, TFairShareUpdateContext* context) override;
+    TResourceVector ComputeLimitsShare(const TFairShareUpdateContext* context) const override;
 
     friend class TFairShareUpdateExecutor;
 };

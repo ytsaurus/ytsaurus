@@ -33,26 +33,26 @@ public:
 protected:
     using TBase = TCypressNodeProxyBase<TChunkOwnerNodeProxy, NYTree::IEntityNode, TTableNode>;
 
-    virtual void GetBasicAttributes(TGetBasicAttributesContext* context) override;
+    void GetBasicAttributes(TGetBasicAttributesContext* context) override;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override;
-    virtual bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
+    bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+    TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override;
+    bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
 
-    virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
-    virtual void ValidateCustomAttributeUpdate(
+    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    void ValidateCustomAttributeUpdate(
         const TString& key,
         const NYson::TYsonString& oldValue,
         const NYson::TYsonString& newValue) override;
-    virtual void ValidateReadLimit(const NChunkClient::NProto::TReadLimit& context) const override;
-    virtual NTableClient::TComparator GetComparator() const override;
+    void ValidateReadLimit(const NChunkClient::NProto::TReadLimit& context) const override;
+    NTableClient::TComparator GetComparator() const override;
 
-    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
-    virtual void ValidateBeginUpload() override;
-    virtual void ValidateStorageParametersUpdate() override;
-    virtual void ValidateLockPossible() override;
+    void ValidateBeginUpload() override;
+    void ValidateStorageParametersUpdate() override;
+    void ValidateLockPossible() override;
 
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, ReshardAutomatic);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
@@ -74,9 +74,9 @@ public:
         TReplicatedTableNode* trunkNode);
 
 protected:
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
-    virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
+    bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
 
 };
 

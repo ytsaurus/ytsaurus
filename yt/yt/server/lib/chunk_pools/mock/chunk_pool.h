@@ -10,7 +10,7 @@ namespace NYT::NChunkPools {
 struct TDummyPersistent
     : public virtual IPersistent
 {
-    virtual void Persist(const TPersistenceContext& /*context*/) override;
+    void Persist(const TPersistenceContext& /*context*/) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

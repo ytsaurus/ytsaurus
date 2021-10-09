@@ -213,7 +213,7 @@ public:
         return JobProxySolomonExporter_;
     }
 
-    virtual const TControllerAgentConnectorPtr& GetControllerAgentConnector() const override
+    const TControllerAgentConnectorPtr& GetControllerAgentConnector() const override
     {
         return ControllerAgentConnectorPtr_;
     }

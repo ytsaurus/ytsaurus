@@ -47,10 +47,10 @@ protected:
      *  This portion does not necessary makes up a block. The writer maintains an internal buffer
      *  and splits the input data into parts of equal size (see #TConfig::BlockSize).
      */
-    virtual void DoWrite(const void* buf, size_t len) override;
+    void DoWrite(const void* buf, size_t len) override;
 
     //! Closes the writer.
-    virtual void DoFinish() override;
+    void DoFinish() override;
 
     NLogging::TLogger Logger;
 

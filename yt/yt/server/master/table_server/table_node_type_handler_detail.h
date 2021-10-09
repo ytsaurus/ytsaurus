@@ -20,40 +20,40 @@ private:
 public:
     using TBase::TBase;
 
-    virtual bool IsSupportedInheritableAttribute(const TString& key) const override;
+    bool IsSupportedInheritableAttribute(const TString& key) const override;
 
-    virtual bool HasBranchedChangesImpl(TImpl* originatingNode, TImpl* branchedNode) override;
+    bool HasBranchedChangesImpl(TImpl* originatingNode, TImpl* branchedNode) override;
 
 protected:
-    virtual std::unique_ptr<TImpl> DoCreate(
+    std::unique_ptr<TImpl> DoCreate(
         NCypressServer::TVersionedNodeId id,
         const NCypressServer::TCreateNodeContext& context) override;
 
-    virtual void DoDestroy(TImpl* table) override;
+    void DoDestroy(TImpl* table) override;
 
-    virtual void DoBranch(
+    void DoBranch(
         const TImpl* originatingNode,
         TImpl* branchedNode,
         const NCypressServer::TLockRequest& lockRequest) override;
-    virtual void DoMerge(
+    void DoMerge(
         TImpl* originatingNode,
         TImpl* branchedNode) override;
 
-    virtual void DoClone(
+    void DoClone(
         TImpl* sourceNode,
         TImpl* clonedTrunkNode,
         NCypressServer::ICypressNodeFactory* factory,
         NCypressServer::ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
-    virtual void DoBeginCopy(
+    void DoBeginCopy(
         TImpl* node,
         NCypressServer::TBeginCopyContext* context) override;
-    virtual void DoEndCopy(
+    void DoEndCopy(
         TImpl* node,
         NCypressServer::TEndCopyContext* context,
         NCypressServer::ICypressNodeFactory* factory) override;
 
-    virtual std::optional<std::vector<TString>> DoListColumns(TImpl* node) const override;
+    std::optional<std::vector<TString>> DoListColumns(TImpl* node) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,10 +67,10 @@ private:
 public:
     using TBase::TBase;
 
-    virtual NObjectClient::EObjectType GetObjectType() const override;
+    NObjectClient::EObjectType GetObjectType() const override;
 
 protected:
-    virtual NCypressServer::ICypressNodeProxyPtr DoGetProxy(
+    NCypressServer::ICypressNodeProxyPtr DoGetProxy(
         TTableNode* trunkNode,
         NTransactionServer::TTransaction* transaction) override;
 };
@@ -86,21 +86,21 @@ private:
 public:
     using TBase::TBase;
 
-    virtual NObjectClient::EObjectType GetObjectType() const override;
+    NObjectClient::EObjectType GetObjectType() const override;
 
-    virtual bool HasBranchedChangesImpl(
+    bool HasBranchedChangesImpl(
         TReplicatedTableNode* originatingNode,
         TReplicatedTableNode* branchedNode) override;
 
 protected:
-    virtual NCypressServer::ICypressNodeProxyPtr DoGetProxy(
+    NCypressServer::ICypressNodeProxyPtr DoGetProxy(
         TReplicatedTableNode* trunkNode,
         NTransactionServer::TTransaction* transaction) override;
 
-    virtual void DoBeginCopy(
+    void DoBeginCopy(
         TReplicatedTableNode* node,
         NCypressServer::TBeginCopyContext* context) override;
-    virtual void DoEndCopy(
+    void DoEndCopy(
         TReplicatedTableNode* node,
         NCypressServer::TEndCopyContext* context,
         NCypressServer::ICypressNodeFactory* factory) override;

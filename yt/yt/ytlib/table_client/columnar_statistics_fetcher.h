@@ -70,11 +70,11 @@ private:
     // a column list to fetch statistics for.
     using TFetcherBase::AddChunk;
 
-    virtual void ProcessDynamicStore(int chunkIndex) override;
+    void ProcessDynamicStore(int chunkIndex) override;
 
-    virtual TFuture<void> FetchFromNode(NNodeTrackerClient::TNodeId nodeId, std::vector<int> chunkIndexes) override;
+    TFuture<void> FetchFromNode(NNodeTrackerClient::TNodeId nodeId, std::vector<int> chunkIndexes) override;
 
-    virtual void OnFetchingStarted() override;
+    void OnFetchingStarted() override;
 
     TFuture<void> DoFetchFromNode(NNodeTrackerClient::TNodeId nodeId, std::vector<int> chunkIndexes);
 

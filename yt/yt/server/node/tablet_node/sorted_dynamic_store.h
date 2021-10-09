@@ -105,21 +105,21 @@ public:
     TTimestamp GetLastReadTimestamp(TSortedDynamicRow row, int lockIndex);
 
     // IStore implementation.
-    virtual EStoreType GetType() const override;
-    virtual i64 GetRowCount() const override;
+    EStoreType GetType() const override;
+    i64 GetRowCount() const override;
 
     // IDynamicStore implementation.
-    virtual i64 GetTimestampCount() const override;
+    i64 GetTimestampCount() const override;
 
     // ISortedStore implementation.
-    virtual TLegacyOwningKey GetMinKey() const override;
-    virtual TLegacyOwningKey GetUpperBoundKey() const override;
-    virtual bool HasNontrivialReadRange() const override;
+    TLegacyOwningKey GetMinKey() const override;
+    TLegacyOwningKey GetUpperBoundKey() const override;
+    bool HasNontrivialReadRange() const override;
 
     i64 GetMaxDataWeight() const;
     TLegacyOwningKey GetMaxDataWeightWitnessKey() const;
 
-    virtual NTableClient::IVersionedReaderPtr CreateReader(
+    NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
         TSharedRange<NTableClient::TRowRange> bounds,
         TTimestamp timestamp,
@@ -128,7 +128,7 @@ public:
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         std::optional<EWorkloadCategory> workloadCategory) override;
 
-    virtual NTableClient::IVersionedReaderPtr CreateReader(
+    NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
         const TSharedRange<TLegacyKey>& keys,
         TTimestamp timestamp,
@@ -137,18 +137,18 @@ public:
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         std::optional<EWorkloadCategory> workloadCategory) override;
 
-    virtual bool CheckRowLocks(
+    bool CheckRowLocks(
         TUnversionedRow row,
         TLockMask lockMask,
         TWriteContext* context) override;
 
-    virtual void Save(TSaveContext& context) const override;
-    virtual void Load(TLoadContext& context) override;
+    void Save(TSaveContext& context) const override;
+    void Load(TLoadContext& context) override;
 
-    virtual TCallback<void(TSaveContext&)> AsyncSave() override;
-    virtual void AsyncLoad(TLoadContext& context) override;
+    TCallback<void(TSaveContext&)> AsyncSave() override;
+    void AsyncLoad(TLoadContext& context) override;
 
-    virtual TSortedDynamicStorePtr AsSortedDynamic() override;
+    TSortedDynamicStorePtr AsSortedDynamic() override;
 
     // Passive dynamic stores loaded from snapshot can be flushed in arbitrary order.
     // Their flush index is null.
@@ -179,7 +179,7 @@ private:
     i64 MaxDataWeight_ = 0;
     TSortedDynamicRow MaxDataWeightWitness_;
 
-    virtual void OnSetPassive() override;
+    void OnSetPassive() override;
 
     TSortedDynamicRow AllocateRow();
 

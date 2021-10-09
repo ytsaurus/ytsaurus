@@ -100,7 +100,7 @@ public:
 
     ~TPartWriter();
 
-    virtual TFuture<void> Consume(const TPartRange& range, const TSharedRef& block) override;
+    TFuture<void> Consume(const TPartRange& range, const TSharedRef& block) override;
 
     TChecksum GetPartChecksum() const;
 
@@ -122,7 +122,7 @@ public:
 
     ~TPartReader();
 
-    virtual TFuture<TSharedRef> Produce(const TPartRange& range) override;
+    TFuture<TSharedRef> Produce(const TPartRange& range) override;
 
 private:
     class TImpl;
@@ -198,12 +198,12 @@ public:
         NErasure::ICodec* codec,
         const std::vector<IChunkReaderAllowingRepairPtr>& readers);
 
-    virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
+    TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientChunkReadOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override;
 
-    virtual TChunkId GetChunkId() const override;
+    TChunkId GetChunkId() const override;
 
 protected:
     TFuture<void> PreparePlacementMeta(const TClientChunkReadOptions& options);

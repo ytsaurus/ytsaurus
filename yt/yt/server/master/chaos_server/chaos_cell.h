@@ -40,13 +40,13 @@ public:
 public:
     using TCellBase::TCellBase;
 
-    virtual void Save(NCellMaster::TSaveContext& context) const override;
-    virtual void Load(NCellMaster::TLoadContext& context) override;
+    void Save(NCellMaster::TSaveContext& context) const override;
+    void Load(NCellMaster::TLoadContext& context) override;
 
-    virtual NHiveClient::TCellDescriptor GetDescriptor() const override;
-    virtual int GetDescriptorConfigVersion() const override;
+    NHiveClient::TCellDescriptor GetDescriptor() const override;
+    int GetDescriptorConfigVersion() const override;
 
-    virtual bool IsAlienPeer(TPeerId peerId) const override;
+    bool IsAlienPeer(TPeerId peerId) const override;
 
     void UpdateAlienPeer(TPeerId peerId, const NNodeTrackerClient::TNodeDescriptor& descriptor);
 

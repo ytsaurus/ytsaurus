@@ -22,7 +22,7 @@ public:
 
     virtual ~TThreadPool();
 
-    virtual void Shutdown() override;
+    void Shutdown() override;
 
     //! Returns current thread count, it can differ from value set by Configure()
     //! because it clamped between 1 and maximum thread count.

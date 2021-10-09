@@ -21,12 +21,12 @@ protected:
 private:
     THashMap<TString, TCallback<IYPathServicePtr()>> Services_;
 
-    virtual void ListSelf(
+    void ListSelf(
         TReqList* /*request*/,
         TRspList* response,
         const TCtxListPtr& context) override;
 
-    virtual TResolveResult ResolveRecursive(
+    TResolveResult ResolveRecursive(
         const TYPath& path,
         const NRpc::IServiceContextPtr& context) override;
 };

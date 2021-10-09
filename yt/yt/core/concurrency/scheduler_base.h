@@ -25,7 +25,7 @@ public:
     ~TSchedulerThreadBase();
 
     void Start();
-    virtual void Shutdown() override;
+    void Shutdown() override;
 
     TThreadId GetId() const;
 

@@ -38,140 +38,140 @@ protected:
     friend class TTransaction;
 
 public:
-    virtual NApi::IConnectionPtr GetConnection() override;
+    NApi::IConnectionPtr GetConnection() override;
 
     // Transactions
-    virtual TFuture<NApi::ITransactionPtr> StartTransaction(
+    TFuture<NApi::ITransactionPtr> StartTransaction(
         NTransactionClient::ETransactionType type,
         const NApi::TTransactionStartOptions& options) override;
 
     // Tables
-    virtual TFuture<NApi::IUnversionedRowsetPtr> LookupRows(
+    TFuture<NApi::IUnversionedRowsetPtr> LookupRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const NApi::TLookupRowsOptions& options) override;
 
-    virtual TFuture<NApi::IVersionedRowsetPtr> VersionedLookupRows(
+    TFuture<NApi::IVersionedRowsetPtr> VersionedLookupRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const NApi::TVersionedLookupRowsOptions& options) override;
 
-    virtual TFuture<std::vector<IUnversionedRowsetPtr>> MultiLookup(
+    TFuture<std::vector<IUnversionedRowsetPtr>> MultiLookup(
         const std::vector<TMultiLookupSubrequest>& subrequests,
         const TMultiLookupOptions& options = {}) override;
 
-    virtual TFuture<NApi::TSelectRowsResult> SelectRows(
+    TFuture<NApi::TSelectRowsResult> SelectRows(
         const TString& query,
         const NApi::TSelectRowsOptions& options) override;
 
-    virtual TFuture<NYson::TYsonString> ExplainQuery(
+    TFuture<NYson::TYsonString> ExplainQuery(
         const TString& query,
         const NApi::TExplainQueryOptions& options) override;
 
     // TODO(babenko): batch read and batch write
 
     // Cypress
-    virtual TFuture<bool> NodeExists(
+    TFuture<bool> NodeExists(
         const NYPath::TYPath& path,
         const NApi::TNodeExistsOptions& options) override;
 
-    virtual TFuture<NYson::TYsonString> GetNode(
+    TFuture<NYson::TYsonString> GetNode(
         const NYPath::TYPath& path,
         const NApi::TGetNodeOptions& options) override;
 
-    virtual TFuture<void> SetNode(
+    TFuture<void> SetNode(
         const NYPath::TYPath& path,
         const NYson::TYsonString& value,
         const NApi::TSetNodeOptions& options) override;
 
-    virtual TFuture<void> MultisetAttributesNode(
+    TFuture<void> MultisetAttributesNode(
         const NYPath::TYPath& path,
         const NYTree::IMapNodePtr& attributes,
         const NApi::TMultisetAttributesNodeOptions& options) override;
 
-    virtual TFuture<void> RemoveNode(
+    TFuture<void> RemoveNode(
         const NYPath::TYPath& path,
         const NApi::TRemoveNodeOptions& options) override;
 
-    virtual TFuture<NYson::TYsonString> ListNode(
+    TFuture<NYson::TYsonString> ListNode(
         const NYPath::TYPath& path,
         const NApi::TListNodeOptions& options) override;
 
-    virtual TFuture<NCypressClient::TNodeId> CreateNode(
+    TFuture<NCypressClient::TNodeId> CreateNode(
         const NYPath::TYPath& path,
         NObjectClient::EObjectType type,
         const NApi::TCreateNodeOptions& options) override;
 
-    virtual TFuture<NApi::TLockNodeResult> LockNode(
+    TFuture<NApi::TLockNodeResult> LockNode(
         const NYPath::TYPath& path,
         NCypressClient::ELockMode mode,
         const NApi::TLockNodeOptions& options) override;
 
-    virtual TFuture<void> UnlockNode(
+    TFuture<void> UnlockNode(
         const NYPath::TYPath& path,
         const NApi::TUnlockNodeOptions& options) override;
 
-    virtual TFuture<NCypressClient::TNodeId> CopyNode(
+    TFuture<NCypressClient::TNodeId> CopyNode(
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
         const NApi::TCopyNodeOptions& options) override;
 
-    virtual TFuture<NCypressClient::TNodeId> MoveNode(
+    TFuture<NCypressClient::TNodeId> MoveNode(
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
         const NApi::TMoveNodeOptions& options) override;
 
-    virtual TFuture<NCypressClient::TNodeId> LinkNode(
+    TFuture<NCypressClient::TNodeId> LinkNode(
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
         const NApi::TLinkNodeOptions& options) override;
 
-    virtual TFuture<void> ConcatenateNodes(
+    TFuture<void> ConcatenateNodes(
         const std::vector<NYPath::TRichYPath>& srcPaths,
         const NYPath::TRichYPath& dstPath,
         const NApi::TConcatenateNodesOptions& options) override;
 
-    virtual TFuture<void> ExternalizeNode(
+    TFuture<void> ExternalizeNode(
         const NYPath::TYPath& path,
         NObjectClient::TCellTag cellTag,
         const TExternalizeNodeOptions& options = {}) override;
 
-    virtual TFuture<void> InternalizeNode(
+    TFuture<void> InternalizeNode(
         const NYPath::TYPath& path,
         const TInternalizeNodeOptions& options = {}) override;
 
     // Objects
-    virtual TFuture<NObjectClient::TObjectId> CreateObject(
+    TFuture<NObjectClient::TObjectId> CreateObject(
         NObjectClient::EObjectType type,
         const NApi::TCreateObjectOptions& options) override;
 
     //! NB: Readers and writers returned by methods below are NOT thread-safe.
     // Files
-    virtual TFuture<NApi::IFileReaderPtr> CreateFileReader(
+    TFuture<NApi::IFileReaderPtr> CreateFileReader(
         const NYPath::TYPath& path,
         const NApi::TFileReaderOptions& options) override;
 
-    virtual NApi::IFileWriterPtr CreateFileWriter(
+    NApi::IFileWriterPtr CreateFileWriter(
         const NYPath::TRichYPath& path,
         const NApi::TFileWriterOptions& options) override;
 
     // Journals
-    virtual NApi::IJournalReaderPtr CreateJournalReader(
+    NApi::IJournalReaderPtr CreateJournalReader(
         const NYPath::TYPath& path,
         const NApi::TJournalReaderOptions& options) override;
 
-    virtual NApi::IJournalWriterPtr CreateJournalWriter(
+    NApi::IJournalWriterPtr CreateJournalWriter(
         const NYPath::TYPath& path,
         const NApi::TJournalWriterOptions& options) override;
 
     // Tables
-    virtual TFuture<NApi::ITableReaderPtr> CreateTableReader(
+    TFuture<NApi::ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
         const NApi::TTableReaderOptions& options) override;
 
-    virtual TFuture<NApi::ITableWriterPtr> CreateTableWriter(
+    TFuture<NApi::ITableWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath& path,
         const NApi::TTableWriterOptions& options) override;
 };

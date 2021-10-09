@@ -18,9 +18,9 @@ public:
     TFormatsConsumerBase();
 
     // This method has standard implementation for YAMR, DSV and YAMRED DSV formats.
-    virtual void OnRaw(TStringBuf yson, NYson::EYsonType type) override;
+    void OnRaw(TStringBuf yson, NYson::EYsonType type) override;
 
-    virtual void Flush() override;
+    void Flush() override;
 
 private:
     NYson::TStatelessYsonParser Parser;

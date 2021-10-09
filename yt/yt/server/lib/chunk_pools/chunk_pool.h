@@ -65,20 +65,20 @@ class TChunkPoolInputBase
 {
 public:
     // IChunkPoolInput implementation.
-    virtual void Finish() override;
+    void Finish() override;
 
-    virtual bool IsFinished() const override;
+    bool IsFinished() const override;
 
     //! This implementation checks that key is not set (that is true for all standard
     //! chunk pools) and that `stripe` contains data slices, after that it
     //! forwards the call to the internal `Add` method.
-    virtual TCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key) override;
+    TCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key) override;
 
     //! This implementation is not ready to go that far.
-    virtual void Reset(TCookie cookie, TChunkStripePtr stripe, TInputChunkMappingPtr mapping) override;
+    void Reset(TCookie cookie, TChunkStripePtr stripe, TInputChunkMappingPtr mapping) override;
 
     // IPersistent implementation.
-    virtual void Persist(const TPersistenceContext& context) override;
+    void Persist(const TPersistenceContext& context) override;
 
 protected:
     bool Finished = false;
@@ -173,9 +173,9 @@ class TChunkPoolOutputBase
     : public virtual IChunkPoolOutput
 {
 public:
-    virtual TOutputOrderPtr GetOutputOrder() const override;
+    TOutputOrderPtr GetOutputOrder() const override;
 
-    virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const override;
+    i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -186,12 +186,12 @@ class TChunkPoolOutputWithCountersBase
 public:
     TChunkPoolOutputWithCountersBase();
 
-    virtual void Persist(const TPersistenceContext& context) override;
+    void Persist(const TPersistenceContext& context) override;
 
-    virtual const NControllerAgent::TProgressCounterPtr& GetJobCounter() const override;
-    virtual const NControllerAgent::TProgressCounterPtr& GetDataWeightCounter() const override;
-    virtual const NControllerAgent::TProgressCounterPtr& GetRowCounter() const override;
-    virtual const NControllerAgent::TProgressCounterPtr& GetDataSliceCounter() const override;
+    const NControllerAgent::TProgressCounterPtr& GetJobCounter() const override;
+    const NControllerAgent::TProgressCounterPtr& GetDataWeightCounter() const override;
+    const NControllerAgent::TProgressCounterPtr& GetRowCounter() const override;
+    const NControllerAgent::TProgressCounterPtr& GetDataSliceCounter() const override;
 
 protected:
     NControllerAgent::TProgressCounterPtr DataWeightCounter;
@@ -213,20 +213,20 @@ public:
 
     TChunkPoolOutputWithJobManagerBase(const NLogging::TLogger& logger);
 
-    virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override;
-    virtual IChunkPoolOutput::TCookie Extract(NNodeTrackerClient::TNodeId nodeId) override;
-    virtual TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie cookie) override;
-    virtual int GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const override;
-    virtual void Completed(IChunkPoolOutput::TCookie cookie, const NControllerAgent::TCompletedJobSummary& jobSummary) override;
-    virtual void Failed(IChunkPoolOutput::TCookie cookie) override;
-    virtual void Aborted(IChunkPoolOutput::TCookie cookie, NScheduler::EAbortReason reason) override;
-    virtual void Lost(IChunkPoolOutput::TCookie cookie) override;
-    virtual const NControllerAgent::TProgressCounterPtr& GetJobCounter() const override;
-    virtual const NControllerAgent::TProgressCounterPtr& GetDataWeightCounter() const override;
-    virtual const NControllerAgent::TProgressCounterPtr& GetRowCounter() const override;
-    virtual const NControllerAgent::TProgressCounterPtr& GetDataSliceCounter() const override;
+    TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override;
+    IChunkPoolOutput::TCookie Extract(NNodeTrackerClient::TNodeId nodeId) override;
+    TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie cookie) override;
+    int GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const override;
+    void Completed(IChunkPoolOutput::TCookie cookie, const NControllerAgent::TCompletedJobSummary& jobSummary) override;
+    void Failed(IChunkPoolOutput::TCookie cookie) override;
+    void Aborted(IChunkPoolOutput::TCookie cookie, NScheduler::EAbortReason reason) override;
+    void Lost(IChunkPoolOutput::TCookie cookie) override;
+    const NControllerAgent::TProgressCounterPtr& GetJobCounter() const override;
+    const NControllerAgent::TProgressCounterPtr& GetDataWeightCounter() const override;
+    const NControllerAgent::TProgressCounterPtr& GetRowCounter() const override;
+    const NControllerAgent::TProgressCounterPtr& GetDataSliceCounter() const override;
 
-    virtual void Persist(const TPersistenceContext& context) override;
+    void Persist(const TPersistenceContext& context) override;
 
 public:
     DEFINE_SIGNAL_OVERRIDE(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
@@ -266,7 +266,7 @@ public:
     //! found out that all its siblings were actually empty (in this case we also mark all descendants
     //! of the job empty).
     //! For a completed job return value is undefined (yet safe to call).
-    virtual bool IsSplittable(TCookie cookie) const override;
+    bool IsSplittable(TCookie cookie) const override;
 
 protected:
     //! Registers the children of the job in the job splitting tree. If there is only one child,
@@ -283,7 +283,7 @@ protected:
     //! Used in tests to ensure that we do not resize vectors more than needed.
     size_t GetMaxVectorSize() const;
 
-    virtual void Persist(const TPersistenceContext& context) override;
+    void Persist(const TPersistenceContext& context) override;
 
 private:
     //! List of children output cookies for split jobs. Empty list corresponds to a job that was not split.

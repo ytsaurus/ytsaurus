@@ -122,7 +122,7 @@ class TYsonConsumerBase
 {
 public:
     //! Parses #str and converts it into a sequence of elementary calls.
-    virtual void OnRaw(TStringBuf str, EYsonType type) override;
+    void OnRaw(TStringBuf str, EYsonType type) override;
     using IYsonConsumer::OnRaw;
 
 };

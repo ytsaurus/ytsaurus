@@ -73,19 +73,19 @@ public:
     TConnectionId GetId() const;
 
     // IPollable implementation.
-    virtual const TString& GetLoggingTag() const override;
-    virtual void OnEvent(NConcurrency::EPollControl control) override;
-    virtual void OnShutdown() override;
+    const TString& GetLoggingTag() const override;
+    void OnEvent(NConcurrency::EPollControl control) override;
+    void OnShutdown() override;
 
     // IBus implementation.
-    virtual const TString& GetEndpointDescription() const override;
-    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
-    virtual const NNet::TNetworkAddress& GetEndpointAddress() const override;
-    virtual TTcpDispatcherStatistics GetStatistics() const override;
-    virtual TFuture<void> GetReadyFuture() const override;
-    virtual TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) override;
-    virtual void SetTosLevel(TTosLevel tosLevel) override;
-    virtual void Terminate(const TError& error) override;
+    const TString& GetEndpointDescription() const override;
+    const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
+    const NNet::TNetworkAddress& GetEndpointAddress() const override;
+    TTcpDispatcherStatistics GetStatistics() const override;
+    TFuture<void> GetReadyFuture() const override;
+    TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) override;
+    void SetTosLevel(TTosLevel tosLevel) override;
+    void Terminate(const TError& error) override;
 
     DECLARE_SIGNAL_OVERRIDE(void(const TError&), Terminated);
 

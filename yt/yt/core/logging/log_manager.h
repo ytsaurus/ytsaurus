@@ -41,7 +41,7 @@ public:
     void ConfigureFromEnv();
     bool IsConfiguredFromEnv();
 
-    virtual void Shutdown() override;
+    void Shutdown() override;
 
     const TLoggingCategory* GetCategory(TStringBuf categoryName);
     void UpdateCategory(TLoggingCategory* category);

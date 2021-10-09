@@ -18,63 +18,63 @@ public:
         TSchedulerConfigPtr config,
         const TOperationPtr& operation);
     
-    virtual void AssignAgent(const TControllerAgentPtr& agent) override;
+    void AssignAgent(const TControllerAgentPtr& agent) override;
     
-    virtual bool RevokeAgent() override;
+    bool RevokeAgent() override;
     
-    virtual TControllerAgentPtr FindAgent() const override;
+    TControllerAgentPtr FindAgent() const override;
     
-    virtual TFuture<TOperationControllerInitializeResult> Initialize(const std::optional<TOperationTransactions>& transactions) override;
-    virtual TFuture<TOperationControllerPrepareResult> Prepare() override;
-    virtual TFuture<TOperationControllerMaterializeResult> Materialize() override;
-    virtual TFuture<TOperationControllerReviveResult> Revive() override;
-    virtual TFuture<TOperationControllerCommitResult> Commit() override;
-    virtual TFuture<void> Terminate(EOperationState finalState) override;
-    virtual TFuture<void> Complete() override;
-    virtual TFuture<void> Register(const TOperationPtr& operation) override;
-    virtual TFuture<TOperationControllerUnregisterResult> Unregister() override;
-    virtual TFuture<void> UpdateRuntimeParameters(TOperationRuntimeParametersUpdatePtr update) override;
+    TFuture<TOperationControllerInitializeResult> Initialize(const std::optional<TOperationTransactions>& transactions) override;
+    TFuture<TOperationControllerPrepareResult> Prepare() override;
+    TFuture<TOperationControllerMaterializeResult> Materialize() override;
+    TFuture<TOperationControllerReviveResult> Revive() override;
+    TFuture<TOperationControllerCommitResult> Commit() override;
+    TFuture<void> Terminate(EOperationState finalState) override;
+    TFuture<void> Complete() override;
+    TFuture<void> Register(const TOperationPtr& operation) override;
+    TFuture<TOperationControllerUnregisterResult> Unregister() override;
+    TFuture<void> UpdateRuntimeParameters(TOperationRuntimeParametersUpdatePtr update) override;
     
-    virtual void OnJobStarted(const TJobPtr& job) override;
-    virtual void OnJobCompleted(
+    void OnJobStarted(const TJobPtr& job) override;
+    void OnJobCompleted(
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status,
         bool abandoned) override;
-    virtual void OnJobFailed(
+    void OnJobFailed(
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status) override;
-    virtual void OnJobAborted(
+    void OnJobAborted(
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status,
         bool byScheduler) override;
-    virtual void OnNonscheduledJobAborted(
+    void OnNonscheduledJobAborted(
         TJobId jobId,
         EAbortReason abortReason) override;
-    virtual void OnJobRunning(
+    void OnJobRunning(
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status,
         bool shouldLogJob) override;
     
-    virtual void OnInitializationFinished(const TErrorOr<TOperationControllerInitializeResult>& resultOrError) override;
-    virtual void OnPreparationFinished(const TErrorOr<TOperationControllerPrepareResult>& resultOrError) override;
-    virtual void OnMaterializationFinished(const TErrorOr<TOperationControllerMaterializeResult>& resultOrError) override;
-    virtual void OnRevivalFinished(const TErrorOr<TOperationControllerReviveResult>& resultOrError) override;
-    virtual void OnCommitFinished(const TErrorOr<TOperationControllerCommitResult>& resultOrError) override;
+    void OnInitializationFinished(const TErrorOr<TOperationControllerInitializeResult>& resultOrError) override;
+    void OnPreparationFinished(const TErrorOr<TOperationControllerPrepareResult>& resultOrError) override;
+    void OnMaterializationFinished(const TErrorOr<TOperationControllerMaterializeResult>& resultOrError) override;
+    void OnRevivalFinished(const TErrorOr<TOperationControllerReviveResult>& resultOrError) override;
+    void OnCommitFinished(const TErrorOr<TOperationControllerCommitResult>& resultOrError) override;
     
-    virtual void SetControllerRuntimeData(const TControllerRuntimeDataPtr& controllerData) override;
+    void SetControllerRuntimeData(const TControllerRuntimeDataPtr& controllerData) override;
     
-    virtual TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
+    TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
         const ISchedulingContextPtr& context,
         const TJobResources& jobLimits,
         const TString& treeId,
         const TFairShareStrategyTreeConfigPtr& treeConfig) override;
     
-    virtual void UpdateMinNeededJobResources() override;
+    void UpdateMinNeededJobResources() override;
     
-    virtual TJobResources GetNeededResources() const override;
-    virtual TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
-    virtual int GetPendingJobCount() const override;
-    virtual EPreemptionMode GetPreemptionMode() const override;
+    TJobResources GetNeededResources() const override;
+    TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
+    int GetPendingJobCount() const override;
+    EPreemptionMode GetPreemptionMode() const override;
 
 private:
     TBootstrap* const Bootstrap_;

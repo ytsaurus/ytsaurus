@@ -42,32 +42,32 @@ public:
     //! Runs the job. Blocks until the job is complete.
     void Run();
 
-    virtual IInvokerPtr GetControlInvoker() const override;
+    IInvokerPtr GetControlInvoker() const override;
 
-    virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
-    virtual TString GetStderr() override;
-    virtual NYson::TYsonString PollJobShell(
+    std::vector<NChunkClient::TChunkId> DumpInputContext() override;
+    TString GetStderr() override;
+    NYson::TYsonString PollJobShell(
         const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
         const NYson::TYsonString& parameters) override;
-    virtual void Interrupt() override;
-    virtual void Fail() override;
-    virtual TSharedRef DumpSensors() override;
+    void Interrupt() override;
+    void Fail() override;
+    TSharedRef DumpSensors() override;
 
-    virtual NJobTrackerClient::TJobId GetJobId() const override;
+    NJobTrackerClient::TJobId GetJobId() const override;
 
-    virtual TString GetJobUserName() const override;
+    TString GetJobUserName() const override;
 
-    virtual NRpc::IServerPtr GetRpcServer() const override;
+    NRpc::IServerPtr GetRpcServer() const override;
 
-    virtual TString GetPreparationPath() const override;
-    virtual TString GetSlotPath() const override;
-    virtual TString AdjustPath(const TString& path) const override;
+    TString GetPreparationPath() const override;
+    TString GetSlotPath() const override;
+    TString AdjustPath(const TString& path) const override;
 
-    virtual NChunkClient::TTrafficMeterPtr GetTrafficMeter() const override;
+    NChunkClient::TTrafficMeterPtr GetTrafficMeter() const override;
 
-    virtual NConcurrency::IThroughputThrottlerPtr GetInBandwidthThrottler() const override;
-    virtual NConcurrency::IThroughputThrottlerPtr GetOutBandwidthThrottler() const override;
-    virtual NConcurrency::IThroughputThrottlerPtr GetOutRpsThrottler() const override;
+    NConcurrency::IThroughputThrottlerPtr GetInBandwidthThrottler() const override;
+    NConcurrency::IThroughputThrottlerPtr GetOutBandwidthThrottler() const override;
+    NConcurrency::IThroughputThrottlerPtr GetOutRpsThrottler() const override;
 
     TDuration GetSpentCpuTime() const;
 
@@ -173,38 +173,38 @@ private:
     void OnArtifactsPrepared();
 
     // IJobHost implementation.
-    virtual TJobProxyConfigPtr GetConfig() const override;
-    virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(const TJobSpecEnvironmentOptions& options) const override;
-    virtual NJobTrackerClient::TOperationId GetOperationId() const override;
+    TJobProxyConfigPtr GetConfig() const override;
+    IUserJobEnvironmentPtr CreateUserJobEnvironment(const TJobSpecEnvironmentOptions& options) const override;
+    NJobTrackerClient::TOperationId GetOperationId() const override;
 
-    virtual const IJobSpecHelperPtr& GetJobSpecHelper() const override;
+    const IJobSpecHelperPtr& GetJobSpecHelper() const override;
 
-    virtual void SetUserJobMemoryUsage(i64 memoryUsage) override;
+    void SetUserJobMemoryUsage(i64 memoryUsage) override;
     void OnResourcesUpdated(i64 memoryUsage, const TError& error);
 
-    virtual void ReleaseNetwork() override;
+    void ReleaseNetwork() override;
 
-    virtual NApi::NNative::IClientPtr GetClient() const override;
+    NApi::NNative::IClientPtr GetClient() const override;
 
-    virtual void OnPrepared() override;
+    void OnPrepared() override;
 
-    virtual void PrepareArtifact(
+    void PrepareArtifact(
         const TString& artifactName,
         const TString& pipePath) override;
 
-    virtual void OnArtifactPreparationFailed(
+    void OnArtifactPreparationFailed(
         const TString& artifactName,
         const TString& artifactPath,
         const TError& error) override;
 
-    virtual NChunkClient::IBlockCachePtr GetReaderBlockCache() const override;
-    virtual NChunkClient::IBlockCachePtr GetWriterBlockCache() const override;
+    NChunkClient::IBlockCachePtr GetReaderBlockCache() const override;
+    NChunkClient::IBlockCachePtr GetWriterBlockCache() const override;
 
-    virtual NNodeTrackerClient::TNodeDirectoryPtr GetInputNodeDirectory() const override;
+    NNodeTrackerClient::TNodeDirectoryPtr GetInputNodeDirectory() const override;
 
-    virtual const NNodeTrackerClient::TNodeDescriptor& LocalDescriptor() const override;
+    const NNodeTrackerClient::TNodeDescriptor& LocalDescriptor() const override;
 
-    virtual NLogging::TLogger GetLogger() const override;
+    NLogging::TLogger GetLogger() const override;
 
     void CheckMemoryUsage();
 

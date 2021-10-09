@@ -433,8 +433,8 @@ struct IOperationController
     : public IOperationControllerSchedulerHost
     , public IOperationControllerSnapshotBuilderHost
 {
-    virtual IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
-    virtual IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
+    IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override = 0;
+    IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override = 0;
     virtual IDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(
         EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
 

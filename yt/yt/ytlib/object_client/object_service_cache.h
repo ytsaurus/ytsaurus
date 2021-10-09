@@ -142,11 +142,11 @@ private:
 
     TCacheProfilingCountersPtr GetProfilingCounters(const TString& user, const TString& method);
 
-    virtual bool IsResurrectionSupported() const override;
+    bool IsResurrectionSupported() const override;
 
-    virtual void OnAdded(const TObjectServiceCacheEntryPtr& entry) override;
-    virtual void OnRemoved(const TObjectServiceCacheEntryPtr& entry) override;
-    virtual i64 GetWeight(const TObjectServiceCacheEntryPtr& entry) const override;
+    void OnAdded(const TObjectServiceCacheEntryPtr& entry) override;
+    void OnRemoved(const TObjectServiceCacheEntryPtr& entry) override;
+    i64 GetWeight(const TObjectServiceCacheEntryPtr& entry) const override;
 
     static bool IsExpired(
         const TObjectServiceCacheEntryPtr& entry,

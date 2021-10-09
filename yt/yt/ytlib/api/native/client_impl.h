@@ -60,35 +60,35 @@ public:
         IConnectionPtr connection,
         const TClientOptions& options);
 
-    virtual NApi::IConnectionPtr GetConnection() override;
-    virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() override;
-    virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override;
-    virtual const IConnectionPtr& GetNativeConnection() override;
-    virtual NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() override;
-    virtual NQueryClient::TFunctionImplCachePtr GetFunctionImplCache() override;
+    NApi::IConnectionPtr GetConnection() override;
+    const NTabletClient::ITableMountCachePtr& GetTableMountCache() override;
+    const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override;
+    const IConnectionPtr& GetNativeConnection() override;
+    NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() override;
+    NQueryClient::TFunctionImplCachePtr GetFunctionImplCache() override;
 
-    virtual const TClientOptions& GetOptions() override;
+    const TClientOptions& GetOptions() override;
 
-    virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
+    NRpc::IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag) override;
-    virtual NRpc::IChannelPtr GetCellChannelOrThrow(NObjectClient::TCellId cellId) override;
-    virtual NRpc::IChannelPtr GetSchedulerChannel() override;
-    virtual const NNodeTrackerClient::INodeChannelFactoryPtr& GetChannelFactory() override;
+    NRpc::IChannelPtr GetCellChannelOrThrow(NObjectClient::TCellId cellId) override;
+    NRpc::IChannelPtr GetSchedulerChannel() override;
+    const NNodeTrackerClient::INodeChannelFactoryPtr& GetChannelFactory() override;
 
-    virtual void Terminate() override;
+    void Terminate() override;
 
     // Transactions
-    virtual TFuture<ITransactionPtr> StartNativeTransaction(
+    TFuture<ITransactionPtr> StartNativeTransaction(
         NTransactionClient::ETransactionType type,
         const TTransactionStartOptions& options) override;
-    virtual ITransactionPtr AttachNativeTransaction(
+    ITransactionPtr AttachNativeTransaction(
         NCypressClient::TTransactionId transactionId,
         const TTransactionAttachOptions& options) override;
-    virtual TFuture<NApi::ITransactionPtr> StartTransaction(
+    TFuture<NApi::ITransactionPtr> StartTransaction(
         NTransactionClient::ETransactionType type,
         const TTransactionStartOptions& options) override;
-    virtual NApi::ITransactionPtr AttachTransaction(
+    NApi::ITransactionPtr AttachTransaction(
         NCypressClient::TTransactionId transactionId,
         const TTransactionAttachOptions& options) override;
 
@@ -307,28 +307,28 @@ public:
         const TCreateObjectOptions& options),
         (type, options))
 
-    virtual TFuture<IFileReaderPtr> CreateFileReader(
+    TFuture<IFileReaderPtr> CreateFileReader(
         const NYPath::TYPath& path,
         const TFileReaderOptions& options) override;
-    virtual IFileWriterPtr CreateFileWriter(
+    IFileWriterPtr CreateFileWriter(
         const NYPath::TRichYPath& path,
         const TFileWriterOptions& options) override;
 
-    virtual IJournalReaderPtr CreateJournalReader(
+    IJournalReaderPtr CreateJournalReader(
         const NYPath::TYPath& path,
         const TJournalReaderOptions& options) override;
-    virtual IJournalWriterPtr CreateJournalWriter(
+    IJournalWriterPtr CreateJournalWriter(
         const NYPath::TYPath& path,
         const TJournalWriterOptions& options) override;
 
-    virtual TFuture<ITableReaderPtr> CreateTableReader(
+    TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
         const TTableReaderOptions& options) override;
-    virtual TFuture<ITableWriterPtr> CreateTableWriter(
+    TFuture<ITableWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath& path,
         const NApi::TTableWriterOptions& options) override;
 
-    virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
+    TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath& path,
         const TLocateSkynetShareOptions& options) override;
 

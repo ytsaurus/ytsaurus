@@ -33,13 +33,13 @@ public:
         const std::optional<TString>& tabletCellBundle = std::nullopt,
         NTabletClient::EInMemoryMode inMemoryMode = NTabletClient::EInMemoryMode::None);
 
-    virtual void ValidateResourceLimits(
+    void ValidateResourceLimits(
         const TString& account,
         const TString& mediumName,
         const std::optional<TString>& tabletCellBundle = std::nullopt,
-        NTabletClient::EInMemoryMode inMemoryMode = NTabletClient::EInMemoryMode::None);
+        NTabletClient::EInMemoryMode inMemoryMode = NTabletClient::EInMemoryMode::None) override;
     
-    virtual void Reconfigure(const TSecurityManagerDynamicConfigPtr& config);
+    void Reconfigure(const TSecurityManagerDynamicConfigPtr& config) override;
 
 private:
     class TImpl;

@@ -71,7 +71,7 @@ class TProgramException
 public:
     explicit TProgramException(TString what);
 
-    virtual const char* what() const noexcept override;
+    const char* what() const noexcept override;
 
 private:
     const TString What_;

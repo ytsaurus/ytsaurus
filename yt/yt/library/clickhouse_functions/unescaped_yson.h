@@ -27,7 +27,7 @@ public:
         bool enableRaw = false,
         int indent = DefaultIndent);
 
-    virtual void OnStringScalar(TStringBuf value) override;
+    void OnStringScalar(TStringBuf value) override;
 
 protected:
     bool Unescaped_;

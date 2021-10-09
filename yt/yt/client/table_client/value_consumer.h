@@ -46,8 +46,8 @@ public:
         TTableSchemaPtr schema,
         TTypeConversionConfigPtr typeConversionConfig);
 
-    virtual void OnValue(const TUnversionedValue& value) override;
-    virtual const TTableSchemaPtr& GetSchema() const override;
+    void OnValue(const TUnversionedValue& value) override;
+    const TTableSchemaPtr& GetSchema() const override;
 
 protected:
     const TTableSchemaPtr Schema_;
@@ -92,17 +92,17 @@ public:
 
     std::vector<TUnversionedRow> GetRows() const;
 
-    virtual const TNameTablePtr& GetNameTable() const override;
+    const TNameTablePtr& GetNameTable() const override;
 
     void SetAggregate(bool value);
     void SetTreatMissingAsNull(bool value);
 
 private:
-    virtual bool GetAllowUnknownColumns() const override;
+    bool GetAllowUnknownColumns() const override;
 
-    virtual void OnBeginRow() override;
-    virtual void OnMyValue(const TUnversionedValue& value) override;
-    virtual void OnEndRow() override;
+    void OnBeginRow() override;
+    void OnMyValue(const TUnversionedValue& value) override;
+    void OnEndRow() override;
 
     TUnversionedValue MakeAnyFromScalar(const TUnversionedValue& value);
 
@@ -133,14 +133,14 @@ public:
         TTypeConversionConfigPtr typeConversionConfig = New<TTypeConversionConfig>(),
         i64 maxRowBufferSize = 1_MB);
 
-    virtual TFuture<void> Flush() override;
-    virtual const TNameTablePtr& GetNameTable() const override;
+    TFuture<void> Flush() override;
+    const TNameTablePtr& GetNameTable() const override;
 
-    virtual bool GetAllowUnknownColumns() const override;
+    bool GetAllowUnknownColumns() const override;
 
-    virtual void OnBeginRow() override;
-    virtual void OnMyValue(const TUnversionedValue& value) override;
-    virtual void OnEndRow() override;
+    void OnBeginRow() override;
+    void OnMyValue(const TUnversionedValue& value) override;
+    void OnEndRow() override;
 
 private:
     const IUnversionedWriterPtr Writer_;

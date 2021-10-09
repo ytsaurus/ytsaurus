@@ -112,14 +112,14 @@ public:
     void OnProfiling(NProfiling::TSensorBuffer* buffer) const;
 
     // IJobController implementation.
-    virtual void ScheduleJobs(IJobSchedulingContext* context) override;
+    void ScheduleJobs(IJobSchedulingContext* context) override;
 
-    virtual void OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks* callbacks) override;
-    virtual void OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* callbacks) override;
+    void OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks* callbacks) override;
+    void OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* callbacks) override;
 
-    virtual void OnJobCompleted(const TJobPtr& job) override;
-    virtual void OnJobAborted(const TJobPtr& job) override;
-    virtual void OnJobFailed(const TJobPtr& job) override;
+    void OnJobCompleted(const TJobPtr& job) override;
+    void OnJobAborted(const TJobPtr& job) override;
+    void OnJobFailed(const TJobPtr& job) override;
 
 private:
     struct TPerMediumChunkStatistics

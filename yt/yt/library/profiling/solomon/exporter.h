@@ -270,9 +270,9 @@ private:
         const TSolomonRegistryPtr Registry_;
         const TSolomonExporterPtr Exporter_;
 
-        virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
-        virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
-        virtual void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override;
+        bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+        void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
+        void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override;
     };
 
     void DoCollect();

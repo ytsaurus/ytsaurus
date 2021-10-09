@@ -63,7 +63,7 @@ public:
     const NConcurrency::IPollerPtr& GetPoller() const;
     const TApiPtr& GetApi() const;
 
-    virtual void HandleRequest(
+    void HandleRequest(
         const NHttp::IRequestPtr& req,
         const NHttp::IResponseWriterPtr& rsp) override;
 

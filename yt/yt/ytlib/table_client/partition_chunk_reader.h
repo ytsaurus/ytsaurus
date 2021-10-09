@@ -67,8 +67,8 @@ private:
 
     TFuture<void> InitializeBlockSequence();
 
-    virtual void InitFirstBlock() override;
-    virtual void InitNextBlock() override;
+    void InitFirstBlock() override;
+    void InitNextBlock() override;
 
     void InitNameTable(TNameTablePtr chunkNameTable);
 };
@@ -94,27 +94,27 @@ public:
         MultiReaderManager_->Open();
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         return MultiReaderManager_->GetReadyEvent();
     }
 
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
         return MultiReaderManager_->GetDataStatistics();
     }
 
-    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
+    NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
     {
         return MultiReaderManager_->GetDecompressionStatistics();
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return MultiReaderManager_->IsFetchingCompleted();
     }
 
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
+    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
     {
         return MultiReaderManager_->GetFailedChunkIds();
     }

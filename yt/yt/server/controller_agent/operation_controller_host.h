@@ -103,61 +103,61 @@ public:
         TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>> jobEventsOutbox,
         TBootstrap* bootstrap);
 
-    virtual void InterruptJob(TJobId jobId, EInterruptReason reason) override;
-    virtual void AbortJob(TJobId jobId, const TError& error) override;
-    virtual void FailJob(TJobId jobId) override;
-    virtual void ReleaseJobs(const std::vector<NJobTrackerClient::TJobToRelease>& TJobToRelease) override;
+    void InterruptJob(TJobId jobId, EInterruptReason reason) override;
+    void AbortJob(TJobId jobId, const TError& error) override;
+    void FailJob(TJobId jobId) override;
+    void ReleaseJobs(const std::vector<NJobTrackerClient::TJobToRelease>& TJobToRelease) override;
 
-    virtual std::optional<TString> RegisterJobForMonitoring(TOperationId operationId, TJobId jobId) override;
-    virtual bool UnregisterJobForMonitoring(TOperationId operationId, TJobId jobId) override;
+    std::optional<TString> RegisterJobForMonitoring(TOperationId operationId, TJobId jobId) override;
+    bool UnregisterJobForMonitoring(TOperationId operationId, TJobId jobId) override;
 
-    virtual TFuture<TOperationSnapshot> DownloadSnapshot() override;
-    virtual TFuture<void> RemoveSnapshot() override;
+    TFuture<TOperationSnapshot> DownloadSnapshot() override;
+    TFuture<void> RemoveSnapshot() override;
 
-    virtual TFuture<void> FlushOperationNode() override;
-    virtual TFuture<void> UpdateInitializedOperationNode() override;
+    TFuture<void> FlushOperationNode() override;
+    TFuture<void> UpdateInitializedOperationNode() override;
 
-    virtual TFuture<void> AttachChunkTreesToLivePreview(
+    TFuture<void> AttachChunkTreesToLivePreview(
         NTransactionClient::TTransactionId transactionId,
         NCypressClient::TNodeId tableId,
         const std::vector<NChunkClient::TChunkTreeId>& childIds) override;
-    virtual void AddChunkTreesToUnstageList(
+    void AddChunkTreesToUnstageList(
         const std::vector<NChunkClient::TChunkId>& chunkTreeIds,
         bool recursive) override;
 
-    virtual const NApi::NNative::IClientPtr& GetClient() override;
-    virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() override;
-    virtual const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() override;
-    virtual const IInvokerPtr& GetControllerThreadPoolInvoker() override;
-    virtual const IInvokerPtr& GetJobSpecBuildPoolInvoker() override;
-    virtual const IInvokerPtr& GetExecNodesUpdateInvoker() override;
-    virtual const IInvokerPtr& GetConnectionInvoker() override;
-    virtual const NEventLog::IEventLogWriterPtr& GetEventLogWriter() override;
-    virtual const ICoreDumperPtr& GetCoreDumper() override;
-    virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() override;
-    virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() override;
-    virtual const NJobAgent::TJobReporterPtr& GetJobReporter() override;
-    virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override;
-    virtual TMemoryTagQueue* GetMemoryTagQueue() override;
+    const NApi::NNative::IClientPtr& GetClient() override;
+    const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() override;
+    const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() override;
+    const IInvokerPtr& GetControllerThreadPoolInvoker() override;
+    const IInvokerPtr& GetJobSpecBuildPoolInvoker() override;
+    const IInvokerPtr& GetExecNodesUpdateInvoker() override;
+    const IInvokerPtr& GetConnectionInvoker() override;
+    const NEventLog::IEventLogWriterPtr& GetEventLogWriter() override;
+    const ICoreDumperPtr& GetCoreDumper() override;
+    const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() override;
+    const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() override;
+    const NJobAgent::TJobReporterPtr& GetJobReporter() override;
+    const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override;
+    TMemoryTagQueue* GetMemoryTagQueue() override;
 
-    virtual int GetOnlineExecNodeCount() override;
-    virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter, bool onlineOnly = false) override;
-    virtual TJobResources GetMaxAvailableResources(const NScheduler::TSchedulingTagFilter& filter) override;
+    int GetOnlineExecNodeCount() override;
+    TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter, bool onlineOnly = false) override;
+    TJobResources GetMaxAvailableResources(const NScheduler::TSchedulingTagFilter& filter) override;
 
-    virtual TInstant GetConnectionTime() override;
-    virtual TIncarnationId GetIncarnationId() override;
+    TInstant GetConnectionTime() override;
+    TIncarnationId GetIncarnationId() override;
 
-    virtual void OnOperationCompleted() override;
-    virtual void OnOperationAborted(const TError& error) override;
-    virtual void OnOperationFailed(const TError& error) override;
-    virtual void OnOperationSuspended(const TError& error) override;
-    virtual void OnOperationBannedInTentativeTree(const TString& treeId, const std::vector<TJobId>& jobIds) override;
+    void OnOperationCompleted() override;
+    void OnOperationAborted(const TError& error) override;
+    void OnOperationFailed(const TError& error) override;
+    void OnOperationSuspended(const TError& error) override;
+    void OnOperationBannedInTentativeTree(const TString& treeId, const std::vector<TJobId>& jobIds) override;
 
-    virtual void ValidateOperationAccess(
+    void ValidateOperationAccess(
         const TString& user,
         NYTree::EPermission permission) override;
 
-    virtual TFuture<void> UpdateAccountResourceUsageLease(
+    TFuture<void> UpdateAccountResourceUsageLease(
         NSecurityClient::TAccountResourceUsageLeaseId leaseId,
         const NScheduler::TDiskQuota& diskQuota) override;
 

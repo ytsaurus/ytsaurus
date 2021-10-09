@@ -48,14 +48,14 @@ public:
         NTransactionServer::TTransaction* transaction,
         TChunkOwnerBase* trunkNode);
 
-    virtual NYTree::ENodeType GetType() const override;
+    NYTree::ENodeType GetType() const override;
 
 protected:
-    virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override;
+    void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override;
+    bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+    TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override;
 
-    virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
 
     struct TFetchContext
     {
@@ -67,7 +67,7 @@ protected:
         std::vector<NChunkClient::TReadRange> Ranges;
     };
 
-    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
     //! This method validates if requested read limit is allowed for this type of node
     //! (i.e. key limits requires node to be a sorted table).
@@ -78,9 +78,9 @@ protected:
 
     void ValidateInUpdate();
     virtual void ValidateBeginUpload();
-    virtual void ValidateStorageParametersUpdate() override;
+    void ValidateStorageParametersUpdate() override;
 
-    virtual void GetBasicAttributes(TGetBasicAttributesContext* context) override;
+    void GetBasicAttributes(TGetBasicAttributesContext* context) override;
 
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch);
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, BeginUpload);
