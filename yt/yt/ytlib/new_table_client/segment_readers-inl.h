@@ -22,6 +22,41 @@ Y_FORCE_INLINE i64 ConvertInt<i64>(ui64 value)
     return ZigZagDecode64(value);
 }
 
+template <class TDiffs>
+ui32 GetOffsetNonZero(const TDiffs& diffs, ui32 expected, ui32 position)
+{
+    return expected * position + ZigZagDecode32(diffs[position - 1]);
+}
+
+template <class TDiffs>
+ui32 GetOffset(const TDiffs& diffs, ui32 expected, ui32 position)
+{
+    return position > 0
+        ? GetOffsetNonZero(diffs, expected, position)
+        : 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <EValueType Type, class TExtractor>
+void DoInitKeySegment(
+    TExtractor* extractor,
+    const TMetaBase* meta,
+    const ui64* ptr,
+    TTmpBuffers* tmpBuffers)
+{
+    if constexpr (IsStringLikeType(Type)) {
+        ptr = extractor->InitIndex(meta, ptr, IsDense(meta->Type));
+        extractor->InitData(meta, ptr, tmpBuffers);
+    } else {
+        ptr = extractor->InitData(meta, ptr, tmpBuffers);
+        bool dense = Type == EValueType::Double || Type == EValueType::Boolean || IsDense(meta->Type);
+        extractor->InitIndex(meta, ptr, dense);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ReadUnversionedValueData(TUnversionedValue* value, ui64 data)
 {
     value->Data.Uint64 = data;
@@ -53,30 +88,20 @@ void ReadUnversionedValueData(TUnversionedValue* value, TStringBuf data)
 
 ui32 TScanTimestampExtractor::GetSegmentRowLimit() const
 {
-    return SegmentRowOffset_ + RowCount_;
-}
-
-TTimestamp TScanTimestampExtractor::GetWriteTimestamp(ui32 position) const
-{
-    return WriteTimestamps_[position];
-}
-
-TTimestamp TScanTimestampExtractor::GetDeleteTimestamp(ui32 position) const
-{
-    return DeleteTimestamps_[position];
+    return SegmentRowLimit_;
 }
 
 std::pair<ui32, ui32> TScanTimestampExtractor::GetWriteTimestampsSpan(ui32 rowIndex) const
 {
-    auto position = rowIndex - SegmentRowOffset_;
-    YT_ASSERT(position < RowCount_);
+    auto position = rowIndex - RowOffset_;
+    YT_ASSERT(rowIndex < SegmentRowLimit_);
     return std::make_pair(WriteTimestampOffsets_[position], WriteTimestampOffsets_[position + 1]);
 }
 
 std::pair<ui32, ui32> TScanTimestampExtractor::GetDeleteTimestampsSpan(ui32 rowIndex) const
 {
-    auto position = rowIndex - SegmentRowOffset_;
-    YT_ASSERT(position < RowCount_);
+    auto position = rowIndex - RowOffset_;
+    YT_ASSERT(rowIndex < SegmentRowLimit_);
     return std::make_pair(DeleteTimestampOffsets_[position], DeleteTimestampOffsets_[position + 1]);
 }
 
@@ -244,7 +269,7 @@ ui32 TScanMultiValueIndexExtractor::SkipTo(ui32 rowIndex, ui32 position) const
 
 ui32 TLookupTimestampExtractor::GetSegmentRowLimit() const
 {
-    return SegmentRowOffset_ + RowCount_;
+    return SegmentRowLimit_;
 }
 
 void TLookupTimestampExtractor::ReadSegment(
@@ -252,8 +277,8 @@ void TLookupTimestampExtractor::ReadSegment(
     const char* data,
     TTmpBuffers* /*tmpBuffers*/)
 {
-    SegmentRowOffset_ = meta->ChunkRowCount - meta->RowCount;
-    RowCount_ = meta->RowCount;
+    RowOffset_ = meta->ChunkRowCount - meta->RowCount;
+    SegmentRowLimit_ = meta->ChunkRowCount;
 
     TCompressedVectorView view(reinterpret_cast<const ui64*>(data));
 
@@ -270,24 +295,22 @@ void TLookupTimestampExtractor::ReadSegment(
     DeleteOffsetDiffs_ = ++view;
 }
 
-TTimestamp TLookupTimestampExtractor::GetDeleteTimestamp(ui32 position) const
-{
-    return BaseTimestamp_ + TimestampsDict_[DeleteTimestampIds_[position]];
-}
-
-TTimestamp TLookupTimestampExtractor::GetWriteTimestamp(ui32 position) const
-{
-    return BaseTimestamp_ + TimestampsDict_[WriteTimestampIds_[position]];
-}
-
 std::pair<ui32, ui32> TLookupTimestampExtractor::GetWriteTimestampsSpan(ui32 rowIndex) const
 {
-    return std::make_pair(GetWriteTimestampOffset(rowIndex), GetWriteTimestampOffset(rowIndex + 1));
+    auto position = rowIndex - RowOffset_;
+    auto begin = GetOffset(WriteOffsetDiffs_, ExpectedWritesPerRow_, position);
+    auto end = GetOffsetNonZero(WriteOffsetDiffs_, ExpectedWritesPerRow_, position + 1);
+
+    return {begin, end};
 }
 
 std::pair<ui32, ui32> TLookupTimestampExtractor::GetDeleteTimestampsSpan(ui32 rowIndex) const
 {
-    return std::make_pair(GetDeleteTimestampOffset(rowIndex), GetDeleteTimestampOffset(rowIndex + 1));
+    auto position = rowIndex - RowOffset_;
+    auto begin = GetOffset(DeleteOffsetDiffs_, ExpectedDeletesPerRow_, position);
+    auto end = GetOffsetNonZero(DeleteOffsetDiffs_, ExpectedDeletesPerRow_, position + 1);
+
+    return {begin, end};
 }
 
 TRange<TTimestamp> TLookupTimestampExtractor::GetWriteTimestamps(
@@ -299,7 +322,7 @@ TRange<TTimestamp> TLookupTimestampExtractor::GetWriteTimestamps(
     auto* timestamps = reinterpret_cast<TTimestamp*>(memoryPool->AllocateAligned(sizeof(TTimestamp) * count));
     auto startTimestamps = timestamps;
     for (auto it = begin; it != end; ++it) {
-        *timestamps++ = GetWriteTimestamp(it);
+        *timestamps++ = BaseTimestamp_ + TimestampsDict_[WriteTimestampIds_[it]];
     }
 
     return MakeRange(startTimestamps, timestamps);
@@ -314,34 +337,16 @@ TRange<TTimestamp> TLookupTimestampExtractor::GetDeleteTimestamps(
     auto* timestamps = reinterpret_cast<TTimestamp*>(memoryPool->AllocateAligned(sizeof(TTimestamp) * count));
     auto startTimestamps = timestamps;
     for (auto it = begin; it != end; ++it) {
-        *timestamps++ = GetDeleteTimestamp(it);
+        *timestamps++ = BaseTimestamp_ + TimestampsDict_[DeleteTimestampIds_[it]];
     }
 
     return MakeRange(startTimestamps, timestamps);
 }
 
-ui32 TLookupTimestampExtractor::GetDeleteTimestampOffset(ui32 rowIndex) const
-{
-    auto position = rowIndex - SegmentRowOffset_;
-
-    return position > 0
-        ? ExpectedDeletesPerRow_ * position + ZigZagDecode32(DeleteOffsetDiffs_[position - 1])
-        : 0;
-}
-
-ui32 TLookupTimestampExtractor::GetWriteTimestampOffset(ui32 rowIndex) const
-{
-    auto position = rowIndex - SegmentRowOffset_;
-
-    return position > 0
-        ? ExpectedWritesPerRow_ * position + ZigZagDecode32(WriteOffsetDiffs_[position - 1])
-        : 0;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-const ui64* TLookupIntegerExtractor<T>::Init(const TMetaBase* meta, const ui64* ptr)
+const ui64* TLookupIntegerExtractor<T>::InitData(const TMetaBase* meta, const ui64* ptr, TTmpBuffers* /*tmpBuffers*/)
 {
     BaseValue_ = static_cast<const TIntegerMeta*>(meta)->BaseValue;
     Direct_ = IsDirect(meta->Type);
@@ -361,7 +366,7 @@ const ui64* TLookupIntegerExtractor<T>::Init(const TMetaBase* meta, const ui64* 
 }
 
 template <class T>
-void TLookupIntegerExtractor<T>::InitNull()
+void TLookupIntegerExtractor<T>::InitNullData()
 {
     BaseValue_ = 0;
     Direct_ = true;
@@ -415,7 +420,7 @@ void TLookupIntegerExtractor<T>::Extract(TUnversionedValue* value, ui32 position
     }
 }
 
-const ui64* TLookupDataExtractor<EValueType::Double>::Init(const TMetaBase* /*meta*/, const ui64* ptr)
+const ui64* TLookupDataExtractor<EValueType::Double>::InitData(const TMetaBase* /*meta*/, const ui64* ptr, TTmpBuffers* /*tmpBuffers*/)
 {
     Ptr_ = ptr;
 
@@ -426,7 +431,7 @@ const ui64* TLookupDataExtractor<EValueType::Double>::Init(const TMetaBase* /*me
     return ptr;
 }
 
-void TLookupDataExtractor<EValueType::Double>::InitNull()
+void TLookupDataExtractor<EValueType::Double>::InitNullData()
 {
     static ui64 Data[3] {1, 0, 1};
     Ptr_ = &Data[0];
@@ -447,7 +452,7 @@ void TLookupDataExtractor<EValueType::Double>::Extract(TUnversionedValue* value,
     ReadUnversionedValueData(value, items[position]);
 }
 
-const ui64* TLookupDataExtractor<EValueType::Boolean>::Init(const TMetaBase* /*meta*/, const ui64* ptr)
+const ui64* TLookupDataExtractor<EValueType::Boolean>::InitData(const TMetaBase* /*meta*/, const ui64* ptr, TTmpBuffers* /*tmpBuffers*/)
 {
     Ptr_ = ptr;
 
@@ -458,7 +463,7 @@ const ui64* TLookupDataExtractor<EValueType::Boolean>::Init(const TMetaBase* /*m
     return ptr;
 }
 
-void TLookupDataExtractor<EValueType::Boolean>::InitNull()
+void TLookupDataExtractor<EValueType::Boolean>::InitNullData()
 {
     static ui64 Data[3] {1, 0, 1};
     Ptr_ = &Data[0];
@@ -483,14 +488,14 @@ TLookupBlobExtractor::TLookupBlobExtractor(EValueType type)
     : Type_(type)
 { }
 
-void TLookupBlobExtractor::Init(const TMetaBase* meta, const ui64* ptr)
+void TLookupBlobExtractor::InitData(const TMetaBase* meta, const ui64* ptr, TTmpBuffers* /*tmpBuffers*/)
 {
     ExpectedLength_ = static_cast<const TBlobMeta*>(meta)->ExpectedLength;
     Direct_ = IsDirect(meta->Type);
     Ptr_ = ptr;
 }
 
-void TLookupBlobExtractor::InitNull()
+void TLookupBlobExtractor::InitNullData()
 {
     ExpectedLength_ = 0;
     Direct_ = true;
@@ -556,15 +561,9 @@ TStringBuf TLookupBlobExtractor::GetBlob(
     const char* data,
     ui32 position) const
 {
-    auto getOffset = [&] (ui32 index) -> ui32 {
-        if (index > 0) {
-            return ExpectedLength_ * index + ZigZagDecode32(offsets[index - 1]);
-        } else {
-            return 0;
-        }
-    };
-
-    return TStringBuf(data + getOffset(position), data + getOffset(position + 1));
+    return TStringBuf(
+        data + GetOffset(offsets, ExpectedLength_, position),
+        data + GetOffsetNonZero(offsets, ExpectedLength_, position + 1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -583,7 +582,7 @@ TLookupDataExtractor<EValueType::Any>::TLookupDataExtractor()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const ui64* TLookupKeyIndexExtractor::Init(const TMetaBase* meta, const ui64* ptr, bool dense)
+const ui64* TLookupKeyIndexExtractor::InitIndex(const TMetaBase* meta, const ui64* ptr, bool dense)
 {
     Ptr_ = ptr;
     RowOffset_ = meta->ChunkRowCount - meta->RowCount;
@@ -598,7 +597,7 @@ const ui64* TLookupKeyIndexExtractor::Init(const TMetaBase* meta, const ui64* pt
     return ptr;
 }
 
-void TLookupKeyIndexExtractor::InitNull()
+void TLookupKeyIndexExtractor::InitNullIndex()
 {
     static ui64 Data[2] = {1};
     Ptr_ = &Data[0];
@@ -670,50 +669,7 @@ ui32 TLookupKeyIndexExtractor::UpperRowBound(ui32 position) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-void DoInitSegment(
-    TLookupIntegerExtractor<T>* value,
-    TLookupKeyIndexExtractor* base,
-    const TMetaBase* meta,
-    const ui64* ptr)
-{
-    ptr = value->Init(meta, ptr);
-    base->Init(meta, ptr, IsDense(meta->Type));
-}
-
-void DoInitSegment(
-    TLookupDataExtractor<EValueType::Double>* value,
-    TLookupKeyIndexExtractor* base,
-    const TMetaBase* meta,
-    const ui64* ptr)
-{
-    ptr = value->Init(meta, ptr);
-    base->Init(meta, ptr, true);
-}
-
-void DoInitSegment(
-    TLookupDataExtractor<EValueType::Boolean>* value,
-    TLookupKeyIndexExtractor* base,
-    const TMetaBase* meta,
-    const ui64* ptr)
-{
-    ptr = value->Init(meta, ptr);
-    base->Init(meta, ptr, true);
-}
-
-void DoInitSegment(
-    TLookupBlobExtractor* value,
-    TLookupKeyIndexExtractor* base,
-    const TMetaBase* meta,
-    const ui64* ptr)
-{
-    ptr = base->Init(meta, ptr, IsDense(meta->Type));
-    value->Init(meta, ptr);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-const ui64* TLookupMultiValueIndexExtractor::Init(
+const ui64* TLookupMultiValueIndexExtractor::InitIndex(
     const TMetaBase* meta,
     const TDenseMeta* denseMeta,
     const ui64* ptr,
@@ -724,7 +680,6 @@ const ui64* TLookupMultiValueIndexExtractor::Init(
     RowOffset_ = meta->ChunkRowCount - meta->RowCount;
     RowLimit_ = meta->ChunkRowCount;
     Dense_ = dense;
-
 
     if (dense) {
         ExpectedPerRow_ = denseMeta->ExpectedPerRow;
@@ -749,9 +704,7 @@ ui32 TLookupMultiValueIndexExtractor::SkipToDense(ui32 rowIndex, ui32) const
 
     auto indexPosition = rowIndex - RowOffset_;
     TCompressedVectorView perRowDiff(Ptr_);
-    return indexPosition > 0
-        ? ExpectedPerRow_ * indexPosition + ZigZagDecode32(perRowDiff[indexPosition - 1])
-        : 0;
+    return GetOffset(perRowDiff, ExpectedPerRow_, indexPosition);
 }
 
 ui32 TLookupMultiValueIndexExtractor::SkipToSparse(ui32 rowIndex, ui32 position) const
@@ -777,7 +730,7 @@ ui32 TLookupMultiValueIndexExtractor::SkipTo(ui32 rowIndex, ui32 position) const
 }
 
 template <bool Aggregate>
-const ui64* TLookupVersionExtractor<Aggregate>::Init(const ui64* ptr)
+const ui64* TLookupVersionExtractor<Aggregate>::InitVersion(const ui64* ptr)
 {
     Ptr_ = ptr;
 

@@ -148,100 +148,77 @@ size_t TPreparedChunkMeta::Prepare(
 {
     const auto& chunkSchemaColumns = chunkSchema->Columns();
 
-    std::vector<ui16> columnIndexToGroupId(chunkSchemaColumns.size() + 1);
-    {
-        ui16 currentGroupId = 0;
-        THashMap<TStringBuf, int> groups;
+    THashMap<int, int> firstBlockIdToGroup;
 
-        for (int index = 0; index < std::ssize(chunkSchemaColumns); ++index) {
-            const auto& group = chunkSchemaColumns[index].Group();
+    std::vector<TColumnInfo> preparedColumns;
+    // Plus one timestamp column.
+    preparedColumns.resize(chunkSchemaColumns.size() + 1);
+    GroupIdPerColumn.resize(chunkSchemaColumns.size() + 1);
+    ColumnIndexInGroup.resize(chunkSchemaColumns.size() + 1);
 
-            ui16 groupId;
-            if (group) {
-                auto [it, inserted] = groups.emplace(*group, currentGroupId);
-                if (inserted) {
-                    ++currentGroupId;
-                }
-                groupId = it->second;
-            } else {
-                groupId = currentGroupId++;
-            }
+    auto determineColumnGroup = [&] (std::vector<ui32> blockIds, int columnIndex) {
+        YT_VERIFY(!blockIds.empty());
 
-            columnIndexToGroupId[index] = groupId;
+        auto [it, inserted] = firstBlockIdToGroup.emplace(blockIds.front(), ColumnGroups.size());
+        if (inserted) {
+            ColumnGroups.emplace_back();
         }
 
-        // Timestamp column has own group.
-        ++currentGroupId;
-        ColumnGroups.resize(currentGroupId);
-    }
-    std::vector<TColumnInfo> Columns;
+        auto groupId = it->second;
+        GroupIdPerColumn[columnIndex] = groupId;
 
-    Columns.resize(chunkSchemaColumns.size() + 1);
-    GroupIdPerColumn.resize(chunkSchemaColumns.size() + 1);
-    ColumnIdInGroup.resize(chunkSchemaColumns.size() + 1);
-
-    for (int index = 0; index < std::ssize(chunkSchemaColumns); ++index) {
-        const auto& columnMeta = columnMetas->columns(index);
-
-        auto type = chunkSchemaColumns[index].GetPhysicalType();
-        bool valueColumn = index >= chunkSchema->GetKeyColumnCount();
-
-        auto blockIds = Columns[index].PrepareMetas(MakeRange(columnMeta.segments()), type, valueColumn);
-
-        ui16 groupId = columnIndexToGroupId[index];
         auto& blockGroup = ColumnGroups[groupId];
-        // If BlockIds is empty fill it. Otherwise check that BlockIds and blockIds are equal.
-        if (blockGroup.BlockIds.empty()) {
+
+        // Fill BlockIds if blockGroup has been created. Otherwise check that BlockIds and blockIds are equal.
+        if (inserted) {
             blockGroup.BlockIds = std::move(blockIds);
-            blockGroup.BlockSegmentMetas.resize(blockGroup.BlockIds.size());
         } else {
             YT_VERIFY(blockIds == blockGroup.BlockIds);
         }
 
-        GroupIdPerColumn[index] = groupId;
-        ColumnIdInGroup[index] = blockGroup.ColumnIds.size();
-        blockGroup.ColumnIds.push_back(index);
+        ColumnIndexInGroup[columnIndex] = blockGroup.ColumnIds.size();
+        blockGroup.ColumnIds.push_back(columnIndex);
+    };
 
-        auto& column = Columns[index];
-        YT_VERIFY(column.SegmentPivots.size() > 0);
-        auto segmentCount = column.SegmentPivots.back();
-        auto segmentSize = column.Meta.Size() / segmentCount;
 
-        for (ui32 blockId = 0; blockId < blockGroup.BlockIds.size(); ++blockId) {
-            auto offset = column.SegmentPivots[blockId] * segmentSize;
-            auto offsetEnd = column.SegmentPivots[blockId + 1] * segmentSize;
-            blockGroup.BlockSegmentMetas[blockId].push_back(column.Meta.Slice(offset, offsetEnd));
-        }
+    for (int index = 0; index < std::ssize(chunkSchemaColumns); ++index) {
+        auto type = chunkSchemaColumns[index].GetPhysicalType();
+        bool valueColumn = index >= chunkSchema->GetKeyColumnCount();
+
+        auto blockIds = preparedColumns[index].PrepareMetas(
+            MakeRange(columnMetas->columns(index).segments()),
+            type,
+            valueColumn);
+
+        determineColumnGroup(std::move(blockIds), index);
     }
 
     {
         int timestampReaderIndex = columnMetas->columns().size() - 1;
-        auto& blockGroup = ColumnGroups.back();
-        auto& column = Columns[timestampReaderIndex];
 
-        auto blockIds = column.PrepareTimestampMetas(
+        auto blockIds = preparedColumns[timestampReaderIndex].PrepareTimestampMetas(
             MakeRange(columnMetas->columns(timestampReaderIndex).segments()));
 
-        GroupIdPerColumn[timestampReaderIndex] = ColumnGroups.size() - 1;
-        ColumnIdInGroup[timestampReaderIndex] = blockGroup.ColumnIds.size();
-        YT_VERIFY(ColumnIdInGroup[timestampReaderIndex] == 0);
-        blockGroup.BlockIds = blockIds;
-        blockGroup.BlockSegmentMetas.resize(blockGroup.BlockIds.size());
-
-
-        YT_VERIFY(column.SegmentPivots.size() > 0);
-        auto segmentCount = column.SegmentPivots.back();
-        auto segmentSize = column.Meta.Size() / segmentCount;
-
-        for (ui32 blockId = 0; blockId < blockGroup.BlockIds.size(); ++blockId) {
-            auto offset = column.SegmentPivots[blockId] * segmentSize;
-            auto offsetEnd = column.SegmentPivots[blockId + 1] * segmentSize;
-            blockGroup.BlockSegmentMetas[blockId].push_back(column.Meta.Slice(offset, offsetEnd));
-        }
+        determineColumnGroup(std::move(blockIds), timestampReaderIndex);
     }
 
+    std::vector<TRef> blockSegmentMeta;
+
     for (auto& blockGroup : ColumnGroups) {
-        for (auto& blockSegmentMeta : blockGroup.BlockSegmentMetas) {
+        for (int index = 0; index < std::ssize(blockGroup.BlockIds); ++index) {
+            for (auto columnId : blockGroup.ColumnIds) {
+                auto& [segmentPivots, meta] = preparedColumns[columnId];
+
+                YT_VERIFY(segmentPivots.size() > 0);
+                auto segmentCount = segmentPivots.back();
+                auto segmentSize = meta.Size() / segmentCount;
+
+                auto offset = segmentPivots[index] * segmentSize;
+                auto offsetEnd = segmentPivots[index + 1] * segmentSize;
+
+                blockSegmentMeta.push_back(meta.Slice(offset, offsetEnd));
+            }
+
             auto columnCount = blockSegmentMeta.size();
 
             size_t size = 0;
@@ -249,10 +226,10 @@ size_t TPreparedChunkMeta::Prepare(
                 size += metas.size();
             }
 
-            auto mergedMeta = TSharedMutableRef::Allocate(sizeof(ui32) * (columnCount + 1) + size);
+            auto offset = sizeof(ui32) * (columnCount + 1);
+            auto mergedMeta = TSharedMutableRef::Allocate(offset + size);
 
             ui32* offsets = reinterpret_cast<ui32*>(mergedMeta.Begin());
-            auto offset = sizeof(ui32) * (columnCount + 1);
             auto* metasData = reinterpret_cast<char*>(mergedMeta.Begin() + offset);
 
             for (const auto& metas : blockSegmentMeta) {
@@ -263,12 +240,22 @@ size_t TPreparedChunkMeta::Prepare(
             }
             *offsets++ = offset;
             blockGroup.MergedMetas.push_back(mergedMeta);
+
+            blockSegmentMeta.clear();
         }
+
+        YT_VERIFY(blockGroup.MergedMetas.size() == blockGroup.BlockIds.size());
     }
 
-    size_t size = 0;
-    for (const auto& column : Columns) {
-        size += column.Meta.Size();
+    size_t size = ColumnGroups.capacity() * sizeof(TColumnGroup);
+    for (const auto& blockGroup : ColumnGroups) {
+        size += blockGroup.BlockIds.capacity() * sizeof(ui32);
+        size += blockGroup.ColumnIds.capacity() * sizeof(ui16);
+        size += blockGroup.MergedMetas.capacity() * sizeof(TSharedRef);
+
+        for (const auto& perBlockMeta : blockGroup.MergedMetas) {
+            size += perBlockMeta.Size();
+        }
     }
 
     return size;

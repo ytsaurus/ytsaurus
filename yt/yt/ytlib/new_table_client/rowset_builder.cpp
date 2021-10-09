@@ -68,15 +68,18 @@ public:
 template <EValueType Type>
 class TKeyColumn<TReadSpan, Type>
     : public TKeyColumnBase<TReadSpan>
+    , public TScanDataExtractor<Type>
 {
 public:
+    using TScanDataExtractor<Type>::Extract;
+
     explicit TKeyColumn(const TColumnBase* columnInfo)
         : TKeyColumnBase<TReadSpan>(columnInfo)
     {
         if (columnInfo->IsNull()) {
             // Key column not present in chunk.
-            TKeyColumnBase<TReadSpan>::InitNull();
-            Value_.InitNull();
+            TKeyColumnBase<TReadSpan>::InitNullIndex();
+            TScanDataExtractor<Type>::InitNullData();
         }
     }
 
@@ -85,7 +88,7 @@ public:
         auto meta = SkipToSegment<TKeyMeta<Type>>(rowIndex);
         if (meta) {
             auto data = GetBlock().begin() + meta->Offset;
-            DoInitSegment(&Value_, this, meta, reinterpret_cast<const ui64*>(data), tmpBuffers);
+            DoInitKeySegment<Type>(this, meta, reinterpret_cast<const ui64*>(data), tmpBuffers);
         }
         return GetSegmentRowLimit();
     }
@@ -98,6 +101,7 @@ public:
         ui64* dataWeight) const override
     {
         for (auto [lower, upper] : spans) {
+            position = SkipTo(lower, position);
             position = DoReadKeys(keys, lower, upper, position, columnId, dataWeight);
             keys += upper - lower;
         }
@@ -106,8 +110,6 @@ public:
     }
 
 private:
-    TScanDataExtractor<Type> Value_;
-
     Y_FORCE_INLINE ui32 DoReadKeys(
         TUnversionedValue** keys,
         ui32 rowIndex,
@@ -117,9 +119,6 @@ private:
         ui64* dataWeight) const
     {
         YT_ASSERT(rowLimit <= GetSegmentRowLimit());
-
-        position = SkipTo(rowIndex, position);
-
         YT_ASSERT(position < GetCount());
         YT_ASSERT(rowIndex < UpperRowBound(position));
 
@@ -130,7 +129,7 @@ private:
             value.Id = columnId;
 
             YT_ASSERT(position < GetCount());
-            Value_.Extract(&value, position);
+            Extract(&value, position);
 
             ui32 nextRowIndex = rowLimit < UpperRowBound(position) ? rowLimit : UpperRowBound(position++);
 
@@ -174,24 +173,27 @@ public:
 template <EValueType Type>
 class TKeyColumn<ui32, Type>
     : public TKeyColumnBase<ui32>
+    , public TLookupDataExtractor<Type>
 {
 public:
+    using TLookupDataExtractor<Type>::Extract;
+
     explicit TKeyColumn(const TColumnBase* columnInfo)
         : TKeyColumnBase<ui32>(columnInfo)
     {
         if (columnInfo->IsNull()) {
             // Key column not present in chunk.
-            TKeyColumnBase<ui32>::InitNull();
-            Value_.InitNull();
+            TKeyColumnBase<ui32>::InitNullIndex();
+            TLookupDataExtractor<Type>::InitNullData();
         }
     }
 
-    ui32 UpdateSegment(ui32 rowIndex, TTmpBuffers*) override
+    ui32 UpdateSegment(ui32 rowIndex, TTmpBuffers* tmpBuffers) override
     {
         auto meta = SkipToSegment<TKeyMeta<Type>>(rowIndex);
         if (meta) {
             auto data = GetBlock().begin() + meta->Offset;
-            DoInitSegment(&Value_, this, meta, reinterpret_cast<const ui64*>(data));
+            DoInitKeySegment<Type>(this, meta, reinterpret_cast<const ui64*>(data), tmpBuffers);
         }
         return GetSegmentRowLimit();
     }
@@ -212,7 +214,7 @@ public:
             value.Id = columnId;
 
             YT_ASSERT(position < GetCount());
-            Value_.Extract(&value, position);
+            Extract(&value, position);
 
             localDataWeight += GetFixedDataWeightPart<Type>(1) +
                 GetVariableDataWeightPart<Type>(value);
@@ -224,9 +226,6 @@ public:
 
         return position;
     }
-
-private:
-    TLookupDataExtractor<Type> Value_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -252,10 +251,10 @@ public:
         : ColumnId_(columnId)
     { }
 
-    void Init(const TMetaBase* meta, const ui64* data, TTmpBuffers* tmpBuffers)
+    void Init(const TMetaBase* meta, const ui64* ptr, TTmpBuffers* tmpBuffers)
     {
-        data = TScanVersionExtractor<Aggregate>::Init(data);
-        TScanDataExtractor<Type>::Init(meta, data, tmpBuffers);
+        ptr = TScanVersionExtractor<Aggregate>::InitVersion(ptr);
+        TScanDataExtractor<Type>::InitData(meta, ptr, tmpBuffers);
     }
 
 protected:
@@ -275,10 +274,10 @@ public:
         : ColumnId_(columnId)
     { }
 
-    void Init(const TMetaBase* meta, const ui64* data)
+    void Init(const TMetaBase* meta, const ui64* ptr, TTmpBuffers* tmpBuffers)
     {
-        data = TLookupVersionExtractor<Aggregate>::Init(data);
-        TLookupDataExtractor<Type>::Init(meta, data);
+        ptr = TLookupVersionExtractor<Aggregate>::InitVersion(ptr);
+        TLookupDataExtractor<Type>::InitData(meta, ptr, tmpBuffers);
     }
 
 protected:
@@ -435,8 +434,6 @@ public:
 
     ui32 CollectCounts(ui32* counts, TRange<ui32> readIndexes, ui32 position)
     {
-        // Initialize lazily.
-        const_cast<TValueColumnBase*>(this)->DoInitialize();
         return DoCollectCounts_(this, counts, readIndexes, position);
     }
 
@@ -446,8 +443,6 @@ public:
         ui32 position,
         ui64* dataWeight) const
     {
-        // Initialize lazily.
-        const_cast<TValueColumnBase*>(this)->DoInitialize();
         return DoReadValues_(this, valueOutput, readIndexes, position, dataWeight);
     }
 
@@ -468,8 +463,6 @@ protected:
 
     // This field allows to check aggregate flag without calling virtual method.
     const bool Aggregate_;
-
-    virtual void DoInitialize() = 0;
 };
 
 template <EValueType Type, bool Aggregate, bool ProduceAll>
@@ -485,13 +478,17 @@ public:
         , TVersionedValueBase(columnId)
     { }
 
-    ui32 UpdateSegment(ui32 rowIndex, TTmpBuffers*) override
+    ui32 UpdateSegment(ui32 rowIndex, TTmpBuffers* tmpBuffers) override
     {
         auto meta = SkipToSegment<TValueMeta<Type>>(rowIndex);
         if (!meta) {
             return GetSegmentRowLimit();
         }
-        Meta_ = meta;
+
+        bool dense = IsDense(meta->Type);
+        auto data = GetBlock().begin() + meta->Offset;
+        auto ptr = TValueColumnBase<ui32>::InitIndex(meta, meta, reinterpret_cast<const ui64*>(data), dense);
+        TVersionedValueBase::Init(meta, ptr, tmpBuffers);
 
 #ifdef USE_UNSPECIALIZED_SEGMENT_READERS
         DoCollectCounts_ = &CallCastedMixin<
@@ -503,7 +500,6 @@ public:
 
         DoReadValues_ = &DoReadValues<TLookupMultiValueIndexExtractor, TVersionedValueBase>;
 #else
-        bool dense = IsDense(meta->Type);
         if (dense) {
             InitSegmentReaders<true>(meta->Type);
         } else {
@@ -512,17 +508,6 @@ public:
 #endif
 
         return meta->ChunkRowCount;
-    }
-
-    void DoInitialize() override
-    {
-        if (Meta_) {
-            bool dense = IsDense(Meta_->Type);
-            auto data = GetBlock().begin() + Meta_->Offset;
-            auto ptr = TValueColumnBase<ui32>::Init(Meta_, Meta_, reinterpret_cast<const ui64*>(data), dense);
-            TVersionedValueBase::Init(Meta_, ptr);
-            Meta_ = nullptr;
-        }
     }
 
     template <bool Dense>
@@ -550,18 +535,18 @@ public:
     static ui32 DoReadValues(
         const TLookupMultiValueIndexExtractor* base,
         TValueOutput* valueOutput,
-        TRange<ui32> readIndexes,
+        TRange<ui32> rowIndexes,
         ui32 position,
         ui64* dataWeight)
     {
         // Keep counter in register.
         ui64 localDataWeight = 0;
-        for (auto readIndex : readIndexes) {
+        for (auto rowIndex : rowIndexes) {
             position = CallCastedMixin<const TSkipperTo<TIndexExtractorBase>, const TLookupMultiValueIndexExtractor>
-                (base, readIndex, position);
+                (base, rowIndex, position);
             ui32 valueIdx = position;
             position = CallCastedMixin<const TSkipperTo<TIndexExtractorBase>, const TLookupMultiValueIndexExtractor>
-                (base, readIndex + 1, position);
+                (base, rowIndex + 1, position);
             ui32 valueIdxEnd = position;
 
             localDataWeight += CallCastedMixin<
@@ -686,7 +671,12 @@ public:
             auto data = GetBlock().begin() + meta->Offset;
 
             bool dense = IsDense(meta->Type);
-            auto ptr = TValueColumnBase<TReadSpan>::Init(meta, meta, reinterpret_cast<const ui64*>(data), dense, tmpBuffers);
+            auto ptr = TValueColumnBase<TReadSpan>::InitIndex(
+                meta,
+                meta,
+                reinterpret_cast<const ui64*>(data),
+                dense,
+                tmpBuffers);
             TVersionedValueBase::Init(meta, ptr, tmpBuffers);
         }
 
@@ -1093,6 +1083,7 @@ public:
 
         {
             TValueIncrementingTimingGuard<TWallTimer> timingGuard(&readerStatistics->CollectCountsTime);
+
             ui32 fixedValueCountColumns = 0;
             ui16 columnId = GetKeyColumnCount();
             for (const auto& column : ValueColumns_) {
@@ -1594,7 +1585,7 @@ private:
         }
     }
 
-        ui32* BuildSentinelRowIndexes(ui32* it, ui32* end, ui32* sentinelRowIndexes)
+    ui32* BuildSentinelRowIndexes(ui32* it, ui32* end, ui32* sentinelRowIndexes)
     {
         ui32 offset = 0;
         auto* spanDest = it;

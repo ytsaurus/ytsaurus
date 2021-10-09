@@ -559,6 +559,13 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     auto blockInfos = BuildBlockInfos(std::move(groupBlockIds), windowsList, chunkMeta->BlockMeta());
     readerStatistics->BuildBlockInfosTime = buildBlockInfosTimer.GetElapsedTime();
 
+    auto blockCount = blockInfos.size();
+    size_t uncompressedBlocksSize = 0;
+
+    for (const auto& blockInfo : blockInfos) {
+        uncompressedBlocksSize += blockInfo.UncompressedDataSize;
+    }
+
     TBlockFetcherPtr blockFetcher;
     if (!blockInfos.empty()) {
         TWallTimer createBlockFetcherTimer;
@@ -581,7 +588,10 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
     const auto& Logger = NTableClient::TableClientLogger;
 
-    YT_LOG_DEBUG("Creating rowset builder (KeyTypes: %v, ValueTypes: %v)",
+    YT_LOG_DEBUG("Creating rowset builder (ReadItemCount: %v, BlockCount: %v, UncompressedBlocksSize: %v, KeyTypes: %v, ValueTypes: %v)",
+        readItems.size(),
+        blockCount,
+        uncompressedBlocksSize,
         keyTypes,
         MakeFormattableView(valueSchema, [] (TStringBuilderBase* builder, TValueSchema valueSchema) {
             builder->AppendFormat("%v", valueSchema.Type);
@@ -606,7 +616,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
         columnInfos.emplace_back(
             blockRef,
-            preparedChunkMeta->ColumnIdInGroup[index]);
+            preparedChunkMeta->ColumnIndexInGroup[index]);
     }
 
     for (auto [chunkSchemaIndex, readerSchemaIndex] : valuesIdMapping) {
@@ -615,13 +625,18 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         const auto* blockRef = groupBlockHolders[blockHolderIndex].get();
         columnInfos.emplace_back(
             blockRef,
-            preparedChunkMeta->ColumnIdInGroup[chunkSchemaIndex]);
+            preparedChunkMeta->ColumnIndexInGroup[chunkSchemaIndex]);
     }
 
-    // Timestamp column info.
-    columnInfos.emplace_back(
-        groupBlockHolders.back().get(),
-        preparedChunkMeta->ColumnIdInGroup.back());
+    {
+        // Timestamp column info.
+        auto groupId = preparedChunkMeta->GroupIdPerColumn.back();
+        auto blockHolderIndex = LowerBound(groupIds.begin(), groupIds.end(), groupId) - groupIds.begin();
+        const auto* blockRef = groupBlockHolders[blockHolderIndex].get();
+        columnInfos.emplace_back(
+            blockRef,
+            preparedChunkMeta->ColumnIndexInGroup.back());
+    }
 
     auto rowsetBuilder = CreateRowsetBuilder(readItems, keyTypes, valueSchema, columnInfos, timestamp, produceAll);
 
