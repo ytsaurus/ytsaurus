@@ -71,7 +71,7 @@ message TTabletInfo
     }
 
     required NYT.NProto.TGuid tablet_id = 1;
-    required int64 mount_revision = 8;
+    required uint64 mount_revision = 8;
     required TTabletStatistics statistics = 2;
     repeated TTableReplicaInfo replicas = 3;
     required TTabletPerformanceCounters performance_counters = 4;

@@ -89,7 +89,7 @@ message TReqMountTablet
     optional TTableSettings table_settings = 25;
     required int32 atomicity = 10; // EAtomicity
     required int32 commit_ordering = 15; // ECommitOrdering
-    required int64 mount_revision = 11;
+    required uint64 mount_revision = 11;
     required int64 trimmed_row_count = 12;
     required bool freeze = 13;
     repeated TTableReplicaDescriptor replicas = 14;
@@ -147,7 +147,7 @@ message TReqUnlockTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid transaction_id = 2;
-    required int64 mount_revision = 3;
+    required uint64 mount_revision = 3;
     repeated NTabletNode.NProto.TAddStoreDescriptor stores_to_add = 4;
     optional int32 update_mode = 5 [default = 1]; // EUpdateMode [default = Append]
     optional int64 commit_timestamp = 6;
@@ -159,7 +159,7 @@ message TReqUnlockTablet
 message TReqSetTabletState
 {
     required NYT.NProto.TGuid tablet_id = 1;
-    required int64 mount_revision = 3;
+    required uint64 mount_revision = 3;
     required int32 state = 2;
 }
 
@@ -169,7 +169,7 @@ message TReqWriteRows
     optional uint64 transaction_start_timestamp = 2;
     optional int64 transaction_timeout = 3;
     required NYT.NProto.TGuid tablet_id = 4;
-    required int64 mount_revision = 6;
+    required uint64 mount_revision = 6;
     required int32 codec = 7;
     required bytes compressed_data = 8;
     optional uint32 signature = 9;
@@ -184,7 +184,7 @@ message TReqWriteRows
 message TReqTrimRows
 {
     required NYT.NProto.TGuid tablet_id = 1;
-    required int64 mount_revision = 2;
+    required uint64 mount_revision = 2;
     required int64 trimmed_row_count = 3;
     optional string user = 4;
     optional string user_tag = 5;
@@ -193,14 +193,14 @@ message TReqTrimRows
 message TReqRotateStore
 {
     required NYT.NProto.TGuid tablet_id = 1;
-    required int64 mount_revision = 2;
+    required uint64 mount_revision = 2;
     optional int32 reason = 3; // EStoreRotationReason
 }
 
 message TReqSplitPartition
 {
     required NYT.NProto.TGuid tablet_id = 1;
-    required int64 mount_revision = 4;
+    required uint64 mount_revision = 4;
     required NYT.NProto.TGuid partition_id = 2;
     repeated bytes pivot_keys = 3;
 }
@@ -208,7 +208,7 @@ message TReqSplitPartition
 message TReqMergePartitions
 {
     required NYT.NProto.TGuid tablet_id = 1;
-    required int64 mount_revision = 4;
+    required uint64 mount_revision = 4;
     required NYT.NProto.TGuid partition_id = 2;
     required int32 partition_count = 3;
 }
@@ -216,7 +216,7 @@ message TReqMergePartitions
 message TReqUpdatePartitionSampleKeys
 {
     required NYT.NProto.TGuid tablet_id = 1;
-    required int64 mount_revision = 5;
+    required uint64 mount_revision = 5;
     required NYT.NProto.TGuid partition_id = 4;
     required bytes sample_keys = 6; // wire-format encoded
 }
@@ -267,7 +267,7 @@ message TRspAllocateDynamicStore
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid dynamic_store_id = 2;
-    required int64 mount_revision = 3;
+    required uint64 mount_revision = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

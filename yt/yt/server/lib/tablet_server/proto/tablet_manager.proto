@@ -110,7 +110,7 @@ message TRspLockTablet
 message TReqUpdateTabletStores
 {
     required NYT.NProto.TGuid tablet_id = 1;
-    required int64 mount_revision = 4;
+    required uint64 mount_revision = 4;
     repeated NTabletNode.NProto.TAddStoreDescriptor stores_to_add = 2;
     repeated NTabletNode.NProto.TRemoveStoreDescriptor stores_to_remove = 3;
     repeated NTabletNode.NProto.TAddHunkChunkDescriptor hunk_chunks_to_add = 8;
@@ -123,7 +123,7 @@ message TReqUpdateTabletStores
 message TReqUpdateTabletTrimmedRowCount
 {
     required NYT.NProto.TGuid tablet_id = 1;
-    required int64 mount_revision = 2;
+    required uint64 mount_revision = 2;
     required int64 trimmed_row_count = 3;
 }
 
@@ -131,7 +131,7 @@ message TReqUpdateTableReplicaStatistics
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid replica_id = 2;
-    required int64 mount_revision = 3;
+    required uint64 mount_revision = 3;
     required NTabletClient.NProto.TTableReplicaStatistics statistics = 4;
 }
 
@@ -139,14 +139,14 @@ message TRspEnableTableReplica
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid replica_id = 2;
-    required int64 mount_revision = 3;
+    required uint64 mount_revision = 3;
 }
 
 message TRspDisableTableReplica
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid replica_id = 2;
-    required int64 mount_revision = 3;
+    required uint64 mount_revision = 3;
 }
 
 message TReqCreateTabletAction
@@ -252,7 +252,7 @@ message TReqAbortPrerequisiteTransaction
 message TReqAllocateDynamicStore
 {
     required NYT.NProto.TGuid tablet_id = 1;
-    required int64 mount_revision = 2;
+    required uint64 mount_revision = 2;
 }
 
 message TReqSetTabletCellBundleResourceUsage

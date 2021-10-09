@@ -65,7 +65,7 @@ TTransactionId MakeTabletTransactionId(
     return MakeId(
         type,
         cellTag,
-        static_cast<ui64>(startTimestamp),
+        startTimestamp,
         hash);
 }
 

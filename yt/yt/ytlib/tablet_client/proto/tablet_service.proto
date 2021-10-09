@@ -11,7 +11,7 @@ message TReqWrite
     optional uint64 transaction_start_timestamp = 2;
     optional int64 transaction_timeout = 3;
     required NYT.NProto.TGuid tablet_id = 4;
-    required int64 mount_revision = 5;
+    required uint64 mount_revision = 5;
     required int32 durability = 6; // EDurability
     optional uint32 signature = 7;
     required int32 request_codec = 8; // ECodec
@@ -45,7 +45,7 @@ message TRspRegisterTransactionActions
 message TReqTrim
 {
     required NYT.NProto.TGuid tablet_id = 1;
-    required int64 mount_revision = 2;
+    required uint64 mount_revision = 2;
     required int64 trimmed_row_count = 3;
 }
 
