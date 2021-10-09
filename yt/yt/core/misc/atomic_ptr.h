@@ -39,8 +39,8 @@ public:
     void Store(TIntrusivePtr<T> other);
 
     TIntrusivePtr<T> SwapIfCompare(THazardPtr<T>& compare, TIntrusivePtr<T> target);
-    TIntrusivePtr<T> SwapIfCompare(T* comparePtr, TIntrusivePtr<T> target);
-    TIntrusivePtr<T> SwapIfCompare(const TIntrusivePtr<T>& compare, TIntrusivePtr<T> target);
+    bool SwapIfCompare(T* comparePtr, TIntrusivePtr<T> target);
+    bool SwapIfCompare(const TIntrusivePtr<T>& compare, TIntrusivePtr<T> target);
     bool SwapIfCompare(const TIntrusivePtr<T>& compare, TIntrusivePtr<T>* target);
 
     explicit operator bool() const;
