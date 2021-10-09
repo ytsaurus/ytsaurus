@@ -26,6 +26,8 @@
 
 #include <yt/yt/server/node/job_agent/job_controller.h>
 
+#include <yt/yt/server/lib/io/config.h>
+
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>
 
 #include <yt/yt/core/http/server.h>
@@ -85,6 +87,8 @@ public:
         GetDynamicConfigManager()
             ->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
         const auto& dynamicConfig = GetDynamicConfigManager()->GetConfig();
+
+        IOTracker_ = NIO::CreateIOTracker(dynamicConfig->DataNode->IOTracker);
 
         ChunkStore_ = New<TChunkStore>(GetConfig()->DataNode, this);
 
@@ -334,6 +338,11 @@ public:
         return TableSchemaCache_;
     }
 
+    const NIO::IIOTrackerPtr& GetIOTracker() const override
+    {
+        return IOTracker_;
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -365,6 +374,8 @@ private:
 
     NHttp::IServerPtr SkynetHttpServer_;
 
+    NIO::IIOTrackerPtr IOTracker_;
+
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
@@ -388,6 +399,8 @@ private:
         MasterJobThreadPool_->Configure(newConfig->DataNode->MasterJobThreadCount);
 
         TableSchemaCache_->Configure(newConfig->DataNode->TableSchemaCache);
+
+        IOTracker_->SetConfig(newConfig->DataNode->IOTracker);
     }
 };
 

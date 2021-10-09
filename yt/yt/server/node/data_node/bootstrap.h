@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 
+#include <yt/yt/server/lib/io/io_tracker.h>
+
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,6 +52,9 @@ struct IBootstrap
 
     // Caches.
     virtual const TTableSchemaCachePtr& GetTableSchemaCache() const = 0;
+
+    // IO tracker.
+    virtual const NIO::IIOTrackerPtr& GetIOTracker() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

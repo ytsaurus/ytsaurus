@@ -41,12 +41,16 @@ struct IIOTracker
     //! Add the IO event to tracker. The event will be logged asynchronously, after some time passes.
     virtual void Enqueue(TIOEvent ioEvent) = 0;
 
+    //! Add the IO event to tracker. Baggage will be filled automatically from the current TraceContext.
+    void Enqueue(TIOCounters counters, THashMap<TString, TString> tags);
+
     //! Return true if the events can be accepted. Note that the return value of this method is not fully
     //! consistent with Enqueue. For example, IsEnabled() may return false, while Enqueue() will accept
     //! events. Eventually, if the config doesn't change, the return value of this method will correspond
     //! to reality.
     virtual bool IsEnabled() const = 0;
 
+    virtual TIOTrackerConfigPtr GetConfig() const = 0;
     virtual void SetConfig(TIOTrackerConfigPtr config) = 0;
 
     //! These signals are used for testing purposes only. Do not subscribe to them in production code.

@@ -225,7 +225,7 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TSessionBase::SendBlocks(
         .Run();
 }
 
-TFuture<void> TSessionBase::FlushBlocks(int blockIndex)
+TFuture<NIO::TIOCounters> TSessionBase::FlushBlocks(int blockIndex)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

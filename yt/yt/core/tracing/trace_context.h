@@ -129,6 +129,8 @@ public:
     using TTagList = SmallVector<std::pair<TString, TString>, 4>;
     TTagList GetTags() const;
 
+    NYson::TYsonString GetBaggage() const;
+    void SetBaggage(NYson::TYsonString baggage);
     NYTree::IAttributeDictionaryPtr UnpackBaggage() const;
     void PackBaggage(const NYTree::IAttributeDictionaryPtr& baggage);
 
@@ -210,9 +212,6 @@ private:
     DECLARE_NEW_FRIEND();
 
     void SetDuration();
-
-    NYson::TYsonString GetBaggage() const;
-    void SetBaggage(NYson::TYsonString baggage);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTraceContext)

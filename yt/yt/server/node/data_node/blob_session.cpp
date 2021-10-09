@@ -651,14 +651,14 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TBlobSession::DoSendBlocks(
     }));
 }
 
-TFuture<void> TBlobSession::DoFlushBlocks(int blockIndex)
+TFuture<NIO::TIOCounters> TBlobSession::DoFlushBlocks(int blockIndex)
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
     if (!IsInWindow(blockIndex)) {
         YT_LOG_DEBUG("Blocks are already flushed (BlockIndex: %v)",
             blockIndex);
-        return VoidFuture;
+        return MakeFuture(NIO::TIOCounters{});
     }
 
     const auto& slot = GetSlot(blockIndex);
@@ -674,15 +674,18 @@ TFuture<void> TBlobSession::DoFlushBlocks(int blockIndex)
         BIND(&TBlobSession::OnBlockFlushed, MakeStrong(this), blockIndex));
 }
 
-void TBlobSession::OnBlockFlushed(int blockIndex)
+NIO::TIOCounters TBlobSession::OnBlockFlushed(int blockIndex)
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
     if (Canceled_.load()) {
-        return;
+        return NIO::TIOCounters{};
     }
 
     ReleaseBlocks(blockIndex);
+
+    // The data for blob chunks is flushed to disk only when the blob session is finished, so return empty IO counters here.
+    return NIO::TIOCounters{};
 }
 
 void TBlobSession::DoCancel(const TError& error)

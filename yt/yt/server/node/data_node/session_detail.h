@@ -55,7 +55,7 @@ public:
         int blockCount,
         const NNodeTrackerClient::TNodeDescriptor& targetDescriptor) override;
 
-    TFuture<void> FlushBlocks(int blockIndex) override;
+    TFuture<NIO::TIOCounters> FlushBlocks(int blockIndex) override;
 
     DEFINE_SIGNAL_OVERRIDE(void(const TError& error), Finished);
 
@@ -92,7 +92,7 @@ protected:
         int startBlockIndex,
         int blockCount,
         const NNodeTrackerClient::TNodeDescriptor& target) = 0;
-    virtual TFuture<void> DoFlushBlocks(int blockIndex) = 0;
+    virtual TFuture<NIO::TIOCounters> DoFlushBlocks(int blockIndex) = 0;
 
     void ValidateActive() const;
 };

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/io/io_tracker.h>
+
 #include <yt/yt/server/node/cluster_node/public.h>
 
 #include <yt/yt/ytlib/chunk_client/session_id.h>
@@ -90,7 +92,7 @@ struct ISession
         const NNodeTrackerClient::TNodeDescriptor& target) = 0;
 
     //! Flushes blocks up to a given one.
-    virtual TFuture<void> FlushBlocks(int blockIndex) = 0;
+    virtual TFuture<NIO::TIOCounters> FlushBlocks(int blockIndex) = 0;
 
     //! Renews the lease.
     virtual void Ping() = 0;
