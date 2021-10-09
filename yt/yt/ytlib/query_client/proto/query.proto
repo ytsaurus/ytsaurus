@@ -227,7 +227,7 @@ message TDataSource
     // COMPAT(babenko): legacy clients may omit this field.
     optional NYT.NProto.TGuid cell_id = 7;
 
-    required int64 mount_revision = 2;
+    required uint64 mount_revision = 2;
     required bytes ranges = 3;
     optional bool lookup_supported = 4 [default = true];
 

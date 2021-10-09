@@ -4521,7 +4521,7 @@ private:
             auto* tablet = FindTablet(tabletId);
             if (!IsObjectAlive(tablet) ||
                 tablet->GetState() == ETabletState::Unmounted ||
-                static_cast<ui64>(mountRevision) != tablet->GetMountRevision())
+                mountRevision != tablet->GetMountRevision())
             {
                 continue;
             }
@@ -4931,7 +4931,7 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (tablet->GetMountRevision() != static_cast<ui64>(mountRevision)) {
+        if (tablet->GetMountRevision() != mountRevision) {
             return;
         }
 
@@ -4961,7 +4961,7 @@ private:
         }
 
         auto mountRevision = response->mount_revision();
-        if (tablet->GetMountRevision() != static_cast<ui64>(mountRevision)) {
+        if (tablet->GetMountRevision() != mountRevision) {
             return;
         }
 
@@ -4994,7 +4994,7 @@ private:
         }
 
         auto mountRevision = response->mount_revision();
-        if (tablet->GetMountRevision() != static_cast<ui64>(mountRevision)) {
+        if (tablet->GetMountRevision() != mountRevision) {
             return;
         }
 
@@ -5584,7 +5584,7 @@ private:
         tablet->SetStoresUpdatePreparedTransaction(nullptr);
 
         auto mountRevision = request->mount_revision();
-        if (tablet->GetMountRevision() != static_cast<ui64>(mountRevision)) {
+        if (tablet->GetMountRevision() != mountRevision) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Invalid mount revision on tablet stores update commit; ignored "
                 "(TabletId: %v, TransactionId: %v, ExpectedMountRevision: %llx, ActualMountRevision: %llx)",
                 tabletId,
@@ -5847,7 +5847,7 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (tablet->GetMountRevision() != static_cast<ui64>(mountRevision)) {
+        if (tablet->GetMountRevision() != mountRevision) {
             return;
         }
 
@@ -5874,7 +5874,7 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (tablet->GetMountRevision() != static_cast<ui64>(mountRevision)) {
+        if (tablet->GetMountRevision() != mountRevision) {
             return;
         }
 
@@ -5900,7 +5900,7 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (tablet->GetMountRevision() != static_cast<ui64>(mountRevision)) {
+        if (tablet->GetMountRevision() != mountRevision) {
             return;
         }
 

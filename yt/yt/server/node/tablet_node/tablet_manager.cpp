@@ -1274,7 +1274,7 @@ private:
         // COMPAT(ifsmirnov)
         if (request->has_mount_revision() && request->mount_revision() != 0) {
             auto mountRevision = request->mount_revision();
-            if (static_cast<ui64>(mountRevision) != tablet->GetMountRevision()) {
+            if (mountRevision != tablet->GetMountRevision()) {
                 return;
             }
         }
@@ -1347,7 +1347,7 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (static_cast<ui64>(mountRevision) != tablet->GetMountRevision()) {
+        if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
@@ -1586,7 +1586,7 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (static_cast<ui64>(mountRevision) != tablet->GetMountRevision()) {
+        if (mountRevision != tablet->GetMountRevision()) {
             // Same as above.
             return;
         }
@@ -1683,7 +1683,7 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (static_cast<ui64>(mountRevision) != tablet->GetMountRevision()) {
+        if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
@@ -1707,7 +1707,7 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (static_cast<ui64>(mountRevision) != tablet->GetMountRevision()) {
+        if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
@@ -1854,7 +1854,7 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (tablet->GetMountRevision() != static_cast<ui64>(mountRevision)) {
+        if (tablet->GetMountRevision() != mountRevision) {
             return;
         }
 
@@ -1944,7 +1944,7 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (static_cast<ui64>(mountRevision) != tablet->GetMountRevision()) {
+        if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
@@ -2126,7 +2126,7 @@ private:
         YT_VERIFY(tablet->IsPhysicallySorted());
 
         auto mountRevision = request->mount_revision();
-        if (static_cast<ui64>(mountRevision) != tablet->GetMountRevision()) {
+        if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
@@ -2174,7 +2174,7 @@ private:
         YT_VERIFY(tablet->IsPhysicallySorted());
 
         auto mountRevision = request->mount_revision();
-        if (static_cast<ui64>(mountRevision) != tablet->GetMountRevision()) {
+        if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
@@ -2223,7 +2223,7 @@ private:
         YT_VERIFY(tablet->IsPhysicallySorted());
 
         auto mountRevision = request->mount_revision();
-        if (static_cast<ui64>(mountRevision) != tablet->GetMountRevision()) {
+        if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 

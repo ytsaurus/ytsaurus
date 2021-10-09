@@ -207,13 +207,13 @@ void Serialize(const TReplicationCard& replicationCard, IYsonConsumer* consumer)
 void ToProto(NChaosClient::NProto::TReplicationProgress::TSegment* protoSegment, const TReplicationProgress::TSegment& segment)
 {
     ToProto(protoSegment->mutable_lower_key(), segment.LowerKey);
-    protoSegment->set_timestamp(static_cast<ui64>(segment.Timestamp));
+    protoSegment->set_timestamp(segment.Timestamp);
 }
 
 void FromProto(TReplicationProgress::TSegment* segment, const NChaosClient::NProto::TReplicationProgress::TSegment& protoSegment)
 {
     segment->LowerKey = FromProto<TUnversionedOwningRow>(protoSegment.lower_key());
-    segment->Timestamp = static_cast<TTimestamp>(protoSegment.timestamp());
+    segment->Timestamp = protoSegment.timestamp();
 }
 
 void ToProto(NChaosClient::NProto::TReplicationProgress* protoReplicationProgress, const TReplicationProgress& replicationProgress)

@@ -853,7 +853,7 @@ message TTableSchema
 message TTabletInfo
 {
     required NYT.NProto.TGuid tablet_id = 1;
-    required int64 mount_revision = 2;
+    required uint64 mount_revision = 2;
     required int32 state = 3;
     required bytes pivot_key = 4;
     optional NYT.NProto.TGuid cell_id = 5;
