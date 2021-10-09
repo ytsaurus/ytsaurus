@@ -129,7 +129,7 @@ TIntrusivePtr<T> TAtomicPtr<T>::SwapIfCompare(THazardPtr<T>& compare, TIntrusive
 }
 
 template <class T>
-TIntrusivePtr<T> TAtomicPtr<T>::SwapIfCompare(T* comparePtr, TIntrusivePtr<T> target)
+bool TAtomicPtr<T>::SwapIfCompare(T* comparePtr, TIntrusivePtr<T> target)
 {
     auto targetPtr = target.Get();
 
@@ -141,7 +141,11 @@ TIntrusivePtr<T> TAtomicPtr<T>::SwapIfCompare(T* comparePtr, TIntrusivePtr<T> ta
             comparePtr,
             targetPtr);
         target.Release();
-        return TIntrusivePtr<T>(comparePtr, false);
+
+        if (comparePtr) {
+            Unref(comparePtr);
+        }
+        return true;
     } else {
         YT_LOG_TRACE("CAS failed (Current: %v, Compare: %v, Target: %v)",
             comparePtr,
@@ -149,12 +153,11 @@ TIntrusivePtr<T> TAtomicPtr<T>::SwapIfCompare(T* comparePtr, TIntrusivePtr<T> ta
             targetPtr);
     }
 
-    // TODO(lukyan): Use ptr if compare_exchange_strong fails?
-    return TIntrusivePtr<T>();
+    return false;
 }
 
 template <class T>
-TIntrusivePtr<T> TAtomicPtr<T>::SwapIfCompare(const TIntrusivePtr<T>& compare, TIntrusivePtr<T> target)
+bool TAtomicPtr<T>::SwapIfCompare(const TIntrusivePtr<T>& compare, TIntrusivePtr<T> target)
 {
     return SwapIfCompare(compare.Get(), std::move(target));
 }
@@ -162,7 +165,7 @@ TIntrusivePtr<T> TAtomicPtr<T>::SwapIfCompare(const TIntrusivePtr<T>& compare, T
 template <class T>
 bool TAtomicPtr<T>::SwapIfCompare(const TIntrusivePtr<T>& compare, TIntrusivePtr<T>* target)
 {
-     auto ptr = compare.Get();
+    auto ptr = compare.Get();
     if (Ptr_.compare_exchange_strong(ptr, target->Ptr_)) {
         target->Ptr_ = ptr;
         return true;
