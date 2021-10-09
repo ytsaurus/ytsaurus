@@ -1306,6 +1306,12 @@ struct TWriteCoreDumpOptions
     : public TTimeoutOptions
 { };
 
+struct TWriteLogBarrierOptions
+    : public TTimeoutOptions
+{
+    TString Category;
+};
+
 struct TWriteOperationControllerCoreDumpOptions
     : public TTimeoutOptions
 { };
@@ -1766,6 +1772,10 @@ struct IClient
     virtual TFuture<TString> WriteCoreDump(
         const TString& address,
         const TWriteCoreDumpOptions& options = {}) = 0;
+
+    virtual TFuture<TGuid> WriteLogBarrier(
+        const TString& address,
+        const TWriteLogBarrierOptions& options) = 0;
 
     virtual TFuture<TString> WriteOperationControllerCoreDump(
         NJobTrackerClient::TOperationId operationId,

@@ -1321,6 +1321,13 @@ TFuture<TString> TClient::WriteCoreDump(
     ThrowUnimplemented("WriteCoreDump");
 }
 
+TFuture<TGuid> TClient::WriteLogBarrier(
+    const TString& /* address */,
+    const TWriteLogBarrierOptions& /* options */)
+{
+    ThrowUnimplemented("WriteLogBarrier");
+}
+
 TFuture<TString> TClient::WriteOperationControllerCoreDump(
     TOperationId /* operationId */,
     const TWriteOperationControllerCoreDumpOptions& /* options */)

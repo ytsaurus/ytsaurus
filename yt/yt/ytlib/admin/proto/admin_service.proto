@@ -1,5 +1,7 @@
 package NYT.NAdmin.NProto;
 
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqDie
@@ -17,6 +19,16 @@ message TReqWriteCoreDump
 message TRspWriteCoreDump
 {
     required string path = 1;
+}
+
+message TReqWriteLogBarrier
+{
+    required string category = 1;
+}
+
+message TRspWriteLogBarrier
+{
+    required NYT.NProto.TGuid barrier_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

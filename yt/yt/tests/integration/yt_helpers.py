@@ -1,5 +1,7 @@
-from yt_commands import get, set, ls, create_pool_tree, print_debug
+from yt_commands import get, get_driver, set, ls, create_pool_tree, print_debug
 from yt.test_helpers import wait
+
+import yt.yson as yson
 
 import time
 from datetime import datetime
@@ -7,6 +9,7 @@ from dateutil import parser
 from dateutil.tz import tzlocal
 import pytest
 from collections import defaultdict
+import json
 
 MAX_DECIMAL_PRECISION = 35
 
@@ -300,3 +303,47 @@ def skip_if_no_descending(env):
         pytest.skip("Http proxies do not support descending yet")
     if env.get_component_version("ytserver-proxy").abi <= (20, 3):
         pytest.skip("Rpc proxies do not support descending yet")
+
+
+def write_log_barrier(address, category):
+    return get_driver().write_log_barrier(address=address, category=category)
+
+
+def read_structured_log(path, from_barrier=None, to_barrier=None, format=None):
+    if format is None:
+        if path.endswith(".json.log"):
+            format = "json"
+        elif path.endswith(".yson.log"):
+            format = "yson"
+        else:
+            assert False, "Cannot determine structured log format from file name"
+    assert format in {"json", "yson"}
+
+    has_start_barrier = from_barrier is None
+    lines = []
+
+    with open(path, "r") as fd:
+        for line in fd:
+            try:
+                if format == "json":
+                    parsed_line = json.loads(line)
+                elif format == "yson":
+                    parsed_line = yson.loads(line)
+            except ValueError:
+                continue
+
+            if parsed_line.get("system_event_kind") == "barrier":
+                barrier_id = parsed_line["barrier_id"]
+                if barrier_id == from_barrier:
+                    assert not has_start_barrier, "Start barrier appeared twice"
+                    has_start_barrier = True
+                    continue
+                if barrier_id == to_barrier:
+                    assert has_start_barrier, "End barrier appeared before start barrier"
+                    return lines
+
+            if has_start_barrier:
+                lines.append(parsed_line)
+
+    assert to_barrier is None, "End barrier not found"
+    return lines

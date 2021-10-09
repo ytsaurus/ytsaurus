@@ -179,6 +179,10 @@ public:
         const TString& address,
         const TWriteCoreDumpOptions& options), (override));
 
+    MOCK_METHOD(TFuture<TGuid>, WriteLogBarrier, (
+        const TString& address,
+        const TWriteLogBarrierOptions& options), (override));
+
     MOCK_METHOD(TFuture<TString>, WriteOperationControllerCoreDump, (
         NJobTrackerClient::TOperationId operationId,
         const TWriteOperationControllerCoreDumpOptions& options), (override));
