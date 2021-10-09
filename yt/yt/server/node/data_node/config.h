@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
+#include <yt/yt/server/lib/io/config.h>
+
 #include <yt/yt/server/lib/containers/config.h>
 
 #include <yt/yt/ytlib/chunk_client/config.h>
@@ -1282,6 +1284,9 @@ public:
     //! If |true|, node will be terminated when location becomes disabled.
     bool TerminateOnLocationDisabled;
 
+    //! IO tracker config.
+    NIO::TIOTrackerConfigPtr IOTracker;
+
     TDataNodeDynamicConfig()
     {
         RegisterParameter("storage_heavy_thread_count", StorageHeavyThreadCount)
@@ -1330,6 +1335,9 @@ public:
 
         RegisterParameter("terminate_on_location_disabled", TerminateOnLocationDisabled)
             .Default(true);
+
+        RegisterParameter("io_tracker", IOTracker)
+            .DefaultNew();
     }
 };
 

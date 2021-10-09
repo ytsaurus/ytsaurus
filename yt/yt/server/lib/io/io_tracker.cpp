@@ -3,6 +3,8 @@
 #include "private.h"
 #include "config.h"
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/periodic_yielder.h>
@@ -316,6 +318,11 @@ public:
         return Config_.Load()->Enable;
     }
 
+    TIOTrackerConfigPtr GetConfig() const override
+    {
+        return Config_.Load();
+    }
+
     void SetConfig(TIOTrackerConfigPtr config) override
     {
         // NB. We rely on FIFO order in TActionQueue here. Otherwise, the most recent config can
@@ -325,6 +332,9 @@ public:
 
     void Enqueue(TIOEvent ioEvent) override
     {
+        if (!IsEnabled()) {
+            return;
+        }
         if (EventStackSize_.load() >= Config_.Load()->QueueSizeLimit) {
             EventsDropped_.Increment();
             return;
@@ -389,6 +399,18 @@ private:
 
 DELEGATE_SIGNAL(TIOTracker, void(const TIOCounters&, const TIOTagList&), OnRawEventLogged, RawSink_);
 DELEGATE_SIGNAL(TIOTracker, void(const TIOCounters&, const TIOTagList&), OnAggregateEventLogged, AggregateSink_);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void IIOTracker::Enqueue(TIOCounters counters, THashMap<TString, TString> tags)
+{
+    auto* traceContext = NTracing::GetCurrentTraceContext();
+    Enqueue(TIOEvent{
+        .Counters = std::move(counters),
+        .Baggage = traceContext ? traceContext->GetBaggage() : TYsonString{},
+        .LocalTags = std::move(tags)
+    });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

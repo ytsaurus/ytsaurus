@@ -78,8 +78,8 @@ private:
         int blockCount,
         const NNodeTrackerClient::TNodeDescriptor& targetDescriptor) override;
 
-    virtual TFuture<void> DoFlushBlocks(int blockIndex) override;
-    void OnBlockFlushed(int blockIndex);
+    virtual TFuture<NIO::TIOCounters> DoFlushBlocks(int blockIndex) override;
+    NIO::TIOCounters OnBlockFlushed(int blockIndex);
 
     virtual void DoCancel(const TError& error) override;
 

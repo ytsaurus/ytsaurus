@@ -198,6 +198,16 @@ TEST(TIOTrackerTest, Disable)
         aggregateEventCount += 1;
     }));
 
+    auto setAndWaitForConfig = [&](const TIOTrackerConfigPtr& config) {
+        ioTracker->SetConfig(createConfig(true, true));
+        // Wait until the new config applies. When it happens, GetConfig() will return the
+        // same pointer that we passed to SetConfig above. So, it is OK to compare configs by
+        // pointer, not by value.
+        while (config != ioTracker->GetConfig()) {
+            TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(1));
+        }
+    };
+
     auto addEventsAndWait = [&] {
         for (int i = 0; i < 5; ++i) {
             ioTracker->Enqueue(CreateEvent(1, 1, "tag@", ToString(i)));
@@ -209,17 +219,17 @@ TEST(TIOTrackerTest, Disable)
     EXPECT_EQ(0, rawEventCount);
     EXPECT_EQ(0, aggregateEventCount);
 
-    ioTracker->SetConfig(createConfig(true, true));
+    setAndWaitForConfig(createConfig(true, true));
     addEventsAndWait();
     EXPECT_EQ(5, rawEventCount);
     EXPECT_EQ(5, aggregateEventCount);
 
-    ioTracker->SetConfig(createConfig(true, false));
+    setAndWaitForConfig(createConfig(true, false));
     addEventsAndWait();
     EXPECT_EQ(5, rawEventCount);
     EXPECT_EQ(10, aggregateEventCount);
 
-    ioTracker->SetConfig(createConfig(false, false));
+    setAndWaitForConfig(createConfig(false, false));
     addEventsAndWait();
     EXPECT_EQ(5, rawEventCount);
     EXPECT_EQ(10, aggregateEventCount);

@@ -22,7 +22,7 @@ private:
     NHydra::IChangelogPtr Changelog_;
     TChunkUpdateGuard ChunkUpdateGuard_;
     TFuture<void> LastAppendResult_ = VoidFuture;
-
+    i64 LastDataSize_ = 0;
 
     virtual TFuture<void> DoStart() override;
     virtual TFuture<void> DoPutBlocks(
@@ -33,7 +33,7 @@ private:
         int startBlockIndex,
         int blockCount,
         const NNodeTrackerClient::TNodeDescriptor& target) override;
-    virtual TFuture<void> DoFlushBlocks(int blockIndex) override;
+    virtual TFuture<NIO::TIOCounters> DoFlushBlocks(int blockIndex) override;
     virtual void DoCancel(const TError& error) override;
     virtual TFuture<NChunkClient::NProto::TChunkInfo> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,

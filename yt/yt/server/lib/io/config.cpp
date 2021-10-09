@@ -7,7 +7,7 @@ namespace NYT::NIO {
 TIOTrackerConfig::TIOTrackerConfig()
 {
     RegisterParameter("enable", Enable)
-        .Default(true);
+        .Default(false);
     RegisterParameter("enable_raw", EnableRaw)
         .Default(false);
     RegisterParameter("queue_size_limit", QueueSizeLimit)

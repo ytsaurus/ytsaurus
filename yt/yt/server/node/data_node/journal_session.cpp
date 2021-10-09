@@ -19,6 +19,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NConcurrency;
+using namespace NIO;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -141,7 +142,7 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TJournalSession::DoSendBlocks(
     THROW_ERROR_EXCEPTION("Sending blocks is not supported for journal chunks");
 }
 
-TFuture<void> TJournalSession::DoFlushBlocks(int blockIndex)
+TFuture<TIOCounters> TJournalSession::DoFlushBlocks(int blockIndex)
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
@@ -154,7 +155,27 @@ TFuture<void> TJournalSession::DoFlushBlocks(int blockIndex)
             blockIndex);
     }
 
-    return LastAppendResult_;
+    return LastAppendResult_
+        .Apply(BIND(
+            [
+                self = MakeStrong(this),
+                chunk = Chunk_,
+                changelog = Changelog_,
+                &lastDataSize = LastDataSize_
+            ] {
+                i64 dataSize = chunk->GetDataSize();
+                YT_VERIFY(lastDataSize <= dataSize);
+                if (dataSize > lastDataSize) {
+                    TIOCounters result{
+                        .ByteCount = dataSize - lastDataSize,
+                        .IOCount = 1
+                    };
+                    lastDataSize = dataSize;
+                    return result;
+                }
+                return TIOCounters{};
+            })
+                .AsyncVia(SessionInvoker_));
 }
 
 void TJournalSession::OnFinished()
