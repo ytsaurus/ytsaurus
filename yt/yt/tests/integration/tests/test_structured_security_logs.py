@@ -1,11 +1,11 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait, set, create,
+    authors, wait, set, create, ls,
     create_user, remove_user, create_group, remove_group, add_member, remove_member)
 
-import json
-import os
+from yt_helpers import write_log_barrier, read_structured_log
+
 import time
 
 
@@ -63,26 +63,22 @@ class TestStructuredSecurityLogs(YTEnvSetup):
 
     @authors("renadeen")
     def test_no_redundant_acd_updated_events(self):
-        previous_log_size = len(self.load_structured_master_log())
+        master_address = ls("//sys/primary_masters")[0]
+        from_barrier = write_log_barrier(master_address, "Barrier")
         create("table", "//tmp/test_table")
         time.sleep(self.LOG_WRITE_WAIT_TIME)
+        to_barrier = write_log_barrier(master_address, "Barrier")
 
-        actual_log = self.load_structured_master_log()[previous_log_size:]
+        actual_log = read_structured_log(self.get_structured_log_path(), from_barrier=from_barrier, to_barrier=to_barrier)
         for event in actual_log:
             if event.get("event") == "object_acd_updated":
                 assert False, "Master log contains redundant event: " + str(event)
 
-    def load_structured_master_log(self):
-        log_path = self.path_to_run + "/logs/master-0-0.json.log"
-        wait(lambda: os.path.exists(log_path), "Cannot find master's structured log")
-        log = []
-        with open(log_path, "r") as f:
-            for line in f:
-                log.append(json.loads(line))
-        return log
+    def get_structured_log_path(self):
+        return self.path_to_run + "/logs/master-0-0.json.log"
 
     def log_contains_event(self, expected_event):
-        log = self.load_structured_master_log()
+        log = read_structured_log(self.get_structured_log_path())
         for event in log:
             match = True
             for key in expected_event:

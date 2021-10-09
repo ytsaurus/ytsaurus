@@ -294,6 +294,23 @@ TString TClient::DoWriteCoreDump(const TString& address, const TWriteCoreDumpOpt
     return rsp->path();
 }
 
+TGuid TClient::DoWriteLogBarrier(const TString& address, const TWriteLogBarrierOptions& options)
+{
+    ValidateSuperuserPermissions();
+
+    auto channel = Connection_->GetChannelFactory()->CreateChannel(address);
+
+    TAdminServiceProxy proxy(channel);
+    auto req = proxy.WriteLogBarrier();
+    req->SetTimeout(options.Timeout);
+    req->set_category(options.Category);
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+    TGuid result;
+    FromProto(&result, rsp->barrier_id());
+    return result;
+}
+
 TString TClient::DoWriteOperationControllerCoreDump(
     TOperationId operationId,
     const TWriteOperationControllerCoreDumpOptions& /*options*/)

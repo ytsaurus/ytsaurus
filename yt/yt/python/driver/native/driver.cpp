@@ -71,6 +71,7 @@ public:
 
         PYCXX_ADD_KEYWORDS_METHOD(kill_process, KillProcess, "Forces a remote YT process (node, scheduler or master) to exit immediately");
         PYCXX_ADD_KEYWORDS_METHOD(write_core_dump, WriteCoreDump, "Writes a core dump of a remote YT process (node, scheduler or master)");
+        PYCXX_ADD_KEYWORDS_METHOD(write_log_barrier, WriteLogBarrier, "Writes a special line called barrier with a unique ID into structred logs.");
         PYCXX_ADD_KEYWORDS_METHOD(write_operation_controller_core_dump, WriteOperationControllerCoreDump, "Write a core dump of a controller agent holding the operation controller for a given operation id");
         PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Forces to build a snapshot");
         PYCXX_ADD_KEYWORDS_METHOD(build_master_snapshots, BuildMasterSnapshots, "Forces to build snapshots for all master cells");
@@ -135,6 +136,31 @@ public:
         } CATCH_AND_CREATE_YT_ERROR("Failed to write core dump");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, WriteCoreDump)
+
+    Py::Object WriteLogBarrier(Py::Tuple& args, Py::Dict& kwargs)
+    {
+        auto options = TWriteLogBarrierOptions();
+
+        if (!HasArgument(args, kwargs, "address")) {
+            throw CreateYtError("Missing argument 'address'");
+        }
+        auto address = ConvertStringObjectToString(ExtractArgument(args, kwargs, "address"));
+
+        if (!HasArgument(args, kwargs, "category")) {
+            throw CreateYtError("Missing argument 'category'");
+        }
+        options.Category = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "category"));
+
+        ValidateArgumentsEmpty(args, kwargs);
+
+        try {
+            auto client = CreateClient();
+            auto barrierId = WaitFor(client->WriteLogBarrier(address, options))
+                .ValueOrThrow();
+            return Py::String(ToString(barrierId));
+        } CATCH_AND_CREATE_YT_ERROR("Failed to write log barrier");
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, WriteLogBarrier)
 
     Py::Object WriteOperationControllerCoreDump(Py::Tuple& args, Py::Dict& kwargs)
     {

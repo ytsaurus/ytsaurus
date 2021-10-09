@@ -297,6 +297,10 @@ public:
         const TString& address,
         const NApi::TWriteCoreDumpOptions& options) override;
 
+    TFuture<TGuid> WriteLogBarrier(
+        const TString& address,
+        const TWriteLogBarrierOptions& options) override;
+
     virtual TFuture<TString> WriteOperationControllerCoreDump(
         NJobTrackerClient::TOperationId operationId,
         const NApi::TWriteOperationControllerCoreDumpOptions& options) override;

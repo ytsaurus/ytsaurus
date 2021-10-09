@@ -496,6 +496,10 @@ public:
         const TString& address,
         const TWriteCoreDumpOptions& options),
         (address, options))
+    IMPLEMENT_METHOD(TGuid, WriteLogBarrier, (
+        const TString& address,
+        const TWriteLogBarrierOptions& options),
+        (address, options))
     IMPLEMENT_METHOD(TString, WriteOperationControllerCoreDump, (
         NScheduler::TOperationId operationId,
         const TWriteOperationControllerCoreDumpOptions& options),
@@ -518,7 +522,7 @@ private:
 
     const IConnectionPtr Connection_;
     const TClientOptions Options_;
-  
+
     const NLogging::TLogger Logger;
 
     TEnumIndexedVector<EMasterChannelKind, THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>> MasterChannels_;
@@ -618,7 +622,7 @@ private:
     struct TReplicaFallbackInfo
     {
         NApi::IClientPtr Client;
-        NYPath::TYPath Path; 
+        NYPath::TYPath Path;
     };
 
     TReplicaFallbackInfo GetReplicaFallbackInfo(
@@ -1229,6 +1233,9 @@ private:
     TString DoWriteOperationControllerCoreDump(
         NScheduler::TOperationId operationId,
         const TWriteOperationControllerCoreDumpOptions& options);
+    TGuid DoWriteLogBarrier(
+        const TString& address,
+        const TWriteLogBarrierOptions& options);
     void DoRepairExecNode(
         const TString& address,
         const TRepairExecNodeOptions& options);
