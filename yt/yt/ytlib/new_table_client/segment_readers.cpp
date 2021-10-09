@@ -12,14 +12,15 @@ struct TRowIndexTag { };
 
 void TScanTimestampExtractor::ReadSegment(const TMetaBase* meta, const char* data, TTmpBuffers* tmpBuffers)
 {
-    SegmentRowOffset_ = meta->ChunkRowCount - meta->RowCount;
-    RowCount_ = meta->RowCount;
+    RowOffset_ = meta->ChunkRowCount - meta->RowCount;
+    SegmentRowLimit_ = meta->ChunkRowCount;
+
     DoInitSegment(static_cast<const TTimestampMeta*>(meta), data, tmpBuffers);
 }
 
 void TScanTimestampExtractor::DoInitSegment(const TTimestampMeta* meta, const char* data, TTmpBuffers* tmpBuffers)
 {
-    auto [timestamps, ids, offsets] = *tmpBuffers;
+    auto& [timestamps, ids, offsets] = *tmpBuffers;
 
     TCompressedVectorView view(reinterpret_cast<const ui64*>(data));
     UnpackBitVector(view, &timestamps);
@@ -29,7 +30,7 @@ void TScanTimestampExtractor::DoInitSegment(const TTimestampMeta* meta, const ch
     auto writeTimestampsIndexData = ++view;
     auto deleteTimestampsIndexData = ++view;
 
-    YT_VERIFY(writeTimestampsIndexData.GetSize() == RowCount_);
+    YT_VERIFY(writeTimestampsIndexData.GetSize() == meta->RowCount);
     YT_VERIFY(writeTimestampsIndexData.GetSize() == deleteTimestampsIndexData.GetSize());
 
     // Calculate size of memory for holder.
@@ -64,7 +65,7 @@ void TScanTimestampExtractor::DoInitSegment(const TTimestampMeta* meta, const ch
 
         auto expectedCount = meta->ExpectedWritesPerRow;
         for (size_t index = 0; index < offsets.size(); ++index) {
-            WriteTimestampOffsets_[index + 1] = expectedCount * (index + 1) + ZigZagDecode32(offsets[index]);
+            WriteTimestampOffsets_[index + 1] = GetOffsetNonZero(offsets, expectedCount, index + 1);
         }
     }
 
@@ -74,13 +75,13 @@ void TScanTimestampExtractor::DoInitSegment(const TTimestampMeta* meta, const ch
 
         auto expectedCount = meta->ExpectedDeletesPerRow;
         for (size_t index = 0; index < offsets.size(); ++index) {
-            DeleteTimestampOffsets_[index + 1] = expectedCount * (index + 1) + ZigZagDecode32(offsets[index]);
+            DeleteTimestampOffsets_[index + 1] = GetOffsetNonZero(offsets, expectedCount, index + 1);
         }
     }
 }
 
 template <class T>
-const ui64* TScanIntegerExtractor<T>::Init(const TMetaBase* meta, const ui64* ptr, TTmpBuffers* tmpBuffers)
+const ui64* TScanIntegerExtractor<T>::InitData(const TMetaBase* meta, const ui64* ptr, TTmpBuffers* tmpBuffers)
 {
     auto& values = tmpBuffers->Values;
     auto& ids = tmpBuffers->Ids;
@@ -184,7 +185,7 @@ const ui64* TScanIntegerExtractor<T>::Init(const TMetaBase* meta, const ui64* pt
 }
 
 template <class T>
-void TScanIntegerExtractor<T>::InitNull()
+void TScanIntegerExtractor<T>::InitNullData()
 {
     auto [items, nullBits] = AllocateCombined<T, TBit>(&Holder_, 1, 1);
 
@@ -201,7 +202,7 @@ class TScanIntegerExtractor<i64>;
 template
 class TScanIntegerExtractor<ui64>;
 
-const ui64* TScanDataExtractor<EValueType::Double>::Init(
+const ui64* TScanDataExtractor<EValueType::Double>::InitData(
     const TMetaBase* /*meta*/,
     const ui64* ptr,
     TTmpBuffers* /*tmpBuffers*/)
@@ -217,7 +218,7 @@ const ui64* TScanDataExtractor<EValueType::Double>::Init(
     return ptr;
 }
 
-void TScanDataExtractor<EValueType::Double>::InitNull()
+void TScanDataExtractor<EValueType::Double>::InitNullData()
 {
     auto [items, nullBits] = AllocateCombined<double, TBit>(&Holder_, 1, 1);
 
@@ -230,7 +231,7 @@ void TScanDataExtractor<EValueType::Double>::InitNull()
 
 ui64 TScanDataExtractor<EValueType::Boolean>::NullBooleanSegmentData;
 
-const ui64* TScanDataExtractor<EValueType::Boolean>::Init(
+const ui64* TScanDataExtractor<EValueType::Boolean>::InitData(
     const TMetaBase* /*meta*/,
     const ui64* ptr,
     TTmpBuffers* /*tmpBuffers*/)
@@ -246,7 +247,7 @@ const ui64* TScanDataExtractor<EValueType::Boolean>::Init(
     return ptr;
 }
 
-void TScanDataExtractor<EValueType::Boolean>::InitNull()
+void TScanDataExtractor<EValueType::Boolean>::InitNullData()
 {
     TMutableBitmap bitmap(&NullBooleanSegmentData);
     bitmap.Set(0, true);
@@ -255,7 +256,7 @@ void TScanDataExtractor<EValueType::Boolean>::InitNull()
     NullBits_ = bitmap;
 }
 
-void TScanBlobExtractor::Init(const TMetaBase* meta, const ui64* ptr, TTmpBuffers* tmpBuffers)
+void TScanBlobExtractor::InitData(const TMetaBase* meta, const ui64* ptr, TTmpBuffers* tmpBuffers)
 {
     auto& ids = tmpBuffers->Ids;
     auto& offsets = tmpBuffers->Offsets;
@@ -272,7 +273,7 @@ void TScanBlobExtractor::Init(const TMetaBase* meta, const ui64* ptr, TTmpBuffer
 
         ui32 begin = 0;
         for (size_t index = 0; index < valueCount; ++index) {
-            ui32 end = expectedLength * (index + 1) + ZigZagDecode32(offsets[index]);
+            ui32 end = GetOffsetNonZero(offsets, expectedLength, index + 1);
             items[index] = {begin, end};
             begin = end;
         }
@@ -287,20 +288,14 @@ void TScanBlobExtractor::Init(const TMetaBase* meta, const ui64* ptr, TTmpBuffer
 
         auto [items, nullBits] = AllocateCombined<TItem, TBit>(&Holder_, valueCount, valueCount);
 
-        auto getOffset = [=] (ui32 index) -> ui32 {
-            if (index > 0) {
-                return expectedLength * index + ZigZagDecode32(offsets[index - 1]);
-            } else {
-                return 0;
-            }
-        };
-
         for (size_t index = 0; index < valueCount; ++index) {
             auto id = ids[index];
             nullBits.Set(index, id == 0);
 
             if (id > 0) {
-                items[index] = {getOffset(id - 1), getOffset(id)};
+                items[index] = {
+                    GetOffset(offsets, expectedLength, id - 1),
+                    GetOffsetNonZero(offsets, expectedLength, id)};
             }
         }
 
@@ -311,7 +306,7 @@ void TScanBlobExtractor::Init(const TMetaBase* meta, const ui64* ptr, TTmpBuffer
     Data_ = reinterpret_cast<const char*>(ptr);
 }
 
-void TScanBlobExtractor::InitNull()
+void TScanBlobExtractor::InitNullData()
 {
     auto [items, nullBits] = AllocateCombined<TItem, TBit>(&Holder_, 1, 1);
 
@@ -323,7 +318,8 @@ void TScanBlobExtractor::InitNull()
     Data_ = nullptr;
 }
 
-const ui64* TScanKeyIndexExtractor::Init(const TMetaBase* meta, const ui64* ptr, bool dense)
+// TODO(lukyan): Split in two functions InitDense and InitSparse.
+const ui64* TScanKeyIndexExtractor::InitIndex(const TMetaBase* meta, const ui64* ptr, bool dense)
 {
     SegmentRowLimit_ = meta->ChunkRowCount;
     ui32 rowOffset = meta->ChunkRowCount - meta->RowCount;
@@ -334,16 +330,19 @@ const ui64* TScanKeyIndexExtractor::Init(const TMetaBase* meta, const ui64* ptr,
 
         auto rowIndexData = RowIndex_.GetData();
         auto rowIndexDataEnd = rowIndexData + Count_;
+
+#define ITERATION *rowIndexData++ = rowOffset++;
         while (rowIndexData + 4 < rowIndexDataEnd) {
-            *rowIndexData++ = rowOffset++;
-            *rowIndexData++ = rowOffset++;
-            *rowIndexData++ = rowOffset++;
-            *rowIndexData++ = rowOffset++;
+            ITERATION
+            ITERATION
+            ITERATION
+            ITERATION
         }
 
         while (rowIndexData < rowIndexDataEnd) {
-            *rowIndexData++ = rowOffset++;
+            ITERATION
         }
+#undef ITERATION
     } else {
         TCompressedVectorView rowIndexView(ptr);
         ptr += rowIndexView.GetSizeInWords();
@@ -354,16 +353,19 @@ const ui64* TScanKeyIndexExtractor::Init(const TMetaBase* meta, const ui64* ptr,
 
         auto rowIndexData = RowIndex_.GetData();
         auto rowIndexDataEnd = rowIndexData + Count_;
+
+#define ITERATION *rowIndexData++ += rowOffset;
         while (rowIndexData + 4 < rowIndexDataEnd) {
-            *rowIndexData++ += rowOffset;
-            *rowIndexData++ += rowOffset;
-            *rowIndexData++ += rowOffset;
-            *rowIndexData++ += rowOffset;
+            ITERATION
+            ITERATION
+            ITERATION
+            ITERATION
         }
 
         while (rowIndexData < rowIndexDataEnd) {
-            *rowIndexData++ += rowOffset;
+            ITERATION
         }
+#undef ITERATION
     }
 
     RowIndex_[Count_] = meta->ChunkRowCount;
@@ -371,7 +373,7 @@ const ui64* TScanKeyIndexExtractor::Init(const TMetaBase* meta, const ui64* ptr,
     return ptr;
 }
 
-void TScanKeyIndexExtractor::InitNull()
+void TScanKeyIndexExtractor::InitNullIndex()
 {
     Count_ = 1;
     RowIndex_.Resize(2);
@@ -380,69 +382,7 @@ void TScanKeyIndexExtractor::InitNull()
     SegmentRowLimit_ = std::numeric_limits<ui32>::max();
 }
 
-template <class T>
-void DoInitSegment(
-    TScanIntegerExtractor<T>* value,
-    TScanKeyIndexExtractor* base,
-    const TMetaBase* meta,
-    const ui64* data,
-    TTmpBuffers* tmpBuffers)
-{
-    data = value->Init(meta, data, tmpBuffers);
-    base->Init(meta, data, IsDense(meta->Type));
-}
-
-// Instantiate template function.
-template
-void DoInitSegment<i64>(
-    TScanIntegerExtractor<i64>* value,
-    TScanKeyIndexExtractor* base,
-    const TMetaBase* meta,
-    const ui64* data,
-    TTmpBuffers* tmpBuffers);
-
-template
-void DoInitSegment<ui64>(
-    TScanIntegerExtractor<ui64>* value,
-    TScanKeyIndexExtractor* base,
-    const TMetaBase* meta,
-    const ui64* data,
-    TTmpBuffers* tmpBuffers);
-
-void DoInitSegment(
-    TScanDataExtractor<EValueType::Double>* value,
-    TScanKeyIndexExtractor* base,
-    const TMetaBase* meta,
-    const ui64* data,
-    TTmpBuffers* tmpBuffers)
-{
-    data = value->Init(meta, data, tmpBuffers);
-    base->Init(meta, data, true);
-}
-
-void DoInitSegment(
-    TScanDataExtractor<EValueType::Boolean>* value,
-    TScanKeyIndexExtractor* base,
-    const TMetaBase* meta,
-    const ui64* data,
-    TTmpBuffers* tmpBuffers)
-{
-    data = value->Init(meta, data, tmpBuffers);
-    base->Init(meta, data, true);
-}
-
-void DoInitSegment(
-    TScanBlobExtractor* value,
-    TScanKeyIndexExtractor* base,
-    const TMetaBase* meta,
-    const ui64* data,
-    TTmpBuffers* tmpBuffers)
-{
-    data = base->Init(meta, data, IsDense(meta->Type));
-    value->Init(meta, data, tmpBuffers);
-}
-
-const ui64* TScanVersionExtractor<true>::Init(const ui64* ptr)
+const ui64* TScanVersionExtractor<true>::InitVersion(const ui64* ptr)
 {
     TCompressedVectorView writeTimestampIdsView(ptr);
     ptr += writeTimestampIdsView.GetSizeInWords();
@@ -457,7 +397,7 @@ const ui64* TScanVersionExtractor<true>::Init(const ui64* ptr)
     return ptr;
 }
 
-const ui64* TScanVersionExtractor<false>::Init(const ui64* ptr)
+const ui64* TScanVersionExtractor<false>::InitVersion(const ui64* ptr)
 {
     TCompressedVectorView writeTimestampIdsView(ptr);
     ptr += writeTimestampIdsView.GetSizeInWords();
@@ -469,7 +409,7 @@ const ui64* TScanVersionExtractor<false>::Init(const ui64* ptr)
     return ptr;
 }
 
-const ui64* TScanMultiValueIndexExtractor::Init(
+const ui64* TScanMultiValueIndexExtractor::InitIndex(
     const TMetaBase* meta,
     const TDenseMeta* denseMeta,
     const ui64* ptr,
@@ -488,14 +428,14 @@ const ui64* TScanMultiValueIndexExtractor::Init(
 
         auto perRowDiff = offsets.data();
         ui32 rowCount = offsets.size();
-        ui32 valueCount = expectedPerRow * rowCount + ZigZagDecode32(perRowDiff[rowCount - 1]);
+        ui32 valueCount = GetOffsetNonZero(perRowDiff, expectedPerRow, rowCount);
 
         auto rowToValue = RowToValue_.Resize(valueCount + 1, GetRefCountedTypeCookie<TRowToValueTag>());
 
         ui32 rowIndex = 0;
         ui32 valueOffset = 0;
 #define ITERATION { \
-            ui32 nextOffset = expectedPerRow * (rowIndex + 1) + ZigZagDecode32(perRowDiff[rowIndex]); \
+            ui32 nextOffset = GetOffsetNonZero(perRowDiff, expectedPerRow, rowIndex + 1); \
             if (nextOffset - valueOffset) { \
                 *rowToValue++ = {rowOffset + rowIndex, valueOffset}; \
             }   \

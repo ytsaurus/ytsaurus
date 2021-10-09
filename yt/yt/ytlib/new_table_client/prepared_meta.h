@@ -119,17 +119,20 @@ struct TPreparedChunkMeta final
 
     struct TColumnGroup
     {
+        TColumnGroup() = default;
+        TColumnGroup(const TColumnGroup&) = delete;
+        TColumnGroup(TColumnGroup&&) = default;
+
         std::vector<ui32> BlockIds;
         std::vector<ui16> ColumnIds;
         // Per block segment metas for each column in group.
-        // Contains mapping from column id in group to offsets and serialized segment metas.
+        // Contains mapping from column index in group to offsets and serialized segment metas.
         std::vector<TSharedRef> MergedMetas;
-        std::vector<std::vector<TRef>> BlockSegmentMetas;
     };
 
     std::vector<TColumnGroup> ColumnGroups;
     std::vector<ui16> GroupIdPerColumn;
-    std::vector<ui16> ColumnIdInGroup;
+    std::vector<ui16> ColumnIndexInGroup;
 
     size_t Prepare(
         const NTableClient::TTableSchemaPtr& chunkSchema,

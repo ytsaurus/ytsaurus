@@ -26,27 +26,27 @@ int CompareValues(
 template <EValueType Type>
 TKeySegmentReader<Type, true>::TKeySegmentReader()
 {
-    TScanKeyIndexExtractor::InitNull();
-    TScanDataExtractor<Type>::InitNull();
+    TScanKeyIndexExtractor::InitNullIndex();
+    TScanDataExtractor<Type>::InitNullData();
 }
 
 template <EValueType Type>
 void TKeySegmentReader<Type, true>::SetSegmentData(const TMetaBase* meta, const char* data, TTmpBuffers* tmpBuffers)
 {
-    DoInitSegment(this, this, meta, reinterpret_cast<const ui64*>(data), tmpBuffers);
+    DoInitKeySegment<Type>(this, meta, reinterpret_cast<const ui64*>(data), tmpBuffers);
 }
 
 template <EValueType Type>
 TKeySegmentReader<Type, false>::TKeySegmentReader()
 {
-    TLookupKeyIndexExtractor::InitNull();
-    TLookupDataExtractor<Type>::InitNull();
+    TLookupKeyIndexExtractor::InitNullIndex();
+    TLookupDataExtractor<Type>::InitNullData();
 }
 
 template <EValueType Type>
-void TKeySegmentReader<Type, false>::SetSegmentData(const TMetaBase* meta, const char* data, TTmpBuffers*)
+void TKeySegmentReader<Type, false>::SetSegmentData(const TMetaBase* meta, const char* data, TTmpBuffers* tmpBuffers)
 {
-    DoInitSegment(this, this, meta, reinterpret_cast<const ui64*>(data));
+    DoInitKeySegment<Type>(this, meta, reinterpret_cast<const ui64*>(data), tmpBuffers);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
