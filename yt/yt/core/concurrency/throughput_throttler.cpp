@@ -561,7 +561,7 @@ public:
         , Underlying_(std::move(underlying))
     { }
 
-    virtual TFuture<void> Throttle(i64 count) override
+    TFuture<void> Throttle(i64 count) override
     {
         auto future = Stealer_->Throttle(count);
         future.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
@@ -572,7 +572,7 @@ public:
         return future;
     }
 
-    virtual bool TryAcquire(i64 count) override
+    bool TryAcquire(i64 count) override
     {
         if (Stealer_->TryAcquire(count)) {
             Underlying_->Acquire(count);
@@ -582,7 +582,7 @@ public:
         return false;
     }
 
-    virtual i64 TryAcquireAvailable(i64 count) override
+    i64 TryAcquireAvailable(i64 count) override
     {
         auto result = Stealer_->TryAcquireAvailable(count);
         Underlying_->Acquire(result);
@@ -590,18 +590,18 @@ public:
         return result;
     }
 
-    virtual void Acquire(i64 count) override
+    void Acquire(i64 count) override
     {
         Stealer_->Acquire(count);
         Underlying_->Acquire(count);
     }
 
-    virtual bool IsOverdraft() override
+    bool IsOverdraft() override
     {
         return Stealer_->IsOverdraft();
     }
 
-    virtual i64 GetQueueTotalCount() const override
+    i64 GetQueueTotalCount() const override
     {
         return Stealer_->GetQueueTotalCount();
     }

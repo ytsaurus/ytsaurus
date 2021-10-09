@@ -37,16 +37,16 @@ public:
     ~TBootstrap();
 
     // IBootstrap implementation.
-    virtual const IInvokerPtr& GetWorkerInvoker() const override;
-    virtual const NRpc::IAuthenticatorPtr& GetRpcAuthenticator() const override;
-    virtual TApiServiceConfigPtr GetConfigApiService() const override;
-    virtual NAuth::TAuthenticationManagerConfigPtr GetConfigAuthenticationManager() const override;
-    virtual TApiServiceDynamicConfigPtr GetDynamicConfigApiService() const override;
-    virtual const NTracing::TSamplerPtr& GetTraceSampler() const override;
-    virtual const IProxyCoordinatorPtr& GetProxyCoordinator() const override;
-    virtual const IAccessCheckerPtr& GetAccessChecker() const override;
-    virtual const NApi::NNative::IConnectionPtr& GetNativeConnection() const override;
-    virtual const NApi::NNative::IClientPtr& GetNativeClient() const override;
+    const IInvokerPtr& GetWorkerInvoker() const override;
+    const NRpc::IAuthenticatorPtr& GetRpcAuthenticator() const override;
+    TApiServiceConfigPtr GetConfigApiService() const override;
+    NAuth::TAuthenticationManagerConfigPtr GetConfigAuthenticationManager() const override;
+    TApiServiceDynamicConfigPtr GetDynamicConfigApiService() const override;
+    const NTracing::TSamplerPtr& GetTraceSampler() const override;
+    const IProxyCoordinatorPtr& GetProxyCoordinator() const override;
+    const IAccessCheckerPtr& GetAccessChecker() const override;
+    const NApi::NNative::IConnectionPtr& GetNativeConnection() const override;
+    const NApi::NNative::IClientPtr& GetNativeClient() const override;
 
     const TProxyConfigPtr& GetConfig() const;
     TProxyDynamicConfigPtr GetDynamicConfig() const;

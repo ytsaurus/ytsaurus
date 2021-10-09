@@ -81,17 +81,17 @@ public:
     virtual void GetUploadParams(std::optional<NCrypto::TMD5Hasher>* md5Hasher);
     virtual bool IsSorted() const;
 
-    virtual NYTree::ENodeType GetNodeType() const override;
+    NYTree::ENodeType GetNodeType() const override;
 
-    virtual NSecurityServer::TClusterResources GetDeltaResourceUsage() const override;
-    virtual NSecurityServer::TClusterResources GetTotalResourceUsage() const override;
+    NSecurityServer::TClusterResources GetDeltaResourceUsage() const override;
+    NSecurityServer::TClusterResources GetTotalResourceUsage() const override;
 
     NChunkClient::NProto::TDataStatistics ComputeTotalStatistics() const;
 
     bool HasDataWeight() const;
 
-    virtual void Save(NCellMaster::TSaveContext& context) const override;
-    virtual void Load(NCellMaster::TLoadContext& context) override;
+    void Save(NCellMaster::TSaveContext& context) const override;
+    void Load(NCellMaster::TLoadContext& context) override;
 
 private:
     NChunkClient::NProto::TDataStatistics ComputeUpdateStatistics() const;

@@ -37,21 +37,21 @@ public:
         NApi::NNative::IClientPtr client = nullptr,
         const NNodeTrackerClient::TNodeDescriptor& localDescriptor = {});
 
-    virtual void Initialize() override;
+    void Initialize() override;
 
     // IStore implementation.
-    virtual EStoreType GetType() const override;
+    EStoreType GetType() const override;
 
-    virtual TSortedChunkStorePtr AsSortedChunk() override;
+    TSortedChunkStorePtr AsSortedChunk() override;
 
-    virtual void BuildOrchidYson(NYTree::TFluentMap fluent) override;
+    void BuildOrchidYson(NYTree::TFluentMap fluent) override;
 
     // ISortedStore implementation.
-    virtual TLegacyOwningKey GetMinKey() const override;
-    virtual TLegacyOwningKey GetUpperBoundKey() const override;
-    virtual bool HasNontrivialReadRange() const override;
+    TLegacyOwningKey GetMinKey() const override;
+    TLegacyOwningKey GetUpperBoundKey() const override;
+    bool HasNontrivialReadRange() const override;
 
-    virtual NTableClient::IVersionedReaderPtr CreateReader(
+    NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
         TSharedRange<NTableClient::TRowRange> bounds,
         TTimestamp timestamp,
@@ -60,7 +60,7 @@ public:
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         std::optional<EWorkloadCategory> workloadCategory) override;
 
-    virtual NTableClient::IVersionedReaderPtr CreateReader(
+    NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
         const TSharedRange<TLegacyKey>& keys,
         TTimestamp timestamp,
@@ -69,13 +69,13 @@ public:
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         std::optional<EWorkloadCategory> workloadCategory) override;
 
-    virtual bool CheckRowLocks(
+    bool CheckRowLocks(
         TUnversionedRow row,
         TLockMask lockMask,
         TWriteContext* context) override;
 
-    virtual void Save(TSaveContext& context) const override;
-    virtual void Load(TLoadContext& context) override;
+    void Save(TSaveContext& context) const override;
+    void Load(TLoadContext& context) override;
 
 private:
     // Cached for fast retrieval from ChunkMeta_.
@@ -120,7 +120,7 @@ private:
         const NTableClient::TChunkStatePtr& chunkState,
         const TWorkloadDescriptor& workloadDescriptor);
 
-    virtual NTableClient::TKeyComparer GetKeyComparer() override;
+    NTableClient::TKeyComparer GetKeyComparer() override;
 
     ISortedStorePtr GetSortedBackingStore();
 };

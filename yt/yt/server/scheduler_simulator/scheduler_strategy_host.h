@@ -33,80 +33,80 @@ public:
         const TRemoteEventLogConfigPtr& remoteEventLogConfig,
         const IInvokerPtr& nodeShardsInvoker);
 
-    virtual IInvokerPtr GetControlInvoker(NScheduler::EControlQueue queue) const override;
-    virtual IInvokerPtr GetFairShareLoggingInvoker() const override;
-    virtual IInvokerPtr GetFairShareProfilingInvoker() const override;
-    virtual IInvokerPtr GetFairShareUpdateInvoker() const override;
-    virtual IInvokerPtr GetOrchidWorkerInvoker() const override;
-    virtual const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override;
+    IInvokerPtr GetControlInvoker(NScheduler::EControlQueue queue) const override;
+    IInvokerPtr GetFairShareLoggingInvoker() const override;
+    IInvokerPtr GetFairShareProfilingInvoker() const override;
+    IInvokerPtr GetFairShareUpdateInvoker() const override;
+    IInvokerPtr GetOrchidWorkerInvoker() const override;
+    const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override;
 
-    virtual NEventLog::TFluentLogEvent LogFairShareEventFluently(TInstant now) override;
+    NEventLog::TFluentLogEvent LogFairShareEventFluently(TInstant now) override;
 
-    virtual NScheduler::TJobResources GetResourceLimits(const NScheduler::TSchedulingTagFilter& filter) const override;
-    virtual NScheduler::TJobResources GetResourceUsage(const NScheduler::TSchedulingTagFilter& filter) const override;
+    NScheduler::TJobResources GetResourceLimits(const NScheduler::TSchedulingTagFilter& filter) const override;
+    NScheduler::TJobResources GetResourceUsage(const NScheduler::TSchedulingTagFilter& filter) const override;
 
-    virtual void Disconnect(const TError& error) override;
-    virtual TInstant GetConnectionTime() const override;
+    void Disconnect(const TError& error) override;
+    TInstant GetConnectionTime() const override;
 
-    virtual NScheduler::TMemoryDistribution GetExecNodeMemoryDistribution(
+    NScheduler::TMemoryDistribution GetExecNodeMemoryDistribution(
         const NScheduler::TSchedulingTagFilter& filter) const override;
 
-    virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(
+    std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(
         const NScheduler::TSchedulingTagFilter& filter) const override;
 
-    virtual TString GetExecNodeAddress(NNodeTrackerClient::TNodeId nodeId) const override;
+    TString GetExecNodeAddress(NNodeTrackerClient::TNodeId nodeId) const override;
 
-    virtual NScheduler::TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(
+    NScheduler::TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(
         const NScheduler::TSchedulingTagFilter& filter) const override;
 
-    virtual void UpdateNodesOnChangedTrees(
+    void UpdateNodesOnChangedTrees(
         const THashMap<TString, NScheduler::TSchedulingTagFilter>& treeIdToFilter) override;
 
-    virtual TString FormatResources(const NScheduler::TJobResourcesWithQuota& resources) const override;
-    virtual TString FormatResourceUsage(
+    TString FormatResources(const NScheduler::TJobResourcesWithQuota& resources) const override;
+    TString FormatResourceUsage(
         const NScheduler::TJobResources& usage,
         const NScheduler::TJobResources& limits,
         const NNodeTrackerClient::NProto::TDiskResources& diskResources) const override;
-    virtual void SerializeResources(const NScheduler::TJobResourcesWithQuota& resources, NYson::IYsonConsumer* consumer) const override;
+    void SerializeResources(const NScheduler::TJobResourcesWithQuota& resources, NYson::IYsonConsumer* consumer) const override;
 
-    virtual void ValidatePoolPermission(
+    void ValidatePoolPermission(
         const NYPath::TYPath& path,
         const TString& user,
         NYTree::EPermission permission) const override;
 
-    virtual void MarkOperationAsRunningInStrategy(NScheduler::TOperationId operationId) override;
+    void MarkOperationAsRunningInStrategy(NScheduler::TOperationId operationId) override;
 
-    virtual void AbortOperation(NScheduler::TOperationId operationId, const TError& error) override;
-    virtual void FlushOperationNode(NScheduler::TOperationId operationId) override;
+    void AbortOperation(NScheduler::TOperationId operationId, const TError& error) override;
+    void FlushOperationNode(NScheduler::TOperationId operationId) override;
 
     void PreemptJob(const NScheduler::TJobPtr& job, TDuration interruptTimeout);
 
-    virtual NYson::IYsonConsumer* GetEventLogConsumer() override;
+    NYson::IYsonConsumer* GetEventLogConsumer() override;
 
-    virtual const NLogging::TLogger* GetEventLogger() override;
+    const NLogging::TLogger* GetEventLogger() override;
 
-    virtual void SetSchedulerAlert(NScheduler::ESchedulerAlertType alertType, const TError& alert) override;
+    void SetSchedulerAlert(NScheduler::ESchedulerAlertType alertType, const TError& alert) override;
 
-    virtual TFuture<void> SetOperationAlert(
+    TFuture<void> SetOperationAlert(
         NScheduler::TOperationId operationId,
         NScheduler::EOperationAlertType alertType,
         const TError& alert,
         std::optional<TDuration> timeout) override;
 
-    virtual void LogResourceMetering(
+    void LogResourceMetering(
         const NScheduler::TMeteringKey& key,
         const NScheduler::TMeteringStatistics& statistics,
         const THashMap<TString, TString>& otherTags,
         TInstant lastUpdateTime,
         TInstant now) override;
 
-    virtual int GetDefaultAbcId() const override;
+    int GetDefaultAbcId() const override;
 
-    virtual void InvokeStoringStrategyState(NScheduler::TPersistentStrategyStatePtr persistentStrategyState) override;
+    void InvokeStoringStrategyState(NScheduler::TPersistentStrategyStatePtr persistentStrategyState) override;
 
     void CloseEventLogger();
 
-    virtual const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override;
+    const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override;
 
 private:
     const std::vector<NScheduler::TExecNodePtr>* ExecNodes_;

@@ -27,11 +27,11 @@ public:
 public:
     using TBase::TBase;
 
-    virtual void Save(NCellMaster::TSaveContext& context) const override;
-    virtual void Load(NCellMaster::TLoadContext& context) override;
+    void Save(NCellMaster::TSaveContext& context) const override;
+    void Load(NCellMaster::TLoadContext& context) override;
 
-    virtual void EndUpload(const TEndUploadContext& context) override;
-    virtual void GetUploadParams(std::optional<NCrypto::TMD5Hasher>* md5Hasher) override;
+    void EndUpload(const TEndUploadContext& context) override;
+    void GetUploadParams(std::optional<NCrypto::TMD5Hasher>* md5Hasher) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

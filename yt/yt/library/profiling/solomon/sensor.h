@@ -16,14 +16,14 @@ class TSimpleGauge
     , public ISummaryImpl
 {
 public:
-    virtual void Update(double value) override;
+    void Update(double value) override;
 
-    virtual double GetValue() override;
+    double GetValue() override;
 
-    virtual void Record(double value) override;
+    void Record(double value) override;
 
-    virtual TSummarySnapshot<double> GetSummary() override;
-    virtual TSummarySnapshot<double> GetSummaryAndReset() override;
+    TSummarySnapshot<double> GetSummary() override;
+    TSummarySnapshot<double> GetSummaryAndReset() override;
 
 private:
     std::atomic<double> Value_ = 0.0;
@@ -36,14 +36,14 @@ class TSimpleTimeGauge
     , public ITimerImpl
 {
 public:
-    virtual void Update(TDuration value) override;
+    void Update(TDuration value) override;
 
-    virtual TDuration GetValue() override;
+    TDuration GetValue() override;
 
-    virtual void Record(TDuration value) override;
+    void Record(TDuration value) override;
 
-    virtual TSummarySnapshot<TDuration> GetSummary() override;
-    virtual TSummarySnapshot<TDuration> GetSummaryAndReset() override;
+    TSummarySnapshot<TDuration> GetSummary() override;
+    TSummarySnapshot<TDuration> GetSummaryAndReset() override;
 
 private:
     std::atomic<TDuration::TValue> Value_ = 0.0;
@@ -55,9 +55,9 @@ class TSimpleCounter
     : public ICounterImpl
 {
 public:
-    virtual void Increment(i64 delta) override;
+    void Increment(i64 delta) override;
     
-    virtual i64 GetValue() override;
+    i64 GetValue() override;
 
 private:
     std::atomic<i64> Value_ = 0;
@@ -71,9 +71,9 @@ class TSimpleTimeCounter
     : public ITimeCounterImpl
 {
 public:
-    virtual void Add(TDuration delta) override;
+    void Add(TDuration delta) override;
     
-    virtual TDuration GetValue() override;
+    TDuration GetValue() override;
 
 private:
     std::atomic<TDuration::TValue> Value_{0};
@@ -88,10 +88,10 @@ class TSimpleSummary
     : public ISummaryImplBase<T>
 {
 public:
-    virtual void Record(T value) override;
+    void Record(T value) override;
 
-    virtual TSummarySnapshot<T> GetSummary() override;
-    virtual TSummarySnapshot<T> GetSummaryAndReset() override;
+    TSummarySnapshot<T> GetSummary() override;
+    TSummarySnapshot<T> GetSummaryAndReset() override;
 
 private:
     TSpinLock Lock_;
@@ -108,7 +108,7 @@ class THistogram
 public:
     THistogram(const TSensorOptions& options);
 
-    virtual void Record(TDuration value) override;
+    void Record(TDuration value) override;
 
     THistogramSnapshot GetSnapshotAndReset();
 
@@ -117,8 +117,8 @@ private:
     std::vector<std::atomic<int>> Buckets_;
 
     // These two methods are not used.
-    virtual TSummarySnapshot<TDuration> GetSummary() override;
-    virtual TSummarySnapshot<TDuration> GetSummaryAndReset() override;
+    TSummarySnapshot<TDuration> GetSummary() override;
+    TSummarySnapshot<TDuration> GetSummaryAndReset() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(THistogram)

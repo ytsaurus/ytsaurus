@@ -59,10 +59,10 @@ private:
     //! It is used to set flag Suspended in corresponding TSnapshotJob.
     void OnControllerSuspended(const TSnapshotJobPtr& job);
 
-    virtual TDuration GetTimeout() const override;
-    virtual TDuration GetForkTimeout() const override;
-    virtual void RunParent() override;
-    virtual void RunChild() override;
+    TDuration GetTimeout() const override;
+    TDuration GetForkTimeout() const override;
+    void RunParent() override;
+    void RunChild() override;
 
     TFuture<std::vector<TError>> UploadSnapshots();
     void UploadSnapshot(const TSnapshotJobPtr& job);

@@ -215,38 +215,38 @@ public:
 
     // NB(max42): Don't make Revive safe! It may lead to either destroying all
     // operations on a cluster, or to a scheduler crash.
-    virtual TOperationControllerReviveResult Revive() override;
+    TOperationControllerReviveResult Revive() override;
 
-    virtual TOperationControllerInitializeResult InitializeClean() override;
-    virtual TOperationControllerInitializeResult InitializeReviving(const TControllerTransactionIds& transactions) override;
+    TOperationControllerInitializeResult InitializeClean() override;
+    TOperationControllerInitializeResult InitializeReviving(const TControllerTransactionIds& transactions) override;
 
-    virtual bool IsThrottling() const noexcept override;
+    bool IsThrottling() const noexcept override;
 
-    virtual void RecordScheduleJobFailure(EScheduleJobFailReason reason) noexcept override;
+    void RecordScheduleJobFailure(EScheduleJobFailReason reason) noexcept override;
 
-    virtual void OnTransactionsAborted(const std::vector<NTransactionClient::TTransactionId>& transactionIds) override;
+    void OnTransactionsAborted(const std::vector<NTransactionClient::TTransactionId>& transactionIds) override;
 
-    virtual void UpdateConfig(const TControllerAgentConfigPtr& config) override;
+    void UpdateConfig(const TControllerAgentConfigPtr& config) override;
 
-    virtual TCancelableContextPtr GetCancelableContext() const override;
-    virtual IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
+    TCancelableContextPtr GetCancelableContext() const override;
+    IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
 
-    virtual int GetPendingJobCount() const override;
-    virtual TJobResources GetNeededResources() const override;
+    int GetPendingJobCount() const override;
+    TJobResources GetNeededResources() const override;
 
-    virtual NScheduler::TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
+    NScheduler::TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
 
-    virtual bool IsRunning() const override;
+    bool IsRunning() const override;
 
-    virtual void SetProgressUpdated() override;
-    virtual bool ShouldUpdateProgress() const override;
+    void SetProgressUpdated() override;
+    bool ShouldUpdateProgress() const override;
 
-    virtual bool HasProgress() const override;
+    bool HasProgress() const override;
 
-    virtual void Resume() override;
-    virtual TFuture<void> Suspend() override;
+    void Resume() override;
+    TFuture<void> Suspend() override;
 
-    virtual void Cancel() override;
+    void Cancel() override;
 
     virtual void BuildProgress(NYTree::TFluentMap fluent) const;
     virtual void BuildBriefProgress(NYTree::TFluentMap fluent) const;
@@ -256,16 +256,16 @@ public:
 
     // NB(max42, babenko): this method should not be safe. Writing a core dump or trying to fail
     // operation from a forked process is a bad idea.
-    virtual void SaveSnapshot(IOutputStream* output) override;
+    void SaveSnapshot(IOutputStream* output) override;
 
-    virtual NYson::TYsonString GetProgress() const override;
-    virtual NYson::TYsonString GetBriefProgress() const override;
+    NYson::TYsonString GetProgress() const override;
+    NYson::TYsonString GetBriefProgress() const override;
 
-    virtual TSharedRef ExtractJobSpec(TJobId jobId) const override;
+    TSharedRef ExtractJobSpec(TJobId jobId) const override;
 
-    virtual NYson::TYsonString GetSuspiciousJobsYson() const override;
+    NYson::TYsonString GetSuspiciousJobsYson() const override;
 
-    virtual void Persist(const TPersistenceContext& context) override;
+    void Persist(const TPersistenceContext& context) override;
 
     TOperationControllerBase(
         TOperationSpecBasePtr spec,
@@ -276,140 +276,140 @@ public:
 
     // ITaskHost implementation.
 
-    virtual IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
-    virtual IInvokerPtr GetJobSpecBuildInvoker() const override;
-    virtual IDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(
+    IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
+    IInvokerPtr GetJobSpecBuildInvoker() const override;
+    IDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(
         EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
 
-    virtual std::optional<NYPath::TRichYPath> GetStderrTablePath() const override;
-    virtual std::optional<NYPath::TRichYPath> GetCoreTablePath() const override;
-    virtual bool GetEnableCudaGpuCoreDump() const override;
+    std::optional<NYPath::TRichYPath> GetStderrTablePath() const override;
+    std::optional<NYPath::TRichYPath> GetCoreTablePath() const override;
+    bool GetEnableCudaGpuCoreDump() const override;
 
-    virtual void RegisterInputStripe(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task) override;
+    void RegisterInputStripe(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task) override;
 
-    virtual void AccountBuildingJobSpecDelta(int countDelta, i64 sliceCountDelta) noexcept override;
+    void AccountBuildingJobSpecDelta(int countDelta, i64 sliceCountDelta) noexcept override;
 
-    virtual ui64 NextJobIndex() override;
-    virtual void InitUserJobSpecTemplate(
+    ui64 NextJobIndex() override;
+    void InitUserJobSpecTemplate(
         NScheduler::NProto::TUserJobSpec* proto,
         const NScheduler::TUserJobSpecPtr& jobSpecConfig,
         const std::vector<TUserFile>& files,
         const TString& debugArtifactsAccount) override;
-    virtual const std::vector<TUserFile>& GetUserFiles(const NScheduler::TUserJobSpecPtr& userJobSpec) const override;
+    const std::vector<TUserFile>& GetUserFiles(const NScheduler::TUserJobSpecPtr& userJobSpec) const override;
 
-    virtual void CustomizeJobSpec(const TJobletPtr& joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
-    virtual void CustomizeJoblet(const TJobletPtr& joblet) override;
+    void CustomizeJobSpec(const TJobletPtr& joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
+    void CustomizeJoblet(const TJobletPtr& joblet) override;
 
-    virtual void AddValueToEstimatedHistogram(const TJobletPtr& joblet) override;
-    virtual void RemoveValueFromEstimatedHistogram(const TJobletPtr& joblet) override;
+    void AddValueToEstimatedHistogram(const TJobletPtr& joblet) override;
+    void RemoveValueFromEstimatedHistogram(const TJobletPtr& joblet) override;
 
-    virtual const TControllerAgentConfigPtr& GetConfig() const override;
-    virtual const TOperationSpecBasePtr& GetSpec() const override;
+    const TControllerAgentConfigPtr& GetConfig() const override;
+    const TOperationSpecBasePtr& GetSpec() const override;
 
-    virtual void OnOperationFailed(const TError& error, bool flush = true) override;
+    void OnOperationFailed(const TError& error, bool flush = true) override;
     void OnOperationAborted(const TError& error);
 
-    virtual bool IsRowCountPreserved() const override;
-    virtual bool ShouldSkipSanityCheck() override;
+    bool IsRowCountPreserved() const override;
+    bool ShouldSkipSanityCheck() override;
 
-    virtual TExtendedJobResources GetAutoMergeResources(
+    TExtendedJobResources GetAutoMergeResources(
         const NChunkPools::TChunkStripeStatisticsVector& statistics) const override;
-    virtual TAutoMergeDirector* GetAutoMergeDirector() override;
+    TAutoMergeDirector* GetAutoMergeDirector() override;
 
-    virtual const TChunkListPoolPtr& GetOutputChunkListPool() const override;
-    virtual NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag) override;
-    virtual NChunkClient::TChunkListId ExtractDebugChunkList(NObjectClient::TCellTag cellTag) override;
-    virtual void ReleaseChunkTrees(
+    const TChunkListPoolPtr& GetOutputChunkListPool() const override;
+    NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag) override;
+    NChunkClient::TChunkListId ExtractDebugChunkList(NObjectClient::TCellTag cellTag) override;
+    void ReleaseChunkTrees(
         const std::vector<NChunkClient::TChunkListId>& chunkListIds,
         bool unstageRecursively,
         bool waitForSnapshot) override;
-    virtual void ReleaseIntermediateStripeList(const NChunkPools::TChunkStripeListPtr& stripeList) override;
+    void ReleaseIntermediateStripeList(const NChunkPools::TChunkStripeListPtr& stripeList) override;
 
-    virtual TOperationId GetOperationId() const override;
-    virtual EOperationType GetOperationType() const override;
+    TOperationId GetOperationId() const override;
+    EOperationType GetOperationType() const override;
 
-    virtual const TString& GetAuthenticatedUser() const override;
+    const TString& GetAuthenticatedUser() const override;
 
-    virtual const TOutputTablePtr& StderrTable() const override;
-    virtual const TOutputTablePtr& CoreTable() const override;
+    const TOutputTablePtr& StderrTable() const override;
+    const TOutputTablePtr& CoreTable() const override;
 
-    virtual void RegisterStderr(const TJobletPtr& joblet, const TJobSummary& summary) override;
-    virtual void RegisterCores(const TJobletPtr& joblet, const TJobSummary& summary) override;
+    void RegisterStderr(const TJobletPtr& joblet, const TJobSummary& summary) override;
+    void RegisterCores(const TJobletPtr& joblet, const TJobSummary& summary) override;
 
-    virtual void RegisterJoblet(const TJobletPtr& joblet) override;
+    void RegisterJoblet(const TJobletPtr& joblet) override;
 
-    virtual std::optional<TString> RegisterJobForMonitoring(TJobId jobId) override;
+    std::optional<TString> RegisterJobForMonitoring(TJobId jobId) override;
     void UnregisterJobForMonitoring(const TJobletPtr& joblet);
 
-    virtual const std::optional<TJobResources>& CachedMaxAvailableExecNodeResources() const override;
+    const std::optional<TJobResources>& CachedMaxAvailableExecNodeResources() const override;
 
-    virtual const NNodeTrackerClient::TNodeDirectoryPtr& InputNodeDirectory() const override;
+    const NNodeTrackerClient::TNodeDirectoryPtr& InputNodeDirectory() const override;
 
-    virtual void RegisterRecoveryInfo(
+    void RegisterRecoveryInfo(
         const TCompletedJobPtr& completedJob,
         const NChunkPools::TChunkStripePtr& stripe) override;
 
-    virtual NTableClient::TRowBufferPtr GetRowBuffer() override;
+    NTableClient::TRowBufferPtr GetRowBuffer() override;
 
-    virtual TSnapshotCookie OnSnapshotStarted() override;
+    TSnapshotCookie OnSnapshotStarted() override;
 
-    virtual bool HasSnapshot() const override;
+    bool HasSnapshot() const override;
 
-    virtual void Dispose() override;
+    void Dispose() override;
 
-    virtual void UpdateRuntimeParameters(const NScheduler::TOperationRuntimeParametersUpdatePtr& update) override;
+    void UpdateRuntimeParameters(const NScheduler::TOperationRuntimeParametersUpdatePtr& update) override;
 
     //! Returns the aggregated delta of job metrics and resets it to zero.
     //! When `force` is true, the delta is returned unconditionally, otherwise a zero delta is
     //! returned within a certain period since last call.
-    virtual NScheduler::TOperationJobMetrics PullJobMetricsDelta(bool force = false) override;
+    NScheduler::TOperationJobMetrics PullJobMetricsDelta(bool force = false) override;
 
-    virtual TOperationAlertMap GetAlerts() override;
+    TOperationAlertMap GetAlerts() override;
 
-    virtual TOperationInfo BuildOperationInfo() override;
+    TOperationInfo BuildOperationInfo() override;
 
-    virtual NYson::TYsonString BuildJobYson(TJobId jobId, bool outputStatistics) const override;
+    NYson::TYsonString BuildJobYson(TJobId jobId, bool outputStatistics) const override;
 
-    virtual NYTree::IYPathServicePtr GetOrchid() const override;
+    NYTree::IYPathServicePtr GetOrchid() const override;
 
-    virtual TString WriteCoreDump() const override;
+    TString WriteCoreDump() const override;
 
     //! Needed for row_count_limit.
-    virtual void RegisterOutputRows(i64 count, int tableIndex) override;
+    void RegisterOutputRows(i64 count, int tableIndex) override;
 
-    virtual std::optional<int> GetRowCountLimitTableIndex() override;
+    std::optional<int> GetRowCountLimitTableIndex() override;
 
-    virtual void LoadSnapshot(const TOperationSnapshot& snapshot) override;
+    void LoadSnapshot(const TOperationSnapshot& snapshot) override;
 
-    virtual void RegisterOutputTables(const std::vector<NYPath::TRichYPath>& outputTablePaths) override;
+    void RegisterOutputTables(const std::vector<NYPath::TRichYPath>& outputTablePaths) override;
 
-    virtual void AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason) override;
+    void AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason) override;
 
-    virtual bool CanInterruptJobs() const override;
-    virtual void InterruptJob(TJobId jobId, EInterruptReason reason) override;
+    bool CanInterruptJobs() const override;
+    void InterruptJob(TJobId jobId, EInterruptReason reason) override;
 
-    virtual void OnSpeculativeJobScheduled(const TJobletPtr& joblet) override;
+    void OnSpeculativeJobScheduled(const TJobletPtr& joblet) override;
 
-    virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() const override;
+    const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() const override;
 
-    virtual TJobSplitterConfigPtr GetJobSplitterConfigTemplate() const override;
+    TJobSplitterConfigPtr GetJobSplitterConfigTemplate() const override;
 
-    virtual const TInputTablePtr& GetInputTable(int tableIndex) const override;
-    virtual const TOutputTablePtr& GetOutputTable(int tableIndex) const override;
-    virtual int GetOutputTableCount() const override;
+    const TInputTablePtr& GetInputTable(int tableIndex) const override;
+    const TOutputTablePtr& GetOutputTable(int tableIndex) const override;
+    int GetOutputTableCount() const override;
 
-    virtual NLogging::TLogger GetLogger() const override;
+    NLogging::TLogger GetLogger() const override;
 
-    virtual void SetOperationAlert(EOperationAlertType type, const TError& alert) override;
+    void SetOperationAlert(EOperationAlertType type, const TError& alert) override;
 
-    virtual void OnMemoryLimitExceeded(const TError& error) override;
+    void OnMemoryLimitExceeded(const TError& error) override;
 
-    virtual bool IsMemoryLimitExceeded() const override;
+    bool IsMemoryLimitExceeded() const override;
 
-    virtual i64 GetMemoryUsage() const override;
+    i64 GetMemoryUsage() const override;
 
     //! Returns |true| when operation completion event is scheduled to control invoker.
-    virtual bool IsFinished() const override;
+    bool IsFinished() const override;
 
 protected:
     const IOperationControllerHostPtr Host;
@@ -559,7 +559,7 @@ protected:
 
     void RegisterTask(TTaskPtr task);
 
-    virtual void UpdateTask(const TTaskPtr& task) override;
+    void UpdateTask(const TTaskPtr& task) override;
 
     void UpdateAllTasks();
 
@@ -880,13 +880,13 @@ protected:
 
     const NApi::ITransactionPtr& GetTransactionForOutputTable(const TOutputTablePtr& table) const;
 
-    virtual void AttachToIntermediateLivePreview(NChunkClient::TChunkId chunkId) override;
+    void AttachToIntermediateLivePreview(NChunkClient::TChunkId chunkId) override;
 
     void AttachToLivePreview(
         NChunkClient::TChunkTreeId chunkTreeId,
         NCypressClient::TNodeId tableId);
 
-    virtual void RegisterTeleportChunk(
+    void RegisterTeleportChunk(
         NChunkClient::TInputChunkPtr chunk,
         NChunkPools::TChunkStripeKey key,
         int tableIndex) override;
@@ -947,19 +947,19 @@ protected:
 
     void CheckFailedJobsStatusReceived();
 
-    virtual const std::vector<TStreamDescriptor>& GetStandardStreamDescriptors() const override;
+    const std::vector<TStreamDescriptor>& GetStandardStreamDescriptors() const override;
 
     NTableClient::TTableWriterOptionsPtr GetIntermediateTableWriterOptions() const;
     TStreamDescriptor GetIntermediateStreamDescriptorTemplate() const;
 
-    virtual const TDataFlowGraphPtr& GetDataFlowGraph() const override;
+    const TDataFlowGraphPtr& GetDataFlowGraph() const override;
 
-    virtual void RegisterLivePreviewChunk(
+    void RegisterLivePreviewChunk(
         const TDataFlowGraph::TVertexDescriptor& vertexDescriptor,
         int index,
         const NChunkClient::TInputChunkPtr& chunk) override;
 
-    virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const override;
+    const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const override;
 
     void FinishTaskInput(const TTaskPtr& task);
 
@@ -1269,8 +1269,8 @@ private:
         const TJobletPtr& joblet,
         const TJobSummary& jobSummary);
 
-    virtual NYson::IYsonConsumer* GetEventLogConsumer() override;
-    virtual const NLogging::TLogger* GetEventLogger() override;
+    NYson::IYsonConsumer* GetEventLogConsumer() override;
+    const NLogging::TLogger* GetEventLogger() override;
 
     void SleepInCommitStage(NScheduler::EDelayInsideOperationCommitStage desiredStage);
     void SleepInRevive();
@@ -1363,15 +1363,15 @@ private:
 
         TSink(TThis* controller, int outputTableIndex);
 
-        virtual TCookie AddWithKey(NChunkPools::TChunkStripePtr stripe, NChunkPools::TChunkStripeKey key) override;
+        TCookie AddWithKey(NChunkPools::TChunkStripePtr stripe, NChunkPools::TChunkStripeKey key) override;
 
-        virtual TCookie Add(NChunkPools::TChunkStripePtr stripe) override;
+        TCookie Add(NChunkPools::TChunkStripePtr stripe) override;
 
-        virtual void Suspend(TCookie cookie) override;
-        virtual void Resume(TCookie cookie) override;
-        virtual void Reset(TCookie cookie, NChunkPools::TChunkStripePtr stripe, NChunkPools::TInputChunkMappingPtr chunkMapping) override;
-        virtual void Finish() override;
-        virtual bool IsFinished() const override;
+        void Suspend(TCookie cookie) override;
+        void Resume(TCookie cookie) override;
+        void Reset(TCookie cookie, NChunkPools::TChunkStripePtr stripe, NChunkPools::TInputChunkMappingPtr chunkMapping) override;
+        void Finish() override;
+        bool IsFinished() const override;
 
         void Persist(const TPersistenceContext& context) override;
 

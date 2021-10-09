@@ -26,10 +26,10 @@ public:
         const TString& path,
         NContainers::IInstanceLauncherPtr containerLauncher,
         bool copyEnv = true);
-    virtual void Kill(int signal) override;
-    virtual NNet::IConnectionWriterPtr GetStdInWriter() override;
-    virtual NNet::IConnectionReaderPtr GetStdOutReader() override;
-    virtual NNet::IConnectionReaderPtr GetStdErrReader() override;
+    void Kill(int signal) override;
+    NNet::IConnectionWriterPtr GetStdInWriter() override;
+    NNet::IConnectionReaderPtr GetStdOutReader() override;
+    NNet::IConnectionReaderPtr GetStdErrReader() override;
 
     NContainers::IInstancePtr GetInstance();
 
@@ -38,7 +38,7 @@ private:
     TAtomicObject<NContainers::IInstancePtr> ContainerInstance_;
     std::vector<NPipes::TNamedPipePtr> NamedPipes_;
 
-    virtual void DoSpawn() override;
+    void DoSpawn() override;
     THashMap<TString, TString> DecomposeEnv() const;
 };
 

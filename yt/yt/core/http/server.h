@@ -21,7 +21,7 @@ class TCallbackHandler
 public:
     explicit TCallbackHandler(TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> handler);
 
-    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override;
+    void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override;
 
 private:
     TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> Handler_;

@@ -29,30 +29,30 @@ class TBlobChunkBase
     : public TChunkBase
 {
 public:
-    virtual NChunkClient::NProto::TChunkInfo GetInfo() const override;
+    NChunkClient::NProto::TChunkInfo GetInfo() const override;
 
-    virtual bool IsActive() const override;
+    bool IsActive() const override;
 
-    virtual TFuture<NChunkClient::TRefCountedChunkMetaPtr> ReadMeta(
+    TFuture<NChunkClient::TRefCountedChunkMetaPtr> ReadMeta(
         const TChunkReadOptions& options,
         const std::optional<std::vector<int>>& extensionTags = std::nullopt) override;
 
-    virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockSet(
+    TFuture<std::vector<NChunkClient::TBlock>> ReadBlockSet(
         const std::vector<int>& blockIndexes,
         const TChunkReadOptions& options) override;
 
-    virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockRange(
+    TFuture<std::vector<NChunkClient::TBlock>> ReadBlockRange(
         int firstBlockIndex,
         int blockCount,
         const TChunkReadOptions& options) override;
 
-    virtual TFuture<void> PrepareToReadChunkFragments(
+    TFuture<void> PrepareToReadChunkFragments(
         const NChunkClient::TClientChunkReadOptions& options) override;
 
-    virtual NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+    NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor) override;
 
-    virtual void SyncRemove(bool force) override;
+    void SyncRemove(bool force) override;
 
     NChunkClient::TRefCountedBlocksExtPtr FindCachedBlocksExt();
 
@@ -63,7 +63,7 @@ protected:
         const TChunkDescriptor& descriptor,
         NChunkClient::TRefCountedChunkMetaPtr meta);
 
-    virtual TFuture<void> AsyncRemove() override;
+    TFuture<void> AsyncRemove() override;
 
 private:
     struct TReadBlockSetSession
@@ -104,7 +104,7 @@ private:
 
     NIO::TChunkFileReaderPtr GetReader();
 
-    virtual void ReleaseReader(NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& writerGuard) override;
+    void ReleaseReader(NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& writerGuard) override;
 
     void CompleteSession(const TIntrusivePtr<TReadBlockSetSession>& session);
     static void FailSession(const TIntrusivePtr<TReadBlockSetSession>& session, const TError& error);

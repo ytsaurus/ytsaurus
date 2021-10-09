@@ -44,8 +44,8 @@ class TEventLogHostBase
     : public virtual IEventLogHost
 {
 public:
-    virtual NEventLog::TFluentLogEvent LogEventFluently(ELogEventType eventType) override;
-    virtual NEventLog::TFluentLogEvent LogEventFluently(ELogEventType eventType, TInstant now) override;
+    NEventLog::TFluentLogEvent LogEventFluently(ELogEventType eventType) override;
+    NEventLog::TFluentLogEvent LogEventFluently(ELogEventType eventType, TInstant now) override;
 
 protected:
     NEventLog::TFluentLogEvent LogEventFluently(

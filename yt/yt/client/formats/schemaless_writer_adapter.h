@@ -24,15 +24,15 @@ class TSchemalessFormatWriterBase
     : public ISchemalessFormatWriter
 {
 public:
-    virtual bool Write(TRange<NTableClient::TUnversionedRow> rows) override;
+    bool Write(TRange<NTableClient::TUnversionedRow> rows) override;
 
-    virtual TFuture<void> GetReadyEvent() override;
+    TFuture<void> GetReadyEvent() override;
 
-    virtual TFuture<void> Close() override;
+    TFuture<void> Close() override;
 
-    virtual TBlob GetContext() const override;
+    TBlob GetContext() const override;
 
-    virtual i64 GetWrittenSize() const override;
+    i64 GetWrittenSize() const override;
 
 protected:
     const NTableClient::TNameTablePtr NameTable_;
@@ -134,14 +134,14 @@ private:
 
     void ConsumeRow(NTableClient::TUnversionedRow row);
 
-    virtual void DoWrite(TRange<NTableClient::TUnversionedRow> rows) override;
-    virtual void FlushWriter() override;
+    void DoWrite(TRange<NTableClient::TUnversionedRow> rows) override;
+    void FlushWriter() override;
 
-    virtual void WriteTableIndex(i64 tableIndex) override;
-    virtual void WriteRangeIndex(i64 rangeIndex) override;
-    virtual void WriteRowIndex(i64 rowIndex) override;
-    virtual void WriteTabletIndex(i64 tabletIndex) override;
-    virtual void WriteEndOfStream() override;
+    void WriteTableIndex(i64 tableIndex) override;
+    void WriteRangeIndex(i64 rangeIndex) override;
+    void WriteRowIndex(i64 rowIndex) override;
+    void WriteTabletIndex(i64 tabletIndex) override;
+    void WriteEndOfStream() override;
 
 private:
     std::vector<TUnversionedValueYsonWriter> ValueWriters_;

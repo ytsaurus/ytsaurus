@@ -36,7 +36,7 @@ public:
         IInvokerPtr compressionInvoker,
         std::optional<TDuration> timeout = {});
 
-    virtual TFuture<TSharedRef> Read() override;
+    TFuture<TSharedRef> Read() override;
 
     void EnqueuePayload(const TStreamingPayload& payload);
     void Abort(const TError& error, bool fireAborted = true);
@@ -99,8 +99,8 @@ public:
         ssize_t windowSize,
         std::optional<TDuration> timeout = {});
 
-    virtual TFuture<void> Write(const TSharedRef& data) override;
-    virtual TFuture<void> Close() override;
+    TFuture<void> Write(const TSharedRef& data) override;
+    TFuture<void> Close() override;
 
     void Abort(const TError& error);
     void AbortUnlessClosed(const TError& error, bool fireAborted = true);
@@ -173,7 +173,7 @@ public:
         IClientRequestPtr request,
         TFuture<void> invokeResult);
 
-    virtual TFuture<TSharedRef> Read() override;
+    TFuture<TSharedRef> Read() override;
 
     ~TRpcClientInputStream();
 
@@ -213,8 +213,8 @@ public:
         TFuture<void> invokeResult,
         bool feedbackEnabled = false);
 
-    virtual TFuture<void> Write(const TSharedRef& data) override;
-    virtual TFuture<void> Close() override;
+    TFuture<void> Write(const TSharedRef& data) override;
+    TFuture<void> Close() override;
 
     ~TRpcClientOutputStream();
 

@@ -28,27 +28,27 @@ public:
 
     ~TMultiReaderManagerBase();
 
-    virtual void Open() override;
+    void Open() override;
 
-    virtual NProto::TDataStatistics GetDataStatistics() const override;
-    virtual TCodecStatistics GetDecompressionStatistics() const override;
-    virtual NTableClient::TTimingStatistics GetTimingStatistics() const override;
+    NProto::TDataStatistics GetDataStatistics() const override;
+    TCodecStatistics GetDecompressionStatistics() const override;
+    NTableClient::TTimingStatistics GetTimingStatistics() const override;
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override;
+    std::vector<TChunkId> GetFailedChunkIds() const override;
 
-    virtual bool IsFetchingCompleted() const override;
+    bool IsFetchingCompleted() const override;
 
-    virtual const NLogging::TLogger& GetLogger() const override;
+    const NLogging::TLogger& GetLogger() const override;
 
-    virtual TMultiReaderManagerSession& GetCurrentSession() override;
+    TMultiReaderManagerSession& GetCurrentSession() override;
 
-    virtual bool OnEmptyRead(bool readerFinished) override;
+    bool OnEmptyRead(bool readerFinished) override;
 
-    virtual void RegisterFailedReader(const IReaderBasePtr& reader) override;
+    void RegisterFailedReader(const IReaderBasePtr& reader) override;
 
-    virtual void Interrupt() override;
+    void Interrupt() override;
 
-    virtual TMultiReaderManagerUnreadState GetUnreadState() const override = 0;
+    TMultiReaderManagerUnreadState GetUnreadState() const override = 0;
 
     DEFINE_SIGNAL_OVERRIDE(void(), ReaderSwitched);
 

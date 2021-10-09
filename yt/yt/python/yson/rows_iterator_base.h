@@ -22,9 +22,9 @@ class TRowsIteratorBase
 public:
     TRowsIteratorBase(Py::PythonClassInstance* self, Py::Tuple& args, Py::Dict& kwargs, const TString& formatName);
 
-    Py::Object iter();
+    Py::Object iter() override;
 
-    PyObject* iternext();
+    PyObject* iternext() override;
 
     virtual ~TRowsIteratorBase();
 

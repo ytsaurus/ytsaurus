@@ -11,10 +11,10 @@ class TSchedulerJobHeartbeatProcessor
 {
     using TJobHeartbeatProcessorBase::TJobHeartbeatProcessorBase;
 
-    virtual void PrepareRequest(
+    void PrepareRequest(
         NObjectClient::TCellTag cellTag,
         const NJobAgent::TJobController::TReqHeartbeatPtr& request) final;
-    virtual void ProcessResponse(
+    void ProcessResponse(
         const NJobAgent::TJobController::TRspHeartbeatPtr& response) final;
 
     THashSet<NObjectClient::TJobId> JobIdsToConfirm_;

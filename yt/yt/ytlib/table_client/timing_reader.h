@@ -25,7 +25,7 @@ class TTimingReaderBase
     , public NChunkClient::TReadyEventReaderBase
 {
 protected:
-    virtual TTimingStatistics GetTimingStatistics() const override;
+    TTimingStatistics GetTimingStatistics() const override;
 
     NProfiling::TTimerGuard<NProfiling::TWallTimer> AcquireReadGuard();
 

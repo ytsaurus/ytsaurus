@@ -28,80 +28,80 @@ public:
         NApi::NNative::IClientPtr client = nullptr);
 
     // IStoreManager overrides.
-    virtual bool HasActiveLocks() const override;
+    bool HasActiveLocks() const override;
 
-    virtual bool HasUnflushedStores() const override;
+    bool HasUnflushedStores() const override;
 
-    virtual void StartEpoch(ITabletSlotPtr slot) override;
-    virtual void StopEpoch() override;
+    void StartEpoch(ITabletSlotPtr slot) override;
+    void StopEpoch() override;
 
-    virtual bool ExecuteWrites(
+    bool ExecuteWrites(
         NTableClient::TWireProtocolReader* reader,
         TWriteContext* context) override;
 
-    virtual bool IsOverflowRotationNeeded() const override;
-    virtual TError CheckOverflow() const override;
-    virtual bool IsPeriodicRotationNeeded() const override;
-    virtual bool IsRotationPossible() const override;
-    virtual bool IsForcedRotationPossible() const override;
-    virtual std::optional<TInstant> GetPeriodicRotationMilestone() const override;
-    virtual bool IsRotationScheduled() const override;
-    virtual bool IsFlushNeeded() const override;
-    virtual void InitializeRotation() override;
-    virtual void ScheduleRotation(NLsm::EStoreRotationReason reason) override;
-    virtual void UnscheduleRotation() override;
-    virtual void Rotate(bool createNewStore, NLsm::EStoreRotationReason reason) override;
+    bool IsOverflowRotationNeeded() const override;
+    TError CheckOverflow() const override;
+    bool IsPeriodicRotationNeeded() const override;
+    bool IsRotationPossible() const override;
+    bool IsForcedRotationPossible() const override;
+    std::optional<TInstant> GetPeriodicRotationMilestone() const override;
+    bool IsRotationScheduled() const override;
+    bool IsFlushNeeded() const override;
+    void InitializeRotation() override;
+    void ScheduleRotation(NLsm::EStoreRotationReason reason) override;
+    void UnscheduleRotation() override;
+    void Rotate(bool createNewStore, NLsm::EStoreRotationReason reason) override;
 
-    virtual void AddStore(IStorePtr store, bool onMount) override;
-    virtual void BulkAddStores(TRange<IStorePtr> stores, bool onMount) override;
+    void AddStore(IStorePtr store, bool onMount) override;
+    void BulkAddStores(TRange<IStorePtr> stores, bool onMount) override;
 
-    virtual void DiscardAllStores() override;
-    virtual void RemoveStore(IStorePtr store) override;
-    virtual void BackoffStoreRemoval(IStorePtr store) override;
+    void DiscardAllStores() override;
+    void RemoveStore(IStorePtr store) override;
+    void BackoffStoreRemoval(IStorePtr store) override;
 
-    virtual bool IsStoreLocked(IStorePtr store) const override;
-    virtual std::vector<IStorePtr> GetLockedStores() const override;
+    bool IsStoreLocked(IStorePtr store) const override;
+    std::vector<IStorePtr> GetLockedStores() const override;
 
-    virtual IChunkStorePtr PeekStoreForPreload() override;
-    virtual void BeginStorePreload(
+    IChunkStorePtr PeekStoreForPreload() override;
+    void BeginStorePreload(
         IChunkStorePtr store,
         TCallback<TFuture<void>()> callbackFuture) override;
-    virtual void EndStorePreload(IChunkStorePtr store) override;
-    virtual void BackoffStorePreload(IChunkStorePtr store) override;
+    void EndStorePreload(IChunkStorePtr store) override;
+    void BackoffStorePreload(IChunkStorePtr store) override;
 
-    virtual NTabletClient::EInMemoryMode GetInMemoryMode() const override;
+    NTabletClient::EInMemoryMode GetInMemoryMode() const override;
 
-    virtual bool IsStoreFlushable(IStorePtr store) const override;
-    virtual TStoreFlushCallback BeginStoreFlush(
+    bool IsStoreFlushable(IStorePtr store) const override;
+    TStoreFlushCallback BeginStoreFlush(
         IDynamicStorePtr store,
         TTabletSnapshotPtr tabletSnapshot,
         bool isUnmountWorkflow) override;
-    virtual void EndStoreFlush(IDynamicStorePtr store) override;
-    virtual void BackoffStoreFlush(IDynamicStorePtr store) override;
+    void EndStoreFlush(IDynamicStorePtr store) override;
+    void BackoffStoreFlush(IDynamicStorePtr store) override;
 
-    virtual bool IsStoreCompactable(IStorePtr store) const override;
-    virtual void BeginStoreCompaction(IChunkStorePtr store) override;
-    virtual void EndStoreCompaction(IChunkStorePtr store) override;
-    virtual void BackoffStoreCompaction(IChunkStorePtr store) override;
+    bool IsStoreCompactable(IStorePtr store) const override;
+    void BeginStoreCompaction(IChunkStorePtr store) override;
+    void EndStoreCompaction(IChunkStorePtr store) override;
+    void BackoffStoreCompaction(IChunkStorePtr store) override;
 
-    virtual void Mount(
+    void Mount(
         TRange<const NTabletNode::NProto::TAddStoreDescriptor*> storeDescriptors,
         TRange<const NTabletNode::NProto::TAddHunkChunkDescriptor*> hunkChunkDescriptors,
         bool createDynamicStore,
         const NTabletNode::NProto::TMountHint& mountHint) override;
-    virtual void Remount(const TTableSettings& settings) override;
+    void Remount(const TTableSettings& settings) override;
 
-    virtual ISortedStoreManagerPtr AsSorted() override;
-    virtual IOrderedStoreManagerPtr AsOrdered() override;
+    ISortedStoreManagerPtr AsSorted() override;
+    IOrderedStoreManagerPtr AsOrdered() override;
 
     // ISortedStoreManager overrides.
-    virtual bool SplitPartition(
+    bool SplitPartition(
         int partitionIndex,
         const std::vector<TLegacyOwningKey>& pivotKeys) override;
-    virtual void MergePartitions(
+    void MergePartitions(
         int firstPartitionIndex,
         int lastPartitionIndex) override;
-    virtual void UpdatePartitionSampleKeys(
+    void UpdatePartitionSampleKeys(
         TPartition* partition,
         const TSharedRange<TLegacyKey>& keys) override;
 

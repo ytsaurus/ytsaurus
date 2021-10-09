@@ -32,7 +32,7 @@ public:
 private:
     IBootstrap* const Bootstrap_;
 
-    virtual void ProcessLsmActionBatch(
+    void ProcessLsmActionBatch(
         const ITabletSlotPtr& slot,
         const NLsm::TLsmActionBatch& batch) override
     {

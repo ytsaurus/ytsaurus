@@ -12,15 +12,15 @@ class TElectionManagerThunk
     : public IElectionManager
 {
 public:
-    virtual void Initialize() override;
-    virtual void Finalize() override;
+    void Initialize() override;
+    void Finalize() override;
 
-    virtual void Participate() override;
-    virtual void Abandon(const TError& error) override;
-    virtual void ReconfigureCell(TCellManagerPtr cellManager) override;
+    void Participate() override;
+    void Abandon(const TError& error) override;
+    void ReconfigureCell(TCellManagerPtr cellManager) override;
 
-    virtual NYson::TYsonProducer GetMonitoringProducer() override;
-    virtual TPeerIdSet GetAlivePeerIds() override;
+    NYson::TYsonProducer GetMonitoringProducer() override;
+    TPeerIdSet GetAlivePeerIds() override;
 
     void SetUnderlying(IElectionManagerPtr underlying);
 

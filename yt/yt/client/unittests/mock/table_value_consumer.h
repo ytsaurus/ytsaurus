@@ -29,12 +29,12 @@ public:
     MOCK_METHOD(void, OnMyValue, (const TUnversionedValue& value), (override));
     MOCK_METHOD(void, OnEndRow, (), (override));
 
-    virtual const TNameTablePtr& GetNameTable() const override
+    const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
     }
 
-    virtual bool GetAllowUnknownColumns() const override
+    bool GetAllowUnknownColumns() const override
     {
         return AllowUnknowsColumns_;
     }

@@ -33,13 +33,13 @@ public:
         , Invokers_(std::move(invokers))
     { }
 
-    virtual int GetSize() const override
+    int GetSize() const override
     {
         return Invokers_.size();
     }
 
 protected:
-    virtual const TInvokerPtr& DoGetInvoker(int index) const override
+    const TInvokerPtr& DoGetInvoker(int index) const override
     {
         YT_VERIFY(0 <= index && index < std::ssize(Invokers_));
         return Invokers_[index];

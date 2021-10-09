@@ -41,9 +41,9 @@ private:
 
     std::unique_ptr<ZstdContext> Context_;
 
-    virtual void DoWrite(const void* buf, size_t len) override;
-    virtual void DoFlush() override;
-    virtual void DoFinish() override;
+    void DoWrite(const void* buf, size_t len) override;
+    void DoFlush() override;
+    void DoFinish() override;
 
     void FlushOutput();
     void CompressOneFrame();

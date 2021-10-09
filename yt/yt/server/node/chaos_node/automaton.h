@@ -23,13 +23,13 @@ public:
         IInvokerPtr snapshotInvoker);
 
 private:
-    virtual std::unique_ptr<NHydra::TSaveContext> CreateSaveContext(
+    std::unique_ptr<NHydra::TSaveContext> CreateSaveContext(
         ICheckpointableOutputStream* output) override;
-    virtual std::unique_ptr<NHydra::TLoadContext> CreateLoadContext(
+    std::unique_ptr<NHydra::TLoadContext> CreateLoadContext(
         ICheckpointableInputStream* input) override;
 
-    virtual NHydra::TReign GetCurrentReign() override;
-    virtual NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign) override;
+    NHydra::TReign GetCurrentReign() override;
+    NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChaosAutomaton)
@@ -48,8 +48,8 @@ protected:
         IChaosSlotPtr slot,
         IBootstrap* bootstrap);
 
-    virtual bool ValidateSnapshotVersion(int version) override;
-    virtual int GetCurrentSnapshotVersion() override;
+    bool ValidateSnapshotVersion(int version) override;
+    int GetCurrentSnapshotVersion() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

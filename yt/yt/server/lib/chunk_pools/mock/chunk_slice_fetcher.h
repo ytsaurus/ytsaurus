@@ -45,9 +45,9 @@ public:
 
     TMockChunkSliceFetcherFactory(std::vector<NTableClient::TStrictMockChunkSliceFetcherPtr>* fetchers);
 
-    virtual NTableClient::IChunkSliceFetcherPtr CreateChunkSliceFetcher() override;
+    NTableClient::IChunkSliceFetcherPtr CreateChunkSliceFetcher() override;
 
-    virtual void Persist(const TPersistenceContext& context) override;
+    void Persist(const TPersistenceContext& context) override;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMockChunkSliceFetcherFactory, 0x4fa8873b);

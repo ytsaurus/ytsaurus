@@ -85,7 +85,7 @@ private:
 
     std::atomic<TDuration> TableSchemaCacheRequestTimeout_;
 
-    virtual i64 GetWeight(const TCachedTableSchemaWrapperPtr& value) const override;
+    i64 GetWeight(const TCachedTableSchemaWrapperPtr& value) const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableSchemaCache)

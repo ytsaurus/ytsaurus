@@ -37,84 +37,84 @@ public:
         YT_VERIFY(bootstrap);
     }
 
-    virtual ETypeFlags GetFlags() const override
+    ETypeFlags GetFlags() const override
     {
         return ETypeFlags::None;
     }
 
-    virtual TCellTagList GetReplicationCellTags(const TObject* object) override
+    TCellTagList GetReplicationCellTags(const TObject* object) override
     {
         return DoGetReplicationCellTags(object->As<TImpl>());
     }
 
-    virtual TString GetName(const TObject* object) override
+    TString GetName(const TObject* object) override
     {
         return DoGetName(object->As<TImpl>());
     }
 
-    virtual IObjectProxyPtr GetProxy(
+    IObjectProxyPtr GetProxy(
         TObject* object,
         NTransactionServer::TTransaction* transaction) override
     {
         return DoGetProxy(object->As<TImpl>(), transaction);
     }
 
-    virtual TObject* CreateObject(
+    TObject* CreateObject(
         TObjectId /*hintId*/,
         NYTree::IAttributeDictionary* /*attributes*/) override
     {
         YT_ABORT();
     }
 
-    virtual std::unique_ptr<TObject> InstantiateObject(TObjectId /*id*/) override
+    std::unique_ptr<TObject> InstantiateObject(TObjectId /*id*/) override
     {
         YT_ABORT();
     }
 
-    virtual void DestroyObject(TObject* object) noexcept override
+    void DestroyObject(TObject* object) noexcept override
     {
         DoDestroyObject(object->As<TImpl>());
     }
 
-    virtual void ZombifyObject(TObject* object) noexcept override
+    void ZombifyObject(TObject* object) noexcept override
     {
         DoZombifyObject(object->As<TImpl>());
     }
 
-    virtual void UnstageObject(TObject* object, bool recursive) override
+    void UnstageObject(TObject* object, bool recursive) override
     {
         DoUnstageObject(object->As<TImpl>(), recursive);
     }
 
-    virtual std::optional<TObject*> FindObjectByAttributes(
+    std::optional<TObject*> FindObjectByAttributes(
         const NYTree::IAttributeDictionary* /*attributes*/) override
     {
         return std::nullopt;
     }
 
-    virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObject* object) override
+    NSecurityServer::TAccessControlDescriptor* FindAcd(TObject* object) override
     {
         return DoFindAcd(object->As<TImpl>());
     }
 
-    virtual std::optional<std::vector<TString>> ListColumns(TObject* object) override
+    std::optional<std::vector<TString>> ListColumns(TObject* object) override
     {
         return DoListColumns(object->As<TImpl>());
     }
 
-    virtual TObject* GetParent(TObject* object) override
+    TObject* GetParent(TObject* object) override
     {
         return DoGetParent(object->As<TImpl>());
     }
 
-    virtual void ExportObject(
+    void ExportObject(
         TObject* object,
         NObjectClient::TCellTag destinationCellTag) override
     {
         DoExportObject(object->As<TImpl>(), destinationCellTag);
     }
 
-    virtual void UnexportObject(
+    void UnexportObject(
         TObject* object,
         NObjectClient::TCellTag destinationCellTag,
         int importRefCounter) override
@@ -214,7 +214,7 @@ public:
         , Map_(map)
     { }
 
-    virtual NObjectServer::TObject* FindObject(TObjectId id) override
+    NObjectServer::TObject* FindObject(TObjectId id) override
     {
         return Map_->Find(id);
     }
@@ -224,7 +224,7 @@ protected:
     TMapType* const Map_;
 
 
-    virtual void DoDestroyObject(TObject* object) override
+    void DoDestroyObject(TObject* object) override
     {
         TBase::DoDestroyObject(object);
         // Remove the object from the map but keep it alive.

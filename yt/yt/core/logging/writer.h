@@ -67,13 +67,13 @@ public:
     TStreamLogWriterBase(std::unique_ptr<ILogFormatter> formatter, TString name);
     ~TStreamLogWriterBase();
 
-    virtual void Write(const TLogEvent& event) override;
-    virtual void Flush() override;
-    virtual void Reload() override;
-    virtual void CheckSpace(i64 minSpace) override;
+    void Write(const TLogEvent& event) override;
+    void Flush() override;
+    void Reload() override;
+    void CheckSpace(i64 minSpace) override;
 
-    virtual void SetRateLimit(std::optional<size_t> limit) override;
-    virtual void SetCategoryRateLimits(const THashMap<TString, size_t>& categoryRateLimits) override;
+    void SetRateLimit(std::optional<size_t> limit) override;
+    void SetCategoryRateLimits(const THashMap<TString, size_t>& categoryRateLimits) override;
 
 protected:
     virtual IOutputStream* GetOutputStream() const noexcept = 0;
@@ -102,7 +102,7 @@ public:
     TStreamLogWriter(IOutputStream* stream, std::unique_ptr<ILogFormatter> formatter, TString name);
 
 private:
-    virtual IOutputStream* GetOutputStream() const noexcept override;
+    IOutputStream* GetOutputStream() const noexcept override;
 
     IOutputStream* const Stream_;
 };
@@ -117,7 +117,7 @@ public:
     TStderrLogWriter();
 
 private:
-    virtual IOutputStream* GetOutputStream() const noexcept override;
+    IOutputStream* GetOutputStream() const noexcept override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,7 +129,7 @@ public:
     using TStreamLogWriterBase::TStreamLogWriterBase;
 
 private:
-    virtual IOutputStream* GetOutputStream() const noexcept override;
+    IOutputStream* GetOutputStream() const noexcept override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,12 +147,12 @@ public:
         int compressionLevel = 6);
     ~TFileLogWriter();
 
-    virtual void Reload() override;
-    virtual void CheckSpace(i64 minSpace) override;
+    void Reload() override;
+    void CheckSpace(i64 minSpace) override;
 
 protected:
-    virtual IOutputStream* GetOutputStream() const noexcept override;
-    virtual void OnException(const std::exception& ex) override;
+    IOutputStream* GetOutputStream() const noexcept override;
+    void OnException(const std::exception& ex) override;
 
 private:
     const TString FileName_;

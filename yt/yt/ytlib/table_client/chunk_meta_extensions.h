@@ -106,7 +106,7 @@ public:
         const NProfiling::TProfiler& profiler);
 
 private:
-    virtual i64 GetWeight(const TCachedBlockMetaPtr& value) const override;
+    i64 GetWeight(const TCachedBlockMetaPtr& value) const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlockMetaCache)

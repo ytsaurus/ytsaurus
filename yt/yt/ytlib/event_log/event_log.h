@@ -21,9 +21,9 @@ public:
     TFluentLogEventConsumer(IYsonConsumer* tableConsumer, const NLogging::TLogger* logger);
 
 protected:
-    void OnMyBeginMap();
+    void OnMyBeginMap() override;
 
-    void OnMyEndMap();
+    void OnMyEndMap() override;
 
 private:
     using TState = NYTree::TFluentYsonWriterState;
@@ -94,9 +94,9 @@ public:
 
     ~TEventLogWriter();
 
-    virtual std::unique_ptr<NYson::IYsonConsumer> CreateConsumer() override;
+    std::unique_ptr<NYson::IYsonConsumer> CreateConsumer() override;
 
-    virtual void UpdateConfig(const TEventLogManagerConfigPtr& config) override;
+    void UpdateConfig(const TEventLogManagerConfigPtr& config) override;
 
     TFuture<void> Close() override;
 

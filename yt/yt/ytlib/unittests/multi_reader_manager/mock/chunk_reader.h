@@ -22,7 +22,7 @@ public:
         , Delay_(delay)
     { }
 
-    virtual NTableClient::IUnversionedRowBatchPtr Read(const NTableClient::TRowBatchReadOptions& /*options*/) override
+    NTableClient::IUnversionedRowBatchPtr Read(const NTableClient::TRowBatchReadOptions& /*options*/) override
     {
         if (CurrentDataIndex_ >= std::ssize(Data_)) {
             return nullptr;
@@ -33,7 +33,7 @@ public:
         return NTableClient::CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         if (Error_.load()) {
             return MakeFuture(TError("Mock error"));
@@ -41,7 +41,7 @@ public:
         return NConcurrency::TDelayedExecutor::MakeDelayed(Delay_);
     }
 
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
         NProto::TDataStatistics dataStatistics;
         dataStatistics.set_chunk_count(1);
@@ -52,43 +52,43 @@ public:
         return dataStatistics;
     }
 
-    virtual TCodecStatistics GetDecompressionStatistics() const override
+    TCodecStatistics GetDecompressionStatistics() const override
     {
         TCodecStatistics statistics;
         return statistics;
     }
 
-    virtual NTableClient::TTimingStatistics GetTimingStatistics() const override
+    NTableClient::TTimingStatistics GetTimingStatistics() const override
     {
         return {};
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return CurrentDataIndex_ == std::ssize(Data_);
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return {};
     }
 
-    virtual const NTableClient::TNameTablePtr& GetNameTable() const override
+    const NTableClient::TNameTablePtr& GetNameTable() const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual i64 GetTableRowIndex() const override
+    i64 GetTableRowIndex() const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual TInterruptDescriptor GetInterruptDescriptor(TRange<NTableClient::TUnversionedRow> /*unreadRows*/) const override
+    TInterruptDescriptor GetInterruptDescriptor(TRange<NTableClient::TUnversionedRow> /*unreadRows*/) const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
+    const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
     {
         YT_UNIMPLEMENTED();
     }
@@ -107,7 +107,7 @@ class TChunkReaderWithErrorMock
 public:
     using TChunkReaderMock::TChunkReaderMock;
 
-    virtual NTableClient::IUnversionedRowBatchPtr Read(const NTableClient::TRowBatchReadOptions& options) override
+    NTableClient::IUnversionedRowBatchPtr Read(const NTableClient::TRowBatchReadOptions& options) override
     {
         if (Error_.load()) {
             return NTableClient::CreateEmptyUnversionedRowBatch();
@@ -121,7 +121,7 @@ public:
         return batch;
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return {TChunkId()};
     }

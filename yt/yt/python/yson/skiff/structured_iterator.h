@@ -28,8 +28,8 @@ public:
         const Py::List& pySchemaList,
         NSkiff::TSkiffSchemaList skiffSchemaList);
 
-    Py::Object iter();
-    PyObject* iternext();
+    Py::Object iter() override;
+    PyObject* iternext() override;
 
     static void InitType();
 

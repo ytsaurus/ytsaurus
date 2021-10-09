@@ -74,7 +74,7 @@ class TUnversionedValueCallingConvention
 public:
     TUnversionedValueCallingConvention(int repeatedArgIndex);
 
-    virtual TCGValue MakeCodegenFunctionCall(
+    TCGValue MakeCodegenFunctionCall(
         TCGBaseContext& baseBuilder,
         std::vector<TCodegenValue> codegenArguments,
         std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
@@ -82,7 +82,7 @@ public:
         bool aggregate,
         const TString& name) const override;
 
-    virtual llvm::FunctionType* GetCalleeType(
+    llvm::FunctionType* GetCalleeType(
         TCGBaseContext& builder,
         std::vector<EValueType> argumentTypes,
         EValueType resultType,
@@ -96,7 +96,7 @@ class TSimpleCallingConvention
     : public ICallingConvention
 {
 public:
-    virtual TCGValue MakeCodegenFunctionCall(
+    TCGValue MakeCodegenFunctionCall(
         TCGBaseContext& baseBuilder,
         std::vector<TCodegenValue> codegenArguments,
         std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
@@ -104,7 +104,7 @@ public:
         bool aggregate,
         const TString& name) const override;
 
-    virtual llvm::FunctionType* GetCalleeType(
+    llvm::FunctionType* GetCalleeType(
         TCGBaseContext& builder,
         std::vector<EValueType> argumentTypes,
         EValueType resultType,
@@ -157,7 +157,7 @@ public:
             useFunctionContext)
     { }
 
-    virtual TCodegenExpression Profile(
+    TCodegenExpression Profile(
         TCGVariables* variables,
         std::vector<size_t> argIds,
         std::unique_ptr<bool[]> literalArgs,
@@ -193,14 +193,14 @@ public:
         , Fingerprint_(fingerprint)
     { }
 
-    virtual TCodegenAggregate Profile(
+    TCodegenAggregate Profile(
         EValueType argumentType,
         EValueType stateType,
         EValueType resultType,
         const TString& name,
         llvm::FoldingSetNodeID* id) const override;
 
-    virtual bool IsFirst() const override;
+    bool IsFirst() const override;
 
 private:
     const TString AggregateName_;

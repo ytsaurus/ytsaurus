@@ -51,9 +51,9 @@ public:
     IMPLEMENT_AS_METHODS(Map)
 #undef IMPLEMENT_AS_METHODS
 
-    virtual TResolveResult ResolveRecursive(const NYPath::TYPath& path, const NRpc::IServiceContextPtr& context) override;
+    TResolveResult ResolveRecursive(const NYPath::TYPath& path, const NRpc::IServiceContextPtr& context) override;
 
-    virtual TYPath GetPath() const override;
+    TYPath GetPath() const override;
 
 protected:
     template <class TNode>
@@ -68,11 +68,11 @@ protected:
         factory->Commit();
     }
 
-    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
-    virtual void GetKeySelf(TReqGetKey* request, TRspGetKey* response, const TCtxGetKeyPtr& context) override;
-    virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
-    virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override;
+    void GetKeySelf(TReqGetKey* request, TRspGetKey* response, const TCtxGetKeyPtr& context) override;
+    void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
+    void RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override;
     virtual void DoRemoveSelf();
 };
 
@@ -87,13 +87,13 @@ class TCompositeNodeMixin
     , public virtual ICompositeNode
 {
 protected:
-    virtual void RemoveRecursive(
+    void RemoveRecursive(
         const TYPath &path,
         TReqRemove* request,
         TRspRemove* response,
         const TCtxRemovePtr& context) override;
 
-    virtual void SetRecursive(
+    void SetRecursive(
         const TYPath& path,
         TReqSet* request,
         TRspSet* response,
@@ -118,16 +118,16 @@ class TMapNodeMixin
     , public virtual IMapNode
 {
 protected:
-    virtual IYPathService::TResolveResult ResolveRecursive(
+    IYPathService::TResolveResult ResolveRecursive(
         const TYPath& path,
         const NRpc::IServiceContextPtr& context) override;
 
-    virtual void ListSelf(
+    void ListSelf(
         TReqList* request,
         TRspList* response,
         const TCtxListPtr& context) override;
 
-    virtual void SetChild(
+    void SetChild(
         INodeFactory* factory,
         const TYPath& path,
         INodePtr child,
@@ -152,11 +152,11 @@ class TListNodeMixin
     , public virtual IListNode
 {
 protected:
-    virtual IYPathService::TResolveResult ResolveRecursive(
+    IYPathService::TResolveResult ResolveRecursive(
         const TYPath& path,
         const NRpc::IServiceContextPtr& context) override;
 
-    virtual void SetChild(
+    void SetChild(
         INodeFactory* factory,
         const TYPath& path,
         INodePtr child,
@@ -174,28 +174,28 @@ public:
     static IYPathServicePtr Get();
 
 private:
-    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context);
+    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
-    virtual TResolveResult Resolve(
+    TResolveResult Resolve(
         const TYPath& path,
-        const NRpc::IServiceContextPtr& context);
+        const NRpc::IServiceContextPtr& context) override;
 
-    virtual void ExistsSelf(
+    void ExistsSelf(
         TReqExists* request,
         TRspExists* response,
-        const TCtxExistsPtr& context);
+        const TCtxExistsPtr& context) override;
 
-    virtual void ExistsRecursive(
-        const TYPath& path,
-        TReqExists* request,
-        TRspExists* response,
-        const TCtxExistsPtr& context);
-
-    virtual void ExistsAttribute(
+    void ExistsRecursive(
         const TYPath& path,
         TReqExists* request,
         TRspExists* response,
-        const TCtxExistsPtr& context);
+        const TCtxExistsPtr& context) override;
+
+    void ExistsAttribute(
+        const TYPath& path,
+        TReqExists* request,
+        TRspExists* response,
+        const TCtxExistsPtr& context) override;
 
     void ExistsAny(const TCtxExistsPtr& context);
 };
@@ -244,8 +244,8 @@ class TTransactionalNodeFactoryBase
 public:
     virtual ~TTransactionalNodeFactoryBase();
 
-    virtual void Commit() noexcept override;
-    virtual void Rollback() noexcept override;
+    void Commit() noexcept override;
+    void Rollback() noexcept override;
 
 protected:
     void RollbackIfNeeded();

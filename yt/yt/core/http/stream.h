@@ -92,25 +92,25 @@ public:
         EMessageType messageType,
         const THttpIOConfigPtr& config);
 
-    virtual EMethod GetMethod() override;
-    virtual const TUrlRef& GetUrl() override;
-    virtual std::pair<int, int> GetVersion() override;
-    virtual const THeadersPtr& GetHeaders() override;
+    EMethod GetMethod() override;
+    const TUrlRef& GetUrl() override;
+    std::pair<int, int> GetVersion() override;
+    const THeadersPtr& GetHeaders() override;
 
-    virtual EStatusCode GetStatusCode() override;
-    virtual const THeadersPtr& GetTrailers() override;
+    EStatusCode GetStatusCode() override;
+    const THeadersPtr& GetTrailers() override;
 
-    virtual TFuture<TSharedRef> Read() override;
+    TFuture<TSharedRef> Read() override;
 
-    virtual const NNet::TNetworkAddress& GetRemoteAddress() const override;
+    const NNet::TNetworkAddress& GetRemoteAddress() const override;
 
-    virtual TGuid GetConnectionId() const override;
+    TGuid GetConnectionId() const override;
     void SetConnectionId(TGuid connectionId);
 
-    virtual TGuid GetRequestId() const override;
+    TGuid GetRequestId() const override;
     void SetRequestId(TGuid requestId);
 
-    virtual i64 GetReadByteCount() const override;
+    i64 GetReadByteCount() const override;
 
     bool IsExpecting100Continue() const;
 
@@ -120,9 +120,9 @@ public:
     // Returns false if connection was closed before receiving first byte.
     bool ReceiveHeaders();
 
-    virtual TInstant GetStartTime() const override;
+    TInstant GetStartTime() const override;
 
-    virtual bool IsHttps() const override;
+    bool IsHttps() const override;
     void SetHttps();
 
 private:
@@ -182,26 +182,26 @@ public:
         EMessageType messageType,
         const THttpIOConfigPtr& config);
 
-    virtual const THeadersPtr& GetHeaders() override;
+    const THeadersPtr& GetHeaders() override;
     void SetHeaders(const THeadersPtr& headers);
     void SetHost(TStringBuf host, TStringBuf port);
-    virtual bool IsHeadersFlushed() const override;
+    bool IsHeadersFlushed() const override;
 
-    virtual const THeadersPtr& GetTrailers() override;
+    const THeadersPtr& GetTrailers() override;
 
     void Flush100Continue();
 
     void WriteRequest(EMethod method, const TString& path);
     std::optional<EStatusCode> GetStatus() const override;
-    virtual void SetStatus(EStatusCode status) override;
+    void SetStatus(EStatusCode status) override;
 
-    virtual TFuture<void> Write(const TSharedRef& data) override;
-    virtual TFuture<void> Flush() override;
-    virtual TFuture<void> Close() override;
+    TFuture<void> Write(const TSharedRef& data) override;
+    TFuture<void> Flush() override;
+    TFuture<void> Close() override;
 
-    virtual TFuture<void> WriteBody(const TSharedRef& smallBody) override;
+    TFuture<void> WriteBody(const TSharedRef& smallBody) override;
 
-    virtual void AddConnectionCloseHeader() override;
+    void AddConnectionCloseHeader() override;
 
     bool IsSafeToReuse() const;
     void Reset();
@@ -209,7 +209,7 @@ public:
     void SetConnectionId(TGuid connectionId);
     void SetRequestId(TGuid requestId);
 
-    virtual i64 GetWriteByteCount() const override;
+    i64 GetWriteByteCount() const override;
 
 private:
     const NNet::IConnectionPtr Connection_;

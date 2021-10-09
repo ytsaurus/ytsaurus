@@ -26,7 +26,7 @@ public:
         MultiReaderManager_->Open();
     }
 
-    virtual NTableClient::IUnversionedRowBatchPtr Read(const NTableClient::TRowBatchReadOptions& options) override
+    NTableClient::IUnversionedRowBatchPtr Read(const NTableClient::TRowBatchReadOptions& options) override
     {
         if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().Get().IsOK()) {
             return NTableClient::CreateEmptyUnversionedRowBatch();
@@ -48,72 +48,72 @@ public:
         return NTableClient::CreateEmptyUnversionedRowBatch();
     }
 
-    virtual i64 GetSessionRowIndex() const override
+    i64 GetSessionRowIndex() const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual i64 GetTotalRowCount() const override
+    i64 GetTotalRowCount() const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual i64 GetTableRowIndex() const override
+    i64 GetTableRowIndex() const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual const NTableClient::TNameTablePtr& GetNameTable() const override
+    const NTableClient::TNameTablePtr& GetNameTable() const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual void Interrupt() override
+    void Interrupt() override
     {
         MultiReaderManager_->Interrupt();
     }
 
-    virtual void SkipCurrentReader() override
+    void SkipCurrentReader() override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual TInterruptDescriptor GetInterruptDescriptor(TRange<NTableClient::TUnversionedRow> /*unreadRows*/) const override
+    TInterruptDescriptor GetInterruptDescriptor(TRange<NTableClient::TUnversionedRow> /*unreadRows*/) const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
+    const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual TFuture<void> GetReadyEvent() const override
+    TFuture<void> GetReadyEvent() const override
     {
         return MultiReaderManager_->GetReadyEvent();
     }
 
-    virtual NProto::TDataStatistics GetDataStatistics() const override
+    NProto::TDataStatistics GetDataStatistics() const override
     {
         return MultiReaderManager_->GetDataStatistics();
     }
 
-    virtual TCodecStatistics GetDecompressionStatistics() const override
+    TCodecStatistics GetDecompressionStatistics() const override
     {
         return MultiReaderManager_->GetDecompressionStatistics();
     }
 
-    virtual NTableClient::TTimingStatistics GetTimingStatistics() const override
+    NTableClient::TTimingStatistics GetTimingStatistics() const override
     {
         return MultiReaderManager_->GetTimingStatistics();
     }
 
-    virtual bool IsFetchingCompleted() const override
+    bool IsFetchingCompleted() const override
     {
         return MultiReaderManager_->IsFetchingCompleted();
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return MultiReaderManager_->GetFailedChunkIds();
     }

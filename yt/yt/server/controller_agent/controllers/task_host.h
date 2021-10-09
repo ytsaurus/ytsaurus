@@ -118,7 +118,7 @@ struct ITaskHost
         const NChunkPools::TChunkStripeStatisticsVector& statistics) const = 0;
     virtual TAutoMergeDirector* GetAutoMergeDirector() = 0;
 
-    virtual void Persist(const TPersistenceContext& context) = 0;
+    void Persist(const TPersistenceContext& context) override = 0;
 
     virtual const std::vector<TStreamDescriptor>& GetStandardStreamDescriptors() const = 0;
 

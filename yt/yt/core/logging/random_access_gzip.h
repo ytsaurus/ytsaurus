@@ -30,9 +30,9 @@ private:
     TBufferOutput Output_;
     std::unique_ptr<TZLibCompress> Compressor_;
 
-    virtual void DoWrite(const void* buf, size_t len) override;
-    virtual void DoFlush() override;
-    virtual void DoFinish() override;
+    void DoWrite(const void* buf, size_t len) override;
+    void DoFlush() override;
+    void DoFinish() override;
 
     void Repair();
     void Reset();

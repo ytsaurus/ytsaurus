@@ -19,8 +19,8 @@ private:
     NYTree::INodePtr FileReader;
     TString Etag;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
-    virtual bool HasResponseParameters() const override;
+    void DoExecute(ICommandContextPtr context) override;
+    bool HasResponseParameters() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,7 +36,7 @@ private:
     NYTree::INodePtr FileWriter;
     bool ComputeMD5;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,7 +50,7 @@ public:
 private:
     TString MD5;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,7 +65,7 @@ private:
     NYPath::TYPath Path;
     TString MD5;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

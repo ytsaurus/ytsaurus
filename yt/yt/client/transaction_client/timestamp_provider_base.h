@@ -19,8 +19,8 @@ protected:
     virtual TFuture<TTimestamp> DoGenerateTimestamps(int count) = 0;
 
 public:
-    virtual TFuture<TTimestamp> GenerateTimestamps(int count) override;
-    virtual TTimestamp GetLatestTimestamp() override;
+    TFuture<TTimestamp> GenerateTimestamps(int count) override;
+    TTimestamp GetLatestTimestamp() override;
 
 private:
     const std::optional<TDuration> LatestTimestampUpdatePeriod_;

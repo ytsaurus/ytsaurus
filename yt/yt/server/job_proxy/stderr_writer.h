@@ -20,7 +20,7 @@ public:
     void SaveTo(IOutputStream* out) const;
 
 private:
-    virtual void DoWrite(const void* buf, size_t len) override;
+    void DoWrite(const void* buf, size_t len) override;
 
 private:
     TBlob RingBuffer_;
@@ -50,7 +50,7 @@ public:
     TString GetCurrentData() const;
 
 private:
-    virtual void DoWrite(const void* buf, size_t len) override;
+    void DoWrite(const void* buf, size_t len) override;
 
     void SaveCurrentDataTo(IOutputStream* output) const;
 

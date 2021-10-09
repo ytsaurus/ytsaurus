@@ -63,8 +63,8 @@ public:
 
     TChunkListDynamicData* GetDynamicData() const;
 
-    virtual TString GetLowercaseObjectName() const override;
-    virtual TString GetCapitalizedObjectName() const override;
+    TString GetLowercaseObjectName() const override;
+    TString GetCapitalizedObjectName() const override;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -89,7 +89,7 @@ public:
     void SetVisitMark(ui64 value);
     static ui64 GenerateVisitMark();
 
-    virtual int GetGCWeight() const override;
+    int GetGCWeight() const override;
 
     void SetKind(EChunkListKind kind);
 

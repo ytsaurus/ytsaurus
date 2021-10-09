@@ -23,7 +23,7 @@ private:
         explicit TRingBufferStream(TStringBuf buffer);
 
     private:
-        virtual size_t DoNext(const void** ptr, size_t len) override;
+        size_t DoNext(const void** ptr, size_t len) override;
 
     private:
         const TStringBuf Buffer_;

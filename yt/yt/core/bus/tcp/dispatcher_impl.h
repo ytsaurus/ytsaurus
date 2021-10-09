@@ -44,7 +44,7 @@ public:
 
     void ValidateNetworkingNotDisabled(EMessageDirection messageDirection) const;
 
-    void CollectSensors(NProfiling::ISensorWriter* writer);
+    void CollectSensors(NProfiling::ISensorWriter* writer) override;
 
 private:
     friend class TTcpDispatcher;

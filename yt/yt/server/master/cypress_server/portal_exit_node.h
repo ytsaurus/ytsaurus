@@ -19,8 +19,8 @@ public:
 public:
     using TMapNode::TMapNode;
 
-    virtual void Save(NCellMaster::TSaveContext& context) const override;
-    virtual void Load(NCellMaster::TLoadContext& context) override;
+    void Save(NCellMaster::TSaveContext& context) const override;
+    void Load(NCellMaster::TLoadContext& context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

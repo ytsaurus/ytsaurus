@@ -93,10 +93,10 @@ protected:
 
     bool IsSamplingCompleted_ = false;
 
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
-    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override;
-    virtual bool IsFetchingCompleted() const override;
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
+    NChunkClient::TCodecStatistics GetDecompressionStatistics() const override;
+    bool IsFetchingCompleted() const override;
+    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
 
     void FeedBlocksToReaders();
     void ArmColumnReaders();

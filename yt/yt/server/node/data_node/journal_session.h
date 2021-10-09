@@ -24,18 +24,18 @@ private:
     TFuture<void> LastAppendResult_ = VoidFuture;
     i64 LastDataSize_ = 0;
 
-    virtual TFuture<void> DoStart() override;
-    virtual TFuture<void> DoPutBlocks(
+    TFuture<void> DoStart() override;
+    TFuture<void> DoPutBlocks(
         int startBlockIndex,
         const std::vector<NChunkClient::TBlock>& blocks,
         bool enableCaching) override;
-    virtual TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> DoSendBlocks(
+    TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> DoSendBlocks(
         int startBlockIndex,
         int blockCount,
         const NNodeTrackerClient::TNodeDescriptor& target) override;
-    virtual TFuture<NIO::TIOCounters> DoFlushBlocks(int blockIndex) override;
-    virtual void DoCancel(const TError& error) override;
-    virtual TFuture<NChunkClient::NProto::TChunkInfo> DoFinish(
+    TFuture<NIO::TIOCounters> DoFlushBlocks(int blockIndex) override;
+    void DoCancel(const TError& error) override;
+    TFuture<NChunkClient::NProto::TChunkInfo> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         std::optional<int> blockCount) override;
 

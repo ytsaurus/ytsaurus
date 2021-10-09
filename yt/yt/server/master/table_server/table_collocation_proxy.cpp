@@ -29,12 +29,12 @@ private:
     using TBase = TNonversionedObjectProxyBase<TTableCollocation>;
 
 
-    virtual void ValidateRemoval() override
+    void ValidateRemoval() override
     {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
     {
         attributes->push_back(EInternedAttributeKey::ExternalCellTag);
         attributes->push_back(EInternedAttributeKey::TableIds);
@@ -45,7 +45,7 @@ private:
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto* collocation = GetThisImpl();
 

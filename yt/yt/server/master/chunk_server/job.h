@@ -66,7 +66,7 @@ public:
         TChunkPtrWithIndexes chunkWithIndexes,
         const TNodePtrWithIndexesList& targetReplicas);
 
-    virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
+    void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
 
 private:
     static NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(TChunk* chunk);
@@ -86,7 +86,7 @@ public:
         TChunk* chunk,
         const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndexes);
 
-    virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
+    void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
 
 private:
     TChunk* const Chunk_;
@@ -113,7 +113,7 @@ public:
         const TNodePtrWithIndexesList& targetReplicas,
         bool decommission);
 
-    virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
+    void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
 
 private:
     TChunk* const Chunk_;
@@ -135,7 +135,7 @@ public:
         NNodeTrackerServer::TNode* node,
         TChunkPtrWithIndexes chunkWithIndexes);
 
-    virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
+    void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
 
 private:
     const TChunkPtrWithIndexes ChunkWithIndexes_;
@@ -163,7 +163,7 @@ public:
         NChunkClient::NProto::TChunkMergerWriterOptions chunkMergerWriterOptions,
         TNodePtrWithIndexesList targetReplicas);
 
-    virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
+    void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
 
 private:
     const TChunkVector InputChunks_;

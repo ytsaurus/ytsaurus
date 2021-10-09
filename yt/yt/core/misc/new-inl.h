@@ -44,7 +44,7 @@ struct TRefCountedWrapper final
 
     ~TRefCountedWrapper() = default;
 
-    virtual void DestroyRefCounted() override
+    void DestroyRefCounted() override
     {
         T::DestroyRefCountedImpl(this);
     }
@@ -64,7 +64,7 @@ public:
 
     ~TRefCountedWrapperWithDeleter() = default;
 
-    virtual void DestroyRefCounted() override
+    void DestroyRefCounted() override
     {
         Deleter_(this);
     }
@@ -85,7 +85,7 @@ struct TRefCountedWrapperWithCookie final
 
     ~TRefCountedWrapperWithCookie() = default;
 
-    virtual void DestroyRefCounted() override
+    void DestroyRefCounted() override
     {
         T::DestroyRefCountedImpl(this);
     }

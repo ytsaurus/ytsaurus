@@ -101,8 +101,8 @@ private:
 
         DECLARE_NEW_FRIEND();
 
-        virtual TSharedRefArray SerializeHeaderless() const override;
-        virtual size_t ComputeHash() const override;
+        TSharedRefArray SerializeHeaderless() const override;
+        size_t ComputeHash() const override;
     };
 
     using TReqExecuteSubbatchPtr = TIntrusivePtr<TReqExecuteSubbatch>;
@@ -374,8 +374,8 @@ public:
 
         void SetEmpty();
 
-        virtual void SetPromise(const TError& error) override;
-        virtual bool TryDeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = {}) override;
+        void SetPromise(const TError& error) override;
+        bool TryDeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = {}) override;
 
         // A response may be either received or unreceived.
         // An unreceived response may also be uncertain or not.

@@ -45,45 +45,45 @@ public:
         TObjectTypeMetadata* metadata,
         TObject* object);
 
-    virtual TIntrusivePtr<const NYTree::ICompositeNode> AsComposite() const override;
-    virtual TIntrusivePtr<NYTree::ICompositeNode> AsComposite() override;
+    TIntrusivePtr<const NYTree::ICompositeNode> AsComposite() const override;
+    TIntrusivePtr<NYTree::ICompositeNode> AsComposite() override;
 
-    virtual NYTree::TYPath GetPath() const override;
+    NYTree::TYPath GetPath() const override;
 
-    virtual NYTree::ICompositeNodePtr GetParent() const override;
-    virtual void SetParent(const NYTree::ICompositeNodePtr& parent) override;
+    NYTree::ICompositeNodePtr GetParent() const override;
+    void SetParent(const NYTree::ICompositeNodePtr& parent) override;
 
-    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
-    virtual NYTree::IYPathService::TResolveResult ResolveRecursive(
+    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    NYTree::IYPathService::TResolveResult ResolveRecursive(
         const NYPath::TYPath& path,
         const NRpc::IServiceContextPtr& context) override;
 
-    virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
-    virtual void RemoveSelf(
+    void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
+    void RemoveSelf(
         TReqRemove* request,
         TRspRemove* response,
         const TCtxRemovePtr& context) override;
-    virtual void SetSelf(TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override;
-    virtual void SetRecursive(
+    void SetSelf(TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override;
+    void SetRecursive(
         const NYPath::TYPath& path,
         TReqSet* request,
         TRspSet* response,
         const TCtxSetPtr& context) override;
 
-    virtual int GetChildCount() const override;
-    virtual std::vector<std::pair<TString, NYTree::INodePtr>> GetChildren() const override;
-    virtual std::vector<TString> GetKeys() const override;
-    virtual NYTree::INodePtr FindChild(const TString& key) const override;
-    virtual std::optional<TString> FindChildKey(const NYTree::IConstNodePtr& child) override;
+    int GetChildCount() const override;
+    std::vector<std::pair<TString, NYTree::INodePtr>> GetChildren() const override;
+    std::vector<TString> GetKeys() const override;
+    NYTree::INodePtr FindChild(const TString& key) const override;
+    std::optional<TString> FindChildKey(const NYTree::IConstNodePtr& child) override;
 
-    virtual bool AddChild(const TString& key, const NYTree::INodePtr& child) override;
-    virtual void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
-    virtual void RemoveChild(const NYTree::INodePtr& child) override;
-    virtual bool RemoveChild(const TString& key) override;
+    bool AddChild(const TString& key, const NYTree::INodePtr& child) override;
+    void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
+    void RemoveChild(const NYTree::INodePtr& child) override;
+    bool RemoveChild(const TString& key) override;
 
-    virtual std::unique_ptr<NYTree::ITransactionalNodeFactory> CreateFactory() const override;
+    std::unique_ptr<NYTree::ITransactionalNodeFactory> CreateFactory() const override;
 
-    virtual void Clear() override;
+    void Clear() override;
 
     TSelfPtr Create(
         EObjectType type,
@@ -110,9 +110,9 @@ protected:
 
     virtual TSelfPtr ResolveNameOrThrow(const TString& name) = 0;
 
-    virtual SmallVector<TObject*, 1> ListDescendants(TObject* object) override;
+    SmallVector<TObject*, 1> ListDescendants(TObject* object) override;
 
-    virtual void ValidatePermission(
+    void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission,
         const TString& user = "") override;
@@ -127,7 +127,7 @@ protected:
         const TSelfPtr& childProxy);
     virtual void ValidateAttachChildDepth(const TSelfPtr& child);
     virtual void ValidateAttachChildSubtreeSize(const TSelfPtr& child);
-    virtual void ValidateRemoval() override;
+    void ValidateRemoval() override;
 
     // XXX(kiselyovp) These methods have total complexity of O(depth_limit + subtree_size) and get called
     // on each call of Create and Move verbs. Those calls are not expected to be common.
@@ -143,9 +143,9 @@ protected:
         const NYPath::TYPath& path,
         const TSelfPtr& child);
 
-    virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
-    virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override;
+    bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
 
     virtual TSelfPtr DoGetParent() const;
 

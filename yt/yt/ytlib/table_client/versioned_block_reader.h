@@ -49,15 +49,15 @@ public:
         bool produceAllVersions,
         bool initialize);
 
-    virtual bool NextRow() override;
+    bool NextRow() override;
 
-    virtual bool SkipToRowIndex(i64 rowIndex) override;
-    virtual bool SkipToKey(TLegacyKey key) override;
+    bool SkipToRowIndex(i64 rowIndex) override;
+    bool SkipToKey(TLegacyKey key) override;
 
-    virtual TLegacyKey GetKey() const override;
-    virtual TMutableVersionedRow GetRow(TChunkedMemoryPool* memoryPool) override;
+    TLegacyKey GetKey() const override;
+    TMutableVersionedRow GetRow(TChunkedMemoryPool* memoryPool) override;
 
-    virtual i64 GetRowIndex() const override;
+    i64 GetRowIndex() const override;
 
 private:
     const TSharedRef Block_;
@@ -133,15 +133,15 @@ public:
         int keyColumnCount,
         TTimestamp timestamp);
 
-    virtual bool NextRow() override;
+    bool NextRow() override;
 
-    virtual bool SkipToRowIndex(i64 rowIndex) override;
-    virtual bool SkipToKey(TLegacyKey key) override;
+    bool SkipToRowIndex(i64 rowIndex) override;
+    bool SkipToKey(TLegacyKey key) override;
 
-    virtual TLegacyKey GetKey() const override;
-    virtual TMutableVersionedRow GetRow(TChunkedMemoryPool* memoryPool) override;
+    TLegacyKey GetKey() const override;
+    TMutableVersionedRow GetRow(TChunkedMemoryPool* memoryPool) override;
 
-    virtual i64 GetRowIndex() const override;
+    i64 GetRowIndex() const override;
 
 private:
     std::unique_ptr<THorizontalBlockReader> UnderlyingReader_;

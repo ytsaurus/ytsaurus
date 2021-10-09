@@ -25,7 +25,7 @@ public:
 
     void Configure(TDispatcherConfigPtr config);
 
-    virtual void Shutdown() override;
+    void Shutdown() override;
 
     //! Return invoker over "ChunkReader:*" thread pool. NB: this is not a serialized invoker.
     IInvokerPtr GetReaderInvoker();

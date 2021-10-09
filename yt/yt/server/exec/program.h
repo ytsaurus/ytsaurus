@@ -38,7 +38,7 @@ public:
     { }
 
 protected:
-    virtual void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
+    void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
     {
         auto config = GetConfig();
 
@@ -166,7 +166,7 @@ protected:
         Exit(6);
     }
 
-    virtual void OnError(const TString& message) const noexcept override
+    void OnError(const TString& message) const noexcept override
     {
         LogToStderr(message);
     }

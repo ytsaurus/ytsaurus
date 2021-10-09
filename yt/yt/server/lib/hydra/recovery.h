@@ -99,7 +99,7 @@ public:
 private:
     void DoRun();
 
-    virtual bool IsLeader() const;
+    bool IsLeader() const override;
 
 };
 
@@ -161,7 +161,7 @@ private:
 
     void DoRun();
 
-    virtual bool IsLeader() const;
+    bool IsLeader() const override;
 
 };
 

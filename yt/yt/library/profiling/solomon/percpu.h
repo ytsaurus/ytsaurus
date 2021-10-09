@@ -15,9 +15,9 @@ class TPerCpuCounter
     : public ICounterImpl
 {
 public:
-    virtual void Increment(i64 delta) override;
+    void Increment(i64 delta) override;
     
-    virtual i64 GetValue() override;
+    i64 GetValue() override;
 
 private:
     struct alignas(CacheLineSize) TShard
@@ -36,9 +36,9 @@ class TPerCpuTimeCounter
     : public ITimeCounterImpl
 {
 public:
-    virtual void Add(TDuration delta) override;
+    void Add(TDuration delta) override;
     
-    virtual TDuration GetValue() override;
+    TDuration GetValue() override;
 
 private:
     struct alignas(CacheLineSize) TShard
@@ -57,9 +57,9 @@ class TPerCpuGauge
     : public IGaugeImpl
 {
 public:
-    virtual void Update(double value) override;
+    void Update(double value) override;
 
-    virtual double GetValue() override;
+    double GetValue() override;
 
 private:
     struct TWrite
@@ -97,10 +97,10 @@ class TPerCpuSummary
     : public ISummaryImplBase<T>
 {
 public:
-    virtual void Record(T value) override;
+    void Record(T value) override;
 
-    virtual TSummarySnapshot<T> GetSummary() override;
-    virtual TSummarySnapshot<T> GetSummaryAndReset() override;
+    TSummarySnapshot<T> GetSummary() override;
+    TSummarySnapshot<T> GetSummaryAndReset() override;
 
 private:
     struct alignas(CacheLineSize) TShard

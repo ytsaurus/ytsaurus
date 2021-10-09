@@ -22,10 +22,10 @@ public:
 protected:
     using TBase = TNonversionedObjectProxyBase<TCellBundle>;
 
-    virtual void ValidateRemoval() override;
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override;
-    virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
-    virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    void ValidateRemoval() override;
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override;
+    bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -51,11 +51,11 @@ class TSensorBuffer final
     : public ISensorWriter
 {
 public:
-    virtual void PushTag(const TTag& tag) override;
-    virtual void PopTag() override;
+    void PushTag(const TTag& tag) override;
+    void PopTag() override;
 
-    virtual void AddGauge(const TString& name, double value) override;
-    virtual void AddCounter(const TString& name, i64 value) override;
+    void AddGauge(const TString& name, double value) override;
+    void AddCounter(const TString& name, i64 value) override;
 
     void WriteTo(ISensorWriter* writer);
 
@@ -94,8 +94,8 @@ class TBufferedProducer
     : public ISensorProducer
 {
 public:
-    virtual void CollectSensors(ISensorWriter* writer) override;
-    virtual TIntrusivePtr<TSensorBuffer> GetBuffer() override;
+    void CollectSensors(ISensorWriter* writer) override;
+    TIntrusivePtr<TSensorBuffer> GetBuffer() override;
 
     void Update(TSensorBuffer buffer);
     void Update(std::function<void(ISensorWriter*)> cb);

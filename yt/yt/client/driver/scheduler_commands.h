@@ -62,7 +62,7 @@ private:
     NJobTrackerClient::TJobId JobId;
     NYPath::TYPath Path;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,7 +76,7 @@ public:
 private:
     NJobTrackerClient::TJobId JobId;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,7 +90,7 @@ public:
 private:
     NJobTrackerClient::TJobId JobId;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,7 +104,7 @@ public:
 private:
     NJobTrackerClient::TJobId JobId;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,7 +118,7 @@ public:
 private:
     NJobTrackerClient::TJobId JobId;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,7 +132,7 @@ public:
 private:
     NJobTrackerClient::TJobId JobId;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -148,7 +148,7 @@ private:
 
     void BuildOperations(const NApi::TListOperationsResult& result, NYTree::TFluentMap fluent);
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -160,7 +160,7 @@ public:
     TListJobsCommand();
 
 private:
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -174,7 +174,7 @@ public:
 private:
     NJobTrackerClient::TJobId JobId;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -188,7 +188,7 @@ public:
 private:
     NJobTrackerClient::TJobId JobId;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -204,7 +204,7 @@ private:
     NYTree::INodePtr Parameters;
     std::optional<TString> ShellName;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -218,7 +218,7 @@ private:
 public:
     TAbortJobCommand();
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -234,7 +234,7 @@ private:
     NYTree::INodePtr Spec;
     NScheduler::EOperationType OperationType;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -318,7 +318,7 @@ public:
     TAbortOperationCommand();
 
 private:
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -330,7 +330,7 @@ public:
     TSuspendOperationCommand();
 
 private:
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -339,7 +339,7 @@ class TResumeOperationCommand
     : public TSimpleOperationCommandBase<NApi::TResumeOperationOptions>
 {
 public:
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -348,7 +348,7 @@ class TCompleteOperationCommand
     : public TSimpleOperationCommandBase<NApi::TCompleteOperationOptions>
 {
 public:
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -362,7 +362,7 @@ public:
 private:
     NYTree::INodePtr Parameters;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -374,7 +374,7 @@ public:
     TGetOperationCommand();
 
 private:
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

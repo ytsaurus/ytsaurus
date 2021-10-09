@@ -154,17 +154,17 @@ public:
     void SetLowerWriteCountDumpLimit(i64 lowerLimit);
     void SetUpperWriteCountDumpLimit(i64 upperLimit);
 
-    virtual TFuture<void> SaveSnapshot(NConcurrency::IAsyncOutputStreamPtr writer) override;
-    virtual void LoadSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader) override;
-    virtual void PrepareState() override;
+    TFuture<void> SaveSnapshot(NConcurrency::IAsyncOutputStreamPtr writer) override;
+    void LoadSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader) override;
+    void PrepareState() override;
 
-    virtual void ApplyMutation(TMutationContext* context) override;
+    void ApplyMutation(TMutationContext* context) override;
 
-    virtual void Clear() override;
-    virtual void SetZeroState() override;
+    void Clear() override;
+    void SetZeroState() override;
 
     void RememberReign(TReign reign);
-    virtual EFinalRecoveryAction GetFinalRecoveryAction() override;
+    EFinalRecoveryAction GetFinalRecoveryAction() override;
 
 protected:
     bool SerializationDumpEnabled_ = false;

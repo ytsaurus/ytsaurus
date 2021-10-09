@@ -134,8 +134,8 @@ public:
 protected:
     using TValuePtr = typename TSyncSlruCacheBase<TKey, TValue, THash>::TValuePtr;
 
-    virtual void OnAdded(const TValuePtr& value) override;
-    virtual void OnRemoved(const TValuePtr& value) override;
+    void OnAdded(const TValuePtr& value) override;
+    void OnRemoved(const TValuePtr& value) override;
 
 private:
     const IMemoryUsageTrackerPtr MemoryTracker_;

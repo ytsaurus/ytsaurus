@@ -40,24 +40,24 @@ public:
         bool syncOnClose = true);
 
     // IChunkWriter implementation.
-    virtual TFuture<void> Open() override;
+    TFuture<void> Open() override;
 
-    virtual bool WriteBlock(const NChunkClient::TBlock& block) override;
-    virtual bool WriteBlocks(const std::vector<NChunkClient::TBlock>& blocks) override;
+    bool WriteBlock(const NChunkClient::TBlock& block) override;
+    bool WriteBlocks(const std::vector<NChunkClient::TBlock>& blocks) override;
 
-    virtual TFuture<void> GetReadyEvent() override;
+    TFuture<void> GetReadyEvent() override;
 
-    virtual TFuture<void> Close(const NChunkClient::TDeferredChunkMetaPtr& chunkMeta) override;
+    TFuture<void> Close(const NChunkClient::TDeferredChunkMetaPtr& chunkMeta) override;
 
-    virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
-    virtual const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override;
-    virtual NChunkClient::TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override;
+    const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
+    const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override;
+    NChunkClient::TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override;
 
-    virtual NChunkClient::TChunkId GetChunkId() const override;
+    NChunkClient::TChunkId GetChunkId() const override;
 
-    virtual NErasure::ECodec GetErasureCodecId() const override;
+    NErasure::ECodec GetErasureCodecId() const override;
 
-    virtual bool IsCloseDemanded() const override;
+    bool IsCloseDemanded() const override;
 
     //! Returns the chunk meta.
     /*!

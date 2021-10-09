@@ -321,12 +321,12 @@ public:
     //! Checks whether current operation state doesn't allow starting new jobs.
     std::optional<EUnschedulableReason> CheckUnschedulable() const override;
 
-    virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
+    IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
 
     //! Returns the codicil guard holding the operation id.
     TCodicilGuard MakeCodicilGuard() const;
 
-    virtual EOperationState GetState() const override;
+    EOperationState GetState() const override;
 
     //! Sets operation state and adds the corresponding event with given attributes.
     void SetStateAndEnqueueEvent(
@@ -334,15 +334,15 @@ public:
         const THashMap<TString, TString>& attributes = {});
 
     //! Slot index machinery.
-    virtual std::optional<int> FindSlotIndex(const TString& treeId) const override;
-    virtual void SetSlotIndex(const TString& treeId, int value) override;
-    virtual void ReleaseSlotIndex(const TString& treeId) override;
+    std::optional<int> FindSlotIndex(const TString& treeId) const override;
+    void SetSlotIndex(const TString& treeId, int value) override;
+    void ReleaseSlotIndex(const TString& treeId) override;
     const THashMap<TString, int>& GetSlotIndices() const;
 
     TOperationRuntimeParametersPtr GetRuntimeParameters() const override;
     void SetRuntimeParameters(TOperationRuntimeParametersPtr parameters);
 
-    virtual std::optional<TJobResources> GetInitialAggregatedMinNeededResources() const override;
+    std::optional<TJobResources> GetInitialAggregatedMinNeededResources() const override;
     void SetInitialAggregatedMinNeededResources(const std::optional<TJobResources>& resources);
 
     NYson::TYsonString BuildAlertsString() const;
@@ -370,9 +370,9 @@ public:
     TControllerAgentPtr FindAgent();
     TControllerAgentPtr GetAgentOrThrow();
 
-    virtual bool IsTreeErased(const TString& treeId) const override;
+    bool IsTreeErased(const TString& treeId) const override;
 
-    virtual void EraseTrees(const std::vector<TString>& treeIds) override;
+    void EraseTrees(const std::vector<TString>& treeIds) override;
 
     //! Returns vector of experiment assignment names with each
     //! name being of form "<experiment name>.<group name>".

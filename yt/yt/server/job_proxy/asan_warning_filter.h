@@ -15,9 +15,9 @@ public:
     explicit TAsanWarningFilter(IOutputStream* underlying);
 
 private:
-    virtual void DoWrite(const void* buf, size_t len) override;
-    virtual void DoFlush() override;
-    virtual void DoFinish() override;
+    void DoWrite(const void* buf, size_t len) override;
+    void DoFlush() override;
+    void DoFinish() override;
 
 private:
     IOutputStream* const Underlying_;

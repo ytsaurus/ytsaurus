@@ -11,8 +11,8 @@ class TPollableBase
     : public IPollable
 {
 public:
-    virtual void SetCookie(TCookiePtr cookie) override;
-    virtual void* GetCookie() const override;
+    void SetCookie(TCookiePtr cookie) override;
+    void* GetCookie() const override;
 
 private:
     TCookiePtr Cookie_;

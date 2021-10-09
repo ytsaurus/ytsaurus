@@ -80,7 +80,7 @@ protected:
 
     explicit TVersionedColumnTestBase(TColumnSchema columnSchema);
 
-    virtual void SetUp() override;
+    void SetUp() override;
 
     std::unique_ptr<NTableChunkFormat::IVersionedColumnReader> CreateColumnReader();
 
@@ -129,7 +129,7 @@ protected:
     static constexpr int ColumnId = 0;
     static constexpr int ColumnIndex = 0;
 
-    virtual void SetUp() override
+    void SetUp() override
     {
         NTableChunkFormat::TDataBlockWriter blockWriter;
         auto columnWriter = CreateColumnWriter(&blockWriter);

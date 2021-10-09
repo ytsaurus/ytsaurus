@@ -44,9 +44,9 @@ class TNontemplateCypressNodeTypeHandlerBase
 public:
     explicit TNontemplateCypressNodeTypeHandlerBase(NCellMaster::TBootstrap* bootstrap);
 
-    virtual NObjectServer::ETypeFlags GetFlags() const override;
+    NObjectServer::ETypeFlags GetFlags() const override;
 
-    virtual void FillAttributes(
+    void FillAttributes(
         TCypressNode* trunkNode,
         NYTree::IAttributeDictionary* inheritedAttributes,
         NYTree::IAttributeDictionary* explicitAttributes) override;
@@ -122,19 +122,19 @@ public:
         : TNontemplateCypressNodeTypeHandlerBase(bootstrap)
     { }
 
-    virtual ICypressNodeProxyPtr GetProxy(
+    ICypressNodeProxyPtr GetProxy(
         TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction) override
     {
         return DoGetProxy(trunkNode->As<TImpl>(), transaction);
     }
 
-    virtual i64 GetStaticMasterMemoryUsage() const override
+    i64 GetStaticMasterMemoryUsage() const override
     {
         return sizeof(TImpl);
     }
 
-    virtual std::unique_ptr<TCypressNode> Instantiate(
+    std::unique_ptr<TCypressNode> Instantiate(
         TVersionedNodeId id,
         NObjectClient::TCellTag externalCellTag) override
     {
@@ -150,7 +150,7 @@ public:
         return nodeHolder;
     }
 
-    virtual std::unique_ptr<TCypressNode> Create(
+    std::unique_ptr<TCypressNode> Create(
         TNodeId hintId,
         const TCreateNodeContext& context) override
     {
@@ -159,7 +159,7 @@ public:
         return DoCreate(TVersionedNodeId(id), context);
     }
 
-    virtual void Destroy(TCypressNode* node) override
+    void Destroy(TCypressNode* node) override
     {
         // Run core stuff.
         DestroyCore(node);
@@ -168,7 +168,7 @@ public:
         DoDestroy(node->As<TImpl>());
     }
 
-    virtual void BeginCopy(
+    void BeginCopy(
         TCypressNode* node,
         TBeginCopyContext* context) override
     {
@@ -177,7 +177,7 @@ public:
         }
     }
 
-    virtual TCypressNode* EndCopy(
+    TCypressNode* EndCopy(
         TEndCopyContext* context,
         ICypressNodeFactory* factory,
         TNodeId sourceNodeId) override
@@ -192,7 +192,7 @@ public:
         return trunkNode;
     }
 
-    virtual void EndCopyInplace(
+    void EndCopyInplace(
         TCypressNode* trunkNode,
         TEndCopyContext* context,
         ICypressNodeFactory* factory,
@@ -202,7 +202,7 @@ public:
         DoEndCopy(trunkNode->template As<TImpl>(), context, factory);
     }
 
-    virtual std::unique_ptr<TCypressNode> Branch(
+    std::unique_ptr<TCypressNode> Branch(
         TCypressNode* originatingNode,
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& lockRequest) override
@@ -225,7 +225,7 @@ public:
         return std::move(branchedNodeHolder);
     }
 
-    virtual void Unbranch(
+    void Unbranch(
         TCypressNode* originatingNode,
         TCypressNode* branchedNode) override
     {
@@ -236,7 +236,7 @@ public:
         DoLogUnbranch(typedOriginatingNode, typedBranchedNode);
     }
 
-    virtual void Merge(
+    void Merge(
         TCypressNode* originatingNode,
         TCypressNode* branchedNode) override
     {
@@ -253,7 +253,7 @@ public:
         MergeCoreEpilogue(typedOriginatingNode, typedBranchedNode);
     }
 
-    virtual TCypressNode* Clone(
+    TCypressNode* Clone(
         TCypressNode* sourceNode,
         ICypressNodeFactory* factory,
         TNodeId hintId,
@@ -282,7 +282,7 @@ public:
         return clonedTrunkNode;
     }
 
-    virtual bool HasBranchedChanges(
+    bool HasBranchedChanges(
         TCypressNode* originatingNode,
         TCypressNode* branchedNode) override
     {
@@ -291,7 +291,7 @@ public:
             branchedNode->template As<TImpl>());
     }
 
-    virtual std::optional<std::vector<TString>> ListColumns(TCypressNode* node) const override
+    std::optional<std::vector<TString>> ListColumns(TCypressNode* node) const override
     {
         return DoListColumns(node->template As<TImpl>());
     }
@@ -480,12 +480,12 @@ public:
         , Value_()
     { }
 
-    virtual NYTree::ENodeType GetNodeType() const override
+    NYTree::ENodeType GetNodeType() const override
     {
         return NDetail::TCypressScalarTypeTraits<TValue>::NodeType;
     }
 
-    virtual void Save(NCellMaster::TSaveContext& context) const override
+    void Save(NCellMaster::TSaveContext& context) const override
     {
         TCypressNode::Save(context);
 
@@ -493,7 +493,7 @@ public:
         Save(context, Value_);
     }
 
-    virtual void Load(NCellMaster::TLoadContext& context) override
+    void Load(NCellMaster::TLoadContext& context) override
     {
         TCypressNode::Load(context);
 
@@ -513,12 +513,12 @@ public:
         : TBase(bootstrap)
     { }
 
-    virtual NObjectClient::EObjectType GetObjectType() const override
+    NObjectClient::EObjectType GetObjectType() const override
     {
         return NDetail::TCypressScalarTypeTraits<TValue>::ObjectType;
     }
 
-    virtual NYTree::ENodeType GetNodeType() const override
+    NYTree::ENodeType GetNodeType() const override
     {
         return NDetail::TCypressScalarTypeTraits<TValue>::NodeType;
     }
@@ -526,11 +526,11 @@ public:
 protected:
     using TBase = TCypressNodeTypeHandlerBase<TScalarNode<TValue>>;
 
-    virtual ICypressNodeProxyPtr DoGetProxy(
+    ICypressNodeProxyPtr DoGetProxy(
         TScalarNode<TValue>* trunkNode,
         NTransactionServer::TTransaction* transaction) override;
 
-    virtual void DoBranch(
+    void DoBranch(
         const TScalarNode<TValue>* originatingNode,
         TScalarNode<TValue>* branchedNode,
         const TLockRequest& lockRequest) override
@@ -540,7 +540,7 @@ protected:
         branchedNode->Value() = originatingNode->Value();
     }
 
-    virtual void DoMerge(
+    void DoMerge(
         TScalarNode<TValue>* originatingNode,
         TScalarNode<TValue>* branchedNode) override
     {
@@ -549,7 +549,7 @@ protected:
         originatingNode->Value() = branchedNode->Value();
     }
 
-    virtual void DoClone(
+    void DoClone(
         TScalarNode<TValue>* sourceNode,
         TScalarNode<TValue>* clonedTrunkNode,
         ICypressNodeFactory* factory,
@@ -561,7 +561,7 @@ protected:
         clonedTrunkNode->Value() = sourceNode->Value();
     }
 
-    virtual void DoBeginCopy(
+    void DoBeginCopy(
         TScalarNode<TValue>* node,
         TBeginCopyContext* context) override
     {
@@ -571,7 +571,7 @@ protected:
         Save(*context, node->Value());
     }
 
-    virtual void DoEndCopy(
+    void DoEndCopy(
         TScalarNode<TValue>* trunkNode,
         TEndCopyContext* context,
         ICypressNodeFactory* factory) override
@@ -625,8 +625,8 @@ class TCompositeNodeBase
 public:
     using TCypressNode::TCypressNode;
 
-    virtual void Save(NCellMaster::TSaveContext& context) const override;
-    virtual void Load(NCellMaster::TLoadContext& context) override;
+    void Save(NCellMaster::TSaveContext& context) const override;
+    void Load(NCellMaster::TLoadContext& context) override;
 
     bool HasInheritableAttributes() const;
 
@@ -711,30 +711,30 @@ public:
     using TBase::TBase;
 
 protected:
-    virtual void DoDestroy(TImpl* node) override;
+    void DoDestroy(TImpl* node) override;
 
-    virtual void DoClone(
+    void DoClone(
         TImpl* sourceNode,
         TImpl* clonedTrunkNode,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
 
-    virtual void DoBranch(
+    void DoBranch(
         const TImpl* originatingNode,
         TImpl* branchedNode,
         const TLockRequest& lockRequest) override;
-    virtual void DoMerge(
+    void DoMerge(
         TImpl* originatingNode,
         TImpl* branchedNode) override;
-    virtual bool HasBranchedChangesImpl(
+    bool HasBranchedChangesImpl(
         TImpl* originatingNode,
         TImpl* branchedNode) override;
 
-    virtual void DoBeginCopy(
+    void DoBeginCopy(
         TImpl* node,
         TBeginCopyContext* context) override;
-    virtual void DoEndCopy(
+    void DoEndCopy(
         TImpl* trunkNode,
         TEndCopyContext* context,
         ICypressNodeFactory* factory) override;
@@ -814,14 +814,14 @@ public:
     // Potentially does the 'copy' part of CoW.
     TMapNodeChildren& MutableChildren(const NObjectServer::TObjectManagerPtr& objectManager);
 
-    virtual NYTree::ENodeType GetNodeType() const override;
+    NYTree::ENodeType GetNodeType() const override;
 
-    virtual void Save(NCellMaster::TSaveContext& context) const override;
-    virtual void Load(NCellMaster::TLoadContext& context) override;
+    void Save(NCellMaster::TSaveContext& context) const override;
+    void Load(NCellMaster::TLoadContext& context) override;
 
-    virtual int GetGCWeight() const override;
+    int GetGCWeight() const override;
 
-    virtual NSecurityServer::TDetailedMasterMemory GetDetailedMasterMemoryUsage() const override;
+    NSecurityServer::TDetailedMasterMemory GetDetailedMasterMemoryUsage() const override;
 
     void AssignChildren(
         const NObjectServer::TObjectPartCoWPtr<TMapNodeChildren>& children,
@@ -847,40 +847,40 @@ public:
 
     using TBase::TBase;
 
-    virtual NObjectClient::EObjectType GetObjectType() const override;
-    virtual NYTree::ENodeType GetNodeType() const override;
+    NObjectClient::EObjectType GetObjectType() const override;
+    NYTree::ENodeType GetNodeType() const override;
 
 protected:
-    virtual ICypressNodeProxyPtr DoGetProxy(
+    ICypressNodeProxyPtr DoGetProxy(
         TImpl* trunkNode,
         NTransactionServer::TTransaction* transaction) override;
 
-    virtual void DoDestroy(TImpl* node) override;
+    void DoDestroy(TImpl* node) override;
 
-    virtual void DoBranch(
+    void DoBranch(
         const TImpl* originatingNode,
         TImpl* branchedNode,
         const TLockRequest& lockRequest) override;
 
-    virtual void DoMerge(
+    void DoMerge(
         TImpl* originatingNode,
         TImpl* branchedNode) override;
 
-    virtual void DoClone(
+    void DoClone(
         TImpl* sourceNode,
         TImpl* clonedTrunkNode,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
 
-    virtual bool HasBranchedChangesImpl(
+    bool HasBranchedChangesImpl(
         TImpl* originatingNode,
         TImpl* branchedNode) override;
 
-    virtual void DoBeginCopy(
+    void DoBeginCopy(
         TImpl* node,
         TBeginCopyContext* context) override;
-    virtual void DoEndCopy(
+    void DoEndCopy(
         TImpl* trunkNode,
         TEndCopyContext* context,
         ICypressNodeFactory* factory) override;
@@ -906,12 +906,12 @@ public:
 public:
     using TBase::TBase;
 
-    virtual NYTree::ENodeType GetNodeType() const override;
+    NYTree::ENodeType GetNodeType() const override;
 
-    virtual void Save(NCellMaster::TSaveContext& context) const override;
-    virtual void Load(NCellMaster::TLoadContext& context) override;
+    void Save(NCellMaster::TSaveContext& context) const override;
+    void Load(NCellMaster::TLoadContext& context) override;
 
-    virtual int GetGCWeight() const override;
+    int GetGCWeight() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -925,39 +925,39 @@ private:
 public:
     using TBase::TBase;
 
-    virtual NObjectClient::EObjectType GetObjectType() const override;
-    virtual NYTree::ENodeType GetNodeType() const override;
+    NObjectClient::EObjectType GetObjectType() const override;
+    NYTree::ENodeType GetNodeType() const override;
 
 private:
-    virtual ICypressNodeProxyPtr DoGetProxy(
+    ICypressNodeProxyPtr DoGetProxy(
         TListNode* trunkNode,
         NTransactionServer::TTransaction* transaction) override;
 
-    virtual void DoDestroy(TListNode* node) override;
+    void DoDestroy(TListNode* node) override;
 
-    virtual void DoBranch(
+    void DoBranch(
         const TListNode* originatingNode,
         TListNode* branchedNode,
         const TLockRequest& lockRequest) override;
-    virtual void DoMerge(
+    void DoMerge(
         TListNode* originatingNode,
         TListNode* branchedNode) override;
 
-    virtual void DoClone(
+    void DoClone(
         TListNode* sourceNode,
         TListNode* clonedTrunkNode,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
 
-    virtual bool HasBranchedChangesImpl(
+    bool HasBranchedChangesImpl(
         TListNode* originatingNode,
         TListNode* branchedNode) override;
 
-    virtual void DoBeginCopy(
+    void DoBeginCopy(
         TListNode* node,
         TBeginCopyContext* context) override;
-    virtual void DoEndCopy(
+    void DoEndCopy(
         TListNode* trunkNode,
         TEndCopyContext* context,
         ICypressNodeFactory* factory) override;

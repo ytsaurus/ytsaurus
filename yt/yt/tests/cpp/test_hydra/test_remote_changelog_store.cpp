@@ -35,14 +35,14 @@ class TDummyResourceLimitsManager
     : public IResourceLimitsManager
 {
 public:
-    virtual void ValidateResourceLimits(
+    void ValidateResourceLimits(
         const TString& /*account*/,
         const TString& /*mediumName*/,
         const std::optional<TString>& /*tabletCellBundle*/,
-        NTabletClient::EInMemoryMode /*inMemoryMode*/)
+        NTabletClient::EInMemoryMode /*inMemoryMode*/) override
     { }
     
-    virtual void Reconfigure(const NTabletNode::TSecurityManagerDynamicConfigPtr& /*config*/)
+    void Reconfigure(const NTabletNode::TSecurityManagerDynamicConfigPtr& /*config*/) override
     { }
 };
 

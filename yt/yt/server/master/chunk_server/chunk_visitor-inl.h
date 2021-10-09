@@ -41,7 +41,7 @@ private:
     using TStatiticsMap = THashMap<TKey, TStatistics>;
     TStatiticsMap StatisticsMap_;
 
-    virtual bool OnChunk(
+    bool OnChunk(
         TChunk* chunk,
         TChunkList* /*parent*/,
         std::optional<i64> /*rowIndex*/,
@@ -60,12 +60,12 @@ private:
         return true;
     }
 
-    virtual bool OnChunkView(TChunkView* /*chunkView*/) override
+    bool OnChunkView(TChunkView* /*chunkView*/) override
     {
         return false;
     }
 
-    virtual bool OnDynamicStore(
+    bool OnDynamicStore(
         TDynamicStore* /*dynamicStore*/,
         std::optional<int> /*tabletIndex*/,
         const NChunkClient::TReadLimit& /*startLimit*/,
@@ -74,7 +74,7 @@ private:
         return true;
     }
 
-    virtual void OnSuccess() override
+    void OnSuccess() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

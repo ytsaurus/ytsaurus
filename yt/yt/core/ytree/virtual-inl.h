@@ -37,7 +37,7 @@ public:
         : Collection_(std::move(collection))
     { }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         if (auto collection = Collection_.lock()) {
             return collection->size();
@@ -45,7 +45,7 @@ public:
         return 0;
     }
 
-    virtual std::vector<TString> GetKeys(i64 limit) const override
+    std::vector<TString> GetKeys(i64 limit) const override
     {
         std::vector<TString> keys;
         if (auto collection = Collection_.lock()) {
@@ -60,7 +60,7 @@ public:
         return keys;
     }
 
-    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+    IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         if (auto collection = Collection_.lock()) {
             auto it = collection->find(TConversionTraits::ConvertStringToKey(key));
@@ -87,7 +87,7 @@ public:
         : Collection_(std::move(collection))
     { }
 
-    virtual i64 GetSize() const override
+    i64 GetSize() const override
     {
         if (auto collection = Collection_.lock()) {
             return collection->size();
@@ -95,7 +95,7 @@ public:
         return 0;
     }
 
-    virtual IYPathServicePtr FindItemService(int index) const override
+    IYPathServicePtr FindItemService(int index) const override
     {
         if (auto collection = Collection_.lock()) {
             YT_VERIFY(0 <= index && index < std::ssize(*collection));

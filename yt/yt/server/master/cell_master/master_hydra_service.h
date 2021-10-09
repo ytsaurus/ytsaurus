@@ -25,8 +25,8 @@ protected:
     void ValidateClusterInitialized();
 
 private:
-    virtual NHydra::IHydraManagerPtr GetHydraManager() override;
-    virtual TFuture<void> DoSyncWithUpstream() override;
+    NHydra::IHydraManagerPtr GetHydraManager() override;
+    TFuture<void> DoSyncWithUpstream() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

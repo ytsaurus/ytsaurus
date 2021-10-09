@@ -66,7 +66,7 @@ private:
     TBlob CurrentChunk_;
     std::vector<TSharedRef> FinishedChunks_;
 
-    virtual void DoWrite(const void* buf, size_t len) override;
+    void DoWrite(const void* buf, size_t len) override;
 
 };
 

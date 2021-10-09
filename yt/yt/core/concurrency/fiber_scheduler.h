@@ -26,7 +26,7 @@ public:
 private:
     std::optional<TEventCount::TCookie> Cookie_;
 
-    virtual bool OnLoop(TEventCount::TCookie* cookie) override;
+    bool OnLoop(TEventCount::TCookie* cookie) override;
 };
 
 /////////////////////////////////////////////////////////////////////////////

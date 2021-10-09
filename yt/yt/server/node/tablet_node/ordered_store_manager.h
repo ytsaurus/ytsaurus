@@ -27,13 +27,13 @@ public:
         NApi::NNative::IClientPtr client = nullptr);
 
     // IStoreManager overrides.
-    virtual void Mount(
+    void Mount(
         TRange<const NTabletNode::NProto::TAddStoreDescriptor*> storeDescriptors,
         TRange<const NTabletNode::NProto::TAddHunkChunkDescriptor*> hunkChunkDescriptors,
         bool createDynamicStore,
         const NTabletNode::NProto::TMountHint& mountHint) override;
 
-    virtual bool ExecuteWrites(
+    bool ExecuteWrites(
         NTableClient::TWireProtocolReader* reader,
         TWriteContext* context) override;
 
@@ -41,28 +41,28 @@ public:
         TUnversionedRow row,
         TWriteContext* context);
 
-    virtual void DiscardAllStores() override;
+    void DiscardAllStores() override;
 
-    virtual bool IsFlushNeeded() const override;
-    virtual bool IsStoreCompactable(IStorePtr store) const override;
-    virtual bool IsStoreFlushable(IStorePtr store) const override;
+    bool IsFlushNeeded() const override;
+    bool IsStoreCompactable(IStorePtr store) const override;
+    bool IsStoreFlushable(IStorePtr store) const override;
 
-    virtual IOrderedStoreManagerPtr AsOrdered() override;
+    IOrderedStoreManagerPtr AsOrdered() override;
 
 private:
     TOrderedDynamicStorePtr ActiveStore_;
 
-    virtual IDynamicStore* GetActiveStore() const override;
-    virtual void ResetActiveStore() override;
-    virtual void OnActiveStoreRotated() override;
+    IDynamicStore* GetActiveStore() const override;
+    void ResetActiveStore() override;
+    void OnActiveStoreRotated() override;
 
-    virtual TStoreFlushCallback MakeStoreFlushCallback(
+    TStoreFlushCallback MakeStoreFlushCallback(
         IDynamicStorePtr store,
         TTabletSnapshotPtr tabletSnapshot,
         bool isUnmountWorkflow) override;
 
     i64 ComputeStartingRowIndex() const;
-    virtual void CreateActiveStore() override;
+    void CreateActiveStore() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOrderedStoreManager)

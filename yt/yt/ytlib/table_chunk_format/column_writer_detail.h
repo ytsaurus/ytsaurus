@@ -18,10 +18,10 @@ class TColumnWriterBase
 public:
     explicit TColumnWriterBase(TDataBlockWriter* blockWriter);
 
-    virtual void FinishBlock(int blockIndex) override;
+    void FinishBlock(int blockIndex) override;
 
-    virtual const NProto::TColumnMeta& ColumnMeta() const override;
-    virtual i64 GetMetaSize() const override;
+    const NProto::TColumnMeta& ColumnMeta() const override;
+    i64 GetMetaSize() const override;
 
 protected:
     TDataBlockWriter* const BlockWriter_;
@@ -46,9 +46,9 @@ public:
         const NTableClient::TColumnSchema& columnSchema,
         TDataBlockWriter* blockWriter);
 
-    virtual i32 GetCurrentSegmentSize() const override;
+    i32 GetCurrentSegmentSize() const override;
 
-    virtual void WriteUnversionedValues(TRange<NTableClient::TUnversionedRow> rows) override;
+    void WriteUnversionedValues(TRange<NTableClient::TUnversionedRow> rows) override;
 
 protected:
     const int ColumnId_;

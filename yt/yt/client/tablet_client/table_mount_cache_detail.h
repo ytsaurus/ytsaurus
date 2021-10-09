@@ -61,11 +61,11 @@ public:
         TTableMountCacheConfigPtr config,
         NLogging::TLogger logger);
 
-    virtual TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path) override;
-    virtual TTabletInfoPtr FindTabletInfo(TTabletId tabletId) override;
-    virtual void InvalidateTablet(TTabletInfoPtr tabletInfo) override;
-    virtual std::pair<bool, TTabletInfoPtr> InvalidateOnError(const TError& error, bool forceRetry) override;
-    virtual void Clear() override;
+    TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path) override;
+    TTabletInfoPtr FindTabletInfo(TTabletId tabletId) override;
+    void InvalidateTablet(TTabletInfoPtr tabletInfo) override;
+    std::pair<bool, TTabletInfoPtr> InvalidateOnError(const TError& error, bool forceRetry) override;
+    void Clear() override;
 
 protected:
     const TTableMountCacheConfigPtr Config_;

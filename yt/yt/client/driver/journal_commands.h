@@ -22,7 +22,7 @@ private:
     NYPath::TRichYPath Path;
     NYTree::INodePtr JournalReader;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,7 +37,7 @@ private:
     NYPath::TRichYPath Path;
     NYTree::INodePtr JournalWriter;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,7 +52,7 @@ private:
     NYPath::TYPath Path;
     i64 RowCount;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

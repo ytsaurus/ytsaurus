@@ -34,9 +34,9 @@ protected:
 
     void WriteInLenvalMode(TStringBuf value);
 
-    virtual void WriteTableIndex(i64 tableIndex) override;
-    virtual void WriteRangeIndex(i64 rangeIndex) override;
-    virtual void WriteRowIndex(i64 rowIndex) override;
+    void WriteTableIndex(i64 tableIndex) override;
+    void WriteRangeIndex(i64 rangeIndex) override;
+    void WriteRowIndex(i64 rowIndex) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchemalessWriterForYamrBase)

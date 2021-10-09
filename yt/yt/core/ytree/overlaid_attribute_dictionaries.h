@@ -45,11 +45,11 @@ public:
     template <class U>
     void PushBottom(U&& underlyingDict);
 
-    virtual std::vector<TString> ListKeys() const override;
-    virtual std::vector<TKeyValuePair> ListPairs() const override;
-    virtual NYson::TYsonString FindYson(TStringBuf key) const override;
-    virtual void SetYson(const TString& key, const NYson::TYsonString& value) override;
-    virtual bool Remove(const TString& key) override;
+    std::vector<TString> ListKeys() const override;
+    std::vector<TKeyValuePair> ListPairs() const override;
+    NYson::TYsonString FindYson(TStringBuf key) const override;
+    void SetYson(const TString& key, const NYson::TYsonString& value) override;
+    bool Remove(const TString& key) override;
 
 private:
     void SetYson(IAttributeDictionary& dict, const TString& key, const NYson::TYsonString& value);

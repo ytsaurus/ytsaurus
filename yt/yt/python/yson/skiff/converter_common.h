@@ -56,9 +56,9 @@ class TSkiffOtherColumns
 public:
     TSkiffOtherColumns(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs);
 
-    virtual int mapping_length() override;
-    virtual Py::Object mapping_subscript(const Py::Object& key) override;
-    virtual int mapping_ass_subscript(const Py::Object& key, const Py::Object& value) override;
+    int mapping_length() override;
+    Py::Object mapping_subscript(const Py::Object& key) override;
+    int mapping_ass_subscript(const Py::Object& key, const Py::Object& value) override;
     
     static void InitType();
 

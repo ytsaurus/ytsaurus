@@ -19,10 +19,10 @@ public:
 public:
     explicit TDocumentNode(TVersionedNodeId id);
 
-    virtual NYTree::ENodeType GetNodeType() const override;
+    NYTree::ENodeType GetNodeType() const override;
 
-    virtual void Save(NCellMaster::TSaveContext& context) const override;
-    virtual void Load(NCellMaster::TLoadContext& context) override;
+    void Save(NCellMaster::TSaveContext& context) const override;
+    void Load(NCellMaster::TLoadContext& context) override;
 
 };
 

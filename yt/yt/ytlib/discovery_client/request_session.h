@@ -41,7 +41,7 @@ private:
     THashMap<TMemberId, TMemberInfo> IdToMember_;
     int SuccessCount_ = 0;
 
-    virtual TFuture<void> MakeRequest(const TString& address) override;
+    TFuture<void> MakeRequest(const TString& address) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TListMembersRequestSession)
@@ -68,7 +68,7 @@ private:
     TGroupMeta GroupMeta_;
     int SuccessCount_ = 0;
 
-    virtual TFuture<void> MakeRequest(const TString& address) override;
+    TFuture<void> MakeRequest(const TString& address) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TGetGroupMetaRequestSession)
@@ -101,7 +101,7 @@ private:
 
     std::atomic<int> SuccessCount_ = 0;
 
-    virtual TFuture<void> MakeRequest(const TString& address) override;
+    TFuture<void> MakeRequest(const TString& address) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(THeartbeatSession)

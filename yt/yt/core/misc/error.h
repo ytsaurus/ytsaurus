@@ -251,7 +251,7 @@ public:
     TErrorException(const TErrorException& other) = default;
     TErrorException(TErrorException&& other) = default;
 
-    virtual const char* what() const noexcept override;
+    const char* what() const noexcept override;
 
 private:
     mutable TString CachedWhat_;

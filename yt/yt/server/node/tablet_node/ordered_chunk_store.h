@@ -26,13 +26,13 @@ public:
         const NNodeTrackerClient::TNodeDescriptor& localDescriptor = {});
 
     // IStore implementation.
-    virtual TOrderedChunkStorePtr AsOrderedChunk() override;
+    TOrderedChunkStorePtr AsOrderedChunk() override;
 
     // IChunkStore implementation.
-    virtual EStoreType GetType() const override;
+    EStoreType GetType() const override;
 
     // IOrderedStore implementation.
-    virtual NTableClient::ISchemafulUnversionedReaderPtr CreateReader(
+    NTableClient::ISchemafulUnversionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
         int tabletIndex,
         i64 lowerRowIndex,
@@ -41,15 +41,15 @@ public:
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         std::optional<EWorkloadCategory> workloadCategory) override;
 
-    virtual void Save(TSaveContext& context) const override;
-    virtual void Load(TLoadContext& context) override;
+    void Save(TSaveContext& context) const override;
+    void Load(TLoadContext& context) override;
 
 private:
     class TReader;
 
     using TIdMapping = SmallVector<int, NTableClient::TypicalColumnCount>;
 
-    virtual NTableClient::TKeyComparer GetKeyComparer() override;
+    NTableClient::TKeyComparer GetKeyComparer() override;
 
     NTableClient::ISchemafulUnversionedReaderPtr TryCreateCacheBasedReader(
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,

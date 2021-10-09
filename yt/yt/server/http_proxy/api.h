@@ -49,7 +49,7 @@ class TApi
 public:
     explicit TApi(TBootstrap* bootstrap);
 
-    virtual void HandleRequest(
+    void HandleRequest(
         const NHttp::IRequestPtr& req,
         const NHttp::IResponseWriterPtr& rsp) override;
 

@@ -532,7 +532,7 @@ struct TQuery
         return Schema.GetKeyColumns();
     }
 
-    virtual TTableSchemaPtr GetReadSchema() const override
+    TTableSchemaPtr GetReadSchema() const override
     {
         TSchemaColumns result;
         
@@ -550,7 +550,7 @@ struct TQuery
         return Schema.GetRenamedSchema();
     }
 
-    virtual TTableSchemaPtr GetTableSchema() const override
+    TTableSchemaPtr GetTableSchema() const override
     {
         if (ProjectClause) {
             return ProjectClause->GetTableSchema();
@@ -585,7 +585,7 @@ struct TFrontQuery
 
     TTableSchemaPtr Schema;
 
-    virtual TTableSchemaPtr GetReadSchema() const override
+    TTableSchemaPtr GetReadSchema() const override
     {
         return Schema;
     }
@@ -595,7 +595,7 @@ struct TFrontQuery
         return Schema;
     }
 
-    virtual TTableSchemaPtr GetTableSchema() const override
+    TTableSchemaPtr GetTableSchema() const override
     {
         if (ProjectClause) {
             return ProjectClause->GetTableSchema();

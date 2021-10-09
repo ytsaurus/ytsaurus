@@ -28,7 +28,7 @@ private:
     const THashSet<TString> Attributes_;
     const NApi::IClientPtr Client_;
 
-    virtual TFuture<NYson::TYsonString> DoGet(
+    TFuture<NYson::TYsonString> DoGet(
         const TOperationIdOrAlias& key,
         bool isPeriodicUpdate) noexcept override;
 };

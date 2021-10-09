@@ -15,7 +15,7 @@ class TChunkedInputStream
 public:
     explicit TChunkedInputStream(const std::vector<TSharedRef>& blocks);
 
-    virtual size_t DoNext(const void** ptr, size_t len) override;
+    size_t DoNext(const void** ptr, size_t len) override;
 
 private:
     const std::vector<TSharedRef>& Blocks_;

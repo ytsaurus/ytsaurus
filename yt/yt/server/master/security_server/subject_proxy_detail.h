@@ -37,7 +37,7 @@ private:
     using TBase = NObjectServer::TNonversionedObjectProxyBase<TImpl>;
 
 protected:
-    virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
+    void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
@@ -52,7 +52,7 @@ protected:
             .SetReplicated(true));
     }
 
-    virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         const auto* subject = this->GetThisImpl();
 
@@ -92,7 +92,7 @@ protected:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override
+    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override
     {
         auto* subject = this->GetThisImpl();
         const auto& securityManager = this->Bootstrap_->GetSecurityManager();

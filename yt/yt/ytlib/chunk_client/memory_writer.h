@@ -15,23 +15,23 @@ class TMemoryWriter
 {
 public:
     // IChunkWriter implementation.
-    virtual TFuture<void> Open() override;
-    virtual bool WriteBlock(const TBlock& block) override;
-    virtual bool WriteBlocks(const std::vector<TBlock>& blocks) override;
-    virtual TFuture<void> GetReadyEvent() override;
-    virtual TFuture<void> Close(const TDeferredChunkMetaPtr& chunkMeta) override;
+    TFuture<void> Open() override;
+    bool WriteBlock(const TBlock& block) override;
+    bool WriteBlocks(const std::vector<TBlock>& blocks) override;
+    TFuture<void> GetReadyEvent() override;
+    TFuture<void> Close(const TDeferredChunkMetaPtr& chunkMeta) override;
 
     //! Unimplemented.
-    virtual const NProto::TChunkInfo& GetChunkInfo() const override;
+    const NProto::TChunkInfo& GetChunkInfo() const override;
     //! Unimplemented.
-    virtual const NProto::TDataStatistics& GetDataStatistics() const override;
+    const NProto::TDataStatistics& GetDataStatistics() const override;
     //! Unimplemented.
-    virtual TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override;
+    TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override;
     //! Returns #NullChunkId.
-    virtual TChunkId GetChunkId() const override;
-    virtual NErasure::ECodec GetErasureCodecId() const override;
+    TChunkId GetChunkId() const override;
+    NErasure::ECodec GetErasureCodecId() const override;
 
-    virtual bool IsCloseDemanded() const override;
+    bool IsCloseDemanded() const override;
 
     //! Can only be called after the writer is closed.
     std::vector<TBlock>& GetBlocks();

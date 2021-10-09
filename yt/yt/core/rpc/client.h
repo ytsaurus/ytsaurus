@@ -145,50 +145,50 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NYTAlloc::EMemoryZone, MemoryZone, NYTAlloc::EMemoryZone::Normal);
 
 public:
-    virtual TSharedRefArray Serialize() override;
+    TSharedRefArray Serialize() override;
 
-    virtual NProto::TRequestHeader& Header() override;
-    virtual const NProto::TRequestHeader& Header() const override;
+    NProto::TRequestHeader& Header() override;
+    const NProto::TRequestHeader& Header() const override;
 
-    virtual bool IsStreamingEnabled() const override;
+    bool IsStreamingEnabled() const override;
 
-    virtual const TStreamingParameters& ClientAttachmentsStreamingParameters() const override;
-    virtual TStreamingParameters& ClientAttachmentsStreamingParameters() override;
+    const TStreamingParameters& ClientAttachmentsStreamingParameters() const override;
+    TStreamingParameters& ClientAttachmentsStreamingParameters() override;
 
-    virtual const TStreamingParameters& ServerAttachmentsStreamingParameters() const override;
-    virtual TStreamingParameters& ServerAttachmentsStreamingParameters() override;
+    const TStreamingParameters& ServerAttachmentsStreamingParameters() const override;
+    TStreamingParameters& ServerAttachmentsStreamingParameters() override;
 
-    virtual NConcurrency::IAsyncZeroCopyOutputStreamPtr GetRequestAttachmentsStream() const override;
-    virtual NConcurrency::IAsyncZeroCopyInputStreamPtr GetResponseAttachmentsStream() const override;
+    NConcurrency::IAsyncZeroCopyOutputStreamPtr GetRequestAttachmentsStream() const override;
+    NConcurrency::IAsyncZeroCopyInputStreamPtr GetResponseAttachmentsStream() const override;
 
-    virtual TRequestId GetRequestId() const override;
-    virtual TRealmId GetRealmId() const override;
-    virtual const TString& GetService() const override;
-    virtual const TString& GetMethod() const override;
+    TRequestId GetRequestId() const override;
+    TRealmId GetRealmId() const override;
+    const TString& GetService() const override;
+    const TString& GetMethod() const override;
 
     using NRpc::IClientRequest::DeclareClientFeature;
     using NRpc::IClientRequest::RequireServerFeature;
 
-    virtual void DeclareClientFeature(int featureId) override;
-    virtual void RequireServerFeature(int featureId) override;
+    void DeclareClientFeature(int featureId) override;
+    void RequireServerFeature(int featureId) override;
 
-    virtual const TString& GetUser() const override;
-    virtual void SetUser(const TString& user) override;
+    const TString& GetUser() const override;
+    void SetUser(const TString& user) override;
 
-    virtual const TString& GetUserTag() const override;
-    virtual void SetUserTag(const TString& tag) override;
+    const TString& GetUserTag() const override;
+    void SetUserTag(const TString& tag) override;
 
-    virtual void SetUserAgent(const TString& userAgent) override;
+    void SetUserAgent(const TString& userAgent) override;
 
-    virtual bool GetRetry() const override;
-    virtual void SetRetry(bool value) override;
+    bool GetRetry() const override;
+    void SetRetry(bool value) override;
 
-    virtual TMutationId GetMutationId() const override;
-    virtual void SetMutationId(TMutationId id) override;
+    TMutationId GetMutationId() const override;
+    void SetMutationId(TMutationId id) override;
 
-    virtual size_t GetHash() const override;
+    size_t GetHash() const override;
 
-    virtual bool IsLegacyRpcCodecsEnabled() override;
+    bool IsLegacyRpcCodecsEnabled() override;
 
     EMultiplexingBand GetMultiplexingBand() const;
     void SetMultiplexingBand(EMultiplexingBand band);
@@ -274,7 +274,7 @@ public:
     TFuture<typename TResponse::TResult> Invoke();
 
 private:
-    virtual TSharedRefArray SerializeHeaderless() const override;
+    TSharedRefArray SerializeHeaderless() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -342,11 +342,11 @@ protected:
     virtual bool TryDeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = {}) = 0;
 
     // IClientResponseHandler implementation.
-    virtual void HandleError(const TError& error) override;
-    virtual void HandleAcknowledgement() override;
-    virtual void HandleResponse(TSharedRefArray message) override;
-    virtual void HandleStreamingPayload(const TStreamingPayload& payload) override;
-    virtual void HandleStreamingFeedback(const TStreamingFeedback& feedback) override;
+    void HandleError(const TError& error) override;
+    void HandleAcknowledgement() override;
+    void HandleResponse(TSharedRefArray message) override;
+    void HandleStreamingPayload(const TStreamingPayload& payload) override;
+    void HandleStreamingFeedback(const TStreamingFeedback& feedback) override;
 
     void Finish(const TError& error);
 
@@ -385,8 +385,8 @@ private:
     TPromise<TResult> Promise_ = NewPromise<TResult>();
 
 
-    virtual void SetPromise(const TError& error) override;
-    virtual bool TryDeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = {}) override;
+    void SetPromise(const TError& error) override;
+    bool TryDeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = {}) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

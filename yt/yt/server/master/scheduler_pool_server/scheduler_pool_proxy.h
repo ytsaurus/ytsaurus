@@ -16,7 +16,7 @@ class TSchedulerPoolFactory
 public:
     explicit TSchedulerPoolFactory(NCellMaster::TBootstrap* bootstrap);
 
-    virtual TSchedulerPool* DoCreateObject(NYTree::IAttributeDictionary* attributes) override;
+    TSchedulerPool* DoCreateObject(NYTree::IAttributeDictionary* attributes) override;
 
 private:
     TIntrusivePtr<NObjectServer::TNonversionedMapObjectProxyBase<TSchedulerPool>> GetSchedulerPoolProxy(NObjectServer::TObject* schedulerPool) const;
@@ -36,26 +36,26 @@ public:
 protected:
     using TProxyBasePtr = TIntrusivePtr<NObjectServer::TNonversionedMapObjectProxyBase<TSchedulerPool>>;
 
-    virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
-    virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
-    virtual bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
-    virtual NYTree::EPermission GetCustomAttributeModifyPermission() override;
+    void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override;
+    bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
+    NYTree::EPermission GetCustomAttributeModifyPermission() override;
 
     // TODO(renadeen): move to SchedulerPool?
     bool IsKnownPoolAttribute(NYTree::TInternedAttributeKey key);
     bool IsKnownPoolTreeAttribute(NYTree::TInternedAttributeKey key);
 
-    virtual TProxyBasePtr ResolveNameOrThrow(const TString& name) override;
+    TProxyBasePtr ResolveNameOrThrow(const TString& name) override;
 
     std::optional<TString> GetMaybePoolTreeName(const TSchedulerPool* schedulerPool);
 
-    virtual void ValidateChildNameAvailability(const TString& newChildName) override;
-    virtual void ValidateAfterAttachChild(const TString& key, const TProxyBasePtr& childProxy) override;
+    void ValidateChildNameAvailability(const TString& newChildName) override;
+    void ValidateAfterAttachChild(const TString& key, const TProxyBasePtr& childProxy) override;
 
-    virtual void DoRemoveSelf() override;
+    void DoRemoveSelf() override;
 
-    virtual std::unique_ptr<NObjectServer::TNonversionedMapObjectFactoryBase<TSchedulerPool>> CreateObjectFactory() const override;
+    std::unique_ptr<NObjectServer::TNonversionedMapObjectFactoryBase<TSchedulerPool>> CreateObjectFactory() const override;
 
 private:
     void GuardedUpdateBuiltinPoolAttribute(

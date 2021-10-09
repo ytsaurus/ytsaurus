@@ -77,15 +77,15 @@ public:
 
     void SetThreadId(TThreadId threadId);
 
-    virtual void Invoke(TClosure callback) override;
+    void Invoke(TClosure callback) override;
     void Invoke(TClosure callback, int profilingTag);
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-    virtual TThreadId GetThreadId() const override;
-    virtual bool CheckAffinity(const IInvokerPtr& invoker) const override;
+    TThreadId GetThreadId() const override;
+    bool CheckAffinity(const IInvokerPtr& invoker) const override;
 #endif
 
-    virtual void Shutdown() override;
+    void Shutdown() override;
 
     void Drain();
 

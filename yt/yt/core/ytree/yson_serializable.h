@@ -51,16 +51,16 @@ public:
 
         TParameter(TString key, T& parameter);
 
-        virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path, std::optional<EMergeStrategy> mergeStrategy) override;
-        virtual void SafeLoad(NYTree::INodePtr node, const NYPath::TYPath& path, const std::function<void()>& validate, std::optional<EMergeStrategy> mergeStrategy = std::nullopt) override;
-        virtual void Postprocess(const NYPath::TYPath& path) const override;
-        virtual void SetDefaults() override;
-        virtual void Save(NYson::IYsonConsumer* consumer) const override;
-        virtual bool CanOmitValue() const override;
-        virtual const TString& GetKey() const override;
-        virtual const std::vector<TString>& GetAliases() const override;
-        virtual IMapNodePtr GetUnrecognizedRecursively() const override;
-        virtual void SetKeepUnrecognizedRecursively() override;
+        void Load(NYTree::INodePtr node, const NYPath::TYPath& path, std::optional<EMergeStrategy> mergeStrategy) override;
+        void SafeLoad(NYTree::INodePtr node, const NYPath::TYPath& path, const std::function<void()>& validate, std::optional<EMergeStrategy> mergeStrategy = std::nullopt) override;
+        void Postprocess(const NYPath::TYPath& path) const override;
+        void SetDefaults() override;
+        void Save(NYson::IYsonConsumer* consumer) const override;
+        bool CanOmitValue() const override;
+        const TString& GetKey() const override;
+        const std::vector<TString>& GetAliases() const override;
+        IMapNodePtr GetUnrecognizedRecursively() const override;
+        void SetKeepUnrecognizedRecursively() override;
 
     public:
         TParameter& Optional();

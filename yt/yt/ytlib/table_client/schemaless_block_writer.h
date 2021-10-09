@@ -20,10 +20,10 @@ public:
 
     void WriteRow(TUnversionedRow row);
 
-    virtual TBlock FlushBlock() override;
+    TBlock FlushBlock() override;
 
-    virtual i64 GetBlockSize() const override;
-    virtual i64 GetRowCount() const override;
+    i64 GetBlockSize() const override;
+    i64 GetRowCount() const override;
 
     i64 GetCapacity() const;
 

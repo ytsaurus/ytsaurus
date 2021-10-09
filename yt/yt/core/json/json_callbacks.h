@@ -52,17 +52,17 @@ public:
         i64 memoryLimit,
         NJson::EJsonAttributesMode attributesMode);
 
-    virtual void OnStringScalar(TStringBuf value) override;
-    virtual void OnInt64Scalar(i64 value) override;
-    virtual void OnUint64Scalar(ui64 value) override;
-    virtual void OnDoubleScalar(double value) override;
-    virtual void OnBooleanScalar(bool value) override;
-    virtual void OnEntity() override;
-    virtual void OnBeginList() override;
-    virtual void OnEndList() override;
-    virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(TStringBuf key) override;
-    virtual void OnEndMap() override;
+    void OnStringScalar(TStringBuf value) override;
+    void OnInt64Scalar(i64 value) override;
+    void OnUint64Scalar(ui64 value) override;
+    void OnDoubleScalar(double value) override;
+    void OnBooleanScalar(bool value) override;
+    void OnEntity() override;
+    void OnBeginList() override;
+    void OnEndList() override;
+    void OnBeginMap() override;
+    void OnKeyedItem(TStringBuf key) override;
+    void OnEndMap() override;
 
 private:
     // Memory accounted approximately
@@ -98,17 +98,17 @@ public:
         NYson::EYsonType ysonType,
         const TUtf8Transcoder& utf8Transcoder);
 
-    virtual void OnStringScalar(TStringBuf value) override;
-    virtual void OnInt64Scalar(i64 value) override;
-    virtual void OnUint64Scalar(ui64 value) override;
-    virtual void OnDoubleScalar(double value) override;
-    virtual void OnBooleanScalar(bool value) override;
-    virtual void OnEntity() override;
-    virtual void OnBeginList() override;
-    virtual void OnEndList() override;
-    virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(TStringBuf key) override;
-    virtual void OnEndMap() override;
+    void OnStringScalar(TStringBuf value) override;
+    void OnInt64Scalar(i64 value) override;
+    void OnUint64Scalar(ui64 value) override;
+    void OnDoubleScalar(double value) override;
+    void OnBooleanScalar(bool value) override;
+    void OnEntity() override;
+    void OnBeginList() override;
+    void OnEndList() override;
+    void OnBeginMap() override;
+    void OnKeyedItem(TStringBuf key) override;
+    void OnEndMap() override;
 
 private:
     void OnItemStarted();

@@ -78,8 +78,8 @@ public:
 public:
     explicit TAccount(TAccountId id, bool isRoot = false);
 
-    virtual TString GetLowercaseObjectName() const override;
-    virtual TString GetCapitalizedObjectName() const override;
+    TString GetLowercaseObjectName() const override;
+    TString GetCapitalizedObjectName() const override;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -130,9 +130,9 @@ public:
     void RecomputeClusterStatistics();
 
     //! Attaches a child account and adds its resource usage to its new ancestry.
-    virtual void AttachChild(const TString& key, TAccount* child) noexcept override;
+    void AttachChild(const TString& key, TAccount* child) noexcept override;
     //! Unlinks a child account and subtracts its resource usage from its former ancestry.
-    virtual void DetachChild(TAccount* child) noexcept override;
+    void DetachChild(TAccount* child) noexcept override;
 
     TClusterResourceLimits ComputeTotalChildrenLimits() const;
 
@@ -159,7 +159,7 @@ private:
     int MergeJobRateLimit_ = 0;
     int ChunkMergerNodeTraversals_ = 0;
 
-    virtual TString GetRootName() const override;
+    TString GetRootName() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

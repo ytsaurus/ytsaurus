@@ -10,8 +10,8 @@ class TEphemeralAttributeOwner
     : public virtual IAttributeOwner
 {
 public:
-    virtual const IAttributeDictionary& Attributes() const;
-    virtual IAttributeDictionary* MutableAttributes();
+    const IAttributeDictionary& Attributes() const override;
+    IAttributeDictionary* MutableAttributes() override;
 
 protected:
     bool HasAttributes() const;

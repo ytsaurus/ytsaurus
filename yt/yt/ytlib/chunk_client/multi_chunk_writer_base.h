@@ -35,21 +35,21 @@ public:
 
     void Init();
 
-    virtual TFuture<void> Close() override;
+    TFuture<void> Close() override;
 
-    virtual TFuture<void> GetReadyEvent() override;
+    TFuture<void> GetReadyEvent() override;
 
     /*!
      *  To get consistent data, should be called only when the writer is closed.
      */
-    virtual const std::vector<NProto::TChunkSpec>& GetWrittenChunkSpecs() const override;
+    const std::vector<NProto::TChunkSpec>& GetWrittenChunkSpecs() const override;
 
     //! Provides node id to descriptor mapping for chunks returned via #GetWrittenChunks.
-    virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const override;
+    NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const override;
 
-    virtual NProto::TDataStatistics GetDataStatistics() const override;
+    NProto::TDataStatistics GetDataStatistics() const override;
 
-    virtual TCodecStatistics GetCompressionStatistics() const override;
+    TCodecStatistics GetCompressionStatistics() const override;
 
 protected:
     NLogging::TLogger Logger;
@@ -142,7 +142,7 @@ public:
         , CreateChunkWriter_(createChunkWriter)
     { }
 
-    virtual bool Write(TWriteArgs... args) override
+    bool Write(TWriteArgs... args) override
     {
         YT_VERIFY(!SwitchingSession_);
 
@@ -158,7 +158,7 @@ protected:
 
     ISpecificChunkWriterPtr CurrentWriter_;
 
-    virtual IChunkWriterBasePtr CreateTemplateWriter(IChunkWriterPtr underlyingWriter) override
+    IChunkWriterBasePtr CreateTemplateWriter(IChunkWriterPtr underlyingWriter) override
     {
         CurrentWriter_ = CreateChunkWriter_(underlyingWriter);
         return CurrentWriter_;

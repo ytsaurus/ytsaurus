@@ -140,8 +140,8 @@ private:
 
     void FireCommitFailed(const TError& error);
 
-    virtual void DoSuspendLogging() override;
-    virtual void DoResumeLogging() override;
+    void DoSuspendLogging() override;
+    void DoResumeLogging() override;
 
     const NConcurrency::TPeriodicExecutorPtr AutoSnapshotCheckExecutor_;
     const NConcurrency::TInvokerAlarmPtr BatchAlarm_;
@@ -205,8 +205,8 @@ private:
         TVersion expectedVersion,
         const std::vector<TSharedRef>& recordsData);
 
-    virtual void DoSuspendLogging() override;
-    virtual void DoResumeLogging() override;
+    void DoSuspendLogging() override;
+    void DoResumeLogging() override;
 
     struct TPendingMutation
     {

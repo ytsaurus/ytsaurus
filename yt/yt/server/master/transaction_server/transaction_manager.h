@@ -171,24 +171,24 @@ private:
     const TIntrusivePtr<TImpl> Impl_;
 
     // ITransactionManager overrides
-    virtual TFuture<void> GetReadyToPrepareTransactionCommit(
+    TFuture<void> GetReadyToPrepareTransactionCommit(
         const std::vector<TTransactionId>& prerequisiteTransactionIds,
         const std::vector<NElection::TCellId>& cellIdsToSyncWith) override;
-    virtual void PrepareTransactionCommit(
+    void PrepareTransactionCommit(
         TTransactionId transactionId,
         bool persistent,
         TTimestamp prepareTimestamp,
         const std::vector<TTransactionId>& prerequisiteTransactionIds) override;
-    virtual void PrepareTransactionAbort(
+    void PrepareTransactionAbort(
         TTransactionId transactionId,
         bool force) override;
-    virtual void CommitTransaction(
+    void CommitTransaction(
         TTransactionId transactionId,
         TTimestamp commitTimestamp) override;
-    virtual void AbortTransaction(
+    void AbortTransaction(
         TTransactionId transactionId,
         bool force) override;
-    virtual void PingTransaction(
+    void PingTransaction(
         TTransactionId transactionId,
         bool pingAncestors) override;
 };

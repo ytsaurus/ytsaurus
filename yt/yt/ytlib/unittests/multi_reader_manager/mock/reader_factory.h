@@ -16,17 +16,17 @@ public:
         Reader_(std::move(reader))
     { }
 
-    virtual TFuture<IReaderBasePtr> CreateReader() const override
+    TFuture<IReaderBasePtr> CreateReader() const override
     {
         return MakeFuture(Reader_);
     }
 
-    virtual bool CanCreateReader() const override
+    bool CanCreateReader() const override
     {
         return true;
     }
 
-    virtual const TDataSliceDescriptor& GetDataSliceDescriptor() const override
+    const TDataSliceDescriptor& GetDataSliceDescriptor() const override
     {
         YT_UNIMPLEMENTED();
     }

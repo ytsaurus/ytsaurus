@@ -28,9 +28,9 @@ private:
 public:
     TNonversionedMapObjectTypeHandlerBase(NCellMaster::TBootstrap* bootstrap, TMapType* map);
 
-    virtual ETypeFlags GetFlags() const override;
+    ETypeFlags GetFlags() const override;
 
-    virtual NObjectServer::TObject* DoGetParent(TObject* object) override;
+    NObjectServer::TObject* DoGetParent(TObject* object) override;
 
     //! Returns Cypress path to a map object which must be a designated root.
     virtual TString GetRootPath(const TObject* rootObject) const = 0;
@@ -44,9 +44,9 @@ protected:
     static constexpr int MaxNameLength_ = 100;
     static constexpr const char* NameRegex_ = "[A-Za-z0-9-_]+";
 
-    virtual IObjectProxyPtr DoGetProxy(TObject* object, NTransactionServer::TTransaction* transaction) override;
-    virtual NSecurityServer::TAccessControlDescriptor* DoFindAcd(TObject* object) override;
-    virtual void DoZombifyObject(TObject* object) override;
+    IObjectProxyPtr DoGetProxy(TObject* object, NTransactionServer::TTransaction* transaction) override;
+    NSecurityServer::TAccessControlDescriptor* DoFindAcd(TObject* object) override;
+    void DoZombifyObject(TObject* object) override;
 
     virtual TProxyPtr GetMapObjectProxy(TObject* object) = 0;
 

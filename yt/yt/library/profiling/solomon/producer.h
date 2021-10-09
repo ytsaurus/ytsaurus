@@ -29,10 +29,10 @@ class TCounterWriter final : public ISensorWriter
 public:
     TCounterWriter(IRegistryImplPtr registry, TProducerCountersPtr counters);
 
-    virtual void PushTag(const TTag& tag) override;
-    virtual void PopTag() override;
-    virtual void AddGauge(const TString& name, double value) override;
-    virtual void AddCounter(const TString& name, i64 value) override;
+    void PushTag(const TTag& tag) override;
+    void PopTag() override;
+    void AddGauge(const TString& name, double value) override;
+    void AddCounter(const TString& name, i64 value) override;
 
 private:
     IRegistryImplPtr Registry_;

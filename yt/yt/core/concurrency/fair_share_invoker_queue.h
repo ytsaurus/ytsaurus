@@ -34,7 +34,7 @@ public:
 
     const IInvokerPtr& GetInvoker(int bucketIndex, int queueIndex) const;
 
-    virtual void Shutdown() override;
+    void Shutdown() override;
 
     void Drain();
 

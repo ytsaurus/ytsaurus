@@ -16,7 +16,7 @@ private:
     NTransactionClient::ETransactionType Type;
     NYTree::INodePtr Attributes;
 
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,7 +25,7 @@ class TPingTransactionCommand
     : public TTypedCommand<NApi::TTransactionalOptions>
 {
 private:
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,7 +34,7 @@ class TCommitTransactionCommand
     : public TTypedCommand<NApi::TTransactionCommitOptions>
 {
 private:
-    void DoExecute(ICommandContextPtr context);
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,7 +46,7 @@ public:
     TAbortTransactionCommand();
 
 private:
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,7 +58,7 @@ class TGenerateTimestampCommand
     : public TTypedCommand<TGenerateTimestampOptions>
 {
 private:
-    virtual void DoExecute(ICommandContextPtr context) override;
+    void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

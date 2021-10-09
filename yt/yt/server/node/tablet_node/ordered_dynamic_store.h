@@ -37,31 +37,31 @@ public:
     std::vector<TOrderedDynamicRow> GetAllRows();
 
     // IStore implementation.
-    virtual EStoreType GetType() const override;
-    virtual i64 GetRowCount() const override;
+    EStoreType GetType() const override;
+    i64 GetRowCount() const override;
 
-    virtual void Save(TSaveContext& context) const override
+    void Save(TSaveContext& context) const override
     {
         TStoreBase::Save(context);
         TOrderedStoreBase::Save(context);
     }
 
-    virtual void Load(TLoadContext& context) override
+    void Load(TLoadContext& context) override
     {
         TStoreBase::Load(context);
         TOrderedStoreBase::Load(context);
     }
 
-    virtual TCallback<void(TSaveContext&)> AsyncSave() override;
-    virtual void AsyncLoad(TLoadContext& context) override;
+    TCallback<void(TSaveContext&)> AsyncSave() override;
+    void AsyncLoad(TLoadContext& context) override;
 
-    virtual TOrderedDynamicStorePtr AsOrderedDynamic() override;
+    TOrderedDynamicStorePtr AsOrderedDynamic() override;
 
     // IDynamicStore implementation.
-    virtual i64 GetTimestampCount() const override;
+    i64 GetTimestampCount() const override;
 
     // IOrderedStore implementation.
-    virtual NTableClient::ISchemafulUnversionedReaderPtr CreateReader(
+    NTableClient::ISchemafulUnversionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
         int tabletIndex,
         i64 lowerRowIndex,
@@ -85,7 +85,7 @@ private:
     i64 FlushRowCount_ = -1;
 
 
-    virtual void OnSetPassive() override;
+    void OnSetPassive() override;
 
     void AllocateCurrentSegment(int index);
     void OnDynamicMemoryUsageUpdated();

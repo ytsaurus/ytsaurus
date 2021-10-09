@@ -268,7 +268,7 @@ public:
         Reply(TError());
     }
 
-    virtual void Reply(const TError& error) override
+    void Reply(const TError& error) override
     {
         if (this->Options_.Heavy) {
             TDispatcher::Get()->GetHeavyInvoker()->Invoke(BIND(
@@ -420,22 +420,22 @@ class TServiceBase
     : public virtual IService
 {
 public:
-    virtual void Configure(
+    void Configure(
         const TServiceCommonConfigPtr& configDefaults,
         const NYTree::INodePtr& configNode) override;
-    virtual TFuture<void> Stop() override;
+    TFuture<void> Stop() override;
 
-    virtual const TServiceId& GetServiceId() const override;
+    const TServiceId& GetServiceId() const override;
 
-    virtual void HandleRequest(
+    void HandleRequest(
         std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray message,
         NYT::NBus::IBusPtr replyBus) override;
-    virtual void HandleRequestCancelation(TRequestId requestId) override;
-    virtual void HandleStreamingPayload(
+    void HandleRequestCancelation(TRequestId requestId) override;
+    void HandleStreamingPayload(
         TRequestId requestId,
         const TStreamingPayload& payload) override;
-    virtual void HandleStreamingFeedback(
+    void HandleStreamingFeedback(
         TRequestId requestId,
         const TStreamingFeedback& feedback) override;
 

@@ -39,7 +39,7 @@ protected:
     virtual void Invoke() = 0;
 
     // ITrampoLine implementation
-    virtual void DoRun();
+    void DoRun() override;
 
     void JumpToCaller();
     void JumpToCoroutine();
@@ -70,7 +70,7 @@ public:
     TArguments&& Yield(Q&& result);
 
 private:
-    virtual void Invoke() override;
+    void Invoke() override;
 
 private:
     const TCallee Callee_;
@@ -98,7 +98,7 @@ public:
     TArguments&& Yield();
 
 private:
-    virtual void Invoke() override;
+    void Invoke() override;
 
 private:
     const TCallee Callee_;

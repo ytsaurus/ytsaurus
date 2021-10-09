@@ -53,7 +53,7 @@ class TStoreRotator
     : public ILsmBackend
 {
 public:
-    virtual void StartNewRound(const TLsmBackendState& state) override
+    void StartNewRound(const TLsmBackendState& state) override
     {
         BackendState_ = state;
 
@@ -75,7 +75,7 @@ public:
                 config->ForcedRotationMemoryRatio);
     }
 
-    virtual TLsmActionBatch BuildLsmActions(
+    TLsmActionBatch BuildLsmActions(
         const std::vector<TTabletPtr>& tablets,
         const TString& bundleName) override
     {
@@ -118,7 +118,7 @@ public:
         return batch;
     }
 
-    virtual TLsmActionBatch BuildOverallLsmActions() override
+    TLsmActionBatch BuildOverallLsmActions() override
     {
         MemoryDigest_.Limit = BackendState_.DynamicMemoryLimit;
         MemoryDigest_.TotalUsage = BackendState_.DynamicMemoryUsage;

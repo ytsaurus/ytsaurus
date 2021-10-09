@@ -259,7 +259,7 @@ public:
     const TProtobufWriterFieldDescription* FindOtherColumnsField(int tableIndex) const;
 
 private:
-    virtual void AddTable(TProtobufWriterTypePtr tableType) override;
+    void AddTable(TProtobufWriterTypePtr tableType) override;
 
 private:
     struct TTableDescription
@@ -295,7 +295,7 @@ public:
     std::vector<ui16> CreateRootChildColumnIds(const NTableClient::TNameTablePtr& nameTable) const;
 
 private:
-    virtual void AddTable(TProtobufParserTypePtr tableType) override;
+    void AddTable(TProtobufParserTypePtr tableType) override;
 
 private:
     TProtobufParserTypePtr TableType_;

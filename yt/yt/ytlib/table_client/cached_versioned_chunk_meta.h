@@ -51,7 +51,7 @@ public:
         const TColumnRenameDescriptors& renameDescriptors = {},
         const IMemoryUsageTrackerPtr& memoryTracker = nullptr);
 
-    virtual i64 GetMemoryUsage() const override;
+    i64 GetMemoryUsage() const override;
 
     TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> GetPreparedChunkMeta();
 

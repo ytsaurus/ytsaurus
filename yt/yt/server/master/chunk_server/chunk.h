@@ -132,8 +132,8 @@ public:
      */
     i64 GetPartDiskSpace() const;
 
-    virtual TString GetLowercaseObjectName() const override;
-    virtual TString GetCapitalizedObjectName() const override;
+    TString GetLowercaseObjectName() const override;
+    TString GetCapitalizedObjectName() const override;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -388,19 +388,19 @@ private:
 
         std::array<TNodeId, LastSeenReplicaCount> LastSeenReplicas;
 
-        virtual void Initialize() override;
+        void Initialize() override;
 
-        virtual TRange<TNodeId> GetLastSeenReplicas() const override;
-        virtual TMutableRange<TNodeId> MutableLastSeenReplicas() override;
+        TRange<TNodeId> GetLastSeenReplicas() const override;
+        TMutableRange<TNodeId> MutableLastSeenReplicas() override;
 
         //! Null entries are InvalidNodeId.
-        virtual TRange<TNodePtrWithIndexes> GetStoredReplicas() const override;
-        virtual TMutableRange<TNodePtrWithIndexes> MutableStoredReplicas() override;
-        virtual void AddStoredReplica(TNodePtrWithIndexes replica) override;
-        virtual void RemoveStoredReplica(int replicaIndex) override;
+        TRange<TNodePtrWithIndexes> GetStoredReplicas() const override;
+        TMutableRange<TNodePtrWithIndexes> MutableStoredReplicas() override;
+        void AddStoredReplica(TNodePtrWithIndexes replica) override;
+        void RemoveStoredReplica(int replicaIndex) override;
 
-        virtual void Load(NCellMaster::TLoadContext& context, bool isErasure) override;
-        virtual void Save(NCellMaster::TSaveContext& context) const override;
+        void Load(NCellMaster::TLoadContext& context, bool isErasure) override;
+        void Save(NCellMaster::TSaveContext& context) const override;
     };
 
     constexpr static int RegularChunkTypicalReplicaCount = 5;

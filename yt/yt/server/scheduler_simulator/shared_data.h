@@ -168,7 +168,7 @@ class TSharedOperationStatisticsOutput
 public:
     explicit TSharedOperationStatisticsOutput(const TString& filename);
 
-    virtual void PrintEntry(NScheduler::TOperationId id, TOperationStatistics stats) override;
+    void PrintEntry(NScheduler::TOperationId id, TOperationStatistics stats) override;
 
 private:
     std::ofstream OutputStream_;

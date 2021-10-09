@@ -32,12 +32,12 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
-    virtual EObjectType GetType() const override
+    EObjectType GetType() const override
     {
         return EObjectType::TableCollocation;
     }
 
-    virtual ETypeFlags GetFlags() const override
+    ETypeFlags GetFlags() const override
     {
         return
             ETypeFlags::ReplicateCreate |
@@ -47,7 +47,7 @@ public:
             ETypeFlags::Removable;
     }
 
-    virtual TObject* CreateObject(
+    TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
@@ -75,19 +75,19 @@ private:
     TBootstrap* const Bootstrap_;
 
 
-    virtual IObjectProxyPtr DoGetProxy(TTableCollocation* collocation, TTransaction* /*transaction*/) override
+    IObjectProxyPtr DoGetProxy(TTableCollocation* collocation, TTransaction* /*transaction*/) override
     {
         return CreateTableCollocationProxy(Bootstrap_, &Metadata_, collocation);
     }
 
-    virtual void DoZombifyObject(TTableCollocation* collocation) override
+    void DoZombifyObject(TTableCollocation* collocation) override
     {
         TObjectTypeHandlerWithMapBase::DoZombifyObject(collocation);
         const auto& tableManager = Bootstrap_->GetTableManager();
         tableManager->ZombifyTableCollocation(collocation);
     }
 
-    virtual TCellTagList DoGetReplicationCellTags(const TTableCollocation* collocation) override
+    TCellTagList DoGetReplicationCellTags(const TTableCollocation* collocation) override
     {
         // NB: Cell tag may be invalid here only if creation has failed.
         auto cellTag = collocation->GetExternalCellTag();

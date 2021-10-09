@@ -34,11 +34,11 @@ public:
     void Finish();
 
     // Called from YT.
-    virtual TFuture<void> Write(const TSharedRef& data) override;
+    TFuture<void> Write(const TSharedRef& data) override;
 
-    virtual TFuture<void> Flush() override;
+    TFuture<void> Flush() override;
 
-    virtual TFuture<void> Close() override;
+    TFuture<void> Close() override;
 
 
 private:

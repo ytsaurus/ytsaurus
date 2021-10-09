@@ -45,9 +45,9 @@ public:
 
     ~TFileSparseCoreDumpWriter();
 
-    virtual void OnRegularBlock(TSharedRef block) override;
+    void OnRegularBlock(TSharedRef block) override;
 
-    virtual void OnZeroBlock(i64 length) override;
+    void OnZeroBlock(i64 length) override;
 
 private:
     i64 FileOffset_ = 0;
@@ -62,9 +62,9 @@ class TStreamSparseCoreDumpWriter
 public:
     TStreamSparseCoreDumpWriter(NConcurrency::IAsyncOutputStreamPtr outputStream, TDuration writeTimeout = TDuration::Max());
 
-    virtual void OnRegularBlock(TSharedRef block) override;
+    void OnRegularBlock(TSharedRef block) override;
 
-    virtual void OnZeroBlock(i64 length) override;
+    void OnZeroBlock(i64 length) override;
 
     const static TSharedRef ZeroBlockHeader;
     const static TSharedRef RegularBlockHeader;

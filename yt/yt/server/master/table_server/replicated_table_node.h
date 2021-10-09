@@ -84,8 +84,8 @@ public:
 public:
     explicit TReplicatedTableNode(NCypressServer::TVersionedNodeId id);
 
-    virtual void Save(NCellMaster::TSaveContext& context) const override;
-    virtual void Load(NCellMaster::TLoadContext& context) override;
+    void Save(NCellMaster::TSaveContext& context) const override;
+    void Load(NCellMaster::TLoadContext& context) override;
 
     using TReplicaSet = THashSet<NTabletServer::TTableReplica*>;
     const TReplicaSet& Replicas() const;

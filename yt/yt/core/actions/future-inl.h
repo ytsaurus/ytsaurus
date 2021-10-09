@@ -290,7 +290,7 @@ public:
     TFutureCallbackCookie Subscribe(TVoidResultHandler handler);
     void Unsubscribe(TFutureCallbackCookie cookie);
 
-    virtual bool Cancel(const TError& error) noexcept override;
+    bool Cancel(const TError& error) noexcept override;
 
     bool OnCanceled(TCancelHandler handler);
 
@@ -481,24 +481,24 @@ private:
     }
 
 
-    virtual bool TrySetError(const TError& error) override
+    bool TrySetError(const TError& error) override
     {
         return TrySet(error);
     }
 
-    virtual void ResetResult() override
+    void ResetResult() override
     {
         Result_.reset();
     }
 
-    virtual void SetResultError(const TError& error) override
+    void SetResultError(const TError& error) override
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
         TFutureState<void>::SetResultError(error);
         Result_ = error;
     }
 
-    virtual bool DoUnsubscribe(TFutureCallbackCookie cookie, NConcurrency::TSpinlockGuard<TAdaptiveLock>* guard) override
+    bool DoUnsubscribe(TFutureCallbackCookie cookie, NConcurrency::TSpinlockGuard<TAdaptiveLock>* guard) override
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
         return

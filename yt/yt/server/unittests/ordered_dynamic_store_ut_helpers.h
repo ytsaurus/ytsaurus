@@ -14,12 +14,12 @@ class TOrderedDynamicStoreTestBase
     : public TDynamicStoreTestBase
 {
 protected:
-    virtual void SetupTablet() override
+    void SetupTablet() override
     {
         Tablet_->StartEpoch(nullptr);
     }
 
-    virtual TTableSchemaPtr GetSchema() const override
+    TTableSchemaPtr GetSchema() const override
     {
         return New<TTableSchema>(std::vector{
             TColumnSchema("a", EValueType::Int64),

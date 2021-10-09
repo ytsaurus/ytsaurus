@@ -92,7 +92,7 @@ public:
         return cell->As<TChaosCell>();
     }
 
-    virtual TChaosCell* GetChaosCellOrThrow(TChaosCellId cellId) const override
+    TChaosCell* GetChaosCellOrThrow(TChaosCellId cellId) const override
     {
         auto* cell = FindChaosCell(cellId);
         if (!cell) {
@@ -101,7 +101,7 @@ public:
         return cell;
     }
 
-    virtual TChaosCellBundle* GetChaosCellBundleByNameOrThrow(const TString& name) const override
+    TChaosCellBundle* GetChaosCellBundleByNameOrThrow(const TString& name) const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         auto* cellBundle = cellManager->GetCellBundleByNameOrThrow(name, ECellarType::Chaos, true);

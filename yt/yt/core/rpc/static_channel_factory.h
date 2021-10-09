@@ -14,8 +14,8 @@ class TStaticChannelFactory
 public:
     TStaticChannelFactoryPtr Add(const TString& address, IChannelPtr channel);
 
-    virtual IChannelPtr CreateChannel(const TString& address) override;
-    virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override;
+    IChannelPtr CreateChannel(const TString& address) override;
+    IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override;
 
 private:
     THashMap<TString, IChannelPtr> ChannelMap;

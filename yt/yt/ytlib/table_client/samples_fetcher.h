@@ -55,8 +55,8 @@ public:
         NApi::NNative::IClientPtr client,
         const NLogging::TLogger& logger);
 
-    virtual void AddChunk(NChunkClient::TInputChunkPtr chunk) override;
-    virtual TFuture<void> Fetch() override;
+    void AddChunk(NChunkClient::TInputChunkPtr chunk) override;
+    TFuture<void> Fetch() override;
 
     const std::vector<TSample>& GetSamples() const;
 
@@ -73,9 +73,9 @@ private:
     //! All samples fetched so far.
     std::vector<TSample> Samples_;
 
-    virtual void ProcessDynamicStore(int chunkIndex) override;
+    void ProcessDynamicStore(int chunkIndex) override;
 
-    virtual TFuture<void> FetchFromNode(
+    TFuture<void> FetchFromNode(
         NNodeTrackerClient::TNodeId nodeId,
         std::vector<int> chunkIndexes) override;
 
