@@ -638,6 +638,28 @@ TFuture<TControllerScheduleJobResultPtr> TOperationControllerImpl::ScheduleJob(
     auto cellTag = Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag();
     auto jobId = GenerateJobId(cellTag, nodeId);
 
+    const auto& scheduler = Bootstrap_->GetScheduler();
+    const auto shardId = scheduler->GetNodeShardId(nodeId);
+    const auto& nodeShard = scheduler->GetNodeShards()[shardId];
+
+    if (!nodeShard->IsOperationRegistered(OperationId_)) {
+        YT_LOG_DEBUG("Job schedule request cannot be served since operation is not registered at node shard (JobId: %v)",
+            jobId);
+
+        auto result = New<TControllerScheduleJobResult>();
+        result->RecordFail(NControllerAgent::EScheduleJobFailReason::OperationNotRunning);
+        return MakeFuture(std::move(result));
+    }
+
+    if (nodeShard->AreNewJobsForbiddenForOperation(OperationId_)) {
+        YT_LOG_DEBUG("Job schedule request cannot be served since new jobs are forbidden for operation (JobId: %v)",
+            jobId);
+
+        auto result = New<TControllerScheduleJobResult>();
+        result->RecordFail(NControllerAgent::EScheduleJobFailReason::NewJobsForbidden);
+        return MakeFuture(std::move(result));
+    }
+
     auto request = std::make_unique<TScheduleJobRequest>();
     request->OperationId = OperationId_;
     request->JobId = jobId;
@@ -670,9 +692,6 @@ TFuture<TControllerScheduleJobResultPtr> TOperationControllerImpl::ScheduleJob(
     YT_LOG_TRACE("Job schedule request enqueued (JobId: %v)",
         jobId);
 
-    const auto& scheduler = Bootstrap_->GetScheduler();
-    auto shardId = scheduler->GetNodeShardId(nodeId);
-    const auto& nodeShard = scheduler->GetNodeShards()[shardId];
     return nodeShard->BeginScheduleJob(incarnationId, OperationId_, jobId);
 }
 
