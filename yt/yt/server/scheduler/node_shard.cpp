@@ -1346,7 +1346,10 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
     auto operationId = FromProto<TOperationId>(response.operation_id());
 
     auto it = JobIdToScheduleEntry_.find(jobId);
-    YT_VERIFY(it != std::cend(JobIdToScheduleEntry_));
+    if (it == std::cend(JobIdToScheduleEntry_)) {
+        YT_LOG_ERROR("No schedule entry for job (JobId: %v)", jobId);
+        YT_ABORT();
+    }
 
     auto& entry = it->second;
     YT_VERIFY(operationId == entry.OperationId);
@@ -1437,6 +1440,22 @@ bool TNodeShard::IsOperationControllerTerminated(const TOperationId operationId)
     const auto statePtr = FindOperationState(operationId);
     return !statePtr || statePtr->ControllerTerminated;
 }
+
+bool TNodeShard::IsOperationRegistered(const TOperationId operationId) const noexcept
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    return FindOperationState(operationId);
+}
+
+bool TNodeShard::AreNewJobsForbiddenForOperation(const TOperationId operationId) const noexcept
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    const auto& operationState = GetOperationState(operationId);
+    return operationState.ForbidNewJobs;
+}
+
 
 void TNodeShard::SetNodeSchedulingSegment(const TExecNodePtr& node, ESchedulingSegment segment)
 {
@@ -2805,7 +2824,12 @@ const TNodeShard::TOperationState* TNodeShard::FindOperationState(TOperationId o
     return it != IdToOpertionState_.end() ? &it->second : nullptr;
 }
 
-TNodeShard::TOperationState& TNodeShard::GetOperationState(TOperationId operationId)
+TNodeShard::TOperationState& TNodeShard::GetOperationState(TOperationId operationId) noexcept
+{
+    return const_cast<TNodeShard::TOperationState&>(const_cast<const TNodeShard*>(this)->GetOperationState(operationId));
+}
+
+const TNodeShard::TOperationState& TNodeShard::GetOperationState(TOperationId operationId) const noexcept
 {
     return GetOrCrash(IdToOpertionState_, operationId);
 }

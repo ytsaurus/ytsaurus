@@ -5,7 +5,7 @@ from yt_env_setup import (
     CONTROLLER_AGENTS_SERVICE,
 )
 from yt_commands import (
-    authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
+    authors, create_test_tables, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     ls, get,
     set, copy, move, remove, exists, concatenate, create_user, create_pool, create_pool_tree, make_ace,
     add_member, start_transaction, abort_transaction,
@@ -2374,3 +2374,41 @@ class TestResourceMetering(YTEnvSetup):
             return self._validate_metering_records(root_key, desired_metering_data, event_key_to_last_record)
 
         wait(check_structured)
+
+
+##################################################################
+
+
+class TestSchedulerObjectsDestruction(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 10
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {"exec_agent": {"scheduler_connector": {"heartbeat_period": 1}}}  # 1 msec
+
+    @authors("pogorelov")
+    def test_schedule_job_result_destruction(self):
+        create_test_tables(row_count=100)
+
+        try:
+            map(
+                command="""test $YT_JOB_INDEX -eq "1" && exit 1; cat""",
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                spec={
+                    "data_size_per_job": 1,
+                    "max_failed_job_count": 1
+                },
+            )
+        except YtError:
+            pass
+
+        time.sleep(5)
+
+        statistics = get("//sys/scheduler/orchid/monitoring/ref_counted/statistics")
+        schedule_job_entry_object_type = \
+            "NYT::NDetail::TPromiseState<NYT::TIntrusivePtr<NYT::NScheduler::TControllerScheduleJobResult> >"
+        records = [record for record in statistics if record["name"] == schedule_job_entry_object_type]
+        assert len(records) == 1
+
+        assert records[0]["objects_alive"] == 0

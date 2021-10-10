@@ -205,6 +205,8 @@ public:
     TControllerEpoch GetJobControllerEpoch(TJobId jobId);
 
     bool IsOperationControllerTerminated(TOperationId operationId) const noexcept;
+    bool IsOperationRegistered(TOperationId operationId) const noexcept;
+    bool AreNewJobsForbiddenForOperation(TOperationId operationId) const noexcept;
 
 private:
     const int Id_;
@@ -435,7 +437,8 @@ private:
 
     TOperationState* FindOperationState(TOperationId operationId) noexcept;
     const TOperationState* FindOperationState(TOperationId operationId) const noexcept;
-    TOperationState& GetOperationState(TOperationId operationId);
+    TOperationState& GetOperationState(TOperationId operationId) noexcept;
+    const TOperationState& GetOperationState(TOperationId operationId) const noexcept;
 
     void BuildNodeYson(const TExecNodePtr& node, NYTree::TFluentMap consumer);
 
