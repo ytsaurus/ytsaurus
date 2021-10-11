@@ -680,7 +680,7 @@ private:
 
                             return responseCodec->Compress(writer.Finish());
                         });
-                } catch (const TErrorException&) {
+                } catch (const std::exception&) {
                     if (auto tabletSnapshot = snapshotStore->FindLatestTabletSnapshot(tabletId)) {
                         ++tabletSnapshot->PerformanceCounters->LookupErrorCount;
                     }

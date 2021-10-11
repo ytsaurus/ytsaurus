@@ -264,7 +264,7 @@ protected:
             try {
                 NNet::BindSocket(ServerSocket_, address);
                 return;
-            } catch (const TErrorException& ex) {
+            } catch (const std::exception& ex) {
                 if (attempt == Config_->BindRetryCount) {
                     CloseServerSocket();
 

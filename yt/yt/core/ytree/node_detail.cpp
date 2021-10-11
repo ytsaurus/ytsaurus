@@ -404,10 +404,10 @@ std::pair<TString, INodePtr> TMapNodeMixin::PrepareSetChild(
                 currentNode = newChild->AsMap();
             }
         }
-    } catch (const TErrorException& ex) {
+    } catch (const std::exception& ex) {
         if (recursive) {
             THROW_ERROR_EXCEPTION("Failed to set node recursively")
-                << ex.Error();
+                << ex;
         } else {
             throw;
         }

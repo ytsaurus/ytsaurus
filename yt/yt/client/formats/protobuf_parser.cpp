@@ -383,7 +383,7 @@ private:
                     ReadAndProcessUnversionedValue(rowParser, childIndex, childDescription, depth, &fields);
                 }
             }
-        } catch (const TErrorException& exception) {
+        } catch (const std::exception& exception) {
             THROW_ERROR_EXCEPTION(exception)
                 << TErrorAttribute("table_index", TableIndex_)
                 << rowParser.GetContextErrorAttributes();

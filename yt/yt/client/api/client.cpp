@@ -332,14 +332,14 @@ static std::optional<NScheduler::EAbortReason> TryGetJobAbortReasonFromError(con
     TError error;
     try {
         error = ConvertTo<TError>(errorYson);
-    } catch (const TErrorException& exception) {
+    } catch (const std::exception& exception) {
         return std::nullopt;
     }
 
     if (auto yson = error.Attributes().FindYson("abort_reason")) {
         try {
             return ConvertTo<NScheduler::EAbortReason>(yson);
-        } catch (const TErrorException& exception) {
+        } catch (const std::exception& exception) {
             return std::nullopt;
         }
     }

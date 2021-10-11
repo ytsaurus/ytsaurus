@@ -107,7 +107,7 @@ TError ParseYTError(const IResponsePtr& rsp, bool fromTrailers)
     CreateBuildingYsonConsumer(&buildingConsumer, EYsonType::Node);
     try {
         ParseJson(&errorJsonInput, buildingConsumer.get());
-    } catch (const TErrorException& ex) {
+    } catch (const std::exception& ex) {
         return TError("Failed to parse error from response")
             << TErrorAttribute("source", source)
             << ex;

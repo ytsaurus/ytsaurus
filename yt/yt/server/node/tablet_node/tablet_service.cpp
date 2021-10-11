@@ -215,7 +215,7 @@ private:
                     &reader,
                     &commitResult);
             }
-        } catch (const TErrorException&) {
+        } catch (const std::exception&) {
             ++tabletSnapshot->PerformanceCounters->WriteErrorCount;
             throw;
         }

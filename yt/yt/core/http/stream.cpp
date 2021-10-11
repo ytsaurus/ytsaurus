@@ -396,7 +396,7 @@ bool THttpInput::ReceiveHeaders()
 
         try {
             UnconsumedData_ = Parser_.Feed(UnconsumedData_);
-        } catch (const TErrorException& ex) {
+        } catch (const std::exception& ex) {
             if (!readResult.IsOK()) {
                 THROW_ERROR_EXCEPTION(ex) << readResult;
             } else {

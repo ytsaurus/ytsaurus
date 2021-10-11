@@ -755,7 +755,7 @@ ISchemalessFormatWriterPtr CreateWriterForWebJson(
             std::move(nameTable),
             schemas,
             std::move(output));
-    } catch (const TErrorException& ex) {
+    } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION(EErrorCode::InvalidFormat, "Failed to parse config for web JSON format") << ex;
     }
 }

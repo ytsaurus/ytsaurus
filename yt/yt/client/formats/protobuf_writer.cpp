@@ -961,7 +961,7 @@ ISchemalessFormatWriterPtr CreateWriterForProtobuf(
             enableContextSaving,
             controlAttributesConfig,
             keyColumnCount);
-    } catch (const TErrorException& ex) {
+    } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION(EErrorCode::InvalidFormat, "Failed to parse config for protobuf format") << ex;
     }
 }

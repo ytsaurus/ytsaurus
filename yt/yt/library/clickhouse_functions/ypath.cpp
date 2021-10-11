@@ -157,7 +157,7 @@ public:
                 } else {
                     value = ConvertTo<TYTOutputType>(subNode);
                 }
-            } catch (const TErrorException& ex) {
+            } catch (const std::exception& ex) {
                 if (Strict) {
                     // Rethrow the error with additional context.
                     THROW_ERROR_EXCEPTION("Failed to extract value from yson")
@@ -410,7 +410,7 @@ public:
             if constexpr (Strict) {
                 try {
                     subNode = GetNodeByYPath(node, TString(path.data, path.size));
-                } catch (const TErrorException& ex) {
+                } catch (const std::exception& ex) {
                     // Rethrow the error with additional context.
                     THROW_ERROR_EXCEPTION("Failed to extract value from yson")
                         << TErrorAttribute("yson", TStringBuf(yson.data, yson.size))
@@ -535,7 +535,7 @@ public:
             if constexpr (Strict) {
                 try {
                     subNode = GetNodeByYPath(node, TString(path.data, path.size));
-                } catch (const TErrorException& ex) {
+                } catch (const std::exception& ex) {
                     // Rethrow the error with additional context.
                     THROW_ERROR_EXCEPTION("Failed to extract value from yson")
                         << TErrorAttribute("yson", TStringBuf(yson.data, yson.size))

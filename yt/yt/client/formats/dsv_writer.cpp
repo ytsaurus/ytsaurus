@@ -268,7 +268,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
             enableContextSaving,
             controlAttributesConfig,
             keyColumnCount);
-    } catch (const TErrorException& exc) {
+    } catch (const std::exception& exc) {
         THROW_ERROR_EXCEPTION(EErrorCode::InvalidFormat, "Failed to parse config for DSV format") << exc;
     }
 }

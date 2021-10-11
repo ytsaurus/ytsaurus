@@ -531,8 +531,8 @@ private:
             YT_VERIFY(sortedRowCount == TotalRowCount_);
             SortedRowCount_ = sortedRowCount;
             YT_LOG_INFO("Finished merge");
-        } catch (const TErrorException& ex) {
-            MergeError_ = ex;
+        } catch (const std::exception& ex) {
+            MergeError_ = TError(ex);
         }
 
         MergeFinished_ = true;
