@@ -8,6 +8,8 @@
 
 #include <yt/yt/client/api/client.h>
 
+#include <yt/yt/ytlib/tablet_client/public.h>
+
 #include <yt/yt/client/ypath/public.h>
 
 namespace NYT::NHydra {
@@ -20,7 +22,7 @@ namespace NYT::NHydra {
  */
 IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
     TRemoteChangelogStoreConfigPtr config,
-    TRemoteChangelogStoreOptionsPtr options,
+    NTabletClient::TTabletCellOptionsPtr options,
     NYPath::TYPath path,
     NApi::IClientPtr client,
     NSecurityServer::IResourceLimitsManagerPtr resourceLimitsManager,

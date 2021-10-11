@@ -12,6 +12,8 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/tablet_client/config.h>
+
 #include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/core/ytree/attributes.h>
@@ -26,6 +28,7 @@ using namespace NCppTests;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NSecurityServer;
+using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYTree;
 
@@ -39,9 +42,9 @@ public:
         const TString& /*account*/,
         const TString& /*mediumName*/,
         const std::optional<TString>& /*tabletCellBundle*/,
-        NTabletClient::EInMemoryMode /*inMemoryMode*/) override
+        EInMemoryMode /*inMemoryMode*/) override
     { }
-    
+
     void Reconfigure(const NTabletNode::TSecurityManagerDynamicConfigPtr& /*config*/) override
     { }
 };
@@ -71,7 +74,7 @@ protected:
     std::vector<TSharedRef> Records_;
 
     TRemoteChangelogStoreConfigPtr Config_ = New<TRemoteChangelogStoreConfig>();
-    TRemoteChangelogStoreOptionsPtr Options_ = New<TRemoteChangelogStoreOptions>();
+    TTabletCellOptionsPtr Options_ = New<TTabletCellOptions>();
 
     void SetUp() override
     {
