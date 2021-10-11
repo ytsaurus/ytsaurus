@@ -112,6 +112,7 @@ using TChildHeapMap = THashMap<int, TChildHeap>;
 using TJobResourcesMap = THashMap<int, TJobResources>;
 using TNonOwningJobSet = THashSet<TJob*>;
 using TJobSetMap = THashMap<int, TNonOwningJobSet>;
+using TResourceUsageSnapshot = THashMap<TOperationId, TJobResources>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -236,6 +237,8 @@ private:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSchedulerOperationElementPtr>, BadPackingOperations);
 
     DEFINE_BYREF_RW_PROPERTY(std::optional<TStageState>, StageState);
+    
+    DEFINE_BYREF_RW_PROPERTY(std::shared_ptr<TResourceUsageSnapshot>, ResourceUsageSnapshot);
 
 public:
     TScheduleJobsContext(
