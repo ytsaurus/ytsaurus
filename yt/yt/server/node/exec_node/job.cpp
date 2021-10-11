@@ -110,7 +110,8 @@ TJob::TJob(
     const TNodeResources& resourceUsage,
     TJobSpec&& jobSpec,
     IBootstrap* bootstrap,
-    TControllerAgentDescriptor agentDescriptor)
+    TControllerAgentDescriptor agentDescriptor,
+    const bool sendJobInfoToAgent)
     : Id_(jobId)
     , OperationId_(operationId)
     , Bootstrap_(bootstrap)
@@ -129,6 +130,7 @@ TJob::TJob(
         OperationId_,
         GetType()))
     , ResourceUsage_(resourceUsage)
+    , SendJobInfoToAgent_(sendJobInfoToAgent)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -929,6 +931,27 @@ void TJob::SetStored(bool value)
     VERIFY_THREAD_AFFINITY(JobThread);
 
     Stored_ = value;
+}
+
+void TJob::OnJobProxyCompleted() noexcept
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    JobProxyCompleted_ = true;
+}
+
+bool TJob::IsJobProxyCompleted() const noexcept
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return JobProxyCompleted_;
+}
+
+bool TJob::ShouldSendJobInfoToAgent() const noexcept
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    
+    return SendJobInfoToAgent_;
 }
 
 // Helpers.
@@ -2441,7 +2464,8 @@ NJobAgent::IJobPtr CreateSchedulerJob(
     const TNodeResources& resourceUsage,
     TJobSpec&& jobSpec,
     IBootstrap* bootstrap,
-    TControllerAgentDescriptor agentDescriptor)
+    TControllerAgentDescriptor agentDescriptor,
+    const bool sendJobInfoToAgent)
 {
     return New<TJob>(
         jobId,
@@ -2449,7 +2473,8 @@ NJobAgent::IJobPtr CreateSchedulerJob(
         resourceUsage,
         std::move(jobSpec),
         bootstrap,
-        std::move(agentDescriptor));
+        std::move(agentDescriptor),
+        sendJobInfoToAgent);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

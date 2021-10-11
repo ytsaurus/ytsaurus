@@ -432,7 +432,12 @@ class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
         }
     }
 
-    DELTA_NODE_CONFIG = {"exec_agent": {"scheduler_connector": {"heartbeat_period": 100}}}
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
+            "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
+        },
+    }
 
     @authors("renadeen", "ignat")
     def test_strategy_with_slow_controller(self):
@@ -1944,6 +1949,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {
+            "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
             "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
             "job_proxy_heartbeat_period": 100,  # 100 msec
             "job_controller": {"resource_limits": {"user_slots": 2, "cpu": 2}},

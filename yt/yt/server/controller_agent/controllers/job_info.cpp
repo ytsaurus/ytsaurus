@@ -54,7 +54,12 @@ TJoblet::TJoblet()
     , OutputCookie(-1)
 { }
 
-TJoblet::TJoblet(TTask* task, int jobIndex, int taskJobIndex, const TString& treeId, bool treeIsTentative)
+TJoblet::TJoblet(
+    TTask* task,
+    int jobIndex,
+    int taskJobIndex,
+    const TString& treeId,
+    bool treeIsTentative)
     : Task(task)
     , JobIndex(jobIndex)
     , TaskJobIndex(taskJobIndex)
@@ -134,15 +139,6 @@ void TJoblet::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFinishedJobInfo::TFinishedJobInfo(
-    const TJobletPtr& joblet,
-    TJobSummary summary)
-    : TJobInfo(TJobInfoBase(*joblet))
-    , Summary(std::move(summary))
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TJobInfoBase::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -163,15 +159,6 @@ void TJobInfoBase::Persist(const TPersistenceContext& context)
     Persist(context, JobCompetitionId);
     Persist(context, HasCompetitors);
     Persist(context, TaskName);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TFinishedJobInfo::Persist(const TPersistenceContext& context)
-{
-    using NYT::Persist;
-    Persist(context, Summary);
-    TJobInfoBase::Persist(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

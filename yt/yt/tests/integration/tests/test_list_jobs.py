@@ -89,9 +89,8 @@ class TestListJobsBase(YTEnvSetup):
                 "min_repeat_delay": 10,
                 "max_repeat_delay": 10,
             },
-        },
-        "scheduler_connector": {
-            "heartbeat_period": 100,  # msec
+            "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
+            "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
         },
         "job_proxy_heartbeat_period": 100,  # msec
     }

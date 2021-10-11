@@ -92,10 +92,9 @@ class TestPoolMetrics(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {
-            "scheduler_connector": {
-                "heartbeat_period": 100,  # 100 msec
-            },
-        }
+            "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
+            "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
+        },
     }
     USE_PORTO = True
 

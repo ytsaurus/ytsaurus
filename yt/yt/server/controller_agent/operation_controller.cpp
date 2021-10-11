@@ -324,6 +324,11 @@ public:
         Underlying_->OnJobRunning(std::move(jobSummary));
     }
 
+    void OnJobInfoReceivedFromNode(std::unique_ptr<TJobSummary> jobSummary) override
+    {
+        Underlying_->OnJobInfoReceivedFromNode(std::move(jobSummary));
+    }
+
     TControllerScheduleJobResultPtr ScheduleJob(
         ISchedulingContext* context,
         const TJobResources& jobLimits,

@@ -17,6 +17,7 @@ using NYT::FromProto;
 using NYT::ToProto;
 
 using namespace NRpc;
+using NJobTrackerClient::EJobState;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -47,28 +48,39 @@ private:
             return;
         }
 
-        THashMap<TOperationPtr, std::vector<NJobTrackerClient::NProto::TJobStatus*>> groupedJobStatuses;
+        THashMap<TOperationId, std::vector<std::unique_ptr<TJobSummary>>> groupedJobSummaries;
+        WaitFor(BIND([&] {
+            for (auto& job : *request->mutable_jobs()) {
+                const auto operationId = FromProto<TOperationId>(job.operation_id());
 
-        for (auto& job : *request->mutable_jobs()) {
-            auto operationId = FromProto<TOperationId>(job.operation_id());
-            auto operation = controllerAgent->FindOperation(operationId);
+                groupedJobSummaries[operationId].push_back(ParseJobSummary(&job, Logger));
+            }
+        }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()).Run()).ThrowOnError();
+        context->Reply();
+        
+        controllerAgent->ValidateConnected();
+        for (auto& [operationId, jobSummaries] : groupedJobSummaries) {
+            const auto operation = controllerAgent->FindOperation(operationId);
             if (!operation) {
                 continue;
             }
-            groupedJobStatuses[std::move(operation)].push_back(&job);
+            const auto controller = operation->GetController();
+            controller->GetCancelableInvoker(controllerAgent->GetConfig()->JobEventsControllerQueue)->Invoke(
+                BIND(
+                    [&Logger{Logger}, controller, jobSummaries{std::move(jobSummaries)}] () mutable {
+                        for (auto& jobSummary : jobSummaries) {
+                            try {
+                                controller->OnJobInfoReceivedFromNode(std::move(jobSummary));
+                            } catch (const std::exception& ex) {
+                                YT_LOG_WARNING(
+                                    ex,
+                                    "Fail process job info from node (JobId: %v, JobState: %v)",
+                                    jobSummary->Id,
+                                    jobSummary->State);
+                            }
+                        }
+                    }));
         }
-
-        for (auto& [operation, protoJobStatuses] : groupedJobStatuses) {
-            auto controller = operation->GetController();
-            controller->GetCancelableInvoker(controllerAgent->GetConfig()->JobEventsControllerQueue)->Invoke(BIND(
-                [&Logger{Logger}, controller, protoJobStatuses{std::move(protoJobStatuses)}] {
-                    for (auto* protoJobStatus : protoJobStatuses) {
-                        controller->OnJobRunning(std::make_unique<TRunningJobSummary>(protoJobStatus));
-                    }
-                }));
-        }
-
-        context->Reply();
     }
 };
 

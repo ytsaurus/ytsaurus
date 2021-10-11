@@ -224,7 +224,7 @@ private:
         const TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
         const TClusterNodeDynamicConfigPtr& newNodeConfig);
     const THashMap<TJobId, TOperationId>& GetSpecFetchFailedJobIds() const;
-    bool StatisticsThrottlerTryAcquire(int size);
+    bool TryAcquireStatisticsThrottler(int size);
     void RemoveSchedulerJobsOnFatalAlert();
     bool NeedTotalConfirmation();
 
@@ -244,7 +244,8 @@ private:
         TOperationId operationId,
         const TNodeResources& resourceLimits,
         TJobSpec&& jobSpec,
-        const TControllerAgentDescriptor& controllerAgentDescriptor);
+        const TControllerAgentDescriptor& controllerAgentDescriptor,
+        bool sendJobInfoToAgent);
 
     //! Starts a new master job.
     IJobPtr CreateMasterJob(
@@ -519,7 +520,7 @@ bool TJobController::TImpl::NeedTotalConfirmation()
     return false;
 }
 
-bool TJobController::TImpl::StatisticsThrottlerTryAcquire(const int size)
+bool TJobController::TImpl::TryAcquireStatisticsThrottler(const int size)
 {
     return StatisticsThrottler_->TryAcquire(size);
 }
@@ -923,7 +924,8 @@ IJobPtr TJobController::TImpl::CreateSchedulerJob(
     TOperationId operationId,
     const TNodeResources& resourceLimits,
     TJobSpec&& jobSpec,
-    const TControllerAgentDescriptor& controllerAgentDescriptor)
+    const TControllerAgentDescriptor& controllerAgentDescriptor,
+    bool sendJobInfoToAgent)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -946,7 +948,8 @@ IJobPtr TJobController::TImpl::CreateSchedulerJob(
         operationId,
         resourceLimits,
         std::move(jobSpec),
-        controllerAgentDescriptor);
+        controllerAgentDescriptor,
+        sendJobInfoToAgent);
 
     YT_LOG_INFO("Scheduler job created (JobId: %v, OperationId: %v, JobType: %v)",
         jobId,
@@ -1509,6 +1512,7 @@ void TJobController::TImpl::OnJobSpecsReceived(
     YT_LOG_DEBUG("Job specs received (SpecServiceAddress: %v)", controllerAgentDescriptor.Address);
 
     const auto& rsp = rspOrError.Value();
+    const bool sendJobInfoToAgent = rsp->supports_job_info_from_node();
     YT_VERIFY(rsp->responses_size() == std::ssize(startInfos));
     for (size_t index = 0; index < startInfos.size(); ++index) {
         const auto& startInfo = startInfos[index];
@@ -1537,7 +1541,13 @@ void TJobController::TImpl::OnJobSpecsReceived(
             ? TControllerAgentDescriptor{}
             : controllerAgentDescriptor;
 
-        CreateSchedulerJob(jobId, operationId, resourceLimits, std::move(spec), std::move(agentDescriptor));
+        CreateSchedulerJob(
+            jobId,
+            operationId,
+            resourceLimits,
+            std::move(spec),
+            std::move(agentDescriptor),
+            sendJobInfoToAgent);
     }
 }
 
@@ -2020,9 +2030,9 @@ const THashMap<TJobId, TOperationId>& TJobController::TJobHeartbeatProcessorBase
     return JobController_->Impl_->GetSpecFetchFailedJobIds();
 }
 
-bool TJobController::TJobHeartbeatProcessorBase::StatisticsThrottlerTryAcquire(const int size)
+bool TJobController::TJobHeartbeatProcessorBase::TryAcquireStatisticsThrottler(const int size)
 {
-    return JobController_->Impl_->StatisticsThrottlerTryAcquire(size);
+    return JobController_->Impl_->TryAcquireStatisticsThrottler(size);
 }
 
 void TJobController::TJobHeartbeatProcessorBase::PrepareHeartbeatCommonRequestPart(const TReqHeartbeatPtr& request)

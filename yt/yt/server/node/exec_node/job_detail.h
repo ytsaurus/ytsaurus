@@ -50,7 +50,8 @@ public:
         const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
         NJobTrackerClient::NProto::TJobSpec&& jobSpec,
         IBootstrap* bootstrap,
-        TControllerAgentDescriptor agentDescriptor);
+        TControllerAgentDescriptor agentDescriptor,
+        bool sendJobInfoToAgent);
     
     ~TJob();
 
@@ -169,6 +170,12 @@ public:
 
     void SetStored(bool value) override;
 
+    void OnJobProxyCompleted() noexcept;
+
+    bool IsJobProxyCompleted() const noexcept;
+
+    bool ShouldSendJobInfoToAgent() const noexcept;
+
 private:
     const TJobId Id_;
     const TOperationId OperationId_;
@@ -273,6 +280,10 @@ private:
     NJobAgent::TChunkCacheStatistics ChunkCacheStatistics_;
 
     std::vector<TFuture<void>> ArtifactPrepareFutures_;
+
+    bool JobProxyCompleted_ = false;
+
+    const bool SendJobInfoToAgent_;
 
     // Helpers.
 
@@ -392,6 +403,9 @@ private:
 
     TFuture<TSharedRef> DumpSensors();
 };
+
+DECLARE_REFCOUNTED_CLASS(TJob)
+DEFINE_REFCOUNTED_TYPE(TJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 

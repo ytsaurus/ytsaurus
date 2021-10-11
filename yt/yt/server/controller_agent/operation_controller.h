@@ -548,6 +548,12 @@ struct IOperationController
      */
     virtual TSharedRef ExtractJobSpec(TJobId jobId) const = 0;
 
+    //! Called during node heartbeat processing to process job info.
+    /*!
+     *  \note Invoker affinity: cancelable Controller invoker
+     */
+    virtual void OnJobInfoReceivedFromNode(std::unique_ptr<TJobSummary> jobSummary) = 0;
+
     //! Builds operation alerts.
     /*!
      * \note Invoker affinity: any.
