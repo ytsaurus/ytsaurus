@@ -16,48 +16,6 @@ using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NProfiling;
 
-namespace NVectorHdrf {
-
-////////////////////////////////////////////////////////////////////////////////
-
-void Serialize(const TJobResources& resources, IYsonConsumer* consumer)
-{
-    BuildYsonFluently(consumer)
-        .BeginMap()
-    #define XX(name, Name) .Item(#name).Value(resources.Get##Name())
-    ITERATE_JOB_RESOURCES(XX)
-    #undef XX
-        .EndMap();
-}
-
-void Deserialize(TJobResources& resources, INodePtr node)
-{
-    auto mapNode = node->AsMap();
-    #define XX(name, Name) \
-        if (auto child = mapNode->FindChild(#name)) { \
-            auto value = resources.Get##Name(); \
-            Deserialize(value, child); \
-            resources.Set##Name(value); \
-        }
-    ITERATE_JOB_RESOURCES(XX)
-    #undef XX
-}
-
-void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TStringBuf /* format */)
-{
-    builder->AppendFormat(
-        "{UserSlots: %v, Cpu: %v, Gpu: %v, Memory: %vMB, Network: %v}",
-        resources.GetUserSlots(),
-        resources.GetCpu(),
-        resources.GetGpu(),
-        resources.GetMemory() / 1_MB,
-        resources.GetNetwork());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NVectorHdrf
-
 namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,80 +1,49 @@
 #include "resource_helpers.h"
-#include "fair_share_update.h"
-
-#include <yt/yt/ytlib/scheduler/config.h>
-#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
-namespace NYT {
-    
-namespace NScheduler {
+#include <yt/yt/library/numeric/serialize/fixed_point_number.h>
+
+namespace NYT::NVectorHdrf {
+
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobResources ToJobResources(const TJobResourcesConfigPtr& config, TJobResources defaultValue)
+void Serialize(const TJobResources& resources, IYsonConsumer* consumer)
 {
-    return NVectorHdrf::ToJobResources(*config, defaultValue);
+    BuildYsonFluently(consumer)
+        .BeginMap()
+    #define XX(name, Name) .Item(#name).Value(resources.Get##Name())
+    ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+        .EndMap();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TJobResources GetAdjustedResourceLimits(
-    const TJobResources& demand,
-    const TJobResources& limits,
-    const TMemoryDistribution& execNodeMemoryDistribution)
+void Deserialize(TJobResources& resources, INodePtr node)
 {
-    auto adjustedLimits = limits;
-
-    // Take memory granularity into account.
-    if (demand.GetUserSlots() > 0 && !execNodeMemoryDistribution.empty()) {
-        i64 memoryDemandPerJob = demand.GetMemory() / demand.GetUserSlots();
-        if (memoryDemandPerJob != 0) {
-            i64 newMemoryLimit = 0;
-            for (const auto& [memoryLimitPerNode, nodeCount] : execNodeMemoryDistribution) {
-                i64 slotsPerNode = memoryLimitPerNode / memoryDemandPerJob;
-                i64 adjustedMemoryLimit = slotsPerNode * memoryDemandPerJob * nodeCount;
-                newMemoryLimit += adjustedMemoryLimit;
-            }
-            adjustedLimits.SetMemory(newMemoryLimit);
+    auto mapNode = node->AsMap();
+    #define XX(name, Name) \
+        if (auto child = mapNode->FindChild(#name)) { \
+            auto value = resources.Get##Name(); \
+            Deserialize(value, child); \
+            resources.Set##Name(value); \
         }
-    }
-
-    return adjustedLimits;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ProfileResourceVector(
-    NProfiling::ISensorWriter* writer,
-    const THashSet<EJobResourceType>& resourceTypes,
-    const TResourceVector& resourceVector,
-    const TString& prefix)
-{
-    for (auto resourceType : resourceTypes) {
-        writer->AddGauge(
-            prefix + "/" + FormatEnum(resourceType),
-            resourceVector[resourceType]);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ProfileResourceVolume(
-    NProfiling::ISensorWriter* writer,
-    const TResourceVolume& volume,
-    const TString& prefix)
-{
-    #define XX(name, Name) writer->AddGauge(prefix + "/" #name, static_cast<double>(volume.Get##Name()));
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NScheduler
-
-namespace NVectorHdrf {
+void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TStringBuf /* format */)
+{
+    builder->AppendFormat(
+        "{UserSlots: %v, Cpu: %v, Gpu: %v, Memory: %vMB, Network: %v}",
+        resources.GetUserSlots(),
+        resources.GetCpu(),
+        resources.GetGpu(),
+        resources.GetMemory() / 1_MB,
+        resources.GetNetwork());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -158,6 +127,4 @@ void FormatValue(TStringBuilderBase* builder, const TResourceVector& resourceVec
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NVectorHdrf
-
-} // namespace NYT
+} // namespace NYT::NVectorHdrf

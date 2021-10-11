@@ -17,6 +17,10 @@ DEFINE_ENUM(EIntegralGuaranteeType,
     (Burst)
     (Relaxed)
 );
+    
+DEFINE_ENUM(EErrorCode,
+    ((PoolTreeGuaranteesOvercommit) (29000))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

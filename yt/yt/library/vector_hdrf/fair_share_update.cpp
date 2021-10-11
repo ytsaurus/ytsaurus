@@ -1,7 +1,7 @@
 #include "fair_share_update.h"
 #include "resource_helpers.h"
 
-#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
+// #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -142,8 +142,8 @@ void TElement::CheckFairShareFeasibility() const
     bool isFairShareSignificantlyGreaterThanDemandShare =
         !Dominates(demandShare + TResourceVector::SmallEpsilon(), fairShare);
     if (isFairShareSignificantlyGreaterThanDemandShare) {
-        std::vector<NScheduler::EJobResourceType> significantlyGreaterResources;
-        for (auto resource : TEnumTraits<NScheduler::EJobResourceType>::GetDomainValues()) {
+        std::vector<EJobResourceType> significantlyGreaterResources;
+        for (auto resource : TEnumTraits<EJobResourceType>::GetDomainValues()) {
             if (demandShare[resource] + RatioComputationPrecision <= fairShare[resource]) {
                 significantlyGreaterResources.push_back(resource);
             }
@@ -222,7 +222,7 @@ void TElement::PrepareMaxFitFactorBySuggestion(TFairShareUpdateContext* context)
 
     std::vector<TScalarPiecewiseLinearFunction> mffForComponents;  // Mff stands for "MaxFitFactor".
 
-    for (int r = 0; r < NScheduler::ResourceCount; r++) {
+    for (int r = 0; r < ResourceCount; r++) {
         // Fsbff stands for "FairShareByFitFactor".
         auto fsbffComponent = NDetail::ExtractComponent(r, *FairShareByFitFactor_);
         YT_VERIFY(fsbffComponent.IsTrimmed());
@@ -848,7 +848,7 @@ void TCompositeElement::DistributeFreeVolume()
     TResourceVolume freeVolume = attributes.AcceptedFreeVolume;
 
     auto* thisPool = AsPool();
-    if (thisPool && thisPool->GetIntegralGuaranteeType() != NScheduler::EIntegralGuaranteeType::None) {
+    if (thisPool && thisPool->GetIntegralGuaranteeType() != EIntegralGuaranteeType::None) {
         if (!freeVolume.IsZero()) {
             thisPool->IntegralResourcesState().AccumulatedVolume += freeVolume;
             YT_LOG_DEBUG("Pool has accepted free volume (FreeVolume: %v)", freeVolume);
@@ -1031,14 +1031,14 @@ void TRootElement::ValidateAndAdjustSpecifiedGuarantees(TFairShareUpdateContext*
     }
 
     if (!Dominates(context->TotalResourceLimits, totalStrongGuaranteeResources + totalResourceFlow)) {
-        context->Errors.push_back(TError(NScheduler::EErrorCode::PoolTreeGuaranteesOvercommit, "Strong guarantees and resource flows exceed total cluster resources")
+        context->Errors.push_back(TError(EErrorCode::PoolTreeGuaranteesOvercommit, "Strong guarantees and resource flows exceed total cluster resources")
             << TErrorAttribute("total_strong_guarantee_resources", totalStrongGuaranteeResources)
             << TErrorAttribute("total_resource_flow", totalResourceFlow)
             << TErrorAttribute("total_cluster_resources", context->TotalResourceLimits));
     }
 
     if (!Dominates(context->TotalResourceLimits, totalStrongGuaranteeResources + totalBurstResources)) {
-        context->Errors.push_back(TError(NScheduler::EErrorCode::PoolTreeGuaranteesOvercommit, "Strong guarantees and burst guarantees exceed total cluster resources")
+        context->Errors.push_back(TError(EErrorCode::PoolTreeGuaranteesOvercommit, "Strong guarantees and burst guarantees exceed total cluster resources")
             << TErrorAttribute("total_strong_guarantee_resources", totalStrongGuaranteeResources)
             << TErrorAttribute("total_burst_resources", totalBurstResources)
             << TErrorAttribute("total_cluster_resources", context->TotalResourceLimits));

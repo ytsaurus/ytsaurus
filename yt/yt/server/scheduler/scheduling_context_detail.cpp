@@ -1,5 +1,4 @@
 #include "scheduling_context_detail.h"
-#include "fair_share_update.h"
 #include "exec_node.h"
 #include "job.h"
 #include "private.h"
@@ -11,6 +10,7 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/library/vector_hdrf/fair_share_update.h>
 
 namespace NYT::NScheduler {
 
