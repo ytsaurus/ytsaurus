@@ -45,6 +45,7 @@ struct IFairShareTreeSnapshot
     virtual void ProfileFairShare() const = 0;
     virtual void LogFairShare(NEventLog::TFluentLogEvent fluent) const = 0;
     virtual void EssentialLogFairShare(NEventLog::TFluentLogEvent fluent) const = 0;
+    virtual void UpdateResourceUsageSnapshot() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IFairShareTreeSnapshot);

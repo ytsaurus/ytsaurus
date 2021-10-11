@@ -867,6 +867,13 @@ public:
         return TreeProfiler_.Get();
     }
 
+    void SetResourceUsageSnapshot(THashMap<TOperationId, TJobResources> snapshot)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        ResourceUsageSnapshot_.Store(std::make_shared<THashMap<TOperationId, TJobResources>>(std::move(snapshot)));
+    }
+
 private:
     TFairShareStrategyTreeConfigPtr Config_;
     TFairShareStrategyOperationControllerConfigPtr ControllerConfig_;
@@ -898,6 +905,8 @@ private:
 
     THashMap<TOperationId, TInstant> OperationIdToActivationTime_;
     THashMap<TOperationId, TInstant> OperationIdToFirstFoundLimitingAncestorTime_;
+
+    TAtomicObject<std::shared_ptr<THashMap<TOperationId, TJobResources>>> ResourceUsageSnapshot_;
 
     std::vector<TOperationId> ActivatableOperationIds_;
 
@@ -1081,6 +1090,22 @@ private:
             Tree_->DoEssentialLogFairShare(TreeSnapshotImpl_, std::move(fluent));
         }
 
+        void UpdateResourceUsageSnapshot() override
+        {
+            if (!GetConfig()->EnableResourceUsageSnapshot) {
+                return;
+            }
+
+            auto result = THashMap<TOperationId, TJobResources>(TreeSnapshotImpl_->EnabledOperationMap().size());
+            for (const auto& [operationId, element] : TreeSnapshotImpl_->EnabledOperationMap()) {
+                if (element->IsAlive()) {
+                   result[operationId] = element->GetInstantResourceUsage();
+                }
+            }
+
+            Tree_->SetResourceUsageSnapshot(std::move(result));
+        }
+
     private:
         const TIntrusivePtr<TFairShareTree> Tree_;
         const TFairShareTreeSnapshotImplPtr TreeSnapshotImpl_;
@@ -1241,6 +1266,10 @@ private:
 
         context.SchedulingStatistics().ResourceUsage = schedulingContext->ResourceUsage();
         context.SchedulingStatistics().ResourceLimits = schedulingContext->ResourceLimits();
+
+        if (config->EnableResourceUsageSnapshot) {
+            context.ResourceUsageSnapshot() = ResourceUsageSnapshot_.Load();
+        }
 
         bool needPackingFallback;
         {
@@ -1413,6 +1442,7 @@ private:
             while (context->SchedulingContext()->CanStartMoreJobs() && context->SchedulingContext()->GetNow() < schedulingDeadline)
             {
                 if (!context->StageState()->PrescheduleExecuted) {
+
                     context->PrepareForScheduling(rootElement);
                     context->PrescheduleJob(rootElement, EPrescheduleJobOperationCriterion::All);
                 }

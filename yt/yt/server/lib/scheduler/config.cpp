@@ -314,6 +314,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
 
     RegisterParameter("use_user_default_parent_pool_map", UseUserDefaultParentPoolMap)
         .Default(false);
+    
+    RegisterParameter("enable_resource_usage_snapshot", EnableResourceUsageSnapshot)
+        .Default(true);    
 
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
@@ -361,6 +364,9 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
 
     RegisterParameter("resource_metering_period", ResourceMeteringPeriod)
         .Default(TDuration::Minutes(1));
+
+    RegisterParameter("resource_usage_snapshot_update_period", ResourceUsageSnapshotUpdatePeriod)
+        .Default(TDuration::MilliSeconds(20));
 
     RegisterParameter("operation_hangup_check_period", OperationHangupCheckPeriod)
         .Alias("operation_unschedulable_check_period")

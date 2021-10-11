@@ -66,12 +66,14 @@ public:
     void InitializeResourceUsageFor(
         const TResourceTreeElementPtr& targetElement,
         const std::vector<TResourceTreeElementPtr>& operationElements);
-
+    
 private:
     std::vector<IInvokerPtr> FeasibleInvokers_;
 
     std::atomic<bool> EnableStructureLockProfiling = false;
     std::atomic<bool> EnableUsageLockProfiling = false;
+    
+    TAtomicObject<std::shared_ptr<THashMap<TOperationId, TJobResources>>> ResourceUsageSnapshot_;
 
     THashSet<TResourceTreeElementPtr> AliveElements_;
 

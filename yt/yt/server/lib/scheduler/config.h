@@ -295,6 +295,8 @@ public:
 
     bool UseUserDefaultParentPoolMap;
 
+    bool EnableResourceUsageSnapshot;
+
     TFairShareStrategyTreeConfig();
 };
 
@@ -336,6 +338,9 @@ public:
 
     //! How often to build and log resource usage and guarantee statistics.
     TDuration ResourceMeteringPeriod;
+
+    //! How often to update resource usage snapshot.
+    TDuration ResourceUsageSnapshotUpdatePeriod;
 
     //! Limit on number of operations in cluster.
     int MaxOperationCount;

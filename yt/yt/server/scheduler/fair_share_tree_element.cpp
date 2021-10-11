@@ -2748,9 +2748,17 @@ const TJobResources& TSchedulerOperationElement::CalculateCurrentResourceUsage(T
 {
     auto& attributes = context->DynamicAttributesFor(this);
 
-    attributes.ResourceUsage = (IsAlive() && OperationElementSharedState_->Enabled())
-        ? GetInstantResourceUsage()
-        : TJobResources();
+    if (context->ResourceUsageSnapshot() != nullptr) {
+        auto it = context->ResourceUsageSnapshot()->find(OperationId_);
+        attributes.ResourceUsage = it != context->ResourceUsageSnapshot()->end()
+            ? it->second
+            : TJobResources();
+    } else {
+        attributes.ResourceUsage = (IsAlive() && OperationElementSharedState_->Enabled())
+            ? GetInstantResourceUsage()
+            : TJobResources();
+    }
+
     attributes.ResourceUsageUpdateTime = context->SchedulingContext()->GetNow();
 
     return attributes.ResourceUsage;

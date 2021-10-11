@@ -80,6 +80,19 @@ public:
             Host->GetControlInvoker(EControlQueue::Metering),
             BIND(&TFairShareStrategy::OnBuildResourceMetering, MakeWeak(this)),
             Config->ResourceMeteringPeriod);
+
+        ResourceUsageUpdateExecutor_ = New<TPeriodicExecutor>(
+            Host->GetFairShareUpdateInvoker(),
+            BIND(&TFairShareStrategy::OnUpdateResourceUsageSnapshot, MakeWeak(this)),
+            Config->ResourceUsageSnapshotUpdatePeriod);
+    }
+
+    void OnUpdateResourceUsageSnapshot()
+    {
+        auto treeSnapshots = TreeIdToSnapshot_.Load();
+        for (const auto& [_, snapshot] : treeSnapshots) {
+            snapshot->UpdateResourceUsageSnapshot();
+        }
     }
 
     void OnMasterConnected() override
@@ -1145,6 +1158,7 @@ private:
     TPeriodicExecutorPtr FairShareLoggingExecutor_;
     TPeriodicExecutorPtr MinNeededJobResourcesUpdateExecutor_;
     TPeriodicExecutorPtr ResourceMeteringExecutor_;
+    TPeriodicExecutorPtr ResourceUsageUpdateExecutor_;
 
     THashMap<TOperationId, TFairShareStrategyOperationStatePtr> OperationIdToOperationState_;
 
