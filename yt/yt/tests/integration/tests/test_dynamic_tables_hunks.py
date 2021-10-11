@@ -5,7 +5,7 @@ from yt.test_helpers.profiler import Profiler
 from yt_commands import (
     authors, wait, create, exists, get, set, set_banned_flag, insert_rows, remove, select_rows,
     lookup_rows, delete_rows, remount_table,
-    alter_table, read_table, map, reshard_table, sync_create_cells,
+    alter_table, read_table, map, sync_reshard_table, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect)
 
 from yt.common import YtError
@@ -322,7 +322,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert get("#{}/@ref_counter".format(store_chunk_id2)) == 1
         assert get("#{}/@ref_counter".format(hunk_chunk_id2)) == 2
 
-        reshard_table("//tmp/t", [[], [30]])
+        sync_reshard_table("//tmp/t", [[], [30]])
 
         gc_collect()
         assert get("#{}/@ref_counter".format(store_chunk_id1)) == 2
@@ -333,6 +333,40 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
+
+    @authors("ifsmirnov")
+    def test_reshard_with_tablet_count(self):
+        sync_create_cells(1)
+        self._create_table()
+
+        sync_reshard_table("//tmp/t", [[], [30]])
+        sync_mount_table("//tmp/t")
+        rows = [
+            {"key": i, "value": "value" + str(i) + "x" * 20}
+            for i in [0, 10, 20, 30, 40, 50]]
+        insert_rows("//tmp/t", rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        # Expel chunks from Eden.
+        sync_flush_table("//tmp/t")
+        sync_compact_table("//tmp/t")
+
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", 1)
+        assert get("//tmp/t/@tablet_state") == "unmounted"
+        assert get("//tmp/t/@tablet_count") == 1
+
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        sync_mount_table("//tmp/t")
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", 2)
+        assert get("//tmp/t/@tablet_state") == "unmounted"
+        assert get("//tmp/t/@tablet_count") == 2
+
+        sync_mount_table("//tmp/t")
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
     @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])

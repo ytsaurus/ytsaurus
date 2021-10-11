@@ -2645,6 +2645,9 @@ private:
                 const auto* chunk = chunkOrView->GetType() == EObjectType::ChunkView
                     ? chunkOrView->AsChunkView()->GetUnderlyingChunk()
                     : chunkOrView->AsChunk();
+                if (chunk->GetChunkType() != EChunkType::Table) {
+                    continue;
+                }
                 auto miscExt = chunk->ChunkMeta()->FindExtension<TMiscExt>();
                 auto eden = miscExt && miscExt->eden();
                 if (eden || edenStoreIds.contains(chunkOrView->GetId())) {
