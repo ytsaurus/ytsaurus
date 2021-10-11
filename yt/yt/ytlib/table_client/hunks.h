@@ -82,7 +82,7 @@ struct IHunkChunkReaderStatistics
     virtual const NChunkClient::TChunkReaderStatisticsPtr& GetChunkReaderStatistics() const = 0;
 
     virtual std::atomic<i64>& DataWeight() = 0;
-    virtual std::atomic<i64>& SkippedDataWeight() = 0;
+    virtual std::atomic<i64>& DroppedDataWeight() = 0;
 
     virtual std::atomic<int>& InlineValueCount() = 0;
     virtual std::atomic<int>& RefValueCount() = 0;
@@ -147,7 +147,7 @@ public:
 
 private:
     NProfiling::TCounter DataWeight_;
-    NProfiling::TCounter SkippedDataWeight_;
+    NProfiling::TCounter DroppedDataWeight_;
 
     NProfiling::TCounter InlineValueCount_;
     NProfiling::TCounter RefValueCount_;

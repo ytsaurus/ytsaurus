@@ -51,8 +51,8 @@ struct IIOEngine
     struct TReadResponse
     {
         std::vector<TSharedRef> OutputBuffers;
-        // NB: |PhysicalBytesRead| may be larger than total buffer size for the O_DIRECT case.
-        i64 PhysicalBytesRead;
+        // NB: This contains page size padding.
+        i64 PaddedBytesRead;
     };
 
     struct TWriteRequest
