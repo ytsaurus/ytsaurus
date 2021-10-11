@@ -1198,13 +1198,13 @@ private:
                                 }
 
                                 const auto& ioTracker = Bootstrap_->GetIOTracker();
-                                if (result.PhysicalBytesRead > 0 && ioTracker->IsEnabled()) {
+                                if (result.PaddedBytesRead > 0 && ioTracker->IsEnabled()) {
                                     ioTracker->Enqueue(
-                                        TIOCounters{.ByteCount = result.PhysicalBytesRead, .IOCount = 1},
+                                        TIOCounters{.ByteCount = result.PaddedBytesRead, .IOCount = 1},
                                         MakeReadIOTags("GetBlockRange", requestedLocations[resultIndex].first, context, readSessionId));
                                 }
 
-                                dataBytesReadFromDisk += result.PhysicalBytesRead;
+                                dataBytesReadFromDisk += result.PaddedBytesRead;
                             }
 
                             response->mutable_chunk_reader_statistics()->set_data_bytes_read_from_disk(dataBytesReadFromDisk);

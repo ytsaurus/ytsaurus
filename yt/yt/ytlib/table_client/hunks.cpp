@@ -514,9 +514,9 @@ public:
         return DataWeight_;
     }
 
-    std::atomic<i64>& SkippedDataWeight() override
+    std::atomic<i64>& DroppedDataWeight() override
     {
-        return SkippedDataWeight_;
+        return DroppedDataWeight_;
     }
 
     std::atomic<int>& InlineValueCount() override
@@ -538,7 +538,7 @@ private:
     const TChunkReaderStatisticsPtr ChunkReaderStatistics_ = New<TChunkReaderStatistics>();
 
     std::atomic<i64> DataWeight_ = 0;
-    std::atomic<i64> SkippedDataWeight_ = 0;
+    std::atomic<i64> DroppedDataWeight_ = 0;
 
     std::atomic<int> InlineValueCount_ = 0;
     std::atomic<int> RefValueCount_ = 0;
@@ -624,7 +624,7 @@ THunkChunkReaderCounters::THunkChunkReaderCounters(
     const TTableSchemaPtr& schema)
     : THunkChunkStatisticsCountersBase(profiler, schema)
     , DataWeight_(profiler.Counter("/data_weight"))
-    , SkippedDataWeight_(profiler.Counter("/skipped_data_weight"))
+    , DroppedDataWeight_(profiler.Counter("/dropped_data_weight"))
     , InlineValueCount_(profiler.Counter("/inline_value_count"))
     , RefValueCount_(profiler.Counter("/ref_value_count"))
     , BackendRequestCount_(profiler.Counter("/backend_request_count"))
@@ -638,7 +638,7 @@ void THunkChunkReaderCounters::Increment(const IHunkChunkReaderStatisticsPtr& st
     }
 
     DataWeight_.Increment(statistics->DataWeight());
-    SkippedDataWeight_.Increment(statistics->SkippedDataWeight());
+    DroppedDataWeight_.Increment(statistics->DroppedDataWeight());
 
     InlineValueCount_.Increment(statistics->InlineValueCount());
     RefValueCount_.Increment(statistics->RefValueCount());
@@ -1406,7 +1406,7 @@ public:
 
     IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        i64 skippedDataWeight = 0;
+        i64 droppedDataWeight = 0;
         auto batch = this->DoRead(
             options,
             TVersionedRowVisitor(),
@@ -1426,14 +1426,14 @@ public:
                         {
                             return globalRefHunkValue.Length;
                         } else {
-                            skippedDataWeight += globalRefHunkValue.Length;
+                            droppedDataWeight += globalRefHunkValue.Length;
                             return {};
                         }
                     });
             });
 
         if (Options_.HunkChunkReaderStatistics) {
-            Options_.HunkChunkReaderStatistics->SkippedDataWeight() += skippedDataWeight;
+            Options_.HunkChunkReaderStatistics->DroppedDataWeight() += droppedDataWeight;
         }
 
         return batch;

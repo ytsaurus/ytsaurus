@@ -38,6 +38,8 @@ using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr auto DefaultPageSize = 4_KB;
+
 #ifdef _linux_
 
 static constexpr auto UringEngineNotificationCount = 2;
@@ -215,13 +217,20 @@ public:
 
         RegisterParameter("direct_io_page_size", DirectIOPageSize)
             .GreaterThan(0)
-            .Default(4_KB);
+            .Default(DefaultPageSize);
     }
 };
 
 DEFINE_REFCOUNTED_TYPE(TUringIOEngineConfig)
 
 #endif
+
+////////////////////////////////////////////////////////////////////////////////
+
+i64 GetPaddedSize(i64 offset, i64 size, i64 alignment)
+{
+    return AlignUp(offset + size, alignment) - AlignDown(offset, alignment);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -504,6 +513,7 @@ public:
 
         auto invoker = CreateFixedPriorityInvoker(ReadInvoker_, priority);
 
+        i64 paddedBytesRead = 0;
         TSharedRefArray result;
         std::vector<TMutableRef> buffers;
         buffers.reserve(requests.size());
@@ -513,6 +523,7 @@ public:
             i64 totalSize = 0;
             for (const auto& request : requests) {
                 totalSize += request.Size;
+                paddedBytesRead += GetPaddedSize(request.Offset, request.Size, DefaultPageSize);
             }
 
             TSharedRefArrayBuilder resultBuilder(requests.size(), totalSize, tagCookie);
@@ -534,9 +545,10 @@ public:
         }
 
         return AllSucceeded(std::move(futures))
-            .Apply(BIND([result = std::move(result)] {
+            .Apply(BIND([paddedBytesRead, result = std::move(result)] {
                 return TReadResponse{
                     .OutputBuffers = result.ToVector(),
+                    .PaddedBytesRead = paddedBytesRead
                 };
             }));
     }
@@ -994,14 +1006,14 @@ struct TReadUringRequest
     SmallVector<int, TypicalSubrequestCount> PendingReadSubrequestIndexes;
     TReadRequestCombiner ReadRequestCombiner;
 
-    i64 PhysicalBytesRead = 0;
+    i64 PaddedBytesRead = 0;
     int FinishedSubrequestCount = 0;
 
 
     void TrySetReadSucceeded()
     {
         IIOEngine::TReadResponse response{
-            .PhysicalBytesRead = PhysicalBytesRead,
+            .PaddedBytesRead = PaddedBytesRead,
             .OutputBuffers = std::move(ReadRequestCombiner.ReleaseOutputBuffers())
         };
         if (Promise.TrySet(std::move(response))) {
@@ -1469,7 +1481,6 @@ private:
                 request->TrySetFailed(cqe);
             } else {
                 i64 readSize = cqe->res;
-                request->PhysicalBytesRead += readSize;
                 if (Config_->SimulatedMaxBytesPerRead) {
                     readSize = Min(readSize, *Config_->SimulatedMaxBytesPerRead);
                 }
@@ -1781,13 +1792,18 @@ public:
         uringRequest->PendingReadSubrequestIndexes.reserve(ioRequests.size());
 
         for (int index = 0; index < std::ssize(ioRequests); ++index) {
+            const auto& ioRequest = ioRequests[index];
+            uringRequest->PaddedBytesRead += GetPaddedSize(
+                ioRequest.Offset,
+                ioRequest.Size,
+                handles[index]->IsOpenForDirectIO() ? Config_->DirectIOPageSize : DefaultPageSize);
             uringRequest->ReadSubrequests.push_back({
                 .Handle = std::move(handles[index]),
-                .Offset = ioRequests[index].Offset,
-                .Size = ioRequests[index].Size
+                .Offset = ioRequest.Offset,
+                .Size = ioRequest.Size
             });
             uringRequest->ReadSubrequestStates.push_back({
-                .Buffer = ioRequests[index].ResultBuffer
+                .Buffer = ioRequest.ResultBuffer
             });
             uringRequest->PendingReadSubrequestIndexes.push_back(index);
         }
