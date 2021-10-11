@@ -110,9 +110,14 @@ public:
         return Bootstrap_->GetChunkManager()->CreateChunkList(kind);
     }
 
-    bool IsMutationLoggingEnabled() override
+    void RefObject(TObject* object) override
     {
-        return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsMutationLoggingEnabled();
+        Bootstrap_->GetObjectManager()->RefObject(object);
+    }
+
+    void UnrefObject(TObject* object) override
+    {
+        Bootstrap_->GetObjectManager()->UnrefObject(object);
     }
 
 private:
@@ -1424,12 +1429,12 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
         return;
     }
 
-    auto* newRootChunkList = chunkReplacer.Finish();
-    YT_VERIFY(newRootChunkList);
-
-    // Change chunk list.
     const auto& objectManager = Bootstrap_->GetObjectManager();
 
+    auto* newRootChunkList = chunkReplacer.Finish();
+    YT_VERIFY(objectManager->GetObjectRefCounter(newRootChunkList) == 1);
+
+    // Change chunk list.
     newRootChunkList->AddOwningNode(chunkOwner);
     rootChunkList->RemoveOwningNode(chunkOwner);
 

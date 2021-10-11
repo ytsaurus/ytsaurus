@@ -20,6 +20,7 @@ namespace NYT::NChunkServer {
 namespace {
 
 using namespace NObjectClient;
+using namespace NObjectServer;
 using namespace NChunkClient::NProto;
 using namespace NTesting;
 
@@ -69,10 +70,11 @@ public:
         return ChunkGenerator_->CreateChunkList();
     }
 
-    bool IsMutationLoggingEnabled() override
-    {
-        return false;
-    }
+    void RefObject(TObject* /*object*/) override
+    { }
+
+    void UnrefObject(TObject* /*object*/) override
+    { }
 
 private:
     TChunkGeneratorBase* const ChunkGenerator_;

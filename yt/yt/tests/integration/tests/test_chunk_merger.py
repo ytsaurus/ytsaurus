@@ -178,6 +178,29 @@ class TestChunkMerger(YTEnvSetup):
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 2)
 
     @authors("aleksandra-zh")
+    @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
+    def test_merge_remove(self, merge_mode):
+        create("table", "//tmp/t")
+        write_table("<append=true>//tmp/t", {"a": "b"})
+        write_table("<append=true>//tmp/t", {"a": "c"})
+        write_table("<append=true>//tmp/t", {"a": "d"})
+
+        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
+        set("//tmp/t/@chunk_merger_mode", merge_mode)
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
+
+        wait(lambda: get("//tmp/t/@is_being_merged"))
+
+        for i in range(10):
+            write_table("<append=true>//tmp/t", {"a": "b"})
+
+        wait(lambda: not get("//tmp/t/@is_being_merged"))
+        remove("//tmp/t")
+
+        wait(lambda: get("//sys/chunk_lists/@count") == len(get("//sys/chunk_lists")))
+
+    @authors("aleksandra-zh")
     def test_merge_does_not_conflict_with_tx_append(self):
         create("table", "//tmp/t")
         write_table("<append=true>//tmp/t", {"a": "b"})
