@@ -21,7 +21,7 @@ using NScheduler::EOperationAlertType;
 struct TJobSummary;
 struct TCompletedJobSummary;
 struct TAbortedJobSummary;
-using TFailedJobSummary = TJobSummary;
+struct TFailedJobSummary;
 struct TRunningJobSummary;
 
 DECLARE_REFCOUNTED_CLASS(TLegacyProgressCounter)

@@ -57,6 +57,7 @@ message TJobStatus
 
     required TTimeStatistics time_statistics = 15;
     optional int64 status_timestamp = 16;
+    optional bool job_execution_completed = 17 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

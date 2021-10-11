@@ -56,6 +56,7 @@ struct TJobSummary
     NJobTrackerClient::TReleaseJobFlags ReleaseFlags;
 
     TInstant LastStatusUpdateTime;
+    bool JobExecutionCompleted;
 };
 
 struct TCompletedJobSummary
@@ -63,6 +64,7 @@ struct TCompletedJobSummary
 {
     TCompletedJobSummary() = default;
     explicit TCompletedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
+    explicit TCompletedJobSummary(NJobTrackerClient::NProto::TJobStatus* status);
 
     void Persist(const TPersistenceContext& context);
 
@@ -73,6 +75,8 @@ struct TCompletedJobSummary
     std::vector<NChunkClient::TLegacyDataSlicePtr> UnreadInputDataSlices;
     std::vector<NChunkClient::TLegacyDataSlicePtr> ReadInputDataSlices;
     int SplitJobCount = 1;
+
+    inline static constexpr EJobState ExpectedState = EJobState::Completed;
 };
 
 struct TAbortedJobSummary
@@ -81,9 +85,22 @@ struct TAbortedJobSummary
     TAbortedJobSummary(TJobId id, EAbortReason abortReason);
     TAbortedJobSummary(const TJobSummary& other, EAbortReason abortReason);
     explicit TAbortedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
+    explicit TAbortedJobSummary(NJobTrackerClient::NProto::TJobStatus* status);
 
     EAbortReason AbortReason = EAbortReason::None;
     std::optional<NScheduler::TPreemptedFor> PreemptedFor;
+    bool AbortedByScheduler{};
+
+    inline static constexpr EJobState ExpectedState = EJobState::Aborted;
+};
+
+struct TFailedJobSummary
+    : public TJobSummary
+{
+    explicit TFailedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
+    explicit TFailedJobSummary(NJobTrackerClient::NProto::TJobStatus* status);
+
+    inline static constexpr EJobState ExpectedState = EJobState::Failed;
 };
 
 struct TRunningJobSummary
@@ -94,7 +111,39 @@ struct TRunningJobSummary
 
     double Progress = 0;
     i64 StderrSize = 0;
+
+    inline static constexpr EJobState ExpectedState = EJobState::Running;
 };
+
+std::unique_ptr<TJobSummary> ParseJobSummary(
+    NJobTrackerClient::NProto::TJobStatus* const status,
+    const NLogging::TLogger& Logger);
+
+std::unique_ptr<TFailedJobSummary> MergeJobSummaries(
+    std::unique_ptr<TFailedJobSummary> schedulerJobSummary,
+    std::unique_ptr<TFailedJobSummary> nodeJobSummary);
+
+std::unique_ptr<TAbortedJobSummary> MergeJobSummaries(
+    std::unique_ptr<TAbortedJobSummary> schedulerJobSummary,
+    std::unique_ptr<TAbortedJobSummary> nodeJobSummary);
+
+std::unique_ptr<TCompletedJobSummary> MergeJobSummaries(
+    std::unique_ptr<TCompletedJobSummary> schedulerJobSummary,
+    std::unique_ptr<TCompletedJobSummary> nodeJobSummary);
+
+std::unique_ptr<TJobSummary> MergeSchedulerAndNodeFinishedJobSummaries(
+    std::unique_ptr<TJobSummary> schedulerJobSummary,
+    std::unique_ptr<TJobSummary> nodeJobSummary);
+
+template <class TJobSummaryType>
+std::unique_ptr<TJobSummaryType> SummaryCast(std::unique_ptr<TJobSummary> jobSummary) noexcept
+{
+    YT_VERIFY(jobSummary->State == TJobSummaryType::ExpectedState);
+    return std::unique_ptr<TJobSummaryType>{static_cast<TJobSummaryType*>(jobSummary.release())};
+}
+
+// COMPAT(pogorelov)
+bool ExpectsJobInfoSeparately(const TJobSummary& jobSummary) noexcept;
 
 ////////////////////////////////////////////////////////////////////////////////
 

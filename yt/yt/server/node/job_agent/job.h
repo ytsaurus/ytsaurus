@@ -145,7 +145,8 @@ using TSchedulerJobFactory = TCallback<IJobPtr(
     TOperationId operationId,
     const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
     NJobTrackerClient::NProto::TJobSpec&& jobSpec,
-    const NExecNode::TControllerAgentDescriptor& agentInfo)>;
+    const NExecNode::TControllerAgentDescriptor& agentInfo,
+    bool sendJobInfoToAgent)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -45,6 +45,17 @@ TControllerAgentConnector::TControllerAgentConnector(
         Config_->OutdatedIncarnationScanPeriod))
 { }
 
+void TControllerAgentConnector::Start()
+{
+    HeartbeatExecutor_->Start();
+    ScanOutdatedAgentIncarnationsExecutor_->Start();
+}
+
+void TControllerAgentConnector::SendOutOfBandHeartbeat()
+{
+    HeartbeatExecutor_->ScheduleOutOfBand();
+}
+
 IChannelPtr TControllerAgentConnector::CreateChannel(const TControllerAgentDescriptor& agentDescriptor)
 {
     const auto& client = Bootstrap_->GetMasterClient();
@@ -64,15 +75,20 @@ IChannelPtr TControllerAgentConnector::GetChannel(
     return it->second;
 }
 
+void TControllerAgentConnector::EnqueueFinishedJob(const TJobPtr& job)
+{
+    EnqueuedFinishedJobs_.insert(job);
+}
+
 void TControllerAgentConnector::SendHeartbeats()
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
-
+    
     if (!Bootstrap_->IsConnected()) {
         return;
     }
 
-    THashMap<TControllerAgentDescriptor, std::vector<NJobAgent::IJobPtr>> groupedJobs;
+    THashMap<TControllerAgentDescriptor, std::vector<TJobPtr>> groupedJobs;
     for (auto&& job : Bootstrap_->GetJobController()->GetJobs()) {
         if (TypeFromId(job->GetId()) != EObjectType::SchedulerJob) {
             continue;
@@ -82,27 +98,36 @@ void TControllerAgentConnector::SendHeartbeats()
             continue;
         }
 
-        auto& schedulerJob = static_cast<TJob&>(*job);
-        const auto& controllerAgentDescriptor = schedulerJob.GetControllerAgentDescriptor();
+        auto schedulerJob = StaticPointerCast<TJob>(std::move(job));
+
+        if (!schedulerJob->ShouldSendJobInfoToAgent()) {
+            continue;
+        }
+
+        const auto& controllerAgentDescriptor = schedulerJob->GetControllerAgentDescriptor();
 
         if (!controllerAgentDescriptor) {
             YT_LOG_DEBUG(
                 "Skipping heartbeat for job since old agent incarnation is outdated and new incarnation is not received yet (JobId: %v)",
-                job->GetId());
+                schedulerJob->GetId());
             continue;
         }
 
         if (IsAgentIncarnationOutdated(controllerAgentDescriptor)) {
-            schedulerJob.UpdateControllerAgentDescriptor({});
+            schedulerJob->UpdateControllerAgentDescriptor({});
             YT_LOG_INFO(
                 "Skipping heartbeat to agent %v since incarnation is outdated (IncarnationId: %v, JobId: %v)",
                 controllerAgentDescriptor.Address,
                 controllerAgentDescriptor.IncarnationId,
-                job->GetId());
+                schedulerJob->GetId());
             continue;
         }
 
-        groupedJobs[controllerAgentDescriptor].push_back(std::move(job));
+        groupedJobs[controllerAgentDescriptor].push_back(std::move(schedulerJob));
+    }
+
+    for (auto& job : EnqueuedFinishedJobs_) {
+        groupedJobs[job->GetControllerAgentDescriptor()].push_back(std::move(job));
     }
 
     ResetOutdatedAgentIncarnations();
@@ -177,6 +202,10 @@ void TControllerAgentConnector::SendHeartbeats()
                 MarkAgentIncarnationAsOutdated(*agentDescriptorPtr);
             }
             continue;
+        }
+
+        for (const auto& job : groupedJobs[*agentDescriptorPtr]) {
+            EnqueuedFinishedJobs_.erase(job);
         }
 
         YT_LOG_INFO("Successfully reported heartbeat to agent %v (IncarnationId: %v)", agentDescriptorPtr->IncarnationId);

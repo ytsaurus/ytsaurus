@@ -1,3 +1,4 @@
+#include "public.h"
 #include "structs.h"
 
 #include <yt/yt/server/lib/controller_agent/serialize.h>
@@ -10,10 +11,26 @@
 
 namespace NYT::NControllerAgent {
 
+using namespace NScheduler;
 using namespace NYson;
 
 using NYT::FromProto;
 using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+void MergeJobSummaries(
+    TJobSummary& schedulerJobSummary,
+    const TJobSummary& nodeJobSummary)
+{
+    YT_VERIFY(schedulerJobSummary.Id == nodeJobSummary.Id);
+
+    schedulerJobSummary.StatisticsYson = std::move(nodeJobSummary.StatisticsYson);
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,7 +52,7 @@ TJobSummary::TJobSummary(TJobId id, EJobState state)
 
 TJobSummary::TJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
     : Id(FromProto<TJobId>(event->status().job_id()))
-    , State(static_cast<EJobState>(event->status().state()))
+    , State(CheckedEnumCast<EJobState>(event->status().state()))
     , FinishTime(event->has_finish_time() ? std::make_optional(FromProto<TInstant>(event->finish_time())) : std::nullopt)
     , LogAndProfile(event->log_and_profile())
 {
@@ -52,6 +69,8 @@ TJobSummary::TJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
     if (status->has_status_timestamp()) {
         LastStatusUpdateTime = FromProto<TInstant>(status->status_timestamp());
     }
+
+    JobExecutionCompleted = status->job_execution_completed();
 }
 
 TJobSummary::TJobSummary(NJobTrackerClient::NProto::TJobStatus* status)
@@ -68,6 +87,7 @@ TJobSummary::TJobSummary(NJobTrackerClient::NProto::TJobStatus* status)
     }
 
     LastStatusUpdateTime = FromProto<TInstant>(status->status_timestamp());
+    JobExecutionCompleted = status->job_execution_completed();
 }
 
 void TJobSummary::Persist(const TPersistenceContext& context)
@@ -100,6 +120,19 @@ TCompletedJobSummary::TCompletedJobSummary(NScheduler::NProto::TSchedulerToAgent
         (InterruptReason != EInterruptReason::None && (
             schedulerResultExt.unread_chunk_specs_size() != 0 ||
             schedulerResultExt.restart_needed())));
+    YT_VERIFY(State == ExpectedState);
+}
+
+TCompletedJobSummary::TCompletedJobSummary(NJobTrackerClient::NProto::TJobStatus* status)
+    : TJobSummary(status)
+{
+    const auto& schedulerResultExt = Result.GetExtension(NScheduler::NProto::TSchedulerJobResultExt::scheduler_job_result_ext);
+    YT_VERIFY(
+        (InterruptReason == EInterruptReason::None && schedulerResultExt.unread_chunk_specs_size() == 0) ||
+        (InterruptReason != EInterruptReason::None && (
+            schedulerResultExt.unread_chunk_specs_size() != 0 ||
+            schedulerResultExt.restart_needed())));
+    YT_VERIFY(State == ExpectedState);
 }
 
 void TCompletedJobSummary::Persist(const TPersistenceContext& context)
@@ -136,6 +169,31 @@ TAbortedJobSummary::TAbortedJobSummary(NScheduler::NProto::TSchedulerToAgentJobE
     if (event->has_preempted_for()) {
         PreemptedFor = FromProto<NScheduler::TPreemptedFor>(event->preempted_for());
     }
+    if (event->has_aborted_by_scheduler()) {
+        AbortedByScheduler = event->aborted_by_scheduler();
+    }
+
+    YT_VERIFY(State == ExpectedState);
+}
+
+TAbortedJobSummary::TAbortedJobSummary(NJobTrackerClient::NProto::TJobStatus* status)
+    : TJobSummary(status)
+{
+    YT_VERIFY(State == ExpectedState);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFailedJobSummary::TFailedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
+    : TJobSummary(event)
+{
+    YT_VERIFY(State == ExpectedState);
+}
+
+TFailedJobSummary::TFailedJobSummary(NJobTrackerClient::NProto::TJobStatus* status)
+    : TJobSummary(status)
+{
+    YT_VERIFY(State == ExpectedState);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,6 +209,80 @@ TRunningJobSummary::TRunningJobSummary(NJobTrackerClient::NProto::TJobStatus* st
     , Progress(status->progress())
     , StderrSize(status->stderr_size())
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<TFailedJobSummary> MergeJobSummaries(
+    std::unique_ptr<TFailedJobSummary> schedulerJobSummary,
+    std::unique_ptr<TFailedJobSummary> nodeJobSummary)
+{
+    MergeJobSummaries(*schedulerJobSummary, *nodeJobSummary);
+    return schedulerJobSummary;
+}
+
+std::unique_ptr<TAbortedJobSummary> MergeJobSummaries(
+    std::unique_ptr<TAbortedJobSummary> schedulerJobSummary,
+    std::unique_ptr<TAbortedJobSummary> nodeJobSummary)
+{
+    MergeJobSummaries(*schedulerJobSummary, *nodeJobSummary);
+    return schedulerJobSummary;
+}
+
+std::unique_ptr<TCompletedJobSummary> MergeJobSummaries(
+    std::unique_ptr<TCompletedJobSummary> schedulerJobSummary,
+    std::unique_ptr<TCompletedJobSummary> nodeJobSummary)
+{
+    MergeJobSummaries(*schedulerJobSummary, *nodeJobSummary);
+    return schedulerJobSummary;
+}
+
+std::unique_ptr<TJobSummary> MergeSchedulerAndNodeFinishedJobSummaries(
+    std::unique_ptr<TJobSummary> schedulerJobSummary,
+    std::unique_ptr<TJobSummary> nodeJobSummary)
+{
+    switch (schedulerJobSummary->State) {
+        case EJobState::Aborted:
+            return MergeJobSummaries(
+                SummaryCast<TAbortedJobSummary>(std::move(schedulerJobSummary)),
+                SummaryCast<TAbortedJobSummary>(std::move(nodeJobSummary)));
+        case EJobState::Completed:
+            return MergeJobSummaries(
+                SummaryCast<TCompletedJobSummary>(std::move(schedulerJobSummary)),
+                SummaryCast<TCompletedJobSummary>(std::move(nodeJobSummary)));
+        case EJobState::Failed:
+            return MergeJobSummaries(
+                SummaryCast<TFailedJobSummary>(std::move(schedulerJobSummary)),
+                SummaryCast<TFailedJobSummary>(std::move(nodeJobSummary)));
+        default:
+            YT_ABORT();
+    }
+}
+
+std::unique_ptr<TJobSummary> ParseJobSummary(NJobTrackerClient::NProto::TJobStatus* const status, const NLogging::TLogger& Logger)
+{
+    const auto state = static_cast<EJobState>(status->state());
+    switch (state) {
+        case EJobState::Completed:
+            return std::make_unique<TCompletedJobSummary>(status);
+        case EJobState::Failed:
+            return std::make_unique<TFailedJobSummary>(status);
+        case EJobState::Aborted:
+            return std::make_unique<TAbortedJobSummary>(status);
+        case EJobState::Running:
+            return std::make_unique<TRunningJobSummary>(status);
+        default:
+            YT_LOG_ERROR(
+                "Unexpected job state in parsing status (JobState: %v, JobId: %v)",
+                state,
+                FromProto<TJobId>(status->job_id()));
+            YT_ABORT();
+    }
+}
+
+bool ExpectsJobInfoSeparately(const TJobSummary& jobSummary) noexcept
+{
+    return !jobSummary.StatisticsYson && jobSummary.JobExecutionCompleted;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -171,6 +171,7 @@ using NYT::FromProto;
 using NYT::ToProto;
 
 using NJobTrackerClient::NProto::TJobSpec;
+using NJobTrackerClient::EJobState;
 using NNodeTrackerClient::TNodeId;
 using NProfiling::CpuInstantToInstant;
 using NProfiling::TCpuInstant;
@@ -1714,6 +1715,20 @@ NLogging::TLogger TOperationControllerBase::GetLogger() const
     return Logger;
 }
 
+void TOperationControllerBase::AbortJobWithPartiallyReceivedJobInfo(const TJobId jobId)
+{
+    try {
+        YT_LOG_DEBUG("Abort job since job info has not been received from node (JobId: %v)", jobId);
+        auto finishedJobInfo = FindFinishedJobInfo(jobId);
+        YT_VERIFY(finishedJobInfo);
+
+        auto abortJobSummary = std::make_unique<TAbortedJobSummary>(finishedJobInfo->JobSummary->Id, EAbortReason::JobStatisticsWaitTimeout);
+        SafeOnJobAborted(std::move(abortJobSummary), /*byScheduler*/ false);
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(ex, "Fail to abort job (JobId: %v)", jobId);
+    }
+}
+
 std::vector<TStreamDescriptor> TOperationControllerBase::GetAutoMergeStreamDescriptors()
 {
     auto streamDescriptors = GetStandardStreamDescriptors();
@@ -1988,9 +2003,10 @@ void TOperationControllerBase::UpdateRunningJobStatistics(
         jobSummary->LastStatusUpdateTime <= joblet->LastStatisticsUpdateTime)
     {
         YT_LOG_DEBUG(
-            "Stale statistics were ignored (LastStatisticsUpdateTime: %v, StatisticsUpdateTime: %v)",
+            "Stale statistics were ignored (LastStatisticsUpdateTime: %v, StatisticsUpdateTime: %v, JobId: %v)",
             joblet->LastStatisticsUpdateTime,
-            jobSummary->LastStatusUpdateTime);
+            jobSummary->LastStatusUpdateTime,
+            jobSummary->Id);
         return;
     }
 
@@ -2763,8 +2779,23 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
 
-    auto jobId = jobSummary->Id;
-    auto abandoned = jobSummary->Abandoned;
+    const auto jobId = jobSummary->Id;
+    const auto abandoned = jobSummary->Abandoned;
+
+    if (ExpectsJobInfoSeparately(*jobSummary) && !HasFullFinishedJobInfo(jobId)) {
+        ProcessJobSummaryFromScheduler(std::move(jobSummary));
+        if (HasFullFinishedJobInfo(jobId)) {
+            jobSummary = ReleaseFullJobSummary<TCompletedJobSummary>(jobId);
+        } else {
+            return;
+        }
+    } else {
+        YT_VERIFY(HasFullFinishedJobInfo(jobId) || jobSummary->StatisticsYson || abandoned);
+    }
+
+    const auto defferedRemoveFinishedJobInfo = Finally([this, jobId] {
+        RemoveFinishedJobInfo(jobId);
+    });
 
     // Testing purpose code.
     if (Config->EnableControllerFailureSpecOption && Spec_->TestingOperationOptions &&
@@ -2904,7 +2935,21 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
 
-    auto jobId = jobSummary->Id;
+    const auto jobId = jobSummary->Id;
+
+    if (ExpectsJobInfoSeparately(*jobSummary) && !HasFullFinishedJobInfo(jobId)) {
+        ProcessJobSummaryFromScheduler(std::move(jobSummary));
+        if (HasFullFinishedJobInfo(jobId)) {
+            jobSummary = ReleaseFullJobSummary<TFailedJobSummary>(jobId);
+        } else {
+            return;
+        }
+    }
+
+    const auto defferedRemoveFinishedJobInfo = Finally([this, jobId] {
+        RemoveFinishedJobInfo(jobId);
+    });
+
     const auto& result = jobSummary->Result;
 
     auto joblet = GetJoblet(jobId);
@@ -2998,11 +3043,25 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     }
 }
 
-void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary, bool byScheduler)
+void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary, const bool byScheduler)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
 
-    auto jobId = jobSummary->Id;
+    const auto jobId = jobSummary->Id;
+
+    if (ExpectsJobInfoSeparately(*jobSummary) && !HasFullFinishedJobInfo(jobId)) {
+        ProcessJobSummaryFromScheduler(std::move(jobSummary));
+        if (HasFullFinishedJobInfo(jobId)) {
+            jobSummary = ReleaseFullJobSummary<TAbortedJobSummary>(jobId);
+        } else {
+            return;
+        }
+    }
+
+    const auto defferedRemoveFinishedJobInfo = Finally([this, jobId] {
+        RemoveFinishedJobInfo(jobId);
+    });
+
     auto abortReason = jobSummary->AbortReason;
 
     if (State != EControllerState::Running) {
@@ -5668,6 +5727,186 @@ void TOperationControllerBase::FetchTableSchemas(
     }
 }
 
+void TOperationControllerBase::OnJobInfoReceivedFromNode(std::unique_ptr<TJobSummary> jobSummary)
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
+
+    YT_LOG_DEBUG(
+        "Job info received (JobId: %v, JobState: %v)",
+        jobSummary->Id,
+        jobSummary->State);
+
+    const auto jobId = jobSummary->Id;
+
+    if (const auto joblet = FindJoblet(jobId); !joblet) {
+        YT_LOG_DEBUG(
+            "Received job info for unknown job (JobId: %v, JobState: %v)",
+            jobId,
+            jobSummary->State);
+        return;
+    }
+
+    if (jobSummary->State == EJobState::Running) {
+        OnJobRunning(SummaryCast<TRunningJobSummary>(std::move(jobSummary)));
+        return;
+    }
+
+    auto finishedJobInfo = FindFinishedJobInfo(jobId);
+    if (!finishedJobInfo) {
+        const auto jobState = jobSummary->State;
+        auto newFinishedJobInfo = New<TFinishedJobInfo>();
+        newFinishedJobInfo->ReceivedFrom = TFinishedJobInfo::EReceivedFrom::Node;
+        newFinishedJobInfo->JobSummary = std::move(jobSummary);
+        YT_VERIFY(FinishedJobs_.emplace(jobId, std::move(newFinishedJobInfo)).second);
+
+        YT_LOG_DEBUG(
+            "Start waiting finished job event from scheduler (JobId: %v, JobState: %v)",
+            jobId,
+            jobState);
+        return;
+    }
+
+    if (finishedJobInfo->ReceivedFrom == TFinishedJobInfo::EReceivedFrom::Node) {
+        YT_LOG_WARNING(
+            "Received multiple finished job info from node (JobId: %v, PreviouslyReceivedState: %v, CurrentlyReceivedState: %v)",
+            jobSummary->Id,
+            finishedJobInfo->JobSummary->State,
+            jobSummary->State);
+
+        if (jobSummary->FinishTime > finishedJobInfo->JobSummary->FinishTime) {
+            finishedJobInfo->JobSummary = std::move(jobSummary);
+        }
+        return;
+    }
+    auto& nodeSummary = jobSummary;
+    auto& schedulerSummary = finishedJobInfo->JobSummary;
+
+    TDelayedExecutor::Cancel(finishedJobInfo->JobAbortCookie);
+
+    finishedJobInfo->ReceivedFrom = TFinishedJobInfo::EReceivedFrom::Both;
+
+    if (schedulerSummary->State != nodeSummary->State) {
+        YT_LOG_WARNING(
+            "Job states received from scheduler and node differ (JobId: %v, StateFromNode: %v, StateFromScheduler: %v)",
+            jobId,
+            nodeSummary->State,
+            schedulerSummary->State);
+        // Scheduler job summary is already in finishedJobInfo, so just return.
+        return;
+    }
+
+    switch (nodeSummary->State) {
+        case EJobState::Completed: {
+            auto completedJobSummary = MergeJobSummaries(
+                SummaryCast<TCompletedJobSummary>(std::move(schedulerSummary)),
+                SummaryCast<TCompletedJobSummary>(std::move(nodeSummary)));
+            SafeOnJobCompleted(std::move(completedJobSummary));
+            break;
+        }
+        case EJobState::Failed: {
+            auto failedJobSummary = MergeJobSummaries(
+                SummaryCast<TFailedJobSummary>(std::move(schedulerSummary)),
+                SummaryCast<TFailedJobSummary>(std::move(nodeSummary)));
+            SafeOnJobFailed(std::move(failedJobSummary));
+            break;
+        }
+        case EJobState::Aborted: {
+            auto abortedJobSummary = MergeJobSummaries(
+                SummaryCast<TAbortedJobSummary>(std::move(schedulerSummary)),
+                SummaryCast<TAbortedJobSummary>(std::move(nodeSummary)));
+            const bool abortedByScheduler = abortedJobSummary->AbortedByScheduler;
+            SafeOnJobAborted(std::move(abortedJobSummary), abortedByScheduler);
+            break;
+        }
+        default:
+            YT_ABORT();
+    }
+}
+
+void TOperationControllerBase::ProcessJobSummaryFromScheduler(std::unique_ptr<TJobSummary> jobSummary)
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
+
+    const auto jobId = jobSummary->Id;
+    const auto finishedJobInfo = FindFinishedJobInfo(jobId);
+
+    if (!finishedJobInfo) {
+        StartWaitingJobInfoFromNode(std::move(jobSummary));
+        return;
+    }
+
+    if (finishedJobInfo->ReceivedFrom == TFinishedJobInfo::EReceivedFrom::Scheduler) {
+        YT_LOG_FATAL(
+            "Received multiple finished job events from scheduler (JobId: %v, PreviousState: %v, CurrentState: %v)",
+            jobId,
+            finishedJobInfo->JobSummary->State,
+            jobSummary->State);
+    }
+
+    auto& schedulerSummary = jobSummary;
+    auto& nodeSummary = finishedJobInfo->JobSummary;
+
+    finishedJobInfo->ReceivedFrom = TFinishedJobInfo::EReceivedFrom::Both;
+
+    if (nodeSummary->State != schedulerSummary->State) {
+        YT_LOG_DEBUG(
+            "Job states received from scheduler and node differ (JobId: %v, StateFromNode: %v, StateFromScheduler: %v)",
+            jobId,
+            nodeSummary->State,
+            schedulerSummary->State);
+        
+        finishedJobInfo->JobSummary = std::move(schedulerSummary);
+        return;
+    }
+
+    finishedJobInfo->JobSummary = MergeSchedulerAndNodeFinishedJobSummaries(
+        std::move(schedulerSummary),
+        std::move(nodeSummary));
+}
+
+bool TOperationControllerBase::HasFullFinishedJobInfo(const TJobId jobId) const noexcept
+{
+    const auto jobInfo = FindFinishedJobInfo(jobId);
+    return jobInfo && jobInfo->ReceivedFrom == TFinishedJobInfo::EReceivedFrom::Both;
+}
+
+template <class TJobSummaryType>
+std::unique_ptr<TJobSummaryType> TOperationControllerBase::ReleaseFullJobSummary(const TJobId jobId) noexcept
+{
+    const auto jobInfo = FindFinishedJobInfo(jobId);
+    YT_VERIFY(jobInfo);
+
+    auto result = SummaryCast<TJobSummaryType>(std::move(jobInfo->JobSummary));
+    return result;
+}
+
+void TOperationControllerBase::RemoveFinishedJobInfo(const TJobId jobId) noexcept
+{
+    FinishedJobs_.erase(jobId);
+}
+
+TFinishedJobInfoPtr TOperationControllerBase::FindFinishedJobInfo(const TJobId jobId) const noexcept
+{
+    const auto it = FinishedJobs_.find(jobId);
+    return it == std::cend(FinishedJobs_) ? nullptr : it->second;
+}
+
+void TOperationControllerBase::StartWaitingJobInfoFromNode(std::unique_ptr<TJobSummary> jobSummary)
+{
+    const auto jobId = jobSummary->Id;
+    YT_LOG_DEBUG("Start waiting job info from node (JobId: %v, Timeout: %v)", jobId, Config->FullJobInfoWaitTimeout);
+
+    auto finishedJobInfo = New<TFinishedJobInfo>();
+    finishedJobInfo->JobSummary = std::move(jobSummary);
+    finishedJobInfo->ReceivedFrom = TFinishedJobInfo::EReceivedFrom::Scheduler;
+    finishedJobInfo->JobAbortCookie = TDelayedExecutor::Submit(
+        BIND(&TOperationControllerBase::AbortJobWithPartiallyReceivedJobInfo, MakeWeak(this), jobId),
+        Config->FullJobInfoWaitTimeout,
+        GetCancelableInvoker(Config->JobEventsControllerQueue));
+    
+    YT_VERIFY(FinishedJobs_.emplace(jobId, std::move(finishedJobInfo)).second);
+}
+
 void TOperationControllerBase::GetInputTablesAttributes()
 {
     YT_LOG_INFO("Getting input tables attributes");
@@ -8274,6 +8513,7 @@ NYson::TYsonString TOperationControllerBase::DoBuildJobsYson()
         .DoFor(JobletMap, [&] (TFluentMap fluent, const std::pair<TJobId, TJobletPtr>& pair) {
             auto jobId = pair.first;
             const auto& joblet = pair.second;
+
             if (joblet->StartTime) {
                 fluent.Item(ToString(jobId)).BeginMap()
                     .Do([&] (TFluentMap fluent) {
@@ -9194,6 +9434,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, CachedNeededResources);
     Persist(context, ChunkOriginMap);
     Persist(context, JobletMap);
+
     Persist(context, JobIndexGenerator);
     Persist(context, AggregatedJobStatistics_);
     Persist(context, ScheduleJobStatistics_);
@@ -9204,20 +9445,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, RetainedJobWithStderrCount_);
     Persist(context, RetainedJobsCoreInfoCount_);
     Persist(context, RetainedJobCount_);
-
-    // COMPAT(gritukan)
-    if (context.IsLoad() && context.GetVersion() < ESnapshotVersion::RemoveFinishedJobs) {
-        THashMap<TJobId, TFinishedJobInfoPtr> finishedJobs;
-        Persist(context, finishedJobs);
-
-        for (const auto& [jobId, finishedJob] : finishedJobs) {
-            auto releaseJobFlags = finishedJob->Summary.ReleaseFlags;
-            ReleaseJobFlags_.emplace(jobId, releaseJobFlags);
-        }
-    } else {
-        Persist(context, ReleaseJobFlags_);
-    }
-
+    Persist(context, ReleaseJobFlags_);
     Persist(context, JobSpecCompletedArchiveCount_);
     Persist(context, FailedJobCount_);
     Persist(context, Sink_);

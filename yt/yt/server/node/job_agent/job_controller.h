@@ -132,6 +132,8 @@ public:
         virtual void ProcessResponse(
             const TRspHeartbeatPtr& response) = 0;
     protected:
+        bool TryAcquireStatisticsThrottler(int size);
+
         void RemoveSchedulerJobsOnFatalAlert();
         bool NeedTotalConfirmation();
         TFuture<void> RequestJobSpecsAndStartJobs(
@@ -142,7 +144,6 @@ public:
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
             NJobTrackerClient::NProto::TJobSpec&& jobSpec);
         const THashMap<TJobId, TOperationId>& GetSpecFetchFailedJobIds();
-        bool StatisticsThrottlerTryAcquire(int size);
 
         void PrepareHeartbeatCommonRequestPart(const TReqHeartbeatPtr& request);
         void ProcessHeartbeatCommonResponsePart(const TRspHeartbeatPtr& response);

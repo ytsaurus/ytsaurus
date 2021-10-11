@@ -1292,7 +1292,6 @@ private:
         }
 
         MemoryWatchdog_.Reset();
-
         OperationEventsOutbox_.Reset();
         JobEventsOutbox_.Reset();
         ScheduleJobResposesOutbox_.Reset();
@@ -1609,8 +1608,7 @@ private:
             controller->GetCancelableInvoker(Config_->JobEventsControllerQueue)->Invoke(
                 BIND([rsp, controller, this_ = MakeStrong(this), protoEvents = std::move(protoEvents)] {
                     for (auto* protoEvent : protoEvents) {
-                        auto eventType = static_cast<ESchedulerToAgentJobEventType>(protoEvent->event_type());
-                        bool abortedByScheduler = protoEvent->aborted_by_scheduler();
+                        const auto eventType = static_cast<ESchedulerToAgentJobEventType>(protoEvent->event_type());
                         switch (eventType) {
                             case ESchedulerToAgentJobEventType::Started:
                                 controller->OnJobStarted(std::make_unique<TStartedJobSummary>(protoEvent));
@@ -1621,9 +1619,11 @@ private:
                             case ESchedulerToAgentJobEventType::Failed:
                                 controller->OnJobFailed(std::make_unique<TFailedJobSummary>(protoEvent));
                                 break;
-                            case ESchedulerToAgentJobEventType::Aborted:
+                            case ESchedulerToAgentJobEventType::Aborted: {
+                                const bool abortedByScheduler = protoEvent->aborted_by_scheduler();
                                 controller->OnJobAborted(std::make_unique<TAbortedJobSummary>(protoEvent), abortedByScheduler);
                                 break;
+                            }
                             case ESchedulerToAgentJobEventType::Running:
                                 controller->OnJobRunning(std::make_unique<TRunningJobSummary>(protoEvent));
                                 break;

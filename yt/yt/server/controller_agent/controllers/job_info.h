@@ -1,5 +1,6 @@
 #pragma once
 
+#include "operation_controller_detail.h"
 #include "private.h"
 
 #include "data_flow_graph.h"
@@ -82,7 +83,12 @@ class TJoblet
 public:
     //! Default constructor is for serialization only.
     TJoblet();
-    TJoblet(TTask* task, int jobIndex, int taskJobIndex, const TString& treeId, bool treeIsTentative);
+    TJoblet(
+        TTask* task,
+        int jobIndex,
+        int taskJobIndex,
+        const TString& treeId,
+        bool treeIsTentative);
 
     TInstant LastStatisticsUpdateTime;
 
@@ -149,17 +155,21 @@ DEFINE_REFCOUNTED_TYPE(TJoblet)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TFinishedJobInfo
-    : public TJobInfo
+    : public TRefCounted
 {
     TFinishedJobInfo() = default;
+    
+    std::unique_ptr<TJobSummary> JobSummary;
+    NConcurrency::TDelayedExecutorCookie JobAbortCookie;
 
-    TFinishedJobInfo(
-        const TJobletPtr& joblet,
-        TJobSummary summary);
+    enum class EReceivedFrom
+    {
+        Node,
+        Scheduler,
+        Both,
+    };
 
-    TJobSummary Summary;
-
-    virtual void Persist(const TPersistenceContext& context) override;
+    EReceivedFrom ReceivedFrom;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFinishedJobInfo)

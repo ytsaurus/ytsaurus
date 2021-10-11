@@ -25,6 +25,8 @@ message TRspGetJobSpecs
     }
 
     repeated TJobSpecResponse responses = 1;
+    // COMPAT(pogorelov)
+    required bool supports_job_info_from_node = 2 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

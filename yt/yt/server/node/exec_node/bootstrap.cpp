@@ -71,7 +71,7 @@ public:
 
         SchedulerConnector_ = New<TSchedulerConnector>(GetConfig()->ExecNode->SchedulerConnector, this);
 
-        ControllerAgentConnectorPtr_ = New<TControllerAgentConnector>(GetConfig()->ExecNode->ControllerAgentConnector, this);
+        ControllerAgentConnector_ = New<TControllerAgentConnector>(GetConfig()->ExecNode->ControllerAgentConnector, this);
 
         BuildJobProxyConfigTemplate();
 
@@ -106,7 +106,8 @@ public:
             TOperationId operationId,
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
             NJobTrackerClient::NProto::TJobSpec&& jobSpec,
-            const TControllerAgentDescriptor& agentDescriptor) ->
+            const TControllerAgentDescriptor& agentDescriptor,
+            const bool sendJobInfoToAgent) ->
             NJobAgent::IJobPtr
         {
             return CreateSchedulerJob(
@@ -115,7 +116,8 @@ public:
                 resourceLimits,
                 std::move(jobSpec),
                 this,
-                agentDescriptor);
+                agentDescriptor,
+                sendJobInfoToAgent);
         });
 
         GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::Map, createSchedulerJob);
@@ -166,6 +168,7 @@ public:
         MasterConnector_->Initialize();
 
         SchedulerConnector_->Start();
+        ControllerAgentConnector_->Start();
     }
 
     const TGpuManagerPtr& GetGpuManager() const override
@@ -215,7 +218,7 @@ public:
 
     const TControllerAgentConnectorPtr& GetControllerAgentConnector() const override
     {
-        return ControllerAgentConnectorPtr_;
+        return ControllerAgentConnector_;
     }
 
 private:
@@ -240,7 +243,7 @@ private:
     TEnumIndexedVector<EExecNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> RawThrottlers_;
     TEnumIndexedVector<EExecNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
 
-    TControllerAgentConnectorPtr ControllerAgentConnectorPtr_;
+    TControllerAgentConnectorPtr ControllerAgentConnector_;
 
     void BuildJobProxyConfigTemplate()
     {

@@ -19,6 +19,7 @@
 #include <yt/yt/server/lib/controller_agent/serialize.h>
 
 #include <yt/yt/server/lib/scheduler/event_log.h>
+#include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/public.h>
@@ -151,11 +152,36 @@ private: \
         (Error_.ThrowOnError(), TOperationControllerPrepareResult()))
     IMPLEMENT_SAFE_METHOD(TOperationControllerMaterializeResult, Materialize, (), (), false)
 
-    IMPLEMENT_SAFE_METHOD(void, OnJobStarted, (std::unique_ptr<TStartedJobSummary> jobSummary), (std::move(jobSummary)), true)
-    IMPLEMENT_SAFE_METHOD(void, OnJobCompleted, (std::unique_ptr<TCompletedJobSummary> jobSummary), (std::move(jobSummary)), true)
-    IMPLEMENT_SAFE_METHOD(void, OnJobFailed, (std::unique_ptr<TFailedJobSummary> jobSummary), (std::move(jobSummary)), true)
-    IMPLEMENT_SAFE_METHOD(void, OnJobAborted, (std::unique_ptr<TAbortedJobSummary> jobSummary, bool byScheduler), (std::move(jobSummary), byScheduler), true)
-    IMPLEMENT_SAFE_METHOD(void, OnJobRunning, (std::unique_ptr<TRunningJobSummary> jobSummary), (std::move(jobSummary)), true)
+    IMPLEMENT_SAFE_METHOD(
+        void,
+        OnJobStarted,
+        (std::unique_ptr<TStartedJobSummary> jobSummary),
+        (std::move(jobSummary)),
+        true)
+    IMPLEMENT_SAFE_METHOD(
+        void,
+        OnJobCompleted,
+        (std::unique_ptr<TCompletedJobSummary> jobSummary),
+        (std::move(jobSummary)),
+        true)
+    IMPLEMENT_SAFE_METHOD(
+        void,
+        OnJobFailed,
+        (std::unique_ptr<TFailedJobSummary> jobSummary),
+        (std::move(jobSummary)),
+        true)
+    IMPLEMENT_SAFE_METHOD(
+        void,
+        OnJobAborted,
+        (std::unique_ptr<TAbortedJobSummary> jobSummary, bool byScheduler),
+        (std::move(jobSummary), byScheduler),
+        true)
+    IMPLEMENT_SAFE_METHOD(
+        void,
+        OnJobRunning,
+        (std::unique_ptr<TRunningJobSummary> jobSummary),
+        (std::move(jobSummary)),
+        true)
 
     IMPLEMENT_SAFE_METHOD(void, UpdateMinNeededJobResources, (), (), true)
 
@@ -1205,6 +1231,8 @@ private:
     TInstant FinishTime_;
     std::vector<NScheduler::TExperimentAssignmentPtr> ExperimentAssignments_;
 
+    THashMap<TJobId, TFinishedJobInfoPtr> FinishedJobs_;
+
     struct TLivePreviewChunkDescriptor
     {
         TDataFlowGraph::TVertexDescriptor VertexDescriptor;
@@ -1341,6 +1369,17 @@ private:
         const TRange<TTable>& tables,
         TTransactionIdFunc tableToTransactionId,
         TCellTagFunc tableToCellTag) const;
+    
+    void OnJobInfoReceivedFromNode(std::unique_ptr<TJobSummary> jobSummary) override;
+    void StartWaitingJobInfoFromNode(std::unique_ptr<TJobSummary> jobSummary);
+
+    void ProcessJobSummaryFromScheduler(std::unique_ptr<TJobSummary> jobSummary);
+    bool HasFullFinishedJobInfo(TJobId jobId) const noexcept;
+    template <class TJobSummaryType>
+    std::unique_ptr<TJobSummaryType> ReleaseFullJobSummary(TJobId jobId) noexcept;
+    void RemoveFinishedJobInfo(TJobId jobId) noexcept;
+
+    TFinishedJobInfoPtr FindFinishedJobInfo(TJobId jobId) const noexcept;
 
     //! Returns list of operation tasks that have a vertex in data flow graph,
     //! ordered according to topological order of data flow graph.
@@ -1351,6 +1390,8 @@ private:
     void BuildFeatureYson(NYTree::TFluentAny fluent) const;
 
     void UpdateRunningJobStatistics(TJobletPtr joblet, std::unique_ptr<TRunningJobSummary> jobStatus);
+
+    void AbortJobWithPartiallyReceivedJobInfo(TJobId jobId);
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink

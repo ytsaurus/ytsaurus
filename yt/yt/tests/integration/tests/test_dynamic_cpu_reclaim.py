@@ -36,6 +36,7 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "scheduler_connector": {"heartbeat_period": 100},
+            "controller_agent_connector": {"heartbeat_period": 100},
         }
     }
 

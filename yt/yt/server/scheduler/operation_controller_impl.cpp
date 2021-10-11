@@ -502,6 +502,7 @@ void TOperationControllerImpl::OnNonscheduledJobAborted(
     auto status = std::make_unique<NJobTrackerClient::NProto::TJobStatus>();
     ToProto(status->mutable_job_id(), jobId);
     ToProto(status->mutable_operation_id(), OperationId_);
+    status->set_state(static_cast<int>(EJobState::Aborted));
     TSchedulerToAgentJobEvent event{
         ESchedulerToAgentJobEventType::Aborted,
         OperationId_,

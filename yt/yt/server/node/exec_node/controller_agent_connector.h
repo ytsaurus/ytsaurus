@@ -14,6 +14,11 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJob;
+DECLARE_REFCOUNTED_CLASS(TJob)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TControllerAgentConnector
     : public TRefCounted
 {
@@ -21,6 +26,12 @@ public:
     TControllerAgentConnector(TControllerAgentConnectorConfigPtr config, IBootstrap* bootstrap);
 
     NRpc::IChannelPtr GetChannel(const TControllerAgentDescriptor& controllerAgentDescriptor);
+
+    void EnqueueFinishedJob(const TJobPtr& job);
+
+    void Start();
+
+    void SendOutOfBandHeartbeat();
 
 private:
     TControllerAgentConnectorConfigPtr Config_;
@@ -41,6 +52,8 @@ private:
 
     THashMap<NRpc::TAddressWithNetwork, NRpc::IChannelPtr> ControllerAgentChannels_;
     THashSet<TControllerAgentDescriptor> OutdatedAgentIncarnations_;
+
+    THashSet<TJobPtr> EnqueuedFinishedJobs_;
 
     void SendHeartbeats();
     void ScanOutdatedAgentIncarnations();

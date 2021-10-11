@@ -3,6 +3,7 @@
 #include "bootstrap.h"
 #include "private.h"
 #include "job.h"
+#include "job_detail.h"
 
 #include <yt/yt/server/lib/exec_node/supervisor_service_proxy.h>
 
@@ -33,6 +34,7 @@ using namespace NYson;
 using namespace NConcurrency;
 using namespace NJobProxy;
 using namespace NCoreDump;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -236,7 +238,12 @@ private:
             request->has_fail_context());
 
         const auto& jobController = Bootstrap_->GetJobController();
-        auto job = jobController->GetJobOrThrow(jobId);
+        auto job = [&] {
+            auto job = jobController->GetJobOrThrow(jobId);
+            YT_VERIFY(TypeFromId(job->GetId()) == EObjectType::SchedulerJob);
+            return StaticPointerCast<TJob>(std::move(job));
+        }();
+        job->OnJobProxyCompleted();
 
         job->SetResult(result);
 

@@ -2335,10 +2335,6 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status, bool shoul
 {
     YT_VERIFY(status);
 
-    if (!status->has_statistics()) {
-        return;
-    }
-
     auto timeStatistics = FromProto<NJobAgent::TTimeStatistics>(status->time_statistics());
     if (auto execDuration = timeStatistics.ExecDuration) {
         job->SetExecDuration(*execDuration);
