@@ -12,20 +12,9 @@
 
 #include <yt/yt/library/profiling/producer.h>
 
+#include <yt/yt/library/vector_hdrf/resource_helpers.h>
+
 namespace NYT {
-
-namespace NVectorHdrf {
-
-////////////////////////////////////////////////////////////////////////////////
-
-void Serialize(const TJobResources& resources, NYson::IYsonConsumer* consumer);
-void Deserialize(TJobResources& resources, NYTree::INodePtr node);
-
-void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TStringBuf /* format */);
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NVectorHdrf
 
 namespace NScheduler {
 

@@ -59,7 +59,6 @@ DEFINE_ENUM(EErrorCode,
     ((WatcherHandlerFailed)                   (217))
     ((MasterDisconnected)                     (218))
     ((NoSuchJobShell)                         (219))
-    ((PoolTreeGuaranteesOvercommit)           (220))
 );
 
 DEFINE_ENUM(EUnavailableChunkAction,

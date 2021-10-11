@@ -1,21 +1,10 @@
 #pragma once
 
-#include "public.h"
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
-#include <yt/yt/library/profiling/producer.h>
+#include <yt/yt/library/vector_hdrf/resource_helpers.h>
 
-#include <yt/yt/core/yson/consumer.h>
-
-#include <yt/yt/core/ytree/node.h>
-
-#include <yt/yt/core/misc/string_builder.h>
-
-#include <yt/yt/library/vector_hdrf/resource_vector.h>
-#include <yt/yt/library/vector_hdrf/resource_volume.h>
-
-namespace NYT {
-
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,26 +37,5 @@ void ProfileResourceVolume(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-
-namespace NVectorHdrf {
-
-////////////////////////////////////////////////////////////////////////////////
-
-void Serialize(const TResourceVolume& volume, NYson::IYsonConsumer* consumer);
-void Deserialize(TResourceVolume& volume, NYTree::INodePtr node);
-
-void Serialize(const TResourceVector& resourceVector, NYson::IYsonConsumer* consumer);
-
-void FormatValue(TStringBuilderBase* builder, const TResourceVolume& volume, TStringBuf /* format */);
-TString ToString(const TResourceVolume& volume);
-
-void FormatValue(TStringBuilderBase* builder, const TResourceVector& resourceVector, TStringBuf format);
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NVectorHdrf
-
-} // namespace NYT
-
+} // namespace NYT::NScheduler
 

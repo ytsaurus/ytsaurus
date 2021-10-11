@@ -11,7 +11,6 @@
 #include "fair_share_strategy_operation_controller.h"
 #include "fair_share_tree_snapshot.h"
 #include "fair_share_tree_snapshot_impl.h"
-#include "fair_share_update.h"
 #include "packing.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
@@ -26,6 +25,8 @@
 #include <yt/yt/core/misc/historic_usage_aggregator.h>
 
 #include <yt/yt/library/vector_hdrf/resource_vector.h>
+
+#include <yt/yt/library/vector_hdrf/fair_share_update.h>
 
 namespace NYT::NScheduler {
 

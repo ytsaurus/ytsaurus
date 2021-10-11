@@ -1,12 +1,12 @@
 #pragma once
 
 #include "public.h"
-#include "resource_helpers.h"
 
 #include <yt/yt/core/ytree/yson_serializable.h>
 
 #include <yt/yt/library/vector_hdrf/job_resources.h>
 #include <yt/yt/library/vector_hdrf/resource_volume.h>
+#include <yt/yt/library/vector_hdrf/resource_helpers.h>
 
 namespace NYT::NScheduler {
 

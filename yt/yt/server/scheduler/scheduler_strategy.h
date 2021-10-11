@@ -2,8 +2,8 @@
 
 #include "public.h"
 
+#include "job_resource_helpers.h"
 #include "scheduler_tree.h"
-#include "resource_helpers.h"
 
 #include <yt/yt/server/lib/scheduler/event_log.h>
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
@@ -22,6 +22,8 @@
 #include <yt/yt/core/yson/public.h>
 
 #include <yt/yt/core/ytree/permission.h>
+
+#include <yt/yt/library/vector_hdrf/resource_helpers.h>
 
 namespace NYT::NScheduler {
 

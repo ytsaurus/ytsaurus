@@ -12,7 +12,6 @@
 #include "serialize.h"
 #include "fair_share_strategy_operation_controller.h"
 #include "fair_share_tree_profiling.h"
-#include "fair_share_update.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
@@ -30,6 +29,8 @@
 
 #include <yt/yt/core/profiling/profile_manager.h>
 #include <yt/yt/core/profiling/timing.h>
+
+#include <yt/yt/library/vector_hdrf/fair_share_update.h>
 
 namespace NYT::NScheduler {
 
