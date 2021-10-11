@@ -739,7 +739,7 @@ class Operation(object):
 
         :param bool check_result: get stderr if operation failed
         :param bool print_progress: print progress
-        :param float timeout: timeout of operation in sec. `None` means operation is endlessly waited for.
+        :param float timeout: timeout of operation in millisec. `None` means operation is endlessly waited for.
         """
 
         finalization_actions = flatten(self.finalization_actions) if self.finalization_actions else []
