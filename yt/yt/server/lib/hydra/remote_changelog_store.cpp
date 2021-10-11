@@ -13,6 +13,8 @@
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 #include <yt/yt/ytlib/hydra/config.h>
 
+#include <yt/yt/ytlib/tablet_client/config.h>
+
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
 #include <yt/yt/client/api/journal_reader.h>
@@ -32,6 +34,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NObjectClient;
 using namespace NHydra::NProto;
+using namespace NTabletClient;
 using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,7 +59,7 @@ class TRemoteChangelogStore
 public:
     TRemoteChangelogStore(
         TRemoteChangelogStoreConfigPtr config,
-        TRemoteChangelogStoreOptionsPtr options,
+        TTabletCellOptionsPtr options,
         TYPath remotePath,
         IClientPtr client,
         NSecurityServer::IResourceLimitsManagerPtr resourceLimitsManager,
@@ -107,7 +110,7 @@ public:
 
 private:
     const TRemoteChangelogStoreConfigPtr Config_;
-    const TRemoteChangelogStoreOptionsPtr Options_;
+    const TTabletCellOptionsPtr Options_;
     const TYPath Path_;
     const IClientPtr Client_;
     const NSecurityServer::IResourceLimitsManagerPtr ResourceLimitsManager_;
@@ -131,6 +134,10 @@ private:
             ResourceLimitsManager_->ValidateResourceLimits(
                 Options_->ChangelogAccount,
                 Options_->ChangelogPrimaryMedium);
+            // NB: Check snapshot account to prevent creating unlimited number of changelogs.
+            ResourceLimitsManager_->ValidateResourceLimits(
+                Options_->SnapshotAccount,
+                Options_->SnapshotPrimaryMedium);
 
             {
                 TCreateNodeOptions options;
@@ -403,7 +410,7 @@ class TRemoteChangelogStoreFactory
 public:
     TRemoteChangelogStoreFactory(
         TRemoteChangelogStoreConfigPtr config,
-        TRemoteChangelogStoreOptionsPtr options,
+        TTabletCellOptionsPtr options,
         TYPath remotePath,
         IClientPtr client,
         NSecurityServer::IResourceLimitsManagerPtr resourceLimitsManager,
@@ -428,7 +435,7 @@ public:
 
 private:
     const TRemoteChangelogStoreConfigPtr Config_;
-    const TRemoteChangelogStoreOptionsPtr Options_;
+    const TTabletCellOptionsPtr Options_;
     const TYPath Path_;
     const IClientPtr MasterClient_;
     const NSecurityServer::IResourceLimitsManagerPtr ResourceLimitsManager_;
@@ -533,7 +540,7 @@ DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStoreFactory)
 
 IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
     TRemoteChangelogStoreConfigPtr config,
-    TRemoteChangelogStoreOptionsPtr options,
+    TTabletCellOptionsPtr options,
     TYPath path,
     IClientPtr client,
     NSecurityServer::IResourceLimitsManagerPtr resourceLimitsManager,
