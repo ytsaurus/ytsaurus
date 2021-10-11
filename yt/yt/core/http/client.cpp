@@ -118,7 +118,7 @@ private:
         return BIND([=] {
             try {
                 return action();
-            } catch(const TErrorException& ex) {
+            } catch(const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("HTTP request failed")
                     << TErrorAttribute("url", SanitizeUrl(url))
                     << ex;

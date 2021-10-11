@@ -105,7 +105,7 @@ void TFormatManager::ValidateAndPatchFormatNode(const INodePtr& formatNode, TStr
     EFormatType formatType;
     try {
         formatType = ConvertTo<EFormatType>(formatNode);
-    } catch (const TErrorException& error) {
+    } catch (const std::exception& error) {
         return;
     }
 
@@ -152,9 +152,9 @@ TFormat TFormatManager::ConvertToFormat(const INodePtr& formatNode, TString orig
     ValidateAndPatchFormatNode(formatNode, origin);
     try {
         return ConvertTo<TFormat>(formatNode);
-    } catch (const TErrorException& error) {
+    } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to parse format")
-            << error
+            << ex
             << TErrorAttribute("origin", origin);
     }
 }

@@ -1782,8 +1782,8 @@ private:
                     watcher.LockOptions->LockPath,
                     watcher.LockOptions->CheckBackoff,
                     watcher.LockOptions->WaitTimeout);
-            } catch (const TErrorException& ex) {
-                HandleWatcherError(ex.Error(), strictMode, watcher.AlertType);
+            } catch (const std::exception& ex) {
+                HandleWatcherError(TError(ex), strictMode, watcher.AlertType);
                 return;
             }
 

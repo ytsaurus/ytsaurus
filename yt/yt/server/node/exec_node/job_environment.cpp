@@ -199,9 +199,9 @@ protected:
             if (kill) {
                 try {
                     it->second.Process->Kill(SIGKILL);
-                } catch (const TErrorException& ex) {
+                } catch (const std::exception& ex) {
                     // If we failed to kill container we ignore it for now.
-                    YT_LOG_WARNING(ex, "Failed to kill container properly (SlotIndex: %v)", slotIndex);
+                    YT_LOG_WARNING(TError(ex), "Failed to kill container properly (SlotIndex: %v)", slotIndex);
                 }
             }
 

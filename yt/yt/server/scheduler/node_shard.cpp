@@ -435,8 +435,8 @@ void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& contex
                 SwitchTo(CancelableInvoker_);
 
                 DoProcessHeartbeat(context);
-            } catch (const TErrorException& error) {
-                context->Reply(error);
+            } catch (const std::exception& ex) {
+                context->Reply(TError(ex));
             }
         }));
 }

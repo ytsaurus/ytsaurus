@@ -381,7 +381,7 @@ public:
             if (CastAnyToCompositeNode) {
                 try {
                     CastAnyToComposite = NYTree::ConvertTo<bool>(CastAnyToCompositeNode);
-                } catch (const TErrorException&) {
+                } catch (const std::exception&) {
                     // COMPAT: Do nothing for backward compatibility.
                 }
             }

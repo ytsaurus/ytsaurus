@@ -100,9 +100,9 @@ void TMediumUpdater::UpdateMedia()
     if (mediumConfigOrError.IsOK()) {
         try {
             MediumOverrides_ = NYT::NYTree::ConvertTo<TMediumOverrideMap>(mediumConfigOrError.Value());
-        } catch (const TErrorException& ex) {
+        } catch (const std::exception& ex) {
             // TODO(s-v-m): Also populate alert to MasterConnector.
-            YT_LOG_WARNING(ex, "Can not parse medium config; skipping reconfiguration (MediumConfigPath: %v)", mediumConfigPath);
+            YT_LOG_WARNING(TError(ex), "Can not parse medium config; skipping reconfiguration (MediumConfigPath: %v)", mediumConfigPath);
             return;
         }
     } else if (mediumConfigOrError.FindMatching(NYTree::EErrorCode::ResolveError)){

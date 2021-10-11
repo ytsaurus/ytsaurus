@@ -826,6 +826,9 @@ TYsonString TJob::PollJobShell(
         }
         THROW_ERROR_EXCEPTION("Error polling job shell")
             << ex;
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error polling job shell")
+            << ex;
     }
 }
 
@@ -2319,8 +2322,8 @@ void TJob::CollectSensorsFromStatistics(ISensorWriter* writer)
     IMapNodePtr statisticsNode;
     try {
         statisticsNode = ConvertTo<IMapNodePtr>(StatisticsYson_);
-    } catch (const TErrorException& ex) {
-        YT_LOG_WARNING(ex, "Failed to convert statistics to map node (JobId: %v, OperationId: %v)",
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(TError(ex), "Failed to convert statistics to map node (JobId: %v, OperationId: %v)",
             GetId(),
             GetOperationId());
         return;
@@ -2341,8 +2344,8 @@ void TJob::CollectSensorsFromStatistics(ISensorWriter* writer)
                 YT_LOG_DEBUG("Statistics node not found (sensorName: %v)", sensorName);
                 continue;
             }
-        } catch (const TErrorException& ex) {
-            YT_LOG_DEBUG(ex, "Error looking for statistics node (sensorName: %v)",
+        } catch (const std::exception& ex) {
+            YT_LOG_DEBUG(TError(ex), "Error looking for statistics node (sensorName: %v)",
                 sensorName);
             continue;
         }

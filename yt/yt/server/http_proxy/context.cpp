@@ -750,7 +750,7 @@ void TContext::ProcessFormatsInOperationSpec()
     EOperationType operationType;
     try {
         operationType = ParseEnum<EOperationType>(operationTypeString);
-    } catch (const TErrorException& error) {
+    } catch (const std::exception& error) {
         return;
     }
 

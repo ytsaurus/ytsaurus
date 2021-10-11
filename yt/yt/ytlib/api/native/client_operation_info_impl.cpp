@@ -535,8 +535,8 @@ TOperation TClient::DoGetOperationImpl(
         if (archiveResultOrError.FindMatching(NYT::EErrorCode::Timeout)) {
             try {
                 archiveResultOrError = DoGetOperationFromArchive(operationId, deadline, archiveOptions);
-            } catch (const TErrorException& error) {
-                archiveResultOrError = error;
+            } catch (const std::exception& ex) {
+                archiveResultOrError = TError(ex);
             }
         }
 

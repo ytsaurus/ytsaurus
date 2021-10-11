@@ -254,11 +254,12 @@ TErrorOr<IChannelPtr> TClient::TryCreateChannelToJobNode(
             .ValueOrThrow();
         auto address = ConvertToNode(jobYsonString)->AsMap()->GetChildOrThrow("address")->GetValue<TString>();
         return ChannelFactory_->CreateChannel(address);
-    } catch (const TErrorException& ex) {
-        YT_LOG_DEBUG(ex, "Failed to create node channel to job using address from archive (OperationId: %v, JobId: %v)",
+    } catch (const std::exception& ex) {
+        auto error = TError(ex);
+        YT_LOG_DEBUG(error, "Failed to create node channel to job using address from archive (OperationId: %v, JobId: %v)",
             operationId,
             jobId);
-        return ex.Error();
+        return error;
     }
 }
 
@@ -2188,8 +2189,8 @@ TYsonString TClient::DoGetJob(
     TError controllerAgentError;
     try {
         controllerAgentJob = DoGetJobFromControllerAgent(operationId, jobId, deadline, attributes);
-    } catch (const TErrorException& exception) {
-        controllerAgentError = exception.Error();
+    } catch (const std::exception& ex) {
+        controllerAgentError = TError(ex);
     }
 
     std::optional<TJob> archiveJob;
