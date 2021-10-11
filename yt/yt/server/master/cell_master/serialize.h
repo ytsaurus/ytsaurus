@@ -199,6 +199,7 @@ DEFINE_ENUM(EMasterReign,
     ((MoreChunkMergerLimits)                                        (1671))  // aleksandra-zh
     ((DontUseUnconfirmedMergedChunk)                                (1672))  // aleksandra-zh
     ((FixChunkMergerAccounting)                                     (1673))  // aleksandra-zh
+    ((CalculatePivotKeysForHunks)                                   (1674))  // ifsmirnov
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1800))  // ignat
     ((VirtualMutations)                                             (1801))  // gritukan
