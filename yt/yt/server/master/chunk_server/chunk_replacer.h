@@ -26,8 +26,8 @@ struct IChunkReplacerCallbacks
         TChunkTree* const* childrenEnd) = 0;
     virtual TChunkList* CreateChunkList(
         EChunkListKind kind) = 0;
-
-    virtual bool IsMutationLoggingEnabled() = 0;
+    virtual void RefObject(NObjectServer::TObject* object) = 0;
+    virtual void UnrefObject(NObjectServer::TObject* object) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkReplacerCallbacks)
@@ -40,6 +40,7 @@ public:
     explicit TChunkReplacer(
         IChunkReplacerCallbacksPtr chunkReplacerCallbacks,
         NLogging::TLogger logger = {});
+    ~TChunkReplacer();
 
     bool FindChunkList(
         TChunkList* rootChunkList,
@@ -65,10 +66,10 @@ private:
 
     bool Initialized_ = false;
 
+    TChunkList* NewRootChunkList_ = nullptr;
+
     TChunkList* PrevParentChunkList_ = nullptr;
     TChunkList* NewParentChunkList_ = nullptr;
-
-    TChunkList* NewRootChunkList_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
