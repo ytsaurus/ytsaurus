@@ -356,6 +356,11 @@ void TViolatedClusterResourceLimits::SetMasterMemory(TMasterMemoryLimits masterM
     MasterMemory_ = std::move(masterMemoryLimits);
 }
 
+NChunkClient::TMediumMap<i64>& TViolatedClusterResourceLimits::DiskSpace()
+{
+    return DiskSpace_;
+}
+
 const TMediumMap<i64>& TViolatedClusterResourceLimits::DiskSpace() const
 {
     return DiskSpace_;

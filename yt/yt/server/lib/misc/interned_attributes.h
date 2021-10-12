@@ -52,6 +52,7 @@
     XX(CellId, cell_id) \
     XX(CellIds, cell_ids) \
     XX(CellTag, cell_tag) \
+    XX(ChangelogAccountViolatedResourceLimits, changelog_account_violated_resource_limits) \
     XX(ChaosOptions, chaos_options) \
     XX(ChildCount, child_count) \
     XX(ChildIds, child_ids) \
@@ -349,6 +350,7 @@
     XX(SecurityTags, security_tags) \
     XX(ShardId, shard_id) \
     XX(SkipFreezing, skip_freezing) \
+    XX(SnapshotAccountViolatedResourceLimits, snapshot_account_violated_resource_limits) \
     XX(Sorted, sorted) \
     XX(SortedBy, sorted_by) \
     XX(StagedNodeIds, staged_node_ids) \
