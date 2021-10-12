@@ -28,7 +28,7 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
                                     readDataSchema: StructType,
                                     partitionSchema: StructType,
                                     options: Map[String, String]) extends FilePartitionReaderFactory with Logging {
-  private val unsupportedTypes: Set[DataType] = Set(DateType, TimestampType)
+  private val unsupportedTypes: Set[DataType] = Set(DateType, TimestampType, FloatType)
 
   private val resultSchema = StructType(partitionSchema.fields ++ readDataSchema.fields)
   private val ytClientConf = ytClientConfiguration(sqlConf)

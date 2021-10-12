@@ -87,6 +87,7 @@ class InternalRowDeserializer(schema: StructType) extends WireRowDeserializer[In
   override def onDouble(value: Double): Unit = {
     if (_index < _values.length) {
       indexedSchema(_index) match {
+        case FloatType => addValue(value.toFloat)
         case DoubleType => addValue(value)
         case YsonType => addValue(toYsonBytes(value))
       }

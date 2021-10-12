@@ -153,6 +153,20 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     )
   }
 
+  it should "read float datatype" in {
+    Seq(Some(0.3f), Some(0.5f), None)
+      .toDF("c").write.yt(tmpPath)
+
+    val res = spark.read.yt(tmpPath)
+
+    res.columns should contain theSameElementsAs Seq("c")
+    res.select("c").collect() should contain theSameElementsAs Seq(
+      Row(0.3f),
+      Row(0.5f),
+      Row(null)
+    )
+  }
+
   it should "write several partitions" in {
     import spark.implicits._
     (1 to 100).toDF.repartition(10).write.yt(tmpPath)

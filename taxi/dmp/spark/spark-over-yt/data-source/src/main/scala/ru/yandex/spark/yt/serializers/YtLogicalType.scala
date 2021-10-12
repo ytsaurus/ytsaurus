@@ -15,6 +15,7 @@ object YtLogicalType {
 
   case object Int64 extends YtLogicalType("int64", 0x03, ColumnValueType.INT64, LongType)
   case object Uint64 extends YtLogicalType("uint64", 0x04, ColumnValueType.UINT64, UInt64Type)
+  case object Float extends YtLogicalType("float", 0x05, ColumnValueType.DOUBLE, FloatType)
   case object Double extends YtLogicalType("double", 0x05, ColumnValueType.DOUBLE, DoubleType)
   case object Boolean extends YtLogicalType("boolean", 0x06, ColumnValueType.BOOLEAN, BooleanType)
 
@@ -39,7 +40,7 @@ object YtLogicalType {
 
   case object Void extends YtLogicalType("void", 0x100c, ColumnValueType.NULL, NullType) //?
 
-  private val values = Seq(Null, Int64, Uint64, Double, Boolean, String, Any, Int8, Uint8,
+  private val values = Seq(Null, Int64, Uint64, Float, Double, Boolean, String, Any, Int8, Uint8,
     Int16, Uint16, Int32, Uint32, Utf8, Date, Datetime, Timestamp, Interval, Void)
 
   def fromName(name: String): YtLogicalType = {
