@@ -56,9 +56,10 @@ private:
                 groupedJobSummaries[operationId].push_back(ParseJobSummary(&job, Logger));
             }
         }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()).Run()).ThrowOnError();
+
+        controllerAgent->ValidateConnected();
         context->Reply();
         
-        controllerAgent->ValidateConnected();
         for (auto& [operationId, jobSummaries] : groupedJobSummaries) {
             const auto operation = controllerAgent->FindOperation(operationId);
             if (!operation) {
