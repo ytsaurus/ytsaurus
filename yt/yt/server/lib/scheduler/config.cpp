@@ -1,6 +1,7 @@
 #include "config.h"
 
 #include "experiments.h"
+#include "yt/yt/server/lib/scheduler/public.h"
 
 #include <yt/yt/ytlib/scheduler/config.h>
 
@@ -22,98 +23,98 @@ TJobResourcesConfigPtr GetDefaultMinSpareJobResourcesOnNode()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStrategyTestingOptions::TStrategyTestingOptions()
+void TStrategyTestingOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("delay_inside_fair_share_update", DelayInsideFairShareUpdate)
+    registrar.Parameter("delay_inside_fair_share_update", &TStrategyTestingOptions::DelayInsideFairShareUpdate)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareStrategyControllerThrottling::TFairShareStrategyControllerThrottling()
+void TFairShareStrategyControllerThrottling::Register(TRegistrar registrar)
 {
-    RegisterParameter("schedule_job_start_backoff_time", ScheduleJobStartBackoffTime)
+    registrar.Parameter("schedule_job_start_backoff_time", &TFairShareStrategyControllerThrottling::ScheduleJobStartBackoffTime)
         .Default(TDuration::MilliSeconds(100));
-    RegisterParameter("schedule_job_max_backoff_time", ScheduleJobMaxBackoffTime)
+    registrar.Parameter("schedule_job_max_backoff_time", &TFairShareStrategyControllerThrottling::ScheduleJobMaxBackoffTime)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("schedule_job_backoff_multiplier", ScheduleJobBackoffMultiplier)
+    registrar.Parameter("schedule_job_backoff_multiplier", &TFairShareStrategyControllerThrottling::ScheduleJobBackoffMultiplier)
         .Default(1.1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareStrategyOperationControllerConfig::TFairShareStrategyOperationControllerConfig()
+void TFairShareStrategyOperationControllerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_concurrent_controller_schedule_job_calls", MaxConcurrentControllerScheduleJobCalls)
+    registrar.Parameter("max_concurrent_controller_schedule_job_calls", &TFairShareStrategyOperationControllerConfig::MaxConcurrentControllerScheduleJobCalls)
         .Default(100)
         .GreaterThan(0);
 
-    RegisterParameter("concurrent_controller_schedule_job_calls_regularization", ConcurrentControllerScheduleJobCallsRegularization)
+    registrar.Parameter("concurrent_controller_schedule_job_calls_regularization", &TFairShareStrategyOperationControllerConfig::ConcurrentControllerScheduleJobCallsRegularization)
         .Default(2.0)
         .GreaterThanOrEqual(1.0);
 
-    RegisterParameter("schedule_job_time_limit", ScheduleJobTimeLimit)
+    registrar.Parameter("schedule_job_time_limit", &TFairShareStrategyOperationControllerConfig::ScheduleJobTimeLimit)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("schedule_job_fail_backoff_time", ScheduleJobFailBackoffTime)
+    registrar.Parameter("schedule_job_fail_backoff_time", &TFairShareStrategyOperationControllerConfig::ScheduleJobFailBackoffTime)
         .Default(TDuration::MilliSeconds(100));
 
-    RegisterParameter("controller_throttling", ControllerThrottling)
+    registrar.Parameter("controller_throttling", &TFairShareStrategyOperationControllerConfig::ControllerThrottling)
         .DefaultNew();
 
-    RegisterParameter("schedule_job_timeout_alert_reset_time", ScheduleJobTimeoutAlertResetTime)
+    registrar.Parameter("schedule_job_timeout_alert_reset_time", &TFairShareStrategyOperationControllerConfig::ScheduleJobTimeoutAlertResetTime)
         .Default(TDuration::Minutes(15));
 
-    RegisterParameter("schedule_jobs_timeout", ScheduleJobsTimeout)
+    registrar.Parameter("schedule_jobs_timeout", &TFairShareStrategyOperationControllerConfig::ScheduleJobsTimeout)
         .Default(TDuration::Seconds(40));
 
-    RegisterParameter("long_schedule_job_logging_threshold", LongScheduleJobLoggingThreshold)
+    registrar.Parameter("long_schedule_job_logging_threshold", &TFairShareStrategyOperationControllerConfig::LongScheduleJobLoggingThreshold)
         .Default(TDuration::Seconds(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareStrategySchedulingSegmentsConfig::TFairShareStrategySchedulingSegmentsConfig()
+void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("mode", Mode)
+    registrar.Parameter("mode", &TFairShareStrategySchedulingSegmentsConfig::Mode)
         .Default(ESegmentedSchedulingMode::Disabled);
 
-    RegisterParameter("satisfaction_margins", SatisfactionMargins)
+    registrar.Parameter("satisfaction_margins", &TFairShareStrategySchedulingSegmentsConfig::SatisfactionMargins)
         .Default();
 
-    RegisterParameter("unsatisfied_segments_rebalancing_timeout", UnsatisfiedSegmentsRebalancingTimeout)
+    registrar.Parameter("unsatisfied_segments_rebalancing_timeout", &TFairShareStrategySchedulingSegmentsConfig::UnsatisfiedSegmentsRebalancingTimeout)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("data_center_reconsideration_timeout", DataCenterReconsiderationTimeout)
+    registrar.Parameter("data_center_reconsideration_timeout", &TFairShareStrategySchedulingSegmentsConfig::DataCenterReconsiderationTimeout)
         .Default(TDuration::Minutes(20));
 
-    RegisterParameter("data_centers", DataCenters)
+    registrar.Parameter("data_centers", &TFairShareStrategySchedulingSegmentsConfig::DataCenters)
         .Default();
 
-    RegisterParameter("data_center_assignment_heuristic", DataCenterAssignmentHeuristic)
+    registrar.Parameter("data_center_assignment_heuristic", &TFairShareStrategySchedulingSegmentsConfig::DataCenterAssignmentHeuristic)
         .Default(ESchedulingSegmentDataCenterAssignmentHeuristic::MaxRemainingCapacity);
 
-    RegisterPostprocessor([&] {
-        for (const auto& dataCenter : DataCenters) {
+    registrar.Postprocessor([&] (TFairShareStrategySchedulingSegmentsConfig* config) {
+        for (const auto& dataCenter : config->DataCenters) {
             ValidateDataCenterName(dataCenter);
         }
     });
 
-    RegisterPostprocessor([&] {
+    registrar.Postprocessor([&] (TFairShareStrategySchedulingSegmentsConfig* config) {
         for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
             if (!IsDataCenterAwareSchedulingSegment(segment)) {
                 continue;
             }
 
-            for (const auto& dataCenter : SatisfactionMargins.At(segment).GetDataCenters()) {
+            for (const auto& dataCenter : config->SatisfactionMargins.At(segment).GetDataCenters()) {
                 if (!dataCenter) {
                     // This could never happen but I'm afraid to put YT_VERIFY here.
                     THROW_ERROR_EXCEPTION("Satisfaction margin can be specified only for non-null data centers");
                 }
 
-                if (DataCenters.find(*dataCenter) == DataCenters.end()) {
+                if (config->DataCenters.find(*dataCenter) == config->DataCenters.end()) {
                     THROW_ERROR_EXCEPTION("Satisfaction margin can be specified only for configured data centers")
-                        << TErrorAttribute("configured_data_centers", DataCenters)
+                        << TErrorAttribute("configured_data_centers", config->DataCenters)
                         << TErrorAttribute("specified_data_center", dataCenter);
                 }
             }
@@ -123,143 +124,143 @@ TFairShareStrategySchedulingSegmentsConfig::TFairShareStrategySchedulingSegments
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
+void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("nodes_filter", NodesFilter)
+    registrar.Parameter("nodes_filter", &TFairShareStrategyTreeConfig::NodesFilter)
         .Default();
 
-    RegisterParameter("fair_share_starvation_timeout", FairShareStarvationTimeout)
+    registrar.Parameter("fair_share_starvation_timeout", &TFairShareStrategyTreeConfig::FairShareStarvationTimeout)
         .Alias("fair_share_preemption_timeout")
         .Default(TDuration::Seconds(30));
-    RegisterParameter("fair_share_aggressive_starvation_timeout", FairShareAggressiveStarvationTimeout)
+    registrar.Parameter("fair_share_aggressive_starvation_timeout", &TFairShareStrategyTreeConfig::FairShareAggressiveStarvationTimeout)
         .Default(TDuration::Seconds(120));
-    RegisterParameter("fair_share_starvation_tolerance", FairShareStarvationTolerance)
+    registrar.Parameter("fair_share_starvation_tolerance", &TFairShareStrategyTreeConfig::FairShareStarvationTolerance)
         .InRange(0.0, 1.0)
         .Default(0.8);
 
-    RegisterParameter("enable_aggressive_starvation", EnableAggressiveStarvation)
+    registrar.Parameter("enable_aggressive_starvation", &TFairShareStrategyTreeConfig::EnableAggressiveStarvation)
         .Default(false);
 
-    RegisterParameter("max_unpreemptable_running_job_count", MaxUnpreemptableRunningJobCount)
+    registrar.Parameter("max_unpreemptable_running_job_count", &TFairShareStrategyTreeConfig::MaxUnpreemptableRunningJobCount)
         .Default(10);
 
-    RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
+    registrar.Parameter("max_running_operation_count", &TFairShareStrategyTreeConfig::MaxRunningOperationCount)
         .Default(200)
         .GreaterThan(0);
 
-    RegisterParameter("max_running_operation_count_per_pool", MaxRunningOperationCountPerPool)
+    registrar.Parameter("max_running_operation_count_per_pool", &TFairShareStrategyTreeConfig::MaxRunningOperationCountPerPool)
         .Default(50)
         .GreaterThan(0);
 
-    RegisterParameter("max_operation_count_per_pool", MaxOperationCountPerPool)
+    registrar.Parameter("max_operation_count_per_pool", &TFairShareStrategyTreeConfig::MaxOperationCountPerPool)
         .Default(50)
         .GreaterThan(0);
 
-    RegisterParameter("max_operation_count", MaxOperationCount)
+    registrar.Parameter("max_operation_count", &TFairShareStrategyTreeConfig::MaxOperationCount)
         .Default(50000)
         .GreaterThan(0);
 
-    RegisterParameter("enable_pool_starvation", EnablePoolStarvation)
+    registrar.Parameter("enable_pool_starvation", &TFairShareStrategyTreeConfig::EnablePoolStarvation)
         .Default(true);
 
-    RegisterParameter("default_parent_pool", DefaultParentPool)
+    registrar.Parameter("default_parent_pool", &TFairShareStrategyTreeConfig::DefaultParentPool)
         .Default(RootPoolName);
 
-    RegisterParameter("forbid_immediate_operations_in_root", ForbidImmediateOperationsInRoot)
+    registrar.Parameter("forbid_immediate_operations_in_root", &TFairShareStrategyTreeConfig::ForbidImmediateOperationsInRoot)
         .Default(true);
 
-    RegisterParameter("job_count_preemption_timeout_coefficient", JobCountPreemptionTimeoutCoefficient)
+    registrar.Parameter("job_count_preemption_timeout_coefficient", &TFairShareStrategyTreeConfig::JobCountPreemptionTimeoutCoefficient)
         .Default(1.0)
         .GreaterThanOrEqual(1.0);
 
-    RegisterParameter("preemption_satisfaction_threshold", PreemptionSatisfactionThreshold)
+    registrar.Parameter("preemption_satisfaction_threshold", &TFairShareStrategyTreeConfig::PreemptionSatisfactionThreshold)
         .Default(1.0)
         .GreaterThan(0);
 
-    RegisterParameter("aggressive_preemption_satisfaction_threshold", AggressivePreemptionSatisfactionThreshold)
+    registrar.Parameter("aggressive_preemption_satisfaction_threshold", &TFairShareStrategyTreeConfig::AggressivePreemptionSatisfactionThreshold)
         .Default(0.2)
         .GreaterThanOrEqual(0);
 
-    RegisterParameter("enable_scheduling_tags", EnableSchedulingTags)
+    registrar.Parameter("enable_scheduling_tags", &TFairShareStrategyTreeConfig::EnableSchedulingTags)
         .Default(true);
 
-    RegisterParameter("heartbeat_tree_scheduling_info_log_period", HeartbeatTreeSchedulingInfoLogBackoff)
+    registrar.Parameter("heartbeat_tree_scheduling_info_log_period", &TFairShareStrategyTreeConfig::HeartbeatTreeSchedulingInfoLogBackoff)
         .Default(TDuration::MilliSeconds(100));
 
-    RegisterParameter("max_ephemeral_pools_per_user", MaxEphemeralPoolsPerUser)
+    registrar.Parameter("max_ephemeral_pools_per_user", &TFairShareStrategyTreeConfig::MaxEphemeralPoolsPerUser)
         .GreaterThanOrEqual(1)
         .Default(1);
 
-    RegisterParameter("update_preemptable_list_duration_logging_threshold", UpdatePreemptableListDurationLoggingThreshold)
+    registrar.Parameter("update_preemptable_list_duration_logging_threshold", &TFairShareStrategyTreeConfig::UpdatePreemptableListDurationLoggingThreshold)
         .Default(TDuration::MilliSeconds(100));
 
-    RegisterParameter("enable_operations_profiling", EnableOperationsProfiling)
+    registrar.Parameter("enable_operations_profiling", &TFairShareStrategyTreeConfig::EnableOperationsProfiling)
         .Default(true);
 
-    RegisterParameter("custom_profiling_tag_filter", CustomProfilingTagFilter)
+    registrar.Parameter("custom_profiling_tag_filter", &TFairShareStrategyTreeConfig::CustomProfilingTagFilter)
         .Default();
 
-    RegisterParameter("total_resource_limits_consider_delay", TotalResourceLimitsConsiderDelay)
+    registrar.Parameter("total_resource_limits_consider_delay", &TFairShareStrategyTreeConfig::TotalResourceLimitsConsiderDelay)
         .Default(TDuration::Seconds(60));
 
-    RegisterParameter("preemptive_scheduling_backoff", PreemptiveSchedulingBackoff)
+    registrar.Parameter("preemptive_scheduling_backoff", &TFairShareStrategyTreeConfig::PreemptiveSchedulingBackoff)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("tentative_tree_saturation_deactivation_period", TentativeTreeSaturationDeactivationPeriod)
+    registrar.Parameter("tentative_tree_saturation_deactivation_period", &TFairShareStrategyTreeConfig::TentativeTreeSaturationDeactivationPeriod)
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("infer_weight_from_guarantees_share_multiplier", InferWeightFromGuaranteesShareMultiplier)
+    registrar.Parameter("infer_weight_from_guarantees_share_multiplier", &TFairShareStrategyTreeConfig::InferWeightFromGuaranteesShareMultiplier)
         .Alias("infer_weight_from_strong_guarantee_share_multiplier")
         .Alias("infer_weight_from_min_share_ratio_multiplier")
         .Default()
         .GreaterThanOrEqual(1.0);
 
-    RegisterParameter("packing", Packing)
+    registrar.Parameter("packing", &TFairShareStrategyTreeConfig::Packing)
         .DefaultNew();
 
-    RegisterParameter("non_tentative_operation_types", NonTentativeOperationTypes)
+    registrar.Parameter("non_tentative_operation_types", &TFairShareStrategyTreeConfig::NonTentativeOperationTypes)
         .Default(std::nullopt);
 
-    RegisterParameter("best_allocation_ratio_update_period", BestAllocationRatioUpdatePeriod)
+    registrar.Parameter("best_allocation_ratio_update_period", &TFairShareStrategyTreeConfig::BestAllocationRatioUpdatePeriod)
         .Default(TDuration::Minutes(1));
 
-    RegisterParameter("enable_by_user_profiling", EnableByUserProfiling)
+    registrar.Parameter("enable_by_user_profiling", &TFairShareStrategyTreeConfig::EnableByUserProfiling)
         .Default(true);
 
-    RegisterParameter("integral_guarantees", IntegralGuarantees)
+    registrar.Parameter("integral_guarantees", &TFairShareStrategyTreeConfig::IntegralGuarantees)
         .DefaultNew();
 
-    RegisterParameter("enable_resource_tree_structure_lock_profiling", EnableResourceTreeStructureLockProfiling)
+    registrar.Parameter("enable_resource_tree_structure_lock_profiling", &TFairShareStrategyTreeConfig::EnableResourceTreeStructureLockProfiling)
         .Default(true);
 
-    RegisterParameter("enable_resource_tree_usage_lock_profiling", EnableResourceTreeUsageLockProfiling)
+    registrar.Parameter("enable_resource_tree_usage_lock_profiling", &TFairShareStrategyTreeConfig::EnableResourceTreeUsageLockProfiling)
         .Default(true);
 
-    RegisterParameter("preemption_check_starvation", PreemptionCheckStarvation)
+    registrar.Parameter("preemption_check_starvation", &TFairShareStrategyTreeConfig::PreemptionCheckStarvation)
         .Default(true);
 
-    RegisterParameter("preemption_check_satisfaction", PreemptionCheckSatisfaction)
+    registrar.Parameter("preemption_check_satisfaction", &TFairShareStrategyTreeConfig::PreemptionCheckSatisfaction)
         .Default(true);
 
-    RegisterParameter("job_interrupt_timeout", JobInterruptTimeout)
+    registrar.Parameter("job_interrupt_timeout", &TFairShareStrategyTreeConfig::JobInterruptTimeout)
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("job_graceful_interrupt_timeout", JobGracefulInterruptTimeout)
+    registrar.Parameter("job_graceful_interrupt_timeout", &TFairShareStrategyTreeConfig::JobGracefulInterruptTimeout)
         .Default(TDuration::Seconds(60));
 
-    RegisterParameter("scheduling_segments", SchedulingSegments)
+    registrar.Parameter("scheduling_segments", &TFairShareStrategyTreeConfig::SchedulingSegments)
         .DefaultNew();
 
-    RegisterParameter("enable_pools_vector_profiling", EnablePoolsVectorProfiling)
+    registrar.Parameter("enable_pools_vector_profiling", &TFairShareStrategyTreeConfig::EnablePoolsVectorProfiling)
         .Default(true);
 
-    RegisterParameter("enable_operations_vector_profiling", EnableOperationsVectorProfiling)
+    registrar.Parameter("enable_operations_vector_profiling", &TFairShareStrategyTreeConfig::EnableOperationsVectorProfiling)
         .Default(false);
 
-    RegisterParameter("enable_limiting_ancestor_check", EnableLimitingAncestorCheck)
+    registrar.Parameter("enable_limiting_ancestor_check", &TFairShareStrategyTreeConfig::EnableLimitingAncestorCheck)
         .Default(true);
 
-    RegisterParameter("profiled_pool_resources", ProfiledPoolResources)
+    registrar.Parameter("profiled_pool_resources", &TFairShareStrategyTreeConfig::ProfiledPoolResources)
         .Default({
             EJobResourceType::Cpu,
             EJobResourceType::Memory,
@@ -268,7 +269,7 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
             EJobResourceType::Network
         });
 
-    RegisterParameter("profiled_operation_resources", ProfiledOperationResources)
+    registrar.Parameter("profiled_operation_resources", &TFairShareStrategyTreeConfig::ProfiledOperationResources)
         .Default({
             EJobResourceType::Cpu,
             EJobResourceType::Memory,
@@ -277,118 +278,118 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
             EJobResourceType::Network
         });
 
-    RegisterParameter("waiting_job_timeout", WaitingJobTimeout)
+    registrar.Parameter("waiting_job_timeout", &TFairShareStrategyTreeConfig::WaitingJobTimeout)
         .Default();
 
-    RegisterParameter("min_child_heap_size", MinChildHeapSize)
+    registrar.Parameter("min_child_heap_size", &TFairShareStrategyTreeConfig::MinChildHeapSize)
         .Default(16);
 
-    RegisterParameter("main_resource", MainResource)
+    registrar.Parameter("main_resource", &TFairShareStrategyTreeConfig::MainResource)
         .Default(EJobResourceType::Cpu);
 
-    RegisterParameter("metering_tags", MeteringTags)
+    registrar.Parameter("metering_tags", &TFairShareStrategyTreeConfig::MeteringTags)
         .Default();
     
-    RegisterParameter("pool_config_presets", PoolConfigPresets)
+    registrar.Parameter("pool_config_presets", &TFairShareStrategyTreeConfig::PoolConfigPresets)
         .Default();
 
-    RegisterParameter("enable_fair_share_truncation_in_fifo_pool", EnableFairShareTruncationInFifoPool)
+    registrar.Parameter("enable_fair_share_truncation_in_fifo_pool", &TFairShareStrategyTreeConfig::EnableFairShareTruncationInFifoPool)
         .Alias("truncate_fifo_pool_unsatisfied_child_fair_share")
         .Default(false);
 
-    RegisterParameter("enable_conditional_preemption", EnableConditionalPreemption)
+    registrar.Parameter("enable_conditional_preemption", &TFairShareStrategyTreeConfig::EnableConditionalPreemption)
         .Default(false);
     
-    RegisterParameter("use_resource_usage_with_precommit", UseResourceUsageWithPrecommit)
+    registrar.Parameter("use_resource_usage_with_precommit", &TFairShareStrategyTreeConfig::UseResourceUsageWithPrecommit)
         .Default(false);
 
-    RegisterParameter("allowed_resource_usage_staleness", AllowedResourceUsageStaleness)
+    registrar.Parameter("allowed_resource_usage_staleness", &TFairShareStrategyTreeConfig::AllowedResourceUsageStaleness)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("cached_job_preemption_statuses_update_period", CachedJobPreemptionStatusesUpdatePeriod)
+    registrar.Parameter("cached_job_preemption_statuses_update_period", &TFairShareStrategyTreeConfig::CachedJobPreemptionStatusesUpdatePeriod)
         .Default(TDuration::Seconds(15));
 
-    RegisterParameter("should_distribute_free_volume_among_children", ShouldDistributeFreeVolumeAmongChildren)
+    registrar.Parameter("should_distribute_free_volume_among_children", &TFairShareStrategyTreeConfig::ShouldDistributeFreeVolumeAmongChildren)
         // TODO(renadeen): temporarily disabled.
         .Default(false);
 
-    RegisterParameter("use_user_default_parent_pool_map", UseUserDefaultParentPoolMap)
+    registrar.Parameter("use_user_default_parent_pool_map", &TFairShareStrategyTreeConfig::UseUserDefaultParentPoolMap)
         .Default(false);
     
-    RegisterParameter("enable_resource_usage_snapshot", EnableResourceUsageSnapshot)
+    registrar.Parameter("enable_resource_usage_snapshot", &TFairShareStrategyTreeConfig::EnableResourceUsageSnapshot)
         .Default(true);    
 
-    RegisterPostprocessor([&] () {
-        if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
+    registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
+        if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive starvation satisfaction threshold must be less than starvation satisfaction threshold")
-                << TErrorAttribute("aggressive_threshold", AggressivePreemptionSatisfactionThreshold)
-                << TErrorAttribute("threshold", PreemptionSatisfactionThreshold);
+                << TErrorAttribute("aggressive_threshold", config->AggressivePreemptionSatisfactionThreshold)
+                << TErrorAttribute("threshold", config->PreemptionSatisfactionThreshold);
         }
-        if (FairShareAggressiveStarvationTimeout < FairShareStarvationTimeout) {
+        if (config->FairShareAggressiveStarvationTimeout < config->FairShareStarvationTimeout) {
             THROW_ERROR_EXCEPTION("Aggressive starvation timeout must be greater than starvation timeout")
-                << TErrorAttribute("aggressive_timeout", FairShareAggressiveStarvationTimeout)
-                << TErrorAttribute("timeout", FairShareStarvationTimeout);
+                << TErrorAttribute("aggressive_timeout", config->FairShareAggressiveStarvationTimeout)
+                << TErrorAttribute("timeout", config->FairShareStarvationTimeout);
         }
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPoolTreesTemplateConfig::TPoolTreesTemplateConfig()
+void TPoolTreesTemplateConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("priority", Priority);
+    registrar.Parameter("priority", &TPoolTreesTemplateConfig::Priority);
 
-    RegisterParameter("filter", Filter);
+    registrar.Parameter("filter", &TPoolTreesTemplateConfig::Filter);
 
-    RegisterParameter("config", Config);
+    registrar.Parameter("config", &TPoolTreesTemplateConfig::Config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareStrategyConfig::TFairShareStrategyConfig()
+void TFairShareStrategyConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("fair_share_update_period", FairShareUpdatePeriod)
+    registrar.Parameter("fair_share_update_period", &TFairShareStrategyConfig::FairShareUpdatePeriod)
         .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
         .Default(TDuration::MilliSeconds(1000));
 
-    RegisterParameter("fair_share_profiling_period", FairShareProfilingPeriod)
+    registrar.Parameter("fair_share_profiling_period", &TFairShareStrategyConfig::FairShareProfilingPeriod)
         .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
         .Default(TDuration::MilliSeconds(5000));
 
-    RegisterParameter("fair_share_log_period", FairShareLogPeriod)
+    registrar.Parameter("fair_share_log_period", &TFairShareStrategyConfig::FairShareLogPeriod)
         .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
         .Default(TDuration::MilliSeconds(1000));
 
-    RegisterParameter("min_needed_resources_update_period", MinNeededResourcesUpdatePeriod)
+    registrar.Parameter("min_needed_resources_update_period", &TFairShareStrategyConfig::MinNeededResourcesUpdatePeriod)
         .Default(TDuration::Seconds(3));
 
-    RegisterParameter("resource_metering_period", ResourceMeteringPeriod)
+    registrar.Parameter("resource_metering_period", &TFairShareStrategyConfig::ResourceMeteringPeriod)
         .Default(TDuration::Minutes(1));
 
-    RegisterParameter("resource_usage_snapshot_update_period", ResourceUsageSnapshotUpdatePeriod)
+    registrar.Parameter("resource_usage_snapshot_update_period", &TFairShareStrategyConfig::ResourceUsageSnapshotUpdatePeriod)
         .Default(TDuration::MilliSeconds(20));
 
-    RegisterParameter("operation_hangup_check_period", OperationHangupCheckPeriod)
+    registrar.Parameter("operation_hangup_check_period", &TFairShareStrategyConfig::OperationHangupCheckPeriod)
         .Alias("operation_unschedulable_check_period")
         .Default(TDuration::Minutes(1));
 
-    RegisterParameter("operation_hangup_safe_timeout", OperationHangupSafeTimeout)
+    registrar.Parameter("operation_hangup_safe_timeout", &TFairShareStrategyConfig::OperationHangupSafeTimeout)
         .Alias("operation_unschedulable_safe_timeout")
         .Default(TDuration::Minutes(60));
 
-    RegisterParameter("operation_hangup_min_schedule_job_attempts", OperationHangupMinScheduleJobAttempts)
+    registrar.Parameter("operation_hangup_min_schedule_job_attempts", &TFairShareStrategyConfig::OperationHangupMinScheduleJobAttempts)
         .Alias("operation_unschedulable_min_schedule_job_attempts")
         .Default(1000);
 
-    RegisterParameter("operation_hangup_deactivation_reasons", OperationHangupDeactivationReasons)
+    registrar.Parameter("operation_hangup_deactivation_reasons", &TFairShareStrategyConfig::OperationHangupDeactivationReasons)
         .Alias("operation_unschedulable_deactivation_reasons")
         .Default({EDeactivationReason::ScheduleJobFailed, EDeactivationReason::MinNeededResourcesUnsatisfied});
 
-    RegisterParameter("operation_hangup_due_to_limiting_ancestor_safe_timeout", OperationHangupDueToLimitingAncestorSafeTimeout)
+    registrar.Parameter("operation_hangup_due_to_limiting_ancestor_safe_timeout", &TFairShareStrategyConfig::OperationHangupDueToLimitingAncestorSafeTimeout)
         .Alias("operation_unschedulable_due_to_limiting_ancestor_safe_timeout")
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("max_operation_count", MaxOperationCount)
+    registrar.Parameter("max_operation_count", &TFairShareStrategyConfig::MaxOperationCount)
         .Default(5000)
         .GreaterThan(0)
         // This value corresponds to the maximum possible number of memory tags.
@@ -396,26 +397,26 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
         // across the code base.
         .LessThan(NYTAlloc::MaxMemoryTag);
 
-    RegisterParameter("operations_without_tentative_pool_trees", OperationsWithoutTentativePoolTrees)
+    registrar.Parameter("operations_without_tentative_pool_trees", &TFairShareStrategyConfig::OperationsWithoutTentativePoolTrees)
         .Default({EOperationType::Sort, EOperationType::MapReduce, EOperationType::RemoteCopy});
 
-    RegisterParameter("default_tentative_pool_trees", DefaultTentativePoolTrees)
+    registrar.Parameter("default_tentative_pool_trees", &TFairShareStrategyConfig::DefaultTentativePoolTrees)
         .Default();
 
-    RegisterParameter("enable_schedule_in_single_tree", EnableScheduleInSingleTree)
+    registrar.Parameter("enable_schedule_in_single_tree", &TFairShareStrategyConfig::EnableScheduleInSingleTree)
         .Default(true);
 
-    RegisterParameter("strategy_testing_options", StrategyTestingOptions)
+    registrar.Parameter("strategy_testing_options", &TFairShareStrategyConfig::StrategyTestingOptions)
         .DefaultNew();
 
-    RegisterParameter("template_pool_tree_config_map", TemplatePoolTreeConfigMap)
+    registrar.Parameter("template_pool_tree_config_map", &TFairShareStrategyConfig::TemplatePoolTreeConfigMap)
         .Default();
 
-    RegisterPostprocessor([&] {
+    registrar.Postprocessor([&] (TFairShareStrategyConfig* config) {
         THashMap<int, TStringBuf> priorityToName;
-        priorityToName.reserve(std::size(TemplatePoolTreeConfigMap));
+        priorityToName.reserve(std::size(config->TemplatePoolTreeConfigMap));
 
-        for (const auto& [name, value] : TemplatePoolTreeConfigMap) {
+        for (const auto& [name, value] : config->TemplatePoolTreeConfigMap) {
             if (const auto [it, inserted] = priorityToName.try_emplace(value->Priority, name); !inserted) {
                 THROW_ERROR_EXCEPTION("\"template_pool_tree_config_map\" has equal priority for templates")
                     << TErrorAttribute("template_names", std::array{it->second, TStringBuf{name}});
@@ -426,88 +427,88 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTestingOptions::TTestingOptions()
+void TTestingOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_random_master_disconnection", EnableRandomMasterDisconnection)
+    registrar.Parameter("enable_random_master_disconnection", &TTestingOptions::EnableRandomMasterDisconnection)
         .Default(false);
-    RegisterParameter("random_master_disconnection_max_backoff", RandomMasterDisconnectionMaxBackoff)
+    registrar.Parameter("random_master_disconnection_max_backoff", &TTestingOptions::RandomMasterDisconnectionMaxBackoff)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("master_disconnect_delay", MasterDisconnectDelay)
+    registrar.Parameter("master_disconnect_delay", &TTestingOptions::MasterDisconnectDelay)
         .Default();
-    RegisterParameter("handle_orphaned_operations_delay", HandleOrphanedOperationsDelay)
+    registrar.Parameter("handle_orphaned_operations_delay", &TTestingOptions::HandleOrphanedOperationsDelay)
         .Default();
-    RegisterParameter("finish_operation_transition_delay", FinishOperationTransitionDelay)
+    registrar.Parameter("finish_operation_transition_delay", &TTestingOptions::FinishOperationTransitionDelay)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationsCleanerConfig::TOperationsCleanerConfig()
+void TOperationsCleanerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable", Enable)
+    registrar.Parameter("enable", &TOperationsCleanerConfig::Enable)
         .Default(true);
-    RegisterParameter("enable_archivation", EnableArchivation)
+    registrar.Parameter("enable_archivation", &TOperationsCleanerConfig::EnableArchivation)
         .Default(true);
-    RegisterParameter("clean_delay", CleanDelay)
+    registrar.Parameter("clean_delay", &TOperationsCleanerConfig::CleanDelay)
         .Default(TDuration::Minutes(5));
-    RegisterParameter("analysis_period", AnalysisPeriod)
+    registrar.Parameter("analysis_period", &TOperationsCleanerConfig::AnalysisPeriod)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("remove_batch_size", RemoveBatchSize)
+    registrar.Parameter("remove_batch_size", &TOperationsCleanerConfig::RemoveBatchSize)
         .Default(256);
-    RegisterParameter("remove_subbatch_size", RemoveSubbatchSize)
+    registrar.Parameter("remove_subbatch_size", &TOperationsCleanerConfig::RemoveSubbatchSize)
         .Default(64);
-    RegisterParameter("remove_batch_timeout", RemoveBatchTimeout)
+    registrar.Parameter("remove_batch_timeout", &TOperationsCleanerConfig::RemoveBatchTimeout)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("archive_batch_size", ArchiveBatchSize)
+    registrar.Parameter("archive_batch_size", &TOperationsCleanerConfig::ArchiveBatchSize)
         .Default(100);
-    RegisterParameter("archive_batch_timeout", ArchiveBatchTimeout)
+    registrar.Parameter("archive_batch_timeout", &TOperationsCleanerConfig::ArchiveBatchTimeout)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("max_operation_age", MaxOperationAge)
+    registrar.Parameter("max_operation_age", &TOperationsCleanerConfig::MaxOperationAge)
         .Default(TDuration::Hours(6));
-    RegisterParameter("max_operation_count_per_user", MaxOperationCountPerUser)
+    registrar.Parameter("max_operation_count_per_user", &TOperationsCleanerConfig::MaxOperationCountPerUser)
         .Default(200);
-    RegisterParameter("soft_retained_operation_count", SoftRetainedOperationCount)
+    registrar.Parameter("soft_retained_operation_count", &TOperationsCleanerConfig::SoftRetainedOperationCount)
         .Default(200);
-    RegisterParameter("hard_retained_operation_count", HardRetainedOperationCount)
+    registrar.Parameter("hard_retained_operation_count", &TOperationsCleanerConfig::HardRetainedOperationCount)
         .Default(4000);
-    RegisterParameter("min_archivation_retry_sleep_delay", MinArchivationRetrySleepDelay)
+    registrar.Parameter("min_archivation_retry_sleep_delay", &TOperationsCleanerConfig::MinArchivationRetrySleepDelay)
         .Default(TDuration::Seconds(3));
-    RegisterParameter("max_archivation_retry_sleep_delay", MaxArchivationRetrySleepDelay)
+    registrar.Parameter("max_archivation_retry_sleep_delay", &TOperationsCleanerConfig::MaxArchivationRetrySleepDelay)
         .Default(TDuration::Minutes(1));
-    RegisterParameter("max_operation_count_enqueued_for_archival", MaxOperationCountEnqueuedForArchival)
+    registrar.Parameter("max_operation_count_enqueued_for_archival", &TOperationsCleanerConfig::MaxOperationCountEnqueuedForArchival)
         .Default(20000);
-    RegisterParameter("archivation_enable_delay", ArchivationEnableDelay)
+    registrar.Parameter("archivation_enable_delay", &TOperationsCleanerConfig::ArchivationEnableDelay)
         .Default(TDuration::Minutes(30));
-    RegisterParameter("max_removal_sleep_delay", MaxRemovalSleepDelay)
+    registrar.Parameter("max_removal_sleep_delay", &TOperationsCleanerConfig::MaxRemovalSleepDelay)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("min_operation_count_enqueued_for_alert", MinOperationCountEnqueuedForAlert)
+    registrar.Parameter("min_operation_count_enqueued_for_alert", &TOperationsCleanerConfig::MinOperationCountEnqueuedForAlert)
         .Default(500);
-    RegisterParameter("finished_operations_archive_lookup_timeout", FinishedOperationsArchiveLookupTimeout)
+    registrar.Parameter("finished_operations_archive_lookup_timeout", &TOperationsCleanerConfig::FinishedOperationsArchiveLookupTimeout)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("parse_operation_attributes_batch_size", ParseOperationAttributesBatchSize)
+    registrar.Parameter("parse_operation_attributes_batch_size", &TOperationsCleanerConfig::ParseOperationAttributesBatchSize)
         .Default(100);
 
-    RegisterPostprocessor([&] {
-        if (MaxArchivationRetrySleepDelay <= MinArchivationRetrySleepDelay) {
+    registrar.Postprocessor([&] (TOperationsCleanerConfig* config) {
+        if (config->MaxArchivationRetrySleepDelay <= config->MinArchivationRetrySleepDelay) {
             THROW_ERROR_EXCEPTION("\"max_archivation_retry_sleep_delay\" must be greater than "
                 "\"min_archivation_retry_sleep_delay\"")
-                << TErrorAttribute("min_archivation_retry_sleep_delay", MinArchivationRetrySleepDelay)
-                << TErrorAttribute("max_archivation_retry_sleep_delay", MaxArchivationRetrySleepDelay);
+                << TErrorAttribute("min_archivation_retry_sleep_delay", config->MinArchivationRetrySleepDelay)
+                << TErrorAttribute("max_archivation_retry_sleep_delay", config->MaxArchivationRetrySleepDelay);
         }
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchedulerIntegralGuaranteesConfig::TSchedulerIntegralGuaranteesConfig()
+void TSchedulerIntegralGuaranteesConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("smooth_period", SmoothPeriod)
+    registrar.Parameter("smooth_period", &TSchedulerIntegralGuaranteesConfig::SmoothPeriod)
         .Default(TDuration::Minutes(1));
 
-    RegisterParameter("pool_capacity_saturation_period", PoolCapacitySaturationPeriod)
+    registrar.Parameter("pool_capacity_saturation_period", &TSchedulerIntegralGuaranteesConfig::PoolCapacitySaturationPeriod)
         .Default(TDuration::Days(1));
 
-    RegisterParameter("relaxed_share_multiplier_limit", RelaxedShareMultiplierLimit)
+    registrar.Parameter("relaxed_share_multiplier_limit", &TSchedulerIntegralGuaranteesConfig::RelaxedShareMultiplierLimit)
         .Default(3);
 }
 
@@ -530,289 +531,289 @@ void Serialize(const TAliveControllerAgentThresholds& thresholds, NYson::IYsonCo
         .EndMap();
 }
 
-TControllerAgentTrackerConfig::TControllerAgentTrackerConfig()
+void TControllerAgentTrackerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("light_rpc_timeout", LightRpcTimeout)
+    registrar.Parameter("light_rpc_timeout", &TControllerAgentTrackerConfig::LightRpcTimeout)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("heavy_rpc_timeout", HeavyRpcTimeout)
+    registrar.Parameter("heavy_rpc_timeout", &TControllerAgentTrackerConfig::HeavyRpcTimeout)
         .Default(TDuration::Minutes(30));
 
-    RegisterParameter("heartbeat_timeout", HeartbeatTimeout)
+    registrar.Parameter("heartbeat_timeout", &TControllerAgentTrackerConfig::HeartbeatTimeout)
         .Default(TDuration::Seconds(15));
 
-    RegisterParameter("incarnation_transaction_timeout", IncarnationTransactionTimeout)
+    registrar.Parameter("incarnation_transaction_timeout", &TControllerAgentTrackerConfig::IncarnationTransactionTimeout)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("incarnation_transaction_ping_period", IncarnationTransactionPingPeriod)
+    registrar.Parameter("incarnation_transaction_ping_period", &TControllerAgentTrackerConfig::IncarnationTransactionPingPeriod)
         .Default();
 
-    RegisterParameter("agent_pick_strategy", AgentPickStrategy)
+    registrar.Parameter("agent_pick_strategy", &TControllerAgentTrackerConfig::AgentPickStrategy)
         .Default(EControllerAgentPickStrategy::Random);
 
-    RegisterParameter("min_agent_available_memory", MinAgentAvailableMemory)
+    registrar.Parameter("min_agent_available_memory", &TControllerAgentTrackerConfig::MinAgentAvailableMemory)
         .Default(1_GB);
 
-    RegisterParameter("min_agent_available_memory_fraction", MinAgentAvailableMemoryFraction)
+    registrar.Parameter("min_agent_available_memory_fraction", &TControllerAgentTrackerConfig::MinAgentAvailableMemoryFraction)
         .InRange(0.0, 1.0)
         .Default(0.05);
 
-    RegisterParameter("memory_balanced_pick_strategy_score_power", MemoryBalancedPickStrategyScorePower)
+    registrar.Parameter("memory_balanced_pick_strategy_score_power", &TControllerAgentTrackerConfig::MemoryBalancedPickStrategyScorePower)
         .Default(1.0);
 
-    RegisterParameter("min_agent_count", MinAgentCount)
+    registrar.Parameter("min_agent_count", &TControllerAgentTrackerConfig::MinAgentCount)
         .Default(1);
 
-    RegisterParameter("tag_to_alive_controller_agent_thresholds", TagToAliveControllerAgentThresholds)
+    registrar.Parameter("tag_to_alive_controller_agent_thresholds", &TControllerAgentTrackerConfig::TagToAliveControllerAgentThresholds)
         .Default();
 
-    RegisterPostprocessor([&] {
-        if (!TagToAliveControllerAgentThresholds.contains(DefaultOperationTag)) {
-            TagToAliveControllerAgentThresholds[DefaultOperationTag] = {static_cast<i64>(MinAgentCount), 0.0};
+    registrar.Postprocessor([&] (TControllerAgentTrackerConfig* config) {
+        if (!config->TagToAliveControllerAgentThresholds.contains(DefaultOperationTag)) {
+            config->TagToAliveControllerAgentThresholds[DefaultOperationTag] = {static_cast<i64>(config->MinAgentCount), 0.0};
         }
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TResourceMeteringConfig::TResourceMeteringConfig()
+void TResourceMeteringConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_new_abc_format", EnableNewAbcFormat)
+    registrar.Parameter("enable_new_abc_format", &TResourceMeteringConfig::EnableNewAbcFormat)
         .Default(true);
 
-    RegisterParameter("default_abc_id", DefaultAbcId)
+    registrar.Parameter("default_abc_id", &TResourceMeteringConfig::DefaultAbcId)
         .Default(-1);
 
-    RegisterParameter("default_cloud_id", DefaultCloudId)
+    registrar.Parameter("default_cloud_id", &TResourceMeteringConfig::DefaultCloudId)
         .Default();
 
-    RegisterParameter("default_folder_id", DefaultFolderId)
+    registrar.Parameter("default_folder_id", &TResourceMeteringConfig::DefaultFolderId)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchedulerConfig::TSchedulerConfig()
+void TSchedulerConfig::Register(TRegistrar registrar)
 {
-    SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
+    registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
 
-    RegisterParameter("node_shard_count", NodeShardCount)
+    registrar.Parameter("node_shard_count", &TSchedulerConfig::NodeShardCount)
         .Default(4)
         .InRange(1, MaxNodeShardCount);
 
-    RegisterParameter("connect_retry_backoff_time", ConnectRetryBackoffTime)
+    registrar.Parameter("connect_retry_backoff_time", &TSchedulerConfig::ConnectRetryBackoffTime)
         .Default(TDuration::Seconds(15));
 
-    RegisterParameter("node_heartbeat_timeout", NodeHeartbeatTimeout)
+    registrar.Parameter("node_heartbeat_timeout", &TSchedulerConfig::NodeHeartbeatTimeout)
         .Default(TDuration::Seconds(60));
 
-    RegisterParameter("node_registration_timeout", NodeRegistrationTimeout)
+    registrar.Parameter("node_registration_timeout", &TSchedulerConfig::NodeRegistrationTimeout)
         .Default(TDuration::Seconds(600));
 
-    RegisterParameter("watchers_update_period", WatchersUpdatePeriod)
+    registrar.Parameter("watchers_update_period", &TSchedulerConfig::WatchersUpdatePeriod)
         .Default(TDuration::Seconds(3));
-    RegisterParameter("nodes_attributes_update_period", NodesAttributesUpdatePeriod)
+    registrar.Parameter("nodes_attributes_update_period", &TSchedulerConfig::NodesAttributesUpdatePeriod)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("profiling_update_period", ProfilingUpdatePeriod)
+    registrar.Parameter("profiling_update_period", &TSchedulerConfig::ProfilingUpdatePeriod)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("alerts_update_period", AlertsUpdatePeriod)
+    registrar.Parameter("alerts_update_period", &TSchedulerConfig::AlertsUpdatePeriod)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("node_shard_submit_jobs_to_strategy_period", NodeShardSubmitJobsToStrategyPeriod)
+    registrar.Parameter("node_shard_submit_jobs_to_strategy_period", &TSchedulerConfig::NodeShardSubmitJobsToStrategyPeriod)
         .Default(TDuration::MilliSeconds(100));
 
     // NB: This setting is NOT synchronized with the Cypress while scheduler is connected to master.
-    RegisterParameter("lock_transaction_timeout", LockTransactionTimeout)
+    registrar.Parameter("lock_transaction_timeout", &TSchedulerConfig::LockTransactionTimeout)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("pool_trees_lock_transaction_timeout", PoolTreesLockTransactionTimeout)
+    registrar.Parameter("pool_trees_lock_transaction_timeout", &TSchedulerConfig::PoolTreesLockTransactionTimeout)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("pool_trees_lock_check_backoff", PoolTreesLockCheckBackoff)
+    registrar.Parameter("pool_trees_lock_check_backoff", &TSchedulerConfig::PoolTreesLockCheckBackoff)
         .Default(TDuration::MilliSeconds(500));
 
-    RegisterParameter("job_prober_rpc_timeout", JobProberRpcTimeout)
+    registrar.Parameter("job_prober_rpc_timeout", &TSchedulerConfig::JobProberRpcTimeout)
         .Default(TDuration::Seconds(300));
 
-    RegisterParameter("cluster_info_logging_period", ClusterInfoLoggingPeriod)
+    registrar.Parameter("cluster_info_logging_period", &TSchedulerConfig::ClusterInfoLoggingPeriod)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("nodes_info_logging_period", NodesInfoLoggingPeriod)
+    registrar.Parameter("nodes_info_logging_period", &TSchedulerConfig::NodesInfoLoggingPeriod)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("exec_node_descriptors_update_period", ExecNodeDescriptorsUpdatePeriod)
+    registrar.Parameter("exec_node_descriptors_update_period", &TSchedulerConfig::ExecNodeDescriptorsUpdatePeriod)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("jobs_logging_period", JobsLoggingPeriod)
+    registrar.Parameter("jobs_logging_period", &TSchedulerConfig::JobsLoggingPeriod)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("running_jobs_update_period", RunningJobsUpdatePeriod)
+    registrar.Parameter("running_jobs_update_period", &TSchedulerConfig::RunningJobsUpdatePeriod)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("running_job_statistics_update_period", RunningJobStatisticsUpdatePeriod)
+    registrar.Parameter("running_job_statistics_update_period", &TSchedulerConfig::RunningJobStatisticsUpdatePeriod)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("missing_jobs_check_period", MissingJobsCheckPeriod)
+    registrar.Parameter("missing_jobs_check_period", &TSchedulerConfig::MissingJobsCheckPeriod)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("transient_operation_queue_scan_period", TransientOperationQueueScanPeriod)
+    registrar.Parameter("transient_operation_queue_scan_period", &TSchedulerConfig::TransientOperationQueueScanPeriod)
         .Default(TDuration::MilliSeconds(100));
-    RegisterParameter("pending_by_pool_operation_scan_period", PendingByPoolOperationScanPeriod)
+    registrar.Parameter("pending_by_pool_operation_scan_period", &TSchedulerConfig::PendingByPoolOperationScanPeriod)
         .Default(TDuration::Minutes(1));
 
-    RegisterParameter("operation_to_agent_assignment_backoff", OperationToAgentAssignmentBackoff)
+    registrar.Parameter("operation_to_agent_assignment_backoff", &TSchedulerConfig::OperationToAgentAssignmentBackoff)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("max_started_jobs_per_heartbeat", MaxStartedJobsPerHeartbeat)
+    registrar.Parameter("max_started_jobs_per_heartbeat", &TSchedulerConfig::MaxStartedJobsPerHeartbeat)
         .Default()
         .GreaterThan(0);
 
-    RegisterParameter("node_shard_exec_nodes_cache_update_period", NodeShardExecNodesCacheUpdatePeriod)
+    registrar.Parameter("node_shard_exec_nodes_cache_update_period", &TSchedulerConfig::NodeShardExecNodesCacheUpdatePeriod)
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("heartbeat_process_backoff", HeartbeatProcessBackoff)
+    registrar.Parameter("heartbeat_process_backoff", &TSchedulerConfig::HeartbeatProcessBackoff)
         .Default(TDuration::MilliSeconds(5000));
-    RegisterParameter("soft_concurrent_heartbeat_limit", SoftConcurrentHeartbeatLimit)
+    registrar.Parameter("soft_concurrent_heartbeat_limit", &TSchedulerConfig::SoftConcurrentHeartbeatLimit)
         .Default(50)
         .GreaterThanOrEqual(1);
-    RegisterParameter("hard_concurrent_heartbeat_limit", HardConcurrentHeartbeatLimit)
+    registrar.Parameter("hard_concurrent_heartbeat_limit", &TSchedulerConfig::HardConcurrentHeartbeatLimit)
         .Default(100)
         .GreaterThanOrEqual(1);
 
-    RegisterParameter("static_orchid_cache_update_period", StaticOrchidCacheUpdatePeriod)
+    registrar.Parameter("static_orchid_cache_update_period", &TSchedulerConfig::StaticOrchidCacheUpdatePeriod)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("orchid_keys_update_period", OrchidKeysUpdatePeriod)
+    registrar.Parameter("orchid_keys_update_period", &TSchedulerConfig::OrchidKeysUpdatePeriod)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("enable_job_reporter", EnableJobReporter)
+    registrar.Parameter("enable_job_reporter", &TSchedulerConfig::EnableJobReporter)
         .Default(true);
-    RegisterParameter("enable_job_spec_reporter", EnableJobSpecReporter)
+    registrar.Parameter("enable_job_spec_reporter", &TSchedulerConfig::EnableJobSpecReporter)
         .Default(true);
-    RegisterParameter("enable_job_stderr_reporter", EnableJobStderrReporter)
+    registrar.Parameter("enable_job_stderr_reporter", &TSchedulerConfig::EnableJobStderrReporter)
         .Default(true);
-    RegisterParameter("enable_job_profile_reporter", EnableJobProfileReporter)
+    registrar.Parameter("enable_job_profile_reporter", &TSchedulerConfig::EnableJobProfileReporter)
         .Default(true);
-    RegisterParameter("enable_job_fail_context_reporter", EnableJobFailContextReporter)
-        .Default(true);
-
-    RegisterParameter("enable_unrecognized_alert", EnableUnrecognizedAlert)
+    registrar.Parameter("enable_job_fail_context_reporter", &TSchedulerConfig::EnableJobFailContextReporter)
         .Default(true);
 
-    RegisterParameter("job_revival_abort_timeout", JobRevivalAbortTimeout)
+    registrar.Parameter("enable_unrecognized_alert", &TSchedulerConfig::EnableUnrecognizedAlert)
+        .Default(true);
+
+    registrar.Parameter("job_revival_abort_timeout", &TSchedulerConfig::JobRevivalAbortTimeout)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("scheduling_tag_filter_expire_timeout", SchedulingTagFilterExpireTimeout)
+    registrar.Parameter("scheduling_tag_filter_expire_timeout", &TSchedulerConfig::SchedulingTagFilterExpireTimeout)
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("operations_cleaner", OperationsCleaner)
+    registrar.Parameter("operations_cleaner", &TSchedulerConfig::OperationsCleaner)
         .DefaultNew();
 
-    RegisterParameter("operations_update_period", OperationsUpdatePeriod)
+    registrar.Parameter("operations_update_period", &TSchedulerConfig::OperationsUpdatePeriod)
         .Default(TDuration::Seconds(3));
 
-    RegisterParameter("finished_job_storing_timeout", FinishedJobStoringTimeout)
+    registrar.Parameter("finished_job_storing_timeout", &TSchedulerConfig::FinishedJobStoringTimeout)
         .Default(TDuration::Minutes(30));
 
-    RegisterParameter("finished_operation_job_storing_timeout", FinishedOperationJobStoringTimeout)
+    registrar.Parameter("finished_operation_job_storing_timeout", &TSchedulerConfig::FinishedOperationJobStoringTimeout)
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("operations_destroy_period", OperationsDestroyPeriod)
+    registrar.Parameter("operations_destroy_period", &TSchedulerConfig::OperationsDestroyPeriod)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("testing_options", TestingOptions)
+    registrar.Parameter("testing_options", &TSchedulerConfig::TestingOptions)
         .DefaultNew();
 
-    RegisterParameter("event_log", EventLog)
+    registrar.Parameter("event_log", &TSchedulerConfig::EventLog)
         .DefaultNew();
 
-    RegisterParameter("spec_template", SpecTemplate)
+    registrar.Parameter("spec_template", &TSchedulerConfig::SpecTemplate)
         .Default();
 
-    RegisterParameter("controller_agent_tracker", ControllerAgentTracker)
+    registrar.Parameter("controller_agent_tracker", &TSchedulerConfig::ControllerAgentTracker)
         .DefaultNew();
 
-    RegisterParameter("job_reporter_issues_check_period", JobReporterIssuesCheckPeriod)
+    registrar.Parameter("job_reporter_issues_check_period", &TSchedulerConfig::JobReporterIssuesCheckPeriod)
         .Default(TDuration::Minutes(1));
 
-    RegisterParameter("job_reporter_write_failures_alert_threshold", JobReporterWriteFailuresAlertThreshold)
+    registrar.Parameter("job_reporter_write_failures_alert_threshold", &TSchedulerConfig::JobReporterWriteFailuresAlertThreshold)
         .Default(1000);
-    RegisterParameter("job_reporter_queue_is_too_large_alert_threshold", JobReporterQueueIsTooLargeAlertThreshold)
+    registrar.Parameter("job_reporter_queue_is_too_large_alert_threshold", &TSchedulerConfig::JobReporterQueueIsTooLargeAlertThreshold)
         .Default(10);
 
-    RegisterParameter("node_changes_count_threshold_to_update_cache", NodeChangesCountThresholdToUpdateCache)
+    registrar.Parameter("node_changes_count_threshold_to_update_cache", &TSchedulerConfig::NodeChangesCountThresholdToUpdateCache)
         .Default(5);
 
-    RegisterParameter("operation_transaction_ping_period", OperationTransactionPingPeriod)
+    registrar.Parameter("operation_transaction_ping_period", &TSchedulerConfig::OperationTransactionPingPeriod)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("pool_change_is_allowed", PoolChangeIsAllowed)
+    registrar.Parameter("pool_change_is_allowed", &TSchedulerConfig::PoolChangeIsAllowed)
         .Default(true);
 
-    RegisterParameter("skip_operations_with_malformed_spec_during_revival", SkipOperationsWithMalformedSpecDuringRevival)
+    registrar.Parameter("skip_operations_with_malformed_spec_during_revival", &TSchedulerConfig::SkipOperationsWithMalformedSpecDuringRevival)
         .Default(false);
 
-    RegisterParameter("max_offline_node_age", MaxOfflineNodeAge)
+    registrar.Parameter("max_offline_node_age", &TSchedulerConfig::MaxOfflineNodeAge)
         .Default(TDuration::Hours(12));
 
-    RegisterParameter("max_node_unseen_period_to_abort_jobs", MaxNodeUnseenPeriodToAbortJobs)
+    registrar.Parameter("max_node_unseen_period_to_abort_jobs", &TSchedulerConfig::MaxNodeUnseenPeriodToAbortJobs)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("orchid_worker_thread_count", OrchidWorkerThreadCount)
+    registrar.Parameter("orchid_worker_thread_count", &TSchedulerConfig::OrchidWorkerThreadCount)
         .Default(4)
         .GreaterThan(0);
 
-    RegisterParameter("fair_share_update_thread_count", FairShareUpdateThreadCount)
+    registrar.Parameter("fair_share_update_thread_count", &TSchedulerConfig::FairShareUpdateThreadCount)
         .Default(4)
         .GreaterThan(0);
 
-    RegisterParameter("handle_node_id_changes_strictly", HandleNodeIdChangesStrictly)
+    registrar.Parameter("handle_node_id_changes_strictly", &TSchedulerConfig::HandleNodeIdChangesStrictly)
         .Default(true);
 
-    RegisterParameter("allowed_node_resources_overcommit_duration", AllowedNodeResourcesOvercommitDuration)
+    registrar.Parameter("allowed_node_resources_overcommit_duration", &TSchedulerConfig::AllowedNodeResourcesOvercommitDuration)
         .Default(TDuration::Seconds(15));
 
-    RegisterParameter("pool_trees_root", PoolTreesRoot)
+    registrar.Parameter("pool_trees_root", &TSchedulerConfig::PoolTreesRoot)
         .Default(PoolTreesRootCypressPath);
 
-    RegisterParameter("validate_node_tags_period", ValidateNodeTagsPeriod)
+    registrar.Parameter("validate_node_tags_period", &TSchedulerConfig::ValidateNodeTagsPeriod)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("enable_job_abort_on_zero_user_slots", EnableJobAbortOnZeroUserSlots)
+    registrar.Parameter("enable_job_abort_on_zero_user_slots", &TSchedulerConfig::EnableJobAbortOnZeroUserSlots)
         .Default(true);
 
-    RegisterParameter("fetch_operation_attributes_subbatch_size", FetchOperationAttributesSubbatchSize)
+    registrar.Parameter("fetch_operation_attributes_subbatch_size", &TSchedulerConfig::FetchOperationAttributesSubbatchSize)
         .Default(1000);
 
-    RegisterParameter("resource_metering", ResourceMetering)
+    registrar.Parameter("resource_metering", &TSchedulerConfig::ResourceMetering)
         .DefaultNew();
 
-    RegisterParameter("scheduling_segments_manage_period", SchedulingSegmentsManagePeriod)
+    registrar.Parameter("scheduling_segments_manage_period", &TSchedulerConfig::SchedulingSegmentsManagePeriod)
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("scheduling_segments_initialization_timeout", SchedulingSegmentsInitializationTimeout)
+    registrar.Parameter("scheduling_segments_initialization_timeout", &TSchedulerConfig::SchedulingSegmentsInitializationTimeout)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("parse_operation_attributes_batch_size", ParseOperationAttributesBatchSize)
+    registrar.Parameter("parse_operation_attributes_batch_size", &TSchedulerConfig::ParseOperationAttributesBatchSize)
         .Default(100);
 
-    RegisterParameter("experiments", Experiments)
+    registrar.Parameter("experiments", &TSchedulerConfig::Experiments)
         .Default();
 
-    RegisterParameter("min_spare_job_resources_on_node", MinSpareJobResourcesOnNode)
-        .Default(GetDefaultMinSpareJobResourcesOnNode());
+    registrar.Parameter("min_spare_job_resources_on_node", &TSchedulerConfig::MinSpareJobResourcesOnNode)
+        .DefaultCtor(&GetDefaultMinSpareJobResourcesOnNode);
     
-    RegisterParameter("schedule_job_duration_logging_threshold", ScheduleJobDurationLoggingThreshold)
+    registrar.Parameter("schedule_job_duration_logging_threshold", &TSchedulerConfig::ScheduleJobDurationLoggingThreshold)
         .Default(TDuration::MilliSeconds(500));
 
-    RegisterParameter("send_preemption_reason_in_node_heartbeat", SendPreemptionReasonInNodeHeartbeat)
+    registrar.Parameter("send_preemption_reason_in_node_heartbeat", &TSchedulerConfig::SendPreemptionReasonInNodeHeartbeat)
         .Default(true);
 
-    RegisterPreprocessor([&] () {
-        EventLog->MaxRowWeight = 128_MB;
-        if (!EventLog->Path) {
-            EventLog->Path = "//sys/scheduler/event_log";
+    registrar.Preprocessor([&] (TSchedulerConfig* config) {
+        config->EventLog->MaxRowWeight = 128_MB;
+        if (!config->EventLog->Path) {
+            config->EventLog->Path = "//sys/scheduler/event_log";
         }
     });
 
-    RegisterPostprocessor([&] () {
-        if (SoftConcurrentHeartbeatLimit > HardConcurrentHeartbeatLimit) {
+    registrar.Postprocessor([&] (TSchedulerConfig* config) {
+        if (config->SoftConcurrentHeartbeatLimit > config->HardConcurrentHeartbeatLimit) {
             THROW_ERROR_EXCEPTION("\"soft_limit\" must be less than or equal to \"hard_limit\"")
-                << TErrorAttribute("soft_limit", SoftConcurrentHeartbeatLimit)
-                << TErrorAttribute("hard_limit", HardConcurrentHeartbeatLimit);
+                << TErrorAttribute("soft_limit", config->SoftConcurrentHeartbeatLimit)
+                << TErrorAttribute("hard_limit", config->HardConcurrentHeartbeatLimit);
         }
 
-        ValidateExperiments(Experiments);
+        ValidateExperiments(config->Experiments);
     });
 }
 

@@ -555,7 +555,7 @@ DEFINE_REFCOUNTED_TYPE(TMemoryWatchdogConfig)
 
 class TControllerAgentConfig
     : public NChunkClient::TChunkTeleporterConfig
-    , public TSingletonsDynamicConfig
+    , public TDeprecatedSingletonsDynamicConfig
 {
 public:
     //! Number of chunk lists to be allocated when an operation starts.

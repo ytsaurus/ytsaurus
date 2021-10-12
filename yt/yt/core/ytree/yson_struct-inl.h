@@ -57,6 +57,7 @@ void TYsonStructRegistry::Initialize(TStruct* target)
 {
     // It takes place only inside special constructor call inside lambda below.
     if (CurrentlyInitializingMeta_) {
+        // TODO(renadeen): assert target is from the same type hierarchy.
         // Call initialization method that is provided by user.
         TStruct::Register(TYsonStructRegistrar<TStruct>(CurrentlyInitializingMeta_));
         return;

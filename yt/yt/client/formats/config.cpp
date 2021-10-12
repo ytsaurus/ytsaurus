@@ -6,7 +6,7 @@ namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TProtobufColumnConfig::Postprocess()
+void TProtobufColumnConfig::CustomPostprocess()
 {
     if (Packed && !Repeated) {
         THROW_ERROR_EXCEPTION("Field %Qv is marked \"packed\" but is not marked \"repeated\"",

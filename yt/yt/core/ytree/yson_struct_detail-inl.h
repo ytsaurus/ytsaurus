@@ -59,8 +59,8 @@ inline void LoadFromNode(
     }
 }
 
-// TYsonStruct
-template <class T, class E = typename std::enable_if<std::is_convertible<T&, TYsonStruct&>::value>::type>
+// TYsonStruct or TYsonSerializable
+template <class T, class E = typename std::enable_if_t<std::is_convertible_v<T&, TYsonStruct&> || std::is_convertible_v<T&, TYsonSerializable&>>>
 void LoadFromNode(
     TIntrusivePtr<T>& parameterValue,
     NYTree::INodePtr node,
@@ -235,22 +235,27 @@ struct TGetRecursiveUnrecognized<T, std::enable_if_t<std::is_base_of<TYsonStruct
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
+// TODO(renadeen): kill this when everything will be moved to TYsonStruct.
+template <class T>
+concept IsYsonStructOrYsonSerializable = std::is_base_of_v<TYsonStruct, T> || std::is_base_of_v<TYsonSerializable, T>;
+
 // all
 template <class F>
 void InvokeForComposites(
-    const void* /* parameter */,
-    const NYPath::TYPath& /* path */,
-    const F& /* func */)
+    const void* /*parameter*/,
+    const NYPath::TYPath& /*path*/,
+    const F& /*func*/)
 { }
 
 // TYsonStruct
-template <class T, class F, class E = typename std::enable_if<std::is_convertible<T*, TYsonStruct*>::value>::type>
+template <IsYsonStructOrYsonSerializable T, class F>
 inline void InvokeForComposites(
-    const TIntrusivePtr<T>* parameter,
+    const TIntrusivePtr<T>* parameterValue,
     const NYPath::TYPath& path,
     const F& func)
 {
-    func(*parameter, path);
+    func(*parameterValue, path);
 }
 
 // std::vector
@@ -613,7 +618,7 @@ void TYsonStructParameter<TValue>::Postprocess(const TYsonStructBase* self, cons
     NPrivate::InvokeForComposites(
         &value,
         path,
-        [] (TIntrusivePtr<TYsonStruct> obj, const NYPath::TYPath& subpath) {
+        [] <NPrivate::IsYsonStructOrYsonSerializable T> (TIntrusivePtr<T> obj, const NYPath::TYPath& subpath) {
             if (obj) {
                 obj->Postprocess(subpath);
             }
@@ -696,7 +701,15 @@ TYsonStructParameter<TValue>& TYsonStructParameter<TValue>::Optional()
 template <class TValue>
 TYsonStructParameter<TValue>& TYsonStructParameter<TValue>::Default(TValue defaultValue)
 {
-    DefaultConstructor_ = [value = std::move(defaultValue)]() { return value; };
+    static_assert(!std::is_convertible_v<TValue, TIntrusivePtr<TYsonStruct>>, "Use DefaultCtor to register TYsonStruct default.");
+    DefaultConstructor_ = [value = std::move(defaultValue)] () { return value; };
+    return *this;
+}
+
+template <class TValue>
+TYsonStructParameter<TValue>& TYsonStructParameter<TValue>::Default()
+{
+    DefaultConstructor_ = [] () { return TValue{}; };
     return *this;
 }
 

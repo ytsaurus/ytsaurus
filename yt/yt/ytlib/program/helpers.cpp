@@ -89,7 +89,8 @@ void ConfigureSingletons(const TSingletonsConfigPtr& config)
     }
 }
 
-void ReconfigureSingletons(const TSingletonsConfigPtr& config, const TSingletonsDynamicConfigPtr& dynamicConfig)
+template <class T>
+void ReconfigureSingletonsImpl(const TSingletonsConfigPtr& config, const TIntrusivePtr<T>& dynamicConfig)
 {
     NConcurrency::SetSpinlockHiccupThresholdTicks(NProfiling::DurationToCpuDuration(
         dynamicConfig->SpinlockHiccupThreshold.value_or(config->SpinlockHiccupThreshold)));
@@ -122,6 +123,16 @@ void ReconfigureSingletons(const TSingletonsConfigPtr& config, const TSingletons
     } else if (config->Rpc->Tracing) {
         NTracing::SetTracingConfig(config->Rpc->Tracing);
     }
+}
+
+void ReconfigureSingletons(const TSingletonsConfigPtr& config, const TDeprecatedSingletonsDynamicConfigPtr& dynamicConfig)
+{
+    ReconfigureSingletonsImpl(config, dynamicConfig);
+}
+
+void ReconfigureSingletons(const TSingletonsConfigPtr& config, const TSingletonsDynamicConfigPtr& dynamicConfig)
+{
+    ReconfigureSingletonsImpl(config, dynamicConfig);
 }
 
 void StartDiagnosticDump(const TDiagnosticDumpConfigPtr& config)

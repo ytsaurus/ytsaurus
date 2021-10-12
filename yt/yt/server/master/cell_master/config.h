@@ -311,7 +311,7 @@ DEFINE_REFCOUNTED_TYPE(TCellMasterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicCellMasterConfig
-    : public TSingletonsDynamicConfig
+    : public TDeprecatedSingletonsDynamicConfig
 {
 public:
     TDuration MutationTimeCommitPeriod;

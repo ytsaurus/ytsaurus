@@ -686,7 +686,7 @@ DEFINE_REFCOUNTED_TYPE(TClusterNodeConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterNodeDynamicConfig
-    : public TSingletonsDynamicConfig
+    : public TDeprecatedSingletonsDynamicConfig
 {
 public:
     //! Dynamic config annotation.

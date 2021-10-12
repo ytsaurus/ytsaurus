@@ -3956,7 +3956,7 @@ private:
             return;
         }
 
-        auto unrecognized = Config_->GetUnrecognizedRecursively();
+        auto unrecognized = Config_->GetRecursiveUnrecognized();
         if (unrecognized && unrecognized->GetChildCount() > 0) {
             YT_LOG_WARNING("Scheduler config contains unrecognized options (Unrecognized: %v)",
                 ConvertToYsonString(unrecognized, EYsonFormat::Text));

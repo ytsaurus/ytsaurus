@@ -25,7 +25,7 @@
 
 #include <yt/yt/core/rpc/config.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/library/re2/re2.h>
 
@@ -55,13 +55,15 @@ DEFINE_ENUM(EDeactivationReason,
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStrategyTestingOptions
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     // Testing option that enables sleeping during fair share strategy update.
     std::optional<TDuration> DelayInsideFairShareUpdate;
 
-    TStrategyTestingOptions();
+    REGISTER_YSON_STRUCT(TStrategyTestingOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TStrategyTestingOptions)
@@ -69,14 +71,16 @@ DEFINE_REFCOUNTED_TYPE(TStrategyTestingOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFairShareStrategyControllerThrottling
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
-    TFairShareStrategyControllerThrottling();
-
     TDuration ScheduleJobStartBackoffTime;
     TDuration ScheduleJobMaxBackoffTime;
     double ScheduleJobBackoffMultiplier;
+
+    REGISTER_YSON_STRUCT(TFairShareStrategyControllerThrottling);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyControllerThrottling)
@@ -85,7 +89,7 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategyControllerThrottling)
 
 // TODO(ignat): move it to subconfig.
 class TFairShareStrategyOperationControllerConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     // NB(eshcherbin): This limit is only checked once every fair share update. Finer throttling is achieved
@@ -114,7 +118,9 @@ public:
     //! Schedule job that longer this duration will be logged.
     TDuration LongScheduleJobLoggingThreshold;
 
-    TFairShareStrategyOperationControllerConfig();
+    REGISTER_YSON_STRUCT(TFairShareStrategyOperationControllerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyOperationControllerConfig)
@@ -122,7 +128,7 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategyOperationControllerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerIntegralGuaranteesConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration SmoothPeriod;
@@ -131,7 +137,9 @@ public:
 
     double RelaxedShareMultiplierLimit;
 
-    TSchedulerIntegralGuaranteesConfig();
+    REGISTER_YSON_STRUCT(TSchedulerIntegralGuaranteesConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerIntegralGuaranteesConfig)
@@ -139,7 +147,7 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerIntegralGuaranteesConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFairShareStrategySchedulingSegmentsConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     ESegmentedSchedulingMode Mode;
@@ -154,7 +162,9 @@ public:
 
     ESchedulingSegmentDataCenterAssignmentHeuristic DataCenterAssignmentHeuristic;
 
-    TFairShareStrategySchedulingSegmentsConfig();
+    REGISTER_YSON_STRUCT(TFairShareStrategySchedulingSegmentsConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategySchedulingSegmentsConfig)
@@ -162,7 +172,7 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategySchedulingSegmentsConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFairShareStrategyTreeConfig
-    : virtual public NYTree::TYsonSerializable
+    : virtual public NYTree::TYsonStruct
 {
 public:
     // Specifies nodes that are served by this tree.
@@ -297,7 +307,9 @@ public:
 
     bool EnableResourceUsageSnapshot;
 
-    TFairShareStrategyTreeConfig();
+    REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyTreeConfig)
@@ -305,7 +317,7 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategyTreeConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPoolTreesTemplateConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Priority to apply filter.
@@ -317,7 +329,9 @@ public:
     //! Fair share strategy config for filter.
     NYTree::INodePtr Config;
 
-    TPoolTreesTemplateConfig();
+    REGISTER_YSON_STRUCT(TPoolTreesTemplateConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TPoolTreesTemplateConfig)
@@ -374,7 +388,9 @@ public:
     //! Template pool tree configs.
     THashMap<TString, TPoolTreesTemplateConfigPtr> TemplatePoolTreeConfigMap;
 
-    TFairShareStrategyConfig();
+    REGISTER_YSON_STRUCT(TFairShareStrategyConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyConfig)
@@ -382,7 +398,7 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategyConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTestingOptions
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     // Testing options that enables random master disconnections.
@@ -398,7 +414,9 @@ public:
     // Testing option that enables sleeping between intermediate and final states of operation.
     std::optional<TDuration> FinishOperationTransitionDelay;
 
-    TTestingOptions();
+    REGISTER_YSON_STRUCT(TTestingOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTestingOptions)
@@ -406,7 +424,7 @@ DEFINE_REFCOUNTED_TYPE(TTestingOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperationsCleanerConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! Enables cleaner.
@@ -476,7 +494,9 @@ public:
     //! The number of operations in batch to parse.
     int ParseOperationAttributesBatchSize;
 
-    TOperationsCleanerConfig();
+    REGISTER_YSON_STRUCT(TOperationsCleanerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationsCleanerConfig)
@@ -493,7 +513,7 @@ struct TAliveControllerAgentThresholds final
 };
 
 class TControllerAgentTrackerConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     // Scheduler scheduler-to-agent operation request timeout for light requests.
@@ -532,7 +552,9 @@ public:
     // Tag to threshols for alive agents with the tag
     THashMap<TString, TAliveControllerAgentThresholds> TagToAliveControllerAgentThresholds;
 
-    TControllerAgentTrackerConfig();
+    REGISTER_YSON_STRUCT(TControllerAgentTrackerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentTrackerConfig)
@@ -540,7 +562,7 @@ DEFINE_REFCOUNTED_TYPE(TControllerAgentTrackerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TResourceMeteringConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Enables new format for abc_id.
@@ -554,7 +576,9 @@ public:
     TString DefaultCloudId;
     TString DefaultFolderId;
 
-    TResourceMeteringConfig();
+    REGISTER_YSON_STRUCT(TResourceMeteringConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TResourceMeteringConfig)
@@ -756,7 +780,9 @@ public:
     //! Duration of ScheduleJob call to log this result.
     TDuration ScheduleJobDurationLoggingThreshold;
 
-    TSchedulerConfig();
+    REGISTER_YSON_STRUCT(TSchedulerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConfig)
