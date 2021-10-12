@@ -89,6 +89,7 @@ public:
     const TMasterMemoryLimits& MasterMemory() const;
     void SetMasterMemory(TMasterMemoryLimits masterMemoryLimits) &;
 
+    NChunkClient::TMediumMap<i64>& DiskSpace();
     const NChunkClient::TMediumMap<i64>& DiskSpace() const;
 
     void SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &;

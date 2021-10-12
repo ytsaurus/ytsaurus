@@ -528,6 +528,34 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
         time.sleep(10)
         assert sorted(changelogs) == sorted(ls("//sys/tablet_cells/{0}/changelogs".format(id)))
 
+    @authors("akozhikhov")
+    def test_bundle_account_violation_attribute(self):
+        create_account("test_account")
+        self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_count", 1)
+        get("//sys/accounts/test_account/@resource_limits")
+
+        create_tablet_cell_bundle("b")
+        set("//sys/tablet_cell_bundles/b/@options/changelog_account", "test_account")
+        set("//sys/tablet_cell_bundles/b/@options/snapshot_account", "test_account")
+        sync_create_cells(1, tablet_cell_bundle="b")
+
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b", account="test_account")
+
+        # Fill some disk space.
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1, "value": "foo"}])
+        sync_flush_table("//tmp/t")
+
+        assert not get("//sys/tablet_cell_bundles/b/@changelog_account_violated_resource_limits/node_count")
+        assert not get("//sys/tablet_cell_bundles/b/@snapshot_account_violated_resource_limits/node_count")
+        self._multicell_set("//sys/accounts/test_account/@resource_limits/node_count", 0)
+        assert get("//sys/tablet_cell_bundles/b/@changelog_account_violated_resource_limits/node_count")
+        assert get("//sys/tablet_cell_bundles/b/@snapshot_account_violated_resource_limits/node_count")
+
+        assert not get("//sys/tablet_cell_bundles/b/@changelog_account_violated_resource_limits/disk_space_per_medium/default")
+        self._multicell_set("//sys/accounts/test_account/@resource_limits/disk_space_per_medium/default", 10)
+        assert get("//sys/tablet_cell_bundles/b/@changelog_account_violated_resource_limits/disk_space_per_medium/default")
+
 
 class TestDynamicTablesResourceLimitsMulticell(TestDynamicTablesResourceLimits):
     NUM_SECONDARY_MASTER_CELLS = 2

@@ -12,6 +12,11 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
+
 #include <yt/yt/server/master/object_server/helpers.h>
 #include <yt/yt/server/master/object_server/object_detail.h>
 
@@ -36,9 +41,11 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NTableClient;
 using namespace NCellServer;
+using namespace NChunkServer;
 using namespace NTableServer;
 using namespace NObjectServer;
 using namespace NNodeTrackerServer;
+using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,6 +97,10 @@ private:
             .SetReplicated(true)
             .SetRemovable(true)
             .SetPresent(cellBundle->GetFolderId().has_value()));
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ChangelogAccountViolatedResourceLimits)
+            .SetOpaque(true));
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::SnapshotAccountViolatedResourceLimits)
+            .SetOpaque(true));
 
         TBase::ListSystemAttributes(attributes);
     }
@@ -167,6 +178,36 @@ private:
                 }
             }
 
+            case EInternedAttributeKey::ChangelogAccountViolatedResourceLimits: {
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+                const auto& securityManager = Bootstrap_->GetSecurityManager();
+
+                auto bundleOptions = cellBundle->GetOptions();
+                auto* account = securityManager->GetAccountByNameOrThrow(
+                    bundleOptions->ChangelogAccount,
+                    /*activeLifeStageOnly*/ true);
+                auto* medium = chunkManager->GetMediumByNameOrThrow(bundleOptions->ChangelogPrimaryMedium);
+
+                DoSerializeAccountViolatedResourceLimits(account, medium, consumer);
+
+                return true;
+            }
+
+            case EInternedAttributeKey::SnapshotAccountViolatedResourceLimits: {
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+                const auto& securityManager = Bootstrap_->GetSecurityManager();
+
+                auto bundleOptions = cellBundle->GetOptions();
+                auto* account = securityManager->GetAccountByNameOrThrow(
+                    bundleOptions->SnapshotAccount,
+                    /*activeLifeStageOnly*/ true);
+                auto* medium = chunkManager->GetMediumByNameOrThrow(bundleOptions->SnapshotPrimaryMedium);
+
+                DoSerializeAccountViolatedResourceLimits(account, medium, consumer);
+
+                return true;
+            }
+
             default:
                 break;
         }
@@ -230,6 +271,27 @@ private:
     }
 
     DECLARE_YPATH_SERVICE_METHOD(NTabletClient::NProto, BalanceTabletCells);
+
+    void DoSerializeAccountViolatedResourceLimits(TAccount* account, TMedium* medium, IYsonConsumer* consumer)
+    {
+        auto enableTabletResourceValidation =
+            Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager->EnableTabletResourceValidation;
+        auto violatedResourceLimits = account->GetViolatedResourceLimits(
+            Bootstrap_,
+            enableTabletResourceValidation);
+
+        // NB: Filter out master memory and irrelevant media violations.
+        violatedResourceLimits.SetMasterMemory({});
+        auto mediumViolatedDiskSpace = violatedResourceLimits.DiskSpace().lookup(medium->GetIndex());
+        violatedResourceLimits.DiskSpace().clear();
+        violatedResourceLimits.SetMediumDiskSpace(medium->GetIndex(), mediumViolatedDiskSpace);
+
+        SerializeViolatedClusterResourceLimitsInBooleanFormat(
+            violatedResourceLimits,
+            consumer,
+            Bootstrap_,
+            /*serializeDiskSpace*/ false);
+    }
 };
 
 DEFINE_YPATH_SERVICE_METHOD(TTabletCellBundleProxy, BalanceTabletCells)
