@@ -360,7 +360,6 @@ public:
 
 private:
     const TUnversionedRowHeader* Header_ = nullptr;
-
 };
 
 // For TKeyComparer.
@@ -678,8 +677,7 @@ public:
 class TUnversionedOwningRow
 {
 public:
-    TUnversionedOwningRow()
-    { }
+    TUnversionedOwningRow() = default;
 
     TUnversionedOwningRow(const TUnversionedValue* begin, const TUnversionedValue* end)
     {
@@ -793,7 +791,7 @@ private:
     friend class TUnversionedOwningRowBuilder;
 
     TSharedMutableRef RowData_; // TRowHeader plus TValue-s
-    TString StringData_;         // Holds string data
+    TString StringData_;        // Holds string data
 
 
     TUnversionedOwningRow(TSharedMutableRef rowData, TString stringData)
@@ -844,7 +842,6 @@ private:
 
     TUnversionedRowHeader* GetHeader();
     TUnversionedValue* GetValue(ui32 index);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -873,7 +870,6 @@ private:
     TUnversionedRowHeader* GetHeader();
     TUnversionedValue* GetValue(ui32 index);
     void Reset();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

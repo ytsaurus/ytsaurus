@@ -1881,21 +1881,19 @@ int TUnversionedOwningRowBuilder::AddValue(const TUnversionedValue& value)
     *newValue = value;
 
     if (IsStringLikeType(value.Type)) {
-        if (StringData_.length() + value.Length > StringData_.capacity()) {
-            char* oldStringData = const_cast<char*>(StringData_.begin());
-            StringData_.reserve(std::max(
-                StringData_.capacity() * 2,
-                StringData_.length() + value.Length));
-            char* newStringData = const_cast<char*>(StringData_.begin());
+        const char* oldStringDataPtr = StringData_.data();
+        auto oldStringDataLength = StringData_.length();
+        StringData_.append(value.Data.String, value.Data.String + value.Length);
+        const char* newStringDataPtr = StringData_.data();
+        newValue->Data.String = newStringDataPtr + oldStringDataLength;
+        if (newStringDataPtr != oldStringDataPtr) {
             for (int index = 0; index < static_cast<int>(header->Count); ++index) {
                 auto* existingValue = GetValue(index);
                 if (IsStringLikeType(existingValue->Type)) {
-                    existingValue->Data.String = newStringData + (existingValue->Data.String - oldStringData);
+                    existingValue->Data.String = newStringDataPtr + (existingValue->Data.String - oldStringDataPtr);
                 }
             }
         }
-        newValue->Data.String = const_cast<char*>(StringData_.end());
-        StringData_.append(value.Data.String, value.Data.String + value.Length);
     }
 
     return header->Count++;
