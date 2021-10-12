@@ -8,6 +8,7 @@
 
 #include <yt/yt/core/concurrency/spinlock.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
+#include <yt/yt/core/concurrency/fork_aware_spinlock.h>
 
 #include <pthread.h>
 
@@ -143,6 +144,10 @@ private:
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, ThreadRegistryLock_);
     TIntrusiveLinkedList<THazardThreadState, THazardThreadStateToRegistryNode> ThreadRegistry_;
     pthread_key_t ThreadDtorKey_;
+
+    void BeforeFork();
+    void AfterForkParent();
+    void AfterForkChild();
 };
 
 THazardPointerManager HazardPointerManager;
@@ -154,6 +159,18 @@ THazardPointerManager::THazardPointerManager()
     pthread_key_create(&ThreadDtorKey_, [] (void* ptr) {
         HazardPointerManager.DestroyThread(ptr);
     });
+
+    NConcurrency::TForkAwareSpinLock::AtFork(
+        this,
+        [] (void* cookie) {
+            static_cast<THazardPointerManager*>(cookie)->BeforeFork();
+        },
+        [] (void* cookie) {
+            static_cast<THazardPointerManager*>(cookie)->AfterForkParent();
+        },
+        [] (void* cookie) {
+            static_cast<THazardPointerManager*>(cookie)->AfterForkChild();
+        });
 }
 
 THazardPointerManager::~THazardPointerManager()
@@ -213,7 +230,7 @@ bool THazardPointerManager::Scan(THazardThreadState* threadState)
     YT_VERIFY(protectedPointers.empty());
 
     {
-        auto guard = ReaderGuard(ThreadRegistryLock_);
+        auto guard = ForkFriendlyReaderGuard(ThreadRegistryLock_);
         for (
             auto* current = ThreadRegistry_.GetFront();
             current;
@@ -288,6 +305,29 @@ void THazardPointerManager::DestroyThread(void* ptr)
     }
 
     delete threadState;
+}
+
+void THazardPointerManager::BeforeFork()
+{
+    ThreadRegistryLock_.AcquireWriter();
+}
+
+void THazardPointerManager::AfterForkParent()
+{
+    ThreadRegistryLock_.ReleaseWriter();
+}
+
+void THazardPointerManager::AfterForkChild()
+{
+    ThreadRegistry_.Clear();
+    ThreadCount_ = 0;
+
+    if (HazardThreadState) {
+        ThreadRegistry_.PushBack(HazardThreadState);
+        ThreadCount_ = 1;
+    }
+
+    ThreadRegistryLock_.ReleaseWriter();
 }
 
 //////////////////////////////////////////////////////////////////////////

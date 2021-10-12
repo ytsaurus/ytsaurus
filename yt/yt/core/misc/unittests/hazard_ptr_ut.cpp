@@ -5,6 +5,8 @@
 #include <yt/yt/core/misc/public.h>
 #include <yt/yt/core/misc/atomic_ptr.h>
 
+#include <yt/yt/core/concurrency/event_count.h>
+
 namespace NYT {
 namespace {
 
@@ -235,6 +237,81 @@ TEST(THazardPtrTest, DelayedDeallocationPolymorphic)
     ScanDeleteList();
 
     EXPECT_STREQ("AC!DF", output.Str().c_str());
+}
+
+NConcurrency::TEvent Started;
+NConcurrency::TEvent Finish;
+
+TEST(THazardPtrTest, SupportFork)
+{
+    TStringStream output;
+    TTestAllocator allocator(&output);
+
+    auto ptr = New<TSamplePolymorphicObject>(&allocator, &output);
+    ptr->DoSomething();
+
+    auto hazardPtr = THazardPtr<TSamplePolymorphicObject>::Acquire([&] {
+        return ptr.Get();
+    });
+
+    TThread thread1([] (void* opaque) -> void* {
+        auto ptrRef = static_cast<TIntrusivePtr<TSamplePolymorphicObject>*>(opaque);
+        auto hazardPtr = THazardPtr<TSamplePolymorphicObject>::Acquire([&] {
+            return ptrRef->Get();
+        });
+
+        EXPECT_TRUE(hazardPtr);
+        hazardPtr.Reset();
+
+        Started.NotifyOne();
+        Finish.Wait();
+
+        return nullptr;
+    }, &ptr);
+
+    thread1.Start();
+    Started.Wait();
+
+    ptr = nullptr;
+
+    EXPECT_STREQ("AC!D", output.Str().c_str());
+
+    ScanDeleteList();
+
+    EXPECT_STREQ("AC!D", output.Str().c_str());
+
+    auto childPid = fork();
+    if (childPid < 0) {
+        THROW_ERROR_EXCEPTION("fork failed")
+            << TError::FromSystem();
+    }
+
+    if (childPid == 0) {
+        thread1.Detach();
+
+        EXPECT_TRUE(hazardPtr);
+
+        ScanDeleteList();
+        EXPECT_STREQ("AC!D", output.Str().c_str());
+
+        hazardPtr.Reset();
+        ScanDeleteList();
+
+        EXPECT_STREQ("AC!DF", output.Str().c_str());
+
+        // Do not test hazard pointer manager shutdown
+        // beacuse of broken (after fork) NYT::Shutdown.
+        ::_exit(0);
+    } else {
+        Sleep(TDuration::Seconds(1));
+        hazardPtr.Reset();
+        ScanDeleteList();
+
+        EXPECT_STREQ("AC!DF", output.Str().c_str());
+
+        Finish.NotifyOne();
+        thread1.Join();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
