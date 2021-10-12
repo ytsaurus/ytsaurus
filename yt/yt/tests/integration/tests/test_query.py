@@ -1479,7 +1479,7 @@ class TestQueryRpcProxy(TestQuery):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
-    @authors("akozhikhov")
+    @authors("akozhikhov", "alexelexa")
     def test_detailed_select_profiling(self):
         sync_create_cells(1)
         create(
@@ -1538,3 +1538,11 @@ class TestQueryRpcProxy(TestQuery):
                 return False
 
         wait(lambda: check())
+        assert Profiler.at_rpc_proxy(self.Env.create_native_client(), rpc_proxy).get(
+            name="rpc_proxy/detailed_table_statistics/select_mount_cache_wait_time",
+            tags={"table_path": "//tmp/t"},
+            postprocessor=lambda data: data.get('all_time_max'),
+            summary_as_max_for_all_time=True,
+            export_summary_as_max=True,
+            verbose=False,
+            default=0) > 0

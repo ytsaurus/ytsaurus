@@ -88,6 +88,7 @@ struct TDetailedProfilingInfo
 {
     bool EnableDetailedProfiling = false;
     NYPath::TYPath TablePath;
+    TDuration MountCacheWaitTime;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDetailedProfilingInfo)

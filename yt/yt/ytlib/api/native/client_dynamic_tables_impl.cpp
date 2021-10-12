@@ -213,9 +213,11 @@ class TQueryPreparer
 public:
     TQueryPreparer(
         NTabletClient::ITableMountCachePtr mountTableCache,
-        IInvokerPtr invoker)
+        IInvokerPtr invoker,
+        TDetailedProfilingInfoPtr detailedProfilingInfo = nullptr)
         : MountTableCache_(std::move(mountTableCache))
         , Invoker_(std::move(invoker))
+        , DetailedProfilingInfo_(std::move(detailedProfilingInfo))
     { }
 
     // IPrepareCallbacks implementation.
@@ -231,6 +233,7 @@ public:
 private:
     const NTabletClient::ITableMountCachePtr MountTableCache_;
     const IInvokerPtr Invoker_;
+    const TDetailedProfilingInfoPtr DetailedProfilingInfo_;
 
     static TTableSchemaPtr GetTableSchema(
         const TRichYPath& path,
@@ -250,8 +253,15 @@ private:
         const TRichYPath& path,
         TTimestamp timestamp)
     {
+        NProfiling::TWallTimer timer;
         auto tableInfo = WaitFor(MountTableCache_->GetTableInfo(path.GetPath()))
             .ValueOrThrow();
+        auto mountCacheWaitTime = timer.GetElapsedTime();
+
+        if (DetailedProfilingInfo_ && tableInfo->EnableDetailedProfiling) {
+            DetailedProfilingInfo_->EnableDetailedProfiling = true;
+            DetailedProfilingInfo_->MountCacheWaitTime += mountCacheWaitTime;
+        }
 
         tableInfo->ValidateNotReplicated();
 
@@ -530,8 +540,10 @@ TRowset TClient::DoLookupRowsOnce(
     }
 
     const auto& tableMountCache = Connection_->GetTableMountCache();
+    NProfiling::TWallTimer timer;
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
         .ValueOrThrow();
+    auto mountCacheWaitTime = timer.GetElapsedTime();
 
     tableInfo->ValidateDynamic();
     tableInfo->ValidateSorted();
@@ -539,6 +551,7 @@ TRowset TClient::DoLookupRowsOnce(
     if (options.DetailedProfilingInfo && tableInfo->EnableDetailedProfiling) {
         options.DetailedProfilingInfo->EnableDetailedProfiling = true;
         options.DetailedProfilingInfo->TablePath = path;
+        options.DetailedProfilingInfo->MountCacheWaitTime = mountCacheWaitTime;
     }
 
     const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
@@ -890,7 +903,10 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     };
 
     const auto& tableMountCache = Connection_->GetTableMountCache();
-    auto queryPreparer = New<TQueryPreparer>(tableMountCache, Connection_->GetInvoker());
+    auto queryPreparer = New<TQueryPreparer>(
+        tableMountCache,
+        Connection_->GetInvoker(),
+        options.DetailedProfilingInfo);
 
     auto queryExecutor = CreateQueryExecutor(
         Connection_,
@@ -954,11 +970,14 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
 
     if (options.DetailedProfilingInfo) {
         const auto& path = astQuery->Table.Path;
+        NProfiling::TWallTimer timer;
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
             .ValueOrThrow();
+        auto mountCacheWaitTime = timer.GetElapsedTime();
         if (tableInfo->EnableDetailedProfiling) {
             options.DetailedProfilingInfo->EnableDetailedProfiling = true;
             options.DetailedProfilingInfo->TablePath = path;
+            options.DetailedProfilingInfo->MountCacheWaitTime += mountCacheWaitTime;
         }
     }
 
