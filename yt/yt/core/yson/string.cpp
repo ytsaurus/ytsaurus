@@ -60,14 +60,6 @@ EYsonType TYsonStringBuf::GetType() const
     return Type_;
 }
 
-void TYsonStringBuf::Validate() const
-{
-    if (*this) {
-        TMemoryInput input(Data_);
-        ParseYson(TYsonInput(&input, Type_), GetNullYsonConsumer());
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRefCountedYsonStringData
@@ -181,7 +173,10 @@ size_t TYsonString::ComputeHash() const
 
 void TYsonString::Validate() const
 {
-    TYsonStringBuf(*this).Validate();
+    if (*this) {
+      TMemoryInput input(AsStringBuf());
+      ParseYson(TYsonInput(&input, GetType()), GetNullYsonConsumer());
+    }
 }
 
 void TYsonString::Save(TStreamSaveContext& context) const
