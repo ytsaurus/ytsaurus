@@ -28,6 +28,17 @@ object YtPublishPlugin extends AutoPlugin {
       def publish(proxyName: String, log: sbt.Logger)(implicit yt: YtClient): Unit
     }
 
+    case class YtPublishLink(originalPath: String,
+                             remoteDir: String,
+                             proxy: Option[String],
+                             linkName: String) extends YtPublishArtifact {
+      override def publish(proxyName: String, log: sbt.Logger)(implicit yt: YtClient): Unit = {
+        val link = s"$remoteDir/$linkName"
+        log.info(s"Link $originalPath to $link..")
+        yt.linkNode(originalPath, link)
+      }
+    }
+
     case class YtPublishFile(localFile: File,
                              remoteDir: String,
                              proxy: Option[String],

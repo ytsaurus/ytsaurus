@@ -4,6 +4,7 @@ import sbtrelease.ReleasePlugin.autoImport.releaseProcess
 import spyt.DebianPackagePlugin.autoImport._
 import spyt.PythonPlugin.autoImport._
 import spyt.SparkPackagePlugin.autoImport._
+import spyt.SparkPaths._
 import spyt.SpytPlugin.autoImport._
 import spyt.TarArchiverPlugin.autoImport._
 import spyt.YtPublishPlugin.autoImport._
@@ -31,7 +32,8 @@ lazy val `spark-launcher` = (project in file("spark-launcher"))
     libraryDependencies ++= itTestDeps,
     libraryDependencies ++= scalatraTestDeps,
     assembly / assemblyJarName := s"spark-yt-launcher.jar",
-    assembly / assemblyOption := (assembly / assemblyOption).value.copy(includeScala = true)
+    assembly / assemblyOption := (assembly / assemblyOption).value.copy(includeScala = true),
+    assembly / test := {}
   )
 
 lazy val `spark-submit` = (project in file("spark-submit"))
@@ -70,10 +72,11 @@ lazy val `data-source` = (project in file("data-source"))
     },
     publishYtArtifacts ++= {
       val subdir = if (isSnapshot.value) "snapshots" else "releases"
-      val publishDir = s"//sys/spark/spyt/$subdir/${version.value}"
+      val publishDir = s"$sparkYtClientPath/$subdir/${version.value}"
       Seq(
         YtPublishFile(assembly.value, publishDir, proxy = None),
-        YtPublishFile(zip.value, publishDir, proxy = None)
+        YtPublishFile(zip.value, publishDir, proxy = None),
+        YtPublishLink(publishDir, s"$sparkYtLegacyClientPath/$subdir", None, version.value)
       )
     },
     assembly / assemblyShadeRules ++= clientShadeRules,
@@ -115,7 +118,8 @@ lazy val `client` = (project in file("client"))
   .settings(
     publishYtArtifacts += YtPublishFile(tarArchiveBuild.value, sparkYtBinBasePath.value, None),
     publishYtArtifacts += YtPublishFile((`spark-launcher` / assembly).value, sparkYtBinBasePath.value, None),
-    publishYtArtifacts ++= sparkYtConfigs.value
+    publishYtArtifacts ++= sparkYtConfigs.value,
+    publishYtArtifacts += YtPublishLink(sparkYtBinBasePath.value, s"$sparkYtLegacyBinPath/${sparkYtSubdir.value}", None, version.value)
   )
   .settings(
     pythonSetupName := "setup-yandex.py",

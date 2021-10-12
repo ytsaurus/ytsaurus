@@ -4,6 +4,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.yt.ytclient.proxy.YtClient
+import spyt.SparkPaths._
 
 import scala.annotation.tailrec
 
@@ -53,13 +54,7 @@ object YsonableConfig {
 
 case class SparkGlobalConfig(spark_conf: Map[String, String],
                              latest_spark_cluster_version: String,
-                             layer_paths: Seq[String] = Seq(
-                               "//sys/spark/delta/layer_with_solomon_agent.tar.gz",
-                               "//sys/spark/delta/jdk/layer_with_jdk_lastest.tar.gz",
-                               "//sys/spark/delta/python/layer_with_python37_libs_3.tar.gz",
-                               "//sys/spark/delta/python/layer_with_python34.tar.gz",
-                               "//porto_layers/base/xenial/porto_layer_search_ubuntu_xenial_app_lastest.tar.gz"
-                             ),
+                             layer_paths: Seq[String] = SparkLaunchConfig.defaultLayers,
                              python_cluster_paths: Map[String, String] = Map(
                                "3.7" -> "/opt/python3.7/bin/python3.7",
                                "3.5" -> "python3.5",
@@ -67,7 +62,7 @@ case class SparkGlobalConfig(spark_conf: Map[String, String],
                                "2.7" -> "python2.7"
                              ),
                              environment: Map[String, String] = Map(
-                               "JAVA_HOME" -> "/opt/jdk8",
+                               "JAVA_HOME" -> "/opt/jdk11",
                                "IS_SPARK_CLUSTER" -> "true",
                                "YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB" -> "1",
                                "ARROW_ENABLE_NULL_CHECK_FOR_GET" -> "false",
@@ -77,23 +72,15 @@ case class SparkGlobalConfig(spark_conf: Map[String, String],
                                "job_cpu_monitor" -> YsonableConfig.toYTree(Map("enable_cpu_reclaim" -> "false"))
                              ),
                              worker_num_limit: Int = 1000,
-                             ytserver_proxy_path: String = SparkLaunchConfig.defaultYtServerProxyPath) extends YsonableConfig
+                             ytserver_proxy_path: String = defaultYtServerProxyPath) extends YsonableConfig
 
 case class SparkLaunchConfig(spark_yt_base_path: String,
                              file_paths: Seq[String],
                              spark_conf: Map[String, String] = Map.empty,
                              enablers: SpytEnablers = SpytEnablers(),
                              ytserver_proxy_path: Option[String] = None,
-                             layer_paths: Seq[String] = Seq(
-                               "//sys/spark/delta/layer_with_solomon_agent.tar.gz",
-                               "//porto_layers/delta/jdk/layer_with_jdk_lastest.tar.gz",
-                               "//sys/spark/delta/python/layer_with_python37_libs_3.tar.gz",
-                               "//sys/spark/delta/python/layer_with_python34.tar.gz",
-                               "//porto_layers/base/xenial/porto_layer_search_ubuntu_xenial_app_lastest.tar.gz"
-                             ),
-                             environment: Map[String, String] = Map(
-                               "JAVA_HOME" -> "/opt/jdk11"
-                             )) extends YsonableConfig {
+                             layer_paths: Seq[String] = SparkLaunchConfig.defaultLayers,
+                             environment: Map[String, String] = Map.empty) extends YsonableConfig {
   override def resolveSymlinks(implicit yt: YtClient): YsonableConfig = {
     import SparkLaunchConfig._
     if (ytserver_proxy_path.isEmpty) {
@@ -107,7 +94,13 @@ case class SpytEnablers(enable_byop: Boolean = true,
                         enable_mtn: Boolean = false) extends YsonableConfig
 
 object SparkLaunchConfig {
-  val defaultYtServerProxyPath = "//sys/bin/ytserver-proxy/ytserver-proxy"
+  val defaultLayers = Seq(
+    s"$sparkYtDeltaLayerPath/layer_with_solomon_agent.tar.gz",
+    s"$ytPortoDeltaLayersPath/jdk/layer_with_jdk_lastest.tar.gz",
+    s"$sparkYtDeltaLayerPath/python/layer_with_python37_libs_3.tar.gz",
+    s"$sparkYtDeltaLayerPath/python/layer_with_python34.tar.gz",
+    s"$ytPortoBaseLayersPath/xenial/porto_layer_search_ubuntu_xenial_app_lastest.tar.gz"
+  )
 
   def resolveSymlink(symlink: String)(implicit yt: YtClient): String = {
     yt.getNode(s"$symlink&/@target_path").join().stringValue()

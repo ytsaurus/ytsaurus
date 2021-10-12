@@ -5,7 +5,7 @@ from yt.wrapper.common import update_inplace
 
 from .version import __version__
 
-SPARK_BASE_PATH = YPath("//sys/spark")
+SPARK_BASE_PATH = YPath("//home/spark")
 
 CONF_BASE_PATH = SPARK_BASE_PATH.join("conf")
 GLOBAL_CONF_PATH = CONF_BASE_PATH.join("global")

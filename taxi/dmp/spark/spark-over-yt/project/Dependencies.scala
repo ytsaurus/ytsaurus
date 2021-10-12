@@ -24,8 +24,8 @@ object Dependencies {
   )
 
   lazy val dockerTest = Seq(
-    "com.whisk" %% "docker-testkit-scalatest" % "0.9.9" % "test",
-    "com.whisk" %% "docker-testkit-impl-docker-java" % "0.9.9" % "test"
+    "com.whisk" %% "docker-testkit-scalatest" % "0.9.9" % Test,
+    "com.whisk" %% "docker-testkit-impl-docker-java" % "0.9.9" % Test
   ).map(_ excludeAll(
     ExclusionRule(organization = "io.netty")
   ))
