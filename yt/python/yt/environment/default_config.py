@@ -112,6 +112,7 @@ b"""
         };
 
         enable_bulk_insert = %true;
+        enable_hunks = %true;
     };
 }
 """)
