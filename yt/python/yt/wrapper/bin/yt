@@ -815,6 +815,8 @@ def add_get_tablet_infos_parser(add_parser):
 def reshard_table(**kwargs):
     if kwargs.get("pivot_keys") == []:
         del kwargs["pivot_keys"]
+    if kwargs.get("uniform") == False:
+        del kwargs["uniform"]
     yt.reshard_table(**kwargs)
 
 def add_reshard_table_parser(add_parser):
