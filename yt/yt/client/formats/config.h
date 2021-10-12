@@ -453,12 +453,12 @@ public:
             .Default();
 
         RegisterPostprocessor([&] {
-            Postprocess();
+            CustomPostprocess();
         });
     }
 
 public:
-    void Postprocess();
+    void CustomPostprocess();
 };
 
 DEFINE_REFCOUNTED_TYPE(TProtobufColumnConfig)

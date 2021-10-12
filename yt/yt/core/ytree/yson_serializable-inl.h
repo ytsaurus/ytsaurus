@@ -79,7 +79,7 @@ inline void LoadFromNode(
 }
 
 // TYsonSerializable
-template <class T, class E = typename std::enable_if<std::is_convertible<T&, TYsonSerializable&>::value>::type>
+template <class T, class E = typename std::enable_if_t<std::is_convertible_v<T&, TYsonSerializable&> || std::is_convertible_v<T&, TYsonStruct&>>>
 void LoadFromNode(
     TIntrusivePtr<T>& parameter,
     NYTree::INodePtr node,
@@ -254,6 +254,9 @@ struct TGetUnrecognizedRecursively<T, std::enable_if_t<std::is_base_of<TYsonSeri
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+concept IsYsonStructOrYsonSerializable = std::is_base_of_v<TYsonStruct, T> || std::is_base_of_v<TYsonSerializable, T>;
+
 // all
 template <class F>
 void InvokeForComposites(
@@ -262,8 +265,8 @@ void InvokeForComposites(
     const F& /* func */)
 { }
 
-// TYsonSerializable
-template <class T, class F, class E = typename std::enable_if<std::is_convertible<T*, TYsonSerializable*>::value>::type>
+// TYsonSerializable or TYsonStruct
+template <IsYsonStructOrYsonSerializable T, class F>
 inline void InvokeForComposites(
     const TIntrusivePtr<T>* parameter,
     const NYPath::TYPath& path,
@@ -403,7 +406,7 @@ void TYsonSerializableLite::TParameter<T>::Postprocess(const NYPath::TYPath& pat
     NYT::NYTree::NDetail::InvokeForComposites(
         &Parameter,
         path,
-        [] (TIntrusivePtr<TYsonSerializable> obj, const NYPath::TYPath& subpath) {
+        [] <NDetail::IsYsonStructOrYsonSerializable TStruct> (TIntrusivePtr<TStruct> obj, const NYPath::TYPath& subpath) {
             if (obj) {
                 obj->Postprocess(subpath);
             }

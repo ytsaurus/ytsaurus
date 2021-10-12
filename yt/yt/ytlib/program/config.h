@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "yt/yt/core/ytree/yson_struct.h"
+
 #include <yt/yt/core/ytree/yson_serializable.h>
 
 #include <yt/yt/core/ytalloc/config.h>
@@ -68,7 +70,8 @@ DEFINE_REFCOUNTED_TYPE(TSingletonsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSingletonsDynamicConfig
+// YsonSerializable version. Expected to die quite soon.
+class TDeprecatedSingletonsDynamicConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
@@ -82,7 +85,31 @@ public:
     NTracing::TJaegerTracerDynamicConfigPtr Jaeger;
     TRpcConfigPtr Rpc;
 
-    TSingletonsDynamicConfig();
+    TDeprecatedSingletonsDynamicConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TDeprecatedSingletonsDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+// YsonStruct version.
+class TSingletonsDynamicConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    std::optional<TDuration> SpinlockHiccupThreshold;
+    NYTAlloc::TYTAllocConfigPtr YTAlloc;
+    NBus::TTcpDispatcherDynamicConfigPtr TcpDispatcher;
+    NRpc::TDispatcherDynamicConfigPtr RpcDispatcher;
+    NChunkClient::TDispatcherDynamicConfigPtr ChunkClientDispatcher;
+    NProfiling::TProfileManagerDynamicConfigPtr ProfileManager;
+    NLogging::TLogManagerDynamicConfigPtr Logging;
+    NTracing::TJaegerTracerDynamicConfigPtr Jaeger;
+    TRpcConfigPtr Rpc;
+
+    REGISTER_YSON_STRUCT(TSingletonsDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSingletonsDynamicConfig)

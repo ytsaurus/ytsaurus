@@ -215,7 +215,7 @@ DEFINE_REFCOUNTED_TYPE(TProxyConfig)
 // NOTE: config might me unavalable. Users must handle such cases
 // gracefully.
 class TProxyDynamicConfig
-    : public TSingletonsDynamicConfig
+    : public TDeprecatedSingletonsDynamicConfig
 {
 public:
     TApiDynamicConfigPtr Api;

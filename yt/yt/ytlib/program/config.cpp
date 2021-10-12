@@ -54,7 +54,7 @@ TSingletonsConfig::TSingletonsConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSingletonsDynamicConfig::TSingletonsDynamicConfig()
+TDeprecatedSingletonsDynamicConfig::TDeprecatedSingletonsDynamicConfig()
 {
     RegisterParameter("spinlock_hiccup_threshold", SpinlockHiccupThreshold)
         .Optional();
@@ -73,6 +73,30 @@ TSingletonsDynamicConfig::TSingletonsDynamicConfig()
     RegisterParameter("jaeger", Jaeger)
         .DefaultNew();
     RegisterParameter("rpc", Rpc)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSingletonsDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("spinlock_hiccup_threshold", &TSingletonsDynamicConfig::SpinlockHiccupThreshold)
+        .Optional();
+    registrar.Parameter("yt_alloc", &TSingletonsDynamicConfig::YTAlloc)
+        .Optional();
+    registrar.Parameter("tcp_dispatcher", &TSingletonsDynamicConfig::TcpDispatcher)
+        .DefaultNew();
+    registrar.Parameter("rpc_dispatcher", &TSingletonsDynamicConfig::RpcDispatcher)
+        .DefaultNew();
+    registrar.Parameter("chunk_client_dispatcher", &TSingletonsDynamicConfig::ChunkClientDispatcher)
+        .DefaultNew();
+    registrar.Parameter("profile_manager", &TSingletonsDynamicConfig::ProfileManager)
+        .Default();
+    registrar.Parameter("logging", &TSingletonsDynamicConfig::Logging)
+        .DefaultNew();
+    registrar.Parameter("jaeger", &TSingletonsDynamicConfig::Jaeger)
+        .DefaultNew();
+    registrar.Parameter("rpc", &TSingletonsDynamicConfig::Rpc)
         .DefaultNew();
 }
 
