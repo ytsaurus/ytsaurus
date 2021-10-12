@@ -505,6 +505,10 @@ private:
             .ReadSessionId = queryOptions.ReadSessionId
         };
 
+        ThrowUponNodeThrottlerOverdraft(
+            chunkReadOptions,
+            Bootstrap_);
+
         // Grab the invoker provided by GetExecuteInvoker.
         auto invoker = GetCurrentInvoker();
 
@@ -558,7 +562,7 @@ private:
         TClientChunkReadOptions chunkReadOptions{
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive),
             .ReadSessionId = TReadSessionId::Create(),
-            //! ChunkReaderStatistics will be created per lookup call.
+            // NB: ChunkReaderStatistics will be created per lookup call.
             .ChunkReaderStatistics = nullptr
         };
 
@@ -642,9 +646,14 @@ private:
             auto attachment = request->Attachments()[index];
             auto& subrequest = session->Subrequests[index];
 
+            ThrowUponNodeThrottlerOverdraft(
+                chunkReadOptions,
+                Bootstrap_);
+
             subrequest.TabletSnapshot = snapshotStore->FindTabletSnapshot(tabletId, mountRevision);
             if (subrequest.TabletSnapshot) {
                 auto counters = subrequest.TabletSnapshot->TableProfiler->GetQueryServiceCounters(currentProfilingUser);
+                // TODO(akozhikhov): Distinguish failed requests.
                 subrequest.ProfilerGuard.Start(counters->Multiread);
             }
 
@@ -658,6 +667,11 @@ private:
 
                             auto tabletSnapshot = snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision);
                             snapshotStore->ValidateTabletAccess(tabletSnapshot, timestamp);
+
+                            ThrowUponDistributedThrottlerOverdraft(
+                                ETabletDistributedThrottlerKind::Lookup,
+                                tabletSnapshot,
+                                chunkReadOptions);
 
                             auto requestData = requestCodec->Decompress(attachment);
 

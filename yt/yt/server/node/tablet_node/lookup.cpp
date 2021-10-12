@@ -98,11 +98,6 @@ public:
             LookupKeys_.Size(),
             ChunkReadOptions_.ReadSessionId);
 
-        ThrowUponThrottlerOverdraft(
-            ETabletDistributedThrottlerKind::Lookup,
-            TabletSnapshot_,
-            ChunkReadOptions_);
-
         std::vector<TUnversionedRow> chunkLookupKeys;
 
         // Lookup in dynamic stores always and merge with cache.

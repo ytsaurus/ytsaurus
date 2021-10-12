@@ -4,6 +4,7 @@
 #include "store.h"
 #include "tablet.h"
 #include "tablet_slot.h"
+#include "bootstrap.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -57,22 +58,33 @@ struct TStoreRangeFormatter
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThrowUponThrottlerOverdraft(
+void ThrowUponDistributedThrottlerOverdraft(
     ETabletDistributedThrottlerKind tabletThrottlerKind,
     const TTabletSnapshotPtr& tabletSnapshot,
     const TClientChunkReadOptions& chunkReadOptions)
 {
-    const auto& tabletThrottler = tabletSnapshot->DistributedThrottlers[tabletThrottlerKind];
-    if (tabletThrottler && tabletThrottler->IsOverdraft()) {
-        tabletSnapshot->TableProfiler->GetThrottlerCounter(tabletThrottlerKind)
-            ->Increment();
-
+    const auto& distributedThrottler = tabletSnapshot->DistributedThrottlers[tabletThrottlerKind];
+    if (distributedThrottler && distributedThrottler->IsOverdraft()) {
+        tabletSnapshot->TableProfiler->GetThrottlerCounter(tabletThrottlerKind)->Increment();
         THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::RequestThrottled,
-            "%v from tablet %v is throttled within read session %v",
-            tabletThrottlerKind,
-            tabletSnapshot->TabletId,
-            chunkReadOptions.ReadSessionId)
-            << TErrorAttribute("queue_total_count", tabletThrottler->GetQueueTotalCount());
+            "Read request is throttled due to %Qlv throttler overdraft",
+            tabletThrottlerKind)
+            << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
+            << TErrorAttribute("read_session_id", chunkReadOptions.ReadSessionId)
+            << TErrorAttribute("queue_total_count", distributedThrottler->GetQueueTotalCount());
+    }
+}
+
+void ThrowUponNodeThrottlerOverdraft(
+    const TClientChunkReadOptions& chunkReadOptions,
+    IBootstrap* bootstrap)
+{
+    const auto& nodeThrottler = bootstrap->GetInThrottler(chunkReadOptions.WorkloadDescriptor.Category);
+    if (nodeThrottler->IsOverdraft()) {
+        THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::RequestThrottled,
+            "Read request is throttled due to node throttler overdraft")
+            << TErrorAttribute("read_session_id", chunkReadOptions.ReadSessionId)
+            << TErrorAttribute("queue_total_count", nodeThrottler->GetQueueTotalCount());
     }
 }
 
@@ -230,7 +242,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     tabletSnapshot->WaitOnLocks(timestamp);
 
     if (tabletThrottlerKind) {
-        ThrowUponThrottlerOverdraft(*tabletThrottlerKind, tabletSnapshot, chunkReadOptions);
+        ThrowUponDistributedThrottlerOverdraft(*tabletThrottlerKind, tabletSnapshot, chunkReadOptions);
     }
 
     // Pick stores which intersect [lowerBound, upperBound) (excluding upperBound).
@@ -353,7 +365,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     YT_VERIFY(upperBound.GetCount() >= 1);
 
     if (tabletThrottlerKind) {
-        ThrowUponThrottlerOverdraft(*tabletThrottlerKind, tabletSnapshot, chunkReadOptions);
+        ThrowUponDistributedThrottlerOverdraft(*tabletThrottlerKind, tabletSnapshot, chunkReadOptions);
     }
 
     const i64 infinity = std::numeric_limits<i64>::max() / 2;
@@ -591,7 +603,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
     tabletSnapshot->WaitOnLocks(timestamp);
 
     if (tabletThrottlerKind) {
-        ThrowUponThrottlerOverdraft(*tabletThrottlerKind, tabletSnapshot, chunkReadOptions);
+        ThrowUponDistributedThrottlerOverdraft(*tabletThrottlerKind, tabletSnapshot, chunkReadOptions);
     }
 
     if (!tabletSnapshot->PhysicalSchema->IsSorted()) {

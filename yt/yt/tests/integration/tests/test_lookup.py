@@ -7,9 +7,11 @@ from yt_commands import (
     lookup_rows, delete_rows, select_rows,
     alter_table, read_table, write_table, remount_table, generate_timestamp,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_reshard_table,
-    sync_flush_table, sync_compact_table, update_nodes_dynamic_config, set_banned_flag, WaitFailed)
+    sync_flush_table, sync_compact_table, update_nodes_dynamic_config, set_banned_flag, WaitFailed, raises_yt_error)
 
 from yt_type_helpers import make_schema
+
+import yt_error_codes
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -935,18 +937,48 @@ class TestLookupFromRemoteNode(TestSortedDynamicTablesBase):
 
         # Check that user_in is limited for lookups.
         assert _lookup_time() < 0.5
-        assert _lookup_time() > 0.5
+        with raises_yt_error(yt_error_codes.RequestThrottled):
+            _lookup_time()
         time.sleep(1)
 
         # Check that total_in was affected via prioritizing throttler.
-        assert _batch_select_time() > 0.5
+        with raises_yt_error(yt_error_codes.RequestThrottled):
+            _batch_select_time()
 
         # Same for selects.
         assert _select_time() < 0.5
-        assert _select_time() > 0.5
+        with raises_yt_error(yt_error_codes.RequestThrottled):
+            _select_time()
         time.sleep(1)
 
-        assert _batch_select_time() > 0.5
+        with raises_yt_error(yt_error_codes.RequestThrottled):
+            _batch_select_time()
+
+    @authors("akozhikhov")
+    def test_error_upon_net_throttler_overdraft(self):
+        self._separate_tablet_and_data_nodes()
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t", chunk_reader={"enable_local_throttling": True})
+        sync_mount_table("//tmp/t")
+
+        row = [{"key": 1, "value": "1"}]
+        insert_rows("//tmp/t", row)
+        sync_flush_table("//tmp/t")
+
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "throttlers": {
+                    "user_backend_in": {
+                        "limit": 50,
+                    }
+                }
+            }
+        })
+
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == row
+        with raises_yt_error(yt_error_codes.RequestThrottled):
+            lookup_rows("//tmp/t", [{"key": 1}])
 
 
 class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):

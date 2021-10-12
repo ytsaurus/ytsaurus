@@ -17,11 +17,16 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Throttles with corresponding tablet distributed throttler if it is in overdraft.
-void ThrowUponThrottlerOverdraft(
+//! Throws if corresponding distributed throttler is in overdraft.
+void ThrowUponDistributedThrottlerOverdraft(
     ETabletDistributedThrottlerKind tabletThrottlerKind,
     const TTabletSnapshotPtr& tabletSnapshot,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions);
+
+//! Throws if corresponding node throttler is in overdraft.
+void ThrowUponNodeThrottlerOverdraft(
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
