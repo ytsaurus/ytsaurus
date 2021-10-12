@@ -46,10 +46,6 @@ public:
 
     //! Returns type of YSON contained here. The instance must be non-null.
     EYsonType GetType() const;
-
-    //! If the instance is not null, invokes the parser (which may throw).
-    void Validate() const;
-
 protected:
     TStringBuf Data_;
     EYsonType Type_;
