@@ -1,10 +1,10 @@
 package ru.yandex.spark.yt.test
 
 import org.apache.spark.SparkConf
+import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanExec
-import org.apache.spark.sql.execution.{SparkPlan, SparkStrategy}
 import org.apache.spark.sql.internal.SQLConf.FILE_COMMIT_PROTOCOL_CLASS
-import org.apache.spark.sql.{DataFrame, SparkSession, Strategy}
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.yt.test.Utils
 import org.apache.spark.yt.test.Utils.{SparkConfigEntry, defaultConfValue}
 import org.scalatest.TestSuite
@@ -22,13 +22,6 @@ trait LocalSpark extends LocalYtClient {
 
   def sparkConf: SparkConf = defaultSparkConf
 
-  def plannerStrategy: SparkStrategy = {
-    val plannerStrategyClass = "ru.yandex.spark.yt.format.YtSourceStrategy"
-    val loader = getClass.getClassLoader
-    val cls = loader.loadClass(plannerStrategyClass)
-    cls.getConstructor().newInstance().asInstanceOf[Strategy]
-  }
-
   lazy val spark: SparkSession = {
     if (LocalSpark.spark != null) {
       LocalSpark.spark
@@ -36,7 +29,6 @@ trait LocalSpark extends LocalYtClient {
       LocalSpark.spark = SparkSession.builder()
         .master(s"local[$numExecutors]")
         .config(sparkConf)
-        .withExtensions(_.injectPlannerStrategy(_ => plannerStrategy))
         .getOrCreate()
       LocalSpark.spark
     }
@@ -99,7 +91,18 @@ object LocalSpark {
     spark = null
   }
 
-  val defaultSparkConf: SparkConf = new SparkConf()
+  def maybeSetExtensions(sparkConf: SparkConf): SparkConf = {
+    val extensionsClass = "ru.yandex.spark.yt.format.YtSparkExtensions"
+    val loader = getClass.getClassLoader
+    try {
+      loader.loadClass(extensionsClass)
+      sparkConf.set("spark.sql.extensions", "ru.yandex.spark.yt.format.YtSparkExtensions")
+    } catch {
+      case _: ClassNotFoundException => sparkConf
+    }
+  }
+
+  val defaultSparkConf: SparkConf = maybeSetExtensions(new SparkConf()
     .set("fs.ytTable.impl", "ru.yandex.spark.yt.fs.YtTableFileSystem")
     .set("fs.yt.impl", "ru.yandex.spark.yt.fs.YtFileSystem")
     .set("fs.defaultFS", "ytTable:///")
@@ -111,6 +114,5 @@ object LocalSpark {
     .set(FILE_COMMIT_PROTOCOL_CLASS.key, "ru.yandex.spark.yt.format.YtOutputCommitter")
     .set("spark.ui.enabled", "false")
     .set("spark.hadoop.yt.read.arrow.enabled", "true")
-    .set("spark.sql.adaptive.enabled", "true")
-    .set("spark.sql.extensions", "ru.yandex.spark.yt.format.YtSparkExtensions")
+    .set("spark.sql.adaptive.enabled", "true"))
 }
