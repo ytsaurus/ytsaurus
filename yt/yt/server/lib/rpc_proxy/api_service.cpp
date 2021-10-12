@@ -332,11 +332,16 @@ struct TDetailedTableProfilingCounters
             "/select_duration",
             TDuration::MicroSeconds(1),
             TDuration::Seconds(10)))
+        , LookupMountCacheWaitTime(profiler.Timer("/lookup_mount_cache_wait_time"))
+        , SelectMountCacheWaitTime(profiler.Timer("/select_mount_cache_wait_time"))
     { }
 
     //! Histograms.
     NProfiling::TEventTimer LookupDuration;
     NProfiling::TEventTimer SelectDuration;
+
+    NProfiling::TEventTimer LookupMountCacheWaitTime;
+    NProfiling::TEventTimer SelectMountCacheWaitTime;
 };
 
 //! This context extends standard typed service context. By this moment it is used for structured
@@ -2858,6 +2863,7 @@ private:
         if (detailedProfilingInfo->EnableDetailedProfiling) {
             auto* counters = GetOrCreateDetailedTableProfilingCounters(detailedProfilingInfo->TablePath);
             counters->LookupDuration.Record(timer.GetElapsedTime());
+            counters->LookupMountCacheWaitTime.Record(detailedProfilingInfo->MountCacheWaitTime);
         }
     }
 
@@ -2868,6 +2874,7 @@ private:
         if (detailedProfilingInfo->EnableDetailedProfiling) {
             auto* counters = GetOrCreateDetailedTableProfilingCounters(detailedProfilingInfo->TablePath);
             counters->SelectDuration.Record(timer.GetElapsedTime());
+            counters->SelectMountCacheWaitTime.Record(detailedProfilingInfo->MountCacheWaitTime);
         }
     }
 
