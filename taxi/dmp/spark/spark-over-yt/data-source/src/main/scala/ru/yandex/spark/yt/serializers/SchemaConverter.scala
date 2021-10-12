@@ -89,7 +89,7 @@ object SchemaConverter {
     case IntegerType => YtLogicalType.Int32
     case LongType => YtLogicalType.Int64
     case StringType => YtLogicalType.String
-    case FloatType => YtLogicalType.Double
+    case FloatType => YtLogicalType.Float
     case DoubleType => YtLogicalType.Double
     case BooleanType => YtLogicalType.Boolean
     case _: ArrayType => YtLogicalType.Any
