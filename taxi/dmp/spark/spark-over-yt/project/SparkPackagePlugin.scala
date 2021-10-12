@@ -4,6 +4,7 @@ import com.typesafe.sbt.packager.linux.LinuxPackageMapping
 import sbt.Keys._
 import sbt.PluginTrigger.NoTrigger
 import sbt._
+import spyt.SparkPaths._
 
 import java.io.{FileInputStream, FilenameFilter, InputStreamReader}
 import java.util.Properties
@@ -29,7 +30,6 @@ object SparkPackagePlugin extends AutoPlugin {
     val sparkLocalConfigs = taskKey[Seq[File]]("Configs to copy in SPARK_HOME/conf")
 
     val sparkYtConfigs = taskKey[Seq[YtPublishArtifact]]("Configs to copy in YT conf dir")
-    val sparkYtBasePath = settingKey[String]("YT base path for spark")
     val sparkYtBinBasePath = taskKey[String]("YT base path for spark binaries")
     val sparkYtSubdir = taskKey[String]("Snapshots or releases")
     val sparkIsSnapshot = settingKey[Boolean]("Flag of spark snapshot version")
@@ -86,23 +86,21 @@ object SparkPackagePlugin extends AutoPlugin {
       val pythonDir = sourceDirectory.value / "main" / "python" / "bin"
       pythonDir.listFiles()
     },
-    sparkYtBasePath := "//sys/spark",
     sparkYtSubdir := {
       if (sparkIsSnapshot.value) "snapshots" else "releases"
     },
-    sparkYtBinBasePath := s"${sparkYtBasePath.value}/bin/${sparkYtSubdir.value}/${version.value}",
+    sparkYtBinBasePath := s"$sparkYtBasePath/bin/${sparkYtSubdir.value}/${version.value}",
     sparkYtServerProxyPath := {
       Option(System.getProperty("proxyVersion")).map(version =>
-        s"${SparkLaunchConfig.defaultYtServerProxyPath}-$version"
+        s"$defaultYtServerProxyPath-$version"
       )
     },
     sparkYtConfigs := {
       val log = streams.value.log
 
       val binBasePath = sparkYtBinBasePath.value
-      val confBasePath = s"${sparkYtBasePath.value}/conf"
       val sparkVersion = version.value
-      val versionConfPath = s"$confBasePath/${sparkYtSubdir.value}/$sparkVersion"
+      val versionConfPath = s"$sparkYtConfPath/${sparkYtSubdir.value}/$sparkVersion"
 
       val sidecarConfigs = ((Compile / resourceDirectory).value / "config").listFiles()
       val sidecarConfigsClusterPaths = sidecarConfigs.map(file => s"$versionConfPath/${file.getName}")
@@ -125,17 +123,24 @@ object SparkPackagePlugin extends AutoPlugin {
 
       val globalConfigPublish = if (sparkReleaseGlobalConfig.value) {
         log.info(s"Prepare configs for ${ytProxies.mkString(", ")}")
-        ytProxies.map { proxy =>
+        ytProxies.flatMap { proxy =>
           val proxyShort = proxy.split("\\.").head
           val proxyDefaultsFile = (Compile / resourceDirectory).value / s"spark-defaults-$proxyShort.conf"
           val proxyDefaults = readSparkDefaults(proxyDefaultsFile)
           val globalConfig = SparkGlobalConfig(proxyDefaults, sparkVersion)
 
-          YtPublishDocument(globalConfig, confBasePath, Some(proxy), "global")
+          Seq(
+            YtPublishDocument(globalConfig, sparkYtLegacyConfPath, Some(proxy), "global"),
+            YtPublishLink(s"$sparkYtConfPath/global", sparkYtLegacyConfPath, None, "global")
+          )
         }
       } else Nil
 
-      configsPublish ++ (launchConfigPublish +: globalConfigPublish)
+      val links = Seq(
+        YtPublishLink(versionConfPath, s"$sparkYtLegacyConfPath/${sparkYtSubdir.value}", None, sparkVersion)
+      )
+
+      links ++ configsPublish ++ (launchConfigPublish +: globalConfigPublish)
     },
     sparkPackage := {
       val log = streams.value.log

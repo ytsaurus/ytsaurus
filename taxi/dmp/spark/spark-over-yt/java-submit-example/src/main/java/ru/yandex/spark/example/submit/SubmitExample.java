@@ -17,7 +17,7 @@ public class SubmitExample {
         );
 
         InProcessLauncher launcher = client.newLauncher()
-                .setAppResource("yt:///sys/spark/examples/spark-over-yt-examples-jar-with-dependencies.jar")
+                .setAppResource("yt:///home/spark/examples/spark-over-yt-examples-jar-with-dependencies.jar")
                 .setMainClass("ru.yandex.spark.example.SmokeTest");
 
         String submissionId = client.submit(launcher);

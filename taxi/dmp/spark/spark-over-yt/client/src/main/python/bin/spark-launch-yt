@@ -38,7 +38,6 @@ def main():
     parser.add_argument("--history-server-cpu-limit", required=False, default=8, type=int)
     parser.add_argument("--operation-alias", required=False)
     parser.add_argument("--network-project", required=False)
-    parser.add_argument("--dynamic-config-path", required=False, default="//sys/spark/conf/releases/spark-launch-conf")
     parser.add_argument("--params", required=False, action=ParseStructuredArgument, dest="params",
                         default=SparkDefaultArguments.get_params())
     parser.add_argument('--abort-existing', required=False, action='store_true', default=False)

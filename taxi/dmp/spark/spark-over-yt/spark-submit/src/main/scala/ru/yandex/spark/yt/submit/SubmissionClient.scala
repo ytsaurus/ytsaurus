@@ -172,7 +172,7 @@ class SubmissionClient(proxy: String,
     FileUtils.readFileToString(submissionFiles.id)
   }
 
-  private val SPARK_BASE_PATH = YPath.simple("//sys/spark")
+  private val SPARK_BASE_PATH = YPath.simple("//home/spark")
   private val SPYT_BASE_PATH = SPARK_BASE_PATH.child("spyt")
   private val RELEASES_SUBDIR = "releases"
   private val SNAPSHOTS_SUBDIR = "snapshots"
