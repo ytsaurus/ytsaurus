@@ -170,10 +170,15 @@ func GetPythonPaths(pythonVersion string) []string {
 		"contrib/python/more-itertools/py2",
 	}
 
-	var contribPathsPy3 = []string{
+	var contribPathsPy35 = []string{
 		// Python3 uses py2 importlib-metadata since it is python3-compatible
 		// and contrib/python/importlib-metadata/py3 requires python3 with version >= 3.6
 		"contrib/python/importlib-metadata/py2",
+		"contrib/python/more-itertools/py3",
+	}
+
+	var contribPathsPy3 = []string{
+		"contrib/python/importlib-metadata/py3",
 		"contrib/python/more-itertools/py3",
 	}
 
@@ -190,11 +195,15 @@ func GetPythonPaths(pythonVersion string) []string {
 	for _, p := range sharedLibraries {
 		pythonPaths = append(pythonPaths, yatest.BuildPath(p))
 	}
-	if pythonVersion == "2" {
+	if pythonVersion[:1] == "2" {
 		for _, p := range contribPathsPy2 {
 			pythonPaths = append(pythonPaths, yatest.SourcePath(p))
 		}
-	} else { // "3"
+	} else if pythonVersion == "3.5" { // "3.5"
+		for _, p := range contribPathsPy35 {
+			pythonPaths = append(pythonPaths, yatest.SourcePath(p))
+		}
+	} else { // >= 3.6
 		for _, p := range contribPathsPy3 {
 			pythonPaths = append(pythonPaths, yatest.SourcePath(p))
 		}
@@ -247,7 +256,7 @@ func TestPyTest(t *testing.T) {
 		t.Skipf("You should specify USE_SYSTEM_PYTHON")
 		return
 	} else {
-		pythonVersion = useSystemPython[:1]
+		pythonVersion = useSystemPython
 	}
 
 	testsRoot := os.Getenv("TESTS_SANDBOX")
