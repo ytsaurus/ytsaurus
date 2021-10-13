@@ -199,13 +199,13 @@ TEST(TIOTrackerTest, Disable)
     }));
 
     auto setAndWaitForConfig = [&](const TIOTrackerConfigPtr& config) {
-        ioTracker->SetConfig(createConfig(true, true));
+        ioTracker->SetConfig(config);
         // Wait until the new config applies. When it happens, GetConfig() will return the
         // same pointer that we passed to SetConfig above. So, it is OK to compare configs by
         // pointer, not by value.
-        while (config != ioTracker->GetConfig()) {
-            TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(1));
-        }
+        WaitForPredicate([&] {
+            return config == ioTracker->GetConfig();
+        });
     };
 
     auto addEventsAndWait = [&] {
