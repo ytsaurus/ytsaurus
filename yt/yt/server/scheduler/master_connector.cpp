@@ -415,6 +415,30 @@ public:
         }
     }
 
+    void DoUpdateLastMeteringLogTime(TInstant time)
+    {
+        auto batchReq = StartObjectBatchRequest();
+
+        auto req = TYPathProxy::Set(LastMeteringLogTimePath);
+        req->set_value(ConvertToYsonString(time).ToString());
+        GenerateMutationId(req);
+        batchReq->AddRequest(req);
+
+        GetCumulativeError(WaitFor(batchReq->Invoke()))
+            .ThrowOnError();
+
+        YT_LOG_INFO("Last metering log time written to cypress (LastMeteringLogTime: %v)", time);
+    }
+
+    TFuture<void> UpdateLastMeteringLogTime(TInstant time)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return BIND(&TImpl::DoUpdateLastMeteringLogTime, MakeStrong(this))
+            .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector))
+            .Run(time);
+    }
+
     void AttachJobContext(
         const TYPath& path,
         TChunkId chunkId,
@@ -716,6 +740,7 @@ private:
             RequestOperationAttributes();
             SubmitOperationsToCleaner();
             RequestSchedulingSegmentsState();
+            RequestLastMeteringLogTime();
             FireHandshake();
         }
 
@@ -1267,7 +1292,7 @@ private:
 
             auto batchRsp = WaitFor(batchReq->Invoke())
                 .ValueOrThrow();
-
+            
             auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_scheduling_segments_state");
             if (!rspOrError.IsOK() && !rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 YT_LOG_WARNING(rspOrError, "Error fetching scheduling segments state");
@@ -1283,6 +1308,29 @@ private:
                     YT_LOG_WARNING(ex, "Failed to deserialize scheduling segments state, ignoring it");
                     Result_.SchedulingSegmentsState.Reset();
                 }
+            }
+        }
+
+        void RequestLastMeteringLogTime()
+        {
+            auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
+            batchReq->AddRequest(TYPathProxy::Get(LastMeteringLogTimePath), "get_last_metering_log_time");
+
+            auto batchRsp = WaitFor(batchReq->Invoke())
+                .ValueOrThrow();
+
+            auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_last_metering_log_time");
+            if (!rspOrError.IsOK()) {
+                if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    YT_LOG_INFO(rspOrError, "Last metering log time is missing");
+                    Result_.LastMeteringLogTime = TInstant::Now();
+                } else {
+                    rspOrError.ThrowOnError();
+                }
+            } else {
+                Result_.LastMeteringLogTime = ConvertTo<TInstant>(TYsonString(rspOrError.ValueOrThrow()->value()));
+                YT_LOG_INFO("Last metering log time read from cypress (LastMeteringLogTime: %v)",
+                    Result_.LastMeteringLogTime);
             }
         }
     };
@@ -2017,6 +2065,11 @@ void TMasterConnector::InvokeStoringStrategyState(TPersistentStrategyStatePtr st
 void TMasterConnector::InvokeStoringSchedulingSegmentsState(TPersistentSchedulingSegmentsStatePtr segmentsState)
 {
     Impl_->InvokeStoringSchedulingSegmentsState(std::move(segmentsState));
+}
+
+TFuture<void> TMasterConnector::UpdateLastMeteringLogTime(TInstant time)
+{
+    return Impl_->UpdateLastMeteringLogTime(time);
 }
 
 void TMasterConnector::AttachJobContext(

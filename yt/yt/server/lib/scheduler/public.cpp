@@ -12,6 +12,7 @@ const TString DefaultTreeAttributeName("default_tree");
 const TString TreeConfigAttributeName("config");
 const TString StrategyStatePath("//sys/scheduler/strategy_state");
 const TString SegmentsStatePath("//sys/scheduler/segments_state");
+const TString LastMeteringLogTimePath("//sys/scheduler/@last_metering_log_time");
 
 ////////////////////////////////////////////////////////////////////////////////
 

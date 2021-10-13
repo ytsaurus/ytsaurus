@@ -2175,7 +2175,7 @@ class TestResourceMetering(YTEnvSetup):
         super(TestResourceMetering, cls).setup_class()
         set("//sys/@cluster_name", "my_cluster")
 
-    def _extract_metering_records_from_log(self):
+    def _extract_metering_records_from_log(self, last=True):
         """ Returns dict from metering key to last record with this key. """
         scheduler_log_file = os.path.join(self.path_to_run, "logs/scheduler-0.json.log")
 
@@ -2184,7 +2184,7 @@ class TestResourceMetering(YTEnvSetup):
             items = [json.loads(line) for line in f]
             events = list(filter(lambda e: "event_type" not in e, items))
 
-        last_reports = {}
+        reports = {}
         for entry in events:
             if "abc_id" not in entry:
                 continue
@@ -2194,9 +2194,14 @@ class TestResourceMetering(YTEnvSetup):
                 entry["labels"]["pool_tree"],
                 entry["labels"]["pool"],
             )
-            last_reports[key] = entry["tags"]
+            if last:
+                reports[key] = (entry["tags"], entry["usage"])
+            else:
+                if key not in reports:
+                    reports[key] = []
+                reports[key].append((entry["tags"], entry["usage"]))
 
-        return last_reports
+        return reports
 
     def _validate_metering_records(self, root_key, desired_metering_data, event_key_to_last_record):
         if root_key not in event_key_to_last_record:
@@ -2204,7 +2209,8 @@ class TestResourceMetering(YTEnvSetup):
             return False
         for key, desired_data in desired_metering_data.items():
             for resource_key, desired_value in desired_data.items():
-                observed_value = get_by_composite_key(event_key_to_last_record.get(key, {}), resource_key.split("/"), default=0)
+                tags, usage = event_key_to_last_record.get(key, ({}, {}))
+                observed_value = get_by_composite_key(tags, resource_key.split("/"), default=0)
                 if isinstance(desired_value, int):
                     observed_value = int(observed_value)
                 if observed_value != desired_value:
@@ -2380,6 +2386,65 @@ class TestResourceMetering(YTEnvSetup):
 
         wait(check_structured)
 
+    @authors("ignat")
+    def test_metering_with_revive(self):
+        set("//sys/pool_trees/default/@config/metering_tags", {"my_tag": "my_value"})
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/config/metering_tags"))
+
+        create_pool(
+            "my_pool",
+            pool_tree="default",
+            attributes={
+                "strong_guarantee_resources": {"cpu": 4},
+                "abc": {"id": 1, "slug": "my", "name": "MyService"},
+                "metering_tags": {"pool_tag": "pool_value"},
+            },
+            wait_for_orchid=False,
+        )
+
+        root_key = (42, "default", "<Root>")
+
+        desired_metering_data = {
+            root_key: {
+                "strong_guarantee_resources/cpu": 0,
+                "resource_flow/cpu": 0,
+                "burst_guarantee_resources/cpu": 0,
+                "allocated_resources/cpu": 0,
+                "my_tag": "my_value",
+            },
+            (1, "default", "my_pool"): {
+                "strong_guarantee_resources/cpu": 4,
+                "resource_flow/cpu": 0,
+                "burst_guarantee_resources/cpu": 0,
+                "allocated_resources/cpu": 0,
+                "my_tag": "my_value",
+                "pool_tag": "pool_value",
+            },
+        }
+
+        def check_expected_tags():
+            event_key_to_last_record = self._extract_metering_records_from_log()
+            return self._validate_metering_records(root_key, desired_metering_data, event_key_to_last_record)
+
+        wait(check_expected_tags)
+
+        wait(lambda: exists("//sys/scheduler/@last_metering_log_time"))
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            time.sleep(5)
+
+        def check_expected_usage():
+            event_key_to_records = self._extract_metering_records_from_log(last=False)
+            for key, records in event_key_to_records.iteritems():
+                has_long_record = False
+                for tags, usage in records:
+                    if usage["quantity"] > 5000:
+                        has_long_record = True
+                if not has_long_record:
+                    return False
+            return True
+
+        wait(check_expected_usage)
 
 ##################################################################
 

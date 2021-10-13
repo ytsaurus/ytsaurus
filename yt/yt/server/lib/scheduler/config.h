@@ -779,6 +779,9 @@ public:
 
     //! Duration of ScheduleJob call to log this result.
     TDuration ScheduleJobDurationLoggingThreshold;
+    
+    //! Enables updating last metering log time.
+    bool UpdateLastMeteringLogTime;
 
     REGISTER_YSON_STRUCT(TSchedulerConfig);
 

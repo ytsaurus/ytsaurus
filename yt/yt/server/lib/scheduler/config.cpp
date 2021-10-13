@@ -798,6 +798,9 @@ void TSchedulerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("send_preemption_reason_in_node_heartbeat", &TSchedulerConfig::SendPreemptionReasonInNodeHeartbeat)
         .Default(true);
+    
+    registrar.Parameter("update_last_metering_log_time", &TSchedulerConfig::UpdateLastMeteringLogTime)
+        .Default(true);
 
     registrar.Preprocessor([&] (TSchedulerConfig* config) {
         config->EventLog->MaxRowWeight = 128_MB;
