@@ -1,4 +1,4 @@
-from original_tests.yt.yt.tests.integration.tests.test_scheduler_reduce \
+from original_tests.yt.yt.tests.integration.tests.scheduler.test_scheduler_reduce \
     import TestSchedulerReduceCommands as BaseTestReduceCommands
 
 

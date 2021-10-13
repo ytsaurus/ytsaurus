@@ -1,4 +1,4 @@
-from original_tests.yt.yt.tests.integration.tests.test_disk_quota \
+from original_tests.yt.yt.tests.integration.tests.misc.test_disk_quota \
     import TestDiskMediumAccounting as BaseTestDiskMediumAccounting
 
 
