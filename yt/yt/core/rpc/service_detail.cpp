@@ -319,6 +319,7 @@ public:
 
     void Run(const TLiteHandler& handler)
     {
+        RequestStarted_ = true;
         const auto& descriptor = RuntimeInfo_->Descriptor;
         // NB: Try to avoid contention on invoker ref-counter.
         IInvoker* invoker = nullptr;
@@ -387,7 +388,7 @@ public:
 
     void HandleTimeout()
     {
-        if (TimedOutLatch_.test_and_set()) {
+        if (TimedOutLatch_.exchange(true)) {
             return;
         }
 
@@ -405,7 +406,7 @@ public:
         // Guards from race with DoGuardedRun.
         // We can only mark as complete those requests that will not be run
         // as there's no guarantee that, if started,  the method handler will respond promptly to cancelation.
-        if (!RunLatch_.test_and_set()) {
+        if (!RunLatch_.exchange(true)) {
             SetComplete();
         }
     }
@@ -546,10 +547,12 @@ private:
     std::optional<TDuration> TotalTime_;
     std::optional<TDuration> LocalWaitTime_;
 
-    std::atomic_flag CompletedLatch_ = ATOMIC_FLAG_INIT;
-    std::atomic_flag TimedOutLatch_ = ATOMIC_FLAG_INIT;
-    std::atomic_flag RunLatch_ = ATOMIC_FLAG_INIT;
+    std::atomic<bool> CompletedLatch_ = false;
+    std::atomic<bool> TimedOutLatch_ = false;
+    std::atomic<bool> RunLatch_ = false;
     bool FinalizeLatch_ = false;
+    bool RequestStarted_ = false;
+    bool ActiveRequestCountIncremented_ = false;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, StreamsLock_);
     TError StreamsError_;
@@ -623,6 +626,8 @@ private:
         }
 
         Service_->IncrementActiveRequestCount();
+        ActiveRequestCountIncremented_ = true;
+
         if (Service_->IsStopped()) {
             Reply(TError(
                 NRpc::EErrorCode::Unavailable,
@@ -781,7 +786,7 @@ private:
         if (auto timeout = GetTimeout()) {
             auto remainingTimeout = *timeout - (*RunInstant_ - ArriveInstant_);
             if (remainingTimeout == TDuration::Zero()) {
-                if (!TimedOutLatch_.test_and_set()) {
+                if (!TimedOutLatch_.exchange(true)) {
                     Reply(TError(NYT::EErrorCode::Timeout, "Request dropped due to timeout before being run"));
                     PerformanceCounters_->TimedOutRequestCounter.Increment();
                 }
@@ -810,7 +815,7 @@ private:
         }
 
         // Guards from race with HandleTimeout.
-        if (RunLatch_.test_and_set()) {
+        if (RunLatch_.exchange(true)) {
             return;
         }
 
@@ -911,13 +916,18 @@ private:
     void DoSetComplete()
     {
         // DoSetComplete could be called from anywhere so it is racy.
-        if (CompletedLatch_.test_and_set()) {
+        if (CompletedLatch_.exchange(true)) {
             return;
         }
 
-        RequestQueue_->OnRequestFinished();
+        if (RequestStarted_) {
+            RequestQueue_->OnRequestFinished();
+        }
 
-        Service_->DecrementActiveRequestCount();
+
+        if (ActiveRequestCountIncremented_) {
+            Service_->DecrementActiveRequestCount();
+        }
     }
 
 
@@ -1292,7 +1302,7 @@ int TServiceBase::TRequestQueue::IncrementConcurrency()
     return ++Concurrency_;
 }
 
-void  TServiceBase::TRequestQueue::DecrementConcurrency()
+void TServiceBase::TRequestQueue::DecrementConcurrency()
 {
     auto newConcurrencySemaphore = --Concurrency_;
     YT_ASSERT(newConcurrencySemaphore >= 0);
