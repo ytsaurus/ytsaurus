@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/master/object_server/map_object.h>
 
+#include <yt/yt/ytlib/scheduler/proto/pool_ypath.pb.h>
+
 namespace NYT::NSchedulerPoolServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,7 +59,13 @@ protected:
 
     std::unique_ptr<NObjectServer::TNonversionedMapObjectFactoryBase<TSchedulerPool>> CreateObjectFactory() const override;
 
+    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+
+    DECLARE_YPATH_SERVICE_METHOD(NScheduler::NProto, TransferPoolResources);
+
 private:
+    using TBase = TNonversionedMapObjectProxyBase<TSchedulerPool>;
+
     void GuardedUpdateBuiltinPoolAttribute(
         NYTree::TInternedAttributeKey key,
         const std::function<void(const NScheduler::TPoolConfigPtr&, const TString&)>& update);

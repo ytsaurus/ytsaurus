@@ -1309,10 +1309,26 @@ class YtClient(ClientState):
 
         :param str source_account: account to transfer resources from.
         :param str destination_account: account to transfer resources to.
-        :param resource_delta: the amount of transferred resources as a json-able object.
+        :param resource_delta: the amount of transferred resources as a dict.
 
         """
         return client_api.transfer_account_resources(source_account, destination_account, resource_delta, client=self)
+
+    def transfer_pool_resources(self, source_pool, destination_pool, pool_tree, resource_delta):
+        """
+        Transfers resources between pools.
+
+        On the path from `source_pool` to `destination_pool` in the specified `pool_tree`, `resource_delta`
+        is subtracted from `source_pool` and its ancestors and added to `destination_pool` and
+        its ancestors. Limits of the lowest common ancestor remain unchanged.
+
+        :param str source_pool: pool to transfer resources from.
+        :param str destination_pool: pool to transfer resources to.
+        :param str pool_tree: pool_tree where both pools are present.
+        :param resource_delta: the amount of transferred resources as a dict.
+
+        """
+        return client_api.transfer_pool_resources(source_pool, destination_pool, pool_tree, resource_delta, client=self)
 
     def transform(self, source_table, destination_table=None, erasure_codec=None, compression_codec=None, desired_chunk_size=None, spec=None, check_codecs=False, optimize_for=None):
         """

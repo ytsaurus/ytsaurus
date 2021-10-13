@@ -2,8 +2,8 @@ from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 
 from yt_commands import (
     authors, wait, get, set, move, remove, exists,
-    create_user, create_pool,
-    create_pool_tree, remove_pool_tree, make_ace, check_permission, raises_yt_error, build_snapshot)
+    create_user, create_pool, create_pool_tree, remove_pool_tree,
+    make_ace, check_permission, raises_yt_error, build_snapshot, transfer_pool_resources)
 
 from yt_scheduler_helpers import scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_config_path
 
@@ -1241,6 +1241,497 @@ class TestSchedulerPoolAcls(YTEnvSetup):
         remove_pool_tree("my_tree", wait_for_orchid=False, authenticated_user="u")
 
 
+@authors("renadeen")
+class TestTransferPoolResourcesCommand(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 0
+    NUM_SCHEDULERS = 0
+
+    def assert_pool_resources(self, pool_path, strong_cpu, flow_cpu, burst_cpu, running_op_count, op_count):
+        path_prefix = "//sys/pool_trees/default/"
+        assert get("{}{}/@strong_guarantee_resources/cpu".format(path_prefix, pool_path), default=None) == strong_cpu
+        assert get("{}{}/@integral_guarantees/resource_flow/cpu".format(path_prefix, pool_path), default=None) == flow_cpu
+        assert get("{}{}/@integral_guarantees/burst_guarantee_resources/cpu".format(path_prefix, pool_path), default=None) == burst_cpu
+        assert get("{}{}/@max_operation_count".format(path_prefix, pool_path), default=None) == op_count
+        assert get("{}{}/@max_running_operation_count".format(path_prefix, pool_path), default=None) == running_op_count
+
+    def test_transfer_to_empty_pool(self):
+        create_pool(
+            "from",
+            attributes={
+                "strong_guarantee_resources": {"cpu": 15},
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 5},
+                    "burst_guarantee_resources": {"cpu": 10},
+                },
+                "max_operation_count": 25,
+                "max_running_operation_count": 20,
+            },
+            wait_for_orchid=False)
+        create_pool("to", wait_for_orchid=False)
+
+        transfer_pool_resources("from", "to", "default", {
+            "strong_guarantee_resources": {"cpu": 15},
+            "burst_guarantee_resources": {"cpu": 10},
+            "resource_flow": {"cpu": 5},
+            "max_operation_count": 25,
+            "max_running_operation_count": 20,
+        })
+
+        self.assert_pool_resources("from", 0.0, 0.0, 0.0, 0, 0)
+        self.assert_pool_resources("to", 15.0, 5.0, 10.0, 20, 25)
+
+    def test_transfer_to_pool_with_resources(self):
+        create_pool(
+            "from",
+            attributes={
+                "strong_guarantee_resources": {"cpu": 30},
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 10},
+                    "burst_guarantee_resources": {"cpu": 20},
+                },
+                "max_operation_count": 50,
+                "max_running_operation_count": 40,
+            },
+            wait_for_orchid=False)
+        create_pool(
+            "to",
+            attributes={
+                "strong_guarantee_resources": {"cpu": 30},
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 10},
+                    "burst_guarantee_resources": {"cpu": 20},
+                },
+                "max_operation_count": 50,
+                "max_running_operation_count": 40,
+            },
+            wait_for_orchid=False)
+        transfer_pool_resources("from", "to", "default", {
+            "strong_guarantee_resources": {"cpu": 15},
+            "burst_guarantee_resources": {"cpu": 10},
+            "resource_flow": {"cpu": 5},
+            "max_operation_count": 25,
+            "max_running_operation_count": 20,
+        })
+
+        self.assert_pool_resources("from", 15.0, 5.0, 10.0, 20, 25)
+        self.assert_pool_resources("to", 45.0, 15.0, 30.0, 60, 75)
+
+    def test_transfer_in_non_trivial_hierarchy(self):
+        create_pool(
+            "some_root",
+            attributes={
+                "strong_guarantee_resources": {"cpu": 40},
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 80},
+                    "burst_guarantee_resources": {"cpu": 120},
+                },
+                "max_operation_count": 200,
+                "max_running_operation_count": 160,
+            },
+            wait_for_orchid=False)
+        create_pool(
+            "from_ancestor",
+            parent_name="some_root",
+            attributes={
+                "strong_guarantee_resources": {"cpu": 20},
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 40},
+                    "burst_guarantee_resources": {"cpu": 60},
+                },
+                "max_operation_count": 100,
+                "max_running_operation_count": 80,
+            },
+            wait_for_orchid=False)
+        create_pool(
+            "from",
+            parent_name="from_ancestor",
+            attributes={
+                "strong_guarantee_resources": {"cpu": 10},
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 20},
+                    "burst_guarantee_resources": {"cpu": 30},
+                },
+                "max_operation_count": 50,
+                "max_running_operation_count": 40,
+            },
+            wait_for_orchid=False)
+        create_pool(
+            "sibling_of_from",
+            parent_name="from_ancestor",
+            attributes={
+                "strong_guarantee_resources": {"cpu": 10},
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 20},
+                    "burst_guarantee_resources": {"cpu": 30},
+                },
+                "max_operation_count": 50,
+                "max_running_operation_count": 40,
+            },
+            wait_for_orchid=False)
+        create_pool(
+            "to_ancestor",
+            parent_name="some_root",
+            attributes={
+                "strong_guarantee_resources": {"cpu": 10},
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 20},
+                    "burst_guarantee_resources": {"cpu": 30},
+                },
+                "max_operation_count": 50,
+                "max_running_operation_count": 40,
+            },
+            wait_for_orchid=False)
+        create_pool(
+            "sibling_of_to_ancestor",
+            parent_name="some_root",
+            attributes={
+                "strong_guarantee_resources": {"cpu": 10},
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 20},
+                    "burst_guarantee_resources": {"cpu": 30},
+                },
+                "max_operation_count": 50,
+                "max_running_operation_count": 40,
+            },
+            wait_for_orchid=False)
+        create_pool(
+            "to",
+            parent_name="to_ancestor",
+            attributes={
+                "strong_guarantee_resources": {"cpu": 10},
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 20},
+                    "burst_guarantee_resources": {"cpu": 30},
+                },
+                "max_operation_count": 50,
+                "max_running_operation_count": 40,
+            },
+            wait_for_orchid=False)
+
+        transfer_pool_resources("from", "to", "default", {
+            "strong_guarantee_resources": {"cpu": 5},
+            "resource_flow": {"cpu": 10},
+            "burst_guarantee_resources": {"cpu": 15},
+            "max_operation_count": 25,
+            "max_running_operation_count": 20,
+        })
+
+        self.assert_pool_resources("some_root", 40.0, 80.0, 120.0, 160, 200)
+        self.assert_pool_resources("some_root/from_ancestor", 15.0, 30.0, 45.0, 60, 75)
+        self.assert_pool_resources("some_root/from_ancestor/from", 5.0, 10.0, 15.0, 20, 25)
+        self.assert_pool_resources("some_root/from_ancestor/sibling_of_from", 10.0, 20.0, 30.0, 40, 50)
+        self.assert_pool_resources("some_root/to_ancestor", 15.0, 30.0, 45.0, 60, 75)
+        self.assert_pool_resources("some_root/sibling_of_to_ancestor", 10.0, 20.0, 30.0, 40, 50)
+        self.assert_pool_resources("some_root/to_ancestor/to", 15.0, 30.0, 45.0, 60, 75)
+
+    def test_transfer_integral_guarantees_does_not_touch_guarantee_type(self):
+        create_pool(
+            "from",
+            attributes={
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 5},
+                },
+            },
+            wait_for_orchid=False)
+        create_pool("to", wait_for_orchid=False)
+        transfer_pool_resources("from", "to", "default", {"resource_flow": {"cpu": 5}})
+
+        assert not exists("//sys/pool_trees/default/from/@integral_guarantees/guarantee_type")
+        assert not exists("//sys/pool_trees/default/to/@integral_guarantees/guarantee_type")
+
+    def test_transfer_from_parent_to_child_increases_guarantees_on_path(self):
+        create_pool(
+            "from_ancestor",
+            wait_for_orchid=False,
+            attributes={
+                "strong_guarantee_resources": {"cpu": 10},
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 20},
+                    "burst_guarantee_resources": {"cpu": 30},
+                },
+                "max_running_operation_count": 40,
+                "max_operation_count": 50,
+            })
+        create_pool("intermediate", parent_name="from_ancestor", wait_for_orchid=False)
+        create_pool("to_child", parent_name="intermediate", wait_for_orchid=False)
+        transfer_pool_resources("from_ancestor", "to_child", "default", {
+            "strong_guarantee_resources": {"cpu": 5},
+            "resource_flow": {"cpu": 10},
+            "burst_guarantee_resources": {"cpu": 15},
+            "max_operation_count": 25,
+            "max_running_operation_count": 20,
+        })
+
+        self.assert_pool_resources("from_ancestor", 10.0, 20.0, 30.0, 40, 50)
+        self.assert_pool_resources("from_ancestor/intermediate", 5.0, 10.0, 15.0, 20, 25)
+        self.assert_pool_resources("from_ancestor/intermediate/to_child", 5.0, 10.0, 15.0, 20, 25)
+
+        transfer_pool_resources("from_ancestor", "to_child", "default", {
+            "strong_guarantee_resources": {"cpu": 5},
+            "resource_flow": {"cpu": 10},
+            "burst_guarantee_resources": {"cpu": 15},
+            "max_operation_count": 25,
+            "max_running_operation_count": 20,
+        })
+
+        self.assert_pool_resources("from_ancestor", 10.0, 20.0, 30.0, 40, 50)
+        self.assert_pool_resources("from_ancestor/intermediate", 10.0, 20.0, 30.0, 40, 50)
+        self.assert_pool_resources("from_ancestor/intermediate/to_child", 10.0, 20.0, 30.0, 40, 50)
+
+    def test_transfer_from_child_to_parent_decreases_guarantees_on_path(self):
+        create_pool(
+            "to_ancestor",
+            wait_for_orchid=False,
+            attributes={
+                "strong_guarantee_resources": {"cpu": 10},
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 20},
+                    "burst_guarantee_resources": {"cpu": 30},
+                },
+                "max_running_operation_count": 40,
+                "max_operation_count": 50,
+            })
+        create_pool(
+            "intermediate",
+            parent_name="to_ancestor",
+            wait_for_orchid=False,
+            attributes={
+                "strong_guarantee_resources": {"cpu": 10},
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 20},
+                    "burst_guarantee_resources": {"cpu": 30},
+                },
+                "max_running_operation_count": 40,
+                "max_operation_count": 50,
+            })
+        create_pool(
+            "from_child",
+            parent_name="intermediate",
+            wait_for_orchid=False,
+            attributes={
+                "strong_guarantee_resources": {"cpu": 10},
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 20},
+                    "burst_guarantee_resources": {"cpu": 30},
+                },
+                "max_running_operation_count": 40,
+                "max_operation_count": 50,
+            })
+        transfer_pool_resources("from_child", "to_ancestor", "default", {
+            "strong_guarantee_resources": {"cpu": 5},
+            "resource_flow": {"cpu": 10},
+            "burst_guarantee_resources": {"cpu": 15},
+            "max_operation_count": 25,
+            "max_running_operation_count": 20,
+        })
+
+        self.assert_pool_resources("to_ancestor", 10.0, 20.0, 30.0, 40, 50)
+        self.assert_pool_resources("to_ancestor/intermediate", 5.0, 10.0, 15.0, 20, 25)
+        self.assert_pool_resources("to_ancestor/intermediate/from_child", 5.0, 10.0, 15.0, 20, 25)
+
+        transfer_pool_resources("from_child", "to_ancestor", "default", {
+            "strong_guarantee_resources": {"cpu": 5},
+            "resource_flow": {"cpu": 10},
+            "burst_guarantee_resources": {"cpu": 15},
+            "max_operation_count": 25,
+            "max_running_operation_count": 20,
+        })
+
+        self.assert_pool_resources("to_ancestor", 10.0, 20.0, 30.0, 40, 50)
+        self.assert_pool_resources("to_ancestor/intermediate", 0.0, 0.0, 0.0, 0, 0)
+        self.assert_pool_resources("to_ancestor/intermediate/from_child", 0.0, 0.0, 0.0, 0, 0)
+
+    def test_fail_on_negative_delta(self):
+        create_pool(
+            "ancestor",
+            wait_for_orchid=False,
+            attributes={
+                "strong_guarantee_resources": {"cpu": 10},
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 20},
+                    "burst_guarantee_resources": {"cpu": 30},
+                },
+                "max_running_operation_count": 40,
+                "max_operation_count": 50,
+            })
+        create_pool(
+            "child",
+            parent_name="ancestor",
+            wait_for_orchid=False,
+            attributes={
+                "strong_guarantee_resources": {"cpu": 10},
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 20},
+                    "burst_guarantee_resources": {"cpu": 30},
+                },
+                "max_running_operation_count": 40,
+                "max_operation_count": 50,
+            })
+        with pytest.raises(YtError):
+            transfer_pool_resources("ancestor", "child", "default", {
+                "max_running_operation_count": -1,
+            })
+        with pytest.raises(YtError):
+            transfer_pool_resources("ancestor", "child", "default", {
+                "strong_guarantee_resources": {"cpu", -1},
+            })
+
+        self.assert_pool_resources("ancestor", 10.0, 20.0, 30.0, 40, 50)
+        self.assert_pool_resources("ancestor/child", 10.0, 20.0, 30.0, 40, 50)
+
+    def test_transfer_pool_resources_rolls_back_on_failed_validation(self):
+        create_pool(
+            "ancestor_from",
+            wait_for_orchid=False,
+            attributes={
+                "strong_guarantee_resources": {"cpu": 10},
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 20},
+                    "burst_guarantee_resources": {"cpu": 30},
+                },
+                "max_operation_count": 5,
+                "max_running_operation_count": 5,
+            })
+        create_pool(
+            "from",
+            parent_name="ancestor_from",
+            wait_for_orchid=False,
+            attributes={
+                "strong_guarantee_resources": {"cpu": 10},
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 20},
+                    "burst_guarantee_resources": {"cpu": 30},
+                },
+                "max_operation_count": 5,
+                "max_running_operation_count": 5,
+            })
+
+        create_pool(
+            "ancestor_to",
+            wait_for_orchid=False,
+            attributes={
+                "max_operation_count": 5,
+            })
+        create_pool(
+            "to",
+            parent_name="ancestor_to",
+            wait_for_orchid=False,
+            attributes={
+                "max_operation_count": 4,
+            })
+
+        with pytest.raises(YtError):
+            transfer_pool_resources("from", "to", "default", {
+                "strong_guarantee_resources": {"cpu": 10},
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 20},
+                    "burst_guarantee_resources": {"cpu": 30},
+                },
+                "max_running_operation_count": 5,
+            })
+
+        self.assert_pool_resources("ancestor_from", 10, 20, 30, 5, 5)
+        self.assert_pool_resources("ancestor_from/from", 10, 20, 30, 5, 5)
+        self.assert_pool_resources("ancestor_to", None, None, None, None, 5)
+        self.assert_pool_resources("ancestor_to/to", None, None, None, None, 4)
+
+    def test_transfer_from_root_increases_guarantees_on_path(self):
+        create_pool("ancestor", wait_for_orchid=False)
+        create_pool("target", parent_name="ancestor", wait_for_orchid=False)
+
+        transfer_pool_resources("<Root>", "target", "default", {
+            "strong_guarantee_resources": {"cpu": 5},
+            "resource_flow": {"cpu": 10},
+            "burst_guarantee_resources": {"cpu": 15},
+            "max_running_operation_count": 20,
+            "max_operation_count": 25,
+        })
+
+        self.assert_pool_resources("ancestor", 5.0, 10.0, 15.0, 20, 25)
+        self.assert_pool_resources("ancestor/target", 5.0, 10.0, 15.0, 20, 25)
+
+    def test_transfer_to_root_decreases_guarantees_on_path(self):
+        create_pool(
+            "ancestor",
+            wait_for_orchid=False,
+            attributes={
+                "strong_guarantee_resources": {"cpu": 5},
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 10},
+                    "burst_guarantee_resources": {"cpu": 15},
+                },
+                "max_running_operation_count": 20,
+                "max_operation_count": 25,
+            })
+        create_pool(
+            "from",
+            parent_name="ancestor",
+            wait_for_orchid=False,
+            attributes={
+                "strong_guarantee_resources": {"cpu": 5},
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 10},
+                    "burst_guarantee_resources": {"cpu": 15},
+                },
+                "max_running_operation_count": 20,
+                "max_operation_count": 25,
+            })
+
+        transfer_pool_resources("from", "<Root>", "default", {
+            "strong_guarantee_resources": {"cpu": 5},
+            "resource_flow": {"cpu": 10},
+            "burst_guarantee_resources": {"cpu": 15},
+            "max_running_operation_count": 20,
+            "max_operation_count": 25,
+        })
+
+        self.assert_pool_resources("ancestor", 0.0, 0.0, 0.0, 0, 0)
+        self.assert_pool_resources("ancestor/from", 0.0, 0.0, 0.0, 0, 0)
+
+    def test_src_and_dst_must_differ(self):
+        create_pool(
+            "target",
+            wait_for_orchid=False,
+            attributes={
+                "strong_guarantee_resources": {"cpu": 5},
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 10},
+                    "burst_guarantee_resources": {"cpu": 15},
+                },
+                "max_running_operation_count": 20,
+                "max_operation_count": 25,
+            })
+
+        with pytest.raises(YtError):
+            transfer_pool_resources("target", "target", "default", {
+                "strong_guarantee_resources": {"cpu": 5},
+                "resource_flow": {"cpu": 10},
+                "burst_guarantee_resources": {"cpu": 15},
+                "max_running_operation_count": 20,
+                "max_operation_count": 25,
+            })
+
+    def test_src_is_lca_and_cannot_overflow_it(self):
+        create_pool(
+            "from_ancestor",
+            wait_for_orchid=False,
+            attributes={
+                "strong_guarantee_resources": {"cpu": 10},
+            })
+        create_pool("intermediate", parent_name="from_ancestor", wait_for_orchid=False)
+        create_pool("to_child", parent_name="intermediate", wait_for_orchid=False)
+
+        with pytest.raises(YtError):
+            transfer_pool_resources("from_ancestor", "to_child", "default", {
+                "strong_guarantee_resources": {"cpu": 20},
+            })
+
+        self.assert_pool_resources("from_ancestor", 10, None, None, None, None)
+        self.assert_pool_resources("from_ancestor/intermediate", None, None, None, None, None)
+        self.assert_pool_resources("from_ancestor/intermediate/to_child", None, None, None, None, None)
+
+
 @authors("ignat")
 class TestSchedulerPoolConfigPresets(YTEnvSetup):
     NUM_MASTERS = 1
@@ -1325,4 +1816,4 @@ class TestSchedulerPoolConfigPresets(YTEnvSetup):
 
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
         assert "failed to load as TPoolPresetConfig" \
-            in yson.dumps(get("//sys/scheduler/@alerts")[0], yson_format="text")
+               in yson.dumps(get("//sys/scheduler/@alerts")[0], yson_format="text")

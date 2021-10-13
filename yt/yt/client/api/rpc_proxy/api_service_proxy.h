@@ -76,6 +76,9 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ModifyRows);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, BatchModifyRows);
 
+    // Scheduler pools
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, TransferPoolResources);
+
     // Operations
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, StartOperation);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AbortOperation);

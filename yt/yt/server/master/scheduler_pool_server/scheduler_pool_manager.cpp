@@ -1,5 +1,6 @@
-#include "scheduler_pool_manager.h"
+#include "pool_resources.h"
 #include "private.h"
+#include "scheduler_pool_manager.h"
 #include "config.h"
 #include "scheduler_pool.h"
 #include "scheduler_pool_proxy.h"
@@ -28,7 +29,12 @@ using namespace NCellMaster;
 using namespace NHydra;
 using namespace NScheduler;
 using namespace NSecurityClient;
+using namespace NYson;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const NLogging::TLogger& Logger = SchedulerPoolServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -248,7 +254,137 @@ public:
         return Bootstrap_->GetConfigManager()->GetConfig()->SchedulerPoolManager;
     }
 
+    void TransferPoolResources(TSchedulerPool* srcPool, TSchedulerPool* dstPool, const TPoolResourcesPtr& resourceDelta)
+    {
+        YT_VERIFY(srcPool);
+        YT_VERIFY(dstPool);
+
+        TCommandTransaction transaction;
+        try {
+            auto* lcaPool = FindMapObjectLCA(srcPool, dstPool);
+            if (!lcaPool) {
+                YT_LOG_ALERT("Pools do not have common ancestor (SrcPool: %Qv, DstPool: %Qv)", srcPool->GetName(), dstPool->GetName());
+                THROW_ERROR_EXCEPTION("Pools do not have common ancestor")
+                    << TErrorAttribute("src_pool", srcPool->GetName())
+                    << TErrorAttribute("dst_pool", dstPool->GetName());
+            }
+
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            for (auto* pool = srcPool; pool != lcaPool; pool = pool->GetParent()) {
+                securityManager->ValidatePermission(pool, EPermission::Write);
+            }
+            for (auto* pool = dstPool; pool != lcaPool; pool = pool->GetParent()) {
+                securityManager->ValidatePermission(pool, EPermission::Write);
+            }
+
+            for (auto* pool = srcPool; pool != lcaPool; pool = pool->GetParent()) {
+                transaction.AddResources(pool, -*resourceDelta);
+                pool->FullValidate();
+            }
+
+            TCompactVector<TSchedulerPool*, 4> reverseDstAncestry;
+            for (auto* pool = dstPool; pool != lcaPool; pool = pool->GetParent()) {
+                reverseDstAncestry.push_back(pool);
+            }
+            std::reverse(reverseDstAncestry.begin(), reverseDstAncestry.end());
+            for (auto* pool: reverseDstAncestry) {
+                transaction.AddResources(pool, resourceDelta);
+                pool->FullValidate();
+            }
+
+            if (lcaPool == srcPool || lcaPool == dstPool) {
+                lcaPool->ValidateChildrenCompatibility();
+            }
+        } catch (const std::exception& ex) {
+            transaction.Abort();
+            THROW_ERROR_EXCEPTION("Failed to transfer resources from pool %Qv to pool %Qv",
+                srcPool->GetName(),
+                dstPool->GetName())
+                << ex;
+        }
+        transaction.Commit();
+    }
+
 private:
+    class TCommandTransaction
+    {
+    public:
+        void AddResources(TSchedulerPool* pool, const TPoolResourcesPtr& delta)
+        {
+            PoolResourcesBackup_.emplace_back(pool, pool->GetResources());
+            pool->AddResourcesToConfig(delta);
+        }
+
+        void Commit()
+        {
+            for (const auto& [pool, oldResources]: PoolResourcesBackup_) {
+                ApplyConfigChanges(pool, oldResources);
+            }
+        }
+
+        void Abort() noexcept
+        {
+            std::reverse(PoolResourcesBackup_.begin(), PoolResourcesBackup_.end());
+            for (auto& [pool, oldResources]: PoolResourcesBackup_) {
+                pool->SetResourcesInConfig(std::move(oldResources));
+            }
+        }
+
+    private:
+        TCompactVector<std::pair<TSchedulerPool*, TPoolResourcesPtr>, 4> PoolResourcesBackup_;
+
+        void ApplyConfigChanges(TSchedulerPool* pool, const TPoolResourcesPtr& oldResources)
+        {
+            TCompactVector<TString, 3> logMessages;
+            auto& attributes = pool->SpecifiedAttributes();
+            const auto& poolConfig = pool->FullConfig();
+            const auto& actualStrongGuaranteeResources = poolConfig->StrongGuaranteeResources;
+            if (!oldResources->StrongGuaranteeResources->IsEqualTo(*actualStrongGuaranteeResources)) {
+                attributes[EInternedAttributeKey::StrongGuaranteeResources] = ConvertToYsonString(actualStrongGuaranteeResources);
+                logMessages.push_back(Format(
+                    "StrongGuaranteeResources: %v",
+                    ConvertToYsonString(actualStrongGuaranteeResources, EYsonFormat::Text)));
+            }
+            const auto& actualIntegralGuarantees = poolConfig->IntegralGuarantees;
+            const auto& oldBurstGuaranteeResources = oldResources->BurstGuaranteeResources;
+            const auto& oldResourceFlow = oldResources->ResourceFlow;
+            const auto& actualBurstGuaranteeResources = actualIntegralGuarantees->BurstGuaranteeResources;
+            const auto& actualResourceFlow = actualIntegralGuarantees->ResourceFlow;
+            if (!oldBurstGuaranteeResources->IsEqualTo(*actualBurstGuaranteeResources)
+                || !oldResourceFlow->IsEqualTo(*actualResourceFlow))
+            {
+                // TODO(renadeen): extract resources from integral guarantees and rewrite this code.
+                auto it = attributes.find(EInternedAttributeKey::IntegralGuarantees);
+                auto updatedIntegralGuarantees = it != attributes.end()
+                    ? ConvertTo<IMapNodePtr>(it->second)
+                    : GetEphemeralNodeFactory()->CreateMap();
+
+                if (!oldBurstGuaranteeResources->IsEqualTo(*actualBurstGuaranteeResources)) {
+                    updatedIntegralGuarantees->RemoveChild("burst_guarantee_resources");
+                    updatedIntegralGuarantees->AddChild("burst_guarantee_resources", ConvertToNode(actualBurstGuaranteeResources));
+                }
+                if (!oldResourceFlow->IsEqualTo(*actualResourceFlow)) {
+                    updatedIntegralGuarantees->RemoveChild("resource_flow");
+                    updatedIntegralGuarantees->AddChild("resource_flow", ConvertToNode(actualResourceFlow));
+                }
+                attributes[EInternedAttributeKey::IntegralGuarantees] = ConvertToYsonString(updatedIntegralGuarantees);
+                logMessages.push_back(Format(
+                    "IntegralGuarantees: %v",
+                    ConvertToYsonString(actualIntegralGuarantees, EYsonFormat::Text)));
+            }
+
+            if (oldResources->MaxOperationCount != poolConfig->MaxOperationCount) {
+                attributes[EInternedAttributeKey::MaxOperationCount] = ConvertToYsonString(poolConfig->MaxOperationCount);
+                logMessages.push_back(Format("MaxOperationCount: %v", poolConfig->MaxOperationCount));
+            }
+            if (oldResources->MaxRunningOperationCount != poolConfig->MaxRunningOperationCount) {
+                attributes[EInternedAttributeKey::MaxRunningOperationCount] = ConvertToYsonString(poolConfig->MaxRunningOperationCount);
+                logMessages.push_back(Format("MaxRunningOperationCount: %v", poolConfig->MaxRunningOperationCount));
+            }
+            YT_LOG_DEBUG("Updated pool resources (PoolName: %v, %v)", pool->GetName(), JoinToString(logMessages));
+        }
+    };
+
     friend class TSchedulerPoolTypeHandler;
     friend class TSchedulerPoolTreeTypeHandler;
 
@@ -542,8 +678,7 @@ private:
     {
         auto* poolTreesRoot = Bootstrap_->GetCypressManager()->ResolvePathToTrunkNode(PoolTreesRootCypressPath);
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->GetAuthenticatedUser();
-        securityManager->ValidatePermission(poolTreesRoot, user, EPermission::Write);
+        securityManager->ValidatePermission(poolTreesRoot, EPermission::Write);
     }
 
     using TBase = TObjectTypeHandlerWithMapBase<TSchedulerPoolTree>;
@@ -612,6 +747,11 @@ const THashSet<TInternedAttributeKey>& TSchedulerPoolManager::GetKnownPoolTreeAt
 bool TSchedulerPoolManager::IsUserManagedAttribute(NYTree::TInternedAttributeKey key)
 {
     return Impl_->IsUserManagedAttribute(key);
+}
+
+void TSchedulerPoolManager::TransferPoolResources(TSchedulerPool* srcPool, TSchedulerPool* dstPool, const TPoolResourcesPtr& resourceDelta)
+{
+    Impl_->TransferPoolResources(srcPool, dstPool, resourceDelta);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

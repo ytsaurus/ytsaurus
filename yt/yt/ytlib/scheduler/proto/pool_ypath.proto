@@ -1,0 +1,15 @@
+package NYT.NScheduler.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqTransferPoolResources
+{
+    optional string src_pool = 1;
+    optional string dst_pool = 2;
+    optional bytes resource_delta = 3;
+}
+
+message TRspTransferPoolResources
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

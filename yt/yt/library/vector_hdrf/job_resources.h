@@ -126,14 +126,10 @@ public:
         processResource(&TJobResourcesConfig::Gpu, EJobResourceType::Gpu);
     }
 
-    bool IsNonTrivial()
-    {
-        bool isNonTrivial = false;
-        ForEachResource([&, this] (auto TJobResourcesConfig::* resourceDataMember, EJobResourceType /* resourceType */) {
-            isNonTrivial |= (this->*resourceDataMember).has_value();
-        });
-        return isNonTrivial;
-    }
+    bool IsNonTrivial();
+    bool IsEqualTo(const TJobResourcesConfig& other);
+
+    TJobResourcesConfig& operator+=(const TJobResourcesConfig& addend);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

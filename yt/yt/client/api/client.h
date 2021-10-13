@@ -393,6 +393,11 @@ struct TTransferAccountResourcesOptions
     , public TMutatingOptions
 { };
 
+struct TTransferPoolResourcesOptions
+    : public TTimeoutOptions
+    , public TMutatingOptions
+{ };
+
 struct TTransactionStartOptions
     : public TMutatingOptions
 {
@@ -1659,6 +1664,13 @@ struct IClient
         const TString& dstAccount,
         NYTree::INodePtr resourceDelta,
         const TTransferAccountResourcesOptions& options = {}) = 0;
+
+    virtual TFuture<void> TransferPoolResources(
+        const TString& srcPool,
+        const TString& dstPool,
+        const TString& poolTree,
+        NYTree::INodePtr resourceDelta,
+        const TTransferPoolResourcesOptions& options = {}) = 0;
 
     // Scheduler
     virtual TFuture<NScheduler::TOperationId> StartOperation(

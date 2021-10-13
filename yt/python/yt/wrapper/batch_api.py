@@ -12,6 +12,6 @@ from .operation_commands import (suspend_operation, resume_operation, get_operat
 from .job_commands import get_job, list_jobs
 from .transaction_commands import start_transaction, abort_transaction, commit_transaction, ping_transaction
 from .job_commands import abort_job
-from .etc_commands import generate_timestamp, transfer_account_resources
+from .etc_commands import generate_timestamp, transfer_account_resources, transfer_pool_resources
 
 _batch_commands = [_key for _key in locals().keys() if not _key.startswith("_")]

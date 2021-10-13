@@ -127,6 +127,23 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTransferPoolResourcesCommand
+    : public TTypedCommand<NApi::TTransferPoolResourcesOptions>
+{
+public:
+    TTransferPoolResourcesCommand();
+
+private:
+    TString SourcePool;
+    TString DestinationPool;
+    TString PoolTree;
+    NYTree::INodePtr ResourceDelta;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TExecuteBatchOptions
     : public NApi::TMutatingOptions
 {

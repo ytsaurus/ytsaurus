@@ -82,6 +82,10 @@ class TJobResourcesConfig
     , public NVectorHdrf::TJobResourcesConfig
 {
 public:
+    TJobResourcesConfigPtr Clone();
+
+    TJobResourcesConfigPtr operator-();
+
     REGISTER_YSON_STRUCT(TJobResourcesConfig);
 
     static void Register(TRegistrar registrar);
@@ -242,7 +246,7 @@ public:
 
     THashMap<TString, TString> MeteringTags;
 
-    void Validate();
+    void Validate(const TString& poolName);
 
     REGISTER_YSON_STRUCT(TPoolConfig);
 

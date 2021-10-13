@@ -26,7 +26,7 @@ public:
     TString GetCapitalizedObjectName() const override;
 
     // NB: exception is raised upon validation fails. Caller is obliged to restore correct state.
-    void ValidateAll();
+    void FullValidate();
     void ValidateChildrenCompatibility();
     void ValidateStrongGuarantees(const NScheduler::TFairShareStrategyTreeConfigPtr& poolTreeConfig) const;
     void ValidateStrongGuaranteesRecursively(const NScheduler::TFairShareStrategyTreeConfigPtr& poolTreeConfig) const;
@@ -57,6 +57,10 @@ public:
     void GuardedUpdatePoolAttribute(
         NYTree::TInternedAttributeKey key,
         const std::function<void(const NScheduler::TPoolConfigPtr&, const TString&)>& update);
+
+    TPoolResourcesPtr GetResources() const;
+    void SetResourcesInConfig(TPoolResourcesPtr resources);
+    void AddResourcesToConfig(const TPoolResourcesPtr& poolResources);
 
     static NYTree::TInternedAttributeKey RemapDeprecatedKey(NYTree::TInternedAttributeKey key);
 

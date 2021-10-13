@@ -1680,6 +1680,26 @@ void TJobResourcesConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0);
 }
 
+TJobResourcesConfigPtr TJobResourcesConfig::Clone()
+{
+    auto result = New<TJobResourcesConfig>();
+    ForEachResource([&result, this] (auto NVectorHdrf::TJobResourcesConfig::* resourceDataMember, EJobResourceType /*resourceType*/) {
+        result.Get()->*resourceDataMember = this->*resourceDataMember;
+    });
+    return result;
+}
+
+TJobResourcesConfigPtr TJobResourcesConfig::operator-()
+{
+    auto result = New<TJobResourcesConfig>();
+    ForEachResource([&result, this] (auto NVectorHdrf::TJobResourcesConfig::* resourceDataMember, EJobResourceType /*resourceType*/) {
+        if ((this->*resourceDataMember).has_value()) {
+            result.Get()->*resourceDataMember = -*(this->*resourceDataMember);
+        }
+    });
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TCommonPreemptionConfig::Register(TRegistrar registrar)
@@ -1839,29 +1859,33 @@ void TPoolConfig::Register(TRegistrar registrar)
         .Default();
 }
 
-void TPoolConfig::Validate()
+void TPoolConfig::Validate(const TString& poolName)
 {
     if (MaxOperationCount && MaxRunningOperationCount && *MaxOperationCount < *MaxRunningOperationCount) {
         THROW_ERROR_EXCEPTION("%Qv must be greater that or equal to %Qv, but %v < %v",
             "max_operation_count",
             "max_running_operation_count",
             *MaxOperationCount,
-            *MaxRunningOperationCount);
+            *MaxRunningOperationCount)
+            << TErrorAttribute("pool_name", poolName);
     }
     if (AllowedProfilingTags.size() > MaxAllowedProfilingTagCount) {
         THROW_ERROR_EXCEPTION("Limit for the number of allowed profiling tags exceeded")
             << TErrorAttribute("allowed_profiling_tag_count", AllowedProfilingTags.size())
-            << TErrorAttribute("max_allowed_profiling_tag_count", MaxAllowedProfilingTagCount);
+            << TErrorAttribute("max_allowed_profiling_tag_count", MaxAllowedProfilingTagCount)
+            << TErrorAttribute("pool_name", poolName);
     }
     if (IntegralGuarantees->BurstGuaranteeResources->IsNonTrivial() &&
         IntegralGuarantees->GuaranteeType == EIntegralGuaranteeType::Relaxed)
     {
         THROW_ERROR_EXCEPTION("Burst guarantees cannot be specified for integral guarantee type \"relaxed\"")
             << TErrorAttribute("integral_guarantee_type", IntegralGuarantees->GuaranteeType)
-            << TErrorAttribute("burst_guarantee_resources", IntegralGuarantees->BurstGuaranteeResources);
+            << TErrorAttribute("burst_guarantee_resources", IntegralGuarantees->BurstGuaranteeResources)
+            << TErrorAttribute("pool_name", poolName);
     }
     if (!MeteringTags.empty() && !Abc) {
-        THROW_ERROR_EXCEPTION("Metering tags can be specified only for pool with specified abc attribute");
+        THROW_ERROR_EXCEPTION("Metering tags can be specified only for pool with specified abc attribute")
+            << TErrorAttribute("pool_name", poolName);
     }
 }
 

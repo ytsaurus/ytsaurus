@@ -1,7 +1,7 @@
 #include "private.h"
 
+#include "pool_resources.h"
 #include "scheduler_pool.h"
-
 #include "scheduler_pool_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -58,12 +58,11 @@ TString TSchedulerPool::GetCapitalizedObjectName() const
         : Format("Scheduler pool %Qv", GetName());
 }
 
-void TSchedulerPool::ValidateAll()
+void TSchedulerPool::FullValidate()
 {
-    FullConfig_->Validate();
+    FullConfig_->Validate(GetName());
     ValidateChildrenCompatibility();
     ValidateStrongGuarantees(GetPoolTreeConfig());
-    GetParent()->ValidateChildrenCompatibility();
 }
 
 void TSchedulerPool::ValidateChildrenCompatibility()
@@ -111,12 +110,12 @@ void TSchedulerPool::ValidateChildrenCompatibility()
 
 void TSchedulerPool::ValidateStrongGuarantees(const TFairShareStrategyTreeConfigPtr& poolTreeConfig) const
 {
-    DoValidateStrongGuarantees(poolTreeConfig, /* recursive */ false);
+    DoValidateStrongGuarantees(poolTreeConfig, /*recursive*/ false);
 }
 
 void TSchedulerPool::ValidateStrongGuaranteesRecursively(const TFairShareStrategyTreeConfigPtr& poolTreeConfig) const
 {
-    DoValidateStrongGuarantees(poolTreeConfig, /* recursive */ true);
+    DoValidateStrongGuarantees(poolTreeConfig, /*recursive*/ true);
 }
 
 void TSchedulerPool::DoValidateStrongGuarantees(const TFairShareStrategyTreeConfigPtr& poolTreeConfig, bool recursive) const
@@ -124,10 +123,10 @@ void TSchedulerPool::DoValidateStrongGuarantees(const TFairShareStrategyTreeConf
     bool hasMainResourceGuarantee = false;
     bool hasAnyResourceGuarantee = false;
     FullConfig()->StrongGuaranteeResources->ForEachResource([&] (auto NVectorHdrf::TJobResourcesConfig::* resourceDataMember, EJobResourceType resourceType) {
-        bool hasResourse = (FullConfig()->StrongGuaranteeResources.Get()->*resourceDataMember).has_value();
-        hasAnyResourceGuarantee |= hasResourse;
+        bool hasResource = (FullConfig()->StrongGuaranteeResources.Get()->*resourceDataMember).has_value();
+        hasAnyResourceGuarantee = hasAnyResourceGuarantee || hasResource;
         if (resourceType == poolTreeConfig->MainResource) {
-            hasMainResourceGuarantee = hasResourse;
+            hasMainResourceGuarantee = hasResource;
         }
     });
 
@@ -250,7 +249,8 @@ void TSchedulerPool::GuardedUpdatePoolAttribute(
 
     update(FullConfig_, stringKey);
     try {
-        ValidateAll();
+        FullValidate();
+        GetParent()->ValidateChildrenCompatibility();
     } catch (const std::exception&) {
         auto restoringValueIt = SpecifiedAttributes_.find(key);
         if (restoringValueIt != SpecifiedAttributes_.end()) {
@@ -268,6 +268,47 @@ TInternedAttributeKey TSchedulerPool::RemapDeprecatedKey(TInternedAttributeKey k
     return key == EInternedAttributeKey::MinShareResources
         ? EInternedAttributeKey::StrongGuaranteeResources
         : key;
+}
+
+TPoolResourcesPtr TSchedulerPool::GetResources() const
+{
+    auto result = New<TPoolResources>();
+    result->StrongGuaranteeResources = FullConfig_->StrongGuaranteeResources->Clone();
+    result->ResourceFlow = FullConfig_->IntegralGuarantees->ResourceFlow->Clone();
+    result->BurstGuaranteeResources = FullConfig_->IntegralGuarantees->BurstGuaranteeResources->Clone();
+    result->MaxOperationCount = FullConfig_->MaxOperationCount;
+    result->MaxRunningOperationCount = FullConfig_->MaxRunningOperationCount;
+    return result;
+}
+
+void TSchedulerPool::SetResourcesInConfig(TPoolResourcesPtr resources)
+{
+    FullConfig_->StrongGuaranteeResources = std::move(resources->StrongGuaranteeResources);
+    FullConfig_->IntegralGuarantees->BurstGuaranteeResources = std::move(resources->BurstGuaranteeResources);
+    FullConfig_->IntegralGuarantees->ResourceFlow = std::move(resources->ResourceFlow);
+    FullConfig_->MaxOperationCount = std::move(resources->MaxOperationCount);
+    FullConfig_->MaxRunningOperationCount = std::move(resources->MaxRunningOperationCount);
+}
+
+void TSchedulerPool::AddResourcesToConfig(const TPoolResourcesPtr& poolResources)
+{
+    *(FullConfig_->StrongGuaranteeResources) += *poolResources->StrongGuaranteeResources;
+    *(FullConfig_->IntegralGuarantees->ResourceFlow) += *poolResources->ResourceFlow;
+    *(FullConfig_->IntegralGuarantees->BurstGuaranteeResources) += *poolResources->BurstGuaranteeResources;
+    if (poolResources->MaxOperationCount) {
+        if (FullConfig_->MaxOperationCount) {
+            *FullConfig_->MaxOperationCount += *poolResources->MaxOperationCount;
+        } else {
+            FullConfig_->MaxOperationCount = poolResources->MaxOperationCount;
+        }
+    }
+    if (poolResources->MaxRunningOperationCount) {
+        if (FullConfig_->MaxRunningOperationCount) {
+            *FullConfig_->MaxRunningOperationCount += *poolResources->MaxRunningOperationCount;
+        } else {
+            FullConfig_->MaxRunningOperationCount = poolResources->MaxRunningOperationCount;
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
