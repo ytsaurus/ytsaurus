@@ -670,20 +670,21 @@ private:
 
     TQueryStatistics DoExecute()
     {
+        auto counters = TabletSnapshots_.GetTableProfiler()->GetSelectCpuCounters(GetProfilingUser(Identity_));
         ChunkReadOptions_.HunkChunkReaderStatistics = TabletSnapshots_.CreateHunkChunkReaderStatistics();
 
         auto statistics = DoExecuteImpl();
 
-        auto counters = TabletSnapshots_.GetTableProfiler()->GetSelectCpuCounters(GetProfilingUser(Identity_));
+        auto updateProfiling = Finally([&] {
+            counters->ChunkReaderStatisticsCounters.Increment(ChunkReadOptions_.ChunkReaderStatistics);
+            counters->HunkChunkReaderCounters.Increment(ChunkReadOptions_.HunkChunkReaderStatistics);
+        });
 
         auto cpuTime = statistics.SyncTime;
         for (const auto& innerStatistics : statistics.InnerStatistics) {
             cpuTime += innerStatistics.SyncTime;
         }
-
         counters->CpuTime.Add(cpuTime);
-        counters->ChunkReaderStatisticsCounters.Increment(ChunkReadOptions_.ChunkReaderStatistics);
-        counters->HunkChunkReaderCounters.Increment(ChunkReadOptions_.HunkChunkReaderStatistics);
 
         return statistics;
     }
