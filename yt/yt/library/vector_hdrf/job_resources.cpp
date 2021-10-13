@@ -238,5 +238,40 @@ TJobResources Min(const TJobResources& lhs, const TJobResources& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TJobResourcesConfig::IsNonTrivial()
+{
+    bool isNonTrivial = false;
+    ForEachResource([this, &isNonTrivial] (auto TJobResourcesConfig::* resourceDataMember, EJobResourceType /*resourceType*/) {
+        isNonTrivial = isNonTrivial || (this->*resourceDataMember).has_value();
+    });
+    return isNonTrivial;
+}
+
+bool TJobResourcesConfig::IsEqualTo(const TJobResourcesConfig& other)
+{
+    bool result = true;
+    ForEachResource([this, &result, &other] (auto TJobResourcesConfig::* resourceDataMember, EJobResourceType /*resourceType*/) {
+        result = result && (this->*resourceDataMember == other.*resourceDataMember);
+    });
+    return result;
+}
+
+TJobResourcesConfig& TJobResourcesConfig::operator+=(const TJobResourcesConfig& addend)
+{
+    ForEachResource([this, &addend] (auto TJobResourcesConfig::* resourceDataMember, EJobResourceType /*resourceType*/) {
+        if (!(addend.*resourceDataMember).has_value()) {
+            return;
+        }
+        if ((this->*resourceDataMember).has_value()) {
+            *(this->*resourceDataMember) += *(addend.*resourceDataMember);
+        } else {
+            this->*resourceDataMember = addend.*resourceDataMember;
+        }
+    });
+    return *this;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NVectorHdrf
 

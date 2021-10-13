@@ -185,6 +185,29 @@ void TTransferAccountResourcesCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTransferPoolResourcesCommand::TTransferPoolResourcesCommand()
+{
+    RegisterParameter("source_pool", SourcePool);
+    RegisterParameter("destination_pool", DestinationPool);
+    RegisterParameter("pool_tree", PoolTree);
+    RegisterParameter("resource_delta", ResourceDelta);
+}
+
+void TTransferPoolResourcesCommand::DoExecute(ICommandContextPtr context)
+{
+    WaitFor(context->GetClient()->TransferPoolResources(
+        SourcePool,
+        DestinationPool,
+        PoolTree,
+        ResourceDelta,
+        Options))
+        .ThrowOnError();
+
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TExecuteBatchCommand::TRequest::TRequest()
 {
     RegisterParameter("command", Command);

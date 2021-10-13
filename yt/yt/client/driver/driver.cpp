@@ -263,6 +263,7 @@ public:
         REGISTER_ALL(TCheckPermissionByAclCommand,         "check_permission_by_acl",         Null,       Structured, false, false);
 
         REGISTER    (TTransferAccountResourcesCommand,     "transfer_account_resources",      Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TTransferPoolResourcesCommand,        "transfer_pool_resources",         Null,       Structured, true,  false, ApiVersion4);
 
         REGISTER    (TWriteJournalCommand,                 "write_journal",                   Tabular,    Null,       true,  true , ApiVersion3);
         REGISTER    (TWriteJournalCommand,                 "write_journal",                   Tabular,    Structured, true,  true , ApiVersion4);

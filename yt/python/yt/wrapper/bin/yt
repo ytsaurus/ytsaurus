@@ -70,7 +70,7 @@ Operation tools:
 Diagnostics:
     job-tool, download-core-dump
 Other commands:
-    show-spec, execute, execute-batch, sky-share, show-default-config, transfer-account-resources,
+    show-spec, execute, execute-batch, sky-share, show-default-config, transfer-account-resources, transfer-pool-resources,
     generate-timestamp
 Subtools:
     clickhouse, spark, idm
@@ -1402,6 +1402,13 @@ def add_transfer_account_resources_parser(add_parser):
     add_hybrid_argument(parser, "destination_account", aliases=["--dst"])
     add_structured_argument(parser, "--resource-delta")
 
+def add_transfer_pool_resources_parser(add_parser):
+    parser = add_parser("transfer-pool-resources", yt.transfer_pool_resources)
+    add_hybrid_argument(parser, "source_pool", aliases=["--src"])
+    add_hybrid_argument(parser, "destination_pool", aliases=["--dst"])
+    add_hybrid_argument(parser, "pool_tree")
+    add_structured_argument(parser, "--resource-delta")
+
 @copy_docstring_from(yt.generate_timestamp)
 def generate_timestamp():
     print_to_output(str(yt.generate_timestamp()))
@@ -1979,6 +1986,7 @@ def main():
     add_get_table_columnar_statistics_parser(add_parser)
     add_execute_batch_parser(add_parser)
     add_transfer_account_resources_parser(add_parser)
+    add_transfer_pool_resources_parser(add_parser)
     add_generate_timestamp_parser(add_parser)
 
     add_run_job_shell_parser(add_parser)

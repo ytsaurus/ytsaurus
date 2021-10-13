@@ -2007,6 +2007,22 @@ message TRspTransferAccountResources
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqTransferPoolResources
+{
+    required string src_pool = 1;
+    required string dst_pool = 2;
+    required string pool_tree = 3;
+    required bytes resource_delta = 4; // YSON
+
+    optional TMutatingOptions mutating_options = 103;
+}
+
+message TRspTransferPoolResources
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqCheckClusterLiveness
 {
     required bool check_cypress_root = 1;

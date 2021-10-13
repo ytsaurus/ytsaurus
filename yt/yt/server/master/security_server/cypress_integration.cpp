@@ -114,7 +114,7 @@ private:
                 SerializeAccountClusterResourceUsage(
                     rootAccount,
                     key == EInternedAttributeKey::CommittedResourceUsage,
-                    /* recursive */ true,
+                    /*recursive*/ true,
                     consumer,
                     Bootstrap_);
                 return true;

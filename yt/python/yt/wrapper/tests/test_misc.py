@@ -1093,6 +1093,58 @@ class TestTransferAccountResources(object):
         assert yt.get("//sys/accounts/a/@resource_limits") == get_limits(6)
 
 
+@pytest.mark.usefixtures("yt_env_with_rpc")
+class TestTransferPoolResources(object):
+    @authors("renadeen")
+    def test_transfer_pool_resources_simple(self):
+        if yt.config["api_version"] != "v4":
+            pytest.skip()
+
+        yt.create("scheduler_pool", attributes={
+            "name": "from",
+            "pool_tree": "default",
+            "strong_guarantee_resources": {"cpu": 10},
+            "integral_guarantees": {"resource_flow": {"cpu": 20}, "burst_guarantee_resources": {"cpu": 30}},
+            "max_running_operation_count": 40,
+            "max_operation_count": 50,
+        })
+        yt.create("scheduler_pool", attributes={
+            "name": "to",
+            "pool_tree": "default",
+            "strong_guarantee_resources": {"cpu": 10},
+            "integral_guarantees": {"resource_flow": {"cpu": 20}, "burst_guarantee_resources": {"cpu": 30}},
+            "max_running_operation_count": 40,
+            "max_operation_count": 50,
+        })
+
+        with pytest.raises(yt.YtError):
+            yt.transfer_pool_resources("from", "to", "default", 123)
+        with pytest.raises(yt.YtError):
+            yt.transfer_pool_resources("from", "to", "default", {"max_operation_count": -1})
+        with pytest.raises(yt.YtError):
+            yt.transfer_pool_resources("from", "inexistent", "default", {"max_operation_count": 1})
+
+        yt.transfer_pool_resources("from", "to", "default", {
+            "strong_guarantee_resources": {"cpu": 4},
+            "resource_flow": {"cpu": 8},
+            "burst_guarantee_resources": {"cpu": 12},
+            "max_running_operation_count": 16,
+            "max_operation_count": 20,
+        })
+
+        assert yt.get("//sys/pool_trees/default/from/@strong_guarantee_resources/cpu") == 6.0
+        assert yt.get("//sys/pool_trees/default/from/@integral_guarantees/resource_flow/cpu") == 12.0
+        assert yt.get("//sys/pool_trees/default/from/@integral_guarantees/burst_guarantee_resources/cpu") == 18.0
+        assert yt.get("//sys/pool_trees/default/from/@max_running_operation_count") == 24
+        assert yt.get("//sys/pool_trees/default/from/@max_operation_count") == 30
+
+        assert yt.get("//sys/pool_trees/default/to/@strong_guarantee_resources/cpu") == 14.0
+        assert yt.get("//sys/pool_trees/default/to/@integral_guarantees/resource_flow/cpu") == 28.0
+        assert yt.get("//sys/pool_trees/default/to/@integral_guarantees/burst_guarantee_resources/cpu") == 42.0
+        assert yt.get("//sys/pool_trees/default/to/@max_running_operation_count") == 56
+        assert yt.get("//sys/pool_trees/default/to/@max_operation_count") == 70
+
+
 @pytest.mark.usefixtures("yt_env")
 class TestGetSupportedFeatures(object):
     @authors("levysotsky")

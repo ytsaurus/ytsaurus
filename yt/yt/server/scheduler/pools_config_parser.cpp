@@ -82,7 +82,7 @@ bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const TString& par
                 poolConfigNode = PatchNode(presetNode, poolConfigNode);
                 poolConfig = ConvertTo<TPoolConfigPtr>(poolConfigNode);
             }
-            poolConfig->Validate();
+            poolConfig->Validate(childName);
 
             updatePoolAction.PoolConfig = poolConfig;
         } catch (const std::exception& ex) {

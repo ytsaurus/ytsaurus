@@ -360,6 +360,13 @@ public:
         NYTree::INodePtr resourceDelta,
         const TTransferAccountResourcesOptions& options), (override));
 
+    MOCK_METHOD(TFuture<void>, TransferPoolResources, (
+        const TString& srcPool,
+        const TString& dstPool,
+        const TString& poolTree,
+        NYTree::INodePtr resourceDelta,
+        const TTransferPoolResourcesOptions& options), (override));
+
     MOCK_METHOD(TFuture<NScheduler::TOperationId>, StartOperation, (
         NScheduler::EOperationType type,
         const NYson::TYsonString& spec,

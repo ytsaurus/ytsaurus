@@ -34,6 +34,8 @@ public:
     // It has complexity linear in the object's depth since we have to traverse all parents all the way to the root.
     std::optional<TString> GetMaybePoolTreeName(const TSchedulerPool* schedulerPool) noexcept;
 
+    void TransferPoolResources(TSchedulerPool* srcPool, TSchedulerPool* dstPool, const TPoolResourcesPtr& resourceDelta);
+
 private:
     class TImpl;
     class TSchedulerPoolTypeHandler;

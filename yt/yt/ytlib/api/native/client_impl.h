@@ -383,6 +383,14 @@ public:
         const TTransferAccountResourcesOptions& options),
         (srcAccount, dstAccount, resourceDelta, options))
 
+    IMPLEMENT_METHOD(void, TransferPoolResources, (
+        const TString& srcPool,
+        const TString& dstPool,
+        const TString& poolTree,
+        NYTree::INodePtr resourceDelta,
+        const TTransferPoolResourcesOptions& options),
+        (srcPool, dstPool, poolTree, resourceDelta, options))
+
     IMPLEMENT_METHOD(NScheduler::TOperationId, StartOperation, (
         NScheduler::EOperationType type,
         const NYson::TYsonString& spec,
@@ -960,6 +968,16 @@ private:
         const TString& dstAccount,
         NYTree::INodePtr resourceDelta,
         const TTransferAccountResourcesOptions& options);
+
+    //
+    // Pools.
+    //
+    void DoTransferPoolResources(
+        const TString& srcPool,
+        const TString& dstPool,
+        const TString& poolTree,
+        NYTree::INodePtr resourceDelta,
+        const TTransferPoolResourcesOptions& options);
 
     //
     // Operations.

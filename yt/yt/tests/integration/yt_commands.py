@@ -1001,6 +1001,14 @@ def transfer_account_resources(source_account, destination_account, resource_del
     execute_command("transfer_account_resources", kwargs)
 
 
+def transfer_pool_resources(source_pool, destination_pool, pool_tree, resource_delta, **kwargs):
+    kwargs["source_pool"] = source_pool
+    kwargs["destination_pool"] = destination_pool
+    kwargs["pool_tree"] = pool_tree
+    kwargs["resource_delta"] = resource_delta
+    execute_command("transfer_pool_resources", kwargs)
+
+
 def get_file_from_cache(md5, cache_path, **kwargs):
     kwargs["md5"] = md5
     kwargs["cache_path"] = cache_path

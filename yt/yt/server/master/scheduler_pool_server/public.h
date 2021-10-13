@@ -17,6 +17,8 @@ DECLARE_REFCOUNTED_CLASS(TSchedulerPoolManager)
 
 DECLARE_REFCOUNTED_CLASS(TDynamicSchedulerPoolManagerConfig)
 
+DECLARE_REFCOUNTED_CLASS(TPoolResources)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSchedulerPoolServer

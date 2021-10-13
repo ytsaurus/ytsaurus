@@ -649,6 +649,26 @@ test_transfer_account_resources()
     check "12" "$($YT get //sys/accounts/a2/@resource_limits/node_count)"
 }
 
+test_transfer_pool_resources()
+{
+    $YT create scheduler_pool --attributes '{name=from;pool_tree=default;strong_guarantee_resources={cpu=10};integral_guarantees={resource_flow={cpu=20};burst_guarantee_resources={cpu=30}};max_running_operation_count=40;max_operation_count=50}'
+    $YT create scheduler_pool --attributes '{name=to;pool_tree=default;strong_guarantee_resources={cpu=10};integral_guarantees={resource_flow={cpu=20};burst_guarantee_resources={cpu=30}};max_running_operation_count=40;max_operation_count=50}'
+
+    $YT transfer-pool-resources --src from --dst to --pool-tree default --resource-delta '{strong_guarantee_resources={cpu=4};resource_flow={cpu=8};burst_guarantee_resources={cpu=12};max_running_operation_count=16;max_operation_count=20}'
+
+    check "6.0" "$($YT get //sys/pool_trees/default/from/@strong_guarantee_resources/cpu)"
+    check "12.0" "$($YT get //sys/pool_trees/default/from/@integral_guarantees/resource_flow/cpu)"
+    check "18.0" "$($YT get //sys/pool_trees/default/from/@integral_guarantees/burst_guarantee_resources/cpu)"
+    check "24" "$($YT get //sys/pool_trees/default/from/@max_running_operation_count)"
+    check "30" "$($YT get //sys/pool_trees/default/from/@max_operation_count)"
+
+    check "14.0" "$($YT get //sys/pool_trees/default/to/@strong_guarantee_resources/cpu)"
+    check "28.0" "$($YT get //sys/pool_trees/default/to/@integral_guarantees/resource_flow/cpu)"
+    check "42.0" "$($YT get //sys/pool_trees/default/to/@integral_guarantees/burst_guarantee_resources/cpu)"
+    check "56" "$($YT get //sys/pool_trees/default/to/@max_running_operation_count)"
+    check "70" "$($YT get //sys/pool_trees/default/to/@max_operation_count)"
+}
+
 test_generate_timestamp()
 {
     ts=$($YT generate-timestamp)
@@ -715,4 +735,5 @@ run_test test_ping_ancestor_transactions_in_operations
 run_test test_operation_and_job_commands
 run_test test_check_permissions
 run_test test_transfer_account_resources
+run_test test_transfer_pool_resources
 run_test test_sort_order

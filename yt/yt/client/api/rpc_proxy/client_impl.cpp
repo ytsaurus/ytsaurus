@@ -724,6 +724,28 @@ TFuture<void> TClient::TransferAccountResources(
     return req->Invoke().As<void>();
 }
 
+TFuture<void> TClient::TransferPoolResources(
+    const TString& srcPool,
+    const TString& dstPool,
+    const TString& poolTree,
+    NYTree::INodePtr resourceDelta,
+    const TTransferPoolResourcesOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.TransferPoolResources();
+    SetTimeoutOptions(*req, options);
+
+    req->set_src_pool(srcPool);
+    req->set_dst_pool(dstPool);
+    req->set_pool_tree(poolTree);
+    req->set_resource_delta(ConvertToYsonString(resourceDelta).ToString());
+
+    ToProto(req->mutable_mutating_options(), options);
+
+    return req->Invoke().As<void>();
+}
+
 TFuture<NScheduler::TOperationId> TClient::StartOperation(
     NScheduler::EOperationType type,
     const TYsonString& spec,

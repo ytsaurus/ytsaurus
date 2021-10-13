@@ -33,7 +33,7 @@ def transfer_account_resources(source_account, destination_account, resource_del
 
     :param str source_account: account to transfer resources from.
     :param str destination_account: account to transfer resources to.
-    :param resource_delta: the amount of transferred resources as a json-able object.
+    :param resource_delta: the amount of transferred resources as a dict.
     """
     params = {
         "source_account": source_account,
@@ -41,6 +41,25 @@ def transfer_account_resources(source_account, destination_account, resource_del
         "resource_delta": resource_delta
     }
     return make_request("transfer_account_resources", params=params, client=client)
+
+def transfer_pool_resources(source_pool, destination_pool, pool_tree, resource_delta, client=None):
+    """Transfers resources between pools.
+
+    On the path from `source_pool` to `destination_pool` in the specified `pool_tree`, `resource_delta`
+    is subtracted from `source_pool` and its ancestors and added to `destination_pool` and
+    its ancestors. Limits of the lowest common ancestor remain unchanged.
+
+    :param str source_pool: pool to transfer resources from.
+    :param str destination_pool: pool to transfer resources to.
+    :param resource_delta: the amount of transferred resources as a dict.
+    """
+    params = {
+        "source_pool": source_pool,
+        "destination_pool": destination_pool,
+        "pool_tree": pool_tree,
+        "resource_delta": resource_delta
+    }
+    return make_request("transfer_pool_resources", params=params, client=client)
 
 def get_supported_features(format=None, client=None):
     """Retrieves supported cluster features (data types, codecs etc.)."""
