@@ -1,4 +1,4 @@
-from original_tests.yt.yt.tests.integration.tests.test_scheduler_sort \
+from original_tests.yt.yt.tests.integration.tests.scheduler.test_scheduler_sort \
     import TestSchedulerSortCommands as BaseTestSortCommands
 
 

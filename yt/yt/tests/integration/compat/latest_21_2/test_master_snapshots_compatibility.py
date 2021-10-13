@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 from yt_commands import authors, get, print_debug, build_master_snapshots, exists
 
 
-from original_tests.yt.yt.tests.integration.tests.test_master_snapshots \
+from original_tests.yt.yt.tests.integration.tests.master.test_master_snapshots \
     import MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
 import os

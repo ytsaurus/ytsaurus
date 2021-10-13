@@ -1,0 +1,83 @@
+TAG(
+    ya:fat
+    ya:full_logs
+    ya:sys_info
+    ya:force_sandbox
+    ya:sandbox_coverage
+    ya:nofuse
+    ya:noretries
+    ya:yt
+    ya:relwithdebinfo
+)
+
+ENV(YT_DEBUG_TAKEN_PORT=1)
+
+YT_SPEC(yt/yt/tests/integration/spec.yson)
+
+SIZE(LARGE)
+
+OWNER(
+    g:yt
+    prime
+)
+
+REQUIREMENTS(
+    sb_vault:YT_TOKEN=value:prime:robot-yt-test-token
+)
+
+PEERDIR(
+    contrib/python/zstandard
+
+    yt/yt/tests/integration
+    yt/yt/ytlib/query_client/unittests/udf
+)
+
+IF (AUTOCHECK OR YT_TEAMCITY)
+    IF (DEFINED YT_SPLIT_FACTOR)
+        FORK_TESTS(MODULO)
+
+        SPLIT_FACTOR($YT_SPLIT_FACTOR)
+    ENDIF()
+
+    TIMEOUT(1800)
+ENDIF()
+
+DATA(
+    sbr://2070902558 # Layers.
+    sbr://1703335903 # Rootfs.
+)
+
+COPY_FILE(
+    yt/yt/tests/integration/tests/conftest.py conftest.py
+)
+
+TEST_SRCS(
+    conftest.py
+)
+
+DEPENDS(
+    yt/yt/packages/tests_package
+    yt/yt/tools/yt_sudo_fixup
+)
+
+PY_NAMESPACE(.)
+
+SRCDIR(yt/yt/tests/integration)
+
+IF (CLANG_COVERAGE)
+    REQUIREMENTS(ram_disk:16)
+ELSE()
+    REQUIREMENTS(ram_disk:4)
+ENDIF()
+
+IF (BUILD_TYPE == "DEBUG" OR BUILD_TYPE == "FASTDEBUG" OR SANITIZER_TYPE)
+    REQUIREMENTS(
+        cpu:12
+        ram:32
+    )
+ELSE()
+    REQUIREMENTS(
+        cpu:8
+        ram:32
+    )
+ENDIF()
