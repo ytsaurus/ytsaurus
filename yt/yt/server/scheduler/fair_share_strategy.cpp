@@ -95,6 +95,11 @@ public:
         }
     }
 
+    void OnMasterHandshake(const TMasterHandshakeResult& result) override
+    {
+        LastMeteringStatisticsUpdateTime_ = result.LastMeteringLogTime;
+    }
+
     void OnMasterConnected() override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
@@ -104,7 +109,6 @@ public:
         FairShareUpdateExecutor_->Start();
         MinNeededJobResourcesUpdateExecutor_->Start();
         ResourceMeteringExecutor_->Start();
-        LastMeteringStatisticsUpdateTime_ = TInstant::Now();
     }
 
     void OnMasterDisconnected() override
@@ -1687,6 +1691,11 @@ private:
         TMeteringMap newStatistics;
 
         auto snapshots = TreeIdToSnapshot_.Load();
+        if (snapshots.empty()) {
+            // It usually means that snapshots are not build yet.
+            return;
+        }
+
         for (const auto& [_, snapshot] : snapshots) {
             TMeteringMap newStatisticsPerTree;
             snapshot->BuildResourceMetering(&newStatisticsPerTree);
@@ -1720,6 +1729,9 @@ private:
 
         LastMeteringStatisticsUpdateTime_ = now;
         MeteringStatistics_.swap(newStatistics);
+
+        WaitFor(Host->UpdateLastMeteringLogTime(now))
+            .ThrowOnError();
     }
 
     void InitPersistentStrategyState(const TPersistentStrategyStatePtr& persistentStrategyState)
@@ -1731,7 +1743,7 @@ private:
             if (treeIt != IdToTree_.end()) {
                 treeIt->second->InitPersistentTreeState(treeState);
             } else {
-                YT_LOG_INFO("Unknown tree %Qv; dropping its persistent state %Qv",
+                YT_LOG_INFO("Unknown tree %Qv; skipping its persistent state %Qv",
                     treeId,
                     ConvertToYsonString(treeState, EYsonFormat::Text));
             }

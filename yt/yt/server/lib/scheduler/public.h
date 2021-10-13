@@ -197,6 +197,7 @@ extern const TString DefaultTreeAttributeName;
 extern const TString TreeConfigAttributeName;
 extern const TString StrategyStatePath;
 extern const TString SegmentsStatePath;
+extern const TString LastMeteringLogTimePath;
 
 ////////////////////////////////////////////////////////////////////////////////
 

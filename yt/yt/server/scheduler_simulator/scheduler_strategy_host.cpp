@@ -266,6 +266,11 @@ int TSchedulerStrategyHost::GetDefaultAbcId() const
 void TSchedulerStrategyHost::InvokeStoringStrategyState(TPersistentStrategyStatePtr /*persistentStrategyState*/)
 { }
 
+TFuture<void> TSchedulerStrategyHost::UpdateLastMeteringLogTime(TInstant /*time*/)
+{
+    return VoidFuture;
+}
+
 void TSchedulerStrategyHost::CloseEventLogger()
 {
     if (RemoteEventLogWriter_) {

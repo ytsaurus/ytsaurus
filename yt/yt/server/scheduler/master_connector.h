@@ -21,6 +21,7 @@ struct TMasterHandshakeResult
 {
     std::vector<TOperationPtr> Operations;
     TPersistentSchedulingSegmentsStatePtr SchedulingSegmentsState;
+    TInstant LastMeteringLogTime;
 };
 
 using TWatcherRequester = TCallback<void(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr)>;
@@ -88,6 +89,8 @@ public:
 
     void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState);
     void InvokeStoringSchedulingSegmentsState(TPersistentSchedulingSegmentsStatePtr segmentsState);
+
+    TFuture<void> UpdateLastMeteringLogTime(TInstant time);
 
     void AttachJobContext(
         const NYPath::TYPath& path,

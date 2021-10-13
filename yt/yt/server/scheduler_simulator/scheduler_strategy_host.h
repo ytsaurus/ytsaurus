@@ -104,6 +104,8 @@ public:
 
     void InvokeStoringStrategyState(NScheduler::TPersistentStrategyStatePtr persistentStrategyState) override;
 
+    TFuture<void> UpdateLastMeteringLogTime(TInstant time) override;
+
     void CloseEventLogger();
 
     const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override;

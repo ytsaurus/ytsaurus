@@ -218,6 +218,11 @@ public:
 
     void InvokeStoringStrategyState(TPersistentStrategyStatePtr /* persistentStrategyState */) override
     { }
+    
+    TFuture<void> UpdateLastMeteringLogTime(TInstant /*time*/) override
+    {
+        return VoidFuture;
+    }
 
     const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override
     {

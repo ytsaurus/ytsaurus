@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include "job_resource_helpers.h"
+#include "master_connector.h"
 #include "scheduler_tree.h"
 
 #include <yt/yt/server/lib/scheduler/event_log.h>
@@ -93,6 +94,8 @@ struct ISchedulerStrategyHost
 
     virtual void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState) = 0;
 
+    virtual TFuture<void> UpdateLastMeteringLogTime(TInstant time) = 0;
+
     virtual const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const = 0;
 };
 
@@ -145,6 +148,9 @@ struct ISchedulerStrategy
     virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) = 0;
 
     virtual void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) = 0;
+
+    //! Save some strategy-specific attributes from handshake result.
+    virtual void OnMasterHandshake(const TMasterHandshakeResult& result) = 0;
 
     //! Starts periodic updates and logging.
     virtual void OnMasterConnected() = 0;

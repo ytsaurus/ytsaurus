@@ -1836,6 +1836,15 @@ public:
         MasterConnector_->InvokeStoringStrategyState(std::move(strategyState));
     }
 
+    TFuture<void> UpdateLastMeteringLogTime(TInstant time) override
+    {
+        if (Config_->UpdateLastMeteringLogTime) {
+            return MasterConnector_->UpdateLastMeteringLogTime(time);
+        } else {
+            return VoidFuture;
+        }
+    }
+
     TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId)
     {
         const auto& nodeShard = GetNodeShardByJobId(jobId);
@@ -2190,6 +2199,8 @@ private:
                 AddOperationToTransientQueue(operation);
             }
         }
+
+        Strategy_->OnMasterHandshake(result);
     }
 
     void OnMasterConnected()
