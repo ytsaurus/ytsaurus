@@ -2758,7 +2758,7 @@ private:
             ProxyRoleMap_.LoadKeys(context);
         }
         // COMPAT(ignat)
-        if (context.GetVersion() >= EMasterReign::AccountResourceUsageLease || 
+        if (context.GetVersion() >= EMasterReign::AccountResourceUsageLease ||
             (context.GetVersion() >= EMasterReign::AccountResourceUsageLease_20_3 && IsEpoch_20_3(context.GetVersion())))
         {
             AccountResourceUsageLeaseMap_.LoadKeys(context);
@@ -3486,8 +3486,11 @@ private:
             ToProto(entry->mutable_account_id(), account->GetId());
             ToProto(entry->mutable_detailed_master_memory_usage(), newMemoryUsage);
         }
-        CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-            ->CommitAndLog(Logger);
+
+        if (request.entries_size() > 0) {
+            CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
+                ->CommitAndLog(Logger);
+        }
     }
 
 
