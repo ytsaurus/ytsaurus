@@ -14,7 +14,7 @@
 
 #include <library/cpp/testing/gtest/gtest.h>
 
-namespace NYT::NScheduler::NVectorScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2947,4 +2947,4 @@ TEST_F(TFairShareTreeTest, TestIntegralPoolsWithParent)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NScheduler::NVectorScheduler
+} // namespace NYT::NScheduler
