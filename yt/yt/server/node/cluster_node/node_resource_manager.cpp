@@ -175,12 +175,13 @@ void TNodeResourceManager::UpdateMemoryLimits()
     memoryUsageTracker->SetTotalLimit(TotalMemory_);
 
     for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
-        if (ExternalMemoryCategories.contains(category)) {
+        const auto& limit = limits[category];
+        if (limit->Type == EMemoryLimitType::None) {
             continue;
         }
 
         auto oldLimit = memoryUsageTracker->GetExplicitLimit(category);
-        auto newLimit = *limits[category]->Value;
+        auto newLimit = *limit->Value;
 
         if (std::abs(oldLimit - newLimit) > config->MemoryAccountingTolerance) {
             YT_LOG_INFO("Updating memory category limit (Category: %v, OldLimit: %v, NewLimit: %v)",
@@ -343,8 +344,13 @@ TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> TNodeResourceManager::GetMe
             limit->Value = memoryUsageTracker->GetLimit(category);
         } else if (!memoryLimit || !memoryLimit->Type || memoryLimit->Type == EMemoryLimitType::None) {
             limit->Type = EMemoryLimitType::None;
-            limit->Value = std::numeric_limits<i64>::max();
-            totalDynamicMemory -= memoryUsageTracker->GetUsed(category);
+            auto memoryUsage = memoryUsageTracker->GetUsed(category);
+
+            // NB: This value is used for memory demand estimation, but this limit is not
+            // actually set in memory usage tracker.
+            limit->Value = memoryUsage;
+
+            totalDynamicMemory -= memoryUsage;
         } else if (memoryLimit->Type == EMemoryLimitType::Static) {
             limit->Type = EMemoryLimitType::Static;
             limit->Value = *memoryLimit->Value;
