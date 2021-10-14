@@ -1192,7 +1192,9 @@ class TestBulkInsert(DynamicTablesBase):
         ts_after = generate_timestamp()
 
         tablet_id = get("//tmp/t_output/@tablets/0/tablet_id")
-        def _wait_preload():
+        def _check_preload():
+            if in_memory_mode == "none":
+                return True
             orchid = self._find_tablet_orchid(tablet_node, tablet_id)
             if not orchid:
                 return False
@@ -1204,6 +1206,8 @@ class TestBulkInsert(DynamicTablesBase):
                     if store["preload_state"] != "complete":
                         return False
             return True
+        def _wait_preload():
+            wait(_check_preload)
 
         _wait_preload()
 
