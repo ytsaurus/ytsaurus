@@ -129,6 +129,10 @@ private:
         const TKey& key);
 
     void UpdateAll();
+
+    void ScheduleRefresh(
+        const TEntryPtr& entry,
+        const TKey& key);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

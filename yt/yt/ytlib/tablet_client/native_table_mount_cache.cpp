@@ -27,16 +27,17 @@
 
 #include <yt/yt/client/security_client/public.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <yt/yt/core/misc/farm_hash.h>
 #include <yt/yt/core/misc/string.h>
 
+#include <yt/yt/core/yson/string.h>
+
 #include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 
 #include <yt/yt_proto/yt/core/ytree/proto/ypath.pb.h>
-
-#include <yt/yt/core/yson/string.h>
 
 #include <util/datetime/base.h>
 
@@ -71,19 +72,21 @@ public:
         TTableMountCacheConfigPtr config,
         IConnectionPtr connection,
         TCellDirectoryPtr cellDirectory,
-        const NLogging::TLogger& logger)
-        : TTableMountCacheBase(std::move(config), logger)
+        const NLogging::TLogger& logger,
+        const NProfiling::TProfiler& profiler)
+        : TTableMountCacheBase(std::move(config), logger, profiler.WithPrefix("/table_mount_cache"))
         , Connection_(std::move(connection))
         , CellDirectory_(std::move(cellDirectory))
         , Invoker_(connection->GetInvoker())
+        , TableMountInfoUpdateInvoker_(CreateSerializedInvoker(Invoker_))
     { }
 
 private:
     TFuture<TTableMountInfoPtr> DoGet(
         const TTableMountCacheKey& key,
-        bool /*isPeriodicUpdate*/) noexcept override
+        bool isPeriodicUpdate) noexcept override
     {
-        auto session = New<TGetSession>(this, Connection_, key, Logger);
+        auto session = New<TGetSession>(this, Connection_, key, isPeriodicUpdate, Logger);
         return BIND(&TGetSession::Run, std::move(session))
             .AsyncVia(Invoker_)
             .Run();
@@ -93,6 +96,7 @@ private:
     const TWeakPtr<IConnection> Connection_;
     const TCellDirectoryPtr CellDirectory_;
     const IInvokerPtr Invoker_;
+    const IInvokerPtr TableMountInfoUpdateInvoker_;
 
     class TGetSession
         : public TRefCounted
@@ -102,10 +106,12 @@ private:
             TTableMountCachePtr owner,
             TWeakPtr<IConnection> connection,
             const TTableMountCacheKey& key,
+            bool isPeriodicUpdate,
             const NLogging::TLogger& logger)
             : Owner_(std::move(owner))
             , Connection_(std::move(connection))
             , Key_(key)
+            , IsPeriodicUpdate(isPeriodicUpdate)
             , Logger(logger.WithTag("Path: %v, CacheSessionId: %v",
                 Key_.Path,
                 TGuid::Create()))
@@ -141,6 +147,7 @@ private:
         const TTableMountCachePtr Owner_;
         const TWeakPtr<IConnection> Connection_;
         const TTableMountCacheKey Key_;
+        const bool IsPeriodicUpdate;
         const NLogging::TLogger Logger;
 
         TTableId TableId_;
@@ -250,8 +257,17 @@ private:
             HashCombine(hash, FarmHash(TableId_.Parts64[1]));
             batchReq->AddRequest(req, std::nullopt, hash);
 
-            return batchReq->Invoke()
-                .Apply(BIND(&TGetSession::OnTableMountInfoReceived, MakeStrong(this)));
+            auto responseHandler = BIND(&TGetSession::OnTableMountInfoReceived, MakeStrong(this));
+            if (IsPeriodicUpdate) {
+                // For background updates we serialize table mount info processing via #TableMountInfoUpdateInvoker to reduce
+                // contention on the #TableInfoCache and avoid concurrent processing of heavy responses.
+                return batchReq->Invoke()
+                    .Apply(responseHandler
+                        .AsyncVia(Owner_->TableMountInfoUpdateInvoker_));
+            } else {
+                return batchReq->Invoke()
+                    .Apply(responseHandler);
+            }
         }
 
         TTableMountInfoPtr OnTableMountInfoReceived(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
@@ -385,13 +401,15 @@ ITableMountCachePtr CreateNativeTableMountCache(
     TTableMountCacheConfigPtr config,
     IConnectionPtr connection,
     TCellDirectoryPtr cellDirectory,
-    const NLogging::TLogger& logger)
+    const NLogging::TLogger& logger,
+    const NProfiling::TProfiler& profiler)
 {
     return New<TTableMountCache>(
         std::move(config),
         std::move(connection),
         std::move(cellDirectory),
-        logger);
+        logger,
+        profiler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
