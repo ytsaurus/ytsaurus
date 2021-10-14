@@ -899,7 +899,7 @@ class TestFilesInSandbox(YTEnvSetup):
 
         wait(
             lambda: op.get_state() == "aborted"
-            and are_almost_equal(get("//sys/scheduler/orchid/scheduler/cell/resource_usage/cpu"), 0)
+            and are_almost_equal(get("//sys/scheduler/orchid/scheduler/cluster/resource_usage/cpu"), 0)
         )
 
     @authors("gritukan")

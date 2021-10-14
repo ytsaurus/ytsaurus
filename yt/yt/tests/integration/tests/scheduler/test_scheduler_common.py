@@ -1513,8 +1513,8 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
         create("table", "//tmp/out")
         write_table("//tmp/in", data)
 
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2)
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/resource_usage/user_slots") == 0)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/user_slots") == 2)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/resource_usage/user_slots") == 0)
 
         wait(
             lambda: get(
@@ -1540,8 +1540,8 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
         wait(
             lambda: op.get_runtime_progress("scheduling_info_per_pool_tree/default/resource_usage/user_slots", 0) == 2
         )
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2)
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/resource_usage/user_slots") == 2)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/user_slots") == 2)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/resource_usage/user_slots") == 2)
 
         wait(
             lambda: get(

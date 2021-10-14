@@ -301,14 +301,14 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
 
         node = ls("//sys/cluster_nodes")[0]
         assert get("//sys/scheduler/orchid/scheduler/nodes/" + node + "/scheduler_state") == "online"
-        assert get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 3
+        assert get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/user_slots") == 3
 
         assert not get("//sys/scheduler/@alerts")
 
         set("//sys/cluster_nodes/" + node + "/@user_tags/end", "y")
 
         wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/" + node + "/scheduler_state") == "offline")
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/user_slots") == 2)
         wait(lambda: get("//sys/scheduler/@alerts"))
         assert get("//sys/scheduler/@alerts")[0]
 
