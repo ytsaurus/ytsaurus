@@ -122,7 +122,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         wait(lambda: get(pools_path + "/fake_pool/fair_share_ratio") >= 0.999)
         wait(lambda: get(pools_path + "/fake_pool/usage_ratio") >= 0.999)
 
-        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits/cpu")
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
         create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
         op2 = map(
             track=False,
@@ -177,7 +177,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         assert get(pools_path + "/fake_pool/fair_share_ratio") >= 0.999
         assert get(pools_path + "/fake_pool/usage_ratio") >= 0.999
 
-        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits/cpu")
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
         create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
 
         # Ensure that all three jobs have started.
@@ -346,7 +346,7 @@ class TestSchedulerPreemption(YTEnvSetup):
     @authors("mrkastep")
     def test_preemptor_event_log(self):
         set("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user", 2)
-        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits/cpu")
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
         create_pool("pool1", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
 
         create("table", "//tmp/t_in")
@@ -397,7 +397,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         set("//sys/pool_trees/default/@config/waiting_job_timeout", 10000)
         set("//sys/pool_trees/default/@config/job_interrupt_timeout", 5000)
 
-        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits/cpu")
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
         create_pool("pool1", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
         create_pool("pool2")
 
@@ -435,7 +435,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         set("//sys/pool_trees/default/@config/waiting_job_timeout", 5000)
         set("//sys/pool_trees/default/@config/job_interrupt_timeout", 15000)
 
-        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits/cpu")
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
         create_pool("pool1", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
         create_pool("pool2")
 
@@ -473,7 +473,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         set("//sys/scheduler/config/running_jobs_update_period", 100)
 
-        total_cpu_limit = int(get("//sys/scheduler/orchid/scheduler/cell/resource_limits/cpu"))
+        total_cpu_limit = int(get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu"))
         create_pool("pool1", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
         create_pool("pool2")
 

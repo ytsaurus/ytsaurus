@@ -1514,8 +1514,6 @@ public:
             .EndMap()
             .Item("tags").BeginMap()
                 .Item("strong_guarantee_resources").Value(statistics.StrongGuaranteeResources())
-                // COMPAT(ignat)
-                .Item("min_share_resources").Value(statistics.StrongGuaranteeResources())
                 .Item("resource_flow").Value(statistics.ResourceFlow())
                 .Item("burst_guarantee_resources").Value(statistics.BurstGuaranteeResources())
                 .Item("allocated_resources").Value(statistics.AllocatedResources())
@@ -3885,21 +3883,6 @@ private:
 
         BuildYsonFluently(consumer)
             .BeginMap()
-                // COMPAT(babenko): deprecate cell in favor of cluster
-                .Item("cell").BeginMap()
-                    .Item("resource_limits").Value(GetResourceLimits(EmptySchedulingTagFilter))
-                    .Item("resource_usage").Value(GetResourceUsage(EmptySchedulingTagFilter))
-                    .Item("exec_node_count").Value(GetExecNodeCount())
-                    .Item("total_node_count").Value(GetTotalNodeCount())
-                    .Item("nodes_memory_distribution").Value(GetExecNodeMemoryDistribution(TSchedulingTagFilter()))
-                    .Item("resource_limits_by_tags")
-                        .DoMapFor(CachedResourceLimitsByTags_, [] (TFluentMap fluent, const auto& pair) {
-                            const auto& [filter, record] = pair;
-                            if (!filter.IsEmpty()) {
-                                fluent.Item(filter.GetBooleanFormula().GetFormula()).Value(record.second);
-                            }
-                        })
-                .EndMap()
                 .Item("controller_agents").DoMapFor(Bootstrap_->GetControllerAgentTracker()->GetAgents(), [] (TFluentMap fluent, const auto& agent) {
                     fluent
                         .Item(agent->GetId()).BeginMap()

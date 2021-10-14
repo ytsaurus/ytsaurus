@@ -217,7 +217,7 @@ class TestSchedulingTags(YTEnvSetup):
 
     def _get_slots_by_filter(self, filter):
         try:
-            return get("//sys/scheduler/orchid/scheduler/cell/resource_limits_by_tags/{0}/user_slots".format(filter))
+            return get("//sys/scheduler/orchid/scheduler/cluster/resource_limits_by_tags/{0}/user_slots".format(filter))
         except YtResponseError as err:
             if not err.is_resolve_error():
                 raise

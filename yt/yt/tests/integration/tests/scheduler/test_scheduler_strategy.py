@@ -107,7 +107,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
     @authors("ignat")
     def test_scheduler_promised_fair_share(self):
-        total_resource_limits = get("//sys/scheduler/orchid/scheduler/cell/resource_limits")
+        total_resource_limits = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits")
 
         create_pool(
             "big_pool",

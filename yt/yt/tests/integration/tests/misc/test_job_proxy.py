@@ -91,21 +91,21 @@ class TestJobProxyBinary(JobProxyTestBase):
 
     @authors("max42")
     def test_slot_disabling_on_unavailable_job_proxy(self):
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/total_node_count") == 1)
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 1)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/total_node_count") == 1)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/user_slots") == 1)
 
         with Restarter(self.Env, NODES_SERVICE):
-            wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/total_node_count") == 0)
-            wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 0)
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/total_node_count") == 0)
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/user_slots") == 0)
             self._hide_job_proxy()
 
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/total_node_count") == 1)
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 0)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/total_node_count") == 1)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/user_slots") == 0)
 
         self._unhide_job_proxy()
 
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/total_node_count") == 1)
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 1)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/total_node_count") == 1)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/user_slots") == 1)
 
 
 class TestUnavailableJobProxy(JobProxyTestBase):
