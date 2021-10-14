@@ -5,6 +5,9 @@
     spec_patch={
         scheduling_tag_filter="!cpu_vendor_amd";
     };
+    task_patch={
+        use_porto_memory_tracking=%true;
+    };
     run_as_root=%true;
     enable_network=%false;
     blob_ttl=604800000000000;
