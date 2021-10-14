@@ -1,4 +1,4 @@
-from original_tests.yt.yt.tests.integration.tests.scheduler.test_scheduler_map \
+from original_tests.yt.yt.tests.integration.tests.controller.test_map_operation \
     import TestSchedulerMapCommands as BaseTestMapCommands
 
 
