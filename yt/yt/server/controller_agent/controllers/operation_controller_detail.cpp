@@ -1722,7 +1722,10 @@ void TOperationControllerBase::AbortJobWithPartiallyReceivedJobInfo(const TJobId
         auto finishedJobInfo = FindFinishedJobInfo(jobId);
         YT_VERIFY(finishedJobInfo);
 
-        auto abortJobSummary = std::make_unique<TAbortedJobSummary>(finishedJobInfo->JobSummary->Id, EAbortReason::JobStatisticsWaitTimeout);
+        finishedJobInfo->ReceivedFrom = TFinishedJobInfo::EReceivedFrom::Both;
+
+        auto abortJobSummary = std::make_unique<TAbortedJobSummary>(
+            finishedJobInfo->JobSummary->Id, EAbortReason::JobStatisticsWaitTimeout);
         SafeOnJobAborted(std::move(abortJobSummary), /*byScheduler*/ false);
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Fail to abort job (JobId: %v)", jobId);
