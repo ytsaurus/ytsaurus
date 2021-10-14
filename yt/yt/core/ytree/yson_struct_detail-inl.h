@@ -14,6 +14,23 @@ namespace NYT::NYTree {
 namespace NPrivate {
 
 template <class T>
+concept IsYsonStructOrYsonSerializable = std::is_base_of_v<TYsonStruct, T> || std::is_base_of_v<TYsonSerializable, T>;
+
+// TODO(shakurov): get rid of this once concept support makes it into the standard
+// library implementation. Use equality-comparability instead.
+template <class T>
+concept SupportsDontSerializeDefaultImpl =
+    std::is_arithmetic_v<T> ||
+    std::is_same_v<T, TString> ||
+    std::is_same_v<T, TDuration>;
+
+template <class T>
+concept SupportsDontSerializeDefault =
+    SupportsDontSerializeDefaultImpl<T> ||
+    TStdOptionalTraits<T>::IsStdOptional &&
+    SupportsDontSerializeDefaultImpl<typename TStdOptionalTraits<T>::TValueType>;
+
+template <class T>
 void LoadFromNode(
     T& parameter,
     NYTree::INodePtr node,
@@ -60,7 +77,7 @@ inline void LoadFromNode(
 }
 
 // TYsonStruct or TYsonSerializable
-template <class T, class E = typename std::enable_if_t<std::is_convertible_v<T&, TYsonStruct&> || std::is_convertible_v<T&, TYsonSerializable&>>>
+template <IsYsonStructOrYsonSerializable T>
 void LoadFromNode(
     TIntrusivePtr<T>& parameterValue,
     NYTree::INodePtr node,
@@ -106,7 +123,7 @@ void LoadFromNode(
             } else {
                 T value;
                 LoadFromNode(value, node, path, EMergeStrategy::Overwrite, keepUnrecognizedRecursively);
-                parameter = value;
+                parameter = std::move(value);
             }
             break;
         }
@@ -235,11 +252,6 @@ struct TGetRecursiveUnrecognized<T, std::enable_if_t<std::is_base_of<TYsonStruct
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
-// TODO(renadeen): kill this when everything will be moved to TYsonStruct.
-template <class T>
-concept IsYsonStructOrYsonSerializable = std::is_base_of_v<TYsonStruct, T> || std::is_base_of_v<TYsonSerializable, T>;
-
 // all
 template <class F>
 void InvokeForComposites(
@@ -248,7 +260,7 @@ void InvokeForComposites(
     const F& /*func*/)
 { }
 
-// TYsonStruct
+// TYsonStruct or TYsonSerializable
 template <IsYsonStructOrYsonSerializable T, class F>
 inline void InvokeForComposites(
     const TIntrusivePtr<T>* parameterValue,
@@ -726,8 +738,8 @@ TYsonStructParameter<TValue>& TYsonStructParameter<TValue>::DontSerializeDefault
     // We should check for equality-comparability here but it is rather hard
     // to do the deep validation.
     static_assert(
-        std::is_arithmetic_v<TValue> || std::is_same_v<TValue, TString> || std::is_same_v<TValue, std::optional<TString>>,
-        "DontSerializeDefault requires |Parameter| to be TString or arithmetic type");
+        NPrivate::SupportsDontSerializeDefault<TValue>,
+        "DontSerializeDefault requires |Parameter| to be TString, TDuration, an arithmetic type or an optional of those");
 
     SerializeDefault_ = false;
     return *this;
