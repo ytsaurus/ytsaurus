@@ -120,7 +120,7 @@ class YtConfig(object):
         # Disable memory limit validation in tests, since it's very hard to set proper
         # memory limit for asan builds.
         return update(
-            node_config, 
+            node_config,
             {"exec_agent" : { "check_user_job_memory_limit" : False}}
         )
 
