@@ -59,6 +59,8 @@ TOperationFairShareTreeRuntimeParametersPtr GetSchedulingOptionsPerPoolTree(IOpe
 
 TString GuessGpuType(const TString& treeId);
 
+std::vector<std::pair<TInstant, TInstant>> SplitTimeIntervalByHours(TInstant startTime, TInstant finishTime);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

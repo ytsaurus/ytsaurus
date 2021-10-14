@@ -302,6 +302,27 @@ TString GuessGpuType(const TString& treeId)
     return "unknown";
 }
 
+std::vector<std::pair<TInstant, TInstant>> SplitTimeIntervalByHours(TInstant startTime, TInstant finishTime)
+{
+    YT_VERIFY(startTime <= finishTime);
+
+    std::vector<std::pair<TInstant, TInstant>> timeIntervals;
+    {
+        i64 startTimeHours = startTime.Seconds() / 3600;
+        i64 finishTimeHours = finishTime.Seconds() / 3600;
+        TInstant currentStartTime = startTime;
+        while (startTimeHours < finishTimeHours) {
+            ++startTimeHours;
+            auto hourBound = TInstant::Hours(startTimeHours);
+            YT_VERIFY(currentStartTime <= hourBound);
+            timeIntervals.push_back(std::make_pair(currentStartTime, hourBound));
+            currentStartTime = hourBound;
+        }
+        timeIntervals.push_back(std::make_pair(currentStartTime, finishTime));
+    }
+    return timeIntervals;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
