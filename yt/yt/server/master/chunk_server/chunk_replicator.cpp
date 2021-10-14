@@ -1921,18 +1921,22 @@ void TChunkReplicator::TryRescheduleChunkRemoval(const TJobPtr& unsucceededJob)
     }
 }
 
-void TChunkReplicator::OnProfiling(TSensorBuffer* buffer) const
+void TChunkReplicator::OnProfiling(TSensorBuffer* buffer)
 {
     buffer->AddGauge("/blob_refresh_queue_size", BlobRefreshScanner_->GetQueueSize());
     buffer->AddGauge("/blob_requisition_update_queue_size", BlobRequisitionUpdateScanner_->GetQueueSize());
     buffer->AddGauge("/journal_refresh_queue_size", JournalRefreshScanner_->GetQueueSize());
     buffer->AddGauge("/journal_requisition_update_queue_size", JournalRequisitionUpdateScanner_->GetQueueSize());
 
-    for (auto [_, node] : Bootstrap_->GetNodeTracker()->Nodes()) {
-        buffer->PushTag({"node_address", node->GetDefaultAddress()});
-        buffer->AddGauge("/destroyed_replicas_size", node->DestroyedReplicas().size());
-        buffer->AddGauge("/removal_queue_size", node->ChunkRemovalQueue().size());
-        buffer->PopTag();
+    auto now = NProfiling::GetInstant();
+    if (now - LastDestroyedReplicasProfilingTime_ >= GetDynamicConfig()->DestroyedReplicasProfilingPeriod) {
+        for (auto [_, node] : Bootstrap_->GetNodeTracker()->Nodes()) {
+            buffer->PushTag({"node_address", node->GetDefaultAddress()});
+            buffer->AddGauge("/destroyed_replicas_size", node->DestroyedReplicas().size());
+            buffer->AddGauge("/removal_queue_size", node->ChunkRemovalQueue().size());
+            buffer->PopTag();
+        }
+        LastDestroyedReplicasProfilingTime_ = now;
     }
 }
 

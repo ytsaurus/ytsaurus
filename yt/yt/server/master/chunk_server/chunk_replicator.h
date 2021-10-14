@@ -109,7 +109,7 @@ public:
 
     bool IsEnabled();
 
-    void OnProfiling(NProfiling::TSensorBuffer* buffer) const;
+    void OnProfiling(NProfiling::TSensorBuffer* buffer);
 
     // IJobController implementation.
     void ScheduleJobs(IJobSchedulingContext* context) override;
@@ -169,6 +169,8 @@ private:
     TChunkRequisitionCache ChunkRequisitionCache_;
 
     TEphemeralRequisitionRegistry TmpRequisitionRegistry_;
+
+    TInstant LastDestroyedReplicasProfilingTime_;
 
     const TChunkManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
