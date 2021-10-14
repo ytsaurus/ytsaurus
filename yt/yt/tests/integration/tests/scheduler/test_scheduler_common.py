@@ -19,6 +19,8 @@ from yt_commands import (
 
 from yt_type_helpers import make_schema
 
+from yt.test_helpers.profiler import Profiler
+
 import yt.yson as yson
 
 from yt.wrapper import JsonFormat
@@ -2445,6 +2447,24 @@ class TestResourceMetering(YTEnvSetup):
             return True
 
         wait(check_expected_usage)
+
+    @authors("ignat")
+    def test_metering_profiling(self):
+        create_pool(
+            "my_pool",
+            pool_tree="default",
+            attributes={
+                "strong_guarantee_resources": {"cpu": 4},
+                "abc": {"id": 1, "slug": "my", "name": "MyService"},
+                "metering_tags": {"pool_tag": "pool_value"},
+            },
+            wait_for_orchid=False,
+        )
+
+        metering_count_sensor = Profiler.at_scheduler(self.Env.create_native_client()).counter("scheduler/metering/record_count")
+
+        wait(lambda: metering_count_sensor.get_delta() > 0)
+
 
 ##################################################################
 

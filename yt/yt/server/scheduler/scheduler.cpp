@@ -322,6 +322,11 @@ public:
             BIND(&TImpl::ManageSchedulingSegments, MakeWeak(this)),
             Config_->SchedulingSegmentsManagePeriod);
         SchedulingSegmentsManagerExecutor_->Start();
+        
+        MeteringRecordCountCounter_ = SchedulerProfiler
+            .Counter("/metering/record_count");
+        MeteringUsageQuantityCounter_ = SchedulerProfiler
+            .Counter("/metering/usage_quantity");
     }
 
     const NApi::NNative::IClientPtr& GetMasterClient() const
@@ -1462,21 +1467,35 @@ public:
 
         return &SchedulerEventLogger;
     }
-
+    
     void LogResourceMetering(
         const TMeteringKey& key,
         const TMeteringStatistics& statistics,
         const THashMap<TString, TString>& otherTags,
-        TInstant lastUpdateTime,
-        TInstant now) override
+        TInstant intervalStartTime,
+        TInstant intervalFinishTime) override
+    {
+        for (auto [startTime, finishTime] : SplitTimeIntervalByHours(intervalStartTime, intervalFinishTime)) {
+            DoLogResourceMetering(key, statistics, otherTags, startTime, finishTime);
+        }
+    }
+
+    void DoLogResourceMetering(
+        const TMeteringKey& key,
+        const TMeteringStatistics& statistics,
+        const THashMap<TString, TString>& otherTags,
+        TInstant startTime,
+        TInstant finishTime)
     {
         if (!ClusterName_) {
             return;
         }
 
+        auto usageQuantity = (finishTime - startTime).MilliSeconds();
+
         NLogging::LogStructuredEventFluently(SchedulerResourceMeteringLogger, NLogging::ELogLevel::Info)
             .Item("schema").Value("yt.scheduler.pools.compute.v1")
-            .Item("id").Value(Format("%v:%v:%v", key.TreeId, key.PoolId, (now - TInstant()).Seconds()))
+            .Item("id").Value(Format("%v:%v:%v", key.TreeId, key.PoolId, (finishTime - TInstant()).Seconds()))
             .DoIf(Config_->ResourceMetering->EnableNewAbcFormat, [&] (TFluentMap fluent) {
                 fluent
                     .Item("abc_id").Value(key.AbcId);
@@ -1488,10 +1507,10 @@ public:
                     .Item("folder_id").Value(Config_->ResourceMetering->DefaultFolderId);
             })
             .Item("usage").BeginMap()
-                .Item("quantity").Value((now - lastUpdateTime).MilliSeconds())
+                .Item("quantity").Value(usageQuantity)
                 .Item("unit").Value("milliseconds")
-                .Item("start").Value(lastUpdateTime.Seconds())
-                .Item("finish").Value(now.Seconds())
+                .Item("start").Value(startTime.Seconds())
+                .Item("finish").Value(finishTime.Seconds())
             .EndMap()
             .Item("tags").BeginMap()
                 .Item("strong_guarantee_resources").Value(statistics.StrongGuaranteeResources())
@@ -1514,7 +1533,10 @@ public:
                 .Item("pool").Value(key.PoolId)
             .EndMap()
             .Item("version").Value("1")
-            .Item("source_wt").Value((now - TInstant()).Seconds());
+            .Item("source_wt").Value((finishTime - TInstant()).Seconds());
+        
+        MeteringRecordCountCounter_.Increment();
+        MeteringUsageQuantityCounter_.Increment(usageQuantity);
     }
 
     int GetDefaultAbcId() const override
@@ -1901,6 +1923,9 @@ private:
 
     TJobResourcesProfiler TotalResourceLimitsProfiler_;
     TJobResourcesProfiler TotalResourceUsageProfiler_;
+    
+    NProfiling::TCounter MeteringRecordCountCounter_;
+    NProfiling::TCounter MeteringUsageQuantityCounter_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr ClusterInfoLoggingExecutor_;
