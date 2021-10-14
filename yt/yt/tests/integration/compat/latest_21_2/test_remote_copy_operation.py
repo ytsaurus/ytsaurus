@@ -1,4 +1,4 @@
-from original_tests.yt.yt.tests.integration.tests.scheduler.test_scheduler_remote_copy \
+from original_tests.yt.yt.tests.integration.tests.controller.test_remote_copy_operation \
     import TestSchedulerRemoteCopyCommands as BaseTestRemoteCopyCommands
 
 
