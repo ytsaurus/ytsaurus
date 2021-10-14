@@ -508,6 +508,8 @@ public:
 
     std::optional<int> LocateChunksCachedReplicaCountLimit;
 
+    TDuration DestroyedReplicasProfilingPeriod;
+
     TDynamicChunkManagerConfig()
     {
         RegisterParameter("enable_chunk_replicator", EnableChunkReplicator)
@@ -656,6 +658,10 @@ public:
 
         RegisterParameter("locate_chunks_cached_replica_count_limit", LocateChunksCachedReplicaCountLimit)
             .Default(std::nullopt)
+            .DontSerializeDefault();
+
+        RegisterParameter("destroyed_replicas_profiling_period", DestroyedReplicasProfilingPeriod)
+            .Default(TDuration::Minutes(5))
             .DontSerializeDefault();
 
         RegisterPreprocessor([&] () {
