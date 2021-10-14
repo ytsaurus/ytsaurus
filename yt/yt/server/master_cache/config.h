@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/server/lib/chaos_cache/public.h>
+
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -23,6 +25,8 @@ public:
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
     NObjectClient::TCachingObjectServiceConfigPtr CachingObjectService;
+
+    NChaosCache::TChaosCacheConfigPtr ChaosCache;
 
     TMasterCacheConfig();
 };

@@ -8,6 +8,8 @@ namespace NYT::NMasterCache {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TChaosCache)
+
 DECLARE_REFCOUNTED_CLASS(TMasterCacheConfig)
 
 struct IBootstrap;

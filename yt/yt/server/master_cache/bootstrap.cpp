@@ -1,25 +1,19 @@
 #include "bootstrap.h"
-#include "private.h"
+
+#include "chaos_cache_bootstrap.h"
 #include "config.h"
+#include "master_cache_bootstrap.h"
+#include "private.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
 #include <yt/yt/server/lib/core_dump/core_dumper.h>
 
-#include <yt/yt/ytlib/api/native/config.h>
-#include <yt/yt/ytlib/api/native/connection.h>
-
-#include <yt/yt/ytlib/hydra/peer_channel.h>
-
 #include <yt/yt/ytlib/monitoring/http_integration.h>
-
-#include <yt/yt/ytlib/object_client/caching_object_service.h>
-#include <yt/yt/ytlib/object_client/object_service_cache.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/ytlib/program/build_attributes.h>
-#include <yt/yt/ytlib/program/config.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
 
@@ -27,10 +21,6 @@
 
 #include <yt/yt/core/http/server.h>
 
-#include <yt/yt/core/rpc/caching_channel_factory.h>
-#include <yt/yt/core/rpc/server.h>
-
-#include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/bus/server.h>
 
 #include <yt/yt/core/ytree/virtual.h>
@@ -38,12 +28,10 @@
 namespace NYT::NMasterCache {
 
 using namespace NAdmin;
-using namespace NApi;
+using namespace NApi::NNative;
 using namespace NConcurrency;
 using namespace NCoreDump;
-using namespace NHydra;
 using namespace NMonitoring;
-using namespace NObjectClient;
 using namespace NOrchid;
 using namespace NYTree;
 
@@ -70,7 +58,6 @@ public:
     void Initialize() override
     {
         ControlQueue_ = New<TActionQueue>("Control");
-        MasterCacheQueue_ = New<TActionQueue>("MasterCache");
 
         BIND(&TBootstrap::DoInitialize, this)
             .AsyncVia(GetControlInvoker())
@@ -89,11 +76,35 @@ public:
         Sleep(TDuration::Max());
     }
 
+    const TMasterCacheConfigPtr& GetConfig() const override
+    {
+        return Config_;
+    }
+
+    const IConnectionPtr& GetMasterConnection() const override
+    {
+        return MasterConnection_;
+    }
+
+    const IMapNodePtr& GetOrchidRoot() const override
+    {
+        return OrchidRoot_;
+    }
+
+    const NRpc::IServerPtr& GetRpcServer() const override
+    {
+        return RpcServer_;
+    }
+
+    const IInvokerPtr& GetControlInvoker() const override
+    {
+        return ControlQueue_->GetInvoker();
+    }
+
 private:
     const TMasterCacheConfigPtr Config_;
 
     TActionQueuePtr ControlQueue_;
-    TActionQueuePtr MasterCacheQueue_;
 
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
@@ -104,22 +115,10 @@ private:
 
     ICoreDumperPtr CoreDumper_;
 
-    NApi::NNative::IConnectionPtr MasterConnection_;
-    NApi::NNative::IClientPtr MasterClient_;
+    IConnectionPtr MasterConnection_;
 
-    TObjectServiceCachePtr ObjectServiceCache_;
-
-    std::vector<ICachingObjectServicePtr> CachingObjectServices_;
-
-    const IInvokerPtr& GetControlInvoker() const
-    {
-        return ControlQueue_->GetInvoker();
-    }
-
-    const IInvokerPtr& GetMasterCacheInvoker() const
-    {
-        return MasterCacheQueue_->GetInvoker();
-    }
+    std::unique_ptr<IBootstrap> MasterCacheBootstrap_;
+    std::unique_ptr<IBootstrap> ChaosCacheBootstrap_;
 
     void DoInitialize()
     {
@@ -138,60 +137,21 @@ private:
             &OrchidRoot_);
 
         MasterConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
-        MasterClient_ = MasterConnection_->CreateNativeClient(
-            TClientOptions::FromUser(NSecurityClient::RootUserName));
 
-        ObjectServiceCache_ = New<TObjectServiceCache>(
-            Config_->CachingObjectService,
-            GetNullMemoryUsageTracker(),
-            Logger,
-            MasterCacheProfiler.WithPrefix("/object_service_cache"));
+        MasterCacheBootstrap_ = CreateMasterCacheBootstrap(this);
+        ChaosCacheBootstrap_ = CreateChaosCacheBootstrap(this);
 
-        auto initCachingObjectService = [&] (const auto& masterConfig) {
-            return CreateCachingObjectService(
-                Config_->CachingObjectService,
-                GetMasterCacheInvoker(),
-                CreateDefaultTimeoutChannel(
-                    CreatePeerChannel(
-                        masterConfig,
-                        MasterConnection_->GetChannelFactory(),
-                        EPeerKind::Follower),
-                    masterConfig->RpcTimeout),
-                ObjectServiceCache_,
-                masterConfig->CellId,
-                Logger);
-        };
+        MasterCacheBootstrap_->Initialize();
+        ChaosCacheBootstrap_->Initialize();
 
-        CachingObjectServices_.push_back(initCachingObjectService(
-            Config_->ClusterConnection->PrimaryMaster));
-
-        for (const auto& masterConfig : Config_->ClusterConnection->SecondaryMasters) {
-            CachingObjectServices_.push_back(initCachingObjectService(masterConfig));
-        }
-
-        RpcServer_->RegisterService(CreateOrchidService(
-            OrchidRoot_,
-            GetControlInvoker()));
         RpcServer_->RegisterService(CreateAdminService(
             GetControlInvoker(),
             CoreDumper_));
 
-        for (const auto& cachingObjectService : CachingObjectServices_) {
-            RpcServer_->RegisterService(cachingObjectService);
-        }
-
-        SetBuildAttributes(
-            OrchidRoot_,
-            "master_cache");
         SetNodeByYPath(
             OrchidRoot_,
             "/config",
             ConvertTo<INodePtr>(Config_));
-        SetNodeByYPath(
-            OrchidRoot_,
-            "/object_service_cache",
-            CreateVirtualNode(ObjectServiceCache_->GetOrchidService()
-                ->Via(GetControlInvoker())));
     }
 
     void DoRun()
@@ -209,6 +169,37 @@ private:
 std::unique_ptr<IBootstrap> CreateBootstrap(TMasterCacheConfigPtr config)
 {
     return std::make_unique<TBootstrap>(std::move(config));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBootstrapBase::TBootstrapBase(IBootstrap* bootstrap)
+    : Bootstrap_(bootstrap)
+{ }
+
+const TMasterCacheConfigPtr& TBootstrapBase::GetConfig() const
+{
+    return Bootstrap_->GetConfig();
+}
+
+const IConnectionPtr& TBootstrapBase::GetMasterConnection() const
+{
+    return Bootstrap_->GetMasterConnection();
+}
+
+const IMapNodePtr& TBootstrapBase::GetOrchidRoot() const
+{
+    return Bootstrap_->GetOrchidRoot();
+}
+
+const NRpc::IServerPtr& TBootstrapBase::GetRpcServer() const
+{
+    return Bootstrap_->GetRpcServer();
+}
+
+const IInvokerPtr& TBootstrapBase::GetControlInvoker() const
+{
+    return Bootstrap_->GetControlInvoker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
