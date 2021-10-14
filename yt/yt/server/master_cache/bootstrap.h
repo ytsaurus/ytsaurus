@@ -2,6 +2,14 @@
 
 #include "private.h"
 
+#include <yt/yt/ytlib/api/native/public.h>
+
+#include <yt/yt/core/actions/public.h>
+
+#include <yt/yt/core/rpc/public.h>
+
+#include <yt/yt/core/ytree/public.h>
+
 namespace NYT::NMasterCache {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -12,11 +20,35 @@ struct IBootstrap
 
     virtual void Initialize() = 0;
     virtual void Run() = 0;
+
+    virtual const TMasterCacheConfigPtr& GetConfig() const = 0;
+    virtual const NApi::NNative::IConnectionPtr& GetMasterConnection() const = 0;
+    virtual const NYTree::IMapNodePtr& GetOrchidRoot() const = 0;
+    virtual const NRpc::IServerPtr& GetRpcServer() const = 0;
+    virtual const IInvokerPtr& GetControlInvoker() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IBootstrap> CreateBootstrap(TMasterCacheConfigPtr config);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBootstrapBase
+    : public IBootstrap
+{
+public:
+    explicit TBootstrapBase(IBootstrap* bootstrap);
+
+    const TMasterCacheConfigPtr& GetConfig() const override;
+    const NApi::NNative::IConnectionPtr& GetMasterConnection() const override;
+    const NYTree::IMapNodePtr& GetOrchidRoot() const override;
+    const NRpc::IServerPtr& GetRpcServer() const override;
+    const IInvokerPtr& GetControlInvoker() const override;
+
+private:
+    IBootstrap* const Bootstrap_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

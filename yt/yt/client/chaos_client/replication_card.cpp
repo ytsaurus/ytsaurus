@@ -1,8 +1,9 @@
 #include "replication_card.h"
 
-#include <yt/yt/core/misc/hash.h>
 #include <yt/yt/core/misc/format.h>
 #include <yt/yt/core/misc/serialize.h>
+
+#include <util/digest/multi.h>
 
 namespace NYT::NChaosClient {
 
@@ -32,10 +33,9 @@ TReplicationCardToken::TReplicationCardToken(
 
 TReplicationCardToken::operator size_t() const
 {
-    size_t result = 0;
-    HashCombine(result, ChaosCellId);
-    HashCombine(result, ReplicationCardId);
-    return result;
+    return MultiHash(
+        ChaosCellId,
+        ReplicationCardId);
 }
 
 bool TReplicationCardToken::operator == (const TReplicationCardToken& other) const

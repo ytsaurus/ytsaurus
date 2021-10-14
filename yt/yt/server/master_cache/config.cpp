@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/server/lib/chaos_cache/config.h>
+
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/object_client/config.h>
@@ -22,6 +24,9 @@ TMasterCacheConfig::TMasterCacheConfig()
         .DefaultNew();
 
     RegisterParameter("caching_object_service", CachingObjectService)
+        .DefaultNew();
+
+    RegisterParameter("chaos_cache", ChaosCache)
         .DefaultNew();
 }
 
