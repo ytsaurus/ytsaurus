@@ -365,7 +365,7 @@ private:
                 .Apply(BIND([=] () {
                     return session->FlushBlocks(lastBlockIndex);
                 }))
-                .Apply(BIND([this, self = MakeStrong(this), session = std::move(session), context] (TIOCounters counters) {
+                .Apply(BIND([=, this_ = MakeStrong(this)] (const TIOCounters& counters) {
                     // Log IO events for journal chunks only. We don't enable logging for blob chunks here, since they flush
                     // the data to disk in FinishChunk().
                     const auto& ioTracker = Bootstrap_->GetIOTracker();
@@ -438,7 +438,7 @@ private:
 
         response->set_close_demanded(location->IsSick() || sessionManager->GetDisableWriteSessions());
         context->ReplyFrom(result.Apply(
-            BIND([this, self = MakeStrong(this), session = std::move(session), context] (TIOCounters counters) {
+            BIND([=, this_ = MakeStrong(this)] (const TIOCounters& counters) {
                 // Log IO events for journal chunks only. We don't enable logging for blob chunks here, since they flush
                 // the data to disk in FinishChunk(), not in FlushBlocks().
                 const auto& ioTracker = Bootstrap_->GetIOTracker();
