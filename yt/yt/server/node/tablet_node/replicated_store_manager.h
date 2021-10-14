@@ -117,12 +117,6 @@ private:
     const TOrderedStoreManagerPtr LogStoreManager_;
 
     NTableClient::TUnversionedRowBuilder LogRowBuilder_;
-
-
-    TUnversionedRow BuildLogRow(TUnversionedRow row, NApi::ERowModificationType changeType);
-    TUnversionedRow BuildSortedLogRow(TUnversionedRow row, NApi::ERowModificationType changeType);
-    TUnversionedRow BuildOrderedLogRow(TUnversionedRow row, NApi::ERowModificationType changeType);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicatedStoreManager)

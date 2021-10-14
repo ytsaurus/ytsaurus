@@ -1,7 +1,9 @@
 #include "replicated_store_manager.h"
+
 #include "ordered_store_manager.h"
-#include "tablet.h"
 #include "private.h"
+#include "replication_log.h"
+#include "tablet.h"
 
 #include <yt/yt/client/table_client/wire_protocol.h>
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
@@ -68,6 +70,7 @@ bool TReplicatedStoreManager::ExecuteWrites(
     TWriteContext* context)
 {
     LogStoreManager_->UpdatePeriodicRotationMilestone();
+    auto tableSchema = Tablet_->GetTableSchema();
 
     YT_ASSERT(context->Phase == EWritePhase::Commit);
     while (!reader->IsFinished()) {
@@ -76,7 +79,7 @@ bool TReplicatedStoreManager::ExecuteWrites(
             case EWireProtocolCommand::WriteRow: {
                 auto row = reader->ReadUnversionedRow(false);
                 LogStoreManager_->WriteRow(
-                    BuildLogRow(row, ERowModificationType::Write),
+                    BuildLogRow(row, ERowModificationType::Write, tableSchema, &LogRowBuilder_),
                     context);
                 break;
             }
@@ -85,7 +88,7 @@ bool TReplicatedStoreManager::ExecuteWrites(
                 reader->ReadLockBitmap();
                 auto row = reader->ReadUnversionedRow(false);
                 LogStoreManager_->WriteRow(
-                    BuildLogRow(row, ERowModificationType::Write),
+                    BuildLogRow(row, ERowModificationType::Write, tableSchema, &LogRowBuilder_),
                     context);
                 break;
             }
@@ -93,7 +96,7 @@ bool TReplicatedStoreManager::ExecuteWrites(
             case EWireProtocolCommand::DeleteRow: {
                 auto key = reader->ReadUnversionedRow(false);
                 LogStoreManager_->WriteRow(
-                    BuildLogRow(key, ERowModificationType::Delete),
+                    BuildLogRow(key, ERowModificationType::Delete, tableSchema, &LogRowBuilder_),
                     context);
                 break;
             }
@@ -316,75 +319,6 @@ void TReplicatedStoreManager::UpdatePartitionSampleKeys(
     const TSharedRange<TLegacyKey>& /*keys*/)
 {
     YT_ABORT();
-}
-
-TUnversionedRow TReplicatedStoreManager::BuildLogRow(
-    TUnversionedRow row,
-    ERowModificationType changeType)
-{
-    LogRowBuilder_.Reset();
-    LogRowBuilder_.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 0));
-
-    if (Tablet_->GetTableSchema()->IsSorted()) {
-        return BuildSortedLogRow(row, changeType);
-    } else {
-        return BuildOrderedLogRow(row, changeType);
-    }
-}
-
-TUnversionedRow TReplicatedStoreManager::BuildOrderedLogRow(
-    TUnversionedRow row,
-    ERowModificationType changeType)
-{
-    YT_VERIFY(changeType == ERowModificationType::Write);
-
-    for (int index = 0; index < static_cast<int>(row.GetCount()); ++index) {
-        auto value = row[index];
-        value.Id += 1;
-        LogRowBuilder_.AddValue(value);
-    }
-    return LogRowBuilder_.GetRow();
-}
-
-TUnversionedRow TReplicatedStoreManager::BuildSortedLogRow(
-    TUnversionedRow row,
-    ERowModificationType changeType)
-{
-    LogRowBuilder_.AddValue(MakeUnversionedInt64Value(static_cast<int>(changeType), 1));
-
-    int keyColumnCount = Tablet_->GetTableSchema()->GetKeyColumnCount();
-    int valueColumnCount = Tablet_->GetTableSchema()->GetValueColumnCount();
-
-    YT_VERIFY(static_cast<int>(row.GetCount()) >= keyColumnCount);
-    for (int index = 0; index < keyColumnCount; ++index) {
-        auto value = row[index];
-        value.Id += 2;
-        LogRowBuilder_.AddValue(value);
-    }
-
-    if (changeType == ERowModificationType::Write) {
-        for (int index = 0; index < valueColumnCount; ++index) {
-            LogRowBuilder_.AddValue(MakeUnversionedSentinelValue(
-                EValueType::Null,
-                index * 2 + keyColumnCount + 2));
-            LogRowBuilder_.AddValue(MakeUnversionedUint64Value(
-                static_cast<ui64>(EReplicationLogDataFlags::Missing),
-                index * 2 + keyColumnCount + 3));
-        }
-        auto logRow = LogRowBuilder_.GetRow();
-        for (int index = keyColumnCount; index < static_cast<int>(row.GetCount()); ++index) {
-            auto value = row[index];
-            value.Id = (value.Id - keyColumnCount) * 2 + keyColumnCount + 2;
-            logRow[value.Id] = value;
-            auto& flags = logRow[value.Id + 1].Data.Uint64;
-            flags &= ~static_cast<ui64>(EReplicationLogDataFlags::Missing);
-            if (Any(value.Flags & EValueFlags::Aggregate)) {
-                flags |= static_cast<ui64>(EReplicationLogDataFlags::Aggregate);
-            }
-        }
-    }
-
-    return LogRowBuilder_.GetRow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

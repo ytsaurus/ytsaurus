@@ -220,6 +220,8 @@ using TRowRange = std::pair<TUnversionedRow, TUnversionedRow>;
 class TUnversionedRowBuilder;
 class TUnversionedOwningRowBuilder;
 
+struct TTypeErasedRow;
+
 class TKeyBound;
 class TOwningKeyBound;
 
