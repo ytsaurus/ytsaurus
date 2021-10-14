@@ -16,11 +16,16 @@ static const auto TabletCacheSweepPeriod = TDuration::Seconds(60);
 
 ///////////////////////////////////////////////////////////////////////////////
 
+TTabletInfoCache::TTabletInfoCache(const NLogging::TLogger& logger)
+    : Logger(logger)
+{ }
+
 TTabletInfoPtr TTabletInfoCache::Find(TTabletId tabletId)
 {
     SweepExpiredEntries();
 
     auto guard = ReaderGuard(MapLock_);
+    ProcessNextGCQueueEntry();
     auto it = Map_.find(tabletId);
     return it != Map_.end() ? it->second.Lock() : nullptr;
 }
@@ -30,6 +35,7 @@ TTabletInfoPtr TTabletInfoCache::Insert(const TTabletInfoPtr& tabletInfo)
     SweepExpiredEntries();
 
     auto guard = WriterGuard(MapLock_);
+    ProcessNextGCQueueEntry();
     typename decltype(Map_)::insert_ctx context;
     auto it = Map_.find(tabletInfo->TabletId, context);
     if (it != Map_.end()) {
@@ -51,14 +57,22 @@ TTabletInfoPtr TTabletInfoCache::Insert(const TTabletInfoPtr& tabletInfo)
         it->second = MakeWeak(tabletInfo);
     } else {
         Map_.emplace_direct(context, tabletInfo->TabletId, tabletInfo);
+        guard.Release();
+
+        auto gcGuard = Guard(GCLock_);
+        GCQueue_.push(tabletInfo->TabletId);
     }
+
     return tabletInfo;
 }
 
 void TTabletInfoCache::Clear()
 {
-    auto guard = WriterGuard(MapLock_);
-    Map_.clear();
+    decltype(Map_) other;
+    {
+        auto guard = WriterGuard(MapLock_);
+        other = std::move(Map_);
+    }
 }
 
 void TTabletInfoCache::SweepExpiredEntries()
@@ -73,24 +87,46 @@ void TTabletInfoCache::SweepExpiredEntries()
         return;
     }
 
-    std::vector<TTabletId> expiredIds;
-
+    decltype(ExpiredEntries_) expiredEntries;
     {
-        auto guard = ReaderGuard(MapLock_);
-        for (auto it = Map_.begin(); it != Map_.end(); ++it) {
-            if (it->second.IsExpired()) {
-                expiredIds.push_back(it->first);
-            }
-        }
+        auto gcGuard = Guard(GCLock_);
+        expiredEntries = std::move(ExpiredEntries_);
     }
 
-    if (!expiredIds.empty()) {
-        auto guard = WriterGuard(MapLock_);
-        for (auto id : expiredIds) {
-            if (auto it = Map_.find(id); it && it->second.IsExpired()) {
-                Map_.erase(it);
+    if (!expiredEntries.empty()) {
+        YT_LOG_DEBUG("Start sweeping expired tablet info (ExpiredEntriesCount: %v)", expiredEntries.size());
+        for (const auto& id : expiredEntries) {
+            auto guard = WriterGuard(MapLock_);
+            if (auto it = Map_.find(id); it) {
+                if  (it->second.IsExpired()) {
+                    Map_.erase(it);
+                    continue;
+                } 
+
+                guard.Release();
+                
+                auto gcGuard = Guard(GCLock_);
+                GCQueue_.push(id);
             }
         }
+        YT_LOG_DEBUG("Finish sweeping expired tablet info");
+    }
+}
+
+void TTabletInfoCache::ProcessNextGCQueueEntry()
+{
+    VERIFY_SPINLOCK_AFFINITY(MapLock_);
+    auto gcGuard = Guard(GCLock_);
+    if (!GCQueue_.empty()) {
+        const auto& id = GCQueue_.front();
+        if (auto it = Map_.find(id); it) {
+            if (it->second.IsExpired()) {
+                ExpiredEntries_.push_back(id);
+            } else {
+                GCQueue_.push(id);
+            }
+        }
+        GCQueue_.pop();
     }
 }
 
@@ -134,12 +170,15 @@ TString ToString(const TTableMountCacheKey& key)
 
 TTableMountCacheBase::TTableMountCacheBase(
     TTableMountCacheConfigPtr config,
-    NLogging::TLogger logger)
+    NLogging::TLogger logger,
+    NProfiling::TProfiler profiler)
     : TAsyncExpiringCache(
         config,
-        logger.WithTag("Cache: TableMount"))
+        logger.WithTag("Cache: TableMount"),
+        profiler)
     , Config_(std::move(config))
     , Logger(std::move(logger))
+    , TabletInfoCache_(Logger)
 { }
 
 TFuture<TTableMountInfoPtr> TTableMountCacheBase::GetTableInfo(const NYPath::TYPath& path)

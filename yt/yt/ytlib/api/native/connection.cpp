@@ -224,7 +224,8 @@ public:
             Config_->TableMountCache,
             this,
             CellDirectory_,
-            Logger);
+            Logger,
+            Profiler_);
 
         QueryEvaluator_ = CreateEvaluator(Config_->QueryEvaluator);
         ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(Config_->ColumnEvaluatorCache);

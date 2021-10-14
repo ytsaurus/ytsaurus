@@ -17,17 +17,25 @@ namespace NYT::NTabletClient {
 class TTabletInfoCache
 {
 public:
+    explicit TTabletInfoCache(const NLogging::TLogger& logger);
     TTabletInfoPtr Find(TTabletId tabletId);
     TTabletInfoPtr Insert(const TTabletInfoPtr& tabletInfo);
     void Clear();
 
 private:
     void SweepExpiredEntries();
+    void ProcessNextGCQueueEntry();
+
+    const NLogging::TLogger Logger;
 
     std::atomic<NProfiling::TCpuInstant> ExpiredEntriesSweepDeadline_ = 0;
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, MapLock_);
     THashMap<TTabletId, TWeakPtr<TTabletInfo>> Map_;
+
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, GCLock_);
+    std::queue<TTabletId> GCQueue_;
+    std::vector<TTabletId> ExpiredEntries_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -59,7 +67,8 @@ class TTableMountCacheBase
 public:
     TTableMountCacheBase(
         TTableMountCacheConfigPtr config,
-        NLogging::TLogger logger);
+        NLogging::TLogger logger,
+        NProfiling::TProfiler profiler = {});
 
     TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path) override;
     TTabletInfoPtr FindTabletInfo(TTabletId tabletId) override;
