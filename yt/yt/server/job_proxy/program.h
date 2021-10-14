@@ -85,7 +85,11 @@ protected:
         auto jobProxy = New<TJobProxy>(std::move(config), OperationId_, JobId_);
         jobProxy->Run();
         // Everything should be properly destructed.
-        YT_VERIFY(ResetAndGetResidualRefCount(jobProxy) == 0);
+        if (auto residualRefCount = ResetAndGetResidualRefCount(jobProxy)) {
+            YT_LOG_ERROR("Job proxy ref counter is positive at the end of job; memory leak is possible "
+                "(RefCounter: %v)",
+                residualRefCount);
+        }
     }
 
 private:
