@@ -1720,7 +1720,12 @@ void TOperationControllerBase::AbortJobWithPartiallyReceivedJobInfo(const TJobId
     try {
         YT_LOG_DEBUG("Abort job since job info has not been received from node (JobId: %v)", jobId);
         auto finishedJobInfo = FindFinishedJobInfo(jobId);
-        YT_VERIFY(finishedJobInfo);
+        // Finished job info may be already deleted for job, because of race caused by TDelayedExecutor::Cancel.
+        if (!finishedJobInfo) {
+            // TODO(pogorelov): Remove logging after node heartbeats become stable.
+            YT_LOG_DEBUG("No finished job info, abort skipped (JobId: %v)", jobId);
+            return;
+        }
 
         finishedJobInfo->ReceivedFrom = TFinishedJobInfo::EReceivedFrom::Both;
 
