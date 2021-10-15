@@ -130,7 +130,7 @@ object SparkPackagePlugin extends AutoPlugin {
           val globalConfig = SparkGlobalConfig(proxyDefaults, sparkVersion)
 
           Seq(
-            YtPublishDocument(globalConfig, sparkYtLegacyConfPath, Some(proxy), "global"),
+            YtPublishDocument(globalConfig, sparkYtConfPath, Some(proxy), "global"),
             YtPublishLink(s"$sparkYtConfPath/global", sparkYtLegacyConfPath, None, "global")
           )
         }
