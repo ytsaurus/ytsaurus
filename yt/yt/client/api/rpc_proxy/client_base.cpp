@@ -748,6 +748,7 @@ TFuture<IVersionedRowsetPtr> TClientBase::VersionedLookupRows(
     auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.VersionedLookupRows();
+    req->SetResponseHeavy(true);
     req->SetTimeout(options.Timeout.value_or(GetRpcProxyConnection()->GetConfig()->DefaultLookupRowsTimeout));
 
     req->set_path(path);
