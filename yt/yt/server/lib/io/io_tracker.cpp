@@ -277,7 +277,7 @@ private:
                     .Item(item.first).Value(item.second);
             };
 
-            LogStructuredEventFluently(StructuredIORawLogger, ELogLevel::Info)
+            LogStructuredEventFluently(StructuredIOAggregateLogger, ELogLevel::Info)
                 .DoFor(tags.Tags, addTag)
                 .Item("byte_count").Value(counters.ByteCount)
                 .Item("io_count").Value(counters.IOCount);
