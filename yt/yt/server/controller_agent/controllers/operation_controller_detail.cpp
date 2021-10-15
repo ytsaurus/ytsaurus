@@ -1727,7 +1727,7 @@ void TOperationControllerBase::AbortJobWithPartiallyReceivedJobInfo(const TJobId
             return;
         }
 
-        finishedJobInfo->ReceivedFrom = TFinishedJobInfo::EReceivedFrom::Both;
+        finishedJobInfo->State = TFinishedJobInfo::EState::FullyReceived;
 
         auto abortJobSummary = std::make_unique<TAbortedJobSummary>(
             finishedJobInfo->JobSummary->Id, EAbortReason::JobStatisticsWaitTimeout);
@@ -5763,7 +5763,7 @@ void TOperationControllerBase::OnJobInfoReceivedFromNode(std::unique_ptr<TJobSum
     if (!finishedJobInfo) {
         const auto jobState = jobSummary->State;
         auto newFinishedJobInfo = New<TFinishedJobInfo>();
-        newFinishedJobInfo->ReceivedFrom = TFinishedJobInfo::EReceivedFrom::Node;
+        newFinishedJobInfo->State = TFinishedJobInfo::EState::ReceivedFromNode;
         newFinishedJobInfo->JobSummary = std::move(jobSummary);
         YT_VERIFY(FinishedJobs_.emplace(jobId, std::move(newFinishedJobInfo)).second);
 
@@ -5774,7 +5774,20 @@ void TOperationControllerBase::OnJobInfoReceivedFromNode(std::unique_ptr<TJobSum
         return;
     }
 
-    if (finishedJobInfo->ReceivedFrom == TFinishedJobInfo::EReceivedFrom::Node) {
+    if (finishedJobInfo->State == TFinishedJobInfo::EState::Released) {
+        // TODO(pogorelov): Remove log after node heartbeats become stable.
+        YT_LOG_DEBUG("Finished job info has already been received, ignore job info (JobId: %v)", jobId);
+        return;
+    }
+
+    // There is no fiber yeilding between setting FullyReceived and release, so if this violates, something strange happens.
+    YT_VERIFY(finishedJobInfo->State != TFinishedJobInfo::EState::FullyReceived);
+
+    if (!finishedJobInfo->JobSummary) {
+        YT_LOG_FATAL("Empty job summary in finished job info (JobId: %v)", jobId);
+    }
+
+    if (finishedJobInfo->State == TFinishedJobInfo::EState::ReceivedFromNode) {
         YT_LOG_WARNING(
             "Received multiple finished job info from node (JobId: %v, PreviouslyReceivedState: %v, CurrentlyReceivedState: %v)",
             jobSummary->Id,
@@ -5791,7 +5804,7 @@ void TOperationControllerBase::OnJobInfoReceivedFromNode(std::unique_ptr<TJobSum
 
     TDelayedExecutor::Cancel(finishedJobInfo->JobAbortCookie);
 
-    finishedJobInfo->ReceivedFrom = TFinishedJobInfo::EReceivedFrom::Both;
+    finishedJobInfo->State = TFinishedJobInfo::EState::FullyReceived;
 
     if (schedulerSummary->State != nodeSummary->State) {
         YT_LOG_WARNING(
@@ -5843,7 +5856,10 @@ void TOperationControllerBase::ProcessJobSummaryFromScheduler(std::unique_ptr<TJ
         return;
     }
 
-    if (finishedJobInfo->ReceivedFrom == TFinishedJobInfo::EReceivedFrom::Scheduler) {
+    if (finishedJobInfo->State == TFinishedJobInfo::EState::ReceivedFromScheduler ||
+        finishedJobInfo->State == TFinishedJobInfo::EState::FullyReceived ||
+        finishedJobInfo->State == TFinishedJobInfo::EState::Released)
+    {
         YT_LOG_FATAL(
             "Received multiple finished job events from scheduler (JobId: %v, PreviousState: %v, CurrentState: %v)",
             jobId,
@@ -5854,7 +5870,7 @@ void TOperationControllerBase::ProcessJobSummaryFromScheduler(std::unique_ptr<TJ
     auto& schedulerSummary = jobSummary;
     auto& nodeSummary = finishedJobInfo->JobSummary;
 
-    finishedJobInfo->ReceivedFrom = TFinishedJobInfo::EReceivedFrom::Both;
+    finishedJobInfo->State = TFinishedJobInfo::EState::FullyReceived;
 
     if (nodeSummary->State != schedulerSummary->State) {
         YT_LOG_DEBUG(
@@ -5875,7 +5891,7 @@ void TOperationControllerBase::ProcessJobSummaryFromScheduler(std::unique_ptr<TJ
 bool TOperationControllerBase::HasFullFinishedJobInfo(const TJobId jobId) const noexcept
 {
     const auto jobInfo = FindFinishedJobInfo(jobId);
-    return jobInfo && jobInfo->ReceivedFrom == TFinishedJobInfo::EReceivedFrom::Both;
+    return jobInfo && jobInfo->State == TFinishedJobInfo::EState::FullyReceived;
 }
 
 template <class TJobSummaryType>
@@ -5884,6 +5900,7 @@ std::unique_ptr<TJobSummaryType> TOperationControllerBase::ReleaseFullJobSummary
     const auto jobInfo = FindFinishedJobInfo(jobId);
     YT_VERIFY(jobInfo);
 
+    jobInfo->State = TFinishedJobInfo::EState::Released;
     auto result = SummaryCast<TJobSummaryType>(std::move(jobInfo->JobSummary));
     return result;
 }
@@ -5906,7 +5923,7 @@ void TOperationControllerBase::StartWaitingJobInfoFromNode(std::unique_ptr<TJobS
 
     auto finishedJobInfo = New<TFinishedJobInfo>();
     finishedJobInfo->JobSummary = std::move(jobSummary);
-    finishedJobInfo->ReceivedFrom = TFinishedJobInfo::EReceivedFrom::Scheduler;
+    finishedJobInfo->State = TFinishedJobInfo::EState::ReceivedFromScheduler;
     finishedJobInfo->JobAbortCookie = TDelayedExecutor::Submit(
         BIND(&TOperationControllerBase::AbortJobWithPartiallyReceivedJobInfo, MakeWeak(this), jobId),
         Config->FullJobInfoWaitTimeout,
