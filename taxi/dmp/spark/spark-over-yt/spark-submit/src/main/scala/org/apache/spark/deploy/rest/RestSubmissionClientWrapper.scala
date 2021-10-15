@@ -9,6 +9,14 @@ object RestSubmissionClientWrapper {
     client.requestSubmissionStatus(id).asInstanceOf[SubmissionStatusResponse]
   }
 
+  def requestApplicationId(client: RestSubmissionClient, id: String): AppIdRestResponse = {
+    client.requestAppId(id).asInstanceOf[AppIdRestResponse]
+  }
+
+  def requestApplicationStatus(client: RestSubmissionClient, id: String): AppStatusRestResponse = {
+    client.requestAppStatus(id).asInstanceOf[AppStatusRestResponse]
+  }
+
   def killSubmission(client: RestSubmissionClient, id: String): KillSubmissionResponse = {
     client.killSubmission(id).asInstanceOf[KillSubmissionResponse]
   }

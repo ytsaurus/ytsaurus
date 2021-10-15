@@ -3,8 +3,9 @@ package ru.yandex.spark.yt.submit
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import io.netty.channel.DefaultEventLoopGroup
 import org.apache.commons.io.FileUtils
-import org.apache.spark.deploy.rest.{DriverState, MasterClient, RestSubmissionClientWrapper}
+import org.apache.spark.deploy.rest.{ApplicationState, DriverState, MasterClient, RestSubmissionClientWrapper}
 import org.apache.spark.launcher.InProcessLauncher
+import org.apache.spark.status.api.v1.ApplicationStatus
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.cypress.YPath
 import ru.yandex.spark.yt.wrapper.discovery.CypressDiscoveryService
@@ -63,8 +64,29 @@ class SubmissionClient(proxy: String,
     tryToGetStatus(id).getOrElse(DriverState.UNDEFINED)
   }
 
+  def getApplicationStatus(driverId: String): ApplicationState = {
+    tryToGetApplicationStatus(driverId).getOrElse(ApplicationState.UNDEFINED)
+  }
+
   def getStringStatus(id: String): String = {
     getStatus(id).name()
+  }
+
+  private def tryToGetApplicationStatus(id: String): Try[ApplicationState] = {
+    val res = Try {
+      val responseAppId = RestSubmissionClientWrapper.requestApplicationId(cluster.get().client, id)
+      val responseAppStatus = RestSubmissionClientWrapper.requestApplicationStatus(cluster.get().client, responseAppId.appId)
+      if (responseAppStatus.success) {
+        ApplicationState.valueOf(responseAppStatus.appState)
+      } else {
+        ApplicationState.UNKNOWN
+      }
+    }
+    if (res.isFailure) {
+      log.warn(s"Failed to get status of application $id")
+      forceClusterUpdate()
+    }
+    res
   }
 
   private def tryToGetStatus(id: String): Try[DriverState] = {
