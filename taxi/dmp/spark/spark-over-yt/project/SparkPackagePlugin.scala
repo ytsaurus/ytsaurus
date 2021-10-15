@@ -123,16 +123,13 @@ object SparkPackagePlugin extends AutoPlugin {
 
       val globalConfigPublish = if (sparkReleaseGlobalConfig.value) {
         log.info(s"Prepare configs for ${ytProxies.mkString(", ")}")
-        ytProxies.flatMap { proxy =>
+        ytProxies.map { proxy =>
           val proxyShort = proxy.split("\\.").head
           val proxyDefaultsFile = (Compile / resourceDirectory).value / s"spark-defaults-$proxyShort.conf"
           val proxyDefaults = readSparkDefaults(proxyDefaultsFile)
           val globalConfig = SparkGlobalConfig(proxyDefaults, sparkVersion)
 
-          Seq(
-            YtPublishDocument(globalConfig, sparkYtConfPath, Some(proxy), "global"),
-            YtPublishLink(s"$sparkYtConfPath/global", sparkYtLegacyConfPath, None, "global")
-          )
+          YtPublishDocument(globalConfig, sparkYtConfPath, Some(proxy), "global")
         }
       } else Nil
 
