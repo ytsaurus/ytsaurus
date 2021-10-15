@@ -1026,7 +1026,6 @@ public:
                 auto state = tablet->GetState();
                 if (state != ETabletState::Mounted &&
                     state != ETabletState::Frozen &&
-                    state != ETabletState::Freezing &&
                     state != ETabletState::Unmounted &&
                     state != ETabletState::Unmounting)
                 {
@@ -3359,6 +3358,7 @@ private:
 
             const auto* context = GetCurrentMutationContext();
             tablet->SetMountRevision(context->GetVersion().ToRevision());
+            tablet->SetWasForcefullyUnmounted(false);
             if (mountTimestamp != NullTimestamp) {
                 tablet->NodeStatistics().set_unflushed_timestamp(mountTimestamp);
             }
@@ -4811,9 +4811,19 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Mounting && state != ETabletState::FrozenMounting) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Mounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
-                state,
-                tabletId);
+            if (!tablet->GetWasForcefullyUnmounted()) {
+                // NB. This (and similar in HydraOnTabletXxx) alerts can actually occur. Consider the case:
+                // - initially, the tablet is mounted
+                // - the tablet is being frozen, master sends TReqFreezeTablet, the response is delayed
+                // - the tablet is being forcefully unmounted
+                // - the tablet is being mounted again
+                // - TRspFreezeTablet finally arrives while the tablet is in mounting state
+                // However, forced unmount should be done for this to happen, and only superusers
+                // have the permission for it.
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Mounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+                    state,
+                    tabletId);
+            }
             return;
         }
 
@@ -4844,9 +4854,11 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Unmounting) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Unmounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
-                state,
-                tabletId);
+            if (!tablet->GetWasForcefullyUnmounted()) {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Unmounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+                    state,
+                    tabletId);
+            }
             return;
         }
 
@@ -4870,9 +4882,11 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Freezing) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Frozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
-                state,
-                tabletId);
+            if (!tablet->GetWasForcefullyUnmounted()) {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Frozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+                    state,
+                    tabletId);
+            }
             return;
         }
 
@@ -4903,9 +4917,11 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Unfreezing) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Unfrozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
-                state,
-                tabletId);
+            if (!tablet->GetWasForcefullyUnmounted()) {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Unfrozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+                    state,
+                    tabletId);
+            }
             return;
         }
 
@@ -5144,6 +5160,7 @@ private:
         tablet->SetCell(nullptr);
         tablet->SetStoresUpdatePreparedTransaction(nullptr);
         tablet->SetMountRevision(NullRevision);
+        tablet->SetWasForcefullyUnmounted(force);
 
         UpdateResourceUsage(table, -resourceUsageDelta);
         UpdateTabletState(table);

@@ -531,6 +531,9 @@ public:
 
     TDuration TabletCellDecommissionCheckPeriod;
 
+    //! Testing option. Time to (synchronously) sleep before sending a hive message to master.
+    std::optional<TDuration> SleepBeforePostToMaster;
+
     TTabletManagerConfig()
     {
         RegisterParameter("pool_chunk_size", PoolChunkSize)
@@ -563,6 +566,9 @@ public:
 
         RegisterParameter("tablet_cell_decommission_check_period", TabletCellDecommissionCheckPeriod)
             .Default(TDuration::Seconds(10));
+
+        RegisterParameter("sleep_before_post_to_master", SleepBeforePostToMaster)
+            .Default();
     }
 };
 

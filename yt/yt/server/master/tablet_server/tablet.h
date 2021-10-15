@@ -270,6 +270,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTabletClient::EInMemoryMode, InMemoryMode);
     //! Only used for ordered tablets.
     DEFINE_BYVAL_RW_PROPERTY(i64, TrimmedRowCount);
+    //! Only makes sense for unmounted tablets.
+    DEFINE_BYVAL_RW_PROPERTY(bool, WasForcefullyUnmounted);
 
     DEFINE_BYVAL_RW_PROPERTY(i64, ReplicationErrorCount);
 
