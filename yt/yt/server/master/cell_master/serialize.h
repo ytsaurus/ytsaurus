@@ -205,6 +205,7 @@ DEFINE_ENUM(EMasterReign,
     ((VirtualMutations)                                             (1801))  // gritukan
     ((CreateUserIgnoreExisting)                                     (1802))  // kvk1920
     ((SaveForcefullyUnmountedTablets)                               (1803))  // ifsmirnov
+    ((HandlePoolAttributesThatBecameUninterned)                     (1804))  // renadeen
 );
 
 ////////////////////////////////////////////////////////////////////////////////
