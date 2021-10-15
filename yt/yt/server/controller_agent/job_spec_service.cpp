@@ -1,4 +1,5 @@
 #include "job_spec_service.h"
+#include "config.h"
 #include "controller_agent.h"
 #include "bootstrap.h"
 #include "private.h"
@@ -93,7 +94,7 @@ private:
                 }
 
                 response->Attachments() = std::move(jobSpecs);
-                response->set_supports_job_info_from_node(true);
+                response->set_supports_job_info_from_node(controllerAgent->GetConfig()->EnableHeartbeatsFromNodes);
                 context->Reply();
             }).Via(GetCurrentInvoker()));
     }

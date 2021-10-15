@@ -840,12 +840,15 @@ TControllerAgentConfig::TControllerAgentConfig()
 
     RegisterParameter("memory_watchdog", MemoryWatchdog)
         .DefaultNew();
+
+    RegisterParameter("secure_vault_length_limit", SecureVaultLengthLimit)
+        .Default(64_MB);
     
     RegisterParameter("full_job_info_wait_timeout", FullJobInfoWaitTimeout)
         .Default(TDuration::Seconds(15));
 
-    RegisterParameter("secure_vault_length_limit", SecureVaultLengthLimit)
-        .Default(64_MB);
+    RegisterParameter("enable_heartbeats_from_nodes", EnableHeartbeatsFromNodes)
+        .Default(false);
 
     RegisterPreprocessor([&] {
         EventLog->MaxRowWeight = 128_MB;

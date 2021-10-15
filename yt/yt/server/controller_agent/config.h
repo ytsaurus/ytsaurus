@@ -939,6 +939,7 @@ public:
     //! i.e. maximum size of secret vault encoded as text YSON.
     i64 SecureVaultLengthLimit;
     TDuration FullJobInfoWaitTimeout;
+    bool EnableHeartbeatsFromNodes;
 
     TControllerAgentConfig();
 
