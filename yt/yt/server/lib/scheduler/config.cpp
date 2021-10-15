@@ -317,7 +317,7 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
         .Default(false);
     
     registrar.Parameter("enable_resource_usage_snapshot", &TFairShareStrategyTreeConfig::EnableResourceUsageSnapshot)
-        .Default(true);    
+        .Default(false);    
 
     registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {

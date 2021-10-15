@@ -1094,6 +1094,7 @@ private:
         void UpdateResourceUsageSnapshot() override
         {
             if (!GetConfig()->EnableResourceUsageSnapshot) {
+                YT_LOG_DEBUG("Resource usage snapshot is disabled; skipping update");
                 return;
             }
 
@@ -1105,6 +1106,8 @@ private:
             }
 
             Tree_->SetResourceUsageSnapshot(std::move(result));
+            
+            YT_LOG_DEBUG("Resource usage snapshot updated");
         }
 
     private:
@@ -1269,6 +1272,9 @@ private:
         context.SchedulingStatistics().ResourceLimits = schedulingContext->ResourceLimits();
 
         if (config->EnableResourceUsageSnapshot) {
+            if (enableSchedulingInfoLogging) {
+                YT_LOG_DEBUG("Using resource usage snapshot for job scheduling");
+            }
             context.ResourceUsageSnapshot() = ResourceUsageSnapshot_.Load();
         }
 
