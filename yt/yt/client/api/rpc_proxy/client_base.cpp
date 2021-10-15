@@ -61,6 +61,7 @@ TApiServiceProxy TClientBase::CreateApiServiceProxy(NRpc::IChannelPtr channel)
     }
     TApiServiceProxy proxy(channel);
     const auto& config = GetRpcProxyConnection()->GetConfig();
+    proxy.SetDefaultTimeout(config->RpcTimeout);
     proxy.SetDefaultRequestCodec(config->RequestCodec);
     proxy.SetDefaultResponseCodec(config->ResponseCodec);
     proxy.SetDefaultEnableLegacyRpcCodecs(config->EnableLegacyRpcCodecs);
@@ -710,7 +711,7 @@ TFuture<IUnversionedRowsetPtr> TClientBase::LookupRows(
 
     auto req = proxy.LookupRows();
     req->SetResponseHeavy(true);
-    req->SetTimeout(options.Timeout);
+    req->SetTimeout(options.Timeout.value_or(GetRpcProxyConnection()->GetConfig()->DefaultLookupRowsTimeout));
 
     req->set_path(path);
     req->Attachments() = SerializeRowset(nameTable, keys, req->mutable_rowset_descriptor());
@@ -747,7 +748,7 @@ TFuture<IVersionedRowsetPtr> TClientBase::VersionedLookupRows(
     auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.VersionedLookupRows();
-    req->SetTimeout(options.Timeout);
+    req->SetTimeout(options.Timeout.value_or(GetRpcProxyConnection()->GetConfig()->DefaultLookupRowsTimeout));
 
     req->set_path(path);
     req->Attachments() = SerializeRowset(nameTable, keys, req->mutable_rowset_descriptor());
@@ -803,7 +804,7 @@ TFuture<std::vector<IUnversionedRowsetPtr>> TClientBase::MultiLookup(
 
     auto req = proxy.MultiLookup();
     req->SetResponseHeavy(true);
-    req->SetTimeout(options.Timeout);
+    req->SetTimeout(options.Timeout.value_or(GetRpcProxyConnection()->GetConfig()->DefaultLookupRowsTimeout));
     req->SetMultiplexingBand(options.MultiplexingBand);
 
     for (const auto& subrequest : subrequests) {

@@ -41,6 +41,7 @@ public:
     TDuration TimestampProviderLatestTimestampUpdatePeriod;
 
     TDuration DefaultTransactionTimeout;
+    TDuration DefaultLookupRowsTimeout;
     TDuration DefaultSelectRowsTimeout;
     TDuration DefaultTotalStreamingTimeout;
     TDuration DefaultStreamingStallTimeout;

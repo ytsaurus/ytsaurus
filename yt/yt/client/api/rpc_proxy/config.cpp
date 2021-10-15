@@ -41,6 +41,8 @@ TConnectionConfig::TConnectionConfig()
         .Default(TDuration::Seconds(3));
     RegisterParameter("default_transaction_timeout", DefaultTransactionTimeout)
         .Default(TDuration::Seconds(30));
+    RegisterParameter("default_lookup_rows_timeout", DefaultLookupRowsTimeout)
+        .Default(TDuration::Seconds(30));
     RegisterParameter("default_select_rows_timeout", DefaultSelectRowsTimeout)
         .Default(TDuration::Seconds(30));
     RegisterParameter("default_total_streaming_timeout", DefaultTotalStreamingTimeout)
