@@ -109,6 +109,7 @@ public:
         FairShareUpdateExecutor_->Start();
         MinNeededJobResourcesUpdateExecutor_->Start();
         ResourceMeteringExecutor_->Start();
+        ResourceUsageUpdateExecutor_->Start();
     }
 
     void OnMasterDisconnected() override
@@ -120,6 +121,7 @@ public:
         FairShareUpdateExecutor_->Stop();
         MinNeededJobResourcesUpdateExecutor_->Stop();
         ResourceMeteringExecutor_->Stop();
+        ResourceUsageUpdateExecutor_->Stop();
 
         OperationIdToOperationState_.clear();
         IdToTree_.clear();
@@ -511,6 +513,7 @@ public:
         FairShareLoggingExecutor_->SetPeriod(Config->FairShareLogPeriod);
         MinNeededJobResourcesUpdateExecutor_->SetPeriod(Config->MinNeededResourcesUpdatePeriod);
         ResourceMeteringExecutor_->SetPeriod(Config->ResourceMeteringPeriod);
+        ResourceUsageUpdateExecutor_->SetPeriod(Config->ResourceUsageSnapshotUpdatePeriod);
     }
 
     void BuildOperationInfoForEventLog(const IOperationStrategyHost* operation, TFluentMap fluent) override
