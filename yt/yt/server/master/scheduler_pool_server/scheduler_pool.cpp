@@ -6,9 +6,11 @@
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/yt/core/ytree/convert.h>
-
 #include <yt/yt/server/lib/misc/interned_attributes.h>
+
+#include <yt/yt/core/misc/collection_helpers.h>
+
+#include <yt/yt/core/ytree/convert.h>
 
 namespace NYT::NSchedulerPoolServer {
 
@@ -175,41 +177,48 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
     TBase::Load(context);
 
     using NYT::Load;
-    Load(context, SpecifiedAttributes_);
-    Load(context, MaybePoolTree_);
 
-    if (context.GetVersion() < EMasterReign::MigrateMinShareResourcesToStrongGuaranteeResources2) {
-        auto minShareIt = SpecifiedAttributes_.find(EInternedAttributeKey::MinShareResources);
-        if (minShareIt != SpecifiedAttributes_.end()) {
-            auto strongGuaranteeIt = SpecifiedAttributes_.find(EInternedAttributeKey::StrongGuaranteeResources);
-            if (strongGuaranteeIt == SpecifiedAttributes_.end()) {
-                SpecifiedAttributes_[EInternedAttributeKey::StrongGuaranteeResources] = std::move(minShareIt->second);
-                YT_LOG_DEBUG("Min share resources transferred to strong guarantees (SchedulerPoolObjectId: %v)", NObjectClient::FromObjectId(GetId()));
+    const auto& schedulerPoolManager = context.GetBootstrap()->GetSchedulerPoolManager();
+    const auto& knownPoolAttributes = schedulerPoolManager->GetKnownPoolAttributes();
+
+    if (context.GetVersion() != NCellMaster::GetCurrentReign() && !IsRoot_) {
+        // Some attributes could become unknown.
+        // We will move them from known attributes map to unknown attributes map.
+        THashMap<TString, TYsonString> oldSpecifiedAttributes;
+        Load(context, oldSpecifiedAttributes);
+
+        for (auto& [uninternedKey, value]: oldSpecifiedAttributes) {
+            auto internedKey = TInternedAttributeKey::Lookup(uninternedKey);
+            if (knownPoolAttributes.contains(internedKey)) {
+                EmplaceOrCrash(SpecifiedAttributes_, internedKey, std::move(value));
             } else {
-                YT_LOG_ERROR(
-                    "Pool %Qv has configured both strong guarantee and min share resources. Dropping min share resources. "
-                    "(SchedulerPoolObjectId: %v, MinShareResources: %v, StrongGuaranteeResources: %v)",
-                    NObjectClient::FromObjectId(GetId()),
-                    ConvertToYsonString(minShareIt->second, EYsonFormat::Text).AsStringBuf(),
-                    ConvertToYsonString(strongGuaranteeIt->second, EYsonFormat::Text).AsStringBuf());
+                GetMutableAttributes()->Set(uninternedKey, value);
+                YT_LOG_INFO("Moving pool attribute from specified attributes map to common attributes map "
+                    "(ObjectId: %v, AttributeName: %v, AttributeValue: %v)",
+                    Id_,
+                    uninternedKey,
+                    ConvertToYsonString(value, EYsonFormat::Text));
             }
-            SpecifiedAttributes_.erase(minShareIt);
         }
+    } else {
+        Load(context, SpecifiedAttributes_);
     }
+
+    Load(context, MaybePoolTree_);
 
     FullConfig_->Load(ConvertToNode(SpecifiedAttributes_));
 
     if (context.GetVersion() != NCellMaster::GetCurrentReign() && !IsRoot_ && Attributes_) {
-        const auto& schedulerPoolManager = context.GetBootstrap()->GetSchedulerPoolManager();
-        std::vector<TString> keysToRemove;
+        // Move attributes from unknown attributes map to known attributes map.
+        TCompactVector<TString, 3> keysToRemove;
         for (const auto& [key, value] : Attributes_->Attributes()) {
             auto internedKey = TInternedAttributeKey::Lookup(key);
             if (internedKey == InvalidInternedAttribute) {
                 continue;
             }
-            if (schedulerPoolManager->GetKnownPoolAttributes().contains(internedKey)) {
+            if (knownPoolAttributes.contains(internedKey)) {
                 if (SpecifiedAttributes_.contains(internedKey)) {
-                    YT_LOG_ERROR("Found pool attribute that is stored in both SpecifiedAttributes map and common attributes map "
+                    YT_LOG_ALERT("Found pool attribute that is stored in both SpecifiedAttributes map and common attributes map "
                         "(ObjectId: %v, AttributeName: %v, CommonAttributeValue: %v, SpecifiedAttributeValue: %v)",
                         Id_,
                         key,
@@ -223,10 +232,10 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
                             key,
                             ConvertToYsonString(value, EYsonFormat::Text));
                         FullConfig_->LoadParameter(key, NYTree::ConvertToNode(value), EMergeStrategy::Overwrite);
-                        YT_VERIFY(SpecifiedAttributes_.emplace(internedKey, std::move(value)).second);
+                        EmplaceOrCrash(SpecifiedAttributes_, internedKey, std::move(value));
                         keysToRemove.push_back(key);
                     } catch (const std::exception& e) {
-                        YT_LOG_ERROR(e, "Cannot parse value of pool attribute "
+                        YT_LOG_ALERT(e, "Cannot parse value of pool attribute; the value will be dropped "
                             "(ObjectId: %v, AttributeName: %v, AttributeValue: %v)",
                             Id_,
                             key,
@@ -235,6 +244,7 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
                 }
             }
         }
+
         for (const auto& key : keysToRemove) {
             YT_VERIFY(Attributes_->Remove(key));
         }
@@ -245,9 +255,9 @@ void TSchedulerPool::GuardedUpdatePoolAttribute(
     TInternedAttributeKey key,
     const std::function<void(const TPoolConfigPtr&, const TString&)>& update)
 {
-    const auto& stringKey = key.Unintern();
-
-    update(FullConfig_, stringKey);
+    const auto& uninternedKey = key.Unintern();
+    update(FullConfig_, uninternedKey);    
+    
     try {
         FullValidate();
         GetParent()->ValidateChildrenCompatibility();
@@ -255,9 +265,9 @@ void TSchedulerPool::GuardedUpdatePoolAttribute(
         auto restoringValueIt = SpecifiedAttributes_.find(key);
         if (restoringValueIt != SpecifiedAttributes_.end()) {
             // TODO(renadeen): avoid building INode
-            FullConfig_->LoadParameter(stringKey, NYTree::ConvertToNode(restoringValueIt->second), EMergeStrategy::Overwrite);
+            FullConfig_->LoadParameter(uninternedKey, NYTree::ConvertToNode(restoringValueIt->second), EMergeStrategy::Overwrite);
         } else {
-            FullConfig_->ResetParameter(stringKey);
+            FullConfig_->ResetParameter(uninternedKey);
         }
         throw;
     }
@@ -345,40 +355,7 @@ void TSchedulerPoolTree::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, TreeName_);
     Load(context, RootPool_);
-
-    // COMPAT(renadeen)
-    if (context.GetVersion() < EMasterReign::NestPoolTreeConfig) {
-        auto oldSpecifiedAttributes = Load<TSpecifiedAttributesMap>(context);
-        auto attributes = CreateEphemeralAttributes();
-        for (auto& [k, v] : oldSpecifiedAttributes) {
-            attributes->SetYson(k.Unintern(), v);
-        }
-
-        if (Attributes_) {
-            for (const auto& [key, value] : Attributes_->Attributes()) {
-                if (attributes->Contains(key)) {
-                    YT_LOG_ERROR("Found pool tree attribute that is stored in both SpecifiedAttributes map and common attributes map "
-                        "(ObjectId: %v, AttributeName: %v, CommonAttributeValue: %v, SpecifiedAttributeValue: %v)",
-                        TreeName_,
-                        key,
-                        value,
-                        attributes->GetYson(key));
-                } else {
-                    YT_LOG_INFO("Moving pool tree attribute from common attributes map to specified config "
-                        "(PoolTreeName: %v, AttributeName: %v, AttributeValue: %v)",
-                        TreeName_,
-                        key,
-                        value);
-
-                    attributes->SetYson(key, value);
-                    YT_VERIFY(Attributes_->Remove(key));
-                }
-            }
-        }
-        SpecifiedConfig_ = ConvertToYsonString(attributes);
-    } else {
-        Load(context, SpecifiedConfig_);
-    }
+    Load(context, SpecifiedConfig_);
 }
 
 void TSchedulerPoolTree::UpdateSpecifiedConfig(TYsonString newConfig)
