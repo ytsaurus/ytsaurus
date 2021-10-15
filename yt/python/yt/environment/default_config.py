@@ -302,6 +302,7 @@ b"""
         };
 
         enable_bulk_insert_for_everyone = %true;
+        enable_heartbeats_from_nodes = %true;
     };
 }
 """)
