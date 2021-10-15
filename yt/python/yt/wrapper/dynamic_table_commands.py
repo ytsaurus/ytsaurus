@@ -165,7 +165,7 @@ class DynamicTableRequestRetrier(Retrier):
 def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
                 fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None,
                 workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None, raw=None,
-                execution_pool=None, response_parameters=None, client=None):
+                execution_pool=None, response_parameters=None, retention_timestamp=None, client=None):
     """Executes a SQL-like query on dynamic table.
 
     .. seealso:: `supported features <https://yt.yandex-team.ru/docs/description/dynamic_tables/dyn_query_language>`_
@@ -184,6 +184,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
         "query": query,
         "output_format": format.to_yson_type()}
     set_param(params, "timestamp", timestamp)
+    set_param(params, "retention_timestamp", retention_timestamp)
     set_param(params, "input_row_limit", input_row_limit)
     set_param(params, "output_row_limit", output_row_limit)
     set_param(params, "range_expansion_limit", range_expansion_limit)
@@ -271,7 +272,7 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
 
 def explain_query(query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
             max_subqueries=None, workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None,
-            format=None, raw=None, execution_pool=None, client=None):
+            format=None, raw=None, execution_pool=None, retention_timestamp=None, client=None):
     """Explains a SQL-like query on dynamic table.
 
     .. seealso:: `supported features <https://yt.yandex-team.ru/docs/description/dynamic_tables/dyn_query_language>`_
@@ -290,6 +291,7 @@ def explain_query(query, timestamp=None, input_row_limit=None, output_row_limit=
         "query": query,
         "output_format": format.to_yson_type()}
     set_param(params, "timestamp", timestamp)
+    set_param(params, "retention_timestamp", retention_timestamp)
     set_param(params, "input_row_limit", input_row_limit)
     set_param(params, "output_row_limit", output_row_limit)
     set_param(params, "range_expansion_limit", range_expansion_limit)
@@ -414,7 +416,7 @@ def lock_rows(table, input_stream, locks=[], lock_type=None, durability=None, fo
 
 def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_missing_rows=None,
                 enable_partial_result=None, use_lookup_cache=None,
-                format=None, raw=None, versioned=None, client=None):
+                format=None, raw=None, versioned=None, retention_timestamp=None, client=None):
     """Lookups rows in dynamic table.
 
     .. seealso:: `supported features <https://yt.yandex-team.ru/docs/description/dynamic_tables/dyn_query_language>`_
@@ -435,6 +437,7 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
     params["input_format"] = format.to_yson_type()
     params["output_format"] = format.to_yson_type()
     set_param(params, "timestamp", timestamp)
+    set_param(params, "retention_timestamp", retention_timestamp)
     set_param(params, "column_names", column_names)
     set_param(params, "keep_missing_rows", keep_missing_rows)
     set_param(params, "enable_partial_result", enable_partial_result)
