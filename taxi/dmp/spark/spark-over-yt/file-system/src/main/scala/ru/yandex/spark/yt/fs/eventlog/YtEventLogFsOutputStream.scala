@@ -1,6 +1,7 @@
 package ru.yandex.spark.yt.fs.eventlog
 
 import org.apache.hadoop.conf.Configuration
+import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.fs.PathUtils.getMetaPath
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.model.EventLogSchema.{metaSchema, schema}
@@ -12,29 +13,60 @@ import java.util.UUID
 import scala.annotation.tailrec
 
 class YtEventLogFsOutputStream(conf: Configuration, path: String, fileName: String, clock: Clock, implicit val yt: CompoundClient) extends OutputStream {
-  private val meta_path = getMetaPath(path)
-  private var order = 0
+  private val log = LoggerFactory.getLogger(getClass)
+
+  private val metaPath = getMetaPath(path)
   private val rowSize = conf.get("yt.dynTable.rowSize", "16777216").toInt
   private val buffer: Array[Byte] = new Array[Byte](rowSize)
-  private var bufferPos = 0
-  private var flushedDataSize = 0
-  private var lastFlushSize = rowSize
+
+  private case class State(bufferPos: Int,
+                           lastFlushPos: Int,
+                           flushedDataSize: Long,
+                           blockCount: Int,
+                           blockUpdateCount: Int) {
+    def currentBlockIsFull(): Boolean = {
+      bufferPos == rowSize
+    }
+
+    def prevFlushWasPartial(): Boolean = {
+      lastFlushPos < rowSize
+    }
+
+    def nextBlockStartPos: Int = {
+      if (currentBlockIsFull()) {
+        0
+      } else {
+        bufferPos
+      }
+    }
+
+    def incBufferPos(length: Int = 1): State = {
+      copy(bufferPos = bufferPos + length)
+    }
+
+    def newDataSize: Int = {
+      val dataStartPos = if (lastFlushPos < rowSize) lastFlushPos else 0
+      bufferPos - dataStartPos
+    }
+
+    def hasNewData: Boolean = {
+      newDataSize > 0
+    }
+  }
+
+  private var state = State(0, rowSize, 0, 0, 0)
   private val id = s"${UUID.randomUUID()}"
 
   open()
 
   def open(): Unit = {
     YtWrapper.createDynTableAndMount(path, schema)
-    YtWrapper.createDynTableAndMount(meta_path, metaSchema)
-    syncInfo()
+    YtWrapper.createDynTableAndMount(metaPath, metaSchema)
+    updateInfo()
   }
 
   override def write(b: Int): Unit = {
-    if (bufferPos == rowSize) {
-      flush()
-    }
-    buffer(bufferPos) = b.toByte
-    bufferPos += 1
+    writeImpl(b)
   }
 
   override def write(event: Array[Byte], off: Int, len: Int): Unit = {
@@ -42,59 +74,108 @@ class YtEventLogFsOutputStream(conf: Configuration, path: String, fileName: Stri
   }
 
   @tailrec
+  private def writeImpl(b: Int): Unit = {
+    if (state.currentBlockIsFull()) {
+      flush()
+      writeImpl(b)
+    } else {
+      buffer(state.bufferPos) = b.toByte
+      state = state.incBufferPos()
+    }
+  }
+
+  @tailrec
   private def writeImpl(event: Array[Byte], off: Int, len: Int): Unit = {
-    val free = rowSize - bufferPos
+    val free = rowSize - state.bufferPos
     val copyLen = Math.min(free, len)
-    System.arraycopy(event, off, buffer, bufferPos, copyLen)
-    bufferPos += copyLen
+    System.arraycopy(event, off, buffer, state.bufferPos, copyLen)
+    state = state.incBufferPos(copyLen)
     if (free < len) {
       flush()
       writeImpl(event, off + free, len - free)
     }
   }
 
-  override def flush(): Unit = {
-    // Second clause - detecting appending data
-    // Either position was changed or buffer is full (it couldn't be full after previous flush)
-    if (bufferPos > 0 && (lastFlushSize != bufferPos || bufferPos == rowSize)) {
-      YtWrapper.runUnderTransaction(None)(transaction => {
-        val data = if (bufferPos < buffer.length) buffer.slice(0, bufferPos) else buffer
-        if (lastFlushSize < rowSize) {
-          YtWrapper.updateRows(path, schema,
-            new YtEventLogBlock(id, order, data).toJavaMap,
-            Some(transaction)
-          )
-          flushedDataSize += bufferPos - lastFlushSize
-        } else {
-          YtWrapper.insertRows(path, schema,
-            List(new YtEventLogBlock(id, order + 1, data).toList),
-            Some(transaction)
-          )
-          order += 1
-          flushedDataSize += bufferPos
-        }
-        lastFlushSize = bufferPos
-        if (bufferPos == rowSize) {
-          bufferPos = 0
-        }
-        syncInfo(Some(transaction))
-      })
+  private def tryWithConsistentState(f: => Unit): Unit = {
+    val prevState = state
+    try {
+      f
+    } catch {
+      case e: Throwable =>
+        log.error(s"Error while uploading logs with id=$id and order=${state.blockCount}", e)
+        state = prevState
     }
   }
 
-  private def syncInfo(transaction: Option[ApiServiceTransaction] = None): Unit = {
-    updateInfo(rowSize, order, flushedDataSize, transaction)
+  private def writeNewBlock(data: Array[Byte]): Unit = {
+    tryWithConsistentState {
+      YtWrapper.runUnderTransaction(None) { transaction =>
+        YtWrapper.insertRows(path, schema,
+          List(new YtEventLogBlock(id, state.blockCount + 1, data).toList),
+          Some(transaction)
+        )
+        state = State(
+          bufferPos = state.nextBlockStartPos,
+          lastFlushPos = state.bufferPos,
+          flushedDataSize = state.flushedDataSize + state.newDataSize,
+          blockCount = state.blockCount + 1,
+          blockUpdateCount = 0
+        )
+        updateInfo(Some(transaction))
+      }
+    }
   }
 
-  private def updateInfo(rowSize: Int, blocksCnt: Int, length: Long, transaction: Option[ApiServiceTransaction] = None): Unit = {
-    YtWrapper.updateRows(meta_path, metaSchema,
+  private def updateBlock(data: Array[Byte]): Unit = {
+    tryWithConsistentState {
+      YtWrapper.runUnderTransaction(None) { transaction =>
+        YtWrapper.updateRows(path, schema,
+          new YtEventLogBlock(id, state.blockCount, data).toJavaMap,
+          Some(transaction)
+        )
+        state = State(
+          bufferPos = state.nextBlockStartPos,
+          lastFlushPos = state.bufferPos,
+          flushedDataSize = state.flushedDataSize + state.newDataSize,
+          blockCount = state.blockCount,
+          blockUpdateCount = state.blockUpdateCount + 1
+        )
+        updateInfo(Some(transaction))
+      }
+    }
+  }
+
+  private def flushImpl(forced: Boolean): Unit = {
+    if (state.hasNewData) {
+      val data =
+        if (state.currentBlockIsFull()) buffer
+        else buffer.slice(0, state.bufferPos)
+      if (state.prevFlushWasPartial()) {
+        if (state.blockUpdateCount < 3 || forced || state.currentBlockIsFull()) {
+          updateBlock(data)
+        }
+      } else {
+        writeNewBlock(data)
+      }
+    }
+  }
+
+  override def flush(): Unit = {
+    flushImpl(false)
+  }
+
+  private def updateInfo(transaction: Option[ApiServiceTransaction] = None): Unit = {
+    YtWrapper.updateRows(
+      metaPath,
+      metaSchema,
       new YtEventLogFileDetails(
-        fileName, id, new YtEventLogFileMeta(rowSize, blocksCnt, length, clock.millis())
+        fileName, id, new YtEventLogFileMeta(rowSize, state.blockCount, state.flushedDataSize, clock.millis())
       ).toJavaMap,
-      transaction)
+      transaction
+    )
   }
 
   override def close(): Unit = {
-    flush()
+    flushImpl(true)
   }
 }

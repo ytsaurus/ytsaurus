@@ -231,7 +231,7 @@ def get_spark_conf(config, enablers):
 def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                worker_cores, worker_memory, worker_num, worker_cores_overhead, worker_timeout,
                                tmpfs_limit, ssd_limit,
-                               master_memory_limit,
+                               master_memory_limit, shs_location,
                                history_server_memory_limit, history_server_memory_overhead, history_server_cpu_limit,
                                network_project, tvm_id, tvm_secret,
                                advanced_event_log, worker_log_transfer, worker_log_json_mode,
@@ -259,9 +259,9 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
             worker_log_update_interval, "yt:/{}".format(spark_discovery.worker_log()))
 
     if advanced_event_log:
-        event_log_path = "ytEventLog:/{}".format(spark_discovery.event_log_table())
+        event_log_path = "ytEventLog:/{}".format(shs_location or spark_discovery.event_log_table())
     else:
-        event_log_path = "yt:/{}".format(spark_discovery.event_log())
+        event_log_path = "yt:/{}".format(shs_location or spark_discovery.event_log())
     if "spark.history.fs.numReplayThreads" not in config["spark_conf"]:
         config["spark_conf"]["spark.history.fs.numReplayThreads"] = history_server_cpu_limit
     history_command = _launcher_command("HistoryServer") + \
@@ -389,7 +389,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                         network_project=None, abort_existing=False, tvm_id=None, tvm_secret=None,
                         advanced_event_log=False, worker_log_transfer=False, worker_log_json_mode=False,
                         worker_log_update_interval=SparkDefaultArguments.SPARK_WORKER_LOG_UPDATE_INTERVAL,
-                        params=None, spark_cluster_version=None, enablers=None, client=None):
+                        params=None, shs_location=None, spark_cluster_version=None, enablers=None, client=None):
     """Start Spark cluster
     :param operation_alias: alias for the underlying YT operation
     :param pool: pool for the underlying YT operation
@@ -417,6 +417,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     :param tvm_id: TVM id for network project
     :param tvm_secret: TVM secret for network project
     :param params: YT operation params: file_paths, layer_paths, operation_spec, environment, spark_conf
+    :param shs_location: hard set path to log directory
     :param enablers: ...
     :param client: YtClient
     :return:
@@ -460,6 +461,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                                               tmpfs_limit=tmpfs_limit,
                                               ssd_limit=ssd_limit,
                                               master_memory_limit=master_memory_limit,
+                                              shs_location=shs_location,
                                               history_server_memory_limit=history_server_memory_limit,
                                               history_server_memory_overhead=history_server_memory_overhead,
                                               history_server_cpu_limit=history_server_cpu_limit,

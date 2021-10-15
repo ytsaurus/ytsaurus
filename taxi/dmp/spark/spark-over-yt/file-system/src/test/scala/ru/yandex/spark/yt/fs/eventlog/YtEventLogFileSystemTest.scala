@@ -148,11 +148,15 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
 
   private def getMetaByFileName(fileName: String): Seq[YtEventLogFileMeta] = {
     YtWrapper.selectRows(hadoopPathToYt(metaTableLocation), metaSchema,
-      Some(s"""${FILENAME}="$fileName"""")).map(YtEventLogFileDetails(_).meta)
+      Some(s"""$FILENAME="$fileName"""")).map(YtEventLogFileDetails(_).meta)
   }
 
   private def getAllRows(path: String, schema: TableSchema): Seq[String] = {
     YtWrapper.selectRows(hadoopPathToYt(path), schema, None).map(YTreeTextSerializer.serialize(_))
+  }
+
+  private def getAllLogBlocks(path: String): Seq[YtEventLogBlockTest] = {
+    getAllRows(path, schema).map(x => YtEventLogBlockTest(YtEventLogBlock(x)))
   }
 
   it should "multiple write and flush" in {
@@ -171,13 +175,89 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
     }
     val id = getId(tableLocation, fileName)
 
-    val res = getAllRows(tableLocation, schema).map(x => YtEventLogBlockTest(YtEventLogBlock(x)))
-    res should contain theSameElementsAs Seq(
+    getAllLogBlocks(tableLocation) should contain theSameElementsAs Seq(
       YtEventLogBlockTest(YtEventLogBlock(id, 1, "12".getBytes)),
       YtEventLogBlockTest(YtEventLogBlock(id, 2, "34".getBytes)),
       YtEventLogBlockTest(YtEventLogBlock(id, 3, "56".getBytes)),
       YtEventLogBlockTest(YtEventLogBlock(id, 4, "78".getBytes)),
       YtEventLogBlockTest(YtEventLogBlock(id, 5, "9".getBytes))
+    )
+  }
+
+  it should "don't flush after flush spam" in {
+    val fsConf = {
+      val c = new Configuration()
+      c.set("yt.dynTable.rowSize", "6")
+      c.set("fs.ytEventLog.singleReadLimit", "6")
+      c.set("yt.proxy", "localhost:8000")
+      c.set("yt.user", "root")
+      c.set("yt.token", "")
+      c
+    }
+    val fs = new YtEventLogFileSystem
+    fs.initialize(new Path("/").toUri, fsConf)
+    fs.setConf(fsConf)
+
+    val (fileName, tablePath) = getNameAndFileLocation("testLog")
+
+    val out = fs.create(new Path(tablePath))
+    val id = getId(tableLocation, fileName)
+
+    try {
+      (0 until 5).foreach {
+        i =>
+          out.write(i.toString.getBytes())
+          out.flush()
+      }
+      getAllLogBlocks(tableLocation) should contain theSameElementsAs Seq(
+        YtEventLogBlockTest(YtEventLogBlock(id, 1, "0123".getBytes))
+      )
+
+      // forced flush when buffer is full
+      out.write(5.toString.getBytes())
+      out.flush()
+      getAllLogBlocks(tableLocation) should contain theSameElementsAs Seq(
+        YtEventLogBlockTest(YtEventLogBlock(id, 1, "012345".getBytes))
+      )
+    } finally {
+      out.close()
+    }
+  }
+
+  it should "force flush on close" in {
+    val fsConf = {
+      val c = new Configuration()
+      c.set("yt.dynTable.rowSize", "6")
+      c.set("fs.ytEventLog.singleReadLimit", "6")
+      c.set("yt.proxy", "localhost:8000")
+      c.set("yt.user", "root")
+      c.set("yt.token", "")
+      c
+    }
+    val fs = new YtEventLogFileSystem
+    fs.initialize(new Path("/").toUri, fsConf)
+    fs.setConf(fsConf)
+
+    val (fileName, tablePath) = getNameAndFileLocation("testLog")
+
+    val out = fs.create(new Path(tablePath))
+    val id = getId(tableLocation, fileName)
+
+    try {
+      (0 until 5).foreach {
+        i =>
+          out.write(i.toString.getBytes())
+          out.flush()
+      }
+      getAllLogBlocks(tableLocation) should contain theSameElementsAs Seq(
+        YtEventLogBlockTest(YtEventLogBlock(id, 1, "0123".getBytes))
+      )
+    } finally {
+      out.close()
+    }
+    // forced flush after close
+    getAllLogBlocks(tableLocation) should contain theSameElementsAs Seq(
+      YtEventLogBlockTest(YtEventLogBlock(id, 1, "01234".getBytes))
     )
   }
 

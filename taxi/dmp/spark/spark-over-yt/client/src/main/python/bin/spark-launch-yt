@@ -43,6 +43,7 @@ def main():
     parser.add_argument('--abort-existing', required=False, action='store_true', default=False)
     parser.add_argument("--spark-cluster-version", required=False)
     parser.add_argument("--worker-log-update-interval", required=False, default="10m")
+    parser.add_argument("--shs-location", required=False)
 
     default_enablers = SpytEnablers()
     group = parser.add_mutually_exclusive_group(required=False)
@@ -102,6 +103,7 @@ def main():
                         worker_log_json_mode=args.worker_log_json_mode,
                         worker_log_update_interval=args.worker_log_update_interval,
                         params=args.params,
+                        shs_location=args.shs_location,
                         spark_cluster_version=args.spark_cluster_version,
                         enablers=SpytEnablers(
                             enable_byop=args.enable_byop,
