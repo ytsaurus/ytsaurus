@@ -408,3 +408,25 @@ class TestDynamicTableCommands(object):
         thread_count_after = threading.active_count()
 
         assert thread_count_before == thread_count_after
+
+    @authors("ifsmirnov")
+    def test_retention_timestamp(self):
+        self._sync_create_tablet_cell()
+        table = TEST_DIR + "/retention_ts"
+        self._create_dynamic_table(table)
+        yt.mount_table(table, sync=True)
+        rows1 = [{"x": "aaa", "y": "bbb"}]
+        rows2 = [{"x": "ccc", "y": "ddd"}]
+        keys = [{"x": "aaa"}, {"x": "ccc"}]
+        yt.insert_rows(table, rows1)
+        ts_between = yt.generate_timestamp()
+        yt.insert_rows(table, rows2)
+        ts_after = yt.generate_timestamp()
+
+        ts_kwargs = {"timestamp": ts_after, "retention_timestamp": ts_between}
+        assert rows2 == list(yt.lookup_rows(table, keys, **ts_kwargs))
+        assert rows2 == list(yt.select_rows("* from [{}] order by x limit 10".format(table), **ts_kwargs))
+
+        ts_kwargs.pop("retention_timestamp")
+        assert rows1 + rows2 == list(yt.lookup_rows(table, keys, **ts_kwargs))
+        assert rows1 + rows2 == list(yt.select_rows("* from [{}] order by x limit 10".format(table), **ts_kwargs))

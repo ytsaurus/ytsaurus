@@ -34,7 +34,7 @@ class YtClient(ClientState):
         Supported attributes:
 
         * append -- append to table or overwrite.
-        * columns -- list of string (column) or string pairs (column range).
+        * columns -- list of string (column).
         * exact_key, lower_key, upper_key -- tuple of strings to identify range of rows.
         * exact_index, start_index, end_index -- tuple of indexes to identify range of rows.
         * ranges -- list of dicts, allows to specify arbitrary ranges on the table, see more details in the docs.
@@ -351,7 +351,7 @@ class YtClient(ClientState):
         """
         return client_api.exists(path, client=self, read_from=read_from, cache_sticky_group_size=cache_sticky_group_size, suppress_transaction_coordinator_sync=suppress_transaction_coordinator_sync)
 
-    def explain_query(self, query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None, max_subqueries=None, workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None, raw=None, execution_pool=None):
+    def explain_query(self, query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None, max_subqueries=None, workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None, raw=None, execution_pool=None, retention_timestamp=None):
         """
         Explains a SQL-like query on dynamic table.
 
@@ -364,7 +364,7 @@ class YtClient(ClientState):
         :param bool raw: don't parse response to rows.
 
         """
-        return client_api.explain_query(query, client=self, timestamp=timestamp, input_row_limit=input_row_limit, output_row_limit=output_row_limit, range_expansion_limit=range_expansion_limit, max_subqueries=max_subqueries, workload_descriptor=workload_descriptor, allow_full_scan=allow_full_scan, allow_join_without_index=allow_join_without_index, format=format, raw=raw, execution_pool=execution_pool)
+        return client_api.explain_query(query, client=self, timestamp=timestamp, input_row_limit=input_row_limit, output_row_limit=output_row_limit, range_expansion_limit=range_expansion_limit, max_subqueries=max_subqueries, workload_descriptor=workload_descriptor, allow_full_scan=allow_full_scan, allow_join_without_index=allow_join_without_index, format=format, raw=raw, execution_pool=execution_pool, retention_timestamp=retention_timestamp)
 
     def externalize(self, path, cell_tag):
         """
@@ -721,7 +721,7 @@ class YtClient(ClientState):
         """
         return client_api.lock_rows(table, input_stream, client=self, locks=locks, lock_type=lock_type, durability=durability, format=format, raw=raw)
 
-    def lookup_rows(self, table, input_stream, timestamp=None, column_names=None, keep_missing_rows=None, enable_partial_result=None, use_lookup_cache=None, format=None, raw=None, versioned=None):
+    def lookup_rows(self, table, input_stream, timestamp=None, column_names=None, keep_missing_rows=None, enable_partial_result=None, use_lookup_cache=None, format=None, raw=None, versioned=None, retention_timestamp=None):
         """
         Lookups rows in dynamic table.
 
@@ -733,7 +733,7 @@ class YtClient(ClientState):
         :param bool versioned: return all versions of the requested rows.
 
         """
-        return client_api.lookup_rows(table, input_stream, client=self, timestamp=timestamp, column_names=column_names, keep_missing_rows=keep_missing_rows, enable_partial_result=enable_partial_result, use_lookup_cache=use_lookup_cache, format=format, raw=raw, versioned=versioned)
+        return client_api.lookup_rows(table, input_stream, client=self, timestamp=timestamp, column_names=column_names, keep_missing_rows=keep_missing_rows, enable_partial_result=enable_partial_result, use_lookup_cache=use_lookup_cache, format=format, raw=raw, versioned=versioned, retention_timestamp=retention_timestamp)
 
     def make_idm_client(self, address=None):
         """
@@ -1162,7 +1162,7 @@ class YtClient(ClientState):
         """
         return client_api.search(client=self, root=root, node_type=node_type, path_filter=path_filter, object_filter=object_filter, subtree_filter=subtree_filter, map_node_order=map_node_order, list_node_order=list_node_order, attributes=attributes, exclude=exclude, depth_bound=depth_bound, follow_links=follow_links, read_from=read_from, cache_sticky_group_size=cache_sticky_group_size, enable_batch_mode=enable_batch_mode)
 
-    def select_rows(self, query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None, fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None, workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None, raw=None, execution_pool=None, response_parameters=None):
+    def select_rows(self, query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None, fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None, workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None, raw=None, execution_pool=None, response_parameters=None, retention_timestamp=None):
         """
         Executes a SQL-like query on dynamic table.
 
@@ -1175,7 +1175,7 @@ class YtClient(ClientState):
         :param bool raw: don't parse response to rows.
 
         """
-        return client_api.select_rows(query, client=self, timestamp=timestamp, input_row_limit=input_row_limit, output_row_limit=output_row_limit, range_expansion_limit=range_expansion_limit, fail_on_incomplete_result=fail_on_incomplete_result, verbose_logging=verbose_logging, enable_code_cache=enable_code_cache, max_subqueries=max_subqueries, workload_descriptor=workload_descriptor, allow_full_scan=allow_full_scan, allow_join_without_index=allow_join_without_index, format=format, raw=raw, execution_pool=execution_pool, response_parameters=response_parameters)
+        return client_api.select_rows(query, client=self, timestamp=timestamp, input_row_limit=input_row_limit, output_row_limit=output_row_limit, range_expansion_limit=range_expansion_limit, fail_on_incomplete_result=fail_on_incomplete_result, verbose_logging=verbose_logging, enable_code_cache=enable_code_cache, max_subqueries=max_subqueries, workload_descriptor=workload_descriptor, allow_full_scan=allow_full_scan, allow_join_without_index=allow_join_without_index, format=format, raw=raw, execution_pool=execution_pool, response_parameters=response_parameters, retention_timestamp=retention_timestamp)
 
     def set(self, path, value, format=None, recursive=False, force=None, suppress_transaction_coordinator_sync=None):
         """
