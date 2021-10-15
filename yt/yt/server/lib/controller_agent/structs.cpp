@@ -160,7 +160,9 @@ TAbortedJobSummary::TAbortedJobSummary(TJobId id, EAbortReason abortReason)
 TAbortedJobSummary::TAbortedJobSummary(const TJobSummary& other, EAbortReason abortReason)
     : TJobSummary(other)
     , AbortReason(abortReason)
-{ }
+{
+    JobExecutionCompleted = false;
+}
 
 TAbortedJobSummary::TAbortedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
     : TJobSummary(event)

@@ -162,14 +162,15 @@ struct TFinishedJobInfo
     std::unique_ptr<TJobSummary> JobSummary;
     NConcurrency::TDelayedExecutorCookie JobAbortCookie;
 
-    enum class EReceivedFrom
+    enum class EState
     {
-        Node,
-        Scheduler,
-        Both,
+        ReceivedFromNode,
+        ReceivedFromScheduler,
+        FullyReceived,
+        Released,
     };
 
-    EReceivedFrom ReceivedFrom;
+    EState State;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFinishedJobInfo)

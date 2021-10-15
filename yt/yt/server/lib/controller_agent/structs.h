@@ -56,7 +56,7 @@ struct TJobSummary
     NJobTrackerClient::TReleaseJobFlags ReleaseFlags;
 
     TInstant LastStatusUpdateTime;
-    bool JobExecutionCompleted;
+    bool JobExecutionCompleted = false;
 };
 
 struct TCompletedJobSummary
