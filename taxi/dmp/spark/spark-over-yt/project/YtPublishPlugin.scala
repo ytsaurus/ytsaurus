@@ -115,6 +115,19 @@ object YtPublishPlugin extends AutoPlugin {
     }
   }
 
+  private def publishArtifact(artifact: YtPublishArtifact, proxy: String, log: Logger)
+                             (implicit yt: YtClient): Unit = {
+    if (artifact.proxy.forall(_ == proxy)) {
+      if (sys.env.get("RELEASE_TEST").exists(_.toBoolean)) {
+        log.info(s"RELEASE_TEST: Publish $artifact to $proxy")
+      } else {
+        createDir(artifact.remoteDir, proxy, log)
+        artifact.publish(proxy, log)
+      }
+
+    }
+  }
+
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
     publishYtCredentials := new RpcCredentials(
       sys.env.getOrElse("YT_USER", sys.env("USER")),
@@ -129,17 +142,14 @@ object YtPublishPlugin extends AutoPlugin {
         val (ytClient, connector) = createYtClient(proxy, creds)
         implicit val yt: YtClient = ytClient
         try {
-          publishYtArtifacts.value.par.foreach { artifact =>
-            if (artifact.proxy.forall(_ == proxy)) {
-              if (sys.env.get("RELEASE_TEST").exists(_.toBoolean)) {
-                log.info(s"RELEASE_TEST: Publish $artifact to $proxy")
-              } else {
-                createDir(artifact.remoteDir, proxy, log)
-                artifact.publish(proxy, log)
-              }
-
-            }
+          val artifacts = publishYtArtifacts.value
+          val (links, files) = artifacts.partition {
+            case _: YtPublishLink => true
+            case _ => false
           }
+          // publish links strictly after files
+          files.par.foreach(publishArtifact(_, proxy, log))
+          links.par.foreach(publishArtifact(_, proxy, log))
         } finally {
           yt.close()
           connector.close()
