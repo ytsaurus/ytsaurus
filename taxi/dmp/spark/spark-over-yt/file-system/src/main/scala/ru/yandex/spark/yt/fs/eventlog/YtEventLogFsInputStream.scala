@@ -67,18 +67,18 @@ class YtEventLogFsInputStream(conf: Configuration, path: String, details: YtEven
   override def seekToNewSource(targetPos: Long): Boolean = ???
 
   private def loadNewBlocks(count: Int = 1): Unit = {
-    log.debugLazy(s"Loading $count blocks from yt")
     val rows = YtWrapper
       .selectRows(
         path, schema,
-        Some(s"""${ID}="${details.id}" and ${ORDER} > $order and ${ORDER} <= ${order + count}""")
+        Some(s"""$ID="${details.id}" and $ORDER > $order and $ORDER <= ${order + count}""")
       )
       .map(x => YtEventLogBlock(x))
     order += count
     currentBlock = new Array[Byte](rows.map(_.log.length).sum)
-    rows.foldLeft(0){case (index, next) =>
-      System.arraycopy(next.log, 0, currentBlock, index, next.log.length)
-      index + next.log.length
+    rows.foldLeft(0) {
+      case (index, next) =>
+        System.arraycopy(next.log, 0, currentBlock, index, next.log.length)
+        index + next.log.length
     }
 
     posInCurrentBlock = 0
@@ -98,8 +98,7 @@ class YtEventLogFsInputStream(conf: Configuration, path: String, details: YtEven
       loadNewBlocks()
     }
     if (ready()) {
-      posInCurrentBlock += 1
-      globalPos += 1
+      movePos(1)
       currentBlock(posInCurrentBlock - 1)
     } else {
       -1
@@ -130,6 +129,13 @@ class YtEventLogFsInputStream(conf: Configuration, path: String, details: YtEven
     }
   }
 
+  override def skip(n: Long): Long = {
+    log.info(s"Skip $n started, $details, $finished $order $globalPos")
+    val oldPos = getPos
+    seek(n + oldPos)
+    getPos - oldPos
+  }
+
   def copyAvailable(b: Array[Byte], off: Int, len: Int): Int = {
     val willBeCopied = Math.min(countAvailableInBuffer(), len)
     System.arraycopy(currentBlock, posInCurrentBlock, b, off, willBeCopied)
@@ -137,12 +143,12 @@ class YtEventLogFsInputStream(conf: Configuration, path: String, details: YtEven
     willBeCopied
   }
 
-  def movePos(count: Int): Unit = {
+  private def movePos(count: Int): Unit = {
     globalPos += count
     posInCurrentBlock += count
   }
 
-  def checkClosed(): Unit = {
+  private def checkClosed(): Unit = {
     if (manualClosed) {
       throw new IOException("Reading from closed stream")
     }
