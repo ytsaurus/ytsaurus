@@ -204,6 +204,7 @@ DEFINE_ENUM(EMasterReign,
     ((DropPoolTreeInternedAttributes)                               (1800))  // ignat
     ((VirtualMutations)                                             (1801))  // gritukan
     ((CreateUserIgnoreExisting)                                     (1802))  // kvk1920
+    ((SaveForcefullyUnmountedTablets)                               (1803))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

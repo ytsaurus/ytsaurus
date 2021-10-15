@@ -560,6 +560,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, NodeStatistics_);
     Save(context, InMemoryMode_);
     Save(context, TrimmedRowCount_);
+    Save(context, WasForcefullyUnmounted_);
     Save(context, Replicas_);
     Save(context, RetainedTimestamp_);
     Save(context, TabletErrorCount_);
@@ -585,6 +586,10 @@ void TTablet::Load(TLoadContext& context)
     Load(context, NodeStatistics_);
     Load(context, InMemoryMode_);
     Load(context, TrimmedRowCount_);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::SaveForcefullyUnmountedTablets) {
+        Load(context, WasForcefullyUnmounted_);
+    }
     Load(context, Replicas_);
     Load(context, RetainedTimestamp_);
     Load(context, TabletErrorCount_);

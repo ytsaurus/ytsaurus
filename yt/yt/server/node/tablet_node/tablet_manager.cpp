@@ -3381,6 +3381,12 @@ private:
 
     void PostMasterMutation(TTabletId tabletId, const ::google::protobuf::MessageLite& message)
     {
+        // Used in tests only. NB: synchronous sleep is required since we don't expect
+        // context switches here.
+        if (auto sleepDuration = Config_->SleepBeforePostToMaster) {
+            Sleep(*sleepDuration);
+        }
+
         const auto& hiveManager = Slot_->GetHiveManager();
         auto* mailbox = hiveManager->GetOrCreateMailbox(Bootstrap_->GetCellId(CellTagFromId(tabletId)));
         if (!mailbox) {
