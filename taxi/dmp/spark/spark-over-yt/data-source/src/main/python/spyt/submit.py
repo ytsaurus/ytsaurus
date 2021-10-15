@@ -134,6 +134,9 @@ class SparkSubmissionClient(object):
     def get_status(self, submission_id):
         return SubmissionStatus.from_string(self._jclient.getStringStatus(submission_id))
 
+    def get_app_status(self, driver_id):
+        return ApplicationStatus.from_string(self._jclient.getApplicationStatus(driver_id))
+
 
 class SubmissionStatus(Enum):
     SUBMITTED = "SUBMITTED"
@@ -173,6 +176,49 @@ class SubmissionStatus(Enum):
                 status is SubmissionStatus.KILLED or
                 status is SubmissionStatus.FAILED or
                 status is SubmissionStatus.ERROR
+        )
+
+
+class ApplicationStatus(Enum):
+    WAITING = "WAITING"
+    RUNNING = "RUNNING"
+    FINISHED = "FINISHED"
+    FAILED = "FAILED"
+    KILLED = "KILLED"
+    UNKNOWN = "UNKNOWN"
+    UNDEFINED = "UNDEFINED"
+
+    @staticmethod
+    def from_string(name):
+        return next(member for n, member in ApplicationStatus.__members__.items() if n == name)
+
+    @staticmethod
+    def is_final(status):
+        return (
+                status is ApplicationStatus.FINISHED or
+                status is ApplicationStatus.UNKNOWN or
+                status is ApplicationStatus.KILLED or
+                status is ApplicationStatus.FAILED
+        )
+
+    @staticmethod
+    def is_success(status):
+        return (
+                status is ApplicationStatus.FINISHED
+        )
+
+    @staticmethod
+    def is_failure(status):
+        return (
+                status is ApplicationStatus.UNKNOWN or
+                status is ApplicationStatus.KILLED or
+                status is ApplicationStatus.FAILED
+        )
+
+    @staticmethod
+    def is_waiting(status):
+        return (
+                status is ApplicationStatus.WAITING
         )
 
 

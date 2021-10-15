@@ -34,8 +34,13 @@ def validate_cluster_version(spark_cluster_version, client=None):
                        "Please update your local yandex-spyt".format(spark_cluster_version, SELF_VERSION))
 
 
-def is_supported_cluster_minor_version(spark_cluster_version, version):
-    return _get_spark_cluster_minor_version(spark_cluster_version) >= version
+def is_supported_cluster_minor_version(spark_cluster_version, required_version):
+    return get_version_tuple(_get_spark_cluster_minor_version(spark_cluster_version)) >= \
+           get_version_tuple(required_version)
+
+
+def get_version_tuple(version):
+    return map(int, version.split("."))
 
 
 def validate_spyt_version(spyt_version, client=None):
