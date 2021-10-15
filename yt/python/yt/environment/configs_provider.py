@@ -638,7 +638,7 @@ def _build_node_configs(node_dirs,
         set_at(config, "data_node/store_locations", [store_location_config])
         set_at(config, "data_node/volume_manager/layer_locations", [layer_location_config])
 
-        config["logging"] = _init_logging(logs_dir, "node-{0}".format(index), yt_config)
+        config["logging"] = _init_logging(logs_dir, "node-{0}".format(index), yt_config, has_structured_logs=True)
 
         job_proxy_logging = get_at(config, "exec_agent/job_proxy_logging")
         log_name = "job_proxy-{0}-slot-%slot_index%".format(index)

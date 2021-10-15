@@ -60,7 +60,7 @@ def write_log_barrier(address, category):
     return get_driver().write_log_barrier(address=address, category=category)
 
 
-def read_structured_log(path, from_barrier=None, to_barrier=None, format=None):
+def read_structured_log(path, from_barrier=None, to_barrier=None, format=None, category_filter=None, filter=None):
     if format is None:
         if path.endswith(".json.log"):
             format = "json"
@@ -93,8 +93,13 @@ def read_structured_log(path, from_barrier=None, to_barrier=None, format=None):
                     assert has_start_barrier, "End barrier appeared before start barrier"
                     return lines
 
-            if has_start_barrier:
-                lines.append(parsed_line)
+            if not has_start_barrier:
+                continue
+            if category_filter is not None and parsed_line.get("category") not in category_filter:
+                continue
+            if filter is not None and not filter(parsed_line):
+                continue
+            lines.append(parsed_line)
 
     assert to_barrier is None, "End barrier not found"
     return lines
