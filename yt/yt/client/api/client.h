@@ -247,7 +247,7 @@ struct TGetInSyncReplicasOptions
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::NullTimestamp;
 };
 
-struct TGetTabletsInfoOptions
+struct TGetTabletInfosOptions
     : public TTimeoutOptions
 { };
 
@@ -1576,7 +1576,7 @@ struct IClient
     virtual TFuture<std::vector<TTabletInfo>> GetTabletInfos(
         const NYPath::TYPath& path,
         const std::vector<int>& tabletIndexes,
-        const TGetTabletsInfoOptions& options = {}) = 0;
+        const TGetTabletInfosOptions& options = {}) = 0;
 
     virtual TFuture<std::vector<NTabletClient::TTabletActionId>> BalanceTabletCells(
         const TString& tabletCellBundle,

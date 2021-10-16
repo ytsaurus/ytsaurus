@@ -275,7 +275,7 @@ public:
     MOCK_METHOD(TFuture<std::vector<TTabletInfo>>, GetTabletInfos, (
         const NYPath::TYPath& path,
         const std::vector<int>& tabletIndexes,
-        const TGetTabletsInfoOptions& options), (override));
+        const TGetTabletInfosOptions& options), (override));
 
     MOCK_METHOD(TFuture<std::vector<NTabletClient::TTabletActionId>>, BalanceTabletCells, (
         const TString& tabletCellBundle,

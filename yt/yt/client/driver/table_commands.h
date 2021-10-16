@@ -397,7 +397,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TGetTabletInfosCommand
-    : public TTypedCommand<NApi::TGetTabletsInfoOptions>
+    : public TTypedCommand<NApi::TGetTabletInfosOptions>
 {
 public:
     TGetTabletInfosCommand();

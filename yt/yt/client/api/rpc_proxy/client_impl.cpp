@@ -507,7 +507,7 @@ TFuture<std::vector<TTableReplicaId>> TClient::GetInSyncReplicas(
 TFuture<std::vector<TTabletInfo>> TClient::GetTabletInfos(
     const TYPath& path,
     const std::vector<int>& tabletIndexes,
-    const TGetTabletsInfoOptions& options)
+    const TGetTabletInfosOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 

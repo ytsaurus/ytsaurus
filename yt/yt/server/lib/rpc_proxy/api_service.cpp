@@ -3291,7 +3291,7 @@ private:
             path,
             tabletIndexes);
 
-        TGetTabletsInfoOptions options;
+        TGetTabletInfosOptions options;
         SetTimeoutOptions(&options, context.Get());
 
         ExecuteCall(
