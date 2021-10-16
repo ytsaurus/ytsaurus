@@ -170,3 +170,46 @@ func TestDecodeValueWithGenericAttrs(t *testing.T) {
 	require.Equal(t, map[string]interface{}{"table_index": int64(1)}, v.Attrs)
 	require.Equal(t, int64(11), v.Value)
 }
+
+func TestYPAPIMap(t *testing.T) {
+	type Progress struct {
+		PodsTotal int              `yson:"pods_total"`
+		PodsReady int              `yson:"pods_ready"`
+		Nested    map[int32]string `yson:"nested,omitempty"`
+	}
+
+	type Details struct {
+		Revisions      map[uint64]*Progress `yson:"revisions"`
+		EmptyRevisions map[uint64]*Progress `yson:"empty_revisions"`
+	}
+
+	details := Details{
+		Revisions: map[uint64]*Progress{
+			400: {
+				PodsTotal: 1,
+				PodsReady: 1,
+				Nested: map[int32]string{
+					42: "hello",
+				},
+			},
+			200: {
+				PodsTotal: 2,
+				PodsReady: 1,
+			},
+		},
+	}
+
+	encoded, err := MarshalOptions(details, &EncoderOptions{SupportYPAPIMaps: true})
+	require.NoError(t, err)
+
+	var decoded Details
+	err = UnmarshalOptions(encoded, &decoded, &DecoderOptions{SupportYPAPIMaps: true})
+	require.NoError(t, err)
+
+	require.Len(t, decoded.Revisions, 2)
+	require.Empty(t, decoded.EmptyRevisions)
+	require.Contains(t, decoded.Revisions, uint64(400))
+	require.Contains(t, decoded.Revisions, uint64(200))
+	require.Equal(t, &Progress{1, 1, map[int32]string{42: "hello"}}, decoded.Revisions[uint64(400)])
+	require.Equal(t, &Progress{2, 1, nil}, decoded.Revisions[uint64(200)])
+}

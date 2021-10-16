@@ -9,17 +9,23 @@ import (
 	"time"
 )
 
+type EncoderOptions struct {
+	SupportYPAPIMaps bool
+}
+
 // Encoder writes YSON to output stream.
 type Encoder struct {
+	opts *EncoderOptions
+
 	w *Writer
 }
 
 func NewEncoder(w io.Writer) *Encoder {
-	return &Encoder{NewWriter(w)}
+	return &Encoder{w: NewWriter(w)}
 }
 
 func NewEncoderWriter(w *Writer) *Encoder {
-	return &Encoder{w}
+	return &Encoder{w: w}
 }
 
 // Marshaler is an interface implemented by types that can encode themselves to YSON.
@@ -33,7 +39,7 @@ type StreamMarshaler interface {
 }
 
 func (e *Encoder) Encode(value interface{}) (err error) {
-	err = encodeAny(e.w, value)
+	err = encodeAny(e.w, value, e.opts)
 	if err != nil {
 		return
 	}
@@ -106,12 +112,20 @@ func Marshal(value interface{}) ([]byte, error) {
 func MarshalFormat(value interface{}, format Format) ([]byte, error) {
 	var buf bytes.Buffer
 	writer := NewWriterFormat(&buf, format)
-	encoder := Encoder{writer}
+	encoder := Encoder{w: writer}
 	err := encoder.Encode(value)
 	return buf.Bytes(), err
 }
 
-func encodeAny(w *Writer, value interface{}) (err error) {
+func MarshalOptions(value interface{}, opts *EncoderOptions) ([]byte, error) {
+	var buf bytes.Buffer
+	writer := NewWriterFormat(&buf, FormatText)
+	encoder := Encoder{w: writer, opts: opts}
+	err := encoder.Encode(value)
+	return buf.Bytes(), err
+}
+
+func encodeAny(w *Writer, value interface{}, opts *EncoderOptions) (err error) {
 	vv := reflect.ValueOf(value)
 	if value == nil || vv.Kind() == reflect.Ptr && vv.IsNil() {
 		w.Entity()
@@ -256,7 +270,7 @@ func encodeAny(w *Writer, value interface{}) (err error) {
 		for k, item := range vv {
 			w.MapKeyString(k)
 
-			if err = encodeAny(w, item); err != nil {
+			if err = encodeAny(w, item, opts); err != nil {
 				return err
 			}
 		}
@@ -300,7 +314,7 @@ func encodeAny(w *Writer, value interface{}) (err error) {
 		w.Bytes(bin)
 
 	default:
-		err = encodeReflect(w, reflect.ValueOf(vv))
+		err = encodeReflect(w, reflect.ValueOf(vv), opts)
 		if err != nil {
 			return err
 		}
@@ -309,7 +323,7 @@ func encodeAny(w *Writer, value interface{}) (err error) {
 	return w.Err()
 }
 
-func encodeReflect(w *Writer, value reflect.Value) error {
+func encodeReflect(w *Writer, value reflect.Value, opts *EncoderOptions) error {
 	switch value.Type().Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		w.Int64(value.Int())
@@ -324,20 +338,20 @@ func encodeReflect(w *Writer, value reflect.Value) error {
 		return w.Err()
 
 	case reflect.Struct:
-		return encodeReflectStruct(w, value)
+		return encodeReflectStruct(w, value, opts)
 	case reflect.Slice:
-		return encodeReflectSlice(w, value)
+		return encodeReflectSlice(w, value, opts)
 	case reflect.Array:
-		return encodeReflectSlice(w, value)
+		return encodeReflectSlice(w, value, opts)
 	case reflect.Ptr:
 		if value.IsNil() {
 			w.Entity()
 			return w.Err()
 		}
 
-		return encodeAny(w, value.Elem().Interface())
+		return encodeAny(w, value.Elem().Interface(), opts)
 	case reflect.Map:
-		return encodeReflectMap(w, value, false)
+		return encodeReflectMap(w, value, false, opts)
 	}
 
 	return fmt.Errorf("yson: type %T not supported", value.Interface())
@@ -348,9 +362,15 @@ var (
 	binaryMarshalerType = reflect.TypeOf((*encoding.BinaryMarshaler)(nil)).Elem()
 )
 
-func encodeReflectMap(w *Writer, value reflect.Value, attrs bool) (err error) {
+func encodeReflectMap(w *Writer, value reflect.Value, attrs bool, opts *EncoderOptions) (err error) {
 	switch value.Type().Key().Kind() {
 	case reflect.String:
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		if opts == nil || !opts.SupportYPAPIMaps {
+			return fmt.Errorf("yson: unsupported map key type")
+		}
+		return encodeReflectYPAPIMap(w, value, opts)
 	default:
 		switch {
 		case value.Type().Key().Implements(textMarshalerType),
@@ -372,7 +392,7 @@ func encodeReflectMap(w *Writer, value reflect.Value, attrs bool) (err error) {
 			return err
 		}
 
-		if err = encodeAny(w, mr.Value().Interface()); err != nil {
+		if err = encodeAny(w, mr.Value().Interface(), opts); err != nil {
 			return err
 		}
 	}
@@ -382,6 +402,31 @@ func encodeReflectMap(w *Writer, value reflect.Value, attrs bool) (err error) {
 	} else {
 		w.EndAttrs()
 	}
+	return w.Err()
+}
+
+func encodeReflectYPAPIMap(w *Writer, value reflect.Value, opts *EncoderOptions) (err error) {
+	w.BeginList()
+
+	mr := value.MapRange()
+	for mr.Next() {
+		w.BeginMap()
+
+		w.MapKeyString("key")
+		if err = encodeAny(w, mr.Key().Interface(), opts); err != nil {
+			return err
+		}
+
+		w.MapKeyString("value")
+		if err = encodeAny(w, mr.Value().Interface(), opts); err != nil {
+			return err
+		}
+
+		w.EndMap()
+	}
+
+	w.EndList()
+
 	return w.Err()
 }
 
@@ -430,7 +475,7 @@ func isZeroValue(v reflect.Value) bool {
 	return false
 }
 
-func encodeReflectStruct(w *Writer, value reflect.Value) (err error) {
+func encodeReflectStruct(w *Writer, value reflect.Value, opts *EncoderOptions) (err error) {
 	t := getStructType(value)
 
 	encodeMapFragment := func(fields []*field) (err error) {
@@ -445,7 +490,7 @@ func encodeReflectStruct(w *Writer, value reflect.Value) (err error) {
 			}
 
 			w.MapKeyString(field.name)
-			if err = encodeAny(w, fieldValue.Interface()); err != nil {
+			if err = encodeAny(w, fieldValue.Interface(), opts); err != nil {
 				return
 			}
 		}
@@ -462,13 +507,13 @@ func encodeReflectStruct(w *Writer, value reflect.Value) (err error) {
 
 		w.EndAttrs()
 	} else if t.attrs != nil {
-		if err = encodeReflectMap(w, value.FieldByIndex(t.attrs.index), true); err != nil {
+		if err = encodeReflectMap(w, value.FieldByIndex(t.attrs.index), true, opts); err != nil {
 			return
 		}
 	}
 
 	if t.value != nil {
-		return encodeAny(w, value.FieldByIndex(t.value.index).Interface())
+		return encodeAny(w, value.FieldByIndex(t.value.index).Interface(), opts)
 	}
 
 	w.BeginMap()
@@ -482,10 +527,10 @@ func encodeReflectStruct(w *Writer, value reflect.Value) (err error) {
 	return w.Err()
 }
 
-func encodeReflectSlice(w *Writer, value reflect.Value) error {
+func encodeReflectSlice(w *Writer, value reflect.Value, opts *EncoderOptions) error {
 	w.BeginList()
 	for i := 0; i < value.Len(); i++ {
-		if err := encodeAny(w, value.Index(i).Interface()); err != nil {
+		if err := encodeAny(w, value.Index(i).Interface(), opts); err != nil {
 			return err
 		}
 	}
