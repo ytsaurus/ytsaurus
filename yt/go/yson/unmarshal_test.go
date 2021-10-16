@@ -57,7 +57,7 @@ func TestUnmarshalListFragment(t *testing.T) {
 	in := "{A=1;};{B=2;};"
 
 	r := NewReaderKindFromBytes([]byte(in), StreamListFragment)
-	d := Decoder{r}
+	d := Decoder{R: r}
 
 	ok, err := r.NextListItem()
 	require.NoError(t, err)

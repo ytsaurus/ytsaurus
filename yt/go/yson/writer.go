@@ -665,7 +665,7 @@ func (w *Writer) Any(v interface{}) {
 		return
 	}
 
-	w.err = encodeAny(w, v)
+	w.err = encodeAny(w, v, nil)
 }
 
 func (w *Writer) Finish() error {

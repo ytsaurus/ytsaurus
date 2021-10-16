@@ -216,7 +216,7 @@ func decodeString(r *Reader) (b []byte, err error) {
 	return
 }
 
-func decodeAny(r *Reader, v interface{}) (err error) {
+func decodeAny(r *Reader, v interface{}, opts *DecoderOptions) (err error) {
 	var i int64
 	var u uint64
 	var f float64
@@ -320,7 +320,7 @@ func decodeAny(r *Reader, v interface{}) (err error) {
 		err = decodeGeneric(r, vv)
 
 	default:
-		err = decodeReflect(r, reflect.ValueOf(v))
+		err = decodeReflect(r, reflect.ValueOf(v), opts)
 	}
 
 	return
@@ -334,6 +334,15 @@ func decodeAny(r *Reader, v interface{}) (err error) {
 // Mapping between YSON types and go objects is the same as in Marshal().
 func Unmarshal(data []byte, v interface{}) error {
 	d := NewDecoderFromBytes(data)
+	if err := d.Decode(v); err != nil {
+		return err
+	}
+	return d.CheckFinish()
+}
+
+func UnmarshalOptions(data []byte, v interface{}, opts *DecoderOptions) error {
+	d := NewDecoderFromBytes(data)
+	d.opts = opts
 	if err := d.Decode(v); err != nil {
 		return err
 	}

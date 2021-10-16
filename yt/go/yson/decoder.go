@@ -4,7 +4,13 @@ import (
 	"io"
 )
 
+type DecoderOptions struct {
+	SupportYPAPIMaps bool
+}
+
 type Decoder struct {
+	opts *DecoderOptions
+
 	R *Reader
 }
 
@@ -17,7 +23,7 @@ func NewDecoderFromBytes(b []byte) *Decoder {
 }
 
 func (d *Decoder) Decode(v interface{}) error {
-	return decodeAny(d.R, v)
+	return decodeAny(d.R, v, d.opts)
 }
 
 func (d *Decoder) CheckFinish() error {

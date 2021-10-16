@@ -200,7 +200,7 @@ func decodeReflectInterface(d *Reader, v reflect.Value) error {
 	return decoder.(DecoderFn)(d, v.Interface())
 }
 
-func decodeReflect(d *Reader, v reflect.Value) error {
+func decodeReflect(d *Reader, v reflect.Value, opts *DecoderOptions) error {
 	if v.Kind() != reflect.Ptr {
 		return &UnsupportedTypeError{v.Type()}
 	}
@@ -222,15 +222,15 @@ func decodeReflect(d *Reader, v reflect.Value) error {
 		return err
 
 	case reflect.Struct:
-		return decodeReflectStruct(d, v.Elem())
+		return decodeReflectStruct(d, v.Elem(), opts)
 	case reflect.Slice:
-		return decodeReflectSlice(d, v)
+		return decodeReflectSlice(d, v, opts)
 	case reflect.Array:
-		return decodeReflectArray(d, v)
+		return decodeReflectArray(d, v, opts)
 	case reflect.Ptr:
-		return decodeReflectPtr(d, v.Elem())
+		return decodeReflectPtr(d, v.Elem(), opts)
 	case reflect.Map:
-		return decodeReflectMap(d, v, false)
+		return decodeReflectMap(d, v, false, opts)
 	case reflect.Interface:
 		return decodeReflectInterface(d, v)
 
@@ -239,7 +239,7 @@ func decodeReflect(d *Reader, v reflect.Value) error {
 	}
 }
 
-func decodeReflectSlice(d *Reader, v reflect.Value) error {
+func decodeReflectSlice(d *Reader, v reflect.Value, opts *DecoderOptions) error {
 	e, err := d.Next(true)
 	if err != nil {
 		return err
@@ -265,7 +265,7 @@ func decodeReflectSlice(d *Reader, v reflect.Value) error {
 		}
 
 		slice = reflect.Append(slice, reflect.New(elementType).Elem())
-		err = decodeAny(d, slice.Index(i).Addr().Interface())
+		err = decodeAny(d, slice.Index(i).Addr().Interface(), opts)
 		if err != nil {
 			return err
 		}
@@ -282,7 +282,7 @@ func decodeReflectSlice(d *Reader, v reflect.Value) error {
 	return nil
 }
 
-func decodeReflectArray(d *Reader, v reflect.Value) error {
+func decodeReflectArray(d *Reader, v reflect.Value, opts *DecoderOptions) error {
 	e, err := d.Next(true)
 	if err != nil {
 		return err
@@ -305,7 +305,7 @@ func decodeReflectArray(d *Reader, v reflect.Value) error {
 		}
 
 		if i < array.Len() {
-			err = decodeAny(d, array.Index(i).Addr().Interface())
+			err = decodeAny(d, array.Index(i).Addr().Interface(), opts)
 			if err != nil {
 				return err
 			}
@@ -327,7 +327,7 @@ func decodeReflectArray(d *Reader, v reflect.Value) error {
 	return nil
 }
 
-func decodeReflectPtr(r *Reader, v reflect.Value) error {
+func decodeReflectPtr(r *Reader, v reflect.Value, opts *DecoderOptions) error {
 	e, err := r.Next(false)
 	if err != nil {
 		return err
@@ -340,7 +340,7 @@ func decodeReflectPtr(r *Reader, v reflect.Value) error {
 	r.Undo(e)
 	elem := v.Type().Elem()
 	v.Set(reflect.New(elem))
-	return decodeAny(r, v.Interface())
+	return decodeAny(r, v.Interface(), opts)
 }
 
 var (
@@ -348,11 +348,17 @@ var (
 	binaryUnmarshalerType = reflect.TypeOf((*encoding.BinaryUnmarshaler)(nil)).Elem()
 )
 
-func decodeReflectMap(r *Reader, v reflect.Value, attrs bool) error {
+func decodeReflectMap(r *Reader, v reflect.Value, attrs bool, opts *DecoderOptions) error {
 	kt := v.Type().Elem().Key()
 
 	switch kt.Kind() {
 	case reflect.String:
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		if opts == nil || !opts.SupportYPAPIMaps {
+			return &UnsupportedTypeError{v.Type().Elem()}
+		}
+		return decodeReflectYPAPIMap(r, v, opts)
 	default:
 		switch {
 		case reflect.PtrTo(kt).Implements(textUnmarshalerType),
@@ -417,7 +423,7 @@ func decodeReflectMap(r *Reader, v reflect.Value, attrs bool) error {
 		}
 
 		elem := reflect.New(elementType)
-		if err = decodeAny(r, elem.Interface()); err != nil {
+		if err = decodeAny(r, elem.Interface(), opts); err != nil {
 			return err
 		}
 
@@ -436,6 +442,55 @@ func decodeReflectMap(r *Reader, v reflect.Value, attrs bool) error {
 		if e != EventEndAttrs {
 			panic("invalid decoder state")
 		}
+	}
+
+	return nil
+}
+
+var ypAPIMapTypes sync.Map
+
+func getYPAPIMapType(v reflect.Value) reflect.Type {
+	t := v.Type()
+
+	cachedType, ok := ypAPIMapTypes.Load(t)
+	if ok {
+		return cachedType.(reflect.Type)
+	}
+
+	kt := t.Elem().Key()
+	vt := t.Elem().Elem()
+
+	typ := reflect.StructOf([]reflect.StructField{
+		{
+			Name: "Key",
+			Type: kt,
+			Tag:  `yson:"key"`,
+		},
+		{
+			Name: "Value",
+			Type: vt,
+			Tag:  `yson:"value"`,
+		},
+	})
+
+	ypAPIMapTypes.Store(t, typ)
+	return typ
+}
+
+func decodeReflectYPAPIMap(r *Reader, v reflect.Value, opts *DecoderOptions) error {
+	m := reflect.MakeMap(v.Elem().Type())
+	v.Elem().Set(m)
+
+	kvType := getYPAPIMapType(v)
+
+	slice := reflect.New(reflect.SliceOf(kvType))
+	if err := decodeReflectSlice(r, slice, opts); err != nil {
+		return err
+	}
+
+	for i := 0; i < slice.Elem().Len(); i++ {
+		elem := slice.Elem().Index(i)
+		m.SetMapIndex(elem.FieldByIndex([]int{0}), elem.FieldByIndex([]int{1}))
 	}
 
 	return nil
@@ -467,7 +522,7 @@ func fieldByIndex(v reflect.Value, index []int, initPtr bool) (reflect.Value, bo
 	return v, true, nil
 }
 
-func decodeMapFragment(r *Reader, v reflect.Value, fields map[string]*field) error {
+func decodeMapFragment(r *Reader, v reflect.Value, fields map[string]*field, opts *DecoderOptions) error {
 	for {
 		ok, err := r.NextKey()
 		if err != nil {
@@ -492,7 +547,7 @@ func decodeMapFragment(r *Reader, v reflect.Value, fields map[string]*field) err
 		if err != nil {
 			return err
 		}
-		if err = decodeAny(r, field.Addr().Interface()); err != nil {
+		if err = decodeAny(r, field.Addr().Interface(), opts); err != nil {
 			if typeError, ok := err.(*TypeError); ok {
 				return &TypeError{
 					UserType: typeError.UserType,
@@ -507,7 +562,7 @@ func decodeMapFragment(r *Reader, v reflect.Value, fields map[string]*field) err
 	}
 }
 
-func decodeReflectStruct(r *Reader, v reflect.Value) error {
+func decodeReflectStruct(r *Reader, v reflect.Value, opts *DecoderOptions) error {
 	structType := getStructType(v)
 
 	var e Event
@@ -519,7 +574,7 @@ func decodeReflectStruct(r *Reader, v reflect.Value) error {
 		}
 
 		if e == EventBeginAttrs {
-			if err = decodeMapFragment(r, v, structType.attributesByName); err != nil {
+			if err = decodeMapFragment(r, v, structType.attributesByName, opts); err != nil {
 				return err
 			}
 
@@ -542,7 +597,7 @@ func decodeReflectStruct(r *Reader, v reflect.Value) error {
 		r.Undo(e)
 
 		if e == EventBeginAttrs {
-			if err := decodeReflectMap(r, v.FieldByIndex(structType.attrs.index).Addr(), true); err != nil {
+			if err := decodeReflectMap(r, v.FieldByIndex(structType.attrs.index).Addr(), true, opts); err != nil {
 				return err
 			}
 		}
@@ -556,7 +611,7 @@ func decodeReflectStruct(r *Reader, v reflect.Value) error {
 	}
 
 	if structType.value != nil {
-		return decodeAny(r, v.FieldByIndex(structType.value.index).Addr().Interface())
+		return decodeAny(r, v.FieldByIndex(structType.value.index).Addr().Interface(), opts)
 	}
 
 	e, err = r.Next(false)
@@ -572,7 +627,7 @@ func decodeReflectStruct(r *Reader, v reflect.Value) error {
 		return &TypeError{UserType: v.Type(), YSONType: r.currentType}
 	}
 
-	if err = decodeMapFragment(r, v, structType.fieldsByName); err != nil {
+	if err = decodeMapFragment(r, v, structType.fieldsByName, opts); err != nil {
 		return err
 	}
 
