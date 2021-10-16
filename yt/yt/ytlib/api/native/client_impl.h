@@ -145,7 +145,7 @@ public:
     IMPLEMENT_METHOD(std::vector<TTabletInfo>, GetTabletInfos, (
         const NYPath::TYPath& path,
         const std::vector<int>& tabletIndexes,
-        const TGetTabletsInfoOptions& options),
+        const TGetTabletInfosOptions& options),
         (path, tabletIndexes, options))
     IMPLEMENT_METHOD(void, MountTable, (
         const NYPath::TYPath& path,
@@ -730,7 +730,7 @@ private:
     std::vector<TTabletInfo> DoGetTabletInfos(
         const NYPath::TYPath& path,
         const std::vector<int>& tabletIndexes,
-        const TGetTabletsInfoOptions& options);
+        const TGetTabletInfosOptions& options);
 
     NYTree::IAttributeDictionaryPtr ResolveExternalTable(
         const NYPath::TYPath& path,

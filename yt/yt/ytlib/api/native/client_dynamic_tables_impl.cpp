@@ -280,7 +280,7 @@ DEFINE_REFCOUNTED_TYPE(TQueryPreparer)
 std::vector<TTabletInfo> TClient::DoGetTabletInfos(
     const TYPath& path,
     const std::vector<int>& tabletIndexes,
-    const TGetTabletsInfoOptions& options)
+    const TGetTabletInfosOptions& options)
 {
     const auto& tableMountCache = Connection_->GetTableMountCache();
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))

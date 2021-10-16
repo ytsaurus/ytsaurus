@@ -96,7 +96,7 @@ public:
     TFuture<std::vector<NApi::TTabletInfo>> GetTabletInfos(
         const NYPath::TYPath& path,
         const std::vector<int>& tabletIndexes,
-        const NApi::TGetTabletsInfoOptions& options) override;
+        const NApi::TGetTabletInfosOptions& options) override;
 
     TFuture<std::vector<NTabletClient::TTabletActionId>> BalanceTabletCells(
         const TString& tabletCellBundle,
