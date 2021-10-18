@@ -1,10 +1,14 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
 from yt_commands import (
     authors, with_breakpoint, wait_breakpoint, release_breakpoint,
-    create, get, ls, write_table,
-    get_data_nodes, get_exec_nodes, get_tablet_nodes,
+    create, wait, get, set, ls, exists, remove, write_table,
+    get_data_nodes, get_exec_nodes, get_tablet_nodes, get_chaos_nodes,
     run_test_vanilla, sync_create_cells)
+
+from yt.environment.helpers import assert_items_equal
+
+import pytest
 
 #################################################################
 
@@ -13,6 +17,15 @@ class TestNodeFlavors(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
+    # TODO(gritukan): Chaos Node has all flavors.
+    NUM_CHAOS_NODES = 1
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "lease_transaction_timeout": 2000,
+            "lease_transaction_ping_period": 1000,
+        },
+    }
 
     @classmethod
     def modify_node_config(cls, config):
@@ -29,11 +42,23 @@ class TestNodeFlavors(YTEnvSetup):
         config["flavors"] = node_flavors[cls.node_counter]
         cls.node_counter = (cls.node_counter + 1) % cls.NUM_NODES
 
+    def _find_node_with_flavors(self, required_flavors):
+        for node in get("//sys/cluster_nodes"):
+            flavors = get("//sys/cluster_nodes/{}/@flavors".format(node))
+            found = True
+            for flavor in required_flavors:
+                if flavor not in flavors:
+                    found = False
+                    break
+
+            if found:
+                return node
+        return None
+
     @authors("gritukan")
     def test_data_nodes(self):
-        # TODO(gritukan): Disable store locations for exec nodes.
-        data_nodes = get_data_nodes() + get_exec_nodes()
-        assert len(data_nodes) == 5
+        data_nodes = get_data_nodes()
+        assert len(data_nodes) == 4
 
         create("table", "//tmp/t")
         for i in range(5):
@@ -45,7 +70,7 @@ class TestNodeFlavors(YTEnvSetup):
     @authors("gritukan")
     def test_exec_nodes(self):
         exec_nodes = get_exec_nodes()
-        assert len(exec_nodes) == 2
+        assert len(exec_nodes) == 3
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=2)
         job_ids = wait_breakpoint(job_count=2)
@@ -56,13 +81,76 @@ class TestNodeFlavors(YTEnvSetup):
     @authors("gritukan")
     def test_tablet_nodes(self):
         tablet_nodes = get_tablet_nodes()
-        assert len(tablet_nodes) == 2
+        assert len(tablet_nodes) == 3
 
         sync_create_cells(2)
         for cell_id in ls("//sys/tablet_cells"):
             peers = get("#" + cell_id + "/@peers")
             assert len(peers) == 1
             assert peers[0]["address"] in tablet_nodes
+
+    @authors("gritukan")
+    def test_chaos_nodes(self):
+        chaos_nodes = get_chaos_nodes()
+        assert len(chaos_nodes) == 1
+        # TODO(gritukan, savrus): Create chaos cell here.
+
+    @authors("gritukan")
+    @pytest.mark.parametrize("flavor", ["data", "exec", "tablet", "chaos"])
+    def test_per_flavor_node_maps(self, flavor):
+        expected = []
+
+        for node in get("//sys/cluster_nodes"):
+            if flavor in get("//sys/cluster_nodes/{}/@flavors".format(node)):
+                expected.append(node)
+
+        actual = []
+        for node in get("//sys/{}_nodes".format(flavor)):
+            actual.append(node)
+
+        assert_items_equal(expected, actual)
+
+    @authors("gritukan")
+    def test_ban_multi_flavor_node(self):
+        node = self._find_node_with_flavors(["data", "exec"])
+        assert node is not None
+
+        def check_banned(expected):
+            assert get("//sys/cluster_nodes/{}/@banned".format(node)) == expected
+            assert get("//sys/data_nodes/{}/@banned".format(node)) == expected
+            assert get("//sys/exec_nodes/{}/@banned".format(node)) == expected
+
+        check_banned(False)
+        set("//sys/data_nodes/{}/@banned".format(node), True)
+        check_banned(True)
+        set("//sys/cluster_nodes/{}/@banned".format(node), False)
+        check_banned(False)
+
+    @authors("gritukan")
+    def test_remove_multi_flavored_node(self):
+        node = None
+        for n in get("//sys/cluster_nodes"):
+            flavors = get("//sys/cluster_nodes/{}/@flavors".format(n))
+            # TODO(gritukan, savrus): Chaos node is not restarted via Restarter.
+            if "data" in flavors and "exec" in flavors and "chaos" not in flavors:
+                node = n
+        assert node is not None
+
+        def check_exists(expected):
+            assert (node in ls("//sys/cluster_nodes")) == expected
+            assert (node in ls("//sys/data_nodes")) == expected
+            assert (node in ls("//sys/exec_nodes")) == expected
+
+        check_exists(True)
+        with Restarter(self.Env, NODES_SERVICE):
+            wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
+            remove("//sys/cluster_nodes/{}".format(node))
+            check_exists(False)
+
+        wait(lambda: exists("//sys/cluster_nodes/{}".format(node)))
+        wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "online")
+        check_exists(True)
+
 
 ##################################################################
 

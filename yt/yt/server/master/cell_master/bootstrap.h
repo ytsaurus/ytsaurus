@@ -93,7 +93,7 @@ public:
     const NElection::TCellManagerPtr& GetCellManager() const;
     const NHydra::IChangelogStoreFactoryPtr& GetChangelogStoreFactory() const;
     const NHydra::ISnapshotStorePtr& GetSnapshotStore() const;
-    const NNodeTrackerServer::TNodeTrackerPtr& GetNodeTracker() const;
+    const NNodeTrackerServer::INodeTrackerPtr& GetNodeTracker() const;
     const NChunkServer::IDataNodeTrackerPtr& GetDataNodeTracker() const;
     const NNodeTrackerServer::IExecNodeTrackerPtr& GetExecNodeTracker() const;
     const NCellServer::ICellarNodeTrackerPtr& GetCellarNodeTracker() const;
@@ -160,7 +160,7 @@ private:
     NElection::TCellManagerPtr CellManager_;
     NHydra::IChangelogStoreFactoryPtr ChangelogStoreFactory_;
     NHydra::ISnapshotStorePtr SnapshotStore_;
-    NNodeTrackerServer::TNodeTrackerPtr NodeTracker_;
+    NNodeTrackerServer::INodeTrackerPtr NodeTracker_;
     NChunkServer::IDataNodeTrackerPtr DataNodeTracker_;
     NNodeTrackerServer::IExecNodeTrackerPtr ExecNodeTracker_;
     NCellServer::ICellarNodeTrackerPtr CellarNodeTracker_;

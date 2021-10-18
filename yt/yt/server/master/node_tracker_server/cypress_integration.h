@@ -11,7 +11,9 @@ namespace NYT::NNodeTrackerServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 NCypressServer::INodeTypeHandlerPtr CreateClusterNodeNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
+NCypressServer::INodeTypeHandlerPtr CreateLegacyClusterNodeMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
 NCypressServer::INodeTypeHandlerPtr CreateClusterNodeMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
+NCypressServer::INodeTypeHandlerPtr CreateFlavoredNodeMapTypeHandler(NCellMaster::TBootstrap* bootstrap, NObjectClient::EObjectType objectType);
 NCypressServer::INodeTypeHandlerPtr CreateRackMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
 NCypressServer::INodeTypeHandlerPtr CreateDataCenterMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
 

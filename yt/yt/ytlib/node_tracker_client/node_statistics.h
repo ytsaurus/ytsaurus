@@ -18,10 +18,10 @@ struct TDiskSpaceStatistics
     i64 Used = 0;
 };
 
-struct TTotalNodeStatistics
+struct TAggregatedNodeStatistics
 {
     TDiskSpaceStatistics TotalSpace;
-    NChunkClient::TMediumMap<TDiskSpaceStatistics> SpacePerMedium;
+    NChunkClient::TMediumMap<TDiskSpaceStatistics> SpacePerMedium = NChunkClient::TMediumMap<TDiskSpaceStatistics>();
 
     i64 ChunkReplicaCount = 0;
 

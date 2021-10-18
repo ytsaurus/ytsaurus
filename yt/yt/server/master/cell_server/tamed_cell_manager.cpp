@@ -698,7 +698,7 @@ public:
         if (multicellManager->IsPrimaryMaster() && IsLeader()) {
             for (const auto& peer : cell->Peers()) {
                 if (peer.Node) {
-                    Bootstrap_->GetNodeTracker()->RequestNodeHeartbeat(peer.Node->GetId());
+                    Bootstrap_->GetNodeTracker()->RequestCellarHeartbeat(peer.Node->GetId());
                 }
             }
         }
@@ -1878,10 +1878,10 @@ private:
         // Notify new leader as soon as possible via heartbeat request.
         if (multicellManager->IsPrimaryMaster() && IsLeader()) {
             if (oldLeader.Node) {
-                Bootstrap_->GetNodeTracker()->RequestNodeHeartbeat(oldLeader.Node->GetId());
+                Bootstrap_->GetNodeTracker()->RequestCellarHeartbeat(oldLeader.Node->GetId());
             }
             if (newLeader.Node) {
-                Bootstrap_->GetNodeTracker()->RequestNodeHeartbeat(newLeader.Node->GetId());
+                Bootstrap_->GetNodeTracker()->RequestCellarHeartbeat(newLeader.Node->GetId());
             }
         }
     }

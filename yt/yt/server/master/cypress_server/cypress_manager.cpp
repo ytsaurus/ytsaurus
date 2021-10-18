@@ -2015,6 +2015,8 @@ private:
     bool NeedAbortStuckExternalizedTransactions_YT_12559_ = false;
     // COMPAT(gritukan)
     bool TestVirtualMutations_ = false;
+    // COMPAT(gritukan)
+    bool NeedToRecreateClusterNodeMap_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -2057,6 +2059,8 @@ private:
         NeedAbortStuckExternalizedTransactions_YT_12559_ = context.GetVersion() < EMasterReign::YT_12559_AbortStuckExternalizedTransactions;
         // COMPAT(gritukan)
         TestVirtualMutations_ = context.GetVersion() <= EMasterReign::VirtualMutations;
+        // COMPAT(gritukan)
+        NeedToRecreateClusterNodeMap_ = context.GetVersion() <= EMasterReign::PerFlavorNodeMaps;
     }
 
     void Clear() override
@@ -2334,6 +2338,23 @@ private:
                 SyncExecuteVerb(service, req);
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR(ex, "Failed to set //sys/@supports_virtual_mutations");
+            }
+        }
+
+        if (NeedToRecreateClusterNodeMap_) {
+            const auto& rootService = Bootstrap_->GetObjectManager()->GetRootService();
+            try {
+                auto req = NCypressClient::TCypressYPathProxy::Remove("//sys/cluster_nodes");
+                SyncExecuteVerb(rootService, req);
+            } catch (const std::exception& ex) {
+                YT_LOG_FATAL(ex, "Failed to remove old cluster node map");
+            }
+            try {
+                auto req = NCypressClient::TCypressYPathProxy::Create("//sys/cluster_nodes");
+                req->set_type(static_cast<int>(EObjectType::ClusterNodeMap));
+                SyncExecuteVerb(rootService, req);
+            } catch (const std::exception& ex) {
+                YT_LOG_FATAL(ex, "Failed to create new cluster node map");
             }
         }
     }

@@ -232,7 +232,12 @@ DEFINE_ENUM(EObjectType,
     ((RackMap)                       (801))
     ((ClusterNode)                   (802))
     ((ClusterNodeNode)               (803))
-    ((ClusterNodeMap)                (804))
+    ((LegacyClusterNodeMap)          (804))
+    ((ClusterNodeMap)                (807))
+    ((DataNodeMap)                   (808))
+    ((ExecNodeMap)                   (809))
+    ((TabletNodeMap)                 (810))
+    ((ChaosNodeMap)                  (811))
     ((DataCenter)                    (805))
     ((DataCenterMap)                 (806))
 

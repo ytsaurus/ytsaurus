@@ -357,6 +357,42 @@ private:
                     .EndMap());
 
             ScheduleCreateNode(
+                "//sys/data_nodes",
+                transactionId,
+                EObjectType::DataNodeMap,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
+            ScheduleCreateNode(
+                "//sys/exec_nodes",
+                transactionId,
+                EObjectType::ExecNodeMap,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
+            ScheduleCreateNode(
+                "//sys/tablet_nodes",
+                transactionId,
+                EObjectType::TabletNodeMap,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
+            ScheduleCreateNode(
+                "//sys/chaos_nodes",
+                transactionId,
+                EObjectType::ChaosNodeMap,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
+            ScheduleCreateNode(
                 "//sys/racks",
                 transactionId,
                 EObjectType::RackMap);

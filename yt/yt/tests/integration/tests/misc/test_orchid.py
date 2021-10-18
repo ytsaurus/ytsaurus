@@ -17,7 +17,7 @@ class TestOrchid(YTEnvSetup):
 
     def _check_service(self, path_to_orchid, service_name):
         assert get(path_to_orchid + "/service/name") == service_name
-        keys = list(get(path_to_orchid + "/"))
+        keys = list(get(path_to_orchid))
         for key in keys:
             get(path_to_orchid + "/" + key, verbose=False)
         with pytest.raises(YtError):

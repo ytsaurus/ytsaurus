@@ -206,6 +206,7 @@ DEFINE_ENUM(EMasterReign,
     ((CreateUserIgnoreExisting)                                     (1802))  // kvk1920
     ((SaveForcefullyUnmountedTablets)                               (1803))  // ifsmirnov
     ((HandlePoolAttributesThatBecameUninterned)                     (1804))  // renadeen
+    ((PerFlavorNodeMaps)                                            (1805))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

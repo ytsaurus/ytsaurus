@@ -315,7 +315,7 @@ const ISnapshotStorePtr& TBootstrap::GetSnapshotStore() const
     return SnapshotStore_;
 }
 
-const TNodeTrackerPtr& TBootstrap::GetNodeTracker() const
+const INodeTrackerPtr& TBootstrap::GetNodeTracker() const
 {
     return NodeTracker_;
 }
@@ -753,7 +753,7 @@ void TBootstrap::DoInitialize()
 
     TransactionManager_ = New<TTransactionManager>(this);
 
-    NodeTracker_ = New<TNodeTracker>(this);
+    NodeTracker_ = CreateNodeTracker(this);
 
     DataNodeTracker_ = CreateDataNodeTracker(this);
 
@@ -899,8 +899,13 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateLockMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateOrchidTypeHandler(this));
     CypressManager_->RegisterHandler(CreateClusterNodeNodeTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateClusterNodeMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateLegacyClusterNodeMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateRackMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateClusterNodeMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateFlavoredNodeMapTypeHandler(this, EObjectType::DataNodeMap));
+    CypressManager_->RegisterHandler(CreateFlavoredNodeMapTypeHandler(this, EObjectType::ExecNodeMap));
+    CypressManager_->RegisterHandler(CreateFlavoredNodeMapTypeHandler(this, EObjectType::TabletNodeMap));
+    CypressManager_->RegisterHandler(CreateFlavoredNodeMapTypeHandler(this, EObjectType::ChaosNodeMap));
     CypressManager_->RegisterHandler(CreateDataCenterMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateFileTypeHandler(this));
     CypressManager_->RegisterHandler(CreateMasterTableSchemaMapTypeHandler(this));

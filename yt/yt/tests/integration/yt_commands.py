@@ -2453,3 +2453,7 @@ def get_exec_nodes():
 
 def get_tablet_nodes():
     return get_nodes_with_flavor("tablet")
+
+
+def get_chaos_nodes():
+    return get_nodes_with_flavor("chaos")

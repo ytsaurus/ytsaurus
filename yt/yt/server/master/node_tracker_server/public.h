@@ -30,6 +30,7 @@ using TRspFullHeartbeat = NNodeTrackerClient::NProto::TRspFullHeartbeat;
 
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::ENodeState;
+using NNodeTrackerClient::ENodeFlavor;
 using NNodeTrackerClient::InvalidNodeId;
 using NNodeTrackerClient::TRackId;
 using NNodeTrackerClient::TDataCenterId;
@@ -39,7 +40,8 @@ using NNodeTrackerClient::TNodeDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TNodeTracker)
+DECLARE_REFCOUNTED_STRUCT(INodeTracker)
+
 DECLARE_REFCOUNTED_CLASS(TNodeDiscoveryManager)
 
 DECLARE_REFCOUNTED_CLASS(TNodeGroupConfig)
