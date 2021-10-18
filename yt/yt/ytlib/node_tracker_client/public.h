@@ -51,6 +51,7 @@ DEFINE_ENUM(EMemoryCategory,
     ((MasterCache)                (12))
     ((LookupRowsCache)            (13))
     ((AllocFragmentation)         (14))
+    ((P2P)                        (15))
 );
 
 DEFINE_ENUM(EMemoryLimitType,

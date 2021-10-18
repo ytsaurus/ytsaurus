@@ -76,6 +76,8 @@ private:
     //! Total number of bytes distributed up to this moment.
     std::atomic<i64> DistributedBytes_ = {0};
 
+    std::atomic<bool> Enabled_ = {true};
+
     NProfiling::TGauge OutTrafficGauge_;
     NProfiling::TGauge OutTrafficThrottlerQueueSizeGauge_;
     NProfiling::TGauge DefaultNetworkPendingOutBytesGauge_;
