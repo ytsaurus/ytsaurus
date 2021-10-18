@@ -133,6 +133,8 @@ private:
     void ScheduleRefresh(
         const TEntryPtr& entry,
         const TKey& key);
+
+    TPromise<TValue> GetPromise(const TEntryPtr& entry) noexcept;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -95,7 +95,7 @@ TEST(TNetworkAddressTest, FormatParseGoodIPv6NoTcpNoPort)
     EXPECT_EQ("2001:db8:8714:3a90::12", ToString(address, options));
 }
 
-#ifdef _unix_
+#ifdef _linux_
 
 TEST(TNetworkAddressTest, UnixSocketName)
 {

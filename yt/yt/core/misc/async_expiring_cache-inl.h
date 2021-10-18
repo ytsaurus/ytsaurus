@@ -289,8 +289,8 @@ void TAsyncExpiringCache<TKey, TValue>::Set(const TKey& key, TErrorOr<TValue> va
     auto now = NProfiling::GetCpuInstant();
     auto accessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
     auto expirationTime = isValueOK ? Config_->ExpireAfterSuccessfulUpdateTime : Config_->ExpireAfterFailedUpdateTime;
-    TWeakPtr<TEntry> weakEntryToSet;
-    bool isNewEntry = false;
+    auto updateDeadline = now + NProfiling::DurationToCpuDuration(expirationTime);
+    TPromise<TValue> promise;
 
     auto guard = WriterGuard(SpinLock_);
 
@@ -300,39 +300,38 @@ void TAsyncExpiringCache<TKey, TValue>::Set(const TKey& key, TErrorOr<TValue> va
             entry->Promise = MakePromise(std::move(valueOrError));
             entry->Future = entry->Promise.ToFuture();
         } else {
-            weakEntryToSet = MakeWeak(entry);
+            promise = entry->Promise;
         }
         if (expirationTime == TDuration::Zero()) {
             Map_.erase(it);
             OnRemoved(key);
         } else {
             entry->AccessDeadline = accessDeadline;
-            entry->UpdateDeadline = now + NProfiling::DurationToCpuDuration(expirationTime);
+            entry->UpdateDeadline = updateDeadline;
             OnHit(key);
         }
     } else if (expirationTime != TDuration::Zero()) {
         auto entry = New<TEntry>(accessDeadline);
-        entry->UpdateDeadline = now + NProfiling::DurationToCpuDuration(expirationTime);
-        weakEntryToSet = MakeWeak(entry);
+        entry->UpdateDeadline = updateDeadline;
+        entry->Promise = MakePromise(std::move(valueOrError));
+        entry->Future = entry->Promise.ToFuture();
         YT_VERIFY(Map_.emplace(key, std::move(entry)).second);
         OnAdded(key);
-        isNewEntry = true;
+
+        if (isValueOK) {
+            ScheduleRefresh(entry, key);
+        }
     }
 
     SizeCounter_.Update(Map_.size());
     guard.Release();
 
-    auto entry = weakEntryToSet.Lock();
-    if (!entry) {
+    if (!promise) {
         return;
     }
 
     // This is deliberately racy: during concurrent sets some updates may be not visible.
-    auto hasSet = entry->Promise.TrySet(std::move(valueOrError));
-    
-    if (hasSet && isValueOK && isNewEntry) {
-        ScheduleRefresh(entry, key);
-    }
+    promise.TrySet(std::move(valueOrError));
 }
 
 template <class TKey, class TValue>
@@ -388,7 +387,6 @@ void TAsyncExpiringCache<TKey, TValue>::SetResult(
         return;
     }
 
-    auto now = NProfiling::GetCpuInstant();
     bool canCacheEntry = valueOrError.IsOK() || CanCacheError(valueOrError);
 
     auto expirationTime = TDuration::Zero();
@@ -400,24 +398,32 @@ void TAsyncExpiringCache<TKey, TValue>::SetResult(
         }
     }
 
-    bool entryUpdated = false;
+    auto updateDeadline = NProfiling::GetCpuInstant() + NProfiling::DurationToCpuDuration(expirationTime);
+    auto promise = GetPromise(entry);
+    auto entryUpdated = promise.TrySet(valueOrError);
 
-    if (canCacheEntry || !entry->Promise.IsSet()) {
-        entry->UpdateDeadline = now + NProfiling::DurationToCpuDuration(expirationTime);
-        if (entry->Promise.IsSet()) {
-            entry->Promise = MakePromise(valueOrError);
-            entry->Future = entry->Promise.ToFuture();
-        } else {
-            entry->Promise.TrySet(valueOrError);
-        }
-        entryUpdated = true;
-    }
-   
+    auto now = NProfiling::GetCpuInstant();
     auto guard = WriterGuard(SpinLock_);
+
+    if (!entryUpdated && !entry->Promise.IsSet()) {
+        // Someone has replaced the original promise with a new one,
+        // since we attempted to set it. We retire a let a concurrent writer to do the job.
+        return;
+    }
 
     auto it = Map_.find(key);
     if (it == Map_.end() || it->second != entry) {
         return;
+    }
+
+    if (!entryUpdated && canCacheEntry) {
+        entry->Promise = MakePromise(valueOrError);
+        entry->Future = entry->Promise.ToFuture();
+        entryUpdated = true;
+    }
+
+    if (entryUpdated) {
+        entry->UpdateDeadline = updateDeadline;
     }
     
     if (entry->IsExpired(now) || (entryUpdated && expirationTime == TDuration::Zero())) {
@@ -526,6 +532,13 @@ bool TAsyncExpiringCache<TKey, TValue>::CanCacheError(const TError& /*error*/) n
 }
 
 template <class TKey, class TValue>
+TPromise<TValue> TAsyncExpiringCache<TKey, TValue>::GetPromise(const TEntryPtr& entry) noexcept
+{
+    auto guard = ReaderGuard(SpinLock_);
+    return entry->Promise;
+}
+
+template <class TKey, class TValue>
 void TAsyncExpiringCache<TKey, TValue>::UpdateAll()
 {
     std::vector<TWeakPtr<TEntry>> entries;
@@ -535,7 +548,7 @@ void TAsyncExpiringCache<TKey, TValue>::UpdateAll()
     auto now = NProfiling::GetCpuInstant();
     TDuration refreshTime;
 
-    {
+    {   
         auto guard = ReaderGuard(SpinLock_);
         refreshTime = *Config_->RefreshTime;
 
