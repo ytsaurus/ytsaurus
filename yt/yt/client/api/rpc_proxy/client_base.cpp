@@ -202,6 +202,9 @@ TFuture<TYsonString> TClientBase::GetNode(
     ToProto(req->mutable_prerequisite_options(), options);
     ToProto(req->mutable_master_read_options(), options);
     ToProto(req->mutable_suppressable_access_tracking_options(), options);
+    if (options.Options) {
+        ToProto(req->mutable_options(), *options.Options);
+    }
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetNodePtr& rsp) {
         return TYsonString(rsp->value());
