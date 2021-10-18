@@ -138,15 +138,15 @@ object YtPublishPlugin extends AutoPlugin {
       val log = streams.value.log
 
       val creds = publishYtCredentials.value
+      val artifacts = publishYtArtifacts.value
+      val (links, files) = artifacts.partition {
+        case _: YtPublishLink => true
+        case _ => false
+      }
       ytProxies.par.foreach { proxy =>
         val (ytClient, connector) = createYtClient(proxy, creds)
         implicit val yt: YtClient = ytClient
         try {
-          val artifacts = publishYtArtifacts.value
-          val (links, files) = artifacts.partition {
-            case _: YtPublishLink => true
-            case _ => false
-          }
           // publish links strictly after files
           files.par.foreach(publishArtifact(_, proxy, log))
           links.par.foreach(publishArtifact(_, proxy, log))
