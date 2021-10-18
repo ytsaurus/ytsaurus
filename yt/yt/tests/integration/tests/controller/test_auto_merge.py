@@ -63,17 +63,39 @@ class TestSchedulerAutoMergeBase(YTEnvSetup):
         },
     }
 
+    def _get_auto_merge_job_counts(self, operation):
+        def none_to_zero(value):
+            return 0 if value is None else value
+
+        statistics = get(operation.get_path() + "/@progress/job_statistics")
+        result = {}
+        for state in ("completed", "aborted"):
+            result[state] = {
+                "shallow": none_to_zero(get_statistics(
+                    statistics,
+                    "time.total.$.{}.shallow_auto_merge.count".format(state))),
+                "deep": none_to_zero(get_statistics(
+                    statistics,
+                    "time.total.$.{}.auto_merge.count".format(state)))
+            }
+        return result
+
     def _verify_auto_merge_job_types(self, operation, allow_zero_merge_jobs=False):
-        # This check is disabled, because it may lead to flaky tests.
-        # TODO(gepardo): Implement a reliable way to obtain the number of shallow and deep
-        # merge jobs and re-enable the check.
-        pass
+        job_types = self._get_auto_merge_job_counts(operation)
+        if self.ENABLE_SHALLOW_MERGE:
+            assert job_types["completed"]["deep"] == 0
+            if not allow_zero_merge_jobs:
+                assert job_types["completed"]["shallow"] > 0
+        else:
+            assert job_types["completed"]["shallow"] == 0
+            if not allow_zero_merge_jobs:
+                assert job_types["completed"]["deep"] > 0
 
     def _verify_shallow_merge_attempted(self, operation):
-        # This check is disabled, because it may lead to flaky tests.
-        # TODO(gepardo): Implement a reliable way to obtain the number of shallow and deep
-        # merge jobs and re-enable the check.
-        pass
+        job_types = self._get_auto_merge_job_counts(operation)
+        assert job_types["completed"]["deep"] > 0
+        assert job_types["completed"]["shallow"] == 0
+        assert job_types["aborted"]["shallow"] > 0
 
 
 class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
@@ -295,13 +317,7 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
         )
 
         self._track_and_report_peak_chunk_count(op, with_revive=with_revive)
-        # Do not verify job types if with_revive is set to True. Verifying job types requires
-        # waiting for the information about all the jobs, but we cannot obtain such information
-        # reliably when operations revive multiple times.
-        # TODO(gepardo): Always verify job types when we will have counters to track the number
-        # of shallow and deep merge jobs without archive.
-        if not with_revive:
-            self._verify_auto_merge_job_types(op)
+        self._verify_auto_merge_job_types(op)
 
         assert get("//tmp/t_out1/@row_count") == row_count // 10
         assert get("//tmp/t_out2/@row_count") == row_count * 9 // 10
