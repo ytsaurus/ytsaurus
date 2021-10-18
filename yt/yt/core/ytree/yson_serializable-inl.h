@@ -439,7 +439,7 @@ void TYsonSerializableLite::TParameter<T>::Save(NYson::IYsonConsumer* consumer) 
 template <class T>
 bool TYsonSerializableLite::TParameter<T>::CanOmitValue() const
 {
-    if constexpr (std::is_arithmetic_v<T> || std::is_same_v<T, TString>) {
+    if constexpr (NDetail::SupportsDontSerializeDefault<T>) {
         if (!SerializeDefault && Parameter == DefaultValue) {
             return true;
         }
