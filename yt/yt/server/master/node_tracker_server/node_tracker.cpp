@@ -115,38 +115,39 @@ static const auto ProfilingPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeTracker::TImpl
-    : public TMasterAutomatonPart
+class TNodeTracker
+    : public INodeTracker
+    , public TMasterAutomatonPart
 {
 public:
-    explicit TImpl(TBootstrap* bootstrap)
+    explicit TNodeTracker(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::NodeTracker)
     {
-        RegisterMethod(BIND(&TImpl::HydraRegisterNode, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUnregisterNode, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraDisposeNode, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraClusterNodeHeartbeat, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraFullHeartbeat, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraIncrementalHeartbeat, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraSetCellNodeDescriptors, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUpdateNodeResources, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUpdateNodesForRole, Unretained(this)));
+        RegisterMethod(BIND(&TNodeTracker::HydraRegisterNode, Unretained(this)));
+        RegisterMethod(BIND(&TNodeTracker::HydraUnregisterNode, Unretained(this)));
+        RegisterMethod(BIND(&TNodeTracker::HydraDisposeNode, Unretained(this)));
+        RegisterMethod(BIND(&TNodeTracker::HydraClusterNodeHeartbeat, Unretained(this)));
+        RegisterMethod(BIND(&TNodeTracker::HydraFullHeartbeat, Unretained(this)));
+        RegisterMethod(BIND(&TNodeTracker::HydraIncrementalHeartbeat, Unretained(this)));
+        RegisterMethod(BIND(&TNodeTracker::HydraSetCellNodeDescriptors, Unretained(this)));
+        RegisterMethod(BIND(&TNodeTracker::HydraUpdateNodeResources, Unretained(this)));
+        RegisterMethod(BIND(&TNodeTracker::HydraUpdateNodesForRole, Unretained(this)));
 
         RegisterLoader(
             "NodeTracker.Keys",
-            BIND(&TImpl::LoadKeys, Unretained(this)));
+            BIND(&TNodeTracker::LoadKeys, Unretained(this)));
         RegisterLoader(
             "NodeTracker.Values",
-            BIND(&TImpl::LoadValues, Unretained(this)));
+            BIND(&TNodeTracker::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "NodeTracker.Keys",
-            BIND(&TImpl::SaveKeys, Unretained(this)));
+            BIND(&TNodeTracker::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "NodeTracker.Values",
-            BIND(&TImpl::SaveValues, Unretained(this)));
+            BIND(&TNodeTracker::SaveValues, Unretained(this)));
 
         BufferedProducer_ = New<TBufferedProducer>();
         NodeTrackerProfiler
@@ -160,14 +161,14 @@ public:
         }
     }
 
-    void Initialize()
+    void Initialize() override
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND(&TNodeTracker::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->SubscribeTransactionCommitted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
-        transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
+        transactionManager->SubscribeTransactionCommitted(BIND(&TNodeTracker::OnTransactionFinished, MakeWeak(this)));
+        transactionManager->SubscribeTransactionAborted(BIND(&TNodeTracker::OnTransactionFinished, MakeWeak(this)));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(CreateNodeTypeHandler(Bootstrap_, &NodeMap_));
@@ -177,21 +178,21 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             multicellManager->SubscribeValidateSecondaryMasterRegistration(
-                BIND(&TImpl::OnValidateSecondaryMasterRegistration, MakeWeak(this)));
+                BIND(&TNodeTracker::OnValidateSecondaryMasterRegistration, MakeWeak(this)));
             multicellManager->SubscribeReplicateKeysToSecondaryMaster(
-                BIND(&TImpl::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
+                BIND(&TNodeTracker::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
             multicellManager->SubscribeReplicateValuesToSecondaryMaster(
-                BIND(&TImpl::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
+                BIND(&TNodeTracker::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
         }
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
-            BIND(&TImpl::OnProfiling, MakeWeak(this)),
+            BIND(&TNodeTracker::OnProfiling, MakeWeak(this)),
             ProfilingPeriod);
         ProfilingExecutor_->Start();
     }
 
-    void ProcessRegisterNode(const TString& address, TCtxRegisterNodePtr context)
+    void ProcessRegisterNode(const TString& address, TCtxRegisterNodePtr context) override
     {
         if (PendingRegisterNodeAddreses_.find(address) != PendingRegisterNodeAddreses_.end()) {
             context->Reply(TError(
@@ -225,78 +226,70 @@ public:
         auto mutation = CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             std::move(context),
-            &TImpl::HydraRegisterNode,
+            &TNodeTracker::HydraRegisterNode,
             this);
         mutation->SetCurrentTraceContext();
         mutation->CommitAndReply(context);
     }
 
-    void ProcessHeartbeat(TCtxHeartbeatPtr context)
+    void ProcessHeartbeat(TCtxHeartbeatPtr context) override
     {
         auto mutation = CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             context,
-            &TImpl::HydraClusterNodeHeartbeat,
+            &TNodeTracker::HydraClusterNodeHeartbeat,
             this);
         CommitMutationWithSemaphore(std::move(mutation), std::move(context), HeartbeatSemaphore_);
     }
 
-    void ProcessFullHeartbeat(TCtxFullHeartbeatPtr context)
+    void ProcessFullHeartbeat(TCtxFullHeartbeatPtr context) override
     {
         auto mutation = CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             context,
-            &TImpl::HydraFullHeartbeat,
+            &TNodeTracker::HydraFullHeartbeat,
             this);
         mutation->SetCurrentTraceContext();
         CommitMutationWithSemaphore(std::move(mutation), std::move(context), FullHeartbeatSemaphore_);
    }
 
-    void ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context)
+    void ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context) override
     {
         auto mutation = CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             context,
-            &TImpl::HydraIncrementalHeartbeat,
+            &TNodeTracker::HydraIncrementalHeartbeat,
             this);
         mutation->SetCurrentTraceContext();
         CommitMutationWithSemaphore(std::move(mutation), std::move(context), IncrementalHeartbeatSemaphore_);
     }
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Node, TNode);
-    DECLARE_ENTITY_MAP_ACCESSORS(Rack, TRack);
-    DECLARE_ENTITY_MAP_ACCESSORS(DataCenter, TDataCenter);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Node, TNode);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Rack, TRack);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(DataCenter, TDataCenter);
 
-    DEFINE_SIGNAL(void(TNode* node), NodeRegistered);
-    DEFINE_SIGNAL(void(TNode* node), NodeOnline);
-    DEFINE_SIGNAL(void(TNode* node), NodeUnregistered);
-    DEFINE_SIGNAL(void(TNode* node), NodeDisposed);
-    DEFINE_SIGNAL(void(TNode* node), NodeBanChanged);
-    DEFINE_SIGNAL(void(TNode* node), NodeDecommissionChanged);
-    DEFINE_SIGNAL(void(TNode* node), NodeDisableTabletCellsChanged);
-    DEFINE_SIGNAL(void(TNode* node), NodeTagsChanged);
-    DEFINE_SIGNAL(void(TNode* node, TRack*), NodeRackChanged);
-    DEFINE_SIGNAL(void(TNode* node, TDataCenter*), NodeDataCenterChanged);
-    DEFINE_SIGNAL(void(TDataCenter*), DataCenterCreated);
-    DEFINE_SIGNAL(void(TDataCenter*), DataCenterRenamed);
-    DEFINE_SIGNAL(void(TDataCenter*), DataCenterDestroyed);
-    DEFINE_SIGNAL(void(TRack*), RackCreated);
-    DEFINE_SIGNAL(void(TRack*), RackRenamed);
-    DEFINE_SIGNAL(void(TRack*, TDataCenter*), RackDataCenterChanged);
-    DEFINE_SIGNAL(void(TRack*), RackDestroyed);
+    DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeRegistered);
+    DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeOnline);
+    DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeUnregistered);
+    DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeDisposed);
+    DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeBanChanged);
+    DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeDecommissionChanged);
+    DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeDisableTabletCellsChanged);
+    DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeTagsChanged);
+    DEFINE_SIGNAL_OVERRIDE(void(TNode* node, TRack*), NodeRackChanged);
+    DEFINE_SIGNAL_OVERRIDE(void(TNode* node, TDataCenter*), NodeDataCenterChanged);
+    DEFINE_SIGNAL_OVERRIDE(void(TDataCenter*), DataCenterCreated);
+    DEFINE_SIGNAL_OVERRIDE(void(TDataCenter*), DataCenterRenamed);
+    DEFINE_SIGNAL_OVERRIDE(void(TDataCenter*), DataCenterDestroyed);
+    DEFINE_SIGNAL_OVERRIDE(void(TRack*), RackCreated);
+    DEFINE_SIGNAL_OVERRIDE(void(TRack*), RackRenamed);
+    DEFINE_SIGNAL_OVERRIDE(void(TRack*, TDataCenter*), RackDataCenterChanged);
+    DEFINE_SIGNAL_OVERRIDE(void(TRack*), RackDestroyed);
 
 
-    void ZombifyNode(TNode* node)
+    void ZombifyNode(TNode* node) override
     {
-        auto nodeMapProxy = GetNodeMap();
-        auto nodeNodeProxy = nodeMapProxy->FindChild(ToString(node->GetDefaultAddress()));
-        if (nodeNodeProxy) {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            cypressManager->AbortSubtreeTransactions(nodeNodeProxy);
-            nodeMapProxy->RemoveChild(nodeNodeProxy);
-        }
-
         // NB: This is typically redundant since it's not possible to remove a node unless
         // it is offline. Secondary masters, however, may receive a removal request from primaries
         // and must obey it regardless of the node's state.
@@ -307,26 +300,28 @@ public:
         RecomputePendingRegisterNodeMutationCounters();
 
         RemoveFromNodeLists(node);
+
+        RemoveFromFlavorSets(node);
     }
 
-    TObjectId ObjectIdFromNodeId(TNodeId nodeId)
+    TObjectId ObjectIdFromNodeId(TNodeId nodeId) override
     {
         return NNodeTrackerClient::ObjectIdFromNodeId(
             nodeId,
             Bootstrap_->GetMulticellManager()->GetPrimaryCellTag());
     }
 
-    TNode* FindNode(TNodeId id)
+    TNode* FindNode(TNodeId id) override
     {
         return FindNode(ObjectIdFromNodeId(id));
     }
 
-    TNode* GetNode(TNodeId id)
+    TNode* GetNode(TNodeId id) override
     {
         return GetNode(ObjectIdFromNodeId(id));
     }
 
-    TNode* GetNodeOrThrow(TNodeId id)
+    TNode* GetNodeOrThrow(TNodeId id) override
     {
         auto* node = FindNode(id);
         if (!node) {
@@ -338,20 +333,20 @@ public:
         return node;
     }
 
-    TNode* FindNodeByAddress(const TString& address)
+    TNode* FindNodeByAddress(const TString& address) override
     {
         auto it = AddressToNodeMap_.find(address);
         return it == AddressToNodeMap_.end() ? nullptr : it->second;
     }
 
-    TNode* GetNodeByAddress(const TString& address)
+    TNode* GetNodeByAddress(const TString& address) override
     {
         auto* node = FindNodeByAddress(address);
         YT_VERIFY(node);
         return node;
     }
 
-    TNode* GetNodeByAddressOrThrow(const TString& address)
+    TNode* GetNodeByAddressOrThrow(const TString& address) override
     {
         auto* node = FindNodeByAddress(address);
         if (!node) {
@@ -360,13 +355,13 @@ public:
         return node;
     }
 
-    TNode* FindNodeByHostName(const TString& hostName)
+    TNode* FindNodeByHostName(const TString& hostName) override
     {
         auto it = HostNameToNodeMap_.find(hostName);
         return it == HostNameToNodeMap_.end() ? nullptr : it->second;
     }
 
-    std::vector<TNode*> GetRackNodes(const TRack* rack)
+    std::vector<TNode*> GetRackNodes(const TRack* rack) override
     {
         std::vector<TNode*> result;
         for (auto [nodeId, node] : NodeMap_) {
@@ -380,7 +375,7 @@ public:
         return result;
     }
 
-    std::vector<TRack*> GetDataCenterRacks(const TDataCenter* dc)
+    std::vector<TRack*> GetDataCenterRacks(const TDataCenter* dc) override
     {
         std::vector<TRack*> result;
         for (auto [rackId, rack] : RackMap_) {
@@ -394,13 +389,18 @@ public:
         return result;
     }
 
-    void UpdateLastSeenTime(TNode* node)
+    const THashSet<TNode*>& GetNodesWithFlavor(ENodeFlavor flavor) const override
+    {
+        return NodesWithFlavor_[flavor];
+    }
+
+    void UpdateLastSeenTime(TNode* node) override
     {
         const auto* mutationContext = GetCurrentMutationContext();
         node->SetLastSeenTime(mutationContext->GetTimestamp());
     }
 
-    void SetNodeBanned(TNode* node, bool value)
+    void SetNodeBanned(TNode* node, bool value) override
     {
         if (node->GetBanned() != value) {
             node->SetBanned(value);
@@ -424,7 +424,7 @@ public:
         }
     }
 
-    void SetNodeDecommissioned(TNode* node, bool value)
+    void SetNodeDecommissioned(TNode* node, bool value) override
     {
         if (node->GetDecommissioned() != value) {
             node->SetDecommissioned(value);
@@ -441,7 +441,7 @@ public:
         }
     }
 
-    void SetDisableWriteSessions(TNode* node, bool value)
+    void SetDisableWriteSessions(TNode* node, bool value) override
     {
         if (node->GetDisableWriteSessions() != value) {
             node->SetDisableWriteSessions(value);
@@ -457,7 +457,7 @@ public:
         }
     }
 
-    void SetDisableTabletCells(TNode* node, bool value)
+    void SetDisableTabletCells(TNode* node, bool value) override
     {
         if (node->GetDisableTabletCells() != value) {
             node->SetDisableTabletCells(value);
@@ -474,7 +474,7 @@ public:
         }
     }
 
-    void SetNodeRack(TNode* node, TRack* rack)
+    void SetNodeRack(TNode* node, TRack* rack) override
     {
         if (node->GetRack() != rack) {
             auto* oldRack = node->GetRack();
@@ -490,7 +490,7 @@ public:
         }
     }
 
-    void SetNodeUserTags(TNode* node, const std::vector<TString>& tags)
+    void SetNodeUserTags(TNode* node, const std::vector<TString>& tags) override
     {
         UpdateNodeCounters(node, -1);
         node->SetUserTags(tags);
@@ -498,16 +498,16 @@ public:
         UpdateNodeCounters(node, +1);
     }
 
-    std::unique_ptr<TMutation> CreateUpdateNodeResourcesMutation(const NProto::TReqUpdateNodeResources& request)
+    std::unique_ptr<TMutation> CreateUpdateNodeResourcesMutation(const NProto::TReqUpdateNodeResources& request) override
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             request,
-            &TImpl::HydraUpdateNodeResources,
+            &TNodeTracker::HydraUpdateNodeResources,
             this);
     }
 
-    TRack* CreateRack(const TString& name, TObjectId hintId)
+    TRack* CreateRack(const TString& name, TObjectId hintId) override
     {
         ValidateRackName(name);
 
@@ -541,7 +541,7 @@ public:
         return rack;
     }
 
-    void ZombifyRack(TRack* rack)
+    void ZombifyRack(TRack* rack) override
     {
         // Unbind nodes from this rack.
         for (auto* node : GetRackNodes(rack)) {
@@ -555,7 +555,7 @@ public:
         RackDestroyed_.Fire(rack);
     }
 
-    void RenameRack(TRack* rack, const TString& newName)
+    void RenameRack(TRack* rack, const TString& newName) override
     {
         if (rack->GetName() == newName)
             return;
@@ -583,13 +583,13 @@ public:
         RackRenamed_.Fire(rack);
     }
 
-    TRack* FindRackByName(const TString& name)
+    TRack* FindRackByName(const TString& name) override
     {
         auto it = NameToRackMap_.find(name);
         return it == NameToRackMap_.end() ? nullptr : it->second;
     }
 
-    TRack* GetRackByNameOrThrow(const TString& name)
+    TRack* GetRackByNameOrThrow(const TString& name) override
     {
         auto* rack = FindRackByName(name);
         if (!rack) {
@@ -601,7 +601,7 @@ public:
         return rack;
     }
 
-    void SetRackDataCenter(TRack* rack, TDataCenter* dataCenter)
+    void SetRackDataCenter(TRack* rack, TDataCenter* dataCenter) override
     {
         if (rack->GetDataCenter() != dataCenter) {
             auto* oldDataCenter = rack->GetDataCenter();
@@ -629,7 +629,7 @@ public:
     }
 
 
-    TDataCenter* CreateDataCenter(const TString& name, TObjectId hintId)
+    TDataCenter* CreateDataCenter(const TString& name, TObjectId hintId) override
     {
         ValidateDataCenterName(name);
 
@@ -662,7 +662,7 @@ public:
         return dc;
     }
 
-    void ZombifyDataCenter(TDataCenter* dc)
+    void ZombifyDataCenter(TDataCenter* dc) override
     {
         // Unbind racks from this DC.
         for (auto* rack : GetDataCenterRacks(dc)) {
@@ -675,7 +675,7 @@ public:
         DataCenterDestroyed_.Fire(dc);
     }
 
-    void RenameDataCenter(TDataCenter* dc, const TString& newName)
+    void RenameDataCenter(TDataCenter* dc, const TString& newName) override
     {
         if (dc->GetName() == newName)
             return;
@@ -706,13 +706,13 @@ public:
         DataCenterRenamed_.Fire(dc);
     }
 
-    TDataCenter* FindDataCenterByName(const TString& name)
+    TDataCenter* FindDataCenterByName(const TString& name) override
     {
         auto it = NameToDataCenterMap_.find(name);
         return it == NameToDataCenterMap_.end() ? nullptr : it->second;
     }
 
-    TDataCenter* GetDataCenterByNameOrThrow(const TString& name)
+    TDataCenter* GetDataCenterByNameOrThrow(const TString& name) override
     {
         auto* dc = FindDataCenterByName(name);
         if (!dc) {
@@ -725,34 +725,36 @@ public:
     }
 
 
-    TTotalNodeStatistics GetTotalNodeStatistics()
+    const TAggregatedNodeStatistics& GetAggregatedNodeStatistics() override
     {
-        auto now = GetCpuInstant();
-        if (now < TotalNodeStatisticsUpdateDeadline_) {
-            return TotalNodeStatistics_;
-        }
+        MaybeRebuildAggregatedNodeStatistics();
 
-        RebuildTotalNodeStatistics();
-
-        return TotalNodeStatistics_;
+        return AggregatedNodeStatistics_;
     }
 
-    int GetOnlineNodeCount()
+    const TAggregatedNodeStatistics& GetFlavoredNodeStatistics(ENodeFlavor flavor) override
+    {
+        MaybeRebuildAggregatedNodeStatistics();
+
+        return FlavoredNodeStatistics_[flavor];
+    }
+
+    int GetOnlineNodeCount() override
     {
         return AggregatedOnlineNodeCount_;
     }
 
-    const std::vector<TNode*>& GetNodesForRole(ENodeRole nodeRole)
+    const std::vector<TNode*>& GetNodesForRole(ENodeRole nodeRole) override
     {
         return NodeListPerRole_[nodeRole].Nodes();
     }
 
-    const std::vector<TString>& GetNodeAddressesForRole(ENodeRole nodeRole)
+    const std::vector<TString>& GetNodeAddressesForRole(ENodeRole nodeRole) override
     {
         return NodeListPerRole_[nodeRole].Addresses();
     }
 
-    void OnNodeHeartbeat(TNode* node, ENodeHeartbeatType heartbeatType)
+    void OnNodeHeartbeat(TNode* node, ENodeHeartbeatType heartbeatType) override
     {
         if (node->ReportedHeartbeats().emplace(heartbeatType).second) {
             YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node reported heartbeat for the first time "
@@ -765,62 +767,7 @@ public:
         }
     }
 
-    THashSet<ENodeHeartbeatType> GetExpectedHeartbeatsForFlavors(
-        const THashSet<ENodeFlavor>& flavors,
-        bool primaryMaster)
-    {
-        THashSet<ENodeHeartbeatType> result;
-        if (primaryMaster) {
-            result.insert(ENodeHeartbeatType::Cluster);
-        }
-
-        for (auto flavor : flavors) {
-            switch (flavor) {
-                case ENodeFlavor::Data:
-                    result.insert(ENodeHeartbeatType::Data);
-                    break;
-
-                case ENodeFlavor::Exec:
-                    result.insert(ENodeHeartbeatType::Data);
-                    if (primaryMaster) {
-                        result.insert(ENodeHeartbeatType::Exec);
-                    }
-                    break;
-
-                case ENodeFlavor::Tablet:
-                    result.insert(ENodeHeartbeatType::Tablet);
-                    result.insert(ENodeHeartbeatType::Cellar);
-                    break;
-
-                case ENodeFlavor::Chaos:
-                    result.insert(ENodeHeartbeatType::Cellar);
-                    break;
-
-                default:
-                    YT_ABORT();
-            }
-        }
-        return result;
-    }
-
-    void CheckNodeOnline(TNode* node)
-    {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto expectedHeartbeats = GetExpectedHeartbeatsForFlavors(node->Flavors(), multicellManager->IsPrimaryMaster());
-        if (node->GetLocalState() == ENodeState::Registered && node->ReportedHeartbeats() == expectedHeartbeats) {
-            UpdateNodeCounters(node, -1);
-            node->SetLocalState(ENodeState::Online);
-            UpdateNodeCounters(node, +1);
-
-            NodeOnline_.Fire(node);
-
-            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node is online (NodeId: %v, Address: %v)",
-                node->GetId(),
-                node->GetDefaultAddress());
-        }
-    }
-
-    void RequestNodeHeartbeat(TNodeId nodeId)
+    void RequestCellarHeartbeat(TNodeId nodeId) override
     {
         auto* node = FindNode(nodeId);
         if (!node) {
@@ -852,8 +799,9 @@ private:
 
     int AggregatedOnlineNodeCount_ = 0;
 
-    TCpuInstant TotalNodeStatisticsUpdateDeadline_ = 0;
-    TTotalNodeStatistics TotalNodeStatistics_;
+    TCpuInstant NodeStatisticsUpdateDeadline_ = 0;
+    TAggregatedNodeStatistics AggregatedNodeStatistics_;
+    TEnumIndexedVector<ENodeFlavor, TAggregatedNodeStatistics> FlavoredNodeStatistics_;
 
     // Cf. YT-7009.
     // Maintain a dedicated counter of alive racks since RackMap_ may contain zombies.
@@ -876,6 +824,8 @@ private:
     const TAsyncSemaphorePtr DisposeNodeSemaphore_ = New<TAsyncSemaphore>(0);
 
     TEnumIndexedVector<ENodeRole, TNodeListForRole> NodeListPerRole_;
+
+    TEnumIndexedVector<ENodeFlavor, THashSet<TNode*>> NodesWithFlavor_;
 
     struct TNodeGroup
     {
@@ -923,12 +873,6 @@ private:
     static TYPath GetNodePath(TNode* node)
     {
         return GetNodePath(node->GetDefaultAddress());
-    }
-
-    IMapNodePtr GetNodeMap()
-    {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        return cypressManager->ResolvePathToNodeProxy(GetClusterNodesPath())->AsMap();
     }
 
     void HydraRegisterNode(
@@ -1014,7 +958,10 @@ private:
         }
 
         if (!isNodeNew) {
-            UpdateNode(node, nodeAddresses);
+            // NB: Default address should not change.
+            auto oldDefaultAddress = node->GetDefaultAddress();
+            node->SetNodeAddresses(nodeAddresses);
+            YT_VERIFY(node->GetDefaultAddress() == oldDefaultAddress);
         } else {
             auto nodeId = request->has_node_id() ? request->node_id() : GenerateNodeId();
             node = CreateNode(nodeId, nodeAddresses);
@@ -1022,7 +969,7 @@ private:
 
         node->SetNodeTags(tags);
 
-        node->Flavors() = flavors;
+        SetNodeFlavors(node, flavors);
 
         if (request->has_cypress_annotations()) {
             node->SetAnnotations(TYsonString(request->cypress_annotations(), EYsonType::Node));
@@ -1420,6 +1367,7 @@ private:
         RackMap_.SaveValues(context);
         DataCenterMap_.SaveValues(context);
         Save(context, RegisteredLocationUuids_);
+        Save(context, NodesWithFlavor_);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -1471,6 +1419,9 @@ private:
         for (auto& nodeList : NodeListPerRole_) {
             nodeList.Clear();
         }
+        for (auto& nodeSet : NodesWithFlavor_) {
+            nodeSet.clear();
+        }
     }
 
     void OnAfterSnapshotLoaded() override
@@ -1492,6 +1443,7 @@ private:
             InitializeNodeStates(node);
             InitializeNodeIOWeights(node);
             InsertToAddressMaps(node);
+            InsertToFlavorSets(node);
             UpdateNodeCounters(node, +1);
 
             if (node->GetLeaseTransaction()) {
@@ -1578,12 +1530,12 @@ private:
         if (multicellManager->IsSecondaryMaster()) {
             IncrementalNodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::NodeTrackerGossip),
-                BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this), true));
+                BIND(&TNodeTracker::OnNodeStatesGossip, MakeWeak(this), true));
             IncrementalNodeStatesGossipExecutor_->Start();
 
             FullNodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::NodeTrackerGossip),
-                BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this), false));
+                BIND(&TNodeTracker::OnNodeStatesGossip, MakeWeak(this), false));
             FullNodeStatesGossipExecutor_->Start();
         }
 
@@ -1617,6 +1569,61 @@ private:
         }
     }
 
+
+    THashSet<ENodeHeartbeatType> GetExpectedHeartbeatsForFlavors(
+        const THashSet<ENodeFlavor>& flavors,
+        bool primaryMaster)
+    {
+        THashSet<ENodeHeartbeatType> result;
+        if (primaryMaster) {
+            result.insert(ENodeHeartbeatType::Cluster);
+        }
+
+        for (auto flavor : flavors) {
+            switch (flavor) {
+                case ENodeFlavor::Data:
+                    result.insert(ENodeHeartbeatType::Data);
+                    break;
+
+                case ENodeFlavor::Exec:
+                    result.insert(ENodeHeartbeatType::Data);
+                    if (primaryMaster) {
+                        result.insert(ENodeHeartbeatType::Exec);
+                    }
+                    break;
+
+                case ENodeFlavor::Tablet:
+                    result.insert(ENodeHeartbeatType::Tablet);
+                    result.insert(ENodeHeartbeatType::Cellar);
+                    break;
+
+                case ENodeFlavor::Chaos:
+                    result.insert(ENodeHeartbeatType::Cellar);
+                    break;
+
+                default:
+                    YT_ABORT();
+            }
+        }
+        return result;
+    }
+
+    void CheckNodeOnline(TNode* node)
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto expectedHeartbeats = GetExpectedHeartbeatsForFlavors(node->Flavors(), multicellManager->IsPrimaryMaster());
+        if (node->GetLocalState() == ENodeState::Registered && node->ReportedHeartbeats() == expectedHeartbeats) {
+            UpdateNodeCounters(node, -1);
+            node->SetLocalState(ENodeState::Online);
+            UpdateNodeCounters(node, +1);
+
+            NodeOnline_.Fire(node);
+
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node is online (NodeId: %v, Address: %v)",
+                node->GetId(),
+                node->GetDefaultAddress());
+        }
+    }
 
     void InitializeNodeStates(TNode* node)
     {
@@ -1706,52 +1713,7 @@ private:
 
         node->ResetDestroyedReplicasIterator();
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto rootService = objectManager->GetRootService();
-        auto nodePath = GetNodePath(node);
-
-        try {
-            // Create Cypress node.
-            {
-                auto req = TCypressYPathProxy::Create(nodePath);
-                req->set_type(static_cast<int>(EObjectType::ClusterNodeNode));
-                req->set_ignore_existing(true);
-                SyncExecuteVerb(rootService, req);
-            }
-
-            // Create "orchid" child.
-            {
-                auto req = TCypressYPathProxy::Create(nodePath + "/orchid");
-                req->set_type(static_cast<int>(EObjectType::Orchid));
-                req->set_ignore_existing(true);
-                SyncExecuteVerb(rootService, req);
-            }
-        } catch (const std::exception& ex) {
-            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error registering cluster node in Cypress");
-        }
-
-        UpdateNode(node, nodeAddresses);
-
         return node;
-    }
-
-    void UpdateNode(TNode* node, const TNodeAddressMap& nodeAddresses)
-    {
-        // NB: The default address must remain same, however others may change.
-        node->SetNodeAddresses(nodeAddresses);
-
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto rootService = objectManager->GetRootService();
-        auto nodePath = GetNodePath(node);
-
-        try {
-            // Update "orchid" child.
-            auto req = TYPathProxy::Set(nodePath + "/orchid&/@remote_addresses");
-            req->set_value(ConvertToYsonString(node->GetAddressesOrThrow(EAddressType::InternalRpc)).ToString());
-            SyncExecuteVerb(rootService, req);
-        } catch (const std::exception& ex) {
-            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error updating cluster node in Cypress");
-        }
     }
 
     void UnregisterNode(TNode* node, bool propagate)
@@ -1893,7 +1855,7 @@ private:
         auto mutation = CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             request,
-            &TImpl::HydraDisposeNode,
+            &TNodeTracker::HydraDisposeNode,
             this);
 
         auto handler = BIND([mutation = std::move(mutation)] (TAsyncSemaphoreGuard) {
@@ -2071,6 +2033,33 @@ private:
         }
     }
 
+    void SetNodeFlavors(TNode* node, const THashSet<ENodeFlavor>& newFlavors)
+    {
+        YT_VERIFY(HasHydraContext());
+
+        RemoveFromFlavorSets(node);
+        node->Flavors() = newFlavors;
+        InsertToFlavorSets(node);
+    }
+
+    void RemoveFromFlavorSets(TNode* node)
+    {
+        YT_VERIFY(HasHydraContext());
+
+        for (auto flavor : node->Flavors()) {
+            EraseOrCrash(NodesWithFlavor_[flavor], node);
+        }
+    }
+
+    void InsertToFlavorSets(TNode* node)
+    {
+        YT_VERIFY(HasHydraContext());
+
+        for (auto flavor : node->Flavors()) {
+            InsertOrCrash(NodesWithFlavor_[flavor], node);
+        }
+    }
+
     void OnProfiling()
     {
         if (!IsLeader()) {
@@ -2086,38 +2075,53 @@ private:
         }
 
         TSensorBuffer buffer;
-        auto statistics = GetTotalNodeStatistics();
+        auto statistics = GetAggregatedNodeStatistics();
 
-        buffer.AddGauge("/available_space", statistics.TotalSpace.Available);
-        buffer.AddGauge("/used_space", statistics.TotalSpace.Used);
+        auto profileStatistics = [&] (const TAggregatedNodeStatistics& statistics) {
+            buffer.AddGauge("/available_space", statistics.TotalSpace.Available);
+            buffer.AddGauge("/used_space", statistics.TotalSpace.Used);
 
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        for (const auto& [mediumIndex, space] : statistics.SpacePerMedium) {
-            const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-            if (!medium) {
-                continue;
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            for (auto [mediumIndex, space] : statistics.SpacePerMedium) {
+                const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                if (!medium) {
+                    continue;
+                }
+
+                buffer.PushTag({"medium", medium->GetName()});
+                buffer.AddGauge("/available_space_per_medium", space.Available);
+                buffer.AddGauge("/used_space_per_medium", space.Used);
+                buffer.PopTag();
             }
 
-            buffer.PushTag({"medium", medium->GetName()});
-            buffer.AddGauge("/available_space_per_medium", space.Available);
-            buffer.AddGauge("/used_space_per_medium", space.Used);
+            buffer.AddGauge("/chunk_replica_count", statistics.ChunkReplicaCount);
+
+            buffer.AddGauge("/online_node_count", statistics.OnlineNodeCount);
+            buffer.AddGauge("/offline_node_count", statistics.OfflineNodeCount);
+            buffer.AddGauge("/banned_node_count", statistics.BannedNodeCount);
+            buffer.AddGauge("/decommissioned_node_count", statistics.DecommissinedNodeCount);
+            buffer.AddGauge("/with_alerts_node_count", statistics.WithAlertsNodeCount);
+            buffer.AddGauge("/full_node_count", statistics.FullNodeCount);
+
+            for (auto nodeRole : TEnumTraits<ENodeRole>::GetDomainValues()) {
+                buffer.PushTag({"node_role", FormatEnum(nodeRole)});
+                buffer.AddGauge(
+                    "/node_count",
+                    NodeListPerRole_[nodeRole].Nodes().size());
+                buffer.PopTag();
+            }
+        };
+        buffer.PushTag({"flavor", "cluster"});
+        profileStatistics(GetAggregatedNodeStatistics());
+        buffer.PopTag();
+
+        for (auto flavor : TEnumTraits<ENodeFlavor>::GetDomainValues()) {
+            if (flavor == ENodeFlavor::Cluster) {
+                continue;
+            }
+            buffer.PushTag({"flavor", FormatEnum(flavor)});
+            profileStatistics(GetFlavoredNodeStatistics(flavor));
             buffer.PopTag();
-        }
-
-        buffer.AddGauge("/chunk_replica_count", statistics.ChunkReplicaCount);
-
-        buffer.AddGauge("/online_node_count", statistics.OnlineNodeCount);
-        buffer.AddGauge("/offline_node_count", statistics.OfflineNodeCount);
-        buffer.AddGauge("/banned_node_count", statistics.BannedNodeCount);
-        buffer.AddGauge("/decommissioned_node_count", statistics.DecommissinedNodeCount);
-        buffer.AddGauge("/with_alerts_node_count", statistics.WithAlertsNodeCount);
-        buffer.AddGauge("/full_node_count", statistics.FullNodeCount);
-
-        for (auto nodeRole : TEnumTraits<ENodeRole>::GetDomainValues()) {
-            buffer.PushTag({"node_role", FormatEnum(nodeRole)});
-            buffer.AddGauge(
-                "/node_count",
-                NodeListPerRole_[nodeRole].Nodes().size());
         }
 
         BufferedProducer_->Update(buffer);
@@ -2211,39 +2215,60 @@ private:
         DisposeNodeSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentNodeUnregistrations);
     }
 
-    void RebuildTotalNodeStatistics()
+    void MaybeRebuildAggregatedNodeStatistics()
     {
-        TotalNodeStatistics_ = TTotalNodeStatistics();
+        auto now = GetCpuInstant();
+        if (now > NodeStatisticsUpdateDeadline_) {
+            RebuildAggregatedNodeStatistics();
+        }
+    }
+
+    void RebuildAggregatedNodeStatistics()
+    {
+        AggregatedNodeStatistics_ = TAggregatedNodeStatistics();
+        for (auto flavor : TEnumTraits<ENodeFlavor>::GetDomainValues()) {
+            FlavoredNodeStatistics_[flavor] = TAggregatedNodeStatistics();
+        }
+
         for (auto [nodeId, node] : NodeMap_) {
             if (!IsObjectAlive(node)) {
                 continue;
             }
 
-            TotalNodeStatistics_.BannedNodeCount += node->GetBanned();
-            TotalNodeStatistics_.DecommissinedNodeCount += node->GetDecommissioned();
-            TotalNodeStatistics_.WithAlertsNodeCount += !node->Alerts().empty();
+            // It's forbidden to capture structured binding in lambda, so we copy #node here.
+            auto* node_ = node;
+            auto updateStatistics = [&] (TAggregatedNodeStatistics* statistics) {
+                statistics->BannedNodeCount += node_->GetBanned();
+                statistics->DecommissinedNodeCount += node_->GetDecommissioned();
+                statistics->WithAlertsNodeCount += !node_->Alerts().empty();
 
-            if (node->GetAggregatedState() != ENodeState::Online) {
-                ++TotalNodeStatistics_.OfflineNodeCount;
-                continue;
-            }
-            TotalNodeStatistics_.OnlineNodeCount += 1;
-
-            const auto& statistics = node->DataNodeStatistics();
-            for (const auto& location : statistics.storage_locations()) {
-                int mediumIndex = location.medium_index();
-                if (!node->GetDecommissioned()) {
-                    TotalNodeStatistics_.SpacePerMedium[mediumIndex].Available += location.available_space();
-                    TotalNodeStatistics_.TotalSpace.Available += location.available_space();
+                if (node_->GetAggregatedState() != ENodeState::Online) {
+                    ++statistics->OfflineNodeCount;
+                    return;
                 }
-                TotalNodeStatistics_.SpacePerMedium[mediumIndex].Used += location.used_space();
-                TotalNodeStatistics_.TotalSpace.Used += location.used_space();
+                statistics->OnlineNodeCount++;
+
+                const auto& nodeStatistics = node_->DataNodeStatistics();
+                for (const auto& location : nodeStatistics.storage_locations()) {
+                    int mediumIndex = location.medium_index();
+                    if (!node_->GetDecommissioned()) {
+                        statistics->SpacePerMedium[mediumIndex].Available += location.available_space();
+                        statistics->TotalSpace.Available += location.available_space();
+                    }
+                    statistics->SpacePerMedium[mediumIndex].Used += location.used_space();
+                    statistics->TotalSpace.Used += location.used_space();
+                }
+                statistics->ChunkReplicaCount += nodeStatistics.total_stored_chunk_count();
+                statistics->FullNodeCount += nodeStatistics.full() ? 1 : 0;
+            };
+            updateStatistics(&AggregatedNodeStatistics_);
+
+            for (auto flavor : node->Flavors()) {
+                updateStatistics(&FlavoredNodeStatistics_[flavor]);
             }
-            TotalNodeStatistics_.ChunkReplicaCount += statistics.total_stored_chunk_count();
-            TotalNodeStatistics_.FullNodeCount += statistics.full() ? 1 : 0;
         }
 
-        TotalNodeStatisticsUpdateDeadline_ =
+        NodeStatisticsUpdateDeadline_ =
             NProfiling::GetCpuInstant() +
             DurationToCpuDuration(GetDynamicConfig()->TotalNodeStatisticsUpdatePeriod);
     }
@@ -2259,251 +2284,20 @@ private:
         RecomputePendingRegisterNodeMutationCounters();
         ReconfigureGossipPeriods();
         ReconfigureNodeSemaphores();
-        RebuildTotalNodeStatistics();
+        RebuildAggregatedNodeStatistics();
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, NodeMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Rack, TRack, RackMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, DataCenter, TDataCenter, DataCenterMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, NodeMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker, Rack, TRack, RackMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker, DataCenter, TDataCenter, DataCenterMap_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeTracker::TNodeTracker(TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(bootstrap))
-{ }
-
-TNodeTracker::~TNodeTracker() = default;
-
-void TNodeTracker::Initialize()
+INodeTrackerPtr CreateNodeTracker(TBootstrap* bootstrap)
 {
-    Impl_->Initialize();
+    return New<TNodeTracker>(bootstrap);
 }
-
-TObjectId TNodeTracker::ObjectIdFromNodeId(TNodeId nodeId)
-{
-    return Impl_->ObjectIdFromNodeId(nodeId);
-}
-
-TNode* TNodeTracker::FindNode(TNodeId id)
-{
-    return Impl_->FindNode(id);
-}
-
-TNode* TNodeTracker::GetNode(TNodeId id)
-{
-    return Impl_->GetNode(id);
-}
-
-TNode* TNodeTracker::GetNodeOrThrow(TNodeId id)
-{
-    return Impl_->GetNodeOrThrow(id);
-}
-
-TNode* TNodeTracker::FindNodeByAddress(const TString& address)
-{
-    return Impl_->FindNodeByAddress(address);
-}
-
-TNode* TNodeTracker::GetNodeByAddress(const TString& address)
-{
-    return Impl_->GetNodeByAddress(address);
-}
-
-TNode* TNodeTracker::GetNodeByAddressOrThrow(const TString& address)
-{
-    return Impl_->GetNodeByAddressOrThrow(address);
-}
-
-TNode* TNodeTracker::FindNodeByHostName(const TString& hostName)
-{
-    return Impl_->FindNodeByHostName(hostName);
-}
-
-std::vector<TNode*> TNodeTracker::GetRackNodes(const TRack* rack)
-{
-    return Impl_->GetRackNodes(rack);
-}
-
-std::vector<TRack*> TNodeTracker::GetDataCenterRacks(const TDataCenter* dc)
-{
-    return Impl_->GetDataCenterRacks(dc);
-}
-
-void TNodeTracker::UpdateLastSeenTime(TNode* node)
-{
-    Impl_->UpdateLastSeenTime(node);
-}
-
-void TNodeTracker::SetNodeBanned(TNode* node, bool value)
-{
-    Impl_->SetNodeBanned(node, value);
-}
-
-void TNodeTracker::SetNodeDecommissioned(TNode* node, bool value)
-{
-    Impl_->SetNodeDecommissioned(node, value);
-}
-
-void TNodeTracker::SetDisableWriteSessions(TNode* node, bool value)
-{
-    Impl_->SetDisableWriteSessions(node, value);
-}
-
-void TNodeTracker::SetDisableTabletCells(TNode* node, bool value)
-{
-    Impl_->SetDisableTabletCells(node, value);
-}
-
-void TNodeTracker::SetNodeRack(TNode* node, TRack* rack)
-{
-    Impl_->SetNodeRack(node, rack);
-}
-
-void TNodeTracker::SetNodeUserTags(TNode* node, const std::vector<TString>& tags)
-{
-    Impl_->SetNodeUserTags(node, tags);
-}
-
-std::unique_ptr<TMutation> TNodeTracker::CreateUpdateNodeResourcesMutation(
-    const NProto::TReqUpdateNodeResources& request)
-{
-    return Impl_->CreateUpdateNodeResourcesMutation(request);
-}
-
-void TNodeTracker::RenameRack(TRack* rack, const TString& newName)
-{
-    Impl_->RenameRack(rack, newName);
-}
-
-TRack* TNodeTracker::FindRackByName(const TString& name)
-{
-    return Impl_->FindRackByName(name);
-}
-
-TRack* TNodeTracker::GetRackByNameOrThrow(const TString& name)
-{
-    return Impl_->GetRackByNameOrThrow(name);
-}
-
-void TNodeTracker::SetRackDataCenter(TRack* rack, TDataCenter* dc)
-{
-    return Impl_->SetRackDataCenter(rack, dc);
-}
-
-void TNodeTracker::RenameDataCenter(TDataCenter* dc, const TString& newName)
-{
-    Impl_->RenameDataCenter(dc, newName);
-}
-
-TDataCenter* TNodeTracker::FindDataCenterByName(const TString& name)
-{
-    return Impl_->FindDataCenterByName(name);
-}
-
-TDataCenter* TNodeTracker::GetDataCenterByNameOrThrow(const TString& name)
-{
-    return Impl_->GetDataCenterByNameOrThrow(name);
-}
-
-void TNodeTracker::ProcessRegisterNode(
-    const TString& address,
-    TCtxRegisterNodePtr context)
-{
-    Impl_->ProcessRegisterNode(address, context);
-}
-
-void TNodeTracker::ProcessHeartbeat(TCtxHeartbeatPtr context)
-{
-    Impl_->ProcessHeartbeat(context);
-}
-
-void TNodeTracker::ProcessFullHeartbeat(TCtxFullHeartbeatPtr context)
-{
-    Impl_->ProcessFullHeartbeat(context);
-}
-
-void TNodeTracker::ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context)
-{
-    Impl_->ProcessIncrementalHeartbeat(context);
-}
-
-TTotalNodeStatistics TNodeTracker::GetTotalNodeStatistics()
-{
-    return Impl_->GetTotalNodeStatistics();
-}
-
-int TNodeTracker::GetOnlineNodeCount()
-{
-    return Impl_->GetOnlineNodeCount();
-}
-
-void TNodeTracker::ZombifyNode(TNode* node)
-{
-    Impl_->ZombifyNode(node);
-}
-
-TRack* TNodeTracker::CreateRack(const TString& name, TObjectId hintId)
-{
-    return Impl_->CreateRack(name, hintId);
-}
-
-void TNodeTracker::ZombifyRack(TRack* rack)
-{
-    Impl_->ZombifyRack(rack);
-}
-
-TDataCenter* TNodeTracker::CreateDataCenter(const TString& name, TObjectId hintId)
-{
-    return Impl_->CreateDataCenter(name, hintId);
-}
-
-void TNodeTracker::ZombifyDataCenter(TDataCenter* dc)
-{
-    Impl_->ZombifyDataCenter(dc);
-}
-
-const std::vector<TNode*>& TNodeTracker::GetNodesForRole(ENodeRole nodeRole)
-{
-    return Impl_->GetNodesForRole(nodeRole);
-}
-
-const std::vector<TString>& TNodeTracker::GetNodeAddressesForRole(ENodeRole nodeRole)
-{
-    return Impl_->GetNodeAddressesForRole(nodeRole);
-}
-
-void TNodeTracker::OnNodeHeartbeat(TNode* node, ENodeHeartbeatType heartbeatType)
-{
-    return Impl_->OnNodeHeartbeat(node, heartbeatType);
-}
-
-void TNodeTracker::RequestNodeHeartbeat(TNodeId nodeId)
-{
-    return Impl_->RequestNodeHeartbeat(nodeId);
-}
-
-DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Rack, TRack, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, DataCenter, TDataCenter, *Impl_)
-
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeRegistered, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeOnline, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeUnregistered, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeDisposed, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeBanChanged, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeDecommissionChanged, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeDisableTabletCellsChanged, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeTagsChanged, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TRack*), NodeRackChanged, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TDataCenter*), NodeDataCenterChanged, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TDataCenter*), DataCenterCreated, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TDataCenter*), DataCenterRenamed, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TDataCenter*), DataCenterDestroyed, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TRack*), RackCreated, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TRack*), RackRenamed, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TRack*, TDataCenter*), RackDataCenterChanged, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TRack*), RackDestroyed, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

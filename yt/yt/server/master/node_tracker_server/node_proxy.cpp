@@ -14,6 +14,9 @@
 
 #include <yt/yt/server/master/object_server/object_detail.h>
 
+#include <yt/yt/server/master/orchid/manifest.h>
+#include <yt/yt/server/master/orchid/orchid_holder_base.h>
+
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
 #include <yt/yt/server/master/cell_server/cell_base.h>
@@ -28,6 +31,7 @@ using namespace NChunkClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NObjectServer;
+using namespace NOrchid;
 using namespace NYTree;
 using namespace NYson;
 
@@ -35,6 +39,7 @@ using namespace NYson;
 
 class TClusterNodeProxy
     : public TNonversionedObjectProxyBase<TNode>
+    , public TOrchidHolderBase
 {
 public:
     TClusterNodeProxy(
@@ -42,6 +47,9 @@ public:
         TObjectTypeMetadata* metadata,
         TNode* node)
         : TNonversionedObjectProxyBase(bootstrap, metadata, node)
+        , TOrchidHolderBase(
+            Bootstrap_->GetNodeChannelFactory(),
+            BIND(&TClusterNodeProxy::CreateOrchidManifest, Unretained(this)))
     { }
 
 private:
@@ -577,6 +585,18 @@ private:
         if (node->GetLocalState() != ENodeState::Offline) {
             THROW_ERROR_EXCEPTION("Cannot remove node since it is not offline");
         }
+    }
+
+    TOrchidManifestPtr CreateOrchidManifest()
+    {
+        auto* node = GetThisImpl<TNode>();
+        if (!IsObjectAlive(node)) {
+            THROW_ERROR_EXCEPTION("Node is not alive");
+        }
+
+        auto manifest = New<TOrchidManifest>();
+        manifest->RemoteAddresses = ConvertTo<INodePtr>(node->GetAddressesOrThrow(EAddressType::InternalRpc));
+        return manifest;
     }
 
     static void BuildYsonCellar(const TNode::TCellar& cellar, TFluentAny fluent)

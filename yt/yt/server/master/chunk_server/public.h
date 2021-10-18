@@ -96,7 +96,7 @@ using TChunkPtrWithIndexes = TPtrWithIndexes<TChunk>;
 using TChunkPtrWithIndex = NChunkServer::TPtrWithIndex<TChunk>;
 
 struct TChunkTreeStatistics;
-struct TTotalNodeStatistics;
+struct TAggregatedNodeStatistics;
 
 DECLARE_REFCOUNTED_CLASS(TJob)
 DECLARE_REFCOUNTED_CLASS(TReplicationJob)

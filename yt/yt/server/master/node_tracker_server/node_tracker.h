@@ -27,225 +27,226 @@ namespace NYT::NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeTracker
-    : public TRefCounted
+struct INodeTracker
+    : public virtual TRefCounted
 {
 public:
-    explicit TNodeTracker(NCellMaster::TBootstrap* bootstrap);
-
-    ~TNodeTracker();
-
-    void Initialize();
+    virtual void Initialize() = 0;
 
     using TCtxRegisterNode = NRpc::TTypedServiceContext<
         NNodeTrackerClient::NProto::TReqRegisterNode,
         NNodeTrackerClient::NProto::TRspRegisterNode>;
     using TCtxRegisterNodePtr = TIntrusivePtr<TCtxRegisterNode>;
-    void ProcessRegisterNode(const TString& address, TCtxRegisterNodePtr context);
+    virtual void ProcessRegisterNode(const TString& address, TCtxRegisterNodePtr context) = 0;
 
     using TCtxHeartbeat = NRpc::TTypedServiceContext<
         NNodeTrackerClient::NProto::TReqHeartbeat,
         NNodeTrackerClient::NProto::TRspHeartbeat>;
     using TCtxHeartbeatPtr = TIntrusivePtr<TCtxHeartbeat>;
-    void ProcessHeartbeat(TCtxHeartbeatPtr context);
+    virtual void ProcessHeartbeat(TCtxHeartbeatPtr context) = 0;
 
     // Legacy heartbeats.
     using TCtxFullHeartbeat = NRpc::TTypedServiceContext<
         NNodeTrackerClient::NProto::TReqFullHeartbeat,
         NNodeTrackerClient::NProto::TRspFullHeartbeat>;
     using TCtxFullHeartbeatPtr = TIntrusivePtr<TCtxFullHeartbeat>;
-    void ProcessFullHeartbeat(TCtxFullHeartbeatPtr context);
+    virtual void ProcessFullHeartbeat(TCtxFullHeartbeatPtr context) = 0;
 
     using TCtxIncrementalHeartbeat = NRpc::TTypedServiceContext<
         NNodeTrackerClient::NProto::TReqIncrementalHeartbeat,
         NNodeTrackerClient::NProto::TRspIncrementalHeartbeat>;
     using TCtxIncrementalHeartbeatPtr = TIntrusivePtr<TCtxIncrementalHeartbeat>;
-    void ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context);
+    virtual void ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context) = 0;
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Node, TNode);
-    DECLARE_ENTITY_MAP_ACCESSORS(Rack, TRack);
-    DECLARE_ENTITY_MAP_ACCESSORS(DataCenter, TDataCenter);
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Node, TNode);
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Rack, TRack);
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(DataCenter, TDataCenter);
 
 
     //! Fired when a node gets registered.
-    DECLARE_SIGNAL(void(TNode* node), NodeRegistered);
+    DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeRegistered);
 
     //! Fired when a node becomes online.
-    DECLARE_SIGNAL(void(TNode* node), NodeOnline);
+    DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeOnline);
 
     //! Fired when a node gets unregistered.
-    DECLARE_SIGNAL(void(TNode* node), NodeUnregistered);
+    DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeUnregistered);
 
     //! Fired when a node gets disposed (after being unregistered).
-    DECLARE_SIGNAL(void(TNode* node), NodeDisposed);
+    DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeDisposed);
 
     //! Fired when node "banned" flag changes.
-    DECLARE_SIGNAL(void(TNode* node), NodeBanChanged);
+    DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeBanChanged);
 
     //! Fired when node "decommissioned" flag changes.
-    DECLARE_SIGNAL(void(TNode* node), NodeDecommissionChanged);
+    DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeDecommissionChanged);
 
     //! Fired when node "disable_tablet_cells" flag changes.
-    DECLARE_SIGNAL(void(TNode* node), NodeDisableTabletCellsChanged);
+    DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeDisableTabletCellsChanged);
 
     //! Fired when node tags change.
-    DECLARE_SIGNAL(void(TNode* node), NodeTagsChanged);
+    DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeTagsChanged);
 
     //! Fired when node rack changes.
-    DECLARE_SIGNAL(void(TNode* node, TRack* oldRack), NodeRackChanged);
+    DECLARE_INTERFACE_SIGNAL(void(TNode* node, TRack* oldRack), NodeRackChanged);
 
     //! Fired for all nodes in a rack when that rack's DC changes.
     /*!
      *  NB: a node's DC may also change when its rack changes. This signal is
      *  not fired in those cases.
      */
-    DECLARE_SIGNAL(void(TNode* node, TDataCenter* oldDataCenter), NodeDataCenterChanged);
+    DECLARE_INTERFACE_SIGNAL(void(TNode* node, TDataCenter* oldDataCenter), NodeDataCenterChanged);
 
     //! Fired when a new data center is created.
-    DECLARE_SIGNAL(void(TDataCenter* dataCenter), DataCenterCreated);
+    DECLARE_INTERFACE_SIGNAL(void(TDataCenter* dataCenter), DataCenterCreated);
 
     //! Fired when a data center is renamed.
-    DECLARE_SIGNAL(void(TDataCenter* dataCenter), DataCenterRenamed);
+    DECLARE_INTERFACE_SIGNAL(void(TDataCenter* dataCenter), DataCenterRenamed);
 
     //! Fired when a data center is removed.
-    DECLARE_SIGNAL(void(TDataCenter* dataCenter), DataCenterDestroyed);
+    DECLARE_INTERFACE_SIGNAL(void(TDataCenter* dataCenter), DataCenterDestroyed);
 
     //! Fired when a new rack is created.
-    DECLARE_SIGNAL(void(TRack* rack), RackCreated);
+    DECLARE_INTERFACE_SIGNAL(void(TRack* rack), RackCreated);
 
     //! Fired when a rack is renamed.
-    DECLARE_SIGNAL(void(TRack* rack), RackRenamed);
+    DECLARE_INTERFACE_SIGNAL(void(TRack* rack), RackRenamed);
 
     //! Fired when a rack data center changed.
-    DECLARE_SIGNAL(void(TRack* rack, TDataCenter* oldDataCenter), RackDataCenterChanged);
+    DECLARE_INTERFACE_SIGNAL(void(TRack* rack, TDataCenter* oldDataCenter), RackDataCenterChanged);
 
     //! Fired when a data rack is removed.
-    DECLARE_SIGNAL(void(TRack* rack), RackDestroyed);
+    DECLARE_INTERFACE_SIGNAL(void(TRack* rack), RackDestroyed);
 
 
     //! Constructs the full object id from a (short) node id.
-    NObjectClient::TObjectId ObjectIdFromNodeId(TNodeId nodeId);
+    virtual NObjectClient::TObjectId ObjectIdFromNodeId(TNodeId nodeId) = 0;
 
     //! Returns a node with a given id (|nullptr| if none).
-    TNode* FindNode(TNodeId id);
+    virtual TNode* FindNode(TNodeId id) = 0;
 
     //! Returns a node with a given id (fails if none).
-    TNode* GetNode(TNodeId id);
+    virtual TNode* GetNode(TNodeId id) = 0;
 
     //! Returns a node with a given id (throws if none).
-    TNode* GetNodeOrThrow(TNodeId id);
+    virtual TNode* GetNodeOrThrow(TNodeId id) = 0;
 
     //! Returns a node registered at the given address (|nullptr| if none).
-    TNode* FindNodeByAddress(const TString& address);
+    virtual TNode* FindNodeByAddress(const TString& address) = 0;
 
     //! Returns a node registered at the given address (fails if none).
-    TNode* GetNodeByAddress(const TString& address);
+    virtual TNode* GetNodeByAddress(const TString& address) = 0;
 
     //! Returns a node registered at the given address (throws if none).
-    TNode* GetNodeByAddressOrThrow(const TString& address);
+    virtual TNode* GetNodeByAddressOrThrow(const TString& address) = 0;
 
     //! Returns an arbitrary node registered at the host (|nullptr| if none).
-    TNode* FindNodeByHostName(const TString& hostName);
+    virtual TNode* FindNodeByHostName(const TString& hostName) = 0;
 
     //! Returns the list of all nodes belonging to a given rack.
     /*!
      *  #rack can be |nullptr|.
      */
-    std::vector<TNode*> GetRackNodes(const TRack* rack);
+    virtual std::vector<TNode*> GetRackNodes(const TRack* rack) = 0;
 
     //! Returns the list of all racks belonging to a given data center.
     /*!
      *  #dc can be |nullptr|.
      */
-    std::vector<TRack*> GetDataCenterRacks(const TDataCenter* dc);
+    virtual std::vector<TRack*> GetDataCenterRacks(const TDataCenter* dc) = 0;
+
+    //! Returns the set of all nodes with a given flavor.
+    virtual const THashSet<TNode*>& GetNodesWithFlavor(ENodeFlavor flavor) const = 0;
 
     //! Sets last seen time of the node to now.
-    void UpdateLastSeenTime(TNode* node);
+    virtual void UpdateLastSeenTime(TNode* node) = 0;
 
     //! Sets the "banned" flag and notifies the subscribers.
-    void SetNodeBanned(TNode* node, bool value);
+    virtual void SetNodeBanned(TNode* node, bool value) = 0;
 
     //! Sets the "decommissioned" flag and notifies the subscribers.
-    void SetNodeDecommissioned(TNode* node, bool value);
+    virtual void SetNodeDecommissioned(TNode* node, bool value) = 0;
 
     //! Sets the rack and notifies the subscribers.
-    void SetNodeRack(TNode* node, TRack* rack);
+    virtual void SetNodeRack(TNode* node, TRack* rack) = 0;
 
     //! Sets the user tags for the node.
-    void SetNodeUserTags(TNode* node, const std::vector<TString>& tags);
+    virtual void SetNodeUserTags(TNode* node, const std::vector<TString>& tags) = 0;
 
     //! Creates a mutation that updates node's resource usage and limits.
-    std::unique_ptr<NHydra::TMutation> CreateUpdateNodeResourcesMutation(
-        const NProto::TReqUpdateNodeResources& request);
+    virtual std::unique_ptr<NHydra::TMutation> CreateUpdateNodeResourcesMutation(
+        const NProto::TReqUpdateNodeResources& request) = 0;
 
     //! Sets the flag disabling write sessions at the node.
-    void SetDisableWriteSessions(TNode* node, bool value);
+    virtual void SetDisableWriteSessions(TNode* node, bool value) = 0;
 
     //! Sets the flag disabling tablet cells at the node.
-    void SetDisableTabletCells(TNode* node, bool value);
+    virtual void SetDisableTabletCells(TNode* node, bool value) = 0;
 
     //! Renames an existing racks. Throws on name conflict.
-    void RenameRack(TRack* rack, const TString& newName);
+    virtual void RenameRack(TRack* rack, const TString& newName) = 0;
 
     //! Returns a rack with a given name (|nullptr| if none).
-    TRack* FindRackByName(const TString& name);
+    virtual TRack* FindRackByName(const TString& name) = 0;
 
     //! Returns a rack with a given name (throws if none).
-    TRack* GetRackByNameOrThrow(const TString& name);
+    virtual TRack* GetRackByNameOrThrow(const TString& name) = 0;
 
     //! Sets the data center and notifies the subscribers.
-    void SetRackDataCenter(TRack* rack, TDataCenter* dc);
+    virtual void SetRackDataCenter(TRack* rack, TDataCenter* dc) = 0;
 
-
-    //! Creates a new data center with a given name. Throws on name conflict.
-    TDataCenter* CreateDataCenter(const TString& name);
 
     //! Renames an existing data center. Throws on name conflict.
-    void RenameDataCenter(TDataCenter* dc, const TString& newName);
+    virtual void RenameDataCenter(TDataCenter* dc, const TString& newName) = 0;
 
     //! Returns a data center with a given name (|nullptr| if none).
-    TDataCenter* FindDataCenterByName(const TString& name);
+    virtual TDataCenter* FindDataCenterByName(const TString& name) = 0;
 
     //! Returns a data center with a given name (throws if none).
-    TDataCenter* GetDataCenterByNameOrThrow(const TString& name);
+    virtual TDataCenter* GetDataCenterByNameOrThrow(const TString& name) = 0;
 
 
     //! Returns the total cluster statistics, aggregated over all nodes.
-    NNodeTrackerClient::TTotalNodeStatistics GetTotalNodeStatistics();
+    virtual const NNodeTrackerClient::TAggregatedNodeStatistics& GetAggregatedNodeStatistics() = 0;
+
+    //! Returns cluster node statistics, aggregated over all nodes with a given flavor.
+    virtual const NNodeTrackerClient::TAggregatedNodeStatistics& GetFlavoredNodeStatistics(ENodeFlavor flavor) = 0;
 
     //! Returns the number of nodes with ENodeState::Online aggregated state.
-    int GetOnlineNodeCount();
+    virtual int GetOnlineNodeCount() = 0;
 
     //! Returns the list of nodes with the given role.
-    const std::vector<TNode*>& GetNodesForRole(NNodeTrackerClient::ENodeRole nodeRole);
+    virtual const std::vector<TNode*>& GetNodesForRole(NNodeTrackerClient::ENodeRole nodeRole) = 0;
 
     //! Returns the list of default addresses of nodes with the given role.
-    const std::vector<TString>& GetNodeAddressesForRole(NNodeTrackerClient::ENodeRole nodeRole);
+    virtual const std::vector<TString>& GetNodeAddressesForRole(NNodeTrackerClient::ENodeRole nodeRole) = 0;
 
     //! Called by node trackers when node reports a heartbeat.
-    void OnNodeHeartbeat(TNode* node, ENodeHeartbeatType heartbeatType);
+    virtual void OnNodeHeartbeat(TNode* node, ENodeHeartbeatType heartbeatType) = 0;
 
-    void RequestNodeHeartbeat(TNodeId nodeId);
+    //! Forces node to report an out-of-order cellar heartbeat.
+    virtual void RequestCellarHeartbeat(TNodeId nodeId) = 0;
 
 private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
-
     friend class TNodeTypeHandler;
     friend class TRackTypeHandler;
     friend class TDataCenterTypeHandler;
 
-    void ZombifyNode(TNode* node);
+    virtual void ZombifyNode(TNode* node) = 0;
 
-    TRack* CreateRack(const TString& name, NObjectClient::TObjectId hintId);
-    void ZombifyRack(TRack* rack);
+    virtual TRack* CreateRack(const TString& name, NObjectClient::TObjectId hintId) = 0;
+    virtual void ZombifyRack(TRack* rack) = 0;
 
-    TDataCenter* CreateDataCenter(const TString& name, NObjectClient::TObjectId hintId);
-    void ZombifyDataCenter(TDataCenter* dc);
+    virtual TDataCenter* CreateDataCenter(const TString& name, NObjectClient::TObjectId hintId) = 0;
+    virtual void ZombifyDataCenter(TDataCenter* dc) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TNodeTracker)
+DEFINE_REFCOUNTED_TYPE(INodeTracker)
+
+////////////////////////////////////////////////////////////////////////////////
+
+INodeTrackerPtr CreateNodeTracker(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

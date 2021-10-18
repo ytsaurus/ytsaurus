@@ -50,6 +50,7 @@ using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(gritukan)
 class TClusterNodeNodeProxy
     : public TMapNodeProxy
 {
@@ -138,26 +139,77 @@ INodeTypeHandlerPtr CreateClusterNodeNodeTypeHandler(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClusterNodeMapProxy
-    : public TMapNodeProxy
+// COMPAT(gritukan)
+class TLegacyClusterNodeMapTypeHandler
+    : public TMapNodeTypeHandler
 {
 public:
-    TClusterNodeMapProxy(
-        TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TTransaction* transaction,
-        TMapNode* trunkNode)
-        : TMapNodeProxy(
-            bootstrap,
-            metadata,
-            transaction,
-            trunkNode)
+    explicit TLegacyClusterNodeMapTypeHandler(TBootstrap* bootstrap)
+        : TMapNodeTypeHandlerImpl(bootstrap)
     { }
 
+    EObjectType GetObjectType() const override
+    {
+        return EObjectType::LegacyClusterNodeMap;
+    }
+
 private:
+    ICypressNodeProxyPtr DoGetProxy(
+        TMapNode* trunkNode,
+        TTransaction* transaction) override
+    {
+        return New<TMapNodeProxy>(
+            Bootstrap_,
+            &Metadata_,
+            transaction,
+            trunkNode);
+    }
+};
+
+INodeTypeHandlerPtr CreateLegacyClusterNodeMapTypeHandler(TBootstrap* bootstrap)
+{
+    YT_VERIFY(bootstrap);
+
+    return New<TLegacyClusterNodeMapTypeHandler>(bootstrap);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualNodeMapBase
+    : public TVirtualMapBase
+{
+public:
+    TVirtualNodeMapBase(
+        TBootstrap* bootstrap,
+        INodePtr owningNode,
+        std::optional<ENodeFlavor> flavor)
+        : TVirtualMapBase(std::move(owningNode))
+        , Bootstrap_(bootstrap)
+        , Flavor_(flavor)
+    { }
+
+protected:
+    TBootstrap* const Bootstrap_;
+
+    // std::nullopt stands for all cluster nodes.
+    const std::optional<ENodeFlavor> Flavor_;
+
+private:
+    IYPathServicePtr FindItemService(TStringBuf key) const override
+    {
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        auto* node = nodeTracker->FindNodeByAddress(TString(key));
+        if (!IsObjectAlive(node)) {
+            return nullptr;
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        return objectManager->GetProxy(node);
+    }
+
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
-        TMapNodeProxy::ListSystemAttributes(descriptors);
+        TVirtualMapBase::ListSystemAttributes(descriptors);
 
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Offline)
             .SetOpaque(true));
@@ -191,7 +243,7 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-        auto statistics = nodeTracker->GetTotalNodeStatistics();
+        auto statistics = nodeTracker->GetAggregatedNodeStatistics();
 
         switch (key) {
             case EInternedAttributeKey::Offline:
@@ -316,41 +368,134 @@ private:
                 break;
         }
 
-        return TMapNodeProxy::GetBuiltinAttribute(key, consumer);
+        return TVirtualMapBase::GetBuiltinAttribute(key, consumer);
     }
 };
 
-class TClusterNodeMapTypeHandler
-    : public TMapNodeTypeHandler
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualClusterNodeMap
+    : public TVirtualNodeMapBase
 {
 public:
-    explicit TClusterNodeMapTypeHandler(TBootstrap* bootstrap)
-        : TMapNodeTypeHandlerImpl(bootstrap)
+    TVirtualClusterNodeMap(TBootstrap* bootstrap, INodePtr owningNode)
+        : TVirtualNodeMapBase(bootstrap, std::move(owningNode), /*flavor*/ std::nullopt)
     { }
 
-    EObjectType GetObjectType() const override
+private:
+    std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
-        return EObjectType::ClusterNodeMap;
+        std::vector<TString> keys;
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& nodes = nodeTracker->Nodes();
+        keys.reserve(std::min<i64>(nodes.size(), sizeLimit));
+        for (auto [nodeId, node] : nodes) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+            keys.push_back(node->GetDefaultAddress());
+            if (std::ssize(keys) >= sizeLimit) {
+                break;
+            }
+        }
+
+        return keys;
     }
 
-private:
-    ICypressNodeProxyPtr DoGetProxy(
-        TMapNode* trunkNode,
-        TTransaction* transaction) override
+    i64 GetSize() const override
     {
-        return New<TClusterNodeMapProxy>(
-            Bootstrap_,
-            &Metadata_,
-            transaction,
-            trunkNode);
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        return nodeTracker->Nodes().GetSize();
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 INodeTypeHandlerPtr CreateClusterNodeMapTypeHandler(TBootstrap* bootstrap)
 {
     YT_VERIFY(bootstrap);
 
-    return New<TClusterNodeMapTypeHandler>(bootstrap);
+    return CreateVirtualTypeHandler(
+        bootstrap,
+        EObjectType::ClusterNodeMap,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualClusterNodeMap>(bootstrap, owningNode);
+        }),
+        EVirtualNodeOptions::RedirectSelf);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualFlavoredNodeMap
+    : public TVirtualNodeMapBase
+{
+public:
+    TVirtualFlavoredNodeMap(
+        TBootstrap* bootstrap,
+        INodePtr owningNode,
+        EObjectType objectType)
+        : TVirtualNodeMapBase(
+            bootstrap,
+            std::move(owningNode),
+            GetNodeFlavorByMapObjectType(objectType))
+    { }
+
+private:
+    std::vector<TString> GetKeys(i64 sizeLimit) const override
+    {
+        std::vector<TString> keys;
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& nodes = nodeTracker->GetNodesWithFlavor(*Flavor_);
+        keys.reserve(std::min<i64>(nodes.size(), sizeLimit));
+        for (auto* node : nodes) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+            keys.push_back(node->GetDefaultAddress());
+            if (std::ssize(keys) >= sizeLimit) {
+                break;
+            }
+        }
+
+        return keys;
+    }
+
+    i64 GetSize() const override
+    {
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        return nodeTracker->GetNodesWithFlavor(*Flavor_).size();
+    }
+
+    static ENodeFlavor GetNodeFlavorByMapObjectType(EObjectType objectType)
+    {
+        switch (objectType) {
+            case EObjectType::DataNodeMap:
+                return ENodeFlavor::Data;
+            case EObjectType::ExecNodeMap:
+                return ENodeFlavor::Exec;
+            case EObjectType::TabletNodeMap:
+                return ENodeFlavor::Tablet;
+            case EObjectType::ChaosNodeMap:
+                return ENodeFlavor::Chaos;
+            default:
+                YT_ABORT();
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+INodeTypeHandlerPtr CreateFlavoredNodeMapTypeHandler(TBootstrap* bootstrap, EObjectType objectType)
+{
+    YT_VERIFY(bootstrap);
+
+    return CreateVirtualTypeHandler(
+        bootstrap,
+        objectType,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualFlavoredNodeMap>(bootstrap, owningNode, objectType);
+        }),
+        EVirtualNodeOptions::RedirectSelf);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -447,7 +592,7 @@ private:
             return nullptr;
         }
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(dc);
     }
 };

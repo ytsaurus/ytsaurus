@@ -92,7 +92,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NYson::TYsonString, Annotations);
     DEFINE_BYVAL_RW_PROPERTY(TString, Version);
 
-    DEFINE_BYREF_RW_PROPERTY(THashSet<NNodeTrackerClient::ENodeFlavor>, Flavors);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<ENodeFlavor>, Flavors);
 
     //! Helpers for |Flavors| access.
     bool IsDataNode() const;
