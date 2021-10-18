@@ -536,9 +536,6 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("slice_erasure_chunks_by_parts", &TOperationSpecBase::SliceErasureChunksByParts)
         .Default(false);
 
-    registrar.Parameter("enable_compatible_storage_mode", &TOperationSpecBase::EnableCompatibleStorageMode)
-        .Default(false);
-
     registrar.Parameter("enable_legacy_live_preview", &TOperationSpecBase::EnableLegacyLivePreview)
         .Default();
 

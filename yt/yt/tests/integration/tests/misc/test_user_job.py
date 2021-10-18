@@ -1749,15 +1749,6 @@ class TestSecureVault(YTEnvSetup):
         self.check_content(res)
 
     @authors("ignat")
-    def test_secure_vault_with_revive_with_new_storage_scheme(self):
-        op = self.run_map_with_secure_vault(spec={"enable_compatible_storage_mode": True})
-        with Restarter(self.Env, SCHEDULERS_SERVICE):
-            pass
-        op.track()
-        res = read_table("//tmp/t_out")
-        self.check_content(res)
-
-    @authors("ignat")
     def test_allowed_variable_names(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
