@@ -1935,7 +1935,7 @@ private:
                 continue;
             }
 
-            THashMap<TGuid, ui64> maxBarrier;
+            THashMap<TGuid, i64> maxBarrier;
             for (int blockIndex : blockIndexes) {
                 auto it = blockBarriers->second.find(blockIndex);
                 if (it == blockBarriers->second.end()) {

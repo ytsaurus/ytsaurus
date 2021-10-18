@@ -439,10 +439,8 @@ void TMemoryTrackingSyncSlruCacheBase<TKey, TValue, THash>::OnRemoved(const TVal
 template <class TKey, class TValue, class THash>
 void TMemoryTrackingSyncSlruCacheBase<TKey, TValue, THash>::Reconfigure(const TSlruCacheDynamicConfigPtr& config)
 {
-    if (auto newCapacity = config->Capacity) {
-        MemoryTracker_->SetLimit(*newCapacity);
-    }
     TSyncSlruCacheBase<TKey, TValue, THash>::Reconfigure(config);
+    MemoryTracker_->SetLimit(this->Capacity_.load());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

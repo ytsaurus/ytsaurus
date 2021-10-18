@@ -480,36 +480,56 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdateP2PBlocks)
     {
         auto sessionId = FromProto<TGuid>(request->session_id());
-        auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
-        context->SetRequestInfo("SessionId: %v, Iteration: %v, ReceivedBlockCount: %v, DropBlocks: %v",
+        context->SetRequestInfo("SessionId: %v, Iteration: %v, ReceivedBlockCount: %v",
             sessionId,
             request->iteration(),
-            request->block_indexes_size(),
-            request->drop_blocks());
+            request->block_indexes_size());
 
         ValidateConnected();
 
         const auto& blockCache = Bootstrap_->GetP2PBlockCache();
-        if (request->drop_blocks()) {
-            blockCache->DropBlocks(sessionId, chunkId);
-        } else {
-            auto blocks = GetRpcAttachedBlocks(request, true /* validateChecksums */);
-            if (std::ssize(blocks) != request->block_indexes_size()) {
-                THROW_ERROR_EXCEPTION("Number of attached blocks is different from blocks field length")
-                    << TErrorAttribute("attached_block_count", blocks.size())
-                    << TErrorAttribute("blocks_length", request->block_indexes_size());
+
+        auto blocks = GetRpcAttachedBlocks(request, true /* validateChecksums */);
+        if (std::ssize(blocks) != request->block_indexes_size()) {
+            THROW_ERROR_EXCEPTION("Number of attached blocks is different from blocks field length")
+                << TErrorAttribute("attached_block_count", blocks.size())
+                << TErrorAttribute("blocks_length", request->block_indexes_size());
+        }
+
+        if (request->chunk_ids_size() != request->chunk_block_count_size()) {
+            THROW_ERROR_EXCEPTION("Invalid block count")
+                << TErrorAttribute("chunk_count", request->chunk_ids_size())
+                << TErrorAttribute("block_count", request->chunk_block_count_size());
+        }
+
+        int j = 0;
+        for (int i = 0; i < request->chunk_ids_size(); i++) {
+            auto chunkId = FromProto<TChunkId>(request->chunk_ids(i));
+            
+            auto blockCount = request->chunk_block_count(i);
+
+            std::vector<int> blockIndexes;
+            std::vector<NChunkClient::TBlock> chunkBlocks;
+
+            for (int k = 0; k < blockCount; k++) {
+                if (j + k >= std::ssize(blocks)) {
+                    THROW_ERROR_EXCEPTION("Invalid chunk block count");
+                }
+
+                blockIndexes.push_back(request->block_indexes(j + k));
+                chunkBlocks.push_back(blocks[j + k]);
             }
 
             blockCache->HoldBlocks(
-                sessionId,
                 chunkId,
                 FromProto<std::vector<int>>(request->block_indexes()),
                 blocks);
+
+            j += blockCount;
         }
 
-        bool sessionCreated = blockCache->FinishSessionIteration(request->source_node_id(), sessionId, request->iteration());
-        response->set_session_created(sessionCreated);
+        blockCache->FinishSessionIteration(sessionId, request->iteration());
 
         context->Reply();
     }
@@ -564,6 +584,63 @@ private:
                 chunkId,
                 allyReplicas.Replicas);
         }
+    }
+
+    void WaitP2PBarriers(const TReqGetBlockSet* request)
+    {
+        const auto& p2pBlockCache = Bootstrap_->GetP2PBlockCache();
+        for (const auto& barrier : request->wait_barriers()) {
+            if (static_cast<TNodeId>(barrier.if_node_id()) != Bootstrap_->GetNodeId()) {
+                continue;
+            }
+
+            auto p2pSessionId = FromProto<TGuid>(barrier.session_id());
+            auto asyncBarrier = p2pBlockCache->WaitSessionIteration(p2pSessionId, barrier.iteration());
+
+            if (!asyncBarrier.IsSet()) {
+                YT_LOG_DEBUG("Waiting for P2P barrier (SessionId: %v, Iteration: %v)", p2pSessionId, barrier.iteration());
+                WaitFor(asyncBarrier)
+                    .ThrowOnError();
+            }
+        }
+    }
+
+    std::vector<NChunkClient::TBlock> ReadBlocksFromP2P(
+        const TChunkId chunkId,
+        const std::vector<int>& blockIndexes,
+        const TChunkReaderStatisticsPtr& chunkReaderStatistics)
+    {
+        const auto& p2pBlockCache = Bootstrap_->GetP2PBlockCache();
+
+        // New P2P implementation stores blocks in separate block cache.
+        auto blocks = p2pBlockCache->LookupBlocks(chunkId, blockIndexes);
+
+        size_t bytesRead = 0;
+        for (const auto& block : blocks) {
+            if (block) {
+                bytesRead += block.Size();
+            }
+        }
+        if (bytesRead > 0) {
+            chunkReaderStatistics->DataBytesReadFromCache += bytesRead;
+            return blocks;
+        }
+
+        blocks = {};
+
+        auto blockCache = Bootstrap_->GetBlockCache();
+
+        // Old P2P implementation stores blocks in shared block cache.
+        auto type = NObjectClient::TypeFromId(chunkId);
+        if (type == NObjectClient::EObjectType::Chunk || type == NObjectClient::EObjectType::ErasureChunk) {
+            for (int blockIndex : blockIndexes) {
+                auto blockId = TBlockId(chunkId, blockIndex);
+                auto block = blockCache->FindBlock(blockId, EBlockType::CompressedData).Block;
+                blocks.push_back(block);
+                chunkReaderStatistics->DataBytesReadFromCache += block.Size();
+            }
+        }
+        return blocks;
     }
 
     void AddBlockPeers(
@@ -688,8 +765,8 @@ private:
         SuggestPeersWithBlocks(context);
         SuggestAllyReplicas(context);
 
-        const auto& p2pManager = Bootstrap_->GetP2PManager();
-        AddBlockPeers(response->mutable_peer_descriptors(), p2pManager->OnBlockProbe(chunkId, blockIndexes));
+        const auto& p2pSnooper = Bootstrap_->GetP2PSnooper();
+        AddBlockPeers(response->mutable_peer_descriptors(), p2pSnooper->OnBlockProbe(chunkId, blockIndexes));
 
         context->SetResponseInfo(
             "HasCompleteChunk: %v, "
@@ -775,19 +852,9 @@ private:
             requesterNodeId,
             requesterExpirationDeadline);
         SuggestAllyReplicas(context);
+        WaitP2PBarriers(request);
 
         auto chunkReaderStatistics = New<TChunkReaderStatistics>();
-
-        const auto& p2pBlockCache = Bootstrap_->GetP2PBlockCache();
-        for (const auto& barrier : request->wait_barriers()) {
-            if (static_cast<TNodeId>(barrier.if_node_id()) != Bootstrap_->GetNodeId()) {
-                continue;
-            }
-
-            auto p2pSessionId = FromProto<TGuid>(barrier.session_id());
-            WaitFor(p2pBlockCache->WaitSessionIteration(p2pSessionId, barrier.iteration()))
-                .ThrowOnError();
-        }
 
         std::vector<TBlock> blocks;
         if (fetchFromCache || fetchFromDisk) {
@@ -802,14 +869,18 @@ private:
                 options.Deadline = *context->GetStartTime() + *context->GetTimeout() * Config_->BlockReadTimeoutFraction;
             }
 
-            const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
-            auto asyncBlocks = chunkBlockManager->ReadBlockSet(
-                chunkId,
-                blockIndexes,
-                options);
+            if (!chunk && options.FetchFromCache) {
+                blocks = ReadBlocksFromP2P(chunkId, blockIndexes, chunkReaderStatistics);
+            } else {
+                const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
+                auto asyncBlocks = chunkBlockManager->ReadBlockSet(
+                    chunkId,
+                    blockIndexes,
+                    options);
 
-            blocks = WaitFor(asyncBlocks)
-                .ValueOrThrow();
+                blocks = WaitFor(asyncBlocks)
+                    .ValueOrThrow();
+            }
         }
 
         for (int index = 0; index < std::ssize(blocks) && index < std::ssize(blockIndexes); ++index) {
@@ -821,8 +892,8 @@ private:
         }
 
         // NB: p2p manager might steal blocks and assign null values.
-        const auto& p2pManager = Bootstrap_->GetP2PManager();
-        std::vector<TP2PSuggestion> blockPeers = p2pManager->OnBlockRead(chunkId, blockIndexes, &blocks);
+        const auto& p2pSnooper = Bootstrap_->GetP2PSnooper();
+        std::vector<TP2PSuggestion> blockPeers = p2pSnooper->OnBlockRead(chunkId, blockIndexes, &blocks);
         AddBlockPeers(response->mutable_peer_descriptors(), blockPeers);
 
         if (!blocks.empty()) {

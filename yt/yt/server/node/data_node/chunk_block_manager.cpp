@@ -75,39 +75,9 @@ public:
         try {
             const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
             auto chunk = chunkRegistry->FindChunk(chunkId);
-            auto type = TypeFromId(DecodeChunkId(chunkId).Id);
             if (!chunk) {
-                const auto& p2pBlockCache = Bootstrap_->GetP2PBlockCache();
-
-                // New P2P implementation stores blocks in separate block cache.
-                auto blocks = p2pBlockCache->LookupBlocks(chunkId, blockIndexes);
-
-                size_t bytesRead = 0;
-                for (const auto& block : blocks) {
-                    if (block) {
-                        bytesRead += block.Size();
-                    }
-                }
-                if (bytesRead > 0) {
-                    options.ChunkReaderStatistics->DataBytesReadFromCache += bytesRead;
-                    return MakeFuture(blocks);
-                }
-
-                // Old P2P implementation stores blocks in shared block cache.
-                if (options.BlockCache &&
-                    options.FetchFromCache &&
-                    (type == EObjectType::Chunk || type == EObjectType::ErasureChunk))
-                {
-                    for (int blockIndex : blockIndexes) {
-                        auto blockId = TBlockId(chunkId, blockIndex);
-                        auto block = options.BlockCache->FindBlock(blockId, EBlockType::CompressedData).Block;
-                        blocks.push_back(block);
-                        options.ChunkReaderStatistics->DataBytesReadFromCache += block.Size();
-                    }
-                }
-                return MakeFuture(blocks);
+                return MakeFuture<std::vector<TBlock>>({});
             }
-
             return chunk->ReadBlockSet(blockIndexes, options);
         } catch (const std::exception& ex) {
             return MakeFuture<std::vector<TBlock>>(TError(ex));

@@ -39,6 +39,7 @@ class Profiler(object):
     def __init__(self, yt_client, path, fixed_tags=None, namespace="yt"):
         if fixed_tags is None:
             fixed_tags = {}
+
         self.yt_client = yt_client
         self.path = path
         self.namespace = namespace

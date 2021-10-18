@@ -75,6 +75,10 @@ void TP2PBlockDistributor::OnBlockRequested(TBlockId blockId, i64 blockSize)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    if (!Config_->Enabled) {
+        return;
+    }
+
     TotalRequestedBlockSize_ += blockSize;
     RecentlyRequestedBlocks_.Enqueue(blockId);
 }
@@ -82,6 +86,10 @@ void TP2PBlockDistributor::OnBlockRequested(TBlockId blockId, i64 blockSize)
 void TP2PBlockDistributor::Start()
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    if (!Config_->Enabled) {
+        return;
+    }
 
     UpdateTransmittedBytes();
     PeriodicExecutor_->Start();

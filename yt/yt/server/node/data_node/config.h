@@ -33,62 +33,87 @@ class TP2PConfig
 public:
     bool Enabled;
 
-    int BlockCacheSize;
-    int BlockSizeThreshold;
-    int MaxBlockSpanLength;
+    TSlruCacheConfigPtr BlockCache;
+    TSlruCacheDynamicConfigPtr BlockCacheOverride;
 
     TDuration TickPeriod;
+    TDuration NodeRefreshPeriod;
+    TDuration RequestTimeout;
 
     TDuration IterationWaitTimeout;
     int MaxWaitingRequests;
 
-    TDuration BlockCooldownTimeout;
+    TDuration SessionCleaupPeriod;
+    TDuration SessionTTL;
 
-    std::vector<int> HotBlockThreshold;
-    std::vector<int> SecondHotBlockThreshold;
-    std::vector<int> HotBlockReplicaCount;
+    TSlruCacheConfigPtr RequestCache;
+
+    TDuration ChunkCooldownTimeout;
+    int MaxDistributedBytes;
+    int BlockCounterResetTicks;
+    int HotBlockThreshold;
+    int SecondHotBlockThreshold;
+    int HotBlockReplicaCount;
+    int BlockRedistributionTicks;
+
+    TBooleanFormula NodeTagFilter;
 
     TP2PConfig()
     {
         RegisterParameter("enabled", Enabled)
             .Default(true);
 
-        // Low default to prevent OOMs in yt-local.
-        RegisterParameter("block_cache_size", BlockCacheSize)
-            .Default(1_MB);
+        RegisterParameter("block_cache", BlockCache)
+            .DefaultNew();
 
-        RegisterParameter("block_size_threshold", BlockSizeThreshold)
-            .Default(32_KB);
-
-        RegisterParameter("max_block_span_length", MaxBlockSpanLength)
-            .Default(128_MB);
+        RegisterParameter("block_cache_override", BlockCacheOverride)
+            .DefaultNew();
 
         RegisterParameter("tick_period", TickPeriod)
-            .Default(TDuration::Seconds(15));
+            .Default(TDuration::MilliSeconds(100));
+        RegisterParameter("node_refresh_period", NodeRefreshPeriod)
+            .Default(TDuration::Seconds(30));
+        RegisterParameter("request_timeout", RequestTimeout)
+            .Default(TDuration::Seconds(30));
 
         RegisterParameter("iteration_wait_timeout", IterationWaitTimeout)
-            .Default(TDuration::Seconds(5));
+            .Default(TDuration::Seconds(1));
         RegisterParameter("max_waiting_requests", MaxWaitingRequests)
             .Default(128);
 
-        RegisterParameter("block_cooldown_timeout", BlockCooldownTimeout)
+        RegisterParameter("session_cleaup_period", SessionCleaupPeriod)
+            .Default(TDuration::Seconds(15));
+        RegisterParameter("session_ttl", SessionTTL)
             .Default(TDuration::Minutes(5));
 
+        RegisterParameter("request_cache", RequestCache)
+            .DefaultNew();
+
+        RegisterParameter("chunk_cooldown_timeout", ChunkCooldownTimeout)
+            .Default(TDuration::Minutes(5));
+        RegisterParameter("max_distributed_bytes", MaxDistributedBytes)
+            .Default(128_MB);
+        RegisterParameter("block_counter_reset_ticks", BlockCounterResetTicks)
+            .GreaterThan(0)
+            .Default(150);
         RegisterParameter("hot_block_threshold", HotBlockThreshold)
-            .Default({10});
+            .Default(10);
         RegisterParameter("second_hot_block_threshold", SecondHotBlockThreshold)
-            .Default({5});
+            .Default(5);
         RegisterParameter("hot_block_replica_count", HotBlockReplicaCount)
-            .Default({10});
+            .Default(3);
+        RegisterParameter("block_redistribution_ticks", BlockRedistributionTicks)
+            .Default(3000);
 
-        RegisterPostprocessor([this] {
-            if (HotBlockThreshold.size() != SecondHotBlockThreshold.size()) {
-                THROW_ERROR_EXCEPTION("\"hot_block_threshold\" and \"second_hot_block_threshold\" must have the same length");
-            }
+        RegisterParameter("node_tag_filter", NodeTagFilter)
+            .Default(MakeBooleanFormula("!CLOUD"));
 
-            if (HotBlockThreshold.size() != HotBlockReplicaCount.size()) {
-                THROW_ERROR_EXCEPTION("\"hot_block_threshold\" and \"hot_block_replica_count\" must have the same length");
-            }
+        RegisterPreprocessor([&] {
+            // Low default to prevent OOMs in yt-local.
+            BlockCache->Capacity = 1_MB;
+
+            // Should be good enough.
+            RequestCache->Capacity = 128 * 1024;
         });
     }
 };
@@ -122,6 +147,9 @@ class TP2PBlockDistributorConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    //! Enables block distributor.
+    bool Enabled;
+
     //! Period between distributor iterations.
     TDuration IterationPeriod;
 
@@ -165,6 +193,8 @@ public:
 
     TP2PBlockDistributorConfig()
     {
+        RegisterParameter("enabled", Enabled)
+            .Default(true);
         RegisterParameter("iteration_period", IterationPeriod)
             .Default(TDuration::Seconds(1));
         RegisterParameter("out_traffic_activation_threshold", OutTrafficActivationThreshold)
@@ -1287,6 +1317,8 @@ public:
     //! IO tracker config.
     NIO::TIOTrackerConfigPtr IOTracker;
 
+    TP2PConfigPtr P2P;
+
     TDataNodeDynamicConfig()
     {
         RegisterParameter("storage_heavy_thread_count", StorageHeavyThreadCount)
@@ -1338,6 +1370,9 @@ public:
 
         RegisterParameter("io_tracker", IOTracker)
             .DefaultNew();
+
+        RegisterParameter("p2p", P2P)
+            .Default();
     }
 };
 

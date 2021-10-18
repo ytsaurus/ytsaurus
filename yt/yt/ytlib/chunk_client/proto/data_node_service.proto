@@ -26,7 +26,7 @@ message TAllyReplicasInfo
 message TP2PBarrier
 {
     required NYT.NProto.TGuid session_id = 1;
-    required uint64 iteration = 2;
+    required int64 iteration = 2;
 
     // Workaround for hedging. See note in replication_reader.cpp.
     optional int32 if_node_id = 3;
@@ -159,13 +159,13 @@ message TReqUpdateP2PBlocks
 {
     required int32 source_node_id = 7;
     required NYT.NProto.TGuid session_id = 1;
-    required uint64 iteration = 2;
+    required int64 iteration = 2;
 
-    required NYT.NProto.TGuid chunk_id = 3;
+    repeated NYT.NProto.TGuid chunk_ids = 3;
+    repeated int32 chunk_block_count = 8;
     repeated int32 block_indexes = 4;
-    repeated fixed64 block_checksums = 5;
 
-    required bool drop_blocks = 6 [default = false];
+    repeated fixed64 block_checksums = 5;
 }
 
 message TRspUpdateP2PBlocks

@@ -28,6 +28,8 @@
 
 #include <yt/yt/server/lib/io/config.h>
 
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>
 
 #include <yt/yt/core/http/server.h>
@@ -168,9 +170,18 @@ public:
             "MasterJob");
 
         BlockPeerTable_ = New<TBlockPeerTable>(this);
+
+        P2PActionQueue_ = New<TActionQueue>("P2P");
         P2PBlockDistributor_ = New<TP2PBlockDistributor>(this);
-        P2PBlockCache_ = New<TP2PBlockCache>(GetConfig()->DataNode->P2P);
-        P2PManager_ = New<TP2PManager>(GetConfig()->DataNode->P2P);
+        P2PBlockCache_ = New<TP2PBlockCache>(
+            GetConfig()->DataNode->P2P,
+            P2PActionQueue_->GetInvoker(),
+            GetMemoryUsageTracker()->WithCategory(EMemoryCategory::P2P));
+        P2PSnooper_ = New<TP2PSnooper>(GetConfig()->DataNode->P2P);
+        P2PDistributor_ = New<TP2PDistributor>(
+            GetConfig()->DataNode->P2P,
+            P2PActionQueue_->GetInvoker(),
+            this);
 
         TableSchemaCache_ = New<TTableSchemaCache>(GetConfig()->DataNode->TableSchemaCache);
 
@@ -221,6 +232,7 @@ public:
         MediumUpdater_->Start();
 
         P2PBlockDistributor_->Start();
+        P2PDistributor_->Start();
 
         SkynetHttpServer_->Start();
 
@@ -328,9 +340,9 @@ public:
         return P2PBlockCache_;
     }
 
-    const TP2PManagerPtr& GetP2PManager() const override
+    const TP2PSnooperPtr& GetP2PSnooper() const override
     {
-        return P2PManager_;
+        return P2PSnooper_;
     }
 
     const TTableSchemaCachePtr& GetTableSchemaCache() const override
@@ -365,10 +377,12 @@ private:
     TThreadPoolPtr StorageLookupThreadPool_;
     TThreadPoolPtr MasterJobThreadPool_;
 
+    TActionQueuePtr P2PActionQueue_;
     TBlockPeerTablePtr BlockPeerTable_;
     TP2PBlockDistributorPtr P2PBlockDistributor_;
     TP2PBlockCachePtr P2PBlockCache_;
-    TP2PManagerPtr P2PManager_;
+    TP2PSnooperPtr P2PSnooper_;
+    TP2PDistributorPtr P2PDistributor_;
 
     TTableSchemaCachePtr TableSchemaCache_;
 
@@ -401,6 +415,10 @@ private:
         TableSchemaCache_->Configure(newConfig->DataNode->TableSchemaCache);
 
         IOTracker_->SetConfig(newConfig->DataNode->IOTracker);
+
+        P2PBlockCache_->UpdateConfig(newConfig->DataNode->P2P);
+        P2PSnooper_->UpdateConfig(newConfig->DataNode->P2P);
+        P2PDistributor_->UpdateConfig(newConfig->DataNode->P2P);
     }
 };
 
