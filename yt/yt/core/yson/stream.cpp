@@ -49,7 +49,7 @@ void ParseYson(
     IYsonConsumer* consumer,
     bool enableLinePositionInfo)
 {
-    TYsonParser parser(consumer, input.GetType(), enableLinePositionInfo);
+    TYsonParser parser(consumer, input.GetType(), {.EnableLinePositionInfo = enableLinePositionInfo});
     if (input.GetStream()) {
         char buffer[ParseBufferSize];
         while (true) {

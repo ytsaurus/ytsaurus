@@ -20,7 +20,10 @@ public:
         IYsonConsumer* consumer,
         EYsonType type,
         bool enableLinePositionInfo)
-        : Parser(consumer, type, enableLinePositionInfo, NTableClient::MaxRowWeightLimit)
+        : Parser(consumer, type, {
+            .EnableLinePositionInfo=enableLinePositionInfo,
+            .MemoryLimit=NTableClient::MaxRowWeightLimit
+        })
     { }
 
     void Read(TStringBuf data) override

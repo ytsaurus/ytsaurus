@@ -20,22 +20,15 @@ private:
     TParserYsonStreamImpl<IYsonConsumer, TBlockReader<TParserCoroutine>> Parser_;
 
 public:
-    TImpl(
-        IYsonConsumer* consumer,
-        EYsonType parsingMode,
-        bool enableLinePositionInfo,
-        i64 memoryLimit,
-        bool enableContext)
+    TImpl(IYsonConsumer* consumer, EYsonType parsingMode, TYsonParserConfig config)
         : ParserCoroutine_(BIND(
-            [=] (TParserCoroutine& self, const char* begin, const char* end, bool finish) {
+            [=, config=std::move(config)] (TParserCoroutine& self, const char* begin, const char* end, bool finish) {
                 Parser_.DoParse(
                     TBlockReader<TParserCoroutine>(self, begin, end, finish),
                     consumer,
                     parsingMode,
-                    enableLinePositionInfo,
-                    memoryLimit,
-                    enableContext);
-            }))
+                    config);
+        }))
     { }
 
     void Read(const char* begin, const char* end, bool finish = false)
@@ -65,18 +58,8 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonParser::TYsonParser(
-    IYsonConsumer* consumer,
-    EYsonType type,
-    bool enableLinePositionInfo,
-    i64 memoryLimit,
-    bool enableContext)
-    : Impl(std::make_unique<TImpl>(
-        consumer,
-        type,
-        enableLinePositionInfo,
-        memoryLimit,
-        enableContext))
+TYsonParser::TYsonParser(IYsonConsumer* consumer, EYsonType type, TYsonParserConfig config)
+    : Impl(std::make_unique<TImpl>(consumer, type, std::move(config)))
 { }
 
 TYsonParser::~TYsonParser()
@@ -110,20 +93,16 @@ private:
     const std::unique_ptr<TStatelessYsonParserImplBase> Impl;
 
 public:
-    TImpl(
-        IYsonConsumer* consumer,
-        bool enableLinePositionInfo,
-        i64 memoryLimit,
-        bool enableContext)
-        : Impl([=] () -> TStatelessYsonParserImplBase* {
-            if (enableContext && enableLinePositionInfo) {
-                return new TStatelessYsonParserImpl<IYsonConsumer, 64, true>(consumer, memoryLimit);
-            } else if (enableContext && !enableLinePositionInfo) {
-                return new TStatelessYsonParserImpl<IYsonConsumer, 64, false>(consumer, memoryLimit);
-            } else if (!enableContext && enableLinePositionInfo) {
-                return new TStatelessYsonParserImpl<IYsonConsumer, 0, true>(consumer, memoryLimit);
+    TImpl(IYsonConsumer* consumer, TYsonParserConfig config)
+        : Impl([&] () -> TStatelessYsonParserImplBase* {
+            if (config.EnableContext && config.EnableLinePositionInfo) {
+                return new TStatelessYsonParserImpl<IYsonConsumer, 64, true>(consumer, config.MemoryLimit);
+            } else if (config.EnableContext && !config.EnableLinePositionInfo) {
+                return new TStatelessYsonParserImpl<IYsonConsumer, 64, false>(consumer, config.MemoryLimit);
+            } else if (!config.EnableContext && config.EnableLinePositionInfo) {
+                return new TStatelessYsonParserImpl<IYsonConsumer, 0, true>(consumer, config.MemoryLimit);
             } else {
-                return new TStatelessYsonParserImpl<IYsonConsumer, 0, false>(consumer, memoryLimit);
+                return new TStatelessYsonParserImpl<IYsonConsumer, 0, false>(consumer, config.MemoryLimit);
             }
         }())
     { }
@@ -141,12 +120,8 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStatelessYsonParser::TStatelessYsonParser(
-    IYsonConsumer* consumer,
-    bool enableLinePositionInfo,
-    i64 memoryLimit,
-    bool enableContext)
-    : Impl(new TImpl(consumer, enableLinePositionInfo, memoryLimit, enableContext))
+TStatelessYsonParser::TStatelessYsonParser(IYsonConsumer* consumer, TYsonParserConfig config)
+    : Impl(std::make_unique<TImpl>(consumer, config))
 { }
 
 TStatelessYsonParser::~TStatelessYsonParser()
@@ -164,22 +139,11 @@ void TStatelessYsonParser::Stop()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseYsonStringBuffer(
-    TStringBuf buffer,
-    EYsonType type,
-    IYsonConsumer* consumer,
-    bool enableLinePositionInfo,
-    i64 memoryLimit,
-    bool enableContext)
+void ParseYsonStringBuffer(TStringBuf buffer, EYsonType type, IYsonConsumer* consumer, TYsonParserConfig config)
 {
     TParserYsonStreamImpl<IYsonConsumer, TStringReader> parser;
-    parser.DoParse(
-        TStringReader(buffer.begin(), buffer.end()),
-        consumer,
-        type,
-        enableLinePositionInfo,
-        memoryLimit,
-        enableContext);
+    TStringReader reader(buffer.begin(), buffer.end());
+    parser.DoParse(reader, consumer, type, config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
