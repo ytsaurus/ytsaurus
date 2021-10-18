@@ -41,6 +41,12 @@ public:
     /*
      * \note Thread affinity: single-threaded
      */
+    template <class TProtoMessage, class TBuilder>
+    void BuildOutcoming(TProtoMessage* message, TBuilder protoItemBuilder, i64 itemLimit);
+
+    /*
+     * \note Thread affinity: single-threaded
+     */
     template <class TProtoMessage>
     void HandleStatus(const TProtoMessage& message);
 

@@ -552,6 +552,8 @@ public:
     // Tag to threshols for alive agents with the tag
     THashMap<TString, TAliveControllerAgentThresholds> TagToAliveControllerAgentThresholds;
 
+    i64 MaxMessageJobEventCount;
+
     REGISTER_YSON_STRUCT(TControllerAgentTrackerConfig);
 
     static void Register(TRegistrar registrar);

@@ -35,6 +35,13 @@ template <class TItem>
 template <class TProtoMessage, class TBuilder>
 void TMessageQueueOutbox<TItem>::BuildOutcoming(TProtoMessage* message, TBuilder protoItemBuilder)
 {
+    BuildOutcoming(message, protoItemBuilder, std::numeric_limits<i64>::max());
+}
+
+template <class TItem>
+template <class TProtoMessage, class TBuilder>
+void TMessageQueueOutbox<TItem>::BuildOutcoming(TProtoMessage* message, TBuilder protoItemBuilder, i64 itemCountLimit)
+{
     VERIFY_THREAD_AFFINITY(Consumer);
 
     Stack_.DequeueAll(true, [&] (TEntry& entry) {
@@ -51,18 +58,25 @@ void TMessageQueueOutbox<TItem>::BuildOutcoming(TProtoMessage* message, TBuilder
             });
     });
 
+    i64 itemCount = std::min(itemCountLimit, std::ssize(Queue_));
+
     auto firstItemId = FirstItemId_;
-    auto lastItemId = FirstItemId_ + Queue_.size() - 1;
+    auto lastItemId = FirstItemId_ + itemCount - 1;
     message->set_first_item_id(firstItemId);
     if (Queue_.empty()) {
         return;
     }
-    for (auto it = Queue_.begin(); it != Queue_.end(); Queue_.move_forward(it)) {
+
+    auto it = Queue_.begin();
+    for (i64 iter = 0; iter < itemCount; ++iter) {
         protoItemBuilder(message->add_items(), *it);
+        Queue_.move_forward(it);
     }
-    YT_LOG_DEBUG("Sending outbox items (ItemIds: %v-%v)",
+    YT_LOG_DEBUG("Sending outbox items (ItemIds: %v-%v, ItemCount: %v, RetainedCount: %v)",
         firstItemId,
-        lastItemId);
+        lastItemId,
+        itemCount,
+        Queue_.size() - itemCount);
 }
 
 template <class TItem>

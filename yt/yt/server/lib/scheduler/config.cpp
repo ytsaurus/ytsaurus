@@ -567,6 +567,10 @@ void TControllerAgentTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("tag_to_alive_controller_agent_thresholds", &TControllerAgentTrackerConfig::TagToAliveControllerAgentThresholds)
         .Default();
 
+    registrar.Parameter("max_message_job_event_count", &TControllerAgentTrackerConfig::MaxMessageJobEventCount)
+        .Default(10000)
+        .GreaterThan(0);
+
     registrar.Postprocessor([&] (TControllerAgentTrackerConfig* config) {
         if (!config->TagToAliveControllerAgentThresholds.contains(DefaultOperationTag)) {
             config->TagToAliveControllerAgentThresholds[DefaultOperationTag] = {static_cast<i64>(config->MinAgentCount), 0.0};
