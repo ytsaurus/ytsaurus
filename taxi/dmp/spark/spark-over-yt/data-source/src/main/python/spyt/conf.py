@@ -40,7 +40,7 @@ def is_supported_cluster_minor_version(spark_cluster_version, required_version):
 
 
 def get_version_tuple(version):
-    return map(int, version.split("."))
+    return list(map(int, version.split(".")))
 
 
 def validate_spyt_version(spyt_version, client=None):
