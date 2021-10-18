@@ -23,7 +23,7 @@
 using namespace NYT;
 using namespace NSchedulerSimulator;
 using namespace NYTree;
-using namespace NYson;
+using namespace NYT::NYson;
 using namespace NPhoenix;
 
 NLogging::TLogger Logger("Converter");
@@ -84,7 +84,7 @@ int main(int argc, char** argv)
     TString destinationTemp(destination + ".tmp");
 
     {
-        auto input = TYsonInput(&Cin, NYson::EYsonType::ListFragment);
+        auto input = TYsonInput(&Cin, NYT::NYson::EYsonType::ListFragment);
         TSaveContext context;
         TUnbufferedFileOutput outputTemp(destinationTemp);
         context.SetOutput(&outputTemp);
