@@ -31,7 +31,7 @@ public:
         EYsonType mode = EYsonType::Node,
         i64 memoryLimit = std::numeric_limits<i64>::max())
     {
-        TYsonParser parser(&Mock, mode, true, memoryLimit);
+        TYsonParser parser(&Mock, mode, {.EnableLinePositionInfo = true, .MemoryLimit = memoryLimit});
         parser.Read(input);
         parser.Finish();
     }
@@ -41,7 +41,7 @@ public:
         EYsonType mode = EYsonType::Node,
         i64 memoryLimit = std::numeric_limits<i64>::max())
     {
-        TYsonParser parser(&Mock, mode, true, memoryLimit);
+        TYsonParser parser(&Mock, mode, {.EnableLinePositionInfo = true, .MemoryLimit = memoryLimit});
         for (const auto& str : input) {
             parser.Read(str);
         }
