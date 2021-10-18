@@ -123,7 +123,7 @@ public:
         : Config_(std::move(config))
         , ControllerConfig_(std::move(controllerConfig))
         , ResourceTree_(New<TResourceTree>(Config_, feasibleInvokers))
-        , TreeProfiler_(New<TFairShareTreeProfiler>(
+        , TreeProfiler_(New<TFairShareTreeProfileManager>(
             treeId,
             strategyHost->GetFairShareProfilingInvoker()))
         , StrategyHost_(strategyHost)
@@ -132,20 +132,20 @@ public:
         , Logger(StrategyLogger.WithTag("TreeId: %v", TreeId_))
         , NonPreemptiveSchedulingStage_(
             /* nameInLogs */ "Non preemptive",
-            TreeProfiler_->GetRegistry().WithTag("schedule_jobs_stage", "no_preemption"))
+            TreeProfiler_->GetProfiler().WithTag("schedule_jobs_stage", "no_preemption"))
         , AggressivelyPreemptiveSchedulingStage_(
             /* nameInLogs */ "Aggressively preemptive",
-            TreeProfiler_->GetRegistry().WithTag("schedule_jobs_stage", "aggressive_preemption"))
+            TreeProfiler_->GetProfiler().WithTag("schedule_jobs_stage", "aggressive_preemption"))
         , PreemptiveSchedulingStage_(
             /* nameInLogs */ "Preemptive",
-            TreeProfiler_->GetRegistry().WithTag("schedule_jobs_stage", "preemption"))
+            TreeProfiler_->GetProfiler().WithTag("schedule_jobs_stage", "preemption"))
         , PackingFallbackSchedulingStage_(
             /* nameInLogs */ "Packing fallback",
-            TreeProfiler_->GetRegistry().WithTag("schedule_jobs_stage", "packing_fallback"))
-        , FairSharePreUpdateTimer_(TreeProfiler_->GetRegistry().Timer("/fair_share_preupdate_time"))
-        , FairShareUpdateTimer_(TreeProfiler_->GetRegistry().Timer("/fair_share_update_time"))
-        , FairShareFluentLogTimer_(TreeProfiler_->GetRegistry().Timer("/fair_share_fluent_log_time"))
-        , FairShareTextLogTimer_(TreeProfiler_->GetRegistry().Timer("/fair_share_text_log_time"))
+            TreeProfiler_->GetProfiler().WithTag("schedule_jobs_stage", "packing_fallback"))
+        , FairSharePreUpdateTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_preupdate_time"))
+        , FairShareUpdateTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_update_time"))
+        , FairShareFluentLogTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_fluent_log_time"))
+        , FairShareTextLogTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_text_log_time"))
     {
         RootElement_ = New<TSchedulerRootElement>(StrategyHost_, this, Config_, TreeId_, Logger);
 
@@ -863,7 +863,7 @@ public:
         return ResourceTree_.Get();
     }
 
-    TFairShareTreeProfiler* GetProfiler()
+    TFairShareTreeProfileManager* GetProfiler()
     {
         return TreeProfiler_.Get();
     }
@@ -880,7 +880,7 @@ private:
     TFairShareStrategyOperationControllerConfigPtr ControllerConfig_;
 
     TResourceTreePtr ResourceTree_;
-    TFairShareTreeProfilerPtr TreeProfiler_;
+    TFairShareTreeProfileManagerPtr TreeProfiler_;
 
     ISchedulerStrategyHost* const StrategyHost_;
 
