@@ -79,7 +79,7 @@ public:
 
     virtual TString GetTitle() const override;
     virtual TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const override;
-    TDataFlowGraph::TVertexDescriptor GetVertexDescriptorForMergeType(EMergeJobType type) const;
+    virtual TDataFlowGraph::TVertexDescriptor GetVertexDescriptorForJoblet(const TJobletPtr& joblet) const override;
 
     virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override;
 
@@ -121,9 +121,6 @@ protected:
         const NChunkClient::NProto::TDataStatistics& dataStatistics,
         const TJobletPtr& joblet) override;
     void UpdateOutputEdgesForTeleport(const NChunkClient::NProto::TDataStatistics& dataStatistics) override;
-    void UpdateOutputEdgesForJob(
-        const THashMap<int, NChunkClient::NProto::TDataStatistics>& dataStatistics,
-        const TJobletPtr& joblet) override;
 
 private:
     using TJobSpec = NJobTrackerClient::NProto::TJobSpec;
@@ -151,8 +148,9 @@ private:
     const TJobSpec& GetJobSpecTemplate(int tableIndex, EMergeJobType type) const;
     void InitAutoMergeJobSpecTemplates();
 
-    EMergeJobType GetMergeTypeFromJobType(EJobType jobType);
-    EMergeJobType GetMergeTypeFromJoblet(const TJobletPtr& joblet);
+    TDataFlowGraph::TVertexDescriptor GetVertexDescriptorForMergeType(EMergeJobType type) const;
+    EMergeJobType GetMergeTypeFromJobType(EJobType jobType) const;
+    EMergeJobType GetCurrentMergeType() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TAutoMergeTask);

@@ -124,6 +124,11 @@ TDataFlowGraph::TVertexDescriptor TTask::GetVertexDescriptor() const
     return FormatEnum(GetJobType());
 }
 
+TDataFlowGraph::TVertexDescriptor TTask::GetVertexDescriptorForJoblet(const TJobletPtr& /*joblet*/) const
+{
+    return GetVertexDescriptor();
+}
+
 int TTask::GetPendingJobCount() const
 {
     if (!IsActive()) {
@@ -794,11 +799,11 @@ void TTask::DoUpdateOutputEdgesForJob(
     }
 }
 
-void TTask::UpdateInputEdges(const NChunkClient::NProto::TDataStatistics& dataStatistics, const TJobletPtr& /*joblet*/)
+void TTask::UpdateInputEdges(const NChunkClient::NProto::TDataStatistics& dataStatistics, const TJobletPtr& joblet)
 {
     // TODO(gritukan): Create a virtual source task and get rid of this hack.
     if (InputVertex_ == TDataFlowGraph::SourceDescriptor) {
-        TaskHost_->GetDataFlowGraph()->UpdateEdgeTeleportDataStatistics(InputVertex_, GetVertexDescriptor(), dataStatistics);
+        TaskHost_->GetDataFlowGraph()->UpdateEdgeTeleportDataStatistics(InputVertex_, GetVertexDescriptorForJoblet(joblet), dataStatistics);
     }
 }
 
@@ -809,9 +814,9 @@ void TTask::UpdateOutputEdgesForTeleport(const NChunkClient::NProto::TDataStatis
 
 void TTask::UpdateOutputEdgesForJob(
         const THashMap<int, NChunkClient::NProto::TDataStatistics>& dataStatistics,
-        const TJobletPtr& /*joblet*/)
+        const TJobletPtr& joblet)
 {
-    DoUpdateOutputEdgesForJob(GetVertexDescriptor(), dataStatistics);
+    DoUpdateOutputEdgesForJob(GetVertexDescriptorForJoblet(joblet), dataStatistics);
 }
 
 void TTask::OnChunkTeleported(TInputChunkPtr chunk, std::any /*tag*/)
