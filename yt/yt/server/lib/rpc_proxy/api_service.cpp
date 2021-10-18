@@ -1326,6 +1326,9 @@ private:
         if (request->has_suppressable_access_tracking_options()) {
             FromProto(&options, request->suppressable_access_tracking_options());
         }
+        if (request->has_options()) {
+            options.Options = NYTree::FromProto(request->options());
+        }
 
         context->SetRequestInfo("Path: %v",
             path);

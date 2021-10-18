@@ -623,7 +623,7 @@ struct TGetNodeOptions
     , public TSuppressableAccessTrackingOptions
     , public TPrerequisiteOptions
 {
-    // XXX(sandello): This one is used only in ProfileManager to pass `from_time`.
+    // NB(eshcherbin): Used in profiling Orchid.
     NYTree::IAttributeDictionaryPtr Options;
     std::optional<std::vector<TString>> Attributes;
     std::optional<i64> MaxSize;

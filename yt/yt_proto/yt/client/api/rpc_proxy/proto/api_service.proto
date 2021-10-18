@@ -781,6 +781,8 @@ message TReqGetNode
     optional TPrerequisiteOptions prerequisite_options = 101;
     optional TMasterReadOptions master_read_options = 102;
     optional TSuppressableAccessTrackingOptions suppressable_access_tracking_options = 104;
+
+    optional NYT.NYTree.NProto.TAttributeDictionary options = 200;
 }
 
 message TRspGetNode
