@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, is_asan_buil
 
 from yt_commands import (
     authors, print_debug, wait, create, get, set, exists,
-    create_account, read_table,
+    create_account, read_table, write_file,
     write_table, map, reduce, merge, sync_create_cells, sync_mount_table,
     get_operation)
 
@@ -823,3 +823,56 @@ class TestSchedulerAutoMergeAborted(TestSchedulerAutoMergeBase):
 
         assert data_flow_graph["edges"].get("map", {}).get("shallow_auto_merge", {}).get("statistics", {}).get("data_weight", 0) == 0
         assert data_flow_graph["edges"].get("shallow_auto_merge", {}).get("sink", {}).get("statistics", {}).get("data_weight", 0) == 0
+
+    @authors("gepardo")
+    def test_incompatible_metas_switch(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        data = [{"a": i} for i in range(10)]
+        write_table("//tmp/t_in", data)
+
+        mapper = """
+import json
+import sys
+
+input = json.loads(sys.stdin.readline())
+if input["a"] % 2 == 0:
+    print(json.dumps({"a": input["a"], "b": input["a"] // 2}))
+else:
+    print(json.dumps({"a": input["a"], "c": input["a"] * 3 + 1}))
+"""
+        create("file", "//tmp/mapper.py")
+        write_file("//tmp/mapper.py", mapper)
+
+        op = map(
+            in_="//tmp/t_in",
+            out=["//tmp/t_out"],
+            command="python mapper.py",
+            file="//tmp/mapper.py",
+            spec={
+                "auto_merge": {
+                    "mode": "manual",
+                    "max_intermediate_chunk_count": 4,
+                    "chunk_count_per_merge_job": 2,
+                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
+                },
+                "mapper": {
+                    "input_format": "json",
+                    "output_format": "json",
+                },
+                "data_size_per_job": 1
+            },
+        )
+        self._verify_shallow_merge_attempted(op)
+
+        expected_data = [{"a": i, "b": i // 2} if i % 2 == 0 else {"a": i, "c": i * 3 + 1} for i in range(10)]
+        assert get("//tmp/t_out/@row_count") == 10
+        assert get("//tmp/t_out/@chunk_count") == 5
+        output_data = read_table("//tmp/t_out")
+        assert sorted(expected_data) == sorted(output_data)
+
+        data_flow_graph = get(op.get_path() + "/@progress/data_flow_graph")
+        data_weight = data_flow_graph["edges"]["map"]["auto_merge"]["statistics"]["data_weight"]
+        assert data_weight > 0
+        assert data_flow_graph["edges"]["auto_merge"]["sink"]["statistics"]["data_weight"] == data_weight
