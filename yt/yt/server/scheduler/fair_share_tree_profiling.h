@@ -9,16 +9,16 @@ namespace NYT::NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Manages profiling data of fair share tree.
-class TFairShareTreeProfiler
+class TFairShareTreeProfileManager
     : public TRefCounted
 {
 public:
-    TFairShareTreeProfiler(
+    TFairShareTreeProfileManager(
         const TString& treeId,
         const IInvokerPtr& profilingInvoker);
 
     // Thread affinity: Control thread.
-    NProfiling::TProfiler GetRegistry() const;
+    NProfiling::TProfiler GetProfiler() const;
 
     // Thread affinity: Control thread.
     void ProfileOperationUnregistration(const TSchedulerCompositeElement* pool, EOperationState state);
@@ -36,7 +36,7 @@ public:
         const THashMap<TOperationId, TJobMetrics>& jobMetricsPerOperation);
 
 private:
-    const NProfiling::TProfiler Registry_;
+    const NProfiling::TProfiler Profiler_;
     const IInvokerPtr ProfilingInvoker_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -112,7 +112,7 @@ private:
     void ProfileDistributedResources(const TFairShareTreeSnapshotImplPtr& treeSnapshot);
 };
 
-DEFINE_REFCOUNTED_TYPE(TFairShareTreeProfiler)
+DEFINE_REFCOUNTED_TYPE(TFairShareTreeProfileManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
