@@ -200,17 +200,14 @@ void TAutoMergeTask::DoRegisterInGraph()
     }
 }
 
-EMergeJobType TAutoMergeTask::GetMergeTypeFromJobType(EJobType jobType)
+EMergeJobType TAutoMergeTask::GetMergeTypeFromJobType(EJobType jobType) const
 {
     YT_VERIFY(jobType == EJobType::ShallowMerge || jobType == EJobType::UnorderedMerge);
     return jobType == EJobType::ShallowMerge ? EMergeJobType::Shallow : EMergeJobType::Deep;
 }
 
-EMergeJobType TAutoMergeTask::GetMergeTypeFromJoblet(const TJobletPtr& joblet)
+EMergeJobType TAutoMergeTask::GetCurrentMergeType() const
 {
-    if (joblet) {
-        return GetMergeTypeFromJobType(joblet->JobType);
-    }
     return EnableShallowMerge_.load() ? EMergeJobType::Shallow : EMergeJobType::Deep;
 }
 
@@ -220,24 +217,15 @@ void TAutoMergeTask::UpdateInputEdges(
 {
     TaskHost_->GetDataFlowGraph()->UpdateEdgeJobDataStatistics(
         InputVertex_,
-        GetVertexDescriptorForMergeType(GetMergeTypeFromJoblet(joblet)),
+        GetVertexDescriptorForJoblet(joblet),
         dataStatistics);
 }
 
 void TAutoMergeTask::UpdateOutputEdgesForTeleport(const NChunkClient::NProto::TDataStatistics& dataStatistics)
 {
     TaskHost_->GetDataFlowGraph()->UpdateEdgeTeleportDataStatistics(
-        GetVertexDescriptorForMergeType(GetMergeTypeFromJoblet(nullptr)),
+        GetVertexDescriptorForJoblet(nullptr),
         TDataFlowGraph::SinkDescriptor,
-        dataStatistics);
-}
-
-void TAutoMergeTask::UpdateOutputEdgesForJob(
-    const THashMap<int, NChunkClient::NProto::TDataStatistics>& dataStatistics,
-    const TJobletPtr& joblet)
-{
-    DoUpdateOutputEdgesForJob(
-        GetVertexDescriptorForMergeType(GetMergeTypeFromJoblet(joblet)),
         dataStatistics);
 }
 
@@ -261,6 +249,14 @@ TDataFlowGraph::TVertexDescriptor TAutoMergeTask::GetVertexDescriptorForMergeTyp
         default:
             YT_ABORT();
     }
+}
+
+TDataFlowGraph::TVertexDescriptor TAutoMergeTask::GetVertexDescriptorForJoblet(const TJobletPtr& joblet) const
+{
+    auto mergeType = joblet
+        ? GetMergeTypeFromJobType(joblet->JobType)
+        : GetCurrentMergeType();
+    return GetVertexDescriptorForMergeType(mergeType);
 }
 
 TExtendedJobResources TAutoMergeTask::GetNeededResources(const TJobletPtr& joblet) const
@@ -303,7 +299,7 @@ void TAutoMergeTask::BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::
     VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
     auto poolIndex = *joblet->InputStripeList->PartitionTag;
-    jobSpec->CopyFrom(GetJobSpecTemplate(GetTableIndex(poolIndex), GetMergeTypeFromJoblet(joblet)));
+    jobSpec->CopyFrom(GetJobSpecTemplate(GetTableIndex(poolIndex), GetMergeTypeFromJobType(joblet->JobType)));
     AddSequentialInputSpec(jobSpec, joblet);
     AddOutputTableSpecs(jobSpec, joblet);
 }

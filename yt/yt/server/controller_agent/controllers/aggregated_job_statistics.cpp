@@ -19,7 +19,7 @@ void TAggregatedJobStatistics::UpdateJobStatistics(const TJobletPtr& joblet, con
 
     auto statistics = *jobSummary.Statistics;
     auto statisticsState = GetStatisticsJobState(joblet, jobSummary.State);
-    auto statisticsSuffix = GetStatisticsSuffix(joblet->Task->GetVertexDescriptor(), FormatEnum(statisticsState));
+    auto statisticsSuffix = GetStatisticsSuffix(joblet->Task->GetVertexDescriptorForJoblet(joblet), FormatEnum(statisticsState));
     statistics.AddSuffixToNames(statisticsSuffix);
     JobStatistics_.Merge(statistics);
 }

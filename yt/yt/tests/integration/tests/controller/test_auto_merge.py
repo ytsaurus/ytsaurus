@@ -4,7 +4,7 @@ from yt_commands import (
     authors, print_debug, wait, create, get, set, exists,
     create_account, read_table, write_file,
     write_table, map, reduce, merge, sync_create_cells, sync_mount_table,
-    get_operation)
+    get_operation, get_statistics)
 
 from yt_type_helpers import normalize_schema, make_schema
 
@@ -777,6 +777,45 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
         data_weight = data_flow_graph["edges"][op_name][merge_name]["statistics"]["data_weight"]
         assert data_weight > 0
         assert data_flow_graph["edges"][merge_name]["sink"]["statistics"]["data_weight"] == data_weight
+
+    @authors("gepardo")
+    def test_aggregated_statistics(self):
+        create("table", "//tmp/t_in",
+               attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
+        create("table", "//tmp/t_out")
+        for i in range(10):
+            write_table("<append=%true>//tmp/t_in", [{"a": i}])
+
+        op = map(
+            in_="//tmp/t_in",
+            out=["//tmp/t_out"],
+            command="cat",
+            spec={
+                "auto_merge": {
+                    "mode": "manual",
+                    "chunk_count_per_merge_job": 2,
+                    "max_intermediate_chunk_count": 100,
+                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
+                },
+                "data_size_per_job": 1,
+                "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
+            },
+        )
+        self._verify_auto_merge_job_types(op)
+
+        merge_type = "shallow_auto_merge" if self.ENABLE_SHALLOW_MERGE else "auto_merge"
+        wrong_merge_type = "auto_merge" if self.ENABLE_SHALLOW_MERGE else "shallow_auto_merge"
+        statistics = get(op.get_path() + "/@progress/job_statistics")
+        data_transmitted = get_statistics(
+            statistics,
+            "data.output.0.compressed_data_size.$.completed." + merge_type + ".sum",
+        )
+        data_transmitted_to_wrong_merge = get_statistics(
+            statistics,
+            "data.output.0.compressed_data_size.$.completed." + wrong_merge_type + ".sum",
+        )
+        assert data_transmitted > 0
+        assert data_transmitted_to_wrong_merge is None or data_transmitted_to_wrong_merge == 0
 
 
 class TestSchedulerShallowAutoMerge(TestSchedulerAutoMerge):
