@@ -539,7 +539,8 @@ public:
                     if (event.PreemptedFor) {
                         ToProto(protoEvent->mutable_preempted_for(), *event.PreemptedFor);
                     }
-                });
+                },
+                Config_->MaxMessageJobEventCount);
 
             agent->GetOperationEventsOutbox()->HandleStatus(
                 request->scheduler_to_agent_operation_events());
