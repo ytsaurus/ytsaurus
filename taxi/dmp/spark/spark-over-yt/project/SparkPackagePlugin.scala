@@ -34,6 +34,7 @@ object SparkPackagePlugin extends AutoPlugin {
     val sparkYtSubdir = taskKey[String]("Snapshots or releases")
     val sparkIsSnapshot = settingKey[Boolean]("Flag of spark snapshot version")
     val sparkReleaseGlobalConfig = settingKey[Boolean]("If true, global config will be rewritten, default is !sparkIsSnapshot")
+    val sparkReleaseLinks = settingKey[Boolean]("If true, links in //sys/spark will be created, default is !sparkIsSnapshot")
     val sparkYtServerProxyPath = settingKey[Option[String]]("YT path of ytserver-proxy binary")
 
     def createPackageMapping(src: File, dst: String): LinuxPackageMapping = {
@@ -72,6 +73,7 @@ object SparkPackagePlugin extends AutoPlugin {
     (ThisBuild / sparkVersionPyFile) := sparkHome.value / "python" / "pyspark" / "version.py",
     sparkIsSnapshot := isSnapshot.value || version.value.contains("beta"),
     sparkReleaseGlobalConfig := !sparkIsSnapshot.value,
+    sparkReleaseLinks := !sparkIsSnapshot.value,
     sparkLocalConfigs := {
       Seq(
         (Compile / resourceDirectory).value / "spark-defaults.conf",
@@ -133,9 +135,10 @@ object SparkPackagePlugin extends AutoPlugin {
         }
       } else Nil
 
-      val links = Seq(
-        YtPublishLink(versionConfPath, s"$sparkYtLegacyConfPath/${sparkYtSubdir.value}", None, sparkVersion)
-      )
+      val linkBasePath = s"$sparkYtLegacyConfPath/${sparkYtSubdir.value}"
+      val links = if (sparkReleaseLinks.value) {
+        Seq(YtPublishLink(versionConfPath, linkBasePath, None, sparkVersion))
+      } else Nil
 
       links ++ configsPublish ++ (launchConfigPublish +: globalConfigPublish)
     },
