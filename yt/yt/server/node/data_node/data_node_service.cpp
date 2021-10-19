@@ -123,7 +123,7 @@ THashMap<TString, TString> MakeReadIOTags(
         {"user@", context->GetAuthenticationIdentity().User}
     };
     if (readSessionId) {
-        result["write_session_id"] = ToString(readSessionId);
+        result["read_session_id"] = ToString(readSessionId);
     }
     return result;
 }
@@ -362,18 +362,23 @@ private:
         // Flush blocks if needed.
         if (flushBlocks) {
             result = result
-                .Apply(BIND([=] () {
-                    return session->FlushBlocks(lastBlockIndex);
-                }))
-                .Apply(BIND([=, this_ = MakeStrong(this)] (const TIOCounters& counters) {
-                    // Log IO events for journal chunks only. We don't enable logging for blob chunks here, since they flush
-                    // the data to disk in FinishChunk().
-                    const auto& ioTracker = Bootstrap_->GetIOTracker();
-                    if (IsJournalChunkId(session->GetChunkId()) && counters.ByteCount > 0 && ioTracker->IsEnabled()) {
-                        ioTracker->Enqueue(
-                            counters,
-                            MakeWriteIOTags("FlushBlocks", session, context));
-                    }
+                .Apply(BIND([=, this_ = MakeStrong(this)] () mutable {
+                    auto result = session->FlushBlocks(lastBlockIndex);
+                    result.Subscribe(BIND([=, this_ = MakeStrong(this)] (TErrorOr<TIOCounters> result) {
+                        if (!result.IsOK()) {
+                            return;
+                        }
+                        // Log IO events for journal chunks only. We don't enable logging for blob chunks here, since they flush
+                        // the data to disk in FinishChunk().
+                        const auto& ioTracker = Bootstrap_->GetIOTracker();
+                        const auto& counters = result.ValueOrThrow();
+                        if (IsJournalChunkId(session->GetChunkId()) && counters.ByteCount > 0 && ioTracker->IsEnabled()) {
+                            ioTracker->Enqueue(
+                                counters,
+                                MakeWriteIOTags("FlushBlocks", session, context));
+                        }
+                    }));
+                    return result.AsVoid();
                 }));
         }
 
@@ -437,17 +442,20 @@ private:
         auto result = session->FlushBlocks(blockIndex);
 
         response->set_close_demanded(location->IsSick() || sessionManager->GetDisableWriteSessions());
-        context->ReplyFrom(result.Apply(
-            BIND([=, this_ = MakeStrong(this)] (const TIOCounters& counters) {
+        result.Subscribe(BIND([=, this_ = MakeStrong(this)] (TErrorOr<TIOCounters> result) {
+            if (result.IsOK()) {
                 // Log IO events for journal chunks only. We don't enable logging for blob chunks here, since they flush
                 // the data to disk in FinishChunk(), not in FlushBlocks().
                 const auto& ioTracker = Bootstrap_->GetIOTracker();
+                const auto& counters = result.Value();
                 if (IsJournalChunkId(session->GetChunkId()) && counters.ByteCount > 0 && ioTracker->IsEnabled()) {
                     ioTracker->Enqueue(
                         counters,
                         MakeWriteIOTags("FlushBlocks", session, context));
                 }
-            })));
+            }
+        }));
+        context->ReplyFrom(result.AsVoid());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PopulateCache)
@@ -506,7 +514,7 @@ private:
         int j = 0;
         for (int i = 0; i < request->chunk_ids_size(); i++) {
             auto chunkId = FromProto<TChunkId>(request->chunk_ids(i));
-            
+
             auto blockCount = request->chunk_block_count(i);
 
             std::vector<int> blockIndexes;
@@ -1272,7 +1280,7 @@ private:
                                 if (result.PaddedBytesRead > 0 && ioTracker->IsEnabled()) {
                                     ioTracker->Enqueue(
                                         TIOCounters{.ByteCount = result.PaddedBytesRead, .IOCount = 1},
-                                        MakeReadIOTags("GetBlockRange", requestedLocations[resultIndex].first, context, readSessionId));
+                                        MakeReadIOTags("GetChunkFragmentSet", requestedLocations[resultIndex].first, context, readSessionId));
                                 }
 
                                 dataBytesReadFromDisk += result.PaddedBytesRead;
