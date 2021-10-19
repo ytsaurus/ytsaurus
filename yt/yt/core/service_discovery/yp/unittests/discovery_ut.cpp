@@ -12,7 +12,7 @@
 #include <yt/yt/core/rpc/grpc/server.h>
 #include <yt/yt/core/rpc/service_detail.h>
 
-#include <library/cpp/testing/unittest/tests_data.h>
+#include <library/cpp/testing/common/network.h>
 
 namespace NYT::NServiceDiscovery::NYP {
 namespace {
@@ -144,7 +144,7 @@ class TYPServiceDiscoveryTest
 public:
     virtual void SetUp() override final
     {
-        Port_ = PortManager_.GetPort();
+        Port_ = NTesting::GetFreePort();
         Address_ = Format("localhost:%v", Port_);
 
         WorkerPool_ = New<TThreadPool>(4, "TestYPSDWorker");
@@ -187,9 +187,7 @@ public:
     }
 
 private:
-    TPortManager PortManager_;
-
-    ui16 Port_;
+    NTesting::TPortHolder Port_;
     TString Address_;
 
     NConcurrency::TThreadPoolPtr WorkerPool_;
@@ -228,7 +226,7 @@ TEST_F(TYPServiceDiscoveryTest, Simple)
     auto validateEndpointSet = [] (
         const TEndpointSet& endpointSet,
         const TString& endpointSetId,
-        int expectedEndpointCount)
+        size_t expectedEndpointCount)
     {
         EXPECT_EQ(endpointSetId, endpointSet.Id);
         EXPECT_EQ(expectedEndpointCount, endpointSet.Endpoints.size());
@@ -306,17 +304,17 @@ TEST_F(TYPServiceDiscoveryTest, TimestampMonotonicity)
 
     // Initialize.
     setSnapshot(5, 2);
-    EXPECT_EQ(5, getEndpointSetSize());
+    EXPECT_EQ(5u, getEndpointSetSize());
 
     // Update.
     setSnapshot(3, 3);
     TDelayedExecutor::WaitForDuration(waitDuration);
-    EXPECT_EQ(3, getEndpointSetSize());
+    EXPECT_EQ(3u, getEndpointSetSize());
 
     // Rollback.
     setSnapshot(4, 1);
     TDelayedExecutor::WaitForDuration(waitDuration);
-    EXPECT_EQ(3, getEndpointSetSize());
+    EXPECT_EQ(3u, getEndpointSetSize());
 }
 
 TEST_F(TYPServiceDiscoveryTest, Caching)
@@ -338,15 +336,15 @@ TEST_F(TYPServiceDiscoveryTest, Caching)
     };
 
     setSnapshot(5);
-    EXPECT_EQ(5, getEndpointSetSize());
+    EXPECT_EQ(5u, getEndpointSetSize());
 
     setSnapshot(3);
     for (int i = 0; i < 3; ++i) {
-        EXPECT_EQ(5, getEndpointSetSize());
+        EXPECT_EQ(5u, getEndpointSetSize());
     }
 
     TDelayedExecutor::WaitForDuration(2 * (*sdConfig->RefreshTime));
-    EXPECT_EQ(3, getEndpointSetSize());
+    EXPECT_EQ(3u, getEndpointSetSize());
 }
 
 TEST_F(TYPServiceDiscoveryTest, UsingLastSuccessfulResponse)
@@ -383,7 +381,7 @@ TEST_F(TYPServiceDiscoveryTest, UsingLastSuccessfulResponse)
 
     GetService()->SetDisabled(true);
     for (int i = 0; i < 10; ++i) {
-        EXPECT_EQ(3, getEndpointSetSize());
+        EXPECT_EQ(3u, getEndpointSetSize());
         TDelayedExecutor::WaitForDuration(TDuration::Seconds(3));
     }
 }
