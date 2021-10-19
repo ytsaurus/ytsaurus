@@ -531,8 +531,8 @@ private:
 
             blockCache->HoldBlocks(
                 chunkId,
-                FromProto<std::vector<int>>(request->block_indexes()),
-                blocks);
+                blockIndexes,
+                chunkBlocks);
 
             j += blockCount;
         }

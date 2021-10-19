@@ -61,7 +61,7 @@ public:
     TP2PConfig()
     {
         RegisterParameter("enabled", Enabled)
-            .Default(false);
+            .Default(true);
 
         RegisterParameter("block_cache", BlockCache)
             .DefaultNew();
@@ -194,7 +194,7 @@ public:
     TP2PBlockDistributorConfig()
     {
         RegisterParameter("enabled", Enabled)
-            .Default(true);
+            .Default(false);
         RegisterParameter("iteration_period", IterationPeriod)
             .Default(TDuration::Seconds(1));
         RegisterParameter("out_traffic_activation_threshold", OutTrafficActivationThreshold)
@@ -1372,7 +1372,7 @@ public:
             .DefaultNew();
 
         RegisterParameter("p2p", P2P)
-            .Default();
+            .Optional();
     }
 };
 

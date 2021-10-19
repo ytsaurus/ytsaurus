@@ -409,6 +409,10 @@ b"""
             };
         };
 
+        p2p = {
+            enabled = %false;
+        };
+
         sync_directories_on_connect = %true;
     };
 
