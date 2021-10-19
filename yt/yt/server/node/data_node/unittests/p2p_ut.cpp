@@ -20,13 +20,23 @@ class TP2PTest
     : public ::testing::Test
 {
 public:
-    TP2PConfigPtr Config = New<TP2PConfig>();
     TActionQueuePtr ActionQueue = New<TActionQueue>("P2PTest");
-    TP2PBlockCachePtr Cache = New<TP2PBlockCache>(
-        Config,
-        ActionQueue->GetInvoker(),
-        GetNullMemoryUsageTracker());
-    TP2PSnooperPtr Snooper = New<TP2PSnooper>(Config);
+
+    TP2PConfigPtr Config;
+    TP2PBlockCachePtr Cache;
+    TP2PSnooperPtr Snooper;
+
+    TP2PTest()
+    {
+        Config = New<TP2PConfig>();
+        Config->Enabled = true;
+
+        Cache = New<TP2PBlockCache>(
+            Config,
+            ActionQueue->GetInvoker(),
+            GetNullMemoryUsageTracker());
+        Snooper = New<TP2PSnooper>(Config);
+    }
 
     ~TP2PTest()
     {
