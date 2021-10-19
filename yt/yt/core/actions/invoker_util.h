@@ -25,9 +25,6 @@ IInvokerPtr GetNullInvoker();
  */
 IInvokerPtr GetFinalizerInvoker();
 
-// TODO(babenko): remove this when Shutdown Club is finished
-void ShutdownFinalizerThread();
-
 //! Tries to invoke #onSuccess via #invoker.
 //! If the invoker discards the callback without executing it then
 //! #onCancel is run.

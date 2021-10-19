@@ -12,7 +12,6 @@
 
 #include <yt/yt/core/misc/async_expiring_cache.h>
 #include <yt/yt/core/misc/fs.h>
-#include <yt/yt/core/misc/shutdown.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -873,8 +872,6 @@ class TAddressResolver::TImpl
 public:
     explicit TImpl(TAddressResolverConfigPtr config);
 
-    void Shutdown();
-
     TFuture<TNetworkAddress> Resolve(const TString& hostName);
 
     void EnsureLocalHostName();
@@ -912,15 +909,7 @@ TAddressResolver::TImpl::TImpl(TAddressResolverConfigPtr config)
         config->WarningTimeout,
         config->Jitter)
 {
-    DnsResolver_.Start();
     Configure(std::move(config));
-}
-
-void TAddressResolver::TImpl::Shutdown()
-{
-    DnsResolver_.Stop();
-
-    Queue_->Shutdown();
 }
 
 TFuture<TNetworkAddress> TAddressResolver::TImpl::Resolve(const TString& hostName)
@@ -1041,16 +1030,6 @@ TAddressResolver::TAddressResolver()
 TAddressResolver* TAddressResolver::Get()
 {
     return LeakySingleton<TAddressResolver>();
-}
-
-void TAddressResolver::StaticShutdown()
-{
-    Get()->Shutdown();
-}
-
-void TAddressResolver::Shutdown()
-{
-    Impl_->Shutdown();
 }
 
 TFuture<TNetworkAddress> TAddressResolver::Resolve(const TString& address)
@@ -1177,9 +1156,6 @@ void TMtnAddress::SetBytesRangeValue(int leftIndex, int rightIndex, ui64 value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-REGISTER_SHUTDOWN_CALLBACK(2, TAddressResolver::StaticShutdown);
-
-////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NNet
 

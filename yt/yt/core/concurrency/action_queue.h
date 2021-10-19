@@ -4,8 +4,6 @@
 
 #include <yt/yt/core/actions/callback.h>
 
-#include <yt/yt/core/misc/shutdownable.h>
-
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
 namespace NYT::NConcurrency {
@@ -15,15 +13,12 @@ namespace NYT::NConcurrency {
 // XXX(sandello): Facade does not have to be ref-counted.
 class TActionQueue
     : public TRefCounted
-    , public IShutdownable
 {
 public:
-    explicit TActionQueue(
-        const TString& threadName = "ActionQueue");
-
+    explicit TActionQueue(TString threadName = "ActionQueue");
     virtual ~TActionQueue();
 
-    void Shutdown() override;
+    void Shutdown(bool graceful = false);
 
     const IInvokerPtr& GetInvoker();
 

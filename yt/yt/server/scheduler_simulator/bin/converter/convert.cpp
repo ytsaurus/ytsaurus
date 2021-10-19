@@ -1,7 +1,5 @@
 #include "operation_description.h"
 
-#include <yt/yt/core/misc/shutdown.h>
-
 #include <yt/yt/core/logging/config.h>
 #include <yt/yt/core/logging/log.h>
 #include <yt/yt/core/logging/log_manager.h>
@@ -100,6 +98,4 @@ int main(int argc, char** argv)
     }
     NFs::Cat(destination.data(), destinationTemp.data());
     NFs::Remove(destinationTemp.data());
-
-    NYT::Shutdown();
 }

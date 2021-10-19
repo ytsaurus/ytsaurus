@@ -71,7 +71,7 @@ static TYsonString DoExecuteTool(const TString& toolName, const TYsonString& ser
 {
     try {
         if (shutdownLogging) {
-            NLogging::TLogManager::StaticShutdown();
+            NLogging::TLogManager::Get()->Shutdown();
         }
 
         const auto* registry = GetToolRegistry();

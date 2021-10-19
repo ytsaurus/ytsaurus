@@ -1,27 +1,53 @@
 #pragma once
 
+#include "public.h"
+
+#include <yt/yt/core/actions/callback.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Registers a callback to be called during Shutdown(). Callbacks are
-//! invoked from highest priority to lower. Invocation order for
-//! callbacks with the same priority is unspecified.
-void RegisterShutdownCallback(double priority, void(*callback)());
+//! An opaque ref-counted entity representing a registered shutdown callback.
+using TShutdownCookie = TIntrusivePtr<TRefCounted>;
 
-//! Invokes all registered shutdown callbacks.
+//! Registers a new callback to be called at global shutdown.
+/*!
+ *  If null is returned then the shutdown has already been started
+ *  and #callback is not registered.
+ *
+ *  When the returned cookie is lost, the callback is automatically
+ *  unregistered.
+ */
+[[nodiscard]]
+TShutdownCookie RegisterShutdownCallback(
+    TString name,
+    TClosure callback,
+    int priority = 0);
+
+//! Starts the global shutdown.
+/*!
+ *  Invokes all registered shutdown callbacks in the order of
+ *  decreasing priority.
+ *
+ *  Safe to call multiple times. All calls after the first one are,
+ *  howerver, no ops.
+ */
 void Shutdown();
 
-//! Tells whether the shutdown process has already started.
+//! Returns true if the global shutdown has already been started
+//! (and is possibly already completed).
 bool IsShutdownStarted();
 
-////////////////////////////////////////////////////////////////////////////////
+//! Enables logging shutdown messages to stderr.
+void EnableShutdownLogging();
 
-#define REGISTER_SHUTDOWN_CALLBACK(priority, callback) \
-    static int dummy_shutdown ## __LINE__ __attribute__((unused)) = [] { \
-        RegisterShutdownCallback(priority, callback); \
-        return 0; \
-    }();
+//! Returns true if shutdown logging has been enabled.
+bool IsShutdownLoggingEnabled();
+
+//! In case the global shutdown has been started, returns
+//! the id of the thread invoking shutdown callbacks.
+size_t GetShutdownThreadId();
 
 ////////////////////////////////////////////////////////////////////////////////
 

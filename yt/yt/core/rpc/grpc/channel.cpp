@@ -593,7 +593,7 @@ public:
 
 IChannelFactoryPtr GetGrpcChannelFactory()
 {
-    return RefCountedSingleton<TChannelFactory>();
+    return LeakyRefCountedSingleton<TChannelFactory>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

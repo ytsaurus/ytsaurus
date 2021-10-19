@@ -131,7 +131,6 @@ DECLARE_REFCOUNTED_TYPE(TFairShareQueue)
 
 class TFairShareQueue
     : public TRefCounted
-    , public IShutdownable
 {
 public:
     TFairShareQueue(
@@ -215,7 +214,7 @@ public:
         BucketCounter_.Update(TagToBucket_.size());
     }
 
-    void Shutdown() override
+    void Shutdown()
     {
         Drain();
     }

@@ -602,7 +602,7 @@ TTableProfiler::TTableProfiler(
 
 TTableProfilerPtr TTableProfiler::GetDisabled()
 {
-    return RefCountedSingleton<TTableProfiler>();
+    return LeakyRefCountedSingleton<TTableProfiler>();
 }
 
 TTabletCounters TTableProfiler::GetTabletCounters()

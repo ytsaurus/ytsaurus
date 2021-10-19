@@ -484,7 +484,7 @@ void CrashSignalHandler(int /*signal*/, siginfo_t* si, void* uc)
     ::signal(SIGALRM, CrashTimeoutHandler);
     alarm(5);
 
-    NLogging::TLogManager::StaticShutdown();
+    NLogging::TLogManager::Get()->Shutdown();
 
     formatter.Reset();
     formatter.AppendString("*** Terminate ***\n");

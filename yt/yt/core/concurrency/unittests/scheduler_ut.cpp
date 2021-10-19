@@ -21,6 +21,7 @@
 #include <yt/yt/core/actions/invoker_util.h>
 
 #include <yt/yt/core/misc/lazy_ptr.h>
+#include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -141,14 +142,14 @@ TEST_W(TSchedulerTest, SwitchToInvoker1)
 {
     auto invoker = Queue1->GetInvoker();
 
-    auto id0 = TThread::CurrentThreadId();
+    auto id0 = GetCurrentThreadId();
     auto id1 = invoker->GetThreadId();
 
     EXPECT_NE(id0, id1);
 
     for (int i = 0; i < 10; ++i) {
         SwitchTo(invoker);
-        EXPECT_EQ(TThread::CurrentThreadId(), id1);
+        EXPECT_EQ(GetCurrentThreadId(), id1);
     }
 }
 
@@ -157,7 +158,7 @@ TEST_W(TSchedulerTest, SwitchToInvoker2)
     auto invoker1 = Queue1->GetInvoker();
     auto invoker2 = Queue2->GetInvoker();
 
-    auto id0 = TThread::CurrentThreadId();
+    auto id0 = GetCurrentThreadId();
     auto id1 = invoker1->GetThreadId();
     auto id2 = invoker2->GetThreadId();
 
@@ -167,10 +168,10 @@ TEST_W(TSchedulerTest, SwitchToInvoker2)
 
     for (int i = 0; i < 10; ++i) {
         SwitchTo(invoker1);
-        EXPECT_EQ(TThread::CurrentThreadId(), id1);
+        EXPECT_EQ(GetCurrentThreadId(), id1);
 
         SwitchTo(invoker2);
-        EXPECT_EQ(TThread::CurrentThreadId(), id2);
+        EXPECT_EQ(GetCurrentThreadId(), id2);
     }
 }
 

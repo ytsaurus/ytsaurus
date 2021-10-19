@@ -136,7 +136,6 @@ DECLARE_REFCOUNTED_TYPE(TTwoLevelFairShareQueue)
 
 class TTwoLevelFairShareQueue
     : public TRefCounted
-    , public IShutdownable
 {
 public:
     TTwoLevelFairShareQueue(
@@ -250,7 +249,7 @@ public:
         }
     }
 
-    void Shutdown() override
+    void Shutdown()
     {
         Drain();
     }

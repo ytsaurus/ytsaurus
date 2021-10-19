@@ -3,8 +3,6 @@
 #include "private.h"
 #include "spinlock.h"
 
-#include <yt/yt/core/misc/shutdownable.h>
-
 #include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NConcurrency {
@@ -21,7 +19,6 @@ struct TBucketDescription
 
 class TFairShareInvokerQueue
     : public TRefCounted
-    , public IShutdownable
 {
 public:
     TFairShareInvokerQueue(
@@ -34,7 +31,7 @@ public:
 
     const IInvokerPtr& GetInvoker(int bucketIndex, int queueIndex) const;
 
-    void Shutdown() override;
+    void Shutdown();
 
     void Drain();
 

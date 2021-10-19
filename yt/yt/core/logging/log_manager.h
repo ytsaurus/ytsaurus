@@ -2,7 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/core/misc/shutdownable.h>
 #include <yt/yt/core/misc/singleton.h>
 
 #include <yt/yt/core/tracing/public.h>
@@ -25,7 +24,6 @@ bool operator == (const TLogWriterCacheKey& lhs, const TLogWriterCacheKey& rhs);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogManager
-    : public IShutdownable
 {
 public:
     friend struct TLocalQueueReclaimer;
@@ -34,14 +32,12 @@ public:
 
     static TLogManager* Get();
 
-    static void StaticShutdown();
-
     void Configure(TLogManagerConfigPtr config, bool sync = true);
 
     void ConfigureFromEnv();
     bool IsConfiguredFromEnv();
 
-    void Shutdown() override;
+    void Shutdown();
 
     const TLoggingCategory* GetCategory(TStringBuf categoryName);
     void UpdateCategory(TLoggingCategory* category);
@@ -65,7 +61,7 @@ public:
 private:
     TLogManager();
 
-    DECLARE_LEAKY_SINGLETON_FRIEND();
+    DECLARE_LEAKY_SINGLETON_FRIEND()
 
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

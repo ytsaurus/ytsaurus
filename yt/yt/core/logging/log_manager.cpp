@@ -22,8 +22,9 @@
 #include <yt/yt/core/misc/shutdown.h>
 #include <yt/yt/core/misc/variant.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
-#include <yt/yt/core/misc/heap.h>
 #include <yt/yt/core/misc/signal_registry.h>
+#include <yt/yt/core/misc/shutdown.h>
+#include <yt/yt/core/misc/heap.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -392,7 +393,7 @@ public:
 
     void Configure(TLogManagerConfigPtr config, bool fromEnv, bool sync)
     {
-        if (LoggingThread_->IsShutdown()) {
+        if (LoggingThread_->IsStopping()) {
             return;
         }
 
@@ -434,9 +435,9 @@ public:
 
     void Shutdown()
     {
-        ShutdownRequested_ = true;
+        ShutdownRequested_.store(true);
 
-        if (LoggingThread_->GetId() == ::TThread::CurrentThreadId()) {
+        if (LoggingThread_->GetThreadId() == GetCurrentThreadId()) {
             FlushWriters();
         } else {
             // Wait for all previously enqueued messages to be flushed
@@ -445,7 +446,7 @@ public:
         }
 
         EventQueue_->Shutdown();
-        LoggingThread_->Shutdown();
+        LoggingThread_->Stop();
     }
 
     /*!
@@ -559,7 +560,7 @@ public:
             return;
         }
 
-        if (LoggingThread_->IsShutdown()) {
+        if (LoggingThread_->IsStopping()) {
             ++DroppedEvents_;
             return;
         }
@@ -685,12 +686,12 @@ private:
     void EnsureStarted()
     {
         std::call_once(Started_, [&] {
-            if (LoggingThread_->IsShutdown()) {
+            if (LoggingThread_->IsStopping()) {
                 return;
             }
 
             LoggingThread_->Start();
-            EventQueue_->SetThreadId(LoggingThread_->GetId());
+            EventQueue_->SetThreadId(LoggingThread_->GetThreadId());
 
             DiskProfilingExecutor_ = New<TPeriodicExecutor>(
                 EventQueue_,
@@ -773,7 +774,7 @@ private:
             return;
         }
 
-        if (LoggingThread_->IsShutdown()) {
+        if (LoggingThread_->IsStopping()) {
             return;
         }
 
@@ -1318,8 +1319,12 @@ private:
 private:
     const TIntrusivePtr<TEventCount> EventCount_ = New<TEventCount>();
     const TMpscInvokerQueuePtr EventQueue_;
-
     const TIntrusivePtr<TThread> LoggingThread_;
+    const TShutdownCookie ShutdownCookie_ = RegisterShutdownCallback(
+        "LogManager",
+        BIND(&TImpl::Shutdown, MakeWeak(this)),
+        /*priority*/ 200);
+
     DECLARE_THREAD_AFFINITY_SLOT(LoggingThread);
 
     TEnqueuedAction CurrentAction_;
@@ -1429,11 +1434,6 @@ TLogManager* TLogManager::Get()
     return LeakySingleton<TLogManager>();
 }
 
-void TLogManager::StaticShutdown()
-{
-    Get()->Shutdown();
-}
-
 void TLogManager::Configure(TLogManagerConfigPtr config, bool sync)
 {
     Impl_->Configure(std::move(config), /*fromEnv*/ false, sync);
@@ -1513,10 +1513,6 @@ void TLogManager::Synchronize(TInstant deadline)
 {
     Impl_->Synchronize(deadline);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-REGISTER_SHUTDOWN_CALLBACK(5, TLogManager::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 

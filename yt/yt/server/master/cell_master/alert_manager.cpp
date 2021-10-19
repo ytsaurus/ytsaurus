@@ -148,7 +148,8 @@ private:
 
     void Save(TSaveContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        // No affinity annotation here since this could have been called
+        // from a forked process.
 
         using NYT::Save;
 

@@ -2,12 +2,13 @@
 
 #include "public.h"
 
+#include <yt/yt/core/actions/public.h>
+
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IInvokerPtr GetFinalizerInvoker();
-void ShutdownFinalizerThread();
+const IInvokerPtr& GetFinalizerInvoker();
 
 ////////////////////////////////////////////////////////////////////////////////
 

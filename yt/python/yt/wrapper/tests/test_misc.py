@@ -220,10 +220,8 @@ class TestDriverLogging(object):
         driver_log_warning = get_stderr_from_cli(log_level="WARNING")
 
         print("Default log output", driver_log_default, file=sys.stderr)
+        print("Info log output", driver_log_info, file=sys.stderr)
         print("Warning log output", driver_log_warning, file=sys.stderr)
-
-        print("driver_log_default:", driver_log_default, file=sys.stderr)
-        print("driver_log_warning:", driver_log_warning, file=sys.stderr)
 
         assert len(driver_log_default) < len(driver_log_info)
         assert len(driver_log_warning) == 0

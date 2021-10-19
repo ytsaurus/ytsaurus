@@ -55,7 +55,7 @@ protected:
 
         // Don't start any other singleton or parse config in executor mode.
         // Explicitly shut down log manager to ensure it doesn't spoil dup-ed descriptors.
-        NLogging::TLogManager::StaticShutdown();
+        NLogging::TLogManager::Get()->Shutdown();
 
         if (config->Uid > 0) {
             SetUid(config->Uid);
@@ -106,7 +106,7 @@ protected:
         } catch (const std::exception& ex) {
             executorError = ex;
         }
-        
+
         try {
             OpenExecutorStderr();
         } catch (const std::exception& ex) {

@@ -8,7 +8,6 @@
 
 #include <yt/yt/core/misc/lazy_ptr.h>
 #include <yt/yt/core/misc/singleton.h>
-#include <yt/yt/core/misc/shutdown.h>
 #include <yt/yt/core/misc/atomic_object.h>
 
 namespace NYT::NRpc {
@@ -137,14 +136,6 @@ public:
         ServiceDiscovery_.Store(std::move(serviceDiscovery));
     }
 
-    void Shutdown()
-    {
-        LightQueue_->Shutdown();
-        HeavyPool_->Shutdown();
-        CompressionPool_->Shutdown();
-        FairShareCompressionPool_->Shutdown();
-    }
-
 private:
     struct TBandDescriptor
     {
@@ -184,6 +175,8 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 TDispatcher::TDispatcher()
     : Impl_(new TImpl())
 { }
@@ -193,11 +186,6 @@ TDispatcher::~TDispatcher() = default;
 TDispatcher* TDispatcher::Get()
 {
     return Singleton<TDispatcher>();
-}
-
-void TDispatcher::StaticShutdown()
-{
-    Get()->Shutdown();
 }
 
 void TDispatcher::Configure(const TDispatcherConfigPtr& config)
@@ -213,11 +201,6 @@ TTosLevel TDispatcher::GetTosLevelForBand(EMultiplexingBand band, TNetworkId net
 TNetworkId TDispatcher::GetNetworkId(const TString& networkName)
 {
     return Impl_->GetNetworkId(networkName);
-}
-
-void TDispatcher::Shutdown()
-{
-    Impl_->Shutdown();
 }
 
 const IInvokerPtr& TDispatcher::GetLightInvoker()
@@ -254,10 +237,6 @@ void TDispatcher::SetServiceDiscovery(IServiceDiscoveryPtr serviceDiscovery)
 {
     Impl_->SetServiceDiscovery(std::move(serviceDiscovery));
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-REGISTER_SHUTDOWN_CALLBACK(7, TDispatcher::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 

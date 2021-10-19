@@ -3,6 +3,7 @@
 #include "private.h"
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/thread.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/notification_handle.h>
 #include <yt/yt/core/concurrency/moody_camel_concurrent_queue.h>
@@ -1063,40 +1064,24 @@ private:
     static constexpr intptr_t RequestNotificationUserData = -3;
 
     class TUringThread
+        : public TThread
     {
     public:
         TUringThread(TUringThreadPool* threadPool, int index)
-            : ThreadPool_(threadPool)
-            , Index_(index)
+            : TThread(Format("%v:%v", threadPool->ThreadNamePrefix_, index))
+            , ThreadPool_(threadPool)
             , Config_(ThreadPool_->Config_)
-            , Thread_(std::make_unique<TThread>(&StaticThreadMain, this))
             , Uring_(Config_->MaxConcurrentRequestsPerThread + UringEngineNotificationCount)
         {
             InitIovBuffers();
-        }
-
-        void Start()
-        {
-            Thread_->Start();
-            StartedEvent_.Wait();
-        }
-
-        void Stop()
-        {
-            StopNotificationHandle_.Raise();
-            Thread_->Join();
+            Start();
         }
 
     private:
         TUringThreadPool* const ThreadPool_;
-        const int Index_;
-
         const TUringIOEngineConfigPtr Config_;
-        const std::unique_ptr<TThread> Thread_;
 
         TUring Uring_;
-
-        TEvent StartedEvent_;
 
         // Linked list of requests that have subrequests yet to be started.
         TIntrusiveLinkedList<TUringRequest, TUringRequest::TRequestToNode> UndersubmittedRequests_;
@@ -1116,6 +1101,7 @@ private:
         std::array<ui64, UringEngineNotificationCount> NotificationReadBuffer_;
         std::array<iovec, UringEngineNotificationCount> NotificationIov_;
 
+
         void InitIovBuffers()
         {
             FreeIovBuffers_.reserve(AllIovBuffers_.size());
@@ -1124,20 +1110,14 @@ private:
             }
         }
 
-        static void* StaticThreadMain(void* opaqueThread)
+        void StopPrologue() override
         {
-            auto* thread = static_cast<TUringThread*>(opaqueThread);
-            thread->ThreadMain();
-            return nullptr;
+            StopNotificationHandle_.Raise();
         }
 
-        void ThreadMain()
+        void ThreadMain() override
         {
-            TThread::SetCurrentThreadName(MakeThreadName().c_str());
-
             YT_LOG_INFO("Uring thread started");
-
-            StartedEvent_.NotifyOne();
 
             ArmStopNotificationRead();
             ArmRequestNotificationRead();
@@ -1612,11 +1592,6 @@ private:
             }
         }
 
-        TString MakeThreadName()
-        {
-            return Format("%v:%v", ThreadPool_->ThreadNamePrefix_, Index_);
-        }
-
         TUringIovBuffer* AllocateIovBuffer()
         {
             YT_VERIFY(!FreeIovBuffers_.empty());
@@ -1704,7 +1679,9 @@ private:
         }
     };
 
-    std::vector<std::unique_ptr<TUringThread>> Threads_;
+    using TUringThreadPtr = TIntrusivePtr<TUringThread>;
+
+    std::vector<TUringThreadPtr> Threads_;
 
     TNotificationHandle RequestNotificationHandle_{true};
     std::atomic<bool> RequestNotificationHandleRaised_ = false;
@@ -1713,23 +1690,16 @@ private:
 
     void StartThreads()
     {
-        YT_LOG_INFO("Starting all uring threads");
         for (int threadIndex = 0; threadIndex < Config_->UringThreadCount; ++threadIndex) {
-            Threads_[threadIndex] = std::make_unique<TUringThread>(this, threadIndex);
+            Threads_[threadIndex] = New<TUringThread>(this, threadIndex);
         }
-        for (const auto& thread : Threads_) {
-            thread->Start();
-        }
-        YT_LOG_INFO("All uring threads started");
     }
 
     void StopThreads()
     {
-        YT_LOG_INFO("Stopping all uring threads");
         for (const auto& thread : Threads_) {
             thread->Stop();
         }
-        YT_LOG_INFO("All uring threads stopped");
     }
 };
 

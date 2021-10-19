@@ -31,7 +31,7 @@ public:
 
 IMemoryUsageTrackerPtr GetNullMemoryUsageTracker()
 {
-    return RefCountedSingleton<TNullMemoryUsageTracker>();
+    return LeakyRefCountedSingleton<TNullMemoryUsageTracker>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

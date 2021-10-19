@@ -12,6 +12,7 @@
 #include <yt/yt/server/lib/job_proxy/config.h>
 
 #include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/shutdown.h>
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
@@ -54,6 +55,7 @@ protected:
     {
         TThread::SetCurrentThreadName("JobProxyMain");
 
+        EnableShutdownLogging();
         ConfigureUids();
         ConfigureIgnoreSigpipe();
         ConfigureCrashHandler();

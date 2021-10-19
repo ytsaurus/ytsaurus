@@ -26,7 +26,6 @@
 
 #include <yt/yt/core/http/server.h>
 
-#include <yt/yt/core/misc/shutdown.h>
 #include <yt/yt/core/misc/property.h>
 
 #include <yt/yt/library/phdr_cache/phdr_cache.h>
@@ -258,8 +257,6 @@ protected:
 
             httpServer->Stop();
         }
-
-        NYT::Shutdown();
     }
 
 private:

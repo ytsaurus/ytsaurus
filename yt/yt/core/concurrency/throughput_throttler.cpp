@@ -452,7 +452,7 @@ private:
 
 IThroughputThrottlerPtr GetUnlimitedThrottler()
 {
-    return RefCountedSingleton<TUnlimitedThroughtputThrottler>();
+    return LeakyRefCountedSingleton<TUnlimitedThroughtputThrottler>();
 }
 
 IThroughputThrottlerPtr CreateNamedUnlimitedThroughputThrottler(

@@ -78,19 +78,6 @@ const TIntrusivePtr<TTcpDispatcher::TImpl>& TTcpDispatcher::TImpl::Get()
     return TTcpDispatcher::Get()->Impl_;
 }
 
-void TTcpDispatcher::TImpl::Shutdown()
-{
-    {
-        auto guard = Guard(PeriodicExecutorsLock_);
-        if (LivenessCheckExecutor_) {
-            LivenessCheckExecutor_->Stop();
-        }
-    }
-
-    ShutdownPoller(&AcceptorPoller_);
-    ShutdownPoller(&XferPoller_);
-}
-
 const TTcpDispatcherCountersPtr& TTcpDispatcher::TImpl::GetCounters(const TString& networkName)
 {
     auto [statistics, ok] = NetworkStatistics_.FindOrInsert(networkName, [] {
@@ -107,9 +94,6 @@ IPollerPtr TTcpDispatcher::TImpl::GetOrCreatePoller(
 {
     {
         auto guard = ReaderGuard(PollerLock_);
-        if (Terminated_) {
-            return nullptr;
-        }
         if (*pollerPtr) {
             return *pollerPtr;
         }
@@ -118,9 +102,6 @@ IPollerPtr TTcpDispatcher::TImpl::GetOrCreatePoller(
     IPollerPtr poller;
     {
         auto guard = WriterGuard(PollerLock_);
-        if (Terminated_) {
-            return nullptr;
-        }
         if (!*pollerPtr) {
             *pollerPtr = CreateThreadPoolPoller(isXfer ? Config_->ThreadPoolSize : 1, threadNamePrefix);
         }
@@ -130,19 +111,6 @@ IPollerPtr TTcpDispatcher::TImpl::GetOrCreatePoller(
     StartPeriodicExecutors();
 
     return poller;
-}
-
-void TTcpDispatcher::TImpl::ShutdownPoller(IPollerPtr* pollerPtr)
-{
-    IPollerPtr swappedPoller;
-    {
-        auto guard = WriterGuard(PollerLock_);
-        Terminated_ = true;
-        std::swap(*pollerPtr, swappedPoller);
-    }
-    if (swappedPoller) {
-        swappedPoller->Shutdown();
-    }
 }
 
 void TTcpDispatcher::TImpl::DisableNetworking()
@@ -193,10 +161,6 @@ void TTcpDispatcher::TImpl::RegisterConnection(TTcpConnectionPtr connection)
 void TTcpDispatcher::TImpl::StartPeriodicExecutors()
 {
     auto poller = GetXferPoller();
-    if (!poller) {
-        return;
-    }
-
     auto invoker = poller->GetInvoker();
 
     auto guard = Guard(PeriodicExecutorsLock_);

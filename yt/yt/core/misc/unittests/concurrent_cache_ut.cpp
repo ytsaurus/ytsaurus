@@ -4,7 +4,6 @@
 
 #include <yt/yt/core/misc/slab_allocator.h>
 #include <yt/yt/core/misc/concurrent_cache.h>
-#include <yt/yt/core/misc/shutdown.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 

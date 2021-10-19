@@ -359,7 +359,7 @@ TEST_F(TFutureTest, SubscribeWithAsynchronousSet)
 
     future.Subscribe(firstSubscriber);
 
-    TThread thread(&AsynchronousIntSetter, &promise);
+    ::TThread thread(&AsynchronousIntSetter, &promise);
     thread.Start();
     thread.Join();
 
@@ -373,7 +373,7 @@ TEST_F(TFutureTest, CascadedApply)
     auto left   = NewPromise<int>();
     auto right  = NewPromise<int>();
 
-    TThread thread(&AsynchronousIntSetter, &left);
+    ::TThread thread(&AsynchronousIntSetter, &left);
 
     auto leftPrime =
         kicker.ToFuture()
@@ -457,7 +457,7 @@ TEST_F(TFutureTest, ApplyVoidToFutureVoid)
     auto kicker = NewPromise<void>();
     auto setter = NewPromise<void>();
 
-    TThread thread(&AsynchronousVoidSetter, &setter);
+    ::TThread thread(&AsynchronousVoidSetter, &setter);
 
     auto source = kicker.ToFuture();
     auto target = source
@@ -525,7 +525,7 @@ TEST_F(TFutureTest, ApplyVoidToFutureInt)
     auto kicker = NewPromise<void>();
     auto setter = NewPromise<int>();
 
-    TThread thread(&AsynchronousIntSetter, &setter);
+    ::TThread thread(&AsynchronousIntSetter, &setter);
 
     auto source = kicker.ToFuture();
     auto  target = source
@@ -590,7 +590,7 @@ TEST_F(TFutureTest, ApplyIntToFutureVoid)
     auto kicker = NewPromise<int>();
     auto setter = NewPromise<void>();
 
-    TThread thread(&AsynchronousVoidSetter, &setter);
+    ::TThread thread(&AsynchronousVoidSetter, &setter);
 
     auto source = kicker.ToFuture();
     auto target = source
@@ -659,7 +659,7 @@ TEST_F(TFutureTest, ApplyIntToFutureInt)
     auto kicker = NewPromise<int>();
     auto setter = NewPromise<int>();
 
-    TThread thread(&AsynchronousIntSetter, &setter);
+    ::TThread thread(&AsynchronousIntSetter, &setter);
 
     auto source = kicker.ToFuture();
     auto target = source

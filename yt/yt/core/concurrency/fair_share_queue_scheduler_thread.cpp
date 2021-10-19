@@ -30,7 +30,7 @@ void TFairShareQueueSchedulerThread::EndExecute()
 
 void TFairShareQueueSchedulerThread::OnStart()
 {
-    Queue_->SetThreadId(GetId());
+    Queue_->SetThreadId(GetThreadId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

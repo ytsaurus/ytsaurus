@@ -19,6 +19,7 @@
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
+
 #include <yt/yt/core/misc/crash_handler.h>
 
 #include <yt/yt/core/logging/log_manager.h>
@@ -225,7 +226,7 @@ void TBootstrap::HandleSigint()
         if (HttpServer_) {
             HttpServer_->Stop();
         }
-        NLogging::TLogManager::StaticShutdown();
+        NLogging::TLogManager::Get()->Shutdown();
         WriteToStderr("*** Server gracefully stopped ***\n");
         _exit(GracefulInterruptionExitCode);
     }).Via(GetControlInvoker()));

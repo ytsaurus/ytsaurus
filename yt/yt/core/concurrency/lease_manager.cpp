@@ -92,8 +92,12 @@ public:
     }
 
 private:
-    static void OnLeaseExpired(TLease lease, bool /*aborted*/)
+    static void OnLeaseExpired(TLease lease, bool aborted)
     {
+        if (aborted) {
+            return;
+        }
+
         auto guard = Guard(lease->SpinLock);
 
         if (!lease->IsValid) {

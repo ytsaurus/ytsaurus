@@ -4,8 +4,6 @@
 
 #include <yt/yt/core/actions/callback.h>
 
-#include <yt/yt/core/misc/shutdownable.h>
-
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -13,7 +11,6 @@ namespace NYT::NConcurrency {
 // XXX(sandello): Facade does not have to be ref-counted.
 class TThreadPool
     : public TRefCounted
-    , public IShutdownable
 {
 public:
     TThreadPool(
@@ -22,7 +19,7 @@ public:
 
     virtual ~TThreadPool();
 
-    void Shutdown() override;
+    void Shutdown();
 
     //! Returns current thread count, it can differ from value set by Configure()
     //! because it clamped between 1 and maximum thread count.

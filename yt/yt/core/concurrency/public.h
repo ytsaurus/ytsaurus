@@ -74,6 +74,8 @@ using TLease = TLeaseEntryPtr;
 DECLARE_REFCOUNTED_STRUCT(IPollable)
 DECLARE_REFCOUNTED_STRUCT(IPoller)
 
+DECLARE_REFCOUNTED_CLASS(TThread)
+
 using TThreadId = size_t;
 constexpr size_t InvalidThreadId = 0;
 

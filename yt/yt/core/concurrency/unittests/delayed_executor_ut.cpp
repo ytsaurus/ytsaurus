@@ -122,55 +122,6 @@ TEST(TDelayedExecutorTest, SubmitAndCancel)
     EXPECT_EQ(1, state->Destructors);
 }
 
-// Here we shutdown global singleton, so this test should be run in isolation.
-TEST(TDelayedExecutorTest, DISABLED_SubmitAfterShutdown)
-{
-    auto fired = std::make_shared<std::atomic<int>>(0);
-    auto state = std::make_shared<TProbeState>();
-
-    auto cookie1 = TDelayedExecutor::Submit(
-        BIND([fired, state, probe = TProbe(state.get())] () { ++*fired; }),
-        TDuration::MilliSeconds(10));
-
-    TDelayedExecutor::StaticShutdown();
-
-    auto cookie2 = TDelayedExecutor::Submit(
-        BIND([fired, state, probe = TProbe(state.get())] () { ++*fired; }),
-        TDuration::MilliSeconds(10));
-
-    Sleep(TDuration::MilliSeconds(50));
-
-    EXPECT_EQ(0, *fired);
-    EXPECT_EQ(2, state->Constructors);
-    EXPECT_EQ(2, state->Destructors);
-}
-
-// Here we shutdown global singleton, so this test should be run in isolation.
-TEST(TDelayedExecutorTest, DISABLED_SubmitAndCancelAfterShutdown)
-{
-    auto fired = std::make_shared<std::atomic<int>>(0);
-    auto state = std::make_shared<TProbeState>();
-
-    auto cookie1 = TDelayedExecutor::Submit(
-        BIND([fired, state, probe = TProbe(state.get())] () { ++*fired; }),
-        TDuration::MilliSeconds(10));
-
-    TDelayedExecutor::StaticShutdown();
-
-    auto cookie2 = TDelayedExecutor::Submit(
-        BIND([fired, state, probe = TProbe(state.get())] () { ++*fired; }),
-        TDuration::MilliSeconds(10));
-
-    TDelayedExecutor::CancelAndClear(cookie1);
-    TDelayedExecutor::CancelAndClear(cookie2);
-
-    Sleep(TDuration::MilliSeconds(50));
-
-    EXPECT_EQ(0, *fired);
-    EXPECT_EQ(2, state->Constructors);
-    EXPECT_EQ(2, state->Destructors);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

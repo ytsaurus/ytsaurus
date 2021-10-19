@@ -4,8 +4,7 @@
 #include <yt/yt/core/misc/shutdown.h>
 
 #include <yt/yt/core/concurrency/count_down_latch.h>
-
-#include <util/system/thread.h>
+#include <yt/yt/core/concurrency/thread.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
 
@@ -58,24 +57,10 @@ class TDispatcher::TImpl
 {
 public:
     TImpl()
-        : Threads_(ThreadCount)
-        , StartLatch_(ThreadCount)
-        , LibraryLock_(CreateLibraryLock())
     {
         for (int index = 0; index < ThreadCount; ++index) {
-            Threads_[index] = std::make_unique<TThread>(this, index);
+            Threads_.push_back(New<TDispatcherThread>(index));
         }
-
-        StartLatch_.Wait();
-    }
-
-    void Shutdown()
-    {
-        for (const auto& thread : Threads_) {
-            thread->Shutdown();
-        }
-
-        LibraryLock_.Reset();
     }
 
     TGrpcLibraryLockPtr CreateLibraryLock()
@@ -89,16 +74,14 @@ public:
     }
 
 private:
-    class TThread
+    class TDispatcherThread
+        : public TThread
     {
     public:
-        TThread(TImpl* owner, int index)
-            : Owner_(owner)
-            , Index_(index)
-            , CompletionQueue_(grpc_completion_queue_create_for_next(nullptr))
-            , Thread_(&TThread::ThreadMainTrampoline, this)
+        explicit TDispatcherThread(int index)
+            : TThread(Format("Grpc:%v", index))
         {
-            Thread_.Start();
+            Start();
         }
 
         grpc_completion_queue* GetCompletionQueue()
@@ -106,35 +89,25 @@ private:
             return CompletionQueue_.Unwrap();
         }
 
-        void Shutdown()
+    private:
+        TGrpcLibraryLockPtr LibraryLock_ = New<TGrpcLibraryLock>();
+        TGrpcCompletionQueuePtr CompletionQueue_ = TGrpcCompletionQueuePtr(grpc_completion_queue_create_for_next(nullptr));
+
+
+        void StopPrologue() override
         {
             grpc_completion_queue_shutdown(CompletionQueue_.Unwrap());
-            Thread_.Join();
+        }
+
+        void StopEpilogue() override
+        {
             CompletionQueue_.Reset();
+            LibraryLock_.Reset();
         }
 
-    private:
-        TImpl* const Owner_;
-        const int Index_;
-
-        TGrpcCompletionQueuePtr CompletionQueue_;
-
-        ::TThread Thread_;
-
-        static void* ThreadMainTrampoline(void* opaque)
+        void ThreadMain() override
         {
-            static_cast<TThread*>(opaque)->ThreadMain();
-            return nullptr;
-        }
-
-        void ThreadMain()
-        {
-            auto threadName = Format("Grpc:%v", Index_);
-            ::TThread::SetCurrentThreadName(threadName.c_str());
-
-            YT_LOG_DEBUG("Dispatcher thread started (Name: %v)", threadName);
-
-            Owner_->StartLatch_.CountDown();
+            YT_LOG_INFO("Dispatcher thread started");
 
             bool done = false;
             while (!done) {
@@ -160,33 +133,26 @@ private:
                 }
             }
 
-            YT_LOG_DEBUG("Dispatcher thread stopped (Name: %v)", threadName);
+            YT_LOG_INFO("Dispatcher thread stopped");
         }
     };
 
-    std::vector<std::unique_ptr<TThread>> Threads_;
-    TCountDownLatch StartLatch_;
+    using TDispatcherThreadPtr = TIntrusivePtr<TDispatcherThread>;
 
-    TGrpcLibraryLockPtr LibraryLock_;
-
+    std::vector<TDispatcherThreadPtr> Threads_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TDispatcher::TDispatcher()
-    : Impl_(new TImpl())
+    : Impl_(std::make_unique<TImpl>())
 { }
 
 TDispatcher::~TDispatcher() = default;
 
 TDispatcher* TDispatcher::Get()
 {
-    return Singleton<TDispatcher>();
-}
-
-void TDispatcher::StaticShutdown()
-{
-    Get()->Impl_->Shutdown();
+    return LeakySingleton<TDispatcher>();
 }
 
 TGrpcLibraryLockPtr TDispatcher::CreateLibraryLock()
@@ -198,10 +164,6 @@ grpc_completion_queue* TDispatcher::PickRandomCompletionQueue()
 {
     return Impl_->PickRandomCompletionQueue();
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-REGISTER_SHUTDOWN_CALLBACK(7, TDispatcher::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 

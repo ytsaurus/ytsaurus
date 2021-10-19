@@ -81,7 +81,7 @@ public:
 
     static TChunkReaderConfigPtr GetDefault()
     {
-        return RefCountedSingleton<TChunkReaderConfig>();
+        return LeakyRefCountedSingleton<TChunkReaderConfig>();
     }
 };
 
@@ -310,7 +310,7 @@ public:
 
     static TChunkReaderOptionsPtr GetDefault()
     {
-        return RefCountedSingleton<TChunkReaderOptions>();
+        return LeakyRefCountedSingleton<TChunkReaderOptions>();
     }
 };
 

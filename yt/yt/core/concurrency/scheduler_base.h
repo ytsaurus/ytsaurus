@@ -1,69 +1,44 @@
 #pragma once
 
-#include "public.h"
 #include "event_count.h"
-
-#include <yt/yt/core/actions/public.h>
-
-#include <yt/yt/core/misc/common.h>
-#include <yt/yt/core/misc/shutdownable.h>
-
-#include <util/system/thread.h>
-#include <util/system/sigset.h>
-
-#include <yt/yt/library/profiling/tag.h>
+#include "thread.h"
 
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerThreadBase
-    : public virtual TRefCounted
-    , public IShutdownable
+    : public TThread
 {
 public:
     ~TSchedulerThreadBase();
 
-    void Start();
-    void Shutdown() override;
-
-    TThreadId GetId() const;
-
-    bool IsStarted() const;
-    bool IsShutdown() const;
+    void Stop(bool graceful = false);
 
 protected:
     const TIntrusivePtr<TEventCount> CallbackEventCount_;
     const TString ThreadGroupName_;
     const TString ThreadName_;
 
+    std::atomic<bool> GracefulStop_ = false;
+
     TSchedulerThreadBase(
         TIntrusivePtr<TEventCount> callbackEventCount,
         const TString& threadGroupName,
-        const TString& threadName);
+        const TString& threadName,
+        int shutdownPriority = 0);
 
     virtual void OnStart();
-    virtual void BeforeShutdown();
-    virtual void AfterShutdown();
-
-    virtual void OnThreadStart();
-    virtual void OnThreadShutdown();
+    virtual void OnStop();
 
     virtual bool OnLoop(TEventCount::TCookie* cookie) = 0;
 
 private:
-    std::atomic<ui64> Epoch_ = 0;
-    static constexpr ui64 StartingEpochMask = 0x1;
-    static constexpr ui64 StoppingEpochMask = 0x2;
+    void StartEpilogue() override;
+    void StopPrologue() override;
+    void StopEpilogue() override;
 
-    TEvent ThreadStartedEvent_;
-    TEvent ThreadShutdownEvent_;
-
-    TThreadId ThreadId_ = InvalidThreadId;
-    TThread Thread_;
-
-    static void* ThreadTrampoline(void* opaque);
-    void ThreadMain();
+    void ThreadMain() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerThreadBase)

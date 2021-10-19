@@ -11,6 +11,7 @@
 
 #include <yt/yt/core/misc/crash_handler.h>
 #include <yt/yt/core/misc/ring_queue.h>
+#include <yt/yt/core/misc/shutdown.h>
 
 #include <util/thread/lfqueue.h>
 
@@ -27,8 +28,7 @@ class TActionQueue::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(
-        const TString& threadName)
+    explicit TImpl(const TString& threadName)
         : Queue_(New<TMpscInvokerQueue>(
             CallbackEventCount_,
             GetThreadTags(threadName)))
@@ -38,26 +38,27 @@ public:
             CallbackEventCount_,
             threadName,
             threadName))
+        , ShutdownCookie_(RegisterShutdownCallback(
+            Format("ActionQueue(%v)", threadName),
+            BIND(&TImpl::Shutdown, MakeWeak(this), /*graceful*/ false),
+            /*priority*/ 100))
     { }
 
     ~TImpl()
     {
-        Shutdown();
+        Shutdown(false);
     }
 
-    void Shutdown()
+    void Shutdown(bool graceful)
     {
-        bool expected = false;
-        if (!StopFlag_.compare_exchange_strong(expected, true)) {
+        if (Stopped_.exchange(true)) {
             return;
         }
 
-        StartFlag_ = true;
-
         Queue_->Shutdown();
 
-        FinalizerInvoker_->Invoke(BIND([thread = Thread_, queue = Queue_] {
-            thread->Shutdown();
+        FinalizerInvoker_->Invoke(BIND([graceful, thread = Thread_, queue = Queue_] {
+            thread->Stop(graceful);
             queue->Drain();
         }));
         FinalizerInvoker_.Reset();
@@ -74,33 +75,35 @@ private:
     const TMpscInvokerQueuePtr Queue_;
     const IInvokerPtr Invoker_;
     const TMpscSingleQueueSchedulerThreadPtr Thread_;
+    const TShutdownCookie ShutdownCookie_;
 
-    std::atomic<bool> StartFlag_ = false;
-    std::atomic<bool> StopFlag_ = false;
+    std::atomic<bool> Started_ = false;
+    std::atomic<bool> Stopped_ = false;
 
     IInvokerPtr FinalizerInvoker_ = GetFinalizerInvoker();
 
+
     void EnsureStarted()
     {
-        bool expected = false;
-        if (!StartFlag_.compare_exchange_strong(expected, true)) {
+        if (Started_.load(std::memory_order_relaxed)) {
             return;
         }
-
+        if (Started_.exchange(true)) {
+            return;
+        }
         Thread_->Start();
     }
 };
 
-TActionQueue::TActionQueue(
-    const TString& threadName)
-    : Impl_(New<TImpl>(threadName))
+TActionQueue::TActionQueue(TString threadName)
+    : Impl_(New<TImpl>(std::move(threadName)))
 { }
 
 TActionQueue::~TActionQueue() = default;
 
-void TActionQueue::Shutdown()
+void TActionQueue::Shutdown(bool graceful)
 {
-    return Impl_->Shutdown();
+    return Impl_->Shutdown(graceful);
 }
 
 const IInvokerPtr& TActionQueue::GetInvoker()

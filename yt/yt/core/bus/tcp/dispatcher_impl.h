@@ -31,7 +31,6 @@ class TTcpDispatcher::TImpl
 {
 public:
     static const TIntrusivePtr<TImpl>& Get();
-    void Shutdown();
 
     const TTcpDispatcherCountersPtr& GetCounters(const TString& networkName);
 
@@ -58,14 +57,12 @@ private:
         NConcurrency::IPollerPtr* poller,
         bool isXfer,
         const TString& threadNamePrefix);
-    void ShutdownPoller(NConcurrency::IPollerPtr* poller);
 
     void DisableNetworking();
     bool IsNetworkingDisabled();
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, PollerLock_);
     TTcpDispatcherConfigPtr Config_ = New<TTcpDispatcherConfig>();
-    bool Terminated_ = false;
     NConcurrency::IPollerPtr AcceptorPoller_;
     NConcurrency::IPollerPtr XferPoller_;
 

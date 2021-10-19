@@ -8,7 +8,6 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
-#include <yt/yt/core/misc/shutdownable.h>
 #include <yt/yt/core/bus/public.h>
 
 namespace NYT::NRpc {
@@ -16,7 +15,6 @@ namespace NYT::NRpc {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDispatcher
-    : public IShutdownable
 {
 public:
     TDispatcher();
@@ -24,11 +22,7 @@ public:
 
     static TDispatcher* Get();
 
-    static void StaticShutdown();
-
     void Configure(const TDispatcherConfigPtr& config);
-
-    void Shutdown() override;
 
     NYT::NBus::TTosLevel GetTosLevelForBand(EMultiplexingBand band, TNetworkId networkId);
 

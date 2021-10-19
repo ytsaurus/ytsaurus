@@ -14,7 +14,7 @@ template <class T>
 T* LeakySingleton();
 
 template <class T>
-TIntrusivePtr<T> RefCountedSingleton();
+TIntrusivePtr<T> LeakyRefCountedSingleton();
 
 ////////////////////////////////////////////////////////////////////////////////
 

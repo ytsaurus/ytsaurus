@@ -2,8 +2,6 @@
 
 #include <yt/yt/core/tracing/trace_context.h>
 
-#include <yt/yt/core/misc/shutdown.h>
-
 #include <util/generic/yexception.h>
 
 #include <yt/yt/library/tracing/jaeger/tracer.h>
@@ -79,9 +77,8 @@ int main(int argc, char* argv[])
         jaeger->WaitFlush().Get();
     } catch (const std::exception& ex) {
         Cerr << ex.what() << Endl;
-        _exit(1);
+        return 1;
     }
 
-    NYT::Shutdown();
     return 0;
 }

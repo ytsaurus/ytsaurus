@@ -102,32 +102,7 @@ public:
 
     //! The same as Cancel, but in addition also clears the cookie.
     static void CancelAndClear(TDelayedExecutorCookie& cookie);
-
-    //! Shuts the subsystem down.
-    /*!
-     *  Safe to call multiple times.
-     *
-     *  This call may block to wait for all registered callbacks to complete.
-     *  Some of the above callbacks (i.e. those for which the deadlines were not reached yet)
-     *  will get |aborted = true| in their parameters. This is somewhat racy, though, and should not
-     *  be relied upon.
-     *
-     *  For all calls to #Submit after the shutdown is finished, the callbacks are executed immediately
-     *  with |aborted = true|.
-     */
-    static void StaticShutdown();
-
-private:
-    TDelayedExecutor();
-    ~TDelayedExecutor();
-
-    class TImpl;
-    static TImpl* GetImpl();
-
-    Y_DECLARE_SINGLETON_FRIEND();
 };
-
-extern const TDelayedExecutorCookie NullDelayedExecutorCookie;
 
 ////////////////////////////////////////////////////////////////////////////////
 

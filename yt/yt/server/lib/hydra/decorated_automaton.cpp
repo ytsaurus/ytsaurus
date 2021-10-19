@@ -767,10 +767,12 @@ IInvokerPtr TDecoratedAutomaton::GetSystemInvoker()
 
 TFuture<void> TDecoratedAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    // No affinity annotation here since this could have been called
+    // from a forked process.
 
     // Context switches are not allowed during sync phase.
     TForbidContextSwitchGuard contextSwitchGuard;
+
     return Automaton_->SaveSnapshot(writer);
 }
 

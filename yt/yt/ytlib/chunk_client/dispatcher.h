@@ -4,28 +4,20 @@
 
 #include <yt/yt/core/actions/public.h>
 
-#include <yt/yt/core/misc/shutdownable.h>
-
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // XXX(sandello): Make this an interface with singleton implementation?
 class TDispatcher
-    : public IShutdownable
 {
 public:
     TDispatcher();
-
     ~TDispatcher();
 
     static TDispatcher* Get();
 
-    static void StaticShutdown();
-
     void Configure(TDispatcherConfigPtr config);
-
-    void Shutdown() override;
 
     //! Return invoker over "ChunkReader:*" thread pool. NB: this is not a serialized invoker.
     IInvokerPtr GetReaderInvoker();

@@ -554,7 +554,7 @@ void TListNodeMixin::SetChild(
 
 IYPathServicePtr TNonexistingService::Get()
 {
-    return RefCountedSingleton<TNonexistingService>();
+    return LeakyRefCountedSingleton<TNonexistingService>();
 }
 
 bool TNonexistingService::DoInvoke(const IServiceContextPtr& context)

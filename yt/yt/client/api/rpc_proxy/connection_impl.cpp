@@ -321,11 +321,6 @@ std::vector<TString> TConnection::DiscoverProxiesViaHttp()
         YT_LOG_DEBUG("Updating proxy list via HTTP");
 
         auto poller = TTcpDispatcher::Get()->GetXferPoller();
-        if (!poller) {
-            YT_LOG_DEBUG("Bus poller is already terminated");
-            return {};
-        }
-
         auto client = NHttp::CreateClient(Config_->HttpClient, std::move(poller));
         auto headers = New<THeaders>();
         if (auto token = DiscoveryToken_.Load()) {

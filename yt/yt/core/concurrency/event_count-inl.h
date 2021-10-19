@@ -65,31 +65,23 @@ inline void TEventCount::CancelWait()
     YT_ASSERT((prev & WaiterMask) != 0);
 }
 
-inline bool TEventCount::Wait(TCookie cookie, std::optional<TInstant> deadline)
+inline bool TEventCount::Wait(TCookie cookie, std::optional<TDuration> timeout)
 {
     bool result = true;
 #ifdef _linux_
     while ((Value_.load(std::memory_order_acquire) >> EpochShift) == cookie.Epoch_) {
         struct timespec timeoutSpec;
-
-        if (deadline) {
-            const auto now = TInstant::Now();
-            if (*deadline > now) {
-                auto timeout = *deadline - now;
-                timeoutSpec.tv_sec = timeout.Seconds();
-                timeout -= TDuration::Seconds(timeout.Seconds());
-                timeoutSpec.tv_nsec = timeout.MicroSeconds() * 1000;
-            } else {
-                result = false;
-                break;
-            }
+        if (timeout) {
+            timeoutSpec.tv_sec = timeout->Seconds();
+            *timeout -= TDuration::Seconds(timeout->Seconds());
+            timeoutSpec.tv_nsec = timeout->MicroSeconds() * 1000;
         }
 
         auto futexResult = NDetail::futex(
             reinterpret_cast<int*>(&Value_) + 1, // assume little-endian architecture
             FUTEX_WAIT_PRIVATE,
             cookie.Epoch_,
-            deadline ? &timeoutSpec : nullptr,
+            timeout ? &timeoutSpec : nullptr,
             nullptr,
             0);
 
@@ -101,8 +93,8 @@ inline bool TEventCount::Wait(TCookie cookie, std::optional<TInstant> deadline)
 #else
     TGuard<TMutex> guard(Mutex_);
     if ((Value_.load(std::memory_order_acquire) >> EpochShift) == cookie.Epoch_) {
-        if (deadline) {
-            result = ConditionVariable_.WaitD(Mutex_, *deadline);
+        if (timeout) {
+            result = ConditionVariable_.WaitT(Mutex_, *timeout);
         } else {
             ConditionVariable_.WaitI(Mutex_);
         }
@@ -114,7 +106,7 @@ inline bool TEventCount::Wait(TCookie cookie, std::optional<TInstant> deadline)
 }
 
 template <class TCondition>
-bool TEventCount::Await(TCondition condition, std::optional<TInstant> deadline)
+bool TEventCount::Await(TCondition condition, std::optional<TDuration> timeout)
 {
     if (condition()) {
         // Fast path.
@@ -130,7 +122,7 @@ bool TEventCount::Await(TCondition condition, std::optional<TInstant> deadline)
                 CancelWait();
                 break;
             } else {
-                auto result = Wait(cookie, deadline);
+                auto result = Wait(cookie, timeout);
                 if (!result) {
                     return false;
                 }
@@ -162,12 +154,12 @@ inline bool TEvent::Test() const
     return Set_.load(std::memory_order_acquire);
 }
 
-inline bool TEvent::Wait(std::optional<TInstant> deadline)
+inline bool TEvent::Wait(std::optional<TDuration> timeout)
 {
     return EventCount_.Await([=] () {
             return Set_.load(std::memory_order_acquire);
         },
-        deadline);
+        timeout);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

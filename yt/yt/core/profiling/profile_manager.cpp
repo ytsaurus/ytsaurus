@@ -15,7 +15,6 @@
 #include <yt/yt/core/misc/id_generator.h>
 #include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/singleton.h>
-#include <yt/yt/core/misc/shutdown.h>
 
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/fluent.h>
@@ -34,7 +33,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLogging::TLogger Logger("Profiling");
+static const NLogging::TLogger Logger("Profiling");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,7 +43,7 @@ class TProfileManager::TImpl
 public:
     TImpl()
         : WasStarted_(false)
-        , WasShutdown_(false)
+        , WasStopped_(false)
         , EventQueue_(New<TMpscInvokerQueue>(
             EventCount_,
             NConcurrency::GetThreadTags("Profiler")))
@@ -57,12 +56,12 @@ public:
     void Start()
     {
         YT_VERIFY(!WasStarted_);
-        YT_VERIFY(!WasShutdown_);
+        YT_VERIFY(!WasStopped_);
 
         WasStarted_ = true;
 
         Thread_->Start();
-        EventQueue_->SetThreadId(Thread_->GetId());
+        EventQueue_->SetThreadId(Thread_->GetThreadId());
 
         DequeueExecutor_ = New<TPeriodicExecutor>(
             EventQueue_,
@@ -71,16 +70,16 @@ public:
         DequeueExecutor_->Start();
     }
 
-    void Shutdown()
+    void Stop()
     {
-        WasShutdown_ = true;
+        WasStopped_ = true;
         EventQueue_->Shutdown();
-        Thread_->Shutdown();
+        Thread_->Stop();
     }
 
     void Enqueue(const TQueuedSample& sample)
     {
-        if (!WasStarted_ || WasShutdown_) {
+        if (!WasStarted_ || WasStopped_) {
             return;
         }
 
@@ -414,7 +413,7 @@ private:
 
     const TIntrusivePtr<TEventCount> EventCount_ = New<TEventCount>();
     std::atomic<bool> WasStarted_;
-    std::atomic<bool> WasShutdown_;
+    std::atomic<bool> WasStopped_;
     TMpscInvokerQueuePtr EventQueue_;
     TIntrusivePtr<TThread> Thread_;
     TEnqueuedAction CurrentAction_;
@@ -547,11 +546,6 @@ TProfileManager* TProfileManager::Get()
     return Singleton<TProfileManager>();
 }
 
-void TProfileManager::StaticShutdown()
-{
-    Get()->Shutdown();
-}
-
 void TProfileManager::Configure(const TProfileManagerConfigPtr& config)
 {
     Impl_->Configure(config);
@@ -567,9 +561,9 @@ void TProfileManager::Start()
     Impl_->Start();
 }
 
-void TProfileManager::Shutdown()
+void TProfileManager::Stop()
 {
-    Impl_->Shutdown();
+    Impl_->Stop();
 }
 
 void TProfileManager::Enqueue(const TQueuedSample& sample)
@@ -613,7 +607,5 @@ TResourceTrackerPtr TProfileManager::GetResourceTracker() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-REGISTER_SHUTDOWN_CALLBACK(4, TProfileManager::StaticShutdown);
 
 } // namespace NYT::NProfiling

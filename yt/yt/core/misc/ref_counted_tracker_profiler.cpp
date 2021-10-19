@@ -42,7 +42,7 @@ public:
 
 void EnableRefCountedTrackerProfiling()
 {
-    RefCountedSingleton<TRefCountedTrackerProfiler>();
+    LeakyRefCountedSingleton<TRefCountedTrackerProfiler>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -56,7 +56,7 @@ private:
 
 void EnableTCMallocProfiler()
 {
-    RefCountedSingleton<TProfilingStatisticsProducer>();
+    LeakyRefCountedSingleton<TProfilingStatisticsProducer>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

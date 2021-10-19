@@ -143,13 +143,6 @@ void TInvokerQueue<TQueueImpl>::Invoke(TClosure callback, int profilingTag)
     YT_ASSERT(callback);
     YT_ASSERT(profilingTag >= 0 && profilingTag < std::ssize(Counters_));
 
-    if (!Running_.load(std::memory_order_relaxed)) {
-        YT_LOG_TRACE(
-            "Queue had been shut down, incoming action ignored (Callback: %v)",
-            callback.GetHandle());
-        return;
-    }
-
     YT_LOG_TRACE("Callback enqueued (Callback: %v, ProfilingTag: %v)",
         callback.GetHandle(),
         profilingTag);
@@ -174,6 +167,14 @@ void TInvokerQueue<TQueueImpl>::Invoke(TClosure callback, int profilingTag)
         .ProfilingTag = profilingTag
     };
     QueueImpl_.Enqueue(std::move(action));
+
+    if (!Running_.load(std::memory_order_relaxed)) {
+        Drain();
+        YT_LOG_TRACE(
+            "Queue had been shut down, incoming action ignored (Callback: %v)",
+            callback.GetHandle());
+        return;
+    }
 
     CallbackEventCount_->NotifyOne();
 }
