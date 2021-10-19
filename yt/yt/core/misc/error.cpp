@@ -541,9 +541,15 @@ TError TError::Sanitize(TInstant datetime) const
 
 TError TError::Truncate(int maxInnerErrorCount, i64 stringLimit) const
 {
+    static const TString InnerErrorsTruncatedKey("inner_errors_truncated");
+
     if (!Impl_) {
         return TError();
     }
+
+    auto truncateInnerError = [=] (const TError& innerError) {
+        return innerError.Truncate(maxInnerErrorCount, stringLimit);
+    };
 
     auto truncateString = [stringLimit] (TString string) {
         if (std::ssize(string) > stringLimit) {
@@ -571,17 +577,17 @@ TError TError::Truncate(int maxInnerErrorCount, i64 stringLimit) const
     if (Impl_->HasAttributes()) {
         result->SetAttributes(truncateAttributes(Attributes()));
     }
+
     if (std::ssize(InnerErrors()) <= maxInnerErrorCount) {
         for (const auto& innerError : InnerErrors()) {
-            result->MutableInnerErrors()->push_back(innerError.Truncate());
+            result->MutableInnerErrors()->push_back(truncateInnerError(innerError));
         }
     } else {
-        static const TString InnerErrorsTruncatedKey("inner_errors_truncated");
         result->MutableAttributes()->Set(InnerErrorsTruncatedKey, true);
         for (int i = 0; i + 1 < maxInnerErrorCount; ++i) {
-            result->MutableInnerErrors()->push_back(InnerErrors()[i].Truncate());
+            result->MutableInnerErrors()->push_back(truncateInnerError(InnerErrors()[i]));
         }
-        result->MutableInnerErrors()->push_back(InnerErrors().back().Truncate());
+        result->MutableInnerErrors()->push_back(truncateInnerError(InnerErrors().back()));
     }
 
     return TError(std::move(result));
