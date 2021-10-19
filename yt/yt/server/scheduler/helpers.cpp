@@ -164,37 +164,12 @@ TListOperationsResult ListOperations(
         batchReq->AddRequest(req, "list_operations_" + hashStr);
     }
 
-    {
-        auto req = TYPathProxy::List("//sys/operations");
-        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-        batchReq->AddRequest(req, "list_operations");
-    }
-
     auto batchRsp = WaitFor(batchReq->Invoke())
         .ValueOrThrow();
-
-    auto rootOperationsRspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>("list_operations");
-    auto rootOperationsRsp = rootOperationsRspOrError.ValueOrThrow();
-
-    auto rootOperationsNode = ConvertToNode(TYsonString(rootOperationsRsp->value()));
 
     TListOperationsResult result;
 
     THashSet<TOperationId> operationSet;
-    THashMap<TOperationId, EOperationState> rootOperationIdToState;
-
-    for (const auto& operationNode : rootOperationsNode->AsList()->GetChildren()) {
-        auto key = operationNode->GetValue<TString>();
-        // Hash-bucket case.
-        if (key.size() == 2) {
-            continue;
-        }
-
-        auto id = TOperationId::FromString(key);
-        auto state = operationNode->Attributes().Get<EOperationState>("state");
-        YT_VERIFY(rootOperationIdToState.emplace(id, state).second);
-    }
-
     for (int hash = 0x0; hash <= 0xFF; ++hash) {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>(
             "list_operations_" + Format("%02x", hash));
@@ -204,27 +179,27 @@ TListOperationsResult ListOperations(
         }
 
         auto hashBucketRsp = rspOrError.ValueOrThrow();
-        auto hashBucketListNode = ConvertToNode(TYsonString(hashBucketRsp->value()));
-        auto hashBucketList = hashBucketListNode->AsList();
 
-        for (const auto& operationNode : hashBucketList->GetChildren()) {
-            auto id = TOperationId::FromString(operationNode->GetValue<TString>());
-            YT_VERIFY((id.Parts32[0] & 0xff) == hash);
+        try {
+            auto hashBucketListNode = ConvertToNode(TYsonString(hashBucketRsp->value()));
+            auto hashBucketList = hashBucketListNode->AsList();
 
-            auto state = operationNode->Attributes().Get<EOperationState>("state");
-            YT_VERIFY(operationSet.insert(id).second);
+            for (const auto& operationNode : hashBucketList->GetChildren()) {
+                auto id = TOperationId::FromString(operationNode->GetValue<TString>());
+                YT_VERIFY((id.Parts32[0] & 0xff) == hash);
 
-            if (IsOperationInProgress(state)) {
-                result.OperationsToRevive.push_back({id, state});
-            } else {
-                result.OperationsToArchive.push_back(id);
+                auto state = operationNode->Attributes().Get<EOperationState>("state");
+                YT_VERIFY(operationSet.insert(id).second);
+
+                if (IsOperationInProgress(state)) {
+                    result.OperationsToRevive.push_back({id, state});
+                } else {
+                    result.OperationsToArchive.push_back(id);
+                }
             }
-        }
-    }
-
-    for (const auto& [operationId, operationState] : rootOperationIdToState) {
-        if (operationSet.find(operationId) == operationSet.end()) {
-            result.OperationsToRemove.push_back(operationId);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing operations from //sys/operations/%02x", hash)
+                << ex;
         }
     }
 

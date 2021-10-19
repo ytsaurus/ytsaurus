@@ -1426,15 +1426,24 @@ std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
     YT_VERIFY(operationIds.size() == rsps.size());
 
     {
-        const auto processBatch = BIND([parseOperationAttributesBatchSize](
-            const std::vector<TOperationDataToParse>& operationDataToParseBatch) {
+        const auto processBatch = BIND([parseOperationAttributesBatchSize] (
+            const std::vector<TOperationDataToParse>& operationDataToParseBatch)
+        {
             std::vector<TArchiveOperationRequest> result;
             result.reserve(parseOperationAttributesBatchSize);
 
             for (const auto& operationDataToParse : operationDataToParseBatch) {
-                const auto attributes = ConvertToAttributes(operationDataToParse.AttrbutesYson);
-                const auto operationId = TOperationId::FromString(attributes->Get<TString>("key"));
-                YT_VERIFY(operationId == operationDataToParse.OperationId);
+                IAttributeDictionaryPtr attributes;
+                TOperationId operationId;
+                try {
+                    attributes = ConvertToAttributes(operationDataToParse.AttrbutesYson);
+                    operationId = TOperationId::FromString(attributes->Get<TString>("key"));
+                    YT_VERIFY(operationId == operationDataToParse.OperationId);
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Error parsing operation attributes")
+                        << TErrorAttribute("operation_id", operationDataToParse.OperationId)
+                        << ex;
+                }
 
                 try {
                     TArchiveOperationRequest req;
@@ -1469,7 +1478,7 @@ std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
             );
         }
 
-        YT_LOG_INFO("Operations attributes for cleaner fetched");
+        YT_LOG_INFO("Operations attributes for cleaner fetch started");
         auto operationRequestsArray = WaitFor(AllSucceeded(futures)).ValueOrThrow();
 
         result.reserve(operationCount);

@@ -1381,7 +1381,14 @@ private:
                     "get_op_attr_" + ToString(operationId))
                     .ValueOrThrow();
 
-                auto attributes = ConvertToAttributes(TYsonString(attributesRsp->value()));
+                IAttributeDictionaryPtr attributes;
+                try {
+                    attributes = ConvertToAttributes(TYsonString(attributesRsp->value()));
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Error parsing attributes of operation")
+                        << TErrorAttribute("operation_id", operationId)
+                        << ex;
+                }
 
                 auto attachTransaction = [&] (TTransactionId transactionId, bool ping, const TString& name = TString()) -> ITransactionPtr {
                     if (!transactionId) {
@@ -1521,11 +1528,17 @@ private:
                             return;
                         }
 
-                        auto responseAttributes = ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
-                        if (attributes) {
-                            attributes->MergeFrom(*responseAttributes);
-                        } else {
-                            attributes = std::move(responseAttributes);
+                        try {
+                            auto responseAttributes = ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
+                            if (attributes) {
+                                attributes->MergeFrom(*responseAttributes);
+                            } else {
+                                attributes = std::move(responseAttributes);
+                            }
+                        } catch (const std::exception& ex) {
+                            THROW_ERROR_EXCEPTION("Error parsing revival attributes of operation")
+                                << TErrorAttribute("operation_id", operation->GetId())
+                                << ex;
                         }
                     };
 
