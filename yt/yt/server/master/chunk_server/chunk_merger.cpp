@@ -234,6 +234,10 @@ private:
         const NChunkClient::TReadLimit& /*upperLimit*/,
         TTransactionId /*timestampTransactionId*/) override
     {
+        if (!IsNodeMergeable()) {
+            return false;
+        }
+
         if (MaybeAddChunk(chunk, parent)) {
             return true;
         }
@@ -292,7 +296,7 @@ private:
         ParentChunkListId_ = NullObjectId;
     }
 
-    bool SatisfiesShallowMergeCriteria(TChunk* chunk)
+    bool SatisfiesShallowMergeCriteria(TChunk* chunk) const
     {
         if (ChunkIds_.empty()) {
             return true;
@@ -308,6 +312,16 @@ private:
         }
 
         return true;
+    }
+
+    bool IsNodeMergeable() const
+    {
+        if (Node_->GetType() != EObjectType::Table) {
+            return false;
+        }
+
+        auto* table = Node_->As<TTableNode>();
+        return !table->IsDynamic();
     }
 
     bool MaybeAddChunk(TChunk* chunk, TChunkList* parent)
