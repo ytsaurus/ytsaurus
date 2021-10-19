@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait,
+    authors, update_nodes_dynamic_config, wait,
     get, set, ls, create, read_table, write_table,
     get_singular_chunk_id)
 
@@ -138,3 +138,23 @@ class TestP2P(YTEnvSetup):
 
         for t in threads:
             t.join()
+
+    @authors("prime")
+    def test_dynamic_config(self):
+        throttled = self.seed_counter("data_node/p2p/throttled_bytes")
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "p2p": {"enabled": False},
+            },
+        })
+
+        for _ in range(10):
+            self.access_table()
+        time.sleep(2)
+
+        assert throttled.get_delta() == 0
+
+        update_nodes_dynamic_config({
+            "data_node": {},
+        })
