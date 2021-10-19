@@ -61,7 +61,7 @@ public:
     TP2PConfig()
     {
         RegisterParameter("enabled", Enabled)
-            .Default(true);
+            .Default(false);
 
         RegisterParameter("block_cache", BlockCache)
             .DefaultNew();
