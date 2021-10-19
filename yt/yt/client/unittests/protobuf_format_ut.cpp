@@ -215,7 +215,7 @@ INodePtr CreateFileDescriptorConfig(std::optional<EComplexTypeMode> complexTypeM
         .EndAttributes()
         .Value("protobuf");
 }
-    
+
 static const auto EnumerationsConfig = BuildYsonNodeFluently()
     .BeginMap()
         .Item("EEnum")
@@ -516,6 +516,143 @@ TProtobufFormatConfigPtr ParseAndValidateConfig(const INodePtr& node, std::vecto
 
 } // namespace
 
+INodePtr BuildEmbeddedConfig(EComplexTypeMode complexTypeMode, EProtoFormatType formatType) {
+    if (formatType == EProtoFormatType::FileDescriptor) {
+        return CreateFileDescriptorConfig<NYT::TEmbeddingMessage>(complexTypeMode);
+    }
+
+    auto config = BuildYsonNodeFluently()
+        .BeginAttributes()
+            .Item("tables").BeginList()
+                .Item().BeginMap()
+                    .Item("columns").BeginList()
+                        .Item().BeginMap()
+                            .Item("name").Value("*")
+                            .Item("field_number").Value(2)
+                            .Item("proto_type").Value("embedded_message")
+                            .Item("fields").BeginList()
+                                .Item().BeginMap()
+                                    .Item("name").Value("other_columns_field")
+                                    .Item("field_number").Value(15)
+                                    .Item("proto_type").Value("other_columns")
+                                .EndMap()
+                                .Item().BeginMap()
+                                    .Item("name").Value("embedded_num")
+                                    .Item("field_number").Value(10)
+                                    .Item("proto_type").Value("uint64")
+                                .EndMap()
+                                .Item().BeginMap()
+                                    .Item("name").Value("embedded_extra_field")
+                                    .Item("field_number").Value(11)
+                                    .Item("proto_type").Value("string")
+                                .EndMap()
+                                .Item().BeginMap()
+                                    .Item("name").Value("variant")
+                                    .Item("proto_type").Value("oneof")
+                                    .Item("fields").BeginList()
+                                        .Item().BeginMap()
+                                            .Item("name").Value("str_variant")
+                                            .Item("field_number").Value(101)
+                                            .Item("proto_type").Value("string")
+                                        .EndMap()
+                                        .Item().BeginMap()
+                                            .Item("name").Value("uint_variant")
+                                            .Item("field_number").Value(102)
+                                            .Item("proto_type").Value("uint64")
+                                        .EndMap()
+                                    .EndList()
+                                .EndMap()
+                                .Item().BeginMap()
+                                    .Item("name").Value("*")
+                                    .Item("field_number").Value(1)
+                                    .Item("proto_type").Value("embedded_message")
+                                    .Item("fields").BeginList()
+                                        .Item().BeginMap()
+                                            .Item("name").Value("embedded2_num")
+                                            .Item("field_number").Value(10)
+                                            .Item("proto_type").Value("uint64")
+                                        .EndMap()
+                                        .Item().BeginMap()
+                                            .Item("name").Value("embedded2_struct")
+                                            .Item("field_number").Value(17)
+                                            .Item("proto_type").Value("structured_message")
+                                            .Item("fields").BeginList()
+                                                .Item().BeginMap()
+                                                    .Item("name").Value("float1")
+                                                    .Item("field_number").Value(1)
+                                                    .Item("proto_type").Value("float")
+                                                .EndMap()
+                                                .Item().BeginMap()
+                                                    .Item("name").Value("string1")
+                                                    .Item("field_number").Value(2)
+                                                    .Item("proto_type").Value("string")
+                                                .EndMap()
+                                            .EndList()
+                                        .EndMap()
+                                        .Item().BeginMap()
+                                            .Item("name").Value("embedded2_repeated")
+                                            .Item("field_number").Value(42)
+                                            .Item("proto_type").Value("string")
+                                            .Item("repeated").Value(true)
+                                        .EndMap()
+                                    .EndList()
+                                .EndMap()
+                            .EndList()
+                        .EndMap()
+                        .Item().BeginMap()
+                            .Item("name").Value("num")
+                            .Item("field_number").Value(12)
+                            .Item("proto_type").Value("uint64")
+                        .EndMap()
+                        .Item().BeginMap()
+                            .Item("name").Value("extra_field")
+                            .Item("field_number").Value(13)
+                            .Item("proto_type").Value("string")
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+            .Item("complex_type_mode").Value(complexTypeMode)
+        .EndAttributes()
+        .Value("protobuf");
+    return config;
+}
+
+TTableSchemaPtr BuildEmbeddedSchema() {
+    auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
+        {"num", SimpleLogicalType(ESimpleLogicalValueType::Uint64)},
+        {"embedded_num", SimpleLogicalType(ESimpleLogicalValueType::Uint64)},
+        {"variant", VariantStructLogicalType({
+            {"str_variant", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"uint_variant", SimpleLogicalType(ESimpleLogicalValueType::Uint64)},
+        })},
+        {"extra_column", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64))},
+        {"embedded2_num", SimpleLogicalType(ESimpleLogicalValueType::Uint64)},
+        {"embedded2_struct", StructLogicalType({
+            {"float1", SimpleLogicalType(ESimpleLogicalValueType::Float)},
+            {"string1", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        })},
+        {"embedded2_repeated", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+        {"other_complex_field", StructLogicalType({
+            {"one", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"two", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"three", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        })},
+        {"extra_int", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+
+    });
+    return schema;
+}
+
+TEST(TProtobufFormat, TestConfigParsingEmbedded) {
+    auto config = BuildEmbeddedConfig(EComplexTypeMode::Positional, EProtoFormatType::Structured);
+    auto schema = BuildEmbeddedSchema();
+
+    EXPECT_NO_THROW(
+        ParseAndValidateConfig(config->Attributes().ToMap(), {schema})
+    );
+}
+
 TEST(TProtobufFormat, TestConfigParsing)
 {
     // Empty config.
@@ -539,6 +676,85 @@ TEST(TProtobufFormat, TestConfigParsing)
     EXPECT_NO_THROW(ParseAndValidateConfig(
         CreateAllFieldsConfig(EProtoFormatType::FileDescriptor)->Attributes().ToMap()
     ));
+
+    auto embeddedInsideNonembeddedConfig = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("tables").BeginList()
+                .Item().BeginMap()
+                    .Item("columns").BeginList()
+                        .Item().BeginMap()
+                            .Item("name").Value("embedded_message1")
+                            .Item("field_number").Value(1)
+                            .Item("proto_type").Value("embedded_message")
+                            .Item("fields").BeginList()
+                                .Item().BeginMap()
+                                    .Item("name").Value("field1")
+                                    .Item("field_number").Value(2)
+                                    .Item("proto_type").Value("structured_message")
+                                    .Item("fields").BeginList()
+                                        .Item().BeginMap()
+                                            .Item("name").Value("embedded_message2")
+                                            .Item("field_number").Value(3)
+                                            .Item("proto_type").Value("embedded_message")
+                                            .Item("fields").BeginList()
+                                                .Item().BeginMap()
+                                                    .Item("name").Value("field2")
+                                                    .Item("field_number").Value(4)
+                                                    .Item("proto_type").Value("string")
+                                                .EndMap()
+                                            .EndList()
+                                        .EndMap()
+                                    .EndList()
+                                .EndMap()
+                            .EndList()
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+        .EndMap();
+
+    auto schemaForEmbedded = New<TTableSchema>(std::vector{
+        TColumnSchema("field1", StructLogicalType({
+            {"embedded_message2", StructLogicalType({
+                {"field2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            })},
+        }))
+    });
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ParseAndValidateConfig(embeddedInsideNonembeddedConfig, {schemaForEmbedded}),
+        "embedded_message inside of structured_message is not allowed");
+
+    auto repeatedEmbeddedConfig = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("tables")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("columns")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("*")
+                            .Item("field_number").Value(1)
+                            .Item("proto_type").Value("embedded_message")
+                            .Item("repeated").Value(true)
+                            .Item("fields").BeginList()
+                                .Item().BeginMap()
+                                    .Item("name").Value("field1")
+                                    .Item("field_number").Value(1)
+                                    .Item("proto_type").Value("uint64")
+                                .EndMap()
+                            .EndList()
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+        .EndMap();
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ParseAndValidateConfig(repeatedEmbeddedConfig),
+        R"(type "embedded_message" can not be repeated)");
 
     auto multipleOtherColumnsConfig = BuildYsonNodeFluently()
         .BeginMap()
@@ -1722,6 +1938,138 @@ INSTANTIATE_TEST_SUITE_P(
         30000,
         EProtoFormatType::Structured}));
 
+TEST_P(TProtobufFormatStructuredMessage, EmbeddedWrite)
+{
+    auto [complexTypeMode, rowCount, protoFormatType] = GetParam();
+
+    auto nameTable = New<TNameTable>();
+    auto numId = nameTable->RegisterName("num");
+    auto embeddedNumId = nameTable->RegisterName("embedded_num");
+    auto variantId = nameTable->RegisterName("variant");
+    auto embedded2NumId = nameTable->RegisterName("embedded2_num");
+    auto embedded2StructId = nameTable->RegisterName("embedded2_struct");
+    auto embedded2RepeatedId = nameTable->RegisterName("embedded2_repeated");
+    auto extraIntId = nameTable->RegisterName("extra_int");
+    auto otherComplexFieldId = nameTable->RegisterName("other_complex_field");
+
+    //message T2 {
+    //    optional ui64 embedded2_num;
+    //};
+    //message T1 {
+    //  required T2 t2 [embedded];
+    //  optional ui64 embedded_num;
+    //};
+    //
+    //message T {
+    //   required T1 t1 [embedded];
+    //   optional ui64 num;
+    //};
+
+    auto schema = BuildEmbeddedSchema();
+    auto config = BuildEmbeddedConfig(complexTypeMode, protoFormatType);
+
+    TString result;
+    TStringOutput resultStream(result);
+    auto writer = CreateWriterForProtobuf(
+        ConvertTo<TProtobufFormatConfigPtr>(config->Attributes()),
+        {schema},
+        nameTable,
+        CreateAsyncAdapter(&resultStream),
+        true,
+        New<TControlAttributesConfig>(),
+        0);
+
+    TUnversionedRowBuilder builder;
+    builder.AddValue(MakeUnversionedUint64Value(789, numId));
+    builder.AddValue(MakeUnversionedUint64Value(123, embeddedNumId));
+    builder.AddValue(MakeUnversionedUint64Value(456, embedded2NumId));
+    builder.AddValue(MakeUnversionedCompositeValue("[1; 555u]", variantId));
+    auto embeddedYson = BuildYsonStringFluently()
+        .BeginList()
+            // float1
+            .Item().Value(1.5f)
+            // string1
+            .Item().Value("abc")
+        .EndList();
+    builder.AddValue(MakeUnversionedCompositeValue(embeddedYson.ToString(), embedded2StructId));
+    auto repeatedYson = BuildYsonStringFluently()
+        .BeginList()
+            .Item().Value("a")
+            .Item().Value("b")
+        .EndList();
+    builder.AddValue(MakeUnversionedCompositeValue(repeatedYson.ToString(), embedded2RepeatedId));
+    builder.AddValue(MakeUnversionedInt64Value(111, extraIntId));
+    auto otherComplexFieldYson = BuildYsonStringFluently()
+        .BeginList()
+            .Item().Value(22)
+            .Item().Value(23)
+            .Item().Value(24)
+        .EndList();
+    builder.AddValue(MakeUnversionedCompositeValue(otherComplexFieldYson.ToString(), otherComplexFieldId));
+
+
+
+    auto rows = std::vector<TUnversionedRow>(rowCount, builder.GetRow());
+    writer->Write(rows);
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    TStringInput input(result);
+    TLenvalParser lenvalParser(&input);
+
+    for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+        auto entry = lenvalParser.Next();
+        ASSERT_TRUE(entry);
+
+        NYT::TEmbeddingMessage message;
+        ASSERT_TRUE(message.ParseFromString(entry->RowData));
+
+        EXPECT_EQ(message.num(), 789UL);
+        EXPECT_EQ(message.t1().embedded_num(), 123UL);
+        EXPECT_EQ(message.t1().t2().embedded2_num(), 456UL);
+
+        EXPECT_FALSE(message.t1().has_str_variant());
+        EXPECT_TRUE(message.t1().has_uint_variant());
+        EXPECT_EQ(message.t1().uint_variant(), 555UL);
+
+        EXPECT_EQ(message.t1().t2().embedded2_struct().float1(), 1.5f);
+        EXPECT_EQ(message.t1().t2().embedded2_struct().string1(), "abc");
+
+        ASSERT_EQ(message.t1().t2().embedded2_repeated_size(), 2);
+        EXPECT_EQ(message.t1().t2().embedded2_repeated(0), "a");
+        EXPECT_EQ(message.t1().t2().embedded2_repeated(1), "b");
+
+        {
+            auto otherColumns = ConvertToNode(TYsonString(message.other_columns_field()))->AsMap();
+            auto mode = complexTypeMode;
+            auto expected = ([&] {
+                switch (mode) {
+                    case EComplexTypeMode::Named:
+                        return BuildYsonNodeFluently()
+                            .BeginMap()
+                                .Item("one").Value(22)
+                                .Item("two").Value(23)
+                                .Item("three").Value(24)
+                            .EndMap();
+                    case EComplexTypeMode::Positional:
+                        return ConvertToNode(otherComplexFieldYson);
+                }
+                YT_ABORT();
+            })();
+
+            EXPECT_NODES_EQUAL(expected, otherColumns->GetChildOrThrow("other_complex_field"));
+            EXPECT_EQ(ConvertTo<i64>(otherColumns->GetChildOrThrow("extra_int")), 111);
+        }
+
+        ASSERT_FALSE(message.has_extra_field());
+        ASSERT_FALSE(message.t1().has_embedded_extra_field());
+    }
+
+    ASSERT_FALSE(lenvalParser.Next());
+}
+
 TEST_P(TProtobufFormatStructuredMessage, Write)
 {
     auto [complexTypeMode, rowCount, protoFormatType] = GetParam();
@@ -2135,6 +2483,57 @@ INodePtr SortMapByKey(const INodePtr& node)
     auto keyValuePairs = ConvertTo<std::vector<std::pair<i64, INodePtr>>>(node);
     std::sort(std::begin(keyValuePairs), std::end(keyValuePairs));
     return ConvertTo<INodePtr>(keyValuePairs);
+}
+
+TEST_P(TProtobufFormatStructuredMessage, EmbeddedParse)
+{
+    auto [complexTypeMode, rowCount, protoFormatType] = GetParam();
+
+    auto schema = BuildEmbeddedSchema();
+    auto config = BuildEmbeddedConfig(complexTypeMode, protoFormatType);
+
+    NYT::TEmbeddingMessage message;
+
+    message.set_num(789);
+    auto* t1 = message.mutable_t1();
+    t1->set_embedded_num(123);
+    auto* t2 = t1->mutable_t2();
+    t2->set_embedded2_num(456);
+    t1->set_uint_variant(555);
+    t2->add_embedded2_repeated("a");
+    t2->add_embedded2_repeated("b");
+    t2->add_embedded2_repeated("c");
+    auto* embedded2_struct = t2->mutable_embedded2_struct();
+    embedded2_struct->set_float1(1.5f);
+    embedded2_struct->set_string1("abc");
+
+    //message.set_extra_field("*");
+    //t1->set_embedded_extra_field("*");
+
+    auto rowCollector = ParseRows(message, config, schema, rowCount);
+    for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+        EXPECT_EQ(GetUint64(rowCollector.GetRowValue(rowIndex, "num")), 789u);
+        EXPECT_EQ(GetUint64(rowCollector.GetRowValue(rowIndex, "embedded_num")), 123u);
+        EXPECT_EQ(GetUint64(rowCollector.GetRowValue(rowIndex, "embedded2_num")), 456u);
+        EXPECT_NODES_EQUAL(
+            GetComposite(rowCollector.GetRowValue(rowIndex, "variant")),
+            ConvertToNode(TYsonString(TStringBuf("[1; 555u]"))));
+
+        auto embedded2_repeatedNode = GetComposite(rowCollector.GetRowValue(rowIndex, "embedded2_repeated"));
+        ASSERT_EQ(embedded2_repeatedNode->GetType(), ENodeType::List);
+        const auto& embedded2_repeatedList = embedded2_repeatedNode->AsList();
+        ASSERT_EQ(embedded2_repeatedList->GetChildCount(), 3);
+        EXPECT_EQ(embedded2_repeatedList->GetChildOrThrow(0)->GetValue<TString>(), "a");
+        EXPECT_EQ(embedded2_repeatedList->GetChildOrThrow(1)->GetValue<TString>(), "b");
+        EXPECT_EQ(embedded2_repeatedList->GetChildOrThrow(2)->GetValue<TString>(), "c");
+
+        auto embedded2_structNode = GetComposite(rowCollector.GetRowValue(rowIndex, "embedded2_struct"));
+        ASSERT_EQ(embedded2_structNode->GetType(), ENodeType::List);
+        const auto& embedded2_structList = embedded2_structNode->AsList();
+        ASSERT_EQ(embedded2_structList->GetChildCount(), 2);
+        EXPECT_EQ(embedded2_structList->GetChildOrThrow(0)->GetValue<double>(), 1.5f);
+        EXPECT_EQ(embedded2_structList->GetChildOrThrow(1)->GetValue<TString>(), "abc");
+    }
 }
 
 TEST_P(TProtobufFormatStructuredMessage, Parse)

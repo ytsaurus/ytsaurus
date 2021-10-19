@@ -28,25 +28,28 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TProtobufTag
+{
+    ui64 WireTag = 0;
+    size_t TagSize = 0;
+    // Extracts field number from |WireTag|.
+    ui32 GetFieldNumber() const;
+};
+
 class TProtobufFieldDescriptionBase
+    : public TProtobufTag
 {
 public:
     TString Name;
-    
-    ui64 WireTag = 0;
-    size_t TagSize = 0;
 
     // Index of field inside struct (for fields corresponding to struct fields in schema).
     int StructFieldIndex = 0;
 
-    // Is field repeated?
     bool Repeated = false;
 
     // Is a repeated field packed (i.e. it is encoded as `<tag> <length> <value1> ... <valueK>`)?
     bool Packed = false;
 
-    // Extracts field number from |WireTag|.
-    ui32 GetFieldNumber() const;
 };
 
 class TProtobufTypeBase
@@ -64,14 +67,38 @@ public:
     const TEnumerationDescription* EnumerationDescription = nullptr;
 };
 
+struct TProtobufWriterEmbeddingDescription
+    : public TProtobufTag
+{
+    static const int InvalidIndex = -1;
+    // Index of wrapping proto message
+    int ParentEmbeddingIndex = InvalidIndex;
+};
+
+class TProtobufWriterFieldDescription
+    : public TProtobufFieldDescriptionBase
+{
+public:
+    // Index of wrapping proto message
+    int ParentEmbeddingIndex = TProtobufWriterEmbeddingDescription::InvalidIndex;
+
+    TProtobufWriterTypePtr Type;
+};
+
 class TProtobufWriterType
     : public TProtobufTypeBase
 {
 public:
+
+    int AddEmbedding(
+        int parentParentEmbeddingIndex,
+        const TProtobufColumnConfigPtr& embeddingConfig);
+
     void AddChild(
         const std::optional<NTableClient::TComplexTypeFieldDescriptor>& descriptor,
         std::unique_ptr<TProtobufWriterFieldDescription> childType,
-        std::optional<int> fieldIndex);
+        std::optional<int> fieldIndex,
+        std::optional<int> parentParentEmbeddingIndex = std::nullopt);
 
     void IgnoreChild(
         const std::optional<NTableClient::TComplexTypeFieldDescriptor>& descriptor,
@@ -81,6 +108,7 @@ public:
 
 public:
     std::vector<std::unique_ptr<TProtobufWriterFieldDescription>> Children;
+    std::vector<TProtobufWriterEmbeddingDescription> Embeddings;
 
 private:
     std::vector<int> AlternativeToChildIndex_;
@@ -89,23 +117,28 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TProtobufWriterType)
 
-class TProtobufWriterFieldDescription
-    : public TProtobufFieldDescriptionBase
-{
-public:
-    TProtobufWriterTypePtr Type;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProtobufParserType
     : public TProtobufTypeBase
 {
+private:
+    struct TFieldNumberToChildIndex
+    {
+        std::vector<int> FieldNumberToChildIndexVector;
+        THashMap<int, int> FieldNumberToChildIndexMap;
+    };
+
 public:
+    int AddEmbedding(
+        int parentParentEmbeddingIndex,
+        const TProtobufColumnConfigPtr& embeddingConfig);
+
     void AddChild(
         const std::optional<NTableClient::TComplexTypeFieldDescriptor>& descriptor,
         std::unique_ptr<TProtobufParserFieldDescription> childType,
-        std::optional<int> fieldIndex);
+        std::optional<int> fieldIndex,
+        std::optional<int> parentParentEmbeddingIndex = std::nullopt);
 
     void IgnoreChild(
         const std::optional<NTableClient::TComplexTypeFieldDescriptor>& descriptor,
@@ -113,20 +146,25 @@ public:
 
     // Returns std::nullopt iff the field is ignored (missing from table schema).
     // Throws an exception iff the field number is unknown.
-    std::optional<int> FieldNumberToChildIndex(int fieldNumber) const;
+    std::optional<int> FieldNumberToChildIndex(int fieldNumber, const TFieldNumberToChildIndex* store = nullptr) const;
+    std::optional<int> FieldNumberToEmbeddedChildIndex(int fieldNumber) const;
 
+    void SetEmbeddedChildIndex(
+        int fieldNumber,
+        int childIndex);
 private:
     void SetChildIndex(
         const std::optional<NTableClient::TComplexTypeFieldDescriptor>& descriptor,
         int fieldNumber,
-        int childIndex);
+        int childIndex,
+        TFieldNumberToChildIndex* store = nullptr);
 
 public:
     // For oneof types -- corresponding oneof description.
     const TProtobufParserFieldDescription* Field = nullptr;
 
     std::vector<std::unique_ptr<TProtobufParserFieldDescription>> Children;
-    
+
 private:
     static constexpr int InvalidChildIndex = -1;
     static constexpr int IgnoredChildIndex = -2;
@@ -134,8 +172,9 @@ private:
 
     std::vector<int> IgnoredChildFieldNumbers_;
     std::vector<std::unique_ptr<TProtobufParserFieldDescription>> OneofDescriptions_;
-    std::vector<int> FieldNumberToChildIndexVector_;
-    THashMap<int, int> FieldNumberToChildIndexMap_;
+
+    TFieldNumberToChildIndex FieldNumberToChildIndex_;
+    TFieldNumberToChildIndex FieldNumberToEmbeddedChildIndex_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TProtobufParserType)
@@ -176,7 +215,8 @@ public:
         int structFieldIndex,
         const TProtobufColumnConfigPtr& columnConfig,
         std::optional<NTableClient::TComplexTypeFieldDescriptor> maybeDescriptor,
-        bool allowOtherColumns = false);
+        bool allowOtherColumns = false,
+        bool allowEmbedded = false);
 
 private:
     const THashMap<TString, TEnumerationDescription>& Enumerations_;
@@ -217,6 +257,9 @@ template <typename TType>
 class TProtobufFormatDescriptionBase
     : public TRefCounted
 {
+    static constexpr bool IsWriter = std::is_same_v<TType, TProtobufWriterType>;
+    using TTypePtr = NYT::TIntrusivePtr<TType>;
+
 protected:
     void DoInit(
         const TProtobufFormatConfigPtr& config,
@@ -233,6 +276,24 @@ private:
     void InitFromFileDescriptors(
         const TProtobufFormatConfigPtr& config,
         const std::vector<NTableClient::TTableSchemaPtr>& schemas);
+
+    void InitEmbeddedColumn(
+        int& fieldIndex,
+        const NTableClient::TTableSchemaPtr& tableSchema,
+        TProtobufTypeBuilder<TType>& typeBuilder,
+        TTypePtr tableType,
+        TProtobufColumnConfigPtr columnConfig,
+        TTypePtr parent,
+        int parentParentEmbeddingIndex);
+
+    void InitColumn(
+        int& fieldIndex,
+        const NTableClient::TTableSchemaPtr& tableSchema,
+        TProtobufTypeBuilder<TType>& typeBuilder,
+        TTypePtr tableType,
+        TProtobufColumnConfigPtr columnConfig,
+        TTypePtr parent,
+        int parentParentEmbeddingIndex);
 
     void InitFromProtobufSchema(
         const TProtobufFormatConfigPtr& config,
@@ -266,13 +327,14 @@ private:
     {
         TProtobufWriterTypePtr Type;
         THashMap<TString, const TProtobufWriterFieldDescription*> Columns;
+        std::vector<TProtobufWriterEmbeddingDescription> Embeddings;
 
         // Cached data.
         mutable std::vector<const TProtobufWriterFieldDescription*> FieldIndexToDescription;
         mutable const TProtobufWriterFieldDescription* OtherColumnsField = nullptr;
     };
 
-private:
+public:
     const TTableDescription& GetTableDescription(int tableIndex) const;
 
 private:
@@ -292,7 +354,7 @@ public:
         const std::vector<NTableClient::TTableSchemaPtr>& schemas);
 
     const TProtobufParserTypePtr& GetTableType() const;
-    std::vector<ui16> CreateRootChildColumnIds(const NTableClient::TNameTablePtr& nameTable) const;
+    std::vector<std::pair<ui16, TProtobufParserFieldDescription*>> CreateRootChildColumnIds(const NTableClient::TNameTablePtr& nameTable) const;
 
 private:
     void AddTable(TProtobufParserTypePtr tableType) override;

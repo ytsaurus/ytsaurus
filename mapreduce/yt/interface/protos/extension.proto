@@ -43,6 +43,9 @@ message EWrapperFieldFlag
         // map<Key, Value> corresponds to Optional<Dict<Key, Inferred(Value)>>.
         // (the option is experimental, see YT-13314)
         MAP_AS_OPTIONAL_DICT = 11;
+
+        // ignore this field but unfold subfields instead while (de)serializing
+        EMBEDDED = 12;
     }
 }
 

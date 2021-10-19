@@ -239,7 +239,7 @@ public:
         , Description_(std::move(description))
         , TableIndex_(tableIndex)
         , RootChildColumnIds_(Description_->CreateRootChildColumnIds(ValueConsumer_->GetNameTable()))
-        , RootChildOutputFlags_(Description_->GetTableType()->Children.size())
+        , RootChildOutputFlags_(RootChildColumnIds_.size()) //Description_->GetTableType()->Children.size())
         // NB. We use ColumnConsumer_ to generate yson representation of complex types we don't want additional
         // conversions so we use Positional mode.
         // At the same time we use OtherColumnsConsumer_ to feed yson passed by users.
@@ -329,7 +329,7 @@ private:
     {
         ValueConsumer_->OnBeginRow();
         const auto& tableType = Description_->GetTableType();
-        RootChildOutputFlags_.assign(tableType->Children.size(), false);
+        RootChildOutputFlags_.assign(RootChildColumnIds_.size(), false);
         ProcessStructuredMessage(buffer, tableType, /* depth */ 0);
         ValueConsumer_->OnEndRow();
     }
@@ -348,10 +348,9 @@ private:
         });
     }
 
-    void ProcessStructuredMessage(TStringBuf buffer, const TProtobufParserTypePtr& type, int depth)
+    void ProcessStructuredMessageEmbedded(TStringBuf buffer, const TProtobufParserTypePtr& type, int depth)
     {
         auto& fields = FieldVectors_[depth];
-        fields.clear();
 
         TRowParser rowParser(buffer);
         try {
@@ -374,13 +373,20 @@ private:
                         << TErrorAttribute("field_number", fieldNumber);
                 }
 
+                int embeddedChildIndex = childIndex;
+                if (depth == 0 && childDescription.Type->ProtoType != EProtobufType::EmbeddedMessage) {
+                    auto maybeEmbeddedChildIndex = type->FieldNumberToEmbeddedChildIndex(fieldNumber);
+                    Y_VERIFY(maybeEmbeddedChildIndex);
+                    embeddedChildIndex = *maybeEmbeddedChildIndex;
+                }
+
                 if (childDescription.Packed) {
                     auto elementsParser = TRowParser(rowParser.ReadLengthDelimited());
                     while (!elementsParser.IsExhausted()) {
-                        ReadAndProcessUnversionedValue(elementsParser, childIndex, childDescription, depth, &fields);
+                        ReadAndProcessUnversionedValue(elementsParser, embeddedChildIndex, childDescription, depth, &fields);
                     }
                 } else {
-                    ReadAndProcessUnversionedValue(rowParser, childIndex, childDescription, depth, &fields);
+                    ReadAndProcessUnversionedValue(rowParser, embeddedChildIndex, childDescription, depth, &fields);
                 }
             }
         } catch (const std::exception& exception) {
@@ -388,8 +394,16 @@ private:
                 << TErrorAttribute("table_index", TableIndex_)
                 << rowParser.GetContextErrorAttributes();
         }
+    }
 
-        CountingSorter_.Sort(&fields, static_cast<int>(type->Children.size()));
+    void ProcessStructuredMessage(TStringBuf buffer, const TProtobufParserTypePtr& type, int depth)
+    {
+        auto& fields = FieldVectors_[depth];
+        fields.clear();
+
+        ProcessStructuredMessageEmbedded(buffer, type, depth);
+        int childrenCount = depth == 0 ? std::ssize(RootChildColumnIds_) : std::ssize(type->Children);
+        CountingSorter_.Sort(&fields, childrenCount);
         OutputChildren(fields, type, depth);
     }
 
@@ -434,45 +448,22 @@ private:
             }
         };
 
-        auto isStructFieldPresentOrLegallyMissing = [&] (int childIndex, int lastOutputStructFieldIndex) {
-            const auto& childDescription = *type->Children[childIndex];
-            if (ShouldOutputValueImmediately(inRoot, childDescription) && RootChildOutputFlags_[childIndex]) {
-                // The value is already output.
-                return true;
-            }
-            if (!childDescription.IsOneofAlternative()) {
-                return childDescription.Type->Optional;
-            }
-            if (childDescription.ContainingOneof->Optional) {
-                return true;
-            }
-            if (lastOutputStructFieldIndex == childDescription.StructFieldIndex) {
-                // It is not missing.
-                return true;
-            }
-            if (childIndex + 1 == std::ssize(type->Children)) {
-                return false;
-            }
-            const auto& nextChildDescription = *type->Children[childIndex + 1];
-            // The current alternative is missing, but the next one corresponds to the same field,
-            // so the check is deferred to the next alternative.
-            return childDescription.StructFieldIndex == nextChildDescription.StructFieldIndex;
-        };
-
         auto fieldIt = fields.cbegin();
-        auto childrenCount = std::ssize(type->Children);
+        int childrenCount = inRoot ? std::ssize(RootChildColumnIds_) : std::ssize(type->Children);
         auto lastOutputStructFieldIndex = -1;
         for (int childIndex = 0; childIndex < childrenCount; ++childIndex) {
-            const auto& childDescription = *type->Children[childIndex];
+            const auto& childDescription = inRoot ? *RootChildColumnIds_[childIndex].second : *type->Children[childIndex];
             auto guard = EnterChild(childDescription);
+
             auto fieldRangeBegin = fieldIt;
             while (fieldIt != fields.cend() && fieldIt->ChildIndex == childIndex) {
                 ++fieldIt;
             }
+            int structFieldIndex = childDescription.StructFieldIndex;
             if (fieldRangeBegin != fieldIt || (childDescription.Repeated && !childDescription.Type->Optional)) {
                 if (Y_UNLIKELY(
                     childDescription.IsOneofAlternative() &&
-                    lastOutputStructFieldIndex == childDescription.StructFieldIndex))
+                    lastOutputStructFieldIndex == structFieldIndex))
                 {
                     const auto* oneof = childDescription.ContainingOneof;
                     YT_VERIFY(oneof);
@@ -482,15 +473,44 @@ private:
                         GetPathString())
                         << TErrorAttribute("table_index", TableIndex_);
                 }
-                skipElements(childDescription.StructFieldIndex - lastOutputStructFieldIndex - 1);
+                skipElements(structFieldIndex - lastOutputStructFieldIndex - 1);
                 if (inRoot) {
-                    ColumnConsumer_.SetColumnIndex(RootChildColumnIds_[childIndex]);
+                    ColumnConsumer_.SetColumnIndex(RootChildColumnIds_[childIndex].first);
                     RootChildOutputFlags_[childIndex] = true;
                 }
                 OutputChild(fieldRangeBegin, fieldIt, childDescription, depth);
-                lastOutputStructFieldIndex = childDescription.StructFieldIndex;
+                lastOutputStructFieldIndex = structFieldIndex;
             } else {
-                if (Y_UNLIKELY(!isStructFieldPresentOrLegallyMissing(childIndex, lastOutputStructFieldIndex))) {
+                auto isStructFieldPresentOrLegallyMissing = [&] () {
+                    if (ShouldOutputValueImmediately(inRoot, childDescription)) {
+                        if (RootChildOutputFlags_[childIndex]) {
+                            // The value is already output.
+                            return true;
+                        }
+                    }
+                    if (childDescription.Type->ProtoType == EProtobufType::EmbeddedMessage) {
+                        // The value is already parsed and processed
+                        return true;
+                    }
+                    if (!childDescription.IsOneofAlternative()) {
+                        return childDescription.Type->Optional;
+                    }
+                    if (childDescription.ContainingOneof->Optional) {
+                        return true;
+                    }
+                    if (lastOutputStructFieldIndex == structFieldIndex) {
+                        // It is not missing.
+                        return true;
+                    }
+                    if (childIndex + 1 == (inRoot ? std::ssize(RootChildColumnIds_) : std::ssize(type->Children))) {
+                        return false;
+                    }
+                    const auto& nextChildDescription = inRoot ? *RootChildColumnIds_[childIndex + 1].second : *type->Children[childIndex + 1];
+                    // The current alternative is missing, but the next one corresponds to the same field,
+                    // so the check is deferred to the next alternative.
+                    return structFieldIndex == nextChildDescription.StructFieldIndex;
+                };
+                if (Y_UNLIKELY(!isStructFieldPresentOrLegallyMissing())) {
                     int offset = 0;
                     if (childDescription.IsOneofAlternative()) {
                         offset = 1;
@@ -552,8 +572,13 @@ private:
         int depth,
         std::vector<TField>* fields)
     {
+        if (description.Type->ProtoType == EProtobufType::EmbeddedMessage) {
+            ProcessStructuredMessageEmbedded(rowParser.ReadLengthDelimited(), description.Type, depth); // NOT depth + 1
+            return;
+        }
+
         const auto inRoot = (depth == 0);
-        const auto id = inRoot ? RootChildColumnIds_[childIndex] : static_cast<ui16>(0);
+        const auto id = inRoot ? RootChildColumnIds_[childIndex].first : static_cast<ui16>(0);
         auto value = [&] {
             switch (description.Type->ProtoType) {
                 case EProtobufType::StructuredMessage:
@@ -605,6 +630,8 @@ private:
                     THROW_ERROR_EXCEPTION("Oneof inside oneof is not supported in protobuf format; offending field %Qv",
                         GetPathString())
                         << TErrorAttribute("table_index", TableIndex_);
+                case EProtobufType::EmbeddedMessage:
+                    Y_FAIL();
             }
             YT_ABORT();
         }();
@@ -639,7 +666,7 @@ private:
     TProtobufParserFormatDescriptionPtr Description_;
     int TableIndex_;
 
-    std::vector<ui16> RootChildColumnIds_;
+    std::vector<std::pair<ui16, TProtobufParserFieldDescription*>> RootChildColumnIds_;
     std::vector<bool> RootChildOutputFlags_;
 
     TYsonToUnversionedValueConverter ColumnConsumer_;
