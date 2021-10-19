@@ -259,35 +259,35 @@ DEFINE_REFCOUNTED_TYPE(TFiber)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExceptionSafeContext& ThreadContext()
+Y_NO_INLINE TExceptionSafeContext& ThreadContext()
 {
     return FiberContext->ThreadContext;
 }
 
-TClosure& AfterSwitch()
+Y_NO_INLINE TClosure& AfterSwitch()
 {
     return FiberContext->AfterSwitch;
 }
 
-TFiberPtr& ResumerFiber()
+Y_NO_INLINE TFiberPtr& ResumerFiber()
 {
     return FiberContext->ResumerFiber;
 }
 
 static TFiberPtr NullFiberPtr;
 
-TFiberPtr& CurrentFiber()
+Y_NO_INLINE TFiberPtr& CurrentFiber()
 {
     return FiberContext ? FiberContext->CurrentFiber : NullFiberPtr;
 }
 
-void SetAfterSwitch(TClosure&& closure)
+Y_NO_INLINE void SetAfterSwitch(TClosure&& closure)
 {
     YT_VERIFY(!AfterSwitch());
     AfterSwitch() = std::move(closure);
 }
 
-TRefCountedGaugePtr GetWaitingFibersCounter()
+Y_NO_INLINE TRefCountedGaugePtr GetWaitingFibersCounter()
 {
     return FiberContext->WaitingFibersCounter;
 }
