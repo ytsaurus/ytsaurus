@@ -26,11 +26,13 @@ bool TFairShareTreeProfileManager::TOperationUserProfilingTag::operator != (cons
 
 TFairShareTreeProfileManager::TFairShareTreeProfileManager(
     const TString& treeId,
+    bool sparsifyMetrics,
     const IInvokerPtr& profilingInvoker)
     : Profiler_(
         SchedulerProfiler
             .WithGlobal()
             .WithRequiredTag("tree", treeId))
+    , SparsifyMetrics_(sparsifyMetrics)
     , ProfilingInvoker_(profilingInvoker)
     , PoolCountGauge_(Profiler_.Gauge("/pools/pool_count"))
     , TotalElementCountGauge_(Profiler_.Gauge("/pools/total_element_count"))
@@ -165,15 +167,21 @@ void TFairShareTreeProfileManager::PrepareOperationProfilingEntries(const TFairS
         const auto& profilingEntry = it->second;
 
         if (createProfilers) {
-            Profiler_
+            auto profiler = Profiler_
                 .WithRequiredTag("pool", profilingEntry.ParentPoolId, -1)
-                .WithRequiredTag("slot_index", ToString(profilingEntry.SlotIndex), -1)
-                .AddProducer("/operations_by_slot", profilingEntry.BufferedProducer);
+                .WithRequiredTag("slot_index", ToString(profilingEntry.SlotIndex), -1);
+            if (SparsifyMetrics_) {
+                profiler = profiler.WithSparse();
+            }
+            profiler.AddProducer("/operations_by_slot", profilingEntry.BufferedProducer);
 
             for (const auto& userProfilingTag : profilingEntry.UserProfilingTags) {
                 auto userProfiler = Profiler_
                     .WithTag("pool", userProfilingTag.PoolId, -1)
                     .WithRequiredTag("user_name", userProfilingTag.UserName, -1);
+                if (SparsifyMetrics_) {
+                    userProfiler = userProfiler.WithSparse();
+                }
 
                 if (userProfilingTag.CustomTag) {
                     userProfiler = userProfiler.WithTag("custom", *userProfilingTag.CustomTag, -1);
@@ -248,6 +256,9 @@ void TFairShareTreeProfileManager::RegisterPoolProfiler(const TString& poolName)
 
     const auto& entry = insertResult.first->second;
 
+    if (SparsifyMetrics_) {
+        poolProfiler = poolProfiler.WithSparse();
+    }
     poolProfiler.AddProducer("/pools", entry.BufferedProducer);
 }
 
