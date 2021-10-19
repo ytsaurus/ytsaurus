@@ -23,6 +23,10 @@ TProtocolVersion TProtocolVersion::FromString(TStringBuf protocolVersionString)
         THROW_ERROR_EXCEPTION("Failed to parse minor protocol version");
     }
 
+    if (result == GenericProtocolVersion) {
+        return result;
+    }
+
     if (result.Major < 0 || result.Minor < 0) {
         THROW_ERROR_EXCEPTION("Incorrect protocol version; major and minor versions should be "
             "greater than or equal to zero")
