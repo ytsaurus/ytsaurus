@@ -125,6 +125,7 @@ public:
         , ResourceTree_(New<TResourceTree>(Config_, feasibleInvokers))
         , TreeProfiler_(New<TFairShareTreeProfileManager>(
             treeId,
+            Config_->SparsifyFairShareProfiling,
             strategyHost->GetFairShareProfilingInvoker()))
         , StrategyHost_(strategyHost)
         , FeasibleInvokers_(feasibleInvokers)

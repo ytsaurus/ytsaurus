@@ -272,6 +272,7 @@ public:
 
     bool EnablePoolsVectorProfiling;
     bool EnableOperationsVectorProfiling;
+    bool SparsifyFairShareProfiling;
 
     bool EnableLimitingAncestorCheck;
 

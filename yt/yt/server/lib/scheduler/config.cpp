@@ -257,6 +257,9 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_operations_vector_profiling", &TFairShareStrategyTreeConfig::EnableOperationsVectorProfiling)
         .Default(false);
 
+    registrar.Parameter("sparsify_fair_share_profiling", &TFairShareStrategyTreeConfig::SparsifyFairShareProfiling)
+        .Default(false);
+
     registrar.Parameter("enable_limiting_ancestor_check", &TFairShareStrategyTreeConfig::EnableLimitingAncestorCheck)
         .Default(true);
 
