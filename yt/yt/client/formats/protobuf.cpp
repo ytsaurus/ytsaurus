@@ -225,6 +225,7 @@ static std::optional<WireFormatLite::FieldType> ConvertFromInternalProtobufType(
 
             case EProtobufType::Message:
             case EProtobufType::StructuredMessage:
+            case EProtobufType::EmbeddedMessage:
                 return FieldDescriptor::TYPE_MESSAGE;
 
             case EProtobufType::Any:
@@ -291,7 +292,7 @@ static std::optional<EProtobufType> ConvertToInternalProtobufType(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ui32 TProtobufFieldDescriptionBase::GetFieldNumber() const
+ui32 TProtobufTag::GetFieldNumber() const
 {
     return WireFormatLite::GetTagFieldNumber(WireTag);
 }
@@ -431,6 +432,7 @@ void ValidateSimpleType(
             return;
 
         case EProtobufType::StructuredMessage:
+        case EProtobufType::EmbeddedMessage:
         case EProtobufType::OtherColumns:
         case EProtobufType::Oneof:
             throwMismatchError("protobuf type cannot match any simple type");
@@ -622,11 +624,22 @@ private:
         const FieldDescriptor* fieldDescriptor,
         const TProtobufFieldOptions& fieldOptions)
     {
-        if (fieldDescriptor->type() == FieldDescriptor::TYPE_MESSAGE && fieldOptions.SerializationMode == EProtobufSerializationMode::Yt) {
-            if (fieldDescriptor->is_map()) {
-                return CreateMapConfig(fieldDescriptor, fieldOptions);
-            } else {
-                return GetOrCreateTypeConfig(fieldDescriptor->message_type());
+        if (fieldDescriptor->type() == FieldDescriptor::TYPE_MESSAGE) {
+            switch (fieldOptions.SerializationMode) {
+                case EProtobufSerializationMode::Yt:
+                    if (fieldDescriptor->is_map()) {
+                        return CreateMapConfig(fieldDescriptor, fieldOptions);
+                    } else {
+                        return GetOrCreateTypeConfig(fieldDescriptor->message_type());
+                    }
+                case EProtobufSerializationMode::Embedded: {
+                    auto config = GetOrCreateTypeConfig(fieldDescriptor->message_type());
+                    config->ProtoType = EProtobufType::EmbeddedMessage;
+                    return config;
+                }
+                case EProtobufSerializationMode::Protobuf:
+                    break;
+                    // EProtobufSerializationMode::Protobuf handled later
             }
         }
 
@@ -645,7 +658,7 @@ private:
         }
 
         typeConfig->ProtoType = type;
-        
+
         if (type == EProtobufType::EnumString || type == EProtobufType::EnumInt) {
             auto enumDescriptor = fieldDescriptor->enum_type();
             YT_VERIFY(enumDescriptor);
@@ -669,7 +682,7 @@ private:
         if (!typeConfig) {
             return nullptr;
         }
-        
+
         auto fieldConfig = New<TProtobufColumnConfig>();
         fieldConfig->Name = GetColumnName(fieldDescriptor);
         fieldConfig->FieldNumber = fieldDescriptor->number();
@@ -834,7 +847,7 @@ void TProtobufFormatDescriptionBase<TType>::InitFromFileDescriptors(
 
     DescriptorPool descriptorPool;
     auto fileDescriptors = BuildDescriptorPool(fileDescriptorSet, &descriptorPool);
-    
+
     std::vector<const Descriptor*> messageDescriptors;
     messageDescriptors.reserve(config->TypeNames.size());
     for (const auto& typeName : config->TypeNames) {
@@ -848,6 +861,121 @@ void TProtobufFormatDescriptionBase<TType>::InitFromFileDescriptors(
 
     auto configWithTypes = CreateConfigWithTypes(messageDescriptors);
     InitFromProtobufSchema(configWithTypes, schemas);
+}
+
+template<>
+void TProtobufFormatDescriptionBase<TProtobufWriterType>::InitEmbeddedColumn(
+    int& fieldIndex,
+    const NTableClient::TTableSchemaPtr& tableSchema,
+    TProtobufTypeBuilder<TProtobufWriterType>& typeBuilder,
+    TTypePtr tableType,
+    TProtobufColumnConfigPtr columnConfig,
+    TTypePtr parent,
+    int parentEmbeddingIndex)
+{
+    auto embeddingIndex = tableType->AddEmbedding(parentEmbeddingIndex, columnConfig);
+
+    for (auto& fieldConfig: columnConfig->Type->Fields) {
+        InitColumn(fieldIndex, tableSchema, typeBuilder, tableType, fieldConfig, parent, embeddingIndex);
+    }
+}
+
+template<>
+void TProtobufFormatDescriptionBase<TProtobufParserType>::InitEmbeddedColumn(
+    int& fieldIndex,
+    const NTableClient::TTableSchemaPtr& tableSchema,
+    TProtobufTypeBuilder<TProtobufParserType>& typeBuilder,
+    TTypePtr tableType,
+    TProtobufColumnConfigPtr columnConfig,
+    TTypePtr parent,
+    int parentEmbeddingIndex)
+{
+    auto child = typeBuilder.CreateField(
+            fieldIndex,
+            columnConfig,
+            std::nullopt,
+            /* allowOtherColumns */ true,
+            true);
+
+    auto childPtr = child.get();
+
+    parent->AddChild(
+            std::nullopt,
+            std::move(child), //KMP
+            fieldIndex);
+
+    for (auto& fieldConfig: columnConfig->Type->Fields) {
+        InitColumn(fieldIndex, tableSchema, typeBuilder, tableType, fieldConfig, childPtr->Type, parentEmbeddingIndex);
+    }
+}
+
+template<typename TType>
+void TProtobufFormatDescriptionBase<TType>::InitColumn(
+    int& fieldIndex,
+    const NTableClient::TTableSchemaPtr& tableSchema,
+    TProtobufTypeBuilder<TType>& typeBuilder,
+    TTypePtr tableType,
+    TProtobufColumnConfigPtr columnConfig,
+    TTypePtr parent, // not used for Writer
+    int parentEmbeddingIndex) // not used for Parser
+{
+    if (columnConfig->Type->ProtoType == EProtobufType::EmbeddedMessage) {
+        if (columnConfig->Repeated) {
+            THROW_ERROR_EXCEPTION("Protobuf field %Qv of type %Qlv can not be repeated",
+            columnConfig->Name,
+            EProtobufType::EmbeddedMessage);
+        }
+
+        InitEmbeddedColumn(fieldIndex, tableSchema, typeBuilder, tableType, columnConfig, parent, parentEmbeddingIndex);
+        return;
+    }
+
+    auto columnSchema = tableSchema->FindColumn(columnConfig->Name);
+    TLogicalTypePtr logicalType = columnSchema ? columnSchema->LogicalType() : nullptr;
+    if (columnConfig->ProtoType == EProtobufType::OtherColumns) {
+        if (columnConfig->Repeated) {
+            THROW_ERROR_EXCEPTION("Protobuf field %Qv of type %Qlv can not be repeated",
+                columnConfig->Name,
+                EProtobufType::OtherColumns);
+        }
+        if (logicalType) {
+            THROW_ERROR_EXCEPTION("Protobuf field %Qv of type %Qlv should not match actual column in schema",
+                columnConfig->Name,
+                EProtobufType::OtherColumns);
+        }
+    }
+
+    std::optional<TComplexTypeFieldDescriptor> maybeDescriptor;
+    if (logicalType) {
+        YT_VERIFY(columnSchema);
+        maybeDescriptor = TComplexTypeFieldDescriptor(*columnSchema);
+    }
+
+    bool needSchema = columnConfig->Repeated
+        || columnConfig->ProtoType == EProtobufType::StructuredMessage
+        || columnConfig->ProtoType == EProtobufType::Oneof;
+    if (!logicalType && needSchema) {
+        if (columnConfig->FieldNumber) {
+            // Ignore missing column to facilitate schema evolution.
+            tableType->IgnoreChild(maybeDescriptor, *columnConfig->FieldNumber);
+            return;
+        }
+        THROW_ERROR_EXCEPTION(
+            "Field %Qv of type %Qlv requires a corresponding schematized column",
+            columnConfig->Name,
+            columnConfig->ProtoType);
+    }
+
+    parent->AddChild(
+        maybeDescriptor,
+        typeBuilder.CreateField(
+             fieldIndex,
+             columnConfig,
+             maybeDescriptor,
+             true),
+        fieldIndex,
+        parentEmbeddingIndex);
+    ++fieldIndex;
 }
 
 template <typename TType>
@@ -883,53 +1011,11 @@ void TProtobufFormatDescriptionBase<TType>::InitFromProtobufSchema(
         int fieldIndex = 0;
         const auto& tableConfig = tableConfigs[tableIndex];
         const auto& tableSchema = schemas[tableIndex];
+
         for (const auto& columnConfig : tableConfig->Columns) {
-            auto columnSchema = tableSchema->FindColumn(columnConfig->Name);
-            TLogicalTypePtr logicalType = columnSchema ? columnSchema->LogicalType() : nullptr;
-            if (columnConfig->ProtoType == EProtobufType::OtherColumns) {
-                if (columnConfig->Repeated) {
-                    THROW_ERROR_EXCEPTION("Protobuf field %Qv of type %Qlv can not be repeated",
-                        columnConfig->Name,
-                        EProtobufType::OtherColumns);
-                }
-                if (logicalType) {
-                    THROW_ERROR_EXCEPTION("Protobuf field %Qv of type %Qlv should not match actual column in schema",
-                        columnConfig->Name,
-                        EProtobufType::OtherColumns);
-                }
-            }
-
-            std::optional<TComplexTypeFieldDescriptor> maybeDescriptor;
-            if (logicalType) {
-                YT_VERIFY(columnSchema);
-                maybeDescriptor = TComplexTypeFieldDescriptor(*columnSchema);
-            }
-
-            bool needSchema = columnConfig->Repeated
-                || columnConfig->ProtoType == EProtobufType::StructuredMessage
-                || columnConfig->ProtoType == EProtobufType::Oneof;
-            if (!logicalType && needSchema) {
-                if (columnConfig->FieldNumber) {
-                    // Ignore missing column to facilitate schema evolution.
-                    tableType->IgnoreChild(maybeDescriptor, *columnConfig->FieldNumber);
-                    continue;
-                }
-                THROW_ERROR_EXCEPTION(
-                    "Field %Qv of type %Qlv requires a corresponding schematized column",
-                    columnConfig->Name,
-                    columnConfig->ProtoType);
-            }
-           
-            tableType->AddChild(
-                maybeDescriptor,
-                typeBuilder.CreateField(
-                    fieldIndex,
-                    columnConfig,
-                    maybeDescriptor,
-                    /* allowOtherColumns */ true),
-                fieldIndex);
-            ++fieldIndex;
+            InitColumn(fieldIndex, tableSchema, typeBuilder, tableType, columnConfig, tableType, -1);
         }
+
         AddTable(std::move(tableType));
     }
 }
@@ -946,9 +1032,13 @@ typename TProtobufTypeBuilder<TType>::TFieldPtr TProtobufTypeBuilder<TType>::Cre
     int structFieldIndex,
     const TProtobufColumnConfigPtr& columnConfig,
     std::optional<TComplexTypeFieldDescriptor> maybeDescriptor,
-    bool allowOtherColumns)
+    bool allowOtherColumns,
+    bool allowEmbedded)
 {
     const auto& typeConfig = columnConfig->Type;
+    if (!allowEmbedded && typeConfig->ProtoType == EProtobufType::EmbeddedMessage) {
+        THROW_ERROR_EXCEPTION("embedded_message inside of structured_message is not allowed");
+    }
 
     if (!allowOtherColumns && columnConfig->ProtoType == EProtobufType::OtherColumns) {
         YT_VERIFY(maybeDescriptor);
@@ -1005,15 +1095,7 @@ typename TProtobufTypeBuilder<TType>::TFieldPtr TProtobufTypeBuilder<TType>::Cre
         columnConfig->Repeated);
 
     if (auto wireFieldType = ConvertFromInternalProtobufType(field->Type->ProtoType)) {
-        YT_VERIFY(columnConfig->FieldNumber);
-        field->TagSize = WireFormatLite::TagSize(*columnConfig->FieldNumber, *wireFieldType);
-        WireFormatLite::WireType wireType;
-        if (columnConfig->Packed) {
-            wireType = WireFormatLite::WireType::WIRETYPE_LENGTH_DELIMITED;
-        } else {
-            wireType = WireFormatLite::WireTypeForFieldType(*wireFieldType);
-        }
-        field->WireTag = WireFormatLite::MakeTag(*columnConfig->FieldNumber, wireType);
+        InitTag(*field, *wireFieldType, columnConfig);
     }
 
     return field;
@@ -1219,11 +1301,46 @@ static T& ResizeAndGetElement(std::vector<T>& vector, int index, const T& fill =
     return vector[index];
 }
 
+void InitTag(
+    TProtobufTag& field,
+    WireFormatLite::FieldType wireFieldType,
+    const TProtobufColumnConfigPtr& columnConfig)
+{
+    YT_VERIFY(columnConfig->FieldNumber);
+    field.TagSize = WireFormatLite::TagSize(*columnConfig->FieldNumber, wireFieldType);
+    WireFormatLite::WireType wireType;
+    if (columnConfig->Packed) {
+        wireType = WireFormatLite::WireType::WIRETYPE_LENGTH_DELIMITED;
+    } else {
+        wireType = WireFormatLite::WireTypeForFieldType(wireFieldType);
+    }
+    field.WireTag = WireFormatLite::MakeTag(*columnConfig->FieldNumber, wireType);
+}
+
+int TProtobufWriterType::AddEmbedding(
+    int parentEmbeddingIndex,
+    const TProtobufColumnConfigPtr& embeddingConfig)
+{
+    int myEmbeddingIndex = std::ssize(Embeddings);
+    auto& embedding = Embeddings.emplace_back();
+
+    embedding.ParentEmbeddingIndex = parentEmbeddingIndex;
+
+    auto wireFieldType = static_cast<WireFormatLite::FieldType>(::google::protobuf::FieldDescriptor::TYPE_MESSAGE);
+    InitTag(embedding, wireFieldType, embeddingConfig);
+
+    return myEmbeddingIndex;
+}
+
 void TProtobufWriterType::AddChild(
     const std::optional<NTableClient::TComplexTypeFieldDescriptor>& /* descriptor */,
     std::unique_ptr<TProtobufWriterFieldDescription> child,
-    std::optional<int> fieldIndex)
+    std::optional<int> fieldIndex,
+    std::optional<int> parentEmbeddingIndex)
 {
+    if (parentEmbeddingIndex.has_value()) {
+        child->ParentEmbeddingIndex = parentEmbeddingIndex.value();
+    }
     if (ProtoType == EProtobufType::Oneof) {
         YT_VERIFY(fieldIndex);
         ResizeAndGetElement(AlternativeToChildIndex_, *fieldIndex, InvalidChildIndex) = Children.size();
@@ -1262,6 +1379,7 @@ void TProtobufWriterFormatDescription::AddTable(TProtobufWriterTypePtr tableType
             table.OtherColumnsField = column.get();
         }
     }
+    table.Embeddings = table.Type->Embeddings;
 }
 
 const TProtobufWriterFormatDescription::TTableDescription&
@@ -1316,11 +1434,22 @@ const TProtobufWriterFieldDescription* TProtobufWriterFormatDescription::FindOth
 
 ////////////////////////////////////////////////////////////////////////////////
 
+int TProtobufParserType::AddEmbedding(
+    int parentEmbeddingIndex,
+    const TProtobufColumnConfigPtr& embeddingConfig)
+{
+    (void) parentEmbeddingIndex;
+    (void) embeddingConfig;
+    return 0;
+}
+
 void TProtobufParserType::AddChild(
     const std::optional<NTableClient::TComplexTypeFieldDescriptor>& descriptor,
     std::unique_ptr<TProtobufParserFieldDescription> child,
-    std::optional<int> fieldIndex)
+    std::optional<int> fieldIndex,
+    std::optional<int> embeddingIndex)
 {
+    Y_UNUSED(embeddingIndex);
     if (child->Type->ProtoType == EProtobufType::Oneof) {
         if (ProtoType == EProtobufType::Oneof) {
             YT_VERIFY(descriptor);
@@ -1365,15 +1494,20 @@ void TProtobufParserType::IgnoreChild(
 void TProtobufParserType::SetChildIndex(
     const std::optional<NTableClient::TComplexTypeFieldDescriptor>& descriptor,
     int fieldNumber,
-    int childIndex)
+    int childIndex,
+    TFieldNumberToChildIndex* store)
 {
+
+    if (store == nullptr) {
+        store = &FieldNumberToChildIndex_;
+    }
     bool isNew = false;
     if (fieldNumber < MaxFieldNumberVectorSize) {
-        auto& childIndexRef = ResizeAndGetElement(FieldNumberToChildIndexVector_, fieldNumber, InvalidChildIndex);
+        auto& childIndexRef = ResizeAndGetElement(store->FieldNumberToChildIndexVector, fieldNumber, InvalidChildIndex);
         isNew = (childIndexRef == InvalidChildIndex);
         childIndexRef = childIndex;
     } else {
-        isNew = FieldNumberToChildIndexMap_.emplace(fieldNumber, childIndex).second;
+        isNew = store->FieldNumberToChildIndexMap.emplace(fieldNumber, childIndex).second;
     }
     if (!isNew) {
         THROW_ERROR_EXCEPTION("Invalid protobuf format: duplicate field number %v (child of %Qv)",
@@ -1382,18 +1516,28 @@ void TProtobufParserType::SetChildIndex(
     }
 }
 
-std::optional<int> TProtobufParserType::FieldNumberToChildIndex(int fieldNumber) const
+void TProtobufParserType::SetEmbeddedChildIndex(
+    int fieldNumber,
+    int childIndex)
 {
+    SetChildIndex(std::nullopt, fieldNumber, childIndex, &FieldNumberToEmbeddedChildIndex_);
+}
+
+std::optional<int> TProtobufParserType::FieldNumberToChildIndex(int fieldNumber, const TFieldNumberToChildIndex* store) const
+{
+    if (store == nullptr) {
+        store = &FieldNumberToChildIndex_;
+    }
     int index;
-    if (fieldNumber < std::ssize(FieldNumberToChildIndexVector_)) {
-        index = FieldNumberToChildIndexVector_[fieldNumber];
+    if (fieldNumber < std::ssize(store->FieldNumberToChildIndexVector)) {
+        index = store->FieldNumberToChildIndexVector[fieldNumber];
         if (Y_UNLIKELY(index == InvalidChildIndex)) {
             THROW_ERROR_EXCEPTION("Unexpected field number %v",
                 fieldNumber);
         }
     } else {
-        auto it = FieldNumberToChildIndexMap_.find(fieldNumber);
-        if (Y_UNLIKELY(it == FieldNumberToChildIndexMap_.end())) {
+        auto it = store->FieldNumberToChildIndexMap.find(fieldNumber);
+        if (Y_UNLIKELY(it == store->FieldNumberToChildIndexMap.end())) {
             THROW_ERROR_EXCEPTION("Unexpected field number %v",
                 fieldNumber);
         }
@@ -1403,6 +1547,11 @@ std::optional<int> TProtobufParserType::FieldNumberToChildIndex(int fieldNumber)
         return {};
     }
     return index;
+}
+
+std::optional<int> TProtobufParserType::FieldNumberToEmbeddedChildIndex(int fieldNumber) const
+{
+    return FieldNumberToChildIndex(fieldNumber, &FieldNumberToEmbeddedChildIndex_);
 }
 
 void TProtobufParserFormatDescription::Init(
@@ -1417,18 +1566,38 @@ const TProtobufParserTypePtr& TProtobufParserFormatDescription::GetTableType() c
     return TableType_;
 }
 
-std::vector<ui16> TProtobufParserFormatDescription::CreateRootChildColumnIds(const TNameTablePtr& nameTable) const
+static int Process(
+    std::vector<std::pair<ui16, TProtobufParserFieldDescription*>>& ids,
+    int globalChildIndex,
+    const TNameTablePtr& nameTable,
+    const TProtobufParserTypePtr parent,
+    const std::unique_ptr<TProtobufParserFieldDescription>& child)
 {
-    std::vector<ui16> ids;
-    ids.reserve(TableType_->Children.size());
-    for (const auto& child: TableType_->Children) {
+    if (child->Type->ProtoType == EProtobufType::EmbeddedMessage) {
+        for (const auto& grandChild: child->Type->Children) {
+            globalChildIndex = Process(ids, globalChildIndex, nameTable, child->Type, grandChild);
+        }
+    } else {
+        parent->SetEmbeddedChildIndex(child->GetFieldNumber(), globalChildIndex++);
         auto name = child->Name;
         if (child->IsOneofAlternative()) {
             YT_VERIFY(child->ContainingOneof && child->ContainingOneof->Field);
             name = child->ContainingOneof->Field->Name;
         }
-        ids.push_back(static_cast<ui16>(nameTable->GetIdOrRegisterName(name)));
+        ids.emplace_back(static_cast<ui16>(nameTable->GetIdOrRegisterName(name)), child.get());
     }
+    return globalChildIndex;
+}
+
+std::vector<std::pair<ui16, TProtobufParserFieldDescription*>> TProtobufParserFormatDescription::CreateRootChildColumnIds(const TNameTablePtr& nameTable) const
+{
+    std::vector<std::pair<ui16, TProtobufParserFieldDescription*>> ids;
+    int globalChildIndex = 0;
+
+    for (const auto& child: TableType_->Children) {
+        globalChildIndex = Process(ids, globalChildIndex, nameTable, TableType_, child);
+    }
+
     return ids;
 }
 

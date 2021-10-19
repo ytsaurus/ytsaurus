@@ -14,6 +14,35 @@ enum EEnum
     MaxInt32 = 2147483647;
 }
 
+message TEmbeddedStruct {
+    optional float float1 = 1;
+    optional string string1 = 2;
+};
+
+message TEmbedded2Message {
+    option (NYT.default_field_flags) = SERIALIZATION_YT;
+    optional uint64 embedded2_num = 10;
+    optional TEmbeddedStruct embedded2_struct = 17;
+    repeated string embedded2_repeated = 42;
+};
+
+message TEmbedded1Message {
+    option (NYT.default_field_flags) = SERIALIZATION_YT;
+    optional TEmbedded2Message t2 = 1 [(NYT.flags) = EMBEDDED];
+    oneof variant {
+        string str_variant = 101;
+        uint64 uint_variant = 102;
+    }
+    optional uint64 embedded_num = 10; // make intensional field_num collision!
+    optional string embedded_extra_field = 11;
+};
+message TEmbeddingMessage {
+    optional bytes other_columns_field = 15 [(NYT.flags) = OTHER_COLUMNS];
+    optional TEmbedded1Message t1 = 2 [(NYT.flags) = EMBEDDED];
+    optional uint64 num = 12;
+    optional string extra_field = 13;
+};
+
 message TEmbeddedMessage
 {
     optional string key = 1;

@@ -382,6 +382,10 @@ DEFINE_ENUM(EProtobufType,
     // It corresponds to struct type.
     (StructuredMessage)
 
+    // Protobuf type must be message.
+    // It corresponds to a set of table columns.
+    (EmbeddedMessage)
+
     // Corresponds to variant struct type.
     (Oneof)
 
@@ -424,7 +428,7 @@ public:
     std::optional<ui64> FieldNumber;
     bool Repeated;
     bool Packed;
-  
+
     TProtobufTypeConfigPtr Type;
 
     std::optional<EProtobufType> ProtoType;
@@ -529,7 +533,7 @@ public:
             .Default(ENestedMessagesMode::Protobuf);
         RegisterParameter("enums_as_strings", EnumsAsStrings)
             .Default();
-        
+
         RegisterParameter("tables", Tables)
             .Default();
         RegisterParameter("enumerations", Enumerations)

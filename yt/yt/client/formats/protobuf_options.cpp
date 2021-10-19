@@ -36,6 +36,8 @@ TFieldOption FieldFlagToOption(EWrapperFieldFlag::Enum flag)
             return EProtobufSerializationMode::Protobuf;
         case EFlag::SERIALIZATION_YT:
             return EProtobufSerializationMode::Yt;
+        case EFlag::EMBEDDED:
+            return EProtobufSerializationMode::Embedded;
 
         case EFlag::ANY:
             return ESpecialProtobufType::Any;
@@ -113,6 +115,8 @@ TString OptionToFieldFlagName(TFieldOption option)
                     return EFlag::SERIALIZATION_YT;
                 case EProtobufSerializationMode::Protobuf:
                     return EFlag::SERIALIZATION_PROTOBUF;
+                case EProtobufSerializationMode::Embedded:
+                    return EFlag::EMBEDDED;
             }
             Y_FAIL();
         }
@@ -357,6 +361,7 @@ TProtobufOneofOptions GetDefaultOneofOptions(const Descriptor* descriptor)
                     defaultOneofOptions.Mode = EProtobufOneofMode::SeparateFields;
                     return defaultOneofOptions;
                 case EProtobufSerializationMode::Yt:
+                case EProtobufSerializationMode::Embedded:
                     return defaultOneofOptions;
             }
             Y_FAIL();

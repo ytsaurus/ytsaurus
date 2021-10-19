@@ -34,6 +34,67 @@ using ::google::protobuf::internal::WireFormatLite;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TZeroCopyWriterWithGapsBase
+{
+public:
+    TZeroCopyWriterWithGapsBase(TBlob& blob)
+        : Blob_(blob)
+        , InitialSize_(blob.Size())
+    { }
+
+protected:
+    TBlob& Blob_;
+    ui64 InitialSize_;
+};
+
+// Same as `TZeroCopyOutputStreamWriter` but also allows leaving small "gaps"
+// of fixed size in the output blob to be filled afterwards.
+//
+// Example usage:
+// ```
+//   auto gap = writer->CreateGap(sizeof(ui64));
+//   auto writtenSizeBefore = writer->GetTotalWrittenSize();
+//   ...  // Write something to the writer.
+//   auto writtenSizeAfter = writer->GetTotalWrittenSize();
+//   ui64 size = writtenSizeAfter - writtenSizeBefore;
+//   memcpy(writer->GetGapPointer(gap), &size, sizeof(size));
+// ```
+class TZeroCopyWriterWithGaps
+    : public TZeroCopyWriterWithGapsBase
+    , public TZeroCopyOutputStreamWriter
+{
+public:
+    static constexpr ui64 MaxGapSize = 16;
+
+    using TGapPosition = ui64;
+
+    // NOTE: We need base class to initialize `InitialSize_` before `TZeroCopyOutputStreamWriter`.
+    TZeroCopyWriterWithGaps(TBlobOutput* blobOutput)
+        : TZeroCopyWriterWithGapsBase(blobOutput->Blob())
+        , TZeroCopyOutputStreamWriter(blobOutput)
+    { }
+
+    TGapPosition CreateGap(ui64 size)
+    {
+        auto position = InitialSize_ + GetTotalWrittenSize();
+        if (size <= RemainingBytes()) {
+            Advance(size);
+        } else {
+            char Buffer[MaxGapSize];
+            YT_VERIFY(size <= MaxGapSize);
+            Write(Buffer, size);
+        }
+        return position;
+    }
+
+    char* GetGapPointer(TGapPosition gap)
+    {
+        return Blob_.Begin() + gap;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 // This class is responsible for writing "other columns" field in protobuf format.
 //
 // |OnBeginRow|, |OnValue|, |OnEndRow|, |GetProtobufSize| and |WriteProtoField|
@@ -289,6 +350,7 @@ Y_FORCE_INLINE void WriteProtobufField(
         case EProtobufType::Any:
         case EProtobufType::OtherColumns:
         case EProtobufType::StructuredMessage:
+        case EProtobufType::EmbeddedMessage:
         case EProtobufType::Oneof:
             THROW_ERROR_EXCEPTION("Wrong protobuf type %Qlv",
                 type->ProtoType);
@@ -458,65 +520,6 @@ int WriteVarUint64WithPadding(char* output, ui64 value, int size)
     return size;
 }
 
-class TZeroCopyWriterWithGapsBase
-{
-public:
-    TZeroCopyWriterWithGapsBase(TBlob& blob)
-        : Blob_(blob)
-        , InitialSize_(blob.Size())
-    { }
-
-protected:
-    TBlob& Blob_;
-    ui64 InitialSize_;
-};
-
-// Same as `TZeroCopyOutputStreamWriter` but also allows leaving small "gaps"
-// of fixed size in the output blob to be filled afterwards.
-//
-// Example usage:
-// ```
-//   auto gap = writer->CreateGap(sizeof(ui64));
-//   auto writtenSizeBefore = writer->GetTotalWrittenSize();
-//   ...  // Write something to the writer.
-//   auto writtenSizeAfter = writer->GetTotalWrittenSize();
-//   ui64 size = writtenSizeAfter - writtenSizeBefore;
-//   memcpy(writer->GetGapPointer(gap), &size, sizeof(size));
-// ```
-class TZeroCopyWriterWithGaps
-    : public TZeroCopyWriterWithGapsBase
-    , public TZeroCopyOutputStreamWriter
-{
-public:
-    static constexpr ui64 MaxGapSize = 16;
-
-    using TGapPosition = ui64;
-
-    // NOTE: We need base class to initialize `InitialSize_` before `TZeroCopyOutputStreamWriter`.
-    TZeroCopyWriterWithGaps(TBlobOutput* blobOutput)
-        : TZeroCopyWriterWithGapsBase(blobOutput->Blob())
-        , TZeroCopyOutputStreamWriter(blobOutput)
-    { }
-
-    TGapPosition CreateGap(ui64 size)
-    {
-        auto position = InitialSize_ + GetTotalWrittenSize();
-        if (size <= RemainingBytes()) {
-            Advance(size);
-        } else {
-            char Buffer[MaxGapSize];
-            YT_VERIFY(size <= MaxGapSize);
-            Write(Buffer, size);
-        }
-        return position;
-    }
-
-    char* GetGapPointer(TGapPosition gap)
-    {
-        return Blob_.Begin() + gap;
-    }
-};
-
 static bool MatchesCompositeType(const TProtobufWriterFieldDescription& field)
 {
     return field.Repeated ||
@@ -528,6 +531,8 @@ class TWriterImpl
 {
 private:
     using TMessageSize = ui32;
+    std::vector<TBlobOutput> EmbeddedBuffers;
+    TProtobufWriterFormatDescriptionPtr FormatDescription;
 
 public:
     TWriterImpl(
@@ -535,7 +540,9 @@ public:
         const TNameTablePtr& nameTable,
         const TProtobufWriterFormatDescriptionPtr& description,
         const TYsonConverterConfig& config)
-        : OtherColumnsWriter_(schemas, nameTable, description, config)
+        : EmbeddedBuffers(description->GetTableDescription(0).Embeddings.size())
+        , FormatDescription(description)
+        , OtherColumnsWriter_(schemas, nameTable, description, config)
     { }
 
     void SetTableIndex(i64 tableIndex)
@@ -546,9 +553,9 @@ public:
     Y_FORCE_INLINE void OnBeginRow(TZeroCopyWriterWithGaps* writer)
     {
         Writer_ = writer;
-        MessageSizeGapPosition_ = Writer_->CreateGap(sizeof(TMessageSize));
+        MessageSizeGapPosition_ = writer->CreateGap(sizeof(TMessageSize));
         OtherColumnsWriter_.OnBeginRow();
-        TotalWrittenSizeBefore_ = Writer_->GetTotalWrittenSize();
+        TotalWrittenSizeBefore_ = writer->GetTotalWrittenSize();
     }
 
     // It's quite likely that this value can be bounded by `WireFormatLite::UInt64Size(10 * ysonLength)`,
@@ -586,22 +593,32 @@ public:
 
     Y_FORCE_INLINE void OnValue(TUnversionedValue value, const TProtobufWriterFieldDescription& fieldDescription)
     {
+        if (fieldDescription.ParentEmbeddingIndex != TProtobufWriterEmbeddingDescription::InvalidIndex) {
+            TZeroCopyWriterWithGaps writer(&EmbeddedBuffers[fieldDescription.ParentEmbeddingIndex]);
+            DoOnValue(&writer, value, fieldDescription);
+        } else {
+            DoOnValue(Writer_, value, fieldDescription);
+        }
+    }
+
+    Y_FORCE_INLINE void DoOnValue(TZeroCopyWriterWithGaps* writer, TUnversionedValue value, const TProtobufWriterFieldDescription& fieldDescription)
+    {
         if (MatchesCompositeType(fieldDescription)) {
             ValidateUnversionedValueType(value, EValueType::Composite);
             TMemoryInput input(value.Data.String, value.Length);
             TYsonPullParser parser(&input, EYsonType::Node);
             auto maxVarIntSize = GetMaxVarIntSizeOfProtobufSizeOfComplexType();
-            Traverse(fieldDescription, &parser, maxVarIntSize);
+            Traverse(writer, fieldDescription, &parser, maxVarIntSize);
         } else {
-            WriteVarUint32(Writer_, fieldDescription.WireTag);
+            WriteVarUint32(writer, fieldDescription.WireTag);
             if (fieldDescription.Type->ProtoType == EProtobufType::Any) {
                 auto maxYsonSize = GetMaxBinaryYsonSize(value);
-                WriteWithSizePrefix(WireFormatLite::UInt64Size(maxYsonSize), [&] {
-                    TCheckedInDebugYsonTokenWriter tokenWriter(Writer_);
+                WriteWithSizePrefix(writer, WireFormatLite::UInt64Size(maxYsonSize), [&] {
+                    TCheckedInDebugYsonTokenWriter tokenWriter(writer);
                     UnversionedValueToYson(value, &tokenWriter);
                 });
             } else {
-                WriteProtobufField(Writer_, fieldDescription.Type, TUnversionedValueExtractor(value));
+                WriteProtobufField(writer, fieldDescription.Type, TUnversionedValueExtractor(value));
             }
         }
     }
@@ -613,10 +630,40 @@ public:
 
     Y_FORCE_INLINE void OnEndRow()
     {
+        TZeroCopyWriterWithGaps* writer = Writer_;
+        auto& embeddings = FormatDescription->GetTableDescription(0).Embeddings;
+
+        int parentEmbeddingIndex = 0;
+
+        std::function<int(int)> EmitMessage = [&](int parentEmbeddingIndex) {
+            auto& embeddingDescription = embeddings[parentEmbeddingIndex];
+            auto& blob = EmbeddedBuffers[parentEmbeddingIndex];
+
+            int myParentEmbeddingIndex = parentEmbeddingIndex;
+
+            WriteVarUint32(writer, embeddingDescription.WireTag);
+
+            WriteWithSizePrefix(writer, sizeof(TMessageSize), [&] {
+
+                writer->Write(blob.Begin(), blob.Size());
+                blob.Clear();
+                parentEmbeddingIndex++;
+                while (parentEmbeddingIndex < std::ssize(embeddings) && embeddings[parentEmbeddingIndex].ParentEmbeddingIndex == myParentEmbeddingIndex) {
+                    parentEmbeddingIndex = EmitMessage(parentEmbeddingIndex);
+                }
+            });
+            return parentEmbeddingIndex;
+        };
+
+        while (parentEmbeddingIndex < std::ssize(embeddings)) {
+            Y_VERIFY(embeddings[parentEmbeddingIndex].ParentEmbeddingIndex == TProtobufWriterEmbeddingDescription::InvalidIndex);
+            parentEmbeddingIndex = EmitMessage(parentEmbeddingIndex);
+        }
+
         OtherColumnsWriter_.OnEndRow();
-        OtherColumnsWriter_.WriteProtoField(Writer_);
-        Writer_->UndoRemaining();
-        auto totalWrittenSizeAfter = Writer_->GetTotalWrittenSize();
+        OtherColumnsWriter_.WriteProtoField(writer);
+        writer->UndoRemaining();
+        auto totalWrittenSizeAfter = writer->GetTotalWrittenSize();
         auto messageSize = totalWrittenSizeAfter - TotalWrittenSizeBefore_;
         if (messageSize >= std::numeric_limits<TMessageSize>::max()) {
             THROW_ERROR_EXCEPTION("Too large protobuf message: limit is %v, actual size is %v",
@@ -624,11 +671,12 @@ public:
                 messageSize);
         }
         auto messageSizeCast = static_cast<TMessageSize>(messageSize);
-        memcpy(Writer_->GetGapPointer(MessageSizeGapPosition_), &messageSizeCast, sizeof(messageSizeCast));
+        memcpy(writer->GetGapPointer(MessageSizeGapPosition_), &messageSizeCast, sizeof(messageSizeCast));
     }
 
 private:
     void Traverse(
+        TZeroCopyWriterWithGaps* writer,
         const TProtobufWriterFieldDescription& fieldDescription,
         TYsonPullParser* parser,
         int maxVarIntSize)
@@ -639,20 +687,21 @@ private:
                 return;
             }
             if (fieldDescription.Packed) {
-                TraversePackedRepeated(fieldDescription, parser, maxVarIntSize);
+                TraversePackedRepeated(writer, fieldDescription, parser, maxVarIntSize);
             } else {
                 parser->ParseBeginList();
                 while (!parser->IsEndList()) {
-                    TraverseNonRepeated(fieldDescription, parser, maxVarIntSize);
+                    TraverseNonRepeated(writer, fieldDescription, parser, maxVarIntSize);
                 }
                 parser->ParseEndList();
             }
         } else {
-            TraverseNonRepeated(fieldDescription, parser, maxVarIntSize);
+            TraverseNonRepeated(writer, fieldDescription, parser, maxVarIntSize);
         }
     }
 
     void TraverseOneof(
+        TZeroCopyWriterWithGaps* writer,
         const TProtobufWriterFieldDescription& fieldDescription,
         TYsonPullParser* parser,
         int maxVarIntSize)
@@ -668,7 +717,7 @@ private:
         auto alternativeIndex = parser->ParseInt64();
         auto alternative = fieldDescription.Type->FindAlternative(alternativeIndex);
         if (alternative) {
-            Traverse(*alternative, parser, maxVarIntSize);
+            Traverse(writer, *alternative, parser, maxVarIntSize);
         } else {
             parser->SkipComplexValue();
         }
@@ -676,29 +725,30 @@ private:
     }
 
     template <typename TFun>
-    Y_FORCE_INLINE void WriteWithSizePrefix(int maxVarIntSize, TFun writerFun)
+    Y_FORCE_INLINE void WriteWithSizePrefix(TZeroCopyWriterWithGaps* writer, int maxVarIntSize, TFun writerFun)
     {
-        auto gap = Writer_->CreateGap(maxVarIntSize);
-        auto totalWrittenSizeBefore = Writer_->GetTotalWrittenSize();
+        auto gap = writer->CreateGap(maxVarIntSize);
+        auto totalWrittenSizeBefore = writer->GetTotalWrittenSize();
 
         writerFun();
 
-        auto totalWrittenSizeAfter = Writer_->GetTotalWrittenSize();
+        auto totalWrittenSizeAfter = writer->GetTotalWrittenSize();
         auto messageSize = totalWrittenSizeAfter - totalWrittenSizeBefore;
-        WriteVarUint64WithPadding(Writer_->GetGapPointer(gap), messageSize, maxVarIntSize);
+        WriteVarUint64WithPadding(writer->GetGapPointer(gap), messageSize, maxVarIntSize);
     }
 
     Y_FORCE_INLINE void TraversePackedRepeated(
+        TZeroCopyWriterWithGaps* writer,
         const TProtobufWriterFieldDescription& fieldDescription,
         TYsonPullParser* parser,
         int maxVarIntSize)
     {
         parser->ParseBeginList();
         if (!parser->IsEndList()) {
-            WriteVarUint32(Writer_, fieldDescription.WireTag);
-            WriteWithSizePrefix(maxVarIntSize, [&] {
+            WriteVarUint32(writer, fieldDescription.WireTag);
+            WriteWithSizePrefix(writer, maxVarIntSize, [&] {
                 while (!parser->IsEndList()) {
-                    WriteProtobufField(Writer_, fieldDescription.Type, TYsonValueExtractor(parser));
+                    WriteProtobufField(writer, fieldDescription.Type, TYsonValueExtractor(parser));
                 }
             });
         }
@@ -706,49 +756,51 @@ private:
     }
 
     Y_FORCE_INLINE void TraverseNonRepeated(
+        TZeroCopyWriterWithGaps* writer,
         const TProtobufWriterFieldDescription& fieldDescription,
         TYsonPullParser* parser,
         int maxVarIntSize)
     {
         if (fieldDescription.Type->ProtoType == EProtobufType::Oneof) {
-            TraverseOneof(fieldDescription, parser, maxVarIntSize);
+            TraverseOneof(writer, fieldDescription, parser, maxVarIntSize);
             return;
         }
         if (fieldDescription.Type->Optional && parser->IsEntity()) {
             parser->ParseEntity();
             if (fieldDescription.Type->ProtoType == EProtobufType::Any) {
-                WriteVarUint32(Writer_, fieldDescription.WireTag);
-                WriteWithSizePrefix(1, [&] {
-                    TCheckedInDebugYsonTokenWriter writer(Writer_);
-                    writer.WriteEntity();
+                WriteVarUint32(writer, fieldDescription.WireTag);
+                WriteWithSizePrefix(writer, 1, [&] {
+                    TCheckedInDebugYsonTokenWriter ysonWriter(writer);
+                    ysonWriter.WriteEntity();
                 });
             }
             return;
         }
 
-        WriteVarUint32(Writer_, fieldDescription.WireTag);
+        WriteVarUint32(writer, fieldDescription.WireTag);
         switch (fieldDescription.Type->ProtoType) {
             case EProtobufType::StructuredMessage:
-                WriteWithSizePrefix(maxVarIntSize, [&] {
-                    TraverseStruct(fieldDescription, parser, maxVarIntSize);
+                WriteWithSizePrefix(writer, maxVarIntSize, [&] {
+                    TraverseStruct(writer, fieldDescription, parser, maxVarIntSize);
                 });
                 return;
             case EProtobufType::Any:
-                WriteWithSizePrefix(maxVarIntSize, [&] {
-                    TCheckedInDebugYsonTokenWriter writer(Writer_);
-                    parser->TransferComplexValue(&writer);
+                WriteWithSizePrefix(writer, maxVarIntSize, [&] {
+                    TCheckedInDebugYsonTokenWriter ysonWriter(writer);
+                    parser->TransferComplexValue(&ysonWriter);
                 });
                 return;
             case EProtobufType::Oneof:
                 YT_ABORT();
             default:
-                WriteProtobufField(Writer_, fieldDescription.Type, TYsonValueExtractor(parser));
+                WriteProtobufField(writer, fieldDescription.Type, TYsonValueExtractor(parser));
                 return;
         }
         YT_ABORT();
     }
 
     Y_FORCE_INLINE void TraverseStruct(
+        TZeroCopyWriterWithGaps* writer,
         const TProtobufWriterFieldDescription& fieldDescription,
         TYsonPullParser* parser,
         int maxVarIntSize)
@@ -764,9 +816,9 @@ private:
             }
             const auto& child = **childIterator;
             if (child.Repeated) {
-                Traverse(child, parser, maxVarIntSize);
+                Traverse(writer, child, parser, maxVarIntSize);
             } else {
-                TraverseNonRepeated(child, parser, maxVarIntSize);
+                TraverseNonRepeated(writer, child, parser, maxVarIntSize);
             }
             ++childIterator;
             ++elementIndex;

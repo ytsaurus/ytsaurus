@@ -22,6 +22,7 @@ enum class EProtobufSerializationMode
 {
     Protobuf,
     Yt,
+    Embedded,
 };
 
 enum class EProtobufListMode

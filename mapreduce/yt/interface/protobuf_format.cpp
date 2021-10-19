@@ -87,6 +87,9 @@ TFieldOption FieldFlagToOption(EWrapperFieldFlag::Enum flag)
             return EProtobufMapMode::Dict;
         case EFlag::MAP_AS_OPTIONAL_DICT:
             return EProtobufMapMode::OptionalDict;
+        case EFlag::EMBEDDED:
+            break; //FAIL for now. TODO: tests for client json config generation
+            //return EProtobufSerializationMode::Embedded;
     }
     Y_FAIL();
 }
@@ -141,6 +144,8 @@ EWrapperFieldFlag::Enum OptionToFieldFlag(TFieldOption option)
                     return EFlag::SERIALIZATION_YT;
                 case EProtobufSerializationMode::Protobuf:
                     return EFlag::SERIALIZATION_PROTOBUF;
+                case EProtobufSerializationMode::Embedded:
+                    return EFlag::EMBEDDED;
             }
             Y_FAIL();
         }
@@ -379,6 +384,7 @@ TProtobufOneofOptions GetDefaultOneofOptions(const Descriptor* descriptor)
                     defaultOneofOptions.Mode = EProtobufOneofMode::SeparateFields;
                     return defaultOneofOptions;
                 case EProtobufSerializationMode::Yt:
+                case EProtobufSerializationMode::Embedded:
                     return defaultOneofOptions;
             }
             Y_FAIL();
@@ -551,6 +557,8 @@ TString DeduceProtobufType(
                     return "message";
                 case EProtobufSerializationMode::Yt:
                     return "structured_message";
+                case EProtobufSerializationMode::Embedded:
+                    return "embedded_message";
             }
             Y_FAIL();
         default:
@@ -889,7 +897,7 @@ private:
         RemoveIf(messageProto->mutable_enum_type(), [&] (const EnumDescriptorProto& enumDescriptorProto) {
             return !enumTypeNames.contains(prefix + enumDescriptorProto.name());
         });
-        
+
         messageProto->clear_extension();
         StripUnknownOptions(messageProto->mutable_options());
         for (auto& fieldProto : *messageProto->mutable_field()) {
