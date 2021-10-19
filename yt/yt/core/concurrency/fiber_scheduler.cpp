@@ -17,6 +17,8 @@
 
 #include <util/system/context.h>
 
+#include <thread>
+
 #define REUSE_FIBERS
 
 namespace NYT::NConcurrency {
@@ -74,19 +76,10 @@ struct TFiberContext
     TRefCountedGaugePtr WaitingFibersCounter;
 };
 
-thread_local TFiberContext* FiberContext = nullptr;
+static thread_local TFiberContext* FiberContext;
+static thread_local bool FiberShutdown;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TFiberScheduler::TFiberScheduler(
-    TIntrusivePtr<TEventCount> callbackEventCount,
-    const TString& threadGroupName,
-    const TString& threadName)
-    : TSchedulerThreadBase(
-        callbackEventCount,
-        threadGroupName,
-        threadName)
-{ }
 
 void TFiberScheduler::CancelWait()
 {
@@ -311,7 +304,7 @@ void SwitchImpl(TExceptionSafeContext* src, TExceptionSafeContext* dest)
         afterSwitch.Run();
     }
 
-    // TODO: Allow to set after switch inside itself
+    // TODO(lukyan): Allow to set after switch inside itself
     YT_VERIFY(!AfterSwitch());
 }
 
@@ -340,34 +333,84 @@ void SwitchFromFiber(TFiberPtr target)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-thread_local bool FiberShutdown = false;
-
 #ifdef REUSE_FIBERS
-TLockFreeStack<TFiberPtr> IdleFibers;
 
-void DestroyIdleFibers()
+class TFiberManager
 {
-    std::vector<TFiberPtr> fibers;
-    IdleFibers.DequeueAll(&fibers);
-
-    TFiberContext fiberContext;
-
-    FiberContext = &fiberContext;
-    FiberShutdown = true;
-    auto finally = Finally([] {
-        FiberContext = nullptr;
-        FiberShutdown = false;
-    });
-
-    for (const auto& fiber : fibers) {
-        YT_VERIFY(fiber->GetRefCount() == 1);
-        SwitchFromThread(std::move(fiber));
+public:
+    static TFiberManager* Get()
+    {
+        return LeakySingleton<TFiberManager>();
     }
 
-    fibers.clear();
-}
+    void EnqueueIdleFiber(TFiberPtr fiber)
+    {
+        IdleFibers_.Enqueue(std::move(fiber));
+        if (DestroyingIdleFibers_.load()) {
+            DoDestroyIdleFibers();
+        }
+    }
 
-REGISTER_SHUTDOWN_CALLBACK(0, DestroyIdleFibers)
+    TFiberPtr TryDequeueIdleFiber()
+    {
+        TFiberPtr fiber;
+        IdleFibers_.Dequeue(&fiber);
+        return fiber;
+    }
+
+private:
+    const TShutdownCookie ShutdownCookie_ = RegisterShutdownCallback(
+        "FiberManager",
+        BIND(&TFiberManager::DestroyIdleFibers, this),
+        /*priority*/ -100);
+
+    TLockFreeStack<TFiberPtr> IdleFibers_;
+    std::atomic<bool> DestroyingIdleFibers_ = false;
+
+
+    TFiberManager() = default;
+
+    void DestroyIdleFibers()
+    {
+        DestroyingIdleFibers_.store(true);
+        DoDestroyIdleFibers();
+    }
+
+    void DoDestroyIdleFibers()
+    {
+        // The current thread could be already exiting and MacOS has some issues
+        // with registering new thread-local terminators in this case:
+        // https://github.com/lionheart/openradar-mirror/issues/20926
+        // As a matter of workaround, we offload all finalization logic to a separate
+        // temporary thread.
+        std::thread thread([&] {
+            ::TThread::SetCurrentThreadName("IdleFiberDtor");
+
+            std::vector<TFiberPtr> fibers;
+            IdleFibers_.DequeueAll(&fibers);
+
+            TFiberContext fiberContext;
+            FiberContext = &fiberContext;
+
+            FiberShutdown = true;
+            auto finally = Finally([] {
+                FiberContext = nullptr;
+                FiberShutdown = false;
+            });
+
+            for (const auto& fiber : fibers) {
+                YT_VERIFY(fiber->GetRefCount() == 1);
+                SwitchFromThread(std::move(fiber));
+            }
+
+            fibers.clear();
+        });
+        thread.join();
+    }
+
+    DECLARE_LEAKY_SINGLETON_FRIEND()
+};
+
 #endif
 
 static NProfiling::TCounter CreatedFibersCounter = NProfiling::TProfiler{"/action_queue"}.Counter("/created_fibers");
@@ -396,7 +439,7 @@ void FiberMain()
             try {
                 RunInFiberContext(std::move(callback));
             } catch (const TFiberCanceledException&) { }
-        } else if (!threadThis->IsShutdown()) {
+        } else if (!threadThis->IsStopping()) {
             threadThis->Wait();
         }
 
@@ -420,7 +463,7 @@ void FiberMain()
                 // Switch out and add fiber to idle fibers.
                 // Save fiber in AfterSwitch because it can be immediately concurrently reused.
                 SetAfterSwitch(BIND_DONT_CAPTURE_TRACE_CONTEXT([current = MakeStrong(currentFiber)] () mutable {
-                    IdleFibers.Enqueue(std::move(current));
+                    TFiberManager::Get()->EnqueueIdleFiber(std::move(current));
                 }));
             }
 
@@ -445,13 +488,8 @@ void FiberMain()
         // Renew thread pointer.
         threadThis = CurrentThread;
 
-#ifdef REUSE_FIBERS
-        if (!threadThis || threadThis->IsShutdown() || FiberShutdown)
-#else
-        if (!threadThis || threadThis->IsShutdown())
-#endif
-        {
-            // Do not reuse fiber in this rear case. Otherwise too many idle fibers are collected.
+        if (!threadThis || threadThis->IsStopping() || FiberShutdown) {
+            // Do not reuse fiber in this rare case. Otherwise too many idle fibers are collected.
             YT_VERIFY(!ResumerFiber());
 
             NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
@@ -497,7 +535,7 @@ void YieldFiber(TClosure afterSwitch)
     // If there is no resumer switch to idle fiber. Or switch to thread main.
 #ifdef REUSE_FIBERS
     if (!targetFiber) {
-        IdleFibers.Dequeue(&targetFiber);
+        targetFiber = TFiberManager::Get()->TryDequeueIdleFiber();
     }
 #endif
 

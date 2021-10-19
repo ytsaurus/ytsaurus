@@ -1596,7 +1596,7 @@ public:
 
 IChunkTraverserContextPtr GetSyncChunkTraverserContext()
 {
-    return RefCountedSingleton<TSyncTraverserContext>();
+    return LeakyRefCountedSingleton<TSyncTraverserContext>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

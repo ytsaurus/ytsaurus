@@ -1,7 +1,6 @@
 #pragma once
 
 #include <yt/yt/core/actions/future.h>
-#include <yt/yt/core/actions/invoker.h>
 
 #include <yt/yt/core/net/address.h>
 
@@ -19,9 +18,6 @@ public:
         TDuration warningTimeout,
         std::optional<double> jitter);
     ~TDnsResolver();
-
-    void Start();
-    void Stop();
 
     // Kindly note that returned future is set in special resolver thread
     // which does not support fibers. So please use Via/AsyncVia when

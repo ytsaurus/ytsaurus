@@ -5,7 +5,6 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/misc/singleton.h>
-#include <yt/yt/core/misc/shutdown.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
@@ -18,19 +17,9 @@ using namespace NConcurrency;
 class TDispatcher::TImpl
 {
 public:
-    TImpl()
-    { }
-
     void Configure(TDispatcherConfigPtr config)
     {
         ReaderThreadPool_->Configure(config->ChunkReaderPoolSize);
-    }
-
-    void Shutdown()
-    {
-        ReaderThreadPool_->Shutdown();
-        WriterThread_->Shutdown();
-        MemoryManagerThread_->Shutdown();
     }
 
     IInvokerPtr GetReaderInvoker()
@@ -60,27 +49,16 @@ TDispatcher::TDispatcher()
     : Impl_(new TImpl())
 { }
 
-TDispatcher::~TDispatcher()
-{ }
+TDispatcher::~TDispatcher() = default;
 
 TDispatcher* TDispatcher::Get()
 {
     return Singleton<TDispatcher>();
 }
 
-void TDispatcher::StaticShutdown()
-{
-    Get()->Shutdown();
-}
-
 void TDispatcher::Configure(TDispatcherConfigPtr config)
 {
     Impl_->Configure(std::move(config));
-}
-
-void TDispatcher::Shutdown()
-{
-    Impl_->Shutdown();
 }
 
 IInvokerPtr TDispatcher::GetReaderInvoker()
@@ -97,10 +75,6 @@ const IInvokerPtr& TDispatcher::GetReaderMemoryManagerInvoker()
 {
     return Impl_->GetReaderMemoryManagerInvoker();
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-REGISTER_SHUTDOWN_CALLBACK(9, TDispatcher::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 

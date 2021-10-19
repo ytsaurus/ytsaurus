@@ -4,8 +4,6 @@
 
 #include <yt/yt/core/actions/public.h>
 
-#include <yt/yt/core/misc/shutdownable.h>
-
 #include <yt/yt/core/yson/string.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -48,16 +46,12 @@ struct TStringTag
  *  This thread also provides a invoker for executing various callbacks.
  */
 class TProfileManager
-    : public IShutdownable
 {
 public:
     ~TProfileManager();
 
     //! Returns the singleton instance.
     static TProfileManager* Get();
-
-    //! Destroys the singleton instance.
-    static void StaticShutdown();
 
     //! Configure profiling.
     void Configure(const TProfileManagerConfigPtr& config);
@@ -71,11 +65,11 @@ public:
      */
     void Start();
 
-    //! Shuts down the profiling system.
+    //! Stops the profiling system.
     /*!
      *  After this call #Enqueue has no effect.
      */
-    void Shutdown() override;
+    void Stop();
 
     //! Enqueues a new sample for processing.
     void Enqueue(const TQueuedSample& sample);

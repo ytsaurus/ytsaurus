@@ -205,14 +205,6 @@ protected:
                 continue;
             }
 
-            auto poller = TTcpDispatcher::TImpl::Get()->GetXferPoller();
-            if (!poller) {
-                YT_LOG_WARNING("Bus poller is already terminated; dropping connection (Address: %v)",
-                    formattedClientAddress);
-                rejectConnection();
-                break;
-            }
-
             YT_LOG_DEBUG("Connection accepted (ConnectionId: %v, Address: %v, Network: %v, ConnectionCount: %v, ConnectionLimit: %v)",
                 connectionId,
                 formattedClientAddress,
@@ -229,6 +221,8 @@ protected:
                     .Item("address").Value(address)
                     .Item("network").Value(clientNetwork)
                 .EndMap());
+
+            auto poller = TTcpDispatcher::TImpl::Get()->GetXferPoller();
 
             auto connection = New<TTcpConnection>(
                 Config_,

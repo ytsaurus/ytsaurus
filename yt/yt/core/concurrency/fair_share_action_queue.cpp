@@ -89,25 +89,24 @@ public:
         Shutdown();
     }
 
-    void Shutdown() override
+    void Shutdown()
     {
-        bool expected = false;
-        if (!ShutdownFlag_.compare_exchange_strong(expected, true)) {
+        if (Stopped_.exchange(true)) {
             return;
         }
 
         Queue_->Shutdown();
 
         FinalizerInvoker_->Invoke(BIND([thread = Thread_, queue = Queue_] {
-            thread->Shutdown();
+            thread->Stop();
             queue->Drain();
         }));
         FinalizerInvoker_.Reset();
     }
 
-    const IInvokerPtr& GetInvoker(int index) const override
+    const IInvokerPtr& GetInvoker(int index) override
     {
-        YT_ASSERT(0 <= index && index < static_cast<int>(QueueIndexToBucketIndex_.size()));
+        YT_ASSERT(0 <= index && index < std::ssize(QueueIndexToBucketIndex_));
 
         EnsuredStarted();
         return Queue_->GetInvoker(
@@ -141,18 +140,20 @@ private:
 
     std::vector<TString> BucketNames_;
 
-    mutable std::atomic<bool> StartFlag_ = false;
-    std::atomic<bool> ShutdownFlag_ = false;
+    std::atomic<bool> Started_ = false;
+    std::atomic<bool> Stopped_ = false;
 
     IInvokerPtr FinalizerInvoker_ = GetFinalizerInvoker();
 
-    void EnsuredStarted() const
+
+    void EnsuredStarted()
     {
-        bool expected = false;
-        if (!StartFlag_.compare_exchange_strong(expected, true)) {
+        if (Started_.load(std::memory_order_relaxed)) {
             return;
         }
-
+        if (Started_.exchange(true)) {
+            return;
+        }
         Thread_->Start();
     }
 };

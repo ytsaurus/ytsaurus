@@ -405,7 +405,7 @@ public:
 
 IBlockCachePtr GetNullBlockCache()
 {
-    return RefCountedSingleton<TNullBlockCache>();
+    return LeakyRefCountedSingleton<TNullBlockCache>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

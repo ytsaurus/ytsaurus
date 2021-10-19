@@ -43,7 +43,7 @@ public:
 
 IInvokerPtr GetSyncInvoker()
 {
-    return RefCountedSingleton<TSyncInvoker>();
+    return LeakyRefCountedSingleton<TSyncInvoker>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,19 +70,12 @@ public:
 
 IInvokerPtr GetNullInvoker()
 {
-    return RefCountedSingleton<TNullInvoker>();
+    return LeakyRefCountedSingleton<TNullInvoker>();
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 IInvokerPtr GetFinalizerInvoker()
 {
     return NConcurrency::GetFinalizerInvoker();
-}
-
-void ShutdownFinalizerThread()
-{
-    return NConcurrency::ShutdownFinalizerThread();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

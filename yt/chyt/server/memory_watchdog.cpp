@@ -14,6 +14,8 @@
 #include <Common/MemoryTracker.h>
 #include <Common/CurrentMetrics.h>
 
+#include <util/system/yield.h>
+
 namespace NYT::NClickHouseServer {
 
 using namespace NConcurrency;
@@ -110,16 +112,20 @@ void TMemoryWatchdog::CheckMinimumWindowRss(size_t minimumWindowRss)
     if (minimumWindowRss + Config_->WindowCodicilWatermark <= Config_->MemoryLimit) {
         return;
     }
+
     YT_LOG_ERROR(
         "Interrupting self because window minimum memory usage is too high (MinimumWindowRss: %v, MemoryLimit: %v, WindowCodicilWatermark: %v)",
         minimumWindowRss,
         Config_->MemoryLimit,
         Config_->WindowCodicilWatermark);
-    WriteToStderr("*** Killing self because window memory usage is too high ***\n");
+    WriteToStderr("*** Interrupting self because window memory usage is too high ***\n");
     DumpRefCountedTracker();
 
     InterruptCallback_.Run();
-    while (true);
+
+    while (true) {
+        ThreadYield();
+    }
 }
 
 void TMemoryWatchdog::DumpRefCountedTracker()

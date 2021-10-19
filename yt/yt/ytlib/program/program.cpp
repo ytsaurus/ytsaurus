@@ -7,10 +7,9 @@
 #include <yt/yt/core/misc/crash_handler.h>
 #include <yt/yt/core/misc/signal_registry.h>
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/shutdown.h>
 
 #include <yt/yt/core/ytalloc/bindings.h>
-
-#include <yt/yt/core/logging/log_manager.h>
 
 #include <yt/yt/core/yson/writer.h>
 
@@ -32,6 +31,8 @@
 #include <util/string/subst.h>
 
 #include <thread>
+
+#include <stdlib.h>
 
 #ifdef _unix_
 #include <unistd.h>
@@ -121,7 +122,7 @@ void TProgram::HandleVersionAndBuild() const
 
 int TProgram::Run(int argc, const char** argv)
 {
-    TThread::SetCurrentThreadName("ProgramMain");
+    ::TThread::SetCurrentThreadName("ProgramMain");
 
     srand(time(nullptr));
 
@@ -155,15 +156,11 @@ int TProgram::Exit(EProgramExitCode code) const noexcept
 
 int TProgram::Exit(int code) const noexcept
 {
-    NLogging::TLogManager::StaticShutdown();
-
 #if defined(_linux_) && defined(CLANG_COVERAGE)
     __llvm_profile_write_file();
 #endif
 
-    // No graceful shutdown at the moment.
-    _exit(code);
-
+    exit(code);
     YT_ABORT();
 }
 
@@ -183,7 +180,7 @@ void TProgram::PrintYTVersionAndExit() const
         THROW_ERROR_EXCEPTION("--yson is not supported when printing version");
     }
     Cout << GetVersion() << Endl;
-    _exit(0);
+    exit(0);
 }
 
 void TProgram::PrintBuildAndExit() const
@@ -196,15 +193,13 @@ void TProgram::PrintBuildAndExit() const
         Cout << "Build Time: " << GetBuildTime() << Endl;
         Cout << "Build Host: " << GetBuildHost() << Endl;
     }
-    _exit(0);
+    exit(0);
 }
 
 void TProgram::PrintVersionAndExit() const
 {
     PrintYTVersionAndExit();
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 TProgramException::TProgramException(TString what)
     : What_(std::move(what))
@@ -291,13 +286,20 @@ void ConfigureCrashHandler()
     TSignalRegistry::Get()->PushDefaultSignalHandler(AllCrashSignals);
 }
 
-void ExitZero(int /* unused */)
+namespace {
+
+void ExitZero(int /*unused*/)
 {
 #if defined(_linux_) && defined(CLANG_COVERAGE)
     __llvm_profile_write_file();
 #endif
+    // TODO(babenko): replace with pure "exit" some day.
+    // Currently this causes some RPC requests to master to be replied with "Promise abandoned" error,
+    // which is not retriable.
     _exit(0);
 }
+
+} // namespace
 
 void ConfigureExitZeroOnSigterm()
 {

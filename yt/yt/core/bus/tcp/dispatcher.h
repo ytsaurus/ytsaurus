@@ -44,18 +44,11 @@ DEFINE_REFCOUNTED_TYPE(TTcpDispatcherCounters)
 class TTcpDispatcher
 {
 public:
-    ~TTcpDispatcher();
-
     static TTcpDispatcher* Get();
-
-    static void StaticShutdown();
-
-    void Shutdown();
 
     const TTcpDispatcherCountersPtr& GetCounters(const TString& networkName);
 
     //! Returns the poller used by TCP transport.
-    //! May return null if shutdown is already initiated.
     NConcurrency::IPollerPtr GetXferPoller();
 
     void Configure(const TTcpDispatcherConfigPtr& config);
@@ -78,7 +71,6 @@ private:
 
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

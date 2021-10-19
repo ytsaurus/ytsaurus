@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/core/actions/public.h>
-
 #include <yt/yt/core/concurrency/public.h>
 
 #include <yt/yt/core/misc/lazy_ptr.h>
@@ -18,10 +16,6 @@ public:
     ~TIODispatcher();
 
     static TIODispatcher* Get();
-
-    static void StaticShutdown();
-
-    void Shutdown();
 
     IInvokerPtr GetInvoker();
 

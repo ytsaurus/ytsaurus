@@ -158,11 +158,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto poller = TTcpDispatcher::TImpl::Get()->GetXferPoller();
-        if (!poller) {
-            THROW_ERROR_EXCEPTION("Bus poller is already terminated");
-        }
-
         auto id = TConnectionId::Create();
 
         YT_LOG_DEBUG("Connecting to server (Address: %v, ConnectionId: %v)",
@@ -174,6 +169,8 @@ public:
                 .Items(*EndpointAttributes_)
                 .Item("connection_id").Value(id)
             .EndMap());
+
+        auto poller = TTcpDispatcher::TImpl::Get()->GetXferPoller();
 
         auto connection = New<TTcpConnection>(
             Config_,

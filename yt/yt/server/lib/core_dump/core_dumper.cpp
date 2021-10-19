@@ -101,7 +101,7 @@ public:
             std::vector<std::pair<TString, TString>> variables = {
                 {"%CORE_PID", ToString(getpid())},
                 {"%CORE_TID", ToString(GetCurrentThreadId())},
-                {"%CORE_THREAD_NAME", TThread::CurrentThreadName()},
+                {"%CORE_THREAD_NAME", ::TThread::CurrentThreadName()},
                 {"%CORE_SIG", "42"}, // A mock for coredumper.
                 {"%CORE_REASON", reason},
                 {"%CORE_INDEX", ToString(index)},

@@ -6,7 +6,6 @@
 
 #include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/shutdown.h>
 #include <yt/yt/core/misc/singleton.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -31,16 +30,16 @@ static const auto& Logger = TracingLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TGlobalTracer
+struct TGlobalTracerStorage
 {
     TSpinLock Lock;
     ITracerPtr Tracer;
 };
 
 // TODO(prime@): Switch constinit global variable, once gcc supports it.
-static TGlobalTracer* GlobalTracerStorage()
+static TGlobalTracerStorage* GlobalTracerStorage()
 {
-    return LeakySingleton<TGlobalTracer>();
+    return LeakySingleton<TGlobalTracerStorage>();
 }
 
 ITracerPtr GetGlobalTracer()
@@ -65,13 +64,6 @@ void SetGlobalTracer(const ITracerPtr& tracer)
         oldTracer->Stop();
     }
 }
-
-void ShutdownTracer()
-{
-    SetGlobalTracer(nullptr);
-}
-
-REGISTER_SHUTDOWN_CALLBACK(8, ShutdownTracer)
 
 ////////////////////////////////////////////////////////////////////////////////
 

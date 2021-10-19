@@ -4,7 +4,6 @@
 #include <yt/yt/core/concurrency/poller.h>
 
 #include <yt/yt/core/misc/singleton.h>
-#include <yt/yt/core/misc/shutdown.h>
 
 namespace NYT::NPipes {
 
@@ -16,8 +15,7 @@ TIODispatcher::TIODispatcher()
     : Poller_(BIND([] { return CreateThreadPoolPoller(1, "Pipes"); }))
 { }
 
-TIODispatcher::~TIODispatcher()
-{ }
+TIODispatcher::~TIODispatcher() = default;
 
 TIODispatcher* TIODispatcher::Get()
 {
@@ -33,22 +31,6 @@ IPollerPtr TIODispatcher::GetPoller()
 {
     return Poller_.Value();
 }
-
-void TIODispatcher::StaticShutdown()
-{
-    Get()->Shutdown();
-}
-
-void TIODispatcher::Shutdown()
-{
-    if (Poller_.HasValue()) {
-        Poller_->Shutdown();
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-REGISTER_SHUTDOWN_CALLBACK(6, TIODispatcher::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 

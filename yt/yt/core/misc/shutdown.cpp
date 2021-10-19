@@ -1,51 +1,243 @@
 #include "shutdown.h"
 
-#include <yt/yt/core/misc/assert.h>
+#include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/singleton.h>
 
-#include <algorithm>
-#include <vector>
-#include <atomic>
+#include <yt/yt/core/concurrency/fork_aware_spinlock.h>
+#include <yt/yt/core/concurrency/event_count.h>
+
+#include <util/generic/algorithm.h>
+
+#include <util/system/env.h>
+
+#include <thread>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::vector<std::pair<double, void(*)()>>* ShutdownCallbacks()
+static constexpr auto ShutdownTimeout = TDuration::Seconds(60);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TShutdownManager
 {
-    static std::vector<std::pair<double, void(*)()>> shutdownCallbacks;
-    return &shutdownCallbacks;
-}
+public:
+    static TShutdownManager* Get()
+    {
+        return LeakySingleton<TShutdownManager>();
+    }
 
-static std::atomic<bool> ShutdownStarted{false};
+    TShutdownCookie RegisterShutdownCallback(
+        TString name,
+        TClosure callback,
+        int priority)
+    {
+        auto guard = Guard(Lock_);
 
-void RegisterShutdownCallback(double priority, void(*callback)())
+        if (ShutdownStarted_.load()) {
+            if (IsShutdownLoggingEnabled()) {
+                ::fprintf(stderr, "*** Attempt to register shutdown callback when shutdown is already in progress (Name: %s)\n",
+                    name.c_str());
+            }
+            return nullptr;
+        }
+
+        auto registeredCallback = New<TRefCountedRegisteredCallback>();
+        registeredCallback->Name = std::move(name);
+        registeredCallback->Callback = std::move(callback);
+        registeredCallback->Priority = priority;
+        InsertOrCrash(RegisteredCallbacks_, registeredCallback.Get());
+
+        if (IsShutdownLoggingEnabled()) {
+            ::fprintf(stderr, "*** Shutdown callback registered (Name: %s, Priority: %d)\n",
+                registeredCallback->Name.c_str(),
+                registeredCallback->Priority);
+        }
+
+        return registeredCallback;
+    }
+
+    void Shutdown()
+    {
+        std::vector<TRegisteredCallback> registeredCallbacks;
+
+        {
+            auto guard = Guard(Lock_);
+
+            if (ShutdownStarted_.load()) {
+                return;
+            }
+
+            ShutdownStarted_.store(true);
+            ShutdownThreadId_.store(GetCurrentThreadId());
+
+            if (IsShutdownLoggingEnabled()) {
+                ::fprintf(stderr, "*** Shutdown started (ThreadId: %" PRISZT ")\n",
+                    GetCurrentThreadId());
+            }
+
+            for (auto* registeredCallback : RegisteredCallbacks_) {
+                registeredCallbacks.push_back(*registeredCallback);
+            }
+        }
+
+        SortBy(registeredCallbacks, [] (const auto& registeredCallback) {
+            return registeredCallback.Priority;
+        });
+
+        NConcurrency::TEvent shutdownCompleteEvent;
+        std::thread watchdogThread([&] {
+            ::TThread::SetCurrentThreadName("ShutdownWD");
+            if (!shutdownCompleteEvent.Wait(ShutdownTimeout)) {
+                ::fprintf(stderr, "*** Shutdown hung\n");
+                YT_ABORT();
+            }
+        });
+
+        for (auto it = registeredCallbacks.rbegin(); it != registeredCallbacks.rend(); it++) {
+            const auto& registeredCallback = *it;
+            if (IsShutdownLoggingEnabled()) {
+                ::fprintf(stderr, "*** Running callback (Name: %s, Priority: %d)\n",
+                    registeredCallback.Name.c_str(),
+                    registeredCallback.Priority);
+            }
+            registeredCallback.Callback();
+        }
+
+        shutdownCompleteEvent.NotifyOne();
+        watchdogThread.join();
+
+        if (IsShutdownLoggingEnabled()) {
+            ::fprintf(stderr, "*** Shutdown completed\n");
+        }
+    }
+
+    bool IsShutdownStarted()
+    {
+        return ShutdownStarted_.load();
+    }
+
+    void EnableShutdownLogging()
+    {
+        ShutdownLoggingEnabled_.store(true);
+    }
+
+    bool IsShutdownLoggingEnabled()
+    {
+        return ShutdownLoggingEnabled_.load();
+    }
+
+    size_t GetShutdownThreadId()
+    {
+        return ShutdownThreadId_.load();
+    }
+
+private:
+    std::atomic<bool> ShutdownLoggingEnabled_ = IsShutdownLoggingEnabledImpl();
+
+    NConcurrency::TForkAwareSpinLock Lock_;
+
+    struct TRegisteredCallback
+    {
+        TString Name;
+        TClosure Callback;
+        int Priority;
+    };
+
+    struct TRefCountedRegisteredCallback
+        : public TRegisteredCallback
+        , public TRefCounted
+    {
+        ~TRefCountedRegisteredCallback()
+        {
+            TShutdownManager::Get()->UnregisterShutdownCallback(this);
+        }
+    };
+
+    std::unordered_set<TRefCountedRegisteredCallback*> RegisteredCallbacks_;
+    std::atomic<bool> ShutdownStarted_ = false;
+    std::atomic<size_t> ShutdownThreadId_ = 0;
+
+
+    static bool IsShutdownLoggingEnabledImpl()
+    {
+        auto value = GetEnv("YT_ENABLE_SHUTDOWN_LOGGING");
+        value.to_lower();
+        return value == "1" || value == "true";
+    }
+
+    void UnregisterShutdownCallback(TRefCountedRegisteredCallback* registeredCallback)
+    {
+        auto guard = Guard(Lock_);
+        if (IsShutdownLoggingEnabled()) {
+            ::fprintf(stderr, "*** Shutdown callback unregistered (Name: %s, Priority: %d)\n",
+                registeredCallback->Name.c_str(),
+                registeredCallback->Priority);
+        }
+        EraseOrCrash(RegisteredCallbacks_, registeredCallback);
+    }
+
+    DECLARE_LEAKY_SINGLETON_FRIEND()
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TShutdownCookie RegisterShutdownCallback(
+    TString name,
+    TClosure callback,
+    int priority)
 {
-    auto item = std::make_pair(priority, callback);
-    auto& list = *ShutdownCallbacks();
-
-    YT_VERIFY(std::find(list.begin(), list.end(), item) == list.end());
-    list.push_back(item);
+    return TShutdownManager::Get()->RegisterShutdownCallback(
+        std::move(name),
+        std::move(callback),
+        priority);
 }
 
 void Shutdown()
 {
-    bool expected = false;
-    if (!ShutdownStarted.compare_exchange_strong(expected, true)) {
-        return;
-    }
-
-    auto& list = *ShutdownCallbacks();
-    std::sort(list.begin(), list.end());
-
-    for (auto it = list.rbegin(); it != list.rend(); ++it) {
-        it->second();
-    }
+    TShutdownManager::Get()->Shutdown();
 }
 
 bool IsShutdownStarted()
 {
-    return ShutdownStarted;
+    return TShutdownManager::Get()->IsShutdownStarted();
 }
+
+void EnableShutdownLogging()
+{
+    TShutdownManager::Get()->EnableShutdownLogging();
+}
+
+bool IsShutdownLoggingEnabled()
+{
+    return TShutdownManager::Get()->IsShutdownLoggingEnabled();
+}
+
+size_t GetShutdownThreadId()
+{
+    return TShutdownManager::Get()->GetShutdownThreadId();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const void* ShutdownGuardInitializer = [] {
+    class TShutdownGuard
+    {
+    public:
+        ~TShutdownGuard()
+        {
+            if (TShutdownManager::Get()->IsShutdownLoggingEnabled()) {
+                fprintf(stderr, "*** Shutdown guard destructed\n");
+            }
+            Shutdown();
+        }
+    };
+
+    static thread_local TShutdownGuard Guard;
+    return nullptr;
+}();
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -191,7 +191,7 @@ private:
 
 void EnableYTProfiling()
 {
-    RefCountedSingleton<TProfilingStatisticsProducer>();
+    LeakyRefCountedSingleton<TProfilingStatisticsProducer>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -16,8 +16,6 @@
 
 #include <yt/yt/core/misc/ref_counted_tracker_profiler.h>
 
-#include <yt/yt/core/misc/shutdown.h>
-
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/solomon/exporter.h>
 #include <yt/yt/library/profiling/solomon/registry.h>

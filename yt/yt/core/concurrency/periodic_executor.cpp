@@ -206,7 +206,11 @@ void TPeriodicExecutor::OnCallbackSuccess()
         }
     }
 
-    auto cleanup = [=] {
+    auto cleanup = [=] (bool aborted) {
+        if (aborted) {
+            return;
+        }
+
         TPromise<void> idlePromise;
         {
             auto guard = Guard(SpinLock_);
@@ -248,12 +252,14 @@ void TPeriodicExecutor::OnCallbackSuccess()
         // in particular, we should refrain from setting promises;
         // let's forward the call to the delayed executor.
         TDelayedExecutor::Submit(
-            BIND([this_ = MakeStrong(this), cleanup = std::move(cleanup)] () mutable { cleanup(); }),
+            BIND([this_ = MakeStrong(this), cleanup = std::move(cleanup)] (bool aborted) {
+                cleanup(aborted);
+            }),
             TDuration::Zero());
         throw;
     }
 
-    cleanup();
+    cleanup(false);
 }
 
 void TPeriodicExecutor::OnCallbackFailure()

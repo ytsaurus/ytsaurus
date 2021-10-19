@@ -2,8 +2,6 @@
 
 #include "private.h"
 
-#include <yt/yt/core/misc/shutdownable.h>
-
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <yt/yt/core/concurrency/moody_camel_concurrent_queue.h>
@@ -63,7 +61,6 @@ private:
 template <class TQueueImpl>
 class TInvokerQueue
     : public IInvoker
-    , public IShutdownable
 {
 public:
     TInvokerQueue(
@@ -85,7 +82,7 @@ public:
     bool CheckAffinity(const IInvokerPtr& invoker) const override;
 #endif
 
-    void Shutdown() override;
+    void Shutdown();
 
     void Drain();
 

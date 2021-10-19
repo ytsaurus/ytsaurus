@@ -116,7 +116,8 @@ private:
 
     void Save(NCellMaster::TSaveContext& context) const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        // No affinity annotation here since this could have been called
+        // from a forked process.
 
         using NYT::Save;
         Save(context, *Config_);

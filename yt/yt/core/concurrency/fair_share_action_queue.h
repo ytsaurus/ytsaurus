@@ -4,7 +4,6 @@
 
 #include <yt/yt/core/actions/callback.h>
 
-#include <yt/yt/core/misc/shutdownable.h>
 #include <yt/yt/core/misc/range.h>
 
 namespace NYT::NConcurrency {
@@ -13,9 +12,8 @@ namespace NYT::NConcurrency {
 
 struct IFairShareActionQueue
     : public TRefCounted
-    , public IShutdownable
 {
-    virtual const IInvokerPtr& GetInvoker(int index) const = 0;
+    virtual const IInvokerPtr& GetInvoker(int index) = 0;
 
     virtual void Reconfigure(const THashMap<TString, double>& newBucketWeights) = 0;
 };
@@ -34,9 +32,8 @@ IFairShareActionQueuePtr CreateFairShareActionQueue(
 template <typename EQueue>
 struct IEnumIndexedFairShareActionQueue
     : public TRefCounted
-    , public IShutdownable
 {
-    virtual const IInvokerPtr& GetInvoker(EQueue queue) const = 0;
+    virtual const IInvokerPtr& GetInvoker(EQueue queue) = 0;
 
     virtual void Reconfigure(const THashMap<TString, double>& newBucketWeights) = 0;
 };

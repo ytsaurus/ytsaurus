@@ -313,7 +313,7 @@ protected:
             blockingActionFutures.emplace_back(
                 BIND([&stageFinishedEvents, &stageStartedEvents, invokerIndex] {
                     stageStartedEvents[invokerIndex].NotifyOne();
-                    YT_VERIFY(stageFinishedEvents[invokerIndex].Wait(TInstant::Now() + Quantum * 100));
+                    YT_VERIFY(stageFinishedEvents[invokerIndex].Wait(Quantum * 100));
                 })
                 .AsyncVia(invokerPool->GetInvoker(invokerIndex))
                 .Run());
@@ -333,7 +333,7 @@ protected:
 
         // Test average wait time.
         for (int stage = 0; stage < invokerCount; ++stage) {
-            YT_VERIFY(stageStartedEvents[stage].Wait(TInstant::Now() + Quantum * 100));
+            YT_VERIFY(stageStartedEvents[stage].Wait(Quantum * 100));
 
             // Collect average wait times.
             std::vector<TDuration> averageWaitTimes(invokerCount);
@@ -534,7 +534,7 @@ TEST_F(TFairShareInvokerPoolTest, CpuTimeAccountingBetweenContextSwitchesIsNotSu
         EXPECT_TRUE(!invocationOrder.empty());
     }).AsyncVia(invokerPool->GetInvoker(0)).Run();
 
-    YT_VERIFY(started.Wait(TInstant::Now() + Quantum * 100));
+    YT_VERIFY(started.Wait(Quantum * 100));
 
     // After 10 quantums of time (see notification of the #started variable) we start Fairness test in the second thread.
     // In case of better implementation we expect to have non-fair CPU time distribution between first and second invokers,

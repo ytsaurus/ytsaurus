@@ -19,6 +19,7 @@
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
 #include <yt/yt/core/misc/ref_counted_tracker_profiler.h>
+#include <yt/yt/core/misc/shutdown.h>
 
 #include <yt/yt/core/ytalloc/bindings.h>
 
@@ -85,7 +86,6 @@ protected:
         EnablePhdrCache();
         EnableRefCountedTrackerProfiling();
         ConfigureAllocator({});
-
 
         NYTAlloc::EnableYTLogging();
         NYTAlloc::EnableYTProfiling();

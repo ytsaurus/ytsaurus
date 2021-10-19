@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/yt/core/logging/log.h>
+#include <yt/yt/core/misc/singleton.h>
 
 namespace NYT::NRpc::NGrpc {
 
@@ -16,7 +16,6 @@ public:
 
 protected:
     virtual ~TCompletionQueueTag() = default;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,17 +23,17 @@ protected:
 class TDispatcher
 {
 public:
-    TDispatcher();
-    ~TDispatcher();
-
     static TDispatcher* Get();
-    static void StaticShutdown();
 
     TGrpcLibraryLockPtr CreateLibraryLock();
     grpc_completion_queue* PickRandomCompletionQueue();
 
 private:
+    DECLARE_LEAKY_SINGLETON_FRIEND()
     friend class TGrpcLibraryLock;
+
+    TDispatcher();
+    ~TDispatcher();
 
     class TImpl;
     const std::unique_ptr<TImpl> Impl_;
@@ -53,7 +52,7 @@ private:
     ~TGrpcLibraryLock();
 };
 
-DEFINE_REFCOUNTED_TYPE(TGrpcLibraryLock);
+DEFINE_REFCOUNTED_TYPE(TGrpcLibraryLock)
 
 ////////////////////////////////////////////////////////////////////////////////
 

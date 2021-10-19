@@ -17,8 +17,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TThreadPool::TImpl
-    : public TRefCounted
-    , public TThreadPoolBase
+    : public TThreadPoolBase
 {
 public:
     TImpl(

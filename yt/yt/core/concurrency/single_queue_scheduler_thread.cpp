@@ -10,11 +10,13 @@ TSingleQueueSchedulerThread<TQueueImpl>::TSingleQueueSchedulerThread(
     TInvokerQueuePtr<TQueueImpl> queue,
     TIntrusivePtr<TEventCount> callbackEventCount,
     const TString& threadGroupName,
-    const TString& threadName)
+    const TString& threadName,
+    int shutdownPriority)
     : TSchedulerThread(
         std::move(callbackEventCount),
         threadGroupName,
-        threadName)
+        threadName,
+        shutdownPriority)
     , Queue_(std::move(queue))
     , Token_(Queue_->MakeConsumerToken())
 { }
@@ -34,7 +36,7 @@ void TSingleQueueSchedulerThread<TQueueImpl>::EndExecute()
 template <class TQueueImpl>
 void TSingleQueueSchedulerThread<TQueueImpl>::OnStart()
 {
-    Queue_->SetThreadId(GetId());
+    Queue_->SetThreadId(GetThreadId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

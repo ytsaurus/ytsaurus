@@ -4,7 +4,7 @@
 #include <yt/yt/core/actions/invoker_pool.h>
 #include <yt/yt/core/actions/invoker.h>
 
-#include <util/system/thread.h>
+#include <yt/yt/core/misc/proc.h>
 
 namespace NYT::NConcurrency {
 
@@ -22,7 +22,7 @@ void TThreadAffinitySlot::Check(TThreadId threadId)
 
 void TThreadAffinitySlot::Check()
 {
-    Check(TThread::CurrentThreadId());
+    Check(GetCurrentThreadId());
 }
 
 bool VerifyInvokerAffinity(const IInvokerPtr& invoker)

@@ -2,6 +2,8 @@
 
 #include "scheduler_base.h"
 
+#include <yt/yt/core/actions/callback.h>
+
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -11,10 +13,7 @@ class TFiberScheduler
     : public TSchedulerThreadBase
 {
 public:
-    TFiberScheduler(
-        TIntrusivePtr<TEventCount> callbackEventCount,
-        const TString& threadGroupName,
-        const TString& threadName);
+    using TSchedulerThreadBase::TSchedulerThreadBase;
 
     void CancelWait();
     void PrepareWait();

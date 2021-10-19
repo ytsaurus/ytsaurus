@@ -10,6 +10,10 @@ namespace NYT::NConcurrency {
 
 TThreadPoolBase::TThreadPoolBase(TString threadNamePrefix)
     : ThreadNamePrefix_(std::move(threadNamePrefix))
+    , ShutdownCookie_(RegisterShutdownCallback(
+        Format("ThreadPool(%v)", ThreadNamePrefix_),
+        BIND(&TThreadPoolBase::Shutdown, MakeWeak(this)),
+        /*priority*/ 100))
     , FinalizerInvoker_(GetFinalizerInvoker())
 { }
 
@@ -67,7 +71,7 @@ TClosure TThreadPoolBase::MakeFinalizerCallback()
 
     return BIND([threads = std::move(threads)] () {
         for (const auto& thread : threads) {
-            thread->Shutdown();
+            thread->Stop();
         }
     });
 }
@@ -81,7 +85,7 @@ int TThreadPoolBase::GetThreadCount()
 void TThreadPoolBase::DoConfigure(int threadCount)
 {
     decltype(Threads_) threadsToStart;
-    decltype(Threads_) threadsToShutdown;
+    decltype(Threads_) threadsToStop;
     {
         auto guard = Guard(SpinLock_);
 
@@ -92,13 +96,13 @@ void TThreadPoolBase::DoConfigure(int threadCount)
         }
 
         while (std::ssize(Threads_) > threadCount) {
-            threadsToShutdown.push_back(Threads_.back());
+            threadsToStop.push_back(Threads_.back());
             Threads_.pop_back();
         }
     }
 
-    for (const auto& thread : threadsToShutdown) {
-        thread->Shutdown();
+    for (const auto& thread : threadsToStop) {
+        thread->Stop();
     }
 
     StartFlag_.store(false);

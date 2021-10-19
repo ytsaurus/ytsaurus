@@ -6,14 +6,14 @@
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/yt/core/misc/shutdown.h>
-
 #include <yt/yt/core/logging/config.h>
 #include <yt/yt/core/logging/log_manager.h>
 
 #include <yt/yt/core/misc/crash_handler.h>
 #include <yt/yt/core/misc/format.h>
+#include <yt/yt/core/misc/hazard_ptr.h>
 #include <yt/yt/core/misc/signal_registry.h>
+#include <yt/yt/core/misc/shutdown.h>
 
 #include <yt/yt/core/ytalloc/bindings.h>
 
@@ -114,6 +114,7 @@ Y_TEST_HOOK_BEFORE_RUN(GTEST_YT_SETUP)
 #ifdef _unix_
     ::signal(SIGPIPE, SIG_IGN);
 #endif
+    NYT::EnableShutdownLogging();
     NYT::TSignalRegistry::Get()->PushCallback(NYT::AllCrashSignals, NYT::CrashSignalHandler);
     NYT::TSignalRegistry::Get()->PushDefaultSignalHandler(NYT::AllCrashSignals);
     NYT::NYTAlloc::EnableYTLogging();
@@ -139,14 +140,13 @@ Y_TEST_HOOK_BEFORE_RUN(GTEST_YT_SETUP)
 
 Y_TEST_HOOK_AFTER_RUN(GTEST_YT_TEARDOWN)
 {
-    NYT::Shutdown();
 #ifdef _asan_enabled_
     // Wait for some time to ensure background cleanup is somewhat complete.
     Sleep(TDuration::Seconds(1));
+    NYT::FlushDeleteList();
     NYT::TRefCountedTrackerFacade::Dump();
 #endif
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

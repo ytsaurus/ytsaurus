@@ -175,12 +175,6 @@ public:
     //! Returns the singleton instance.
     static TAddressResolver* Get();
 
-    //! Destroys the singleton instance.
-    static void StaticShutdown();
-
-    //! Shuts down all internals of address resolver.
-    void Shutdown();
-
     //! Resolves #address asynchronously.
     /*!
      *  Calls |getaddrinfo| and returns the first entry belonging to |AF_INET| or |AF_INET6| family.

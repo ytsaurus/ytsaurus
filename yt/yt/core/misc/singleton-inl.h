@@ -36,22 +36,25 @@ T* LeakySingleton()
 }
 
 template <class T>
-TIntrusivePtr<T> RefCountedSingleton()
+TIntrusivePtr<T> LeakyRefCountedSingleton()
 {
-    static std::atomic<T*> RawInstance;
-    auto* rawInstance = RawInstance.load(std::memory_order_acquire);
-    if (Y_LIKELY(rawInstance)) {
-        return rawInstance;
+    static std::atomic<T*> Ptr;
+    auto* ptr = Ptr.load(std::memory_order_acquire);
+    if (Y_LIKELY(ptr)) {
+        return ptr;
     }
 
-    static TIntrusivePtr<T> StrongInstance;
     static std::once_flag Initialized;
     std::call_once(Initialized, [] {
-        StrongInstance = New<T>();
-        RawInstance.store(StrongInstance.Get());
+        auto ptr = New<T>();
+        Ref(ptr.Get());
+        Ptr.store(ptr.Get());
+#if defined(_asan_enabled_)
+        NSan::MarkAsIntentionallyLeaked(ptr.Get());
+#endif
     });
 
-    return StrongInstance;
+    return Ptr.load();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

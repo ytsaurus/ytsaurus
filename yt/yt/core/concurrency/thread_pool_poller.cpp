@@ -6,6 +6,7 @@
 #include "private.h"
 #include "notification_handle.h"
 #include "moody_camel_concurrent_queue.h"
+#include "thread.h"
 
 #include <yt/yt/core/misc/mpsc_stack.h>
 
@@ -86,7 +87,6 @@ public:
         : ThreadNamePrefix_(threadNamePrefix)
         , Logger(ConcurrencyLogger.WithTag("ThreadNamePrefix: %v", ThreadNamePrefix_))
         , Invoker_(New<TInvoker>(this))
-        , StartLatch_(threadCount + 1)
         , PollerThread_(New<TPollerThread>(this))
         , HandlerThreads_(threadCount)
     {
@@ -106,7 +106,6 @@ public:
         for (const auto& thread : HandlerThreads_) {
             thread->Start();
         }
-        StartLatch_.Wait();
         YT_LOG_INFO("Thread pool poller started");
     }
 
@@ -141,9 +140,9 @@ public:
 
         YT_LOG_INFO("Shutting down poller threads");
 
-        PollerThread_->Shutdown();
+        PollerThread_->Stop();
         for (const auto& thread : handlerThreads) {
-            thread->Shutdown();
+            thread->Stop();
         }
 
         YT_LOG_INFO("Thread pool poller finished");
@@ -287,28 +286,17 @@ private:
     using TPollerImpl = ::TPollerImpl<TMutexLocking>;
 
     class TPollerThread
-        : public TRefCounted
+        : public TThread
     {
     public:
         explicit TPollerThread(TThreadPoolPoller* poller)
-            : Poller_(poller)
+            : TThread(Format("%v:Poll", poller->ThreadNamePrefix_))
+            , Poller_(poller)
             , Logger(Poller_->Logger)
-            , Thread_(&ThreadMainTrampoline, this)
             , PollerEventQueueToken_(Poller_->PollerEventQueue_)
             , RetryQueueToken_(Poller_->RetryQueue_)
-        { }
-
-        void Start()
         {
             PollerImpl_.Set(nullptr, WakeupHandle_.GetFD(), CONT_POLL_EDGE_TRIGGERED | CONT_POLL_READ);
-            Thread_.Start();
-        }
-
-        void Shutdown()
-        {
-            ShutdownStarted_.store(true);
-            ScheduleWakeup();
-            Thread_.Join();
         }
 
         void ScheduleUnregister(IPollablePtr pollable)
@@ -351,19 +339,14 @@ private:
 
     private:
         TThreadPoolPoller* const Poller_;
-
         const NLogging::TLogger Logger;
-
-        ::TThread Thread_;
 
         TPollerImpl PollerImpl_;
 
-        std::atomic<bool> ShutdownStarted_ = false;
-
         TNotificationHandle WakeupHandle_;
-        #ifndef _linux_
+#ifndef _linux_
         std::atomic<bool> WakeupScheduled_ = false;
-        #endif
+#endif
 
         std::array<TPollerImpl::TEvent, MaxEventsPerPoll> PollerEvents_;
 
@@ -375,19 +358,15 @@ private:
         std::atomic<bool> RetryScheduled_ = false;
         TMpscStack<IPollablePtr> RetryQueue_;
 
-        static void* ThreadMainTrampoline(void* opaque)
+
+        virtual void StopPrologue() override
         {
-            static_cast<TPollerThread*>(opaque)->ThreadMain();
-            return nullptr;
+            ScheduleWakeup();
         }
 
-        void ThreadMain()
+        void ThreadMain() override
         {
-            TThread::SetCurrentThreadName(Format("%v:Poll", Poller_->ThreadNamePrefix_).c_str());
-
-            Poller_->StartLatch_.CountDown();
-
-            while (!ShutdownStarted_.load()) {
+            while (!IsStopping()) {
                 ThreadMainLoopStep();
             }
         }
@@ -426,11 +405,11 @@ private:
             if (it != PollerEvents_.begin()) {
                 Poller_->PollerEventQueue_.enqueue_bulk(PollerEventQueueToken_, PollerEvents_.begin(), std::distance(PollerEvents_.begin(), it));
             }
-            #ifndef _linux_
+#ifndef _linux_
             // Drain wakeup handle in order to prevent deadlocking on pipe.
             WakeupHandle_.Clear();
             WakeupScheduled_.store(false);
-            #endif
+#endif
             return count;
         }
 
@@ -470,7 +449,7 @@ private:
 
         void ScheduleWakeup()
         {
-            #ifndef _linux_
+#ifndef _linux_
             // Under non-linux platforms notification handle is implemented over pipe, so
             // performing lots consecutive wakeups may lead to blocking on pipe which may
             // lead to dead-lock in case when handle is raised under spinlock.
@@ -480,7 +459,7 @@ private:
             if (WakeupScheduled_.exchange(true)) {
                 return;
             }
-            #endif
+#endif
 
             WakeupHandle_.Raise();
         }
@@ -521,16 +500,17 @@ private:
         }
 
     protected:
-        void OnStart() override
+        void OnStop() override
         {
-            Poller_->StartLatch_.CountDown();
+            DequeueUnregisterRequests();
+            HandleUnregisterRequests();
         }
 
         TClosure BeginExecute() override
         {
             if (Dying_.load()) {
                 MarkDead();
-                Shutdown();
+                Stop();
                 return {};
             }
 
@@ -540,8 +520,7 @@ private:
             didAnything |= HandleRetries();
             HandleUnregisterRequests();
             if (didAnything) {
-                static const auto DummyCallback = BIND([] { });
-                return DummyCallback;
+                return DummyCallback_;
             }
 
             SetCurrentInvoker(Poller_->Invoker_);
@@ -553,15 +532,11 @@ private:
             SetCurrentInvoker(nullptr);
         }
 
-        void AfterShutdown() override
-        {
-            DequeueUnregisterRequests();
-            HandleUnregisterRequests();
-        }
-
     private:
         TThreadPoolPoller* const Poller_;
         const NLogging::TLogger Logger;
+
+        const TClosure DummyCallback_ = BIND([] { });
 
         moodycamel::ConsumerToken RetryQueueToken_;
         moodycamel::ConsumerToken PollerEventQueueToken_;
@@ -689,8 +664,7 @@ private:
         TClosure DequeCallback()
         {
             if (ShutdownStarted_.load()) {
-                static const auto DummyCallback = BIND([] { });
-                return DummyCallback;
+                return DummyCallback_;
             }
 
             TClosure callback;
@@ -719,13 +693,14 @@ private:
     private:
         const TIntrusivePtr<TEventCount> HandlerEventCount_;
 
+        const TClosure DummyCallback_ = BIND([] { });
+
         std::atomic<bool> ShutdownStarted_ = false;
         moodycamel::ConcurrentQueue<TClosure> Callbacks_;
     };
 
     const TIntrusivePtr<TInvoker> Invoker_;
 
-    TCountDownLatch StartLatch_;
     std::atomic<bool> ShutdownStarted_ = false;
 
     moodycamel::ConcurrentQueue<IPollablePtr> RetryQueue_;

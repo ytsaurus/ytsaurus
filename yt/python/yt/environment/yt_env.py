@@ -90,7 +90,7 @@ def _get_yt_versions(custom_paths):
     for binary in binaries:
         binary_path = _get_yt_binary_path(binary, custom_paths=custom_paths)
         if binary_path is not None:
-            version_string = subprocess.check_output([binary_path, "--version"], stderr=subprocess.STDOUT)
+            version_string = subprocess.check_output([binary_path, "--version"])
             result[binary] = _parse_version(version_string)
     return result
 

@@ -17,7 +17,8 @@ public:
         TInvokerQueuePtr<TQueueImpl> queue,
         TIntrusivePtr<TEventCount> callbackEventCount,
         const TString& threadGroupName,
-        const TString& threadName);
+        const TString& threadName,
+        int shutdownPriority = 0);
 
 protected:
     const TInvokerQueuePtr<TQueueImpl> Queue_;

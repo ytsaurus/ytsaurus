@@ -92,12 +92,12 @@ public:
 
     TCookie PrepareWait();
     void CancelWait();
-    bool Wait(TCookie cookie, std::optional<TInstant> deadline = std::nullopt);
+    bool Wait(TCookie cookie, std::optional<TDuration> timeout = {});
 
     //! Wait for |condition()| to become |true|.
     //! Will clean up appropriately if |condition()| throws, and then rethrow.
     template <class TCondition>
-    bool Await(TCondition condition, std::optional<TInstant> deadline = std::nullopt);
+    bool Await(TCondition condition, std::optional<TDuration> timeout = {});
 
 private:
     //! Lower 32 bits: number of waiters.
@@ -132,7 +132,7 @@ public:
     void NotifyAll();
 
     bool Test() const;
-    bool Wait(std::optional<TInstant> deadline = std::nullopt);
+    bool Wait(std::optional<TDuration> timeout = {});
 
 private:
     std::atomic<bool> Set_ = false;

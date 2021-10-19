@@ -21,12 +21,7 @@ public:
         : Queue_(CreateFairShareActionQueue(threadName, queueNames, queueToBucket))
     { }
 
-    void Shutdown() override
-    {
-        Queue_->Shutdown();
-    }
-
-    const IInvokerPtr& GetInvoker(EQueue queue) const override
+    const IInvokerPtr& GetInvoker(EQueue queue) override
     {
         return Queue_->GetInvoker(static_cast<int>(queue));
     }
