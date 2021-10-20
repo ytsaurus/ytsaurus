@@ -321,19 +321,41 @@ def _shs_url(discovery_path, spark):
             return "http://{}/history/{}/jobs/".format(shs_url, app_id)
 
 
+class CachedPy4JError(Exception):
+    def __init__(self, py4j_error):
+        self.cached_str = str(py4j_error)
+
+    def __str__(self):
+        return self.cached_str
+
+
 def stop(spark, exception=None):
     is_client_mode = spark.conf.get("spark.submit.deployMode") == "client"
     if exception is not None:
         logger.error("Shutdown SparkSession after exception: {}".format(exception))
+    exception_c = CachedPy4JError(exception)
+
+    def stop_fault_handler(e):
+        e1 = CachedPy4JError(e)
+        _try_with_safe_finally(
+            lambda: _shutdown_jvm(spark) if is_client_mode else None,
+            lambda e2: shutdown_jfv_fault_handler(e1, e2)
+        )
+
+    def shutdown_jfv_fault_handler(e1, e):
+        e2 = CachedPy4JError(e)
+        _try_with_safe_finally(
+            lambda: Environment.unset_python_path(),
+            lambda e3: unset_python_path_fault_handler(e1, e2, e3)
+        )
+
+    def unset_python_path_fault_handler(e1, e2, e):
+        e3 = CachedPy4JError(e)
+        _raise_first(exception_c, e1, e2, e3)
+
     _try_with_safe_finally(
         lambda: spark.stop(),
-        lambda e1: _try_with_safe_finally(
-            lambda: _shutdown_jvm(spark) if is_client_mode else None,
-            lambda e2: _try_with_safe_finally(
-                lambda: Environment.unset_python_path(),
-                lambda e3: _raise_first(exception, e1, e2, e3)
-            )
-        )
+        stop_fault_handler
     )
 
 
