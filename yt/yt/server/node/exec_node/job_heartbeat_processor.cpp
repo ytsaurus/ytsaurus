@@ -35,7 +35,7 @@ void TSchedulerJobHeartbeatProcessor::ProcessResponse(
         auto agentInfoOrError = TryParseControllerAgentDescriptor(*jobInfo.mutable_controller_agent_descriptor());
         if (!agentInfoOrError.IsOK()) {
             YT_LOG_WARNING(
-                agentInfoOrError.Wrap(),
+                agentInfoOrError,
                 "Skip job to confirm since no suitable controller agent address exists (JobId: %v)",
                 jobId);
             continue;
@@ -91,7 +91,7 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
     // only the running jobs since all completed/aborted/failed jobs always send their statistics.
     std::vector<std::pair<IJobPtr, TJobStatus*>> runningJobs;
 
-    bool shouldInitiateControllerAgentHeartbeat = false;
+    bool shouldSendControllerAgentHeartbeatsOutOfBand = false;
 
     for (const auto& job : JobController_->GetJobs()) {
         auto jobId = job->GetId();
@@ -146,9 +146,9 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
                 } else {
                     Bootstrap_
                         ->GetExecNodeBootstrap()
-                        ->GetControllerAgentConnector()
+                        ->GetControllerAgentConnectorPool()
                         ->EnqueueFinishedJob(schedulerJob);
-                    shouldInitiateControllerAgentHeartbeat = true;
+                    shouldSendControllerAgentHeartbeatsOutOfBand = true;
                 }
                 break;
             default:
@@ -206,12 +206,11 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
         ToProto(request->mutable_unconfirmed_jobs(), JobIdsToConfirm_);
     }
 
-    if (shouldInitiateControllerAgentHeartbeat) {
-        YT_LOG_DEBUG("Initiating heartbeats to controller agents");
+    if (shouldSendControllerAgentHeartbeatsOutOfBand) {
         Bootstrap_
             ->GetExecNodeBootstrap()
-            ->GetControllerAgentConnector()
-            ->SendOutOfBandHeartbeat();
+            ->GetControllerAgentConnectorPool()
+            ->SendOutOfBandHeartbeatsIfNeeded();
     }
 }
 

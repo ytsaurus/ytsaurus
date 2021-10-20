@@ -21,20 +21,13 @@ struct TControllerAgentDescriptor
     NRpc::TAddressWithNetwork Address;
     NScheduler::TIncarnationId IncarnationId;
 
-    bool operator==(const TControllerAgentDescriptor& other) const
-    {
-        return other.Address == Address && other.IncarnationId == IncarnationId;
-    }
+    bool operator==(const TControllerAgentDescriptor& other) const noexcept;
 
-    bool Empty() const noexcept
-    {
-        return *this == TControllerAgentDescriptor{};
-    }
+    bool operator!=(const TControllerAgentDescriptor& other) const noexcept;
 
-    operator bool() const noexcept
-    {
-        return !Empty();
-    }
+    bool Empty() const noexcept;
+
+    operator bool() const noexcept;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,11 +48,5 @@ NJobAgent::IJobPtr CreateSchedulerJob(
 template <>
 struct THash<NYT::NExecNode::TControllerAgentDescriptor>
 {
-    size_t operator () (const NYT::NExecNode::TControllerAgentDescriptor& descriptor) const
-    {
-        size_t hash = THash<decltype(descriptor.Address)>{}(descriptor.Address);
-        NYT::HashCombine(hash, descriptor.IncarnationId);
-
-        return hash;
-    }
+    size_t operator () (const NYT::NExecNode::TControllerAgentDescriptor& descriptor) const;
 };
