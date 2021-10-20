@@ -1459,7 +1459,10 @@ TFuture<void> TJobController::TImpl::RequestJobSpecsAndStartJobs(std::vector<TJo
 
     std::vector<TFuture<void>> asyncResults;
     for (auto& [agentDescriptor, startInfos] : groupedStartInfos) {
-        const auto& channel = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnector()->GetChannel(agentDescriptor);
+        const auto& channel = Bootstrap_
+            ->GetExecNodeBootstrap()
+            ->GetControllerAgentConnectorPool()
+            ->GetOrCreateChannel(agentDescriptor);
         TJobSpecServiceProxy jobSpecServiceProxy(channel);
 
         auto dynamicConfig = DynamicConfig_.Load();
@@ -1498,6 +1501,8 @@ void TJobController::TImpl::OnJobSpecsReceived(
     const TControllerAgentDescriptor& controllerAgentDescriptor,
     const TJobSpecServiceProxy::TErrorOrRspGetJobSpecsPtr& rspOrError)
 {
+    VERIFY_THREAD_AFFINITY(JobThread);
+
     if (!rspOrError.IsOK()) {
         YT_LOG_DEBUG(rspOrError, "Error getting job specs (SpecServiceAddress: %v)",
             controllerAgentDescriptor.Address);

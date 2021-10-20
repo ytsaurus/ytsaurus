@@ -2,6 +2,7 @@
 
 #include "job.h"
 #include "chunk_cache.h"
+#include "controller_agent_connector.h"
 #include "gpu_manager.h"
 #include "public.h"
 #include "volume_manager.h"
@@ -53,7 +54,7 @@ public:
         TControllerAgentDescriptor agentDescriptor,
         bool sendJobInfoToAgent);
     
-    ~TJob();
+    ~TJob() override;
 
     void Start() override;
 
@@ -177,11 +178,14 @@ public:
     bool ShouldSendJobInfoToAgent() const noexcept;
 
 private:
+    DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+
     const TJobId Id_;
     const TOperationId OperationId_;
     IBootstrap* const Bootstrap_;
 
     TControllerAgentDescriptor ControllerAgentDescriptor_;
+    TControllerAgentConnectorPool::TControllerAgentConnectorLease ControllerAgentConnectorLease_;
 
     const TExecNodeConfigPtr Config_;
     const IInvokerPtr Invoker_;
@@ -263,8 +267,6 @@ private:
 
     EJobState JobState_ = EJobState::Waiting;
     EJobPhase JobPhase_ = EJobPhase::Created;
-
-    DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
     NJobAgent::TJobEvents JobEvents_;
 

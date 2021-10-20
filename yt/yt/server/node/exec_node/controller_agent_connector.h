@@ -19,51 +19,46 @@ DECLARE_REFCOUNTED_CLASS(TJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TControllerAgentConnector
+class TControllerAgentConnectorPool
     : public TRefCounted
 {
-public:
-    TControllerAgentConnector(TControllerAgentConnectorConfigPtr config, IBootstrap* bootstrap);
+private:
+    class TControllerAgentConnectorBase
+        : public TRefCounted
+    { };
 
-    NRpc::IChannelPtr GetChannel(const TControllerAgentDescriptor& controllerAgentDescriptor);
+public:
+    using TControllerAgentConnectorLease = TIntrusivePtr<TControllerAgentConnectorBase>;
+
+    TControllerAgentConnectorPool(TControllerAgentConnectorConfigPtr config, IBootstrap* bootstrap);
+
+    NRpc::IChannelPtr GetOrCreateChannel(const TControllerAgentDescriptor& controllerAgentDescriptor);
 
     void EnqueueFinishedJob(const TJobPtr& job);
 
-    void Start();
+    void SendOutOfBandHeartbeatsIfNeeded();
 
-    void SendOutOfBandHeartbeat();
+    TControllerAgentConnectorLease CreateLeaseOnControllerAgentConnector(const TJob* job);
 
 private:
+    class TControllerAgentConnector;
+    friend class TControllerAgentConnector;
+
+    //! TControllerAgentConnector object lifetime include lifetime of map entry, so we can use raw pointers here.
+    THashMap<TControllerAgentDescriptor, TControllerAgentConnector*> ControllerAgentConnectors_;
+
     TControllerAgentConnectorConfigPtr Config_;
     IBootstrap* const Bootstrap_;
-    const NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
-    const NConcurrency::TPeriodicExecutorPtr ScanOutdatedAgentIncarnationsExecutor_;
-
-    struct THeartbeatInfo
-    {
-        TInstant LastSentHeartbeatTime_;
-        TInstant LastFailedHeartbeatTime_;
-        TDuration FailedHeartbeatBackoffTime_;
-    };
-
-    THashMap<TControllerAgentDescriptor, THeartbeatInfo> HeartbeatInfo_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
-    THashMap<NRpc::TAddressWithNetwork, NRpc::IChannelPtr> ControllerAgentChannels_;
-    THashSet<TControllerAgentDescriptor> OutdatedAgentIncarnations_;
+    void OnControllerAgentConnectorDestroyed(
+        const TControllerAgentDescriptor& controllerAgentDescriptor) noexcept;
 
-    THashSet<TJobPtr> EnqueuedFinishedJobs_;
-
-    void SendHeartbeats();
-    void ScanOutdatedAgentIncarnations();
     NRpc::IChannelPtr CreateChannel(const TControllerAgentDescriptor& agentDescriptor);
-    void MarkAgentIncarnationAsOutdated(const TControllerAgentDescriptor& agentDescriptor);
-    bool IsAgentIncarnationOutdated(const TControllerAgentDescriptor& agentDescriptor);
-    void ResetOutdatedAgentIncarnations();
 };
 
-DEFINE_REFCOUNTED_TYPE(TControllerAgentConnector)
+DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorPool)
 
 ////////////////////////////////////////////////////////////////////////////////
 

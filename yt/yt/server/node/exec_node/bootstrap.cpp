@@ -71,7 +71,7 @@ public:
 
         SchedulerConnector_ = New<TSchedulerConnector>(GetConfig()->ExecNode->SchedulerConnector, this);
 
-        ControllerAgentConnector_ = New<TControllerAgentConnector>(GetConfig()->ExecNode->ControllerAgentConnector, this);
+        ControllerAgentConnectorPool_ = New<TControllerAgentConnectorPool>(GetConfig()->ExecNode->ControllerAgentConnector, this);
 
         BuildJobProxyConfigTemplate();
 
@@ -168,7 +168,6 @@ public:
         MasterConnector_->Initialize();
 
         SchedulerConnector_->Start();
-        ControllerAgentConnector_->Start();
     }
 
     const TGpuManagerPtr& GetGpuManager() const override
@@ -216,9 +215,9 @@ public:
         return JobProxySolomonExporter_;
     }
 
-    const TControllerAgentConnectorPtr& GetControllerAgentConnector() const override
+    const TControllerAgentConnectorPoolPtr& GetControllerAgentConnectorPool() const override
     {
-        return ControllerAgentConnector_;
+        return ControllerAgentConnectorPool_;
     }
 
 private:
@@ -243,7 +242,7 @@ private:
     TEnumIndexedVector<EExecNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> RawThrottlers_;
     TEnumIndexedVector<EExecNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
 
-    TControllerAgentConnectorPtr ControllerAgentConnector_;
+    TControllerAgentConnectorPoolPtr ControllerAgentConnectorPool_;
 
     void BuildJobProxyConfigTemplate()
     {

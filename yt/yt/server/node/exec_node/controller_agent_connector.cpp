@@ -28,68 +28,118 @@ static const auto& Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TControllerAgentConnector::TControllerAgentConnector(
-    TControllerAgentConnectorConfigPtr config,
-    IBootstrap* const bootstrap)
-    : Config_(std::move(config))
-    , Bootstrap_(bootstrap)
-    , HeartbeatExecutor_(New<TPeriodicExecutor>(
-        Bootstrap_->GetJobInvoker(),
-        BIND(&TControllerAgentConnector::SendHeartbeats, MakeWeak(this)),
-        Config_->HeartbeatPeriod,
-        Config_->HeartbeatSplay))
-    , ScanOutdatedAgentIncarnationsExecutor_(New<TPeriodicExecutor>(
-        Bootstrap_->GetJobInvoker(),
-        BIND(&TControllerAgentConnector::ScanOutdatedAgentIncarnations, MakeWeak(this)),
-        Config_->OutdatedIncarnationScanPeriod,
-        Config_->OutdatedIncarnationScanPeriod))
-{ }
-
-void TControllerAgentConnector::Start()
+class TControllerAgentConnectorPool::TControllerAgentConnector
+    : public TControllerAgentConnectorPool::TControllerAgentConnectorBase
 {
-    HeartbeatExecutor_->Start();
-    ScanOutdatedAgentIncarnationsExecutor_->Start();
-}
-
-void TControllerAgentConnector::SendOutOfBandHeartbeat()
-{
-    HeartbeatExecutor_->ScheduleOutOfBand();
-}
-
-IChannelPtr TControllerAgentConnector::CreateChannel(const TControllerAgentDescriptor& agentDescriptor)
-{
-    const auto& client = Bootstrap_->GetMasterClient();
-    const auto& channelFactory = client->GetNativeConnection()->GetChannelFactory();
-    return channelFactory->CreateChannel(agentDescriptor.Address);
-}
-
-IChannelPtr TControllerAgentConnector::GetChannel(
-    const TControllerAgentDescriptor& agentDescriptor)
-{
-    if (const auto it = ControllerAgentChannels_.find(agentDescriptor.Address); it != std::cend(ControllerAgentChannels_)) {
-        return it->second;
-    }
-
-    const auto [it, inserted] = ControllerAgentChannels_.emplace(agentDescriptor.Address, CreateChannel(agentDescriptor));
-
-    return it->second;
-}
-
-void TControllerAgentConnector::EnqueueFinishedJob(const TJobPtr& job)
-{
-    EnqueuedFinishedJobs_.insert(job);
-}
-
-void TControllerAgentConnector::SendHeartbeats()
-{
-    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+public:
+    TControllerAgentConnector(
+        TControllerAgentConnectorPool* controllerAgentConnectorPool,
+        TControllerAgentDescriptor controllerAgentDescriptor);
     
-    if (!Bootstrap_->IsConnected()) {
+    NRpc::IChannelPtr GetChannel() const noexcept;
+    void SendOutOfBandHeartbeatIfNeeded();
+    void EnqueueFinishedJob(const TJobPtr& job);
+
+    ~TControllerAgentConnector() override;
+private:
+    struct THeartbeatInfo
+    {
+        TInstant LastSentHeartbeatTime;
+        TInstant LastFailedHeartbeatTime;
+        TDuration FailedHeartbeatBackoffTime;
+    };
+    THeartbeatInfo HeartbeatInfo_;
+
+    TControllerAgentConnectorPoolPtr ControllerAgentConnectorPool_;
+    TControllerAgentDescriptor ControllerAgentDescriptor_;
+
+    NRpc::IChannelPtr Channel_;
+
+    const NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
+
+    THashSet<TJobPtr> EnqueuedFinishedJobs_;
+    bool ShouldSendOutOfBand_ = false;
+
+    DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+
+    void SendHeartbeat();
+    void OnAgentIncarnationOutdated() noexcept;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnector(
+    TControllerAgentConnectorPool* controllerAgentConnectorPool,
+    TControllerAgentDescriptor controllerAgentDescriptor)
+    : ControllerAgentConnectorPool_(MakeStrong(controllerAgentConnectorPool))
+    , ControllerAgentDescriptor_(std::move(controllerAgentDescriptor))
+    , Channel_(ControllerAgentConnectorPool_->CreateChannel(ControllerAgentDescriptor_))
+    , HeartbeatExecutor_(New<TPeriodicExecutor>(
+        ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(),
+        BIND(&TControllerAgentConnector::SendHeartbeat, MakeWeak(this)),
+        ControllerAgentConnectorPool_->Config_->HeartbeatPeriod,
+        ControllerAgentConnectorPool_->Config_->HeartbeatSplay))
+{
+    YT_LOG_DEBUG("Controller agent connector created (AgentAddress: %v, IncarnationId: %v)",
+        ControllerAgentDescriptor_.Address,
+        ControllerAgentDescriptor_.IncarnationId);
+    HeartbeatExecutor_->Start();
+}
+
+NRpc::IChannelPtr TControllerAgentConnectorPool::TControllerAgentConnector::GetChannel() const noexcept
+{
+    return Channel_;
+}
+
+void TControllerAgentConnectorPool::TControllerAgentConnector::SendOutOfBandHeartbeatIfNeeded()
+{
+    VERIFY_INVOKER_THREAD_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(), JobThread);
+
+    if (ShouldSendOutOfBand_) {
+        HeartbeatExecutor_->ScheduleOutOfBand();
+        ShouldSendOutOfBand_ = false;
+    }
+}
+
+void TControllerAgentConnectorPool::TControllerAgentConnector::EnqueueFinishedJob(const TJobPtr& job)
+{
+    VERIFY_INVOKER_THREAD_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(), JobThread);
+
+    EnqueuedFinishedJobs_.insert(job);
+    ShouldSendOutOfBand_ = true;
+}
+
+TControllerAgentConnectorPool::TControllerAgentConnector::~TControllerAgentConnector()
+{
+    VERIFY_INVOKER_THREAD_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(), JobThread);
+
+    YT_LOG_DEBUG("Controller agent connector destroyed (AgentAddress: %v, IncarnationId: %v)",
+        ControllerAgentDescriptor_.Address,
+        ControllerAgentDescriptor_.IncarnationId);
+
+    ControllerAgentConnectorPool_->OnControllerAgentConnectorDestroyed(
+        ControllerAgentDescriptor_);
+    HeartbeatExecutor_->Stop();
+}
+
+void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
+{
+    VERIFY_INVOKER_THREAD_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(), JobThread);
+
+    if (!ControllerAgentConnectorPool_->Bootstrap_->IsConnected()) {
         return;
     }
 
-    THashMap<TControllerAgentDescriptor, std::vector<TJobPtr>> groupedJobs;
-    for (auto&& job : Bootstrap_->GetJobController()->GetJobs()) {
+    if (TInstant::Now() < HeartbeatInfo_.LastFailedHeartbeatTime + HeartbeatInfo_.FailedHeartbeatBackoffTime) {
+        YT_LOG_INFO(
+            "Skipping heartbeat to agent since backoff after previous heartbeat failure (AgentAddress: %v, IncarnationId: %v)",
+            ControllerAgentDescriptor_.Address,
+            ControllerAgentDescriptor_.IncarnationId);
+        return;
+    }
+
+    std::vector<TJobPtr> jobs;
+    for (auto& job : ControllerAgentConnectorPool_->Bootstrap_->GetJobController()->GetJobs()) {
         if (TypeFromId(job->GetId()) != EObjectType::SchedulerJob) {
             continue;
         }
@@ -113,142 +163,155 @@ void TControllerAgentConnector::SendHeartbeats()
             continue;
         }
 
-        if (IsAgentIncarnationOutdated(controllerAgentDescriptor)) {
-            schedulerJob->UpdateControllerAgentDescriptor({});
-            YT_LOG_INFO(
-                "Skipping heartbeat to agent %v since incarnation is outdated (IncarnationId: %v, JobId: %v)",
-                controllerAgentDescriptor.Address,
-                controllerAgentDescriptor.IncarnationId,
-                schedulerJob->GetId());
+        if (controllerAgentDescriptor != ControllerAgentDescriptor_) {
             continue;
         }
 
-        groupedJobs[controllerAgentDescriptor].push_back(std::move(schedulerJob));
+        jobs.push_back(std::move(schedulerJob));
     }
 
-    for (auto& job : EnqueuedFinishedJobs_) {
-        groupedJobs[job->GetControllerAgentDescriptor()].push_back(std::move(job));
+    std::vector<TJobPtr> sentEnqueuedJobs;
+    sentEnqueuedJobs.reserve(std::size(EnqueuedFinishedJobs_)); 
+
+    jobs.reserve(std::size(jobs) + std::size(EnqueuedFinishedJobs_));
+    for (const auto job : EnqueuedFinishedJobs_) {
+        jobs.push_back(job);
+        sentEnqueuedJobs.push_back(job);
     }
 
-    ResetOutdatedAgentIncarnations();
+    TJobTrackerServiceProxy proxy(Channel_);
+    auto request = proxy.Heartbeat();
 
-    std::vector<TFuture<TJobTrackerServiceProxy::TRspHeartbeatPtr>> requests;
-    std::vector<const TControllerAgentDescriptor*> agentsHeartbeatSentTo;
-    requests.reserve(std::size(groupedJobs));
-    agentsHeartbeatSentTo.reserve(std::size(groupedJobs));
+    request->set_node_id(ControllerAgentConnectorPool_->Bootstrap_->GetNodeId());
+    ToProto(request->mutable_node_descriptor(), ControllerAgentConnectorPool_->Bootstrap_->GetLocalDescriptor());
+    ToProto(request->mutable_controller_agent_incarnation_id(), ControllerAgentDescriptor_.IncarnationId);
 
-    for (const auto& [agentDescriptor, jobs] : groupedJobs) {
-        auto& heartbeatInfo = HeartbeatInfo_[agentDescriptor];
-        if (TInstant::Now() < heartbeatInfo.LastFailedHeartbeatTime_ + heartbeatInfo.FailedHeartbeatBackoffTime_) {
-            YT_LOG_INFO(
-                "Skipping heartbeat to agent %v since backoff after previous heartbeat failure (IncarnationId: %v)",
-                agentDescriptor.Address,
-                agentDescriptor.IncarnationId);
-            continue;
+    for (const auto& job : jobs) {
+        auto* const jobStatus = request->add_jobs();
+
+        FillJobStatus(jobStatus, job);
+
+        if (auto statistics = job->GetStatistics()) {
+            job->ResetStatisticsLastSendTime();
+            jobStatus->set_statistics(statistics.ToString());
         }
-
-        TJobTrackerServiceProxy proxy(GetChannel(agentDescriptor));
-
-        auto request = proxy.Heartbeat();
-
-        request->set_node_id(Bootstrap_->GetNodeId());
-        ToProto(request->mutable_node_descriptor(), Bootstrap_->GetLocalDescriptor());
-        ToProto(request->mutable_controller_agent_incarnation_id(), agentDescriptor.IncarnationId);
-
-        for (const auto& job : jobs) {
-            auto* const jobStatus = request->add_jobs();
-
-            FillJobStatus(jobStatus, job);
-
-            if (auto statistics = job->GetStatistics()) {
-                job->ResetStatisticsLastSendTime();
-                jobStatus->set_statistics(statistics.ToString());
-            }
-        }
-
-        heartbeatInfo.LastSentHeartbeatTime_ = TInstant::Now();
-        requests.push_back(request->Invoke());
-        YT_LOG_INFO(
-            "Heartbeat sent to agent %v (IncarnationId: %v)",
-            agentDescriptor.Address,
-            agentDescriptor.IncarnationId);
-
-        agentsHeartbeatSentTo.push_back(&agentDescriptor);
     }
 
-    const auto responsesOrError = WaitFor(AllSet(std::move(requests)));
-    YT_VERIFY(responsesOrError.IsOK());
-    const auto& responses = responsesOrError.Value();
+    HeartbeatInfo_.LastSentHeartbeatTime = TInstant::Now();
 
-    for (int index = 0; index < std::ssize(responses); ++index) {
-        auto& agentDescriptorPtr = agentsHeartbeatSentTo[index];
-        auto& rspOrError = responses[index];
+    YT_LOG_INFO(
+        "Heartbeat sent to agent (AgentAddress: %v, IncarnationId: %v)",
+        ControllerAgentDescriptor_.Address,
+        ControllerAgentDescriptor_.IncarnationId);
 
-        auto& heartbeatInfo = HeartbeatInfo_[*agentDescriptorPtr];
-        if (!rspOrError.IsOK()) {
-            heartbeatInfo.LastFailedHeartbeatTime_ = TInstant::Now();
-            if (heartbeatInfo.FailedHeartbeatBackoffTime_ == TDuration::Zero()) {
-                heartbeatInfo.FailedHeartbeatBackoffTime_ = Config_->FailedHeartbeatBackoffStartTime;
-            } else {
-                heartbeatInfo.FailedHeartbeatBackoffTime_ = std::min(
-                    heartbeatInfo.FailedHeartbeatBackoffTime_ * Config_->FailedHeartbeatBackoffMultiplier,
-                    Config_->FailedHeartbeatBackoffMaxTime);
-            }
-            YT_LOG_ERROR(rspOrError, "Error reporting heartbeat to agent %v (BackoffTime: %v)",
-                agentDescriptorPtr->Address,
-                heartbeatInfo.FailedHeartbeatBackoffTime_);
-            
-            if (rspOrError.GetCode() == NControllerAgent::EErrorCode::IncarnationMismatch) {
-                MarkAgentIncarnationAsOutdated(*agentDescriptorPtr);
-            }
-            continue;
+    auto responseOrError = WaitFor(request->Invoke());
+    if (!responseOrError.IsOK()) {
+        HeartbeatInfo_.LastFailedHeartbeatTime = TInstant::Now();
+        if (HeartbeatInfo_.FailedHeartbeatBackoffTime == TDuration::Zero()) {
+            HeartbeatInfo_.FailedHeartbeatBackoffTime = ControllerAgentConnectorPool_->Config_->FailedHeartbeatBackoffStartTime;
+        } else {
+            HeartbeatInfo_.FailedHeartbeatBackoffTime = std::min(
+                HeartbeatInfo_.FailedHeartbeatBackoffTime * ControllerAgentConnectorPool_->Config_->FailedHeartbeatBackoffMultiplier,
+                ControllerAgentConnectorPool_->Config_->FailedHeartbeatBackoffMaxTime);
         }
-
-        for (const auto& job : groupedJobs[*agentDescriptorPtr]) {
-            EnqueuedFinishedJobs_.erase(job);
+        YT_LOG_ERROR(responseOrError, "Error reporting heartbeat to agent (AgentAddress: %v, BackoffTime: %v)",
+            ControllerAgentDescriptor_.Address,
+            HeartbeatInfo_.FailedHeartbeatBackoffTime);
+        
+        if (responseOrError.GetCode() == NControllerAgent::EErrorCode::IncarnationMismatch) {
+            OnAgentIncarnationOutdated();
         }
+        return;
+    }
 
-        YT_LOG_INFO("Successfully reported heartbeat to agent %v (IncarnationId: %v)", agentDescriptorPtr->IncarnationId);
+    for (const auto& job : sentEnqueuedJobs) {
+        EnqueuedFinishedJobs_.erase(job);
+    }
 
-        heartbeatInfo.FailedHeartbeatBackoffTime_ = TDuration::Zero();
+    YT_LOG_INFO(
+        "Successfully reported heartbeat to agent (AgentAddress: %v, IncarnationId: %v)",
+        ControllerAgentDescriptor_.Address,
+        ControllerAgentDescriptor_.IncarnationId);
+
+    HeartbeatInfo_.FailedHeartbeatBackoffTime = TDuration::Zero();
+}
+
+void TControllerAgentConnectorPool::TControllerAgentConnector::OnAgentIncarnationOutdated() noexcept
+{
+    VERIFY_INVOKER_THREAD_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(), JobThread);
+
+    HeartbeatExecutor_->Stop();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TControllerAgentConnectorPool::TControllerAgentConnectorPool(
+    TControllerAgentConnectorConfigPtr config,
+    IBootstrap* const bootstrap)
+    : Config_(std::move(config))
+    , Bootstrap_(bootstrap)
+{ }
+
+void TControllerAgentConnectorPool::SendOutOfBandHeartbeatsIfNeeded()
+{
+    for (auto& [agentDescriptor, controllerAgentConnector] : ControllerAgentConnectors_) {
+        controllerAgentConnector->SendOutOfBandHeartbeatIfNeeded();
     }
 }
 
-void TControllerAgentConnector::ScanOutdatedAgentIncarnations()
+TControllerAgentConnectorPool::TControllerAgentConnectorLease TControllerAgentConnectorPool::CreateLeaseOnControllerAgentConnector(
+    const TJob* job)
 {
-    const auto now = TInstant::Now();
-    std::vector<decltype(HeartbeatInfo_)::iterator> agentsWithOutdatedIncarnation;
-    for (auto it = std::begin(HeartbeatInfo_); it != std::cend(HeartbeatInfo_); ++it) {
-        const auto& heartbeatInfo = it->second;
-        if (now > heartbeatInfo.LastFailedHeartbeatTime_ + Config_->OutdatedIncarnationScanPeriod &&
-            now > heartbeatInfo.LastSentHeartbeatTime_ + Config_->OutdatedIncarnationScanPeriod)
-        {
-            agentsWithOutdatedIncarnation.push_back(it);
-        }
+    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+
+    if (const auto it = ControllerAgentConnectors_.find(job->GetControllerAgentDescriptor());
+        it != std::cend(ControllerAgentConnectors_))
+    {
+        auto result = MakeStrong(it->second);
+        YT_VERIFY(result);
+        return result;
     }
 
-    for (const auto agentIterator : agentsWithOutdatedIncarnation) {
-        ControllerAgentChannels_.erase(agentIterator->first.Address);
+    auto controllerAgentConnector = New<TControllerAgentConnector>(this, job->GetControllerAgentDescriptor());
 
-        HeartbeatInfo_.erase(agentIterator);
+    EmplaceOrCrash(ControllerAgentConnectors_, job->GetControllerAgentDescriptor(), controllerAgentConnector.Get());
+
+    return controllerAgentConnector;
+}
+
+void TControllerAgentConnectorPool::OnControllerAgentConnectorDestroyed(
+        const TControllerAgentDescriptor& controllerAgentDescriptor) noexcept
+{
+    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+
+    EraseOrCrash(ControllerAgentConnectors_, controllerAgentDescriptor);
+}
+
+IChannelPtr TControllerAgentConnectorPool::CreateChannel(const TControllerAgentDescriptor& agentDescriptor)
+{
+    const auto& client = Bootstrap_->GetMasterClient();
+    const auto& channelFactory = client->GetNativeConnection()->GetChannelFactory();
+    return channelFactory->CreateChannel(agentDescriptor.Address);
+}
+
+IChannelPtr TControllerAgentConnectorPool::GetOrCreateChannel(
+    const TControllerAgentDescriptor& agentDescriptor)
+{
+    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+    
+    if (const auto it = ControllerAgentConnectors_.find(agentDescriptor); it != std::cend(ControllerAgentConnectors_)) {
+        return it->second->GetChannel();
     }
+
+    return CreateChannel(agentDescriptor);
 }
 
-void TControllerAgentConnector::MarkAgentIncarnationAsOutdated(const TControllerAgentDescriptor& agentDescriptor)
+void TControllerAgentConnectorPool::EnqueueFinishedJob(const TJobPtr& job)
 {
-    YT_VERIFY(OutdatedAgentIncarnations_.insert(agentDescriptor).second);
-}
+    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
-bool TControllerAgentConnector::IsAgentIncarnationOutdated(const TControllerAgentDescriptor& agentDescriptor)
-{
-    const auto it = OutdatedAgentIncarnations_.find(agentDescriptor);
-
-    return it != std::cend(OutdatedAgentIncarnations_);
-}
-
-void TControllerAgentConnector::ResetOutdatedAgentIncarnations()
-{
-    OutdatedAgentIncarnations_.clear();
+    auto controllerAgentConnector = GetOrCrash(ControllerAgentConnectors_, job->GetControllerAgentDescriptor());
+    controllerAgentConnector->EnqueueFinishedJob(job);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
