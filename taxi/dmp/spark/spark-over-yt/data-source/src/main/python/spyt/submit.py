@@ -135,7 +135,7 @@ class SparkSubmissionClient(object):
         return SubmissionStatus.from_string(self._jclient.getStringStatus(submission_id))
 
     def get_app_status(self, driver_id):
-        return ApplicationStatus.from_string(self._jclient.getApplicationStatus(driver_id))
+        return ApplicationStatus.from_string(self._jclient.getStringApplicationStatus(driver_id))
 
 
 class SubmissionStatus(Enum):

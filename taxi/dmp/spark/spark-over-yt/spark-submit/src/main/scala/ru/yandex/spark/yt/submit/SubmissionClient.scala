@@ -72,6 +72,10 @@ class SubmissionClient(proxy: String,
     getStatus(id).name()
   }
 
+  def getStringApplicationStatus(driverId: String): String = {
+    getStatus(driverId).name()
+  }
+
   private def tryToGetApplicationStatus(id: String): Try[ApplicationState] = {
     val res = Try {
       val responseAppId = RestSubmissionClientWrapper.requestApplicationId(cluster.get().client, id)
