@@ -329,28 +329,35 @@ class CachedPy4JError(Exception):
         return self.cached_str
 
 
+def cache_exception(exc):
+    if exc is None:
+        return None
+    else:
+        return CachedPy4JError(exc)
+
+
 def stop(spark, exception=None):
     is_client_mode = spark.conf.get("spark.submit.deployMode") == "client"
     if exception is not None:
         logger.error("Shutdown SparkSession after exception: {}".format(exception))
-    exception_c = CachedPy4JError(exception)
+    exception_c = cache_exception(exception)
 
     def stop_fault_handler(e):
-        e1 = CachedPy4JError(e)
+        e1 = cache_exception(e)
         _try_with_safe_finally(
             lambda: _shutdown_jvm(spark) if is_client_mode else None,
             lambda e2: shutdown_jfv_fault_handler(e1, e2)
         )
 
     def shutdown_jfv_fault_handler(e1, e):
-        e2 = CachedPy4JError(e)
+        e2 = cache_exception(e)
         _try_with_safe_finally(
             lambda: Environment.unset_python_path(),
             lambda e3: unset_python_path_fault_handler(e1, e2, e3)
         )
 
     def unset_python_path_fault_handler(e1, e2, e):
-        e3 = CachedPy4JError(e)
+        e3 = cache_exception(e)
         _raise_first(exception_c, e1, e2, e3)
 
     _try_with_safe_finally(
