@@ -30,6 +30,21 @@ func abortAll(t *testing.T, env *yttest.Env) {
 	}
 }
 
+func createAgent(env *yttest.Env, stage string) *strawberry.Agent {
+	l := env.L.Logger()
+
+	config := &strawberry.Config{
+		Root:                  root,
+		PassPeriod:            yson.Duration(time.Millisecond * 500),
+		RevisionCollectPeriod: yson.Duration(time.Millisecond * 100),
+		Stage:                 stage,
+	}
+
+	agent := strawberry.NewAgent("test", env.YT, l, sleep.NewController(l.WithName("strawberry"), env.YT, root, "test", nil), config)
+
+	return agent
+}
+
 func prepare(t *testing.T) (*yttest.Env, *strawberry.Agent) {
 	env, cancel := yttest.NewEnv(t)
 	t.Cleanup(cancel)
@@ -37,17 +52,9 @@ func prepare(t *testing.T) (*yttest.Env, *strawberry.Agent) {
 	_, err := env.YT.CreateNode(env.Ctx, root, yt.NodeMap, &yt.CreateNodeOptions{Force: true, Recursive: true})
 	require.NoError(t, err)
 
-	l := env.L.Logger()
-
-	config := &strawberry.Config{
-		Root:                  root,
-		PassPeriod:            yson.Duration(time.Millisecond * 500),
-		RevisionCollectPeriod: yson.Duration(time.Millisecond * 100),
-	}
-
 	abortAll(t, env)
 
-	agent := strawberry.NewAgent("test", env.YT, l, sleep.NewController(l.WithName("strawberry"), env.YT, root, "test", nil), config)
+	agent := createAgent(env, "default")
 
 	return env, agent
 }
@@ -57,6 +64,7 @@ func createNode(t *testing.T, env *yttest.Env, alias string) {
 	_, err := env.YT.CreateNode(env.Ctx, root.Child(alias), yt.NodeMap, &yt.CreateNodeOptions{
 		Attributes: map[string]interface{}{
 			"strawberry_family":  "sleep",
+			"strawberry_stage":   "default",
 			"strawberry_speclet": map[string]interface{}{},
 		},
 	})
@@ -84,6 +92,15 @@ func getOp(t *testing.T, env *yttest.Env, alias string) *yt.OperationStatus {
 		}
 	}
 	return nil
+}
+
+func getOpStage(t *testing.T, env *yttest.Env, alias string) string {
+	op := getOp(t, env, alias)
+	require.NotEqual(t, op, nil)
+	annotations := op.RuntimeParameters.Annotations
+	stage, ok := annotations["strawberry_stage"]
+	require.True(t, ok)
+	return stage.(string)
 }
 
 func waitOp(t *testing.T, env *yttest.Env, alias string) *yt.OperationStatus {
@@ -203,4 +220,44 @@ func TestReincarnations(t *testing.T) {
 	waitIncarnation(t, env, "test5", 3)
 	setAttr(t, env, "test5", "strawberry_pool", "baz")
 	waitIncarnation(t, env, "test5", 4)
+}
+
+func TestControllerStage(t *testing.T) {
+	env, defaultAgent := prepare(t)
+	defaultAgent.Start()
+
+	anotherAgent := createAgent(env, "another")
+	anotherAgent.Start()
+
+	createNode(t, env, "test6")
+	waitIncarnation(t, env, "test6", 1)
+
+	createNode(t, env, "test7")
+	waitIncarnation(t, env, "test7", 1)
+
+	waitAliases(t, env, []string{"test6", "test7"})
+
+	require.Equal(t, getOpStage(t, env, "test6"), "default")
+	require.Equal(t, getOpStage(t, env, "test7"), "default")
+
+	setAttr(t, env, "test7", "strawberry_stage", "unknown_stage")
+
+	// There are no stage "unknown_stage", so no one keeps "test7" operation anymore.
+	waitAliases(t, env, []string{"test6"})
+
+	setAttr(t, env, "test7", "strawberry_stage", "another")
+
+	waitAliases(t, env, []string{"test6", "test7"})
+
+	require.Equal(t, getOpStage(t, env, "test6"), "default")
+	require.Equal(t, getOpStage(t, env, "test7"), "another")
+
+	defaultAgent.Stop()
+
+	setAttr(t, env, "test7", "strawberry_pool", "another_pool")
+	setAttr(t, env, "test6", "strawberry_pool", "another_pool")
+
+	waitIncarnation(t, env, "test7", 2)
+	// Default agent is off.
+	waitIncarnation(t, env, "test6", 1)
 }

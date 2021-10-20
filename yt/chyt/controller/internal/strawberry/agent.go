@@ -188,8 +188,7 @@ func (a *Agent) flushOp(oplet *Oplet) {
 				"address": a.hostname,
 				// TODO(max42): build Revision, etc.
 			},
-			"strawberry_family": oplet.c.Family(),
-			"annotation":        annotation,
+			"annotation": annotation,
 		},
 		nil)
 	if err != nil {
@@ -204,7 +203,7 @@ func (a *Agent) abortDangling() {
 	l := log.With(a.l, log.String("family", family))
 	l.Info("collecting running operations")
 
-	optFilter := "\"strawberry_family\"=\"" + family + "\""
+	optFilter := `"strawberry_operation_namespace"="` + a.OperationNamespace() + `"`
 	optState := yt.StateRunning
 	optType := yt.OperationVanilla
 
@@ -444,13 +443,14 @@ func (a *Agent) updateFromAttrs(oplet *Oplet, alias string) error {
 		IncarnationIndex int            `yson:"strawberry_incarnation_index"`
 		Speclet          yson.RawValue  `yson:"strawberry_speclet"`
 		Family           string         `yson:"strawberry_family"`
+		Stage            string         `yson:"strawberry_stage"`
 		Pool             *string        `yson:"strawberry_pool"`
 	}
 
 	// Keep in sync with structure above.
 	attributes := []string{
 		"strawberry_operation_id", "strawberry_acl", "strawberry_incarnation_index",
-		"strawberry_speclet", "strawberry_family", "strawberry_pool",
+		"strawberry_speclet", "strawberry_family", "strawberry_stage", "strawberry_pool",
 	}
 
 	err := a.ytc.GetNode(a.ctx, a.config.Root.Child(alias).Attrs(), &node, &yt.GetNodeOptions{Attributes: attributes})
@@ -470,6 +470,17 @@ func (a *Agent) updateFromAttrs(oplet *Oplet, alias string) error {
 	if node.Family != a.controller.Family() {
 		l.Debug("skipping node from unknown family",
 			log.String("family", node.Family))
+		return nil
+	}
+
+	if node.Stage != a.config.Stage {
+		l.Debug("skipping node from another stage",
+			log.String("stage", node.Stage))
+
+		// Strawberry stage has changed and we do not need to maintain it any more.
+		if oplet != nil {
+			a.unregisterOplet(oplet)
+		}
 		return nil
 	}
 
@@ -559,4 +570,10 @@ func (a *Agent) Stop() {
 	a.nodeCh = nil
 	a.started = false
 	a.l.Info("agent stopped")
+}
+
+// OperationNamespace generates a special value unique across controllers
+// which allows to mark and effectively filter its operations.
+func (a *Agent) OperationNamespace() string {
+	return a.controller.Family() + ":" + a.config.Stage
 }

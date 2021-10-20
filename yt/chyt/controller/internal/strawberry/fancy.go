@@ -27,8 +27,10 @@ func operationURL(cluster string, opID yt.OperationID) interface{} {
 
 func opAnnotations(a *Agent, oplet *Oplet) map[string]interface{} {
 	return map[string]interface{}{
-		"strawberry_family": oplet.c.Family(),
-		"strawberry_node":   a.config.Root.Child(oplet.Alias),
+		"strawberry_family":              oplet.c.Family(),
+		"strawberry_stage":               a.config.Stage,
+		"strawberry_operation_namespace": a.OperationNamespace(),
+		"strawberry_node":                a.config.Root.Child(oplet.Alias),
 		"strawberry_controller": map[string]interface{}{
 			"address": a.hostname,
 			// TODO(max42): build Revision, etc.

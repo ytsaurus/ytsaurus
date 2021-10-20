@@ -14,4 +14,7 @@ type Config struct {
 	PassPeriod yson.Duration `yson:"pass_period"`
 	// RevisionCollectPeriod defines how often agent collects Cypress node revisions via batch ListNode.
 	RevisionCollectPeriod yson.Duration `yson:"revision_collect_period"`
+
+	// Stage of the controller, e.g. production, prestable, etc.
+	Stage string `yson:"stage"`
 }
