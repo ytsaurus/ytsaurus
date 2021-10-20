@@ -1,6 +1,6 @@
 from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
-from yt.test_helpers.profiler import Profiler
+from yt_helpers import profiler_factory
 
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, insert_rows,
@@ -548,9 +548,9 @@ class TestLookup(TestSortedDynamicTablesBase):
         sync_flush_table("//tmp/t")
 
         def _check(local_cache):
-            bytes_transmitted = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+            bytes_transmitted = profiler_factory().at_tablet_node("//tmp/t").counter(
                 name="lookup/chunk_reader_statistics/data_bytes_transmitted")
-            row_count = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+            row_count = profiler_factory().at_tablet_node("//tmp/t").counter(
                 name="lookup/row_count")
 
             assert_items_equal(
@@ -1066,7 +1066,7 @@ class TestLookupRpcProxy(TestLookup):
         rows = [{"key": 1, "value": "one"}]
         insert_rows("//tmp/t", rows)
 
-        node_lookup_duration_histogram = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").histogram(
+        node_lookup_duration_histogram = profiler_factory().at_tablet_node("//tmp/t").histogram(
             name="lookup/duration")
 
         rpc_proxy = ls("//sys/rpc_proxies")[0]
@@ -1076,7 +1076,7 @@ class TestLookupRpcProxy(TestLookup):
         rpc_driver_config["api_version"] = 3
         rpc_driver = Driver(config=rpc_driver_config)
 
-        proxy_lookup_duration_histogram = Profiler.at_rpc_proxy(self.Env.create_native_client(), rpc_proxy).histogram(
+        proxy_lookup_duration_histogram = profiler_factory().at_rpc_proxy(rpc_proxy).histogram(
             name="rpc_proxy/detailed_table_statistics/lookup_duration",
             fixed_tags={"table_path": "//tmp/t"})
 
@@ -1105,7 +1105,7 @@ class TestLookupRpcProxy(TestLookup):
                 return False
 
         wait(lambda: check())
-        assert Profiler.at_rpc_proxy(self.Env.create_native_client(), rpc_proxy).get(
+        assert profiler_factory().at_rpc_proxy(rpc_proxy).get(
             name="rpc_proxy/detailed_table_statistics/lookup_mount_cache_wait_time",
             tags={"table_path": "//tmp/t"},
             postprocessor=lambda data: data.get('all_time_max'),

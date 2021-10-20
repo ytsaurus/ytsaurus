@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup, find_ut_file, skip_if_rpc_driver_backend
 
-from yt.test_helpers.profiler import Profiler
+from yt_helpers import profiler_factory
 
 from yt_commands import (
     authors, wait, create, ls, get, move, create_user, make_ace,
@@ -1499,7 +1499,7 @@ class TestQueryRpcProxy(TestQuery):
         rows = [{"key": 1, "value": "one"}]
         insert_rows("//tmp/t", rows)
 
-        node_select_duration_histogram = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").histogram(
+        node_select_duration_histogram = profiler_factory().at_tablet_node("//tmp/t").histogram(
             name="select/duration")
 
         rpc_proxy = ls("//sys/rpc_proxies")[0]
@@ -1509,7 +1509,7 @@ class TestQueryRpcProxy(TestQuery):
         rpc_driver_config["api_version"] = 3
         rpc_driver = Driver(config=rpc_driver_config)
 
-        proxy_select_duration_histogram = Profiler.at_rpc_proxy(self.Env.create_native_client(), rpc_proxy).histogram(
+        proxy_select_duration_histogram = profiler_factory().at_rpc_proxy(rpc_proxy).histogram(
             name="rpc_proxy/detailed_table_statistics/select_duration",
             fixed_tags={"table_path": "//tmp/t"})
 
@@ -1538,7 +1538,7 @@ class TestQueryRpcProxy(TestQuery):
                 return False
 
         wait(lambda: check())
-        assert Profiler.at_rpc_proxy(self.Env.create_native_client(), rpc_proxy).get(
+        assert profiler_factory().at_rpc_proxy(rpc_proxy).get(
             name="rpc_proxy/detailed_table_statistics/select_mount_cache_wait_time",
             tags={"table_path": "//tmp/t"},
             postprocessor=lambda data: data.get('all_time_max'),

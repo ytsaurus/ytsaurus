@@ -18,8 +18,7 @@ from yt_commands import (
 
 from yt_scheduler_helpers import scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_path
 
-from yt_helpers import get_current_time, parse_yt_time
-from yt.test_helpers.profiler import Profiler, get_job_count_profiling
+from yt_helpers import get_current_time, parse_yt_time, profiler_factory, get_job_count_profiling
 
 from yt.yson import YsonEntity
 from yt.common import YtResponseError, YtError
@@ -756,7 +755,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         set(pool_path + "/@max_running_operation_count", 8)
         wait(lambda: get(scheduler_orchid_pool_path("unique_pool") + "/max_running_operation_count") == 8)
 
-        profiler = Profiler.at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default", "pool": "unique_pool"})
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default", "pool": "unique_pool"})
 
         metric_prefix = "scheduler/pools/"
         dominant_fair_share_sensor = profiler.gauge(metric_prefix + "dominant_fair_share/total")
@@ -805,7 +804,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
     def test_operations_by_slot_profiling(self):
         create_pool("some_pool")
 
-        profiler = Profiler.at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default", "pool": "some_pool"})
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default", "pool": "some_pool"})
 
         metric_prefix = "scheduler/operations_by_slot/"
         dominant_fair_share_sensor = profiler.gauge(metric_prefix + "dominant_fair_share/total")
@@ -861,7 +860,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         create_pool("some_pool")
         create_pool("other_pool", attributes={"allowed_profiling_tags": ["hello", "world"]})
 
-        profiler = Profiler.at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default"})
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
 
         metric_prefix = "scheduler/operations_by_user/"
         dominant_fair_share_sensor = profiler.gauge(metric_prefix + "dominant_fair_share/total")
@@ -957,10 +956,10 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
     def test_job_count_profiling(self):
         self._prepare_tables()
 
-        start_profiling = get_job_count_profiling(self.Env.create_native_client())
+        start_profiling = get_job_count_profiling()
 
         def get_new_jobs_with_state(state):
-            current_profiling = get_job_count_profiling(self.Env.create_native_client())
+            current_profiling = get_job_count_profiling()
             return current_profiling["state"][state] - start_profiling["state"][state]
 
         op = map(
@@ -988,7 +987,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
     def test_scheduling_index_profiling(self):
         run_sleeping_vanilla()
 
-        profiler = Profiler.at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default"})
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
 
         tags = {"scheduling_index": "0", "schedule_jobs_stage": "no_preemption"}
         operation_scheduling_index_attempt_count = profiler.counter(
@@ -1056,8 +1055,8 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
     def test_operation_completed(self):
         create_pool("unique_pool")
 
-        metric_completed_counter = Profiler\
-            .at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default", "pool": "unique_pool"})\
+        metric_completed_counter = profiler_factory() \
+            .at_scheduler(fixed_tags={"tree": "default", "pool": "unique_pool"})\
             .counter("scheduler/pools/metrics/metric_completed")
 
         cmd = """python -c "import os; os.write(5, '{value_completed=117};')";"""
@@ -1069,8 +1068,8 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
     def test_operation_failed(self):
         create_pool("unique_pool")
 
-        metric_failed_counter = Profiler \
-            .at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default", "pool": "unique_pool"}) \
+        metric_failed_counter = profiler_factory() \
+            .at_scheduler(fixed_tags={"tree": "default", "pool": "unique_pool"}) \
             .counter("scheduler/pools/metrics/metric_failed")
 
         cmd = """python -c "import os; os.write(5, '{value_failed=225};')"; exit 1"""

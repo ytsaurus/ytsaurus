@@ -6,7 +6,7 @@ from yt_commands import (
     create_group, add_member, read_table, write_table, map, run_test_vanilla, abort_job, abandon_job,
     poll_job_shell, raises_yt_error)
 
-from yt.test_helpers.profiler import get_job_count_profiling
+from yt_helpers import get_job_count_profiling
 
 import yt_error_codes
 
@@ -304,9 +304,8 @@ class TestJobProber(YTEnvSetup):
 
     @authors("ignat")
     def test_abort_job(self):
-
         time.sleep(2)
-        start_profiling = get_job_count_profiling(self.Env.create_native_client())
+        start_profiling = get_job_count_profiling()
 
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -335,7 +334,7 @@ class TestJobProber(YTEnvSetup):
         assert get(op.get_path() + "/@progress/jobs/failed") == 0
 
         def check():
-            end_profiling = get_job_count_profiling(self.Env.create_native_client())
+            end_profiling = get_job_count_profiling()
 
             for state in end_profiling["state"]:
                 print_debug(

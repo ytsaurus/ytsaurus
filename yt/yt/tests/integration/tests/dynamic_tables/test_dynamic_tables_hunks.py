@@ -1,6 +1,6 @@
 from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
-from yt.test_helpers.profiler import Profiler
+from yt_helpers import profiler_factory
 
 from yt_commands import (
     authors, wait, create, exists, get, set, set_banned_flag, insert_rows, remove, select_rows,
@@ -781,17 +781,17 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         rows2 = [{"key": i, "value": "value" + str(i)} for i in xrange(5, 15)]
         insert_rows("//tmp/t", rows1 + rows2)
 
-        chunk_data_weight = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="chunk_writer/data_weight",
             tags={"method": "store_flush"})
-        hunk_chunk_data_weight = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        hunk_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="chunk_writer/hunks/data_weight",
             tags={"method": "store_flush"})
 
-        inline_hunk_value_count = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="chunk_writer/hunks/inline_value_count",
             tags={"column": "value", "method": "store_flush"})
-        ref_hunk_value_count = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="chunk_writer/hunks/ref_value_count",
             tags={"column": "value", "method": "store_flush"})
 
@@ -814,31 +814,31 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         rows2 = [{"key": i, "value": "value" + str(i)} for i in xrange(5, 15)]
         insert_rows("//tmp/t", rows1 + rows2)
 
-        reader_hunk_chunk_transmitted = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        reader_hunk_chunk_transmitted = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="chunk_reader/hunks/chunk_reader_statistics/data_bytes_transmitted",
             tags={"method": "compaction"})
-        reader_hunk_chunk_data_weight = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        reader_hunk_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="chunk_reader/hunks/data_weight",
             tags={"method": "compaction"})
 
-        reader_inline_hunk_value_count = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        reader_inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="chunk_reader/hunks/inline_value_count",
             tags={"column": "value"})
-        reader_ref_hunk_value_count = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        reader_ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="chunk_reader/hunks/ref_value_count",
             tags={"column": "value"})
 
-        writer_chunk_data_weight = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        writer_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="chunk_writer/data_weight",
             tags={"method": "compaction"})
-        writer_hunk_chunk_data_weight = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        writer_hunk_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="chunk_writer/hunks/data_weight",
             tags={"method": "compaction"})
 
-        writer_inline_hunk_value_count = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        writer_inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="chunk_writer/hunks/inline_value_count",
             tags={"column": "value", "method": "compaction"})
-        writer_ref_hunk_value_count = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        writer_ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="chunk_writer/hunks/ref_value_count",
             tags={"column": "value", "method": "compaction"})
 
@@ -874,24 +874,24 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows1 + rows2)
         sync_flush_table("//tmp/t")
 
-        hunk_chunk_transmitted = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        hunk_chunk_transmitted = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="lookup/hunks/chunk_reader_statistics/data_bytes_transmitted")
-        hunk_chunk_data_weight = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        hunk_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="lookup/hunks/data_weight")
 
-        inline_hunk_value_count = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="lookup/hunks/inline_value_count")
-        ref_hunk_value_count = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="lookup/hunks/ref_value_count")
 
-        columnar_inline_hunk_value_count = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        columnar_inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="lookup/hunks/inline_value_count",
             tags={"column": "value"})
-        columnar_ref_hunk_value_count = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        columnar_ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="lookup/hunks/ref_value_count",
             tags={"column": "value"})
 
-        backend_request_count = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        backend_request_count = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="lookup/hunks/backend_request_count")
 
         assert_items_equal(lookup_rows("//tmp/t", keys1 + keys2), rows1 + rows2)
@@ -919,15 +919,15 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows1 + rows2)
         sync_flush_table("//tmp/t")
 
-        hunk_chunk_transmitted = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        hunk_chunk_transmitted = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="select/hunks/chunk_reader_statistics/data_bytes_transmitted")
-        hunk_chunk_data_weight = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        hunk_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="select/hunks/data_weight")
 
-        inline_hunk_value_count = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="select/hunks/inline_value_count",
             tags={"column": "value"})
-        ref_hunk_value_count = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="select/hunks/ref_value_count",
             tags={"column": "value"})
 

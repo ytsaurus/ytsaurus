@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup
 
-from yt.test_helpers.profiler import Profiler
+from yt_helpers import profiler_factory
 
 from yt_commands import authors, print_debug, wait, ls, get, set, create_rack, start_transaction
 
@@ -38,7 +38,7 @@ class Base:
     def wait_for_requests(self, expected_node_ids, metric_tags, make_request):
         def check():
             counters = [
-                Profiler.at_node(self.Env.create_native_client(), node).counter("rpc/server/request_count", tags=metric_tags)
+                profiler_factory().at_node(node).counter("rpc/server/request_count", tags=metric_tags)
                 for node in sorted(ls("//sys/cluster_nodes"))
             ]
 

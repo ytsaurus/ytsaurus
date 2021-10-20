@@ -6,7 +6,7 @@ from yt_env_setup import (
     is_asan_build,
 )
 
-from yt.test_helpers.profiler import Profiler
+from yt_helpers import profiler_factory
 
 from yt_commands import (
     authors, wait, create, ls, get, set, copy,
@@ -149,8 +149,8 @@ class DynamicTablesBase(YTEnvSetup):
 
     def _get_table_profiling(self, table, user=None):
         class Profiling:
-            def __init__(self, yt_client):
-                self.profiler = Profiler.at_tablet_node(yt_client, table)
+            def __init__(self):
+                self.profiler = profiler_factory().at_tablet_node(table)
                 self.tags = {
                     "table_path": table,
                 }
@@ -178,7 +178,7 @@ class DynamicTablesBase(YTEnvSetup):
             def has_projections_with_tags(self, counter_name, required_tags):
                 return len(self.profiler.get_all(counter_name, required_tags, verbose=False)) > 0
 
-        return Profiling(self.Env.create_native_client())
+        return Profiling()
 
     def _disable_tablet_cells_on_peer(self, cell):
         peer = get("#{0}/@peers/0/address".format(cell))
@@ -237,7 +237,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         addresses = [peer["address"] for peer in get("#" + cell_id + "/@peers")]
 
         sensors = [
-            Profiler.at_node(self.Env.create_native_client(), address).counter("hydra/restart_count", tags={"cell_id": cell_id})
+            profiler_factory().at_node(address).counter("hydra/restart_count", tags={"cell_id": cell_id})
             for address in addresses
         ]
 
@@ -2511,7 +2511,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(5)])
         sync_flush_table("//tmp/t")
 
-        throttled_lookup_count = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        throttled_lookup_count = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="tablet/throttled_lookup_count")
 
         start_time = time.time()
@@ -2535,7 +2535,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(5)])
         sync_flush_table("//tmp/t")
 
-        throttled_select_count = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        throttled_select_count = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="tablet/throttled_select_count")
 
         start_time = time.time()
@@ -2558,7 +2558,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//tmp/t/@throttlers", {"write": {"limit": 10}})
         sync_mount_table("//tmp/t")
 
-        throttled_write_count = Profiler.at_tablet_node(self.Env.create_native_client(), "//tmp/t").counter(
+        throttled_write_count = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="tablet/throttled_write_count")
 
         def _insert():

@@ -5,7 +5,7 @@ from yt_commands import (
     get, set, ls, create, read_table, write_table,
     get_singular_chunk_id)
 
-from yt.test_helpers.profiler import Profiler
+from yt_helpers import profiler_factory
 
 
 import time
@@ -36,7 +36,7 @@ class TestP2P(YTEnvSetup):
     def setup_method(self):
         self.write_table()
 
-        eligible_nodes = Profiler.at_node(self.Env.create_native_client(), self.seed).gauge("data_node/p2p/eligible_nodes")
+        eligible_nodes = profiler_factory().at_node(self.seed).gauge("data_node/p2p/eligible_nodes")
         wait(lambda: eligible_nodes.get() > 0)
 
     def teardown_method(self):
@@ -60,10 +60,10 @@ class TestP2P(YTEnvSetup):
         read_table("//tmp/t")
 
     def seed_counter(self, path):
-        return Profiler.at_node(self.Env.create_native_client(), self.seed).counter(path)
+        return profiler_factory().at_node(self.seed).counter(path)
 
     def peer_counter(self, peer, path):
-        return Profiler.at_node(self.Env.create_native_client(), peer).counter(path)
+        return profiler_factory().at_node(peer).counter(path)
 
     @authors("prime")
     def test_no_distribution(self):
@@ -95,12 +95,12 @@ class TestP2P(YTEnvSetup):
         for non_seed in self.non_seeds:
             set("//sys/cluster_nodes/{0}/@user_tags".format(non_seed), ["tag42"])
 
-        eligible_nodes = Profiler.at_node(self.Env.create_native_client(), self.seed).gauge("data_node/p2p/eligible_nodes")
+        eligible_nodes = profiler_factory().at_node(self.seed).gauge("data_node/p2p/eligible_nodes")
         wait(lambda: eligible_nodes.get() == 0.0)
 
     @authors("prime")
     def test_chunk_cooldown(self):
-        hot_chunk_count = Profiler.at_node(self.Env.create_native_client(), self.seed).gauge("data_node/p2p/hot_chunks")
+        hot_chunk_count = profiler_factory().at_node(self.seed).gauge("data_node/p2p/hot_chunks")
 
         for _ in range(6):
             self.access_table()

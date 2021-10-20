@@ -19,8 +19,8 @@ from yt_scheduler_helpers import (
     scheduler_orchid_operation_path, scheduler_orchid_default_pool_tree_config_path,
     scheduler_orchid_path, scheduler_orchid_node_path)
 
+from yt_helpers import profiler_factory
 
-from yt.test_helpers.profiler import Profiler
 from yt.test_helpers import are_almost_equal
 
 from yt.common import YtError
@@ -433,8 +433,8 @@ class TestSchedulingSegments(YTEnvSetup):
         wait(lambda: exists(op_slot_index_path))
         op_slot_index = get(op_slot_index_path)
 
-        op_usage_ratio_sensor = Profiler\
-            .at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default", "pool": "large_gpu", "slot_index": str(op_slot_index)})\
+        op_usage_ratio_sensor = profiler_factory()\
+            .at_scheduler(fixed_tags={"tree": "default", "pool": "large_gpu", "slot_index": str(op_slot_index)})\
             .gauge("scheduler/operations_by_slot/dominant_usage_share")
 
         for _ in range(30):
@@ -464,8 +464,8 @@ class TestSchedulingSegments(YTEnvSetup):
         wait(lambda: exists(op_slot_index_path))
         op_slot_index = get(op_slot_index_path)
 
-        op_usage_ratio_sensor = Profiler \
-            .at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default", "pool": "large_gpu", "slot_index": str(op_slot_index)}) \
+        op_usage_ratio_sensor = profiler_factory()\
+            .at_scheduler(fixed_tags={"tree": "default", "pool": "large_gpu", "slot_index": str(op_slot_index)}) \
             .gauge("scheduler/operations_by_slot/dominant_usage_share")
 
         for _ in range(30):
@@ -543,7 +543,7 @@ class TestSchedulingSegments(YTEnvSetup):
         set("//sys/pool_trees/default/@config/scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000000000)
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout") == 1000000000)
 
-        profiler = Profiler.at_scheduler(self.Env.create_native_client())
+        profiler = profiler_factory().at_scheduler()
         fair_resource_amount_default_sensor = profiler.gauge("scheduler/segments/fair_resource_amount", fixed_tags={"segment": "default"})
         current_resource_amount_default_sensor = profiler.gauge("scheduler/segments/current_resource_amount", fixed_tags={"segment": "default"})
         fair_resource_amount_large_sensor = profiler.gauge("scheduler/segments/fair_resource_amount", fixed_tags={"segment": "large_gpu"})
@@ -1120,7 +1120,7 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
         set("//sys/pool_trees/default/@config/scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000000000)
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout") == 1000000000)
 
-        profiler = Profiler.at_scheduler(self.Env.create_native_client())
+        profiler = profiler_factory().at_scheduler()
 
         for dc in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS:
             wait(lambda: profiler.gauge("scheduler/segments/data_center_capacity", fixed_tags={"data_center": dc}).get() ==

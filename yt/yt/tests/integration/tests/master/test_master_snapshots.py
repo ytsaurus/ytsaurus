@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 
-from yt.test_helpers.profiler import Profiler
+from yt_helpers import profiler_factory
 
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, remove,
@@ -445,7 +445,7 @@ class TestMasterSnapshots(YTEnvSetup):
     @authors("gritukan")
     def test_master_snapshots_free_space_profiling(self):
         def check_sensor(path):
-            sensors = Profiler.at_master(self.Env.create_native_client(), master_index=0).list()
+            sensors = profiler_factory().at_master(master_index=0).list()
             return path in sensors
         wait(lambda: check_sensor("yt/snapshots/free_space"))
         wait(lambda: check_sensor("yt/snapshots/available_space"))

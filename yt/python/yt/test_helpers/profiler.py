@@ -5,7 +5,6 @@ from yt.wrapper.format import YsonFormat
 
 from yt.common import YtResponseError
 
-from collections import defaultdict
 from datetime import datetime
 import sys
 
@@ -24,7 +23,7 @@ import sys
 # the corresponding type of sensor.
 #
 # Example:
-# > profiler = Profiler.at_scheduler(fixed_tags={"tree": "default"})
+# > profiler = ProfilerFactory(yt_client).at_scheduler(fixed_tags={"tree": "default"})
 # > total_time_completed_parent_counter =
 # >     profiler.counter("scheduler/pools/metrics/total_time_completed", {"pool": "parent"})
 # > ...
@@ -44,51 +43,6 @@ class Profiler(object):
         self.path = path
         self.namespace = namespace
         self.fixed_tags = fixed_tags
-
-    @staticmethod
-    def at_scheduler(yt_client, **kwargs):
-        return Profiler(yt_client, "//sys/scheduler/orchid/sensors", **kwargs)
-
-    @staticmethod
-    def at_node(yt_client, node, *args, **kwargs):
-        return Profiler(yt_client, "//sys/cluster_nodes/{0}/orchid/sensors".format(node), *args, **kwargs)
-
-    @staticmethod
-    def at_job_proxy(yt_client, node, *args, **kwargs):
-        return Profiler(yt_client, "//sys/cluster_nodes/{0}/orchid/job_proxy_sensors".format(node), *args, **kwargs)
-
-    @staticmethod
-    def at_tablet_node(yt_client, table, tablet_cell_bundle="default", fixed_tags=None):
-        if fixed_tags is None:
-            fixed_tags = {}
-        fixed_tags["tablet_cell_bundle"] = tablet_cell_bundle
-
-        tablets = yt_client.get(table + "/@tablets")
-        assert len(tablets) == 1
-        address = yt_client.get("#{0}/@peers/0/address".format(tablets[0]["cell_id"]))
-        return Profiler(
-            yt_client,
-            "//sys/cluster_nodes/{0}/orchid/sensors".format(address),
-            namespace="yt/tablet_node",
-            fixed_tags=fixed_tags
-        )
-
-    @staticmethod
-    def at_master(yt_client, master_index=0, **kwargs):
-        primary_masters = [key for key in yt_client.get("//sys/primary_masters")]
-        return Profiler(
-            yt_client,
-            "//sys/primary_masters/{0}/orchid/sensors".format(primary_masters[master_index]),
-            **kwargs
-        )
-
-    @staticmethod
-    def at_proxy(yt_client, proxy, **kwargs):
-        return Profiler(yt_client, "//sys/proxies/{0}/orchid/sensors".format(proxy), **kwargs)
-
-    @staticmethod
-    def at_rpc_proxy(yt_client, proxy, *args, **kwargs):
-        return Profiler(yt_client, "//sys/rpc_proxies/{0}/orchid/sensors".format(proxy), *args, **kwargs)
 
     def with_tags(self, tags):
         return Profiler(self.yt_client, self.path, fixed_tags=dict(self.fixed_tags, **tags), namespace=self.namespace)
@@ -233,38 +187,44 @@ class Profiler(object):
         return Profiler.Histogram(self, name, fixed_tags)
 
 
-def get_job_count_profiling(yt_client, tree="default"):
-    job_count = {"state": defaultdict(int), "abort_reason": defaultdict(int)}
-    profiler = Profiler.at_scheduler(yt_client, fixed_tags={"tree": tree})
+class ProfilerFactory(object):
+    def __init__(self, yt_client):
+        self.yt_client = yt_client
 
-    start_time = datetime.now()
+    def at_scheduler(self, **kwargs):
+        return Profiler(self.yt_client, "//sys/scheduler/orchid/sensors", **kwargs)
 
-    # Enable verbose for debugging.
-    for projection in profiler.get_all("scheduler/jobs/running_job_count", {}, verbose=False):
-        if ("state" not in projection["tags"]) or ("job_type" in projection["tags"]):
-            continue
-        job_count["state"][projection["tags"]["state"]] = int(projection["value"])
+    def at_node(self, node, *args, **kwargs):
+        return Profiler(self.yt_client, "//sys/cluster_nodes/{0}/orchid/sensors".format(node), *args, **kwargs)
 
-    job_count["state"]["completed"] = int(
-        profiler.get(
-            "scheduler/jobs/completed_job_count",
-            tags={},
-            default=0,
-            verbose=False
-            )
+    def at_job_proxy(self, node, *args, **kwargs):
+        return Profiler(self.yt_client, "//sys/cluster_nodes/{0}/orchid/job_proxy_sensors".format(node), *args, **kwargs)
+
+    def at_tablet_node(self, table, tablet_cell_bundle="default", fixed_tags=None):
+        if fixed_tags is None:
+            fixed_tags = {}
+        fixed_tags["tablet_cell_bundle"] = tablet_cell_bundle
+
+        tablets = self.yt_client.get(table + "/@tablets")
+        assert len(tablets) == 1
+        address = self.yt_client.get("#{0}/@peers/0/address".format(tablets[0]["cell_id"]))
+        return Profiler(
+            self.yt_client,
+            "//sys/cluster_nodes/{0}/orchid/sensors".format(address),
+            namespace="yt/tablet_node",
+            fixed_tags=fixed_tags
         )
 
-    for projection in profiler.get_all("scheduler/jobs/aborted_job_count", tags={}, verbose=False):
-        if "job_type" in projection["tags"]:
-            continue
-        if "abort_reason" in projection["tags"]:
-            job_count["abort_reason"][projection["tags"]["abort_reason"]] = int(projection["value"])
-        else:
-            job_count["state"]["aborted"] = int(projection["value"])
+    def at_master(self, master_index=0, **kwargs):
+        primary_masters = [key for key in self.yt_client.get("//sys/primary_masters")]
+        return Profiler(
+            self.yt_client,
+            "//sys/primary_masters/{0}/orchid/sensors".format(primary_masters[master_index]),
+            **kwargs
+        )
 
-    duration = (datetime.now() - start_time).total_seconds()
+    def at_proxy(self, proxy, **kwargs):
+        return Profiler(self.yt_client, "//sys/proxies/{0}/orchid/sensors".format(proxy), **kwargs)
 
-    # Enable it for debugging.
-    print("job_counters (took {} seconds to calculate): {}".format(duration, job_count), file=sys.stderr)
-
-    return job_count
+    def at_rpc_proxy(self, proxy, *args, **kwargs):
+        return Profiler(self.yt_client, "//sys/rpc_proxies/{0}/orchid/sensors".format(proxy), *args, **kwargs)
