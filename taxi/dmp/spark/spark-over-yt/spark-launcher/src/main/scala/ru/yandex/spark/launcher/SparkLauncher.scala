@@ -122,6 +122,7 @@ trait SparkLauncher {
         case e: Throwable =>
           log.error(s"Spark failed with error: ${e.getMessage}")
           process.destroy()
+          log.info("Spark process destroyed")
       }
     }, "Spark Thread")
     thread.setDaemon(true)

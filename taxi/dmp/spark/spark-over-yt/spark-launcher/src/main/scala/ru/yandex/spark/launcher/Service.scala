@@ -31,7 +31,14 @@ sealed trait Service {
 
   def stop(): Unit = {
     log.info(s"Stop $name")
-    thread.interrupt()
+    try {
+      thread.interrupt()
+      log.info(s"Successfully stopped $name")
+    } catch {
+      case e: Throwable =>
+        log.error(s"Exception while stopping $name")
+        log.error(e.getMessage)
+    }
   }
 }
 

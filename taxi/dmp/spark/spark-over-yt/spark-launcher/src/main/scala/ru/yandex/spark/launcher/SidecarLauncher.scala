@@ -62,7 +62,7 @@ trait SidecarLauncher {
           process.destroy()
           throw e
       }
-    })
+    }, s"$binaryAbsolutePath process runner")
     thread.setDaemon(true)
     thread.start()
     waitForServiceStart(config, thread, config.timeout)
