@@ -623,7 +623,7 @@ public:
 
 private:
     TListOperationsCountingFilter* CountingFilter_;
-    const TListOperationsOptions& Options_;
+    const TListOperationsOptions Options_;
 
     bool PassedFilter_ = false;
     TListOperationsFilter::TLightOperation CurrentOperation_ = {};
@@ -695,18 +695,14 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TListOperationsFilter::TListOperationsFilter(
-    std::vector<TYsonString> operationsResponses,
-    TListOperationsCountingFilter* countingFilter,
     const TListOperationsOptions& options,
     const IInvokerPtr& invoker,
     const NLogging::TLogger& logger)
-    : CountingFilter_(countingFilter)
-    , Options_(options)
+    : Options_(options)
+    , CountingFilter_(Options_)
     , Invoker_(invoker)
     , Logger(logger)
-{
-    ParseResponses(std::move(operationsResponses));
-}
+{ }
 
 void TListOperationsFilter::OnBriefProgressFinished()
 {
@@ -715,7 +711,7 @@ void TListOperationsFilter::OnBriefProgressFinished()
     std::vector<TLightOperation> filtered;
     for (const auto& operation : LightOperations_) {
         const auto& [hasFailedJobs, buildTime] = operation.BriefProgress_;
-        if (!CountingFilter_->FilterByFailedJobs(hasFailedJobs, /* count = */ 1)) {
+        if (!CountingFilter_.FilterByFailedJobs(hasFailedJobs, /* count = */ 1)) {
             continue;
         }
         if (Options_.CursorTime &&
@@ -758,7 +754,7 @@ std::vector<TOperation> TListOperationsFilter::BuildOperations(const THashSet<TS
         TConstructingOperationConsumer consumer(operations.emplace_back(), attributes);
         RunYsonPullParser(lightOperation.Yson_, ParseOperationToConsumer<TConstructingOperationConsumer>, &consumer);
     }
-    
+
     YT_LOG_DEBUG("Operations result built (OperationCount: %v)", operations.size());
 
     return operations;
@@ -790,12 +786,12 @@ void TListOperationsFilter::ParseResponses(std::vector<TYsonString> operationsRe
         operationCount += result.Operations.size();
     }
     LightOperations_.reserve(operationCount);
-    
+
     for (auto& result : parseResults) {
         for (auto& operation : result.Operations) {
             LightOperations_.emplace_back(std::move(operation));
         }
-        CountingFilter_->MergeFrom(result.CountingFilter);
+        CountingFilter_.MergeFrom(result.CountingFilter);
     }
 
     YT_LOG_DEBUG("Cypress responses parsed (OperationCount: %v)", LightOperations_.size());
@@ -835,6 +831,11 @@ TListOperationsFilter::TParseResult TListOperationsFilter::ParseOperationsYson(T
     });
 
     return TParseResult{std::move(operations), std::move(countingFilter)};
+}
+
+const TListOperationsCountingFilter& TListOperationsFilter::GetCountingFilter() const
+{
+    return CountingFilter_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

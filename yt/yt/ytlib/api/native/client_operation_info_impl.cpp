@@ -743,13 +743,12 @@ void TClient::DoListOperationsFromCypress(
 
     YT_LOG_DEBUG("Operations fetched from cypress");
 
-    // NB: this class performs parsing in constructor.
     auto filter = New<TListOperationsFilter>(
-        std::move(operationsYson),
-        &countingFilter,
         options,
         Connection_->GetInvoker(),
         Logger);
+
+    filter->ParseResponses(std::move(operationsYson));
 
     // Lookup all operations with currently filtered ids, add their brief progress.
     if (DoesOperationsArchiveExist()) {
@@ -830,6 +829,8 @@ void TClient::DoListOperationsFromCypress(
     for (auto& operation : operations) {
         (*idToOperation)[*operation.Id] = std::move(operation);
     }
+
+    countingFilter.MergeFrom(filter->GetCountingFilter());
 }
 
 template <typename T>

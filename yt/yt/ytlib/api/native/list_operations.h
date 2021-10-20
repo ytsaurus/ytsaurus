@@ -74,15 +74,15 @@ public:
     };
 
 public:
-    // NB: Each element of |operations| vector are assumed to be
-    // YSON lists containing operations in format "id with attributes"
-    // (as returned from Cypress "list" command).
     TListOperationsFilter(
-        std::vector<NYson::TYsonString> operationsResponses,
-        TListOperationsCountingFilter* countingFilter,
         const TListOperationsOptions& options,
         const IInvokerPtr& invoker,
         const NLogging::TLogger& logger);
+
+    // NB: Each element of |responses| vector is assumed to be
+    // a YSON list containing operations in format "id with attributes"
+    // (as returned from Cypress "list" command).
+    void ParseResponses(std::vector<NYson::TYsonString> responses);
 
     template <typename TFunction>
     void ForEachOperationImmutable(TFunction function) const;
@@ -97,9 +97,13 @@ public:
     // Confirms that |brief_progress| field is relevant and filtration by it can be applied.
     void OnBriefProgressFinished();
 
+    const TListOperationsCountingFilter& GetCountingFilter() const;
+
 private:
-    TListOperationsCountingFilter* CountingFilter_;
-    const TListOperationsOptions& Options_;
+    // NB. TListOperationsFilter must own all its fields because it is used
+    // in async context.
+    const TListOperationsOptions Options_;
+    TListOperationsCountingFilter CountingFilter_;
     const IInvokerPtr Invoker_;
     const NLogging::TLogger Logger;
     std::vector<TLightOperation> LightOperations_;
@@ -109,8 +113,6 @@ private:
         std::vector<TLightOperation> Operations;
         TListOperationsCountingFilter CountingFilter;
     };
-
-    void ParseResponses(std::vector<NYson::TYsonString> operationsResponses);
 
     TParseResult ParseOperationsYson(NYson::TYsonString operationsYson) const;
 };
