@@ -91,10 +91,11 @@ class TestSchedulerAutoMergeBase(YTEnvSetup):
             if not allow_zero_merge_jobs:
                 assert job_types["completed"]["deep"] > 0
 
-    def _verify_shallow_merge_attempted(self, operation):
+    def _verify_shallow_merge_attempted(self, operation, allow_shallow_jobs=False):
         job_types = self._get_auto_merge_job_counts(operation)
         assert job_types["completed"]["deep"] > 0
-        assert job_types["completed"]["shallow"] == 0
+        if not allow_shallow_jobs:
+            assert job_types["completed"]["shallow"] == 0
         assert job_types["aborted"]["shallow"] > 0
 
 
@@ -919,7 +920,7 @@ else:
                 "data_size_per_job": 1
             },
         )
-        self._verify_shallow_merge_attempted(op)
+        self._verify_shallow_merge_attempted(op, allow_shallow_jobs=True)
 
         expected_data = [{"a": i, "b": i // 2} if i % 2 == 0 else {"a": i, "c": i * 3 + 1} for i in range(10)]
         assert get("//tmp/t_out/@row_count") == 10
