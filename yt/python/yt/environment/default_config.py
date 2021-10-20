@@ -203,7 +203,11 @@ def get_cell_balancer_config():
     return yson.loads(
 b"""
 {
-    cell_balancer = {};
+    cluster_connection = { };
+
+    election_manager = {
+        lock_path = "//sys/cell_balancers/lock";
+    };
 }
 """
 )

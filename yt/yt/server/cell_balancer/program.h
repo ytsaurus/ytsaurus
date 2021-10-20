@@ -15,7 +15,7 @@ class TCellBalancerProgram
     : public TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
-    , public TProgramConfigMixin<TCellBalancerConfig>
+    , public TProgramConfigMixin<TCellBalancerBootstrapConfig>
 {
 public:
     TCellBalancerProgram();

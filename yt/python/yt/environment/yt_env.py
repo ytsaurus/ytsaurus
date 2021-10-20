@@ -1097,17 +1097,33 @@ class YTInstance(object):
     def start_cell_balancers(self, sync=True):
         self._run_yt_component("cell-balancer", name="cell_balancer")
 
+        client = self._create_cluster_client()
+
         def cell_balancers_ready():
             self._validate_processes_are_running("cell_balancer")
 
-            addresses = self.get_cell_balancer_monitoring_addresses()
+            instances = client.list("//sys/cell_balancers/instances")
+            if len(instances) != self.yt_config.cell_balancer_count:
+                return False
             try:
-                for address in addresses:
-                    resp = requests.get("http://{0}/orchid".format(address))
-                    resp.raise_for_status()
-            except (requests.exceptions.RequestException, socket.error):
-                return False, traceback.format_exc()
+                active_cell_balancer_orchid_path = None
+                for instance in instances:
+                    orchid_path = "//sys/cell_balancers/instances/{0}/orchid".format(instance)
+                    try:
+                        res = client.get(orchid_path + "/cell_balancer/service/connected")
+                        if res:
+                            active_cell_balancer_orchid_path = orchid_path
+                    except YtResponseError as error:
+                        if not error.is_resolve_error():
+                            raise
 
+                if active_cell_balancer_orchid_path is None:
+                    return False, "No active cell_balancer found"
+            except YtResponseError as err:
+                # Orchid connection refused
+                if not err.contains_code(105) and not err.contains_code(100):
+                    raise
+                return False, err
             return True
 
         self._wait_or_skip(
