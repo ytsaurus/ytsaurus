@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import authors, print_debug, wait, set
 
-from yt.test_helpers.profiler import Profiler
+from yt_helpers import profiler_factory
 
 import time
 
@@ -24,7 +24,7 @@ class TestPerfMetrics(YTEnvSetup):
 
     @authors("pogorelov")
     def test_static_config_for_metrics(self):
-        profiler = Profiler.at_scheduler(self.Env.create_native_client())
+        profiler = profiler_factory().at_scheduler()
 
         print_debug("List of solomon metrics: {}".format(str(profiler.list())))
 
@@ -44,7 +44,7 @@ class TestPerfMetrics(YTEnvSetup):
 
     @authors("pogorelov")
     def test_dynamic_config_for_metrics(self):
-        profiler = Profiler.at_scheduler(self.Env.create_native_client())
+        profiler = profiler_factory().at_scheduler()
 
         assert profiler.get("resource_tracker/instructions", {"thread": "Control"}) is None
 
@@ -65,7 +65,7 @@ class TestPerfMetrics(YTEnvSetup):
 
     @authors("pogorelov")
     def test_clear_dynamic_config_for_metrics(self):
-        profiler = Profiler.at_scheduler(self.Env.create_native_client())
+        profiler = profiler_factory().at_scheduler()
 
         wait(lambda: self.is_perf_metric_present(profiler, "cpu_cycles"))
 

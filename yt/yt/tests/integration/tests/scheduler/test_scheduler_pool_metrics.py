@@ -9,7 +9,7 @@ from yt_commands import (
     get, set,
     create_pool, create_pool_tree, write_table, map, abort_job, get_operation_cypress_path, get_statistics)
 
-from yt.test_helpers.profiler import Profiler
+from yt_helpers import profiler_factory
 
 from yt.test_helpers import are_almost_equal
 
@@ -134,7 +134,7 @@ class TestPoolMetrics(YTEnvSetup):
         metric_name = "user_job_bytes_written"
         statistics_name = "user_job.block_io.bytes_written"
 
-        profiler = Profiler.at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default"})
+        profiler = profiler_factory().at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default"})
 
         pools = ["parent", "child1", "child2"]
         usual_metric_counter = {
@@ -211,7 +211,7 @@ class TestPoolMetrics(YTEnvSetup):
 
         write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
 
-        profiler = Profiler.at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default"})
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
         total_time_completed_parent_counter = profiler.counter("scheduler/pools/metrics/total_time_completed", {"pool": "parent"})
         total_time_completed_child_counter = profiler.counter("scheduler/pools/metrics/total_time_completed", {"pool": "child"})
         total_time_aborted_parent_counter = profiler.counter("scheduler/pools/metrics/total_time_aborted", {"pool": "parent"})
@@ -260,7 +260,7 @@ class TestPoolMetrics(YTEnvSetup):
 
         write_table("//tmp/t_input", {"foo": "bar"})
 
-        profiler = Profiler.at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default"})
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
 
         pools = ["parent", "child1", "child2", "child3"]
         total_time_counter = {
@@ -365,7 +365,7 @@ class TestPoolMetrics(YTEnvSetup):
 
         write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
 
-        profiler = Profiler.at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default", "pool": "unique_pool"})
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default", "pool": "unique_pool"})
         total_time_completed_counter = profiler.counter("scheduler/pools/metrics/total_time_completed")
         total_time_aborted_counter = profiler.counter("scheduler/pools/metrics/total_time_aborted")
         total_time_operation_completed_counter = profiler.counter("scheduler/pools/metrics/total_time_operation_completed")
@@ -432,7 +432,7 @@ class TestPoolMetrics(YTEnvSetup):
 
         map_cmd = """python -c 'import sys; import time; import json; row=json.loads(raw_input()); time.sleep(row["sleep"]); sys.exit(row["exit"])'"""
 
-        profiler = Profiler.at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default", "pool": "unique_pool"})
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default", "pool": "unique_pool"})
         total_time_counter = profiler.counter("scheduler/pools/metrics/total_time")
         total_time_operation_completed_counter = profiler.counter("scheduler/pools/metrics/total_time_operation_completed")
         total_time_operation_failed_counter = profiler.counter("scheduler/pools/metrics/total_time_operation_failed")
@@ -473,7 +473,7 @@ class TestPoolMetrics(YTEnvSetup):
 
         time.sleep(1.0)
 
-        profiler = Profiler.at_scheduler(self.Env.create_native_client(), fixed_tags={"pool": "<Root>"})
+        profiler = profiler_factory().at_scheduler(fixed_tags={"pool": "<Root>"})
         total_time_default_counter = profiler.counter("scheduler/pools/metrics/total_time", tags={"tree": "default"})
         total_time_other_counter = profiler.counter("scheduler/pools/metrics/total_time", tags={"tree": "other"})
         total_time_operation_completed_default_counter = profiler.counter("scheduler/pools/metrics/total_time_operation_completed", tags={"tree": "default"})
@@ -500,7 +500,7 @@ class TestPoolMetrics(YTEnvSetup):
         before_breakpoint = """for i in $(seq 10) ; do python -c "import os; os.write(5, '{value=$i};')" ; sleep 0.5 ; done ; sleep 5 ; """
         after_breakpoint = """for i in $(seq 9 -1 5) ; do python -c "import os; os.write(5, '{value=$i};')" ; sleep 0.5 ; done ; cat ; sleep 5 ; echo done > /dev/stderr ; """
 
-        profiler = Profiler.at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default", "pool": "unique_pool"})
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default", "pool": "unique_pool"})
         total_time_counter = profiler.counter("scheduler/pools/metrics/total_time")
         custom_counter_sum = profiler.counter("scheduler/pools/metrics/my_custom_metric_sum")
         custom_counter_last = profiler.counter("scheduler/pools/metrics/my_custom_metric_last")
@@ -548,7 +548,7 @@ class TestPoolMetrics(YTEnvSetup):
             },
         })
 
-        profiler = Profiler.at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default"})
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
         wait(lambda: profiler.gauge("scheduler/distributed_resources/cpu").get() == 2)
         wait(lambda: profiler.gauge("scheduler/distributed_strong_guarantee_resources/cpu").get() == 1)
         wait(lambda: profiler.gauge("scheduler/distributed_resource_flow/cpu").get() == 1)

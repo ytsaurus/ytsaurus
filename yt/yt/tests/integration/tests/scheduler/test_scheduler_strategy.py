@@ -23,9 +23,10 @@ from yt_scheduler_helpers import (
     scheduler_orchid_operation_path, scheduler_orchid_default_pool_tree_config_path,
     scheduler_orchid_path, scheduler_orchid_pool_tree_config_path)
 
+from yt_helpers import profiler_factory
+
 import yt_error_codes
 
-from yt.test_helpers.profiler import Profiler
 from yt.test_helpers import are_almost_equal
 
 from yt.common import YtError
@@ -1811,7 +1812,7 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
         def get_orchid_pool_count():
             return get_from_tree_orchid("default", "fair_share_info/pool_count")
 
-        pool_count_sensor = Profiler.at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default"}).gauge("scheduler/pools/pool_count")
+        pool_count_sensor = profiler_factory().at_scheduler(fixed_tags={"tree": "default"}).gauge("scheduler/pools/pool_count")
 
         def check_pool_count(expected_pool_count):
             wait(lambda: get_orchid_pool_count() == expected_pool_count)
@@ -2328,8 +2329,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
 
         op2_tasks_spec = {"task": {"job_count": num_jobs_op2, "command": "sleep 100;"}}
 
-        dominant_fair_share_sensor = Profiler\
-            .at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default", "pool": "child2"})\
+        dominant_fair_share_sensor = profiler_factory().at_scheduler(fixed_tags={"tree": "default", "pool": "child2"})\
             .gauge("scheduler/pools/dominant_fair_share/total")
 
         op2 = vanilla(spec={"pool": "child2", "tasks": op2_tasks_spec}, track=False)
@@ -2384,8 +2384,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
 
         op2_tasks_spec = {"task": {"job_count": self.NUM_SLOTS_PER_NODE, "command": "sleep 100;"}}
 
-        dominant_fair_share_sensor = Profiler \
-            .at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default", "pool": "child2"}) \
+        dominant_fair_share_sensor = profiler_factory().at_scheduler(fixed_tags={"tree": "default", "pool": "child2"}) \
             .gauge("scheduler/pools/dominant_fair_share/total")
 
         op2 = vanilla(spec={"pool": "child2", "tasks": op2_tasks_spec}, track=False)

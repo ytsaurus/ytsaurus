@@ -18,9 +18,10 @@ from yt_commands import (
 
 import yt_error_codes
 
+from yt_helpers import profiler_factory
+
 import yt.environment.init_operation_archive as init_operation_archive
 import yt.yson as yson
-from yt.test_helpers.profiler import Profiler
 from yt.test_helpers import are_almost_equal
 from yt.common import update, YtError
 
@@ -129,8 +130,8 @@ class TestSandboxTmpfs(YTEnvSetup):
         assert len(nodes) == 1
         node = nodes[0]
 
-        tmpfs_size = Profiler.at_node(self.Env.create_native_client(), node).gauge("job_controller/tmpfs/size")
-        tmpfs_usage = Profiler.at_node(self.Env.create_native_client(), node).gauge("job_controller/tmpfs/usage")
+        tmpfs_size = profiler_factory().at_node(node).gauge("job_controller/tmpfs/size")
+        tmpfs_usage = profiler_factory().at_node(node).gauge("job_controller/tmpfs/usage")
         wait(lambda: tmpfs_size.get() == 1024 * 1024)
         wait(lambda: tmpfs_usage.get() > 0)
         assert tmpfs_usage.get() <= 4 * 1024
@@ -940,7 +941,7 @@ class TestArtifactCacheBypass(YTEnvSetup):
     @authors("babenko")
     def test_bypass_artifact_cache_for_file(self):
         counters = [
-            Profiler.at_node(self.Env.create_native_client(), node).counter("job_controller/chunk_cache/cache_bypassed_artifacts_size")
+            profiler_factory().at_node(node).counter("job_controller/chunk_cache/cache_bypassed_artifacts_size")
             for node in sorted(ls("//sys/cluster_nodes"))
         ]
 
@@ -1878,7 +1879,7 @@ class TestUserJobMonitoring(YTEnvSetup):
         node = job_info["address"]
         descriptor = job_info["monitoring_descriptor"]
 
-        profiler = Profiler.at_node(self.Env.create_native_client(), node)
+        profiler = profiler_factory().at_node(node)
 
         cpu_user_counter = profiler.counter("user_job/cpu/user", tags={"job_descriptor": descriptor})
         wait(lambda: cpu_user_counter.get_delta() >= expected_time)

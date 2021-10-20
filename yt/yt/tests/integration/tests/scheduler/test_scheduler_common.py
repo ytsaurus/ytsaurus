@@ -21,7 +21,7 @@ from yt_type_helpers import make_schema
 
 from yt_scheduler_helpers import scheduler_orchid_default_pool_tree_config_path
 
-from yt.test_helpers.profiler import Profiler
+from yt_helpers import profiler_factory
 
 import yt.yson as yson
 
@@ -2536,7 +2536,7 @@ class TestResourceMetering(YTEnvSetup):
             wait_for_orchid=False,
         )
 
-        metering_count_sensor = Profiler.at_scheduler(self.Env.create_native_client()).counter("scheduler/metering/record_count")
+        metering_count_sensor = profiler_factory().at_scheduler().counter("scheduler/metering/record_count")
 
         wait(lambda: metering_count_sensor.get_delta() > 0)
 

@@ -17,8 +17,9 @@ from yt_commands import (
 
 import yt_error_codes
 
+from yt_helpers import profiler_factory
+
 from yt_type_helpers import make_schema
-from yt.test_helpers.profiler import Profiler
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError, YtResponseError
@@ -1435,7 +1436,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         self._create_simple_table(path)
         sync_mount_table(path)
 
-        profiler = Profiler.at_tablet_node(self.Env.create_native_client(), path, fixed_tags={
+        profiler = profiler_factory().at_tablet_node(path, fixed_tags={
             "table_path": path,
             "method": "compaction",
             "account": "tmp",
