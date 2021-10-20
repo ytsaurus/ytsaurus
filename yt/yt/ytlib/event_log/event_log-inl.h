@@ -32,6 +32,15 @@ NYTree::TFluentYsonBuilder::TAny<TFluentLogEventImpl<TParent>&&> TFluentLogEvent
     return NYTree::TFluentYsonBuilder::TAny<TThis&&>(this->Consumer, std::move(*this));
 }
 
+template <class TParent>
+typename TFluentLogEventImpl<TParent>::TThis& TFluentLogEventImpl<TParent>::Items(const NYson::TYsonString& items)
+{
+    YT_VERIFY(items.GetType() == NYson::EYsonType::MapFragment);
+    Consumer_->OnRaw(items);
+    return *this;
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NEventLog

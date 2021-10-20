@@ -7,9 +7,15 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TTreeSnapshotId = TGuid;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFairShareTreeSnapshotImpl
     : public TRefCounted
 {
+    DEFINE_BYVAL_RO_PROPERTY(TTreeSnapshotId, Id)
+
     DEFINE_BYREF_RO_PROPERTY(TSchedulerRootElementPtr, RootElement)
     DEFINE_BYREF_RO_PROPERTY(TNonOwningOperationElementMap, EnabledOperationMap)
     DEFINE_BYREF_RO_PROPERTY(TNonOwningOperationElementMap, DisabledOperationMap)
@@ -18,9 +24,10 @@ class TFairShareTreeSnapshotImpl
     DEFINE_BYREF_RO_PROPERTY(TFairShareStrategyOperationControllerConfigPtr, ControllerConfig)
     DEFINE_BYREF_RO_PROPERTY(TTreeSchedulingSegmentsState, SchedulingSegmentsState)
     DEFINE_BYREF_RO_PROPERTY(TCachedJobPreemptionStatuses, CachedJobPreemptionStatuses)
-        
+
 public:
     TFairShareTreeSnapshotImpl(
+        TTreeSnapshotId id,
         TSchedulerRootElementPtr rootElement,
         TNonOwningOperationElementMap enabledOperationIdToElement,
         TNonOwningOperationElementMap disabledOperationIdToElement,

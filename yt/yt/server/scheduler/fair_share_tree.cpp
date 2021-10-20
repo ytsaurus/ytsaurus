@@ -854,7 +854,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        Y_UNUSED(WaitFor(BIND(&TFairShareTree::DoBuildFairShareInfo, MakeWeak(this), TreeSnapshotImpl_, fluent)
+        Y_UNUSED(WaitFor(BIND(&TFairShareTree::DoBuildFullFairShareInfo, MakeWeak(this), TreeSnapshotImpl_, fluent)
             .AsyncVia(StrategyHost_->GetOrchidWorkerInvoker())
             .Run()));
     }
@@ -1082,14 +1082,14 @@ private:
             Tree_->DoProfileFairShare(TreeSnapshotImpl_);
         }
 
-        void LogFairShare(NEventLog::TFluentLogEvent fluent) const override
+        void LogFairShareAt(TInstant now) const override
         {
-            Tree_->DoLogFairShare(TreeSnapshotImpl_, std::move(fluent));
+            Tree_->DoLogFairShareAt(TreeSnapshotImpl_, now);
         }
 
-        void EssentialLogFairShare(NEventLog::TFluentLogEvent fluent) const override
+        void EssentialLogFairShareAt(TInstant now) const override
         {
-            Tree_->DoEssentialLogFairShare(TreeSnapshotImpl_, std::move(fluent));
+            Tree_->DoEssentialLogFairShareAt(TreeSnapshotImpl_, now);
         }
 
         void UpdateResourceUsageSnapshot() override
@@ -1133,6 +1133,9 @@ private:
     TEventTimer FairShareTextLogTimer_;
 
     std::atomic<TCpuInstant> LastSchedulingInformationLoggedTime_ = 0;
+
+    // NB: Used only in fair share logging invoker.
+    mutable TTreeSnapshotId LastLoggedTreeSnapshotId_;
 
     std::pair<IFairShareTreeSnapshotPtr, TError> DoFairShareUpdateAt(TInstant now)
     {
@@ -1222,7 +1225,9 @@ private:
 
         rootElement->MarkImmutable();
 
+        auto treeSnapshotId = TTreeSnapshotId::Create();
         auto treeSnapshotImpl = New<TFairShareTreeSnapshotImpl>(
+            treeSnapshotId,
             std::move(rootElement),
             std::move(fairSharePostUpdateContext.EnabledOperationIdToElement),
             std::move(fairSharePostUpdateContext.DisabledOperationIdToElement),
@@ -1231,6 +1236,8 @@ private:
             Config_,
             ControllerConfig_,
             std::move(manageSegmentsContext.SchedulingSegmentsState));
+
+        YT_LOG_DEBUG("Fair share tree snapshot created (TreeSnapshotId: %v)", treeSnapshotId);
 
         TreeSnapshotImplPrecommit_ = treeSnapshotImpl;
         LastFairShareUpdateTime_ = now;
@@ -1567,7 +1574,7 @@ private:
                     treeConfig);
                 bool isUnconditionalPreemptionAllowed = isJobForcefullyPreemptable ||
                     preemptionBlockingAncestor == nullptr;
-                bool isConditionalPreemptionAllowed = Config_->EnableConditionalPreemption &&
+                bool isConditionalPreemptionAllowed = treeSnapshotImpl->TreeConfig()->EnableConditionalPreemption &&
                     !isUnconditionalPreemptionAllowed &&
                     preemptionBlockingAncestor != operationElement;
 
@@ -2424,13 +2431,43 @@ private:
         TreeProfiler_->ProfileElements(treeSnapshotImpl);
     }
 
-    void DoLogFairShare(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, NEventLog::TFluentLogEvent fluent) const
+    void DoLogFairShareAt(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TInstant now) const
     {
+        auto treeSnapshotId = treeSnapshotImpl->GetId();
+        if (treeSnapshotId == LastLoggedTreeSnapshotId_) {
+            YT_LOG_DEBUG("Skipping fair share tree logging since the tree snapshot is the same as before (TreeSnapshotId: %v)",
+                treeSnapshotId);
+
+            return;
+        }
+        LastLoggedTreeSnapshotId_ = treeSnapshotId;
+
         {
             TEventTimerGuard timer(FairShareFluentLogTimer_);
-            fluent
-                .Item(EventLogPoolTreeKey).Value(TreeId_)
-                .Do(BIND(&TFairShareTree::DoBuildFairShareInfo, Unretained(this), treeSnapshotImpl));
+
+            auto fairShareInfo = BuildSerializedFairShareInfo(
+                treeSnapshotImpl,
+                treeSnapshotImpl->TreeConfig()->MaxEventLogOperationBatchSize);
+            auto logFairShareEventFluently = [&] {
+                return StrategyHost_->LogFairShareEventFluently(now)
+                    .Item(EventLogPoolTreeKey).Value(TreeId_)
+                    .Item("tree_snapshot_id").Value(treeSnapshotId);
+            };
+
+            // NB(eshcherbin, YTADMIN-11230): First we log a single event with pools info and resource distribution info.
+            // Then we split all operations' info into several batches and log every batch in a separate event.
+            logFairShareEventFluently()
+                .Items(fairShareInfo.PoolsInfo)
+                .Items(fairShareInfo.ResourceDistributionInfo);
+
+            for (int batchIndex = 0; batchIndex < std::ssize(fairShareInfo.SplitOperationsInfo); ++batchIndex) {
+                const auto& operationsInfoBatch = fairShareInfo.SplitOperationsInfo[batchIndex];
+                logFairShareEventFluently()
+                    .Item("operations_batch_index").Value(batchIndex)
+                    .Item("operations").BeginMap()
+                        .Items(operationsInfoBatch)
+                    .EndMap();
+            }
         }
 
         {
@@ -2440,12 +2477,13 @@ private:
         }
     }
 
-    void DoEssentialLogFairShare(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, NEventLog::TFluentLogEvent fluent) const
+    void DoEssentialLogFairShareAt(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TInstant now) const
     {
         {
             TEventTimerGuard timer(FairShareFluentLogTimer_);
-            fluent
+            StrategyHost_->LogFairShareEventFluently(now)
                 .Item(EventLogPoolTreeKey).Value(TreeId_)
+                .Item("tree_snapshot_id").Value(treeSnapshotImpl->GetId())
                 .Do(BIND(&TFairShareTree::DoBuildEssentialFairShareInfo, Unretained(this), treeSnapshotImpl));
         }
 
@@ -2458,8 +2496,9 @@ private:
 
     void LogOperationsInfo(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl) const
     {
+        auto Logger = this->Logger.WithTag("TreeSnapshotId: %v", treeSnapshotImpl->GetId());
+
         auto doLogOperationsInfo = [&] (const auto& operationIdToElement) {
-            // Using structured bindings directly in the for-statement causes an ICE in GCC build.
             for (const auto& [operationId, element] : operationIdToElement) {
                 YT_LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
                     element->GetLoggingString(),
@@ -2473,6 +2512,8 @@ private:
 
     void LogPoolsInfo(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl) const
     {
+        auto Logger = this->Logger.WithTag("TreeSnapshotId: %v", treeSnapshotImpl->GetId());
+
         for (const auto& [poolName, element] : treeSnapshotImpl->PoolMap()) {
             YT_LOG_DEBUG("FairShareInfo: %v (Pool: %v)",
                 element->GetLoggingString(),
@@ -2480,32 +2521,84 @@ private:
         }
     }
 
-    void DoBuildFairShareInfo(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TFluentMap fluent) const
+    void DoBuildFullFairShareInfo(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TFluentMap fluent) const
     {
         if (!treeSnapshotImpl) {
-            YT_LOG_DEBUG("Skipping construction of fair share info, since shapshot is not constructed yet");
+            YT_LOG_DEBUG("Skipping construction of full fair share info, since shapshot is not constructed yet");
             return;
         }
 
-        YT_LOG_DEBUG("Constructing fair share info");
+        YT_LOG_DEBUG("Constructing full fair share info");
 
-        auto buildOperationsInfo = [&] (TFluentMap fluent, const TNonOwningOperationElementMap::value_type& pair) {
-            const auto& [operationId, element] = pair;
-            fluent
-                .Item(ToString(operationId)).BeginMap()
-                    .Do(BIND(&TFairShareTree::DoBuildOperationProgress, Unretained(this), Unretained(element)))
-                .EndMap();
-        };
-
+        auto fairShareInfo = BuildSerializedFairShareInfo(treeSnapshotImpl);
         fluent
-            .Do(BIND(&TFairShareTree::DoBuildPoolsInformation, Unretained(this), treeSnapshotImpl))
-            .Item("resource_distribution_info").BeginMap()
-                .Do(BIND(&TSchedulerRootElement::BuildResourceDistributionInfo, treeSnapshotImpl->RootElement()))
-            .EndMap()
+            .Items(fairShareInfo.PoolsInfo)
+            .Items(fairShareInfo.ResourceDistributionInfo)
             .Item("operations").BeginMap()
-                .DoFor(treeSnapshotImpl->EnabledOperationMap(), buildOperationsInfo)
-                .DoFor(treeSnapshotImpl->DisabledOperationMap(), buildOperationsInfo)
+                .DoFor(fairShareInfo.SplitOperationsInfo, [&] (TFluentMap fluent, const TYsonString& operationsInfoBatch) {
+                    fluent.Items(operationsInfoBatch);
+                })
             .EndMap();
+    }
+
+    struct TSerializedFairShareInfo
+    {
+        NYson::TYsonString PoolsInfo;
+        NYson::TYsonString ResourceDistributionInfo;
+        std::vector<NYson::TYsonString> SplitOperationsInfo;
+    };
+
+    TSerializedFairShareInfo BuildSerializedFairShareInfo(
+        const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl,
+        int maxOperationBatchSize = std::numeric_limits<int>::max()) const
+    {
+        YT_LOG_DEBUG("Started building serialized fair share info (MaxOperationBatchSize: %v)",
+            maxOperationBatchSize);
+
+        TSerializedFairShareInfo fairShareInfo;
+        fairShareInfo.PoolsInfo = BuildYsonStringFluently<EYsonType::MapFragment>()
+            .Do(BIND(&TFairShareTree::DoBuildPoolsInformation, Unretained(this), treeSnapshotImpl))
+            .Finish();
+        fairShareInfo.ResourceDistributionInfo = BuildYsonStringFluently<EYsonType::MapFragment>()
+            .Do(BIND(&TSchedulerRootElement::BuildResourceDistributionInfo, treeSnapshotImpl->RootElement()))
+            .Finish();
+
+        std::vector<TSchedulerOperationElement*> operations;
+        operations.reserve(treeSnapshotImpl->EnabledOperationMap().size() + treeSnapshotImpl->DisabledOperationMap().size());
+        for (const auto& [_, element] : treeSnapshotImpl->EnabledOperationMap()) {
+            operations.push_back(element);
+        }
+        for (const auto& [_, element] : treeSnapshotImpl->DisabledOperationMap()) {
+            operations.push_back(element);
+        }
+
+        int operationBatchCount = 0;
+        auto batchStart = operations.begin();
+        while (batchStart < operations.end()) {
+            auto batchEnd = (std::distance(batchStart, operations.end()) > maxOperationBatchSize)
+                ? std::next(batchStart, maxOperationBatchSize)
+                : operations.end();
+            auto operationsInfoBatch = BuildYsonStringFluently<EYsonType::MapFragment>()
+                .DoFor(batchStart, batchEnd, [&] (TFluentMap fluent, std::vector<TSchedulerOperationElement*>::iterator it) {
+                    auto* element = *it;
+                    fluent
+                        .Item(element->GetId()).BeginMap()
+                            .Do(BIND(&TFairShareTree::DoBuildOperationProgress, Unretained(this), Unretained(element)))
+                        .EndMap();
+                })
+                .Finish();
+            fairShareInfo.SplitOperationsInfo.push_back(std::move(operationsInfoBatch));
+
+            batchStart = batchEnd;
+            ++operationBatchCount;
+        }
+
+        YT_LOG_DEBUG("Finished building serialized fair share info (MaxOperationBatchSize: %v, OperationCount: %v, OperationBatchCount: %v)",
+            maxOperationBatchSize,
+            operations.size(),
+            operationBatchCount);
+
+        return fairShareInfo;
     }
 
     void DoBuildPoolsInformation(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TFluentMap fluent) const

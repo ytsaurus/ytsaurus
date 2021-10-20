@@ -5,6 +5,7 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 TFairShareTreeSnapshotImpl::TFairShareTreeSnapshotImpl(
+    TTreeSnapshotId id,
     TSchedulerRootElementPtr rootElement,
     TNonOwningOperationElementMap enabledOperationIdToElement,
     TNonOwningOperationElementMap disabledOperationIdToElement,
@@ -13,7 +14,8 @@ TFairShareTreeSnapshotImpl::TFairShareTreeSnapshotImpl(
     TFairShareStrategyTreeConfigPtr treeConfig,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     TTreeSchedulingSegmentsState schedulingSegmentsState)
-    : RootElement_(std::move(rootElement))
+    : Id_(id)
+    , RootElement_(std::move(rootElement))
     , EnabledOperationMap_(std::move(enabledOperationIdToElement))
     , DisabledOperationMap_(std::move(disabledOperationIdToElement))
     , PoolMap_(std::move(poolNameToElement))

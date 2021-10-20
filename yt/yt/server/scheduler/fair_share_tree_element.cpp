@@ -4009,13 +4009,15 @@ void TSchedulerRootElement::BuildResourceDistributionInfo(TFluentMap fluent) con
 {
     auto info = GetResourceDistributionInfo();
     fluent
-        .Item("distributed_strong_guarantee_resources").Value(info.DistributedStrongGuaranteeResources)
-        .Item("distributed_resource_flow").Value(info.DistributedResourceFlow)
-        .Item("distributed_burst_guarantee_resources").Value(info.DistributedBurstGuaranteeResources)
-        .Item("distributed_resources").Value(info.DistributedResources)
-        .Item("undistributed_resources").Value(info.UndistributedResources)
-        .Item("undistributed_resource_flow").Value(info.UndistributedResourceFlow)
-        .Item("undistributed_burst_guarantee_resources").Value(info.UndistributedBurstGuaranteeResources);
+        .Item("resource_distribution_info").BeginMap()
+            .Item("distributed_strong_guarantee_resources").Value(info.DistributedStrongGuaranteeResources)
+            .Item("distributed_resource_flow").Value(info.DistributedResourceFlow)
+            .Item("distributed_burst_guarantee_resources").Value(info.DistributedBurstGuaranteeResources)
+            .Item("distributed_resources").Value(info.DistributedResources)
+            .Item("undistributed_resources").Value(info.UndistributedResources)
+            .Item("undistributed_resource_flow").Value(info.UndistributedResourceFlow)
+            .Item("undistributed_burst_guarantee_resources").Value(info.UndistributedBurstGuaranteeResources)
+        .EndMap();
 }
 
 void TSchedulerRootElement::BuildSchedulableIndices(TDynamicAttributesList* dynamicAttributesList, TChildHeapMap* childHeapMap)

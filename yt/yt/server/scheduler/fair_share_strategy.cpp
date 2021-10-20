@@ -841,7 +841,7 @@ public:
 
         auto snapshots = TreeIdToSnapshot_.Load();
         for (const auto& [_, treeSnapshot] : snapshots) {
-            treeSnapshot->EssentialLogFairShare(Host->LogFairShareEventFluently(now));
+            treeSnapshot->EssentialLogFairShareAt(now);
         }
     }
 
@@ -853,7 +853,7 @@ public:
 
         auto snapshots = TreeIdToSnapshot_.Load();
         for (const auto& [_, treeSnapshot] : snapshots) {
-            treeSnapshot->LogFairShare(Host->LogFairShareEventFluently(now));
+            treeSnapshot->LogFairShareAt(now);
         }
     }
 

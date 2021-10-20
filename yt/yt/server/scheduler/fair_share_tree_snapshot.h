@@ -43,8 +43,8 @@ struct IFairShareTreeSnapshot
     virtual void BuildResourceMetering(TMeteringMap* meteringMap) const = 0;
     virtual TCachedJobPreemptionStatuses GetCachedJobPreemptionStatuses() const = 0;
     virtual void ProfileFairShare() const = 0;
-    virtual void LogFairShare(NEventLog::TFluentLogEvent fluent) const = 0;
-    virtual void EssentialLogFairShare(NEventLog::TFluentLogEvent fluent) const = 0;
+    virtual void LogFairShareAt(TInstant now) const = 0;
+    virtual void EssentialLogFairShareAt(TInstant now) const = 0;
     virtual void UpdateResourceUsageSnapshot() = 0;
 };
 
