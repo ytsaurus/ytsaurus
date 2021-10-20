@@ -75,11 +75,11 @@ ENDIF()
 IF (BUILD_TYPE == "DEBUG" OR BUILD_TYPE == "FASTDEBUG" OR SANITIZER_TYPE)
     REQUIREMENTS(
         cpu:12
-        ram:32
+        ram:16
     )
 ELSE()
     REQUIREMENTS(
         cpu:8
-        ram:32
+        ram:16
     )
 ENDIF()
