@@ -66,6 +66,10 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
 
     cell_balancer_configs, cell_balancer_addresses = _build_cell_balancer_configs(
         yt_config,
+        deepcopy(master_connection_configs),
+        deepcopy(clock_connection_configs),
+        timestamp_provider_addresses,
+        master_cache_addresses,
         ports_generator,
         logs_dir,
     )
@@ -412,6 +416,10 @@ def _build_timestamp_provider_configs(yt_config,
 
 
 def _build_cell_balancer_configs(yt_config,
+                                 master_connection_configs,
+                                 clock_connection_configs,
+                                 timestamp_provider_addresses,
+                                 master_cache_addresses,
                                  ports_generator,
                                  logs_dir):
     configs = []
@@ -421,6 +429,15 @@ def _build_cell_balancer_configs(yt_config,
         config = default_config.get_cell_balancer_config()
 
         init_singletons(config, yt_config.fqdn, "cell_balancer", {"cell_balancer_index": str(index)})
+
+        config["cluster_connection"] = \
+            _build_cluster_connection_config(
+                yt_config,
+                master_connection_configs,
+                clock_connection_configs,
+                timestamp_provider_addresses,
+                master_cache_addresses,
+                config_template=config["cluster_connection"])
 
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)

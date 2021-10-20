@@ -1,9 +1,19 @@
 #include "bootstrap.h"
+
+#include "cell_balancer.h"
 #include "config.h"
+#include "master_connector.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
 #include <yt/yt/server/lib/core_dump/core_dumper.h>
+
+#include <yt/yt/server/lib/cypress_election/election_manager.h>
+
+#include <yt/yt/server/lib/misc/address_helpers.h>
+
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/monitoring/http_integration.h>
 
@@ -24,11 +34,16 @@
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/bus/server.h>
 
+#include <yt/yt/core/ytree/virtual.h>
+
 namespace NYT::NCellBalancer {
 
 using namespace NAdmin;
+using namespace NApi;
 using namespace NConcurrency;
 using namespace NCoreDump;
+using namespace NCypressElection;
+using namespace NNodeTrackerClient;
 using namespace NMonitoring;
 using namespace NOrchid;
 using namespace NTransactionClient;
@@ -44,7 +59,7 @@ class TBootstrap
     : public IBootstrap
 {
 public:
-    explicit TBootstrap(TCellBalancerConfigPtr config)
+    explicit TBootstrap(TCellBalancerBootstrapConfigPtr config)
         : Config_(std::move(config))
     {
         if (Config_->AbortOnUnrecognizedOptions) {
@@ -75,8 +90,36 @@ public:
         Sleep(TDuration::Max());
     }
 
+    const NApi::NNative::IClientPtr& GetMasterClient() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Client_;
+    }
+
+    const IInvokerPtr& GetControlInvoker() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return ControlQueue_->GetInvoker();
+    }
+
+    TAddressMap GetLocalAddresses() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return NYT::GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
+    }
+
+    const ICypressElectionManagerPtr& GetElectionManager() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return ElectionManager_;
+    }
+
 private:
-    const TCellBalancerConfigPtr Config_;
+    const TCellBalancerBootstrapConfigPtr Config_;
 
     TActionQueuePtr ControlQueue_;
 
@@ -89,13 +132,22 @@ private:
 
     ICoreDumperPtr CoreDumper_;
 
-    const IInvokerPtr& GetControlInvoker() const
-    {
-        return ControlQueue_->GetInvoker();
-    }
+    NNative::IConnectionPtr Connection_;
+    NNative::IClientPtr Client_;
+
+    ICypressElectionManagerPtr ElectionManager_;
+    IMasterConnectorPtr MasterConnector_;
+    ICellBalancerPtr CellBalancer_;
 
     void DoInitialize()
     {
+        NNative::TConnectionOptions connectionOptions;
+        connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
+        Connection_ = NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
+
+        auto clientOptions = TClientOptions::FromUser(NSecurityClient::RootUserName);
+        Client_ = Connection_->CreateNativeClient(clientOptions);
+
         BusServer_ = NBus::CreateTcpBusServer(Config_->BusServer);
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
@@ -103,6 +155,17 @@ private:
         if (Config_->CoreDumper) {
             CoreDumper_ = CreateCoreDumper(Config_->CoreDumper);
         }
+
+        TCypressElectionManagerOptionsPtr options = New<TCypressElectionManagerOptions>();
+        options->Name = "CellBalancer";
+        ElectionManager_ = CreateCypressElectionManager(
+            Client_,
+            GetControlInvoker(),
+            Config_->ElectionManager,
+            options);
+
+        MasterConnector_ = CreateMasterConnector(this, Config_->MasterConnector);
+        CellBalancer_ = CreateCellBalancer(this, Config_->CellBalancer);
 
         NMonitoring::Initialize(
             HttpServer_,
@@ -114,6 +177,10 @@ private:
             OrchidRoot_,
             "/config",
             ConvertTo<INodePtr>(Config_));
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/cell_balancer",
+            CreateVirtualNode(CellBalancer_->CreateOrchidService()->Via(GetControlInvoker())));
         SetBuildAttributes(
             OrchidRoot_,
             "cell_balancer");
@@ -133,12 +200,18 @@ private:
 
         YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
         RpcServer_->Start();
+
+        MasterConnector_->Start();
+
+        ElectionManager_->Start();
+
+        CellBalancer_->Start();
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(TCellBalancerConfigPtr config)
+std::unique_ptr<IBootstrap> CreateBootstrap(TCellBalancerBootstrapConfigPtr config)
 {
     return std::make_unique<TBootstrap>(std::move(config));
 }

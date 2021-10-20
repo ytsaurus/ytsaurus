@@ -430,6 +430,15 @@ private:
                     .EndMap());
 
             ScheduleCreateNode(
+                "//sys/cell_balancers",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
+            ScheduleCreateNode(
                 "//sys/locks",
                 transactionId,
                 EObjectType::LockMap);
@@ -658,6 +667,20 @@ private:
                 "//sys/scheduler/pool_trees_lock",
                 transactionId,
                 EObjectType::MapNode);
+
+            ScheduleCreateNode(
+                "//sys/cell_balancers/lock",
+                transactionId,
+                EObjectType::MapNode);
+
+            ScheduleCreateNode(
+                "//sys/cell_balancers/instances",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
 
             std::vector<TYPath> orchidAddresses;
 

@@ -37,7 +37,9 @@ struct ICypressElectionManager
 
     //! Returns id of a prerequisite transaction for current epoch.
     //! If instance is not leader now, returns |NullTransactionId|.
-    virtual NTransactionClient::TTransactionId GetPrerequistiveTransactionId() = 0;
+    virtual NTransactionClient::TTransactionId GetPrerequistiveTransactionId() const = 0;
+
+    virtual bool IsLeader() const = 0;
 
     //! Fired when instance became leader.
     DECLARE_INTERFACE_SIGNAL(void(), LeadingStarted);

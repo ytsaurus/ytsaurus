@@ -69,7 +69,7 @@ public:
         Invoker_->Invoke(BIND(&TCypressElectionManager::OnLeadingEnded, MakeWeak(this)));
     }
 
-    TTransactionId GetPrerequistiveTransactionId() override
+    TTransactionId GetPrerequistiveTransactionId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -81,6 +81,11 @@ public:
         } else {
             return NullTransactionId;
         }
+    }
+
+    bool IsLeader() const override
+    {
+        return IsLeading_;
     }
 
     DEFINE_SIGNAL_OVERRIDE(void(), LeadingStarted);

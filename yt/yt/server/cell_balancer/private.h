@@ -8,9 +8,14 @@ namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TCellBalancerBootstrapConfig)
 DECLARE_REFCOUNTED_CLASS(TCellBalancerConfig)
+DECLARE_REFCOUNTED_CLASS(TCellBalancerMasterConnectorConfig)
 
 struct IBootstrap;
+
+DECLARE_REFCOUNTED_CLASS(IMasterConnector)
+DECLARE_REFCOUNTED_CLASS(ICellBalancer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
