@@ -1,8 +1,9 @@
 package ru.yandex.spark.launcher.rest
 
 import com.google.common.net.HostAndPort
-import org.eclipse.jetty.server.Server
+import org.eclipse.jetty.server.{Connector, Server, ServerConnector}
 import org.eclipse.jetty.servlet.DefaultServlet
+import org.eclipse.jetty.util.thread.QueuedThreadPool
 import org.eclipse.jetty.webapp.WebAppContext
 import org.scalatra.servlet.ScalatraListener
 
@@ -24,8 +25,19 @@ class MasterWrapperServer(server: Server) {
 }
 
 object MasterWrapperServer {
+  private def createServer(port: Int): Server = {
+    val threadPool = new QueuedThreadPool()
+    threadPool.setDaemon(true)
+
+    val server = new Server(threadPool)
+    val connector = new ServerConnector(server)
+    connector.setPort(port)
+    server.setConnectors(Array[Connector](connector))
+    server
+  }
+
   def start(port: Int, masterEndpoint: HostAndPort, byopPort: Option[Int]): MasterWrapperServer = {
-    val server = new Server(port)
+    val server = createServer(port)
     val context = new WebAppContext()
 
     context.setContextPath("/")

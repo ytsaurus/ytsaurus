@@ -11,5 +11,6 @@ case class YtRpcClient(id: String, yt: CompoundClient, connector: DefaultBusConn
     log.info(s"Close yt client $id")
     yt.close()
     connector.close()
+    log.info(s"Successfully closed yt client $id")
   }
 }

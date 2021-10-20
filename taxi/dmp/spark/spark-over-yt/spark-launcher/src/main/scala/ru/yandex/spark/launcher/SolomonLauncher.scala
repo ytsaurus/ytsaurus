@@ -21,6 +21,8 @@ trait SolomonLauncher extends SidecarLauncher {
           .replaceAll("\\$SPARK_COMPONENT", c.sparkComponent)
           .replaceAll("\\$SOLOMON_CONFIG_FILE", c.solomonConfigFile)
           .replaceAll("\\$SPARK_UI_PORT", c.sparkUiPort.toString)
+          .replaceAll("\\$SOLOMON_PORT", c.port.toString)
+          .replaceAll("\\$SOLOMON_MONITORING_PORT", c.monitoringPort.toString)
     }
   }
 
