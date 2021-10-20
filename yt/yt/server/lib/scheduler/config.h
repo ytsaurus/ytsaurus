@@ -308,6 +308,8 @@ public:
 
     bool EnableResourceUsageSnapshot;
 
+    int MaxEventLogOperationBatchSize;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
     static void Register(TRegistrar registrar);

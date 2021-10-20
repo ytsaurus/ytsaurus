@@ -61,6 +61,7 @@ public:
     TFluentLogEventImpl& operator = (TFluentLogEventImpl&& other) = default;
 
     NYTree::TFluentYsonBuilder::TAny<TThis&&> Item(TStringBuf key);
+    TThis& Items(const NYson::TYsonString& items);
 
 private:
     std::unique_ptr<NYson::IYsonConsumer> Consumer_;

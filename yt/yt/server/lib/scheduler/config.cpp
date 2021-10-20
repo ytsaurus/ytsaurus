@@ -320,7 +320,10 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
         .Default(false);
     
     registrar.Parameter("enable_resource_usage_snapshot", &TFairShareStrategyTreeConfig::EnableResourceUsageSnapshot)
-        .Default(false);    
+        .Default(false);
+
+    registrar.Parameter("max_event_log_operation_batch_size", &TFairShareStrategyTreeConfig::MaxEventLogOperationBatchSize)
+        .Default(1000);
 
     registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {
@@ -805,7 +808,7 @@ void TSchedulerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("send_preemption_reason_in_node_heartbeat", &TSchedulerConfig::SendPreemptionReasonInNodeHeartbeat)
         .Default(true);
-    
+
     registrar.Parameter("update_last_metering_log_time", &TSchedulerConfig::UpdateLastMeteringLogTime)
         .Default(true);
 
