@@ -71,6 +71,13 @@ using NChunkClient::TLegacyReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsNewScanReaderEnabled(const TTableMountConfigPtr& mountConfig)
+{
+    return mountConfig->EnableNewScanReaderForLookup || mountConfig->EnableNewScanReaderForSelect;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFilteringReader
     : public IVersionedReader
 {
@@ -306,15 +313,16 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             /*workloadCategory*/ std::nullopt);
     }
 
+    const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
+    bool enableNewScanReader = IsNewScanReaderEnabled(mountConfig);
+
     auto chunkReader = GetReaders(workloadCategory).ChunkReader;
-    auto chunkState = PrepareChunkState(chunkReader, chunkReadOptions);
+    auto chunkState = PrepareChunkState(chunkReader, chunkReadOptions, enableNewScanReader);
 
     ValidateBlockSize(tabletSnapshot, chunkState, chunkReadOptions.WorkloadDescriptor);
 
-    const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
-    if (mountConfig->EnableNewScanReaderForSelect &&
-        chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar &&
-        timestamp != AllCommittedTimestamp)
+    if (enableNewScanReader &&
+        chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar)
     {
         // Chunk view support.
         ranges = NNewTableClient::ClipRanges(
@@ -460,22 +468,24 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         return wrapReader(std::move(reader), /*needSetTimestamp*/ true);
     }
 
-    auto chunkState = PrepareChunkState(readers.ChunkReader, chunkReadOptions);
+    bool enableNewScanReader = IsNewScanReaderEnabled(mountConfig);
+
+    auto chunkState = PrepareChunkState(readers.ChunkReader, chunkReadOptions, enableNewScanReader);
     ValidateBlockSize(tabletSnapshot, chunkState, chunkReadOptions.WorkloadDescriptor);
 
-    if (mountConfig->EnableNewScanReaderForLookup &&
-        chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar)
-    {
+    if (enableNewScanReader && chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
+        auto chunkMeta = chunkState->ChunkMeta;
+
         auto reader = NNewTableClient::CreateVersionedChunkReader(
             filteredKeys,
             timestamp,
-            chunkState->ChunkMeta,
+            chunkMeta,
             Schema_,
             columnFilter,
-            chunkState->BlockCache,
+            BlockCache_,
             GetReaderConfig(),
             readers.ChunkReader,
-            chunkState->PerformanceCounters,
+            PerformanceCounters_,
             chunkReadOptions,
             produceAllVersions);
         return wrapReader(std::move(reader), /*needSetTimestamp*/ true);
@@ -592,14 +602,15 @@ IVersionedReaderPtr TSortedChunkStore::MaybeWrapWithTimestampResettingAdapter(
 
 TChunkStatePtr TSortedChunkStore::PrepareChunkState(
     const IChunkReaderPtr& chunkReader,
-    const TClientChunkReadOptions& chunkReadOptions)
+    const TClientChunkReadOptions& chunkReadOptions,
+    bool prepareColumnarMeta)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     TChunkSpec chunkSpec;
     ToProto(chunkSpec.mutable_chunk_id(), ChunkId_);
 
-    auto chunkMeta = GetCachedVersionedChunkMeta(chunkReader, chunkReadOptions);
+    auto chunkMeta = GetCachedVersionedChunkMeta(chunkReader, chunkReadOptions, prepareColumnarMeta);
 
     return New<TChunkState>(
         BlockCache_,

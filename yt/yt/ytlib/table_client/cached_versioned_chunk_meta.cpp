@@ -179,15 +179,21 @@ i64 TCachedVersionedChunkMeta::GetMemoryUsage() const
 {
     return TColumnarChunkMeta::GetMemoryUsage()
         + MinKey_.GetSpaceUsed()
-        + MaxKey_.GetSpaceUsed();
+        + MaxKey_.GetSpaceUsed()
+        + PreparedMetaSize_;
 }
 
 TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> TCachedVersionedChunkMeta::GetPreparedChunkMeta()
 {
     if (!PreparedMeta_) {
+        YT_VERIFY(GetChunkFormat() == NChunkClient::EChunkFormat::TableVersionedColumnar);
+
         auto preparedMeta = New<NNewTableClient::TPreparedChunkMeta>();
         auto size = preparedMeta->Prepare(GetChunkSchema(), ColumnMeta());
+
         if (PreparedMeta_.SwapIfCompare(nullptr, preparedMeta)) {
+            PreparedMetaSize_ = size;
+
             if (MemoryTrackerGuard_) {
                 MemoryTrackerGuard_.IncrementSize(size);
             }
@@ -195,6 +201,16 @@ TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> TCachedVersionedChunkMeta::Ge
     }
 
     return PreparedMeta_.Acquire();
+}
+
+void TCachedVersionedChunkMeta::PrepareColumnarMeta()
+{
+    GetPreparedChunkMeta();
+    ClearColumnMeta();
+
+    if (MemoryTrackerGuard_) {
+        MemoryTrackerGuard_.SetSize(GetMemoryUsage());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -288,7 +288,8 @@ protected:
 
     NTableClient::TCachedVersionedChunkMetaPtr GetCachedVersionedChunkMeta(
         const NChunkClient::IChunkReaderPtr& chunkReader,
-        const NChunkClient::TClientChunkReadOptions& chunkReadOptions);
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+        bool prepareColumnarMeta = false);
 
     virtual NTableClient::TKeyComparer GetKeyComparer() = 0;
 

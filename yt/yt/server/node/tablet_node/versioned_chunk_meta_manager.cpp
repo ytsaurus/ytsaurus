@@ -23,14 +23,16 @@ bool TVersionedChunkMetaCacheKey::operator ==(const TVersionedChunkMetaCacheKey&
 {
     return
         ChunkId == other.ChunkId &&
-        TableSchemaKeyColumnCount == other.TableSchemaKeyColumnCount;
+        TableSchemaKeyColumnCount == other.TableSchemaKeyColumnCount &&
+        PreparedColumnarMeta == other.PreparedColumnarMeta;
 }
 
 TVersionedChunkMetaCacheKey::operator size_t() const
 {
     return MultiHash(
         ChunkId,
-        TableSchemaKeyColumnCount);
+        TableSchemaKeyColumnCount,
+        PreparedColumnarMeta);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,11 +69,13 @@ public:
     TFuture<TVersionedChunkMetaCacheEntryPtr> GetMeta(
         const IChunkReaderPtr& chunkReader,
         const TTableSchemaPtr& schema,
-        const TClientChunkReadOptions& chunkReadOptions) override
+        const TClientChunkReadOptions& chunkReadOptions,
+        bool prepareColumnarMeta) override
     {
         TVersionedChunkMetaCacheKey key{
             chunkReader->GetChunkId(),
-            schema->GetKeyColumnCount()
+            schema->GetKeyColumnCount(),
+            prepareColumnarMeta
         };
 
         auto cookie = BeginInsert(key);
@@ -84,13 +88,17 @@ public:
                 {} /* columnRenameDescriptors */,
                 MemoryUsageTracker_)
                 .ApplyUnique(BIND(
-                    [cookie = std::move(cookie), key]
+                    [cookie = std::move(cookie), key, prepareColumnarMeta]
                     (TErrorOr<TCachedVersionedChunkMetaPtr>&& metaOrError) mutable
                 {
                     if (metaOrError.IsOK()) {
-                        auto result = New<TVersionedChunkMetaCacheEntry>(
-                            key,
-                            std::move(metaOrError.Value()));
+                        auto value = std::move(metaOrError.Value());
+
+                        if (prepareColumnarMeta && value->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
+                            value->PrepareColumnarMeta();
+                        }
+
+                        auto result = New<TVersionedChunkMetaCacheEntry>(key, std::move(value));
                         cookie.EndInsert(result);
                         return result;
                     }

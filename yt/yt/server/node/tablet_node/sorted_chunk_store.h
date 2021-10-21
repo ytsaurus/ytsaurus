@@ -113,7 +113,8 @@ private:
 
     NTableClient::TChunkStatePtr PrepareChunkState(
         const NChunkClient::IChunkReaderPtr& chunkReader,
-        const NChunkClient::TClientChunkReadOptions& chunkReadOptions);
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+        bool prepareColumnarMeta = false);
 
     void ValidateBlockSize(
         const TTabletSnapshotPtr& tabletSnapshot,

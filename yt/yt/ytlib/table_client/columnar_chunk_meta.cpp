@@ -161,6 +161,11 @@ i64 TColumnarChunkMeta::GetMemoryUsage() const
         ChunkSchema_->GetMemoryUsage();
 }
 
+void TColumnarChunkMeta::ClearColumnMeta()
+{
+    ColumnMeta_.Reset();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
