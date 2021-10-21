@@ -11,6 +11,8 @@
 
 #include <yt/yt/library/tracing/jaeger/tracer.h>
 
+#include <yt/yt/library/profiling/perf/counters.h>
+
 #include <yt/yt/core/profiling/profile_manager.h>
 
 #include <yt/yt/core/logging/log_manager.h>
@@ -84,6 +86,8 @@ void ConfigureSingletons(const TSingletonsConfigPtr& config)
     NProfiling::TProfileManager::Get()->Configure(config->ProfileManager);
     NProfiling::TProfileManager::Get()->Start();
 
+    NProfiling::EnablePerfCounters();
+
     if (auto tracingConfig = config->Rpc->Tracing) {
         NTracing::SetTracingConfig(tracingConfig);
     }
@@ -115,8 +119,6 @@ void ReconfigureSingletonsImpl(const TSingletonsConfigPtr& config, const TIntrus
     NRpc::TDispatcher::Get()->Configure(config->RpcDispatcher->ApplyDynamic(dynamicConfig->RpcDispatcher));
 
     NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher->ApplyDynamic(dynamicConfig->ChunkClientDispatcher));
-
-    NProfiling::TProfileManager::Get()->Reconfigure(config->ProfileManager, dynamicConfig->ProfileManager);
 
     if (dynamicConfig->Rpc->Tracing) {
         NTracing::SetTracingConfig(dynamicConfig->Rpc->Tracing);

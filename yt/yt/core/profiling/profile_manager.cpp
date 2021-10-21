@@ -1,6 +1,5 @@
 #include "config.h"
 #include "profile_manager.h"
-#include "resource_tracker.h"
 #include "timing.h"
 
 #include <yt/yt/core/concurrency/profiling_helpers.h>
@@ -22,6 +21,8 @@
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_client.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
+
+#include <yt/yt/library/profiling/resource_tracker/resource_tracker.h>
 
 #include <util/generic/iterator_range.h>
 
@@ -99,13 +100,6 @@ public:
     {
         GlobalTags_ = config->GlobalTags;
         Config_ = config;
-
-        GetResourceTracker()->Configure(config);
-    }
-
-    void Reconfigure(const TProfileManagerConfigPtr& config, const TProfileManagerDynamicConfigPtr& dynamicConfig)
-    {
-        GetResourceTracker()->Reconfigure(config, dynamicConfig);
     }
 
     IInvokerPtr GetInvoker() const
@@ -549,11 +543,6 @@ TProfileManager* TProfileManager::Get()
 void TProfileManager::Configure(const TProfileManagerConfigPtr& config)
 {
     Impl_->Configure(config);
-}
-
-void TProfileManager::Reconfigure(const TProfileManagerConfigPtr& config, const TProfileManagerDynamicConfigPtr& dynamicConfig)
-{
-    Impl_->Reconfigure(config, dynamicConfig);
 }
 
 void TProfileManager::Start()

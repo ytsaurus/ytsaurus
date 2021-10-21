@@ -80,7 +80,6 @@ public:
     NBus::TTcpDispatcherDynamicConfigPtr TcpDispatcher;
     NRpc::TDispatcherDynamicConfigPtr RpcDispatcher;
     NChunkClient::TDispatcherDynamicConfigPtr ChunkClientDispatcher;
-    NProfiling::TProfileManagerDynamicConfigPtr ProfileManager;
     NLogging::TLogManagerDynamicConfigPtr Logging;
     NTracing::TJaegerTracerDynamicConfigPtr Jaeger;
     TRpcConfigPtr Rpc;
@@ -102,7 +101,6 @@ public:
     NBus::TTcpDispatcherDynamicConfigPtr TcpDispatcher;
     NRpc::TDispatcherDynamicConfigPtr RpcDispatcher;
     NChunkClient::TDispatcherDynamicConfigPtr ChunkClientDispatcher;
-    NProfiling::TProfileManagerDynamicConfigPtr ProfileManager;
     NLogging::TLogManagerDynamicConfigPtr Logging;
     NTracing::TJaegerTracerDynamicConfigPtr Jaeger;
     TRpcConfigPtr Rpc;

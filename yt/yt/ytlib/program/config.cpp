@@ -66,8 +66,6 @@ TDeprecatedSingletonsDynamicConfig::TDeprecatedSingletonsDynamicConfig()
         .DefaultNew();
     RegisterParameter("chunk_client_dispatcher", ChunkClientDispatcher)
         .DefaultNew();
-    RegisterParameter("profile_manager", ProfileManager)
-        .Default();
     RegisterParameter("logging", Logging)
         .DefaultNew();
     RegisterParameter("jaeger", Jaeger)
@@ -90,8 +88,6 @@ void TSingletonsDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("chunk_client_dispatcher", &TSingletonsDynamicConfig::ChunkClientDispatcher)
         .DefaultNew();
-    registrar.Parameter("profile_manager", &TSingletonsDynamicConfig::ProfileManager)
-        .Default();
     registrar.Parameter("logging", &TSingletonsDynamicConfig::Logging)
         .DefaultNew();
     registrar.Parameter("jaeger", &TSingletonsDynamicConfig::Jaeger)

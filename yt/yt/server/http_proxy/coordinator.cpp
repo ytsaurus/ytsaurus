@@ -22,7 +22,8 @@
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/profiling/profile_manager.h>
-#include <yt/yt/core/profiling/resource_tracker.h>
+
+#include <yt/yt/library/profiling/resource_tracker/resource_tracker.h>
 
 #include <yt/yt/core/ytree/ypath_proxy.h>
 

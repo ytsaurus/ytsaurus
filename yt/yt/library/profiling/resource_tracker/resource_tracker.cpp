@@ -1,7 +1,4 @@
 #include "resource_tracker.h"
-#include "profile_manager.h"
-#include "profiler.h"
-#include "config.h"
 
 #include <yt/yt/core/logging/log.h>
 
@@ -16,21 +13,13 @@
 
 #include <util/string/vector.h>
 
-#if defined(_linux_) && !defined(_musl_)
-#define RESOURCE_TRACKER_ENABLED
-
-#include <linux/perf_event.h>
-#include <linux/hw_breakpoint.h>
-
-#include <sys/ioctl.h>
-#include <sys/syscall.h>
-#endif
-
-#ifdef RESOURCE_TRACKER_ENABLED
+#if defined(_linux_)
 #include <unistd.h>
 #endif
 
 namespace NYT::NProfiling {
+
+////////////////////////////////////////////////////////////////////////////////
 
 using namespace NYPath;
 using namespace NYTree;
@@ -52,7 +41,7 @@ namespace {
 
 i64 GetTicksPerSecond()
 {
-#ifdef RESOURCE_TRACKER_ENABLED
+#if defined(_linux_)
     return sysconf(_SC_CLK_TCK);
 #else
     return -1;
@@ -61,177 +50,6 @@ i64 GetTicksPerSecond()
 
 #ifdef RESOURCE_TRACKER_ENABLED
 
-struct TPerfEventDescription final
-{
-    int EventType;
-    int EventConfig;
-};
-
-constexpr TPerfEventDescription SoftwareEvent(const int perfName) noexcept 
-{
-    return {PERF_TYPE_SOFTWARE, perfName};
-}
-
-constexpr TPerfEventDescription HardwareEvent(const int perfName) noexcept 
-{
-    return {PERF_TYPE_HARDWARE, perfName};
-}
-
-enum class ECacheEventType 
-{
-    Access,
-    Miss,
-};
-
-enum class ECacheActionType
-{
-    Load,
-    Store,
-};
-
-TPerfEventDescription CacheEvent(
-    const int perfName,
-    const ECacheActionType eventType,
-    const ECacheEventType eventResultType) noexcept 
-{
-    constexpr auto kEventNameShift = 0;
-    constexpr auto kCacheActionTypeShift = 8;
-    constexpr auto kEventTypeShift = 16;
-
-    const int cacheActionTypeForConfig = [&] {
-        switch (eventType)
-        {
-            case ECacheActionType::Load:
-                return PERF_COUNT_HW_CACHE_OP_READ;
-            case ECacheActionType::Store:
-                return PERF_COUNT_HW_CACHE_OP_WRITE;
-            default:
-                YT_ABORT();
-        }
-    }();
-    
-    const int eventTypeForConfig = [&] {
-        switch (eventResultType)
-        {
-            case ECacheEventType::Access:
-                return PERF_COUNT_HW_CACHE_RESULT_ACCESS;
-            case ECacheEventType::Miss:
-                return PERF_COUNT_HW_CACHE_RESULT_MISS;
-            default:
-                YT_ABORT();
-        }
-    }();
-
-    const int eventConfig = (perfName << kEventNameShift) | 
-        (cacheActionTypeForConfig << kCacheActionTypeShift) | 
-        (eventTypeForConfig << kEventTypeShift);
-
-    return {PERF_TYPE_HW_CACHE, eventConfig};
-}
-
-const TPerfEventDescription EventDescriptions[] = {
-    HardwareEvent(PERF_COUNT_HW_CPU_CYCLES),
-    HardwareEvent(PERF_COUNT_HW_INSTRUCTIONS),
-    HardwareEvent(PERF_COUNT_HW_CACHE_REFERENCES),
-    HardwareEvent(PERF_COUNT_HW_CACHE_MISSES),
-    HardwareEvent(PERF_COUNT_HW_BRANCH_INSTRUCTIONS),
-    HardwareEvent(PERF_COUNT_HW_BRANCH_MISSES),
-    HardwareEvent(PERF_COUNT_HW_BUS_CYCLES),
-    HardwareEvent(PERF_COUNT_HW_STALLED_CYCLES_FRONTEND),
-    HardwareEvent(PERF_COUNT_HW_STALLED_CYCLES_BACKEND),
-    HardwareEvent(PERF_COUNT_HW_REF_CPU_CYCLES),
-
-    // `cpu-clock` is a bit broken according to this: https://stackoverflow.com/a/56967896
-    SoftwareEvent(PERF_COUNT_SW_CPU_CLOCK),
-    SoftwareEvent(PERF_COUNT_SW_TASK_CLOCK),
-    SoftwareEvent(PERF_COUNT_SW_CONTEXT_SWITCHES),
-    SoftwareEvent(PERF_COUNT_SW_CPU_MIGRATIONS),
-    SoftwareEvent(PERF_COUNT_SW_ALIGNMENT_FAULTS),
-    SoftwareEvent(PERF_COUNT_SW_EMULATION_FAULTS),
-
-    CacheEvent(PERF_COUNT_HW_CACHE_DTLB, ECacheActionType::Load, ECacheEventType::Access),
-    CacheEvent(PERF_COUNT_HW_CACHE_DTLB, ECacheActionType::Load, ECacheEventType::Miss),
-    CacheEvent(PERF_COUNT_HW_CACHE_DTLB, ECacheActionType::Store, ECacheEventType::Access),
-    CacheEvent(PERF_COUNT_HW_CACHE_DTLB, ECacheActionType::Store, ECacheEventType::Miss),
-
-    // Apparently it doesn't make sense to treat these values as relative:
-    // https://stackoverflow.com/questions/49933319/how-to-interpret-perf-itlb-loads-itlb-load-misses
-    CacheEvent(PERF_COUNT_HW_CACHE_ITLB, ECacheActionType::Load, ECacheEventType::Access),
-    CacheEvent(PERF_COUNT_HW_CACHE_ITLB, ECacheActionType::Load, ECacheEventType::Miss),
-    CacheEvent(PERF_COUNT_HW_CACHE_NODE, ECacheActionType::Load, ECacheEventType::Access),
-    CacheEvent(PERF_COUNT_HW_CACHE_NODE, ECacheActionType::Load, ECacheEventType::Miss),
-};
-
-int OpenPerfEvent(const int tid, const int eventType, const int eventConfig) 
-{
-    perf_event_attr attr{};
-
-    attr.type = eventType;
-    attr.size = sizeof(attr);
-    attr.config = eventConfig;
-    attr.exclude_kernel = 1;
-    attr.disabled = 1;
-
-    const int fd = syscall(SYS_perf_event_open, &attr, tid, -1, -1, 0);
-    if (fd == -1) {
-        YT_LOG_DEBUG(
-            TError::FromSystem(), 
-            "Fail to open perf event descriptor (FD: %v, tid: %v, EventType: %v, EventConfig: %v", 
-            fd, 
-            tid, 
-            eventType, 
-            eventConfig);
-    } else {
-        YT_LOG_DEBUG(
-            "Perf event descriptor opened (FD: %v, tid: %v, EventType: %v, EventConfig: %v", 
-            fd, 
-            tid, 
-            eventType, 
-            eventConfig);
-    }
-
-    return fd;
-}
-
-ui64 FetchPerfCounter(const int fd)
-{
-    if (fd == -1) {
-        return 0;
-    }
-
-    ui64 num{};
-    YT_VERIFY(read(fd, &num, sizeof(num)) == sizeof(num) || errno == EINTR);
-    return num;
-}
-
-void SetPerfEventEnableMode(const bool enable, const int FD) 
-{
-    if (FD <= 0) {
-        return;
-    }
-
-    const auto ioctlArg = enable ? PERF_EVENT_IOC_ENABLE : PERF_EVENT_IOC_DISABLE;
-    YT_VERIFY(ioctl(FD, ioctlArg, 0) != -1);
-}
-
-void OpenPerfEventIfNeeded(const TStringBuf tidString, TResourceTracker::TThreadPerfInfoMap& perfInfoMap, const int eventIndex) 
-{
-    auto& perfEventInfos = perfInfoMap[tidString].EventInfos;
-
-    if (perfEventInfos[eventIndex].FD != 0) {
-        return;
-    }
-
-    const auto tid = [&tidString] {
-        try {
-            return FromString<int>(tidString);
-        } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error parsing tidString: %v", tidString);
-            throw;
-        }
-    }();
-    perfEventInfos[eventIndex].FD = OpenPerfEvent(tid, EventDescriptions[eventIndex].EventType, EventDescriptions[eventIndex].EventConfig);
-}
 
 #endif
 
@@ -275,116 +93,10 @@ void TResourceTracker::CollectSensors(ISensorWriter* writer)
 
     auto tidToInfo = ProcessThreads();
     CollectSensorsAggregatedTimings(writer, TidToInfo_, tidToInfo, timeDeltaUsec);
-    CollectPerfMetrics(writer, TidToInfo_, tidToInfo);
     CollectSensorsThreadCounts(writer, tidToInfo);
     TidToInfo_ = tidToInfo;
 
     LastUpdateTime_ = TInstant::Now();
-}
-
-void TResourceTracker::FetchPerfStats(
-    const TStringBuf tidString, 
-    TResourceTracker::TThreadPerfInfoMap& perfInfoMap, 
-    TResourceTracker::TPerfCounters& counters) 
-{
-    Y_UNUSED(tidString);
-    Y_UNUSED(perfInfoMap);
-    Y_UNUSED(counters);
-#ifdef RESOURCE_TRACKER_ENABLED
-    auto& perfInfo = TidToPerfInfo_[tidString];
-
-    for (int eventIndex = 0; eventIndex < TEnumTraits<EPerfEvents>::DomainSize; ++eventIndex) {
-        const auto eventCurrentlyEnabled = EventConfigSnapshot.Enabled[eventIndex];
-        auto& eventInfo = perfInfo.EventInfos[eventIndex];
-
-        if (eventCurrentlyEnabled != eventInfo.Enabled) {
-            if (eventCurrentlyEnabled) {
-                OpenPerfEventIfNeeded(tidString, perfInfoMap, eventIndex);
-                YT_LOG_INFO("Start collecting %v metrics for thread %v", FormatEnum(EPerfEvents{eventIndex}), tidString);
-            } else {
-                YT_LOG_INFO("Stop collecting %v metrics for thread %v", FormatEnum(EPerfEvents{eventIndex}), tidString);
-            }
-
-            SetPerfEventEnableMode(eventCurrentlyEnabled, eventInfo.FD);
-        }
-        eventInfo.Enabled = eventCurrentlyEnabled;
-
-        if (eventCurrentlyEnabled) {
-            YT_LOG_TRACE("Will collect event %v", eventIndex);
-            counters.Counters[eventIndex] = FetchPerfCounter(eventInfo.FD);
-        } else {
-            YT_LOG_TRACE("Will no collect event %v", eventIndex);
-        }
-    }
-#endif
-}
-
-void TResourceTracker::CreateEventConfigSnapshot() noexcept
-{
-    for (int eventIndex = 0; eventIndex < std::ssize(EventConfigs.Enabled); ++eventIndex) {
-        EventConfigSnapshot.Enabled[eventIndex] = EventConfigs.Enabled[eventIndex].load(std::memory_order_relaxed);
-    }
-}
-
-void TResourceTracker::CollectPerfMetrics(
-    ISensorWriter* writer,
-    const TResourceTracker::TThreadMap& oldTidToInfo,
-    const TResourceTracker::TThreadMap& newTidToInfo) 
-{
-    THashMap<TStringBuf, TPerfCounters> aggregatedPerfCounters;
-    for (const auto& [tid, newInfo] : newTidToInfo) {
-        const auto it = oldTidToInfo.find(tid);
-
-        if (it == oldTidToInfo.end()) {
-            continue;
-        }
-
-        const auto& oldInfo = it->second;
-
-        if (oldInfo.ProfilingKey != newInfo.ProfilingKey) {
-            continue;
-        }
-
-        aggregatedPerfCounters[newInfo.ProfilingKey] += newInfo.PerfCounters;
-    }
-
-    for (const auto& [profilingKey, perfCounters] : aggregatedPerfCounters) {
-        writer->PushTag(std::pair<TString, TString>{"thread", profilingKey});
-
-        for (int index = 0; index < std::ssize(perfCounters.Counters); ++index) {
-            if (!EventConfigSnapshot.Enabled[index]) {
-                continue;
-            }
-            writer->AddCounter("/" + FormatEnum(EPerfEvents{index}), perfCounters.Counters[index]);
-        }
-
-        writer->PopTag();
-    }
-}
-
-void TResourceTracker::Configure(const TProfileManagerConfigPtr& config) 
-{
-    if (config) {
-        SetPerfEventsConfiguration(config->EnabledPerfEvents);
-    }
-}
-
-void TResourceTracker::Reconfigure(const TProfileManagerConfigPtr& config, const TProfileManagerDynamicConfigPtr& dynamicConfig)
-{
-    if (dynamicConfig && dynamicConfig->EnabledPerfEvents) {
-        SetPerfEventsConfiguration(*dynamicConfig->EnabledPerfEvents);
-    } else if (config) {
-        SetPerfEventsConfiguration(config->EnabledPerfEvents);
-    }
-}
-
-void TResourceTracker::SetPerfEventsConfiguration(const THashSet<EPerfEvents>& enabledEvents)
-{
-    for (int eventIndex = 0; eventIndex < std::ssize(EventConfigs.Enabled); ++eventIndex) {
-        const bool eventEnabled = enabledEvents.contains(static_cast<EPerfEvents>(eventIndex));
-
-        EventConfigs.Enabled[eventIndex].store(eventEnabled, std::memory_order_relaxed);
-    }
 }
 
 bool TResourceTracker::ProcessThread(TString tid, TResourceTracker::TThreadInfo* info)
@@ -395,8 +107,6 @@ bool TResourceTracker::ProcessThread(TString tid, TResourceTracker::TThreadInfo*
     auto schedStatPath = NFS::CombinePaths(threadStatPath, "schedstat");
 
     try {
-        FetchPerfStats(tid, TidToPerfInfo_, info->PerfCounters);
-
         // Parse status.
         {
             TIFStream file(statusPath);
@@ -486,8 +196,6 @@ bool TResourceTracker::ProcessThread(TString tid, TResourceTracker::TThreadInfo*
 
 TResourceTracker::TThreadMap TResourceTracker::ProcessThreads()
 {
-    CreateEventConfigSnapshot();
-
     TDirsList dirsList;
     try {
         dirsList.Fill(procPath);
