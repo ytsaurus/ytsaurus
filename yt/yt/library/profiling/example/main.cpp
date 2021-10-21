@@ -6,8 +6,6 @@
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 #include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/yt/core/profiling/resource_tracker.h>
-
 #include <yt/yt/core/http/server.h>
 
 #include <yt/yt/core/utilex/random.h>
@@ -20,11 +18,13 @@
 #include <yt/yt/library/profiling/solomon/exporter.h>
 #include <yt/yt/library/profiling/solomon/registry.h>
 #include <yt/yt/library/profiling/tcmalloc/profiler.h>
+#include <yt/yt/library/profiling/perf/counters.h>
 
 #include <util/stream/output.h>
 #include <util/system/compiler.h>
 #include <util/generic/yexception.h>
 #include <util/string/cast.h>
+#include <util/system/madvise.h>
 
 using namespace NYT;
 using namespace NYT::NHttp;
@@ -34,6 +34,7 @@ using namespace NYT::NProfiling;
 int main(int argc, char* argv[])
 {
     EnableTCMallocProfiler();
+    EnablePerfCounters();
 
     try {
         if (argc != 2 && argc != 3) {
@@ -134,6 +135,7 @@ int main(int argc, char* argv[])
         std::default_random_engine rng;
         double value = 0.0;
 
+        auto ptr = malloc(4_GB);
         for (i64 i = 0; true; ++i) {
             YT_PROFILE_TIMING("/loop_start") {
                 iterationCount.Increment();
@@ -153,6 +155,9 @@ int main(int argc, char* argv[])
             if (i % 18000 == 0) {
                 sparseCounter.Increment();
             }
+
+            *reinterpret_cast<int*>(ptr) = 0;
+            MadviseEvict(ptr, 4096);
         }
     } catch (const std::exception& ex) {
         Cerr << ex.what() << Endl;

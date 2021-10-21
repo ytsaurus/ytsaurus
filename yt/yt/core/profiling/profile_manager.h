@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/concurrency/spinlock.h>
 
+#include <yt/yt/library/profiling/resource_tracker/resource_tracker.h>
+
 namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,9 +57,6 @@ public:
 
     //! Configure profiling.
     void Configure(const TProfileManagerConfigPtr& config);
-
-    //! Reconfigure profiling.
-    void Reconfigure(const TProfileManagerConfigPtr& config, const TProfileManagerDynamicConfigPtr& dynamicConfig);
 
     //! Starts profiling.
     /*!
