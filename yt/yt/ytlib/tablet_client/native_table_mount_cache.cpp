@@ -111,7 +111,7 @@ private:
             : Owner_(std::move(owner))
             , Connection_(std::move(connection))
             , Key_(key)
-            , IsPeriodicUpdate(isPeriodicUpdate)
+            , IsPeriodicUpdate_(isPeriodicUpdate)
             , Logger(logger.WithTag("Path: %v, CacheSessionId: %v",
                 Key_.Path,
                 TGuid::Create()))
@@ -147,7 +147,7 @@ private:
         const TTableMountCachePtr Owner_;
         const TWeakPtr<IConnection> Connection_;
         const TTableMountCacheKey Key_;
-        const bool IsPeriodicUpdate;
+        const bool IsPeriodicUpdate_;
         const NLogging::TLogger Logger;
 
         TTableId TableId_;
@@ -258,7 +258,7 @@ private:
             batchReq->AddRequest(req, std::nullopt, hash);
 
             auto responseHandler = BIND(&TGetSession::OnTableMountInfoReceived, MakeStrong(this));
-            if (IsPeriodicUpdate) {
+            if (IsPeriodicUpdate_) {
                 // For background updates we serialize table mount info processing via #TableMountInfoUpdateInvoker to reduce
                 // contention on the #TableInfoCache and avoid concurrent processing of heavy responses.
                 return batchReq->Invoke()
