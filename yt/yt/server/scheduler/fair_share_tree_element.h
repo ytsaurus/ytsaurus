@@ -440,7 +440,8 @@ public:
 
     virtual void UpdateDynamicAttributes(
         TDynamicAttributesList* dynamicAttributesList,
-        const TChildHeapMap& childHeapMap) = 0;
+        const TChildHeapMap& childHeapMap,
+        bool checkLiveness) = 0;
 
     virtual TFairShareScheduleJobResult ScheduleJob(TScheduleJobsContext* context, bool ignorePacking) = 0;
 
@@ -652,7 +653,8 @@ public:
 
     void UpdateDynamicAttributes(
         TDynamicAttributesList* dynamicAttributesList,
-        const TChildHeapMap& childHeapMap) final;
+        const TChildHeapMap& childHeapMap,
+        bool checkLiveness) final;
 
     TFairShareScheduleJobResult ScheduleJob(TScheduleJobsContext* context, bool ignorePacking) final;
 
@@ -1176,7 +1178,8 @@ public:
 
     void UpdateDynamicAttributes(
         TDynamicAttributesList* dynamicAttributesList,
-        const TChildHeapMap& childHeapMap) final;
+        const TChildHeapMap& childHeapMap,
+        bool checkLiveness) final;
 
     const TJobResources& CalculateCurrentResourceUsage(TScheduleJobsContext* context) final;
     
