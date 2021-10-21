@@ -491,7 +491,11 @@ public:
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
-        // Likely to be noop: once created, builtins are loaded from snapshot, too.
+        // Usually the empty table schema, like any other, is loaded from snapshot.
+        // However:
+        //   - we still need to initialize the pointer;
+        //   - on old snapshots that don't contain schema map (or this automaton
+        //     part altogether) this initialization is crucial.
         InitBuiltins();
 
         // COMPAT(shakurov)
@@ -539,6 +543,15 @@ public:
     {
         YT_VERIFY(EmptyMasterTableSchema_);
         return EmptyMasterTableSchema_;
+    }
+
+    // COMPAT(shakurov)
+    TMasterTableSchema* GetOrCreateEmptyMasterTableSchema()
+    {
+        // Right now this may be called during compat-loading table nodes, which
+        // precedes initialization of builtins by OnAfterSnapshotLoaded.
+        InitBuiltins();
+        return GetEmptyMasterTableSchema();
     }
 
     void SetTableSchema(TTableNode* table, TMasterTableSchema* schema)
@@ -1149,6 +1162,11 @@ TMasterTableSchema* TTableManager::CreateMasterTableSchemaUnsafely(
 TMasterTableSchema* TTableManager::GetEmptyMasterTableSchema()
 {
     return Impl_->GetEmptyMasterTableSchema();
+}
+
+TMasterTableSchema* TTableManager::GetOrCreateEmptyMasterTableSchema()
+{
+    return Impl_->GetOrCreateEmptyMasterTableSchema();
 }
 
 TMasterTableSchema::TTableSchemaToObjectMapIterator TTableManager::RegisterSchema(

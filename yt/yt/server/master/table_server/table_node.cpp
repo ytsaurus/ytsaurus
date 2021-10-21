@@ -369,7 +369,7 @@ void TTableNode::LoadTableSchema(NCellMaster::TLoadContext& context)
         // here for compat-loading a snapshot. Loading this way during EndCopy
         // would cause trouble. Luckily, there's no need for that.
         const auto& tableManager = context.GetBootstrap()->GetTableManager();
-        auto* emptyMasterTableSchema = tableManager->GetEmptyMasterTableSchema();
+        auto* emptyMasterTableSchema = tableManager->GetOrCreateEmptyMasterTableSchema();
         const auto& emptyTableSchema = *emptyMasterTableSchema->AsTableSchema();
 
         switch (Load<ESchemaSerializationMethod>(context)) {

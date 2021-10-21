@@ -83,6 +83,9 @@ public:
 
     TMasterTableSchema* GetEmptyMasterTableSchema();
 
+    // COMPAT(shakurov)
+    TMasterTableSchema* GetOrCreateEmptyMasterTableSchema();
+
     void SetTableSchema(TTableNode* table, TMasterTableSchema* schema);
     void ResetTableSchema(TTableNode* table);
 
