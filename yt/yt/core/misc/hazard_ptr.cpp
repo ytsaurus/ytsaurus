@@ -162,6 +162,13 @@ private:
 
 /////////////////////////////////////////////////////////////////////////////
 
+static void* HazardPointerManagerInitializer = [] {
+    THazardPointerManager::Get();
+    return nullptr;
+}();
+
+/////////////////////////////////////////////////////////////////////////////
+
 THazardPointerManager::THazardPointerManager()
 {
     pthread_key_create(&ThreadDtorKey_, [] (void* ptr) {
