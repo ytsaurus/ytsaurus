@@ -217,18 +217,15 @@ type disconnectingRPCConn struct {
 	disconnect chan struct{}
 }
 
-func NewDisconnectingRPCConn(ctx context.Context, addr string, disconnect chan struct{}) (*disconnectingRPCConn, error) {
-	conn, err := rpcclient.DefaultDial(ctx, addr)
-	if err != nil {
-		return nil, err
-	}
+func NewDisconnectingRPCConn(ctx context.Context, addr string, disconnect chan struct{}) *disconnectingRPCConn {
+	conn := rpcclient.DefaultDial(ctx, addr)
 
 	ret := &disconnectingRPCConn{
 		conn:       conn,
 		disconnect: disconnect,
 	}
 
-	return ret, nil
+	return ret
 }
 
 func (c *disconnectingRPCConn) Send(
@@ -245,8 +242,20 @@ func (c *disconnectingRPCConn) Send(
 	}
 }
 
+func (c *disconnectingRPCConn) Err() error {
+	return c.conn.Err()
+}
+
+func (c *disconnectingRPCConn) Close() {
+	c.conn.Close()
+}
+
+func (c *disconnectingRPCConn) Done() <-chan struct{} {
+	return c.conn.Done()
+}
+
 func NewDisconnectingRPCConnDialer(disconnect chan struct{}) rpcclient.Dialer {
-	return func(ctx context.Context, addr string) (rpcclient.BusConn, error) {
+	return func(ctx context.Context, addr string) rpcclient.BusConn {
 		return NewDisconnectingRPCConn(ctx, addr, disconnect)
 	}
 }

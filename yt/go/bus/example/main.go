@@ -16,10 +16,7 @@ var (
 
 func testBus() error {
 	ctx := context.Background()
-	conn, err := bus.NewClient(ctx, *flagAddress)
-	if err != nil {
-		return err
-	}
+	conn := bus.NewClient(ctx, *flagAddress)
 	defer conn.Close()
 
 	var req rpc_proxy.TReqDiscoverProxies

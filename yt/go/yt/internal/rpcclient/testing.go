@@ -16,9 +16,15 @@ type BusConn interface {
 		request, reply proto.Message,
 		opts ...bus.SendOption,
 	) error
+
+	Err() error
+
+	Close()
+
+	Done() <-chan struct{}
 }
 
-type Dialer func(ctx context.Context, addr string) (BusConn, error)
+type Dialer func(ctx context.Context, addr string) BusConn
 
 type dialerKey struct{}
 
@@ -35,6 +41,6 @@ func GetDialer(ctx context.Context) (Dialer, bool) {
 	return v.(Dialer), true
 }
 
-func DefaultDial(ctx context.Context, addr string) (BusConn, error) {
+func DefaultDial(ctx context.Context, addr string) BusConn {
 	return bus.NewClient(ctx, addr, bus.WithDefaultProtocolVersionMajor(ProtocolVersionMajor))
 }

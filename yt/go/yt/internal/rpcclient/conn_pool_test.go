@@ -9,39 +9,51 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"a.yandex-team.ru/yt/go/bus"
+	"a.yandex-team.ru/yt/go/ytlog"
 )
 
-func TestLRUConnPool(t *testing.T) {
+func TestConnPool(t *testing.T) {
 	origCleanupConn := cleanupConn
 	defer func() {
 		cleanupConn = origCleanupConn
 	}()
 
-	deletions := make(chan struct{})
-
 	deletedConns := &sync.Map{}
-	cleanupConn = func(conn *bus.ClientConn) {
-		deletedConns.Store(conn, struct{}{})
-		deletions <- struct{}{}
+	cleanupConn = func(conn *conn) {
+		deletedConns.Store(conn.BusConn, struct{}{})
 	}
 
-	size := 10
 	conns := &sync.Map{}
-	p := NewLRUConnPool(func(ctx context.Context, addr string) (BusConn, error) {
+	p := NewConnPool(func(ctx context.Context, addr string) BusConn {
 		conn := &bus.ClientConn{}
 		conns.Store(addr, conn)
-		return conn, nil
-	}, size)
+		return conn
+	}, ytlog.Must())
 
-	// Add conns up to the limit.
+	const size = 10
+
+	// Add some conns.
 	for i := 0; i < size; i++ {
 		addr := fmt.Sprintf("1.1.1.%v", i)
-		_, err := p.Conn(context.Background(), addr)
+		conn, err := p.Conn(context.Background(), addr)
 		require.NoError(t, err)
+		require.True(t, conn.inflight > 0)
+		require.False(t, conn.Expired())
 
 		_, ok := conns.Load(addr)
 		require.True(t, ok)
 	}
+
+	// Release conn.
+	conn, err := p.Conn(context.Background(), "1.1.1.0")
+	require.NoError(t, err)
+	require.Equal(t, 2, conn.inflight)
+	et := conn.expiresAt
+
+	conn.Release()
+	require.Equal(t, 1, conn.inflight, "Release should decrement inflight request count.")
+	require.False(t, conn.Expired())
+	require.True(t, conn.expiresAt.After(et), "Release should extend expiration time.")
 
 	checkDeleted := func(t *testing.T, addr string) {
 		t.Helper()
@@ -50,17 +62,23 @@ func TestLRUConnPool(t *testing.T) {
 		require.True(t, ok)
 
 		_, ok = deletedConns.Load(conn)
-		require.True(t, ok)
+		require.True(t, ok, addr)
 	}
 
-	// Add extra conn and trigger deletion.
-	_, err := p.Conn(context.Background(), "2.2.2.2")
-	require.NoError(t, err)
-	<-deletions
+	// Discard conn.
+	conn.Discard()
 	checkDeleted(t, "1.1.1.0")
 
 	// Discard addr and trigger conn deletion.
-	p.Discard("1.1.1.2")
-	<-deletions
-	checkDeleted(t, "1.1.1.2")
+	p.Discard("1.1.1.1")
+	checkDeleted(t, "1.1.1.1")
+	// Second discard does nothing.
+	p.Discard("1.1.1.1")
+
+	// Shutdown pool.
+	p.Stop()
+	for i := 1; i < size; i++ {
+		addr := fmt.Sprintf("1.1.1.%v", i)
+		checkDeleted(t, addr)
+	}
 }

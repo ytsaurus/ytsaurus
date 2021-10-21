@@ -75,15 +75,12 @@ type myServiceClient struct {
 	conn *ClientConn
 }
 
-func NewMyServiceClient(addr string, opts ...ClientOption) (*myServiceClient, error) {
+func NewMyServiceClient(addr string, opts ...ClientOption) *myServiceClient {
 	options := append([]ClientOption{WithDefaultProtocolVersionMajor(1)}, opts...)
 
 	ctx := context.Background()
-	conn, err := NewClient(ctx, addr, options...)
-	if err != nil {
-		return nil, err
-	}
-	return &myServiceClient{conn: conn}, nil
+	conn := NewClient(ctx, addr, options...)
+	return &myServiceClient{conn: conn}
 }
 
 func (c *myServiceClient) send(ctx context.Context, method string, req, rsp proto.Message, opts ...SendOption) error {
