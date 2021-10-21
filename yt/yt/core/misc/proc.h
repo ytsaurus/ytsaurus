@@ -47,6 +47,29 @@ struct TMemoryUsage
 
 TMemoryUsage GetProcessMemoryUsage(int pid = -1);
 
+struct TProcessCgroup
+{
+    int HierarchyId;
+    TString ControllersName;
+    std::vector<TString> Controllers;
+    TString Path;
+};
+
+std::vector<TProcessCgroup> GetProcessCgroups(int pid = -1);
+
+struct TCgroupCpuStat
+{
+    ui64 NrPeriods = 0;
+    ui64 NrThrottled = 0;
+    ui64 ThrottledTime = 0;
+    ui64 WaitTime = 0;
+};
+
+TCgroupCpuStat GetCgroupCpuStat(
+    const TString& controllerName,
+    const TString& cgroupPath,
+    const TString& cgroupMountPoint = "/sys/fs/cgroup");
+
 THashMap<TString, i64> GetVmstat();
 
 ui64 GetProcessCumulativeMajorPageFaults(int pid = -1);

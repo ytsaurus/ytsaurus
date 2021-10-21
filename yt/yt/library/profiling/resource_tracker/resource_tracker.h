@@ -4,6 +4,8 @@
 
 #include <yt/yt/library/profiling/producer.h>
 
+#include <yt/yt/core/misc/proc.h>
+
 namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,6 +32,9 @@ private:
     std::atomic<double> LastUserCpu_{0.0};
     std::atomic<double> LastSystemCpu_{0.0};
     std::atomic<double> LastCpuWait_{0.0};
+
+    std::optional<TCgroupCpuStat> FirstCgroupStat_;
+    bool CgroupErrorLogged_ = false;
 
     struct TTimings
     {
@@ -73,6 +78,8 @@ private:
     void CollectSensorsThreadCounts(
         ISensorWriter* writer,
         const TThreadMap& tidToInfo) const;
+
+    void CollectSensorsCgroup(ISensorWriter* writer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

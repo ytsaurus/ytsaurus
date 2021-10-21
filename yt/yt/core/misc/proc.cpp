@@ -313,6 +313,83 @@ TMemoryUsage GetProcessMemoryUsage(int pid)
 #endif
 }
 
+std::vector<TProcessCgroup> GetProcessCgroups(int pid)
+{
+#ifdef _linux_
+    TString path = "/proc/self/cgroup";
+    if (pid != -1) {
+        path = Format("/proc/%v/cgroup", pid);
+    }
+
+    std::vector<TProcessCgroup> groups;
+
+    TIFStream cgroupFile(path);
+    for (TString line; cgroupFile.ReadLine(line); ) {
+        if (line.empty()) {
+            continue;
+        }
+
+        auto fields = SplitString(line, ":", 3, KEEP_EMPTY_TOKENS);
+        if (fields.size() != 3) {
+            THROW_ERROR_EXCEPTION("Failed parse process cgroups")
+                << TErrorAttribute("line", line)
+                << TErrorAttribute("fields", fields);
+        }
+
+        TProcessCgroup group;
+        group.HierarchyId = FromString<ui64>(fields[0]);
+        group.ControllersName = fields[1];
+        group.Controllers = SplitString(fields[1], ",");
+        group.Path = fields[2];
+
+        groups.push_back(group);
+    }
+
+    return groups;
+#else
+    Y_UNUSED(pid);
+    return {};
+#endif
+}
+
+TCgroupCpuStat GetCgroupCpuStat(
+    const TString& controllerName,
+    const TString& cgroupPath,
+    const TString& cgroupMountPoint)
+{
+#ifdef _linux_
+    TString path = cgroupMountPoint + "/" + controllerName + cgroupPath + "/cpu.stat";
+
+    TCgroupCpuStat stat;
+
+    TIFStream cgroupFile(path);
+    for (TString line; cgroupFile.ReadLine(line); ) {
+        if (line.empty()) {
+            continue;
+        }
+
+        auto fields = SplitString(line, " ", 2);
+        if (fields.size() != 2) {
+            continue;
+        }
+        if (fields[0] == "nr_periods") {
+            stat.NrPeriods = FromString<ui64>(fields[1]);
+        } else if (fields[0] == "nr_throttled") {
+            stat.NrThrottled = FromString<ui64>(fields[1]);
+        } else if (fields[0] == "throttled_time") {
+            stat.ThrottledTime = FromString<ui64>(fields[1]);
+        } else if (fields[0] == "wait_sum") {
+            stat.WaitTime = FromString<ui64>(fields[1]);
+        }
+    }
+
+    return stat;
+#else
+    Y_UNUSED(controllerName, cgroupPath, cgroupMountPoint);
+    return {};
+#endif
+}
+
 THashMap<TString, i64> GetVmstat()
 {
 #ifdef _linux_

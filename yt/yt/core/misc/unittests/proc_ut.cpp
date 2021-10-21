@@ -105,6 +105,27 @@ TEST(TProcTest, TestGetSelfMemoryMappings)
     EXPECT_GE(statistics.Rss, 0.9 * memoryUsage.Rss);
 }
 
+TEST(TProcTest, CgroupList)
+{
+    auto cgroups = GetProcessCgroups();
+    ASSERT_FALSE(cgroups.empty());
+
+    for (const auto& group : cgroups) {
+        if (group.HierarchyId == 0) {
+            continue;
+        }
+
+        ASSERT_FALSE(group.Controllers.empty());
+        ASSERT_NE(group.Path, "");
+
+        for (const auto& controller : group.Controllers) {
+            if (controller == "cpu") {
+                GetCgroupCpuStat(group.ControllersName, group.Path);
+            }
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
