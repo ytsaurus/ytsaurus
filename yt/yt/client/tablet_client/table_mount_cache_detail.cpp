@@ -12,12 +12,12 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto TabletCacheSweepPeriod = TDuration::Seconds(60);
+static constexpr auto TabletCacheSweepPeriod = TDuration::Seconds(60);
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TTabletInfoCache::TTabletInfoCache(const NLogging::TLogger& logger)
-    : Logger(logger)
+TTabletInfoCache::TTabletInfoCache(NLogging::TLogger logger)
+    : Logger(std::move(logger))
 { }
 
 TTabletInfoPtr TTabletInfoCache::Find(TTabletId tabletId)
@@ -87,28 +87,31 @@ void TTabletInfoCache::SweepExpiredEntries()
         return;
     }
 
-    decltype(ExpiredEntries_) expiredEntries;
+    decltype(ExpiredTabletIds_) expiredTabletIds;
     {
         auto gcGuard = Guard(GCLock_);
-        expiredEntries = std::move(ExpiredEntries_);
+        expiredTabletIds = std::move(ExpiredTabletIds_);
     }
 
-    if (!expiredEntries.empty()) {
-        YT_LOG_DEBUG("Start sweeping expired tablet info (ExpiredEntriesCount: %v)", expiredEntries.size());
-        for (const auto& id : expiredEntries) {
+    if (!expiredTabletIds.empty()) {
+        YT_LOG_DEBUG("Start sweeping expired tablet info (ExpiredTabletCount: %v)",
+            expiredTabletIds.size());
+
+        for (auto id : expiredTabletIds) {
             auto guard = WriterGuard(MapLock_);
             if (auto it = Map_.find(id); it) {
                 if  (it->second.IsExpired()) {
                     Map_.erase(it);
                     continue;
-                } 
+                }
 
                 guard.Release();
-                
+
                 auto gcGuard = Guard(GCLock_);
                 GCQueue_.push(id);
             }
         }
+
         YT_LOG_DEBUG("Finish sweeping expired tablet info");
     }
 }
@@ -121,7 +124,7 @@ void TTabletInfoCache::ProcessNextGCQueueEntry()
         const auto& id = GCQueue_.front();
         if (auto it = Map_.find(id); it) {
             if (it->second.IsExpired()) {
-                ExpiredEntries_.push_back(id);
+                ExpiredTabletIds_.push_back(id);
             } else {
                 GCQueue_.push(id);
             }

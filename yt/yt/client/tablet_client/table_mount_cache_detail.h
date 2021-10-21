@@ -17,15 +17,13 @@ namespace NYT::NTabletClient {
 class TTabletInfoCache
 {
 public:
-    explicit TTabletInfoCache(const NLogging::TLogger& logger);
+    explicit TTabletInfoCache(NLogging::TLogger logger);
+
     TTabletInfoPtr Find(TTabletId tabletId);
     TTabletInfoPtr Insert(const TTabletInfoPtr& tabletInfo);
     void Clear();
 
 private:
-    void SweepExpiredEntries();
-    void ProcessNextGCQueueEntry();
-
     const NLogging::TLogger Logger;
 
     std::atomic<NProfiling::TCpuInstant> ExpiredEntriesSweepDeadline_ = 0;
@@ -35,7 +33,10 @@ private:
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, GCLock_);
     std::queue<TTabletId> GCQueue_;
-    std::vector<TTabletId> ExpiredEntries_;
+    std::vector<TTabletId> ExpiredTabletIds_;
+
+    void SweepExpiredEntries();
+    void ProcessNextGCQueueEntry();
 };
 
 ///////////////////////////////////////////////////////////////////////////////
