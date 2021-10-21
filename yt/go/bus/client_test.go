@@ -42,8 +42,7 @@ func TestClient_Stop(t *testing.T) {
 	defer stop()
 
 	t.Run("StopWithoutActiveRequests", func(t *testing.T) {
-		conn, err := NewClient(context.Background(), addr)
-		require.NoError(t, err)
+		conn := NewClient(context.Background(), addr)
 
 		conn.Close()
 		<-conn.Done()
@@ -53,8 +52,7 @@ func TestClient_Stop(t *testing.T) {
 	t.Run("StopWithActiveRequests", func(t *testing.T) {
 		ctx := context.Background()
 
-		conn, err := NewClient(ctx, addr)
-		require.NoError(t, err)
+		conn := NewClient(ctx, addr)
 
 		time.AfterFunc(time.Millisecond*500, func() {
 			conn.Close()
@@ -62,7 +60,7 @@ func TestClient_Stop(t *testing.T) {
 
 		req := &myservice.TReqSlowCall{}
 		var rsp myservice.TRspSlowCall
-		err = conn.Send(ctx, "MyService", "SlowCall", req, &rsp)
+		err := conn.Send(ctx, "MyService", "SlowCall", req, &rsp)
 		require.Error(t, err)
 
 		<-conn.Done()
@@ -72,15 +70,14 @@ func TestClient_Stop(t *testing.T) {
 	t.Run("NoMoreRequestsAfterStop", func(t *testing.T) {
 		ctx := context.Background()
 
-		conn, err := NewClient(context.Background(), addr)
-		require.NoError(t, err)
+		conn := NewClient(context.Background(), addr)
 
 		conn.Close()
 		<-conn.Done()
 
 		req := &myservice.TReqSlowCall{}
 		var rsp myservice.TRspSlowCall
-		err = conn.Send(ctx, "MyService", "SlowCall", req, &rsp)
+		err := conn.Send(ctx, "MyService", "SlowCall", req, &rsp)
 		require.Error(t, err)
 	})
 }
@@ -91,9 +88,11 @@ func TestClient_errors(t *testing.T) {
 	addr, stop := StartMyService(t)
 	defer stop()
 
-	c, err := NewMyServiceClient(addr)
-	require.NoError(t, err)
-	defer c.Close()
+	c := NewMyServiceClient(addr)
+	defer func() {
+		c.Close()
+		<-c.conn.Done()
+	}()
 
 	t.Run("OK", func(t *testing.T) {
 		req := &myservice.TReqDoNothing{}
@@ -136,8 +135,9 @@ func TestClient_errors(t *testing.T) {
 		addr, err := tcptest.GetFreeAddr()
 		require.NoError(t, err)
 
-		_, err = NewMyServiceClient(addr)
-		require.Error(t, err)
+		c := NewMyServiceClient(addr)
+		<-c.conn.Done()
+		require.Error(t, c.conn.Err())
 	})
 
 	t.Run("NoService", func(t *testing.T) {
@@ -251,12 +251,14 @@ func TestClient_features(t *testing.T) {
 	defer stop()
 
 	t.Run("RequiredServerFeatureSupported", func(t *testing.T) {
-		c, err := NewMyServiceClient(addr)
-		require.NoError(t, err)
-		defer c.Close()
+		c := NewMyServiceClient(addr)
+		defer func() {
+			c.Close()
+			<-c.conn.Done()
+		}()
 
 		req := &myservice.TReqPassCall{}
-		_, err = c.PassCall(context.Background(), req,
+		_, err := c.PassCall(context.Background(), req,
 			WithUser("test-user"),
 			WithRequiredServerFeatureIDs(int32(MyFeatureGreat)))
 
@@ -264,14 +266,16 @@ func TestClient_features(t *testing.T) {
 	})
 
 	t.Run("RequiredServerFeatureNotSupported", func(t *testing.T) {
-		c, err := NewMyServiceClient(addr, WithFeatureIDFormatter(func(i int32) string {
+		c := NewMyServiceClient(addr, WithFeatureIDFormatter(func(i int32) string {
 			return MyFeature(i).String()
 		}))
-		require.NoError(t, err)
-		defer c.Close()
+		defer func() {
+			c.Close()
+			<-c.conn.Done()
+		}()
 
 		req := &myservice.TReqPassCall{}
-		_, err = c.PassCall(context.Background(), req,
+		_, err := c.PassCall(context.Background(), req,
 			WithUser("test-user"),
 			WithRequiredServerFeatureIDs(int32(MyFeatureCool)))
 
@@ -284,24 +288,28 @@ func TestClient_features(t *testing.T) {
 	})
 
 	t.Run("RequiredClientFeatureSupported", func(t *testing.T) {
-		c, err := NewMyServiceClient(addr)
-		require.NoError(t, err)
-		defer c.Close()
+		c := NewMyServiceClient(addr)
+		defer func() {
+			c.Close()
+			<-c.conn.Done()
+		}()
 
 		req := &myservice.TReqRequireCoolFeature{}
-		_, err = c.RequireCoolFeature(context.Background(), req, WithDeclaredClientFeatureIDs(int32(MyFeatureCool)))
+		_, err := c.RequireCoolFeature(context.Background(), req, WithDeclaredClientFeatureIDs(int32(MyFeatureCool)))
 		require.NoError(t, err)
 	})
 
 	t.Run("RequiredClientFeatureNotSupported", func(t *testing.T) {
-		c, err := NewMyServiceClient(addr, WithFeatureIDFormatter(func(i int32) string {
+		c := NewMyServiceClient(addr, WithFeatureIDFormatter(func(i int32) string {
 			return MyFeature(i).String()
 		}))
-		require.NoError(t, err)
-		defer c.Close()
+		defer func() {
+			c.Close()
+			<-c.conn.Done()
+		}()
 
 		req := &myservice.TReqRequireCoolFeature{}
-		_, err = c.RequireCoolFeature(context.Background(), req, WithDeclaredClientFeatureIDs(int32(MyFeatureGreat)))
+		_, err := c.RequireCoolFeature(context.Background(), req, WithDeclaredClientFeatureIDs(int32(MyFeatureGreat)))
 
 		require.Error(t, err)
 		yterror, ok := err.(*yterrors.Error)
@@ -318,9 +326,11 @@ func TestMyService(t *testing.T) {
 	addr, stop := StartMyService(t)
 	defer stop()
 
-	c, err := NewMyServiceClient(addr)
-	require.NoError(t, err)
-	defer c.Close()
+	c := NewMyServiceClient(addr)
+	defer func() {
+		c.Close()
+		<-c.conn.Done()
+	}()
 
 	t.Run("Send", func(t *testing.T) {
 		req := &myservice.TReqSomeCall{A: ptr.Int32(42)}
@@ -443,9 +453,11 @@ func TestClient_stress(t *testing.T) {
 	addr, stop := StartMyService(t)
 	defer stop()
 
-	c, err := NewMyServiceClient(addr)
-	require.NoError(t, err)
-	defer c.Close()
+	c := NewMyServiceClient(addr)
+	defer func() {
+		c.Close()
+		<-c.conn.Done()
+	}()
 
 	var wg sync.WaitGroup
 	for i := 0; i < 1000; i++ {

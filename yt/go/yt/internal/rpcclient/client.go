@@ -3,6 +3,7 @@ package rpcclient
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"net/http"
 	"time"
 
@@ -36,7 +37,7 @@ type client struct {
 	httpClient *http.Client
 	proxySet   *internal.ProxySet
 
-	connPool ConnPool
+	connPool *connPool
 	stop     *internal.StopGroup
 }
 
@@ -74,13 +75,13 @@ func NewClient(conf *yt.Config) (*client, error) {
 
 	c.proxySet = &internal.ProxySet{UpdateFn: c.listRPCProxies}
 
-	c.connPool = NewLRUConnPool(func(ctx context.Context, addr string) (BusConn, error) {
+	c.connPool = NewConnPool(func(ctx context.Context, addr string) BusConn {
 		clientOpts := []bus.ClientOption{
 			bus.WithLogger(c.log.Logger()),
 			bus.WithDefaultProtocolVersionMajor(ProtocolVersionMajor),
 		}
 		return bus.NewClient(ctx, addr, clientOpts...)
-	}, connPoolSize)
+	}, c.log)
 
 	c.Encoder.StartCall = c.startCall
 	c.Encoder.Invoke = c.do
@@ -169,9 +170,12 @@ func (c *client) invoke(
 	if err != nil {
 		return err
 	}
+	defer conn.Release()
 
 	ctxlog.Debug(ctx, c.log.Logger(), "sending RPC request",
-		log.String("proxy", call.SelectedProxy))
+		log.String("proxy", call.SelectedProxy),
+		log.String("request_id", call.CallID.String()),
+	)
 
 	start := time.Now()
 	err = conn.Send(ctx, "ApiService", string(call.Method), call.Req, rsp, opts...)
@@ -179,22 +183,29 @@ func (c *client) invoke(
 
 	ctxlog.Debug(ctx, c.log.Logger(), "received RPC response",
 		log.String("proxy", call.SelectedProxy),
-		log.Bool("failed", err != nil),
+		log.String("request_id", call.CallID.String()),
+		log.Bool("ok", err == nil),
 		log.Duration("duration", duration))
+
+	if errors.Is(err, bus.ErrConnClosed) {
+		conn.Discard()
+	}
 
 	return err
 }
 
-func (c *client) getConn(ctx context.Context, addr string) (BusConn, error) {
+func (c *client) getConn(ctx context.Context, addr string) (*conn, error) {
 	dial, ok := GetDialer(ctx)
 	if ok {
-		return dial(ctx, addr)
+		conn := dial(ctx, addr)
+		wrapped := newConn(addr, conn, nil)
+		return wrapped, nil
 	}
 	return c.connPool.Conn(ctx, addr)
 }
 
 func (c *client) Stop() {
-	_ = c.connPool.Close()
+	c.connPool.Stop()
 	c.stop.Stop()
 }
 

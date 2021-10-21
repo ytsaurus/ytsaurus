@@ -13,6 +13,7 @@ import (
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/log/nop"
+	"a.yandex-team.ru/library/go/core/xerrors"
 	"a.yandex-team.ru/library/go/ptr"
 	"a.yandex-team.ru/yt/go/compression"
 	"a.yandex-team.ru/yt/go/guid"
@@ -77,7 +78,6 @@ type ClientOption func(conn *ClientConn)
 func WithLogger(l log.Logger) ClientOption {
 	return func(conn *ClientConn) {
 		conn.log = l
-		conn.bus.setLogger(l)
 	}
 }
 
@@ -92,6 +92,8 @@ func WithFeatureIDFormatter(f featureIDFormatter) ClientOption {
 		conn.featureIDFormatter = f
 	}
 }
+
+var ErrConnClosed = xerrors.NewSentinel("connection closed")
 
 type ClientConn struct {
 	l    sync.Mutex
@@ -111,17 +113,16 @@ type ClientConn struct {
 	defaultProtocolVersionMajor int32
 	featureIDFormatter          featureIDFormatter
 
-	bus *Bus
+	address string
+
+	dialed chan struct{}
+	bus    *Bus
+
 	log log.Logger
 }
 
-func NewClient(ctx context.Context, address string, opts ...ClientOption) (*ClientConn, error) {
+func NewClient(ctx context.Context, address string, opts ...ClientOption) *ClientConn {
 	l := &nop.Logger{}
-
-	bus, err := Dial(ctx, Options{Address: address, Logger: l})
-	if err != nil {
-		return nil, err
-	}
 
 	client := &ClientConn{
 		reqs:        make(map[guid.GUID]*clientReq, maxInFlightRequests),
@@ -134,22 +135,34 @@ func NewClient(ctx context.Context, address string, opts ...ClientOption) (*Clie
 		unackedReqs:    make(map[guid.GUID]guid.GUID),
 		unackedPackets: make(map[guid.GUID]guid.GUID),
 
-		bus: bus,
-		log: l,
+		address: address,
+		dialed:  make(chan struct{}),
+		log:     l,
 	}
 
 	for _, opt := range opts {
 		opt(client)
 	}
 
+	go client.dial(ctx)
 	go client.runSender()
 	go client.runReceiver()
 
-	return client, nil
+	return client
 }
 
 func (c *ClientConn) Close() {
-	c.bus.Close()
+	c.l.Lock()
+	defer c.l.Unlock()
+
+	if c.bus != nil {
+		c.bus.Close()
+	}
+
+	if c.err == nil {
+		c.err = ErrConnClosed
+		close(c.stop)
+	}
 }
 
 func (c *ClientConn) Done() <-chan struct{} {
@@ -166,13 +179,19 @@ func (c *ClientConn) Err() (err error) {
 func (c *ClientConn) fail(err error) {
 	c.l.Lock()
 	if c.err == nil {
-		c.err = err
+		c.err = ErrConnClosed.Wrap(err)
 		close(c.stop)
 	}
 	c.l.Unlock()
 }
 
 func (c *ClientConn) runSender() {
+	select {
+	case <-c.dialed:
+	case <-c.stop:
+		return
+	}
+
 	for {
 		select {
 		case req := <-c.cancelQueue:
@@ -252,6 +271,24 @@ func (c *ClientConn) runSender() {
 			return
 		}
 	}
+}
+
+func (c *ClientConn) dial(ctx context.Context) {
+	bus, err := Dial(ctx, Options{Address: c.address, Logger: c.log})
+	if err != nil {
+		c.fail(err)
+		return
+	}
+
+	c.l.Lock()
+	if c.err != nil {
+		bus.Close()
+	} else {
+		c.bus = bus
+	}
+	c.l.Unlock()
+
+	close(c.dialed)
 }
 
 func (c *ClientConn) buildMsg(req *clientReq, msgType msgType) ([][]byte, error) {
@@ -389,6 +426,12 @@ func (c *ClientConn) handleMsg(msg [][]byte) error {
 }
 
 func (c *ClientConn) runReceiver() {
+	select {
+	case <-c.dialed:
+	case <-c.stop:
+		return
+	}
+
 	for {
 		msg, err := c.bus.Receive()
 		if err != nil {

@@ -82,7 +82,7 @@ type ProxyBouncer struct {
 	Log log.Structured
 
 	ProxySet *internal.ProxySet
-	ConnPool ConnPool
+	ConnPool *connPool
 }
 
 func (b *ProxyBouncer) banProxy(call *Call, err error) {
