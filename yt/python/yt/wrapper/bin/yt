@@ -1114,7 +1114,10 @@ def add_join_reduce_parser(add_parser):
     add_sort_order_argument(parser, "--join-by", help="Columns to join by.", required=True)
 
 def add_remote_copy_parser(add_parser):
-    parser = add_parser("remote-copy", operation_handler(yt.run_remote_copy))
+    parser = add_parser(
+        "remote-copy",
+        operation_handler(yt.run_remote_copy),
+        epilog="Note, --proxy for destination, --cluster for source")
     add_src_arg(parser, help="path to source tables in remote cluster")
     parser.add_argument("--dst", required=True, dest="destination_table",
                         help="path to destination table in current cluster")
