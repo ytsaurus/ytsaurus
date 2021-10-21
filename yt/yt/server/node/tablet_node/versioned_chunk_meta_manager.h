@@ -14,6 +14,7 @@ struct TVersionedChunkMetaCacheKey
 {
     NChunkClient::TChunkId ChunkId;
     int TableSchemaKeyColumnCount;
+    bool PreparedColumnarMeta;
 
     bool operator ==(const TVersionedChunkMetaCacheKey& other) const;
 
@@ -44,7 +45,8 @@ struct IVersionedChunkMetaManager
     virtual TFuture<TVersionedChunkMetaCacheEntryPtr> GetMeta(
         const NChunkClient::IChunkReaderPtr& chunkReader,
         const NTableClient::TTableSchemaPtr& schema,
-        const NChunkClient::TClientChunkReadOptions& chunkReadOptions) = 0;
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+        bool prepareColumnarMeta = false) = 0;
 
     virtual void Touch(const TVersionedChunkMetaCacheEntryPtr& entry) = 0;
 

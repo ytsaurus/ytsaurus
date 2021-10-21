@@ -821,6 +821,13 @@ TTabletStoreReaderConfigPtr TChunkStoreBase::GetReaderConfig()
 
 void TChunkStoreBase::InvalidateCachedReaders(const TTableSettings& settings)
 {
+    {
+        auto guard = WriterGuard(VersionedChunkMetaLock_);
+        auto oldCachedWeakVersionedChunkMeta = std::move(CachedWeakVersionedChunkMeta_);
+        // Prevent destroying oldCachedWeakVersionedChunkMeta under spinlock.
+        guard.Release();
+    }
+
     auto guard = WriterGuard(ReaderLock_);
 
     DoInvalidateCachedReaders();
@@ -838,7 +845,8 @@ void TChunkStoreBase::DoInvalidateCachedReaders()
 
 TCachedVersionedChunkMetaPtr TChunkStoreBase::GetCachedVersionedChunkMeta(
     const IChunkReaderPtr& chunkReader,
-    const TClientChunkReadOptions& chunkReadOptions)
+    const TClientChunkReadOptions& chunkReadOptions,
+    bool prepareColumnarMeta)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -857,7 +865,8 @@ TCachedVersionedChunkMetaPtr TChunkStoreBase::GetCachedVersionedChunkMeta(
     auto chunkMetaFuture = ChunkMetaManager_->GetMeta(
         chunkReader,
         Schema_,
-        chunkReadOptions);
+        chunkReadOptions,
+        prepareColumnarMeta);
 
     auto chunkMeta = WaitFor(chunkMetaFuture)
         .ValueOrThrow();

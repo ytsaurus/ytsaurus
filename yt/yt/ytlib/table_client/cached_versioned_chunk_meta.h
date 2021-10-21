@@ -55,10 +55,13 @@ public:
 
     TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> GetPreparedChunkMeta();
 
+    void PrepareColumnarMeta();
+
 private:
     TMemoryUsageTrackerGuard MemoryTrackerGuard_;
 
     TAtomicPtr<NNewTableClient::TPreparedChunkMeta> PreparedMeta_;
+    size_t PreparedMetaSize_ = 0;
 
     TCachedVersionedChunkMeta();
 

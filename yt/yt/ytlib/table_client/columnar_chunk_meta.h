@@ -33,6 +33,9 @@ public:
 
     virtual i64 GetMemoryUsage() const;
 
+    // Free space if there is prepared meta.
+    void ClearColumnMeta();
+
 protected:
     TColumnarChunkMeta() = default;
     void InitExtensions(const NChunkClient::NProto::TChunkMeta& chunkMeta);
