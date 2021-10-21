@@ -30,6 +30,8 @@ TServiceCommonConfig::TServiceCommonConfig()
         .Default(false);
     RegisterParameter("histogram_timer_profiling", HistogramTimerProfiling)
         .Default(nullptr);
+    RegisterParameter("code_counting", EnableErrorCodeCounting)
+        .Default(false);
     RegisterParameter("tracing_mode", TracingMode)
         .Default(ERequestTracingMode::Enable);
 }
@@ -48,7 +50,9 @@ TServiceConfig::TServiceConfig()
 {
     RegisterParameter("enable_per_user_profiling", EnablePerUserProfiling)
         .Optional();
-    RegisterParameter("histogram_config", HistogramTimerProfiling)
+    RegisterParameter("code_counting", EnableErrorCodeCounting)
+        .Optional();
+    RegisterParameter("histogram_timer_profiling", HistogramTimerProfiling)
         .Default(nullptr);
     RegisterParameter("tracing_mode", TracingMode)
         .Optional();

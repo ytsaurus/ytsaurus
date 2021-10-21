@@ -598,6 +598,8 @@ protected:
 
         //! Counts the number of bytes in response message attachment.
         NProfiling::TCounter ResponseMessageAttachmentSizeCounter;
+
+        NYT::NConcurrency::TSyncMap<TErrorCode, NProfiling::TCounter> ErrorCodes;
     };
 
     using TMethodPerformanceCountersPtr = TIntrusivePtr<TMethodPerformanceCounters>;
@@ -838,6 +840,8 @@ private:
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, HistogramConfigLock_);
     THistogramConfigPtr HistogramTimerProfiling{};
+
+    std::atomic<bool> EnableErrorCodeCounting = false;
 
     struct TAcceptedRequest
     {
