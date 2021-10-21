@@ -867,7 +867,12 @@ private:
         if (!Error_.IsOK()) {
             PerformanceCounters_->FailedRequestCounter.Increment();
         }
-
+        if (Service_->EnableErrorCodeCounting.load()) {
+            const auto code = Error_.GetNonTrivialCode();
+            PerformanceCounters_->ErrorCodes.FindOrInsert(code, [&] () {
+                return RuntimeInfo_->Profiler.WithTag("code", ToString(code)).Counter("/code_count");
+            }).first->Increment();
+        }
         HandleLoggingSuppression();
 
         PerformanceCounters_->ResponseMessageBodySizeCounter.Increment(
@@ -1381,7 +1386,7 @@ TServiceBase::TServiceBase(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Discover)
         .SetInvoker(TDispatcher::Get()->GetHeavyInvoker())
         .SetSystem(true));
-
+    
     Profiler_.AddFuncGauge("/authentication_queue_size", MakeStrong(this), [=] {
         return AuthenticationQueueSize_.load(std::memory_order_relaxed);
     });
@@ -1930,7 +1935,7 @@ TServiceBase::TMethodPerformanceCounters* TServiceBase::GetMethodPerformanceCoun
     const TRuntimeMethodInfo::TNonowningPerformanceCountersKey& key)
 {
     auto [userTag, requestQueue] = key;
-
+    
     // Fast path.
     if (userTag == RootUserName && requestQueue == &runtimeInfo->DefaultRequestQueue) {
         return runtimeInfo->RootPerformanceCounters.Get();
@@ -2058,6 +2063,7 @@ void TServiceBase::DoConfigure(
         EnablePerUserProfiling_.store(config->EnablePerUserProfiling.value_or(configDefaults->EnablePerUserProfiling));
         AuthenticationQueueSizeLimit_.store(config->AuthenticationQueueSizeLimit.value_or(DefaultAuthenticationQueueSizeLimit));
         PendingPayloadsTimeout_.store(config->PendingPayloadsTimeout.value_or(DefaultPendingPayloadsTimeout));
+        EnableErrorCodeCounting.store(config->EnableErrorCodeCounting.value_or(configDefaults->EnableErrorCodeCounting));
 
         DoConfigureHistogramTimer(configDefaults, config);
 

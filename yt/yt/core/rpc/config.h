@@ -59,6 +59,7 @@ class TServiceCommonConfig
 public:
     bool EnablePerUserProfiling;
     THistogramConfigPtr HistogramTimerProfiling;
+    bool EnableErrorCodeCounting;
     ERequestTracingMode TracingMode;
 
     TServiceCommonConfig();
@@ -86,6 +87,7 @@ class TServiceConfig
 {
 public:
     std::optional<bool> EnablePerUserProfiling;
+    std::optional<bool> EnableErrorCodeCounting;
     std::optional<ERequestTracingMode> TracingMode;
     THistogramConfigPtr HistogramTimerProfiling;
     THashMap<TString, TMethodConfigPtr> Methods;
