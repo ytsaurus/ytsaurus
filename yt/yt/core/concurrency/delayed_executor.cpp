@@ -80,6 +80,7 @@ struct TDelayedExecutorEntry
     { }
 
     TDelayedExecutor::TDelayedCallback Callback;
+    std::atomic<bool> CallbackTaken = false;
     TInstant Deadline;
     IInvokerPtr Invoker;
 
@@ -177,18 +178,14 @@ public:
 #endif
 
         if (!PollerThread_->Start()) {
-            // Failure in `Start' indicates that the Poller Thread has already been
-            // shut down. It is guaranteed that no access to #entry is possible at this point
-            // and it is thus safe to run the handler right away. Checking #TDelayedExecutorEntry::Callback
-            // for null ensures that we don't attempt to re-run the callback (cf. #PollerThreadStep).
-            if (entry->Callback) {
-                entry->Callback.Run(true);
-                entry->Callback.Reset();
+            if (auto callback = TakeCallback(entry)) {
+                callback(/*aborted*/ true);
             }
 #if defined(_asan_enabled_)
             NSan::MarkAsIntentionallyLeaked(entry.Get());
 #endif
         }
+
         return entry;
     }
 
@@ -342,9 +339,7 @@ private:
             // NB: The callbacks are forwarded to the DelayedExecutor thread to prevent any user-code
             // from leaking to the Delayed Poller thread, which is, e.g., fiber-unfriendly.
             auto runAbort = [&] (const TDelayedExecutorEntryPtr& entry) {
-                if (entry->Callback) {
-                    RunCallback(entry, true);
-                }
+                RunCallback(entry, /*aborted*/ true);
             };
             for (const auto& entry : ScheduledEntries_) {
                 runAbort(entry);
@@ -467,7 +462,6 @@ private:
                         entry->Deadline,
                         now);
                 }
-                YT_VERIFY(entry->Callback);
                 auto [it, inserted] = ScheduledEntries_.insert(entry);
                 YT_VERIFY(inserted);
                 entry->Iterator = it;
@@ -481,7 +475,7 @@ private:
                     return;
                 }
                 entry->Canceled = true;
-                entry->Callback.Reset();
+                TakeCallback(entry);
                 if (entry->Iterator) {
                     ScheduledEntries_.erase(*entry->Iterator);
                     entry->Iterator.reset();
@@ -504,7 +498,6 @@ private:
                         entry->Deadline,
                         now);
                 }
-                YT_VERIFY(entry->Callback);
                 RunCallback(entry, false);
                 entry->Iterator.reset();
                 ScheduledEntries_.erase(it);
@@ -513,7 +506,9 @@ private:
 
         void RunCallback(const TDelayedExecutorEntryPtr& entry, bool abort)
         {
-            (entry->Invoker ? entry->Invoker : DelayedInvoker_)->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(std::move(entry->Callback), abort));
+            if (auto callback = TakeCallback(entry)) {
+                (entry->Invoker ? entry->Invoker : DelayedInvoker_)->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(std::move(callback), abort));
+            }
         }
     };
 
@@ -527,6 +522,15 @@ private:
             return;
         }
         closure.Run();
+    }
+
+    static TDelayedExecutor::TDelayedCallback TakeCallback(const TDelayedExecutorEntryPtr& entry)
+    {
+        if (entry->CallbackTaken.exchange(true)) {
+            return {};
+        } else {
+            return std::move(entry->Callback);
+        }
     }
 
     DECLARE_LEAKY_SINGLETON_FRIEND()

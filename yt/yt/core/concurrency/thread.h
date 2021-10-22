@@ -68,7 +68,6 @@ private:
 
     bool StartSlow();
 
-    bool IsInThread() const;
     bool CanWaitForThreadShutdown() const;
 
     static void* StaticThreadMainTrampoline(void* opaque);
