@@ -14,7 +14,8 @@ class YtVectorizedReader(split: YtInputSplit,
                          batchMaxSize: Int,
                          returnBatch: Boolean,
                          arrowEnabled: Boolean,
-                         timeout: Duration)
+                         timeout: Duration,
+                         reportBytesRead: Long => Unit)
                         (implicit yt: CompoundClient) extends RecordReader[Void, Object] {
   private var _batchIdx = 0
 
@@ -23,11 +24,12 @@ class YtVectorizedReader(split: YtInputSplit,
     if (split.schema.nonEmpty) {
       val path = split.ytPath
       if (arrowEnabled) {
-        val stream = YtWrapper.readTableArrowStream(path, timeout)
+        val stream = YtWrapper.readTableArrowStream(path, timeout, None, reportBytesRead)
         new ArrowBatchReader(stream, totalRowCount, split.schema)
       } else {
         val schema = split.schema
-        val rowIterator = YtWrapper.readTable(path, ArrayAnyDeserializer.getOrCreate(schema), timeout)
+        val rowIterator = YtWrapper.readTable(path, ArrayAnyDeserializer.getOrCreate(schema), timeout, None,
+          reportBytesRead)
         new WireRowBatchReader(rowIterator, batchMaxSize, totalRowCount, schema)
       }
     } else {

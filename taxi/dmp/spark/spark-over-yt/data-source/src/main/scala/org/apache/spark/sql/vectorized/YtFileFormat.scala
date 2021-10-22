@@ -1,7 +1,7 @@
 package org.apache.spark.sql.vectorized
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FileStatus, Path}
+import org.apache.hadoop.fs.{FileStatus, FileSystem, Path}
 import org.apache.hadoop.mapreduce.{Job, TaskAttemptContext}
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.SparkSession
@@ -17,7 +17,7 @@ import ru.yandex.spark.yt.format._
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read._
 import ru.yandex.spark.yt.format.conf.{SparkYtWriteConfiguration, YtTableSparkSettings}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import ru.yandex.spark.yt.fs.YtDynamicPath
+import ru.yandex.spark.yt.fs.{YtDynamicPath, YtFileSystemBase}
 import ru.yandex.spark.yt.serializers.{InternalRowDeserializer, SchemaConverter}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
@@ -58,6 +58,8 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
     log.info(s"Batch return enabled: $returnBatch")
     log.info(s"Arrow enabled: $arrowEnabledValue")
 
+    val fs = FileSystem.get(hadoopConf).asInstanceOf[YtFileSystemBase]
+
     {
       case ypf: YtPartitionedFile =>
         val log = LoggerFactory.getLogger(getClass)
@@ -73,7 +75,8 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
             batchMaxSize = batchMaxSize,
             returnBatch = returnBatch,
             arrowEnabled = arrowEnabledValue,
-            timeout = ytClientConf.timeout
+            timeout = ytClientConf.timeout,
+            bytesRead => fs.internalStatistics.incrementBytesRead(bytesRead)
           )
           val iter = new RecordReaderIterator(ytVectorizedReader)
           Option(TaskContext.get()).foreach(_.addTaskCompletionListener[Unit](_ => iter.close()))
@@ -91,7 +94,9 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
           val tableIterator = YtWrapper.readTable(
             split.ytPath,
             InternalRowDeserializer.getOrCreate(requiredSchema),
-            ytClientConf.timeout
+            ytClientConf.timeout,
+            None,
+            bytesRead => fs.internalStatistics.incrementBytesRead(bytesRead)
           )
           val unsafeProjection = UnsafeProjection.create(requiredSchema)
           tableIterator.map(unsafeProjection(_))

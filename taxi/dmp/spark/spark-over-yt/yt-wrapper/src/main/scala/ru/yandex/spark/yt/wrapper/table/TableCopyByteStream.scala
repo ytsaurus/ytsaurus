@@ -8,7 +8,8 @@ import scala.annotation.tailrec
 import scala.concurrent.duration.Duration
 
 
-class TableCopyByteStream(reader: TableReader[ByteBuffer], timeout: Duration) extends YtArrowInputStream {
+class TableCopyByteStream(reader: TableReader[ByteBuffer], timeout: Duration,
+                          reportBytesRead: Long => Unit) extends YtArrowInputStream {
   private var _batch: ByteBuffer = _
   private var _batchBytesLeft = 0
   private val nextPageToken: Array[(Byte, Int)] = Array(-1, -1, -1, -1, 0, 0, 0, 0).map(_.toByte).zipWithIndex
@@ -54,6 +55,7 @@ class TableCopyByteStream(reader: TableReader[ByteBuffer], timeout: Duration) ex
     System.arraycopy(_batch.array(), _batch.arrayOffset() + _batch.position(), b, off, len)
     _batch.position(_batch.position() + len)
     _batchBytesLeft -= len
+    reportBytesRead(len)
   }
 
   private def readNextBatch(): Boolean = {
