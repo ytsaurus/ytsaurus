@@ -293,7 +293,10 @@ std::vector<std::pair<TInstant, TInstant>> SplitTimeIntervalByHours(TInstant sta
             timeIntervals.push_back(std::make_pair(currentStartTime, hourBound));
             currentStartTime = hourBound;
         }
-        timeIntervals.push_back(std::make_pair(currentStartTime, finishTime));
+        YT_VERIFY(currentStartTime <= finishTime);
+        if (currentStartTime < finishTime) {
+            timeIntervals.push_back(std::make_pair(currentStartTime, finishTime));
+        }
     }
     return timeIntervals;
 }
