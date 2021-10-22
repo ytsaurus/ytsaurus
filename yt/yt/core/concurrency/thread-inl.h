@@ -14,9 +14,6 @@ inline bool TThread::Start()
 {
     if (Y_LIKELY(Started_.load(std::memory_order_relaxed))) {
         if (Y_UNLIKELY(Stopping_.load(std::memory_order_relaxed))) {
-            if (!IsInThread()) {
-                StoppedEvent_.Wait();
-            }
             return false;
         }
         return true;

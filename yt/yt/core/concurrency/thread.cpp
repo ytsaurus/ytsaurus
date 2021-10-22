@@ -34,23 +34,11 @@ bool TThread::StartSlow()
 {
     auto guard = Guard(SpinLock_);
 
-    auto handleStarted = [&] {
-        if (Stopping_) {
-            guard.Release();
-            if (!IsInThread()) {
-                StoppedEvent_.Wait();
-            }
-            return false;
-        } else {
-            return true;
-        }
-    };
-
-    if (Started_) {
-        return handleStarted();
+    if (Started_.load()) {
+        return !Stopping_.load();
     }
 
-    if (Stopping_) {
+    if (Stopping_.load()) {
         // Stopped without being started.
         return false;
     }
@@ -95,14 +83,11 @@ bool TThread::StartSlow()
     return true;
 }
 
-bool TThread::IsInThread() const
-{
-    return CurrentUniqueThreadId == UniqueThreadId_;
-}
-
 bool TThread::CanWaitForThreadShutdown() const
 {
-    return !IsInThread() && GetShutdownThreadId() != ThreadId_;
+    return
+        CurrentUniqueThreadId != UniqueThreadId_ &&
+        GetShutdownThreadId() != ThreadId_;
 }
 
 void TThread::Stop()
