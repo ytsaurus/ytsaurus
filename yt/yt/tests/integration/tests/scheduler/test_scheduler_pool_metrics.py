@@ -134,7 +134,7 @@ class TestPoolMetrics(YTEnvSetup):
         metric_name = "user_job_bytes_written"
         statistics_name = "user_job.block_io.bytes_written"
 
-        profiler = profiler_factory().at_scheduler(self.Env.create_native_client(), fixed_tags={"tree": "default"})
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
 
         pools = ["parent", "child1", "child2"]
         usual_metric_counter = {
