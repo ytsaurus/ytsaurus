@@ -21,6 +21,8 @@ import sys
 import time
 import types
 import socket
+import stat
+
 from datetime import datetime
 from socket import error as SocketError
 from abc import ABCMeta, abstractmethod
@@ -507,6 +509,16 @@ def _get_token_from_config(client):
         logger.debug("Token got from environment variable or config")
         return token
 
+def _check_token_file_permissions(token_path):
+    file_mode = os.stat(token_path).st_mode
+    if (file_mode & stat.S_IRGRP) or (file_mode & stat.S_IROTH):
+        logger.warning("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+        logger.warning("@         WARNING: UNPROTECTED TOKEN KEY FILE!            @")
+        logger.warning("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+        logger.warning("Permissions {} for '{}' are too open.".format(oct(file_mode)[4:], token_path))
+        logger.warning("It is required that your token file is NOT accessible by others.")
+
+
 def _get_token_from_file(client):
     token_path = get_config(client=client)["token_path"]
     if token_path is None:
@@ -515,6 +527,7 @@ def _get_token_from_file(client):
         with open(token_path, "r") as token_file:
             token = token_file.read().strip()
         logger.debug("Token got from file %s", token_path)
+        _check_token_file_permissions(token_path)
         return token
 
 def get_token(token=None, client=None):
