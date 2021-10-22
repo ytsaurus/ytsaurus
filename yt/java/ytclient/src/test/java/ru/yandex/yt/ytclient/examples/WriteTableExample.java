@@ -7,7 +7,6 @@ import java.util.Random;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ru.yandex.bolts.collection.Cf;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.proxy.TableWriter;
@@ -59,7 +58,7 @@ public class WriteTableExample {
             return null;
         }
 
-        List<UnversionedRow> rows = Cf.arrayList();
+        List<UnversionedRow> rows = new ArrayList<>();
 
         String randomColumnName = "column-" + random.nextInt(10);
         TableSchema schema = createSchema(randomColumnName);

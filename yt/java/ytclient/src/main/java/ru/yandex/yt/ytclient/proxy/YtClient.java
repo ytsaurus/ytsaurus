@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -20,7 +21,6 @@ import javax.annotation.Nullable;
 import com.google.protobuf.MessageLite;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
-import ru.yandex.bolts.collection.Cf;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpc.TResponseHeader;
@@ -121,7 +121,7 @@ public class YtClient extends CompoundClientImpl {
     }
 
     public YtClient(BusConnector connector, YtCluster cluster, RpcCredentials credentials, RpcOptions options) {
-        this(connector, Cf.list(cluster), cluster.getName(), credentials, options);
+        this(connector, Arrays.asList(cluster), cluster.getName(), credentials, options);
     }
 
     public YtClient(BusConnector connector, String clusterName, RpcCredentials credentials, RpcOptions options) {

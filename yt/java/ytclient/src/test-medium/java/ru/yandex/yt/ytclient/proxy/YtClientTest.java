@@ -26,7 +26,6 @@ import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ru.yandex.bolts.collection.Cf;
 import ru.yandex.inside.yt.kosher.cypress.CypressNodeType;
 import ru.yandex.inside.yt.kosher.cypress.RangeLimit;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
@@ -188,7 +187,7 @@ public class YtClientTest {
         final YPath readPath = YPath.simple(writePath.toString())
                 .withColumns("k1", "v1")
                 .withExact(new RangeLimit(
-                        Cf.list(new YTreeBuilder().value(1).build()),
+                        List.of(new YTreeBuilder().value(1).build()),
                         -1,
                         -1));
 

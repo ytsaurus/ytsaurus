@@ -8,6 +8,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Random;
+import java.util.stream.Collectors;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
@@ -95,7 +96,8 @@ public class ObjectsGenerators {
         private final boolean flatten;
 
         private YTreeObjectGenerator(YTreeObjectSerializer<?> serializer, boolean flatten) {
-            this.fields = serializer.getFieldMap().values().map(this::generator).toList();
+            this.fields = serializer.getFieldMap().values().stream()
+                    .map(this::generatorField).collect(Collectors.toList());
             this.flatten = flatten;
         }
 
@@ -115,7 +117,7 @@ public class ObjectsGenerators {
             }
         }
 
-        private FieldWrapper generator(YTreeObjectField<?> field) {
+        private FieldWrapper generatorField(YTreeObjectField<?> field) {
             return new FieldWrapper(field, generator(field.serializer, field.isFlatten));
         }
 

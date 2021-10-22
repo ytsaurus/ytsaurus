@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.proxy;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -35,7 +36,6 @@ import io.netty.buffer.Unpooled;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ru.yandex.bolts.collection.Tuple2;
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
@@ -1183,7 +1183,7 @@ class Stash {
     private boolean eof = false;
     private long offset = 0;
 
-    private final LinkedList<Tuple2<byte[], Long>> attachments = new LinkedList<>();
+    private final LinkedList<AbstractMap.SimpleEntry<byte[], Long>> attachments = new LinkedList<>();
 
     void push(Attachment attachment) throws Throwable {
         synchronized (attachments) {
@@ -1194,7 +1194,7 @@ class Stash {
             boolean needWakeup = attachments.isEmpty() && !eof;
             offset += attachment.getCompressedSize();
 
-            attachments.addLast(new Tuple2<>(attachment.getDecompressedBytes(), offset));
+            attachments.addLast(new AbstractMap.SimpleEntry(attachment.getDecompressedBytes(), offset));
 
             if (needWakeup) {
                 this.readyEvent.complete(null);
@@ -1214,10 +1214,10 @@ class Stash {
             if (attachments.isEmpty()) {
                 return null;
             } else {
-                Tuple2<byte[], Long> message = attachments.removeFirst();
-                control.feedback(message._2);
-                eof = message._1 == null;
-                return message._1;
+                AbstractMap.SimpleEntry<byte[], Long> message = attachments.removeFirst();
+                control.feedback(message.getValue());
+                eof = message.getKey() == null;
+                return message.getKey();
             }
         }
     }
