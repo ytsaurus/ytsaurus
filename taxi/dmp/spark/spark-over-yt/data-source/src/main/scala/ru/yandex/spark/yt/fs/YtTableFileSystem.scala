@@ -151,7 +151,7 @@ class YtTableFileSystem extends YtFileSystemBase {
     } else {
       val pathType = YtWrapper.pathType(path.toYPath, path.transaction)
       pathType match {
-        case PathType.Table => new FileStatus(0, true, 1, 0, 0, f)
+        case PathType.Table => new FileStatus(YtWrapper.fileSize(path.toYPath, path.transaction), true, 1, 0, 0, f)
         case PathType.File => new FileStatus(YtWrapper.fileSize(path.toYPath, path.transaction), false, 1, 0, 0, f)
         case PathType.Directory => new FileStatus(0, true, 1, 0, 0, f)
         case PathType.None => null
@@ -168,6 +168,6 @@ class YtTableFileSystem extends YtFileSystemBase {
     log.debugLazy(s"Open file ${f.toUri.toString}")
     val path = ypath(f)
     val is = YtWrapper.readFile(path.toYPath, path.transaction, _ytConf.timeout)(yt)
-    new FSDataInputStream(new YtFsInputStream(is))
+    new FSDataInputStream(new YtFsInputStream(is, statistics))
   }
 }

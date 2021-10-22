@@ -1,5 +1,6 @@
 package org.apache.spark.sql.v2
 
+import org.apache.hadoop.fs.FileSystem
 import org.apache.hadoop.mapreduce.{InputSplit, RecordReader, TaskAttemptContext}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.internal.Logging
@@ -16,6 +17,7 @@ import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read.VectorizedCapacity
 import ru.yandex.spark.yt.format.{YtInputSplit, YtPartitionedFile}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
+import ru.yandex.spark.yt.fs.YtFileSystemBase
 import ru.yandex.spark.yt.fs.conf._
 import ru.yandex.spark.yt.serializers.InternalRowDeserializer
 import ru.yandex.spark.yt.wrapper.YtWrapper
@@ -126,10 +128,12 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
 
   private def createRowBaseReader(split: YtInputSplit)
                                  (implicit yt: CompoundClient): RecordReader[Void, InternalRow] = {
+    val fs = FileSystem.get(broadcastedConf.value.value).asInstanceOf[YtFileSystemBase]
     val iter = YtWrapper.readTable(
       split.ytPath,
       InternalRowDeserializer.getOrCreate(resultSchema),
-      ytClientConf.timeout
+      ytClientConf.timeout, None,
+      bytesRead => fs.internalStatistics.incrementBytesRead(bytesRead)
     )
     val unsafeProjection = UnsafeProjection.create(resultSchema)
 
@@ -164,12 +168,15 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
   private def createVectorizedReader(split: YtInputSplit,
                                      returnBatch: Boolean)
                                     (implicit yt: CompoundClient): YtVectorizedReader = {
+
+    val fs = FileSystem.get(broadcastedConf.value.value).asInstanceOf[YtFileSystemBase]
     new YtVectorizedReader(
       split = split,
       batchMaxSize = batchMaxSize,
       returnBatch = returnBatch,
       arrowEnabled = arrowEnabled,
-      timeout = ytClientConf.timeout
+      timeout = ytClientConf.timeout,
+      bytesRead => fs.internalStatistics.incrementBytesRead(bytesRead)
     )
   }
 

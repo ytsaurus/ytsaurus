@@ -4,7 +4,6 @@ import org.apache.hadoop.fs.Path
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.execution.InputAdapter
-import org.apache.spark.sql.functions._
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.SQLConf._
 import org.apache.spark.sql.types._
@@ -12,10 +11,11 @@ import org.apache.spark.sql.v2.YtUtils
 import org.apache.spark.sql.yson.UInt64Long.{fromStringUdf, toStringUdf}
 import org.apache.spark.sql.yson.{UInt64Long, UInt64Type}
 import org.apache.spark.sql.{AnalysisException, Row, SaveMode}
+import org.apache.spark.status.api.v1
 import org.mockito.Mockito
 import org.mockito.scalatest.MockitoSugar
 import org.scalatest.prop.TableDrivenPropertyChecks
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Matchers, PrivateMethodTester}
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
@@ -36,7 +36,7 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 
 class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
-  with TmpDir with TestUtils with MockitoSugar with TableDrivenPropertyChecks {
+  with TmpDir with TestUtils with MockitoSugar with TableDrivenPropertyChecks with PrivateMethodTester {
   behavior of "YtFileFormat"
 
   import spark.implicits._
@@ -694,6 +694,29 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     verify(mockYt, times(tables.length)).getNode(any)
     Mockito.reset(mockYt)
   }
+
+  it should "count io statistics" in {
+    val customPath = "ytTable:/" + tmpPath
+    val data = Stream.from(1).take(1000)
+
+    val statusStore = PrivateMethod[AnyRef]('statusStore)
+    val stageList = PrivateMethod[Seq[v1.StageData]]('stageList)
+    val store = spark.sparkContext invokePrivate statusStore()
+    val stagesBefore = store invokePrivate stageList(null)
+    val totalInputBefore = stagesBefore.map(_.inputBytes).sum
+    val totalOutputBefore = stagesBefore.map(_.outputBytes).sum
+
+    data.toDF().coalesce(1).write.yt(customPath)
+    val allRows = spark.read.yt(customPath).collect()
+    allRows should have size data.length
+
+    val stages = store invokePrivate stageList(null)
+    val totalInput = stages.map(_.inputBytes).sum
+    val totalOutput = stages.map(_.outputBytes).sum
+    totalInput should be > totalInputBefore
+    totalOutput should be > totalOutputBefore
+  }
+
 }
 
 object Counter {

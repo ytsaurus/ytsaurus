@@ -36,6 +36,7 @@ class YtFileSystem extends YtFileSystemBase {
 
   override def getFileStatus(f: Path): FileStatus = {
     log.debugLazy(s"Get file status $f")
+    statistics.incrementReadOps(1)
     implicit val ytClient: CompoundClient = yt
     val path = hadoopPathToYt(f)
 
@@ -62,6 +63,7 @@ class YtFileSystem extends YtFileSystemBase {
 
   override def mkdirs(f: Path, permission: FsPermission): Boolean = {
     implicit val ytClient: CompoundClient = yt
+    statistics.incrementWriteOps(1)
     val path = hadoopPathToYt(f)
     YtWrapper.createDir(path, ignoreExisting = true)
     true

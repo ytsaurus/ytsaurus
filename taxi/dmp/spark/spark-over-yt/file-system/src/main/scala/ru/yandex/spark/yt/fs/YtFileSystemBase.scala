@@ -16,7 +16,7 @@ import java.util.UUID
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-trait YtFileSystemBase extends FileSystem with LogLazy {
+abstract class YtFileSystemBase extends FileSystem with LogLazy {
   val id: String = UUID.randomUUID().toString
 
   private val log = LoggerFactory.getLogger(getClass)
@@ -37,13 +37,16 @@ trait YtFileSystemBase extends FileSystem with LogLazy {
 
   override def open(f: Path, bufferSize: Int): FSDataInputStream = {
     log.debugLazy(s"Open file ${f.toUri.toString}")
-    new FSDataInputStream(new YtFsInputStream(YtWrapper.readFile(hadoopPathToYt(f), timeout = _ytConf.timeout)(yt)))
+    statistics.incrementReadOps(1)
+    new FSDataInputStream(new YtFsInputStream(YtWrapper.readFile(hadoopPathToYt(f), timeout = _ytConf.timeout)(yt),
+      statistics))
   }
 
   protected def create(f: Path, permission: FsPermission, overwrite: Boolean, bufferSize: Int,
                        replication: Short, blockSize: Long, progress: Progressable,
                        statistics: FileSystem.Statistics): FSDataOutputStream = {
     log.debugLazy(s"Create new file: $f")
+    statistics.incrementWriteOps(1)
     val path = hadoopPathToYt(f)
 
     YtWrapper.createDir(hadoopPathToYt(f.getParent), None, ignoreExisting = true)(yt)
@@ -73,12 +76,14 @@ trait YtFileSystemBase extends FileSystem with LogLazy {
 
   override def rename(src: Path, dst: Path): Boolean = {
     log.debugLazy(s"Rename $src to $dst")
+    statistics.incrementWriteOps(1)
     YtWrapper.rename(hadoopPathToYt(src), hadoopPathToYt(dst))(yt)
     true
   }
 
   override def mkdirs(f: Path, permission: FsPermission): Boolean = {
     log.debugLazy(s"Create $f")
+    statistics.incrementWriteOps(1)
     YtWrapper.createDir(hadoopPathToYt(f), ignoreExisting = true)(yt)
     true
   }
@@ -86,6 +91,7 @@ trait YtFileSystemBase extends FileSystem with LogLazy {
 
   override def delete(f: Path, recursive: Boolean): Boolean = {
     log.debugLazy(s"Delete $f")
+    statistics.incrementWriteOps(1)
     if (!YtWrapper.exists(hadoopPathToYt(f))(yt)) {
       log.debugLazy(s"$f is not exist")
       return false
@@ -97,6 +103,7 @@ trait YtFileSystemBase extends FileSystem with LogLazy {
 
   def listYtDirectory(f: Path, path: String, transaction: Option[String])
                      (implicit yt: CompoundClient): Array[FileStatus] = {
+    statistics.incrementReadOps(1)
     YtWrapper.listDir(path, transaction).map(name => getFileStatus(new Path(f, name)))
   }
 
@@ -112,4 +119,5 @@ trait YtFileSystemBase extends FileSystem with LogLazy {
     super.close()
   }
 
+  def internalStatistics: FileSystem.Statistics = this.statistics
 }
