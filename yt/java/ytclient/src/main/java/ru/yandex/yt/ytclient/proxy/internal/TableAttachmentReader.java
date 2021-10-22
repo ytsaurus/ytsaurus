@@ -7,7 +7,6 @@ import javax.annotation.Nullable;
 
 import NYT.NChunkClient.NProto.DataStatistics.TDataStatistics;
 
-import ru.yandex.bolts.collection.Cf;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
@@ -18,7 +17,7 @@ public interface TableAttachmentReader<T> {
             if (attachments == null) {
                 return null;
             } else {
-                return Cf.list(attachments);
+                return Arrays.asList(attachments);
             }
         }
 
@@ -28,9 +27,9 @@ public interface TableAttachmentReader<T> {
                 return null;
             } else {
                 if (offset == 0 && length == attachments.length) {
-                    return Cf.list(attachments);
+                    return Arrays.asList(attachments);
                 } else {
-                    return Cf.list(Arrays.copyOfRange(attachments, offset, length));
+                    return Arrays.asList(Arrays.copyOfRange(attachments, offset, length));
                 }
             }
         }

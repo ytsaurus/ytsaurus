@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -15,7 +16,6 @@ import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 import org.junit.Assert;
 
-import ru.yandex.bolts.collection.Cf;
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeStringNodeImpl;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
@@ -96,7 +96,7 @@ public class WireProtocolTest {
     public static UnversionedValue makeValueSample(int id, ColumnValueType type, boolean aggregate) {
         Object value = makeSampleValue(type);
         if (type == ColumnValueType.ANY && value instanceof byte[]) {
-            value = UnversionedValue.convertValueTo(new YTreeStringNodeImpl((byte[]) value, Cf.map()), type);
+            value = UnversionedValue.convertValueTo(new YTreeStringNodeImpl((byte[]) value, Map.of()), type);
         }
         return new UnversionedValue(id, type, aggregate, value);
     }
@@ -391,7 +391,7 @@ public class WireProtocolTest {
             return outputStream.toByteArray();
         } else if (type == ColumnValueType.ANY && value instanceof byte[]) {
             // Набор байтов будет обернут в YSON объект
-            return UnversionedValue.convertValueTo(new YTreeStringNodeImpl((byte[]) value, Cf.map()), type);
+            return UnversionedValue.convertValueTo(new YTreeStringNodeImpl((byte[]) value, Map.of()), type);
         } else {
             return UnversionedValue.convertValueTo(value, type);
         }

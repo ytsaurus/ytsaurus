@@ -1,12 +1,14 @@
 package ru.yandex.yt.ytclient.wire;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
-import ru.yandex.bolts.collection.Cf;
-import ru.yandex.bolts.collection.ListF;
-import ru.yandex.bolts.collection.MapF;
-import ru.yandex.bolts.collection.SetF;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.NullSerializationStrategy;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeFlattenField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeKeyField;
@@ -49,15 +51,15 @@ public class RowSampleAllObject extends AbstractYTreeStateSupport<RowSampleAllOb
     @YTreeFlattenField
     private RowSampleAllFlattenObject flatten;
 
-    private MapF<String, String> simpleMapObject;
-    private MapF<String, RowSampleObject> complexMapObject;
-    private ListF<String> simpleListObject;
-    private ListF<RowSampleObject> complexListObject;
+    private Map<String, String> simpleMapObject;
+    private Map<String, RowSampleObject> complexMapObject;
+    private List<String> simpleListObject;
+    private List<RowSampleObject> complexListObject;
     private String[] simpleArrayObject;
     private RowSampleObject[] complexArrayObject;
     private int[] primitiveArrayObject;
-    private SetF<String> simpleSetObjects;
-    private SetF<RowSampleObject> complexSetObjects;
+    private Set<String> simpleSetObjects;
+    private Set<RowSampleObject> complexSetObjects;
 
     public int getInt64_as_int() {
         return int64_as_int;
@@ -211,63 +213,63 @@ public class RowSampleAllObject extends AbstractYTreeStateSupport<RowSampleAllOb
         this.internalObject = internalObject;
     }
 
-    public MapF<String, String> getSimpleMapObject() {
+    public Map<String, String> getSimpleMapObject() {
         return simpleMapObject;
     }
 
-    public MapF<String, String> getSimpleMapObject0() {
+    public Map<String, String> getSimpleMapObject0() {
         if (simpleMapObject == null) {
-            simpleMapObject = Cf.hashMap();
+            simpleMapObject = new HashMap<>();
         }
         return simpleMapObject;
     }
 
-    public void setSimpleMapObject(MapF<String, String> simpleMapObject) {
+    public void setSimpleMapObject(Map<String, String> simpleMapObject) {
         this.simpleMapObject = simpleMapObject;
     }
 
-    public MapF<String, RowSampleObject> getComplexMapObject() {
+    public Map<String, RowSampleObject> getComplexMapObject() {
         return complexMapObject;
     }
 
-    public MapF<String, RowSampleObject> getComplexMapObject0() {
+    public Map<String, RowSampleObject> getComplexMapObject0() {
         if (complexMapObject == null) {
-            complexMapObject = Cf.hashMap();
+            complexMapObject = new HashMap<>();
         }
         return complexMapObject;
     }
 
-    public void setComplexMapObject(MapF<String, RowSampleObject> complexMapObject) {
+    public void setComplexMapObject(Map<String, RowSampleObject> complexMapObject) {
         this.complexMapObject = complexMapObject;
     }
 
-    public ListF<String> getSimpleListObject() {
+    public List<String> getSimpleListObject() {
         return simpleListObject;
     }
 
-    public ListF<String> getSimpleListObject0() {
+    public List<String> getSimpleListObject0() {
         if (simpleListObject == null) {
-            simpleListObject = Cf.arrayList();
+            simpleListObject = new ArrayList<>();
         }
         return simpleListObject;
     }
 
-    public void setSimpleListObject(ListF<String> simpleListObject) {
+    public void setSimpleListObject(List<String> simpleListObject) {
         this.simpleListObject = simpleListObject;
     }
 
-    public ListF<RowSampleObject> getComplexListObject() {
+    public List<RowSampleObject> getComplexListObject() {
         return complexListObject;
     }
 
-    public ListF<RowSampleObject> getComplexListObject0() {
+    public List<RowSampleObject> getComplexListObject0() {
         if (complexListObject == null) {
-            complexListObject = Cf.arrayList();
+            complexListObject = new ArrayList<>();
         }
         return complexListObject;
     }
 
-    public void setComplexListObject(ListF<RowSampleObject> complexListObject) {
+    public void setComplexListObject(List<RowSampleObject> complexListObject) {
         this.complexListObject = complexListObject;
     }
 
@@ -303,33 +305,33 @@ public class RowSampleAllObject extends AbstractYTreeStateSupport<RowSampleAllOb
         this.flatten = flatten;
     }
 
-    public SetF<String> getSimpleSetObjects() {
+    public Set<String> getSimpleSetObjects() {
         return simpleSetObjects;
     }
 
-    public SetF<String> getSimpleSetObjects0() {
+    public Set<String> getSimpleSetObjects0() {
         if (simpleSetObjects == null) {
-            simpleSetObjects = Cf.hashSet();
+            simpleSetObjects = new HashSet<>();
         }
         return simpleSetObjects;
     }
 
-    public void setSimpleSetObjects(SetF<String> simpleSetObjects) {
+    public void setSimpleSetObjects(Set<String> simpleSetObjects) {
         this.simpleSetObjects = simpleSetObjects;
     }
 
-    public SetF<RowSampleObject> getComplexSetObjects() {
+    public Set<RowSampleObject> getComplexSetObjects() {
         return complexSetObjects;
     }
 
-    public SetF<RowSampleObject> getComplexSetObjects0() {
+    public Set<RowSampleObject> getComplexSetObjects0() {
         if (complexSetObjects == null) {
-            complexSetObjects = Cf.hashSet();
+            complexSetObjects = new HashSet<>();
         }
         return complexSetObjects;
     }
 
-    public void setComplexSetObjects(SetF<RowSampleObject> complexSetObjects) {
+    public void setComplexSetObjects(Set<RowSampleObject> complexSetObjects) {
         this.complexSetObjects = complexSetObjects;
     }
 

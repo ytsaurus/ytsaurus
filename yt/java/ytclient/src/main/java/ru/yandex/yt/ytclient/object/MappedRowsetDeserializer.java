@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,8 +12,6 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
-import ru.yandex.bolts.collection.Cf;
-import ru.yandex.bolts.collection.MapF;
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBooleanNodeImpl;
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeDoubleNodeImpl;
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeEntityNodeImpl;
@@ -36,7 +35,7 @@ public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, W
     // Уменьшаем размер буфера - ожидаем, что объекты не очень большие
     private static final int BUFFER_SIZE = 512;
 
-    private final MapF<String, YTreeNode> attributes = Cf.map();
+    private final Map<String, YTreeNode> attributes = Collections.emptyMap();
     private final YTreeBooleanNodeImpl booleanNode = new YTreeBooleanNodeImpl(false, attributes);
     private final YTreeDoubleNodeImpl doubleNode = new YTreeDoubleNodeImpl(0, attributes);
     private final YTreeEntityNodeImpl entityNode = new YTreeEntityNodeImpl(attributes);

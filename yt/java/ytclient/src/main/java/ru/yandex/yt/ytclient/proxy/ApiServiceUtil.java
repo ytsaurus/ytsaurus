@@ -3,8 +3,8 @@ package ru.yandex.yt.ytclient.proxy;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.function.Function;
 
-import ru.yandex.bolts.function.Function;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.yt.rpcproxy.ERowsetKind;
 import ru.yandex.yt.rpcproxy.TColumnSchema;
