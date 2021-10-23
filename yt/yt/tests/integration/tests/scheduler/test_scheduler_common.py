@@ -2464,6 +2464,100 @@ class TestResourceMetering(YTEnvSetup):
         wait(check_structured)
 
     @authors("ignat")
+    def test_resource_metering_at_root(self):
+        create_pool(
+            "pool_with_abc",
+            pool_tree="default",
+            attributes={
+                "strong_guarantee_resources": {"cpu": 4},
+                "abc": {"id": 1, "slug": "my1", "name": "MyService1"},
+            },
+            wait_for_orchid=False,
+        )
+
+        create_pool(
+            "pool_without_abc",
+            pool_tree="default",
+            attributes={
+                "strong_guarantee_resources": {"cpu": 2},
+            },
+            wait_for_orchid=False,
+        )
+
+        create_pool(
+            "pool_with_abc_at_children",
+            pool_tree="default",
+            attributes={
+                "strong_guarantee_resources": {"cpu": 2},
+                "integral_guarantees": {
+                    "guarantee_type": "none",
+                    "resource_flow": {"cpu": 5},
+                },
+            },
+            wait_for_orchid=False,
+        )
+
+        create_pool(
+            "strong_guarantees_pool",
+            parent_name="pool_with_abc_at_children",
+            pool_tree="default",
+            attributes={
+                "strong_guarantee_resources": {"cpu": 1},
+                "abc": {"id": 2, "slug": "my2", "name": "MyService2"},
+            },
+            wait_for_orchid=False,
+        )
+
+        create_pool(
+            "integral_guarantees_pool",
+            parent_name="pool_with_abc_at_children",
+            pool_tree="default",
+            attributes={
+                "integral_guarantees": {
+                    "guarantee_type": "relaxed",
+                    "resource_flow": {"cpu": 2},
+                },
+                "abc": {"id": 3, "slug": "my3", "name": "MyService3"},
+            },
+            wait_for_orchid=False,
+        )
+
+        root_key = (42, "default", "<Root>")
+
+        desired_metering_data = {
+            root_key: {
+                "strong_guarantee_resources/cpu": 3,  # 2 from pool_without_abc, and 1 from pool_with_abc_at_children
+                "resource_flow/cpu": 0,  # none integral resources are not summed to <Root>
+                "burst_guarantee_resources/cpu": 0,
+                "allocated_resources/cpu": 0,
+            },
+            (1, "default", "pool_with_abc"): {
+                "strong_guarantee_resources/cpu": 4,
+                "resource_flow/cpu": 0,
+                "burst_guarantee_resources/cpu": 0,
+                "allocated_resources/cpu": 0,
+            },
+            (2, "default", "strong_guarantees_pool"): {
+                "strong_guarantee_resources/cpu": 1,
+                "resource_flow/cpu": 0,
+                "burst_guarantee_resources/cpu": 0,
+                "allocated_resources/cpu": 0,
+            },
+            (3, "default", "integral_guarantees_pool"): {
+                "strong_guarantee_resources/cpu": 0,
+                "resource_flow/cpu": 2,
+                "burst_guarantee_resources/cpu": 0,
+                "allocated_resources/cpu": 0,
+            },
+        }
+
+        def check_structured():
+            event_key_to_last_record = self._extract_metering_records_from_log()
+            return self._validate_metering_records(root_key, desired_metering_data, event_key_to_last_record)
+
+        wait(check_structured)
+
+    @authors("ignat")
     def test_metering_with_revive(self):
         set("//sys/pool_trees/default/@config/metering_tags", {"my_tag": "my_value"})
         wait(lambda: get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/config/metering_tags"))
@@ -2508,18 +2602,17 @@ class TestResourceMetering(YTEnvSetup):
         wait(lambda: exists("//sys/scheduler/@last_metering_log_time"))
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
-            time.sleep(5)
+            time.sleep(8)
 
         def check_expected_usage():
             event_key_to_records = self._extract_metering_records_from_log(last=False)
-            for key, records in event_key_to_records.iteritems():
-                has_long_record = False
-                for tags, usage in records:
-                    if usage["quantity"] > 5000:
-                        has_long_record = True
-                if not has_long_record:
-                    return False
-            return True
+            has_long_record = False
+            for tags, usage in event_key_to_records[root_key]:
+                print_debug(tags, usage)
+                # Record could be split by hour bound, therefore we check half of the slept period.
+                if usage["quantity"] > 3900:
+                    has_long_record = True
+            return has_long_record
 
         wait(check_expected_usage)
 
