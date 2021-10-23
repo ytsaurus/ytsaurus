@@ -1506,6 +1506,12 @@ public:
     // Turn map phase into ordered map.
     bool Ordered;
 
+    // Enable table indices and schematization in case of trivial mapper.
+    // TODO(levysotsky): Remove this option after successful deploy to production.
+    // It is necessary only for emergency switching off.
+    bool EnableTableIndexIfHasTrivialMapper;
+
+public:
     bool HasNontrivialMapper() const;
     bool HasNontrivialReduceCombiner() const;
     bool HasSchemafulIntermediateStreams() const;
