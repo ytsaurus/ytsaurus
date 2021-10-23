@@ -25,8 +25,8 @@ public:
     TMeteringStatistics& operator+=(const TMeteringStatistics& other);
     TMeteringStatistics& operator-=(const TMeteringStatistics& other);
 
-    void AccountChild(const TMeteringStatistics& child, bool isRoot);
-    void DiscountChild(const TMeteringStatistics& child, bool isRoot);
+    void AccountChild(const TMeteringStatistics& child);
+    void DiscountChild(const TMeteringStatistics& child);
 };
 
 TMeteringStatistics operator+(const TMeteringStatistics& lhs, const TMeteringStatistics& rhs);

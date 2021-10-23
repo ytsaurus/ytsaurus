@@ -1784,9 +1784,7 @@ void TSchedulerPoolElement::BuildResourceMetering(const std::optional<TMeteringK
         auto insertResult = meteringMap->insert({*key, meteringStatistics});
         YT_VERIFY(insertResult.second);
     } else {
-        meteringMap->at(*parentKey).AccountChild(
-            meteringStatistics,
-            /* isRoot */ parentKey->PoolId == RootPoolName);
+        meteringMap->at(*parentKey).AccountChild(meteringStatistics);
     }
 
     for (const auto& child : EnabledChildren_) {
@@ -1794,9 +1792,7 @@ void TSchedulerPoolElement::BuildResourceMetering(const std::optional<TMeteringK
     }
 
     if (key && parentKey) {
-        meteringMap->at(*parentKey).DiscountChild(
-            meteringStatistics,
-            /* isRoot */ parentKey->PoolId == RootPoolName);
+        meteringMap->at(*parentKey).DiscountChild(meteringStatistics);
     }
 }
 
@@ -3961,11 +3957,16 @@ void TSchedulerRootElement::BuildResourceMetering(
         .TreeId = GetTreeId(),
         .PoolId = GetId(),
     };
+    
+    TJobResources TotalStrongGuaranteeResources;
+    for (const auto& child : EnabledChildren_) {
+        TotalStrongGuaranteeResources += child->GetSpecifiedStrongGuaranteeResources();
+    }
 
     auto insertResult = meteringMap->insert({
         key,
         TMeteringStatistics(
-            /* strongGuaranteeResources */ {},
+            /* strongGuaranteeResources */ TotalStrongGuaranteeResources,
             /* resourceFlow */ {},
             /* burstGuaranteResources */ {},
             GetResourceUsageAtUpdate())});
