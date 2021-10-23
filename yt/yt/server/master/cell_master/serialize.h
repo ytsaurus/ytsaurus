@@ -207,6 +207,7 @@ DEFINE_ENUM(EMasterReign,
     ((SaveForcefullyUnmountedTablets)                               (1803))  // ifsmirnov
     ((HandlePoolAttributesThatBecameUninterned)                     (1804))  // renadeen
     ((PerFlavorNodeMaps)                                            (1805))  // gritukan
+    ((FixAccountChunkMergerAttributesReplication)                   (1806))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

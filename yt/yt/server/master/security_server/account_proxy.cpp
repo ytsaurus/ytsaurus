@@ -174,10 +174,12 @@ private:
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MergeJobRateLimit)
             .SetWritable(true)
-            .SetWritePermission(EPermission::Administer));
+            .SetWritePermission(EPermission::Administer)
+            .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkMergerNodeTraversalConcurrency)
             .SetWritable(true)
-            .SetWritePermission(EPermission::Administer));
+            .SetWritePermission(EPermission::Administer)
+            .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Abc)
             .SetWritable(true)
             .SetWritePermission(EPermission::Administer)
