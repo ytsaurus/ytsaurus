@@ -64,7 +64,7 @@ public:
             slot,
             bootstrap)
         , Config_(config)
-        , LeaseTracker_(New<TTransactionLeaseTracker>(
+        , LeaseTracker_(CreateTransactionLeaseTracker(
             Bootstrap_->GetTransactionTrackerInvoker(),
             Logger))
         , AbortTransactionIdPool_(Config_->MaxAbortedTransactionPoolSize)
@@ -238,7 +238,7 @@ public:
 
 private:
     const TTransactionManagerConfigPtr Config_;
-    const TTransactionLeaseTrackerPtr LeaseTracker_;
+    const ITransactionLeaseTrackerPtr LeaseTracker_;
 
     TEntityMap<TTransaction> TransactionMap_;
     TTransactionIdPool AbortTransactionIdPool_;

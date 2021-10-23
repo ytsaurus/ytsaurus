@@ -151,7 +151,7 @@ public:
         , TransactionPresenceCache_(New<TTransactionPresenceCache>(Bootstrap_))
         , BoomerangTracker_(New<TBoomerangTracker>(Bootstrap_))
         , BufferedProducer_(New<TBufferedProducer>())
-        , LeaseTracker_(New<TTransactionLeaseTracker>(
+        , LeaseTracker_(CreateTransactionLeaseTracker(
             Bootstrap_->GetHydraFacade()->GetTransactionTrackerInvoker(),
             TransactionServerLogger))
     {
@@ -1125,7 +1125,7 @@ private:
     NProfiling::TBufferedProducerPtr BufferedProducer_;
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
-    const TTransactionLeaseTrackerPtr LeaseTracker_;
+    const ITransactionLeaseTrackerPtr LeaseTracker_;
 
     NHydra::TEntityMap<TTransaction> TransactionMap_;
 
