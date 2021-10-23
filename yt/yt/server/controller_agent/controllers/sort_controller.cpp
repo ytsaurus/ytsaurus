@@ -4029,9 +4029,10 @@ private:
 
         auto toStreamSchema = [] (const TTableSchemaPtr& schema, const TSortColumns& sortColumns) {
             auto columns = schema->Columns();
+            auto optionalAnyType = OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any));
             for (const auto& sortColumn : sortColumns) {
                 if (!schema->FindColumn(sortColumn.Name)) {
-                    columns.push_back(TColumnSchema(sortColumn.Name, SimpleLogicalType(ESimpleLogicalValueType::Any)));
+                    columns.push_back(TColumnSchema(sortColumn.Name, optionalAnyType));
                 }
             }
             return New<TTableSchema>(std::move(columns), schema->GetStrict())->ToSorted(sortColumns);

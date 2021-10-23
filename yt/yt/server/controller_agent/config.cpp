@@ -843,7 +843,7 @@ TControllerAgentConfig::TControllerAgentConfig()
 
     RegisterParameter("secure_vault_length_limit", SecureVaultLengthLimit)
         .Default(64_MB);
-    
+
     RegisterParameter("full_job_info_wait_timeout", FullJobInfoWaitTimeout)
         .Default(TDuration::Seconds(15));
 

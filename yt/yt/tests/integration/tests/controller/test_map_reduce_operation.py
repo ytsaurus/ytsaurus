@@ -1541,10 +1541,8 @@ for l in sys.stdin:
                 "data_size_per_map_job": 1,
                 "data_size_per_sort_job": 1,
                 "resource_limits": {"user_slots": 1},
-                "partition_job_io": {"control_attributes": {"enable_table_index": True}},
                 "reducer": {
                     "format": "json",
-                    "enable_input_table_index": True,
                 },
                 "max_failed_job_count": 1,
             },
@@ -1621,11 +1619,6 @@ for l in sys.stdin:
             reducer_command="python reducer.py",
             sort_by=[{"name": "a", "sort_order": sort_order}],
             spec={
-                "reduce_job_io": {
-                    "control_attributes": {
-                        "enable_table_index": True,
-                    },
-                },
                 "reducer": {"format": "json"},
                 "max_failed_job_count": 1,
             },
@@ -1736,11 +1729,6 @@ for l in sys.stdin:
                 {"name": "b", "sort_order": sort_order},
             ],
             spec={
-                "reduce_job_io": {
-                    "control_attributes": {
-                        "enable_table_index": True,
-                    },
-                },
                 "reducer": {"format": "json"},
                 "max_failed_job_count": 1,
             },
@@ -2110,11 +2098,6 @@ for l in sys.stdin:
             reducer_command="python reducer.py",
             sort_by=[{"name": "a", "sort_order": sort_order}],
             spec={
-                "reduce_job_io": {
-                    "control_attributes": {
-                        "enable_table_index": True,
-                    },
-                },
                 "reducer": {"format": "json"},
                 "max_failed_job_count": 1,
             },
@@ -2404,11 +2387,6 @@ for l in sys.stdin:
             reducer_command="python reducer.py",
             sort_by=["key1", "key2", "key3"],
             spec={
-                "reduce_job_io": {
-                    "control_attributes": {
-                        "enable_table_index": True,
-                    },
-                },
                 "reducer": {"format": "json"},
                 "max_failed_job_count": 1,
             },
@@ -2533,11 +2511,6 @@ for l in sys.stdin:
                 reducer_command="python reducer.py",
                 sort_by=sort_by,
                 spec={
-                    "reduce_job_io": {
-                        "control_attributes": {
-                            "enable_table_index": True,
-                        },
-                    },
                     "reducer": {"format": "json"},
                     "max_failed_job_count": 1,
                 },

@@ -1415,6 +1415,9 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
     registrar.Parameter("ordered", &TMapReduceOperationSpec::Ordered)
         .Default(false);
 
+    registrar.Parameter("enable_table_index_if_has_trivial_mapper", &TMapReduceOperationSpec::EnableTableIndexIfHasTrivialMapper)
+        .Default(true);
+
     // The following settings are inherited from base but make no sense for map-reduce:
     //   SimpleSortLocalityTimeout
     //   SimpleMergeLocalityTimeout
@@ -1508,6 +1511,13 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
         spec->InputTablePaths = NYT::NYPath::Normalize(spec->InputTablePaths);
         spec->OutputTablePaths = NYT::NYPath::Normalize(spec->OutputTablePaths);
 
+        if (!spec->HasNontrivialMapper() && spec->EnableTableIndexIfHasTrivialMapper) {
+            spec->Reducer->EnableInputTableIndex = true;
+            if (spec->HasNontrivialReduceCombiner()) {
+                spec->ReduceCombiner->EnableInputTableIndex = true;
+            }
+        }
+
         if (spec->HasNontrivialMapper()) {
             spec->Mapper->InitEnableInputTableIndex(spec->InputTablePaths.size(), spec->PartitionJobIO);
             spec->Mapper->TaskTitle = "Mapper";
@@ -1519,17 +1529,9 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
                 intermediateStreamCount = spec->Mapper->OutputStreams.size();
             }
         } else {
-            if (spec->MergeJobIO->ControlAttributes->EnableTableIndex) {
+            if (spec->Reducer->EnableInputTableIndex || spec->MergeJobIO->ControlAttributes->EnableTableIndex) {
                 intermediateStreamCount = spec->InputTablePaths.size();
             }
-        }
-
-        if (intermediateStreamCount > 1) {
-            if (!spec->HasNontrivialMapper()) {
-                spec->PartitionJobIO->ControlAttributes->EnableTableIndex = true;
-            }
-            spec->MergeJobIO->ControlAttributes->EnableTableIndex = true;
-            spec->SortJobIO->ControlAttributes->EnableTableIndex = true;
         }
 
         if (spec->HasNontrivialReduceCombiner()) {
@@ -1542,6 +1544,14 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
 
         spec->Reducer->InitEnableInputTableIndex(intermediateStreamCount, spec->MergeJobIO);
         spec->Reducer->TaskTitle = "Reducer";
+
+        if (intermediateStreamCount > 1) {
+            if (!spec->HasNontrivialMapper()) {
+                spec->PartitionJobIO->ControlAttributes->EnableTableIndex = true;
+            }
+            spec->MergeJobIO->ControlAttributes->EnableTableIndex = true;
+            spec->SortJobIO->ControlAttributes->EnableTableIndex = true;
+        }
 
         if (spec->Sampling && spec->Sampling->SamplingRate) {
             spec->MapSelectivityFactor *= *spec->Sampling->SamplingRate;
