@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/core/misc/singleton.h>
+
 #include <yt/yt/core/concurrency/public.h>
 
 namespace NYT::NBus {
@@ -62,7 +64,7 @@ public:
 private:
     TTcpDispatcher();
 
-    Y_DECLARE_SINGLETON_FRIEND();
+    DECLARE_LEAKY_SINGLETON_FRIEND()
     friend class TTcpConnection;
     friend class TTcpBusClient;
     friend class TTcpBusServerBase;

@@ -9,6 +9,7 @@
 #include "thread.h"
 
 #include <yt/yt/core/misc/mpsc_stack.h>
+#include <yt/yt/core/misc/shutdown.h>
 
 #include <yt/yt/core/actions/invoker_util.h>
 
@@ -86,6 +87,10 @@ public:
     TThreadPoolPoller(int threadCount, const TString& threadNamePrefix)
         : ThreadNamePrefix_(threadNamePrefix)
         , Logger(ConcurrencyLogger.WithTag("ThreadNamePrefix: %v", ThreadNamePrefix_))
+        , ShutdownCookie_(RegisterShutdownCallback(
+            Format("ThreadPoolPoller(%v)", threadNamePrefix),
+            BIND(&TThreadPoolPoller::Shutdown, MakeWeak(this)),
+            /*priority*/ 300))
         , Invoker_(New<TInvoker>(this))
         , PollerThread_(New<TPollerThread>(this))
         , HandlerThreads_(threadCount)
@@ -275,6 +280,8 @@ private:
     const TString ThreadNamePrefix_;
 
     const NLogging::TLogger Logger;
+
+    const TShutdownCookie ShutdownCookie_;
 
     const TIntrusivePtr<TEventCount> HandlerEventCount_ = New<TEventCount>();
 
