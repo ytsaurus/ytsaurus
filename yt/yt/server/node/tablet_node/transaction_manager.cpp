@@ -90,7 +90,7 @@ public:
             slot,
             bootstrap)
         , Config_(config)
-        , LeaseTracker_(New<TTransactionLeaseTracker>(
+        , LeaseTracker_(CreateTransactionLeaseTracker(
             Bootstrap_->GetTransactionTrackerInvoker(),
             Logger))
         , NativeCellTag_(Bootstrap_->GetMasterClient()->GetConnection()->GetCellTag())
@@ -509,7 +509,7 @@ public:
 
 private:
     const TTransactionManagerConfigPtr Config_;
-    const TTransactionLeaseTrackerPtr LeaseTracker_;
+    const ITransactionLeaseTrackerPtr LeaseTracker_;
     const TCellTag NativeCellTag_;
 
     NProfiling::TEventTimer TransactionSerializationLagTimer_;

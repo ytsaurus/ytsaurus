@@ -15,6 +15,117 @@ using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTransactionLeaseTracker
+    : public ITransactionLeaseTracker
+{
+public:
+    TTransactionLeaseTracker(
+        IInvokerPtr trackerInvoker,
+        const NLogging::TLogger& logger);
+
+    void Start() override;
+    void Stop() override;
+    void RegisterTransaction(
+        TTransactionId transactionId,
+        TTransactionId parentId,
+        std::optional<TDuration> timeout,
+        std::optional<TInstant> deadline,
+        TTransactionLeaseExpirationHandler expirationHandler) override;
+    void UnregisterTransaction(TTransactionId transactionId) override;
+    void SetTimeout(TTransactionId transactionId, TDuration timeout) override;
+    void PingTransaction(TTransactionId transactionId, bool pingAncestors = false) override;
+    TFuture<TInstant> GetLastPingTime(TTransactionId transactionId) override;
+
+private:
+    const IInvokerPtr TrackerInvoker_;
+    const NLogging::TLogger Logger;
+
+    const NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
+
+    struct TStartRequest
+    { };
+
+    struct TStopRequest
+    { };
+
+    struct TRegisterRequest
+    {
+        TTransactionId TransactionId;
+        TTransactionId ParentId;
+        std::optional<TDuration> Timeout;
+        std::optional<TInstant> Deadline;
+        TTransactionLeaseExpirationHandler ExpirationHandler;
+    };
+
+    struct TUnregisterRequest
+    {
+        TTransactionId TransactionId;
+    };
+
+    struct TSetTimeoutRequest
+    {
+        TTransactionId TransactionId;
+        TDuration Timeout;
+    };
+
+    using TRequest = std::variant<
+        TStartRequest,
+        TStopRequest,
+        TRegisterRequest,
+        TUnregisterRequest,
+        TSetTimeoutRequest
+    >;
+
+    TMpscStack<TRequest> Requests_;
+
+    struct TTransactionDescriptor;
+
+    struct TTransationDeadlineComparer
+    {
+        bool operator()(const TTransactionDescriptor* lhs, const TTransactionDescriptor* rhs) const;
+    };
+
+    struct TTransactionDescriptor
+    {
+        TTransactionId TransactionId;
+        TTransactionId ParentId;
+        std::optional<TDuration> Timeout;
+        std::optional<TInstant> UserDeadline;
+        TTransactionLeaseExpirationHandler ExpirationHandler;
+        TInstant Deadline;
+        TInstant LastPingTime;
+        bool TimedOut = false;
+    };
+
+    bool Active_ = false;
+    THashMap<TTransactionId, TTransactionDescriptor> IdMap_;
+    std::set<TTransactionDescriptor*, TTransationDeadlineComparer> DeadlineMap_;
+
+    void OnTick();
+    void ProcessRequests();
+    void ProcessRequest(const TRequest& request);
+    void ProcessStartRequest(const TStartRequest& request);
+    void ProcessStopRequest(const TStopRequest& request);
+    void ProcessRegisterRequest(const TRegisterRequest& request);
+    void ProcessUnregisterRequest(const TUnregisterRequest& request);
+    void ProcessSetTimeoutRequest(const TSetTimeoutRequest& request);
+    void ProcessDeadlines();
+
+    TTransactionDescriptor* FindDescriptor(TTransactionId transactionId);
+    TTransactionDescriptor* GetDescriptorOrThrow(TTransactionId transactionId);
+
+    void RegisterDeadline(TTransactionDescriptor* descriptor);
+    void UnregisterDeadline(TTransactionDescriptor* descriptor);
+
+    void ValidateActive();
+
+    DECLARE_THREAD_AFFINITY_SLOT(TrackerThread);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTransactionLeaseTracker)
+
+////////////////////////////////////////////////////////////////////////////////
+
 static const auto TickPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -311,6 +422,53 @@ void TTransactionLeaseTracker::ValidateActive()
             NYT::NRpc::EErrorCode::Unavailable,
             "Lease Tracker is not active");
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ITransactionLeaseTrackerPtr CreateTransactionLeaseTracker(IInvokerPtr trackerInvoker, const NLogging::TLogger& logger)
+{
+    return New<TTransactionLeaseTracker>(std::move(trackerInvoker), logger);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNullTransactionLeaseTracker
+    : public ITransactionLeaseTracker
+{
+public:
+    virtual void Start() override
+    { }
+
+    virtual void Stop() override
+    { }
+
+    virtual void RegisterTransaction(
+        TTransactionId /*transactionId*/,
+        TTransactionId /*parentId*/,
+        std::optional<TDuration> /*timeout*/,
+        std::optional<TInstant> /*deadline*/,
+        TTransactionLeaseExpirationHandler /*expirationHandler*/) override
+    { }
+
+    virtual void UnregisterTransaction(TTransactionId /*transactionId*/) override
+    { }
+
+    virtual void SetTimeout(TTransactionId /*transactionId*/, TDuration /*timeout*/) override
+    { }
+
+    virtual void PingTransaction(TTransactionId /*transactionId*/, bool /*pingAncestors*/) override
+    { }
+
+    virtual TFuture<TInstant> GetLastPingTime(TTransactionId /*transactionId*/) override
+    {
+        return MakeFuture(TInstant::Zero());
+    }
+};
+
+ITransactionLeaseTrackerPtr CreateNullTransactionLeaseTracker()
+{
+    return New<TNullTransactionLeaseTracker>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

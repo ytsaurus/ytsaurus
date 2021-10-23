@@ -58,7 +58,7 @@ DECLARE_REFCOUNTED_STRUCT(ITransactionSupervisor)
 DECLARE_REFCOUNTED_STRUCT(ITransactionManager)
 DECLARE_REFCOUNTED_STRUCT(ITransactionParticipantProvider)
 
-DECLARE_REFCOUNTED_CLASS(TTransactionLeaseTracker)
+DECLARE_REFCOUNTED_STRUCT(ITransactionLeaseTracker)
 DECLARE_REFCOUNTED_CLASS(TCellDirectorySynchronizer)
 
 DECLARE_REFCOUNTED_CLASS(THiveManagerConfig)

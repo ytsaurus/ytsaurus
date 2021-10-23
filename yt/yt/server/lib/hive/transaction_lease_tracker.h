@@ -24,26 +24,24 @@ using TTransactionLeaseExpirationHandler = TCallback<void(TTransactionId)>;
 /*!
  *  The instance is active between #Start and #Stop calls, which must come in pairs.
  */
-class TTransactionLeaseTracker
+struct ITransactionLeaseTracker
     : public TRefCounted
 {
-public:
-    TTransactionLeaseTracker(
-        IInvokerPtr trackerInvoker,
-        const NLogging::TLogger& logger);
-
+    // NB: all comments below are related to the implementation produced by
+    // #CreateTransactionLeaseTracker. The implementation from #CreateNullTransactionLeaseTracker
+    // is effectively no-op for each call.
 
     //! Starts the instance, enables it to serve ping requests.
     /*!
      *  Thread affinity: any
      */
-    void Start();
+    virtual void Start() = 0;
 
     //! Stops the instance, makes the instance forget about all leases.
     /*!
      *  Thread affinity: any
      */
-    void Stop();
+    virtual void Stop() = 0;
 
     //! Registers a new transaction.
     /*!
@@ -52,12 +50,12 @@ public:
      *
      *  Thread affinity: any
      */
-    void RegisterTransaction(
+    virtual void RegisterTransaction(
         TTransactionId transactionId,
         TTransactionId parentId,
         std::optional<TDuration> timeout,
         std::optional<TInstant> deadline,
-        TTransactionLeaseExpirationHandler expirationHandler);
+        TTransactionLeaseExpirationHandler expirationHandler) = 0;
 
     //! Unregisters a transaction.
     /*!
@@ -65,7 +63,7 @@ public:
      *
      *  Thread affinity: any
      */
-    void UnregisterTransaction(TTransactionId transactionId);
+    virtual void UnregisterTransaction(TTransactionId transactionId) = 0;
 
     //! Sets the transaction timeout. Current lease is not renewed.
     /*!
@@ -73,7 +71,7 @@ public:
      *
      *  Thread affinity: any
      */
-    void SetTimeout(TTransactionId transactionId, TDuration timeout);
+    virtual void SetTimeout(TTransactionId transactionId, TDuration timeout) = 0;
 
     //! Pings a transaction, i.e. renews its lease.
     /*!
@@ -84,7 +82,7 @@ public:
      *
      *  Thread affinity: TrackerThread
      */
-    void PingTransaction(TTransactionId transactionId, bool pingAncestors = false);
+    virtual void PingTransaction(TTransactionId transactionId, bool pingAncestors = false) = 0;
 
     //! Asynchronously returns the (approximate) moment when transaction with
     //! a given #transactionId was last pinged.
@@ -93,96 +91,18 @@ public:
      *
      *  Thread affinity: any
      */
-    TFuture<TInstant> GetLastPingTime(TTransactionId transactionId);
-
-private:
-    const IInvokerPtr TrackerInvoker_;
-    const NLogging::TLogger Logger;
-
-    const NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
-
-    struct TStartRequest
-    { };
-
-    struct TStopRequest
-    { };
-
-    struct TRegisterRequest
-    {
-        TTransactionId TransactionId;
-        TTransactionId ParentId;
-        std::optional<TDuration> Timeout;
-        std::optional<TInstant> Deadline;
-        TTransactionLeaseExpirationHandler ExpirationHandler;
-    };
-
-    struct TUnregisterRequest
-    {
-        TTransactionId TransactionId;
-    };
-
-    struct TSetTimeoutRequest
-    {
-        TTransactionId TransactionId;
-        TDuration Timeout;
-    };
-
-    using TRequest = std::variant<
-        TStartRequest,
-        TStopRequest,
-        TRegisterRequest,
-        TUnregisterRequest,
-        TSetTimeoutRequest
-    >;
-
-    TMpscStack<TRequest> Requests_;
-
-    struct TTransactionDescriptor;
-
-    struct TTransationDeadlineComparer
-    {
-        bool operator()(const TTransactionDescriptor* lhs, const TTransactionDescriptor* rhs) const;
-    };
-
-    struct TTransactionDescriptor
-    {
-        TTransactionId TransactionId;
-        TTransactionId ParentId;
-        std::optional<TDuration> Timeout;
-        std::optional<TInstant> UserDeadline;
-        TTransactionLeaseExpirationHandler ExpirationHandler;
-        TInstant Deadline;
-        TInstant LastPingTime;
-        bool TimedOut = false;
-    };
-
-    bool Active_ = false;
-    THashMap<TTransactionId, TTransactionDescriptor> IdMap_;
-    std::set<TTransactionDescriptor*, TTransationDeadlineComparer> DeadlineMap_;
-
-    void OnTick();
-    void ProcessRequests();
-    void ProcessRequest(const TRequest& request);
-    void ProcessStartRequest(const TStartRequest& request);
-    void ProcessStopRequest(const TStopRequest& request);
-    void ProcessRegisterRequest(const TRegisterRequest& request);
-    void ProcessUnregisterRequest(const TUnregisterRequest& request);
-    void ProcessSetTimeoutRequest(const TSetTimeoutRequest& request);
-    void ProcessDeadlines();
-
-    TTransactionDescriptor* FindDescriptor(TTransactionId transactionId);
-    TTransactionDescriptor* GetDescriptorOrThrow(TTransactionId transactionId);
-
-    void RegisterDeadline(TTransactionDescriptor* descriptor);
-    void UnregisterDeadline(TTransactionDescriptor* descriptor);
-
-    void ValidateActive();
-
-    DECLARE_THREAD_AFFINITY_SLOT(TrackerThread);
-
+    virtual TFuture<TInstant> GetLastPingTime(TTransactionId transactionId) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTransactionLeaseTracker)
+DEFINE_REFCOUNTED_TYPE(ITransactionLeaseTracker)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! An implementation providing the behavior described in the interface.
+ITransactionLeaseTrackerPtr CreateTransactionLeaseTracker(IInvokerPtr trackerInvoker, const NLogging::TLogger& logger);
+
+//! An no-op implmemntation. Useful for testing.
+ITransactionLeaseTrackerPtr CreateNullTransactionLeaseTracker();
 
 ////////////////////////////////////////////////////////////////////////////////
 
