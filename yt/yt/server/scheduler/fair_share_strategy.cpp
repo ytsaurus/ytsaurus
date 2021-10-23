@@ -373,7 +373,7 @@ public:
 
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
-    
+
     TError UpdateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
@@ -904,7 +904,7 @@ public:
                     const auto& snapshot = snapshotIt->second;
                     if (snapshot->HasEnabledOperation(job.OperationId)) {
                         snapshot->ProcessFinishedJob(job.OperationId, job.JobId);
-                    } else { 
+                    } else {
                         YT_LOG_DEBUG("Postpone job update since operation is disabled or missing in snapshot (OperationId: %v, JobId: %v)",
                             job.OperationId,
                             job.JobId);
@@ -1690,7 +1690,7 @@ private:
     virtual void DoBuildResourceMeteringAt(TInstant now)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
-            
+
         TMeteringMap newStatistics;
 
         auto snapshots = TreeIdToSnapshot_.Load();
@@ -1733,8 +1733,12 @@ private:
         LastMeteringStatisticsUpdateTime_ = now;
         MeteringStatistics_.swap(newStatistics);
 
-        WaitFor(Host->UpdateLastMeteringLogTime(now))
-            .ThrowOnError();
+        try {
+            WaitFor(Host->UpdateLastMeteringLogTime(now))
+                .ThrowOnError();
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Failed to update last metering log time");
+        }
     }
 
     void InitPersistentStrategyState(const TPersistentStrategyStatePtr& persistentStrategyState)
