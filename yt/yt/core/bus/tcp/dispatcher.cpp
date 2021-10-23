@@ -3,8 +3,6 @@
 
 #include <yt/yt/core/bus/private.h>
 
-#include <yt/yt/core/misc/singleton.h>
-
 namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,7 +15,7 @@ TTcpDispatcher::TTcpDispatcher()
 
 TTcpDispatcher* TTcpDispatcher::Get()
 {
-    return Singleton<TTcpDispatcher>();
+    return LeakySingleton<TTcpDispatcher>();
 }
 
 void TTcpDispatcher::Configure(const TTcpDispatcherConfigPtr& config)
