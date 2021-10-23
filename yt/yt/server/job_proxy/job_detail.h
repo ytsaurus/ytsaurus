@@ -39,7 +39,7 @@ public:
     std::optional<TString> GetFailContext() override;
     std::optional<NJobAgent::TJobProfile> GetProfile() override;
     const NCoreDump::TCoreInfos& GetCoreInfos() const override;
-    NYson::TYsonString PollJobShell(
+    NApi::TPollJobShellResponse PollJobShell(
         const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
         const NYson::TYsonString& parameters) override;
     void Fail() override;

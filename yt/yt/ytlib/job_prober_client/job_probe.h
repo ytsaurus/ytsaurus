@@ -3,6 +3,8 @@
 #include "public.h"
 #include "job_shell_descriptor_cache.h"
 
+#include <yt/yt/client/api/client.h>
+
 #include <yt/yt/core/yson/public.h>
 
 namespace NYT::NJobProberClient {
@@ -17,7 +19,7 @@ struct IJobProbe
 {
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() = 0;
 
-    virtual NYson::TYsonString PollJobShell(
+    virtual NApi::TPollJobShellResponse PollJobShell(
         const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
         const NYson::TYsonString& parameters) = 0;
 

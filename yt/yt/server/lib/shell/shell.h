@@ -33,6 +33,7 @@ struct TShellOptions
     int Index;
     TString ContainerUser;
     bool EnablePorto = false;
+    bool EnableJobShellSeccopm = true;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

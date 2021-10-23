@@ -1029,6 +1029,13 @@ struct TListOperationsOptions
     }
 };
 
+struct TPollJobShellResponse
+{
+    NYson::TYsonString Result;
+    // YT-14507: Logging context is required for SOC audit.
+    NYson::TYsonString LoggingContext;
+};
+
 DEFINE_ENUM(EJobSortField,
     ((None)       (0))
     ((Type)       (1))
@@ -1746,7 +1753,7 @@ struct IClient
         NJobTrackerClient::TJobId jobId,
         const TAbandonJobOptions& options = {}) = 0;
 
-    virtual TFuture<NYson::TYsonString> PollJobShell(
+    virtual TFuture<TPollJobShellResponse> PollJobShell(
         NJobTrackerClient::TJobId jobId,
         const std::optional<TString>& shellName,
         const NYson::TYsonString& parameters,

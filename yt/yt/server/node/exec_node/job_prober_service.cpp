@@ -133,9 +133,13 @@ private:
             subcontainer);
 
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
-        auto result = job->PollJobShell(jobShellDescriptor, parameters);
+        auto pollShellResponse = job->PollJobShell(jobShellDescriptor, parameters);
 
-        response->set_result(result.ToString());
+        response->set_result(pollShellResponse.Result.ToString());
+        if (pollShellResponse.LoggingContext) {
+            response->set_logging_context(pollShellResponse.LoggingContext.ToString());
+            context->SetResponseInfo("LoggingContext: %v", pollShellResponse.LoggingContext);
+        }
         context->Reply();
     }
 

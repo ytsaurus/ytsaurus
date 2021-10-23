@@ -91,7 +91,7 @@ const TCoreInfos& TJob::GetCoreInfos() const
         "Getting core infos is not supported for built-in jobs");
 }
 
-TYsonString TJob::PollJobShell(
+NApi::TPollJobShellResponse TJob::PollJobShell(
     const NJobProberClient::TJobShellDescriptor& /*jobShellDescriptor*/,
     const TYsonString& /*parameters*/)
 {

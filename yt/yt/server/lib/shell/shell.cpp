@@ -7,6 +7,10 @@
 
 #endif
 
+#include <yt/yt/ytlib/tools/proc.h>
+#include <yt/yt/ytlib/tools/public.h>
+#include <yt/yt/ytlib/tools/tools.h>
+
 #include <yt/yt/library/process/pty.h>
 
 #include <yt/yt/core/actions/bind.h>
@@ -29,6 +33,7 @@ using namespace NConcurrency;
 using namespace NContainers;
 using namespace NPipes;
 using namespace NNet;
+using namespace NTools;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -132,7 +137,7 @@ public:
 
         for (const auto& var : Options_->Environment) {
             TStringBuf name, value;
-            TStringBuf(var).TrySplit('=', name, value); 
+            TStringBuf(var).TrySplit('=', name, value);
             env[name] = value;
         }
 
@@ -163,15 +168,24 @@ public:
             }
         }
         ResizeWindow(CurrentHeight_, CurrentWidth_);
+        if (Options_->EnableJobShellSeccopm) {
+            auto toolConfig = New<TSpawnShellConfig>();
+            toolConfig->Command = Options_->Command;
+            auto args = GenerateToolArguments<TSpawnShellTool>(toolConfig);
 
-        TString path("/bin/bash");
-        std::vector<TString> args;
-        if (Options_->Command) {
-            args = {"-c", *Options_->Command};
+            Instance_ = WaitFor(launcher->Launch(ShellToolPath, args, env))
+                .ValueOrThrow();
+        } else {
+            // COMPAT(pushin): remove me after 21.3.
+            TString path("/bin/bash");
+            std::vector<TString> args;
+            if (Options_->Command) {
+                args = {"-c", *Options_->Command};
+            }
+
+            Instance_ = WaitFor(launcher->Launch(path, args, env))
+                .ValueOrThrow();
         }
-        
-        Instance_ = WaitFor(launcher->Launch(path, args, env))
-            .ValueOrThrow();
 
         Instance_->Wait()
             .Subscribe(

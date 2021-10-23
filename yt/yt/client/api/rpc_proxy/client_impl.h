@@ -252,7 +252,7 @@ public:
         NJobTrackerClient::TJobId job_id,
         const NApi::TAbandonJobOptions& options) override;
 
-    TFuture<NYson::TYsonString> PollJobShell(
+    TFuture<TPollJobShellResponse> PollJobShell(
         NJobTrackerClient::TJobId jobId,
         const std::optional<TString>& shellName,
         const NYson::TYsonString& parameters,

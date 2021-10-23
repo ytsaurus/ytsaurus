@@ -147,7 +147,7 @@ TString TJobProxy::GetStderr()
     return job->GetStderr();
 }
 
-TYsonString TJobProxy::PollJobShell(
+TPollJobShellResponse TJobProxy::PollJobShell(
     const TJobShellDescriptor& jobShellDescriptor,
     const TYsonString& parameters)
 {

@@ -46,7 +46,7 @@ public:
 
     std::vector<NChunkClient::TChunkId> DumpInputContext() override;
     TString GetStderr() override;
-    NYson::TYsonString PollJobShell(
+    NApi::TPollJobShellResponse PollJobShell(
         const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
         const NYson::TYsonString& parameters) override;
     void Interrupt() override;

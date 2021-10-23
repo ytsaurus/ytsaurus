@@ -2769,9 +2769,9 @@ private:
             [=] {
                 return client->PollJobShell(jobId, shellName, parameters, options);
             },
-            [] (const auto& context, const auto& result) {
+            [] (const auto& context, const auto& pollJobShellResponse) {
                 auto* response = &context->Response();
-                response->set_result(result.ToString());
+                response->set_result(pollJobShellResponse.Result.ToString());
             });
     }
 

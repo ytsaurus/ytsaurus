@@ -2,8 +2,11 @@
 #include "shell.h"
 #include "private.h"
 #include "config.h"
+#include "yt/yt/core/misc/error.h"
 
 #include <yt/yt/server/lib/containers/instance.h>
+
+#include <yt/yt/server/lib/exec_node/public.h>
 
 #ifdef __linux__
 #include <yt/yt/server/lib/containers/porto_executor.h>
@@ -11,13 +14,22 @@
 
 #include <yt/yt/server/lib/misc/public.h>
 
+#include <yt/yt/ytlib/tools/proc.h>
+#include <yt/yt/ytlib/tools/tools.h>
+
+#include <yt/yt/client/api/public.h>
+#include <yt/yt/client/api/client.h>
+
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/misc/fs.h>
 
-#include <yt/yt/library/process/public.h>
-
 #include <yt/yt/core/net/public.h>
+
+#include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/library/process/public.h>
+#include <yt/yt/library/process/process.h>
 
 #include <util/string/hex.h>
 
@@ -26,11 +38,14 @@
 
 namespace NYT::NShell {
 
-using namespace NYTree;
-using namespace NYson;
+using namespace NApi;
 using namespace NConcurrency;
 using namespace NContainers;
+using namespace NExecNode;
 using namespace NJobProberClient;
+using namespace NTools;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,33 +80,30 @@ class TShellManager
 {
 public:
     TShellManager(
+        const TShellManagerConfig& config,
         IPortoExecutorPtr portoExecutor,
-        IInstancePtr rootInstance,
-        const TString& preparationDir,
-        const TString& workingDir,
-        std::optional<int> userId,
-        std::optional<int> groupId,
-        std::optional<TString> messageOfTheDay,
-        std::vector<TString> environment)
+        IInstancePtr rootInstance)
         : PortoExecutor_(std::move(portoExecutor))
         , RootInstance_(std::move(rootInstance))
-        , PreparationDir_(preparationDir)
-        , WorkingDir_(workingDir)
-        , UserId_(userId)
-        , GroupId_(groupId)
-        , MessageOfTheDay_(messageOfTheDay)
-        , Environment_(std::move(environment))
+        , PreparationDir_(NFS::CombinePaths(config.PreparationDir, SandboxDirectoryNames[ESandboxKind::Home]))
+        , WorkingDir_(NFS::CombinePaths(config.WorkingDir, SandboxDirectoryNames[ESandboxKind::Home]))
+        , EnableJobShellSeccopm(config.EnableJobShellSeccopm)
+        , UserId_(config.UserId)
+        , GroupId_(config.GroupId)
+        , MessageOfTheDay_(config.MessageOfTheDay)
+        , Environment_(config.Environment)
     { }
 
-    TYsonString PollJobShell(
+    TPollJobShellResponse PollJobShell(
         const TJobShellDescriptor& jobShellDescriptor,
         const TYsonString& serializedParameters) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         TShellParameters parameters;
-        TShellResult result;
         IShellPtr shell;
+        TShellResult resultValue;
+        TYsonString loggingContext;
 
         Deserialize(parameters, ConvertToNode(serializedParameters));
         if (parameters.Operation != EShellOperation::Spawn) {
@@ -109,6 +121,7 @@ public:
                 if (parameters.Term && !parameters.Term->empty()) {
                     options->Term = *parameters.Term;
                 }
+                options->EnableJobShellSeccopm = EnableJobShellSeccopm;
                 options->Uid = UserId_;
                 options->Gid = GroupId_;
                 if (parameters.Height != 0) {
@@ -137,6 +150,11 @@ public:
                     options->InactivityTimeout = parameters.InactivityTimeout;
                 }
                 options->Id = TGuid::Create();
+
+                loggingContext = BuildYsonStringFluently<EYsonType::MapFragment>(EYsonFormat::Text)
+                    .Item("shell_id").Value(options->Id)
+                    .Finish();
+
                 options->Index = NextShellIndex_++;
                 auto subcontainerName = RootInstance_->GetName() + jobShellDescriptor.Subcontainer;
                 options->ContainerName = Format("%v/js-%v", subcontainerName, options->Index);
@@ -160,18 +178,22 @@ public:
                 } else {
                     options->WorkingDir = WorkingDir_;
                 }
-#endif
 
+                if (EnableJobShellSeccopm) {
+                    EnsureToolBinaryPath(subcontainerName);
+                }
+#endif
                 shell = CreateShell(PortoExecutor_, std::move(options));
                 Register(shell);
                 shell->ResizeWindow(parameters.Height, parameters.Width);
+
                 break;
             }
 
             case EShellOperation::Update: {
                 shell->ResizeWindow(parameters.Height, parameters.Width);
                 if (!parameters.Keys.empty()) {
-                    result.ConsumedOffset = shell->SendKeys(
+                    resultValue.ConsumedOffset = shell->SendKeys(
                         TSharedRef::FromString(HexDecode(parameters.Keys)),
                         *parameters.InputOffset);
                 }
@@ -186,7 +208,7 @@ public:
                             << TErrorAttribute("shell_id", parameters.ShellId)
                             << TErrorAttribute("shell_index", parameters.ShellIndex);
                     }
-                    result.Output = "";
+                    resultValue.Output = "";
                     break;
                 }
                 if (pollResult.FindMatching(NNet::EErrorCode::Aborted)) {
@@ -203,7 +225,7 @@ public:
                         << TErrorAttribute("shell_index", parameters.ShellIndex)
                         << pollResult;
                 }
-                result.Output = ToString(pollResult.Value());
+                resultValue.Output = ToString(pollResult.Value());
                 break;
             }
 
@@ -219,9 +241,12 @@ public:
                     parameters.ShellId);
         }
 
-        result.ShellId = shell->GetId();
-        result.ShellIndex = shell->GetIndex();
-        return ConvertToYsonString(result);
+        resultValue.ShellId = shell->GetId();
+        resultValue.ShellIndex = shell->GetIndex();
+        return TPollJobShellResponse {
+            .Result = ConvertToYsonString(resultValue),
+            .LoggingContext = loggingContext,
+        };
     }
 
     void Terminate(const TError& error) override
@@ -254,6 +279,7 @@ private:
     const IInstancePtr RootInstance_;
     const TString PreparationDir_;
     const TString WorkingDir_;
+    const bool EnableJobShellSeccopm;
     std::optional<int> UserId_;
     std::optional<int> GroupId_;
     std::optional<TString> MessageOfTheDay_;
@@ -312,29 +338,49 @@ private:
 
         THROW_ERROR_EXCEPTION("No such shell %v", shellId);
     }
+
+#ifdef _linux_
+    void EnsureToolBinaryPath(const TString& container) const
+    {
+        auto containerRoot = WaitFor(PortoExecutor_->ConvertPath("/", container))
+            .ValueOrThrow();
+
+        YT_LOG_DEBUG("Preparing shell tool path (Container: %v, ContainerRoot: %v)",
+            container,
+            containerRoot);
+
+        auto toolDirectory = NFS::JoinPaths(containerRoot, ShellToolDirectory);
+        if (!NFS::Exists(toolDirectory)) {
+            RunTool<TCreateDirectoryAsRootTool>(toolDirectory);
+            auto toolPathOrError = ResolveBinaryPath(NTools::ToolsProgramName);
+        }
+
+        if (NFS::IsDirEmpty(toolDirectory)) {
+            auto toolPathOrError = ResolveBinaryPath(NTools::ToolsProgramName);
+            THROW_ERROR_EXCEPTION_IF_FAILED(toolPathOrError, "Failed to resolve tool binary path");
+
+            THashMap<TString, TString> volumeProperties;
+            volumeProperties["backend"] = "bind";
+            volumeProperties["storage"] = NFS::GetDirectoryName(toolPathOrError.Value());
+
+            auto pathOrError = WaitFor(PortoExecutor_->CreateVolume(toolDirectory, volumeProperties));
+            THROW_ERROR_EXCEPTION_IF_FAILED(pathOrError, "Failed to bind tools inside job shell")
+        }
+    }
+#endif
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IShellManagerPtr CreateShellManager(
+    const TShellManagerConfig& config,
     IPortoExecutorPtr portoExecutor,
-    IInstancePtr rootInstance,
-    const TString& preparationDir,
-    const TString& workingDir,
-    std::optional<int> userId,
-    std::optional<int> groupId,
-    std::optional<TString> messageOfTheDay,
-    std::vector<TString> environment)
+    IInstancePtr rootInstance)
 {
     return New<TShellManager>(
+        config,
         std::move(portoExecutor),
-        std::move(rootInstance),
-        preparationDir,
-        workingDir,
-        userId,
-        groupId,
-        messageOfTheDay,
-        std::move(environment));
+        std::move(rootInstance));
 }
 
 #else

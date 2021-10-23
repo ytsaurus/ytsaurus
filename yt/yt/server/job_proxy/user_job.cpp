@@ -97,6 +97,7 @@
 
 namespace NYT::NJobProxy {
 
+using namespace NApi;
 using namespace NTools;
 using namespace NYTree;
 using namespace NYson;
@@ -648,17 +649,22 @@ private:
             if (Config_->RootPath) {
                 shellManagerGid = 1001;
             }
-                
-            // ToDo(psushin): move ShellManager into user job environment.    
+
+            // ToDo(psushin): move ShellManager into user job environment.
+            TShellManagerConfig config{
+                .PreparationDir = Host_->GetPreparationPath(),
+                .WorkingDir = Host_->GetSlotPath(),
+                .UserId = shellManagerUid,
+                .GroupId = shellManagerGid,
+                .MessageOfTheDay = Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, TStringBuf("\n"))),
+                .Environment = std::move(shellEnvironment),
+                .EnableJobShellSeccopm = Config_->EnableJobShellSeccopm,
+            };
+
             ShellManager_ = CreateShellManager(
+                config,
                 portoExecutor,
-                UserJobEnvironment_->GetUserJobInstance(),
-                Host_->GetPreparationPath(),
-                Host_->GetSlotPath(),
-                shellManagerUid,
-                shellManagerGid,
-                Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, TStringBuf("\n"))),
-                std::move(shellEnvironment)
+                UserJobEnvironment_->GetUserJobInstance()
             );
 #endif
         }
@@ -861,7 +867,7 @@ private:
         };
     }
 
-    TYsonString PollJobShell(
+    TPollJobShellResponse PollJobShell(
         const TJobShellDescriptor& jobShellDescriptor,
         const TYsonString& parameters) override
     {
@@ -870,7 +876,17 @@ private:
         if (!ShellManager_) {
             THROW_ERROR_EXCEPTION("Job shell polling is not supported in non-Porto environment");
         }
-        return ShellManager_->PollJobShell(jobShellDescriptor, parameters);
+        auto response = ShellManager_->PollJobShell(jobShellDescriptor, parameters);
+        if (response.LoggingContext) {
+            response.LoggingContext = BuildYsonStringFluently<EYsonType::MapFragment>(EYsonFormat::Text)
+                .Item("job_id").Value(Host_->GetJobId())
+                .Item("operation_id").Value(Host_->GetOperationId())
+                .Do([&] (TFluentMap fluent) {
+                    fluent.GetConsumer()->OnRaw(response.LoggingContext);
+                })
+                .Finish();
+        }
+        return response;
     }
 
     void Interrupt() override

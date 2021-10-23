@@ -16,6 +16,7 @@ using NChunkClient::TChunkId;
 using NYson::TYsonString;
 using NJobTrackerClient::TJobId;
 
+using namespace NApi;
 using namespace NConcurrency;
 using namespace NJobProberClient;
 
@@ -44,7 +45,7 @@ public:
         return FromProto<std::vector<TChunkId>>(rsp->chunk_ids());
     }
 
-    TYsonString PollJobShell(
+    TPollJobShellResponse PollJobShell(
         const TJobShellDescriptor& jobShellDescriptor,
         const TYsonString& parameters) override
     {
@@ -58,7 +59,13 @@ public:
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
 
         const auto& rsp = rspOrError.Value();
-        return TYsonString(rsp->result());
+        
+        return TPollJobShellResponse {
+            .Result = TYsonString(rsp->result()),
+            .LoggingContext = rsp->has_logging_context() 
+                ? TYsonString(rsp->logging_context(), NYson::EYsonType::MapFragment)
+                : TYsonString(),
+        };
     }
 
     TString GetStderr() override

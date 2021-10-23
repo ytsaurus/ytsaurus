@@ -149,7 +149,7 @@ public:
 
     const NCoreDump::TCoreInfos& GetCoreInfos();
 
-    NYson::TYsonString PollJobShell(
+    NApi::TPollJobShellResponse PollJobShell(
         const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
         const NYson::TYsonString& parameters) override;
 

@@ -440,7 +440,7 @@ public:
         NJobTrackerClient::TJobId jobId,
         const TAbandonJobOptions& options), (override));
 
-    MOCK_METHOD(TFuture<NYson::TYsonString>, PollJobShell, (
+    MOCK_METHOD(TFuture<TPollJobShellResponse>, PollJobShell, (
         NJobTrackerClient::TJobId jobId,
         const std::optional<TString>& shellName,
         const NYson::TYsonString& parameters,
