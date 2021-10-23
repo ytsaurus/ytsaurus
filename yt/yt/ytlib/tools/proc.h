@@ -29,6 +29,13 @@ struct TRemoveDirContentAsRootTool
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCreateDirectoryAsRootTool
+{
+    void operator()(const TString& arg) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMountTmpfsConfig
     : public NYTree::TYsonSerializable
 {
@@ -54,6 +61,30 @@ DEFINE_REFCOUNTED_TYPE(TMountTmpfsConfig)
 struct TMountTmpfsAsRootTool
 {
     void operator()(TMountTmpfsConfigPtr config) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSpawnShellConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::optional<TString> Command;
+
+    TSpawnShellConfig()
+    {
+        RegisterParameter("command", Command)
+            .Default(std::nullopt);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSpawnShellConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSpawnShellTool
+{
+    void operator()(TSpawnShellConfigPtr config) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

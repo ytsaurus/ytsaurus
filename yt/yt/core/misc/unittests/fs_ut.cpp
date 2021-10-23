@@ -1,3 +1,4 @@
+#include "gtest/gtest.h"
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/misc/fs.h>
@@ -28,6 +29,17 @@ TEST(TFSTest, TestGetDirectoryName)
     EXPECT_EQ(GetDirectoryName("."), cwd);
     EXPECT_EQ(GetDirectoryName("/"), "/");
     EXPECT_EQ(GetDirectoryName("/a"), "/");
+}
+
+TEST(TFSTest, TestIsDirEmtpy)
+{
+    auto cwd = NFs::CurrentWorkingDirectory();
+    auto dir = CombinePaths(cwd, "test");
+    MakeDirRecursive(dir);
+    EXPECT_TRUE(IsDirEmpty(dir));
+    MakeDirRecursive(CombinePaths(dir, "nested"));
+    EXPECT_FALSE(IsDirEmpty(dir));
+    RemoveRecursive(dir);
 }
 
 TEST(TFSTest, TestIsPathRelativeAndInvolvesNoTraversal)

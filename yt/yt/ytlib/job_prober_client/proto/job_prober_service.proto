@@ -61,6 +61,10 @@ message TRspPollJobShell
 {
     // Result in YSON format.
     required string result = 1;
+
+    // Yson map fragment, serialized into string.
+    // These additional attributes are used for SOC audit via job shell structured logging.
+    optional string logging_context = 2;
 }
 
 message TReqInterrupt

@@ -7,6 +7,7 @@ from yt_helpers import profiler_factory
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, create_user,
     create_proxy_role, make_ace,
+    with_breakpoint, wait_breakpoint, map,
     read_table, write_table, Operation)
 
 from yt.common import YtResponseError
@@ -460,6 +461,91 @@ class TestHttpProxyFraming(HttpProxyTestBase):
         }
         with pytest.raises(YtResponseError):
             self._execute_command("GET", "get_table_columnar_statistics", params)
+
+
+class TestHttpProxyJobShellAudit(HttpProxyTestBase):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    ENABLE_HTTP_PROXY = True
+    NUM_HTTP_PROXIES = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "test_poll_job_shell": True,
+        },
+    }
+
+    USE_PORTO = True
+
+    @classmethod
+    def modify_proxy_config(cls, configs):
+        for i in xrange(len(configs)):
+            configs[i]["logging"]["flush_period"] = 100
+            configs[i]["logging"]["rules"].append(
+                {
+                    "min_level": "info",
+                    "writers": ["job_shell"],
+                    "include_categories": ["JobShell"],
+                    "message_format": "structured",
+                }
+            )
+            configs[i]["logging"]["writers"]["job_shell"] = {
+                "type": "file",
+                "file_name": os.path.join(cls.path_to_run, "logs/job-shell-{}.json.log".format(i)),
+                "accepted_message_format": "structured",
+            }
+
+    @authors("psushin")
+    def test_job_shell_logging(self):
+        create("table", "//tmp/t_in", force=True)
+        write_table("//tmp/t_in", [{"a": "b"}])
+        op = map(
+            track=False,
+            label="poll_job_shell",
+            in_="//tmp/t_in",
+            command=with_breakpoint("cat > /dev/null; BREAKPOINT"))
+
+        jobs = wait_breakpoint()
+
+        headers = {
+            "X-YT-Parameters": yson.dumps({
+                "job_id": jobs[0],
+                "parameters": {
+                    "operation": "spawn",
+                    "term": "screen-256color",
+                    "height": 50,
+                    "width": 132,
+                },
+            }),
+            "X-YT-Header-Format": "<format=text>yson",
+            "X-YT-Output-Format": "<format=text>yson",
+        }
+
+        rsp = requests.request(
+            "post",
+            "{}/api/v4/{}".format(self._get_proxy_address(), "poll_job_shell"),
+            headers=headers
+        )
+        try_parse_yt_error(rsp)
+
+        result = yson.loads(rsp.content)
+        shell_id = result["result"]["shell_id"]
+
+        path = os.path.join(self.path_to_run, "logs/job-shell-0.json.log")
+
+        def has_shell_start_record():
+            if not os.path.exists(path):
+                return False
+            with open(path) as f:
+                for line_json in f.readlines():
+                    if json.loads(line_json.strip())["shell_id"] == shell_id:
+                        return True
+            return False
+
+        wait(lambda: has_shell_start_record(), iter=120, sleep_backoff=1.0)
+
+        op.abort()
 
 
 class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):

@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/misc/error.h>
 
+#include <yt/yt/core/net/address.h>
+
 #include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/yson/consumer.h>
@@ -48,6 +50,9 @@ struct TDriverRequest
 
     //! Name of the user issuing the request.
     TString AuthenticatedUser = NSecurityClient::RootUserName;
+
+    //! Filled in the context of http proxy.
+    std::optional<NNet::TNetworkAddress> UserRemoteAddress;
 
     //! User token.
     std::optional<TString> UserToken;

@@ -464,7 +464,7 @@ public:
         NScheduler::TJobId jobId,
         const TAbandonJobOptions& options),
         (jobId, options))
-    IMPLEMENT_METHOD(NYson::TYsonString, PollJobShell, (
+    IMPLEMENT_METHOD(TPollJobShellResponse, PollJobShell, (
         NScheduler::TJobId jobId,
         const std::optional<TString>& shellName,
         const NYson::TYsonString& parameters,
@@ -1073,7 +1073,7 @@ private:
     void DoAbandonJob(
         NScheduler::TJobId jobId,
         const TAbandonJobOptions& options);
-    NYson::TYsonString DoPollJobShell(
+    TPollJobShellResponse DoPollJobShell(
         NScheduler::TJobId jobId,
         const std::optional<TString>& shellName,
         const NYson::TYsonString& parameters,

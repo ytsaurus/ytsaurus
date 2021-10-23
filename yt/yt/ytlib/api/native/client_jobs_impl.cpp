@@ -27,7 +27,7 @@ void TClient::DoAbandonJob(
         .ThrowOnError();
 }
 
-TYsonString TClient::DoPollJobShell(
+TPollJobShellResponse TClient::DoPollJobShell(
     TJobId jobId,
     const std::optional<TString>& shellName,
     const TYsonString& parameters,
@@ -69,7 +69,13 @@ TYsonString TClient::DoPollJobShell(
     }
 
     const auto& rsp = rspOrError.Value();
-    return TYsonString(rsp->result());
+
+    return TPollJobShellResponse {
+        .Result = TYsonString(rsp->result()),
+        .LoggingContext = rsp->has_logging_context() 
+            ? TYsonString(rsp->logging_context(), NYson::EYsonType::MapFragment)
+            : TYsonString(),
+    };
 }
 
 void TClient::DoAbortJob(

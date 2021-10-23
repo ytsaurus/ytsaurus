@@ -815,7 +815,7 @@ const TCoreInfos& TJob::GetCoreInfos()
     return CoreInfos_;
 }
 
-TYsonString TJob::PollJobShell(
+TPollJobShellResponse TJob::PollJobShell(
     const TJobShellDescriptor& jobShellDescriptor,
     const TYsonString& parameters)
 {
@@ -955,7 +955,7 @@ bool TJob::IsJobProxyCompleted() const noexcept
 bool TJob::ShouldSendJobInfoToAgent() const noexcept
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    
+
     return SendJobInfoToAgent_;
 }
 
@@ -1773,6 +1773,7 @@ TJobProxyConfigPtr TJob::CreateConfig()
 
     if (auto proxyDynamicConfig = Bootstrap_->GetJobController()->GetJobProxyDynamicConfig()) {
         proxyConfig->Jaeger = proxyConfig->Jaeger->ApplyDynamic(proxyDynamicConfig->Jaeger);
+        proxyConfig->EnableJobShellSeccopm = proxyDynamicConfig->EnableJobShellSeccopm;
     }
 
     return proxyConfig;

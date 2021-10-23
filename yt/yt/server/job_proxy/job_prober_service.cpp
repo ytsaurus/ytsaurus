@@ -15,13 +15,12 @@
 
 namespace NYT::NJobProber {
 
-using namespace NRpc;
-using namespace NJobProberClient;
 using namespace NConcurrency;
+using namespace NJobProberClient;
+using namespace NRpc;
+using namespace NTools;
 using namespace NYson;
 using namespace NYTree;
-using namespace NConcurrency;
-using namespace NTools;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,8 +78,14 @@ private:
             ConvertToYsonString(parameters, EYsonFormat::Text),
             jobShellDescriptor.Subcontainer);
 
-        auto result = GetJobProxy()->PollJobShell(jobShellDescriptor, parameters);
-        response->set_result(result.ToString());
+        auto pollJobShellResponse = GetJobProxy()->PollJobShell(jobShellDescriptor, parameters);
+        response->set_result(pollJobShellResponse.Result.ToString());
+        if (pollJobShellResponse.LoggingContext) {
+            response->set_logging_context(pollJobShellResponse.LoggingContext.ToString());
+            context->SetResponseInfo(
+                "LoggingContext: %v",
+                pollJobShellResponse.LoggingContext);
+        }
         context->Reply();
     }
 

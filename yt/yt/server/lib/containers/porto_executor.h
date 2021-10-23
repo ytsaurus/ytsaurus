@@ -131,6 +131,8 @@ struct IPortoExecutor
     virtual TFuture<void> StartContainer(const TString& container) = 0;
     virtual TFuture<void> KillContainer(const TString& container, int signal) = 0;
 
+    virtual TFuture<TString> ConvertPath(const TString& path, const TString& container) = 0;
+
     // Returns absolute names of immediate children only.
     virtual TFuture<std::vector<TString>> ListSubcontainers(
         const TString& rootContainer,

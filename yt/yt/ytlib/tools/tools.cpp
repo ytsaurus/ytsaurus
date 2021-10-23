@@ -13,7 +13,7 @@ namespace NYT::NTools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const char* ToolsProgramName = "ytserver-tools";
+const TString ToolsProgramName("ytserver-tools");
 
 using namespace NYson;
 using namespace NYTree;

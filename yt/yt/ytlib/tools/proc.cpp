@@ -1,4 +1,5 @@
 #include "proc.h"
+#include "seccomp.h"
 
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/fs.h>
@@ -50,6 +51,31 @@ void TRemoveDirAsRootTool::operator()(const TString& path) const
 
     THROW_ERROR_EXCEPTION("Failed to remove directory %v: execl failed",
         path) << TError::FromSystem();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCreateDirectoryAsRootTool::operator()(const TString& path) const
+{
+    // Child process
+    SafeSetUid(0);
+    NFS::MakeDirRecursive(path);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSpawnShellTool::operator()(TSpawnShellConfigPtr config) const
+{
+    SetupSeccomp();
+
+    if (config->Command) {
+        execl("/bin/bash", "/bin/bash", "-c",  config->Command->c_str(), (void*)nullptr);
+    } else {
+        execl("/bin/bash", "/bin/bash", (void*)nullptr);
+    }
+
+    THROW_ERROR_EXCEPTION("Failed to spawn job shell")
+        << TError::FromSystem();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

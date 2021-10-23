@@ -217,6 +217,7 @@ bool TContext::TryParseUser()
     }
 
     DriverRequest_.AuthenticatedUser = authenticatedUser;
+    DriverRequest_.UserRemoteAddress = Request_->GetRemoteAddress();
     return true;
 }
 

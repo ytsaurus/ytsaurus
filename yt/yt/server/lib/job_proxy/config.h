@@ -220,9 +220,12 @@ public:
     bool DoNotSetUserId;
 
     //! This option can disable memory limit check for user jobs.
-    //! Used in arcadia tests, since it's almost impossible to set 
+    //! Used in arcadia tests, since it's almost impossible to set
     //! proper memory limits for asan builds.
     bool CheckUserJobMemoryLimit;
+
+    //! Compat option for urgent disable of job shell audit.
+    bool EnableJobShellSeccopm;
 
     TJobProxyConfig()
     {
@@ -303,6 +306,9 @@ public:
         RegisterParameter("check_user_job_memory_limit", CheckUserJobMemoryLimit)
             .Default(true);
 
+        RegisterParameter("enable_job_shell_seccomp", EnableJobShellSeccopm)
+            .Default(true);
+
         RegisterPreprocessor([&] {
             SolomonExporter->EnableSelfProfiling = false;
             SolomonExporter->WindowSize = 1;
@@ -340,10 +346,15 @@ class TJobProxyDynamicConfig
 public:
     NTracing::TJaegerTracerDynamicConfigPtr Jaeger;
 
+    bool EnableJobShellSeccopm;
+
     TJobProxyDynamicConfig()
     {
         RegisterParameter("jaeger", Jaeger)
             .DefaultNew();
+
+        RegisterParameter("enable_job_shell_seccomp", EnableJobShellSeccopm)
+            .Default(true);
     }
 };
 

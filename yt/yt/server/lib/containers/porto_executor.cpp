@@ -216,6 +216,13 @@ public:
             .Run();
     }
 
+    TFuture<TString> ConvertPath(const TString& path, const TString& container) override
+    {
+        return BIND(&TPortoExecutor::DoConvertPath, MakeStrong(this), path, container)
+            .AsyncVia(Queue_->GetInvoker())
+            .Run();
+    }
+
     TFuture<void> KillContainer(const TString& container, int signal) override
     {
         return BIND(&TPortoExecutor::DoKillContainer, MakeStrong(this), container, signal)
@@ -453,15 +460,19 @@ private:
             portoDevice->set_access(device.Enabled ? "rw" : "-");
         }
 
+        auto addBind = [&] (const TBind& bind) {
+            auto* portoBind = portoSpec.mutable_bind()->add_bind();
+            portoBind->set_target(bind.TargetPath);
+            portoBind->set_source(bind.SourcePath);
+            portoBind->add_flag(bind.IsReadOnly ? "ro" : "rw");
+        };
+
         if (spec.RootFS) {
             portoSpec.set_root_readonly(spec.RootFS->IsRootReadOnly);
             portoSpec.set_root(spec.RootFS->RootPath);
 
             for (const auto& bind : spec.RootFS->Binds) {
-                auto* portoBind = portoSpec.mutable_bind()->add_bind();
-                portoBind->set_target(bind.TargetPath);
-                portoBind->set_source(bind.SourcePath);
-                portoBind->add_flag(bind.IsReadOnly ? "ro" : "rw");
+                addBind(bind);
             }
         }
 
@@ -509,6 +520,15 @@ private:
         ExecuteApiCall(
             [&] { return Api_->Start(container); },
             "Start");
+    }
+
+    TString DoConvertPath(const TString& path, const TString& container)
+    {
+        TString result;
+        ExecuteApiCall(
+            [&] { return Api_->ConvertPath(path, container, "self", result); },
+            "ConvertPath");
+        return result;
     }
 
     void DoKillContainer(const TString& container, int signal)

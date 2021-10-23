@@ -81,6 +81,7 @@
 
 namespace NYT::NDataNode {
 
+using namespace NApi;
 using namespace NObjectClient;
 using namespace NNodeTrackerClient;
 using namespace NJobTrackerClient;
@@ -361,7 +362,7 @@ public:
         THROW_ERROR_EXCEPTION("Getting fail context is not supported");
     }
 
-    TYsonString PollJobShell(
+    TPollJobShellResponse PollJobShell(
         const NJobProberClient::TJobShellDescriptor& /*jobShellDescriptor*/,
         const TYsonString& /*parameters*/) override
     {

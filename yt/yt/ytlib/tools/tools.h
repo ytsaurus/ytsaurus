@@ -18,10 +18,17 @@ NYson::TYsonString DoRunToolInProcess(const TString& toolName, const NYson::TYso
 template <
     typename TTool,
     typename TArg = typename TFunctionTraits<TTool>::TArg,
-    typename TResult = typename TFunctionTraits<TTool>::TResult>
+    typename TResult = typename TFunctionTraits<TTool>::TResult
+>
 TResult RunTool(
     const TArg& arg,
     std::function<NYson::TYsonString(const TString&, const NYson::TYsonString&)> invoker = DoRunTool);
+
+template <
+    typename TTool,
+    typename TArg = typename TFunctionTraits<TTool>::TArg
+>
+std::vector<TString> GenerateToolArguments(const TArg& arg);
 
 ////////////////////////////////////////////////////////////////////////////////
 

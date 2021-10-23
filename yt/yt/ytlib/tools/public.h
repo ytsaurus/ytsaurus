@@ -6,9 +6,13 @@ namespace NYT::NTools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const TString ToolsProgramName;
+
 DECLARE_REFCOUNTED_STRUCT(TSignalerConfig)
 
 DECLARE_REFCOUNTED_CLASS(TMountTmpfsConfig)
+
+DECLARE_REFCOUNTED_CLASS(TSpawnShellConfig)
 
 DECLARE_REFCOUNTED_CLASS(TUmountConfig)
 

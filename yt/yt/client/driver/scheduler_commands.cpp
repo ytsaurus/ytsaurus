@@ -10,16 +10,20 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
+#include <yt/yt/core/logging/fluent_log.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NDriver {
 
-using namespace NScheduler;
-using namespace NYTree;
-using namespace NConcurrency;
 using namespace NApi;
-using namespace NYson;
+using namespace NConcurrency;
+using namespace NScheduler;
 using namespace NTableClient;
+using namespace NYson;
+using namespace NYTree;
+
+const NLogging::TLogger JobShellStructuredLogger("JobShell");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -377,15 +381,26 @@ TPollJobShellCommand::TPollJobShellCommand()
 
 void TPollJobShellCommand::DoExecute(ICommandContextPtr context)
 {
-    auto asyncResult = context->GetClient()->PollJobShell(
+    auto asyncResponse = context->GetClient()->PollJobShell(
         JobId,
         ShellName,
         ConvertToYsonString(Parameters),
         Options);
-    auto result = WaitFor(asyncResult)
+    auto response = WaitFor(asyncResponse)
         .ValueOrThrow();
 
-    ProduceSingleOutputValue(context, "result", result);
+    if (response.LoggingContext) {
+        LogStructuredEventFluently(JobShellStructuredLogger, NLogging::ELogLevel::Info)
+            .Do([&] (TFluentMap fluent) {
+                fluent.GetConsumer()->OnRaw(response.LoggingContext);
+            })
+            .Item("user").Value(context->Request().AuthenticatedUser)
+            .DoIf(static_cast<bool>(context->Request().UserRemoteAddress), [&] (TFluentMap fluent) {
+                fluent.Item("remote_address").Value(ToString(context->Request().UserRemoteAddress));
+            });
+    }
+
+    ProduceSingleOutputValue(context, "result", response.Result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

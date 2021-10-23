@@ -62,8 +62,11 @@ TString GetRealPath(const TString& path);
 //! Checks that given path is relative and points somewhere inside the root directory.
 bool IsPathRelativeAndInvolvesNoTraversal(const TString& path);
 
-//! Combines two strings into a path.
+//! Combines two strings into a path. Returns second path if it is absolute.
 TString CombinePaths(const TString& path1, const TString& path2);
+
+//! Appends second path to the first one, handling delimiters.
+TString JoinPaths(const TString& path1, const TString& path2);
 
 //! Combines a bunch of strings into a path.
 TString CombinePaths(const std::vector<TString>& paths);

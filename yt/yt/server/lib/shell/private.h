@@ -10,6 +10,10 @@ namespace NYT::NShell {
 
 extern const NLogging::TLogger ShellLogger;
 
+extern const TString ShellToolDirectory; 
+
+extern const TString ShellToolPath; 
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NShell

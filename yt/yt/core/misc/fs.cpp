@@ -75,7 +75,9 @@ bool IsDirEmpty(const TString& path)
             case FTS_DP:
             case FTS_SL:
             case FTS_SLNONE:
-                return false;
+                if (it->fts_level > 0) {
+                    return false;
+                }
         }
     }
     return true;
@@ -488,25 +490,6 @@ bool IsAbsolutePath(const TString& path)
     return false;
 }
 
-TString JoinPaths(const TString& path1, const TString& path2)
-{
-    if (path1.empty())
-        return path2;
-    if (path2.empty())
-        return path1;
-
-    auto path = path1;
-    int delim = 0;
-    if (path1.back() == PATH_DELIM || path1.back() == PATH_DELIM2)
-        ++delim;
-    if (path2[0] == PATH_DELIM || path2[0] == PATH_DELIM2)
-        ++delim;
-    if (delim == 0)
-        path.append(1, PATH_DELIM);
-    path.append(path2, delim == 2 ? 1 : 0, TString::npos);
-    return path;
-}
-
 } // namespace
 
 TString CombinePaths(const TString& path1, const TString& path2)
@@ -525,6 +508,25 @@ TString CombinePaths(const std::vector<TString>& paths)
         result = CombinePaths(result, paths[index]);
     }
     return result;
+}
+
+TString JoinPaths(const TString& path1, const TString& path2)
+{
+    if (path1.empty())
+        return path2;
+    if (path2.empty())
+        return path1;
+
+    auto path = path1;
+    int delim = 0;
+    if (path1.back() == PATH_DELIM || path1.back() == PATH_DELIM2)
+        ++delim;
+    if (path2[0] == PATH_DELIM || path2[0] == PATH_DELIM2)
+        ++delim;
+    if (delim == 0)
+        path.append(1, PATH_DELIM);
+    path.append(path2, delim == 2 ? 1 : 0, TString::npos);
+    return path;
 }
 
 TString NormalizePathSeparators(const TString& path)
