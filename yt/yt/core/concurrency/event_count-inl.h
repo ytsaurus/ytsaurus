@@ -69,14 +69,13 @@ inline bool TEventCount::Wait(TCookie cookie, std::optional<TDuration> timeout)
 {
     bool result = true;
 #ifdef _linux_
-    while ((Value_.load(std::memory_order_acquire) >> EpochShift) == cookie.Epoch_) {
-        struct timespec timeoutSpec;
-        if (timeout) {
-            timeoutSpec.tv_sec = timeout->Seconds();
-            *timeout -= TDuration::Seconds(timeout->Seconds());
-            timeoutSpec.tv_nsec = timeout->MicroSeconds() * 1000;
-        }
+    struct timespec timeoutSpec;
+    if (timeout) {
+        timeoutSpec.tv_sec = timeout->Seconds();
+        timeoutSpec.tv_nsec = (*timeout - TDuration::Seconds(timeout->Seconds())).MicroSeconds() * 1000;
+    }
 
+    while ((Value_.load(std::memory_order_acquire) >> EpochShift) == cookie.Epoch_) {
         auto futexResult = NDetail::futex(
             reinterpret_cast<int*>(&Value_) + 1, // assume little-endian architecture
             FUTEX_WAIT_PRIVATE,
