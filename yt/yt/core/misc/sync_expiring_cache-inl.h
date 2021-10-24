@@ -1,4 +1,3 @@
-#pragma once
 #ifndef SYNC_EXPIRING_CACHE_INL_H_
 #error "Direct inclusion of this file is not allowed, include sync_expiring_cache.h"
 // For the sake of sane code completion.
@@ -24,7 +23,7 @@ TSyncExpiringCache<TKey, TValue>::TEntry::TEntry(
 template <class TKey, class TValue>
 TSyncExpiringCache<TKey, TValue>::TEntry::TEntry(TSyncExpiringCache<TKey, TValue>::TEntry&& entry)
     : LastAccessTime(entry.LastAccessTime.load())
-    , LastUpdateTime(entry.LastUpdateTime) 
+    , LastUpdateTime(entry.LastUpdateTime)
     , Value(std::move(entry.Value))
 { };
 

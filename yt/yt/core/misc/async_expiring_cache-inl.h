@@ -1,4 +1,3 @@
-#pragma once
 #ifndef EXPIRING_CACHE_INL_H_
 #error "Direct inclusion of this file is not allowed, include async_expiring_cache.h"
 // For the sake of sane code completion.
@@ -46,7 +45,7 @@ TAsyncExpiringCache<TKey, TValue>::TAsyncExpiringCache(
             *Config_->RefreshTime);
     }
 }
-    
+
 template <class TKey, class TValue>
 TAsyncExpiringCacheConfigPtr TAsyncExpiringCache<TKey, TValue>::GetConfig() const
 {
@@ -425,7 +424,7 @@ void TAsyncExpiringCache<TKey, TValue>::SetResult(
     if (entryUpdated) {
         entry->UpdateDeadline = updateDeadline;
     }
-    
+
     if (entry->IsExpired(now) || (entryUpdated && expirationTime == TDuration::Zero())) {
         Map_.erase(it);
         OnRemoved(key);
@@ -548,7 +547,7 @@ void TAsyncExpiringCache<TKey, TValue>::UpdateAll()
     auto now = NProfiling::GetCpuInstant();
     TDuration refreshTime;
 
-    {   
+    {
         auto guard = ReaderGuard(SpinLock_);
         refreshTime = *Config_->RefreshTime;
 

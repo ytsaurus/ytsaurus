@@ -1,4 +1,3 @@
-#pragma once
 #ifndef ATOMIC_PTR_INL_H_
 #error "Direct inclusion of this file is not allowed, include atomic_ptr.h"
 // For the sake of sane code completion.

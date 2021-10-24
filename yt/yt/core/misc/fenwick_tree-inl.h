@@ -1,4 +1,3 @@
-#pragma once
 #ifndef FENWICK_TREE_INL_H_
 #error "Direct inclusion of this file is not allowed, include fenwick_tree.h"
 // For the sake of sane code completion.

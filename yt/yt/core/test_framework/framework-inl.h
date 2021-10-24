@@ -1,4 +1,3 @@
-#pragma once
 #ifndef FRAMEWORK_INL_H_
 #error "Direct inclusion of this file is not allowed, include framework.h"
 // For the sake of sane code completion.

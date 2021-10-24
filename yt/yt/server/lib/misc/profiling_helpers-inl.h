@@ -1,5 +1,3 @@
-#pragma once
- 
 #ifndef PROFILING_HELPERS_H_
 #error "Direct inclusion of this file is not allowed, include profiling_helpers.h"
 // For the sake of sane code completion.
@@ -9,7 +7,7 @@
 #include <yt/yt/core/rpc/authentication_identity.h>
 
 namespace NYT {
- 
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Y_FORCE_INLINE std::optional<TString> GetCurrentProfilingUser()
@@ -26,5 +24,5 @@ Y_FORCE_INLINE std::optional<TString> GetProfilingUser(const NRpc::TAuthenticati
 }
 
 ////////////////////////////////////////////////////////////////////////////////
- 
+
 } // namespace NYT

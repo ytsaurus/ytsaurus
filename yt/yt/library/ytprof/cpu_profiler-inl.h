@@ -1,4 +1,3 @@
-#pragma once
 #ifndef CPU_PROFILER_INL_H_
 #error "Direct inclusion of this file is not allowed, include cpu_profiler.h"
 // For the sake of sane code completion.

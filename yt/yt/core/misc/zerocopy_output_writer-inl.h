@@ -1,4 +1,3 @@
-#pragma once
 #ifndef ZEROCOPY_OUTPUT_WRITER_INL_H_
 #error "Direct inclusion of this file is not allowed, include zerocopy_output_writer.h"
 // For the sake of sane code completion.

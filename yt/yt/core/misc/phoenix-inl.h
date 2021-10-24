@@ -1,10 +1,10 @@
-#pragma once
-#include <type_traits>
 #ifndef PHOENIX_INL_H_
 #error "Direct inclusion of this file is not allowed, include phoenix.h"
 // For the sake of sane code completion.
 #include "phoenix.h"
 #endif
+
+#include <type_traits>
 
 namespace NYT::NPhoenix {
 

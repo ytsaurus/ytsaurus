@@ -1,4 +1,3 @@
-#pragma once
 #ifndef IMMUTABLE_CHUNK_META_INL_H_
 #error "Direct inclusion of this file is not allowed, include immutable_chunk_meta.h"
 // For the sake of sane code completion.

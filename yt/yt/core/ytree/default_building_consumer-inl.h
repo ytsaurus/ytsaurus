@@ -1,4 +1,3 @@
-#pragma once
 #ifndef DEFAULT_BUILDING_CONSUMER_INL_H_
 #error "Direct inclusion of this file is not allowed, include default_building_consumer.h"
 // For the sake of sane code completion.

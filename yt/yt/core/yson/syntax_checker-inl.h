@@ -1,5 +1,3 @@
-#pragma once
-
 #ifndef SYNTAX_CHECKER_INL_H_
 #error "Direct inclusion of this file is not allowed, include syntax_checker.h"
 // For the sake of sane code completion.

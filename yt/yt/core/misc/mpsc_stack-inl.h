@@ -1,4 +1,3 @@
-#pragma once
 #ifndef MPSC_STACK_INL_H_
 #error "Direct inclusion of this file is not allowed, include mpsc_stack.h"
 // For the sake of sane code completion.

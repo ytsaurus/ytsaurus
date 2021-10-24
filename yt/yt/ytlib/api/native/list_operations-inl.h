@@ -1,5 +1,3 @@
-#pragma once
-
 #ifndef LIST_OPERATIONS_INL_H
 #error "Direct inclusion of this file is not allowed, include list_operations.h"
 // For the sake of sane code completion.

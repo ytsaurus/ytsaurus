@@ -1,4 +1,3 @@
-#pragma once
 #ifndef FILE_HELPERS_INL_H_
 #error "Direct inclusion of this file is not allowed, include file_helpers.h"
 // For the sake of sane code completion.

@@ -5,7 +5,7 @@
 #include <yt/yt/core/yson/null_consumer.h>
 
 #include <yt/yt/core/ytree/node.h>
-#include <yt/yt/core/ytree/convert-inl.h>
+#include <yt/yt/core/ytree/convert.h>
 
 #include <util/stream/null.h>
 

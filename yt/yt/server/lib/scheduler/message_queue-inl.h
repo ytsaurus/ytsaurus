@@ -1,5 +1,3 @@
-#pragma once
-
 #ifndef MESSAGE_QUEUE_INL_H_
 #error "Direct inclusion of this file is not allowed, include message_queue.h"
 // For the sake of sane code completion.

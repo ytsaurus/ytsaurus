@@ -1,4 +1,3 @@
-#pragma once
 #ifndef ROWS_ITERATOR_BASE_INL_H_
 #error "Direct inclusion of this file is not allowed, include rows_iterator_base.h"
 // For the sake of sane code completion.

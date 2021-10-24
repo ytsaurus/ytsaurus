@@ -1,5 +1,3 @@
-#pragma once
-
 #ifndef CHECK_YSON_TOKEN_INL_H_
 #error "Direct inclusion of this file is not allowed, include check_yson.h"
 // For the sake of sane code completion.

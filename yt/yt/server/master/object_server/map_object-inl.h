@@ -1,4 +1,3 @@
-#pragma once
 #ifndef MAP_OBJECT_INL_H_
 #error "Direct inclusion of this file is not allowed, include map_object.h"
 // For the sake of sane code completion.

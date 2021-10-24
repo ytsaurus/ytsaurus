@@ -1,4 +1,3 @@
-#pragma once
 #ifndef FIXED_POINT_NUMBER_INL_H_
 #error "Direct inclusion of this file is not allowed, include fixed_point_number.h"
 // For the sake of sane code completion.

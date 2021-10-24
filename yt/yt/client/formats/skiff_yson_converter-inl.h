@@ -1,10 +1,8 @@
-#pragma once
-
-#include <util/system/byteorder.h>
-
 #ifndef SKIFF_YSON_CONVERTER_INL_H_
 #error "Direct inclusion of this file is not allowed; include skiff_yson_converter.h"
 #endif
+
+#include <util/system/byteorder.h>
 
 namespace NYT::NFormats {
 

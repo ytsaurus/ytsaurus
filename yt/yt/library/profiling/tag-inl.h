@@ -1,5 +1,3 @@
-#pragma once
-
 #ifndef TAG_INL_H_
 #error "Direct inclusion of this file is not allowed, include tag.h"
 // For the sake of sane code completion.
@@ -95,7 +93,7 @@ void RangeSubsets(
         }
 
         bool skip = false;
-        for (size_t i = 0; i < tags.size(); i++) {            
+        for (size_t i = 0; i < tags.size(); i++) {
             if (!(mask & (1 << i))) {
                 if (children[i] != NoTagSentinel && (mask & (1 << children[i]))) {
                     skip = true;

@@ -1,4 +1,3 @@
-#pragma once
 #ifndef EVENT_LOG_INL_H_
 #error "Direct inclusion of this file is not allowed, include event_log.h"
 // For the sake of sane code completion.

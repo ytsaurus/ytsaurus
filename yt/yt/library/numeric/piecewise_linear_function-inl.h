@@ -1,4 +1,3 @@
-#pragma once
 #ifndef PIECEWISE_LINEAR_FUNCTION_INL_H_
 #error "Direct inclusion of this file is not allowed, include piecewise_linear_function.h"
 // For the sake of sane code completion.
