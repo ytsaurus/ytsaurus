@@ -1,4 +1,3 @@
-#pragma once
 #ifndef REQUEST_SESSION_INL_H_
 #error "Direct inclusion of this file is not allowed, include request_session.h"
 // For the sake of sane code completion.

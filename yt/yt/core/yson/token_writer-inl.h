@@ -1,5 +1,3 @@
-#pragma once
-
 #ifndef TOKEN_WRITER_INL_H_
 #error "Direct inclusion of this file is not allowed, include token_writer.h"
 // For the sake of sane code completion.

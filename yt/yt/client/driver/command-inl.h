@@ -1,4 +1,3 @@
-#pragma once
 #ifndef COMMAND_INL_H
 #error "Direct inclusion of this file is not allowed, include command.h"
 // For the sake of sane code completion.

@@ -1,10 +1,14 @@
-#pragma once
-
 #ifndef CHUNK_REPLICA_INL_H_
 #error "Direct inclusion of this file is not allowed, include chunk_replica.h"
 // For the sake of sane code completion.
 #include "chunk_replica.h"
 #endif
+
+#include <yt/yt/server/master/cell_master/serialize.h>
+
+#include <yt/yt/client/chunk_client/chunk_replica.h>
+
+#include <yt/yt/core/misc/serialize.h>
 
 template <class T>
 struct THash<NYT::NChunkServer::TPtrWithIndexes<T>>
@@ -14,12 +18,6 @@ struct THash<NYT::NChunkServer::TPtrWithIndexes<T>>
         return value.GetHash();
     }
 };
-
-#include <yt/yt/server/master/cell_master/serialize.h>
-
-#include <yt/yt/client/chunk_client/chunk_replica.h>
-
-#include <yt/yt/core/misc/serialize.h>
 
 namespace NYT::NChunkServer {
 

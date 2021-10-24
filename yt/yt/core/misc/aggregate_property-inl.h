@@ -1,4 +1,3 @@
-#pragma once
 #ifndef AGGREGATE_PROPERTY_INL_H
 #error "Direct inclusion of this file is not allowed, include aggregate_property.h"
 // For the sake of sane code completion.

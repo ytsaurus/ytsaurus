@@ -1,5 +1,3 @@
-#pragma once
-
 #ifndef PULL_PARSER_INL_H_
 #error "Direct inclusion of this file is not allowed, include pull_parser.h"
 // For the sake of sane code completion.

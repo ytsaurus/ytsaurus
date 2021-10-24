@@ -1,4 +1,3 @@
-#pragma once
 #ifndef SEGMENT_READERS_INL_H_
 #error "Direct inclusion of this file is not allowed, include segment_readers.h"
 // For the sake of sane code completion.

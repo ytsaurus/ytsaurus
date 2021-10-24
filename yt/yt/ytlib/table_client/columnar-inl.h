@@ -1,4 +1,3 @@
-#pragma once
 #ifndef COLUMNAR_INL_H_
 #error "Direct inclusion of this file is not allowed, include columnar.h"
 // For the sake of sane code completion.
@@ -274,7 +273,7 @@ void DecodeVector(
             rleIndexes, \
             std::forward<TGetter>(getter), \
             std::forward<TConsumer>(consumer));
-    
+
     #define XX_1(...) \
         if (zigZagEncoded) { \
             XX_0(__VA_ARGS__, true) \

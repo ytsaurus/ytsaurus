@@ -1,4 +1,3 @@
-#pragma once
 #ifndef BIT_PACKED_UNSIGNED_VECTOR_INL_H_
 #error "Direct inclusion of this file is not allowed, include bit_packed_unsigned_vector.h"
 // For the sake of sane code completion.

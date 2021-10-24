@@ -1,6 +1,3 @@
-#pragma once
-#pragma once
-
 #ifndef COUNTER_INL_H_
 #error "Direct inclusion of this file is not allowed, include counter.h"
 // For the sake of sane code completion.

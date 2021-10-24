@@ -1,4 +1,3 @@
-#pragma once
 #ifndef VALIDATE_LOGICAL_TYPE_INL_H_
 #error "Direct inclusion of this file is not allowed, include validate_logical_type.h"
 // For the sake of sane code completion.

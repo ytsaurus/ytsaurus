@@ -1,13 +1,11 @@
-#pragma once
-
-#include <yt/yt/core/misc/ref.h>
-
 #ifndef SIGNAL_INL_H_
 #error "Direct inclusion of this file is not allowed, include signal.h"
 // For the sake of sane code completion.
 #include "signal.h"
 #endif
 #undef SIGNAL_INL_H_
+
+#include <yt/yt/core/misc/ref.h>
 
 namespace NYT {
 

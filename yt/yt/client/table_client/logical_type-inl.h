@@ -1,4 +1,9 @@
-#pragma once
+#ifndef LOGICAL_TYPE_INL_H_
+#error "Direct inclusion of this file is not allowed, include logical_type.h"
+// For the sake of sane code completion.
+#include "logical_type.h"
+#endif
+#undef LOGICAL_TYPE_INL_H_
 
 namespace NYT::NTableClient {
 

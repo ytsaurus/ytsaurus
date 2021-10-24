@@ -1,4 +1,3 @@
-#pragma once
 #ifndef PIECEWISE_LINEAR_FUNCTION_HELPERS_H_
 #error "Direct inclusion of this file is not allowed, include piecewise_linear_function_helpers.h"
 // For the sake of sane code completion.
@@ -34,7 +33,7 @@ void VerifyNondecreasing(const TPiecewiseFunction& vecFunc, const TString& loggi
             segment.LeftValue(),
             segment.RightValue(),
             loggingTags.c_str());
-        
+
         Y_VERIFY_DEBUG(false);
     }
 }

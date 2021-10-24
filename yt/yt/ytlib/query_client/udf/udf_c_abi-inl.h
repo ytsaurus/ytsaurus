@@ -1,4 +1,3 @@
-#pragma once
 #ifndef UDF_C_ABI_INL_H_
 #error "Direct inclusion of this file is not allowed, include udf_c_abi.h"
 // For the sake of sane code completion.

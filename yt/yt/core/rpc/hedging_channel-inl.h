@@ -1,4 +1,3 @@
-#pragma once
 #ifndef HEDGING_CHANNEL_INL_H_
 #error "Direct inclusion of this file is not allowed, include hedging_channel.h"
 // For the sake of sane code completion.

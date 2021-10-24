@@ -1,4 +1,3 @@
-#pragma once
 #ifndef PREPARED_META_INL_H_
 #error "Direct inclusion of this file is not allowed, include prepared_meta.h"
 // For the sake of sane code completion.

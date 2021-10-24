@@ -1,4 +1,3 @@
-#pragma once
 #ifndef COMPACT_VECTOR_INL_H_
 #error "Direct inclusion of this file is not allowed, include compact_vector.h"
 // For the sake of sane code completion.

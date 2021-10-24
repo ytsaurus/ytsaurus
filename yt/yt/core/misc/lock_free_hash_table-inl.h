@@ -1,4 +1,3 @@
-#pragma once
 #ifndef LOCK_FREE_HASH_TABLE_INL_H_
 #error "Direct inclusion of this file is not allowed, include lock_free_hash_table.h"
 // For the sake of sane code completion.

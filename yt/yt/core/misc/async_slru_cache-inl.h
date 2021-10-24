@@ -1,4 +1,3 @@
-#pragma once
 #ifndef ASYNC_SLRU_CACHE_INL_H_
 #error "Direct inclusion of this file is not allowed, include async_slru_cache.h"
 // For the sake of sane code completion.

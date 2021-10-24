@@ -6,7 +6,7 @@
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
-#include <yt/yt/core/actions/future-inl.h>
+#include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/logging/log.h>
 

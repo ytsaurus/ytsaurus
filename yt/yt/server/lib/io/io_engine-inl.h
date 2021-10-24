@@ -1,4 +1,3 @@
-#pragma once
 #ifndef IO_ENGINE_INL_H_
 #error "Direct inclusion of this file is not allowed, include io_engine.h"
 // For the sake of sane code completion.
@@ -11,7 +10,7 @@ namespace NYT::NIO {
 
 inline bool TIOEngineHandle::IsOpenForDirectIO() const
 {
-     return OpenForDirectIO_; 
+     return OpenForDirectIO_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

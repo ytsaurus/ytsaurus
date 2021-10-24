@@ -1,4 +1,3 @@
-#pragma once
 #ifndef DISPATCH_BY_TYPE_INL_H_
 #error "Direct inclusion of this file is not allowed, include dispatch_by_type.h"
 // For the sake of sane code completion.

@@ -1,4 +1,3 @@
-#pragma once
 #ifndef THREAD_AFFINITY_INL_H_
 #error "Direct inclusion of this file is not allowed, include thread_affinity.h"
 // For the sake of sane code completion.

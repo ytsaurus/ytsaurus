@@ -1,4 +1,3 @@
-#pragma once
 #ifndef MEMORY_OPS_INL_H_
 #error "Direct inclusion of this file is not allowed, include memory_ops.h"
 // For the sake of sane code completion.

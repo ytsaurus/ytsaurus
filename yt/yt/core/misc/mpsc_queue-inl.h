@@ -1,4 +1,3 @@
-#pragma once
 #ifndef MPSC_QUEUE_INL_H_
 #error "Direct inclusion of this file is not allowed, include mpsc_queue.h"
 // For the sake of sane code completion.

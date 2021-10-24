@@ -1,4 +1,3 @@
-#pragma once
 #ifndef POOL_ALLOCATOR_INL_H_
 #error "Direct inclusion of this file is not allowed, include pool_allocator.h"
 // For the sake of sane code completion.

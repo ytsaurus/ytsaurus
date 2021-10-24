@@ -1,4 +1,3 @@
-#pragma once
 #ifndef PERMISSION_VALIDATOR_INL_H_
 #error "Direct inclusion of this file is not allowed, include permission_validator.h"
 // For the sake of sane code completion.

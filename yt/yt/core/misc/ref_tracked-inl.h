@@ -1,4 +1,3 @@
-#pragma once
 #ifndef REF_TRACKED_INL_H_
 #error "Direct inclusion of this file is not allowed, include ref_tracked.h"
 // For the sake of sane code completion.
