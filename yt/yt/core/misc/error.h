@@ -132,6 +132,18 @@ public:
     TError Wrap(TArgs&&... args) const;
     TError Wrap() const;
 
+    //! Perform recursive aggregation of error codes and messages over the error tree.
+    //! Result of this aggregation is suitable for error clustering in groups of
+    //! "similar" errors. Refer to yt/yt/library/error_skeleton/skeleton_ut.cpp for examples.
+    //!
+    //! This method builds skeleton from scratch by doing complete error tree traversal,
+    //! so calling it in computationally hot code is discouraged.
+    //!
+    //! In order to prevent core -> re2 dependency, implementation belongs to a separate library
+    //! yt/yt/library/error_skeleton. Calling this method without PEERDIR'ing implementation
+    //! results in an exception.
+    TString GetSkeleton() const;
+
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
 
