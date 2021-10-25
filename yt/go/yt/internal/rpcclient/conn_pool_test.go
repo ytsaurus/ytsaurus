@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -74,6 +75,18 @@ func TestConnPool(t *testing.T) {
 	checkDeleted(t, "1.1.1.1")
 	// Second discard does nothing.
 	p.Discard("1.1.1.1")
+
+	// Update expired conn
+	expiredConn, err := p.Conn(context.Background(), "1.1.1.2")
+	require.NoError(t, err)
+	expiredConn.inflight = 0
+	expiredConn.expiresAt = time.Now().Add(-time.Second)
+	require.True(t, expiredConn.Expired())
+	conn, err = p.Conn(context.Background(), "1.1.1.2")
+	require.NoError(t, err)
+	require.NotEqual(t, expiredConn, conn)
+	_, ok := deletedConns.Load(expiredConn.BusConn)
+	require.True(t, ok)
 
 	// Shutdown pool.
 	p.Stop()
