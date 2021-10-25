@@ -278,7 +278,8 @@ private:
                 // Log IO events for blob chunks only. We don't enable logging for journal chunks here, since
                 // they flush the data to disk in FlushBlocks(), not in FinishChunk().
                 const auto& ioTracker = Bootstrap_->GetIOTracker();
-                if (IsBlobChunkId(session->GetChunkId()) && chunkInfo.disk_space() > 0 && ioTracker->IsEnabled()) {
+                bool isBlobChunk = IsBlobChunkId(DecodeChunkId(session->GetChunkId()).Id);
+                if (isBlobChunk && chunkInfo.disk_space() > 0 && ioTracker->IsEnabled()) {
                     ioTracker->Enqueue(
                         TIOCounters{.ByteCount = chunkInfo.disk_space(), .IOCount = 1},
                         MakeWriteIOTags("FinishChunk", session, context));
@@ -372,7 +373,8 @@ private:
                         // the data to disk in FinishChunk().
                         const auto& ioTracker = Bootstrap_->GetIOTracker();
                         const auto& counters = result.ValueOrThrow();
-                        if (IsJournalChunkId(session->GetChunkId()) && counters.ByteCount > 0 && ioTracker->IsEnabled()) {
+                        bool isJournalChunk = IsJournalChunkId(DecodeChunkId(session->GetChunkId()).Id);
+                        if (isJournalChunk && counters.ByteCount > 0 && ioTracker->IsEnabled()) {
                             ioTracker->Enqueue(
                                 counters,
                                 MakeWriteIOTags("FlushBlocks", session, context));
