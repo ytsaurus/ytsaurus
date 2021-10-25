@@ -388,12 +388,6 @@ class TestJournals(YTEnvSetup):
         wait(lambda: get_account_committed_disk_space("tmp") == 0 and get_account_disk_space("tmp") == 0)
 
     @authors("babenko")
-    def test_no_copy(self):
-        create("journal", "//tmp/j1")
-        with pytest.raises(YtError):
-            copy("//tmp/j1", "//tmp/j2")
-
-    @authors("babenko")
     def test_move(self):
         create("journal", "//tmp/j1")
         self._write_and_wait_until_sealed("//tmp/j1", self.DATA)
@@ -596,6 +590,31 @@ class TestJournals(YTEnvSetup):
         # power of two at master.
         assert get("#{}/@replica_lag_limit".format(chunk_id)) == 131072
 
+    @authors("gritukan")
+    def test_copy_journal(self):
+        create("journal", "//tmp/j")
+        self._write_and_wait_until_sealed("//tmp/j", self.DATA)
+        copy("//tmp/j", "//tmp/j2")
+        assert read_journal("//tmp/j2") == self.DATA
+
+    @authors("gritukan")
+    def test_unsealed_journal_copy_forbidden(self):
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
+
+        create("journal", "//tmp/j")
+        self._write_slowly(
+            "//tmp/j",
+            self.DATA,
+            enable_chunk_preallocation=True,
+            journal_writer={
+                "dont_close": False,
+                "dont_seal": True,
+            })
+
+        assert not get("//tmp/j/@sealed")
+        with pytest.raises(YtError, match="Journal is not sealed"):
+            copy("//tmp/j", "//tmp/j2")
+
 
 class TestJournalsMulticell(TestJournals):
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -603,6 +622,17 @@ class TestJournalsMulticell(TestJournals):
 
 class TestJournalsPortal(TestJournalsMulticell):
     ENABLE_TMP_PORTAL = True
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    @authors("gritukan")
+    def test_journal_cross_shard_copy_forbidden(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
+
+        create("journal", "//tmp/j")
+        self._write_and_wait_until_sealed("//tmp/j", self.DATA)
+
+        with pytest.raises(YtError, match="Cross-cell copying of journal is not supported"):
+            copy("//tmp/j", "//tmp/p/j")
 
 
 class TestJournalsRpcProxy(TestJournals):

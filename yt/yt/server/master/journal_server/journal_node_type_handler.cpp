@@ -209,10 +209,6 @@ protected:
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override
     {
-        if (mode == ENodeCloneMode::Copy) {
-            THROW_ERROR_EXCEPTION("Journals cannot be copied");
-        }
-
         if (!sourceNode->GetSealed()) {
             THROW_ERROR_EXCEPTION("Journal is not sealed");
         }
