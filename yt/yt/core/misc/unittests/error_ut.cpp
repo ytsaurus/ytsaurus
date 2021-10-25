@@ -51,6 +51,12 @@ TEST(TErrorTest, SerializationDepthLimit)
     }
 }
 
+TEST(TErrorTest, ErrorSkeletonStubImplementation)
+{
+    TError error("foo");
+    EXPECT_THROW(error.GetSkeleton(), std::exception);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 }

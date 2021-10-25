@@ -613,6 +613,17 @@ TError TError::Wrap() const
     return *this;
 }
 
+Y_WEAK TString GetErrorSkeleton(const TError& /*error*/)
+{
+    // Proper implementation resides in yt/yt/library/error_skeleton/skeleton.cpp.
+    THROW_ERROR_EXCEPTION("Error skeleton implementation library is not linked; consider PEERDIR'ing yt/yt/library/error_skeleton");
+}
+
+TString TError::GetSkeleton() const
+{
+    return GetErrorSkeleton(*this);
+}
+
 void TError::Save(TStreamSaveContext& context) const
 {
     using NYT::Save;
