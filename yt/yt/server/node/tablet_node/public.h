@@ -43,6 +43,8 @@ class TLoadContext;
 
 DECLARE_REFCOUNTED_CLASS(TTabletManager)
 DECLARE_REFCOUNTED_CLASS(TTransactionManager)
+DECLARE_REFCOUNTED_STRUCT(ITabletWriteManager)
+DECLARE_REFCOUNTED_STRUCT(ITabletWriteManagerHost)
 
 class TPartition;
 class TTableReplicaInfo;

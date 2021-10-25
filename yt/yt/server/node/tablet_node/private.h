@@ -9,6 +9,7 @@ namespace NYT::NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TWriteContext;
+struct TSortedDynamicRowRef;
 
 static constexpr ui32 UncommittedRevision = 0;
 static constexpr ui32 InvalidRevision = std::numeric_limits<ui32>::max();

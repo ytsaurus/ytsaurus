@@ -61,6 +61,7 @@ struct ITabletSlot
     virtual const NHiveServer::ITransactionSupervisorPtr& GetTransactionSupervisor() = 0;
 
     virtual const TTabletManagerPtr& GetTabletManager() = 0;
+    virtual const ITabletWriteManagerPtr& GetTabletWriteManager() = 0;
 
     virtual NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) = 0;
 
@@ -72,6 +73,9 @@ struct ITabletSlot
     virtual NTabletClient::TTabletCellOptionsPtr GetOptions() = 0;
 
     virtual NChunkClient::IChunkFragmentReaderPtr CreateChunkFragmentReader(TTablet* tablet) = 0;
+
+    virtual NTransactionClient::TTimestamp GetLatestTimestamp() = 0;
+    virtual NObjectClient::TCellTag GetNativeCellTag() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletSlot)

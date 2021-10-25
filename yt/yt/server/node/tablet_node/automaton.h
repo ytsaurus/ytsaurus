@@ -18,9 +18,7 @@ class TTabletAutomaton
     : public NHydra::TCompositeAutomaton
 {
 public:
-    TTabletAutomaton(
-        ITabletSlotPtr slot,
-        IInvokerPtr snapshotInvoker);
+    using TCompositeAutomaton::TCompositeAutomaton;
 
 private:
     std::unique_ptr<NHydra::TSaveContext> CreateSaveContext(

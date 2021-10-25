@@ -17,14 +17,6 @@ using namespace NClusterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletAutomaton::TTabletAutomaton(
-    ITabletSlotPtr slot,
-    IInvokerPtr snapshotInvoker)
-    : TCompositeAutomaton(
-        snapshotInvoker,
-        slot->GetCellId())
-{ }
-
 std::unique_ptr<NHydra::TSaveContext> TTabletAutomaton::CreateSaveContext(
     ICheckpointableOutputStream* output)
 {
