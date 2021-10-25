@@ -49,12 +49,12 @@ class TCompositeAutomatonPart
 {
 public:
     TCompositeAutomatonPart(
-        IHydraManagerPtr hydraManager,
+        ISimpleHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton,
         IInvokerPtr automatonInvoker);
 
 protected:
-    IHydraManager* const HydraManager_;
+    ISimpleHydraManager* const HydraManager_;
     TCompositeAutomaton* const Automaton_;
     const IInvokerPtr AutomatonInvoker_;
 
@@ -233,7 +233,7 @@ private:
         TCallback<void(TLoadContext&)> Callback;
     };
 
-    IHydraManager* HydraManager_ = nullptr;
+    ISimpleHydraManager* HydraManager_ = nullptr;
 
     std::vector<TWeakPtr<TCompositeAutomatonPart>> Parts_;
 

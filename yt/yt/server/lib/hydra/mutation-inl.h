@@ -20,7 +20,7 @@ namespace NYT::NHydra {
 
 template <class TRequest>
 std::unique_ptr<TMutation> CreateMutation(
-    IHydraManagerPtr hydraManager,
+    ISimpleHydraManagerPtr hydraManager,
     const TRequest& request)
 {
     auto mutation = std::make_unique<TMutation>(std::move(hydraManager));
@@ -30,7 +30,7 @@ std::unique_ptr<TMutation> CreateMutation(
 
 template <class TRequest, class TTarget>
 std::unique_ptr<TMutation> CreateMutation(
-    IHydraManagerPtr hydraManager,
+    ISimpleHydraManagerPtr hydraManager,
     const TRequest& request,
     void (TTarget::* handler)(TRequest*),
     TTarget* target)
@@ -51,7 +51,7 @@ std::unique_ptr<TMutation> CreateMutation(
 
 template <class TRequest, class TResponse>
 std::unique_ptr<TMutation> CreateMutation(
-    IHydraManagerPtr hydraManager,
+    ISimpleHydraManagerPtr hydraManager,
     const TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>& context)
 {
     auto mutation = std::make_unique<TMutation>(std::move(hydraManager));
@@ -62,7 +62,7 @@ std::unique_ptr<TMutation> CreateMutation(
 
 template <class TRequest, class TResponse, class TTarget>
 std::unique_ptr<TMutation> CreateMutation(
-    IHydraManagerPtr hydraManager,
+    ISimpleHydraManagerPtr hydraManager,
     const TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>& context,
     void (TTarget::* handler)(const TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>&, TRequest*, TResponse*),
     TTarget* target)
@@ -83,7 +83,7 @@ std::unique_ptr<TMutation> CreateMutation(
 
 template <class TRpcRequest, class TResponse, class THandlerRequest, class TTarget>
 std::unique_ptr<TMutation> CreateMutation(
-    IHydraManagerPtr hydraManager,
+    ISimpleHydraManagerPtr hydraManager,
     const TIntrusivePtr<NRpc::TTypedServiceContext<TRpcRequest, TResponse>>& context,
     const THandlerRequest& request,
     void (TTarget::* handler)(const TIntrusivePtr<NRpc::TTypedServiceContext<TRpcRequest, TResponse>>&, THandlerRequest*, TResponse*),

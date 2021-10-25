@@ -19,7 +19,7 @@ namespace NYT::NHydra {
 class TMutation
 {
 public:
-    explicit TMutation(IHydraManagerPtr hydraManager);
+    explicit TMutation(ISimpleHydraManagerPtr hydraManager);
 
     TFuture<TMutationResponse> Commit();
     TFuture<TMutationResponse> CommitAndLog(NLogging::TLogger logger);
@@ -38,7 +38,7 @@ public:
     bool IsRetry() const;
 
 private:
-    const IHydraManagerPtr HydraManager_;
+    const ISimpleHydraManagerPtr HydraManager_;
 
     TMutationRequest Request_;
 };
@@ -47,31 +47,31 @@ private:
 
 template <class TRequest>
 std::unique_ptr<TMutation> CreateMutation(
-    IHydraManagerPtr hydraManager,
+    ISimpleHydraManagerPtr hydraManager,
     const TRequest& request);
 
 template <class TRequest, class TTarget>
 std::unique_ptr<TMutation> CreateMutation(
-    IHydraManagerPtr hydraManager,
+    ISimpleHydraManagerPtr hydraManager,
     const TRequest& request,
     void (TTarget::* handler)(TRequest*),
     TTarget* target);
 
 template <class TRequest, class TResponse>
 std::unique_ptr<TMutation> CreateMutation(
-    IHydraManagerPtr hydraManager,
+    ISimpleHydraManagerPtr hydraManager,
     const TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>& context);
 
 template <class TRequest, class TResponse, class TTarget>
 std::unique_ptr<TMutation> CreateMutation(
-    IHydraManagerPtr hydraManager,
+    ISimpleHydraManagerPtr hydraManager,
     const TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>& context,
     void (TTarget::* handler)(const TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>&, TRequest*, TResponse*),
     TTarget* target);
 
 template <class TRpcRequest, class TResponse, class THandlerRequest, class TTarget>
 std::unique_ptr<TMutation> CreateMutation(
-    IHydraManagerPtr hydraManager,
+    ISimpleHydraManagerPtr hydraManager,
     const TIntrusivePtr<NRpc::TTypedServiceContext<TRpcRequest, TResponse>>& context,
     const THandlerRequest& request,
     void (TTarget::* handler)(const TIntrusivePtr<NRpc::TTypedServiceContext<TRpcRequest, TResponse>>&, THandlerRequest*, TResponse*),

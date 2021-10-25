@@ -30,7 +30,7 @@ static const size_t SnapshotPrefetchWindowSize = 64_MB;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCompositeAutomatonPart::TCompositeAutomatonPart(
-    IHydraManagerPtr hydraManager,
+    ISimpleHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton,
     IInvokerPtr automatonInvoker)
     : HydraManager_(hydraManager.Get())

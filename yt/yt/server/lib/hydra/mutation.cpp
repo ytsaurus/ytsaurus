@@ -8,7 +8,7 @@ namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMutation::TMutation(IHydraManagerPtr hydraManager)
+TMutation::TMutation(ISimpleHydraManagerPtr hydraManager)
     : HydraManager_(std::move(hydraManager))
 {
     Request_.Reign = HydraManager_->GetCurrentReign();

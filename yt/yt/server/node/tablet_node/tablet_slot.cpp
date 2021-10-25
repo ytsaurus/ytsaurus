@@ -187,7 +187,14 @@ public:
         return Occupant_->GetCellBundleName();
     }
 
-    IDistributedHydraManagerPtr GetHydraManager() override
+    IHydraManagerPtr GetHydraManager() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Occupant_->GetHydraManager();
+    }
+
+    ISimpleHydraManagerPtr GetSimpleHydraManager() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
