@@ -102,23 +102,36 @@ func (p *connPool) idleConnTimeout() time.Duration {
 // Uses cached conn if present and dials otherwise.
 func (p *connPool) Conn(ctx context.Context, addr string) (*conn, error) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
 
 	p.log.Debug("getting conn", log.String("addr", addr))
 
-	if conn, ok := p.tryGetCachedConn(addr); ok {
+	var expiredConn *conn
+	conn, ok := p.conns[addr]
+	if !ok || conn.Expired() || conn.Err() != nil {
+		expiredConn, conn = conn, nil
+	}
+
+	if conn != nil {
 		p.log.Debug("got conn from cache", log.String("addr", addr))
 		conn.inflight++
+
+		p.mu.Unlock()
 		return conn, nil
 	}
 
 	p.log.Debug("unable to got conn from cache; dialing", log.String("addr", addr))
-	conn := p.dialFunc(ctx, addr)
+	c := p.dialFunc(ctx, addr)
 
 	p.log.Debug("dialed", log.String("addr", addr))
-	wrapped := newConn(addr, conn, p)
+	wrapped := newConn(addr, c, p)
 	p.conns[addr] = wrapped
 	wrapped.inflight++
+
+	p.mu.Unlock()
+
+	if expiredConn != nil {
+		cleanupConn(expiredConn)
+	}
 
 	return wrapped, nil
 }
@@ -148,20 +161,6 @@ func (p *connPool) discard(conn *conn) {
 	}
 
 	cleanupConn(conn)
-}
-
-func (p *connPool) tryGetCachedConn(addr string) (*conn, bool) {
-	conn, ok := p.conns[addr]
-	if !ok {
-		return nil, false
-	}
-
-	if conn.Expired() || conn.Err() != nil {
-		delete(p.conns, addr)
-		return nil, false
-	}
-
-	return conn, true
 }
 
 func (p *connPool) tryPutIdleConn(conn *conn) {
