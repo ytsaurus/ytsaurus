@@ -1,12 +1,13 @@
-#include <yt/yt/core/test_framework/framework.h>
+#include <library/cpp/testing/gtest/gtest.h>
 
-#include <yt/yt/core/concurrency/event_count.h>
-
-#include <yt/yt/core/misc/format.h>
-#include <yt/yt/core/misc/public.h>
+#include <yt/yt/core/misc/new.h>
 #include <yt/yt/core/misc/weak_ptr.h>
 
+#if 0
+#include <yt/yt/core/concurrency/event_count.h>
+
 #include <util/system/thread.h>
+#endif
 
 #include <array>
 
@@ -26,14 +27,10 @@ using ::testing::StrictMock;
 static int ConstructorShadowState = 0;
 static int DestructorShadowState = 0;
 
-std::unique_ptr<NConcurrency::TEvent> DeathEvent;
-
 void ResetShadowState()
 {
     ConstructorShadowState = 0;
     DestructorShadowState = 0;
-
-    DeathEvent.reset(new NConcurrency::TEvent());
 }
 
 class TIntricateObject
@@ -80,7 +77,7 @@ class TDerivedIntricateObject
 {
 private:
     // To suppress warning about unused Payload.
-    friend void NonExistingFunction();
+    friend void NonExistingFunction() ATTRIBUTE_USED;
 
     // Payload.
     std::array<char, 32> Payload;
@@ -100,40 +97,14 @@ MATCHER_P2(HasRefCounts, strongRefs, weakRefs,
         arg.GetWeakRefCount() == weakRefs;
 }
 
-class TSlowlyDyingObject
-    : public TRefCounted
-{
-public:
-    TSlowlyDyingObject()
-    {
-        ++ConstructorShadowState;
-    }
-
-    virtual ~TSlowlyDyingObject()
-    {
-        ++DestructorShadowState;
-        DeathEvent->Wait();
-        ++DestructorShadowState;
-    }
-};
-
-typedef TIntrusivePtr<TSlowlyDyingObject> TSlowlyDyingObjectPtr;
-typedef TWeakPtr<TSlowlyDyingObject> TSlowlyDyingObjectWkPtr;
-
 template <class T>
 void PrintExtrinsicRefCounted(const T& arg, ::std::ostream* os)
 {
-    *os << Format("%v strong and %v weak references",
-        arg.GetRefCount(),
-        arg.GetWeakRefCount());
+    *os << arg.GetRefCount() << " strong and "
+        << arg.GetWeakRefCount() << " weak references";
 }
 
 void PrintTo(const TIntricateObject& arg, ::std::ostream* os)
-{
-    PrintExtrinsicRefCounted(arg, os);
-}
-
-void PrintTo(const TSlowlyDyingObject& arg, ::std::ostream* os)
 {
     PrintExtrinsicRefCounted(arg, os);
 }
@@ -391,6 +362,32 @@ TEST_F(TWeakPtrTest, VirtualBase)
     ptr.Reset();
 }
 
+#if 0
+class TSlowlyDyingObject
+    : public TRefCounted
+{
+public:
+    TSlowlyDyingObject()
+    {
+        ++ConstructorShadowState;
+    }
+
+    virtual ~TSlowlyDyingObject()
+    {
+        ++DestructorShadowState;
+        DeathEvent->Wait();
+        ++DestructorShadowState;
+    }
+};
+
+void PrintTo(const TSlowlyDyingObject& arg, ::std::ostream* os)
+{
+    PrintExtrinsicRefCounted(arg, os);
+}
+
+typedef TIntrusivePtr<TSlowlyDyingObject> TSlowlyDyingObjectPtr;
+typedef TWeakPtr<TSlowlyDyingObject> TSlowlyDyingObjectWkPtr;
+
 static void* AsynchronousDeleter(void* param)
 {
     TSlowlyDyingObjectPtr* indirectObject =
@@ -399,8 +396,12 @@ static void* AsynchronousDeleter(void* param)
     return nullptr;
 }
 
+std::unique_ptr<NConcurrency::TEvent> DeathEvent;
+
 TEST_F(TWeakPtrTest, DISABLED_AcquisionOfSlowlyDyingObject)
 {
+    DeathEvent.reset(new NConcurrency::TEvent());
+
     TSlowlyDyingObjectPtr object = New<TSlowlyDyingObject>();
     TSlowlyDyingObjectWkPtr ptr(object);
 
@@ -432,6 +433,8 @@ TEST_F(TWeakPtrTest, DISABLED_AcquisionOfSlowlyDyingObject)
 
     EXPECT_EQ(TSlowlyDyingObjectPtr(), ptr.Lock());
 }
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

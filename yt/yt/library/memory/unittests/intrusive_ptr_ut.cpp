@@ -1,8 +1,9 @@
-#include <yt/yt/core/test_framework/framework.h>
+//#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/core/misc/format.h>
+#include <library/cpp/testing/gtest/gtest.h>
+
 #include <yt/yt/core/misc/new.h>
-#include <yt/yt/core/misc/public.h>
+//#include <yt/yt/core/misc/public.h>
 #include <yt/yt/core/misc/ref_counted.h>
 
 namespace NYT {
@@ -70,9 +71,9 @@ MATCHER_P3(HasRefCounts, increments, decrements, zeros,
 
 void PrintTo(const TIntricateObject& arg, ::std::ostream* os)
 {
-    *os << Format(
-        "%v increments, %v decrements and %v times vanished",
-        arg.Increments, arg.Decrements, arg.Zeros);
+    *os << arg.Increments << " increments, "
+        << arg.Decrements << " decrements and"
+        << arg.Zeros << " times vanished";
 }
 
 // This is an object which creates intrusive pointers to the self
