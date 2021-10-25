@@ -208,6 +208,7 @@ DEFINE_ENUM(EMasterReign,
     ((HandlePoolAttributesThatBecameUninterned)                     (1804))  // renadeen
     ((PerFlavorNodeMaps)                                            (1805))  // gritukan
     ((FixAccountChunkMergerAttributesReplication)                   (1806))  // babenko
+    ((CopyJournals)                                                 (1807))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////
