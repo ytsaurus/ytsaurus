@@ -30,6 +30,7 @@ namespace NYT::NHydra {
 
 using namespace NConcurrency;
 using namespace NApi;
+using namespace NLogging;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NObjectClient;
@@ -118,7 +119,7 @@ private:
     const std::optional<TVersion> ReachableVersion_;
     const TJournalWriterPerformanceCounters Counters_;
 
-    const NLogging::TLogger Logger;
+    const TLogger Logger;
 
     IChangelogPtr DoCreateChangelog(int id)
     {
@@ -260,11 +261,13 @@ private:
             TRemoteChangelogStorePtr owner)
             : Path_(std::move(path))
             , PrerequisiteTransaction_(std::move(prerequisiteTransaction))
-            , Owner_(owner)
+            , Owner_(std::move(owner))
+            , Logger(Owner_->Logger)
             , RecordCount_(recordCount)
             , DataSize_(dataSize)
         {
             if (createWriter) {
+                auto guard = Guard(WriterLock_);
                 CreateWriter();
             }
         }
@@ -281,6 +284,8 @@ private:
 
         TFuture<void> Append(TRange<TSharedRef> records) override
         {
+            auto guard = Guard(WriterLock_);
+
             if (!Writer_) {
                 if (Owner_->IsReadOnly()) {
                     return MakeFuture(TError("Changelog is read-only"));
@@ -296,15 +301,14 @@ private:
             auto recordsDataSize = GetByteSize(records);
             auto recordCount = records.size();
 
-            // Fast path.
-            if (WriterOpenedFuture_.IsSet() && WriterOpenedFuture_.Get().IsOK()) {
+            if (WriterOpened_) {
                 FlushResult_ = Writer_->Write(records);
             } else {
-                std::vector<TSharedRef> recordList(records.begin(), records.end());
-                FlushResult_ = WriterOpenedFuture_.Apply(
-                    BIND([=, this_ = MakeStrong(this)] {
-                        return Writer_->Write(MakeRange(recordList));
-                    }));
+                PendingRecords_.insert(
+                    PendingRecords_.end(),
+                    records.begin(),
+                    records.end());
+                FlushResult_ = PendingRecordsFlushed_;
             }
 
             FlushResult_.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
@@ -356,8 +360,19 @@ private:
         const ITransactionPtr PrerequisiteTransaction_;
         const TRemoteChangelogStorePtr Owner_;
 
+        const TLogger Logger;
+
         IJournalWriterPtr Writer_;
-        TFuture<void> WriterOpenedFuture_;
+
+        //! Protects #Writer_, #WriterOpened_ and #PendingRecords_.
+        YT_DECLARE_SPINLOCK(TAdaptiveLock, WriterLock_);
+
+        //! If #WriterOpened_ is true, records are sent directly to the writer.
+        //! If #WriterOpened_ is false, records are being kept in #PendingRecords_
+        //! until writer is opened and then flushed.
+        bool WriterOpened_ = false;
+        std::vector<TSharedRef> PendingRecords_;
+        TFuture<void> PendingRecordsFlushed_;
 
         std::atomic<int> RecordCount_;
         std::atomic<i64> DataSize_;
@@ -387,15 +402,34 @@ private:
 
         void CreateWriter()
         {
+            VERIFY_SPINLOCK_AFFINITY(WriterLock_);
+
             try {
                 auto writerOptions = Owner_->GetJournalWriterOptions();
                 Writer_ = Owner_->Client_->CreateJournalWriter(Path_, writerOptions);
-                WriterOpenedFuture_ = Writer_->Open();
+                PendingRecordsFlushed_ = Writer_->Open()
+                    .Apply(BIND(&TRemoteChangelog::FlushPendingRecords, MakeStrong(this)));
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to open remote changelog writer")
                     << TErrorAttribute("changelog_path", Path_)
                     << ex;
             }
+        }
+
+        TFuture<void> FlushPendingRecords()
+        {
+            YT_LOG_DEBUG("Journal writer opened; flushing pending records (PendingRecordCount: %v)",
+                PendingRecords_.size());
+
+            auto guard = Guard(WriterLock_);
+
+            auto flushedFuture = Writer_->Write(MakeRange(PendingRecords_));
+            PendingRecords_ = {};
+
+            YT_VERIFY(!WriterOpened_);
+            WriterOpened_ = true;
+
+            return flushedFuture;
         }
     };
 };
@@ -442,7 +476,7 @@ private:
     const TTransactionId PrerequisiteTransactionId_;
     const TJournalWriterPerformanceCounters Counters_;
 
-    const NLogging::TLogger Logger;
+    const TLogger Logger;
 
     IChangelogStorePtr DoLock()
     {

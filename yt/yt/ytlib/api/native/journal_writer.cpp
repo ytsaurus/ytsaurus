@@ -598,6 +598,10 @@ private:
                     CurrentRowIndex_);
             }
 
+            if (auto openDelay = Config_->OpenDelay) {
+                TDelayedExecutor::WaitForDuration(*openDelay);
+            }
+
             YT_LOG_DEBUG("Journal opened");
             OpenedPromise_.Set(TError());
         }

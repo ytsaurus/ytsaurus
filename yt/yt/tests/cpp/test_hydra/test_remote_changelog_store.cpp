@@ -317,6 +317,45 @@ TEST_F(TRemoteChangelogStoreTest, TestReadOnlyStore)
     CheckChangelog(changelog, 6);
 }
 
+TEST_F(TRemoteChangelogStoreTest, TestPendingMutations)
+{
+    Config_->Writer->OpenDelay = TDuration::Seconds(5);
+
+    auto prerequisiteTransaction = WaitFor(Client_->StartTransaction(ETransactionType::Master))
+        .ValueOrThrow();
+
+    auto changelogStoreFactory = CreateChangelogStoreFactory(prerequisiteTransaction->GetId());
+    auto changelogStore = LockStoreFactory(changelogStoreFactory);
+    auto changelog = WaitFor(changelogStore->CreateChangelog(/*id*/ 1))
+        .ValueOrThrow();
+
+    for (int index = 0; index < 5; ++index) {
+        changelog->Append(MakeRange(Records_.begin() + index, Records_.begin() + index + 1));
+    }
+
+    TDelayedExecutor::WaitForDuration(TDuration::Seconds(5));
+
+    for (int index = 5; index < 10; ++index) {
+        changelog->Append(MakeRange(Records_.begin() + index, Records_.begin() + index + 1));
+    }
+
+    WaitFor(changelog->Close())
+        .ThrowOnError();
+
+    WaitFor(prerequisiteTransaction->Abort())
+        .ThrowOnError();
+
+    prerequisiteTransaction = WaitFor(Client_->StartTransaction(ETransactionType::Master))
+        .ValueOrThrow();
+
+    changelogStoreFactory = CreateChangelogStoreFactory(prerequisiteTransaction->GetId());
+    changelogStore = LockStoreFactory(changelogStoreFactory);
+    EXPECT_EQ(changelogStore->GetReachableVersion(), TVersion(1, 10));
+    changelog = WaitFor(changelogStore->OpenChangelog(/*id*/ 1))
+        .ValueOrThrow();
+    CheckChangelog(changelog, /*recordCount*/ 10);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
