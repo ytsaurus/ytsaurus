@@ -50,7 +50,7 @@ struct TReadOptions
     // Used only in ReadRecentSensorValue.
     bool ReadAllProjections = false;
 
-    // Only make sense with ExportSummaryAsMax and ReadAllProjections
+    // Only makes sense with ExportSummaryAsMax and ReadAllProjections.
     bool SummaryAsMaxForAllTime = false;
 };
 
