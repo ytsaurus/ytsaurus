@@ -6,6 +6,7 @@
 #include "store_manager.h"
 #include "tablet.h"
 #include "tablet_manager.h"
+#include "tablet_write_manager.h"
 #include "tablet_slot.h"
 #include "transaction.h"
 #include "transaction_manager.h"
@@ -192,7 +193,7 @@ private:
         struct TWriteBufferTag { };
         TWireProtocolReader reader(requestData, New<TRowBuffer>(TWriteBufferTag()));
 
-        const auto& tabletManager = Slot_->GetTabletManager();
+        const auto& tabletWriteManager = Slot_->GetTabletWriteManager();
 
         TFuture<void> commitResult;
         try {
@@ -202,7 +203,7 @@ private:
                 // Since all these mutations are enqueued within a single epoch, only the last commit outcome is
                 // actually relevant.
                 // Note that we're passing signature to every such call but only the last one actually uses it.
-                tabletManager->Write(
+                tabletWriteManager->Write(
                     tabletSnapshot,
                     transactionId,
                     transactionStartTimestamp,

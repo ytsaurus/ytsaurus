@@ -9,6 +9,7 @@
 #include "slot_manager.h"
 #include "tablet.h"
 #include "tablet_manager.h"
+#include "tablet_write_manager.h"
 #include "tablet_service.h"
 #include "transaction_manager.h"
 #include "tablet_snapshot_store.h"
@@ -47,6 +48,8 @@
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
+
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
@@ -240,6 +243,11 @@ public:
         return TabletManager_;
     }
 
+    const ITabletWriteManagerPtr& GetTabletWriteManager() override
+    {
+        return TabletWriteManager_;
+    }
+
     TObjectId GenerateId(EObjectType type) override
     {
         return Occupant_->GenerateId(type);
@@ -250,8 +258,8 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return New<TTabletAutomaton>(
-            this,
-            SnapshotQueue_->GetInvoker());
+            SnapshotQueue_->GetInvoker(),
+            GetCellId());
     }
 
     TCellTag GetNativeCellTag() override
@@ -298,6 +306,19 @@ public:
                 Logger));
 
         Logger = GetLogger();
+
+        TabletWriteManager_ = CreateTabletWriteManager(
+            TabletManager_->GetTabletWriteManagerHost(),
+            hydraManager,
+            GetAutomaton(),
+            TMemoryUsageTrackerGuard::Acquire(
+                Bootstrap_
+                ->GetMemoryUsageTracker()
+                ->WithCategory(NNodeTrackerClient::EMemoryCategory::TabletDynamic),
+                0 /*size*/,
+                MemoryUsageGranularity),
+                GetAutomatonInvoker(),
+                Logger);
     }
 
     void Initialize() override
@@ -307,6 +328,7 @@ public:
             Bootstrap_);
 
         TabletManager_->Initialize();
+        TabletWriteManager_->Initialize();
     }
 
     void RegisterRpcServices() override
@@ -334,6 +356,7 @@ public:
         TabletManager_.Reset();
 
         TransactionManager_.Reset();
+        TabletWriteManager_.Reset();
 
         if (TabletService_) {
             const auto& rpcServer = Bootstrap_->GetRpcServer();
@@ -388,6 +411,13 @@ public:
         return Occupant_->GetOptions();
     }
 
+    TCellTag GetNativeCellTag() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Bootstrap_->GetMasterClient()->GetConnection()->GetCellTag();
+    }
+
     NProfiling::TProfiler GetProfiler() override
     {
         return TabletNodeProfiler;
@@ -414,6 +444,8 @@ private:
     const TRuntimeTabletCellDataPtr RuntimeData_ = New<TRuntimeTabletCellData>();
 
     TTabletManagerPtr TabletManager_;
+
+    ITabletWriteManagerPtr TabletWriteManager_;
 
     TTransactionManagerPtr TransactionManager_;
 

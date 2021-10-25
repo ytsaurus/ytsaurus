@@ -41,19 +41,6 @@ public:
     void Initialize();
     void Finalize();
 
-    void Write(
-        TTabletSnapshotPtr tabletSnapshot,
-        TTransactionId transactionId,
-        NTransactionClient::TTimestamp transactionStartTimestamp,
-        TDuration transactionTimeout,
-        TTransactionSignature signature,
-        int rowCount,
-        size_t byteSize,
-        bool versioned,
-        const TSyncReplicaIdList& syncReplicaIds,
-        NTableClient::TWireProtocolReader* reader,
-        TFuture<void>* commitResult);
-
     TFuture<void> Trim(
         TTabletSnapshotPtr tabletSnapshot,
         i64 trimmedRowCount);
@@ -72,6 +59,8 @@ public:
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
     TTablet* GetTabletOrThrow(TTabletId id);
+
+    ITabletWriteManagerHostPtr GetTabletWriteManagerHost();
 
 private:
     class TImpl;

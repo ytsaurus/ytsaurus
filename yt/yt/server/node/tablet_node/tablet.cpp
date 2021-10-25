@@ -80,6 +80,20 @@ void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, T
     }
 }
 
+void ValidateTabletMounted(TTablet* tablet)
+{
+    if (tablet->GetState() != ETabletState::Mounted) {
+        THROW_ERROR_EXCEPTION(
+            NTabletClient::EErrorCode::TabletNotMounted,
+            "Tablet %v is not in %Qlv state",
+            tablet->GetId(),
+            ETabletState::Mounted)
+            << TErrorAttribute("tablet_id", tablet->GetId())
+            << TErrorAttribute("table_path", tablet->GetTablePath())
+            << TErrorAttribute("is_tablet_unmounted", tablet->GetState() == ETabletState::Unmounted);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TRuntimeTableReplicaData::Populate(TTableReplicaStatistics* statistics) const
