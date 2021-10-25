@@ -207,6 +207,8 @@ public:
     std::optional<std::vector<int>> ReplicaRowLimits;
     TDuration ReplicaFakeTimeoutDelay;
 
+    std::optional<TDuration> OpenDelay;
+
     TJournalWriterConfig()
     {
         RegisterParameter("max_batch_row_count", MaxBatchRowCount)
@@ -259,6 +261,8 @@ public:
         RegisterParameter("replica_row_limits", ReplicaRowLimits)
             .Default();
         RegisterParameter("replica_fake_timeout_delay", ReplicaFakeTimeoutDelay)
+            .Default();
+        RegisterParameter("open_delay", OpenDelay)
             .Default();
 
         RegisterPostprocessor([&] {
