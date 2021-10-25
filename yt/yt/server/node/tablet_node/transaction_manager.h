@@ -19,6 +19,28 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Transaction manager is tightly coupled to the tablet slot which acts as a host
+//! for it. The following interface specifies methods of the tablet slot
+//! required by the transaction manager and provides means for unit-testing of transaction manager.
+struct ITransactionManagerHost
+    : public virtual TRefCounted
+{
+    virtual NHydra::IDistributedHydraManagerPtr GetHydraManager() = 0;
+    virtual const NHydra::TCompositeAutomatonPtr& GetAutomaton() = 0;
+    virtual IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) = 0;
+    virtual IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) = 0;
+    virtual IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) = 0;
+    virtual const NHiveServer::ITransactionSupervisorPtr& GetTransactionSupervisor() = 0;
+    virtual const TRuntimeTabletCellDataPtr& GetRuntimeData() = 0;
+    virtual NTransactionClient::TTimestamp GetLatestTimestamp() = 0;
+    virtual NObjectClient::TCellTag GetNativeCellTag() = 0;
+    virtual NHydra::TCellId GetCellId() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(ITransactionManagerHost)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTransactionManager
     : public NHiveServer::ITransactionManager
 {
@@ -46,8 +68,8 @@ public:
 public:
     TTransactionManager(
         TTransactionManagerConfigPtr config,
-        ITabletSlotPtr slot,
-        IBootstrap* bootstrap);
+        ITransactionManagerHostPtr host,
+        NHiveServer::ITransactionLeaseTrackerPtr transactionLeaseTracker);
     ~TTransactionManager();
 
     //! Finds transaction by id.

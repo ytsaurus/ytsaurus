@@ -49,6 +49,8 @@ class TTableReplicaInfo;
 
 struct TTableSettings;
 
+DECLARE_REFCOUNTED_STRUCT(ITransactionManagerHost)
+
 DECLARE_REFCOUNTED_STRUCT(TRuntimeTabletData)
 DECLARE_REFCOUNTED_STRUCT(TRuntimeTableReplicaData)
 DECLARE_ENTITY_TYPE(TTablet, TTabletId, NObjectClient::TDirectObjectIdHash)

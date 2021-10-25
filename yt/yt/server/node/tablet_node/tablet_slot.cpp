@@ -24,6 +24,7 @@
 #include <yt/yt/server/lib/hive/hive_manager.h>
 #include <yt/yt/server/lib/hive/mailbox.h>
 #include <yt/yt/server/lib/hive/transaction_supervisor.h>
+#include <yt/yt/server/lib/hive/transaction_lease_tracker.h>
 
 #include <yt/yt/server/lib/hydra/remote_changelog_store.h>
 #include <yt/yt/server/lib/hydra/remote_snapshot_store.h>
@@ -99,6 +100,7 @@ using NHydra::EPeerState;
 class TTabletSlot
     : public TAutomatonInvokerHood<EAutomatonThreadQueue>
     , public ITabletSlot
+    , public ITransactionManagerHost
 {
 private:
     using THood = TAutomatonInvokerHood<EAutomatonThreadQueue>;
@@ -252,6 +254,23 @@ public:
             SnapshotQueue_->GetInvoker());
     }
 
+    TCellTag GetNativeCellTag() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Bootstrap_->GetMasterClient()->GetConnection()->GetCellTag();
+    }
+
+    TTimestamp GetLatestTimestamp() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Bootstrap_
+            ->GetMasterConnection()
+            ->GetTimestampProvider()
+            ->GetLatestTimestamp();
+    }
+
     void Configure(IDistributedHydraManagerPtr hydraManager) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -274,7 +293,9 @@ public:
         TransactionManager_ = New<TTransactionManager>(
             Config_->TransactionManager,
             this,
-            Bootstrap_);
+            CreateTransactionLeaseTracker(
+                Bootstrap_->GetTransactionTrackerInvoker(),
+                Logger));
 
         Logger = GetLogger();
     }
