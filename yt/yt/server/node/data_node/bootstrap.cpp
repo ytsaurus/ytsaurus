@@ -52,6 +52,8 @@ static const THashSet<EDataNodeThrottlerKind> DataNodeNetworkThrottlers = {
     EDataNodeThrottlerKind::ReplicationOut,
     EDataNodeThrottlerKind::RepairIn,
     EDataNodeThrottlerKind::RepairOut,
+    EDataNodeThrottlerKind::MergeIn,
+    EDataNodeThrottlerKind::MergeOut,
     EDataNodeThrottlerKind::ArtifactCacheIn,
     EDataNodeThrottlerKind::ArtifactCacheOut,
     EDataNodeThrottlerKind::ReadRpsOut,
@@ -126,6 +128,7 @@ public:
         static const THashSet<EDataNodeThrottlerKind> InCombinedDataNodeThrottlerKinds = {
             EDataNodeThrottlerKind::ReplicationIn,
             EDataNodeThrottlerKind::RepairIn,
+            EDataNodeThrottlerKind::MergeIn,
             EDataNodeThrottlerKind::ArtifactCacheIn,
             EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn,
             EDataNodeThrottlerKind::TabletLoggingIn,
@@ -136,6 +139,7 @@ public:
         static const THashSet<EDataNodeThrottlerKind> OutCombinedDataNodeThrottlerKinds = {
             EDataNodeThrottlerKind::ReplicationOut,
             EDataNodeThrottlerKind::RepairOut,
+            EDataNodeThrottlerKind::MergeOut,
             EDataNodeThrottlerKind::ArtifactCacheOut,
             EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut,
             EDataNodeThrottlerKind::SkynetOut,
