@@ -43,7 +43,8 @@ struct ITabletSlot
 
     virtual const TString& GetTabletCellBundleName() = 0;
 
-    virtual NHydra::IDistributedHydraManagerPtr GetHydraManager() = 0;
+    virtual NHydra::IHydraManagerPtr GetHydraManager() = 0;
+    virtual NHydra::ISimpleHydraManagerPtr GetSimpleHydraManager() = 0;
 
     virtual const NHydra::TCompositeAutomatonPtr& GetAutomaton() = 0;
     virtual const TTransactionManagerPtr& GetTransactionManager() = 0;

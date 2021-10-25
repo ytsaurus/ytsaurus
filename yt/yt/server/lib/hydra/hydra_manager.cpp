@@ -4,28 +4,28 @@ namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IHydraManager::IsLeader() const
+bool ISimpleHydraManager::IsLeader() const
 {
     return GetAutomatonState() == EPeerState::Leading;
 }
 
-bool IHydraManager::IsFollower() const
+bool ISimpleHydraManager::IsFollower() const
 {
     return GetAutomatonState() == EPeerState::Following;
 }
 
-bool IHydraManager::IsRecovery() const
+bool ISimpleHydraManager::IsRecovery() const
 {
     return GetAutomatonState() == EPeerState::LeaderRecovery ||
            GetAutomatonState() == EPeerState::FollowerRecovery;
 }
 
-bool IHydraManager::IsActive() const
+bool ISimpleHydraManager::IsActive() const
 {
     return IsActiveLeader() || IsActiveFollower();
 }
 
-void IHydraManager::ValidatePeer(EPeerKind kind)
+void ISimpleHydraManager::ValidatePeer(EPeerKind kind)
 {
     switch (kind) {
         case EPeerKind::Leader:

@@ -15,6 +15,7 @@ using NElection::TPeerIdSet;
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(IAutomaton)
+DECLARE_REFCOUNTED_STRUCT(ISimpleHydraManager)
 DECLARE_REFCOUNTED_STRUCT(IHydraManager)
 DECLARE_REFCOUNTED_STRUCT(IDistributedHydraManager)
 

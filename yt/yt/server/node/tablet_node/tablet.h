@@ -130,7 +130,7 @@ struct TTabletSnapshot
     : public NTableClient::TTabletSnapshot
 {
     NHydra::TCellId CellId;
-    NHydra::IHydraManagerPtr HydraManager;
+    NHydra::ISimpleHydraManagerPtr HydraManager;
     NTabletClient::TTabletId TabletId;
     TString LoggingTag;
     NYPath::TYPath TablePath;
