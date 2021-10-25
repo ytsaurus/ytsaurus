@@ -162,8 +162,9 @@ int OpenPerfEvent(int tid, int eventType, int eventConfig)
     attr.type = eventType;
     attr.size = sizeof(attr);
     attr.config = eventConfig;
+    attr.inherit = 1;
 
-    int fd = HandleEintr(syscall, SYS_perf_event_open, &attr, tid, -1, -1, 0);
+    int fd = HandleEintr(syscall, SYS_perf_event_open, &attr, tid, -1, -1, PERF_FLAG_FD_CLOEXEC);
     if (fd == -1) {
         THROW_ERROR_EXCEPTION("Failed to open perf event descriptor")
             << TError::FromSystem()
