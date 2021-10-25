@@ -12,7 +12,7 @@
 #include <yt/yt/server/lib/hive/transaction_lease_tracker.h>
 #include <yt/yt/server/lib/hive/transaction_manager_detail.h>
 
-#include <yt/yt/server/lib/hydra/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra/mutation.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
@@ -70,7 +70,7 @@ static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransactionManager::TImpl
-    : public TTabletAutomatonPart
+    : public TCompositeAutomatonPart
     , public TTransactionManagerBase<TTransaction>
 {
 public:
@@ -84,22 +84,24 @@ public:
 public:
     TImpl(
         TTransactionManagerConfigPtr config,
-        ITabletSlotPtr slot,
-        IBootstrap* bootstrap)
-        : TTabletAutomatonPart(
-            slot,
-            bootstrap)
+        ITransactionManagerHostPtr host,
+        ITransactionLeaseTrackerPtr transactionLeaseTracker)
+        : TCompositeAutomatonPart(
+            host->GetHydraManager(),
+            host->GetAutomaton(),
+            host->GetAutomatonInvoker())
+        , Host_(host)
         , Config_(config)
-        , LeaseTracker_(CreateTransactionLeaseTracker(
-            Bootstrap_->GetTransactionTrackerInvoker(),
-            Logger))
-        , NativeCellTag_(Bootstrap_->GetMasterClient()->GetConnection()->GetCellTag())
+        , LeaseTracker_(std::move(transactionLeaseTracker))
+        , NativeCellTag_(host->GetNativeCellTag())
         , TransactionSerializationLagTimer_(TabletNodeProfiler
-            .WithTag("cell_id", ToString(slot->GetCellId()))
+            .WithTag("cell_id", ToString(host->GetCellId()))
             .Timer("/transaction_serialization_lag"))
         , AbortTransactionIdPool_(Config_->MaxAbortedTransactionPoolSize)
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(host->GetAutomatonInvoker(), AutomatonThread);
+
+        Logger = TabletNodeLogger.WithTag("CellId: %v", host->GetCellId());
 
         RegisterLoader(
             "TransactionManager.Keys",
@@ -129,7 +131,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraHandleTransactionBarrier, Unretained(this)));
 
         OrchidService_ = IYPathService::FromProducer(BIND(&TImpl::BuildOrchidYson, MakeWeak(this)), TDuration::Seconds(1))
-            ->Via(Slot_->GetGuardedAutomatonInvoker());
+            ->Via(Host_->GetGuardedAutomatonInvoker());
     }
 
     TTransaction* FindPersistentTransaction(TTransactionId transactionId)
@@ -484,7 +486,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         return PreparedTransactions_.empty()
-            ? GetLatestTimestamp()
+            ? Host_->GetLatestTimestamp()
             : PreparedTransactions_.begin()->first;
     }
 
@@ -492,7 +494,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        return MinCommitTimestamp_.value_or(GetLatestTimestamp());
+        return MinCommitTimestamp_.value_or(Host_->GetLatestTimestamp());
     }
 
     void Decommission()
@@ -508,6 +510,7 @@ public:
     }
 
 private:
+    const ITransactionManagerHostPtr Host_;
     const TTransactionManagerConfigPtr Config_;
     const ITransactionLeaseTrackerPtr LeaseTracker_;
     const TCellTag NativeCellTag_;
@@ -570,7 +573,7 @@ private:
             return;
         }
 
-        auto invoker = Slot_->GetEpochAutomatonInvoker();
+        auto invoker = Host_->GetEpochAutomatonInvoker();
 
         LeaseTracker_->RegisterTransaction(
             transaction->GetId(),
@@ -607,7 +610,7 @@ private:
             return;
         }
 
-        const auto& transactionSupervisor = Slot_->GetTransactionSupervisor();
+        const auto& transactionSupervisor = Host_->GetTransactionSupervisor();
         transactionSupervisor->AbortTransaction(id).Subscribe(BIND([=] (const TError& error) {
             if (!error.IsOK()) {
                 YT_LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
@@ -630,7 +633,7 @@ private:
         YT_LOG_DEBUG("Transaction timed out (TransactionId: %v)",
             id);
 
-        const auto& transactionSupervisor = Slot_->GetTransactionSupervisor();
+        const auto& transactionSupervisor = Host_->GetTransactionSupervisor();
         transactionSupervisor->AbortTransaction(id).Subscribe(BIND([=] (const TError& error) {
             if (!error.IsOK()) {
                 YT_LOG_DEBUG(error, "Error aborting timed out transaction (TransactionId: %v)",
@@ -649,7 +652,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TTabletAutomatonPart::OnAfterSnapshotLoaded();
+        TCompositeAutomatonPart::OnAfterSnapshotLoaded();
 
         SerializingTransactionHeaps_.clear();
         for (auto [transactionId, transaction] : PersistentTransactionMap_) {
@@ -672,7 +675,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TTabletAutomatonPart::OnLeaderActive();
+        TCompositeAutomatonPart::OnLeaderActive();
 
         YT_VERIFY(TransientTransactionMap_.GetSize() == 0);
 
@@ -688,13 +691,13 @@ private:
         TransientBarrierTimestamp_ = MinTimestamp;
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
-            Slot_->GetEpochAutomatonInvoker(),
+            Host_->GetEpochAutomatonInvoker(),
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
             ProfilingPeriod);
         ProfilingExecutor_->Start();
 
         BarrierCheckExecutor_ = New<TPeriodicExecutor>(
-            Slot_->GetEpochAutomatonInvoker(),
+            Host_->GetEpochAutomatonInvoker(),
             BIND(&TImpl::OnPeriodicBarrierCheck, MakeWeak(this)),
             Config_->BarrierCheckPeriod);
         BarrierCheckExecutor_->Start();
@@ -706,7 +709,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TTabletAutomatonPart::OnStopLeading();
+        TCompositeAutomatonPart::OnStopLeading();
 
         if (ProfilingExecutor_) {
             ProfilingExecutor_->Stop();
@@ -820,7 +823,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TTabletAutomatonPart::Clear();
+        TCompositeAutomatonPart::Clear();
 
         TransientTransactionMap_.Clear();
         PersistentTransactionMap_.Clear();
@@ -915,16 +918,10 @@ private:
 
         // YT-8542: It is important to update this timestamp only _after_ all relevant transactions are serialized.
         // See TTableReplicator.
-        Slot_->GetRuntimeData()->BarrierTimestamp.store(barrierTimestamp);
-    }
-
-
-    TTimestamp GetLatestTimestamp() const
-    {
-        return Bootstrap_
-            ->GetMasterConnection()
-            ->GetTimestampProvider()
-            ->GetLatestTimestamp();
+        // Note that runtime data may be missing in unittests.
+        if (const auto& runtimeData = Host_->GetRuntimeData()) {
+            runtimeData->BarrierTimestamp.store(barrierTimestamp);
+        }
     }
 
     TDuration ComputeTransactionSerializationLag() const
@@ -933,7 +930,7 @@ private:
             return TDuration::Zero();
         }
 
-        auto latestTimestamp = GetLatestTimestamp();
+        auto latestTimestamp = Host_->GetLatestTimestamp();
         auto minPrepareTimestamp = PreparedTransactions_.begin()->first;
         if (minPrepareTimestamp > latestTimestamp) {
             return TDuration::Zero();
@@ -1076,12 +1073,12 @@ private:
 
 TTransactionManager::TTransactionManager(
     TTransactionManagerConfigPtr config,
-    ITabletSlotPtr slot,
-    IBootstrap* bootstrap)
+    ITransactionManagerHostPtr host,
+    ITransactionLeaseTrackerPtr transactionLeaseTracker)
     : Impl_(New<TImpl>(
-        config,
-        slot,
-        bootstrap))
+        std::move(config),
+        std::move(host),
+        std::move(transactionLeaseTracker)))
 { }
 
 TTransactionManager::~TTransactionManager() = default;

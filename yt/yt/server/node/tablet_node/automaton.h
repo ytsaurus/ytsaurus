@@ -44,7 +44,6 @@ protected:
     const ITabletSlotPtr Slot_;
     IBootstrap* const Bootstrap_;
 
-
     TTabletAutomatonPart(
         ITabletSlotPtr slot,
         IBootstrap* bootstrap);
