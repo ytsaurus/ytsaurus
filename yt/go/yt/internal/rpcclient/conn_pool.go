@@ -14,7 +14,6 @@ var cleanupConn = closeConn
 
 func closeConn(conn *conn) {
 	conn.Close()
-	<-conn.Done()
 }
 
 type connPool struct {
