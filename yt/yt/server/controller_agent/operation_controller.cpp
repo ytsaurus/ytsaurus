@@ -138,7 +138,7 @@ public:
         , MemoryTagQueue_(memoryTagQueue)
     { }
 
-    virtual ~TOperationControllerWrapper()
+    ~TOperationControllerWrapper() override
     {
         auto Logger = ControllerLogger.WithTag("OperationId: %v", Id_);
         YT_LOG_INFO("Controller wrapper destructed, controller destruction scheduled (MemoryUsage: %v)",
@@ -415,6 +415,11 @@ public:
     IYPathServicePtr GetOrchid() const override
     {
         return Underlying_->GetOrchid();
+    }
+
+    void ZombifyOrchid() override
+    {
+        return Underlying_->ZombifyOrchid();
     }
 
     TString WriteCoreDump() const override
