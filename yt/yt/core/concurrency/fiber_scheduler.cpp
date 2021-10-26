@@ -164,25 +164,30 @@ TFiberRegistry* GetFiberRegistry()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFiberExecutionStackProfiler
+class TFiberProfiler
     : public ISensorProducer
 {
 public:
-    TFiberExecutionStackProfiler()
+    TFiberProfiler()
     {
         TProfiler{""}.AddProducer("/fiber_execution_stack", MakeStrong(this));
     }
 
-    void StackAllocated(int stackSize)
+    void OnStackAllocated(i64 stackSize)
     {
         BytesAllocated_.fetch_add(stackSize, std::memory_order_relaxed);
         BytesAlive_.fetch_add(stackSize, std::memory_order_relaxed);
     }
 
-    void StackFreed(int stackSize)
+    void OnStackFreed(i64 stackSize)
     {
         BytesFreed_.fetch_add(stackSize, std::memory_order_relaxed);
         BytesAlive_.fetch_sub(stackSize, std::memory_order_relaxed);
+    }
+
+    void OnFiberCreated()
+    {
+        CreatedFibersCounter_.Increment();
     }
 
     void CollectSensors(ISensorWriter* writer) override
@@ -192,20 +197,17 @@ public:
         writer->AddGauge("/bytes_alive", BytesAlive_);
     }
 
-    static TFiberExecutionStackProfiler* Get()
+    static TFiberProfiler* Get()
     {
-        struct TLeaker
-        {
-            TIntrusivePtr<TFiberExecutionStackProfiler> Ptr = New<TFiberExecutionStackProfiler>();
-        };
-
-        return LeakySingleton<TLeaker>()->Ptr.Get();
+        return LeakyRefCountedSingleton<TFiberProfiler>().Get();
     }
 
 private:
     std::atomic<i64> BytesAllocated_ = 0;
     std::atomic<i64> BytesFreed_ = 0;
     std::atomic<i64> BytesAlive_ = 0;
+
+    NProfiling::TCounter CreatedFibersCounter_ = NProfiling::TProfiler{"/action_queue"}.Counter("/created_fibers");
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -223,13 +225,13 @@ public:
         , Registry_(GetFiberRegistry())
         , Iterator_(Registry_->Register(this))
     {
-        TFiberExecutionStackProfiler::Get()->StackAllocated(Stack_->GetSize());
+        TFiberProfiler::Get()->OnStackAllocated(Stack_->GetSize());
     }
 
     ~TFiber()
     {
         YT_VERIFY(Terminated);
-        TFiberExecutionStackProfiler::Get()->StackFreed(Stack_->GetSize());
+        TFiberProfiler::Get()->OnStackFreed(Stack_->GetSize());
         GetFiberRegistry()->Unregister(Iterator_);
     }
 
@@ -413,12 +415,10 @@ private:
 
 #endif
 
-static NProfiling::TCounter CreatedFibersCounter = NProfiling::TProfiler{"/action_queue"}.Counter("/created_fibers");
-
 void FiberMain()
 {
     {
-        CreatedFibersCounter.Increment();
+        TFiberProfiler::Get()->OnFiberCreated();
         YT_LOG_DEBUG("Fiber started");
     }
 
