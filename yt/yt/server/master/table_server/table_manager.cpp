@@ -682,7 +682,7 @@ public:
     TMasterTableSchema* CreateMasterTableSchema(const TTableSchema& tableSchema)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::MasterTableSchema, NullObjectId);
+        auto id = objectManager->GenerateId(EObjectType::MasterTableSchema);
         auto* schema = DoCreateMasterTableSchema(id, tableSchema);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Schema created (Id: %v)", id);

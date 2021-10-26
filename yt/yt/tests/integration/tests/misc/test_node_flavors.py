@@ -1,10 +1,10 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
 from yt_commands import (
-    authors, with_breakpoint, wait_breakpoint, release_breakpoint,
-    create, wait, get, set, ls, exists, remove, write_table,
-    get_data_nodes, get_exec_nodes, get_tablet_nodes, get_chaos_nodes,
-    run_test_vanilla, sync_create_cells)
+    authors, insert_rows, with_breakpoint, wait_breakpoint, release_breakpoint,
+    create, get, ls, set, write_table, wait, remove, exists,
+    get_data_nodes, get_exec_nodes, get_tablet_nodes, get_chaos_nodes, get_singular_chunk_id,
+    sync_mount_table, sync_unmount_table, run_test_vanilla, sync_create_cells)
 
 from yt.environment.helpers import assert_items_equal
 
@@ -157,3 +157,53 @@ class TestNodeFlavors(YTEnvSetup):
 
 class TestNodeFlavorsMulticell(TestNodeFlavors):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+
+##################################################################
+
+
+class TestDataAndTabletNodesCollocation(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 5
+    USE_DYNAMIC_TABLES = True
+
+    @classmethod
+    def modify_node_config(cls, config):
+        if not hasattr(cls, "node_counter"):
+            cls.node_counter = 0
+        if cls.node_counter == 0:
+            config["flavors"] = ["tablet"]
+        else:
+            config["flavors"] = ["data"]
+        if cls.node_counter <= 1:
+            config["host_name"] = "h"
+        cls.node_counter = (cls.node_counter + 1) % cls.NUM_NODES
+
+    @authors("gritukan")
+    def test_flushed_chunk_local_replica(self):
+        sync_create_cells(1)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "replication_factor": 1,
+                "schema": schema,
+            })
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 42, "value": "foo"}])
+        sync_unmount_table("//tmp/t")
+
+        data_node = None
+        for node in get("//sys/hosts/h/@nodes"):
+            if get("//sys/cluster_nodes/{}/@flavors".format(node)) == ["data"]:
+                data_node = node
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        replicas = get("#{}/@stored_replicas".format(chunk_id))
+        assert len(replicas) == 1
+        assert str(replicas[0]) == data_node

@@ -900,6 +900,7 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateOrchidTypeHandler(this));
     CypressManager_->RegisterHandler(CreateClusterNodeNodeTypeHandler(this));
     CypressManager_->RegisterHandler(CreateLegacyClusterNodeMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateHostMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateRackMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateClusterNodeMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateFlavoredNodeMapTypeHandler(this, EObjectType::DataNodeMap));

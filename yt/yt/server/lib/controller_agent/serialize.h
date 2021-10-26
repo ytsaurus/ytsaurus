@@ -40,6 +40,8 @@ DEFINE_ENUM(ESnapshotVersion,
     ((AggregateJobStatistics)               (300617))
     ((AccountResourceUsageLeaseMap)         (300618))
     ((ValueCountStatistics)                 (300619))
+    // 21.3 start here
+    ((HostObjects)                          (300701))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

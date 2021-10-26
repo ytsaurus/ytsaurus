@@ -3032,7 +3032,7 @@ private:
         bool implicit)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::Lock, NullObjectId);
+        auto id = objectManager->GenerateId(EObjectType::Lock);
         auto lockHolder = TPoolAllocator::New<TLock>(id);
         auto* lock = LockMap_.Insert(id, std::move(lockHolder));
 

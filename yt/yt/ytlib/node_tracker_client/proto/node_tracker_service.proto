@@ -23,6 +23,7 @@ message TReqRegisterNode
     optional string build_version = 7;
     repeated int32 flavors = 8; // ENodeFlavor
     repeated NYT.NProto.TGuid location_uuids = 9;
+    optional string host_name = 10;
 
     reserved 2;
 }

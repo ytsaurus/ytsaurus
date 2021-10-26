@@ -1840,6 +1840,18 @@ def remove_rack(name, **kwargs):
     remove("//sys/racks/" + name, **kwargs)
 
 
+def create_host(name, **kwargs):
+    kwargs["type"] = "host"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
+    execute_command("create", kwargs)
+
+
+def remove_host(name, **kwargs):
+    remove("//sys/hosts/" + name, **kwargs)
+
+
 def create_medium(name, **kwargs):
     kwargs["type"] = "medium"
     if "attributes" not in kwargs:

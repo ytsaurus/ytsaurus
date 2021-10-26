@@ -8,6 +8,7 @@
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 
+#include <yt/yt/server/master/node_tracker_server/host.h>
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 #include <yt/yt/server/master/node_tracker_server/rack.h>
@@ -354,11 +355,20 @@ TNodeList TChunkPlacement::GetWriteTargets(
 
     if (preferredHostName) {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        auto* preferredNode = nodeTracker->FindNodeByHostName(*preferredHostName);
-        if (preferredNode &&
-            IsValidPreferredWriteTargetToAllocate(preferredNode, medium, dataCenters))
-        {
-            tryAdd(preferredNode, true);
+        auto* preferredHost = nodeTracker->FindHostByName(*preferredHostName);
+        // COMPAT(gritukan)
+        if (!preferredHost) {
+            if (auto* preferredNode = nodeTracker->FindNodeByHostName(*preferredHostName)) {
+                preferredHost = preferredNode->GetHost();
+            }
+        }
+
+        if (preferredHost) {
+            for (auto* node : preferredHost->GetNodesWithFlavor(ENodeFlavor::Data)) {
+                if (IsValidPreferredWriteTargetToAllocate(node, medium, dataCenters)) {
+                    tryAdd(node, /*enableRackAwareness*/ true);
+                }
+            }
         }
     }
 

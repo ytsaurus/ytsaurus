@@ -1,6 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 from yt_commands import (
-    authors, get, print_debug, build_master_snapshots, exists, ls)
+    authors, create_rack, create_data_center, get, ls, set,
+    print_debug, build_master_snapshots, exists, assert_true_for_all_cells)
 
 
 from original_tests.yt.yt.tests.integration.tests.master.test_master_snapshots \
@@ -9,6 +10,10 @@ from original_tests.yt.yt.tests.integration.tests.master.test_master_snapshots \
 import os
 import pytest
 import yatest.common
+
+import __builtin__
+
+from functools import partial
 
 ##################################################################
 
@@ -19,6 +24,27 @@ def check_foo():
     yield
 
     assert get("//sys/@supports_virtual_mutations")
+
+
+def check_hosts_migration(env):
+    host = node = ls("//sys/cluster_nodes")[0]
+    create_rack("r")
+    create_data_center("d")
+
+    set("//sys/cluster_nodes/{}/@rack".format(node), "r")
+    set("//sys/racks/r/@data_center", "d")
+
+    yield
+
+    def check_everything(driver):
+        assert get("//sys/cluster_nodes/{}/@host".format(node), driver=driver) == host
+        assert get("//sys/hosts/{}/@nodes".format(host), driver=driver) == [node]
+        assert get("//sys/hosts/{}/@rack".format(host), driver=driver) == "r"
+        assert get("//sys/racks/r/@hosts", driver=driver) == [host]
+        assert get("//sys/racks/r/@data_center", driver=driver) == "d"
+        assert get("//sys/data_centers/d/@racks", driver=driver) == ["r"]
+        return True
+    assert_true_for_all_cells(env, lambda driver: check_everything(driver))
 
 
 def check_per_flavor_maps():
@@ -34,8 +60,8 @@ def check_per_flavor_maps():
     yield
 
     for map_name in ["data", "exec", "tablet", "cluster"]:
-        map_nodes = set(ls("//sys/{}_nodes".format(map_name)))
-        assert set(nodes) == set(map_nodes)
+        map_nodes = ls("//sys/{}_nodes".format(map_name))
+        assert __builtin__.set(nodes) == __builtin__.set(map_nodes)
 
     # Cluster node map should be recreated
     assert get("//sys/cluster_nodes/@id") != cluster_node_map_id
@@ -61,6 +87,7 @@ class TestMasterSnapshotsCompatibility(YTEnvSetup):
         CHECKER_LIST = [
             check_foo,
             check_per_flavor_maps,
+            partial(check_hosts_migration, self.Env),
         ] + MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]

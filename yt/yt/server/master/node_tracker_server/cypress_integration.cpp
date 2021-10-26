@@ -2,6 +2,7 @@
 #include "config.h"
 #include "node.h"
 #include "node_tracker.h"
+#include "host.h"
 #include "rack.h"
 #include "data_center.h"
 
@@ -494,6 +495,69 @@ INodeTypeHandlerPtr CreateFlavoredNodeMapTypeHandler(TBootstrap* bootstrap, EObj
         objectType,
         BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualFlavoredNodeMap>(bootstrap, owningNode, objectType);
+        }),
+        EVirtualNodeOptions::RedirectSelf);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualHostMap
+    : public TVirtualMapBase
+{
+public:
+    TVirtualHostMap(TBootstrap* bootstrap, INodePtr owningNode)
+        : TVirtualMapBase(std::move(owningNode))
+        , Bootstrap_(bootstrap)
+    { }
+
+private:
+    TBootstrap* const Bootstrap_;
+
+    std::vector<TString> GetKeys(i64 sizeLimit) const override
+    {
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& hostMap = nodeTracker->Hosts();
+
+        std::vector<TString> keys;
+        keys.reserve(std::min<i64>(sizeLimit, hostMap.GetSize()));
+        for (auto [hostId, host] : hostMap) {
+            keys.push_back(host->GetName());
+            if (std::ssize(keys) >= sizeLimit) {
+                break;
+            }
+        }
+
+        return keys;
+    }
+
+    i64 GetSize() const override
+    {
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        return nodeTracker->Hosts().GetSize();
+    }
+
+    IYPathServicePtr FindItemService(TStringBuf key) const override
+    {
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        auto* host = nodeTracker->FindHostByName(TString(key));
+        if (!IsObjectAlive(host)) {
+            return nullptr;
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        return objectManager->GetProxy(host);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+INodeTypeHandlerPtr CreateHostMapTypeHandler(TBootstrap* bootstrap)
+{
+    return CreateVirtualTypeHandler(
+        bootstrap,
+        EObjectType::HostMap,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualHostMap>(bootstrap, std::move(owningNode));
         }),
         EVirtualNodeOptions::RedirectSelf);
 }

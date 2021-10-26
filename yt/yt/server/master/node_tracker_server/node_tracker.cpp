@@ -3,14 +3,17 @@
 #include "private.h"
 #include "config.h"
 #include "node.h"
+#include "host.h"
 #include "rack.h"
 #include "data_center.h"
 #include "node_type_handler.h"
+#include "host_type_handler.h"
 #include "rack_type_handler.h"
 #include "data_center_type_handler.h"
 
 // COMPAT(gritukan)
 #include "exec_node_tracker.h"
+#include "yt/server/master/node_tracker_server/proto/node_tracker.pb.h"
 #include <yt/yt/server/master/chunk_server/data_node_tracker.h>
 #include <yt/yt/server/master/cell_server/cellar_node_tracker.h>
 
@@ -63,6 +66,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
+
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
 #include <yt/yt/ytlib/tablet_cell_client/tablet_cell_service_proxy.h>
 
@@ -172,6 +177,7 @@ public:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(CreateNodeTypeHandler(Bootstrap_, &NodeMap_));
+        objectManager->RegisterHandler(CreateHostTypeHandler(Bootstrap_, &HostMap_));
         objectManager->RegisterHandler(CreateRackTypeHandler(Bootstrap_, &RackMap_));
         objectManager->RegisterHandler(CreateDataCenterTypeHandler(Bootstrap_, &DataCenterMap_));
 
@@ -264,8 +270,8 @@ public:
         CommitMutationWithSemaphore(std::move(mutation), std::move(context), IncrementalHeartbeatSemaphore_);
     }
 
-
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Node, TNode);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Host, THost);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Rack, TRack);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(DataCenter, TDataCenter);
 
@@ -286,7 +292,9 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(TRack*), RackRenamed);
     DEFINE_SIGNAL_OVERRIDE(void(TRack*, TDataCenter*), RackDataCenterChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TRack*), RackDestroyed);
-
+    DEFINE_SIGNAL_OVERRIDE(void(THost*), HostCreated);
+    DEFINE_SIGNAL_OVERRIDE(void(THost*, TRack*), HostRackChanged);
+    DEFINE_SIGNAL_OVERRIDE(void(THost*), HostDestroyed);
 
     void ZombifyNode(TNode* node) override
     {
@@ -302,6 +310,9 @@ public:
         RemoveFromNodeLists(node);
 
         RemoveFromFlavorSets(node);
+
+        // Detach node from host.
+        node->SetHost(nullptr);
     }
 
     TObjectId ObjectIdFromNodeId(TNodeId nodeId) override
@@ -361,18 +372,73 @@ public:
         return it == HostNameToNodeMap_.end() ? nullptr : it->second;
     }
 
-    std::vector<TNode*> GetRackNodes(const TRack* rack) override
+    THost* GetHostByNameOrThrow(const TString& name) override
     {
-        std::vector<TNode*> result;
-        for (auto [nodeId, node] : NodeMap_) {
-            if (!IsObjectAlive(node)) {
+        auto* host = FindHostByName(name);
+        if (!host) {
+            THROW_ERROR_EXCEPTION("No such host %Qv", name);
+        }
+        return host;
+    }
+
+    THost* FindHostByName(const TString& name) override
+    {
+        auto it = NameToHostMap_.find(name);
+        return it == NameToHostMap_.end() ? nullptr : it->second;
+    }
+
+    void SetHostRack(THost* host, TRack* rack) override
+    {
+        if (host->GetRack() != rack) {
+            auto* oldRack = host->GetRack();
+            host->SetRack(rack);
+            HostRackChanged_.Fire(host, oldRack);
+
+            const auto& nodes = host->Nodes();
+            for (auto* node : nodes) {
+                UpdateNodeCounters(node, -1);
+                node->RebuildTags();
+                NodeTagsChanged_.Fire(node);
+                NodeRackChanged_.Fire(node, oldRack);
+                UpdateNodeCounters(node, +1);
+            }
+
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(),
+                "Host rack changed (Host: %v, Rack: %v -> %v)",
+                host->GetName(),
+                oldRack ? std::make_optional(oldRack->GetName()) : std::nullopt,
+                rack ? std::make_optional(rack->GetName()) : std::nullopt);
+        }
+    }
+
+    std::vector<THost*> GetRackHosts(const TRack* rack) override
+    {
+        std::vector<THost*> hosts;
+        for (auto [hostId, host] : HostMap_) {
+            if (!IsObjectAlive(host)) {
                 continue;
             }
-            if (node->GetRack() == rack) {
-                result.push_back(node);
+            if (host->GetRack() == rack) {
+                hosts.push_back(host);
             }
         }
-        return result;
+
+        return hosts;
+    }
+
+    std::vector<TNode*> GetRackNodes(const TRack* rack) override
+    {
+        std::vector<TNode*> nodes;
+        for (const auto* host : GetRackHosts(rack)) {
+            for (auto* node : host->Nodes()) {
+                if (!IsObjectAlive(node)) {
+                    continue;
+                }
+                nodes.push_back(node);
+            }
+        }
+
+        return nodes;
     }
 
     std::vector<TRack*> GetDataCenterRacks(const TDataCenter* dc) override
@@ -474,17 +540,17 @@ public:
         }
     }
 
-    void SetNodeRack(TNode* node, TRack* rack) override
+    void SetNodeHost(TNode* node, THost* host) override
     {
-        if (node->GetRack() != rack) {
-            auto* oldRack = node->GetRack();
+        if (node->GetHost() != host) {
+            auto* oldHost = node->GetHost();
             UpdateNodeCounters(node, -1);
-            node->SetRack(rack);
-            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node rack changed (NodeId: %v, Address: %v, Rack: %v)",
+            node->SetHost(host);
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node host changed (NodeId: %v, Address: %v, Host: %v -> %v)",
                 node->GetId(),
                 node->GetDefaultAddress(),
-                rack ? std::make_optional(rack->GetName()) : std::nullopt);
-            NodeRackChanged_.Fire(node, oldRack);
+                oldHost ? std::make_optional(oldHost->GetName()) : std::nullopt,
+                host ? std::make_optional(host->GetName()) : std::nullopt);
             NodeTagsChanged_.Fire(node);
             UpdateNodeCounters(node, +1);
         }
@@ -505,6 +571,49 @@ public:
             request,
             &TNodeTracker::HydraUpdateNodeResources,
             this);
+    }
+
+    THost* CreateHost(const TString& name, TObjectId hintId) override
+    {
+        ValidateHostName(name);
+
+        if (FindHostByName(name)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Host %Qv already exists",
+                name);
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto id = objectManager->GenerateId(EObjectType::Host, hintId);
+
+        auto hostHolder = TPoolAllocator::New<THost>(id);
+        hostHolder->SetName(name);
+
+        auto* host = HostMap_.Insert(id, std::move(hostHolder));
+        YT_VERIFY(NameToHostMap_.emplace(name, host).second);
+
+        // Make the fake reference.
+        YT_VERIFY(host->RefObject() == 1);
+
+        HostCreated_.Fire(host);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Host created (HostId: %v, HostName: %v)",
+            host->GetId(),
+            host->GetName());
+
+        return host;
+    }
+
+    void ZombifyHost(THost* host) override
+    {
+        YT_VERIFY(host->Nodes().empty());
+
+        // Remove host from maps.
+        YT_VERIFY(NameToHostMap_.erase(host->GetName()) > 0);
+
+        HostDestroyed_.Fire(host);
     }
 
     TRack* CreateRack(const TString& name, TObjectId hintId) override
@@ -543,9 +652,9 @@ public:
 
     void ZombifyRack(TRack* rack) override
     {
-        // Unbind nodes from this rack.
-        for (auto* node : GetRackNodes(rack)) {
-            SetNodeRack(node, nullptr);
+        // Unbind hosts from this rack.
+        for (auto* host : GetRackHosts(rack)) {
+            SetHostRack(host, /*rack*/ nullptr);
         }
 
         // Remove rack from maps.
@@ -573,8 +682,7 @@ public:
         rack->SetName(newName);
 
         // Rebuild node tags since they depend on rack name.
-        auto nodes = GetRackNodes(rack);
-        for (auto* node : nodes) {
+        for (auto* node : GetRackNodes(rack)) {
             UpdateNodeCounters(node, -1);
             node->RebuildTags();
             UpdateNodeCounters(node, +1);
@@ -693,10 +801,8 @@ public:
         dc->SetName(newName);
 
         // Rebuild node tags since they depend on DC name.
-        auto racks = GetDataCenterRacks(dc);
-        for (auto* rack : racks) {
-            auto nodes = GetRackNodes(rack);
-            for (auto* node : nodes) {
+        for (auto* rack : GetDataCenterRacks(dc)) {
+            for (auto* node : GetRackNodes(rack)) {
                 UpdateNodeCounters(node, -1);
                 node->RebuildTags();
                 UpdateNodeCounters(node, +1);
@@ -794,6 +900,7 @@ private:
 
     TIdGenerator NodeIdGenerator_;
     NHydra::TEntityMap<TNode> NodeMap_;
+    NHydra::TEntityMap<THost> HostMap_;
     NHydra::TEntityMap<TRack> RackMap_;
     NHydra::TEntityMap<TDataCenter> DataCenterMap_;
 
@@ -812,6 +919,7 @@ private:
     THashMap<TString, TNode*> AddressToNodeMap_;
     THashMultiMap<TString, TNode*> HostNameToNodeMap_;
     THashMap<TTransaction*, TNode*> TransactionToNodeMap_;
+    THashMap<TString, THost*> NameToHostMap_;
     THashMap<TString, TRack*> NameToRackMap_;
     THashMap<TString, TDataCenter*> NameToDataCenterMap_;
 
@@ -844,6 +952,8 @@ private:
 
     // COMPAT(gritukan)
     bool NeedToRunCompatForNodeFlavors_ = false;
+    // COMPAT(gritukan)
+    bool NeedToCreateHostObjects_ = false;
 
     using TNodeGroupList = SmallVector<TNodeGroup*, 4>;
 
@@ -887,6 +997,14 @@ private:
         auto tags = FromProto<std::vector<TString>>(request->tags());
         auto flavors = FromProto<THashSet<ENodeFlavor>>(request->flavors());
         auto locationUuids = FromProto<std::vector<TLocationUuid>>(request->location_uuids());
+
+        TString hostName;
+        // COMPAT(gritukan)
+        if (request->has_host_name()) {
+            hostName = request->host_name();
+        } else {
+            hostName = address;
+        }
 
         ValidateNoDuplicateLocationUuids(address, locationUuids);
 
@@ -957,6 +1075,32 @@ private:
             }
         }
 
+        auto* host = FindHostByName(hostName);
+        if (!host) {
+            YT_VERIFY(multicellManager->IsPrimaryMaster());
+
+            auto req = TMasterYPathProxy::CreateObject();
+            req->set_type(static_cast<int>(EObjectType::Host));
+
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("name", hostName);
+            ToProto(req->mutable_object_attributes(), *attributes);
+
+            const auto& rootService = Bootstrap_->GetObjectManager()->GetRootService();
+            try {
+                SyncExecuteVerb(rootService, req);
+            } catch (const std::exception& ex) {
+                YT_LOG_ALERT(ex, "Failed to create host for a node");
+
+                const auto& objectManager = Bootstrap_->GetObjectManager();
+                objectManager->UnrefObject(node);
+                throw;
+            }
+
+            host = FindHostByName(hostName);
+            YT_VERIFY(host);
+        }
+
         if (!isNodeNew) {
             // NB: Default address should not change.
             auto oldDefaultAddress = node->GetDefaultAddress();
@@ -966,6 +1110,8 @@ private:
             auto nodeId = request->has_node_id() ? request->node_id() : GenerateNodeId();
             node = CreateNode(nodeId, nodeAddresses);
         }
+
+        node->SetHost(host);
 
         node->SetNodeTags(tags);
 
@@ -1357,6 +1503,7 @@ private:
         NodeMap_.SaveKeys(context);
         RackMap_.SaveKeys(context);
         DataCenterMap_.SaveKeys(context);
+        HostMap_.SaveKeys(context);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
@@ -1366,6 +1513,7 @@ private:
         NodeMap_.SaveValues(context);
         RackMap_.SaveValues(context);
         DataCenterMap_.SaveValues(context);
+        HostMap_.SaveValues(context);
         Save(context, RegisteredLocationUuids_);
         Save(context, NodesWithFlavor_);
     }
@@ -1376,7 +1524,13 @@ private:
         RackMap_.LoadKeys(context);
         DataCenterMap_.LoadKeys(context);
 
+        // COMPAT(gritukan)
+        if (context.GetVersion() >= EMasterReign::HostObjects) {
+            HostMap_.LoadKeys(context);
+        }
+
         NeedToRunCompatForNodeFlavors_ = context.GetVersion() < EMasterReign::NodeFlavors;
+        NeedToCreateHostObjects_ = context.GetVersion() < EMasterReign::HostObjects;
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -1386,6 +1540,11 @@ private:
         NodeMap_.LoadValues(context);
         RackMap_.LoadValues(context);
         DataCenterMap_.LoadValues(context);
+
+        // COMPAT(gritukan)
+        if (context.GetVersion() >= EMasterReign::HostObjects) {
+            HostMap_.LoadValues(context);
+        }
 
         // COMPAT(aleksandra-zh)
         if (context.GetVersion() >= EMasterReign::RegisteredLocationUuids) {
@@ -1406,6 +1565,8 @@ private:
         AddressToNodeMap_.clear();
         HostNameToNodeMap_.clear();
         TransactionToNodeMap_.clear();
+
+        NameToHostMap_.clear();
 
         NameToRackMap_.clear();
         NameToDataCenterMap_.clear();
@@ -1449,6 +1610,14 @@ private:
             if (node->GetLeaseTransaction()) {
                 RegisterLeaseTransaction(node);
             }
+        }
+
+        for (auto [hostId, host] : HostMap_) {
+            if (!IsObjectAlive(host)) {
+                continue;
+            }
+
+            YT_VERIFY(NameToHostMap_.emplace(host->GetName(), host).second);
         }
 
         UsedRackIndexes_.reset();
@@ -1498,6 +1667,68 @@ private:
                     node->ReportedHeartbeats() = fullHeartbeat;
                 } else {
                     node->ReportedHeartbeats() = {};
+                }
+            }
+        }
+
+        // COMPAT(gritukan)
+        if (NeedToCreateHostObjects_) {
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            const auto& rootService = Bootstrap_->GetObjectManager()->GetRootService();
+            if (multicellManager->IsPrimaryMaster()) {
+                for (auto* node : GetValuesSortedByKey(NodeMap_)) {
+                    if (!IsObjectAlive(node)) {
+                        continue;
+                    }
+                    auto hostName = node->GetDefaultAddress();
+                    // Create host object for node.
+                    {
+                        auto req = TMasterYPathProxy::CreateObject();
+                        req->set_type(static_cast<int>(EObjectType::Host));
+                        auto attributes = CreateEphemeralAttributes();
+                        attributes->Set("name", hostName);
+                        ToProto(req->mutable_object_attributes(), *attributes);
+                        try {
+                            SyncExecuteVerb(rootService, req);
+                        } catch (const std::exception& ex) {
+                            YT_LOG_FATAL("Failed to create host object for a node (NodeId: %v, HostName: %v)",
+                                node->GetId(),
+                                hostName);
+                        }
+                    }
+
+                    // Set host for node.
+                    {
+                        auto req = TCypressYPathProxy::Set(Format("#%v/@host", ObjectIdFromNodeId(node->GetId())));
+                        req->set_value(ConvertToYsonString(hostName).ToString());
+                        try {
+                            SyncExecuteVerb(rootService, req);
+                        } catch (const std::exception& ex) {
+                            YT_LOG_FATAL("Failed to set host for node "
+                                "(NodeId: %v, HostName: %v)",
+                                node->GetId(),
+                                hostName);
+                        }
+                    }
+
+                    // Set rack for newly created host, if needed.
+                    if (auto* rack = node->GetLegacyRack()) {
+                        YT_VERIFY(IsObjectAlive(rack));
+                        auto* host = FindHostByName(hostName);
+                        YT_VERIFY(IsObjectAlive(host));
+                        // NB: Host maps is not created yet, so we set attribute by id.
+                        auto req = TCypressYPathProxy::Set(Format("#%v/@rack", host->GetId()));
+                        req->set_value(ConvertToYsonString(rack->GetName()).ToString());
+                        try {
+                            SyncExecuteVerb(rootService, req);
+                        } catch (const std::exception& ex) {
+                            YT_LOG_FATAL("Failed to set rack for host "
+                                "(HostName: %v, HostId: %v, RackName: %v)",
+                                hostName,
+                                host->GetId(),
+                                rack->GetName());
+                        }
+                    }
                 }
             }
         }
@@ -1934,6 +2165,18 @@ private:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
+        auto replicateKeys = [&]<class TObjectMap>(const TObjectMap& objectMap) {
+            for (auto* object : GetValuesSortedByKey(objectMap)) {
+                if (!IsObjectAlive(object)) {
+                    continue;
+                }
+                objectManager->ReplicateObjectCreationToSecondaryMaster(object, cellTag);
+            }
+        };
+        replicateKeys(HostMap_);
+        replicateKeys(RackMap_);
+        replicateKeys(DataCenterMap_);
+
         auto nodes = GetValuesSortedByKey(NodeMap_);
         for (const auto* node : nodes) {
             if (!IsObjectAlive(node)) {
@@ -1944,6 +2187,10 @@ private:
                 TReqRegisterNode request;
                 request.set_node_id(node->GetId());
                 ToProto(request.mutable_node_addresses(), node->GetNodeAddresses());
+
+                // NB: Hosts must be replicated prior to node replication.
+                request.set_host_name(node->GetHost()->GetName());
+
                 multicellManager->PostToMaster(request, cellTag);
             }
             {
@@ -1952,51 +2199,24 @@ private:
                 multicellManager->PostToMaster(request, cellTag);
             }
         }
-
-        auto racks = GetValuesSortedByKey(RackMap_);
-        for (auto* rack : racks) {
-            if (!IsObjectAlive(rack)) {
-                continue;
-            }
-            objectManager->ReplicateObjectCreationToSecondaryMaster(rack, cellTag);
-        }
-
-        auto dcs = GetValuesSortedByKey(DataCenterMap_);
-        for (auto* dc : dcs) {
-            if (!IsObjectAlive(dc)) {
-                continue;
-            }
-            objectManager->ReplicateObjectCreationToSecondaryMaster(dc, cellTag);
-        }
     }
 
     void OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
-        auto nodes = GetValuesSortedByKey(NodeMap_);
-        for (auto* node : nodes) {
-            if (!IsObjectAlive(node)) {
-                continue;
+        auto replicateValues = [&]<class TObjectMap>(const TObjectMap& objectMap) {
+            for (auto* object : GetValuesSortedByKey(objectMap)) {
+                if (!IsObjectAlive(object)) {
+                    continue;
+                }
+                objectManager->ReplicateObjectAttributesToSecondaryMaster(object, cellTag);
             }
-            objectManager->ReplicateObjectAttributesToSecondaryMaster(node, cellTag);
-        }
-
-        auto racks = GetValuesSortedByKey(RackMap_);
-        for (auto* rack : racks) {
-            if (!IsObjectAlive(rack)) {
-                continue;
-            }
-            objectManager->ReplicateObjectAttributesToSecondaryMaster(rack, cellTag);
-        }
-
-        auto dcs = GetValuesSortedByKey(DataCenterMap_);
-        for (auto* dc : dcs) {
-            if (!IsObjectAlive(dc)) {
-                continue;
-            }
-            objectManager->ReplicateObjectAttributesToSecondaryMaster(dc, cellTag);
-        }
+        };
+        replicateValues(NodeMap_);
+        replicateValues(HostMap_);
+        replicateValues(RackMap_);
+        replicateValues(DataCenterMap_);
     }
 
     void InsertToAddressMaps(TNode* node)
@@ -2289,6 +2509,7 @@ private:
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, NodeMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker, Host, THost, HostMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker, Rack, TRack, RackMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker, DataCenter, TDataCenter, DataCenterMap_)
 

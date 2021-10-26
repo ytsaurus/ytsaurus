@@ -52,7 +52,7 @@ public:
 
     //! If |hintId| is |NullObjectId| then creates a new unique object id.
     //! Otherwise returns |hintId| (but checks its type).
-    TObjectId GenerateId(EObjectType type, TObjectId hintId);
+    TObjectId GenerateId(EObjectType type, TObjectId hintId = NullObjectId);
 
     //! Adds a reference.
     //! Returns the strong reference counter.

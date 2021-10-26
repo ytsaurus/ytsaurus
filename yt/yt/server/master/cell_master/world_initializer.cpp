@@ -393,6 +393,11 @@ private:
                     .EndMap());
 
             ScheduleCreateNode(
+                "//sys/hosts",
+                transactionId,
+                EObjectType::HostMap);
+
+            ScheduleCreateNode(
                 "//sys/racks",
                 transactionId,
                 EObjectType::RackMap);

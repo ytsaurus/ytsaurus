@@ -175,6 +175,8 @@
     XX(FullNodeCount, full_node_count) \
     XX(Health, health) \
     XX(HistoricUsageConfig, historic_usage_config) \
+    XX(Host, host) \
+    XX(Hosts, hosts) \
     XX(HunkChunkRefs, hunk_chunk_refs) \
     XX(HunkChunkReader, hunk_chunk_reader) \
     XX(HunkChunkWriter, hunk_chunk_writer) \

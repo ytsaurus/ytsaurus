@@ -38,6 +38,7 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::ForeignChunkMap ||
         type == EObjectType::RackMap ||
         type == EObjectType::DataCenterMap ||
+        type == EObjectType::HostMap ||
         type == EObjectType::ChunkListMap ||
         type == EObjectType::ChunkViewMap ||
         type == EObjectType::MediumMap ||

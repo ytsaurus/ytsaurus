@@ -60,9 +60,9 @@ public:
 
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Node, TNode);
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Host, THost);
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Rack, TRack);
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(DataCenter, TDataCenter);
-
 
     //! Fired when a node gets registered.
     DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeRegistered);
@@ -89,11 +89,15 @@ public:
     DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeTagsChanged);
 
     //! Fired when node rack changes.
+    /*!
+     *  NB: a node's rack may also change when its host changes. This signal is
+     *  also fired in those cases.
+     */
     DECLARE_INTERFACE_SIGNAL(void(TNode* node, TRack* oldRack), NodeRackChanged);
 
     //! Fired for all nodes in a rack when that rack's DC changes.
     /*!
-     *  NB: a node's DC may also change when its rack changes. This signal is
+     *  NB: a node's DC may also change when its rack or host changes. This signal is
      *  not fired in those cases.
      */
     DECLARE_INTERFACE_SIGNAL(void(TNode* node, TDataCenter* oldDataCenter), NodeDataCenterChanged);
@@ -118,6 +122,15 @@ public:
 
     //! Fired when a data rack is removed.
     DECLARE_INTERFACE_SIGNAL(void(TRack* rack), RackDestroyed);
+
+    //! Fired when a new host is created.
+    DECLARE_INTERFACE_SIGNAL(void(THost* host), HostCreated);
+
+    //! Fired when a host rack changes.
+    DECLARE_INTERFACE_SIGNAL(void(THost* host, TRack* oldRack), HostRackChanged);
+
+    //! Fired when a host is removed.
+    DECLARE_INTERFACE_SIGNAL(void(THost* host), HostDestroyed);
 
 
     //! Constructs the full object id from a (short) node id.
@@ -144,6 +157,21 @@ public:
     //! Returns an arbitrary node registered at the host (|nullptr| if none).
     virtual TNode* FindNodeByHostName(const TString& hostName) = 0;
 
+    //! Returns a host with a given name (throws if none).
+    virtual THost* GetHostByNameOrThrow(const TString& name) = 0;
+
+    //! Returns a host with a given name (|nullptr| if none).
+    virtual THost* FindHostByName(const TString& name) = 0;
+
+    //! Sets the rack and notifies the subscribers.
+    virtual void SetHostRack(THost* host, TRack* rack) = 0;
+
+    //! Returns the list of all hosts belonging to a given rack.
+    /*!
+     *  #rack can be |nullptr|.
+     */
+    virtual std::vector<THost*> GetRackHosts(const TRack* rack) = 0;
+
     //! Returns the list of all nodes belonging to a given rack.
     /*!
      *  #rack can be |nullptr|.
@@ -169,7 +197,7 @@ public:
     virtual void SetNodeDecommissioned(TNode* node, bool value) = 0;
 
     //! Sets the rack and notifies the subscribers.
-    virtual void SetNodeRack(TNode* node, TRack* rack) = 0;
+    virtual void SetNodeHost(TNode* node, THost* host) = 0;
 
     //! Sets the user tags for the node.
     virtual void SetNodeUserTags(TNode* node, const std::vector<TString>& tags) = 0;
@@ -230,10 +258,14 @@ public:
 
 private:
     friend class TNodeTypeHandler;
+    friend class THostTypeHandler;
     friend class TRackTypeHandler;
     friend class TDataCenterTypeHandler;
 
     virtual void ZombifyNode(TNode* node) = 0;
+
+    virtual THost* CreateHost(const TString& address, NObjectClient::TObjectId hintId) = 0;
+    virtual void ZombifyHost(THost* host) = 0;
 
     virtual TRack* CreateRack(const TString& name, NObjectClient::TObjectId hintId) = 0;
     virtual void ZombifyRack(TRack* rack) = 0;

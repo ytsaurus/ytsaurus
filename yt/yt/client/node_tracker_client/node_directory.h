@@ -29,6 +29,7 @@ public:
     explicit TNodeDescriptor(const std::optional<TString>& defaultAddress);
     explicit TNodeDescriptor(
         TAddressMap addresses,
+        std::optional<TString> host = std::nullopt,
         std::optional<TString> rack = std::nullopt,
         std::optional<TString> dc = std::nullopt,
         const std::vector<TString>& tags = {});
@@ -47,6 +48,7 @@ public:
 
     std::optional<TString> FindAddress(const TNetworkPreferenceList& networks) const;
 
+    const std::optional<TString>& GetHost() const;
     const std::optional<TString>& GetRack() const;
     const std::optional<TString>& GetDataCenter() const;
 
@@ -57,6 +59,7 @@ public:
 private:
     TAddressMap Addresses_;
     TString DefaultAddress_;
+    std::optional<TString> Host_;
     std::optional<TString> Rack_;
     std::optional<TString> DataCenter_;
     std::vector<TString> Tags_;
@@ -86,7 +89,7 @@ std::optional<TString> FindAddress(const TAddressMap& addresses, const TNetworkP
 
 const TAddressMap& GetAddressesOrThrow(const TNodeAddressMap& nodeAddresses, EAddressType type);
 
-//! Please keep the items in this particular order: the further the better.
+//! Keep the items in this particular order: the further the better.
 DEFINE_ENUM(EAddressLocality,
     (None)
     (SameDataCenter)
@@ -162,7 +165,6 @@ private:
     bool NeedToAddDescriptor(TNodeId id, const NProto::TNodeDescriptor& descriptor);
     void DoAddDescriptor(TNodeId id, const NProto::TNodeDescriptor& protoDescriptor);
     void DoCaptureAndAddDescriptor(TNodeId id, TNodeDescriptor&& descriptorHolder);
-
 };
 
 void Serialize(const TNodeDirectory& nodeDirectory, NYson::IYsonConsumer* consumer);

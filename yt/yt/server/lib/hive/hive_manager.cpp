@@ -629,7 +629,7 @@ private:
     void ReliablePostMessage(const TMailboxList& mailboxes, const TSerializedMessagePtr& message)
     {
         // A typical mistake is posting a reliable Hive message outside of a mutation.
-        YT_VERIFY(HasMutationContext());
+        YT_VERIFY(HasHydraContext());
 
         TStringBuilder logMessageBuilder;
         logMessageBuilder.AppendFormat("Reliable outcoming message added (MutationType: %v, SrcCellId: %v, DstCellIds: {",
@@ -638,16 +638,20 @@ private:
 
         auto traceContext = NTracing::GetCurrentTraceContext();
 
-        auto* mutationContext = GetCurrentMutationContext();
+        auto* mutationContext = TryGetCurrentMutationContext();
 
-        mutationContext->CombineStateHash(message->Type, message->Data);
+        if (mutationContext) {
+            mutationContext->CombineStateHash(message->Type, message->Data);
+        }
 
         for (auto* mailbox : mailboxes) {
             auto messageId =
                 mailbox->GetFirstOutcomingMessageId() +
                 mailbox->OutcomingMessages().size();
 
-            mutationContext->CombineStateHash(messageId, mailbox->GetCellId());
+            if (mutationContext) {
+                mutationContext->CombineStateHash(messageId, mailbox->GetCellId());
+            }
 
             mailbox->OutcomingMessages().push_back({
                 message,

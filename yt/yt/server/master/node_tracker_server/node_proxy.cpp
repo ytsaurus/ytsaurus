@@ -1,5 +1,7 @@
 #include "node.h"
+
 #include "data_center.h"
+#include "host.h"
 #include "rack.h"
 #include "node_tracker.h"
 
@@ -78,6 +80,10 @@ private:
             .SetPresent(node->GetRack())
             .SetWritable(true)
             .SetRemovable(true)
+            .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Host)
+            .SetPresent(node->GetHost())
+            .SetWritable(true)
             .SetReplicated(true));
         descriptors->push_back(EInternedAttributeKey::DataCenter);
         descriptors->push_back(EInternedAttributeKey::State);
@@ -164,6 +170,14 @@ private:
                 }
                 BuildYsonFluently(consumer)
                     .Value(node->GetRack()->GetName());
+                return true;
+
+            case EInternedAttributeKey::Host:
+                if (!node->GetHost()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(node->GetHost()->GetName());
                 return true;
 
             case EInternedAttributeKey::DataCenter:
@@ -542,8 +556,19 @@ private:
 
             case EInternedAttributeKey::Rack: {
                 auto rackName = ConvertTo<TString>(value);
+                auto* host = node->GetHost();
+                if (!host) {
+                    THROW_ERROR_EXCEPTION("Cannot set rack for a node without host");
+                }
                 auto* rack = nodeTracker->GetRackByNameOrThrow(rackName);
-                nodeTracker->SetNodeRack(node, rack);
+                nodeTracker->SetHostRack(host, rack);
+                return true;
+            }
+
+            case EInternedAttributeKey::Host: {
+                auto hostName = ConvertTo<TString>(value);
+                auto* host = nodeTracker->GetHostByNameOrThrow(hostName);
+                nodeTracker->SetNodeHost(node, host);
                 return true;
             }
 
@@ -568,9 +593,12 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
         switch (key) {
-            case EInternedAttributeKey::Rack:
-                nodeTracker->SetNodeRack(node, nullptr);
+            case EInternedAttributeKey::Rack: {
+                if (auto* host = node->GetHost()) {
+                    nodeTracker->SetHostRack(host, nullptr);
+                }
                 return true;
+            }
 
             default:
                 break;

@@ -32,6 +32,7 @@ using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::ENodeState;
 using NNodeTrackerClient::ENodeFlavor;
 using NNodeTrackerClient::InvalidNodeId;
+using NNodeTrackerClient::THostId;
 using NNodeTrackerClient::TRackId;
 using NNodeTrackerClient::TDataCenterId;
 using NNodeTrackerClient::TAddressMap;
@@ -52,6 +53,7 @@ DECLARE_REFCOUNTED_CLASS(TNodeDiscoveryManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(IExecNodeTracker)
 
 DECLARE_ENTITY_TYPE(TNode, NObjectClient::TObjectId, ::THash<NObjectClient::TObjectId>)
+DECLARE_ENTITY_TYPE(THost, THostId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TRack, TRackId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TDataCenter, TDataCenterId, NObjectClient::TDirectObjectIdHash)
 

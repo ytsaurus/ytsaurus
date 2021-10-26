@@ -1,6 +1,8 @@
 #include "rack_proxy.h"
+
 #include "node_tracker.h"
 #include "data_center.h"
+#include "host.h"
 #include "rack.h"
 #include "node.h"
 
@@ -54,6 +56,7 @@ private:
             .SetReplicated(true));
         descriptors->push_back(EInternedAttributeKey::Index);
         descriptors->push_back(EInternedAttributeKey::Nodes);
+        descriptors->push_back(EInternedAttributeKey::Hosts);
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -85,6 +88,15 @@ private:
                 BuildYsonFluently(consumer)
                     .DoListFor(nodes, [] (TFluentList fluent, const TNode* node) {
                         fluent.Item().Value(node->GetDefaultAddress());
+                    });
+                return true;
+            }
+
+            case EInternedAttributeKey::Hosts: {
+                auto hosts = nodeTracker->GetRackHosts(rack);
+                BuildYsonFluently(consumer)
+                    .DoListFor(hosts, [] (TFluentList fluent, const THost* host) {
+                        fluent.Item().Value(host->GetName());
                     });
                 return true;
             }

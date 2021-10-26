@@ -13,6 +13,8 @@ from yt_commands import (
     create_account, create_medium, remove_account,
     start_transaction, abort_transaction,
     create_area, remove_area,
+    create_rack, create_data_center,
+    assert_true_for_all_cells,
     assert_true_for_secondary_cells,
     build_snapshot, get_driver)
 
@@ -274,12 +276,36 @@ class TestMasterCellAddition(YTEnvSetup):
             lambda driver: get("//sys/accounts/sys/@foo", driver=driver) == "bar",
         )
 
+    def check_cluster_node_hierarchy(self):
+        host = node = ls("//sys/cluster_nodes")[0]
+        create_rack("r")
+        create_data_center("d")
+
+        set("//sys/hosts/{}/@rack".format(host), "r")
+        set("//sys/racks/r/@data_center", "d")
+
+        def check_everything(driver=None):
+            assert get("//sys/cluster_nodes/{}/@host".format(node), driver=driver) == host
+            assert get("//sys/hosts/{}/@nodes".format(host), driver=driver) == [node]
+            assert get("//sys/hosts/{}/@rack".format(host), driver=driver) == "r"
+            assert get("//sys/racks/r/@hosts", driver=driver) == [host]
+            assert get("//sys/racks/r/@data_center", driver=driver) == "d"
+            assert get("//sys/data_centers/d/@racks", driver=driver) == ["r"]
+            return True
+
+        check_everything()
+
+        yield
+
+        assert_true_for_all_cells(self.Env, lambda driver: check_everything(driver))
+
     @authors("shakurov")
     def test_add_new_cell(self):
         CHECKER_LIST = [
             self.check_media,
             self.check_accounts,
             self.check_sys_masters_node,
+            self.check_cluster_node_hierarchy,
             self.check_transactions,
             self.check_areas,
             self.check_builtin_object_attributes,
