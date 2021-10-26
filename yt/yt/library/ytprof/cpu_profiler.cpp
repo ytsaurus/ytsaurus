@@ -51,10 +51,7 @@ thread_local std::array<volatile TCpuProfilerTag, MaxActiveTags> CpuProfilerTags
 TCpuSample::operator size_t() const
 {
     size_t hash = Tid;
-    for (auto [startIP, ip] : Backtrace) {
-        hash ^= reinterpret_cast<size_t>(startIP);
-        hash = (hash << 1) | (hash >> 63);
-
+    for (auto ip : Backtrace) {
         hash ^= reinterpret_cast<size_t>(ip);
         hash = (hash << 1) | (hash >> 63);
     }
@@ -115,6 +112,10 @@ TCpuProfiler::~TCpuProfiler()
 
 void TCpuProfiler::Start()
 {
+    if (!IsProfileBuild()) {
+        throw yexception() << "frame pointers not available; rebuild with --build=profile";
+    }
+
     StartTimer();
 
     Stop_ = false;
@@ -203,23 +204,13 @@ void TCpuProfiler::OnSigProf(siginfo_t* info, ucontext_t* ucontext)
 {
     SignalOverruns_ += info->si_overrun;
 
-    // Skip signal handler frames.
-    void* userIP = reinterpret_cast<void *>(ucontext->uc_mcontext.gregs[REG_RIP]);
+    void* rip = reinterpret_cast<void *>(ucontext->uc_mcontext.gregs[REG_RIP]);
+    void* rsp = reinterpret_cast<void *>(ucontext->uc_mcontext.gregs[REG_RSP]);
+    void* rbp = reinterpret_cast<void *>(ucontext->uc_mcontext.gregs[REG_RBP]);
 
-    // For some reason, libunwind segfaults inside vDSO.
-    if (VdsoRange_.first <= userIP && userIP < VdsoRange_.second) {
-        return;
-    }
-
-    TUWCursor cursor;
-    while (cursor.GetIP() != userIP) {
-        if (!cursor.Next()) {
-            return;
-        }
-    }
+    TFramePointerCursor cursor(&Mem_, rip, rsp, rbp);
 
     int count = 0;
-    bool startIP = true;
     bool pushTid = false;
     int tagIndex = 0;
 
@@ -239,26 +230,21 @@ void TCpuProfiler::OnSigProf(siginfo_t* info, ucontext_t* ucontext)
             return {nullptr, false};
         }
 
-        if (startIP) {
-            startIP = false;
-            return {cursor.GetStartIP(), !cursor.IsEnd()};
-        } else {
-            startIP = true;
-
-            auto ip = cursor.GetIP();
-
-            if (count != 0) {
-                // First IP points to next executing instruction.
-                // All other IP's are return addresses.
-                // Substract 1 to get accurate line information for profiler.
-                ip = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(ip) - 1);
-            }
-
-            cursor.Next();
-            count++;
-
-            return {ip, true};
+        if (cursor.IsEnd()) {
+            return {nullptr, false};
         }
+
+        auto ip = cursor.GetIP();
+        if (count != 0) {
+            // First IP points to next executing instruction.
+            // All other IP's are return addresses.
+            // Substract 1 to get accurate line information for profiler.
+            ip = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(ip) - 1);
+        }
+
+        cursor.Next();
+        count++;
+        return {ip, true};
     });
 
     if (!ok) {
@@ -278,7 +264,6 @@ void TCpuProfiler::DequeueSamples()
 
             std::optional<size_t> tid;
 
-            bool startIP = true;
             int tagIndex = 0;
             bool ok = Queue_.TryPop([&] (void* ip) {
                 if (!tid) {
@@ -295,13 +280,7 @@ void TCpuProfiler::DequeueSamples()
                     return;
                 }
 
-                if (startIP) {
-                    sample.Backtrace.push_back({ip, nullptr});
-                    startIP = false;
-                } else {
-                    sample.Backtrace.back().second = ip;
-                    startIP = true;
-                }
+                sample.Backtrace.push_back(ip);
             });
 
             if (!ok) {
@@ -382,7 +361,7 @@ NProto::Profile TCpuProfiler::ReadProfile()
             }
         }
 
-        for (auto [startIP, ip] : backtrace.Backtrace) {
+        for (auto ip : backtrace.Backtrace) {
             auto it = locations.find(ip);
             if (it != locations.end()) {
                 sample->add_location_id(it->second);
@@ -394,21 +373,6 @@ NProto::Profile TCpuProfiler::ReadProfile()
             auto location = profile.add_location();
             location->set_address(reinterpret_cast<ui64>(ip));
             location->set_id(locationId);
-
-            if (startIP != nullptr) {
-                auto functionIt = functions.find(startIP);
-                if (functionIt != functions.end()) {
-                    auto line = location->add_line();
-                    line->set_function_id(functionIt->second);
-                } else {
-                    auto fn = profile.add_function();
-                    fn->set_id(reinterpret_cast<ui64>(startIP));
-                    functions[startIP] = fn->id();
-
-                    auto line = location->add_line();
-                    line->set_function_id(fn->id());
-                }
-            }
 
             sample->add_location_id(locationId);
             locations[ip] = locationId;

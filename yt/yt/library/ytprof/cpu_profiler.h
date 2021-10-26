@@ -13,10 +13,13 @@
 #include <util/datetime/base.h>
 
 #include "queue.h"
+#include "mem_reader.h"
 
 namespace NYT::NYTProf {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TCpuTagImpl;
 
 typedef uint64_t TCpuProfilerTag;
 
@@ -49,15 +52,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCpuTagImpl;
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TCpuSample
 {
     size_t Tid = 0;
     std::vector<TCpuTagImpl*> Tags;
-    std::vector<std::pair<void*, void*>> Backtrace;
+    std::vector<void*> Backtrace;
 
     bool operator == (const TCpuSample& other) const = default;
     operator size_t() const;
@@ -94,6 +93,7 @@ public:
 private:
 #if defined(_linux_)
     const TCpuProfilerOptions Options_;
+    TMemReader Mem_;
 
     static std::atomic<TCpuProfiler*> ActiveProfiler_;
     static std::atomic<bool> HandlingSigprof_;

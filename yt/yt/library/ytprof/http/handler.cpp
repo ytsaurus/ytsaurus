@@ -37,7 +37,7 @@ public:
             profiler.Stop();
 
             auto profile = profiler.ReadProfile();
-            Symbolize(&profile);
+            Symbolize(&profile, true);
 
             TStringStream profileBlob;
             WriteProfile(&profileBlob, profile);
