@@ -1234,9 +1234,9 @@ private:
             YT_LOG_INFO("Common watchers update results handled");
 
             for (const auto& watcher : Owner_->CustomWatcherRecords_) {
-                YT_LOG_INFO("Updating custom watcher %Qv", watcher.WatcherType);
+                YT_LOG_INFO("Updating custom watcher (WatcherType: %v)", watcher.WatcherType);
                 Owner_->ExecuteCustomWatcherUpdate(watcher, /* strictMode */ true);
-                YT_LOG_INFO("Custom watcher %Qv updated", watcher.WatcherType);
+                YT_LOG_INFO("Custom watcher updated (WatcherType: %v)", watcher.WatcherType);
             }
 
             Owner_->SetSchedulerAlert(ESchedulerAlertType::SchedulerCannotConnect, TError());
@@ -1809,7 +1809,7 @@ private:
     ITransactionPtr StartWatcherLockTransaction(const TCustomWatcherRecord& watcher)
     {
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Format("Scheduler watcher %Qv lock at %v", watcher.WatcherType, GetDefaultAddress(Bootstrap_->GetLocalAddresses())));
+        attributes->Set("title", Format("Scheduler %v watcher lock at %v", watcher.WatcherType, GetDefaultAddress(Bootstrap_->GetLocalAddresses())));
         TTransactionStartOptions options{
             .Timeout = watcher.LockOptions->WaitTimeout,
             .AutoAbort = true,
@@ -1820,9 +1820,12 @@ private:
         auto transactionOrError = WaitFor(LockTransaction_->StartTransaction(ETransactionType::Master, options));
 
         if (!transactionOrError.IsOK()) {
-            THROW_ERROR (transactionOrError.Wrap("Failed to start lock transaction for watcher %Qv", watcher.WatcherType));
+            THROW_ERROR transactionOrError.Wrap("Failed to start lock transaction for watcher")
+                << TErrorAttribute("watcher_type", watcher.WatcherType);
         }
-        YT_LOG_INFO("Watcher %Qv lock transaction is %v", watcher.WatcherType, transactionOrError.Value()->GetId());
+        YT_LOG_INFO("Watcher lock transaction craeted (WatcherType: %v, TransactionId: %v)",
+            watcher.WatcherType,
+            transactionOrError.Value()->GetId());
 
         return transactionOrError.Value();
     }
@@ -1859,7 +1862,8 @@ private:
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         if (!batchRspOrError.IsOK()) {
             HandleWatcherError(
-                batchRspOrError.Wrap("Watcher %Qv batch request failed", watcher.WatcherType),
+                batchRspOrError.Wrap("Watcher batch request failed")
+                    << TErrorAttribute("watcher_type", watcher.WatcherType),
                 strictMode,
                 watcher.AlertType);
             return;
