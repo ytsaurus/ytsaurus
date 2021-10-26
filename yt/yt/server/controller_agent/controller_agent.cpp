@@ -533,6 +533,7 @@ public:
         auto host = New<TOperationControllerHost>(
             operation.Get(),
             CancelableControlInvoker_,
+            Bootstrap_->GetControlInvoker(),
             OperationEventsOutbox_,
             JobEventsOutbox_,
             Bootstrap_);
@@ -775,17 +776,18 @@ public:
         const auto& controller = operation->GetControllerOrThrow();
 
         auto getOrchidAndCommit = BIND(
-            [controller, this, this_ = MakeStrong(this)] () -> IYPathServicePtr {
-                auto orchid = BuildZombieOrchid(controller);
+            [controller, this, this_ = MakeStrong(this)] () {
                 controller->Commit();
-                return orchid;
+                // Orchid servece runs on uncancellable invokers, so it is legal to use it after context cancellation.
+                controller->ZombifyOrchid();
             })
-            .AsyncVia(controller->GetCancelableInvoker());
+            .AsyncVia(controller->GetInvoker());
 
         auto saveOrchid = BIND(
-            [this, this_ = MakeStrong(this), operationId = operation->GetId()] (const IYPathServicePtr& orchid) {
+            [this, this_ = MakeStrong(this), operationId = operation->GetId(), controller] () {
+                auto orchid = controller->GetOrchid();
                 if (orchid) {
-                    ZombieOperationOrchids_->AddOrchid(operationId, orchid);
+                    ZombieOperationOrchids_->AddOrchid(operationId, std::move(orchid));
                 }
 
                 return TOperationControllerCommitResult{};
@@ -834,12 +836,15 @@ public:
         }
 
         if (!controller->GetCancelableContext()->IsCanceled()) {
-            if (auto orchid = BuildZombieOrchid(controller)) {
-                ZombieOperationOrchids_->AddOrchid(operation->GetId(), orchid);
+            controller->Cancel();
+            // Orchid servece runs on uncancellable invokers, so it is legal to use it after context cancellation.
+            controller->ZombifyOrchid();
+
+            if (auto orchid = controller->GetOrchid()) {
+                ZombieOperationOrchids_->AddOrchid(operation->GetId(), std::move(orchid));
             }
         }
 
-        controller->Cancel();
         return BIND(&IOperationControllerSchedulerHost::Terminate, controller, controllerFinalState)
             .AsyncVia(controller->GetInvoker())
             .Run();
@@ -1883,27 +1888,6 @@ private:
             .EndMap();
 
         YT_LOG_DEBUG("Static orchid built");
-    }
-
-    IYPathServicePtr BuildZombieOrchid(const IOperationControllerPtr& controller)
-    {
-        IYPathServicePtr orchid;
-        if (auto controllerOrchid = controller->GetOrchid()) {
-            auto ysonOrError = WaitFor(AsyncYPathGet(controllerOrchid, ""));
-            if (!ysonOrError.IsOK()) {
-                return nullptr;
-            }
-            auto yson = ysonOrError.Value();
-            if (!yson) {
-                return nullptr;
-            }
-            auto producer = TYsonProducer(BIND([yson = std::move(yson)] (IYsonConsumer* consumer) {
-                consumer->OnRaw(yson);
-            }));
-            orchid = IYPathService::FromProducer(std::move(producer))
-                ->Via(GetControllerThreadPoolInvoker());
-        }
-        return orchid;
     }
 
     IYPathServicePtr GetDynamicOrchidService()

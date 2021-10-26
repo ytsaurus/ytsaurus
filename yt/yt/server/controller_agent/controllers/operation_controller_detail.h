@@ -64,6 +64,7 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/atomic_ptr.h>
 #include <yt/yt/core/misc/digest.h>
 #include <yt/yt/core/misc/histogram.h>
 #include <yt/yt/core/misc/id_generator.h>
@@ -398,6 +399,8 @@ public:
 
     NYTree::IYPathServicePtr GetOrchid() const override;
 
+    void ZombifyOrchid() final;
+
     TString WriteCoreDump() const override;
 
     //! Needed for row_count_limit.
@@ -560,7 +563,7 @@ protected:
 
     NYTree::IMapNodePtr UnrecognizedSpec_;
 
-    NYTree::IYPathServicePtr Orchid_;
+    TAtomicObject<NYTree::IYPathServicePtr> Orchid_;
 
     std::vector<std::vector<char>> TestingAllocationVector_;
 
@@ -1392,6 +1395,8 @@ private:
     void UpdateRunningJobStatistics(TJobletPtr joblet, std::unique_ptr<TRunningJobSummary> jobStatus);
 
     void AbortJobWithPartiallyReceivedJobInfo(TJobId jobId);
+
+    NYTree::IYPathServicePtr BuildZombieOrchid();
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink

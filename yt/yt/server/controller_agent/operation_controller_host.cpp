@@ -186,11 +186,13 @@ TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateHeavyCont
 TOperationControllerHost::TOperationControllerHost(
     TOperation* operation,
     IInvokerPtr cancelableControlInvoker,
+    IInvokerPtr uncancelableControlInvoker,
     TIntrusivePtr<TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> operationEventsOutbox,
     TIntrusivePtr<TMessageQueueOutbox<TAgentToSchedulerJobEvent>> jobEventsOutbox,
     TBootstrap* bootstrap)
     : OperationId_(operation->GetId())
     , CancelableControlInvoker_(std::move(cancelableControlInvoker))
+    , UncancelableControlInvoker_(std::move(uncancelableControlInvoker))
     , OperationEventsOutbox_(std::move(operationEventsOutbox))
     , JobEventsOutbox_(std::move(jobEventsOutbox))
     , Bootstrap_(bootstrap)
@@ -468,7 +470,7 @@ void TOperationControllerHost::ValidateOperationAccess(
     EPermission permission)
 {
     WaitFor(BIND(&TControllerAgent::ValidateOperationAccess, Bootstrap_->GetControllerAgent())
-        .AsyncVia(CancelableControlInvoker_)
+        .AsyncVia(UncancelableControlInvoker_)
         .Run(
             user,
             OperationId_,

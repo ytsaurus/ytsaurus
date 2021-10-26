@@ -877,8 +877,8 @@ void TOperationControllerBase::InitializeOrchid()
             "testing",
             createService(BIND(&TOperationControllerBase::BuildTestingState, Unretained(this)), "testing"));
     service->SetOpaque(false);
-    Orchid_ = service
-        ->Via(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    Orchid_.Store(service
+        ->Via(InvokerPool->GetInvoker(EOperationControllerQueue::Default)));
 
     YT_LOG_DEBUG("Orchid initialized");
 }
@@ -1735,6 +1735,27 @@ void TOperationControllerBase::AbortJobWithPartiallyReceivedJobInfo(const TJobId
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Fail to abort job (JobId: %v)", jobId);
     }
+}
+
+IYPathServicePtr TOperationControllerBase::BuildZombieOrchid()
+{
+    IYPathServicePtr orchid;
+    if (auto controllerOrchid = GetOrchid()) {
+        auto ysonOrError = WaitFor(AsyncYPathGet(controllerOrchid, ""));
+        if (!ysonOrError.IsOK()) {
+            return nullptr;
+        }
+        auto yson = ysonOrError.Value();
+        if (!yson) {
+            return nullptr;
+        }
+        auto producer = TYsonProducer(BIND([yson = std::move(yson)] (IYsonConsumer* consumer) {
+            consumer->OnRaw(yson);
+        }));
+        orchid = IYPathService::FromProducer(std::move(producer))
+            ->Via(Host->GetControllerThreadPoolInvoker());
+    }
+    return orchid;
 }
 
 std::vector<TStreamDescriptor> TOperationControllerBase::GetAutoMergeStreamDescriptors()
@@ -8526,10 +8547,12 @@ TYsonString TOperationControllerBase::BuildJobYson(TJobId id, bool outputStatist
 
 IYPathServicePtr TOperationControllerBase::GetOrchid() const
 {
-    if (CancelableContext->IsCanceled()) {
-        return nullptr;
-    }
-    return Orchid_;
+    return Orchid_.Load();
+}
+
+void TOperationControllerBase::ZombifyOrchid()
+{
+    Orchid_.Store(BuildZombieOrchid());
 }
 
 NYson::TYsonString TOperationControllerBase::DoBuildJobsYson()
