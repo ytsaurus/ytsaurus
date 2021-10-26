@@ -240,6 +240,8 @@ DEFINE_ENUM(EObjectType,
     ((ChaosNodeMap)                  (811))
     ((DataCenter)                    (805))
     ((DataCenterMap)                 (806))
+    ((Host)                          (812))
+    ((HostMap)                       (813))
 
     // Job Tracker stuff
     ((SchedulerJob)                  (900))

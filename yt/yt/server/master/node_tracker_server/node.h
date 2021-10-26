@@ -124,7 +124,10 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<NChunkClient::TLocationUuid>, LocationUuids);
 
-    DEFINE_BYVAL_RO_PROPERTY(TRack*, Rack);
+    // COMPAT(gritukan): This is used for host creation only.
+    DEFINE_BYVAL_RO_PROPERTY(TRack*, LegacyRack);
+
+    DEFINE_BYVAL_RO_PROPERTY(THost*, Host);
 
     // Lease tracking.
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, LeaseTransaction);
@@ -248,6 +251,12 @@ public:
     void SetNodeAddresses(const TNodeAddressMap& nodeAddresses);
     const TAddressMap& GetAddressesOrThrow(NNodeTrackerClient::EAddressType addressType) const;
     const TString& GetDefaultAddress() const;
+
+    //! Get rack to which this node belongs.
+    /*!
+     *  May return nullptr if the node belongs to no rack
+     */
+    TRack* GetRack() const;
 
     //! Get data center to which this node belongs.
     /*!
@@ -413,7 +422,7 @@ private:
     // Private accessors for TNodeTracker.
     friend class TNodeTracker;
 
-    void SetRack(TRack* rack);
+    void SetHost(THost* host);
     void SetBanned(bool value);
     void SetDecommissioned(bool value);
     void SetDisableWriteSessions(bool value);

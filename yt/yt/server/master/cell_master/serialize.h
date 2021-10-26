@@ -209,6 +209,7 @@ DEFINE_ENUM(EMasterReign,
     ((PerFlavorNodeMaps)                                            (1805))  // gritukan
     ((FixAccountChunkMergerAttributesReplication)                   (1806))  // babenko
     ((CopyJournals)                                                 (1807))  // gritukan
+    ((HostObjects)                                                  (1808))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

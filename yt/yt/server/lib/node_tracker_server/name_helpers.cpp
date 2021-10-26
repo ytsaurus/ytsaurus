@@ -6,6 +6,13 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateHostName(const TString& name)
+{
+    if (name.empty()) {
+        THROW_ERROR_EXCEPTION("Host name cannot be empty");
+    }
+}
+
 void ValidateDataCenterName(const TString& name)
 {
     if (name.empty()) {

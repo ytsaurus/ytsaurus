@@ -295,7 +295,7 @@ public:
         YT_VERIFY(table->IsTrunk());
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::Tablet, NullObjectId);
+        auto id = objectManager->GenerateId(EObjectType::Tablet);
         auto tabletHolder = TPoolAllocator::New<TTablet>(id);
         tabletHolder->SetTable(table);
 
@@ -390,7 +390,7 @@ public:
         YT_VERIFY(!startReplicationRowIndexes || startReplicationRowIndexes->size() == table->Tablets().size());
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::TableReplica, NullObjectId);
+        auto id = objectManager->GenerateId(EObjectType::TableReplica);
         auto replicaHolder = TPoolAllocator::New<TTableReplica>(id);
         replicaHolder->SetTable(table);
         replicaHolder->SetClusterName(clusterName);

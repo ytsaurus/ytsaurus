@@ -1,5 +1,6 @@
 #include "node.h"
 #include "data_center.h"
+#include "host.h"
 #include "rack.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
@@ -268,6 +269,12 @@ const TString& TNode::GetDefaultAddress() const
     return DefaultAddress_;
 }
 
+TRack* TNode::GetRack() const
+{
+    auto* host = GetHost();
+    return host ? host->GetRack() : nullptr;
+}
+
 TDataCenter* TNode::GetDataCenter() const
 {
     auto* rack = GetRack();
@@ -281,10 +288,15 @@ bool TNode::HasTag(const std::optional<TString>& tag) const
 
 TNodeDescriptor TNode::GetDescriptor(EAddressType addressType) const
 {
+    auto* host = GetHost();
+    auto* rack = GetRack();
+    auto* dataCenter = GetDataCenter();
+
     return TNodeDescriptor(
         GetAddressesOrThrow(addressType),
-        Rack_ ? std::make_optional(Rack_->GetName()) : std::nullopt,
-        (Rack_ && Rack_->GetDataCenter()) ? std::make_optional(Rack_->GetDataCenter()->GetName()) : std::nullopt,
+        host ? std::make_optional(host->GetName()) : std::nullopt,
+        rack ? std::make_optional(rack->GetName()) : std::nullopt,
+        dataCenter ? std::make_optional(dataCenter->GetName()) : std::nullopt,
         std::vector<TString>(Tags_.begin(), Tags_.end()));
 }
 
@@ -395,7 +407,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, ResourceLimits_);
     Save(context, ResourceUsage_);
     Save(context, ResourceLimitsOverrides_);
-    Save(context, Rack_);
+    Save(context, Host_);
     Save(context, LeaseTransaction_);
     Save(context, DestroyedReplicas_);
 
@@ -482,7 +494,14 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, ResourceLimits_);
     Load(context, ResourceUsage_);
     Load(context, ResourceLimitsOverrides_);
-    Load(context, Rack_);
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= EMasterReign::HostObjects) {
+        Load(context, Host_);
+    } else {
+        Load(context, LegacyRack_);
+    }
+
     Load(context, LeaseTransaction_);
     Load(context, DestroyedReplicas_);
 
@@ -986,10 +1005,17 @@ bool TNode::DoHasReplica(TChunkPtrWithIndexes replica) const
     return it->second.find(replica) != it->second.end();
 }
 
-void TNode::SetRack(TRack* rack)
+void TNode::SetHost(THost* host)
 {
-    Rack_ = rack;
-    RebuildTags();
+    if (Host_) {
+        Host_->RemoveNode(this);
+    }
+
+    Host_ = host;
+
+    if (Host_) {
+        Host_->AddNode(this);
+    }
 }
 
 void TNode::SetBanned(bool value)
@@ -1042,11 +1068,14 @@ void TNode::RebuildTags()
     Tags_.insert(UserTags_.begin(), UserTags_.end());
     Tags_.insert(NodeTags_.begin(), NodeTags_.end());
     Tags_.insert(TString(GetServiceHostName(GetDefaultAddress())));
-    if (Rack_) {
-        Tags_.insert(Rack_->GetName());
-        if (auto* dc = Rack_->GetDataCenter()) {
-            Tags_.insert(dc->GetName());
-        }
+    if (auto* rack = GetRack()) {
+        Tags_.insert(rack->GetName());
+    }
+    if (auto* dataCenter = GetDataCenter()) {
+        Tags_.insert(dataCenter->GetName());
+    }
+    if (auto* host = GetHost()) {
+        Tags_.insert(host->GetName());
     }
 }
 

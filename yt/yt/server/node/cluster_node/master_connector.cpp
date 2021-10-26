@@ -146,6 +146,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        // XXX: Update host.
         auto rack = response.has_rack() ? std::make_optional(response.rack()) : std::nullopt;
         UpdateRack(rack);
 
@@ -295,6 +296,7 @@ private:
         auto guard = Guard(LocalDescriptorLock_);
         LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(
             RpcAddresses_,
+            LocalDescriptor_.GetHost(),
             rack,
             LocalDescriptor_.GetDataCenter(),
             LocalDescriptor_.GetTags());
@@ -307,6 +309,7 @@ private:
         auto guard = Guard(LocalDescriptorLock_);
         LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(
             RpcAddresses_,
+            LocalDescriptor_.GetHost(),
             LocalDescriptor_.GetRack(),
             dc,
             LocalDescriptor_.GetTags());
@@ -319,6 +322,7 @@ private:
         auto guard = Guard(LocalDescriptorLock_);
         LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(
             RpcAddresses_,
+            LocalDescriptor_.GetHost(),
             LocalDescriptor_.GetRack(),
             LocalDescriptor_.GetDataCenter(),
             std::move(tags));
@@ -477,6 +481,9 @@ private:
 
         ToProto(req->mutable_lease_transaction_id(), LeaseTransaction_->GetId());
         ToProto(req->mutable_tags(), NodeTags_);
+        if (auto hostName = Bootstrap_->GetConfig()->HostName) {
+            req->set_host_name(hostName);
+        }
 
         for (auto flavor : Bootstrap_->GetFlavors()) {
             req->add_flavors(static_cast<int>(flavor));

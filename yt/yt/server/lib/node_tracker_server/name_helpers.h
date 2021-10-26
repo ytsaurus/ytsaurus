@@ -6,6 +6,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateHostName(const TString& address);
+
 void ValidateDataCenterName(const TString& name);
 
 void ValidateRackName(const TString& name);

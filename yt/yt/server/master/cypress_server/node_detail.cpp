@@ -204,7 +204,7 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::EndCopyCore(
     }
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
-    auto clonedId = objectManager->GenerateId(GetObjectType(), NullObjectId);
+    auto clonedId = objectManager->GenerateId(GetObjectType());
     auto* clonedTrunkNode = factory->InstantiateNode(clonedId, externalCellTag);
 
     *needCustomEndCopy = LoadInplace(clonedTrunkNode, context, factory);
@@ -441,7 +441,7 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
     const auto& objectManager = Bootstrap_->GetObjectManager();
     auto clonedId = hintId
         ? hintId
-        : objectManager->GenerateId(type, NullObjectId);
+        : objectManager->GenerateId(type);
 
     auto* clonedTrunkNode = factory->InstantiateNode(clonedId, sourceNode->GetExternalCellTag());
 

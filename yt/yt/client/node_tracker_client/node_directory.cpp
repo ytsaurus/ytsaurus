@@ -86,11 +86,13 @@ TNodeDescriptor::TNodeDescriptor(const std::optional<TString>& defaultAddress)
 
 TNodeDescriptor::TNodeDescriptor(
     TAddressMap addresses,
+    std::optional<TString> host,
     std::optional<TString> rack,
     std::optional<TString> dc,
     const std::vector<TString>& tags)
     : Addresses_(std::move(addresses))
     , DefaultAddress_(NNodeTrackerClient::GetDefaultAddress(Addresses_))
+    , Host_(std::move(host))
     , Rack_(std::move(rack))
     , DataCenter_(std::move(dc))
     , Tags_(tags)
@@ -126,6 +128,11 @@ std::optional<TString> TNodeDescriptor::FindAddress(const TNetworkPreferenceList
     return NNodeTrackerClient::FindAddress(Addresses(), networks);
 }
 
+const std::optional<TString>& TNodeDescriptor::GetHost() const
+{
+    return Host_;
+}
+
 const std::optional<TString>& TNodeDescriptor::GetRack() const
 {
     return Rack_;
@@ -148,6 +155,20 @@ void TNodeDescriptor::Persist(const TStreamPersistenceContext& context)
     if (context.IsLoad()) {
         DefaultAddress_ = NNodeTrackerClient::GetDefaultAddress(Addresses_);
     }
+
+    // COMPAT(gritukan)
+    bool isMasterReign = context.GetVersion() >= 1400 && context.GetVersion() < 2000;
+    bool isOldMasterReign = context.GetVersion() >= 1400 && context.GetVersion() < 1808;
+    bool isControllerAgentSnapshotVersion = context.GetVersion() >= 300000 && context.GetVersion() <= 302000;
+    bool isOldControllerAgentSnapshotVersion = context.GetVersion() >= 300000 && context.GetVersion() < 300701;
+
+    // This code should be executed only at masters and controller agents.
+    YT_VERIFY(isMasterReign || isControllerAgentSnapshotVersion);
+
+    if (context.IsSave() || (context.IsLoad() && !isOldMasterReign && !isOldControllerAgentSnapshotVersion)) {
+        Persist(context, Host_);
+    }
+
     Persist(context, Rack_);
     Persist(context, DataCenter_);
 }
@@ -160,6 +181,10 @@ void FormatValue(TStringBuilderBase* builder, const TNodeDescriptor& descriptor,
     }
 
     builder->AppendString(descriptor.GetDefaultAddress());
+    if (const auto& host = descriptor.GetHost()) {
+        builder->AppendChar('$');
+        builder->AppendString(*host);
+    }
     if (const auto& rack = descriptor.GetRack()) {
         builder->AppendChar('@');
         builder->AppendString(*rack);
@@ -203,7 +228,12 @@ EAddressLocality ComputeAddressLocality(const TNodeDescriptor& first, const TNod
     };
 
     try {
+        // COMPAT(gritukan)
         if (GetServiceHostName(first.GetDefaultAddress()) == GetServiceHostName(second.GetDefaultAddress())) {
+            return EAddressLocality::SameHost;
+        }
+
+        if (first.GetHost() && second.GetHost() && *first.GetHost() == *second.GetHost()) {
             return EAddressLocality::SameHost;
         }
 
@@ -268,14 +298,20 @@ void ToProto(NNodeTrackerClient::NProto::TNodeDescriptor* protoDescriptor, const
 
     ToProto(protoDescriptor->mutable_addresses(), descriptor.Addresses());
 
-    if (descriptor.GetRack()) {
-        protoDescriptor->set_rack(*descriptor.GetRack());
+    if (auto host = descriptor.GetHost()) {
+        protoDescriptor->set_host(*host);
+    } else {
+        protoDescriptor->clear_host();
+    }
+
+    if (auto rack = descriptor.GetRack()) {
+        protoDescriptor->set_rack(*rack);
     } else {
         protoDescriptor->clear_rack();
     }
 
-    if (descriptor.GetDataCenter()) {
-        protoDescriptor->set_data_center(*descriptor.GetDataCenter());
+    if (auto dataCenter = descriptor.GetDataCenter()) {
+        protoDescriptor->set_data_center(*dataCenter);
     } else {
         protoDescriptor->clear_data_center();
     }
@@ -289,6 +325,7 @@ void FromProto(NNodeTrackerClient::TNodeDescriptor* descriptor, const NNodeTrack
 
     *descriptor = NNodeTrackerClient::TNodeDescriptor(
         FromProto<NNodeTrackerClient::TAddressMap>(protoDescriptor.addresses()),
+        protoDescriptor.has_host() ? std::make_optional(protoDescriptor.host()) : std::nullopt,
         protoDescriptor.has_rack() ? std::make_optional(protoDescriptor.rack()) : std::nullopt,
         protoDescriptor.has_data_center() ? std::make_optional(protoDescriptor.data_center()) : std::nullopt,
         FromProto<std::vector<TString>>(protoDescriptor.tags()));
@@ -301,6 +338,7 @@ bool operator == (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs)
     return
         lhs.GetDefaultAddress() == rhs.GetDefaultAddress() && // shortcut
         lhs.Addresses() == rhs.Addresses() &&
+        lhs.GetHost() == rhs.GetHost() &&
         lhs.GetRack() == rhs.GetRack() &&
         lhs.GetDataCenter() == rhs.GetDataCenter() &&
         GetSortedTags(lhs.GetTags()) == GetSortedTags(rhs.GetTags());
@@ -327,6 +365,12 @@ bool operator == (const TNodeDescriptor& lhs, const NProto::TNodeDescriptor& rhs
         if (it->second != address) {
             return false;
         }
+    }
+
+    const auto& lhsMaybeHost = lhs.GetHost();
+    auto lhsHost = lhsMaybeHost ? TStringBuf(*lhsMaybeHost) : TStringBuf();
+    if (lhsHost != rhs.host()) {
+        return false;
     }
 
     const auto& lhsMaybeRack = lhs.GetRack();
@@ -629,6 +673,7 @@ size_t THash<NYT::NNodeTrackerClient::TNodeDescriptor>::operator()(
     size_t result = 0;
     using namespace NYT;
     HashCombine(result, nodeDescriptor.GetDefaultAddress());
+    HashCombine(result, nodeDescriptor.GetHost());
     HashCombine(result, nodeDescriptor.GetRack());
     HashCombine(result, nodeDescriptor.GetDataCenter());
     for (const auto& [network, address] : nodeDescriptor.Addresses()) {

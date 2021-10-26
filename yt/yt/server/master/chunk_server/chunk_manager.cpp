@@ -2104,7 +2104,7 @@ private:
 
     TChunk* DoCreateChunk(EObjectType chunkType)
     {
-        auto id = Bootstrap_->GetObjectManager()->GenerateId(chunkType, NullObjectId);
+        auto id = Bootstrap_->GetObjectManager()->GenerateId(chunkType);
         return DoCreateChunk(id);
     }
 
@@ -2219,7 +2219,7 @@ private:
     {
         ++ChunkListsCreated_;
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::ChunkList, NullObjectId);
+        auto id = objectManager->GenerateId(EObjectType::ChunkList);
         auto chunkListHolder = TPoolAllocator::New<TChunkList>(id);
         auto* chunkList = ChunkListMap_.Insert(id, std::move(chunkListHolder));
         chunkList->SetKind(kind);
@@ -2248,7 +2248,7 @@ private:
     {
         ++ChunkViewsCreated_;
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::ChunkView, NullObjectId);
+        auto id = objectManager->GenerateId(EObjectType::ChunkView);
         auto chunkViewHolder = TPoolAllocator::New<TChunkView>(id);
         auto* chunkView = ChunkViewMap_.Insert(id, std::move(chunkViewHolder));
         chunkView->SetUnderlyingChunk(underlyingChunk);

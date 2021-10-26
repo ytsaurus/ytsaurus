@@ -13,23 +13,28 @@ namespace NYT::NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRack
+class THost
     : public NObjectServer::TObject
-    , public TRefTracked<TRack>
+    , public TRefTracked<THost>
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(TString, Name);
-    DEFINE_BYVAL_RW_PROPERTY(int, Index);
-    DEFINE_BYVAL_RW_PROPERTY(TDataCenter*, DataCenter);
+    DEFINE_BYVAL_RW_PROPERTY(TRack*, Rack, nullptr);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TNode*>, Nodes);
 
 public:
-    explicit TRack(TRackId id);
+    using TObject::TObject;
 
-    TString GetLowercaseObjectName() const override;
-    TString GetCapitalizedObjectName() const override;
+    virtual TString GetLowercaseObjectName() const override;
+    virtual TString GetCapitalizedObjectName() const override;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
+
+    void AddNode(TNode* node);
+    void RemoveNode(TNode* node);
+
+    TCompactVector<TNode*, 1> GetNodesWithFlavor(ENodeFlavor flavor) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

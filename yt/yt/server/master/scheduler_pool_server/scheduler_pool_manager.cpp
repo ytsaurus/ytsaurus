@@ -91,7 +91,7 @@ public:
     TSchedulerPool* CreateSchedulerPoolObject(bool isRoot)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::SchedulerPool, NullObjectId);
+        auto id = objectManager->GenerateId(EObjectType::SchedulerPool);
 
         auto* schedulerPool = SchedulerPoolMap_.Insert(id, TPoolAllocator::New<TSchedulerPool>(id, isRoot));
 
@@ -104,7 +104,7 @@ public:
     TSchedulerPoolTree* CreateSchedulerPoolTreeObject()
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::SchedulerPoolTree, NullObjectId);
+        auto id = objectManager->GenerateId(EObjectType::SchedulerPoolTree);
 
         auto* poolTree = SchedulerPoolTreeMap_.Insert(id, TPoolAllocator::New<TSchedulerPoolTree>(id));
 
