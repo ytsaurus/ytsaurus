@@ -2,6 +2,8 @@
 
 #include <contrib/libs/libunwind/include/libunwind.h>
 
+#include "mem_reader.h"
+
 namespace NYT::NYTProf {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,6 +31,33 @@ private:
 
     void ReadIP();
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Manual implementation of frame pointer unwinder.
+//
+// Unlike libunwind based unwinder, this one does not segfault when invoked from signal handler.
+class TFramePointerCursor
+{
+public:
+    TFramePointerCursor(TMemReader* mem, void* rip, void* rsp, void* rbp);
+
+    bool IsEnd();
+    bool Next();
+    void* GetIP();
+
+private:
+    TMemReader* Mem_;
+    bool End_ = false;
+    bool First_ = true;
+
+    void *Rip_ = nullptr;
+    void *Rbp_ = nullptr;
+
+    void *StartRsp_ = nullptr;
+};
+
+bool IsProfileBuild();
 
 ////////////////////////////////////////////////////////////////////////////////
 

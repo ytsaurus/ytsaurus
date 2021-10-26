@@ -10,6 +10,7 @@
 #include <yt/yt/library/ytprof/cpu_profiler.h>
 #include <yt/yt/library/ytprof/symbolize.h>
 #include <yt/yt/library/ytprof/profile.h>
+#include <yt/yt/library/ytprof/backtrace.h>
 
 namespace NYT::NYTProf {
 namespace {
@@ -66,21 +67,32 @@ void RunUnderProfiler(const TString& name, std::function<void()> work, bool chec
         ASSERT_NE(0, profile.sample_size());
     }
 
-    Symbolize(&profile);
+    Symbolize(&profile, true);
 
     TFileOutput output(GetOutputPath() / name);
     WriteProfile(&output, profile);
     output.Finish();
 }
 
-TEST(TCpuProfiler, SingleThreadRun)
+class TCpuProfilerTest
+    : public ::testing::Test
+{
+    void SetUp() override
+    {
+        if (!IsProfileBuild()) {
+            GTEST_SKIP() << "rebuild with --build=profile";
+        }
+    }
+};
+
+TEST_F(TCpuProfilerTest, SingleThreadRun)
 {
     RunUnderProfiler("single_thread.pb.gz", [] {
         BurnCpu<0>();
     });
 }
 
-TEST(TCpuProfiler, MultipleThreads)
+TEST_F(TCpuProfilerTest, MultipleThreads)
 {
     RunUnderProfiler("multiple_threads.pb.gz", [] {
         std::thread t1([] {
@@ -96,7 +108,7 @@ TEST(TCpuProfiler, MultipleThreads)
     });
 }
 
-TEST(TCpuProfiler, StaticFunction)
+TEST_F(TCpuProfilerTest, StaticFunction)
 {
     RunUnderProfiler("static_function.pb.gz", [] {
         StaticFunction();
@@ -113,14 +125,14 @@ Y_NO_INLINE void RecursiveFunction(int n)
     }
 }
 
-TEST(TCpuProfiler, DeepRecursion)
+TEST_F(TCpuProfilerTest, DeepRecursion)
 {
     RunUnderProfiler("recursive_function.pb.gz", [] {
         RecursiveFunction(1024);
     });
 }
 
-TEST(TCpuProfiler, DlOpen)
+TEST_F(TCpuProfilerTest, DlOpen)
 {
     RunUnderProfiler("dlopen.pb.gz", [] {
         auto libraryPath = BinaryPath("yt/yt/library/ytprof/unittests/testso/libtestso.so");
@@ -136,7 +148,7 @@ TEST(TCpuProfiler, DlOpen)
     });
 }
 
-TEST(TCpuProfiler, DlClose)
+TEST_F(TCpuProfilerTest, DlClose)
 {
     RunUnderProfiler("dlclose.pb.gz", [] {
         auto libraryPath = BinaryPath("yt/yt/library/ytprof/unittests/testso1/libtestso1.so");
@@ -165,14 +177,14 @@ void ReadUrandom()
     }
 }
 
-TEST(TCpuProfiler, Syscalls)
+TEST_F(TCpuProfilerTest, Syscalls)
 {
     RunUnderProfiler("syscalls.pb.gz", [] {
         ReadUrandom();
     });
 }
 
-TEST(TCpuProfiler, VDSO)
+TEST_F(TCpuProfilerTest, VDSO)
 {
     RunUnderProfiler("vdso.pb.gz", [] {
         auto now = TInstant::Now();
@@ -181,7 +193,7 @@ TEST(TCpuProfiler, VDSO)
     }, false);
 }
 
-TEST(TCpuProfiler, ProfilerTags)
+TEST_F(TCpuProfilerTest, ProfilerTags)
 {
     auto userTag = NewStringTag("user", "prime");
     auto intTag = NewIntTag("block_size", 1024);
@@ -203,7 +215,7 @@ TEST(TCpuProfiler, ProfilerTags)
     });
 }
 
-TEST(TCpuProfiler, MultipleProfilers)
+TEST_F(TCpuProfilerTest, MultipleProfilers)
 {
     TCpuProfiler profiler, secondProfiler;
 
