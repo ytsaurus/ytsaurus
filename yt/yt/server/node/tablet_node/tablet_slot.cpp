@@ -192,7 +192,7 @@ public:
         return Occupant_->GetCellBundleName();
     }
 
-    IHydraManagerPtr GetHydraManager() override
+    IDistributedHydraManagerPtr GetHydraManager() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -409,13 +409,6 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetOptions();
-    }
-
-    TCellTag GetNativeCellTag() override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return Bootstrap_->GetMasterClient()->GetConnection()->GetCellTag();
     }
 
     NProfiling::TProfiler GetProfiler() override
