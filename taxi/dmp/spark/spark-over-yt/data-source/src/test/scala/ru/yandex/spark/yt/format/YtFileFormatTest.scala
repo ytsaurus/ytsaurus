@@ -632,6 +632,31 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     )
   }
 
+  it should "read tables with same schemas but different order" in {
+    YtWrapper.createDir(tmpPath)
+    val table1 = s"$tmpPath/t1"
+    val table2 = s"$tmpPath/t2"
+    writeTableFromYson(Seq(
+      """{a = 1; b = "f"; c = 0.3}"""
+    ), table1, atomicSchema)
+    writeTableFromYson(Seq(
+      """{c = 1.2; a = 2; b = "g"}"""
+    ), table2, new TableSchema.Builder()
+      .setUniqueKeys(false)
+      .addValue("c", ColumnValueType.DOUBLE)
+      .addValue("a", ColumnValueType.INT64)
+      .addValue("b", ColumnValueType.STRING)
+      .build()
+    )
+    val df = spark.read.yt(table1, table2)
+
+    df.columns should contain theSameElementsAs Seq("a", "b", "c")
+    df.select("a", "b", "c").collect() should contain theSameElementsAs Seq(
+      Row(1, "f", 0.3),
+      Row(2, "g", 1.2)
+    )
+  }
+
   it should "fail reading tables with incompatible schemas" in {
     YtWrapper.createDir(tmpPath)
     val table1 = s"$tmpPath/t1"

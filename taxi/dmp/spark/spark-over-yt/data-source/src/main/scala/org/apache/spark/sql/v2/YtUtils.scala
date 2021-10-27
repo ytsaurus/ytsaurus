@@ -69,7 +69,8 @@ object YtUtils {
     if (enableMerge) {
       allSchemas.map(_.schema).reduceOption((x, y) => x.merge(y))
     } else {
-      val firstDifferent = allSchemas.find(_.schema != allSchemas.head.schema)
+      val columns = allSchemas.head.schema.fields.toSet
+      val firstDifferent = allSchemas.find(_.schema.fields.toSet != columns)
       firstDifferent match {
         case None => allSchemas.headOption.map(_.schema)
         case Some(FileWithSchema(file, schema)) => throw new SparkException(
