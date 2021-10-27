@@ -8,7 +8,7 @@ from yt_env_setup import parametrize_external
 from yt_commands import (
     authors, wait, get, generate_uuid,
     sync_mount_table, sync_unmount_table, create_table_replica, sync_enable_table_replica, sync_disable_table_replica,
-    insert_rows, select_rows)
+    insert_rows, select_rows, remove)
 
 from flaky import flaky
 import pytest
@@ -124,9 +124,7 @@ class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
         sleep(10)
 
         assert get_lag_row_count() == 0
-        # Sparse sensor with value 0 won't generate any samples.
-        # Enable this assert, once testing API is reimplemented without core/profiling compatibility layer.
-        # assert get_lag_time() == 0
+        assert get_lag_time() == 0
 
     @authors("babenko", "gridem")
     @flaky(max_runs=5)
@@ -165,6 +163,32 @@ class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
 
         sync_enable_table_replica(replica_id)
         wait(lambda: get_lag_time() == 0)
+
+    @authors("prime")
+    def test_table_remove(self):
+        self._create_cells()
+
+        self._create_replicated_table("//tmp/tt", schema=self.AGGREGATE_SCHEMA)
+        replica_id = create_table_replica("//tmp/tt", self.REPLICA_CLUSTER_NAME, "//tmp/rr", attributes={"mode": "async"})
+        self._create_replica_table("//tmp/rr", replica_id, schema=self.AGGREGATE_SCHEMA)
+
+        sync_enable_table_replica(replica_id)
+        sleep(2)
+
+        insert_rows("//tmp/tt", [{"key": 1, "value1": "test1"}], require_sync_replica=False)
+        sleep(1.0)
+
+        tablet_profiling = self._get_table_profiling("//tmp/tt")
+        replica_tags = {
+            "replica_cluster": self.REPLICA_CLUSTER_NAME,
+        }
+
+        assert tablet_profiling.has_projections_with_tags("replica/lag_time", replica_tags)
+        remove("//tmp/tt")
+
+        def gauge_removed():
+            return not tablet_profiling.has_projections_with_tags("replica/lag_time", replica_tags)
+        wait(gauge_removed)
 
 
 ##################################################################
