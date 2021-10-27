@@ -115,7 +115,9 @@ TEST_F(TCypressElectionManagerTest, TestElectionManager)
 {
     auto electionManager = CreateElectionManager("electionManager");
     electionManager->Start();
-    Sleep(TDuration::MilliSeconds(200));
+    WaitForPredicate([&] () {
+        return IsActive(electionManager->GetPrerequistiveTransactionId());
+    });
     auto transaction1 = electionManager->GetPrerequistiveTransactionId();
     EXPECT_TRUE(IsActive(transaction1));
 
@@ -123,8 +125,13 @@ TEST_F(TCypressElectionManagerTest, TestElectionManager)
     EXPECT_EQ(EndCount_, 0);
 
     electionManager->StopLeading();
-    Sleep(TDuration::MilliSeconds(200));
+    WaitForPredicate([&] () {
+        return !IsActive(transaction1);
+    });
     EXPECT_FALSE(IsActive(transaction1));
+    WaitForPredicate([&] () {
+        return IsActive(electionManager->GetPrerequistiveTransactionId());
+    });
     auto transaction2 = electionManager->GetPrerequistiveTransactionId();
     EXPECT_TRUE(IsActive(transaction2));
 
@@ -148,10 +155,6 @@ TEST_F(TCypressElectionManagerTest, TestSeveralElectionManagers)
         electionManagers.push_back(CreateElectionManager(Format("electionManager%v", i), queues.back()));
         electionManagers.back()->Start();
     }
-    Sleep(TDuration::MilliSeconds(200));
-
-    EXPECT_EQ(StartCount_, 1);
-    EXPECT_EQ(EndCount_, 0);
 
     auto countLeaders = [&] {
         int count = 0;
@@ -160,6 +163,7 @@ TEST_F(TCypressElectionManagerTest, TestSeveralElectionManagers)
         }
         return count;
     };
+
     auto findLeader = [&] () -> ICypressElectionManagerPtr {
         for (int i = 0; i < 3; ++i) {
             if (IsActive(electionManagers[i]->GetPrerequistiveTransactionId())) {
@@ -169,6 +173,14 @@ TEST_F(TCypressElectionManagerTest, TestSeveralElectionManagers)
         YT_ASSERT(false);
         return nullptr;
     };
+
+    Sleep(TDuration::MilliSeconds(200));
+    WaitForPredicate([&] () {
+        return countLeaders() == 1;
+    });
+
+    EXPECT_EQ(StartCount_, 1);
+    EXPECT_EQ(EndCount_, 0);
 
     EXPECT_EQ(countLeaders(), 1);
     auto leader = findLeader();
@@ -188,7 +200,13 @@ TEST_F(TCypressElectionManagerTest, TestSeveralElectionManagers)
     EXPECT_EQ(EndCount_, 0);
 
     leader->StopLeading();
+    WaitForPredicate([&] () {
+        return !IsActive(transaction1);
+    });
     Sleep(TDuration::MilliSeconds(200));
+    WaitForPredicate([&] () {
+        return countLeaders() == 1;
+    });
     EXPECT_EQ(countLeaders(), 1);
     EXPECT_FALSE(IsActive(transaction1));
 
@@ -199,7 +217,13 @@ TEST_F(TCypressElectionManagerTest, TestSeveralElectionManagers)
     auto transaction2 = leader->GetPrerequistiveTransactionId();
 
     leader->Stop();
+    WaitForPredicate([&] () {
+        return !IsActive(transaction2);
+    });
     Sleep(TDuration::MilliSeconds(200));
+    WaitForPredicate([&] () {
+        return countLeaders() == 1;
+    });
     EXPECT_EQ(countLeaders(), 1);
     EXPECT_FALSE(IsActive(transaction1));
     EXPECT_FALSE(IsActive(transaction2));
@@ -239,7 +263,13 @@ TEST_F(TCypressElectionManagerTest, TestSeveralElectionManagers)
     EXPECT_EQ(EndCount_, 2);
 
     leader->StopLeading();
+    WaitForPredicate([&] () {
+        return !IsActive(transaction3);
+    });
     Sleep(TDuration::MilliSeconds(200));
+    WaitForPredicate([&] () {
+        return countLeaders() == 1;
+    });
     EXPECT_EQ(countLeaders(), 1);
     EXPECT_FALSE(IsActive(transaction1));
     EXPECT_FALSE(IsActive(transaction2));
@@ -273,7 +303,9 @@ TEST_F(TCypressElectionManagerTest, TestAbortTransaction)
         SetUpCounts();
         auto electionManager = CreateElectionManager("electionManager");
         electionManager->Start();
-        Sleep(TDuration::MilliSeconds(200));
+        WaitForPredicate([&] () {
+            return IsActive(electionManager->GetPrerequistiveTransactionId());
+        });
         auto transactionId = electionManager->GetPrerequistiveTransactionId();
         EXPECT_TRUE(IsActive(transactionId));
 
@@ -287,7 +319,10 @@ TEST_F(TCypressElectionManagerTest, TestAbortTransaction)
             WaitFor(transaction->Commit()).ThrowOnError();
         }
         EXPECT_FALSE(IsActive(transactionId));
-        Sleep(TDuration::MilliSeconds(200));
+
+        WaitForPredicate([&] () {
+            return IsActive(electionManager->GetPrerequistiveTransactionId());
+        });
 
         EXPECT_EQ(StartCount_, 2);
         EXPECT_EQ(EndCount_, 1);
@@ -310,7 +345,9 @@ TEST_F(TCypressElectionManagerTest, TestAbortTransactionAndChangeLeader)
         config->TransactionPingPeriod = TDuration::Seconds(10);
         auto electionManager1 = CreateElectionManager("electionManager1", actionQueue1, config);
         electionManager1->Start();
-        Sleep(TDuration::MilliSeconds(200));
+        WaitForPredicate([&] () {
+            return IsActive(electionManager1->GetPrerequistiveTransactionId());
+        });
         auto transactionId = electionManager1->GetPrerequistiveTransactionId();
         EXPECT_TRUE(IsActive(transactionId));
 
@@ -329,7 +366,9 @@ TEST_F(TCypressElectionManagerTest, TestAbortTransactionAndChangeLeader)
         EXPECT_FALSE(IsActive(transactionId));
         EXPECT_EQ(electionManager1->GetPrerequistiveTransactionId(), transactionId);
 
-        Sleep(TDuration::MilliSeconds(200));
+        WaitForPredicate([&] () {
+            return IsActive(electionManager2->GetPrerequistiveTransactionId());
+        });
         EXPECT_TRUE(IsActive(electionManager2->GetPrerequistiveTransactionId()));
         EXPECT_EQ(electionManager1->GetPrerequistiveTransactionId(), transactionId);
 
@@ -338,7 +377,10 @@ TEST_F(TCypressElectionManagerTest, TestAbortTransactionAndChangeLeader)
 
         electionManager1->StopLeading();
 
-        Sleep(TDuration::MilliSeconds(200));
+        WaitForPredicate([&] () {
+            return electionManager1->GetPrerequistiveTransactionId() == NullTransactionId;
+        });
+
         EXPECT_TRUE(IsActive(electionManager2->GetPrerequistiveTransactionId()));
         EXPECT_EQ(electionManager1->GetPrerequistiveTransactionId(), NullTransactionId);
 
