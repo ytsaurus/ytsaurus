@@ -259,6 +259,12 @@ public:
         YT_VERIFY(srcPool);
         YT_VERIFY(dstPool);
 
+        YT_LOG_DEBUG(
+            "Transfering pool resources (SrcPool: %Qv, DstPool: %Qv, ResourceDelta: %v)", 
+            srcPool->GetName(), 
+            dstPool->GetName(),
+            ConvertToYsonString(resourceDelta, EYsonFormat::Text));
+
         TCommandTransaction transaction;
         try {
             auto* lcaPool = FindMapObjectLCA(srcPool, dstPool);

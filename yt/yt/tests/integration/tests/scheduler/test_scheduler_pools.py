@@ -1281,6 +1281,30 @@ class TestTransferPoolResourcesCommand(YTEnvSetup):
         self.assert_pool_resources("from", 0.0, 0.0, 0.0, 0, 0)
         self.assert_pool_resources("to", 15.0, 5.0, 10.0, 20, 25)
 
+    def test_transfer_operation_count_from_empty_pool_fails(self):
+        create_pool("from", wait_for_orchid=False)
+        create_pool("to", wait_for_orchid=False)
+
+        with pytest.raises(YtError):
+            transfer_pool_resources("from", "to", "default", {
+                "max_running_operation_count": 10,
+            })
+
+        self.assert_pool_resources("from", None, None, None, None, None)
+        self.assert_pool_resources("to", None, None, None, None, None)
+
+    def test_transfer_cpu_from_empty_pool_fails(self):
+        create_pool("from", wait_for_orchid=False)
+        create_pool("to", wait_for_orchid=False)
+
+        with pytest.raises(YtError):
+            transfer_pool_resources("from", "to", "default", {
+                "strong_guarantee_resources": {"cpu": 10},
+            })
+
+        self.assert_pool_resources("from", None, None, None, None, None)
+        self.assert_pool_resources("to", None, None, None, None, None)
+
     def test_transfer_to_pool_with_resources(self):
         create_pool(
             "from",

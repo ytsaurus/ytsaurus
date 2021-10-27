@@ -1868,6 +1868,8 @@ void TPoolConfig::Register(TRegistrar registrar)
 
 void TPoolConfig::Validate(const TString& poolName)
 {
+    Postprocess();
+
     if (MaxOperationCount && MaxRunningOperationCount && *MaxOperationCount < *MaxRunningOperationCount) {
         THROW_ERROR_EXCEPTION("%Qv must be greater that or equal to %Qv, but %v < %v",
             "max_operation_count",
