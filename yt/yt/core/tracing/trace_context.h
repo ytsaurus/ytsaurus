@@ -132,6 +132,7 @@ public:
     NYson::TYsonString GetBaggage() const;
     void SetBaggage(NYson::TYsonString baggage);
     NYTree::IAttributeDictionaryPtr UnpackBaggage() const;
+    NYTree::IAttributeDictionaryPtr UnpackOrCreateBaggage() const;
     void PackBaggage(const NYTree::IAttributeDictionaryPtr& baggage);
 
     void AddTag(const TString& tagKey, const TString& tagValue);
