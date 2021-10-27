@@ -3,6 +3,7 @@
 #include "public.h"
 #include "cache_config.h"
 
+#include <type_traits>
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/concurrency/spinlock.h>
@@ -35,17 +36,34 @@ public:
 
     TFuture<TValue> Get(const TKey& key);
     TExtendedGetResult GetExtended(const TKey& key);
-    TFuture<std::vector<TErrorOr<TValue>>> Get(const std::vector<TKey>& keys);
+    TFuture<std::vector<TErrorOr<TValue>>> GetMany(const std::vector<TKey>& keys);
 
     std::optional<TErrorOr<TValue>> Find(const TKey& key);
-    std::vector<std::optional<TErrorOr<TValue>>> Find(const std::vector<TKey>& keys);
+    std::vector<std::optional<TErrorOr<TValue>>> FindMany(const std::vector<TKey>& keys);
 
-    void Invalidate(const TKey& key);
+    //! InvalidateActive removes key from the cache, if it's value is currently set.
+    void InvalidateActive(const TKey& key);
+
+    //! InvalidateValue removes key from the cache, if it's value is equal to provided.
+    template <class T>
+    void InvalidateValue(const TKey& key, const T& value);
+
+    //! ForceRefresh marks current value as outdated, forcing value update.
+    template <class T>
+    void ForceRefresh(const TKey& key, const T& value);
+
     void Set(const TKey& key, TErrorOr<TValue> valueOrError);
 
     void Clear();
 
     void Reconfigure(TAsyncExpiringCacheConfigPtr config);
+
+    enum EUpdateReason
+    {
+        InitialFetch,
+        PeriodicUpdate,
+        ForcedUpdate,
+    };
 
 protected:
     TAsyncExpiringCacheConfigPtr GetConfig() const;
@@ -53,6 +71,12 @@ protected:
     virtual TFuture<TValue> DoGet(
         const TKey& key,
         bool isPeriodicUpdate) noexcept = 0;
+
+    virtual TFuture<TValue> DoGet(
+        const TKey& key,
+        const TErrorOr<TValue>* oldValue,
+        EUpdateReason reason) noexcept;
+
     virtual TFuture<std::vector<TErrorOr<TValue>>> DoGetMany(
         const std::vector<TKey>& keys,
         bool isPeriodicUpdate) noexcept;
@@ -62,9 +86,6 @@ protected:
 
     //! Called under write lock.
     virtual void OnRemoved(const TKey& key) noexcept;
-
-    //! Called under read or write lock.
-    virtual void OnHit(const TKey& key) noexcept;
 
     virtual bool CanCacheError(const TError& error) noexcept;
 
@@ -96,7 +117,6 @@ private:
 
         //! Check that entry is expired with respect to either access or update.
         bool IsExpired(NProfiling::TCpuInstant now) const;
-
     };
 
     using TEntryPtr = TIntrusivePtr<TEntry>;
@@ -120,12 +140,11 @@ private:
         bool isPeriodicUpdate);
 
     void InvokeGet(
-        const TWeakPtr<TEntry>& entry,
-        const TKey& key,
-        bool isPeriodicUpdate);
+        const TEntryPtr& entry,
+        const TKey& key);
 
     bool TryEraseExpired(
-        const TWeakPtr<TEntry>& weakEntry,
+        const TEntryPtr& Entry,
         const TKey& key);
 
     void UpdateAll();

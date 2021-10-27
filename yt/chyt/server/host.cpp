@@ -246,7 +246,7 @@ public:
                 .Columns = path.GetColumns()
             });
         }
-        auto validationResults = WaitFor(PermissionCache_->Get(permissionCacheKeys))
+        auto validationResults = WaitFor(PermissionCache_->GetMany(permissionCacheKeys))
             .ValueOrThrow();
 
         std::vector<TError> errors;
@@ -276,7 +276,7 @@ public:
         const IClientPtr& client)
     {
         const auto& user = client->GetOptions().GetAuthenticatedUser();
-        auto cachedAttributes = TableAttributeCache_->Find(paths);
+        auto cachedAttributes = TableAttributeCache_->FindMany(paths);
         std::vector<TYPath> missedPaths;
         for (int index = 0; index < (int)paths.size(); ++index) {
             if (!cachedAttributes[index].has_value()) {

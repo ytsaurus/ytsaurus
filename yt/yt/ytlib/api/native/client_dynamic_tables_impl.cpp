@@ -962,7 +962,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     }
 
     const auto& permissionCache = Connection_->GetPermissionCache();
-    auto permissionCheckErrors = WaitFor(permissionCache->Get(permissionKeys))
+    auto permissionCheckErrors = WaitFor(permissionCache->GetMany(permissionKeys))
         .ValueOrThrow();
     for (const auto& error : permissionCheckErrors) {
         error.ThrowOnError();

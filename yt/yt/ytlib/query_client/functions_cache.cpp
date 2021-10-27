@@ -389,7 +389,7 @@ public:
         for (const auto& name : names) {
             keys.emplace_back(udfRegistryPath, name);
         }
-        return Get(keys)
+        return GetMany(keys)
             .Apply(BIND([] (std::vector<TErrorOr<TExternalFunctionSpec>> specs) {
                 for (const auto& spec : specs) {
                     spec.ThrowOnError();
