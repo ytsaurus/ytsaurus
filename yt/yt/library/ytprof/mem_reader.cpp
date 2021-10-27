@@ -26,7 +26,11 @@ TMemReader::~TMemReader()
 bool TMemReader::SafeReadRaw(void* addr, void* ptr, size_t size)
 {
     while (true) {
+#if defined(_linux_)
         auto ret = pread64(FD_, ptr, size, reinterpret_cast<uintptr_t>(addr));
+#else
+        auto ret = pread(FD_, ptr, size, reinterpret_cast<uintptr_t>(addr));
+#endif
         if (ret == -1 && errno == EINTR) {
             continue;
         }
