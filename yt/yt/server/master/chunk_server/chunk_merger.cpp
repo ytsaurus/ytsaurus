@@ -1122,15 +1122,12 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
             chunkRequstitionRegistry)
         : NErasure::GetCodec(erasureCodec)->GetTotalPartCount();
 
-    auto* dataCenter = context->GetNode()->GetDataCenter();
-    const auto& feasibleDataCenters = context->GetJobRegistry()->GetUnsaturatedInterDCEdgesStartingFrom(dataCenter);
     auto targetNodes = chunkManager->AllocateWriteTargets(
         chunkManager->GetMediumByIndexOrThrow(chunkIdWithIndexes.MediumIndex),
         outputChunk,
         targetCount,
         targetCount,
-        /*replicationFactorOverride*/ std::nullopt,
-        feasibleDataCenters);
+        /*replicationFactorOverride*/ std::nullopt);
     if (targetNodes.empty()) {
         return false;
     }

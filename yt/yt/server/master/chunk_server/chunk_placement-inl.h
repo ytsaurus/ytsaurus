@@ -6,28 +6,6 @@ namespace NYT::NChunkServer {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-inline bool TPlacementDomain::operator==(const TPlacementDomain& rhs) const
-{
-    if (this == &rhs) {
-        return true;
-    }
-
-    YT_ASSERT(!DataCenter || !rhs.DataCenter || (DataCenter->GetId() == rhs.DataCenter->GetId()) == (DataCenter == rhs.DataCenter));
-    YT_ASSERT((Medium->GetId() == rhs.Medium->GetId()) == (Medium == rhs.Medium));
-
-    return DataCenter == rhs.DataCenter && Medium == rhs.Medium;
-}
-
-inline size_t TPlacementDomain::GetHash() const
-{
-    auto hasher = NObjectClient::TDirectObjectIdHash();
-    auto result = hasher(DataCenter ? DataCenter->GetId() : NNodeTrackerServer::TDataCenterId());
-    HashCombine(result, hasher(Medium->GetId()));
-    return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class T, class TCompare>
 struct TReusableMergeIterator<T, TCompare>::TRangeCompare
 {
@@ -94,30 +72,5 @@ TReusableMergeIterator<T, TCompare>& TReusableMergeIterator<T, TCompare>::operat
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-void TChunkPlacement::ForEachDataCenter(const TDataCenterSet* dataCenters, T callback)
-{
-    const auto& allDataCenters = Bootstrap_->GetNodeTracker()->DataCenters();
-
-    if (dataCenters) {
-        if (dataCenters->count(nullptr) != 0) {
-            callback(nullptr);
-        }
-
-        // NB: SmallSet doesn't support iteration.
-        for (const auto& [dataCenterId, dataCenter] : allDataCenters) {
-            if (dataCenters->count(dataCenter) != 0) {
-                callback(dataCenter);
-            }
-        }
-    } else {
-        callback(nullptr);
-
-        for (const auto& [dataCenterId, dataCenter] : allDataCenters) {
-            callback(dataCenter);
-        }
-    }
-}
 
 } // namespace NYT::NChunkServer

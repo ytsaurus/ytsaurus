@@ -6,7 +6,6 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/yt/server/master/node_tracker_server/data_center.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
@@ -16,33 +15,6 @@
 #include <yt/yt/core/misc/small_set.h>
 
 #include <util/generic/map.h>
-
-namespace NYT::NChunkServer {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TPlacementDomain
-{
-    // Here, nullptr signifies 'null' data center.
-    const NNodeTrackerServer::TDataCenter* DataCenter;
-    const TMedium* Medium;
-
-    bool operator==(const TPlacementDomain& rhs) const;
-    size_t GetHash() const;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NChunkServer
-
-template <>
-struct THash<NYT::NChunkServer::TPlacementDomain>
-{
-    size_t operator()(const NYT::NChunkServer::TPlacementDomain& domain) const
-    {
-        return domain.GetHash();
-    }
-};
 
 namespace NYT::NChunkServer {
 
@@ -115,15 +87,12 @@ class TChunkPlacement
     : public TRefCounted
 {
 public:
-    using TDataCenterSet = SmallSet<const NNodeTrackerServer::TDataCenter*, NNodeTrackerServer::TypicalInterDCEdgeCount>;
-
     TChunkPlacement(
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
     void OnNodeUnregistered(TNode* node);
     void OnNodeUpdated(TNode* node);
-    void OnNodeDataCenterChanged(TNode* node, const NNodeTrackerServer::TDataCenter* oldDataCenter);
     void OnNodeDisposed(TNode* node);
 
     TNodeList AllocateWriteTargets(
@@ -142,12 +111,11 @@ public:
         int desiredCount,
         int minCount,
         std::optional<int> replicationFactorOverride,
-        const TDataCenterSet& dataCenters,
         NChunkClient::ESessionType sessionType);
 
     TNode* GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes);
 
-    bool HasBalancingTargets(const TDataCenterSet& dataCenters, TMedium* medium, double maxFillFactor);
+    bool HasBalancingTargets(TMedium* medium, double maxFillFactor);
 
     std::vector<TChunkPtrWithIndexes> GetBalancingChunks(
         TMedium* medium,
@@ -157,8 +125,7 @@ public:
     TNode* AllocateBalancingTarget(
         TMedium* medium,
         TChunk* chunk,
-        double maxFillFactor,
-        const TDataCenterSet& dataCenters);
+        double maxFillFactor);
 
     int GetMaxReplicasPerRack(
         const TMedium* medium,
@@ -178,25 +145,21 @@ private:
     TReusableMergeIterator<TFillFactorToNodeIterator, TFillFactorToNodeMapItemComparator> FillFactorToNodeIterator_;
     TReusableMergeIterator<TLoadFactorToNodeIterator, TLoadFactorToNodeMapItemComparator> LoadFactorToNodeIterator_;
 
-    using TFillFactorToNodeMaps = THashMap<TPlacementDomain, TFillFactorToNodeMap>;
-    using TLoadFactorToNodeMaps = THashMap<TPlacementDomain, TLoadFactorToNodeMap>;
+    using TFillFactorToNodeMaps = THashMap<const TMedium*, TFillFactorToNodeMap>;
+    using TLoadFactorToNodeMaps = THashMap<const TMedium*, TLoadFactorToNodeMap>;
 
     //! Nodes listed here must pass #IsValidBalancingTargetToInsert test.
-    TFillFactorToNodeMaps DomainToFillFactorToNode_;
+    TFillFactorToNodeMaps MediumToFillFactorToNode_;
     //! Nodes listed here must pass #IsValidWriteTargetToInsert test.
-    TLoadFactorToNodeMaps DomainToLoadFactorToNode_;
+    TLoadFactorToNodeMaps MediumToLoadFactorToNode_;
 
     void OnNodeRegistered(TNode* node);
 
     void InsertToFillFactorMaps(TNode* node);
-    void RemoveFromFillFactorMaps(
-        TNode* node,
-        std::optional<const NNodeTrackerServer::TDataCenter*> overrideDataCenter = std::nullopt);
+    void RemoveFromFillFactorMaps(TNode* node);
 
     void InsertToLoadFactorMaps(TNode* node);
-    void RemoveFromLoadFactorMaps(
-        TNode* node,
-        std::optional<const NNodeTrackerServer::TDataCenter*> overrideDataCenter = std::nullopt);
+    void RemoveFromLoadFactorMaps(TNode* node);
 
     TNodeList GetWriteTargets(
         TMedium* medium,
@@ -205,13 +168,11 @@ private:
         int minCount,
         bool forceRackAwareness,
         std::optional<int> replicationFactorOverride,
-        const TDataCenterSet* dataCenters,
         const TNodeList* forbiddenNodes = nullptr,
         const std::optional<TString>& preferredHostName = std::nullopt);
 
     TNode* GetBalancingTarget(
         TMedium* medium,
-        const TDataCenterSet* dataCenters,
         TChunk* chunk,
         double maxFillFactor);
 
@@ -220,8 +181,8 @@ private:
     bool IsValidWriteTargetCore(TNode* node);
     // Preferred nodes are special: they don't come from load-factor maps and
     // thus may not have been vetted by #IsValidWriteTargetToInsert. Thus,
-    // additional checking of their media and DC is required.
-    bool IsValidPreferredWriteTargetToAllocate(TNode* node, TMedium* medium, const TDataCenterSet* dataCenters);
+    // additional checking of their media is required.
+    bool IsValidPreferredWriteTargetToAllocate(TNode* node, TMedium* medium);
 
     bool IsValidBalancingTargetToInsert(TMedium* medium, TNode* node);
     bool IsValidBalancingTargetToAllocate(TNode* node, TTargetCollector* collector, bool enableRackAwareness);
@@ -234,11 +195,8 @@ private:
         int mediumIndex,
         NChunkClient::ESessionType sessionType);
 
-    void PrepareFillFactorIterator(const TDataCenterSet* dataCenters, const TMedium* medium);
-    void PrepareLoadFactorIterator(const TDataCenterSet* dataCenters, const TMedium* medium);
-
-    template <class T>
-    void ForEachDataCenter(const TDataCenterSet* dataCenters, T callback);
+    void PrepareFillFactorIterator(const TMedium* medium);
+    void PrepareLoadFactorIterator(const TMedium* medium);
 
     const TDynamicChunkManagerConfigPtr& GetDynamicConfig();
 };

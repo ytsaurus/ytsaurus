@@ -125,8 +125,7 @@ public:
         TChunk* chunk,
         int desiredCount,
         int minCount,
-        std::optional<int> replicationFactorOverride,
-        const TChunkPlacement::TDataCenterSet& dataCenters);
+        std::optional<int> replicationFactorOverride);
 
     TChunkList* CreateChunkList(EChunkListKind kind);
 

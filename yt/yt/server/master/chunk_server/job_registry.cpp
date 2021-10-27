@@ -43,10 +43,7 @@ TJobRegistry::TJobRegistry(
         New<TThroughputThrottlerConfig>(),
         ChunkServerLogger,
         ChunkServerProfilerRegistry.WithPrefix("/job_throttler")))
-{
-    InitInterDCEdges();
-    UpdateAllDataCentersSet();
-}
+{ }
 
 TJobRegistry::~TJobRegistry() = default;
 
@@ -60,257 +57,6 @@ void TJobRegistry::Stop()
 {
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
-}
-
-void TJobRegistry::OnNodeDataCenterChanged(TNode* node, TDataCenter* oldDataCenter)
-{
-    YT_ASSERT(node->GetDataCenter() != oldDataCenter);
-
-    for (const auto& [jobId, job] : node->IdToJob()) {
-        UpdateInterDCEdgeConsumption(job, oldDataCenter, -1);
-        UpdateInterDCEdgeConsumption(job, node->GetDataCenter(), +1);
-    }
-}
-
-int TJobRegistry::GetCappedSecondaryCellCount()
-{
-    return std::max<int>(1, Bootstrap_->GetMulticellManager()->GetSecondaryCellTags().size());
-}
-
-void TJobRegistry::InitInterDCEdges()
-{
-    UpdateInterDCEdgeCapacities();
-    InitUnsaturatedInterDCEdges();
-}
-
-void TJobRegistry::InitUnsaturatedInterDCEdges()
-{
-    UnsaturatedInterDCEdges_.clear();
-
-    const auto defaultCapacity = GetDynamicConfig()->InterDCLimits->GetDefaultCapacity() / GetCappedSecondaryCellCount();
-
-    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-
-    auto updateForSrcDC = [&] (const TDataCenter* srcDataCenter) {
-        auto& interDCEdgeConsumption = InterDCEdgeConsumption_[srcDataCenter];
-        const auto& interDCEdgeCapacities = InterDCEdgeCapacities_[srcDataCenter];
-
-        auto updateForDstDC = [&] (const TDataCenter* dstDataCenter) {
-            if (interDCEdgeConsumption.Value(dstDataCenter, 0) <
-                interDCEdgeCapacities.Value(dstDataCenter, defaultCapacity))
-            {
-                UnsaturatedInterDCEdges_[srcDataCenter].insert(dstDataCenter);
-            }
-        };
-
-        updateForDstDC(nullptr);
-        for (auto [dataCenterId, dataCenter] : nodeTracker->DataCenters()) {
-            if (IsObjectAlive(dataCenter)) {
-                updateForDstDC(dataCenter);
-            }
-        }
-    };
-
-    updateForSrcDC(nullptr);
-    for (auto [dataCenterId, dataCenter] : nodeTracker->DataCenters()) {
-        if (IsObjectAlive(dataCenter)) {
-            updateForSrcDC(dataCenter);
-        }
-    }
-}
-
-void TJobRegistry::UpdateInterDCEdgeConsumption(
-    const TJobPtr& job,
-    const TDataCenter* srcDataCenter,
-    int sizeMultiplier)
-{
-    if (job->GetType() != EJobType::ReplicateChunk &&
-        job->GetType() != EJobType::RepairChunk &&
-        job->GetType() != EJobType::MergeChunks)
-    {
-        return;
-    }
-
-    auto& interDCEdgeConsumption = InterDCEdgeConsumption_[srcDataCenter];
-    const auto& interDCEdgeCapacities = InterDCEdgeCapacities_[srcDataCenter];
-
-    const auto defaultCapacity = GetDynamicConfig()->InterDCLimits->GetDefaultCapacity() / GetCappedSecondaryCellCount();
-
-    auto getReplicas = [&] (const TJobPtr& job) {
-        switch (job->GetType()) {
-            case EJobType::ReplicateChunk: {
-                auto replicateJob = StaticPointerCast<TReplicationJob>(job);
-                return replicateJob->TargetReplicas();
-            }
-            case EJobType::RepairChunk: {
-                auto repairJob = StaticPointerCast<TRepairJob>(job);
-                return repairJob->TargetReplicas();
-            }
-            case EJobType::MergeChunks: {
-                auto mergeJob = StaticPointerCast<TMergeJob>(job);
-                return mergeJob->TargetReplicas();
-            }
-            default:
-                YT_ABORT();
-        }
-    };
-
-    i64 chunkPartSize = 0;
-    switch (job->GetType()) {
-        case EJobType::ReplicateChunk:
-            chunkPartSize = job->ResourceUsage().replication_data_size();
-            break;
-        case EJobType::RepairChunk:
-            chunkPartSize = job->ResourceUsage().repair_data_size();
-            break;
-        case EJobType::MergeChunks:
-            chunkPartSize = job->ResourceUsage().merge_data_size();
-            break;
-        default:
-            YT_ABORT();
-    }
-
-    for (const auto& nodePtrWithIndexes : getReplicas(job)) {
-        const auto* dstDataCenter = nodePtrWithIndexes.GetPtr()->GetDataCenter();
-
-        auto& consumption = interDCEdgeConsumption[dstDataCenter];
-        consumption += sizeMultiplier * chunkPartSize;
-
-        if (consumption < interDCEdgeCapacities.Value(dstDataCenter, defaultCapacity)) {
-            UnsaturatedInterDCEdges_[srcDataCenter].insert(dstDataCenter);
-        } else {
-            auto it = UnsaturatedInterDCEdges_.find(srcDataCenter);
-            if (it != UnsaturatedInterDCEdges_.end()) {
-                it->second.erase(dstDataCenter);
-                // Don't do UnsaturatedInterDCEdges_.erase(it) here - the memory
-                // saving is negligible, but the slowdown may be noticeable. Plus,
-                // the removal is very likely to be undone by a soon-to-follow insertion.
-            }
-        }
-    }
-}
-
-void TJobRegistry::UpdateAllDataCentersSet()
-{
-    AllDataCenters_.clear();
-
-    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-    for (auto [dataCenterId, dataCenter] : nodeTracker->DataCenters()) {
-        if (IsObjectAlive(dataCenter)) {
-            YT_VERIFY(AllDataCenters_.insert(dataCenter).second);
-        }
-    }
-    AllDataCenters_.insert(nullptr);
-}
-
-bool TJobRegistry::HasUnsaturatedInterDCEdgeStartingFrom(const TDataCenter* srcDataCenter) const
-{
-    if (IgnoreEdgeCapacities_) {
-        return true;
-    }
-
-    auto it = UnsaturatedInterDCEdges_.find(srcDataCenter);
-    if (it == UnsaturatedInterDCEdges_.end()) {
-        return false;
-    }
-    return !it->second.empty();
-}
-
-void TJobRegistry::OnDataCenterCreated(const TDataCenter* dataCenter)
-{
-    UpdateInterDCEdgeCapacities();
-    UpdateAllDataCentersSet();
-
-    const auto defaultCapacity = GetDynamicConfig()->InterDCLimits->GetDefaultCapacity() / GetCappedSecondaryCellCount();
-
-    auto updateEdge = [&] (const TDataCenter* srcDataCenter, const TDataCenter* dstDataCenter) {
-        if (InterDCEdgeConsumption_[srcDataCenter].Value(dstDataCenter, 0) <
-            InterDCEdgeCapacities_[srcDataCenter].Value(dstDataCenter, defaultCapacity))
-        {
-            UnsaturatedInterDCEdges_[srcDataCenter].insert(dstDataCenter);
-        }
-    };
-
-    updateEdge(nullptr, dataCenter);
-    updateEdge(dataCenter, nullptr);
-
-    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-    for (const auto& [dstDataCenterId, otherDataCenter] : nodeTracker->DataCenters()) {
-        updateEdge(dataCenter, otherDataCenter);
-        updateEdge(otherDataCenter, dataCenter);
-    }
-}
-
-void TJobRegistry::OnDataCenterDestroyed(const TDataCenter* dataCenter)
-{
-    UpdateAllDataCentersSet();
-
-    InterDCEdgeCapacities_.erase(dataCenter);
-    for (auto& [srcDataCenter, dstDataCenterCapacities] : InterDCEdgeCapacities_) {
-        dstDataCenterCapacities.erase(dataCenter); // may be no-op
-    }
-
-    InterDCEdgeConsumption_.erase(dataCenter);
-    for (auto& [srcDataCenter, dstDataCenterConsumption] : InterDCEdgeConsumption_) {
-        dstDataCenterConsumption.erase(dataCenter); // may be no-op
-    }
-
-    UnsaturatedInterDCEdges_.erase(dataCenter);
-    for (auto& [srcDataCenter, dstDataCenterSet] : UnsaturatedInterDCEdges_) {
-        dstDataCenterSet.erase(dataCenter); // may be no-op
-    }
-}
-
-void TJobRegistry::UpdateInterDCEdgeCapacities()
-{
-    InterDCEdgeCapacities_.clear();
-
-    auto capacities = GetDynamicConfig()->InterDCLimits->GetCapacities();
-
-    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-
-    auto updateForSrcDC = [&] (const TDataCenter* srcDataCenter) {
-        const std::optional<TString>& srcDataCenterName = srcDataCenter
-            ? std::optional<TString>(srcDataCenter->GetName())
-            : std::nullopt;
-        auto& interDCEdgeCapacities = InterDCEdgeCapacities_[srcDataCenter];
-        const auto& newInterDCEdgeCapacities = capacities[srcDataCenterName];
-
-        auto updateForDstDC = [&] (const TDataCenter* dstDataCenter) {
-            const std::optional<TString>& dstDataCenterName = dstDataCenter
-                ? std::optional<TString>(dstDataCenter->GetName())
-                : std::nullopt;
-            auto it = newInterDCEdgeCapacities.find(dstDataCenterName);
-            if (it != newInterDCEdgeCapacities.end()) {
-                interDCEdgeCapacities[dstDataCenter] = it->second / GetCappedSecondaryCellCount();
-            }
-        };
-
-        updateForDstDC(nullptr);
-        for (const auto& pair : nodeTracker->DataCenters()) {
-            if (IsObjectAlive(pair.second)) {
-                updateForDstDC(pair.second);
-            }
-        }
-    };
-
-    updateForSrcDC(nullptr);
-    for (const auto& pair : nodeTracker->DataCenters()) {
-        if (IsObjectAlive(pair.second)) {
-            updateForSrcDC(pair.second);
-        }
-    }
-
-    InterDCEdgeCapacitiesLastUpdateTime_ = GetCpuInstant();
-}
-
-const TJobRegistry::TDataCenterSet& TJobRegistry::GetUnsaturatedInterDCEdgesStartingFrom(const TDataCenter* dc)
-{
-    if (IgnoreEdgeCapacities_) {
-        return AllDataCenters_;
-    }
-
-    return UnsaturatedInterDCEdges_[dc];
 }
 
 void TJobRegistry::RegisterJob(const TJobPtr& job)
@@ -327,8 +73,6 @@ void TJobRegistry::RegisterJob(const TJobPtr& job)
     if (chunk) {
         chunk->AddJob(job);
     }
-
-    UpdateInterDCEdgeConsumption(job, job->GetNode()->GetDataCenter(), +1);
 
     JobThrottler_->Acquire(1);
 
@@ -366,8 +110,6 @@ void TJobRegistry::UnregisterJob(TJobPtr job)
         chunkManager->ScheduleChunkRefresh(chunk);
     }
 
-    UpdateInterDCEdgeConsumption(job, job->GetNode()->GetDataCenter(), -1);
-
     YT_LOG_DEBUG("Job unregistered (JobId: %v, JobType: %v, Address: %v)",
         job->GetJobId(),
         job->GetType(),
@@ -388,10 +130,6 @@ const TDynamicChunkManagerConfigPtr& TJobRegistry::GetDynamicConfig()
 void TJobRegistry::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
     JobThrottler_->Reconfigure(GetDynamicConfig()->JobThrottler);
-
-    IgnoreEdgeCapacities_ = GetDynamicConfig()->InterDCLimits->IgnoreEdgeCapacities;
-
-    UpdateInterDCEdgeCapacities();
 }
 
 void TJobRegistry::OverrideResourceLimits(TNodeResources* resourceLimits, const TNode& node)
@@ -419,40 +157,6 @@ void TJobRegistry::OnProfiling(TSensorBuffer* buffer) const
 
             buffer->PopTag();
         }
-    }
-
-    for (const auto& srcPair : InterDCEdgeConsumption_) {
-        const auto* src = srcPair.first;
-        buffer->PushTag({"source_data_center", src ? src->GetName() : "null"});
-
-        for (const auto& dstPair : srcPair.second) {
-            const auto* dst = dstPair.first;
-            buffer->PushTag({"destination_data_center", dst ? dst->GetName() : "null"});
-
-            const auto consumption = dstPair.second;
-            buffer->AddGauge("/inter_dc_edge_consumption", consumption);
-
-            buffer->PopTag();
-        }
-
-        buffer->PopTag();
-    }
-
-    for (const auto& srcPair : InterDCEdgeCapacities_) {
-        const auto* src = srcPair.first;
-        buffer->PushTag({"source_data_center", src ? src->GetName() : "null"});
-
-        for (const auto& dstPair : srcPair.second) {
-            const auto* dst = dstPair.first;
-            buffer->PushTag({"destination_data_center", dst ? dst->GetName() : "null"});
-
-            const auto capacity = dstPair.second;
-            buffer->AddGauge("/inter_dc_edge_capacity", capacity);
-
-            buffer->PopTag();
-        }
-
-        buffer->PopTag();
     }
 }
 
