@@ -49,13 +49,13 @@ class TestNodeIOTrackingBase(YTEnvSetup):
     def wait_for_events(self, raw_count=None, aggregate_count=None, from_barrier=None, node_id=0, filter=None,
                         check_event_count=True):
         def is_ready():
-            to_barrier = write_log_barrier(self.get_node_address(node_id), "Barrier")
+            to_barrier = write_log_barrier(self.get_node_address(node_id))
             raw_events, aggregate_events = self.read_events(from_barrier, to_barrier, node_id, filter)
             return (raw_count is None or raw_count <= len(raw_events)) and \
                    (aggregate_count is None or aggregate_count <= len(aggregate_events))
 
         wait(is_ready)
-        to_barrier = write_log_barrier(self.get_node_address(node_id=node_id), "Barrier")
+        to_barrier = write_log_barrier(self.get_node_address(node_id=node_id))
         raw_events, aggregate_events = self.read_events(from_barrier, to_barrier, node_id, filter)
         if check_event_count:
             assert raw_count is None or raw_count == len(raw_events)
@@ -98,7 +98,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
 
     @authors("gepardo")
     def test_simple_write(self):
-        from_barrier = write_log_barrier(self.get_node_address(), "Barrier")
+        from_barrier = write_log_barrier(self.get_node_address())
         create("table", "//tmp/table")
         write_table("//tmp/table", [{"a": 1, "b": 2, "c": 3}])
         raw_events, aggregate_events = self.wait_for_events(raw_count=1, aggregate_count=1, from_barrier=from_barrier)
@@ -109,7 +109,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
 
     @authors("gepardo")
     def test_two_chunks(self):
-        from_barrier = write_log_barrier(self.get_node_address(), "Barrier")
+        from_barrier = write_log_barrier(self.get_node_address())
         create("table", "//tmp/table")
         write_table("//tmp/table", [{"number": 42, "good": True}])
         write_table("<append=%true>//tmp/table", [{"number": 43, "good": False}])
@@ -124,7 +124,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
 
     @authors("gepardo")
     def test_read_table(self):
-        from_barrier = write_log_barrier(self.get_node_address(), "Barrier")
+        from_barrier = write_log_barrier(self.get_node_address())
         create("table", "//tmp/table")
         write_table("//tmp/table", [{"a": 1, "b": 2, "c": 3}])
         assert read_table("//tmp/table") == [{"a": 1, "b": 2, "c": 3}]
@@ -144,7 +144,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
             large_data, large_data_size = self.generate_large_data()
 
             old_disk_space = get("//tmp/table/@resource_usage/disk_space")
-            from_barrier = write_log_barrier(self.get_node_address(), "Barrier")
+            from_barrier = write_log_barrier(self.get_node_address())
             write_table("<append=%true>//tmp/table", large_data)
             _, aggregate_events = self.wait_for_events(aggregate_count=1, from_barrier=from_barrier, filter=lambda x: x["user@"] == "root")
             new_disk_space = get("//tmp/table/@resource_usage/disk_space")
@@ -156,7 +156,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
             assert min_data_bound <= aggregate_events[0]["byte_count"] <= max_data_bound
             assert aggregate_events[0]["io_count"] > 0
 
-            from_barrier = write_log_barrier(self.get_node_address(), "Barrier")
+            from_barrier = write_log_barrier(self.get_node_address())
             assert read_table("//tmp/table[#{}:]".format(i * len(large_data))) == large_data
             _, aggregate_events = self.wait_for_events(aggregate_count=1, from_barrier=from_barrier, filter=lambda x: x["user@"] == "root")
 
@@ -168,7 +168,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
     def test_journal(self):
         data = [{"data":  str(i)} for i in range(20)]
 
-        from_barrier = write_log_barrier(self.get_node_address(), "Barrier")
+        from_barrier = write_log_barrier(self.get_node_address())
         create("journal", "//tmp/journal")
         write_journal("//tmp/journal", data)
         raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier)
@@ -177,7 +177,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
         assert raw_events[0]["byte_count"] > 0
         assert raw_events[0]["io_count"] > 0
 
-        from_barrier = write_log_barrier(self.get_node_address(), "Barrier")
+        from_barrier = write_log_barrier(self.get_node_address())
         assert read_journal("//tmp/journal") == data
         raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier)
 
@@ -194,7 +194,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
             min_data_bound = 0.9 * large_journal_size
             max_data_bound = 1.1 * large_journal_size
 
-            from_barrier = write_log_barrier(self.get_node_address(), "Barrier")
+            from_barrier = write_log_barrier(self.get_node_address())
             write_journal("//tmp/journal", large_journal)
             raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier, filter=lambda x: x["user@"] == "root")
 
@@ -202,7 +202,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
             assert min_data_bound <= raw_events[0]["byte_count"] <= max_data_bound
             assert raw_events[0]["io_count"] > 0
 
-            from_barrier = write_log_barrier(self.get_node_address(), "Barrier")
+            from_barrier = write_log_barrier(self.get_node_address())
             read_result = read_journal("//tmp/journal[#{}:#{}]".format(i * len(large_journal), (i + 1) * len(large_journal)))
             assert read_result == large_journal
             raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier, filter=lambda x: x["user@"] == "root")
@@ -233,7 +233,7 @@ class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
 
     @authors("gepardo")
     def test_replicate_chunk_writes(self):
-        from_barriers = [write_log_barrier(self.get_node_address(node_id), "Barrier") for node_id in range(self.NUM_NODES)]
+        from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
         create("table", "//tmp/table", attributes={"replication_factor": self.NUM_NODES})
         write_table("//tmp/table", [{"a": 1, "b": 2, "c": 3}])
 
@@ -256,7 +256,7 @@ class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
     def test_large_replicate(self):
         large_data, large_data_size = self.generate_large_data()
 
-        from_barriers = [write_log_barrier(self.get_node_address(node_id), "Barrier") for node_id in range(self.NUM_NODES)]
+        from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
         create("table", "//tmp/table", attributes={"replication_factor": self.NUM_NODES})
         write_table("//tmp/table", large_data)
 
@@ -299,7 +299,7 @@ class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
     @authors("gepardo")
     @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
     def test_merge_chunks(self, merge_mode):
-        from_barrier = write_log_barrier(self.get_node_address(node_id=0), "Barrier")
+        from_barrier = write_log_barrier(self.get_node_address(node_id=0))
 
         create("table", "//tmp/table")
         write_table("<append=true>//tmp/table", {"name": "cheetah", "type": "cat"})
@@ -320,7 +320,7 @@ class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
     def test_large_merge(self, merge_mode):
         large_data, large_data_size = self.generate_large_data()
 
-        from_barrier = write_log_barrier(self.get_node_address(node_id=0), "Barrier")
+        from_barrier = write_log_barrier(self.get_node_address(node_id=0))
 
         create("table", "//tmp/table")
         for row in large_data:
@@ -348,7 +348,7 @@ class TestRepairMasterJobIOTracking(TestNodeIOTrackingBase):
 
     @authors("gepardo")
     def test_repair_chunk(self):
-        from_barriers = [write_log_barrier(self.get_node_address(node_id), "Barrier") for node_id in range(self.NUM_NODES)]
+        from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
 
         create("table", "//tmp/table", attributes={"erasure_codec": "reed_solomon_3_3"})
         write_table("//tmp/table", [{"a": i, "b": 2 * i, "c": 3 * i} for i in range(100)])

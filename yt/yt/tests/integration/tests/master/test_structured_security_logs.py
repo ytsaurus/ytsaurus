@@ -64,10 +64,10 @@ class TestStructuredSecurityLogs(YTEnvSetup):
     @authors("renadeen")
     def test_no_redundant_acd_updated_events(self):
         master_address = ls("//sys/primary_masters")[0]
-        from_barrier = write_log_barrier(master_address, "Barrier")
+        from_barrier = write_log_barrier(master_address)
         create("table", "//tmp/test_table")
         time.sleep(self.LOG_WRITE_WAIT_TIME)
-        to_barrier = write_log_barrier(master_address, "Barrier")
+        to_barrier = write_log_barrier(master_address)
 
         actual_log = read_structured_log(self.get_structured_log_path(), from_barrier=from_barrier, to_barrier=to_barrier)
         for event in actual_log:
