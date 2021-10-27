@@ -165,7 +165,7 @@ default_config = {
     "check_token": False,
     # This option allows to cache token value in client state.
     "cache_token": True,
-    # If token specified than token_path ignored,
+    # If specified then token_path is ignored,
     # otherwise token extracted from file specified by token_path.
     "token": None,
     # $HOME/.yt/token by default
@@ -201,7 +201,7 @@ default_config = {
     "driver_address_resolver_config": None,
 
     # Path to driver config.
-    # ATTENTION: It is comptatible with native yt binary written in C++, it means
+    # ATTENTION: It is compatible with native yt binary written in C++, it means
     # that config should be in YSON format and contain driver, logging and tracing configurations.
     # Do not use it for Yt client initialization, use driver_config instead.
     # Logging and tracing initialization would be executed only once for first initialization.
@@ -223,7 +223,7 @@ default_config = {
         # For example, .pth file could be used to emulate namespace packages (see PEP-420).
         # Such packages can lack of __init__.py and sometimes can not be imported on nodes
         # (e.g. because .pth files can not be taken to nodes)
-        # In this case artificial __init__.py is added when modules achive is created.
+        # In this case artificial __init__.py is added when modules archive is created.
         "create_init_file_for_package_modules": True,
         # The list of files to add into archive. File should be specified as tuple that
         # consists of absolute file path and relative path in archive.
