@@ -370,7 +370,7 @@ private:
 
     void InvalidateTable(const TTableMountInfoPtr& tableInfo) override
     {
-        Invalidate(tableInfo->Path);
+        InvalidateValue(tableInfo->Path, tableInfo);
 
         TAsyncExpiringCache::Get(TTableMountCacheKey{
             tableInfo->Path,

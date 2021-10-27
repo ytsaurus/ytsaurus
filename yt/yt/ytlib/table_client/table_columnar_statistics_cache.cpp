@@ -118,7 +118,7 @@ public:
             "Getting columnar statistics from cache synchronously (RequestCount: %v)",
             requests.size());
 
-        auto syncResults = Find(keys);
+        auto syncResults = FindMany(keys);
         // Collect paths for which statistics are missing or obsolete.
         std::vector<TTableKey> missedKeys;
         std::vector<int> missedIndices;
@@ -139,7 +139,7 @@ public:
                 // Result is cached but related to an older revision.
                 ++obsoleteCount;
                 // TODO(max42): multikey version of Invalidate.
-                Invalidate(keys[index]);
+                InvalidateActive(keys[index]);
                 missedKeys.emplace_back(std::move(keys[index]));
                 missedIndices.push_back(index);
             } else {
@@ -162,7 +162,7 @@ public:
             "Getting columnar statistics from cache asynchronously (RequestCount: %v)",
             missedKeys.size());
 
-        auto asyncResults = Get(missedKeys);
+        auto asyncResults = GetMany(missedKeys);
 
         return asyncResults.ApplyUnique(BIND(&TImpl::CombineResult, MakeStrong(this), Passed(std::move(finalResults)), Passed(std::move(missedIndices))));
     }

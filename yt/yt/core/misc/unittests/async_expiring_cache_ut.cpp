@@ -121,7 +121,7 @@ TEST(TAsyncExpiringCacheTest, TestConcurrentAccess)
                 cache->Get(0);
 
                 if (rand() % 20 == 0) {
-                    cache->Invalidate(0);
+                    cache->InvalidateActive(0);
                 }
             }
         });
@@ -302,6 +302,73 @@ TEST(TAsyncExpiringCacheTest, TestZeroCache2)
     }
 
     EXPECT_EQ(1, cache->GetCount());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRevisionCache
+    : public TAsyncExpiringCache<int, int>
+{
+public:
+    TRevisionCache(const TAsyncExpiringCacheConfigPtr& config)
+        : TAsyncExpiringCache<int, int>(config)
+    { }
+
+    std::atomic<int> InitialFetchCount = {0};
+    std::atomic<int> PeriodicUpdateCount = {0};
+    std::atomic<int> ForcedUpdateCount = {0};
+
+private:
+    virtual TFuture<int> DoGet(
+        const int& /* key */,
+        bool /* isPeriodicUpdate */) noexcept
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    virtual TFuture<int> DoGet(
+        const int& /* key */,
+        const TErrorOr<int>* oldValue,
+        EUpdateReason reason) noexcept
+    {
+        if (reason == EUpdateReason::ForcedUpdate) {
+            ForcedUpdateCount++;
+            return MakeDelayedFuture(TDuration::MilliSeconds(100), oldValue->Value() + 1);
+        } else if (reason == EUpdateReason::PeriodicUpdate) {
+            PeriodicUpdateCount++;
+            return MakeDelayedFuture(TDuration::MilliSeconds(100), oldValue->Value());
+        } else {
+            InitialFetchCount++;
+            return MakeDelayedFuture(TDuration::MilliSeconds(100), 0);
+        }
+    }
+};
+
+TEST(TAsyncExpiringCacheTest, ForceUpdate)
+{
+    auto config = New<TAsyncExpiringCacheConfig>();
+    config->RefreshTime = TDuration::MilliSeconds(100);
+
+    auto cache = New<TRevisionCache>(config);
+
+    auto rev0 = cache->Get(0);
+    ASSERT_EQ(rev0.Get().Value(), 0);
+
+    Sleep(TDuration::MilliSeconds(500));
+
+    rev0 = cache->Get(0);
+    ASSERT_EQ(rev0.Get().Value(), 0);
+    ASSERT_GE(cache->PeriodicUpdateCount.load(), 0);
+
+    cache->ForceRefresh(0, 0);
+    auto rev1 = cache->Get(0);
+    ASSERT_EQ(rev1.Get().Value(), 1);
+    ASSERT_EQ(cache->ForcedUpdateCount.load(), 1);
+
+    cache->ForceRefresh(0, 0);
+    rev1 = cache->Get(0);
+    ASSERT_EQ(rev1.Get().Value(), 1);
+    ASSERT_EQ(cache->ForcedUpdateCount.load(), 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
