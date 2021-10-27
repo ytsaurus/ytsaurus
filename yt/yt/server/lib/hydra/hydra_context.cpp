@@ -11,11 +11,13 @@ namespace NYT::NHydra {
 THydraContext::THydraContext(
     TVersion version,
     TInstant timestamp,
-    ui64 randomSeed)
+    ui64 randomSeed,
+    TReign automatonReign)
     : Version_(version)
     , Timestamp_(timestamp)
     , RandomSeed_(randomSeed)
     , RandomGenerator_(New<TRandomGenerator>(randomSeed))
+    , AutomatonReign_(automatonReign)
 { }
 
 TVersion THydraContext::GetVersion() const

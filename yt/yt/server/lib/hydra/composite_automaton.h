@@ -155,7 +155,7 @@ public:
     void SetUpperWriteCountDumpLimit(i64 upperLimit);
 
     TFuture<void> SaveSnapshot(NConcurrency::IAsyncOutputStreamPtr writer) override;
-    void LoadSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader) override;
+    TReign LoadSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader) override;
     void PrepareState() override;
 
     void ApplyMutation(TMutationContext* context) override;

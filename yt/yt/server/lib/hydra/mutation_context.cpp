@@ -30,7 +30,8 @@ TMutationContext::TMutationContext(
     : THydraContext(
         version,
         timestamp,
-        randomSeed)
+        randomSeed,
+        request.Reign)
     , Parent_(nullptr)
     , Request_(request)
     , PrevRandomSeed_(prevRandomSeed)

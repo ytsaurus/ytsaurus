@@ -804,7 +804,7 @@ void TDecoratedAutomaton::LoadSnapshot(
         StateHash_ = 0;
         Timestamp_ = {};
         {
-            Automaton_->LoadSnapshot(reader);
+            auto snapshotReign = Automaton_->LoadSnapshot(reader);
 
             // Snapshot preparation is a "mutation" that is executed before first mutation
             // in changelog.
@@ -817,7 +817,8 @@ void TDecoratedAutomaton::LoadSnapshot(
             THydraContext hydraContext(
                 hydraContextVersion,
                 timestamp,
-                hydraContextRandomSeed);
+                hydraContextRandomSeed,
+                snapshotReign);
             THydraContextGuard hydraContextGuard(&hydraContext);
 
             Automaton_->PrepareState();

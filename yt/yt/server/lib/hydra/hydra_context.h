@@ -16,7 +16,8 @@ public:
     THydraContext(
         TVersion version,
         TInstant timestamp,
-        ui64 randomSeed);
+        ui64 randomSeed,
+        TReign automatonReign);
 
     TVersion GetVersion() const;
 
@@ -25,6 +26,12 @@ public:
     ui64 GetRandomSeed() const;
     TRandomGenerator& RandomGenerator();
 
+    //! Returns the reign of current automaton state.
+    //! For regular mutation equals to reign of mutation itself.
+    //! For virtual mutations equals to reign of snapshot being loaded.
+    template <class EReign>
+    EReign GetAutomatonReign() const;
+
 private:
     const TVersion Version_;
 
@@ -32,6 +39,8 @@ private:
 
     const ui64 RandomSeed_;
     const TIntrusivePtr<TRandomGenerator> RandomGenerator_;
+
+    const TReign AutomatonReign_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,3 +69,7 @@ TError SanitizeWithCurrentHydraContext(const TError& error);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHydra
+
+#define HYDRA_CONTEXT_INL_H_
+#include "hydra_context-inl.h"
+#undef HYDRA_CONTEXT_INL_H_

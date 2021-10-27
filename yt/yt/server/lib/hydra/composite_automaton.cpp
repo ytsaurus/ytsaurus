@@ -356,12 +356,16 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
         .Run();
 }
 
-void TCompositeAutomaton::LoadSnapshot(IAsyncZeroCopyInputStreamPtr reader)
+TReign TCompositeAutomaton::LoadSnapshot(IAsyncZeroCopyInputStreamPtr reader)
 {
+    TReign snapshotReign = -1;
+
     DoLoadSnapshot(
         reader,
         [&] (TLoadContext& context) {
             using NYT::Load;
+
+            snapshotReign = context.GetVersion();
 
             auto parts = GetParts();
             for (const auto& part : parts) {
@@ -415,6 +419,8 @@ void TCompositeAutomaton::LoadSnapshot(IAsyncZeroCopyInputStreamPtr reader)
                 context.Dumper().ReportWriteCount();
             }
         });
+
+    return snapshotReign;
 }
 
 void TCompositeAutomaton::PrepareState()
