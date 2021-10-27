@@ -181,18 +181,23 @@ TJobResources TScheduleJobsContext::GetLocalUnconditionalUsageDiscountFor(const 
     return it != LocalUnconditionalUsageDiscountMap_.end() ? it->second : TJobResources{};
 }
 
-TScheduleJobsContext::TStageState::TStageState(TScheduleJobsStage* schedulingStage, const TString& name)
+TScheduleJobsContext::TStageState::TStageState(TScheduleJobsStage* schedulingStage, EJobSchedulingStage type)
     : SchedulingStage(schedulingStage)
-    , Name(name)
+    , Type(type)
 { }
 
-void TScheduleJobsContext::StartStage(TScheduleJobsStage* schedulingStage, const TString& stageName)
+void TScheduleJobsContext::StartStage(TScheduleJobsStage* schedulingStage, EJobSchedulingStage stageType)
 {
     YT_VERIFY(!StageState_);
 
-    StageState_.emplace(TStageState(schedulingStage, stageName));
+    StageState_.emplace(TStageState(schedulingStage, stageType));
 
     Timer_ = TWallTimer();
+}
+
+EJobSchedulingStage TScheduleJobsContext::GetStageType()
+{
+    return StageState()->Type;
 }
 
 void TScheduleJobsContext::ProfileAndLogStatisticsOfStage()
@@ -2984,7 +2989,7 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
     YT_ELEMENT_LOG_DETAILED(this,
         "Trying to schedule job "
         "(SatisfactionRatio: %v, NodeId: %v, NodeResourceUsage: %v, "
-        "UsageDiscount: {Total: %v, Unconditional: %v, Conditional: %v}, StageName: %v)",
+        "UsageDiscount: {Total: %v, Unconditional: %v, Conditional: %v}, StageType: %v)",
         context->DynamicAttributesFor(this).SatisfactionRatio,
         context->SchedulingContext()->GetNodeDescriptor().Id,
         FormatResourceUsage(context->SchedulingContext()->ResourceUsage(), context->SchedulingContext()->ResourceLimits()),
@@ -2992,7 +2997,7 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
             context->SchedulingContext()->GetConditionalDiscountForOperation(OperationId_)),
         FormatResources(context->SchedulingContext()->UnconditionalResourceUsageDiscount()),
         FormatResources(context->SchedulingContext()->GetConditionalDiscountForOperation(OperationId_)),
-        context->StageState()->Name);
+        context->StageState()->Type);
 
     auto deactivateOperationElement = [&] (EDeactivationReason reason) {
         YT_ELEMENT_LOG_DETAILED(this,
@@ -3122,7 +3127,8 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
         scheduleJobResult->IncarnationId,
         scheduleJobResult->ControllerEpoch,
         startDescriptor,
-        Spec_->PreemptionMode);
+        Spec_->PreemptionMode,
+        context->GetStageType());
 
     UpdateCurrentResourceUsage(context);
 

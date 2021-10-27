@@ -90,6 +90,9 @@ TSimulatorControlThread::TSimulatorControlThread(
     , JobAndOperationCounter_(operations.size())
     , Logger(NSchedulerSimulator::Logger.WithTag("ControlThread"))
 {
+    // Intentionally disables profiling since simulator is not ready for profiling.
+    schedulerConfig->EnableScheduledAndPreemptedResourcesProfiling = false;
+
     for (const auto& operation : operations) {
         InsertControlThreadEvent(TControlThreadEvent::OperationStarted(operation.StartTime, operation.Id));
     }

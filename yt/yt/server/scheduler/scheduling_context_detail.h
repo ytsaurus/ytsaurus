@@ -52,9 +52,10 @@ public:
         TIncarnationId incarnationId,
         TControllerEpoch controllerEpoch,
         const TJobStartDescriptor& startDescriptor,
-        EPreemptionMode preemptionMode) override;
+        EPreemptionMode preemptionMode,
+        EJobSchedulingStage schedulingStage) override;
 
-    void PreemptJob(const TJobPtr& job, TDuration interruptTimeout) override;
+    void PreemptJob(const TJobPtr& job, TDuration interruptTimeout, EJobPreemptionReason preemptionReason) override;
 
     void ResetUsageDiscounts() override;
     void SetConditionalDiscountForOperation(TOperationId operationId, const TJobResources& discount) override;

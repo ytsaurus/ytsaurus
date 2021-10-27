@@ -4,6 +4,7 @@
 
 #include "job_resource_helpers.h"
 #include "master_connector.h"
+#include "job.h"
 #include "scheduler_tree.h"
 
 #include <yt/yt/server/lib/scheduler/event_log.h>
@@ -236,6 +237,11 @@ struct ISchedulerStrategy
         std::vector<TJobId>* jobsToAbort) = 0;
 
     virtual void ApplyJobMetricsDelta(TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics) = 0;
+
+    virtual void ApplyScheduledAndPreemptedResourcesDelta(
+        const std::vector<TJobPtr>& startedJobs,
+        const std::vector<TPreemptedJob>& preemptedJobs,
+        const IFairShareTreeSnapshotPtr& snapshot) = 0;
 
     virtual void UpdatePoolTrees(const NYTree::INodePtr& poolTreesNode, const TPersistentStrategyStatePtr& persistentStrategyState) = 0;
 

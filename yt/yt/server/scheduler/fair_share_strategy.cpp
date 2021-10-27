@@ -171,7 +171,12 @@ public:
             return VoidFuture;
         }
 
-        return snapshot->ScheduleJobs(schedulingContext);
+        return snapshot->ScheduleJobs(schedulingContext).Apply(BIND([=, this_ = MakeStrong(this)] {
+            this_->ApplyScheduledAndPreemptedResourcesDelta(
+                schedulingContext->StartedJobs(),
+                schedulingContext->PreemptedJobs(),
+                snapshot);
+        }));
     }
 
     void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) override
@@ -710,6 +715,41 @@ public:
                 GetOrCrash(snapshots, treeId),
                 Passed(std::move(jobMetricsPerOperation))));
         }
+    }
+
+    void ApplyScheduledAndPreemptedResourcesDelta(
+        const std::vector<TJobPtr>& startedJobs,
+        const std::vector<TPreemptedJob>& preemptedJobs,
+        const IFairShareTreeSnapshotPtr& snapshot) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (!Config->EnableScheduledAndPreemptedResourcesProfiling) {
+            return;
+        }
+
+        TEnumIndexedVector<EJobSchedulingStage, TOperationIdToJobResources> scheduledJobResources;
+        TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> preemptedJobResources;
+
+        for (const auto& job : startedJobs) {
+            TOperationId operationId = job->GetOperationId();
+            const TJobResources& scheduledResourcesDelta = job->ResourceLimits();
+            EJobSchedulingStage schedulingStage = job->GetSchedulingStage();
+            scheduledJobResources[schedulingStage][operationId] += scheduledResourcesDelta;
+        }
+        for (const auto& preemptedJob : preemptedJobs) {
+            const TJobPtr& job = preemptedJob.Job;
+            TOperationId operationId = job->GetOperationId();
+            const TJobResources& preemptedResourcesDelta = job->ResourceLimits();
+            EJobPreemptionReason preemptionReason = preemptedJob.PreemptionReason;
+            preemptedJobResources[preemptionReason][operationId] += preemptedResourcesDelta;
+        }
+
+        Host->GetFairShareProfilingInvoker()->Invoke(BIND(
+            &IFairShareTreeSnapshot::ApplyScheduledAndPreemptedResourcesDelta,
+            snapshot,
+            Passed(std::move(scheduledJobResources)),
+            Passed(std::move(preemptedJobResources))));
     }
 
     TFuture<void> ValidateOperationStart(const IOperationStrategyHost* operation) override

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "scheduler_strategy.h"
+#include "private.h"
 
 #include <yt/yt/server/lib/scheduler/resource_metering.h>
 
@@ -36,6 +37,9 @@ struct IFairShareTreeSnapshot
     virtual bool HasDisabledOperation(TOperationId operationId) const = 0;
     virtual bool IsOperationRunningInTree(TOperationId operationId) const = 0;
     virtual void ApplyJobMetricsDelta(const THashMap<TOperationId, TJobMetrics>& jobMetricsPerOperation) = 0;
+    virtual void ApplyScheduledAndPreemptedResourcesDelta(
+        const TEnumIndexedVector<EJobSchedulingStage, TOperationIdToJobResources>& scheduledJobResources,
+        const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResources) = 0;
     virtual const TFairShareStrategyTreeConfigPtr& GetConfig() const = 0;
     virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
     virtual TJobResources GetTotalResourceLimits() const = 0;

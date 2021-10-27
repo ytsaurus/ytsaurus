@@ -89,6 +89,7 @@ void FromProto(
             jobProto.interruptible(),
             preemptionMode,
             jobProto.tree_id(),
+            EJobSchedulingStage::Unknown,
             jobProto.node_id(),
             jobProto.node_address());
         job->SetState(EJobState::Running);

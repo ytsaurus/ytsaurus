@@ -192,11 +192,11 @@ class TScheduleJobsContext
 private:
     struct TStageState
     {
-        TStageState(TScheduleJobsStage* schedulingStage, const TString& name);
+        TStageState(TScheduleJobsStage* schedulingStage, EJobSchedulingStage type);
 
         TScheduleJobsStage* const SchedulingStage;
 
-        TString Name;
+        EJobSchedulingStage Type;
 
         bool PrescheduleExecuted = false;
 
@@ -261,7 +261,9 @@ public:
     const TNonOwningJobSet& GetConditionallyPreemptableJobsInPool(const TSchedulerCompositeElement* element) const;
     TJobResources GetLocalUnconditionalUsageDiscountFor(const TSchedulerElement* element) const;
 
-    void StartStage(TScheduleJobsStage* schedulingStage, const TString& stageName);
+    void StartStage(TScheduleJobsStage* schedulingStage, EJobSchedulingStage stageType);
+
+    EJobSchedulingStage GetStageType();
 
     void ProfileAndLogStatisticsOfStage();
 
