@@ -3,10 +3,11 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, remove,
     exists, concatenate,
-    create_account, create_user, make_ace, insert_rows, alter_table, read_table, write_table, map, merge,
+    create_account, create_user, make_ace, insert_rows,
+    alter_table, read_table, write_table, map, merge,
     sync_create_cells, sync_mount_table,
     start_transaction, abort_transaction, commit_transaction,
-    sync_unmount_table, create_dynamic_table, get_nodes, create_data_center, create_rack, create_table)
+    sync_unmount_table, create_dynamic_table)
 
 from yt_type_helpers import make_schema
 
@@ -16,7 +17,6 @@ import yt.yson as yson
 import pytest
 
 from time import sleep
-from timeit import default_timer as timer
 
 #################################################################
 
@@ -898,59 +898,6 @@ class TestChunkMerger(YTEnvSetup):
 
         wait(lambda: get("//tmp/d/t/@resource_usage/chunk_count") == 1)
         assert read_table("//tmp/d/t") == info
-
-    @authors("aleksandra-zh")
-    @pytest.mark.skip(reason="aleksandra-zh@ is working on it, be careful!")
-    def test_merge_jobs_inter_dc_edge_consumption(self):
-        create_data_center("d1")
-        create_data_center("d2")
-        create_rack("r1")
-        create_rack("r2")
-        set("//sys/racks/r1/@data_center", "d1")
-        set("//sys/racks/r2/@data_center", "d2")
-
-        nodes = get_nodes()
-        set("//sys/cluster_nodes/{}/@rack".format(nodes[0]), "r1")
-        set("//sys/cluster_nodes/{}/@rack".format(nodes[1]), "r2")
-        set("//sys/cluster_nodes/{}/@rack".format(nodes[2]), "r2")
-
-        TABLE_COUNT = 10
-
-        def merge_completed():
-            for i in range(TABLE_COUNT - 1, -1, -1):
-                if get("//tmp/t{}/@resource_usage/chunk_count".format(i)) > 1:
-                    return False
-            return True
-
-        def measure_time_until(predicate, delay=0.5, max_time=120.0):
-            start = timer()
-            while True:
-                now = timer()
-                if (now - start > max_time):
-                    return max_time
-                if (predicate()):
-                    return now - start
-                sleep(delay)
-
-        def run():
-            set("//sys/@config/chunk_manager/chunk_merger/enable", True)
-            set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
-            set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
-            for i in range(TABLE_COUNT):
-                create_table("//tmp/t{}".format(i))
-                write_table("<append=true>//tmp/t{}".format(i), {"a": "b"})
-                write_table("<append=true>//tmp/t{}".format(i), {"b": "c"})
-                write_table("<append=true>//tmp/t{}".format(i), {"c": "d"})
-            for i in range(TABLE_COUNT):
-                set("//tmp/t{}/@chunk_merger_mode".format(i), "deep")
-            return measure_time_until(merge_completed)
-
-        t1 = run()
-        set("//sys/@config/chunk_manager/inter_dc_limits/default_capacity", 5)
-        for i in range(TABLE_COUNT):
-            remove("//tmp/t{}".format(i))
-        t2 = run()
-        assert t1 < 0.5 * t2
 
 
 class TestChunkMergerMulticell(TestChunkMerger):

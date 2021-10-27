@@ -210,6 +210,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixAccountChunkMergerAttributesReplication)                   (1806))  // babenko
     ((CopyJournals)                                                 (1807))  // gritukan
     ((HostObjects)                                                  (1808))  // gritukan
+    ((RemoveInterDCEdgeCapacities)                                  (1809))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

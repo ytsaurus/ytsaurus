@@ -681,8 +681,7 @@ public:
         TChunk* chunk,
         int desiredCount,
         int minCount,
-        std::optional<int> replicationFactorOverride,
-        const TChunkPlacement::TDataCenterSet& dataCenters)
+        std::optional<int> replicationFactorOverride)
     {
         return ChunkPlacement_->AllocateWriteTargets(
             medium,
@@ -690,7 +689,6 @@ public:
             desiredCount,
             minCount,
             replicationFactorOverride,
-            dataCenters,
             ESessionType::User);
     }
 
@@ -2369,35 +2367,14 @@ private:
         }
     }
 
-    void OnNodeRackChanged(TNode* node, TRack* oldRack)
+    void OnNodeRackChanged(TNode* node, TRack* /*oldRack*/)
     {
-        auto* newDataCenter = node->GetDataCenter();
-        auto* oldDataCenter = oldRack ? oldRack->GetDataCenter() : nullptr;
-        if (newDataCenter != oldDataCenter) {
-            HandleNodeDataCenterChange(node, oldDataCenter);
-        }
-
         OnNodeChanged(node);
     }
 
-    void OnNodeDataCenterChanged(TNode* node, TDataCenter* oldDataCenter)
+    void OnNodeDataCenterChanged(TNode* node, TDataCenter* /*oldDataCenter*/)
     {
-        HandleNodeDataCenterChange(node, oldDataCenter);
-
         OnNodeChanged(node);
-    }
-
-    void HandleNodeDataCenterChange(TNode* node, TDataCenter* oldDataCenter)
-    {
-        YT_VERIFY(node->GetDataCenter() != oldDataCenter);
-
-        if (JobRegistry_) {
-            JobRegistry_->OnNodeDataCenterChanged(node, oldDataCenter);
-        }
-
-        if (ChunkPlacement_) {
-            ChunkPlacement_->OnNodeDataCenterChanged(node, oldDataCenter);
-        }
     }
 
     bool IsExactlyReplicatedByApprovedReplicas(const TChunk* chunk)
@@ -2675,9 +2652,6 @@ private:
 
     void OnDataCenterCreated(TDataCenter* dataCenter)
     {
-        if (JobRegistry_) {
-            JobRegistry_->OnDataCenterCreated(dataCenter);
-        }
         if (ReplicatorState_) {
             ReplicatorState_->CreateDataCenter(dataCenter);
         }
@@ -2693,9 +2667,6 @@ private:
 
     void OnDataCenterDestroyed(TDataCenter* dataCenter)
     {
-        if (JobRegistry_) {
-            JobRegistry_->OnDataCenterDestroyed(dataCenter);
-        }
         if (ReplicatorState_) {
             ReplicatorState_->DestroyDataCenter(dataCenter->GetId());
         }
@@ -4794,16 +4765,14 @@ TNodeList TChunkManager::AllocateWriteTargets(
     TChunk* chunk,
     int desiredCount,
     int minCount,
-    std::optional<int> replicationFactorOverride,
-    const TChunkPlacement::TDataCenterSet& dataCenters)
+    std::optional<int> replicationFactorOverride)
 {
     return Impl_->AllocateWriteTargets(
         medium,
         chunk,
         desiredCount,
         minCount,
-        replicationFactorOverride,
-        dataCenters);
+        replicationFactorOverride);
 }
 
 NYTree::IYPathServicePtr TChunkManager::GetOrchidService()

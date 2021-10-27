@@ -149,14 +149,6 @@ void TChunkPlacement::OnNodeUpdated(TNode* node)
     OnNodeRegistered(node);
 }
 
-void TChunkPlacement::OnNodeDataCenterChanged(TNode* node, const TDataCenter* oldDataCenter)
-{
-    RemoveFromLoadFactorMaps(node, oldDataCenter);
-    RemoveFromFillFactorMaps(node, oldDataCenter);
-
-    OnNodeRegistered(node);
-}
-
 void TChunkPlacement::OnNodeDisposed(TNode* node)
 {
     for (const auto& item : node->LoadFactorIterators()) {
@@ -184,7 +176,6 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         minCount,
         sessionType == ESessionType::Replication,
         replicationFactorOverride,
-        nullptr,
         forbiddenNodes,
         preferredHostName);
 
@@ -199,8 +190,6 @@ void TChunkPlacement::InsertToFillFactorMaps(TNode* node)
 {
     RemoveFromFillFactorMaps(node);
 
-    auto* dataCenter = node->GetDataCenter();
-
     // Iterate through IOWeights because IsValidBalancingTargetToInsert check if IOWeights contains medium
     for (const auto& [mediumIndex, _] : node->IOWeights()) {
         auto* medium = Bootstrap_->GetChunkManager()->FindMediumByIndex(mediumIndex);
@@ -214,17 +203,13 @@ void TChunkPlacement::InsertToFillFactorMaps(TNode* node)
             continue;
         }
 
-        auto it = DomainToFillFactorToNode_[TPlacementDomain{dataCenter, medium}].emplace(*fillFactor, node);
+        auto it = MediumToFillFactorToNode_[medium].emplace(*fillFactor, node);
         node->SetFillFactorIterator(mediumIndex, it);
     }
 }
 
-void TChunkPlacement::RemoveFromFillFactorMaps(
-    TNode* node,
-    std::optional<const TDataCenter*> overrideDataCenter)
+void TChunkPlacement::RemoveFromFillFactorMaps(TNode* node)
 {
-    auto* dataCenter = overrideDataCenter ? *overrideDataCenter : node->GetDataCenter();
-
     for (const auto& [mediumIndex, factorMapIter] : node->FillFactorIterators()) {
         auto* medium = Bootstrap_->GetChunkManager()->FindMediumByIndex(mediumIndex);
 
@@ -232,15 +217,15 @@ void TChunkPlacement::RemoveFromFillFactorMaps(
             continue;
         }
 
-        auto domainToFactorMapIter = DomainToFillFactorToNode_.find(TPlacementDomain{dataCenter, medium});
-        YT_VERIFY(domainToFactorMapIter != DomainToFillFactorToNode_.end());
+        auto mediumToFactorMapIter = MediumToFillFactorToNode_.find(medium);
+        YT_VERIFY(mediumToFactorMapIter != MediumToFillFactorToNode_.end());
 
-        auto& factorMap = domainToFactorMapIter->second;
+        auto& factorMap = mediumToFactorMapIter->second;
         factorMap.erase(*factorMapIter);
         node->SetFillFactorIterator(mediumIndex, std::nullopt);
 
         if (factorMap.empty()) {
-            DomainToFillFactorToNode_.erase(domainToFactorMapIter);
+            MediumToFillFactorToNode_.erase(mediumToFactorMapIter);
         }
     }
 }
@@ -248,8 +233,6 @@ void TChunkPlacement::RemoveFromFillFactorMaps(
 void TChunkPlacement::InsertToLoadFactorMaps(TNode* node)
 {
     RemoveFromLoadFactorMaps(node);
-
-    auto* dataCenter = node->GetDataCenter();
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -268,17 +251,13 @@ void TChunkPlacement::InsertToLoadFactorMaps(TNode* node)
             continue;
         }
 
-        auto it = DomainToLoadFactorToNode_[TPlacementDomain{dataCenter, medium}].emplace(*loadFactor, node);
+        auto it = MediumToLoadFactorToNode_[medium].emplace(*loadFactor, node);
         node->SetLoadFactorIterator(mediumIndex, it);
     }
 }
 
-void TChunkPlacement::RemoveFromLoadFactorMaps(
-    TNode* node,
-    std::optional<const TDataCenter*> overrideDataCenter)
+void TChunkPlacement::RemoveFromLoadFactorMaps(TNode* node)
 {
-    auto* dataCenter = overrideDataCenter ? *overrideDataCenter : node->GetDataCenter();
-
     for (const auto& [mediumIndex, factorMapIter] : node->LoadFactorIterators()) {
         auto* medium = Bootstrap_->GetChunkManager()->FindMediumByIndex(mediumIndex);
 
@@ -286,15 +265,15 @@ void TChunkPlacement::RemoveFromLoadFactorMaps(
             continue;
         }
 
-        auto domainToFactorMapIter = DomainToLoadFactorToNode_.find(TPlacementDomain{dataCenter, medium});
-        YT_VERIFY(domainToFactorMapIter != DomainToLoadFactorToNode_.end());
+        auto mediumToFactorMapIter = MediumToLoadFactorToNode_.find(medium);
+        YT_VERIFY(mediumToFactorMapIter != MediumToLoadFactorToNode_.end());
 
-        auto& factorMap = domainToFactorMapIter->second;
+        auto& factorMap = mediumToFactorMapIter->second;
         factorMap.erase(*factorMapIter);
         node->SetLoadFactorIterator(mediumIndex, std::nullopt);
 
         if (factorMap.empty()) {
-            DomainToLoadFactorToNode_.erase(domainToFactorMapIter);
+            MediumToLoadFactorToNode_.erase(mediumToFactorMapIter);
         }
     }
 }
@@ -306,15 +285,10 @@ TNodeList TChunkPlacement::GetWriteTargets(
     int minCount,
     bool forceRackAwareness,
     std::optional<int> replicationFactorOverride,
-    const TDataCenterSet* dataCenters,
     const TNodeList* forbiddenNodes,
     const std::optional<TString>& preferredHostName)
 {
-    if (dataCenters && dataCenters->empty()) {
-        return TNodeList();
-    }
-
-    PrepareLoadFactorIterator(dataCenters, medium);
+    PrepareLoadFactorIterator(medium);
     if (!LoadFactorToNodeIterator_.IsValid()) {
         return TNodeList();
     }
@@ -344,7 +318,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
 
         bool hasProgress = false;
         if (!LoadFactorToNodeIterator_.IsValid()) {
-            PrepareLoadFactorIterator(dataCenters, medium);
+            PrepareLoadFactorIterator(medium);
         }
         for ( ; !hasEnoughTargets() && LoadFactorToNodeIterator_.IsValid(); ++LoadFactorToNodeIterator_) {
             auto* node = LoadFactorToNodeIterator_->second;
@@ -365,7 +339,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
 
         if (preferredHost) {
             for (auto* node : preferredHost->GetNodesWithFlavor(ENodeFlavor::Data)) {
-                if (IsValidPreferredWriteTargetToAllocate(node, medium, dataCenters)) {
+                if (IsValidPreferredWriteTargetToAllocate(node, medium)) {
                     tryAdd(node, /*enableRackAwareness*/ true);
                 }
             }
@@ -397,7 +371,6 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     int desiredCount,
     int minCount,
     std::optional<int> replicationFactorOverride,
-    const TDataCenterSet& dataCenters,
     ESessionType sessionType)
 {
     auto targetNodes = GetWriteTargets(
@@ -406,8 +379,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         desiredCount,
         minCount,
         sessionType == ESessionType::Replication,
-        replicationFactorOverride,
-        &dataCenters);
+        replicationFactorOverride);
 
     for (auto* target : targetNodes) {
         AddSessionHint(target, medium->GetIndex(), sessionType);
@@ -478,13 +450,13 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
     return rackWinner ? rackWinner : fillFactorWinner;
 }
 
-bool TChunkPlacement::HasBalancingTargets(const TDataCenterSet& dataCenters, TMedium* medium, double maxFillFactor)
+bool TChunkPlacement::HasBalancingTargets(TMedium* medium, double maxFillFactor)
 {
     if (maxFillFactor < 0) {
         return false;
     }
 
-    PrepareFillFactorIterator(&dataCenters, medium);
+    PrepareFillFactorIterator(medium);
     if (!FillFactorToNodeIterator_.IsValid()) {
         return false;
     }
@@ -498,10 +470,9 @@ bool TChunkPlacement::HasBalancingTargets(const TDataCenterSet& dataCenters, TMe
 TNode* TChunkPlacement::AllocateBalancingTarget(
     TMedium* medium,
     TChunk* chunk,
-    double maxFillFactor,
-    const TDataCenterSet& dataCenters)
+    double maxFillFactor)
 {
-    auto* target = GetBalancingTarget(medium, &dataCenters, chunk, maxFillFactor);
+    auto* target = GetBalancingTarget(medium, chunk, maxFillFactor);
 
     if (target) {
         AddSessionHint(target, medium->GetIndex(), ESessionType::Replication);
@@ -512,14 +483,9 @@ TNode* TChunkPlacement::AllocateBalancingTarget(
 
 TNode* TChunkPlacement::GetBalancingTarget(
     TMedium* medium,
-    const TDataCenterSet* dataCenters,
     TChunk* chunk,
     double maxFillFactor)
 {
-    if (dataCenters && dataCenters->empty()) {
-        return nullptr;
-    }
-
     int maxReplicasPerRack = GetMaxReplicasPerRack(medium, chunk, std::nullopt);
     TTargetCollector collector(
         medium,
@@ -528,7 +494,7 @@ TNode* TChunkPlacement::GetBalancingTarget(
         Config_->AllowMultipleErasurePartsPerNode && chunk->IsErasure(),
         nullptr);
 
-    PrepareFillFactorIterator(dataCenters, medium);
+    PrepareFillFactorIterator(medium);
     for ( ; FillFactorToNodeIterator_.IsValid(); ++FillFactorToNodeIterator_) {
         auto* node = FillFactorToNodeIterator_->second;
         auto nodeFillFactor = node->GetFillFactor(medium->GetIndex());
@@ -559,20 +525,13 @@ bool TChunkPlacement::IsValidWriteTargetToInsert(TMedium* medium, TNode* node)
     return IsValidWriteTargetCore(node);
 }
 
-bool TChunkPlacement::IsValidPreferredWriteTargetToAllocate(
-    TNode* node,
-    TMedium* medium,
-    const TDataCenterSet* dataCenters)
+bool TChunkPlacement::IsValidPreferredWriteTargetToAllocate(TNode* node, TMedium* medium)
 {
     if (medium->GetCache()) {
         return false;
     }
 
     if (!node->IsWriteEnabled(medium->GetIndex())) {
-        return false;
-    }
-
-    if (dataCenters && dataCenters->count(node->GetDataCenter()) == 0) {
         return false;
     }
 
@@ -760,26 +719,22 @@ int TChunkPlacement::GetMaxReplicasPerRack(
     return GetMaxReplicasPerRack(medium, chunk, replicationFactorOverride);
 }
 
-void TChunkPlacement::PrepareFillFactorIterator(const TDataCenterSet* dataCenters, const TMedium* medium)
+void TChunkPlacement::PrepareFillFactorIterator(const TMedium* medium)
 {
     FillFactorToNodeIterator_.Reset();
-    ForEachDataCenter(dataCenters, [&] (const TDataCenter* dataCenter) {
-        auto it = DomainToFillFactorToNode_.find(TPlacementDomain{dataCenter, medium});
-        if (it != DomainToFillFactorToNode_.end()) {
-            FillFactorToNodeIterator_.AddRange(it->second);
-        }
-    });
+    auto it = MediumToFillFactorToNode_.find(medium);
+    if (it != MediumToFillFactorToNode_.end()) {
+        FillFactorToNodeIterator_.AddRange(it->second);
+    }
 }
 
-void TChunkPlacement::PrepareLoadFactorIterator(const TDataCenterSet* dataCenters, const TMedium* medium)
+void TChunkPlacement::PrepareLoadFactorIterator(const TMedium* medium)
 {
     LoadFactorToNodeIterator_.Reset();
-    ForEachDataCenter(dataCenters, [&] (const TDataCenter* dataCenter) {
-        auto it = DomainToLoadFactorToNode_.find(TPlacementDomain{dataCenter, medium});
-        if (it != DomainToLoadFactorToNode_.end()) {
-            LoadFactorToNodeIterator_.AddRange(it->second);
-        }
-    });
+    auto it = MediumToLoadFactorToNode_.find(medium);
+    if (it != MediumToLoadFactorToNode_.end()) {
+        LoadFactorToNodeIterator_.AddRange(it->second);
+    }
 }
 
 const TDynamicChunkManagerConfigPtr& TChunkPlacement::GetDynamicConfig()

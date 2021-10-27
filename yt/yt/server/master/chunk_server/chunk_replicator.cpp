@@ -894,7 +894,6 @@ bool TChunkReplicator::TryScheduleReplicationJob(
         replicasNeeded,
         1,
         std::nullopt,
-        JobRegistry_->GetUnsaturatedInterDCEdgesStartingFrom(sourceNode->GetDataCenter()),
         ESessionType::Replication);
     if (targetNodes.empty()) {
         return false;
@@ -947,8 +946,7 @@ bool TChunkReplicator::TryScheduleBalancingJob(
     auto* targetNode = ChunkPlacement_->AllocateBalancingTarget(
         medium,
         chunk,
-        maxFillFactor,
-        JobRegistry_->GetUnsaturatedInterDCEdgesStartingFrom(sourceNode->GetDataCenter()));
+        maxFillFactor);
     if (!targetNode) {
         return false;
     }
@@ -1086,7 +1084,6 @@ bool TChunkReplicator::TryScheduleRepairJob(
         erasedPartCount,
         erasedPartCount,
         std::nullopt,
-        JobRegistry_->GetUnsaturatedInterDCEdgesStartingFrom(context->GetNode()->GetDataCenter()),
         ESessionType::Repair);
     if (targetNodes.empty()) {
         return false;
@@ -1133,8 +1130,6 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
     const auto& resourceUsage = context->GetNodeResourceUsage();
     const auto& resourceLimits = context->GetNodeResourceLimits();
 
-    const auto* nodeDataCenter = node->GetDataCenter();
-
     int misscheduledReplicationJobs = 0;
     int misscheduledRepairJobs = 0;
     int misscheduledRemovalJobs = 0;
@@ -1166,10 +1161,7 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
     // Schedule replication jobs.
     for (auto& queue : node->ChunkReplicationQueues()) {
         auto it = queue.begin();
-        while (it != queue.end() &&
-            hasSpareReplicationResources() &&
-            JobRegistry_->HasUnsaturatedInterDCEdgeStartingFrom(nodeDataCenter))
-        {
+        while (it != queue.end() && hasSpareReplicationResources()) {
             auto jt = it++;
             auto chunkWithIndexes = jt->first;
             auto& mediumIndexSet = jt->second;
@@ -1202,9 +1194,7 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
             }
         }
 
-        while (hasSpareRepairResources() &&
-            JobRegistry_->HasUnsaturatedInterDCEdgeStartingFrom(nodeDataCenter))
-        {
+        while (hasSpareRepairResources()) {
             auto winner = ChunkRepairQueueBalancer(queue).TakeWinnerIf(
                 [&] (int mediumIndex) {
                     // Don't repair chunks on nodes without relevant medium.
@@ -1318,9 +1308,7 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
         double targetFillFactor = *sourceFillFactor - GetDynamicConfig()->MinChunkBalancingFillFactorDiff;
         if (hasSpareReplicationResources() &&
             *sourceFillFactor > GetDynamicConfig()->MinChunkBalancingFillFactor &&
-            JobRegistry_->HasUnsaturatedInterDCEdgeStartingFrom(nodeDataCenter) &&
             ChunkPlacement_->HasBalancingTargets(
-                JobRegistry_->GetUnsaturatedInterDCEdgesStartingFrom(node->GetDataCenter()),
                 medium,
                 targetFillFactor))
         {

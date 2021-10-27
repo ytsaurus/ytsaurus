@@ -42,16 +42,8 @@ public:
         NCellMaster::TBootstrap* bootstrap);
     ~TJobRegistry();
 
-    using TDataCenterSet = SmallSet<const NNodeTrackerServer::TDataCenter*, NNodeTrackerServer::TypicalInterDCEdgeCount>;
-    bool HasUnsaturatedInterDCEdgeStartingFrom(const NNodeTrackerServer::TDataCenter* srcDataCenter) const;
-    const TDataCenterSet& GetUnsaturatedInterDCEdgesStartingFrom(const NNodeTrackerServer::TDataCenter* dc);
-
     void RegisterJob(const TJobPtr& job);
     void UnregisterJob(TJobPtr job);
-
-    void OnNodeDataCenterChanged(TNode* node, NNodeTrackerServer::TDataCenter* oldDataCenter);
-    void OnDataCenterCreated(const NNodeTrackerServer::TDataCenter* dataCenter);
-    void OnDataCenterDestroyed(const NNodeTrackerServer::TDataCenter* dataCenter);
 
     void Start();
     void Stop();
@@ -75,35 +67,10 @@ private:
     TJobCounters JobsFailed_;
     TJobCounters JobsAborted_;
 
-    // src DC -> dst DC -> data size
-    using TInterDCEdgeDataSize = THashMap<const NNodeTrackerServer::TDataCenter*, THashMap<const NNodeTrackerServer::TDataCenter*, i64>>;
-    TInterDCEdgeDataSize InterDCEdgeConsumption_;
-    TInterDCEdgeDataSize InterDCEdgeCapacities_;
-
-    NProfiling::TCpuInstant InterDCEdgeCapacitiesLastUpdateTime_ = {};
-    // Cached from InterDCEdgeConsumption and InterDCEdgeCapacities.
-    THashMap<const NNodeTrackerServer::TDataCenter*, TDataCenterSet> UnsaturatedInterDCEdges_;
-
     const NConcurrency::IReconfigurableThroughputThrottlerPtr JobThrottler_;
 
     const TCallback<void(NCellMaster::TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_ =
         BIND(&TJobRegistry::OnDynamicConfigChanged, MakeWeak(this));
-
-    bool IgnoreEdgeCapacities_ = false;
-
-    TDataCenterSet AllDataCenters_;
-
-    int GetCappedSecondaryCellCount();
-
-    void InitInterDCEdges();
-    void UpdateInterDCEdgeCapacities();
-    void InitUnsaturatedInterDCEdges();
-    void UpdateInterDCEdgeConsumption(
-        const TJobPtr& job,
-        const NNodeTrackerServer::TDataCenter* srcDataCenter,
-        int sizeMultiplier);
-
-    void UpdateAllDataCentersSet();
 
     const TDynamicChunkManagerConfigPtr& GetDynamicConfig();
     void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/ = nullptr);

@@ -13,70 +13,6 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TInterDCLimitsConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    bool IgnoreEdgeCapacities;
-
-    TInterDCLimitsConfig()
-    {
-        RegisterParameter("default_capacity", DefaultCapacity_)
-            .Default(std::numeric_limits<i64>::max())
-            .GreaterThanOrEqual(0);
-
-        RegisterParameter("capacities", Capacities_)
-            .Default();
-
-        RegisterParameter("ignore_edge_capacities", IgnoreEdgeCapacities)
-            .Default(false)
-            .DontSerializeDefault();
-
-        RegisterPostprocessor([&] {
-            for (const auto& [srcName, srcMap] : Capacities_) {
-                for (const auto& [dstName, capacity] : srcMap) {
-                    if (capacity < 0) {
-                        THROW_ERROR_EXCEPTION(
-                            "Negative capacity %v for inter-DC edge %v->%v",
-                            capacity,
-                            srcName,
-                            dstName);
-                    }
-                }
-            }
-        });
-    }
-
-    THashMap<std::optional<TString>, THashMap<std::optional<TString>, i64>> GetCapacities() const
-    {
-        THashMap<std::optional<TString>, THashMap<std::optional<TString>, i64>> result;
-        for (const auto& [srcName, srcMap] : Capacities_) {
-            auto srcDataCenter = srcName.empty() ? std::nullopt : std::make_optional(srcName);
-            auto& srcDataCenterCapacities = result[srcDataCenter];
-            for (const auto& [dstName, capacity] : srcMap) {
-                auto dstDataCenter = dstName.empty() ? std::nullopt : std::make_optional(dstName);
-                srcDataCenterCapacities.emplace(dstDataCenter, capacity);
-            }
-        }
-        return result;
-    }
-
-    i64 GetDefaultCapacity() const
-    {
-        return DefaultCapacity_;
-    }
-
-private:
-    // src DC -> dst DC -> data size.
-    // NB: that null DC is encoded as an empty string here.
-    THashMap<TString, THashMap<TString, i64>> Capacities_;
-    i64 DefaultCapacity_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TInterDCLimitsConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TChunkManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -477,9 +413,6 @@ public:
     //! Throttles chunk jobs.
     NConcurrency::TThroughputThrottlerConfigPtr JobThrottler;
 
-    //! Limits data size to be replicated/repaired along an inter-DC edge at any given moment.
-    TInterDCLimitsConfigPtr InterDCLimits;
-
     TDuration StagedChunkExpirationTimeout;
     TDuration ExpirationCheckPeriod;
     int MaxExpiredChunksUnstagesPerCommit;
@@ -618,9 +551,6 @@ public:
             .GreaterThanOrEqual(0);
 
         RegisterParameter("job_throttler", JobThrottler)
-            .DefaultNew();
-
-        RegisterParameter("inter_dc_limits", InterDCLimits)
             .DefaultNew();
 
         RegisterParameter("staged_chunk_expiration_timeout", StagedChunkExpirationTimeout)
