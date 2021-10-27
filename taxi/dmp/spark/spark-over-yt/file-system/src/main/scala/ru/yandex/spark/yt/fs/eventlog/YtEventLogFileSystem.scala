@@ -65,7 +65,7 @@ class YtEventLogFileSystem extends FileSystem with LogLazy {
 
     oldDetails match {
       case Some(v) =>
-        YtWrapper.runUnderTransaction(None)(transaction => {
+        YtWrapper.runWithRetry(transaction => {
           deleteAllRowsWithId(ytTablePath, v.id, v.meta.blocksCnt, Some(transaction))
         })(yt)
       case _ =>
@@ -112,7 +112,7 @@ class YtEventLogFileSystem extends FileSystem with LogLazy {
     val (dstTablePath, dstName) = splitTablePath(dst)
     val dstMetaTablePath = getMetaPath(dstTablePath)
     if (srcTablePath == dstTablePath) {
-      YtWrapper.runUnderTransaction(None)(transaction => {
+      YtWrapper.runWithRetry(transaction => {
         getFileDetailsImpl(hadoopPathToYt(srcTablePath), srcName, Some(transaction)).exists {
           details => {
             YtWrapper.deleteRow(hadoopPathToYt(srcMetaTablePath), metaSchema,
@@ -143,7 +143,7 @@ class YtEventLogFileSystem extends FileSystem with LogLazy {
     val (tablePath, fullTableName) = splitTablePath(f)
     val tablePathStr = hadoopPathToYt(tablePath)
     val meta_path = getMetaPath(tablePathStr)
-    YtWrapper.runUnderTransaction(None)(transaction => {
+    YtWrapper.runWithRetry(transaction => {
       getFileDetailsImpl(tablePathStr, fullTableName, Some(transaction)).exists(details => {
         YtWrapper.deleteRow(meta_path, metaSchema, java.util.Map.of(FILENAME, fullTableName), Some(transaction))
         deleteAllRowsWithId(tablePathStr, fullTableName, details.meta.blocksCnt, Some(transaction))

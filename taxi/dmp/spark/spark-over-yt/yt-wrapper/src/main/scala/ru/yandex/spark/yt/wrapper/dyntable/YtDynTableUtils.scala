@@ -1,5 +1,6 @@
 package ru.yandex.spark.yt.wrapper.dyntable
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.cypress.YPath
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeNodeUtils
@@ -15,12 +16,16 @@ import ru.yandex.spark.yt.wrapper.cypress.{YtAttributes, YtCypressUtils}
 import ru.yandex.spark.yt.wrapper.table.YtTableSettings
 import ru.yandex.yson.YsonConsumer
 import ru.yandex.yt.ytclient.proxy.request.{GetTablePivotKeys, ReshardTable, WriteTable}
-import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient, ModifyRowsRequest, SelectRowsRequest}
+import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient, ModifyRowsRequest, RetryPolicy, SelectRowsRequest}
+import ru.yandex.yt.ytclient.rpc.AlwaysSwitchRpcFailoverPolicy
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
+import ru.yandex.yt.ytclient.wire.UnversionedRowset
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import java.nio.charset.StandardCharsets
 import java.time.{Duration => JDuration}
+import java.util.concurrent.{CompletableFuture, Executors}
+import java.util.function.Supplier
 import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.concurrent.TimeoutException
@@ -35,6 +40,7 @@ trait YtDynTableUtils {
 
   type PivotKey = Array[Byte]
   val emptyPivotKey: PivotKey = serialiseYson(new YTreeBuilder().beginMap().endMap().build())
+  private val executor = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder().setDaemon(true).build())
 
   def serialiseYson(node: YTreeNode): Array[Byte] = {
     val baos = new ByteArrayOutputStream
@@ -168,40 +174,38 @@ trait YtDynTableUtils {
   }
 
   def selectRows(path: String, schema: TableSchema, condition: Option[String] = None,
-                 parentTransaction: Option[ApiServiceTransaction] = None)(implicit yt: CompoundClient): Seq[YTreeMapNode] = {
+                 transaction: Option[ApiServiceTransaction] = None)(implicit yt: CompoundClient): Seq[YTreeMapNode] = {
     import scala.collection.JavaConverters._
     val request = SelectRowsRequest.of(s"""* from [${formatPath(path)}] ${condition.map("where " + _).mkString}""")
 
-    runUnderTransaction(parentTransaction)(transaction => {
-      waitState(path, TabletState.Mounted, 60 seconds)
-      val selected = transaction.selectRows(request).get(10, MINUTES)
-      selected.getRows.asScala.map(x => x.toYTreeMap(schema)).toList
-    })
+    waitState(path, TabletState.Mounted, 60 seconds)
+    val f: ApiServiceTransaction => UnversionedRowset = _.selectRows(request).get(10, MINUTES)
+    val selected = if (transaction.isEmpty) {
+      runWithRetry(f)
+    } else {
+      f(transaction.get)
+    }
+    selected.getRows.asScala.map(x => x.toYTreeMap(schema)).toList
   }
 
   private def processModifyRowsRequest(request: ModifyRowsRequest,
-                                       parentTransaction: Option[ApiServiceTransaction] = None)(implicit yt: CompoundClient) = {
-    runUnderTransaction(parentTransaction)(transaction => {
-      transaction.modifyRows(request).get(1, MINUTES)
-    })
+                                       transaction: Option[ApiServiceTransaction] = None)
+                                      (implicit yt: CompoundClient): Unit = {
+    val f: ApiServiceTransaction => Unit = _.modifyRows(request).get(1, MINUTES)
+    if (transaction.isEmpty) {
+      runWithRetry(f)
+    } else {
+      f(transaction.get)
+    }
   }
 
-  def runUnderTransaction[T](parent: Option[ApiServiceTransaction])
-                            (f: ApiServiceTransaction => T)(implicit yt: CompoundClient): T = {
-    val transaction = parent.getOrElse(createTransaction(parent = None, timeout = 1 minute, sticky = true))
-    try {
-      val res = f(transaction)
-      if (parent.isEmpty) transaction.commit().join()
-      res
-    } catch {
-      case e: Throwable =>
-        try {
-          transaction.abort().join()
-        } catch {
-          case e2: Throwable => log.error("Transaction abort failed with: " + e2.getMessage)
-        }
-        throw e
-    }
+  def runWithRetry[T](f: ApiServiceTransaction => T)(implicit yt: CompoundClient): T = {
+    val rowsFuture = yt.retryWithTabletTransaction(
+      transaction => CompletableFuture.supplyAsync(() => f(transaction)),
+      executor,
+      RetryPolicy.attemptLimited(3, RetryPolicy.fromRpcFailoverPolicy(new AlwaysSwitchRpcFailoverPolicy))
+    ).join()
+    rowsFuture
   }
 
   def insertRows(path: String, schema: TableSchema, rows: java.util.List[java.util.List[Any]],
