@@ -606,7 +606,8 @@ protected:
             jobResources,
             /*interruptible*/ false,
             /*preemptionMode*/ EPreemptionMode::Normal,
-            /*treeId*/ "");
+            /*treeId*/ "", 
+            /*schedulingStage*/ EJobSchedulingStage::Unknown);
     }
 
     void DoTestSchedule(
@@ -630,7 +631,7 @@ protected:
             /* registeredSchedulingTagFilters */ {},
             /* enableSchedulingInfoLogging */ true,
             SchedulerLogger);
-        context.StartStage(&SchedulingStageMock_, "stage");
+        context.StartStage(&SchedulingStageMock_, EJobSchedulingStage::Unknown);
 
         context.PrepareForScheduling(rootElement);
         rootElement->CalculateCurrentResourceUsage(&context);
@@ -1922,7 +1923,7 @@ TEST_F(TFairShareTreeTest, TestConditionalPreemption)
         /*registeredSchedulingTagFilters*/ {},
         /*enableSchedulingInfoLogging*/ true,
         SchedulerLogger);
-    context.StartStage(&SchedulingStageMock_, "stage");
+    context.StartStage(&SchedulingStageMock_, EJobSchedulingStage::Unknown);
     context.PrepareForScheduling(rootElement);
 
     for (int jobIndex = 0; jobIndex < 10; ++jobIndex) {
@@ -2808,7 +2809,7 @@ TEST_F(TFairShareTreeTest, ChildHeap)
         /* registeredSchedulingTagFilters */ {},
         /* enableSchedulingInfoLogging */ true,
         SchedulerLogger);
-    context.StartStage(&SchedulingStageMock_, "stage1");
+    context.StartStage(&SchedulingStageMock_, EJobSchedulingStage::Unknown);
     context.PrepareForScheduling(rootElement);
     rootElement->CalculateCurrentResourceUsage(&context);
     rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All);
@@ -2839,7 +2840,7 @@ TEST_F(TFairShareTreeTest, ChildHeap)
 
     // NB(eshcherbin): It is impossible to have two consecutive non-preemptive scheduling stages, however
     // here we only need to trigger the second PrescheduleJob call so that the child heap is rebuilt.
-    context.StartStage(&SchedulingStageMock_, "stage2");
+    context.StartStage(&SchedulingStageMock_, EJobSchedulingStage::Unknown);
     context.PrepareForScheduling(rootElement);
     rootElement->CalculateCurrentResourceUsage(&context);
     rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All);

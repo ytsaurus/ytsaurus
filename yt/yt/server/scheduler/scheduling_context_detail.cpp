@@ -155,7 +155,8 @@ void TSchedulingContextBase::StartJob(
     TIncarnationId incarnationId,
     TControllerEpoch controllerEpoch,
     const TJobStartDescriptor& startDescriptor,
-    EPreemptionMode preemptionMode)
+    EPreemptionMode preemptionMode,
+    EJobSchedulingStage schedulingStage)
 {
     ResourceUsage_ += startDescriptor.ResourceLimits.ToJobResources();
     if (startDescriptor.ResourceLimits.GetDiskQuota()) {
@@ -173,14 +174,15 @@ void TSchedulingContextBase::StartJob(
         startDescriptor.ResourceLimits.ToJobResources(),
         startDescriptor.Interruptible,
         preemptionMode,
-        treeId);
+        treeId,
+        schedulingStage);
     StartedJobs_.push_back(job);
 }
 
-void TSchedulingContextBase::PreemptJob(const TJobPtr& job, TDuration interruptTimeout)
+void TSchedulingContextBase::PreemptJob(const TJobPtr& job, TDuration interruptTimeout, EJobPreemptionReason preemptionReason)
 {
     YT_VERIFY(job->GetNode() == Node_);
-    PreemptedJobs_.push_back({job, interruptTimeout});
+    PreemptedJobs_.push_back({job, interruptTimeout, preemptionReason});
 }
 
 TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithoutDiscount() const

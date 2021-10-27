@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <yt/yt/server/lib/scheduler/scheduling_tag.h>
 
@@ -51,6 +51,7 @@ struct TPreemptedJob
 {
     TJobPtr Job;
     TDuration InterruptTimeout; 
+    EJobPreemptionReason PreemptionReason;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,9 +96,10 @@ struct ISchedulingContext
         TIncarnationId incarnationId,
         TControllerEpoch controllerEpoch,
         const TJobStartDescriptor& startDescriptor,
-        EPreemptionMode preemptionMode) = 0;
+        EPreemptionMode preemptionMode,
+        EJobSchedulingStage schedulingStage) = 0;
 
-    virtual void PreemptJob(const TJobPtr& job, TDuration interruptTimeout) = 0;
+    virtual void PreemptJob(const TJobPtr& job, TDuration interruptTimeout, EJobPreemptionReason preemptionReason) = 0;
 
     virtual NProfiling::TCpuInstant GetNow() const = 0;
 

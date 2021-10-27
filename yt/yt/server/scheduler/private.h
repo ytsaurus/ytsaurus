@@ -1,8 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "exec_node.h"
-#include "job.h"
 #include "operation.h"
 
 #include <yt/yt/core/logging/log.h>
@@ -46,6 +44,7 @@ using TCompletedJobCounter = THashMap<std::tuple<EJobType, EJobState, EInterrupt
 
 using TNonOwningOperationElementMap = THashMap<TOperationId, TSchedulerOperationElement*>;
 using TOperationElementMap = THashMap<TOperationId, TSchedulerOperationElementPtr>;
+using TOperationIdToJobResources = THashMap<TOperationId, TJobResources>;
 
 using TNonOwningPoolElementMap = THashMap<TString, TSchedulerPoolElement*>;
 using TPoolElementMap = THashMap<TString, TSchedulerPoolElementPtr>;
@@ -79,6 +78,22 @@ DEFINE_ENUM(EJobPreemptionStatus,
     (NonPreemptable)
     (AggressivelyPreemptable)
     (Preemptable)
+);
+
+DEFINE_ENUM(EJobSchedulingStage,
+    (NonPreemptive)
+    (Preemptive)
+    (AggressivelyPreemptive)
+    (PackingFallback)
+    (Unknown)
+);
+
+DEFINE_ENUM(EJobPreemptionReason,
+    (Preemption)
+    (AggressivePreemption)
+    (GracefulPreemption)
+    (ResourceOvercommit)
+    (ResourceLimitsViolated)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

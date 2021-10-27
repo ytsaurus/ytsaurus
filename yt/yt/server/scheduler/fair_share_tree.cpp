@@ -1040,6 +1040,16 @@ private:
             Tree_->GetProfiler()->ApplyJobMetricsDelta(TreeSnapshotImpl_, jobMetricsPerOperation);
         }
 
+        void ApplyScheduledAndPreemptedResourcesDelta(
+            const TEnumIndexedVector<EJobSchedulingStage, TOperationIdToJobResources>& scheduledJobResources,
+            const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResources) override
+        {
+            Tree_->GetProfiler()->ApplyScheduledAndPreemptedResourcesDelta(
+                TreeSnapshotImpl_,
+                scheduledJobResources,
+                preemptedJobResources);
+        }
+
         const TFairShareStrategyTreeConfigPtr& GetConfig() const override
         {
             return TreeSnapshotImpl_->TreeConfig();
@@ -1288,7 +1298,7 @@ private:
 
         bool needPackingFallback;
         {
-            context.StartStage(&NonPreemptiveSchedulingStage_, "non_preemptive");
+            context.StartStage(&NonPreemptiveSchedulingStage_, EJobSchedulingStage::NonPreemptive);
             DoScheduleJobsWithoutPreemption(treeSnapshotImpl, &context, now);
             context.SchedulingStatistics().NonPreemptiveScheduleJobAttempts = context.StageState()->ScheduleJobAttemptCount;
             needPackingFallback = schedulingContext->StartedJobs().empty() && !context.BadPackingOperations().empty();
@@ -1322,7 +1332,7 @@ private:
         if (scheduleJobsWithPreemption) {
             // First try to schedule a job with aggressive preemption for aggressively starving operations only.
             {
-                context.StartStage(&AggressivelyPreemptiveSchedulingStage_, "aggressively_preemptive");
+                context.StartStage(&AggressivelyPreemptiveSchedulingStage_, EJobSchedulingStage::AggressivelyPreemptive);
                 DoScheduleJobsWithAggressivePreemption(treeSnapshotImpl, &context, now);
                 context.SchedulingStatistics().AggressivelyPreemptiveScheduleJobAttempts = context.StageState()->ScheduleJobAttemptCount;
                 context.FinishStage();
@@ -1330,7 +1340,7 @@ private:
 
             // If no jobs were scheduled in the previous stage, try to schedule a job with regular preemption.
             if (context.SchedulingStatistics().ScheduledDuringPreemption == 0) {
-                context.StartStage(&PreemptiveSchedulingStage_, "preemptive");
+                context.StartStage(&PreemptiveSchedulingStage_, EJobSchedulingStage::Preemptive);
                 DoScheduleJobsWithPreemption(treeSnapshotImpl, &context, now);
                 context.SchedulingStatistics().PreemptiveScheduleJobAttempts = context.StageState()->ScheduleJobAttemptCount;
                 context.FinishStage();
@@ -1340,7 +1350,7 @@ private:
         }
 
         if (needPackingFallback) {
-            context.StartStage(&PackingFallbackSchedulingStage_, "packing_fallback");
+            context.StartStage(&PackingFallbackSchedulingStage_, EJobSchedulingStage::PackingFallback);
             DoScheduleJobsPackingFallback(treeSnapshotImpl, &context, now);
             context.SchedulingStatistics().PackingFallbackScheduleJobAttempts = context.StageState()->ScheduleJobAttemptCount;
             context.FinishStage();
@@ -1400,7 +1410,7 @@ private:
                     YT_LOG_DEBUG("Interrupt job since node resources are overcommitted (JobId: %v, OperationId: %v)",
                         jobInfo.Job->GetId(),
                         jobInfo.OperationElement->GetId());
-                    PreemptJob(jobInfo.Job, jobInfo.OperationElement, treeSnapshotImpl, schedulingContext);
+                    PreemptJob(jobInfo.Job, jobInfo.OperationElement, treeSnapshotImpl, schedulingContext, EJobPreemptionReason::ResourceOvercommit);
                 } else {
                     currentResources += jobInfo.Job->ResourceUsage();
                 }
@@ -1524,6 +1534,9 @@ private:
             return;
         }
 
+        auto preemptionReason = isAggressive
+            ? EJobPreemptionReason::AggressivePreemption
+            : EJobPreemptionReason::Preemption;
         // Compute discount to node usage.
         YT_LOG_TRACE("Looking for %v jobs",
             isAggressive ? "aggressively preemptable" : "preemptable");
@@ -1739,7 +1752,7 @@ private:
             } else {
                 job->SetPreemptionReason(Format("Node resource limits violated"));
             }
-            PreemptJob(job, operationElement, treeSnapshotImpl, context->SchedulingContext());
+            PreemptJob(job, operationElement, treeSnapshotImpl, context->SchedulingContext(), preemptionReason);
         }
 
         for (; currentJobIndex < std::ssize(preemptableJobs); ++currentJobIndex) {
@@ -1757,14 +1770,14 @@ private:
             if (!Dominates(operationElement->GetResourceLimits(), operationElement->GetInstantResourceUsage())) {
                 job->SetPreemptionReason(Format("Preempted due to violation of resource limits of operation %v",
                     operationElement->GetId()));
-                PreemptJob(job, operationElement, treeSnapshotImpl, context->SchedulingContext());
+                PreemptJob(job, operationElement, treeSnapshotImpl, context->SchedulingContext(), EJobPreemptionReason::ResourceLimitsViolated);
                 continue;
             }
 
             if (auto violatedPool = findPoolWithViolatedLimitsForJob(job)) {
                 job->SetPreemptionReason(Format("Preempted due to violation of limits on pool %v",
                     violatedPool->GetId()));
-                PreemptJob(job, operationElement, treeSnapshotImpl, context->SchedulingContext());
+                PreemptJob(job, operationElement, treeSnapshotImpl, context->SchedulingContext(), EJobPreemptionReason::ResourceLimitsViolated);
             }
         }
 
@@ -1799,7 +1812,7 @@ private:
             }
 
             if (operationElement->IsJobPreemptable(job->GetId(), /* aggressivePreemptionEnabled */ false)) {
-                schedulingContext->PreemptJob(job, treeConfig->JobGracefulInterruptTimeout);
+                schedulingContext->PreemptJob(job, treeConfig->JobGracefulInterruptTimeout, EJobPreemptionReason::GracefulPreemption);
             }
         }
     }
@@ -1808,7 +1821,8 @@ private:
         const TJobPtr& job,
         const TSchedulerOperationElementPtr& operationElement,
         const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl,
-        const ISchedulingContextPtr& schedulingContext) const
+        const ISchedulingContextPtr& schedulingContext,
+        EJobPreemptionReason preemptionReason) const
     {
         const auto& treeConfig = treeSnapshotImpl->TreeConfig();
 
@@ -1816,7 +1830,7 @@ private:
         operationElement->SetJobResourceUsage(job->GetId(), TJobResources());
         job->ResourceUsage() = {};
 
-        schedulingContext->PreemptJob(job, treeConfig->JobInterruptTimeout);
+        schedulingContext->PreemptJob(job, treeConfig->JobInterruptTimeout, preemptionReason);
     }
 
     void DoRegisterPool(const TSchedulerPoolElementPtr& pool)

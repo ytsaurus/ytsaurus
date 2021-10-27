@@ -5,9 +5,9 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create, ls,
+    authors, get_job, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create, ls,
     get, set,
-    create_pool, create_pool_tree, write_table, map, abort_job, get_operation_cypress_path, get_statistics)
+    create_pool, create_pool_tree, write_table, map, run_sleeping_vanilla, abort_job, get_operation_cypress_path, get_statistics, update_pool_tree_config)
 
 from yt_helpers import profiler_factory
 
@@ -33,7 +33,6 @@ def get_cypress_metrics(operation_id, key, aggr="sum"):
             ],
         )
     )
-
 
 ##################################################################
 
@@ -200,6 +199,54 @@ class TestPoolMetrics(YTEnvSetup):
 
         jobs_11 = op11.list_jobs()
         assert len(jobs_11) >= 2
+
+    @authors("akulyat")
+    def test_scheduled_resources(self):
+        update_pool_tree_config(
+            "default",
+            {
+                "preemption_satisfaction_threshold": 0.99,
+                "fair_share_starvation_timeout": 1000,
+                "max_unpreemptable_running_job_count": 0,
+                "preemptive_scheduling_backoff": 0,
+            })
+
+        create_pool("parent")
+        create_pool("child1", parent_name="parent")
+        create_pool("child2", parent_name="parent")
+
+        op1 = run_sleeping_vanilla(
+            job_count=3,
+            task_patch={"cpu_limit": 1.0},
+            spec={
+                "pool": "child1",
+            },
+        )
+        wait(lambda: len(op1.list_jobs()) == 3)
+
+        op2 = run_sleeping_vanilla(
+            job_count=1,
+            task_patch={"cpu_limit": 1.0},
+            spec={
+                "pool": "child2",
+            },
+        )
+        wait(lambda: len(op2.list_jobs()) == 1)
+
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
+        wait(lambda: profiler.gauge("scheduler/pools/scheduled_job_resources/non_preemptive/cpu", {"pool": "child1"}).get() == 3.0)
+        wait(lambda: profiler.gauge("scheduler/pools/preempted_job_resources/preemption/cpu", {"pool": "child1"}).get() == 1.0)
+        wait(lambda: profiler.gauge("scheduler/pools/scheduled_job_resources/preemptive/cpu", {"pool": "child2"}).get() == 1.0)
+        wait(lambda: profiler.gauge("scheduler/pools/scheduled_job_resources/non_preemptive/cpu", {"pool": "parent"}).get() == 3.0)
+        wait(lambda: profiler.gauge("scheduler/pools/preempted_job_resources/preemption/cpu", {"pool": "parent"}).get() == 1.0)
+        wait(lambda: profiler.gauge("scheduler/pools/scheduled_job_resources/preemptive/cpu", {"pool": "parent"}).get() == 1.0)
+
+        job = op1.list_jobs()[0]
+        node = get_job(op1.id, job)['address']
+        set("//sys/cluster_nodes/{}/@resource_limits_overrides/cpu".format(node), 0.2)
+        wait(lambda: len(op1.list_jobs()) == 1)
+
+        wait(lambda: profiler.gauge("scheduler/pools/preempted_job_resources/resource_overcommit/cpu", {"pool": "child1"}).get() == 1.0)
 
     @authors("ignat")
     def test_time_metrics(self):

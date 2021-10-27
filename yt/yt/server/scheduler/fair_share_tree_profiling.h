@@ -36,6 +36,12 @@ public:
         const TFairShareTreeSnapshotImplPtr& treeSnapshot,
         const THashMap<TOperationId, TJobMetrics>& jobMetricsPerOperation);
 
+    // Thread affinity: Profiler thread.
+    void ApplyScheduledAndPreemptedResourcesDelta(
+        const TFairShareTreeSnapshotImplPtr& treeSnapshot,
+        const TEnumIndexedVector<EJobSchedulingStage, TOperationIdToJobResources>& operationIdWithStageToScheduledJobResourcesDeltas,
+        const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedJobResourcesDeltas);
+
 private:
     const NProfiling::TProfiler Profiler_;
     const bool SparsifyMetrics_;
@@ -84,6 +90,8 @@ private:
     NProfiling::TGauge SchedulableElementCountGauge_;
 
     THashMap<TString, TJobMetrics> JobMetricsMap_;
+    TEnumIndexedVector<EJobSchedulingStage, THashMap<TString, TJobResources>> ScheduledResourcesByStageMap_;
+    TEnumIndexedVector<EJobPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourcesByReasonMap_;
 
     THashMap<TOperationId, TOperationProfilingEntry> OperationIdToProfilingEntry_;
     
