@@ -109,7 +109,7 @@ class YtEventLogFsOutputStream(conf: Configuration, path: String, fileName: Stri
 
   private def writeNewBlock(data: Array[Byte]): Unit = {
     tryWithConsistentState {
-      YtWrapper.runUnderTransaction(None) { transaction =>
+      YtWrapper.runWithRetry{ transaction =>
         YtWrapper.insertRows(path, schema,
           List(new YtEventLogBlock(id, state.blockCount + 1, data).toList),
           Some(transaction)
@@ -128,7 +128,7 @@ class YtEventLogFsOutputStream(conf: Configuration, path: String, fileName: Stri
 
   private def updateBlock(data: Array[Byte]): Unit = {
     tryWithConsistentState {
-      YtWrapper.runUnderTransaction(None) { transaction =>
+      YtWrapper.runWithRetry{ transaction =>
         YtWrapper.updateRows(path, schema,
           new YtEventLogBlock(id, state.blockCount, data).toJavaMap,
           Some(transaction)
