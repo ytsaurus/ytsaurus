@@ -4,6 +4,8 @@
 #include "ref_counted.h"
 #endif
 
+#include <library/cpp/ytalloc/api/ytalloc.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
