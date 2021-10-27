@@ -96,6 +96,8 @@ using namespace NYson;
 using namespace NCoreDump;
 using namespace NTableClient;
 using namespace NTransactionClient;
+using namespace NIO;
+using namespace NTracing;
 
 using NNodeTrackerClient::TNodeDescriptor;
 using NChunkClient::TChunkReaderStatistics;
@@ -470,6 +472,13 @@ protected:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
+        auto context = TTraceContext::NewRoot(Format("%vJob.Run", GetType()));
+        TCurrentTraceContextGuard guard(context);
+        auto baggage = context->UnpackOrCreateBaggage();
+        baggage->Set("job_id", ToString(GetId()));
+        baggage->Set("job_type@", ToString(GetType()));
+        context->PackBaggage(std::move(baggage));
+
         try {
             JobPrepared_.Fire();
             WaitFor(BIND(&TMasterJobBase::DoRun, MakeStrong(this))
@@ -717,6 +726,20 @@ private:
 
             auto readBlocks = WaitFor(asyncReadBlocks)
                 .ValueOrThrow();
+
+            i64 totalBlockSize = 0;
+            for (const auto& block : readBlocks) {
+                if (block) {
+                    totalBlockSize += block.Size();
+                }
+            }
+            if (totalBlockSize > 0 && Bootstrap_->GetIOTracker()->IsEnabled()) {
+                Bootstrap_->GetIOTracker()->Enqueue(TIOCounters{
+                    .ByteCount = totalBlockSize,
+                    .IOCount = 1
+                },
+                /*tags*/ {});
+            }
 
             std::vector<TBlock> writeBlocks;
             for (const auto& block : readBlocks) {
@@ -1107,6 +1130,18 @@ private:
                     records.push_back(block.Data);
                 }
                 changelog->Append(records);
+
+                i64 totalRecordsSize = 0;
+                for (const auto& block : blocks) {
+                    totalRecordsSize += block.Size();
+                }
+                if (totalRecordsSize > 0 && Bootstrap_->GetIOTracker()->IsEnabled()) {
+                    Bootstrap_->GetIOTracker()->Enqueue(TIOCounters{
+                        .ByteCount = totalRecordsSize,
+                        .IOCount = 1
+                    },
+                    /*tags*/ {});
+                }
 
                 currentRowCount += blockCount;
             }

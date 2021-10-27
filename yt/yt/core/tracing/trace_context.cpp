@@ -238,6 +238,12 @@ IAttributeDictionaryPtr TTraceContext::UnpackBaggage() const
     return baggage ? ConvertToAttributes(baggage) : nullptr;
 }
 
+NYTree::IAttributeDictionaryPtr TTraceContext::UnpackOrCreateBaggage() const
+{
+    auto baggage = GetBaggage();
+    return baggage ? ConvertToAttributes(baggage) : CreateEphemeralAttributes();
+}
+
 void TTraceContext::PackBaggage(const IAttributeDictionaryPtr& baggage)
 {
     SetBaggage(baggage ? ConvertToYsonString(baggage) : TYsonString{});
