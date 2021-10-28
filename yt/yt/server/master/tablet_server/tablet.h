@@ -14,6 +14,8 @@
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
+#include <yt/yt/ytlib/tablet_client/backup.h>
+
 #include <yt/yt/ytlib/tablet_client/proto/heartbeat.pb.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
@@ -287,6 +289,7 @@ public:
 
     DECLARE_BYVAL_RW_PROPERTY(ETabletState, State);
     DECLARE_BYVAL_RW_PROPERTY(ETabletState, ExpectedState);
+    DECLARE_BYVAL_RW_PROPERTY(ETabletBackupState, BackupState);
     DECLARE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
 
 public:
@@ -323,9 +326,12 @@ public:
     int GetTabletErrorCount() const;
     void SetTabletErrorCount(int tabletErrorCount);
 
+    void CheckedSetBackupState(ETabletBackupState previous, ETabletBackupState next);
+
 private:
     ETabletState State_ = ETabletState::Unmounted;
     ETabletState ExpectedState_ = ETabletState::Unmounted;
+    ETabletBackupState BackupState_ = ETabletBackupState::None;
     NTableServer::TTableNode* Table_ = nullptr;
     int TabletErrorCount_ = 0;
 };

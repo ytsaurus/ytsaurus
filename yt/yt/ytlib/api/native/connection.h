@@ -145,6 +145,11 @@ IConnectionPtr FindRemoteConnection(
     const IConnectionPtr& connection,
     const TString& clusterName);
 
+IConnectionPtr GetRemoteConnectionOrThrow(
+    const NApi::NNative::IConnectionPtr& connection,
+    const TString& clusterName,
+    bool syncOnFailure = false);
+
 IConnectionPtr FindRemoteConnection(
     const NApi::NNative::IConnectionPtr& connection,
     NObjectClient::TCellTag cellTag);

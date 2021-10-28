@@ -1,0 +1,19 @@
+package NYT.NTabletServer.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFinishBackup
+{
+    repeated NYT.NProto.TGuid tablet_ids = 1;
+    required NYT.NProto.TGuid transaction_id = 2;
+}
+
+message TReqFinishRestore
+{
+    repeated NYT.NProto.TGuid tablet_ids = 1;
+    required NYT.NProto.TGuid transaction_id = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////

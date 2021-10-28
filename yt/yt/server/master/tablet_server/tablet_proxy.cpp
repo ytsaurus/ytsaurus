@@ -110,6 +110,7 @@ private:
             .SetOpaque(true));
         descriptors->push_back(EInternedAttributeKey::ErrorCount);
         descriptors->push_back(EInternedAttributeKey::ReplicationErrorCount);
+        descriptors->push_back(EInternedAttributeKey::BackupState);
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -261,6 +262,11 @@ private:
             case EInternedAttributeKey::ReplicationErrorCount:
                 BuildYsonFluently(consumer)
                     .Value(tablet->GetReplicationErrorCount());
+                return true;
+
+            case EInternedAttributeKey::BackupState:
+                BuildYsonFluently(consumer)
+                    .Value(tablet->GetBackupState());
                 return true;
 
             default:

@@ -17,7 +17,7 @@ class TChunkView
     : public TChunkTree
     , public TRefTracked<TChunkView>
 {
-    DEFINE_BYVAL_RO_PROPERTY(TChunk*, UnderlyingChunk);
+    DEFINE_BYVAL_RO_PROPERTY(TChunkTree*, UnderlyingTree);
 
     //! Denotes the portion of the chunk to be read. May contain only keys.
     //! Lower bound inclusive, upper bound exclusive.
@@ -31,7 +31,7 @@ class TChunkView
 public:
     explicit TChunkView(TChunkViewId id);
 
-    void SetUnderlyingChunk(TChunk* underlyingChunk);
+    void SetUnderlyingTree(TChunkTree* underlyingTree);
     void SetReadRange(NChunkClient::TLegacyReadRange readRange);
 
     TString GetLowercaseObjectName() const override;

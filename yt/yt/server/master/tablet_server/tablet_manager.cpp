@@ -1,3 +1,4 @@
+#include "backup_manager.h"
 #include "balancing_helpers.h"
 #include "config.h"
 #include "cypress_integration.h"
@@ -80,6 +81,7 @@
 
 #include <yt/yt/client/table_client/schema.h>
 
+#include <yt/yt/ytlib/tablet_client/backup.h>
 #include <yt/yt/ytlib/tablet_client/config.h>
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
@@ -386,6 +388,8 @@ public:
                 atomicity,
                 preserveTimestamps);
         }
+
+        table->ValidateNotBackup("Cannot create table replica from a backup table");
 
         YT_VERIFY(!startReplicationRowIndexes || startReplicationRowIndexes->size() == table->Tablets().size());
 
@@ -822,6 +826,8 @@ public:
             THROW_ERROR_EXCEPTION("Cannot mount a static table");
         }
 
+        table->ValidateNotBackup("Cannot mount backup table");
+
         if (table->IsNative()) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             securityManager->ValidatePermission(table, EPermission::Mount);
@@ -829,6 +835,13 @@ public:
 
         if (table->IsExternal()) {
             return;
+        }
+
+        if (auto backupState = table->GetAggregatedTabletBackupState();
+            backupState != ETabletBackupState::None)
+        {
+            THROW_ERROR_EXCEPTION("Cannot mount table since it has invalid backup state %Qlv",
+                backupState);
         }
 
         auto validateCellBundle = [table] (const TTabletCell* cell) {
@@ -1309,6 +1322,8 @@ public:
         if (table->DynamicTableLocks().size() > 0) {
             THROW_ERROR_EXCEPTION("Dynamic table is locked by some bulk insert");
         }
+
+        table->ValidateNotBackup("Cannot reshard backup table");
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
 
@@ -1867,12 +1882,20 @@ public:
 
         YT_VERIFY(sourceTable->IsExternal() == clonedTable->IsExternal());
 
+        auto* trunkSourceTable = sourceTable->GetTrunkNode();
+        auto* trunkClonedTable = clonedTable; // sic!
+
+        if (mode == ENodeCloneMode::Backup) {
+            trunkClonedTable->SetBackupState(ETableBackupState::BackupCompleted);
+        } else if (mode == ENodeCloneMode::Restore) {
+            trunkClonedTable->SetBackupState(ETableBackupState::RestoredWithRestrictions);
+        } else {
+            trunkClonedTable->SetBackupState(trunkSourceTable->GetTrunkNode()->GetBackupState());
+        }
+
         if (sourceTable->IsExternal()) {
             return;
         }
-
-        auto* trunkSourceTable = sourceTable->GetTrunkNode();
-        auto* trunkClonedTable = clonedTable; // sic!
 
         YT_VERIFY(!trunkSourceTable->Tablets().empty());
         YT_VERIFY(trunkClonedTable->Tablets().empty());
@@ -1885,6 +1908,10 @@ public:
 
                 case ENodeCloneMode::Move:
                     sourceTable->ValidateAllTabletsUnmounted("Cannot move dynamic table");
+                    break;
+
+                case ENodeCloneMode::Backup:
+                case ENodeCloneMode::Restore:
                     break;
 
                 default:
@@ -1913,11 +1940,13 @@ public:
         objectManager->RefObject(clonedRootChunkList);
         clonedRootChunkList->AddOwningNode(trunkClonedTable);
 
+        const auto& backupManager = Bootstrap_->GetBackupManager();
+
         clonedTablets.reserve(sourceTablets.size());
         auto* sourceRootChunkList = trunkSourceTable->GetChunkList();
         YT_VERIFY(sourceRootChunkList->Children().size() == sourceTablets.size());
         for (int index = 0; index < static_cast<int>(sourceTablets.size()); ++index) {
-            const auto* sourceTablet = sourceTablets[index];
+            auto* sourceTablet = sourceTablets[index];
 
             auto* clonedTablet = CreateTablet(trunkClonedTable);
             clonedTablet->CopyFrom(*sourceTablet);
@@ -1927,8 +1956,19 @@ public:
 
             clonedTablets.push_back(clonedTablet);
             trunkClonedTable->AccountTabletStatistics(GetTabletStatistics(clonedTablet));
+
+            backupManager->SetClonedTabletBackupState(
+                clonedTablet,
+                sourceTablet,
+                mode);
         }
         trunkClonedTable->RecomputeTabletMasterMemoryUsage();
+
+        if (mode == ENodeCloneMode::Backup) {
+            backupManager->ReleaseBackupBarrier(
+                trunkSourceTable,
+                sourceTable->GetTransaction());
+        }
 
         if (sourceTable->IsReplicated()) {
             auto* replicatedSourceTable = sourceTable->As<TReplicatedTableNode>();
@@ -1962,6 +2002,8 @@ public:
             trunkClonedTable,
             trunkClonedTable->GetTabletResourceUsage(),
             /*scheduleTableDataStatisticsUpdate*/ false);
+
+        backupManager->UpdateAggregatedBackupState(trunkClonedTable);
     }
 
 
@@ -2059,6 +2101,17 @@ public:
 
         if (!table->IsDynamic()) {
             return;
+        }
+
+        table->ValidateNotBackup("Cannot switch backup table to static mode");
+
+        // TODO(ifsmirnov): ordered dynamic tables may contain chunk views when restored from backup.
+        // We forbid altering such tables.
+        // When all chunk views vanish secondary master may report that to primary and change
+        // table backup state back to |None|.
+        if (table->GetBackupState() == ETableBackupState::RestoredWithRestrictions) {
+            THROW_ERROR_EXCEPTION("Cannot switch mode from dynamic to static: "
+                "table was recently restored from backup and still has some restrictions");
         }
 
         if (table->IsReplicated()) {
@@ -2215,7 +2268,6 @@ public:
         RecomputeTableTabletStatistics(tableNode);
     }
 
-
     TTabletCell* GetTabletCellOrThrow(TTabletCellId id)
     {
         auto* cell = FindTabletCell(id);
@@ -2371,6 +2423,108 @@ public:
         }
     }
 
+    void WrapWithBackupChunkViews(TTablet* tablet)
+    {
+        YT_VERIFY(tablet->GetState() == ETabletState::Unmounted);
+
+        bool needFlatten = false;
+        auto* chunkList = tablet->GetChunkList();
+        for (const auto* child : chunkList->Children()) {
+            if (child->GetType() == EObjectType::ChunkList) {
+                needFlatten = true;
+                break;
+            }
+        }
+
+        auto* table = tablet->GetTable();
+        CopyChunkListIfShared(table, tablet->GetIndex(), tablet->GetIndex(), needFlatten);
+
+        auto oldStatistics = GetTabletStatistics(tablet);
+        table->DiscountTabletStatistics(oldStatistics);
+
+        chunkList = tablet->GetChunkList();
+        std::vector<TChunkTree*> storesToDetach;
+        std::vector<TChunkTree*> storesToAttach;
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        for (auto* store : chunkList->Children()) {
+            storesToDetach.push_back(store);
+            auto* wrappedStore = chunkManager->CreateChunkView(
+                store,
+                {});
+            storesToAttach.push_back(wrappedStore);
+        }
+
+        chunkManager->DetachFromChunkList(chunkList, storesToDetach);
+        chunkManager->AttachToChunkList(chunkList, storesToAttach);
+
+        auto newStatistics = GetTabletStatistics(tablet);
+        table->AccountTabletStatistics(newStatistics);
+    }
+
+    TError PromoteFlushedDynamicStores(TTablet* tablet)
+    {
+        if (auto error = CheckAllDynamicStoresFlushed(tablet); !error.IsOK()) {
+            return error;
+        }
+
+        YT_VERIFY(tablet->GetState() == ETabletState::Unmounted);
+
+        auto* chunkList = tablet->GetChunkList();
+        for (const auto* child : chunkList->Children()) {
+            auto type = child->GetType();
+            YT_VERIFY(IsBlobChunkType(type) || type == EObjectType::ChunkView);
+        }
+
+        auto* table = tablet->GetTable();
+        CopyChunkListIfShared(table, tablet->GetIndex(), tablet->GetIndex());
+
+        auto oldStatistics = GetTabletStatistics(tablet);
+        table->DiscountTabletStatistics(oldStatistics);
+
+        chunkList = tablet->GetChunkList();
+        std::vector<TChunkTree*> storesToDetach;
+        std::vector<TChunkTree*> storesToAttach;
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        for (auto* store : chunkList->Children()) {
+            if (store->GetType() != EObjectType::ChunkView) {
+                continue;
+            }
+
+            auto* chunkView = store->AsChunkView();
+
+            auto* underlyingTree = chunkView->GetUnderlyingTree();
+            if (!IsDynamicTabletStoreType(underlyingTree->GetType())) {
+                continue;
+            }
+
+            storesToDetach.push_back(chunkView);
+
+            auto* dynamicStore = underlyingTree->AsDynamicStore();
+            YT_VERIFY(dynamicStore->IsFlushed());
+            auto* chunk = dynamicStore->GetFlushedChunk();
+
+            if (chunk) {
+                // FIXME(ifsmirnov): chunk view is not always needed, check
+                // chunk min/max timestaps.
+                auto* wrappedStore = chunkManager->CreateChunkView(
+                    chunk,
+                    chunkView->ReadRange());
+                storesToAttach.push_back(wrappedStore);
+            }
+        }
+
+        chunkManager->DetachFromChunkList(chunkList, storesToDetach);
+        chunkManager->AttachToChunkList(chunkList, storesToAttach);
+
+        auto newStatistics = GetTabletStatistics(tablet);
+        table->AccountTabletStatistics(newStatistics);
+
+        return {};
+    }
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
     DECLARE_ENTITY_MAP_ACCESSORS(TableReplica, TTableReplica);
@@ -2642,7 +2796,7 @@ private:
             auto chunksOrViews = EnumerateStoresInChunkTree(tablet->GetChunkList());
             for (const auto* chunkOrView : chunksOrViews) {
                 const auto* chunk = chunkOrView->GetType() == EObjectType::ChunkView
-                    ? chunkOrView->AsChunkView()->GetUnderlyingChunk()
+                    ? chunkOrView->AsChunkView()->GetUnderlyingTree()->AsChunk()
                     : chunkOrView->AsChunk();
                 if (chunk->GetChunkType() != EChunkType::Table) {
                     continue;
@@ -3581,7 +3735,11 @@ private:
     {
         const auto& hiveManager = Bootstrap_->GetHiveManager();
 
-        for (auto* table : transaction->LockedDynamicTables()) {
+        for (auto tableIt : GetSortedIterators(
+            transaction->LockedDynamicTables(),
+            TObjectRefComparer::Compare))
+        {
+            auto* table = *tableIt;
             if (!IsObjectAlive(table)) {
                 continue;
             }
@@ -3609,6 +3767,32 @@ private:
         }
 
         transaction->LockedDynamicTables().clear();
+    }
+
+    TError CheckAllDynamicStoresFlushed(const TTablet* tablet)
+    {
+        // TODO(ifsmirnov): use tablet->DynamicStores_ when it is merged.
+
+        for (const auto* child : tablet->GetChunkList()->Children()) {
+            YT_VERIFY(child->GetType() != EObjectType::ChunkList);
+
+            if (child->GetType() != EObjectType::ChunkView) {
+                continue;
+            }
+
+            const auto* underlyingTree = child->AsChunkView()->GetUnderlyingTree();
+            if (IsDynamicTabletStoreType(underlyingTree->GetType()) &&
+                !underlyingTree->AsDynamicStore()->IsFlushed())
+            {
+                return TError("Cannot restore table from backup since "
+                    "dynamic store is not flushed (TableId: %v, TabletId: %v, StoreId: %v)",
+                    tablet->GetTable()->GetId(),
+                    tablet->GetId(),
+                    underlyingTree->GetId());
+            }
+        }
+
+        return {};
     }
 
     int DoReshardTable(
@@ -3730,7 +3914,7 @@ private:
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             for (auto storeId : tablets[index]->EdenStoreIds()) {
                 if (auto chunkView = chunkManager->FindChunkView(storeId)) {
-                    oldEdenStoreIds.insert(chunkView->GetUnderlyingChunk()->GetId());
+                    oldEdenStoreIds.insert(chunkView->GetUnderlyingTree()->GetId());
                 } else {
                     oldEdenStoreIds.insert(storeId);
                 }
@@ -3835,11 +4019,11 @@ private:
                         {
                             if (!chunkView->GetTransactionId()) {
                                 YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Chunk view without transaction id is not fully inside its tablet "
-                                    "(ChunkViewId: %v, UnderlyingChunkId: %v, "
+                                    "(ChunkViewId: %v, UnderlyingTreeId: %v, "
                                     "EffectiveLowerLimit: %v, EffectiveUpperLimit: %v, "
                                     "PivotKey: %v, NextPivotKey: %v)",
                                     chunkView->GetId(),
-                                    chunkView->GetUnderlyingChunk()->GetId(),
+                                    chunkView->GetUnderlyingTree()->GetId(),
                                     readRange.LowerLimit().GetLegacyKey(),
                                     readRange.UpperLimit().GetLegacyKey(),
                                     lowerPivot,
@@ -3887,7 +4071,7 @@ private:
                 TChunk* chunk;
                 if (chunkOrView->GetType() == EObjectType::ChunkView) {
                     auto* chunkView = chunkOrView->AsChunkView();
-                    chunk = chunkView->GetUnderlyingChunk();
+                    chunk = chunkView->GetUnderlyingTree()->AsChunk();
                     readRange = chunkView->GetCompleteReadRange();
                 } else if (IsPhysicalChunkType(chunkOrView->GetType())) {
                     chunk = chunkOrView->AsChunk();
@@ -3975,7 +4159,7 @@ private:
 
                 std::vector<TChunkTree*> hunkChunks;
                 for (auto* chunkOrView : mergedChunkViews) {
-                    if (oldEdenStoreIds.contains(chunkOrView->AsChunkView()->GetUnderlyingChunk()->GetId())) {
+                    if (oldEdenStoreIds.contains(chunkOrView->AsChunkView()->GetUnderlyingTree()->GetId())) {
                         newEdenStoreIds[relativeIndex].push_back(chunkOrView->GetId());
                     }
                 }
@@ -5711,7 +5895,7 @@ private:
                 flatteningRequired |= !CanUnambiguouslyDetachChild(tablet->GetChunkList(), chunk);
             } else if (TypeFromId(storeId) == EObjectType::ChunkView) {
                 auto* chunkView = chunkManager->GetChunkViewOrThrow(storeId);
-                auto* chunk = chunkView->GetUnderlyingChunk();
+                auto* chunk = chunkView->GetUnderlyingTree()->AsChunk();
                 detachedRowCount += chunk->GetRowCount();
                 chunksOrViewsToDetach.push_back(chunkView);
                 flatteningRequired |= !CanUnambiguouslyDetachChild(tablet->GetChunkList(), chunkView);
@@ -6618,7 +6802,7 @@ private:
         const TChunk* chunk;
         if (chunkOrView->GetType() == EObjectType::ChunkView) {
             const auto* chunkView = chunkOrView->AsChunkView();
-            chunk = chunkView->GetUnderlyingChunk();
+            chunk = chunkView->GetUnderlyingTree()->AsChunk();
             auto* viewDescriptor = descriptor->mutable_chunk_view_descriptor();
             ToProto(viewDescriptor->mutable_chunk_view_id(), chunkView->GetId());
             ToProto(viewDescriptor->mutable_underlying_chunk_id(), chunk->GetId());
@@ -6678,6 +6862,26 @@ private:
                         THROW_ERROR_EXCEPTION("Cannot move a replicated table");
                     }
                     trunkNode->ValidateAllTabletsUnmounted("Cannot move dynamic table");
+                    break;
+
+                case ENodeCloneMode::Backup:
+                    trunkNode->ValidateNotBackup("Cannot backup a backup table");
+                    if (trunkNode->GetBackupState() == ETableBackupState::RestoredWithRestrictions) {
+                        THROW_ERROR_EXCEPTION("Cannot backup table that was recently restored and still "
+                            "has some restrictions");
+                    }
+                    if (trunkNode->IsReplicated()) {
+                        THROW_ERROR_EXCEPTION("Cannot backup a replicated table");
+                    }
+                    break;
+
+                case ENodeCloneMode::Restore:
+                    if (trunkNode->GetBackupState() != ETableBackupState::BackupCompleted) {
+                        THROW_ERROR_EXCEPTION("Cannot restore table since it is not a backup table");
+                    }
+                    if (trunkNode->IsReplicated()) {
+                        THROW_ERROR_EXCEPTION("Cannot restore a replicated table");
+                    }
                     break;
 
                 default:
@@ -7123,6 +7327,16 @@ void TTabletManager::OnNodeStorageParametersUpdated(TChunkOwnerBase* node)
 void TTabletManager::RecomputeTabletCellStatistics(TCellBase* cellBase)
 {
     return Impl_->RecomputeTabletCellStatistics(cellBase);
+}
+
+void TTabletManager::WrapWithBackupChunkViews(TTablet* tablet)
+{
+    Impl_->WrapWithBackupChunkViews(tablet);
+}
+
+TError TTabletManager::PromoteFlushedDynamicStores(TTablet* tablet)
+{
+    return Impl_->PromoteFlushedDynamicStores(tablet);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)

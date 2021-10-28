@@ -128,6 +128,9 @@ DECLARE_REFCOUNTED_CLASS(TJobInputReader)
 
 DECLARE_REFCOUNTED_CLASS(TClientCache)
 
+DECLARE_REFCOUNTED_STRUCT(TTableBackupManifest)
+DECLARE_REFCOUNTED_STRUCT(TBackupManifest)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const TString RpcProxiesPath;

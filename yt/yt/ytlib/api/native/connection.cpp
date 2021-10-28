@@ -680,6 +680,28 @@ IConnectionPtr FindRemoteConnection(
     return dynamic_cast<NNative::IConnection*>(remoteConnection.Get());
 }
 
+IConnectionPtr GetRemoteConnectionOrThrow(
+    const IConnectionPtr& connection,
+    const TString& clusterName,
+    bool syncOnFailure)
+{
+    for (int retry = 0; retry < 2; ++retry) {
+        auto remoteConnection = FindRemoteConnection(connection, clusterName);
+        if (remoteConnection) {
+            return remoteConnection;
+        }
+
+        if (!syncOnFailure || retry == 1) {
+            THROW_ERROR_EXCEPTION("Cannot find cluster with name %Qv", clusterName);
+        }
+
+        WaitFor(connection->GetClusterDirectorySynchronizer()->Sync())
+            .ThrowOnError();
+    }
+
+    YT_ABORT();
+}
+
 IConnectionPtr FindRemoteConnection(
     const IConnectionPtr& connection,
     TCellTag cellTag)

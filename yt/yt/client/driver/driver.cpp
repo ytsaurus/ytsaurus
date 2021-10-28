@@ -219,6 +219,12 @@ public:
         REGISTER    (TGetTablePivotKeysCommand,            "get_table_pivot_keys",            Null,       Structured, false, false, ApiVersion4);
         REGISTER    (TGetTabletInfosCommand,               "get_tablet_infos",                Null,       Structured, true,  false, ApiVersion4);
 
+        REGISTER    (TCreateTableBackupCommand,            "create_table_backup",             Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TRestoreTableBackupCommand,           "restore_table_backup",            Null,       Null,       true,  false, ApiVersion3);
+        REGISTER    (TCreateTableBackupCommand,            "create_table_backup",             Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TRestoreTableBackupCommand,           "restore_table_backup",            Null,       Structured, true,  false, ApiVersion4);
+
+
         REGISTER_ALL(TReshardTableAutomaticCommand,        "reshard_table_automatic",         Null,       Structured, true,  false);
         REGISTER_ALL(TBalanceTabletCellsCommand,           "balance_tablet_cells",            Null,       Structured, true,  false);
 

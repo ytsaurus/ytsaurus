@@ -175,6 +175,9 @@ public:
 
     void RecomputeTabletCellStatistics(NCellServer::TCellBase* cellBase);
 
+    void WrapWithBackupChunkViews(TTablet* tablet);
+    TError PromoteFlushedDynamicStores(TTablet* tablet);
+
 private:
     template <class TImpl>
     friend class NTableServer::TTableNodeTypeHandlerBase;

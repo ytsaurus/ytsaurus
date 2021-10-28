@@ -425,4 +425,32 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCreateTableBackupCommand
+    : public TTypedCommand<NApi::TCreateTableBackupOptions>
+{
+public:
+    TCreateTableBackupCommand();
+
+private:
+    NApi::TBackupManifestPtr Manifest;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRestoreTableBackupCommand
+    : public TTypedCommand<NApi::TRestoreTableBackupOptions>
+{
+public:
+    TRestoreTableBackupCommand();
+
+private:
+    NApi::TBackupManifestPtr Manifest;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

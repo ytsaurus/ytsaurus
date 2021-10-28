@@ -69,7 +69,7 @@ private:
 
             case EInternedAttributeKey::ParentIds:
                 BuildYsonFluently(consumer)
-                    .DoListFor(dynamicStore->Parents(), [] (TFluentList fluent, const TChunkList* parent) {
+                    .DoListFor(dynamicStore->Parents(), [] (TFluentList fluent, const TChunkTree* parent) {
                         fluent
                             .Item().Value(parent->GetId());
                     });

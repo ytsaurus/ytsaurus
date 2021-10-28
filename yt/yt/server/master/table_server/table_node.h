@@ -15,9 +15,9 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
-#include <yt/yt/client/table_client/schema.h>
-
 #include <yt/yt/ytlib/transaction_client/public.h>
+
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/misc/aggregate_property.h>
 #include <yt/yt/core/misc/property.h>
@@ -82,6 +82,10 @@ private:
         std::optional<TString> ProfilingTag;
         bool EnableDetailedProfiling = false;
 
+        NTabletClient::ETableBackupState BackupState = NTabletClient::ETableBackupState::None;
+        TEnumIndexedVector<NTabletClient::ETabletBackupState, int> TabletCountByBackupState;
+        NTabletClient::ETabletBackupState AggregatedTabletBackupState = NTabletClient::ETabletBackupState::None;
+
         TDynamicTableAttributes();
         void Save(NCellMaster::TSaveContext& context) const;
         void Load(NCellMaster::TLoadContext& context);
@@ -132,6 +136,9 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ProfilingMode);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ProfilingTag);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, EnableDetailedProfiling);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, BackupState);
+    DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCountByBackupState);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, AggregatedTabletBackupState);
     DEFINE_BYVAL_EXTRA_AGGREGATE_PROPERTY(DynamicTableAttributes, TabletStatistics);
 
     // COMPAT(ifsmirnov)
@@ -197,6 +204,7 @@ public:
     void ValidateTabletStateFixed(TStringBuf message) const;
     void ValidateAllTabletsFrozenOrUnmounted(TStringBuf message) const;
     void ValidateAllTabletsUnmounted(TStringBuf message) const;
+    void ValidateNotBackup(TStringBuf message) const;
 
     void AddDynamicTableLock(
         NTransactionClient::TTransactionId transactionId,

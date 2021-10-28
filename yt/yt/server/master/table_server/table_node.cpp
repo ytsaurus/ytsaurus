@@ -86,6 +86,9 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, ProfilingMode);
     Save(context, ProfilingTag);
     Save(context, EnableDetailedProfiling);
+    Save(context, BackupState);
+    Save(context, TabletCountByBackupState);
+    Save(context, AggregatedTabletBackupState);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -133,6 +136,12 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     // COMPAT(akozhikhov)
     if (context.GetVersion() >= EMasterReign::FlagForDetailedProfiling) {
         Load(context, EnableDetailedProfiling);
+    }
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::BackupsInitial) {
+        Load(context, BackupState);
+        Load(context, TabletCountByBackupState);
+        Load(context, AggregatedTabletBackupState);
     }
 }
 
@@ -590,6 +599,13 @@ void TTableNode::ValidateAllTabletsFrozenOrUnmounted(TStringBuf message) const
 void TTableNode::ValidateAllTabletsUnmounted(TStringBuf message) const
 {
     ValidateExpectedTabletState(message, false);
+}
+
+void TTableNode::ValidateNotBackup(TStringBuf message) const
+{
+    if (GetBackupState() == ETableBackupState::BackupCompleted) {
+        THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::InvalidBackupState, "%v", message);
+    }
 }
 
 std::optional<bool> TTableNode::GetEnableTabletBalancer() const

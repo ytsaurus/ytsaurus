@@ -81,6 +81,7 @@
 #include <yt/yt/server/master/table_server/table_node_type_handler.h>
 #include <yt/yt/server/master/table_server/replicated_table_node_type_handler.h>
 
+#include <yt/yt/server/master/tablet_server/backup_manager.h>
 #include <yt/yt/server/master/tablet_server/cypress_integration.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 #include <yt/yt/server/master/tablet_server/replicated_table_tracker.h>
@@ -428,6 +429,11 @@ const ITamedCellManagerPtr& TBootstrap::GetTamedCellManager() const
 const TTabletManagerPtr& TBootstrap::GetTabletManager() const
 {
     return TabletManager_;
+}
+
+const IBackupManagerPtr& TBootstrap::GetBackupManager() const
+{
+    return BackupManager_;
 }
 
 const IChaosManagerPtr& TBootstrap::GetChaosManager() const
@@ -779,6 +785,8 @@ void TBootstrap::DoInitialize()
 
     TabletManager_ = New<TTabletManager>(this);
 
+    BackupManager_ = CreateBackupManager(this);
+
     ChaosManager_ = CreateChaosManager(this);
 
     ReplicatedTableTracker_ = New<TReplicatedTableTracker>(Config_->ReplicatedTableTracker, this);
@@ -828,6 +836,7 @@ void TBootstrap::DoInitialize()
     CellHydraJanitor_->Initialize();
     TableManager_->Initialize();
     TabletManager_->Initialize();
+    BackupManager_->Initialize();
     ChaosManager_->Initialize();
     MulticellManager_->Initialize();
     SchedulerPoolManager_->Initialize();

@@ -59,10 +59,10 @@ private:
 
         switch (key) {
             case EInternedAttributeKey::ChunkId: {
-                auto underlyingChunk = chunkView->GetUnderlyingChunk();
-                YT_VERIFY(underlyingChunk);
+                auto* underlyingTree = chunkView->GetUnderlyingTree();
+                YT_VERIFY(underlyingTree);
                 BuildYsonFluently(consumer)
-                    .Value(underlyingChunk->GetId());
+                    .Value(underlyingTree->GetId());
                 return true;
             }
 

@@ -262,6 +262,14 @@ public:
         const NYPath::TYPath& path,
         const TGetTablePivotKeysOptions& options), (override));
 
+    MOCK_METHOD(TFuture<void>, CreateTableBackup,(
+        const TBackupManifestPtr& manifest,
+        const TCreateTableBackupOptions& options), (override));
+
+    MOCK_METHOD(TFuture<void>, RestoreTableBackup, (
+        const TBackupManifestPtr& manifest,
+        const TRestoreTableBackupOptions& options), (override));
+
     MOCK_METHOD(TFuture<std::vector<NTabletClient::TTableReplicaId>>, GetInSyncReplicas, (
         const NYPath::TYPath& path,
         const NTableClient::TNameTablePtr& nameTable,

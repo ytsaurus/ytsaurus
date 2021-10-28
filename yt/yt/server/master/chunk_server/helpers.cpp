@@ -162,7 +162,8 @@ TChunkList* GetUniqueParent(const TChunkTree* chunkTree)
                 return nullptr;
             }
             YT_VERIFY(parents.size() == 1);
-            return parents[0];
+            YT_VERIFY(parents[0]->GetType() == EObjectType::ChunkList);
+            return parents[0]->AsChunkList();
         }
 
         case EObjectType::ChunkList: {
@@ -478,7 +479,7 @@ void ReplaceChunkListChild(TChunkList* chunkList, int childIndex, TChunkTree* ne
     }
 }
 
-void SetChunkTreeParent(TChunkList* parent, TChunkTree* child)
+void SetChunkTreeParent(TChunkTree* parent, TChunkTree* child)
 {
     switch (child->GetType()) {
         case EObjectType::Chunk:
@@ -488,21 +489,21 @@ void SetChunkTreeParent(TChunkList* parent, TChunkTree* child)
             child->AsChunk()->AddParent(parent);
             break;
         case EObjectType::ChunkView:
-            child->AsChunkView()->AddParent(parent);
+            child->AsChunkView()->AddParent(parent->AsChunkList());
             break;
         case EObjectType::SortedDynamicTabletStore:
         case EObjectType::OrderedDynamicTabletStore:
             child->AsDynamicStore()->AddParent(parent);
             break;
         case EObjectType::ChunkList:
-            child->AsChunkList()->AddParent(parent);
+            child->AsChunkList()->AddParent(parent->AsChunkList());
             break;
         default:
             YT_ABORT();
     }
 }
 
-void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child)
+void ResetChunkTreeParent(TChunkTree* parent, TChunkTree* child)
 {
     switch (child->GetType()) {
         case EObjectType::Chunk:
@@ -512,14 +513,14 @@ void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child)
             child->AsChunk()->RemoveParent(parent);
             break;
         case EObjectType::ChunkView:
-            child->AsChunkView()->RemoveParent(parent);
+            child->AsChunkView()->RemoveParent(parent->AsChunkList());
             break;
         case EObjectType::SortedDynamicTabletStore:
         case EObjectType::OrderedDynamicTabletStore:
             child->AsDynamicStore()->RemoveParent(parent);
             break;
         case EObjectType::ChunkList:
-            child->AsChunkList()->RemoveParent(parent);
+            child->AsChunkList()->RemoveParent(parent->AsChunkList());
             break;
         default:
             YT_ABORT();
@@ -890,7 +891,7 @@ TLegacyOwningKey GetUpperBoundKeyOrThrow(const TChunk* chunk, std::optional<int>
 
 TLegacyOwningKey GetUpperBoundKeyOrThrow(const TChunkView* chunkView, std::optional<int> keyColumnCount)
 {
-    auto chunkUpperBound = GetUpperBoundKeyOrThrow(chunkView->GetUnderlyingChunk(), keyColumnCount);
+    auto chunkUpperBound = GetUpperBoundKeyOrThrow(chunkView->GetUnderlyingTree(), keyColumnCount);
     const auto& upperLimit = chunkView->ReadRange().UpperLimit();
     if (!upperLimit.HasLegacyKey()) {
         return chunkUpperBound;
@@ -980,7 +981,7 @@ TLegacyOwningKey GetMinKeyOrThrow(const TChunk* chunk, std::optional<int> keyCol
 
 TLegacyOwningKey GetMinKey(const TChunkView* chunkView, std::optional<int> keyColumnCount)
 {
-    auto chunkMinKey = GetMinKeyOrThrow(chunkView->GetUnderlyingChunk(), keyColumnCount);
+    auto chunkMinKey = GetMinKeyOrThrow(chunkView->GetUnderlyingTree(), keyColumnCount);
     const auto& lowerLimit = chunkView->ReadRange().LowerLimit();
     if (!lowerLimit.HasLegacyKey()) {
         return chunkMinKey;

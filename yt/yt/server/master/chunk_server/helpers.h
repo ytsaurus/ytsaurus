@@ -59,8 +59,8 @@ void DetachFromChunkList(
 //! to deal with statistics.
 void ReplaceChunkListChild(TChunkList* chunkList, int childIndex, TChunkTree* newChild);
 
-void SetChunkTreeParent(TChunkList* parent, TChunkTree* child);
-void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child);
+void SetChunkTreeParent(TChunkTree* parent, TChunkTree* child);
+void ResetChunkTreeParent(TChunkTree* parent, TChunkTree* child);
 
 TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree);
 void AppendChunkTreeChild(
