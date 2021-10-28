@@ -1505,7 +1505,7 @@ void TJob::Cleanup()
     // NB: do this after slot cleanup.
     WaitFor(BIND([this_ = MakeStrong(this), this] () {
         auto* schedulerJobSpecExt = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        schedulerJobSpecExt->clear_input_node_directory();
+        delete schedulerJobSpecExt->release_input_node_directory();
     })
         .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())
         .Run())
