@@ -214,6 +214,68 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
 ##################################################################
 
 
+class TestDataNodeErasureIOTracking(TestNodeIOTrackingBase):
+    NUM_MASTERS = 1
+    NUM_NODES = 6
+    NUM_SCHEDULERS = 1
+
+    def _check_data_read(self, from_barriers, method):
+        was_data_read = False
+        for node_id in range(self.NUM_NODES):
+            raw_events, _ = self.read_events(from_barrier=from_barriers[node_id], node_id=node_id)
+            if not raw_events:
+                continue
+            assert len(raw_events) == 1
+            assert raw_events[0]["data_node_method@"] == method
+            assert raw_events[0]["byte_count"] > 0
+            assert raw_events[0]["io_count"] > 0
+            was_data_read = True
+        assert was_data_read
+
+    @authors("gepardo")
+    def test_erasure_blob_chunks(self):
+        data = [{"a": i, "b": 2 * i, "c": 3 * i} for i in range(100)]
+
+        from_barrier = write_log_barrier(self.get_node_address())
+        create("table", "//tmp/table", attributes={"erasure_codec": "reed_solomon_3_3"})
+        write_table("//tmp/table", data)
+        raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier)
+
+        assert raw_events[0]["data_node_method@"] == "FinishChunk"
+        assert raw_events[0]["byte_count"] > 0
+        assert raw_events[0]["io_count"] > 0
+
+        from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
+        assert read_table("//tmp/table") == data
+        time.sleep(1.0)
+        self._check_data_read(from_barriers, "GetBlockSet")
+
+    @authors("gepardo")
+    def test_erasure_journal_chunks(self):
+        data = [{"data": str(i)} for i in range(20)]
+
+        from_barrier = write_log_barrier(self.get_node_address())
+        create("journal", "//tmp/journal", attributes={
+            "erasure_codec": "reed_solomon_3_3",
+            "replication_factor": 1,
+            "read_quorum": 6,
+            "write_quorum": 6,
+        })
+        write_journal("//tmp/journal", data)
+        raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier)
+
+        assert raw_events[0]["data_node_method@"] == "FlushBlocks"
+        assert raw_events[0]["byte_count"] > 0
+        assert raw_events[0]["io_count"] > 0
+
+        from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
+        assert read_journal("//tmp/journal") == data
+        time.sleep(1.0)
+        self._check_data_read(from_barriers, "GetBlockRange")
+
+##################################################################
+
+
 class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
     NUM_MASTERS = 1
     NUM_NODES = 3
