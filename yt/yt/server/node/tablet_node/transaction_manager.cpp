@@ -70,7 +70,7 @@ static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransactionManager::TImpl
-    : public TCompositeAutomatonPart
+    : public TTabletAutomatonPart
     , public TTransactionManagerBase<TTransaction>
 {
 public:
@@ -86,7 +86,8 @@ public:
         TTransactionManagerConfigPtr config,
         ITransactionManagerHostPtr host,
         ITransactionLeaseTrackerPtr transactionLeaseTracker)
-        : TCompositeAutomatonPart(
+        : TTabletAutomatonPart(
+            host->GetCellId(),
             host->GetHydraManager(),
             host->GetAutomaton(),
             host->GetAutomatonInvoker())

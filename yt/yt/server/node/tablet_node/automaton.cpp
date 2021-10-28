@@ -47,19 +47,16 @@ EFinalRecoveryAction TTabletAutomaton::GetActionToRecoverFromReign(TReign reign)
 ////////////////////////////////////////////////////////////////////////////////
 
 TTabletAutomatonPart::TTabletAutomatonPart(
-    ITabletSlotPtr slot,
-    IBootstrap* bootstrap)
+    TCellId cellId,
+    ISimpleHydraManagerPtr hydraManager,
+    TCompositeAutomatonPtr automaton,
+    IInvokerPtr automatonInvoker)
     : TCompositeAutomatonPart(
-        slot->GetHydraManager(),
-        slot->GetAutomaton(),
-        slot->GetAutomatonInvoker())
-    , Slot_(slot)
-    , Bootstrap_(bootstrap)
+        std::move(hydraManager),
+        std::move(automaton),
+        std::move(automatonInvoker))
 {
-    YT_VERIFY(Slot_);
-    YT_VERIFY(Bootstrap_);
-
-    Logger = TabletNodeLogger.WithTag("CellId: %v", Slot_->GetCellId());
+    Logger = TabletNodeLogger.WithTag("CellId: %v", cellId);
 }
 
 bool TTabletAutomatonPart::ValidateSnapshotVersion(int version)

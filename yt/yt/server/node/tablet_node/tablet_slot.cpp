@@ -317,8 +317,7 @@ public:
                 ->WithCategory(NNodeTrackerClient::EMemoryCategory::TabletDynamic),
                 0 /*size*/,
                 MemoryUsageGranularity),
-                GetAutomatonInvoker(),
-                Logger);
+            GetAutomatonInvoker());
     }
 
     void Initialize() override

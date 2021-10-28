@@ -39,12 +39,11 @@ class TTabletAutomatonPart
     , public virtual NLogging::TLoggerOwner
 {
 protected:
-    const ITabletSlotPtr Slot_;
-    IBootstrap* const Bootstrap_;
-
     TTabletAutomatonPart(
-        ITabletSlotPtr slot,
-        IBootstrap* bootstrap);
+        TCellId cellId,
+        NHydra::ISimpleHydraManagerPtr hydraManager,
+        NHydra::TCompositeAutomatonPtr automaton,
+        IInvokerPtr automatonInvoker);
 
     bool ValidateSnapshotVersion(int version) override;
     int GetCurrentSnapshotVersion() override;

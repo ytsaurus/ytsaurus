@@ -1,5 +1,6 @@
 #include "tablet_write_manager.h"
 
+#include "automaton.h"
 #include "tablet.h"
 #include "sorted_store_manager.h"
 #include "transaction_manager.h"
@@ -8,7 +9,6 @@
 #include "sorted_dynamic_store.h"
 #include "store_manager.h"
 
-#include <yt/yt/server/lib/hydra/composite_automaton.h>
 #include <yt/yt/server/lib/hydra/automaton.h>
 #include <yt/yt/server/lib/hydra/mutation.h>
 #include <yt/yt/server/lib/hydra/hydra_manager.h>
@@ -39,7 +39,7 @@ using namespace NHydra;
 
 class TTabletWriteManager
     : public ITabletWriteManager
-    , public TCompositeAutomatonPart
+    , public TTabletAutomatonPart
 {
 public:
     TTabletWriteManager(
@@ -47,13 +47,15 @@ public:
         IHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton,
         TMemoryUsageTrackerGuard&& writeLogsMemoryTrackerGuard,
-        IInvokerPtr automatonInvoker,
-        TLogger logger)
-        : TCompositeAutomatonPart(std::move(hydraManager), std::move(automaton), std::move(automatonInvoker))
+        IInvokerPtr automatonInvoker)
+        : TTabletAutomatonPart(
+            host->GetCellId(),
+            std::move(hydraManager),
+            std::move(automaton),
+            std::move(automatonInvoker))
         , Host_(std::move(host))
         , ChangelogCodec_(GetCodec(Host_->GetConfig()->ChangelogCodec))
         , WriteLogsMemoryTrackerGuard_(std::move(writeLogsMemoryTrackerGuard))
-        , Logger(logger)
     {
         RegisterMethod(BIND(&TTabletWriteManager::HydraFollowerWriteRows, Unretained(this)));
     }
@@ -240,7 +242,7 @@ public:
         }
     }
 
-    // TCompositeAutomatonPart overrides.
+    // TTabletAutomatonPart overrides.
 
     void OnStopLeading() override
     {
@@ -341,8 +343,6 @@ private:
     // NB: Write logs are generally much smaller than dynamic stores,
     // so we don't worry about per-pool management here.
     TMemoryUsageTrackerGuard WriteLogsMemoryTrackerGuard_;
-
-    TLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -1268,16 +1268,14 @@ ITabletWriteManagerPtr CreateTabletWriteManager(
     IHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton,
     TMemoryUsageTrackerGuard&& writeLogsMemoryTrackerGuard,
-    IInvokerPtr automatonInvoker,
-    TLogger logger)
+    IInvokerPtr automatonInvoker)
 {
     return New<TTabletWriteManager>(
         std::move(host),
         std::move(hydraManager),
         std::move(automaton),
         std::move(writeLogsMemoryTrackerGuard),
-        std::move(automatonInvoker),
-        logger);
+        std::move(automatonInvoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

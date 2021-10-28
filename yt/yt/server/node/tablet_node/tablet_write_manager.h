@@ -16,6 +16,8 @@ namespace NYT::NTabletNode {
 struct ITabletWriteManagerHost
     : public virtual TRefCounted
 {
+    virtual TCellId GetCellId() const = 0;
+
     virtual i64 LockTablet(TTablet* tablet) = 0;
     virtual i64 UnlockTablet(TTablet* tablet) = 0;
     virtual TTablet* GetTabletOrThrow(TTabletId id) = 0;
@@ -72,8 +74,7 @@ ITabletWriteManagerPtr CreateTabletWriteManager(
     NHydra::IHydraManagerPtr hydraManager,
     NHydra::TCompositeAutomatonPtr automaton,
     TMemoryUsageTrackerGuard&& writeLogsMemoryTrackerGuard,
-    IInvokerPtr automatonInvoker,
-    NLogging::TLogger logger);
+    IInvokerPtr automatonInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
