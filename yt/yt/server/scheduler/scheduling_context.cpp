@@ -63,12 +63,13 @@ TString FormatPreemptableInfoCompact(const TScheduleJobsStatistics& statistics)
 
 TString FormatScheduleJobAttemptsCompact(const TScheduleJobsStatistics& statistics)
 {
-    return Format("{NP: %v, AP: %v, P: %v, C: %v, TO: %v}",
+    return Format("{NP: %v, AP: %v, P: %v, C: %v, TO: %v, MNPSI: %v}",
         statistics.NonPreemptiveScheduleJobAttempts,
         statistics.AggressivelyPreemptiveScheduleJobAttempts,
         statistics.PreemptiveScheduleJobAttempts,
         statistics.ControllerScheduleJobCount,
-        statistics.ControllerScheduleJobTimedOutCount);
+        statistics.ControllerScheduleJobTimedOutCount,
+        statistics.MaxNonPreemptiveSchedulingIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

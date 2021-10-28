@@ -216,6 +216,7 @@ private:
         int ScheduleJobFailureCount = 0;
         TEnumIndexedVector<EDeactivationReason, int> DeactivationReasons;
         THashMap<int, int> SchedulingIndexToScheduleJobAttemptCount;
+        int MaxSchedulingIndex = UndefinedSchedulingIndex;
     };
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<bool>, CanSchedule);

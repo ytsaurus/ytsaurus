@@ -259,15 +259,14 @@ void TScheduleJobsContext::ProfileStageStatistics()
         profilingCounters->ControllerScheduleJobFail[reason].Increment(StageState_->FailedScheduleJob[reason]);
     }
 
-    int maxSchedulingIndex = UndefinedSchedulingIndex;
     for (auto [schedulingIndex, count] : StageState_->SchedulingIndexToScheduleJobAttemptCount) {
         int rangeIndex = SchedulingIndexToProfilingRangeIndex(schedulingIndex);
         profilingCounters->SchedulingIndexCounters[rangeIndex].Increment(count);
-        maxSchedulingIndex = std::max(maxSchedulingIndex, schedulingIndex);
     }
-    if (maxSchedulingIndex >= 0) {
-        profilingCounters->MaxSchedulingIndexCounters[SchedulingIndexToProfilingRangeIndex(maxSchedulingIndex)].Increment();
+    if (StageState_->MaxSchedulingIndex >= 0) {
+        profilingCounters->MaxSchedulingIndexCounters[SchedulingIndexToProfilingRangeIndex(StageState_->MaxSchedulingIndex)].Increment();
     }
+
 }
 
 void TScheduleJobsContext::LogStageStatistics()
@@ -3017,6 +3016,7 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
     int schedulingIndex = GetSchedulingIndex();
     YT_VERIFY(schedulingIndex != UndefinedSchedulingIndex);
     ++context->StageState()->SchedulingIndexToScheduleJobAttemptCount[schedulingIndex];
+    context->StageState()->MaxSchedulingIndex = std::max(context->StageState()->MaxSchedulingIndex, schedulingIndex);
 
     if (auto blockedReason = CheckBlocked(context->SchedulingContext())) {
         deactivateOperationElement(*blockedReason);
