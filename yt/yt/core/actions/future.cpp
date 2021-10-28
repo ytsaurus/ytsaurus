@@ -114,7 +114,7 @@ bool TFutureState<void>::OnCanceled(TCancelHandler handler)
     }
 }
 
-bool TFutureState<void>::TimedWait(TDuration timeout) const
+bool TFutureState<void>::Wait(TInstant deadline) const
 {
     // Fast path.
     if (Set_ || AbandonedUnset_) {
@@ -133,12 +133,12 @@ bool TFutureState<void>::TimedWait(TDuration timeout) const
         }
     }
 
-    return ReadyEvent_->Wait(timeout);
+    return ReadyEvent_->Wait(deadline);
 }
 
-bool TFutureState<void>::TimedWait(TInstant deadline) const
+bool TFutureState<void>::Wait(TDuration timeout) const
 {
-    return TimedWait(deadline - TInstant::Now());
+    return Wait(timeout.ToDeadLine());
 }
 
 void TFutureState<void>::InstallAbandonedError() const

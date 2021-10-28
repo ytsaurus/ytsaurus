@@ -205,15 +205,15 @@ public:
 
     //! Waits for the value to become set.
     /*!
-     *  This call blocks until either the value is set or #timeout expires.
+     *  This call blocks until either the value is set or #timeout (if given) expires.
      */
-    bool TimedWait(TDuration timeout) const;
+    bool Wait(TDuration timeout = TDuration::Max()) const;
 
     //! Waits for the value to become set.
     /*!
      *  This call blocks until either the value is set or #deadline is reached.
      */
-    bool TimedWait(TInstant deadline) const;
+    bool Wait(TInstant deadline) const;
 
     //! Gets the value; returns null if the value is not set yet.
     /*!

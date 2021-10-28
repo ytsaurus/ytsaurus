@@ -303,8 +303,8 @@ public:
         return Canceled_;
     }
 
-    bool TimedWait(TDuration timeout) const;
-    bool TimedWait(TInstant deadline) const;
+    bool Wait(TDuration timeout) const;
+    bool Wait(TInstant deadline) const;
 
 protected:
     //! Number of promises.
@@ -1040,17 +1040,17 @@ TErrorOr<T> TFutureBase<T>::GetUnique() const
 }
 
 template <class T>
-bool TFutureBase<T>::TimedWait(TDuration timeout) const
+bool TFutureBase<T>::Wait(TDuration timeout) const
 {
     YT_ASSERT(Impl_);
-    return Impl_->TimedWait(timeout);
+    return Impl_->Wait(timeout);
 }
 
 template <class T>
-bool TFutureBase<T>::TimedWait(TInstant deadline) const
+bool TFutureBase<T>::Wait(TInstant deadline) const
 {
     YT_ASSERT(Impl_);
-    return Impl_->TimedWait(deadline);
+    return Impl_->Wait(deadline);
 }
 
 template <class T>
