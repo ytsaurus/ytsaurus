@@ -199,6 +199,14 @@ public:
         const NYPath::TYPath& path,
         const TGetTablePivotKeysOptions& options),
         (path, options))
+    IMPLEMENT_METHOD(void, CreateTableBackup, (
+        const TBackupManifestPtr& manifest,
+        const TCreateTableBackupOptions& options),
+        (manifest, options))
+    IMPLEMENT_METHOD(void, RestoreTableBackup, (
+        const TBackupManifestPtr& manifest,
+        const TRestoreTableBackupOptions& options),
+        (manifest, options))
     IMPLEMENT_METHOD(std::vector<NTabletClient::TTabletActionId>, BalanceTabletCells, (
         const TString& tabletCellBundle,
         const std::vector< NYPath::TYPath>& movableTables,
@@ -799,6 +807,17 @@ private:
     NYson::TYsonString DoGetTablePivotKeys(
         const NYPath::TYPath& path,
         const TGetTablePivotKeysOptions& options);
+
+    friend class TClusterBackupSession;
+    friend class TBackupSession;
+
+    void DoCreateTableBackup(
+        const TBackupManifestPtr& manifest,
+        const TCreateTableBackupOptions& options);
+
+    void DoRestoreTableBackup(
+        const TBackupManifestPtr& manifest,
+        const TRestoreTableBackupOptions& options);
 
     std::vector<NTabletClient::TTabletActionId> DoBalanceTabletCells(
         const TString& tabletCellBundle,

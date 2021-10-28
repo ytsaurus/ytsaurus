@@ -1121,6 +1121,36 @@ void TGetTablePivotKeysCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCreateTableBackupCommand::TCreateTableBackupCommand()
+{
+    RegisterParameter("manifest", Manifest);
+}
+
+void TCreateTableBackupCommand::DoExecute(ICommandContextPtr context)
+{
+    auto asyncResult = context->GetClient()->CreateTableBackup(Manifest, Options);
+    WaitFor(asyncResult)
+        .ThrowOnError();
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRestoreTableBackupCommand::TRestoreTableBackupCommand()
+{
+    RegisterParameter("manifest", Manifest);
+}
+
+void TRestoreTableBackupCommand::DoExecute(ICommandContextPtr context)
+{
+    auto asyncResult = context->GetClient()->RestoreTableBackup(Manifest, Options);
+    WaitFor(asyncResult)
+        .ThrowOnError();
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TGetTabletInfosCommand::TGetTabletInfosCommand()
 {
     RegisterParameter("path", Path);

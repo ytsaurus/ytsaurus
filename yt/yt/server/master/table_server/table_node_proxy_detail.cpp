@@ -18,6 +18,7 @@
 
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 
+#include <yt/yt/server/master/tablet_server/backup_manager.h>
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_cell.h>
 #include <yt/yt/server/master/tablet_server/table_replica.h>
@@ -352,6 +353,12 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationCollocationTablePaths)
         .SetPresent(table->IsReplicated() && trunkTable->GetReplicationCollocation())
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::BackupState)
+        .SetExternal(isExternal)
+        .SetPresent(isDynamic));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletBackupState)
+        .SetExternal(isExternal)
+        .SetPresent(isDynamic));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -881,6 +888,24 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
         }
 
+        case EInternedAttributeKey::BackupState:
+            if (!isDynamic || isExternal) {
+                break;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->GetBackupState());
+            return true;
+
+        case EInternedAttributeKey::TabletBackupState:
+            if (!isDynamic || isExternal) {
+                break;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->GetAggregatedTabletBackupState());
+            return true;
+
         default:
             break;
     }
@@ -1354,6 +1379,10 @@ bool TTableNodeProxy::DoInvoke(const IServiceContextPtr& context)
     DISPATCH_YPATH_SERVICE_METHOD(Alter);
     DISPATCH_YPATH_SERVICE_METHOD(LockDynamicTable);
     DISPATCH_YPATH_SERVICE_METHOD(CheckDynamicTableLock);
+    DISPATCH_YPATH_SERVICE_METHOD(SetBackupBarrier);
+    DISPATCH_YPATH_SERVICE_METHOD(CheckBackupBarrier);
+    DISPATCH_YPATH_SERVICE_METHOD(FinishBackup);
+    DISPATCH_YPATH_SERVICE_METHOD(FinishRestore);
     return TBase::DoInvoke(context);
 }
 
@@ -1627,6 +1656,8 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, LockDynamicTable)
 
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, CheckDynamicTableLock)
 {
+    ValidateTransaction();
+
     context->SetRequestInfo();
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
@@ -1636,6 +1667,59 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, CheckDynamicTableLock)
         response);
 
     context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, SetBackupBarrier)
+{
+    DeclareMutating();
+    ValidateTransaction();
+
+    auto timestamp = request->timestamp();
+
+    context->SetRequestInfo("Timestamp: %llx",
+        timestamp);
+
+    const auto& backupManager = Bootstrap_->GetBackupManager();
+    backupManager->SetBackupBarrier(
+        GetThisImpl()->GetTrunkNode(),
+        timestamp,
+        GetTransaction());
+
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, CheckBackupBarrier)
+{
+    ValidateTransaction();
+
+    context->SetRequestInfo();
+
+    const auto& backupManager = Bootstrap_->GetBackupManager();
+    backupManager->CheckBackupBarrier(
+        GetThisImpl()->GetTrunkNode(),
+        response);
+
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, FinishBackup)
+{
+    ValidateTransaction();
+
+    context->SetRequestInfo();
+
+    const auto& backupManager = Bootstrap_->GetBackupManager();
+    context->ReplyFrom(backupManager->FinishBackup(GetThisImpl()));
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, FinishRestore)
+{
+    ValidateTransaction();
+
+    context->SetRequestInfo();
+
+    const auto& backupManager = Bootstrap_->GetBackupManager();
+    context->ReplyFrom(backupManager->FinishRestore(GetThisImpl()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

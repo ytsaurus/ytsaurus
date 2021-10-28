@@ -211,6 +211,7 @@ DEFINE_ENUM(EMasterReign,
     ((CopyJournals)                                                 (1807))  // gritukan
     ((HostObjects)                                                  (1808))  // gritukan
     ((RemoveInterDCEdgeCapacities)                                  (1809))  // gritukan
+    ((BackupsInitial)                                               (1810))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

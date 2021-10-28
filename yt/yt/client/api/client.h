@@ -1337,6 +1337,42 @@ struct TRepairExecNodeOptions
 
 using TCellIdToSnapshotIdMap = THashMap<NHydra::TCellId, int>;
 
+struct TTableBackupManifest
+    : public NYTree::TYsonSerializable
+{
+    NYTree::TYPath SourcePath;
+    NYTree::TYPath DestinationPath;
+
+    TTableBackupManifest()
+    {
+        RegisterParameter("source_path", SourcePath);
+        RegisterParameter("destination_path", DestinationPath);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTableBackupManifest)
+
+struct TBackupManifest
+    : public NYTree::TYsonSerializable
+{
+    THashMap<TString, std::vector<TTableBackupManifestPtr>> Clusters;
+
+    TBackupManifest()
+    {
+        RegisterParameter("clusters", Clusters);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBackupManifest)
+
+struct TCreateTableBackupOptions
+    : public TTimeoutOptions
+{ };
+
+struct TRestoreTableBackupOptions
+    : public TTimeoutOptions
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a basic set of functions that can be invoked
@@ -1568,6 +1604,14 @@ struct IClient
     virtual TFuture<NYson::TYsonString> GetTablePivotKeys(
         const NYPath::TYPath& path,
         const TGetTablePivotKeysOptions& options = {}) = 0;
+
+    virtual TFuture<void> CreateTableBackup(
+        const TBackupManifestPtr& manifest,
+        const TCreateTableBackupOptions& options = {}) = 0;
+
+    virtual TFuture<void> RestoreTableBackup(
+        const TBackupManifestPtr& manifest,
+        const TRestoreTableBackupOptions& options = {}) = 0;
 
     virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
         const NYPath::TYPath& path,

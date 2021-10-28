@@ -19,7 +19,7 @@ class TDynamicStore
     , public TRefTracked<TDynamicStore>
 {
 public:
-    using TParents = SmallVector<TChunkList*, TypicalChunkParentCount>;
+    using TParents = SmallVector<TChunkTree*, TypicalChunkParentCount>;
 
     DEFINE_BYVAL_RW_PROPERTY(const NTabletServer::TTablet*, Tablet);
     DEFINE_BYVAL_RO_PROPERTY(TChunk*, FlushedChunk);
@@ -46,8 +46,8 @@ public:
     void Abandon();
     bool IsAbandoned() const;
 
-    void AddParent(TChunkList* parent);
-    void RemoveParent(TChunkList* parent);
+    void AddParent(TChunkTree* parent);
+    void RemoveParent(TChunkTree* parent);
 
     TChunkTreeStatistics GetStatistics() const;
 

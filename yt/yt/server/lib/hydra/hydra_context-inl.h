@@ -4,6 +4,8 @@
 #include "hydra_context.h"
 #endif
 
+#include <yt/yt/core/misc/cast.h>
+
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////

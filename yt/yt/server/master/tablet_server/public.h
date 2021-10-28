@@ -5,10 +5,21 @@
 #include <yt/yt/ytlib/hydra/public.h>
 
 #include <yt/yt/ytlib/tablet_client/public.h>
+#include <yt/yt/ytlib/tablet_client/backup.h>
 
 #include <yt/yt/core/misc/arithmetic_formula.h>
 #include <yt/yt/core/misc/enum.h>
 #include <yt/yt/core/misc/public.h>
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NYT::NTableClient::NProto {
+
+class TRspCheckBackupBarrier;
+
+} // namespace NYT::NTableClient::NProto
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT::NTabletServer {
 
@@ -48,6 +59,8 @@ using NTabletClient::ETabletCellHealth;
 using NTabletClient::ETableReplicaState;
 using NTabletClient::ETabletActionKind;
 using NTabletClient::ETabletActionState;
+using NTabletClient::ETableBackupState;
+using NTabletClient::ETabletBackupState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,6 +72,7 @@ DECLARE_REFCOUNTED_CLASS(TTabletActionManager)
 DECLARE_REFCOUNTED_CLASS(TReplicatedTableTracker)
 DECLARE_REFCOUNTED_STRUCT(ITabletCellBalancerProvider)
 DECLARE_REFCOUNTED_STRUCT(ITabletNodeTracker)
+DECLARE_REFCOUNTED_STRUCT(IBackupManager)
 
 struct ITabletCellBalancer;
 
@@ -95,6 +109,8 @@ constexpr i64 EdenStoreIdsSizeLimit = 100;
 constexpr auto DefaultSyncTabletActionKeepalivePeriod = TDuration::Minutes(1);
 
 constexpr int DefaultTabletCountLimit = 1000;
+
+constexpr int MaxStoresPerBackupMutation = 10000;
 
 ////////////////////////////////////////////////////////////////////////////////
 

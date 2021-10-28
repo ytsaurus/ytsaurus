@@ -83,6 +83,14 @@ public:
         const NYPath::TYPath& path,
         const TGetTablePivotKeysOptions& options) override;
 
+    TFuture<void> CreateTableBackup(
+        const TBackupManifestPtr& manifest,
+        const TCreateTableBackupOptions& options) override;
+
+    TFuture<void> RestoreTableBackup(
+        const TBackupManifestPtr& manifest,
+        const TRestoreTableBackupOptions& options) override;
+
     TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
         const NYPath::TYPath& path,
         const NTableClient::TNameTablePtr& nameTable,

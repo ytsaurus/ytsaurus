@@ -88,6 +88,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, DependentTransactions_);
     Save(context, Deadline_);
     Save(context, LockedDynamicTables_);
+    Save(context, TablesWithBackupBarriers_);
     Save(context, Depth_);
     Save(context, Upload_);
     Save(context, NativeCommitMutationRevision_);
@@ -121,6 +122,10 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, DependentTransactions_);
     Load(context, Deadline_);
     Load(context, LockedDynamicTables_);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::BackupsInitial) {
+        Load(context, TablesWithBackupBarriers_);
+    }
     Load(context, Depth_);
     // COMPAT(shakurov)
     if (context.GetVersion() < EMasterReign::OptionalDedicatedUploadTxObjectTypes) {

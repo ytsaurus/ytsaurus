@@ -67,6 +67,7 @@ DEFINE_ENUM(EErrorCode,
     ((ReplicatorWriteBlockedByUser)           (1727))
     ((UserWriteBlockedByReplicator)           (1728))
     ((CannotCheckConflictsAgainstChunkStore)  (1729))
+    ((InvalidBackupState)                     (1730))
 );
 
 DEFINE_ENUM(EInMemoryMode,

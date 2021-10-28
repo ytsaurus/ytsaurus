@@ -458,6 +458,20 @@ TFuture<TYsonString> TClient::GetTablePivotKeys(
     }));
 }
 
+TFuture<void> TClient::CreateTableBackup(
+    const TBackupManifestPtr& /*manifest*/,
+    const TCreateTableBackupOptions& /*options*/)
+{
+    ThrowUnimplemented("CreateTableBackup");
+}
+
+TFuture<void> TClient::RestoreTableBackup(
+    const TBackupManifestPtr& /*manifest*/,
+    const TRestoreTableBackupOptions& /*options*/)
+{
+    ThrowUnimplemented("RestoreTableBackup");
+}
+
 TFuture<std::vector<TTableReplicaId>> TClient::GetInSyncReplicas(
     const TYPath& path,
     const TNameTablePtr& nameTable,

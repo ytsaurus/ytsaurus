@@ -89,7 +89,7 @@ private:
                     .EndAttributes()
                     .BeginList()
                         .Item().Do([&] (TFluentAny fluent) {
-                            TraverseTree(chunkView->GetUnderlyingChunk(), fluent.GetConsumer());
+                            TraverseTree(chunkView->GetUnderlyingTree(), fluent.GetConsumer());
                         })
                     .EndList();
                 break;

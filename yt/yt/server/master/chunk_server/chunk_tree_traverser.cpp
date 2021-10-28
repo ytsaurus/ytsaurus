@@ -770,9 +770,9 @@ protected:
                     auto* chunkView = child->AsChunkView();
 
                     YT_LOG_TRACE(
-                        "Visiting chunk view (Id: %v, UnderlyingChunkId: %v, LowerLimit: %v, UpperLimit: %v)",
+                        "Visiting chunk view (Id: %v, UnderlyingTreeId: %v, LowerLimit: %v, UpperLimit: %v)",
                         chunkView->GetId(),
-                        chunkView->GetUnderlyingChunk()->GetId(),
+                        chunkView->GetUnderlyingTree()->GetId(),
                         chunkView->ReadRange().LowerLimit(),
                         chunkView->ReadRange().UpperLimit());
 
@@ -780,6 +780,12 @@ protected:
                         ++ChunkCount_;
                         YT_LOG_TRACE("Not visiting underlying chunk");
                         return;
+                    }
+
+                    // TODO(ifsmirnov): rewrite this switch-case into a while loop.
+                    if (!IsBlobChunkType(chunkView->GetUnderlyingTree()->GetType())) {
+                        YT_LOG_WARNING("Skipped dynamic store under chunk view");
+                        break;
                     }
 
                     if (EnforceBounds_) {
@@ -806,7 +812,7 @@ protected:
 
                     timestampTransactionId = chunkView->GetTransactionId();
 
-                    childChunk = chunkView->GetUnderlyingChunk();
+                    childChunk = chunkView->GetUnderlyingTree()->AsChunk();
                 } else {
                     childChunk = child->AsChunk();
                 }

@@ -65,12 +65,12 @@ void TDynamicStore::Load(TLoadContext& context)
     }
 }
 
-void TDynamicStore::AddParent(TChunkList* parent)
+void TDynamicStore::AddParent(TChunkTree* parent)
 {
     Parents_.push_back(parent);
 }
 
-void TDynamicStore::RemoveParent(TChunkList* parent)
+void TDynamicStore::RemoveParent(TChunkTree* parent)
 {
     auto it = std::find(Parents_.begin(), Parents_.end(), parent);
     YT_VERIFY(it != Parents_.end());

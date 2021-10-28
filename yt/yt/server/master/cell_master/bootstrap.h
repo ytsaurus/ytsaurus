@@ -116,6 +116,7 @@ public:
     const NCellServer::ITamedCellManagerPtr& GetTamedCellManager() const;
     const NTableServer::TTableManagerPtr& GetTableManager() const;
     const NTabletServer::TTabletManagerPtr& GetTabletManager() const;
+    const NTabletServer::IBackupManagerPtr& GetBackupManager() const;
     const NChaosServer::IChaosManagerPtr& GetChaosManager() const;
     const NHiveServer::THiveManagerPtr& GetHiveManager() const;
     const NHiveClient::TCellDirectoryPtr& GetCellDirectory() const;
@@ -185,6 +186,7 @@ private:
     NCellServer::TCellHydraJanitorPtr CellHydraJanitor_;
     NTableServer::TTableManagerPtr TableManager_;
     NTabletServer::TTabletManagerPtr TabletManager_;
+    NTabletServer::IBackupManagerPtr BackupManager_;
     NSchedulerPoolServer::TSchedulerPoolManagerPtr SchedulerPoolManager_;
     NTabletServer::TReplicatedTableTrackerPtr ReplicatedTableTracker_;
     NChaosServer::IChaosManagerPtr ChaosManager_;

@@ -29,11 +29,13 @@
 #include <yt/yt/ytlib/query_client/explain.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
 #include <yt/yt/ytlib/tablet_client/tablet_cell_bundle_ypath_proxy.h>
+#include <yt/yt/ytlib/tablet_client/backup.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
 
@@ -68,6 +70,7 @@ namespace NYT::NApi::NNative {
 using namespace NChaosClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NCypressClient;
 using namespace NHiveClient;
 using namespace NHydra;
 using namespace NNodeTrackerClient;
@@ -79,8 +82,8 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYPath;
-using namespace NYTree;
 using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -212,10 +215,10 @@ class TQueryPreparer
 {
 public:
     TQueryPreparer(
-        NTabletClient::ITableMountCachePtr mountTableCache,
+        NTabletClient::ITableMountCachePtr tableMountCache,
         IInvokerPtr invoker,
         TDetailedProfilingInfoPtr detailedProfilingInfo = nullptr)
-        : MountTableCache_(std::move(mountTableCache))
+        : TableMountCache_(std::move(tableMountCache))
         , Invoker_(std::move(invoker))
         , DetailedProfilingInfo_(std::move(detailedProfilingInfo))
     { }
@@ -231,7 +234,7 @@ public:
     }
 
 private:
-    const NTabletClient::ITableMountCachePtr MountTableCache_;
+    const NTabletClient::ITableMountCachePtr TableMountCache_;
     const IInvokerPtr Invoker_;
     const TDetailedProfilingInfoPtr DetailedProfilingInfo_;
 
@@ -254,7 +257,7 @@ private:
         TTimestamp timestamp)
     {
         NProfiling::TWallTimer timer;
-        auto tableInfo = WaitFor(MountTableCache_->GetTableInfo(path.GetPath()))
+        auto tableInfo = WaitFor(TableMountCache_->GetTableInfo(path.GetPath()))
             .ValueOrThrow();
         auto mountCacheWaitTime = timer.GetElapsedTime();
 
@@ -1584,6 +1587,450 @@ TYsonString TClient::DoGetTablePivotKeys(
                     }
                 });
         });
+}
+
+class TClusterBackupSession
+{
+public:
+    TClusterBackupSession(
+        TString clusterName,
+        TClientPtr client,
+        NLogging::TLogger logger)
+        : ClusterName_(std::move(clusterName))
+        , Client_(std::move(client))
+        , Logger(logger
+            .WithTag("SessionId", TGuid::Create())
+            .WithTag("Cluster", ClusterName_))
+    { }
+
+    ~TClusterBackupSession()
+    {
+        if (Transaction_) {
+            YT_LOG_DEBUG("Aborting backup transaction due to session failure");
+            Transaction_->Abort();
+        }
+    }
+
+    void RegisterTable(const TTableBackupManifestPtr& manifest)
+    {
+        TTableInfo tableInfo;
+        tableInfo.SourcePath = manifest->SourcePath;
+        tableInfo.DestinationPath = manifest->DestinationPath;
+
+        tableInfo.Attributes = Client_->ResolveExternalTable(
+            tableInfo.SourcePath,
+            &tableInfo.SourceTableId,
+            &tableInfo.ExternalCellTag,
+            {"sorted", "upstream_replica_id", "replicas", "dynamic"});
+
+        if (!SourceTableIds_.insert(tableInfo.SourceTableId).second) {
+            THROW_ERROR_EXCEPTION("Duplicate table %Qv in backup manifest",
+                tableInfo.SourcePath)
+                << TErrorAttribute("cluster", ClusterName_);
+        }
+
+        // TODO(ifsmirnov): most of checks below are subject to future work.
+        if (TypeFromId(tableInfo.SourceTableId) == EObjectType::ReplicatedTable) {
+            THROW_ERROR_EXCEPTION("Table %Qv is replicated",
+                tableInfo.SourcePath)
+                << TErrorAttribute("cluster", ClusterName_);
+        }
+
+        if (!tableInfo.Attributes->Get<bool>("sorted")) {
+            THROW_ERROR_EXCEPTION("Table %Qv is not sorted",
+                tableInfo.SourcePath)
+                << TErrorAttribute("cluster", ClusterName_);
+        }
+
+        if (!tableInfo.Attributes->Get<bool>("dynamic")) {
+            THROW_ERROR_EXCEPTION("Table %Qv is not dynamic",
+                tableInfo.SourcePath)
+                << TErrorAttribute("cluster", ClusterName_);
+        }
+
+        if (CellTagFromId(tableInfo.SourceTableId) !=
+            Client_->GetNativeConnection()->GetPrimaryMasterCellTag())
+        {
+            THROW_ERROR_EXCEPTION("Table %Qv is beyond the portal",
+                tableInfo.SourcePath)
+                << TErrorAttribute("cluster", ClusterName_);
+        }
+
+        CellTags_.insert(CellTagFromId(tableInfo.SourceTableId));
+        CellTags_.insert(tableInfo.ExternalCellTag);
+
+        TableIndexesByCellTag_[tableInfo.ExternalCellTag].push_back(ssize(Tables_));
+        Tables_.push_back(std::move(tableInfo));
+    }
+
+    void StartTransaction(TStringBuf title)
+    {
+        auto transactionAttributes = CreateEphemeralAttributes();
+        transactionAttributes->Set(
+            "title",
+            title);
+        auto asyncTransaction = Client_->StartNativeTransaction(
+            NTransactionClient::ETransactionType::Master,
+            TTransactionStartOptions{
+                .Attributes = std::move(transactionAttributes),
+                .ReplicateToMasterCellTags = TCellTagList(CellTags_.begin(), CellTags_.end()),
+            });
+        Transaction_ = WaitFor(asyncTransaction)
+            .ValueOrThrow();
+    }
+
+    void LockInputTables()
+    {
+        TLockNodeOptions options;
+        options.TransactionId = Transaction_->GetId();
+        for (const auto& table : Tables_) {
+            auto asyncLockResult = Client_->LockNode(
+                table.SourcePath,
+                ELockMode::Exclusive,
+                options);
+            auto lockResult = WaitFor(asyncLockResult)
+                .ValueOrThrow();
+            if (lockResult.NodeId != table.SourceTableId) {
+                THROW_ERROR_EXCEPTION("Table id changed during locking");
+            }
+        }
+    }
+
+    void SetBarrier()
+    {
+        auto buildRequest = [&] (const auto& batchReq, int tableIndex) {
+            const auto& table = Tables_[tableIndex];
+            auto req = TTableYPathProxy::SetBackupBarrier(FromObjectId(table.SourceTableId));
+            req->set_timestamp(0);
+            SetTransactionId(req, Transaction_->GetId());
+            batchReq->AddRequest(req);
+        };
+
+        auto onResponse = [&] (const auto& batchRsp, int subresponseIndex, int /*tableIndex*/) {
+            const auto& rsp = batchRsp->template GetResponse<TTableYPathProxy::TRspSetBackupBarrier>(
+                subresponseIndex);
+            rsp.ThrowOnError();
+        };
+
+        ExecuteForAllTables(buildRequest, onResponse, /*write*/ true);
+    }
+
+    void CloneTables(ENodeCloneMode nodeCloneMode)
+    {
+        TCopyNodeOptions options;
+        options.TransactionId = Transaction_->GetId();
+
+        // TODO(ifsmirnov): this doesn't work for tables beyond the portals.
+        auto proxy = Client_->CreateWriteProxy<TObjectServiceProxy>();
+        auto batchReq = proxy->ExecuteBatch();
+
+        for (const auto& table : Tables_) {
+            auto req = TCypressYPathProxy::Copy(table.DestinationPath);
+            req->set_mode(static_cast<int>(nodeCloneMode));
+            Client_->SetTransactionId(req, options, /*allowNullTransaction*/ false);
+            Client_->SetMutationId(req, options);
+            auto* ypathExt = req->Header().MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+            ypathExt->add_additional_paths(table.SourcePath);
+            batchReq->AddRequest(req);
+        }
+
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+
+        auto rsps = batchRsp->GetResponses<TCypressYPathProxy::TRspCopy>();
+        YT_VERIFY(ssize(rsps) == ssize(Tables_));
+
+        for (int tableIndex = 0; tableIndex < ssize(Tables_); ++tableIndex) {
+            const auto& rspOrError = rsps[tableIndex];
+            auto& table = Tables_[tableIndex];
+
+            if (rspOrError.GetCode() == NObjectClient::EErrorCode::CrossCellAdditionalPath) {
+                THROW_ERROR_EXCEPTION("Cross-cell backups are not supported")
+                    << TErrorAttribute("source_path", table.SourcePath)
+                    << TErrorAttribute("destination_path", table.DestinationPath)
+                    << TErrorAttribute("cluster", ClusterName_);
+            }
+
+            const auto& rsp = rspOrError.ValueOrThrow();
+            table.DestinationTableId = FromProto<TTableId>(rsp->node_id());
+        }
+    }
+
+    void FinishBackups()
+    {
+        auto buildRequest = [&] (const auto& batchReq, int tableIndex) {
+            const auto& table = Tables_[tableIndex];
+            auto req = TTableYPathProxy::FinishBackup(FromObjectId(table.DestinationTableId));
+            SetTransactionId(req, Transaction_->GetId());
+            batchReq->AddRequest(req);
+        };
+
+        auto onResponse = [&] (const auto& batchRsp, int subresponseIndex, int /*tableIndex*/) {
+            const auto& rsp = batchRsp->template GetResponse<TTableYPathProxy::TRspFinishBackup>(
+                subresponseIndex);
+            rsp.ThrowOnError();
+        };
+
+        ExecuteForAllTables(buildRequest, onResponse, /*write*/ true);
+    }
+
+    void FinishRestores()
+    {
+        auto buildRequest = [&] (const auto& batchReq, int tableIndex) {
+            const auto& table = Tables_[tableIndex];
+            auto req = TTableYPathProxy::FinishRestore(FromObjectId(table.DestinationTableId));
+            SetTransactionId(req, Transaction_->GetId());
+            batchReq->AddRequest(req);
+        };
+
+        auto onResponse = [&] (const auto& batchRsp, int subresponseIndex, int /*tableIndex*/) {
+            const auto& rsp = batchRsp->template GetResponse<TTableYPathProxy::TRspFinishRestore>(
+                subresponseIndex);
+            rsp.ThrowOnError();
+        };
+
+        ExecuteForAllTables(buildRequest, onResponse, /*write*/ true);
+    }
+
+    void ValidateBackupStates(ETabletBackupState expectedState)
+    {
+        auto buildRequest = [&] (const auto& batchReq, int tableIndex) {
+            const auto& table = Tables_[tableIndex];
+            auto req = TObjectYPathProxy::Get(FromObjectId(table.DestinationTableId) + "/@tablet_backup_state");
+            SetTransactionId(req, Transaction_->GetId());
+            batchReq->AddRequest(req);
+        };
+
+        auto onResponse = [&] (const auto& batchRsp, int subresponseIndex, int tableIndex) {
+            const auto& table = Tables_[tableIndex];
+            const auto& rspOrError = batchRsp->template GetResponse<TObjectYPathProxy::TRspGet>(subresponseIndex);
+            const auto& rsp = rspOrError.ValueOrThrow();
+            auto result = ConvertTo<ETabletBackupState>(TYsonString(rsp->value()));
+
+            if (result != expectedState) {
+                THROW_ERROR_EXCEPTION("Destination table %Qv has invalid backup state: expected %Qlv, got %Qlv",
+                    table.DestinationPath,
+                    expectedState,
+                    result)
+                    << TErrorAttribute("cluster", ClusterName_);
+            }
+        };
+
+        TMasterReadOptions options;
+        options.ReadFrom = EMasterChannelKind::Follower;
+        ExecuteForAllTables(buildRequest, onResponse, /*write*/ false, options);
+    }
+
+    void CommitTransaction()
+    {
+        WaitFor(Transaction_->Commit())
+            .ThrowOnError();
+        Transaction_ = nullptr;
+    }
+
+private:
+    struct TTableInfo
+    {
+        TYPath SourcePath;
+        TTableId SourceTableId;
+        TCellTag ExternalCellTag;
+        IAttributeDictionaryPtr Attributes;
+
+        TYPath DestinationPath;
+        TTableId DestinationTableId;
+    };
+
+    const TString ClusterName_;
+    const TClientPtr Client_;
+    const NLogging::TLogger Logger;
+
+    NApi::NNative::ITransactionPtr Transaction_;
+
+    std::vector<TTableInfo> Tables_;
+    THashMap<TCellTag, std::vector<int>> TableIndexesByCellTag_;
+    THashSet<TTableId> SourceTableIds_;
+    THashSet<TCellTag> CellTags_;
+
+    using TBuildRequest = std::function<
+        void(
+            const TObjectServiceProxy::TReqExecuteBatchPtr& req,
+            int tableIndex)>;
+    using TOnResponse = std::function<
+        void(const TObjectServiceProxy::TRspExecuteBatchPtr& rsp,
+            int subresponseIndex,
+            int tableIndex)>;
+
+    void ExecuteForAllTables(
+        TBuildRequest buildRequest,
+        TOnResponse onResponse,
+        bool write,
+        TMasterReadOptions masterReadOptions = {})
+    {
+        std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncRsps;
+        std::vector<TCellTag> cellTags;
+
+        for (const auto& [cellTag, tableIndexes] : TableIndexesByCellTag_) {
+            cellTags.push_back(cellTag);
+
+            auto proxy = write
+                ? Client_->CreateWriteProxy<TObjectServiceProxy>(cellTag)
+                : Client_->CreateReadProxy<TObjectServiceProxy>(
+                    masterReadOptions,
+                    cellTag);
+            auto batchReq = proxy->ExecuteBatch();
+            for (int tableIndex : tableIndexes) {
+                buildRequest(batchReq, tableIndex);
+            }
+            asyncRsps.push_back(batchReq->Invoke());
+        }
+
+        auto rspsOrErrors = WaitFor(AllSet(asyncRsps))
+            .Value();
+
+        for (int cellTagIndex = 0; cellTagIndex < ssize(cellTags); ++cellTagIndex) {
+            const auto& tableIndexes = TableIndexesByCellTag_[cellTags[cellTagIndex]];
+            const auto& rspOrError = rspsOrErrors[cellTagIndex];
+
+            const auto& rsp = rspOrError.ValueOrThrow();
+            YT_VERIFY(rsp->GetResponseCount() == ssize(tableIndexes));
+            for (int subresponseIndex = 0; subresponseIndex < rsp->GetResponseCount(); ++subresponseIndex) {
+                onResponse(rsp, subresponseIndex, tableIndexes[subresponseIndex]);
+            }
+        }
+    }
+};
+
+class TBackupSession
+{
+public:
+    TBackupSession(
+        TBackupManifestPtr manifest,
+        TClientPtr client,
+        NLogging::TLogger logger)
+        : Manifest_(std::move(manifest))
+        , Client_(std::move(client))
+        , Logger(std::move(logger))
+    { }
+
+    void RunCreate()
+    {
+        InitializeAndLockTables("Create backup");
+
+        YT_LOG_DEBUG("Setting backup barriers");
+        for (const auto& [name, session] : ClusterSessions_) {
+            session->SetBarrier();
+        }
+
+        YT_LOG_DEBUG("Cloning tables in backup mode");
+        for (const auto& [name, session] : ClusterSessions_) {
+            session->CloneTables(NCypressClient::ENodeCloneMode::Backup);
+        }
+
+        YT_LOG_DEBUG("Finishing backups");
+        for (const auto& [name, session] : ClusterSessions_) {
+            session->FinishBackups();
+        }
+
+        YT_LOG_DEBUG("Validating backup states");
+        for (const auto& [name, session] : ClusterSessions_) {
+            session->ValidateBackupStates(ETabletBackupState::BackupCompleted);
+        }
+
+        CommitTransactions();
+    }
+
+    void RunRestore()
+    {
+        InitializeAndLockTables("Restore backup");
+
+        YT_LOG_DEBUG("Cloning tables in restore mode");
+        for (const auto& [name, session] : ClusterSessions_) {
+            session->CloneTables(NCypressClient::ENodeCloneMode::Restore);
+        }
+
+        YT_LOG_DEBUG("Finishing restores");
+        for (const auto& [name, session] : ClusterSessions_) {
+            session->FinishRestores();
+        }
+
+        YT_LOG_DEBUG("Validating backup states");
+        for (const auto& [name, session] : ClusterSessions_) {
+            session->ValidateBackupStates(ETabletBackupState::None);
+        }
+
+        CommitTransactions();
+    }
+
+private:
+    const TBackupManifestPtr Manifest_;
+    const TClientPtr Client_;
+    const NLogging::TLogger Logger;
+
+    THashMap<TString, std::unique_ptr<TClusterBackupSession>> ClusterSessions_;
+
+    TClusterBackupSession* CreateClusterSession(const TString& clusterName)
+    {
+        const auto& nativeConnection = Client_->GetNativeConnection();
+        auto remoteConnection = GetRemoteConnectionOrThrow(
+            nativeConnection,
+            clusterName,
+            /*syncOnFailure*/ true);
+        auto remoteClient = New<TClient>(
+            std::move(remoteConnection),
+            Client_->GetOptions());
+
+        auto holder = std::make_unique<TClusterBackupSession>(
+            clusterName,
+            std::move(remoteClient),
+            Logger);
+        auto* clusterSession = holder.get();
+        ClusterSessions_[clusterName] = std::move(holder);
+        return clusterSession;
+    }
+
+    void InitializeAndLockTables(TStringBuf transactionTitle)
+    {
+        for (const auto& [cluster, tables]: Manifest_->Clusters) {
+            auto* clusterSession = CreateClusterSession(cluster);
+            for (const auto& table : tables) {
+                clusterSession->RegisterTable(table);
+            }
+        }
+
+        YT_LOG_DEBUG("Starting backup transactions");
+        for (const auto& [name, session] : ClusterSessions_) {
+            session->StartTransaction(transactionTitle);
+        }
+
+        YT_LOG_DEBUG("Locking tables before backup/restore");
+        for (const auto& [name, session] : ClusterSessions_) {
+            session->LockInputTables();
+        }
+    }
+
+    void CommitTransactions()
+    {
+        YT_LOG_DEBUG("Committing backup transactions");
+        for (const auto& [name, session] : ClusterSessions_) {
+            session->CommitTransaction();
+        }
+    }
+};
+
+void TClient::DoCreateTableBackup(
+    const TBackupManifestPtr& manifest,
+    const TCreateTableBackupOptions& /*options*/)
+{
+    TBackupSession session(manifest, MakeStrong(this), Logger);
+    session.RunCreate();
+}
+
+void TClient::DoRestoreTableBackup(
+    const TBackupManifestPtr& manifest,
+    const TRestoreTableBackupOptions& /*options*/)
+{
+    TBackupSession session(manifest, MakeStrong(this), Logger);
+    session.RunRestore();
 }
 
 std::vector<TTabletActionId> TClient::DoBalanceTabletCells(

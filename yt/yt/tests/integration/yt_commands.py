@@ -33,6 +33,7 @@ import tempfile
 import time
 import traceback
 import logging
+import __builtin__
 from datetime import datetime, timedelta
 from cStringIO import StringIO, OutputType
 
@@ -896,6 +897,34 @@ def balance_tablet_cells(bundle, tables=None, **kwargs):
     if tables is not None:
         kwargs["tables"] = tables
     return execute_command("balance_tablet_cells", kwargs, parse_yson=True)
+
+
+def _parse_backup_manifest(*args):
+    def _make_table_manifest(x):
+        return {"source_path": x[0], "destination_path": x[1]}
+
+    if type(args[0]) == list:
+        return {
+            "clusters": {
+                "primary": __builtin__.map(_make_table_manifest, args),
+            }
+        }
+    else:
+        return {
+            "clusters": {
+                cluster: __builtin__.map(_make_table_manifest, tables)
+                for cluster, tables
+                in args.iteritems()
+            }
+        }
+
+
+def create_table_backup(*args):
+    return execute_command("create_table_backup", {"manifest": _parse_backup_manifest(*args)})
+
+
+def restore_table_backup(*args):
+    return execute_command("restore_table_backup", {"manifest": _parse_backup_manifest(*args)})
 
 
 def write_file(path, data, **kwargs):

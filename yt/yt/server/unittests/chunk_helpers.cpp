@@ -124,7 +124,7 @@ TChunkView* TChunkGeneratorBase::CreateChunkView(
         NChunkClient::TLegacyReadLimit(lowerLimit), NChunkClient::TLegacyReadLimit(upperLimit)};
     auto chunkView = TPoolAllocator::New<TChunkView>(GenerateId(EObjectType::ChunkView));
 
-    chunkView->SetUnderlyingChunk(underlyingChunk);
+    chunkView->SetUnderlyingTree(underlyingChunk);
     chunkView->SetReadRange(readRange);
 
     chunkView->RefObject();

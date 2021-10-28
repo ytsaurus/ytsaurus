@@ -16,12 +16,25 @@ TChunkView::TChunkView(TChunkViewId id)
     : TChunkTree(id)
 { }
 
-void TChunkView::SetUnderlyingChunk(TChunk* underlyingChunk)
+void TChunkView::SetUnderlyingTree(TChunkTree* underlyingTree)
 {
-    YT_VERIFY(underlyingChunk);
-    YT_VERIFY(underlyingChunk->GetChunkType() == EChunkType::Table);
+    YT_VERIFY(underlyingTree);
 
-    UnderlyingChunk_ = underlyingChunk;
+    switch (underlyingTree->GetType()) {
+        case EObjectType::Chunk:
+        case EObjectType::ErasureChunk:
+            YT_VERIFY(underlyingTree->AsChunk()->GetChunkType() == EChunkType::Table);
+            break;
+
+        case EObjectType::SortedDynamicTabletStore:
+        case EObjectType::OrderedDynamicTabletStore:
+            break;
+
+        default:
+            YT_ABORT();
+    }
+
+    UnderlyingTree_ = underlyingTree;
 }
 
 void TChunkView::SetReadRange(TLegacyReadRange readRange)
@@ -57,7 +70,7 @@ void TChunkView::Save(NCellMaster::TSaveContext& context) const
 
     using NYT::Save;
 
-    Save(context, UnderlyingChunk_);
+    Save(context, UnderlyingTree_);
     Save(context, ReadRange_);
     Save(context, Parents_);
     Save(context, TransactionId_);
@@ -69,7 +82,12 @@ void TChunkView::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
 
-    Load(context, UnderlyingChunk_);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() < EMasterReign::BackupsInitial) {
+        UnderlyingTree_ = Load<TChunk*>(context);
+    } else {
+        Load(context, UnderlyingTree_);
+    }
     Load(context, ReadRange_);
     Load(context, Parents_);
     Load(context, TransactionId_);
@@ -94,8 +112,8 @@ TLegacyReadLimit TChunkView::GetAdjustedUpperReadLimit(TLegacyReadLimit readLimi
 TLegacyReadRange TChunkView::GetCompleteReadRange() const
 {
     return {
-        GetAdjustedLowerReadLimit(TLegacyReadLimit(GetMinKeyOrThrow(UnderlyingChunk_))),
-        GetAdjustedUpperReadLimit(TLegacyReadLimit(GetUpperBoundKeyOrThrow(UnderlyingChunk_)))
+        GetAdjustedLowerReadLimit(TLegacyReadLimit(GetMinKeyOrThrow(UnderlyingTree_))),
+        GetAdjustedUpperReadLimit(TLegacyReadLimit(GetUpperBoundKeyOrThrow(UnderlyingTree_)))
     };
 }
 
@@ -113,7 +131,7 @@ void TChunkView::RemoveParent(TChunkList* parent)
 
 TChunkTreeStatistics TChunkView::GetStatistics() const
 {
-    return UnderlyingChunk_->GetStatistics();
+    return GetChunkTreeStatistics(UnderlyingTree_);
 }
 
 int CompareButForReadRange(const TChunkView* lhs, const TChunkView* rhs)
@@ -121,8 +139,8 @@ int CompareButForReadRange(const TChunkView* lhs, const TChunkView* rhs)
     // When ChunkView gets new attributes one should consider them
     // here and merge only views with identical attributes.
 
-    const auto& lhsChunkId = lhs->GetUnderlyingChunk()->GetId();
-    const auto& rhsChunkId = rhs->GetUnderlyingChunk()->GetId();
+    const auto& lhsChunkId = lhs->GetUnderlyingTree()->GetId();
+    const auto& rhsChunkId = rhs->GetUnderlyingTree()->GetId();
     const auto& lhsTransactionId = lhs->GetTransactionId();
     const auto& rhsTransactionId = rhs->GetTransactionId();
 

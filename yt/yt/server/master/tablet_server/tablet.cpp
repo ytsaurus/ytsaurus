@@ -568,6 +568,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, ExpectedState_);
     Save(context, UnconfirmedDynamicTableLocks_);
     Save(context, EdenStoreIds_);
+    Save(context, BackupState_);
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -597,6 +598,10 @@ void TTablet::Load(TLoadContext& context)
     Load(context, ExpectedState_);
     Load(context, UnconfirmedDynamicTableLocks_);
     Load(context, EdenStoreIds_);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::BackupsInitial) {
+        Load(context, BackupState_);
+    }
 }
 
 void TTablet::CopyFrom(const TTablet& other)
@@ -730,6 +735,29 @@ void TTablet::SetState(ETabletState state)
     State_ = state;
 }
 
+ETabletBackupState TTablet::GetBackupState() const
+{
+    return BackupState_;
+}
+
+void TTablet::SetBackupState(ETabletBackupState state)
+{
+    if (Table_) {
+        auto* table = Table_->GetTrunkNode();
+        YT_VERIFY(table->TabletCountByBackupState()[BackupState_] > 0);
+        --table->MutableTabletCountByBackupState()[BackupState_];
+        ++table->MutableTabletCountByBackupState()[state];
+    }
+
+    BackupState_ = state;
+}
+
+void TTablet::CheckedSetBackupState(ETabletBackupState previous, ETabletBackupState next)
+{
+    YT_VERIFY(BackupState_ == previous);
+    SetBackupState(next);
+}
+
 ETabletState TTablet::GetExpectedState() const
 {
     return ExpectedState_;
@@ -756,8 +784,10 @@ void TTablet::SetTable(TTableNode* table)
     if (Table_) {
         YT_VERIFY(Table_->GetTrunkNode()->TabletCountByState()[State_] > 0);
         YT_VERIFY(Table_->GetTrunkNode()->TabletCountByExpectedState()[ExpectedState_] > 0);
+        YT_VERIFY(Table_->GetTrunkNode()->TabletCountByBackupState()[BackupState_] > 0);
         --Table_->GetTrunkNode()->MutableTabletCountByState()[State_];
         --Table_->GetTrunkNode()->MutableTabletCountByExpectedState()[ExpectedState_];
+        --Table_->GetTrunkNode()->MutableTabletCountByBackupState()[BackupState_];
 
         int restTabletErrorCount = Table_->GetTabletErrorCount() - GetTabletErrorCount();
         YT_ASSERT(restTabletErrorCount >= 0);
@@ -767,6 +797,7 @@ void TTablet::SetTable(TTableNode* table)
         YT_VERIFY(table->IsTrunk());
         ++table->MutableTabletCountByState()[State_];
         ++table->MutableTabletCountByExpectedState()[ExpectedState_];
+        ++table->MutableTabletCountByBackupState()[BackupState_];
 
         table->SetTabletErrorCount(table->GetTabletErrorCount() + GetTabletErrorCount());
     }

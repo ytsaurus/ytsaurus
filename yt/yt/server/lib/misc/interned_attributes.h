@@ -37,6 +37,7 @@
     XX(Available, available) \
     XX(AvailableSpace, available_space) \
     XX(AvailableSpacePerMedium, available_space_per_medium) \
+    XX(BackupState, backup_state) \
     XX(Banned, banned) \
     XX(BannedNodeCount, banned_node_count) \
     XX(BoundaryKeys, boundary_keys) \
@@ -377,6 +378,7 @@
     XX(TablePaths, table_paths) \
     XX(TabletActions, tablet_actions) \
     XX(TabletBalancerConfig, tablet_balancer_config) \
+    XX(TabletBackupState, tablet_backup_state) \
     XX(TabletCellBundle, tablet_cell_bundle) \
     XX(TabletCellCount, tablet_cell_count) \
     XX(TabletCellIds, tablet_cell_ids) \
