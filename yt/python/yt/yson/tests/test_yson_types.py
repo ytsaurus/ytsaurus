@@ -124,3 +124,13 @@ def test_make_byte_key():
     }
     with pytest.raises(NotUnicodeError):
         key1 + "abc"
+
+
+def test_yson_entity():
+    e = YsonEntity()
+    e.attributes["key"] = 0
+    f = YsonEntity(e)
+    assert f.attributes["key"] == 0
+
+    f.attributes["key"] = 1
+    assert e.attributes["key"] == 1
