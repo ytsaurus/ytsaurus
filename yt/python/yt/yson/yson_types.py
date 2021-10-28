@@ -294,7 +294,9 @@ class YsonMap(dict, YsonType):
 
 class YsonEntity(YsonType):
     def __init__(self, value=None):
-        assert value is None
+        if value is not None:
+            assert isinstance(value, YsonEntity)
+            self.attributes = value.attributes
 
     def __eq__(self, other):
         if other is None and not self.attributes:
