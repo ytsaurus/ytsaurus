@@ -221,3 +221,8 @@ message TMessageWithStruct
     }
     optional TStruct a = 1;
 }
+
+message TOtherColumnsMessage
+{
+    optional bytes other_columns_field = 1 [(NYT.flags) = OTHER_COLUMNS];
+}
