@@ -196,6 +196,7 @@ void TUserJobWriteController::Init()
     auto userJobIOFactory = CreateUserJobIOFactory(
         Host_->GetJobSpecHelper(),
         TClientChunkReadOptions(),
+        Host_->GetLocalHostName(),
         Host_->GetWriterBlockCache(),
         /*chunkMetaCache*/ nullptr,
         Host_->GetTrafficMeter(),

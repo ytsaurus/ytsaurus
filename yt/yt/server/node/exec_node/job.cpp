@@ -1686,6 +1686,8 @@ TJobProxyConfigPtr TJob::CreateConfig()
     proxyConfig->Rack = localDescriptor.GetRack();
     proxyConfig->Addresses = localDescriptor.Addresses();
 
+    proxyConfig->LocalHostName = Bootstrap_->GetLocalHostName();
+
     proxyConfig->BusServer = Slot_->GetBusServerConfig();
 
     proxyConfig->TmpfsManager = New<TTmpfsManagerConfig>();

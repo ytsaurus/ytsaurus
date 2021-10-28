@@ -199,6 +199,7 @@ private:
             /*parentChunkListId*/ outputChunkListId,
             /*nodeDirectory*/ New<TNodeDirectory>(),
             /*client*/ Host_->GetClient(),
+            /*localHostName*/ Host_->GetLocalHostName(),
             /*blockCache*/ Host_->GetWriterBlockCache(),
             /*trafficMeter*/ Host_->GetTrafficMeter(),
             /*throttler*/ Host_->GetOutBandwidthThrottler());

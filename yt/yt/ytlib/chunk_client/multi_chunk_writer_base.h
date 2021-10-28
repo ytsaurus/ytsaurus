@@ -26,6 +26,7 @@ public:
         TMultiChunkWriterConfigPtr config,
         TMultiChunkWriterOptionsPtr options,
         NApi::NNative::IClientPtr client,
+        TString localHostName,
         NObjectClient::TCellTag cellTag,
         NTransactionClient::TTransactionId transactionId,
         TChunkListId parentChunkListId,
@@ -82,6 +83,7 @@ private:
     const TMultiChunkWriterConfigPtr Config_;
     const TMultiChunkWriterOptionsPtr Options_;
     const NObjectClient::TCellTag CellTag_;
+    const TString LocalHostName_;
     const NTransactionClient::TTransactionId TransactionId_;
     const TChunkListId ParentChunkListId_;
     const NConcurrency::IThroughputThrottlerPtr Throttler_;
@@ -122,6 +124,7 @@ public:
         TMultiChunkWriterConfigPtr config,
         TMultiChunkWriterOptionsPtr options,
         NApi::NNative::IClientPtr client,
+        TString localHostName,
         NObjectClient::TCellTag cellTag,
         NTransactionClient::TTransactionId transactionId,
         TChunkListId parentChunkListId,
@@ -133,6 +136,7 @@ public:
             config,
             options,
             client,
+            std::move(localHostName),
             cellTag,
             transactionId,
             parentChunkListId,

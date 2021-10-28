@@ -572,6 +572,7 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
         /*onNetworkRelease*/ BIND([] { }),
         /*udfDirectory*/ {},
         /*chunkReadOptions*/ {},
+        /*localHostName*/ {},
         GetNullBlockCache(),
         /*chunkMetaCache*/ nullptr,
         /*trafficMeter*/ nullptr,

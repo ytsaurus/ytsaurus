@@ -445,6 +445,11 @@ public:
         return MasterConnector_->GetNodeId();
     }
 
+    TString GetLocalHostName() const override
+    {
+        return MasterConnector_->GetLocalHostName();
+    }
+
     TMasterEpoch GetMasterEpoch() const override
     {
         return MasterConnector_->GetEpoch();
@@ -1332,6 +1337,11 @@ bool TBootstrapBase::IsConnected() const
 TNodeId TBootstrapBase::GetNodeId() const
 {
     return Bootstrap_->GetNodeId();
+}
+
+TString TBootstrapBase::GetLocalHostName() const
+{
+    return Bootstrap_->GetLocalHostName();
 }
 
 TMasterEpoch TBootstrapBase::GetMasterEpoch() const

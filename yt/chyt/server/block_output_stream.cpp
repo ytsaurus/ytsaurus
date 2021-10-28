@@ -103,7 +103,8 @@ public:
             std::move(path),
             NameTable_,
             std::move(client),
-            nullptr /* transaction */))
+            /*localHostName*/ TString(), // Locality is not important for CHYT.
+            /*transaction*/ nullptr))
             .ValueOrThrow();
     }
 

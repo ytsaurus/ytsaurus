@@ -283,6 +283,9 @@ public:
     //! Splay for cluster node heartbeats.
     std::optional<TDuration> HeartbeatPeriodSplay;
 
+    // COMPAT(gritukan)
+    bool UseHostObjects;
+
     TMasterConnectorDynamicConfig()
     {
         RegisterParameter("incremental_heartbeat_period", IncrementalHeartbeatPeriod)
@@ -293,6 +296,8 @@ public:
             .Default();
         RegisterParameter("heartbeat_period_splay", HeartbeatPeriodSplay)
             .Default();
+        RegisterParameter("use_host_objects", UseHostObjects)
+            .Default(false);
     }
 };
 

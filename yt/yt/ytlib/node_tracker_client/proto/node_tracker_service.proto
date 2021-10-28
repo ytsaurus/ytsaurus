@@ -90,6 +90,7 @@ message TRspIncrementalHeartbeat
     repeated NCellarNodeTrackerClient.NProto.TUpdateCellSlotInfo tablet_slots_update = 4;
 
     // Node Tracker stuff.
+    optional string host_name = 16;
     optional string rack = 6;
     optional string data_center = 9;
     repeated string tags = 10;
@@ -116,6 +117,7 @@ message TReqHeartbeat
 
 message TRspHeartbeat
 {
+    optional string host_name = 6;
     optional string rack = 1;
     optional string data_center = 2;
     repeated string tags = 3;

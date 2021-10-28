@@ -57,6 +57,8 @@ public:
 
     TString GetJobUserName() const override;
 
+    TString GetLocalHostName() const override;
+
     NRpc::IServerPtr GetRpcServer() const override;
 
     TString GetPreparationPath() const override;

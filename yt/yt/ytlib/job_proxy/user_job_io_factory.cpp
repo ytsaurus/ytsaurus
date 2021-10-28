@@ -57,6 +57,7 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
     NNative::IClientPtr client,
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
+    TString localHostName,
     TChunkListId chunkListId,
     TTransactionId transactionId,
     TTableSchemaPtr tableSchema,
@@ -74,6 +75,7 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
         std::move(tableSchema),
         TLegacyOwningKey(),
         std::move(client),
+        std::move(localHostName),
         CellTagFromId(chunkListId),
         transactionId,
         chunkListId,
@@ -182,6 +184,7 @@ struct TUserJobIOFactoryBase
     TUserJobIOFactoryBase(
         IJobSpecHelperPtr jobSpecHelper,
         const TClientChunkReadOptions& chunkReadOptions,
+        TString localHostName,
         IBlockCachePtr blockCache,
         IClientChunkMetaCachePtr chunkMetaCache,
         TTrafficMeterPtr trafficMeter,
@@ -190,6 +193,7 @@ struct TUserJobIOFactoryBase
         IThroughputThrottlerPtr outRpsThrottler)
         : JobSpecHelper_(std::move(jobSpecHelper))
         , ChunkReadOptions_(chunkReadOptions)
+        , LocalHostName_(std::move(localHostName))
         , BlockCache_(std::move(blockCache))
         , ChunkMetaCache_(std::move(chunkMetaCache))
         , TrafficMeter_(std::move(trafficMeter))
@@ -226,6 +230,7 @@ struct TUserJobIOFactoryBase
             std::move(client),
             std::move(config),
             std::move(options),
+            LocalHostName_,
             chunkListId,
             transactionId,
             std::move(tableSchema),
@@ -237,6 +242,7 @@ struct TUserJobIOFactoryBase
 protected:
     const IJobSpecHelperPtr JobSpecHelper_;
     const TClientChunkReadOptions ChunkReadOptions_;
+    const TString LocalHostName_;
     const IBlockCachePtr BlockCache_;
     const IClientChunkMetaCachePtr ChunkMetaCache_;
     const TTrafficMeterPtr TrafficMeter_;
@@ -258,6 +264,7 @@ public:
         IJobSpecHelperPtr jobSpecHelper,
         bool useParallelReader,
         const TClientChunkReadOptions& chunkReadOptions,
+        TString localHostName,
         IBlockCachePtr blockCache,
         IClientChunkMetaCachePtr chunkMetaCache,
         TTrafficMeterPtr trafficMeter,
@@ -267,6 +274,7 @@ public:
         : TUserJobIOFactoryBase(
             std::move(jobSpecHelper),
             chunkReadOptions,
+            std::move(localHostName),
             std::move(blockCache),
             std::move(chunkMetaCache),
             std::move(trafficMeter),
@@ -321,6 +329,7 @@ public:
         IJobSpecHelperPtr jobSpecHelper,
         bool interruptAtKeyEdge,
         const TClientChunkReadOptions& chunkReadOptions,
+        TString localHostName,
         IBlockCachePtr blockCache,
         IClientChunkMetaCachePtr chunkMetaCache,
         TTrafficMeterPtr trafficMeter,
@@ -330,6 +339,7 @@ public:
         : TUserJobIOFactoryBase(
             std::move(jobSpecHelper),
             chunkReadOptions,
+            std::move(localHostName),
             std::move(blockCache),
             std::move(chunkMetaCache),
             std::move(trafficMeter),
@@ -470,6 +480,7 @@ public:
     explicit TPartitionMapJobIOFactory(
         IJobSpecHelperPtr jobSpecHelper,
         const TClientChunkReadOptions& chunkReadOptions,
+        TString localHostName,
         IBlockCachePtr blockCache,
         IClientChunkMetaCachePtr chunkMetaCache,
         TTrafficMeterPtr trafficMeter,
@@ -479,6 +490,7 @@ public:
         : TUserJobIOFactoryBase(
             std::move(jobSpecHelper),
             chunkReadOptions,
+            std::move(localHostName),
             std::move(blockCache),
             std::move(chunkMetaCache),
             std::move(trafficMeter),
@@ -558,6 +570,7 @@ public:
                 std::move(nameTable),
                 std::move(tableSchema),
                 std::move(client),
+                LocalHostName_,
                 CellTagFromId(chunkListId),
                 transactionId,
                 chunkListId,
@@ -570,6 +583,7 @@ public:
                 std::move(client),
                 std::move(config),
                 std::move(options),
+                LocalHostName_,
                 chunkListId,
                 transactionId,
                 std::move(tableSchema),
@@ -595,6 +609,7 @@ public:
     TPartitionReduceJobIOFactory(
         IJobSpecHelperPtr jobSpecHelper,
         const TClientChunkReadOptions& chunkReadOptions,
+        TString localHostName,
         IBlockCachePtr blockCache,
         IClientChunkMetaCachePtr chunkMetaCache,
         TTrafficMeterPtr trafficMeter,
@@ -604,6 +619,7 @@ public:
         : TUserJobIOFactoryBase(
             std::move(jobSpecHelper),
             chunkReadOptions,
+            std::move(localHostName),
             std::move(blockCache),
             std::move(chunkMetaCache),
             std::move(trafficMeter),
@@ -691,6 +707,7 @@ public:
     TVanillaJobIOFactory(
         IJobSpecHelperPtr jobSpecHelper,
         const TClientChunkReadOptions& chunkReadOptions,
+        TString localHostName,
         IBlockCachePtr blockCache,
         IClientChunkMetaCachePtr chunkMetaCache,
         TTrafficMeterPtr trafficMeter,
@@ -700,6 +717,7 @@ public:
         : TUserJobIOFactoryBase(
             std::move(jobSpecHelper),
             chunkReadOptions,
+            std::move(localHostName),
             std::move(blockCache),
             std::move(chunkMetaCache),
             std::move(trafficMeter),
@@ -730,6 +748,7 @@ protected:
 IUserJobIOFactoryPtr CreateUserJobIOFactory(
     const IJobSpecHelperPtr& jobSpecHelper,
     const TClientChunkReadOptions& chunkReadOptions,
+    TString localHostName,
     IBlockCachePtr blockCache,
     IClientChunkMetaCachePtr chunkMetaCache,
     TTrafficMeterPtr trafficMeter,
@@ -744,6 +763,7 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
                 jobSpecHelper,
                 true,
                 chunkReadOptions,
+                std::move(localHostName),
                 std::move(blockCache),
                 std::move(chunkMetaCache),
                 std::move(trafficMeter),
@@ -756,6 +776,7 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
                 jobSpecHelper,
                 false,
                 chunkReadOptions,
+                std::move(localHostName),
                 std::move(blockCache),
                 std::move(chunkMetaCache),
                 std::move(trafficMeter),
@@ -768,6 +789,7 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
                 jobSpecHelper,
                 true,
                 chunkReadOptions,
+                std::move(localHostName),
                 std::move(blockCache),
                 std::move(chunkMetaCache),
                 std::move(trafficMeter),
@@ -780,6 +802,7 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
                 jobSpecHelper,
                 false,
                 chunkReadOptions,
+                std::move(localHostName),
                 std::move(blockCache),
                 std::move(chunkMetaCache),
                 std::move(trafficMeter),
@@ -791,6 +814,7 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
             return New<TPartitionMapJobIOFactory>(
                 jobSpecHelper,
                 chunkReadOptions,
+                std::move(localHostName),
                 std::move(blockCache),
                 std::move(chunkMetaCache),
                 std::move(trafficMeter),
@@ -804,6 +828,7 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
             return New<TPartitionReduceJobIOFactory>(
                 jobSpecHelper,
                 chunkReadOptions,
+                std::move(localHostName),
                 std::move(blockCache),
                 std::move(chunkMetaCache),
                 std::move(trafficMeter),
@@ -815,6 +840,7 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
             return New<TVanillaJobIOFactory>(
                 jobSpecHelper,
                 chunkReadOptions,
+                std::move(localHostName),
                 std::move(blockCache),
                 std::move(chunkMetaCache),
                 std::move(trafficMeter),

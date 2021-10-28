@@ -107,7 +107,7 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
     int minTargetCount,
     int maxReplicasPerRack,
     std::optional<int> replicationFactorOverride,
-    bool preferLocalHost,
+    std::optional<TString> preferredHostName,
     const std::vector<TString>& forbiddenAddresses,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
     const NLogging::TLogger& logger);

@@ -172,6 +172,7 @@ public:
         TChunkReplicaWithMediumList initialTargets,
         TNodeDirectoryPtr nodeDirectory,
         NNative::IClientPtr client,
+        TString localHostName,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache,
         TTrafficMeterPtr trafficMeter)
@@ -180,6 +181,7 @@ public:
         , SessionId_(sessionId)
         , InitialTargets_(std::move(initialTargets))
         , Client_(client)
+        , LocalHostName_(std::move(localHostName))
         , NodeDirectory_(nodeDirectory)
         , Throttler_(throttler)
         , BlockCache_(blockCache)
@@ -327,6 +329,7 @@ private:
     const TSessionId SessionId_;
     const TChunkReplicaWithMediumList InitialTargets_;
     const NNative::IClientPtr Client_;
+    const TString LocalHostName_;
     const TNodeDirectoryPtr NodeDirectory_;
     const IThroughputThrottlerPtr Throttler_;
     const IBlockCachePtr BlockCache_;
@@ -487,6 +490,10 @@ private:
         }
         forbiddenAddresses.insert(forbiddenAddresses.begin(), BannedNodeAddresses_.begin(), BannedNodeAddresses_.end());
 
+        auto preferredHostName = Config_->PreferLocalHost
+            ? std::make_optional(LocalHostName_)
+            : std::nullopt;
+
         return AllocateWriteTargets(
             Client_,
             SessionId_,
@@ -494,7 +501,7 @@ private:
             /*minTargetCount*/ std::max(MinUploadReplicationFactor_ - activeTargets, 1),
             /*maxReplicasPerRack*/ std::max(UploadReplicationFactor_ - 1, 1),
             /*replicationFactorOverride*/ UploadReplicationFactor_,
-            Config_->PreferLocalHost,
+            preferredHostName,
             forbiddenAddresses,
             NodeDirectory_,
             Logger);
@@ -1256,6 +1263,7 @@ IChunkWriterPtr CreateReplicationWriter(
     TChunkReplicaWithMediumList targets,
     TNodeDirectoryPtr nodeDirectory,
     NNative::IClientPtr client,
+    TString localHostName,
     IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)
@@ -1267,6 +1275,7 @@ IChunkWriterPtr CreateReplicationWriter(
         std::move(targets),
         nodeDirectory,
         client,
+        std::move(localHostName),
         throttler,
         blockCache,
         trafficMeter);

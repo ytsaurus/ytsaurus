@@ -43,6 +43,8 @@
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/action_queue.h>
 
+#include <yt/yt/core/net/local_address.h>
+
 #include <yt/yt/core/rpc/helpers.h>
 #include <yt/yt/core/rpc/retrying_channel.h>
 #include <yt/yt/core/rpc/dispatcher.h>
@@ -709,14 +711,19 @@ private:
                 // than #ReplicaCount - #ReadQuorum replicas can be placed in the same rack.
                 auto maxReplicasPerRack = ReplicaCount_ - ReadQuorum_;
 
+                // TODO(gritukan): Pass host name from tablet node.
+                auto preferredReplica = Config_->PreferLocalHost
+                    ? std::make_optional(NNet::GetLocalHostName())
+                    : std::nullopt;
+
                 replicas = AllocateWriteTargets(
                     Client_,
                     session->Id,
                     ReplicaCount_,
                     ReplicaCount_,
                     maxReplicasPerRack,
-                    std::nullopt,
-                    Config_->PreferLocalHost,
+                    /*replicationFactorOverride*/ std::nullopt,
+                    preferredReplica,
                     GetBannedNodes(),
                     NodeDirectory_,
                     Logger);

@@ -237,6 +237,7 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
         config,
         options,
         client,
+        /*localHostName*/ TString(), // Locality is not important for files.
         cellTag,
         transactionId,
         parentChunkListId,

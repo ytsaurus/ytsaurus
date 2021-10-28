@@ -67,6 +67,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TTableSchemaPtr schema,
     NTableClient::TLegacyOwningKey lastKey,
     NApi::NNative::IClientPtr client,
+    TString localHostName,
     NObjectClient::TCellTag cellTag,
     NTransactionClient::TTransactionId transactionId,
     NChunkClient::TChunkListId parentChunkListId = NChunkClient::NullChunkListId,
@@ -81,6 +82,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     TNameTablePtr nameTable,
     TTableSchemaPtr schema,
     NApi::NNative::IClientPtr client,
+    TString localHostName,
     NObjectClient::TCellTag cellTag,
     NTransactionClient::TTransactionId transactionId,
     NChunkClient::TChunkListId parentChunkListId,
@@ -97,6 +99,7 @@ TFuture<IUnversionedWriterPtr> CreateSchemalessTableWriter(
     const NYPath::TRichYPath& richPath,
     TNameTablePtr nameTable,
     NApi::NNative::IClientPtr client,
+    TString localHostName,
     NApi::ITransactionPtr transaction,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());

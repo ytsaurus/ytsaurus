@@ -713,6 +713,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             /*parentChunkListId*/ {},
             nodeDirectory,
             Client_,
+            TabletContext_->GetLocalHostName(),
             blockCache,
             /*trafficMeter*/ nullptr,
             combinedThrottler);
@@ -725,6 +726,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             /*parentChunkListId*/ {},
             nodeDirectory,
             Client_,
+            TabletContext_->GetLocalHostName(),
             GetNullBlockCache(),
             /*trafficMeter*/ nullptr,
             combinedThrottler);

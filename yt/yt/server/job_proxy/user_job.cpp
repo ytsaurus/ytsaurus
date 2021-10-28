@@ -200,6 +200,7 @@ public:
             BIND(&IJobHost::ReleaseNetwork, MakeWeak(Host_)),
             SandboxDirectoryNames[ESandboxKind::Udf],
             ChunkReadOptions_,
+            Host_->GetLocalHostName(),
             Host_->GetReaderBlockCache(),
             /*chunkMetaCache*/ nullptr,
             Host_->GetTrafficMeter(),

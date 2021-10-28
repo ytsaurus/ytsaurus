@@ -700,6 +700,7 @@ private:
             std::move(targetReplicas),
             nodeDirectory,
             Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetLocalHostName(),
             GetNullBlockCache(),
             /* trafficMeter */ nullptr,
             Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::ReplicationOut));
@@ -902,6 +903,7 @@ private:
             TChunkReplicaWithMediumList(1, targetReplica),
             NodeDirectory_,
             Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetLocalHostName(),
             GetNullBlockCache(),
             /* trafficMeter */ nullptr,
             Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::RepairOut));
@@ -1446,6 +1448,7 @@ private:
             NullChunkListId,
             NodeDirectory_,
             Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetLocalHostName(),
             Bootstrap_->GetBlockCache(),
             /*trafficMeter*/ nullptr,
             Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::MergeOut),

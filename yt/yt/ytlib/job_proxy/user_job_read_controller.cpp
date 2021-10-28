@@ -337,6 +337,7 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     TClosure onNetworkRelease,
     std::optional<TString> udfDirectory,
     const TClientChunkReadOptions& chunkReadOptions,
+    TString localHostName,
     IBlockCachePtr blockCache,
     IClientChunkMetaCachePtr chunkMetaCache,
     TTrafficMeterPtr trafficMeter,
@@ -353,6 +354,7 @@ IUserJobReadControllerPtr CreateUserJobReadController(
             CreateUserJobIOFactory(
                 jobSpecHelper,
                 chunkReadOptions,
+                std::move(localHostName),
                 std::move(blockCache),
                 std::move(chunkMetaCache),
                 trafficMeter,

@@ -286,6 +286,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             NullChunkListId,
             New<TNodeDirectory>(),
             Client_,
+            TabletContext_->GetLocalHostName(),
             blockCache,
             nullptr,
             std::move(combinedThrottler));

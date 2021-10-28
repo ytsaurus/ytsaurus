@@ -34,6 +34,8 @@
 
 #include <yt/yt/client/api/transaction.h>
 
+#include <yt/yt/core/net/local_address.h>
+
 #include <yt/yt/core/utilex/random.h>
 
 #include <yt/yt/build/build.h>
@@ -101,6 +103,8 @@ public:
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
+
+        UpdateLocalHostName(/*useHostObjects*/ false);
     }
 
     void Start() override
@@ -146,7 +150,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // XXX: Update host.
+        auto hostName = response.has_host_name() ? std::make_optional(response.host_name()) : std::nullopt;
+        UpdateHostName(hostName);
+
         auto rack = response.has_rack() ? std::make_optional(response.rack()) : std::nullopt;
         UpdateRack(rack);
 
@@ -221,6 +227,13 @@ public:
         return NodeId_.load();
     }
 
+    TString GetLocalHostName() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return LocalHostName_.Load();
+    }
+
     TMasterEpoch GetEpoch() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -261,6 +274,7 @@ private:
     IInvokerPtr MasterConnectionInvoker_;
 
     std::atomic<TNodeId> NodeId_ = InvalidNodeId;
+    TAtomicObject<TString> LocalHostName_;
 
     std::atomic<TMasterEpoch> Epoch_ = 0;
 
@@ -287,6 +301,19 @@ private:
         }
 
         return alerts;
+    }
+
+    void UpdateHostName(const std::optional<TString>& hostName)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto guard = Guard(LocalDescriptorLock_);
+        LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(
+            RpcAddresses_,
+            hostName,
+            LocalDescriptor_.GetRack(),
+            LocalDescriptor_.GetDataCenter(),
+            LocalDescriptor_.GetTags());
     }
 
     void UpdateRack(const std::optional<TString>& rack)
@@ -592,6 +619,21 @@ private:
         }
     }
 
+    void UpdateLocalHostName(bool useHostObjects)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (useHostObjects) {
+            auto hostName = GetLocalDescriptor().GetHost().value_or(Bootstrap_->GetConfig()->HostName);
+            if (hostName.empty()) {
+                hostName = NNet::GetLocalHostName();
+            }
+            LocalHostName_.Store(hostName);
+        } else {
+            LocalHostName_.Store(NNet::GetLocalHostName());
+        }
+    }
+
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
         const TClusterNodeDynamicConfigPtr& newNodeConfig)
@@ -600,6 +642,8 @@ private:
 
         HeartbeatPeriod_ = newNodeConfig->MasterConnector->HeartbeatPeriod.value_or(Config_->HeartbeatPeriod);
         HeartbeatPeriodSplay_ = newNodeConfig->MasterConnector->HeartbeatPeriodSplay.value_or(Config_->HeartbeatPeriodSplay);
+
+        UpdateLocalHostName(newNodeConfig->MasterConnector->UseHostObjects);
     }
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

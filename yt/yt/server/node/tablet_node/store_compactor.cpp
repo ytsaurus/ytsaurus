@@ -187,6 +187,7 @@ protected:
             StoreWriterConfig_,
             StoreWriterOptions_,
             Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetLocalHostName(),
             CellTagFromId(TabletSnapshot_->TabletId),
             Transaction_->GetId(),
             /*parentChunkListId*/ {},
@@ -237,6 +238,7 @@ private:
             /*parentChunkListId*/ {},
             New<NNodeTrackerClient::TNodeDirectory>(),
             Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetLocalHostName(),
             GetNullBlockCache(),
             /*trafficMeter*/ nullptr,
             Bootstrap_->GetOutThrottler(WorkloadCategory_));

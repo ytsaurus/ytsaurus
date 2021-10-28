@@ -668,6 +668,7 @@ private:
             TChunkReplicaWithMediumList(),
             New<TNodeDirectory>(),
             Host_->GetClient(),
+            Host_->GetLocalHostName(),
             Host_->GetWriterBlockCache(),
             Host_->GetTrafficMeter(),
             Host_->GetOutBandwidthThrottler());
