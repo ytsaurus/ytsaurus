@@ -138,8 +138,12 @@ public:
         ITabletSlotPtr slot,
         IBootstrap* bootstrap)
         : TTabletAutomatonPart(
-            slot,
-            bootstrap)
+            slot->GetCellId(),
+            slot->GetSimpleHydraManager(),
+            slot->GetAutomaton(),
+            slot->GetAutomatonInvoker())
+        , Slot_(slot)
+        , Bootstrap_(bootstrap)
         , Config_(config)
         , TabletContext_(this)
         , TabletMap_(TTabletMapTraits(this))
@@ -365,6 +369,9 @@ public:
     const TReadOnlyEntityMap<TTablet>& Tablets() const;
 
 private:
+    const ITabletSlotPtr Slot_;
+    IBootstrap* const Bootstrap_;
+
     class TOrchidService
         : public TVirtualMapBase
     {
@@ -3181,6 +3188,12 @@ private:
         } catch (const std::exception& ex) {
             promise.Set(TError(ex));
         }
+    }
+
+
+    TCellId GetCellId() const override
+    {
+        return Slot_->GetCellId();
     }
 };
 
