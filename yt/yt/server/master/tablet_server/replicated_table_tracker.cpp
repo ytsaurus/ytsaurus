@@ -971,7 +971,8 @@ private:
                                 return table->Check(
                                     bootstrap,
                                     referenceSyncReplicaClusters);
-                            }));
+                            })
+                            .AsyncVia(CheckerThreadPool_->GetInvoker()));
                     }
                 } else {
                     future = table->Check(
