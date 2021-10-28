@@ -74,7 +74,7 @@ void TSchedulerThreadBase::ThreadMain()
             if (IsStopping() && !GracefulStop_.load()) {
                 break;
             }
-            if (!CallbackEventCount_->Wait(cookie, IsStopping() ? std::make_optional(TDuration::Zero()) : std::nullopt)) {
+            if (!CallbackEventCount_->Wait(cookie, IsStopping() ? TDuration::Zero() : TDuration::Max())) {
                 break;
             }
         }
