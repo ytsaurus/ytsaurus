@@ -93,7 +93,7 @@ struct TRunnableContainerSpec
 
     THashMap<TString, TString> Labels;
     THashMap<TString, TString> Env;
-    std::vector<TString> CGroupControllers;    
+    std::vector<TString> CGroupControllers;
     std::vector<TDevice> Devices;
     std::optional<TRootFS> RootFS;
 };
@@ -161,7 +161,8 @@ struct IPortoExecutor
         const TString& place) = 0;
     virtual TFuture<void> RemoveLayer(
         const TString& layerId,
-        const TString& place) = 0;
+        const TString& place,
+        bool async) = 0;
     virtual TFuture<std::vector<TString>> ListLayers(const TString& place) = 0;
 
     virtual IInvokerPtr GetInvoker() const = 0;

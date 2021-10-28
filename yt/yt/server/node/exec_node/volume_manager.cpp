@@ -26,6 +26,7 @@ IVolumeManagerPtr CreatePortoVolumeManager(
 #include <yt/yt/server/node/data_node/private.h>
 
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/data_node/artifact.h>
@@ -33,6 +34,7 @@ IVolumeManagerPtr CreatePortoVolumeManager(
 #include <yt/yt/server/node/data_node/disk_location.h>
 
 #include <yt/yt/server/node/exec_node/volume.pb.h>
+#include <yt/yt/server/node/exec_node/bootstrap.h>
 
 #include <yt/yt/server/lib/containers/instance.h>
 #include <yt/yt/server/lib/containers/porto_executor.h>
@@ -174,12 +176,14 @@ class TLayerLocation
 {
 public:
     TLayerLocation(
+        IBootstrap* bootstrap,
         TLayerLocationConfigPtr locationConfig,
         TDiskHealthCheckerConfigPtr healthCheckerConfig,
         IPortoExecutorPtr volumeExecutor,
         IPortoExecutorPtr layerExecutor,
         const TString& id)
         : TDiskLocation(locationConfig, id, ExecNodeLogger)
+        , Bootstrap_(bootstrap)
         , Config_(locationConfig)
         , VolumeExecutor_(std::move(volumeExecutor))
         , LayerExecutor_(std::move(layerExecutor))
@@ -387,6 +391,7 @@ public:
     }
 
 private:
+    const IBootstrap* Bootstrap_;
     const TLayerLocationConfigPtr Config_;
     const IPortoExecutorPtr VolumeExecutor_;
     const IPortoExecutorPtr LayerExecutor_;
@@ -479,7 +484,13 @@ private:
             if (!fileIds.contains(id)) {
                 YT_LOG_DEBUG("Remove directory without a corresponding meta file (LayerName: %v)",
                     layerName);
-                WaitFor(LayerExecutor_->RemoveLayer(layerName, PlacePath_))
+                auto async = Bootstrap_
+                    ->GetDynamicConfigManager()
+                    ->GetConfig()
+                    ->ExecNode
+                    ->VolumeManager
+                    ->EnableAsyncLayerRemoval;
+                WaitFor(LayerExecutor_->RemoveLayer(layerName, PlacePath_, async))
                     .ThrowOnError();
                 continue;
             }
@@ -722,7 +733,13 @@ private:
             YT_LOG_INFO("Removing layer (LayerId: %v, LayerPath: %v)",
                 layerId,
                 layerPath);
-            LayerExecutor_->RemoveLayer(ToString(layerId), PlacePath_);
+            auto async = Bootstrap_
+                ->GetDynamicConfigManager()
+                ->GetConfig()
+                ->ExecNode
+                ->VolumeManager
+                ->EnableAsyncLayerRemoval;
+            LayerExecutor_->RemoveLayer(ToString(layerId), PlacePath_, async);
             NFS::Remove(layerMetaPath);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to remove layer %v",
@@ -1174,6 +1191,7 @@ private:
             locationConfig->LocationIsAbsolute = false;
 
             TmpfsLocation_ = New<TLayerLocation>(
+                Bootstrap_,
                 std::move(locationConfig),
                 nullptr,
                 TmpfsPortoExecutor_,
@@ -1610,6 +1628,7 @@ public:
 
             try {
                 auto location = New<TLayerLocation>(
+                    bootstrap,
                     locationConfig,
                     bootstrap->GetConfig()->DataNode->DiskHealthChecker,
                     CreatePortoExecutor(

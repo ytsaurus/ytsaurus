@@ -449,7 +449,7 @@ public:
     TDuration SensorDumpTimeout;
 
     //! This option can disable memory limit check for user jobs.
-    //! Used in arcadia tests, since it's almost impossible to set 
+    //! Used in arcadia tests, since it's almost impossible to set
     //! proper memory limits for asan builds.
     bool CheckUserJobMemoryLimit;
 
@@ -462,7 +462,7 @@ public:
         RegisterParameter("job_reporter", JobReporter)
             .Alias("statistics_reporter")
             .DefaultNew();
-        
+
         RegisterParameter("controller_agent_connector", ControllerAgentConnector)
             .DefaultNew();
         RegisterParameter("scheduler_connector", SchedulerConnector)
@@ -579,6 +579,23 @@ DEFINE_REFCOUNTED_TYPE(TSlotManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TVolumeManagerDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableAsyncLayerRemoval;
+
+    TVolumeManagerDynamicConfig()
+    {
+        RegisterParameter("enable_async_layer_removal", EnableAsyncLayerRemoval)
+            .Default(true);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TVolumeManagerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TExecNodeDynamicConfig
     : public NYTree::TYsonSerializable
 {
@@ -586,7 +603,9 @@ public:
     TMasterConnectorDynamicConfigPtr MasterConnector;
 
     TSlotManagerDynamicConfigPtr SlotManager;
-    
+
+    TVolumeManagerDynamicConfigPtr VolumeManager;
+
     NJobAgent::TJobControllerDynamicConfigPtr JobController;
 
     TExecNodeDynamicConfig()
@@ -596,7 +615,10 @@ public:
 
         RegisterParameter("slot_manager", SlotManager)
             .DefaultNew();
-        
+
+        RegisterParameter("volume_manager", VolumeManager)
+            .DefaultNew();
+
         RegisterParameter("job_controller", JobController)
             .DefaultNew();
     }
