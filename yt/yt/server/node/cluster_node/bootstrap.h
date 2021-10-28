@@ -100,6 +100,7 @@ struct IBootstrapBase
 
     virtual bool IsConnected() const = 0;
     virtual NNodeTrackerClient::TNodeId GetNodeId() const = 0;
+    virtual TString GetLocalHostName() const = 0;
     virtual TMasterEpoch GetMasterEpoch() const = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(NNodeTrackerClient::TNodeId nodeId), MasterConnected);
@@ -233,6 +234,7 @@ public:
 
     bool IsConnected() const override;
     NNodeTrackerClient::TNodeId GetNodeId() const override;
+    TString GetLocalHostName() const override;
     TMasterEpoch GetMasterEpoch() const override;
 
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const override;

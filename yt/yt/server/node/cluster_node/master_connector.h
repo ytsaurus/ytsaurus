@@ -79,6 +79,13 @@ struct IMasterConnector
     */
     virtual NNodeTrackerClient::TNodeId GetNodeId() const = 0;
 
+    //! Returns appropriate host name for local chunk replica allocation.
+    /*!
+    *  \note
+    *  Thread affinity: any
+    */
+    virtual TString GetLocalHostName() const = 0;
+
     //! Returns a counter that is incremented after each master unregistration.
     /*!
     *  \note

@@ -58,6 +58,8 @@ struct IJobHost
 
     virtual TString GetJobUserName() const = 0;
 
+    virtual TString GetLocalHostName() const = 0;
+
     virtual NApi::NNative::IClientPtr GetClient() const = 0;
 
     virtual void OnPrepared() = 0;

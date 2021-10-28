@@ -22,6 +22,7 @@ IChunkWriterPtr CreateReplicationWriter(
     TChunkReplicaWithMediumList targets,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NApi::NNative::IClientPtr client,
+    TString localHostName,
     IBlockCachePtr blockCache = GetNullBlockCache(),
     TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());

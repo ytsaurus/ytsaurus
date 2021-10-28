@@ -497,6 +497,11 @@ private:
             return Owner_->Bootstrap_->GetMemoryUsageTracker();
         }
 
+        TString GetLocalHostName() override
+        {
+            return Owner_->Bootstrap_->GetLocalHostName();
+        }
+
         NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() override
         {
             return Owner_->Bootstrap_->GetLocalDescriptor();
@@ -504,7 +509,6 @@ private:
 
     private:
         TImpl* const Owner_;
-
     };
 
     class TTabletMapTraits
@@ -521,7 +525,6 @@ private:
 
     private:
         TImpl* const Owner_;
-
     };
 
     TTabletContext TabletContext_;

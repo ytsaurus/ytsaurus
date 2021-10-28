@@ -522,7 +522,7 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
     int minTargetCount,
     int maxReplicasPerRack,
     std::optional<int> replicationFactorOverride,
-    bool preferLocalHost,
+    std::optional<TString> preferredHostName,
     const std::vector<TString>& forbiddenAddresses,
     const TNodeDirectoryPtr& nodeDirectory,
     const NLogging::TLogger& logger)
@@ -531,12 +531,12 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
 
     YT_LOG_DEBUG("Allocating write targets "
         "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, MaxReplicasPerRack: %v, "
-        "PreferLocalHost: %v, ForbiddenAddresses: %v)",
+        "PreferredHostName: %v, ForbiddenAddresses: %v)",
         sessionId,
         desiredTargetCount,
         minTargetCount,
         maxReplicasPerRack,
-        preferLocalHost,
+        preferredHostName,
         forbiddenAddresses);
 
     auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTagFromId(sessionId.ChunkId));
@@ -550,8 +550,8 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
     if (replicationFactorOverride) {
         req->set_replication_factor_override(*replicationFactorOverride);
     }
-    if (preferLocalHost) {
-        req->set_preferred_host_name(GetLocalHostName());
+    if (preferredHostName) {
+        req->set_preferred_host_name(*preferredHostName);
     }
     ToProto(req->mutable_forbidden_addresses(), forbiddenAddresses);
     ToProto(req->mutable_session_id(), sessionId);

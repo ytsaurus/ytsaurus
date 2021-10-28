@@ -44,6 +44,7 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
     NNative::IClientPtr client,
+    TString localHostName,
     TCellTag cellTag,
     TTransactionId transactionId,
     TChunkListId parentChunkListId,
@@ -55,6 +56,7 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     , Config_(config)
     , Options_(options)
     , CellTag_(cellTag)
+    , LocalHostName_(std::move(localHostName))
     , TransactionId_(transactionId)
     , ParentChunkListId_(parentChunkListId)
     , Throttler_(throttler)
@@ -181,6 +183,7 @@ void TNontemplateMultiChunkWriterBase::InitSession()
         ParentChunkListId_,
         NodeDirectory_,
         Client_,
+        LocalHostName_,
         BlockCache_,
         TrafficMeter_,
         Throttler_);

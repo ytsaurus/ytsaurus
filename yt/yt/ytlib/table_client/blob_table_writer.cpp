@@ -74,6 +74,7 @@ TBlobTableWriter::TBlobTableWriter(
         tableSchema,
         TLegacyOwningKey(),
         client,
+        /*localHostName*/ TString(), // Locality is not important for table upload.
         NObjectClient::CellTagFromId(chunkListId),
         transactionId,
         chunkListId,

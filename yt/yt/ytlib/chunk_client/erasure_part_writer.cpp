@@ -60,9 +60,9 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     auto partConfig = NYTree::CloneYsonSerializable(config);
     // Ignore upload replication factor for erasure chunk parts.
     partConfig->UploadReplicationFactor = 1;
-    // Don't prefer local host: if the latter is unhealthy and cannot start writing a chunk
+
+    // NB: Don't prefer local host: if the latter is unhealthy and cannot start writing a chunk
     // we have no way of retrying the allocation.
-    partConfig->PreferLocalHost = false;
 
     if (targetReplicas.empty()) {
         targetReplicas = AllocateWriteTargets(
@@ -71,8 +71,8 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
             partIndexList.size(),
             partIndexList.size(),
             codec->GetGuaranteedRepairablePartCount(),
-            std::nullopt,
-            partConfig->PreferLocalHost,
+            /*replicationFactorOverride*/ std::nullopt,
+            /*preferredHostName*/ std::nullopt,
             std::vector<TString>(),
             nodeDirectory,
             ChunkClientLogger);
@@ -93,6 +93,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
             TChunkReplicaWithMediumList(1, targetReplicas[index]),
             nodeDirectory,
             client,
+            /*localHostName*/ TString(), // Locality is not important here.
             blockCache,
             trafficMeter,
             throttler));

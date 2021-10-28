@@ -52,6 +52,7 @@ public:
         TChunkListId parentChunkListId,
         TNodeDirectoryPtr nodeDirectory,
         NNative::IClientPtr client,
+        TString localHostName,
         IBlockCachePtr blockCache,
         IThroughputThrottlerPtr throttler,
         TTrafficMeterPtr trafficMeter,
@@ -64,6 +65,7 @@ public:
         , ParentChunkListId_(parentChunkListId)
         , NodeDirectory_(nodeDirectory)
         , Client_(client)
+        , LocalHostName_(std::move(localHostName))
         , BlockCache_(blockCache)
         , Throttler_(throttler)
         , TrafficMeter_(trafficMeter)
@@ -182,6 +184,7 @@ private:
     const TChunkListId ParentChunkListId_;
     const TNodeDirectoryPtr NodeDirectory_;
     const NNative::IClientPtr Client_;
+    const TString LocalHostName_;
     const IBlockCachePtr BlockCache_;
     const IThroughputThrottlerPtr Throttler_;
     const TTrafficMeterPtr TrafficMeter_;
@@ -240,6 +243,7 @@ private:
                 std::move(TargetReplicas_),
                 NodeDirectory_,
                 Client_,
+                LocalHostName_,
                 BlockCache_,
                 TrafficMeter_,
                 Throttler_);
@@ -329,6 +333,7 @@ IChunkWriterPtr CreateConfirmingWriter(
     TChunkListId parentChunkListId,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NNative::IClientPtr client,
+    TString localHostName,
     IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
@@ -343,6 +348,7 @@ IChunkWriterPtr CreateConfirmingWriter(
         parentChunkListId,
         nodeDirectory,
         client,
+        std::move(localHostName),
         blockCache,
         throttler,
         trafficMeter,

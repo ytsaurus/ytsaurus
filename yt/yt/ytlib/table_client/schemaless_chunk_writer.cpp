@@ -922,6 +922,7 @@ public:
         TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
         NNative::IClientPtr client,
+        TString localHostName,
         TCellTag cellTag,
         TTransactionId transactionId,
         TChunkListId parentChunkListId,
@@ -935,6 +936,7 @@ public:
             config,
             options,
             client,
+            std::move(localHostName),
             cellTag,
             transactionId,
             parentChunkListId,
@@ -1267,6 +1269,7 @@ public:
         TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
         NNative::IClientPtr client,
+        TString localHostName,
         TCellTag cellTag,
         TTransactionId transactionId,
         TChunkListId parentChunkListId,
@@ -1280,6 +1283,7 @@ public:
             config,
             options,
             client,
+            std::move(localHostName),
             cellTag,
             transactionId,
             parentChunkListId,
@@ -1479,6 +1483,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     TNameTablePtr nameTable,
     TTableSchemaPtr schema,
     NNative::IClientPtr client,
+    TString localHostName,
     TCellTag cellTag,
     TTransactionId transactionId,
     TChunkListId parentChunkListId,
@@ -1491,6 +1496,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
         std::move(config),
         std::move(options),
         std::move(client),
+        std::move(localHostName),
         cellTag,
         transactionId,
         parentChunkListId,
@@ -1516,6 +1522,7 @@ public:
         TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
         NNative::IClientPtr client,
+        TString localHostName,
         TCellTag cellTag,
         TTransactionId transactionId,
         TChunkListId parentChunkListId,
@@ -1530,6 +1537,7 @@ public:
             config,
             options,
             client,
+            std::move(localHostName),
             cellTag,
             transactionId,
             parentChunkListId,
@@ -1590,6 +1598,7 @@ public:
         TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
         NNative::IClientPtr client,
+        TString localHostName,
         TCellTag cellTag,
         TTransactionId transactionId,
         TChunkListId parentChunkListId,
@@ -1604,6 +1613,7 @@ public:
             config,
             options,
             client,
+            std::move(localHostName),
             cellTag,
             transactionId,
             parentChunkListId,
@@ -1838,6 +1848,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TTableSchemaPtr schema,
     TLegacyOwningKey lastKey,
     NNative::IClientPtr client,
+    TString localHostName,
     TCellTag cellTag,
     TTransactionId transactionId,
     TChunkListId parentChunkListId,
@@ -1862,6 +1873,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
                 config,
                 options,
                 client,
+                localHostName,
                 cellTag,
                 transactionId,
                 parentChunkListId,
@@ -1892,6 +1904,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
                 config,
                 options,
                 client,
+                localHostName,
                 cellTag,
                 transactionId,
                 parentChunkListId,
@@ -1926,6 +1939,7 @@ public:
         const TRichYPath& richPath,
         TNameTablePtr nameTable,
         NNative::IClientPtr client,
+        TString localHostName,
         ITransactionPtr transaction,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache)
@@ -1933,6 +1947,7 @@ public:
         , Options_(std::move(options))
         , RichPath_(richPath)
         , NameTable_(std::move(nameTable))
+        , LocalHostName_(std::move(localHostName))
         , Client_(std::move(client))
         , Transaction_(std::move(transaction))
         , TransactionId_(Transaction_ ? Transaction_->GetId() : NullTransactionId)
@@ -1992,6 +2007,7 @@ private:
     const TTableWriterOptionsPtr Options_;
     const TRichYPath RichPath_;
     const TNameTablePtr NameTable_;
+    const TString LocalHostName_;
     const NNative::IClientPtr Client_;
     const ITransactionPtr Transaction_;
     const TTransactionId TransactionId_;
@@ -2253,6 +2269,7 @@ private:
             chunkSchema,
             writerLastKey,
             Client_,
+            LocalHostName_,
             externalCellTag,
             UploadTransaction_->GetId(),
             chunkListId,
@@ -2324,6 +2341,7 @@ TFuture<IUnversionedWriterPtr> CreateSchemalessTableWriter(
     const TRichYPath& richPath,
     TNameTablePtr nameTable,
     NNative::IClientPtr client,
+    TString localHostName,
     ITransactionPtr transaction,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
@@ -2342,6 +2360,7 @@ TFuture<IUnversionedWriterPtr> CreateSchemalessTableWriter(
         richPath,
         std::move(nameTable),
         std::move(client),
+        std::move(localHostName),
         std::move(transaction),
         std::move(throttler),
         std::move(blockCache));

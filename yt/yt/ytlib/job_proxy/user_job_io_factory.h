@@ -48,6 +48,7 @@ DEFINE_REFCOUNTED_TYPE(IUserJobIOFactory)
 IUserJobIOFactoryPtr CreateUserJobIOFactory(
     const IJobSpecHelperPtr& jobSpecHelper,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    TString localHostName,
     NChunkClient::IBlockCachePtr blockCache,
     NChunkClient::IClientChunkMetaCachePtr chunkMetaCache,
     NChunkClient::TTrafficMeterPtr trafficMeter,

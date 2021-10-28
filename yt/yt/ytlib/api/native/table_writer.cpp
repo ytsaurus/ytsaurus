@@ -39,6 +39,7 @@ TFuture<ITableWriterPtr> CreateTableWriter(
         path,
         nameTable,
         client,
+        /*localHostName*/ TString(), // Locality is not important during table upload.
         transaction);
 
     return asyncSchemalessWriter.Apply(BIND([] (const IUnversionedWriterPtr& schemalessWriter) {

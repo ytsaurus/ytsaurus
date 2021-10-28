@@ -194,6 +194,7 @@ public:
 
     //! Addresses derived from node local descriptor to leverage locality.
     NNodeTrackerClient::TAddressMap Addresses;
+    TString LocalHostName;
     std::optional<TString> Rack;
     std::optional<TString> DataCenter;
 
@@ -268,6 +269,9 @@ public:
         RegisterParameter("job_environment", JobEnvironment);
 
         RegisterParameter("addresses", Addresses)
+            .Default();
+
+        RegisterParameter("local_host_name", LocalHostName)
             .Default();
 
         RegisterParameter("rack", Rack)

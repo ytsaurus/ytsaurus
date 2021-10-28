@@ -249,7 +249,8 @@ private:
                     richPath,
                     NameTable_,
                     Client_,
-                    nullptr
+                    /*localHostName*/ TString(), // Locality is not important during table upload.
+                    /*transaction*/ nullptr
                 );
 
                 auto writer = WaitFor(asyncWriter)

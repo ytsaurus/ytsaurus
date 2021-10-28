@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
 from yt_commands import (
     authors, insert_rows, with_breakpoint, wait_breakpoint, release_breakpoint,
-    create, get, ls, set, write_table, wait, remove, exists,
+    create, get, ls, set, write_table, wait, remove, exists, update_nodes_dynamic_config,
     get_data_nodes, get_exec_nodes, get_tablet_nodes, get_chaos_nodes, get_singular_chunk_id,
     sync_mount_table, sync_unmount_table, run_test_vanilla, sync_create_cells)
 
@@ -181,6 +181,12 @@ class TestDataAndTabletNodesCollocation(YTEnvSetup):
 
     @authors("gritukan")
     def test_flushed_chunk_local_replica(self):
+        update_nodes_dynamic_config({
+            "master_connector": {
+                "use_host_objects": True,
+            },
+        })
+
         sync_create_cells(1)
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},

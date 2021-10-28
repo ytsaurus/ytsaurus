@@ -114,6 +114,7 @@ void TFileChunkOutput::EnsureOpen()
         NullChunkListId,
         New<TNodeDirectory>(),
         Client_,
+        /*localHostName*/ TString(), // Locality is not important for files.
         GetNullBlockCache(),
         TrafficMeter_,
         Throttler_);

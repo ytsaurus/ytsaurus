@@ -348,6 +348,7 @@ void FromIncrementalHeartbeatResponse(
     NProto::TRspHeartbeat* clusterNodeHeartbeatResponse,
     const NProto::TRspIncrementalHeartbeat& incrementalHeartbeatResponse)
 {
+    clusterNodeHeartbeatResponse->set_host_name(incrementalHeartbeatResponse.host_name());
     clusterNodeHeartbeatResponse->set_rack(incrementalHeartbeatResponse.rack());
     clusterNodeHeartbeatResponse->set_data_center(incrementalHeartbeatResponse.data_center());
     clusterNodeHeartbeatResponse->mutable_tags()->CopyFrom(incrementalHeartbeatResponse.tags());
@@ -359,6 +360,7 @@ void FillIncrementalHeartbeatResponse(
     NProto::TRspIncrementalHeartbeat* incrementalHeartbeatResponse,
     const NProto::TRspHeartbeat& clusterNodeHeartbeatResponse)
 {
+    incrementalHeartbeatResponse->set_host_name(clusterNodeHeartbeatResponse.host_name());
     incrementalHeartbeatResponse->set_rack(clusterNodeHeartbeatResponse.rack());
     incrementalHeartbeatResponse->set_data_center(clusterNodeHeartbeatResponse.data_center());
     incrementalHeartbeatResponse->mutable_tags()->CopyFrom(clusterNodeHeartbeatResponse.tags());

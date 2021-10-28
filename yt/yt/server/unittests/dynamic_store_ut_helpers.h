@@ -133,6 +133,11 @@ protected:
         return nullptr;
     }
 
+    TString GetLocalHostName() override
+    {
+        return TString();
+    }
+
     NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() override
     {
         return NNodeTrackerClient::NullNodeDescriptor();

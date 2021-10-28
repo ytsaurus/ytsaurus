@@ -879,6 +879,11 @@ TString TJobProxy::GetJobUserName() const
         JobSpecHelper_->GetSchedulerJobSpecExt().authenticated_user());
 }
 
+TString TJobProxy::GetLocalHostName() const
+{
+    return Config_->LocalHostName;
+}
+
 const IJobSpecHelperPtr& TJobProxy::GetJobSpecHelper() const
 {
     YT_VERIFY(JobSpecHelper_);
