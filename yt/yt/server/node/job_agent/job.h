@@ -110,7 +110,7 @@ struct IJob
     virtual void ResetStatisticsLastSendTime() = 0;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() = 0;
-    virtual TString GetStderr() = 0;
+    virtual std::optional<TString> GetStderr() = 0;
     virtual std::optional<TString> GetFailContext() = 0;
 
     virtual void BuildOrchid(NYTree::TFluentMap fluent) const = 0;

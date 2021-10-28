@@ -69,7 +69,7 @@ void TSchedulerConnector::Start()
     HeartbeatExecutor_->Start();
 }
 
-void TSchedulerConnector::SendHeartbeat()
+void TSchedulerConnector::SendHeartbeat() noexcept
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -163,9 +163,8 @@ void TSchedulerConnector::SendHeartbeat()
         reporter->SetOperationArchiveVersion(rsp->operation_archive_version());
     }
 
-    // TODO(ignat): it should not throw.
-    WaitFor(jobController->ProcessHeartbeatResponse(rsp, EObjectType::SchedulerJob))
-        .ThrowOnError();
+    const auto result = WaitFor(jobController->ProcessHeartbeatResponse(rsp, EObjectType::SchedulerJob));
+    YT_LOG_FATAL_IF(!result.IsOK(), result, "Error while processing scheduler heartbeat response");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -141,7 +141,7 @@ public:
 
     std::vector<NChunkClient::TChunkId> DumpInputContext() override;
 
-    TString GetStderr() override;
+    std::optional<TString> GetStderr() override;
 
     std::optional<TString> GetFailContext() override;
 
