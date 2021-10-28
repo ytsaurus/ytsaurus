@@ -440,8 +440,19 @@ class _ReadTableRetriableState(object):
         def fix_range(range):
             if "exact" in range:
                 if self.range_started:
-                    del range["exact"]
-                    range["lower_limit"] = range["upper_limit"] = {"row_index": 0}
+                    if "row_index" in range["exact"]:
+                        del range["exact"]
+                        range["lower_limit"] = range["upper_limit"] = {"row_index": 0}
+                    else:
+                        if list(range["exact"].keys()) != ["key"]:
+                            raise YtError("Unexpected exact range {}".format(range["exact"]))
+                        range["lower_limit"] = {"row_index": self.next_row_index}
+
+                        sentinel = yson.YsonEntity()
+                        sentinel.attributes["type"] = "max"
+                        range["upper_limit"] = {"key": range["exact"]["key"] + [sentinel]}
+
+                        del range["exact"]
             else:
                 range["lower_limit"] = {"row_index": self.next_row_index}
 

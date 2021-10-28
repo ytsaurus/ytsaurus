@@ -456,6 +456,14 @@ class TestRetries(object):
             with pytest.raises(yt.YtError):
                 list(yt.read_table(table + "[#0,2]", raw=False, format=yt.DsvFormat()))
 
+            if not yt.config["read_parallel"]["enable"]:
+                two_exact_ranges = yt.TablePath(table, attributes={"ranges": [{"exact": {"key": [1]}}, {"exact": {"key": [3]}}]})
+                assert [{"x": 1}, {"x": 3}] == list(yt.read_table(two_exact_ranges))
+
+                yt.write_table("<sorted_by=[x]>" + table, [{"x": 1}, {"x": 1}, {"x": 2}, {"x": 3}, {"x": 3}, {"x": 3}])
+                two_exact_ranges = yt.TablePath(table, attributes={"ranges": [{"exact": {"key": [1]}}, {"exact": {"key": [3]}}]})
+                assert [{"x": 1}, {"x": 1}, {"x": 3}, {"x": 3}, {"x": 3}] == list(yt.read_table(two_exact_ranges))
+
         finally:
             yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
 
