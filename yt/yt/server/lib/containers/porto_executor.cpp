@@ -304,9 +304,9 @@ public:
             .Run();
     }
 
-    TFuture<void> RemoveLayer(const TString& layerId, const TString& place) override
+    TFuture<void> RemoveLayer(const TString& layerId, const TString& place, bool async) override
     {
-        return BIND(&TPortoExecutor::DoRemoveLayer, MakeStrong(this), layerId, place)
+        return BIND(&TPortoExecutor::DoRemoveLayer, MakeStrong(this), layerId, place, async)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
@@ -318,7 +318,7 @@ public:
             .Run();
     }
 
-    IInvokerPtr GetInvoker() const override 
+    IInvokerPtr GetInvoker() const override
     {
         return Queue_->GetInvoker();
     }
@@ -379,7 +379,7 @@ private:
 
         portoSpec.set_enable_porto(FormatEnablePorto(spec.EnablePorto));
         portoSpec.set_isolate(spec.Isolate);
-        
+
         if (spec.StdinPath) {
             portoSpec.set_stdin_path(*spec.StdinPath);
         }
@@ -393,7 +393,7 @@ private:
         if (spec.CurrentWorkingDirectory) {
             portoSpec.set_cwd(*spec.CurrentWorkingDirectory);
         }
-    
+
         if (spec.CoreCommand) {
             portoSpec.set_core_command(*spec.CoreCommand);
         }
@@ -422,20 +422,20 @@ private:
         }
 
         if (!spec.IPAddresses.empty() && Config_->EnableNetworkIsolation) {
-            // This label is intended for HBF-agent: YT-12512.	
+            // This label is intended for HBF-agent: YT-12512.
             auto* label = portoSpec.mutable_labels()->add_map();
             label->set_key("HBF.ignore_address");
             label->set_val("1");
-            
+
             auto* netConfig = portoSpec.mutable_net()->add_cfg();
             netConfig->set_opt("L3");
             netConfig->add_arg("veth0");
 
-            for (const auto& address : spec.IPAddresses) {	
+            for (const auto& address : spec.IPAddresses) {
                 auto* ipConfig = portoSpec.mutable_ip()->add_cfg();
                 ipConfig->set_dev("veth0");
                 ipConfig->set_ip(ToString(address));
-            }	
+            }
         }
 
         for (const auto& [key, value] : spec.Labels) {
@@ -610,7 +610,7 @@ private:
                     int exitStatus = FromString<int>(*optionalExitCode);
                     result.TrySet(exitStatus);
                 } catch (const std::exception& ex) {
-                    auto error = TError("Failed to parse porto exit status") 
+                    auto error = TError("Failed to parse porto exit status")
                         << TErrorAttribute("container_name", container)
                         << TErrorAttribute("exit_status", optionalExitCode.value());
                     error.MutableInnerErrors()->push_back(TError(ex));
@@ -749,10 +749,10 @@ private:
             "ImportLayer");
     }
 
-    void DoRemoveLayer(const TString& layerId, const TString& place)
+    void DoRemoveLayer(const TString& layerId, const TString& place, bool async)
     {
         ExecuteApiCall(
-            [&] { return Api_->RemoveLayer(layerId, place); },
+            [&] { return Api_->RemoveLayer(layerId, place, async); },
             "RemoveLayer");
     }
 
