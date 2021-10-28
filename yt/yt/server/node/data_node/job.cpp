@@ -354,7 +354,7 @@ public:
         THROW_ERROR_EXCEPTION("Input context dumping is not supported");
     }
 
-    TString GetStderr() override
+    std::optional<TString> GetStderr() override
     {
         THROW_ERROR_EXCEPTION("Getting stderr is not supported");
     }

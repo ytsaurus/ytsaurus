@@ -41,7 +41,7 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-    void SendHeartbeat();
+    void SendHeartbeat() noexcept;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConnector)

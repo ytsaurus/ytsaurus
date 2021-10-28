@@ -78,7 +78,7 @@ private:
             job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
         }
 
-        auto stderrData = job->GetStderr();
+        auto stderrData = job->GetStderr().value_or("");
 
         response->set_stderr_data(stderrData);
         context->Reply();

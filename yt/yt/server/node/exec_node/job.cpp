@@ -776,7 +776,7 @@ std::vector<TChunkId> TJob::DumpInputContext()
     }
 }
 
-TString TJob::GetStderr()
+std::optional<TString> TJob::GetStderr()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -784,7 +784,11 @@ TString TJob::GetStderr()
         return *Stderr_;
     }
 
-    ValidateJobRunning();
+    if (JobPhase_ != EJobPhase::Running) {
+        // When job proxy finished with completed or failed state, Stderr_ must not be unset.
+        YT_VERIFY(JobState_ == EJobState::Aborted);
+        return std::nullopt;
+    }
 
     try {
         return GetJobProbeOrThrow()->GetStderr();
@@ -861,8 +865,12 @@ void TJob::ReportStderr()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    auto maybeStderr = GetStderr();
+    if (!maybeStderr) {
+        return;
+    }
     HandleJobReport(TNodeJobReport()
-        .Stderr(GetStderr()));
+        .Stderr(std::move(*maybeStderr)));
 }
 
 void TJob::ReportFailContext()
@@ -914,7 +922,10 @@ void TJob::Interrupt()
 void TJob::Fail()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
-    ValidateJobRunning();
+    
+    if (JobPhase_ != EJobPhase::Running) {
+        return;
+    }
 
     try {
         GetJobProbeOrThrow()->Fail();
