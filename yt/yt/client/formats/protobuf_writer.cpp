@@ -123,7 +123,6 @@ public:
                     nameTable,
                     schemas[tableIndex],
                     config);
-                break;
             }
         }
 

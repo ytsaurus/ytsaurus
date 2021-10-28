@@ -1,4 +1,6 @@
 #include "row_helpers.h"
+#include "yson_helpers.h"
+#include "yt/yt/client/table_client/public.h"
 
 #include <yt/yt/client/unittests/protobuf_format_ut.pb.h>
 
@@ -25,6 +27,8 @@
 #include <util/random/fast.h>
 
 #include <google/protobuf/text_format.h>
+#include <google/protobuf/descriptor.h>
+#include <google/protobuf/descriptor.pb.h>
 
 using namespace std::string_view_literals;
 
@@ -96,17 +100,44 @@ TString GenerateRandomLenvalString(TFastRng64& rng, ui32 size)
     return result;
 }
 
+static TProtobufFormatConfigPtr MakeProtobufFormatConfig(const std::vector<const ::google::protobuf::Descriptor*>& descriptorList)
+{
+    ::google::protobuf::FileDescriptorSet fileDescriptorSet;
+    THashSet<const ::google::protobuf::FileDescriptor*> files;
+
+    std::function<void(const ::google::protobuf::FileDescriptor*)> addFile;
+    addFile = [&] (const ::google::protobuf::FileDescriptor* fileDescriptor) {
+        if (!files.insert(fileDescriptor).second) {
+            return;
+        }
+
+        // N.B. We want to write dependencies in fileDescriptorSet in topological order
+        // so we traverse dependencies first and the add current fileDescriptor.
+        for (int i = 0; i < fileDescriptor->dependency_count(); ++i) {
+            addFile(fileDescriptor->dependency(i));
+        }
+        fileDescriptor->CopyTo(fileDescriptorSet.add_file());
+    };
+    std::vector<TString> typeNames;
+
+    for (const auto* descriptor : descriptorList) {
+        addFile(descriptor->file());
+        typeNames.push_back(descriptor->full_name());
+    }
+
+    auto formatConfigYsonString = BuildYsonStringFluently()
+        .BeginMap()
+            .Item("file_descriptor_set_text").Value(fileDescriptorSet.ShortDebugString())
+            .Item("type_names").Value(typeNames)
+        .EndMap();
+
+    return ConvertTo<TProtobufFormatConfigPtr>(formatConfigYsonString);
+}
+
 INodePtr ParseYson(TStringBuf data)
 {
     return ConvertToNode(NYson::TYsonString(TString{data}));
 }
-
-TProtobufFormatConfigPtr ParseFormatConfigFromNode(const INodePtr& configNode)
-{
-    auto config = New<NFormats::TProtobufFormatConfig>();
-    config->Load(configNode);
-    return config;
-};
 
 TString LenvalBytes(const ::google::protobuf::Message& message)
 {
@@ -170,7 +201,7 @@ TCollectingValueConsumer ParseRows(
     const TTableSchemaPtr& schema = New<TTableSchema>(),
     int count = 1)
 {
-    return ParseRows(message, ParseFormatConfigFromNode(config->Attributes().ToMap()), schema, count);
+    return ParseRows(message, ConvertTo<TProtobufFormatConfigPtr>(config->Attributes().ToMap()), schema, count);
 }
 
 
@@ -440,6 +471,11 @@ public:
         : Input_(input)
     { }
 
+    explicit TLenvalParser(TStringBuf input)
+        : StreamHolder_(std::make_unique<TMemoryInput>(input))
+        , Input_(StreamHolder_.get())
+    { }
+
     std::optional<TLenvalEntry> Next()
     {
         ui32 rowSize;
@@ -493,6 +529,7 @@ public:
     }
 
 private:
+    std::unique_ptr<IInputStream> StreamHolder_;
     IInputStream* Input_;
     ui32 CurrentTableIndex_ = 0;
     ui64 CurrentTabletIndex_ = 0;
@@ -505,7 +542,7 @@ namespace {
 
 TProtobufFormatConfigPtr ParseAndValidateConfig(const INodePtr& node, std::vector<TTableSchemaPtr> schemas = {})
 {
-    auto config = ParseFormatConfigFromNode(node);
+    auto config = ConvertTo<TProtobufFormatConfigPtr>(node);
     if (schemas.empty()) {
         schemas.assign(config->Tables.size(), New<TTableSchema>());
     }
@@ -954,14 +991,14 @@ TEST(TProtobufFormat, TestParseBigZigZag)
     constexpr i32 value = Min<i32>();
     TMessage message;
     message.set_int32_field(value);
-    auto config = ParseFormatConfigFromNode(CreateAllFieldsConfig(EProtoFormatType::Structured)->Attributes().ToMap());
+    auto config = ConvertTo<TProtobufFormatConfigPtr>(CreateAllFieldsConfig(EProtoFormatType::Structured)->Attributes().ToMap());
     auto rowCollector = ParseRows(message, config);
     EXPECT_EQ(GetInt64(rowCollector.GetRowValue(0, "Int32")), value);
 }
 
 TEST(TProtobufFormat, TestParseEnumerationString)
 {
-    auto config = ParseFormatConfigFromNode(CreateAllFieldsConfig(EProtoFormatType::Structured)->Attributes().ToMap());
+    auto config = ConvertTo<TProtobufFormatConfigPtr>(CreateAllFieldsConfig(EProtoFormatType::Structured)->Attributes().ToMap());
     {
         TMessage message;
         message.set_enum_field(EEnum::One);
@@ -990,7 +1027,7 @@ TEST(TProtobufFormat, TestParseEnumerationString)
 
 TEST(TProtobufFormat, TestParseWrongEnumeration)
 {
-    auto config = ParseFormatConfigFromNode(CreateAllFieldsConfig(EProtoFormatType::Structured)->Attributes().ToMap());
+    auto config = ConvertTo<TProtobufFormatConfigPtr>(CreateAllFieldsConfig(EProtoFormatType::Structured)->Attributes().ToMap());
     TMessage message;
     auto enumTag = TMessage::descriptor()->FindFieldByName("enum_field")->number();
     message.mutable_unknown_fields()->AddVarint(enumTag, 30);
@@ -1020,7 +1057,7 @@ TEST(TProtobufFormat, TestParseEnumerationInt)
             .EndList()
         .EndMap();
 
-    auto parser = CreateParserForProtobuf(&rowCollector, ParseFormatConfigFromNode(config), 0);
+    auto parser = CreateParserForProtobuf(&rowCollector, ConvertTo<TProtobufFormatConfigPtr>(config), 0);
 
     {
         TMessage message;
@@ -1069,7 +1106,7 @@ TEST(TProtobufFormat, TestParseRandomGarbage)
         TCollectingValueConsumer rowCollector;
         auto parser = CreateParserForProtobuf(
             &rowCollector,
-            ParseFormatConfigFromNode(CreateAllFieldsConfig(EProtoFormatType::Structured)->Attributes().ToMap()),
+            ConvertTo<TProtobufFormatConfigPtr>(CreateAllFieldsConfig(EProtoFormatType::Structured)->Attributes().ToMap()),
             0);
         try {
             parser->Read(bytes);
@@ -1097,7 +1134,7 @@ TEST(TProtobufFormat, TestParseZeroColumns)
     TCollectingValueConsumer rowCollector;
     auto parser = CreateParserForProtobuf(
         &rowCollector,
-        ParseFormatConfigFromNode(config),
+        ConvertTo<TProtobufFormatConfigPtr>(config),
         0);
 
     // Empty lenval values.
@@ -1326,7 +1363,7 @@ TEST(TProtobufFormat, TestWriteZeroColumns)
 
 TEST(TProtobufFormat, TestTabletIndex)
 {
-    auto config = ParseFormatConfigFromNode(BuildYsonNodeFluently()
+    auto config = ConvertTo<TProtobufFormatConfigPtr>(BuildYsonNodeFluently()
         .BeginMap()
             .Item("tables")
             .BeginList()
@@ -1418,7 +1455,7 @@ TEST(TProtobufFormat, TestContext)
     TCollectingValueConsumer rowCollector;
     auto parser = CreateParserForProtobuf(
         &rowCollector,
-        ParseFormatConfigFromNode(config),
+        ConvertTo<TProtobufFormatConfigPtr>(config),
         0);
 
     TString context;
@@ -2994,7 +3031,7 @@ TEST_P(TProtobufFormatSeveralTables, Write)
     auto schemas = CreateSeveralTablesSchemas();
     auto configNode = CreateSeveralTablesConfig(protoFormatType);
 
-    auto config = ParseFormatConfigFromNode(configNode->Attributes().ToMap());
+    auto config = ConvertTo<TProtobufFormatConfigPtr>(configNode->Attributes().ToMap());
 
     auto nameTable = New<TNameTable>();
     auto embeddedId = nameTable->RegisterName("embedded");
@@ -3103,7 +3140,7 @@ TEST_P(TProtobufFormatSeveralTables, Parse)
 
     auto schemas = CreateSeveralTablesSchemas();
     auto configNode = CreateSeveralTablesConfig(protoFormatType);
-    auto config = ParseFormatConfigFromNode(configNode->Attributes().ToMap());
+    auto config = ConvertTo<TProtobufFormatConfigPtr>(configNode->Attributes().ToMap());
 
     std::vector<TCollectingValueConsumer> rowCollectors;
     std::vector<std::unique_ptr<IParser>> parsers;
@@ -3187,14 +3224,14 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
         TCollectingValueConsumer rowCollector(schema);
         return CreateParserForProtobuf(
             &rowCollector,
-            ParseFormatConfigFromNode(configNode),
+            ConvertTo<TProtobufFormatConfigPtr>(configNode),
             0);
     };
     auto createSeveralTableWriter = [] (const std::vector<TTableSchemaPtr>& schemas, const INodePtr& configNode) {
         TString result;
         TStringOutput resultStream(result);
         return CreateWriterForProtobuf(
-            ParseFormatConfigFromNode(configNode),
+            ConvertTo<TProtobufFormatConfigPtr>(configNode),
             schemas,
             New<TNameTable>(),
             CreateAsyncAdapter(&resultStream),
@@ -3563,6 +3600,58 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
     EXPECT_NO_THROW(createWriter(schema_variant_with_int, config_with_oneof));
 }
 
+TEST(TProtobufFormat, MultipleOtherColumns)
+{
+    auto nameTable = New<TNameTable>();
+
+    TString data;
+    TStringOutput resultStream(data);
+
+    auto controlAttributesConfig = New<TControlAttributesConfig>();
+    controlAttributesConfig->EnableTableIndex = true;
+    controlAttributesConfig->EnableEndOfStream = true;
+
+    auto protoWriter = CreateWriterForProtobuf(
+        MakeProtobufFormatConfig({TOtherColumnsMessage::descriptor(), TOtherColumnsMessage::descriptor()}),
+        std::vector<TTableSchemaPtr>(2, New<TTableSchema>()),
+        nameTable,
+        CreateAsyncAdapter(&resultStream),
+        true,
+        controlAttributesConfig,
+        0);
+
+    protoWriter->Write(
+        std::vector<TUnversionedRow>{
+            NNamedValue::MakeRow(nameTable, {
+                {TableIndexColumnName, 0},
+                {"field1", "foo"},
+            }),
+            NNamedValue::MakeRow(nameTable, {
+                {TableIndexColumnName, 1},
+                {"field2", "bar"},
+            }),
+        }
+    );
+    WaitFor(protoWriter->Close())
+        .ThrowOnError();
+
+    std::vector<TString> otherColumnsValue;
+    auto parser = TLenvalParser(data);
+    while (auto item = parser.Next()) {
+        TOtherColumnsMessage message;
+        bool parsed = message.ParseFromString(item->RowData);
+        EXPECT_TRUE(parsed);
+        otherColumnsValue.push_back(CanonizeYson(message.other_columns_field()));
+    }
+
+    EXPECT_EQ(
+        otherColumnsValue,
+        std::vector<TString>({
+            CanonizeYson("{field1=foo}"),
+            CanonizeYson("{field2=bar}"),
+        }));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using TProtobufFormatAllFieldsParameter = std::tuple<int, EProtoFormatType>;
@@ -3853,7 +3942,7 @@ TEST_P(TProtobufFormatAllFields, Parser)
 
     auto rowCollector = ParseRows(
         message,
-        ParseFormatConfigFromNode(config->Attributes().ToMap()),
+        ConvertTo<TProtobufFormatConfigPtr>(config->Attributes().ToMap()),
         New<TTableSchema>(),
         rowCount);
 
@@ -3987,7 +4076,7 @@ public:
 
     static TProtobufFormatConfigPtr GetFirstMiddleConfig()
     {
-        static const auto config = ParseFormatConfigFromNode(BuildYsonNodeFluently()
+        static const auto config = ConvertTo<TProtobufFormatConfigPtr>(BuildYsonNodeFluently()
             .BeginMap().Item("tables").BeginList().Item().BeginMap().Item("columns").BeginList()
                 .Item().BeginMap()
                     .Item("name").Value("a")
@@ -4020,7 +4109,7 @@ public:
 
     static TProtobufFormatConfigPtr GetSecondMiddleConfig()
     {
-        static const auto config = ParseFormatConfigFromNode(BuildYsonNodeFluently()
+        static const auto config = ConvertTo<TProtobufFormatConfigPtr>(BuildYsonNodeFluently()
             .BeginMap().Item("tables").BeginList().Item().BeginMap().Item("columns").BeginList()
                 .Item().BeginMap()
                     .Item("name").Value("a")
@@ -4270,7 +4359,7 @@ public:
 
     static TProtobufFormatConfigPtr GetConfigWithVariant()
     {
-        static const auto config = ParseFormatConfigFromNode(BuildYsonNodeFluently()
+        static const auto config = ConvertTo<TProtobufFormatConfigPtr>(BuildYsonNodeFluently()
             .BeginMap().Item("tables").BeginList().Item().BeginMap().Item("columns").BeginList()
                 .Item().BeginMap()
                     .Item("name").Value("a")
@@ -4294,7 +4383,7 @@ public:
 
     static TProtobufFormatConfigPtr GetConfigWithStruct()
     {
-        static const auto config = ParseFormatConfigFromNode(BuildYsonNodeFluently()
+        static const auto config = ConvertTo<TProtobufFormatConfigPtr>(BuildYsonNodeFluently()
             .BeginMap().Item("tables").BeginList().Item().BeginMap().Item("columns").BeginList()
                 .Item().BeginMap()
                     .Item("name").Value("a")
