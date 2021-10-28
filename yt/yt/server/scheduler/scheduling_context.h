@@ -28,6 +28,7 @@ struct TScheduleJobsStatistics
     int PreemptiveScheduleJobAttempts = 0;
     int NonPreemptiveScheduleJobAttempts = 0;
     int PackingFallbackScheduleJobAttempts = 0;
+    int MaxNonPreemptiveSchedulingIndex = -1;
     int ScheduledDuringPreemption = 0;
     int UnconditionallyPreemptableJobCount = 0;
     int TotalConditionallyPreemptableJobCount = 0;

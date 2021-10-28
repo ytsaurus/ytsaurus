@@ -1303,6 +1303,7 @@ private:
             context.SchedulingStatistics().NonPreemptiveScheduleJobAttempts = context.StageState()->ScheduleJobAttemptCount;
             needPackingFallback = schedulingContext->StartedJobs().empty() && !context.BadPackingOperations().empty();
             ReactivateBadPackingOperations(&context);
+            context.SchedulingStatistics().MaxNonPreemptiveSchedulingIndex = context.StageState()->MaxSchedulingIndex;
             context.FinishStage();
         }
 
