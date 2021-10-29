@@ -452,6 +452,8 @@ const NJobTrackerClient::NProto::TJobSpec& TAutoMergeTask::GetJobSpecTemplate(
 
 void TAutoMergeTask::InitAutoMergeJobSpecTemplates()
 {
+    const auto& autoMergeSpec = TaskHost_->GetSpec()->AutoMerge;
+
     const auto tableCount = TaskHost_->GetOutputTableCount();
     JobSpecTemplates_.resize(tableCount);
     for (int tableIndex = 0; tableIndex < tableCount; ++tableIndex) {
@@ -461,7 +463,7 @@ void TAutoMergeTask::InitAutoMergeJobSpecTemplates()
             .MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         schedulerJobSpecExt->set_table_reader_options(
             ConvertToYsonString(
-                CreateTableReaderOptions(TaskHost_->GetSpec()->AutoMerge->JobIO)).ToString());
+                CreateTableReaderOptions(autoMergeSpec->JobIO)).ToString());
 
         auto dataSourceDirectory = New<TDataSourceDirectory>();
         // NB: chunks read by auto-merge jobs have table index set to output table index,
@@ -477,14 +479,17 @@ void TAutoMergeTask::InitAutoMergeJobSpecTemplates()
         ToProto(&dataSourceDirectoryExt, dataSourceDirectory);
         SetProtoExtension(schedulerJobSpecExt->mutable_extensions(), dataSourceDirectoryExt);
         schedulerJobSpecExt->set_io_config(
-            ConvertToYsonString(TaskHost_->GetSpec()->AutoMerge->JobIO).ToString());
+            ConvertToYsonString(autoMergeSpec->JobIO).ToString());
 
         auto& shallowTemplate = JobSpecTemplates_[tableIndex][EMergeJobType::Shallow];
         shallowTemplate = jobSpecTemplate;
         shallowTemplate.set_type(static_cast<int>(EJobType::ShallowMerge));
         auto* shallowMergeJobSpecExt = shallowTemplate
             .MutableExtension(TShallowMergeJobSpecExt::shallow_merge_job_spec_ext);
-        shallowMergeJobSpecExt->set_allow_unknown_extensions(TaskHost_->GetSpec()->AutoMerge->AllowUnknownExtensions);
+        shallowMergeJobSpecExt->set_allow_unknown_extensions(autoMergeSpec->AllowUnknownExtensions);
+        if (autoMergeSpec->MaxBlockCount) {
+            shallowMergeJobSpecExt->set_max_block_count(*autoMergeSpec->MaxBlockCount);
+        }
 
         auto& deepTemplate = JobSpecTemplates_[tableIndex][EMergeJobType::Deep];
         deepTemplate = std::move(jobSpecTemplate);

@@ -260,6 +260,8 @@ void TAutoMergeConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("allow_unknown_extensions",  &TAutoMergeConfig::AllowUnknownExtensions)
         .Default(false);
+    registrar.Parameter("max_block_count", &TAutoMergeConfig::MaxBlockCount)
+        .Default();
 
     registrar.Parameter("use_intermediate_data_account", &TAutoMergeConfig::UseIntermediateDataAccount)
         .Default(false);
