@@ -1,0 +1,129 @@
+package NYT.NCellBalancerClient.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
+
+import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAssignPeers
+{
+    message TPeerInfo
+    {
+        required int32 peer_id = 1;
+        required NYT.NNodeTrackerClient.NProto.TNodeDescriptor node_descriptor = 2;
+    }
+
+    required NYT.NProto.TGuid cell_id = 1;
+    repeated TPeerInfo peer_infos = 2;
+}
+
+message TReqRevokePeers
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    repeated int32 peer_ids = 2;
+    required NYT.NProto.TError reason = 3;
+}
+
+message TReqUpdatePeerCount
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    optional int32 peer_count = 2;
+}
+
+message TReqSetLeadingPeer
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    required int32 peer_id = 2;
+}
+
+message TReqReassignPeers
+{
+    repeated TReqRevokePeers revocations = 1;
+    repeated TReqAssignPeers assignments = 2;
+    repeated TReqUpdatePeerCount peer_count_updates = 3;
+    repeated TReqSetLeadingPeer leading_peer_updates = 4;
+}
+
+message TRspReassignPeers
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TSlot
+{
+    optional NYT.NProto.TGuid cell_id = 1;
+    optional int32 peer_id = 2;
+    optional int32 peer_state = 3; // EPeerState
+
+    optional bool is_warmed_up = 4;
+}
+
+message TCellar
+{
+    required int32 type = 1; // ECellarType
+
+    repeated TSlot slots = 2;
+}
+
+message TCellarNode
+{
+    required int32 node_id = 1;
+
+    repeated TCellar cellars = 2;
+}
+
+message TPeer
+{
+    optional NYT.NNodeTrackerClient.NProto.TNodeDescriptor assigned_node_descriptor = 1;
+    optional int32 last_seen_node_id = 2;
+    optional int64 last_seen_time = 3; // TInstant
+    optional int32 last_peer_state = 4; // EPeerState
+}
+
+message TCell
+{
+    required NYT.NProto.TGuid cell_id = 1;
+
+    repeated TPeer peers = 2;
+
+    required int32 leading_peer_id = 3;
+
+    optional int32 peer_count_override = 4;
+
+    optional int64 last_leader_change_time = 5; // TInstant
+}
+
+message TArea
+{
+    required NYT.NProto.TGuid area_id = 1;
+
+    required string name = 2;
+
+    repeated int32 node_ids = 3;
+
+    repeated TCell cells = 4;
+}
+
+message TCellBundle
+{
+    required NYT.NProto.TGuid bundle_id = 1;
+
+    required string name = 2;
+
+    required bool independent_peers = 3;
+
+    repeated TArea areas = 4;
+}
+
+message TReqGetClusterState
+{ }
+
+message TRspGetClusterState
+{
+    repeated TCellarNode nodes = 1;
+    repeated TCellBundle cell_bundles = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////

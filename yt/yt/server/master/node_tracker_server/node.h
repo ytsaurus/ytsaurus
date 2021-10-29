@@ -234,6 +234,9 @@ public:
         int PreloadFailedStoreCount = 0;
 
         void Persist(const NCellMaster::TPersistenceContext& context);
+
+        // Used in cell balancer to check peer state.
+        bool IsWarmedUp() const;
     };
 
     using TCellar = SmallVector<TCellSlot, NCellarClient::TypicalCellarSize>;

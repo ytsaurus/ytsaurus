@@ -212,6 +212,7 @@ DEFINE_ENUM(EMasterReign,
     ((HostObjects)                                                  (1808))  // gritukan
     ((RemoveInterDCEdgeCapacities)                                  (1809))  // gritukan
     ((BackupsInitial)                                               (1810))  // ifsmirnov
+    ((ReassignPeersSetLeading)                                      (1811))  // alexkolodezny
 );
 
 ////////////////////////////////////////////////////////////////////////////////

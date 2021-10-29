@@ -110,6 +110,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (ChaosManager)
     (ChaosService)
     (AlienCellSynchronizer)
+    (CellTrackerService)
 );
 
 DEFINE_ENUM(EAutomatonThreadBucket,

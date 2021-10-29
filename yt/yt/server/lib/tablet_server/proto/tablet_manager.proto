@@ -16,44 +16,6 @@ message TTabletResources
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqAssignPeers
-{
-    message TPeerInfo
-    {
-        required int32 peer_id = 1;
-        required NYT.NNodeTrackerClient.NProto.TNodeDescriptor node_descriptor = 2;
-    }
-
-    required NYT.NProto.TGuid cell_id = 1;
-    repeated TPeerInfo peer_infos = 2;
-}
-
-message TReqRevokePeers
-{
-    required NYT.NProto.TGuid cell_id = 1;
-    repeated int32 peer_ids = 2;
-    optional NYT.NProto.TError reason = 3;
-}
-
-message TReqUpdatePeerCount
-{
-    required NYT.NProto.TGuid cell_id = 1;
-    optional int32 peer_count = 2;
-}
-
-message TReqReassignPeers
-{
-    repeated TReqRevokePeers revocations = 1;
-    repeated TReqAssignPeers assignments = 2;
-    repeated TReqUpdatePeerCount peer_count_updates = 3;
-}
-
-message TReqSetLeadingPeer
-{
-    required NYT.NProto.TGuid cell_id = 1;
-    required int32 peer_id = 2;
-}
-
 message TReqOnTabletCellDecommisionedOnMaster
 {
     required NYT.NProto.TGuid cell_id = 1;

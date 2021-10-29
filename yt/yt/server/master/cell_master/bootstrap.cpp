@@ -46,6 +46,7 @@
 #include <yt/yt/server/master/journal_server/journal_node.h>
 #include <yt/yt/server/master/journal_server/journal_node_type_handler.h>
 
+#include <yt/yt/server/master/cell_server/cell_tracker_service.h>
 #include <yt/yt/server/master/cell_server/cell_hydra_janitor.h>
 #include <yt/yt/server/master/cell_server/cell_hydra_janitor.h>
 #include <yt/yt/server/master/cell_server/cell_map_type_handler.h>
@@ -885,6 +886,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateTransactionService(this)); // master hydra service
     RpcServer_->RegisterService(CreateCypressService(this)); // master hydra service
     RpcServer_->RegisterService(CreateMasterChaosService(this)); // master chaos service
+    RpcServer_->RegisterService(CreateCellTrackerService(this)); // master hydra service
 
     CypressManager_->RegisterHandler(CreateSysNodeTypeHandler(this));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ChunkMap));
