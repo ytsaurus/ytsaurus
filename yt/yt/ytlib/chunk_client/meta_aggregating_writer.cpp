@@ -330,6 +330,15 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
             chunkId);
     }
 
+    i64 totalBlockCount = std::ssize(BlockMetaExt_.blocks());
+    if (Options_->MaxBlockCount && totalBlockCount > *Options_->MaxBlockCount) {
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::IncompatibleChunkMetas,
+            "Too many blocks")
+            << TErrorAttribute("actual_total_block_count", totalBlockCount)
+            << TErrorAttribute("max_allowed_total_block_count", *Options_->MaxBlockCount);
+    }
+
     RowCount_ += miscExt.row_count();
     UncompressedDataSize_ += miscExt.uncompressed_data_size();
     CompressedDataSize_ += miscExt.compressed_data_size();

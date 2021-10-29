@@ -425,6 +425,7 @@ message TShallowMergeJobSpecExt
     }
 
     optional bool allow_unknown_extensions = 1 [default = false];
+    optional int64 max_block_count = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -590,6 +590,10 @@ public:
     //! when EnableShallowMerge is set to true.
     bool AllowUnknownExtensions;
 
+    //! Maximum number of blocks allowed in the merged chunks. Useful only when EnableShallowMerge
+    //! is set to true.
+    std::optional<i64> MaxBlockCount;
+
     REGISTER_YSON_STRUCT(TAutoMergeConfig);
 
     static void Register(TRegistrar registrar);

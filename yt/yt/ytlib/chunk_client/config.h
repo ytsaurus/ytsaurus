@@ -197,6 +197,7 @@ public:
     bool EnableSkynetSharing;
     int MaxHeavyColumns;
     bool AllowUnknownExtensions;
+    std::optional<i64> MaxBlockCount;
 
     TMetaAggregatingWriterOptions()
     {
@@ -206,6 +207,8 @@ public:
             .Default(0);
         RegisterParameter("allow_unknown_extensions", AllowUnknownExtensions)
             .Default(false);
+        RegisterParameter("max_block_count", MaxBlockCount)
+            .Default();
     }
 };
 

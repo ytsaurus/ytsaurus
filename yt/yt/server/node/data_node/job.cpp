@@ -1204,7 +1204,7 @@ private:
     std::optional<EOptimizeFor> OptimizeFor_;
     std::optional<bool> EnableSkynetSharing_;
     int MaxHeavyColumns_;
-    std::optional<int> MaxBlockCount_;
+    std::optional<i64> MaxBlockCount_;
 
     struct TChunkInfo
     {
@@ -1234,6 +1234,9 @@ private:
             EnableSkynetSharing_ = chunkMergerWriterOptions.enable_skynet_sharing();
         }
         MaxHeavyColumns_ = chunkMergerWriterOptions.max_heavy_columns();
+        if (chunkMergerWriterOptions.has_max_block_count()) {
+            MaxBlockCount_ = chunkMergerWriterOptions.max_block_count();
+        }
 
         auto mergeMode = CheckedEnumCast<NChunkClient::EChunkMergerMode>(chunkMergerWriterOptions.merge_mode());
         YT_LOG_DEBUG("Merge job started (Mode: %v)", mergeMode);
@@ -1302,6 +1305,7 @@ private:
             options->EnableSkynetSharing = *EnableSkynetSharing_;
         }
         options->MaxHeavyColumns = MaxHeavyColumns_;
+        options->MaxBlockCount = MaxBlockCount_;
 
         auto writer = CreateMetaAggregatingWriter(
             confirmingWriter,
@@ -1313,14 +1317,6 @@ private:
         for (const auto& chunkInfo : InputChunkInfos_) {
             writer->AbsorbMeta(chunkInfo.Meta, chunkInfo.ChunkId);
             totalBlockCount += chunkInfo.BlockCount;
-        }
-
-        if (MaxBlockCount_ && totalBlockCount > *MaxBlockCount_) {
-            THROW_ERROR_EXCEPTION(
-                NChunkClient::EErrorCode::IncompatibleChunkMetas,
-                "Too many blocks for shallow merge")
-                << TErrorAttribute("actual_total_block_count", totalBlockCount)
-                << TErrorAttribute("max_allowed_total_block_count", *MaxBlockCount_);
         }
 
         for (const auto& chunkInfo : InputChunkInfos_) {

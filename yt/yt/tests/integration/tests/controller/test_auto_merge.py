@@ -98,6 +98,15 @@ class TestSchedulerAutoMergeBase(YTEnvSetup):
             assert job_types["completed"]["shallow"] == 0
         assert job_types["aborted"]["shallow"] > 0
 
+        data_flow_graph = get(operation.get_path() + "/@progress/data_flow_graph")
+        data_weight = data_flow_graph["edges"]["map"]["auto_merge"]["statistics"]["data_weight"]
+        assert data_weight > 0
+        assert data_flow_graph["edges"]["auto_merge"]["sink"]["statistics"]["data_weight"] == data_weight
+
+        if not allow_shallow_jobs:
+            assert data_flow_graph["edges"].get("map", {}).get("shallow_auto_merge", {}).get("statistics", {}).get("data_weight", 0) == 0
+            assert data_flow_graph["edges"].get("shallow_auto_merge", {}).get("sink", {}).get("statistics", {}).get("data_weight", 0) == 0
+
 
 class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
     def _create_account(self, chunk_count):
@@ -872,14 +881,6 @@ class TestSchedulerAutoMergeAborted(TestSchedulerAutoMergeBase):
         content = read_table("//tmp/t_out")
         assert sorted(content) == sorted(data)
 
-        data_flow_graph = get(op.get_path() + "/@progress/data_flow_graph")
-        data_weight = data_flow_graph["edges"]["map"]["auto_merge"]["statistics"]["data_weight"]
-        assert data_weight > 0
-        assert data_flow_graph["edges"]["auto_merge"]["sink"]["statistics"]["data_weight"] == data_weight
-
-        assert data_flow_graph["edges"].get("map", {}).get("shallow_auto_merge", {}).get("statistics", {}).get("data_weight", 0) == 0
-        assert data_flow_graph["edges"].get("shallow_auto_merge", {}).get("sink", {}).get("statistics", {}).get("data_weight", 0) == 0
-
     @authors("gepardo")
     def test_incompatible_metas_switch(self):
         create("table", "//tmp/t_in")
@@ -928,7 +929,36 @@ else:
         output_data = read_table("//tmp/t_out")
         assert sorted(expected_data) == sorted(output_data)
 
-        data_flow_graph = get(op.get_path() + "/@progress/data_flow_graph")
-        data_weight = data_flow_graph["edges"]["map"]["auto_merge"]["statistics"]["data_weight"]
-        assert data_weight > 0
-        assert data_flow_graph["edges"]["auto_merge"]["sink"]["statistics"]["data_weight"] == data_weight
+    @authors("gepardo")
+    def test_too_many_blocks_for_shallow_merge(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        data = [{"a": i, "b": str(i * i)} for i in range(500)]
+        write_table("//tmp/t_in", data)
+
+        op = map(
+            in_="//tmp/t_in",
+            out=["//tmp/t_out"],
+            command="cat",
+            spec={
+                "auto_merge": {
+                    "mode": "manual",
+                    "max_intermediate_chunk_count": 4,
+                    "chunk_count_per_merge_job": 2,
+                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
+                    "max_block_count": 5,
+                },
+                "job_io": {
+                    "table_writer": {
+                        "block_size": 32,
+                    },
+                },
+                "data_size_per_job": 1024,
+            },
+        )
+        self._verify_shallow_merge_attempted(op)
+
+        assert get("//tmp/t_out/@row_count") == 500
+        content = read_table("//tmp/t_out")
+        assert sorted(content) == sorted(data)

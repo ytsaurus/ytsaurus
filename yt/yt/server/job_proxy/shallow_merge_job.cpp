@@ -190,6 +190,9 @@ private:
         writerOptions->EnableSkynetSharing = UnderlyingWriterOptions_->EnableSkynetSharing;
         writerOptions->MaxHeavyColumns = UnderlyingWriterOptions_->MaxHeavyColumns;
         writerOptions->AllowUnknownExtensions = ShallowMergeJobSpecExt_.allow_unknown_extensions();
+        if (ShallowMergeJobSpecExt_.has_max_block_count()) {
+            writerOptions->MaxBlockCount = ShallowMergeJobSpecExt_.max_block_count();
+        }
 
         auto underlyingWriter = CreateConfirmingWriter(
             /*config*/ WriterConfig_,
