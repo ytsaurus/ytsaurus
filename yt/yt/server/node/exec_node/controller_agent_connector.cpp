@@ -40,6 +40,8 @@ public:
     void SendOutOfBandHeartbeatIfNeeded();
     void EnqueueFinishedJob(const TJobPtr& job);
 
+    void UpdateConnectorPeriods(TDuration newPeriod);
+
     ~TControllerAgentConnector() override;
 private:
     struct THeartbeatInfo
@@ -77,8 +79,8 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
     , HeartbeatExecutor_(New<TPeriodicExecutor>(
         ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(),
         BIND(&TControllerAgentConnector::SendHeartbeat, MakeWeak(this)),
-        ControllerAgentConnectorPool_->Config_->HeartbeatPeriod,
-        ControllerAgentConnectorPool_->Config_->HeartbeatSplay))
+        ControllerAgentConnectorPool_->StaticConfig_->HeartbeatPeriod,
+        ControllerAgentConnectorPool_->StaticConfig_->HeartbeatSplay))
 {
     YT_LOG_DEBUG("Controller agent connector created (AgentAddress: %v, IncarnationId: %v)",
         ControllerAgentDescriptor_.Address,
@@ -108,6 +110,13 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::EnqueueFinishedJo
     EnqueuedFinishedJobs_.insert(job);
     ShouldSendOutOfBand_ = true;
 }
+
+void TControllerAgentConnectorPool::TControllerAgentConnector::UpdateConnectorPeriods(const TDuration newPeriod)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    HeartbeatExecutor_->SetPeriod(newPeriod);
+}
+
 
 TControllerAgentConnectorPool::TControllerAgentConnector::~TControllerAgentConnector()
 {
@@ -208,11 +217,11 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
     if (!responseOrError.IsOK()) {
         HeartbeatInfo_.LastFailedHeartbeatTime = TInstant::Now();
         if (HeartbeatInfo_.FailedHeartbeatBackoffTime == TDuration::Zero()) {
-            HeartbeatInfo_.FailedHeartbeatBackoffTime = ControllerAgentConnectorPool_->Config_->FailedHeartbeatBackoffStartTime;
+            HeartbeatInfo_.FailedHeartbeatBackoffTime = ControllerAgentConnectorPool_->StaticConfig_->FailedHeartbeatBackoffStartTime;
         } else {
             HeartbeatInfo_.FailedHeartbeatBackoffTime = std::min(
-                HeartbeatInfo_.FailedHeartbeatBackoffTime * ControllerAgentConnectorPool_->Config_->FailedHeartbeatBackoffMultiplier,
-                ControllerAgentConnectorPool_->Config_->FailedHeartbeatBackoffMaxTime);
+                HeartbeatInfo_.FailedHeartbeatBackoffTime * ControllerAgentConnectorPool_->StaticConfig_->FailedHeartbeatBackoffMultiplier,
+                ControllerAgentConnectorPool_->StaticConfig_->FailedHeartbeatBackoffMaxTime);
         }
         YT_LOG_ERROR(responseOrError, "Error reporting heartbeat to agent (AgentAddress: %v, BackoffTime: %v)",
             ControllerAgentDescriptor_.Address,
@@ -248,7 +257,8 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnAgentIncarnatio
 TControllerAgentConnectorPool::TControllerAgentConnectorPool(
     TControllerAgentConnectorConfigPtr config,
     IBootstrap* const bootstrap)
-    : Config_(std::move(config))
+    : StaticConfig_(std::move(config))
+    , CurrentConfig_(CloneYsonSerializable(StaticConfig_))
     , Bootstrap_(bootstrap)
 { }
 
@@ -277,6 +287,24 @@ TControllerAgentConnectorPool::TControllerAgentConnectorLease TControllerAgentCo
     EmplaceOrCrash(ControllerAgentConnectors_, job->GetControllerAgentDescriptor(), controllerAgentConnector.Get());
 
     return controllerAgentConnector;
+}
+
+void TControllerAgentConnectorPool::OnDynamicConfigChanged(
+    const TExecNodeDynamicConfigPtr& oldConfig,
+    const TExecNodeDynamicConfigPtr& newConfig)
+{
+    if (newConfig->ControllerAgentConnector == nullptr && oldConfig->ControllerAgentConnector == nullptr) {
+        return;
+    }
+    
+    Bootstrap_->GetJobInvoker()->Invoke(BIND([this, this_ = MakeStrong(this), newConfig{std::move(newConfig)}] {
+        if (newConfig->ControllerAgentConnector == nullptr) {
+            CurrentConfig_ = StaticConfig_;
+        } else {
+            MergeHeartbeatReporterConfigs(*CurrentConfig_, *StaticConfig_, *newConfig->ControllerAgentConnector);
+        }
+        UpdateConnectorPeriods(CurrentConfig_->HeartbeatPeriod);
+    }));
 }
 
 void TControllerAgentConnectorPool::OnControllerAgentConnectorDestroyed(
@@ -312,6 +340,15 @@ void TControllerAgentConnectorPool::EnqueueFinishedJob(const TJobPtr& job)
 
     auto controllerAgentConnector = GetOrCrash(ControllerAgentConnectors_, job->GetControllerAgentDescriptor());
     controllerAgentConnector->EnqueueFinishedJob(job);
+}
+
+void TControllerAgentConnectorPool::UpdateConnectorPeriods(const TDuration newPeriod)
+{
+    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+
+    for (auto& [agentDescriptor, controllerAgentConnector] : ControllerAgentConnectors_) {
+        controllerAgentConnector->UpdateConnectorPeriods(newPeriod);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

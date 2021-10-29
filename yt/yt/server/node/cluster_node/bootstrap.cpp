@@ -728,10 +728,6 @@ private:
         MasterClient_ = MasterConnection_->CreateNativeClient(
             TClientOptions::FromUser(NSecurityClient::RootUserName));
 
-        DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(this);
-        DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
-        auto dynamicConfig = DynamicConfigManager_->GetConfig();
-
         MemoryUsageTracker_ = New<TNodeMemoryTracker>(
             Config_->ResourceLimits->TotalMemory,
             std::vector<std::pair<EMemoryCategory, i64>>{},

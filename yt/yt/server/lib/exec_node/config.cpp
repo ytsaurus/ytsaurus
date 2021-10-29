@@ -53,6 +53,21 @@ const THashMap<TString, TUserJobSensorPtr>& TUserJobMonitoringConfig::GetDefault
     return DefaultSensors;
 }
 
+void MergeHeartbeatReporterConfigs(
+    THeartbeatReporterConfigBase& configToSet,
+    const THeartbeatReporterConfigBase& staticConfig,
+    const THeartbeatReporterDynamicConfigBase& dynamicConfig)
+{
+    configToSet.HeartbeatPeriod = dynamicConfig.HeartbeatPeriod.value_or(staticConfig.HeartbeatPeriod);
+    configToSet.HeartbeatSplay = dynamicConfig.HeartbeatSplay.value_or(staticConfig.HeartbeatSplay);
+    configToSet.FailedHeartbeatBackoffStartTime = dynamicConfig.FailedHeartbeatBackoffStartTime.value_or(
+        staticConfig.FailedHeartbeatBackoffStartTime);
+    configToSet.FailedHeartbeatBackoffMaxTime = dynamicConfig.FailedHeartbeatBackoffMaxTime.value_or(
+        staticConfig.FailedHeartbeatBackoffMaxTime);
+    configToSet.FailedHeartbeatBackoffMultiplier = dynamicConfig.FailedHeartbeatBackoffMultiplier.value_or(
+        staticConfig.FailedHeartbeatBackoffMultiplier);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode

@@ -40,6 +40,10 @@ public:
 
     TControllerAgentConnectorLease CreateLeaseOnControllerAgentConnector(const TJob* job);
 
+    void OnDynamicConfigChanged(
+        const TExecNodeDynamicConfigPtr& oldConfig,
+        const TExecNodeDynamicConfigPtr& newConfig);
+
 private:
     class TControllerAgentConnector;
     friend class TControllerAgentConnector;
@@ -47,7 +51,9 @@ private:
     //! TControllerAgentConnector object lifetime include lifetime of map entry, so we can use raw pointers here.
     THashMap<TControllerAgentDescriptor, TControllerAgentConnector*> ControllerAgentConnectors_;
 
-    TControllerAgentConnectorConfigPtr Config_;
+    const TControllerAgentConnectorConfigPtr StaticConfig_;
+    TControllerAgentConnectorConfigPtr CurrentConfig_;
+
     IBootstrap* const Bootstrap_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
@@ -56,6 +62,8 @@ private:
         const TControllerAgentDescriptor& controllerAgentDescriptor) noexcept;
 
     NRpc::IChannelPtr CreateChannel(const TControllerAgentDescriptor& agentDescriptor);
+
+    void UpdateConnectorPeriods(TDuration newPeriod);
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorPool)
