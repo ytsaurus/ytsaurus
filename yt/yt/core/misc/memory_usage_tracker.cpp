@@ -131,7 +131,10 @@ i64 TMemoryUsageTrackerGuard::GetSize() const
 
 void TMemoryUsageTrackerGuard::SetSize(i64 size)
 {
-    YT_VERIFY(Tracker_);
+    if (!Tracker_) {
+        return;
+    }
+
     YT_VERIFY(size >= 0);
     Size_ = size;
     if (std::abs(Size_ - AcquiredSize_) >= Granularity_) {

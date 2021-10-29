@@ -25,8 +25,13 @@ TVersionedRow YsonToVersionedRow(
     const TRowBufferPtr& rowBuffer,
     const TString& keyYson,
     const TString& valueYson,
-    const std::vector<TTimestamp>& deleteTimestamps = std::vector<TTimestamp>(),
-    const std::vector<TTimestamp>& extraWriteTimestamps = std::vector<TTimestamp>());
+    const std::vector<TTimestamp>& deleteTimestamps = {},
+    const std::vector<TTimestamp>& extraWriteTimestamps = {});
+TVersionedOwningRow YsonToVersionedRow(
+    const TString& keyYson,
+    const TString& valueYson,
+    const std::vector<TTimestamp>& deleteTimestamps = {},
+    const std::vector<TTimestamp>& extraWriteTimestamps = {});
 TUnversionedOwningRow YsonToKey(const TString& yson);
 TString KeyToYson(TUnversionedRow row);
 

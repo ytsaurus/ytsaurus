@@ -44,7 +44,7 @@ class TTabletWriteManager
 public:
     TTabletWriteManager(
         ITabletWriteManagerHostPtr host,
-        IHydraManagerPtr hydraManager,
+        ISimpleHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton,
         TMemoryUsageTrackerGuard&& writeLogsMemoryTrackerGuard,
         IInvokerPtr automatonInvoker)
@@ -1265,7 +1265,7 @@ private:
 
 ITabletWriteManagerPtr CreateTabletWriteManager(
     ITabletWriteManagerHostPtr host,
-    IHydraManagerPtr hydraManager,
+    ISimpleHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton,
     TMemoryUsageTrackerGuard&& writeLogsMemoryTrackerGuard,
     IInvokerPtr automatonInvoker)

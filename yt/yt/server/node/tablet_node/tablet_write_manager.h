@@ -71,7 +71,7 @@ DEFINE_REFCOUNTED_TYPE(ITabletWriteManager);
 
 ITabletWriteManagerPtr CreateTabletWriteManager(
     ITabletWriteManagerHostPtr host,
-    NHydra::IHydraManagerPtr hydraManager,
+    NHydra::ISimpleHydraManagerPtr hydraManager,
     NHydra::TCompositeAutomatonPtr automaton,
     TMemoryUsageTrackerGuard&& writeLogsMemoryTrackerGuard,
     IInvokerPtr automatonInvoker);
