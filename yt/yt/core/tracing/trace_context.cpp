@@ -2,6 +2,7 @@
 #include "private.h"
 #include "config.h"
 
+#include <atomic>
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/misc/atomic_object.h>
@@ -161,10 +162,14 @@ void TTraceContext::SetPropagated(bool value)
 TTraceContextPtr TTraceContext::CreateChild(
     TString spanName)
 {
-    return New<TTraceContext>(
+    auto child = New<TTraceContext>(
         GetSpanContext(),
         std::move(spanName),
         /* parentTraceContext */ this);
+
+    auto gaurd = Guard(Lock_);
+    child->ProfilingTags_ = ProfilingTags_;
+    return child;
 }
 
 TSpanContext TTraceContext::GetSpanContext() const
@@ -261,6 +266,24 @@ void TTraceContext::AddTag(const TString& tagKey, const TString& tagValue)
 
     auto guard = Guard(Lock_);
     Tags_.emplace_back(tagKey, tagValue);
+}
+
+void TTraceContext::AddProfilingTag(const TString& name, const TString& value)
+{
+    auto guard = Guard(Lock_);
+    ProfilingTags_.emplace_back(name, value);
+}
+
+void TTraceContext::AddProfilingTag(const TString& name, i64 value)
+{
+    auto guard = Guard(Lock_);
+    ProfilingTags_.emplace_back(name, value);
+}
+
+std::vector<std::pair<TString, std::variant<TString, i64>>> TTraceContext::GetProfilingTags()
+{
+    auto guard = Guard(Lock_);
+    return ProfilingTags_;
 }
 
 bool TTraceContext::AddAsyncChild(const TTraceId& traceId)
@@ -472,8 +495,10 @@ struct TCurrentTraceContextReclaimer
     ~TCurrentTraceContextReclaimer()
     {
         if (CurrentTraceContext) {
-            CurrentTraceContext->Unref();
+            auto traceContext = CurrentTraceContext;
             CurrentTraceContext = nullptr;
+            std::atomic_signal_fence(std::memory_order_seq_cst);
+            traceContext->Unref();
         }
     }
 };
@@ -508,6 +533,7 @@ TTraceContextPtr SwitchTraceContext(TTraceContextPtr newContext, NProfiling::TCp
     }
 
     CurrentTraceContext = newContext.Release();
+    std::atomic_signal_fence(std::memory_order_seq_cst);
     TraceContextTimingCheckpoint = now;
 
     return oldContext;
@@ -546,3 +572,39 @@ void TTraceContext::IncrementElapsedCpuTime(NProfiling::TCpuDuration delta)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTracing
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NYT::NYTProf {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void* AcquireFiberTagStorage()
+{
+    auto traceContext = NTracing::CurrentTraceContext;
+    if (traceContext) {
+        Ref(traceContext);
+    }
+    return reinterpret_cast<void*>(traceContext);
+}
+
+std::vector<std::pair<TString, std::variant<TString, i64>>> ReadFiberTags(void* storage)
+{
+    auto traceContext = reinterpret_cast<NTracing::TTraceContext*>(storage);
+    if (traceContext) {
+        return traceContext->GetProfilingTags();
+    } else {
+        return {};
+    }
+}
+
+void ReleaseFiberTagStorage(void* storage)
+{
+    if (storage) {
+        Unref(reinterpret_cast<NTracing::TTraceContext*>(storage));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NYTProf

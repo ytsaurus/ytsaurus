@@ -9,6 +9,7 @@
 #include <util/system/yield.h>
 
 #include <csignal>
+#include <functional>
 
 #include <util/generic/yexception.h>
 #endif
@@ -17,34 +18,9 @@ namespace NYT::NYTProf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCpuTagImpl
-{
-    TString Name;
-    std::optional<TString> StringValue;
-    std::optional<ui64> IntValue;
-};
+DEFINE_REFCOUNTED_TYPE(TProfilerTag)
 
-TCpuProfilerTag NewStringTag(const TString& name, const TString& value)
-{
-    auto tag = new TCpuTagImpl{
-        .Name = name,
-        .StringValue = value,
-    };
-
-    return reinterpret_cast<TCpuProfilerTag>(tag);
-}
-
-TCpuProfilerTag NewIntTag(const TString& name, const ui64 value)
-{
-    auto tag = new TCpuTagImpl{
-        .Name = name,
-        .IntValue = value,
-    };
-
-    return reinterpret_cast<TCpuProfilerTag>(tag);
-}
-
-thread_local std::array<volatile TCpuProfilerTag, MaxActiveTags> CpuProfilerTags;
+thread_local std::array<TAtomicSignalPtr<TProfilerTag>, MaxActiveTags> CpuProfilerTags;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,17 +28,33 @@ TCpuSample::operator size_t() const
 {
     size_t hash = Tid;
     for (auto ip : Backtrace) {
-        hash ^= reinterpret_cast<size_t>(ip);
-        hash = (hash << 1) | (hash >> 63);
+        hash = CombineHashes(hash, ip);
     }
 
-    for (auto tag : Tags) {
-        hash ^= reinterpret_cast<size_t>(tag);
-        hash = (hash << 1) | (hash >> 63);
+    for (const auto& tag : Tags) {
+        hash = CombineHashes(hash,
+            CombineHashes(
+                std::hash<TString>{}(tag.first),
+                std::hash<std::variant<TString, i64>>{}(tag.second)));
     }
 
     return hash;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_WEAK void* AcquireFiberTagStorage()
+{
+    return nullptr;
+}
+
+Y_WEAK std::vector<std::pair<TString, std::variant<TString, i64>>> ReadFiberTags(void* /* storage */)
+{
+    return {};
+}
+
+Y_WEAK void ReleaseFiberTagStorage(void* /* storage */)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -212,6 +204,7 @@ void TCpuProfiler::OnSigProf(siginfo_t* info, ucontext_t* ucontext)
 
     int count = 0;
     bool pushTid = false;
+    bool pushFiberStorage = false;
     int tagIndex = 0;
 
     auto ok = Queue_.TryPush([&] () -> std::pair<void*, bool> {
@@ -220,10 +213,15 @@ void TCpuProfiler::OnSigProf(siginfo_t* info, ucontext_t* ucontext)
             return {reinterpret_cast<void*>(GetTid()), true};
         }
 
+        if (!pushFiberStorage) {
+            pushFiberStorage = true;
+            return {AcquireFiberTagStorage(), true};
+        }
+
         if (tagIndex < MaxActiveTags) {
-            auto tag = CpuProfilerTags[tagIndex];
+            auto tag = CpuProfilerTags[tagIndex].GetFromSignal();
             tagIndex++;
-            return {reinterpret_cast<void*>(tag), true};
+            return {reinterpret_cast<void*>(tag.Release()), true};
         }
 
         if (count > Options_.MaxBacktraceSize) {
@@ -263,6 +261,7 @@ void TCpuProfiler::DequeueSamples()
             sample.Tags.clear();
 
             std::optional<size_t> tid;
+            std::optional<void*> fiberStorage;
 
             int tagIndex = 0;
             bool ok = Queue_.TryPop([&] (void* ip) {
@@ -271,16 +270,25 @@ void TCpuProfiler::DequeueSamples()
                     return;
                 }
 
+                if (!fiberStorage) {
+                    fiberStorage = ip;
+                    return;
+                }
+
                 if (tagIndex < MaxActiveTags) {
-                    auto tag = reinterpret_cast<TCpuTagImpl*>(ip);
+                    auto tag = reinterpret_cast<TProfilerTag*>(ip);
                     if (tag) {
-                        sample.Tags.push_back(tag);
+                        if (tag->StringValue) {
+                            sample.Tags.emplace_back(tag->Name, *tag->StringValue);
+                        } else {
+                            sample.Tags.emplace_back(tag->Name, *tag->IntValue);
+                        }
                     }
                     tagIndex++;
                     return;
                 }
 
-                sample.Backtrace.push_back(ip);
+                sample.Backtrace.push_back(reinterpret_cast<ui64>(ip));
             });
 
             if (!ok) {
@@ -288,6 +296,11 @@ void TCpuProfiler::DequeueSamples()
             }
 
             sample.Tid = *tid;
+            for (auto& tag : ReadFiberTags(*fiberStorage)) {
+                sample.Tags.push_back(std::move(tag));
+            }
+            ReleaseFiberTagStorage(*fiberStorage);
+
             Counters_[sample]++;
         }
     }
@@ -318,11 +331,10 @@ NProto::Profile TCpuProfiler::ReadProfile()
 
     profile.set_period(1000000 / Options_.SamplingFrequency);
 
-    THashMap<TCpuTagImpl*, ui64> tagNames;
-    THashMap<TCpuTagImpl*, ui64> tagValues;
+    THashMap<TString, ui64> tagNames;
+    THashMap<TString, ui64> tagValues;
 
-    THashMap<void*, ui64> locations;
-    THashMap<void*, ui64> functions;
+    THashMap<uintptr_t, ui64> locations;
 
     for (const auto& [backtrace, count] : Counters_) {
         auto sample = profile.add_sample();
@@ -336,26 +348,24 @@ NProto::Profile TCpuProfiler::ReadProfile()
         for (auto tag : backtrace.Tags) {
             auto label = sample->add_label();
 
-            if (auto it = tagNames.find(tag); it != tagNames.end()) {
+            if (auto it = tagNames.find(tag.first); it != tagNames.end()) {
                 label->set_key(it->second);
             } else {
                 auto nameId = profile.string_table_size();
-                profile.add_string_table(tag->Name);
-                tagNames[tag] = nameId;
+                profile.add_string_table(tag.first);
+                tagNames[tag.first] = nameId;
                 label->set_key(nameId);
             }
 
-            if (tag->IntValue) {
-                label->set_num(*tag->IntValue);
-            }
-
-            if (tag->StringValue) {
-                if (auto it = tagValues.find(tag); it != tagValues.end()) {
+            if (auto intValue = std::get_if<i64>(&tag.second)) {
+                label->set_num(*intValue);
+            } else if (auto strValue = std::get_if<TString>(&tag.second)) {
+                if (auto it = tagValues.find(*strValue); it != tagValues.end()) {
                     label->set_str(it->second);
                 } else {
                     auto valueId = profile.string_table_size();
-                    profile.add_string_table(*tag->StringValue);
-                    tagValues[tag] = valueId;
+                    profile.add_string_table(*strValue);
+                    tagValues[*strValue] = valueId;
                     label->set_key(valueId);
                 }
             }
@@ -371,7 +381,7 @@ NProto::Profile TCpuProfiler::ReadProfile()
             auto locationId = locations.size() + 1;
 
             auto location = profile.add_location();
-            location->set_address(reinterpret_cast<ui64>(ip));
+            location->set_address(ip);
             location->set_id(locationId);
 
             sample->add_location_id(locationId);

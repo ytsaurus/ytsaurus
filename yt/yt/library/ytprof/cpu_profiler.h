@@ -2,6 +2,7 @@
 
 #include <thread>
 #include <array>
+#include <variant>
 
 #if defined(_linux_)
 #include <sys/types.h>
@@ -9,35 +10,56 @@
 
 #include <yt/yt/library/ytprof/profile.pb.h>
 
+#include <yt/yt/library/memory/intrusive_ptr.h>
+
 #include <util/generic/hash.h>
 #include <util/datetime/base.h>
 
 #include "queue.h"
 #include "mem_reader.h"
+#include "atomic_signal_ptr.h"
 
 namespace NYT::NYTProf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCpuTagImpl;
+struct TProfilerTag final
+{
+    TString Name;
+    std::optional<TString> StringValue;
+    std::optional<i64> IntValue;
 
-typedef uint64_t TCpuProfilerTag;
+    TProfilerTag(const TString& name, const TString& value)
+        : Name(name)
+        , StringValue(value)
+    { }
 
-// NB: Tag allocation leaks memory by design.
-TCpuProfilerTag NewStringTag(const TString& name, const TString& value);
-TCpuProfilerTag NewIntTag(const TString& name, const ui64 value);
+    TProfilerTag(const TString& name, i64 value)
+        : Name(name)
+        , IntValue(value)
+    { }
+};
+
+typedef TIntrusivePtr<TProfilerTag> TProfilerTagPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Hooks for yt/yt/core fibers.
+void* AcquireFiberTagStorage();
+std::vector<std::pair<TString, std::variant<TString, i64>>> ReadFiberTags(void* storage);
+void ReleaseFiberTagStorage(void* storage);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 const int MaxActiveTags = 4;
 
 // Do not access this field directly. It is exposed here for YT fiber scheduler.
-extern thread_local std::array<volatile TCpuProfilerTag, MaxActiveTags> CpuProfilerTags;
+extern thread_local std::array<TAtomicSignalPtr<TProfilerTag>, MaxActiveTags> CpuProfilerTags;
 
 class TCpuProfilerTagGuard
 {
 public:
-    explicit TCpuProfilerTagGuard(TCpuProfilerTag tag);
+    explicit TCpuProfilerTagGuard(TProfilerTagPtr tag);
     ~TCpuProfilerTagGuard();
 
     TCpuProfilerTagGuard(TCpuProfilerTagGuard&& other);
@@ -55,8 +77,8 @@ private:
 struct TCpuSample
 {
     size_t Tid = 0;
-    std::vector<TCpuTagImpl*> Tags;
-    std::vector<void*> Backtrace;
+    std::vector<std::pair<TString, std::variant<TString, i64>>> Tags;
+    std::vector<ui64> Backtrace;
 
     bool operator == (const TCpuSample& other) const = default;
     operator size_t() const;

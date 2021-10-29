@@ -9,11 +9,11 @@ namespace NYT::NYTProf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE TCpuProfilerTagGuard::TCpuProfilerTagGuard(TCpuProfilerTag tag)
+Y_FORCE_INLINE TCpuProfilerTagGuard::TCpuProfilerTagGuard(TProfilerTagPtr tag)
 {
     for (int i = 0; i < MaxActiveTags; i++) {
-        if (CpuProfilerTags[i] == 0) {
-            CpuProfilerTags[i] = tag;
+        if (!CpuProfilerTags[i].IsSetFromThread()) {
+            CpuProfilerTags[i].StoreFromThread(std::move(tag));
             TagIndex_ = i;
             return;
         }
@@ -23,7 +23,7 @@ Y_FORCE_INLINE TCpuProfilerTagGuard::TCpuProfilerTagGuard(TCpuProfilerTag tag)
 Y_FORCE_INLINE TCpuProfilerTagGuard::~TCpuProfilerTagGuard()
 {
     if (TagIndex_ != -1) {
-        CpuProfilerTags[TagIndex_] = 0;
+        CpuProfilerTags[TagIndex_].StoreFromThread(nullptr);
     }
 }
 
@@ -36,7 +36,7 @@ Y_FORCE_INLINE TCpuProfilerTagGuard::TCpuProfilerTagGuard(TCpuProfilerTagGuard&&
 Y_FORCE_INLINE TCpuProfilerTagGuard& TCpuProfilerTagGuard::operator = (TCpuProfilerTagGuard&& other)
 {
     if (TagIndex_ != -1) {
-        CpuProfilerTags[TagIndex_] = 0;
+        CpuProfilerTags[TagIndex_].StoreFromThread(nullptr);
     }
 
     other.TagIndex_ = -1;
