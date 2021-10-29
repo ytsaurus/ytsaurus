@@ -86,12 +86,12 @@ private:
 
 } // namespace NDetail
 
-using TLookupRows = google::sparsehash::dense_hash_set<
+using TLookupRows = google::dense_hash_set<
     const TValue*,
     NDetail::TGroupHasher,
     NDetail::TRowComparer>;
 
-using TJoinLookup = google::sparsehash::dense_hash_map<
+using TJoinLookup = google::dense_hash_map<
     const TValue*,
     std::pair<int, bool>,
     NDetail::TGroupHasher,
@@ -124,7 +124,7 @@ struct TMultiJoinClosure
 {
     TRowBufferPtr Buffer;
 
-    typedef google::sparsehash::dense_hash_set<
+    typedef google::dense_hash_set<
         TValue*,
         NDetail::TGroupHasher,
         NDetail::TRowComparer> THashJoinLookup;  // + slot after row
