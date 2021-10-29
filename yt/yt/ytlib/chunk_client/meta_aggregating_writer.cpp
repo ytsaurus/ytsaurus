@@ -332,6 +332,9 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
 
     i64 totalBlockCount = std::ssize(BlockMetaExt_.blocks());
     if (Options_->MaxBlockCount && totalBlockCount > *Options_->MaxBlockCount) {
+        // NB. This error, in fact, doesn't mean that the metas are incompatible. It's used to indicate that
+        // we cannot perform shallow merge of the given chunks, as the amount of blocks is too large, preventing
+        // shallow merge jobs from running.
         THROW_ERROR_EXCEPTION(
             EErrorCode::IncompatibleChunkMetas,
             "Too many blocks")
