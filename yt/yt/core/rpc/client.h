@@ -454,8 +454,6 @@ struct TMethodDescriptor
 class TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY_METHOD(NProto, Discover);
-
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, DefaultTimeout);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, DefaultAcknowledgementTimeout);
     DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, DefaultRequestCodec, NCompression::ECodec::None);
@@ -486,6 +484,8 @@ public:
     TGenericProxy(
         IChannelPtr channel,
         const TServiceDescriptor& descriptor);
+
+    DEFINE_RPC_PROXY_METHOD(NProto, Discover);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
