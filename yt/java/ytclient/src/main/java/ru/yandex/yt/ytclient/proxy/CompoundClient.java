@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.proxy;
 
+import java.io.Closeable;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -11,7 +12,7 @@ import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.ytclient.proxy.request.MountTable;
 import ru.yandex.yt.ytclient.proxy.request.UnmountTable;
 
-public interface CompoundClient extends ApiServiceClient {
+public interface CompoundClient extends ApiServiceClient, Closeable {
     /**
      * Retry specified action inside tablet transaction.
      * <p>

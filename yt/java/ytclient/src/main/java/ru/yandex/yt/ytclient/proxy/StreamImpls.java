@@ -810,7 +810,9 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
         firstBufferHandled = firstBuffer.handled;
         this.buffer = firstBuffer;
 
-        this.init = apiServiceClient.startTransaction(StartTransaction.master())
+        StartTransaction transactionRequest = StartTransaction.master();
+        req.getTransactionId().ifPresent(transactionRequest::setParentId);
+        this.init = apiServiceClient.startTransaction(transactionRequest)
                 .thenCompose(transaction -> {
                     CompletableFuture<?> createNodeFuture;
                     if (!append) {

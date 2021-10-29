@@ -1,6 +1,5 @@
 package ru.yandex.yt.ytclient.proxy;
 
-import java.io.Closeable;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -29,7 +28,7 @@ import ru.yandex.yt.ytclient.rpc.RpcOptions;
 /**
  * Client that provides compound commands over YT (e.g. mount table and wait all tablets are mounted).
  */
-public abstract class CompoundClientImpl extends ApiServiceClientImpl implements CompoundClient, Closeable {
+public abstract class CompoundClientImpl extends ApiServiceClientImpl implements CompoundClient {
     private final ScheduledExecutorService executorService;
 
     public CompoundClientImpl(ScheduledExecutorService executorService, RpcOptions options, Executor heavyExecutor) {
