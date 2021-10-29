@@ -420,7 +420,7 @@ class TestUpdateInstanceLimits(YTEnvSetup):
         wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 0)
         wait(lambda: get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node)) == 0)
 
-        set_node_resource_targets(node, cpu_limit=5, memory_limit=5 * 1024**3)
+        set_node_resource_targets(node, cpu_limit=5000, memory_limit=5 * 1024**3)
         wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 4)
         wait(lambda: get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node)) > 0)
 

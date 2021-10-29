@@ -20,6 +20,8 @@ using namespace NRpc;
 static constexpr TStringBuf CpuResourceName = "cpu";
 static constexpr TStringBuf MemoryResourceName = "memory";
 
+static constexpr int MilliCpusInCpu = 1000;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TArbitrageService
@@ -47,8 +49,8 @@ public:
         };
 
         const auto& nodeResourceManager = Bootstrap_->GetNodeResourceManager();
-        auto cpuUsage = std::ceil(nodeResourceManager->GetCpuUsage());
-        auto cpuDemand = std::ceil(nodeResourceManager->GetCpuDemand());
+        auto cpuUsage = std::ceil(nodeResourceManager->GetCpuUsage() * MilliCpusInCpu);
+        auto cpuDemand = std::ceil(nodeResourceManager->GetCpuDemand() * MilliCpusInCpu);
         auto memoryUsage = nodeResourceManager->GetMemoryUsage();
         auto memoryDemand = nodeResourceManager->GetMemoryDemand();
 
@@ -72,11 +74,11 @@ public:
             THROW_ERROR_EXCEPTION("Cannot set resource targets via arbiter: instance limits tracker is on");
         }
 
-        std::optional<i64> cpuLimit;
+        std::optional<double> cpuLimit;
         std::optional<i64> memoryLimit;
         for (const auto& resource : request->resources()) {
             if (resource.kind() == CpuResourceName) {
-                cpuLimit = resource.target();
+                cpuLimit = static_cast<double>(resource.target()) / MilliCpusInCpu;
             } else if (resource.kind() == MemoryResourceName) {
                 memoryLimit = resource.target();
             } else {
