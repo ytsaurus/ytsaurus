@@ -88,7 +88,7 @@ public:
         ITransactionLeaseTrackerPtr transactionLeaseTracker)
         : TTabletAutomatonPart(
             host->GetCellId(),
-            host->GetHydraManager(),
+            host->GetSimpleHydraManager(),
             host->GetAutomaton(),
             host->GetAutomatonInvoker())
         , Host_(host)

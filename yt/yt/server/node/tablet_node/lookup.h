@@ -23,7 +23,8 @@ void LookupRows(
 
 void VersionedLookupRows(
     const TTabletSnapshotPtr& tabletSnapshot,
-    TTimestamp timestampRange,
+    TTimestamp timestamp,
+    bool useLookupCache,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const NTableClient::TRetentionConfigPtr& retentionConfig,
     NTableClient::TWireProtocolReader* reader,

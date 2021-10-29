@@ -2,6 +2,8 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
+#include "tablet_context_mock.h"
+
 #include <yt/yt/server/lib/tablet_node/config.h>
 #include <yt/yt/server/node/tablet_node/sorted_dynamic_store.h>
 #include <yt/yt/server/node/tablet_node/sorted_store_manager.h>
@@ -42,7 +44,6 @@
 #include <yt/yt/core/misc/optional.h>
 
 namespace NYT::NTabletNode {
-namespace {
 
 using namespace NHydra;
 using namespace NObjectClient;
@@ -56,98 +57,91 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicStoreTestBase
-    : public ::testing::Test
-    , public ITabletContext
+inline TVersionedOwningRow BuildVersionedRow(
+    const TString& keyYson,
+    const TString& valueYson,
+    const std::vector<TTimestamp>& deleteTimestamps = std::vector<TTimestamp>(),
+    const std::vector<TTimestamp>& extraWriteTimestamps = std::vector<TTimestamp>())
 {
-protected:
-    // ITabletContext implementation.
-    TCellId GetCellId() override
-    {
-        return NullCellId;
+    return NTableClient::YsonToVersionedRow(keyYson, valueYson, deleteTimestamps, extraWriteTimestamps);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline bool AreRowsEqualImpl(TUnversionedRow row, const char* yson, const TNameTablePtr& nameTable)
+{
+    if (!row && !yson) {
+        return true;
     }
 
-    const TString& GetTabletCellBundleName() override
-    {
-        const static TString TabletCellBundleName;
-        return TabletCellBundleName;
+    if (!row || !yson) {
+        return false;
     }
 
-    EPeerState GetAutomatonState() override
-    {
-        return EPeerState::Leading;
-    }
+    auto expectedRowParts = ConvertTo<THashMap<TString, INodePtr>>(
+        TYsonString(TString(yson), EYsonType::MapFragment));
 
-    IColumnEvaluatorCachePtr GetColumnEvaluatorCache() override
-    {
-        return ColumnEvaluatorCache_;
-    }
+    for (int index = 0; index < static_cast<int>(row.GetCount()); ++index) {
+        const auto& value = row[index];
+        const auto& name = nameTable->GetName(value.Id);
+        auto it = expectedRowParts.find(name);
+        switch (value.Type) {
+            case EValueType::Int64:
+                if (it == expectedRowParts.end()) {
+                    return false;
+                }
+                if (it->second->GetValue<i64>() != value.Data.Int64) {
+                    return false;
+                }
+                break;
 
-    NTabletNode::IRowComparerProviderPtr GetRowComparerProvider() override
-    {
-        return RowComparerProvider_;
-    }
+            case EValueType::Uint64:
+                if (it == expectedRowParts.end()) {
+                    return false;
+                }
+                if (it->second->GetValue<ui64>() != value.Data.Uint64) {
+                    return false;
+                }
+                break;
 
-    TObjectId GenerateId(EObjectType /*type*/) override
-    {
-        return TObjectId::Create();
-    }
+            case EValueType::Double:
+                if (it == expectedRowParts.end()) {
+                    return false;
+                }
+                if (it->second->GetValue<double>() != value.Data.Double) {
+                    return false;
+                }
+                break;
 
-    IStorePtr CreateStore(
-        TTablet* tablet,
-        EStoreType type,
-        TStoreId storeId,
-        const NTabletNode::NProto::TAddStoreDescriptor* /*descriptor*/) override
-    {
-        switch (type) {
-            case EStoreType::SortedDynamic:
-                return New<TSortedDynamicStore>(
-                    New<TTabletManagerConfig>(),
-                    storeId,
-                    tablet);
-            case EStoreType::OrderedDynamic:
-                return New<TOrderedDynamicStore>(
-                    New<TTabletManagerConfig>(),
-                    storeId,
-                    tablet);
+            case EValueType::String:
+                if (it == expectedRowParts.end()) {
+                    return false;
+                }
+                if (it->second->GetValue<TString>() != TString(value.Data.String, value.Length)) {
+                    return false;
+                }
+                break;
+
+            case EValueType::Null:
+                if (it != expectedRowParts.end()) {
+                    return false;
+                }
+                break;
+
             default:
                 YT_ABORT();
         }
     }
 
-    THunkChunkPtr CreateHunkChunk(
-        TTablet* /*tablet*/,
-        TChunkId /*chunkId*/,
-        const NTabletNode::NProto::TAddHunkChunkDescriptor* /*descriptor*/) override
-    {
-        YT_ABORT();
-    }
+    return true;
+}
 
-    TTransactionManagerPtr GetTransactionManager() override
-    {
-        return nullptr;
-    }
+////////////////////////////////////////////////////////////////////////////////
 
-    NRpc::IServerPtr GetLocalRpcServer() override
-    {
-        return nullptr;
-    }
-
-    TString GetLocalHostName() override
-    {
-        return TString();
-    }
-
-    NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() override
-    {
-        return NNodeTrackerClient::NullNodeDescriptor();
-    }
-
-    NClusterNode::TNodeMemoryTrackerPtr GetMemoryUsageTracker() override
-    {
-        return nullptr;
-    }
-
+class TDynamicStoreTestBase
+    : public ::testing::Test
+{
+protected:
     virtual IStoreManagerPtr CreateStoreManager(TTablet* /*tablet*/)
     {
         return nullptr;
@@ -173,7 +167,7 @@ protected:
             0,
             NullObjectId,
             "ut",
-            this,
+            &TabletContext_,
             /*schemaId*/ NullObjectId,
             schema,
             sorted ? MinKey() : TLegacyOwningKey(),
@@ -265,7 +259,7 @@ protected:
 
     bool AreRowsEqual(TUnversionedRow row, const char* yson)
     {
-        return AreRowsEqual(row, yson, NameTable_);
+        return AreRowsEqualImpl(row, yson, NameTable_);
     }
 
     bool AreQueryRowsEqual(TUnversionedRow row, const TString& yson)
@@ -275,75 +269,7 @@ protected:
 
     bool AreQueryRowsEqual(TUnversionedRow row, const char* yson)
     {
-        return AreRowsEqual(row, yson, QueryNameTable_);
-    }
-
-    static bool AreRowsEqual(TUnversionedRow row, const char* yson, const TNameTablePtr& nameTable)
-    {
-        if (!row && !yson) {
-            return true;
-        }
-
-        if (!row || !yson) {
-            return false;
-        }
-
-        auto expectedRowParts = ConvertTo<THashMap<TString, INodePtr>>(
-            TYsonString(TString(yson), EYsonType::MapFragment));
-
-        for (int index = 0; index < static_cast<int>(row.GetCount()); ++index) {
-            const auto& value = row[index];
-            const auto& name = nameTable->GetName(value.Id);
-            auto it = expectedRowParts.find(name);
-            switch (value.Type) {
-                case EValueType::Int64:
-                    if (it == expectedRowParts.end()) {
-                        return false;
-                    }
-                    if (it->second->GetValue<i64>() != value.Data.Int64) {
-                        return false;
-                    }
-                    break;
-
-                case EValueType::Uint64:
-                    if (it == expectedRowParts.end()) {
-                        return false;
-                    }
-                    if (it->second->GetValue<ui64>() != value.Data.Uint64) {
-                        return false;
-                    }
-                    break;
-
-                case EValueType::Double:
-                    if (it == expectedRowParts.end()) {
-                        return false;
-                    }
-                    if (it->second->GetValue<double>() != value.Data.Double) {
-                        return false;
-                    }
-                    break;
-
-                case EValueType::String:
-                    if (it == expectedRowParts.end()) {
-                        return false;
-                    }
-                    if (it->second->GetValue<TString>() != TString(value.Data.String, value.Length)) {
-                        return false;
-                    }
-                    break;
-
-                case EValueType::Null:
-                    if (it != expectedRowParts.end()) {
-                        return false;
-                    }
-                    break;
-
-                default:
-                    YT_ABORT();
-            }
-        }
-
-        return true;
+        return AreRowsEqualImpl(row, yson, QueryNameTable_);
     }
 
 
@@ -390,16 +316,12 @@ protected:
 
 
 
-    const IColumnEvaluatorCachePtr ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(
-        New<TColumnEvaluatorCacheConfig>());
-
-    const NTabletNode::IRowComparerProviderPtr RowComparerProvider_ = CreateRowComparerProvider(New<TSlruCacheConfig>());
-
     TNameTablePtr NameTable_;
     TNameTablePtr QueryNameTable_;
     std::unique_ptr<TTablet> Tablet_;
     TTimestamp CurrentTimestamp_ = 10000; // some reasonable starting point
     NChunkClient::TClientChunkReadOptions ChunkReadOptions_;
+    TTabletContextMock TabletContext_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -428,6 +350,5 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace
 } // namespace NYT::NTabletNode
 

@@ -25,7 +25,7 @@ namespace NYT::NTabletNode {
 struct ITransactionManagerHost
     : public virtual TRefCounted
 {
-    virtual NHydra::IDistributedHydraManagerPtr GetHydraManager() = 0;
+    virtual NHydra::ISimpleHydraManagerPtr GetSimpleHydraManager() = 0;
     virtual const NHydra::TCompositeAutomatonPtr& GetAutomaton() = 0;
     virtual IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) = 0;
     virtual IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) = 0;
@@ -64,6 +64,28 @@ public:
     //! to help all dependent subsystems to reset their transient transaction-related
     //! state.
     DECLARE_SIGNAL(void(TTransaction*), TransactionTransientReset);
+
+    /// ITransactionManager overrides.
+    TFuture<void> GetReadyToPrepareTransactionCommit(
+        const std::vector<TTransactionId>& prerequisiteTransactionIds,
+        const std::vector<TCellId>& cellIdsToSyncWith) override;
+    void PrepareTransactionCommit(
+        TTransactionId transactionId,
+        bool persistent,
+        TTimestamp prepareTimestamp,
+        const std::vector<TTransactionId>& prerequisiteTransactionIds) override;
+    void PrepareTransactionAbort(
+        TTransactionId transactionId,
+        bool force) override;
+    void CommitTransaction(
+        TTransactionId transactionId,
+        TTimestamp commitTimestamp) override;
+    void AbortTransaction(
+        TTransactionId transactionId,
+        bool force) override;
+    void PingTransaction(
+        TTransactionId transactionId,
+        bool pingAncestors) override;
 
 public:
     TTransactionManager(
@@ -120,28 +142,6 @@ public:
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
-
-    /// ITransactionManager overrides.
-    TFuture<void> GetReadyToPrepareTransactionCommit(
-        const std::vector<TTransactionId>& prerequisiteTransactionIds,
-        const std::vector<TCellId>& cellIdsToSyncWith) override;
-    void PrepareTransactionCommit(
-        TTransactionId transactionId,
-        bool persistent,
-        TTimestamp prepareTimestamp,
-        const std::vector<TTransactionId>& prerequisiteTransactionIds) override;
-    void PrepareTransactionAbort(
-        TTransactionId transactionId,
-        bool force) override;
-    void CommitTransaction(
-        TTransactionId transactionId,
-        TTimestamp commitTimestamp) override;
-    void AbortTransaction(
-        TTransactionId transactionId,
-        bool force) override;
-    void PingTransaction(
-        TTransactionId transactionId,
-        bool pingAncestors) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransactionManager)

@@ -21,7 +21,7 @@ protected:
         StoreManager_ = New<TOrderedStoreManager>(
             New<TTabletManagerConfig>(),
             tablet,
-            this);
+            &TabletContext_);
         return StoreManager_;
     }
 

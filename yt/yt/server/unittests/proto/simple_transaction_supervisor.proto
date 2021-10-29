@@ -1,0 +1,21 @@
+package NYT.NHiveServer.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPrepareTransactionCommit
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required bool persistent = 2;
+    required uint64 prepare_timestamp = 3;
+}
+
+message TReqCommitTransaction
+{
+  required NYT.NProto.TGuid transaction_id = 1;
+  required uint64 commit_timestamp = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
