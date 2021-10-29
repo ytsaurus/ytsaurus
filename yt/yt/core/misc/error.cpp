@@ -375,6 +375,17 @@ TErrorCode TError::GetNonTrivialCode() const
     return GetCode();
 }
 
+THashSet<TErrorCode> TError::GetDistinctNonTrivialErrorCodes() const
+{
+    THashSet<TErrorCode> result;
+    TraverseError(*this, [&result] (const TError& error, int /*depth*/) {
+        if (auto errorCode = error.GetCode(); errorCode != NYT::EErrorCode::OK) {
+            result.insert(errorCode);
+        }
+    });
+    return result;
+}
+
 const TString& TError::GetMessage() const
 {
     if (!Impl_) {

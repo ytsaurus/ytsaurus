@@ -355,6 +355,8 @@ public:
     // we want to see it in the structured log.
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, RequestPath);
 
+    TLogger Logger;
+
 public:
     using TTypedServiceContext<TRequestMessage, TResponseMessage>::TTypedServiceContext;
 
@@ -371,11 +373,16 @@ public:
 
     void LogStructured() const
     {
-        if (EmitMain_) {
-            DoEmitMain();
-        }
-        if (EmitError_) {
-            DoEmitError();
+        // Throwing an exception here leads to a double reply, so wrap with try-catch.
+        try {
+            if (EmitMain_) {
+                DoEmitMain();
+            }
+            if (EmitError_) {
+                DoEmitError();
+            }
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(TError(ex), "Error while logging structured event");
         }
     }
 
@@ -405,6 +412,11 @@ private:
         auto hashedCredentials = NAuth::HashCredentials(credentialsExt);
         const auto& traceContext = this->GetTraceContext();
 
+        const auto& error = GetFinalError();
+        auto errorCodeSet = error.GetDistinctNonTrivialErrorCodes();
+        std::vector<TErrorCode> errorCodes(errorCodeSet.begin(), errorCodeSet.end());
+        std::sort(errorCodes.begin(), errorCodes.end());
+
         LogStructuredEventFluently(RpcProxyStructuredLoggerMain, ELogLevel::Info)
             .Item("request_id").Value(this->GetRequestId())
             .Item("endpoint").Value(this->GetEndpointAttributes())
@@ -423,7 +435,9 @@ private:
                 fluent
                     .Item("trace_id").Value(traceContext->GetTraceId());
             })
-            .Item("error").Value(GetFinalError())
+            .Item("error").Value(error)
+            .Item("error_skeleton").Value(error.GetSkeleton())
+            .Item("error_codes").Value(errorCodes)
             .OptionalItem("user_agent", YT_PROTO_OPTIONAL(header, user_agent))
             .OptionalItem("request_body_size", GetMessageBodySize(this->GetRequestMessage()))
             .OptionalItem("request_attachment_total_size", GetTotalMessageAttachmentSize(this->GetRequestMessage()))
@@ -439,7 +453,6 @@ private:
             .Item("execution_time").Value(this->GetExecutionDuration())
             .Item("finish_instant").Value(this->GetFinishInstant())
             .OptionalItem("cpu_time", this->GetTraceContextTime());
-            // TODO(max42): bundles and table paths for dynamic table transactional commands.
     }
 
     void DoEmitError() const
@@ -449,10 +462,14 @@ private:
         // for all methods by default. Messages are emitted only for requests resulted
         // in errors.
 
-        auto error = GetFinalError();
+        const auto& error = GetFinalError();
         if (error.IsOK()) {
             return;
         }
+
+        auto errorCodeSet = error.GetDistinctNonTrivialErrorCodes();
+        std::vector<TErrorCode> errorCodes(errorCodeSet.begin(), errorCodeSet.end());
+        std::sort(errorCodes.begin(), errorCodes.end());
 
         LogStructuredEventFluently(RpcProxyStructuredLoggerError, ELogLevel::Info)
             .Item("request_id").Value(this->GetRequestId())
@@ -460,7 +477,9 @@ private:
             .Item("method").Value(this->GetMethod())
             .OptionalItem("path", RequestPath_)
             .Item("identity").Value(this->GetAuthenticationIdentity())
-            .Item("error").Value(error);
+            .Item("error").Value(error)
+            .Item("error_skeleton").Value(error.GetSkeleton())
+            .Item("error_codes").Value(errorCodes);
             // TODO(max42): YT-15042. Add error skeleton.
     }
 };
@@ -671,6 +690,9 @@ private:
     void InitContext(const TIntrusivePtr<TApiServiceContext<TRequestMessage, TResponseMessage>>& context)
     {
         using TContext = NYT::NRpcProxy::TApiServiceContext<TRequestMessage, TResponseMessage>;
+
+        context->Logger = Logger
+            .WithTag("RequestId: %v", context->GetRequestId());
 
         // First, recover request path from the typed request context using the incredible power of C++20 concepts.
         std::optional<TString> requestPath;

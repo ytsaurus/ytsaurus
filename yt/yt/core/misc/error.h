@@ -94,6 +94,7 @@ public:
     TError& SetCode(TErrorCode code);
 
     TErrorCode GetNonTrivialCode() const;
+    THashSet<TErrorCode> GetDistinctNonTrivialErrorCodes() const;
 
     const TString& GetMessage() const;
     TError& SetMessage(TString message);
