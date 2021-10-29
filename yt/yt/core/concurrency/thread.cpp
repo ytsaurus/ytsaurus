@@ -52,8 +52,8 @@ bool TThread::StartSlow()
         return false;
     }
 
-    if (IsShutdownLoggingEnabled()) {
-        ::fprintf(stderr, "*** Starting thread (ThreadName: %s)\n",
+    if (auto* logFile = GetShutdownLogFile()) {
+        ::fprintf(logFile, "*** Starting thread (ThreadName: %s)\n",
             ThreadName_.c_str());
     }
 
@@ -74,8 +74,8 @@ bool TThread::StartSlow()
 
     StartEpilogue();
 
-    if (IsShutdownLoggingEnabled()) {
-        ::fprintf(stderr, "*** Thread started (ThreadName: %s, ThreadId: %" PRISZT ")\n",
+    if (auto* logFile = GetShutdownLogFile()) {
+        ::fprintf(logFile, "*** Thread started (ThreadName: %s, ThreadId: %" PRISZT ")\n",
             ThreadName_.c_str(),
             ThreadId_);
     }
@@ -102,16 +102,16 @@ void TThread::Stop()
             guard.Release();
             // Avoid deadlock.
             if (CanWaitForThreadShutdown()) {
-                if (IsShutdownLoggingEnabled()) {
-                    ::fprintf(stderr, "*** Waiting for an already stopping thread to finish (ThreadName: %s, ThreadId: %" PRISZT ", WaiterThreadId: %" PRISZT ")\n",
+                if (auto* logFile = GetShutdownLogFile()) {
+                    ::fprintf(logFile, "*** Waiting for an already stopping thread to finish (ThreadName: %s, ThreadId: %" PRISZT ", WaiterThreadId: %" PRISZT ")\n",
                         ThreadName_.c_str(),
                         ThreadId_,
                         GetCurrentThreadId());
                 }
                 StoppedEvent_.Wait();
             } else {
-                if (IsShutdownLoggingEnabled()) {
-                    ::fprintf(stderr, "*** Cannot wait for an already stopping thread to finish (ThreadName: %s, ThreadId: %" PRISZT ", WaiterThreadId: %" PRISZT ")\n",
+                if (auto* logFile = GetShutdownLogFile()) {
+                    ::fprintf(logFile, "*** Cannot wait for an already stopping thread to finish (ThreadName: %s, ThreadId: %" PRISZT ", WaiterThreadId: %" PRISZT ")\n",
                         ThreadName_.c_str(),
                         ThreadId_,
                         GetCurrentThreadId());
@@ -121,8 +121,8 @@ void TThread::Stop()
         }
     }
 
-    if (IsShutdownLoggingEnabled()) {
-        ::fprintf(stderr, "*** Stopping thread (ThreadName: %s, ThreadId: %" PRISZT ", RequesterThreadId: %" PRISZT ")\n",
+    if (auto* logFile = GetShutdownLogFile()) {
+        ::fprintf(logFile, "*** Stopping thread (ThreadName: %s, ThreadId: %" PRISZT ", RequesterThreadId: %" PRISZT ")\n",
             ThreadName_.c_str(),
             ThreadId_,
             GetCurrentThreadId());
@@ -132,16 +132,16 @@ void TThread::Stop()
 
     // Avoid deadlock.
     if (CanWaitForThreadShutdown()) {
-        if (IsShutdownLoggingEnabled()) {
-            ::fprintf(stderr, "*** Waiting for thread to stop (ThreadName: %s, ThreadId: %" PRISZT ", RequesterThreadId: %" PRISZT ")\n",
+        if (auto* logFile = GetShutdownLogFile()) {
+            ::fprintf(logFile, "*** Waiting for thread to stop (ThreadName: %s, ThreadId: %" PRISZT ", RequesterThreadId: %" PRISZT ")\n",
                 ThreadName_.c_str(),
                 ThreadId_,
                 GetCurrentThreadId());
         }
         UnderlyingThread_.Join();
     } else {
-        if (IsShutdownLoggingEnabled()) {
-            ::fprintf(stderr, "*** Cannot wait for thread to stop; detaching (ThreadName: %s, ThreadId: %" PRISZT ", RequesterThreadId: %" PRISZT ")\n",
+        if (auto* logFile = GetShutdownLogFile()) {
+            ::fprintf(logFile, "*** Cannot wait for thread to stop; detaching (ThreadName: %s, ThreadId: %" PRISZT ", RequesterThreadId: %" PRISZT ")\n",
                 ThreadName_.c_str(),
                 ThreadId_,
                 GetCurrentThreadId());
@@ -151,8 +151,8 @@ void TThread::Stop()
 
     StopEpilogue();
 
-    if (IsShutdownLoggingEnabled()) {
-        ::fprintf(stderr, "*** Thread stopped (ThreadName: %s, ThreadId: %" PRISZT ", RequesterThreadId: %" PRISZT ")\n",
+    if (auto* logFile = GetShutdownLogFile()) {
+        ::fprintf(logFile, "*** Thread stopped (ThreadName: %s, ThreadId: %" PRISZT ", RequesterThreadId: %" PRISZT ")\n",
             ThreadName_.c_str(),
             ThreadId_,
             GetCurrentThreadId());
@@ -182,8 +182,8 @@ void TThread::ThreadMainTrampoline()
         ~TExitInterceptor()
         {
             if (Armed_ && !std::uncaught_exception()) {
-                if (IsShutdownLoggingEnabled()) {
-                    fprintf(stderr, "Thread exit interceptor triggered (ThreadId: %" PRISZT ")\n",
+                if (auto* logFile = GetShutdownLogFile()) {
+                    ::fprintf(logFile, "Thread exit interceptor triggered (ThreadId: %" PRISZT ")\n",
                         GetCurrentThreadId());
                 }
                 Shutdown();

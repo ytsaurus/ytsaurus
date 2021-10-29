@@ -114,7 +114,7 @@ Y_TEST_HOOK_BEFORE_RUN(GTEST_YT_SETUP)
 #ifdef _unix_
     ::signal(SIGPIPE, SIG_IGN);
 #endif
-    NYT::EnableShutdownLogging();
+    NYT::EnableShutdownLoggingToFile(GetOutputPath().GetPath() + "/shutdown.log");
     NYT::TSignalRegistry::Get()->PushCallback(NYT::AllCrashSignals, NYT::CrashSignalHandler);
     NYT::TSignalRegistry::Get()->PushDefaultSignalHandler(NYT::AllCrashSignals);
     NYT::NYTAlloc::EnableYTLogging();

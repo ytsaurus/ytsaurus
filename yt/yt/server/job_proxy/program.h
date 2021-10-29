@@ -55,7 +55,7 @@ protected:
     {
         TThread::SetCurrentThreadName("JobProxyMain");
 
-        EnableShutdownLogging();
+        EnableShutdownLoggingToStderr();
         ConfigureUids();
         ConfigureIgnoreSigpipe();
         ConfigureCrashHandler();
