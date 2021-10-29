@@ -22,17 +22,27 @@ public:
 
     void Start();
 
+    void OnDynamicConfigChanged(
+        const TExecNodeDynamicConfigPtr& oldConfig,
+        const TExecNodeDynamicConfigPtr& newConfig);
+
 private:
-    const TSchedulerConnectorConfigPtr Config_;
+    const TSchedulerConnectorConfigPtr StaticConfig_;
+    TSchedulerConnectorConfigPtr CurrentConfig_;
     IBootstrap* const Bootstrap_;
 
     const NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
 
-    TInstant LastSentHeartbeatTime_;
-    TInstant LastFullyProcessedHeartbeatTime_;
-    TInstant LastThrottledHeartbeatTime_;
-    TInstant LastFailedHeartbeatTime_;
-    TDuration FailedHeartbeatBackoffTime_;
+    struct THeartbeatInfo
+    {
+        TInstant LastSentHeartbeatTime;
+        TInstant LastFullyProcessedHeartbeatTime;
+        TInstant LastThrottledHeartbeatTime;
+        TInstant LastFailedHeartbeatTime;
+        TDuration FailedHeartbeatBackoffTime;
+    };
+
+    THeartbeatInfo HeartbeatInfo_;
 
     NProfiling::TEventTimer TimeBetweenSentHeartbeatsCounter_;
     NProfiling::TEventTimer TimeBetweenAcknowledgedHeartbeatsCounter_;

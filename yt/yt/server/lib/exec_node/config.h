@@ -288,15 +288,7 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerConnectorConfig)
 class TControllerAgentConnectorConfig
     : public THeartbeatReporterConfigBase
 {
-public:
-    TDuration OutdatedIncarnationScanPeriod;
-
-    TControllerAgentConnectorConfig()
-        : THeartbeatReporterConfigBase()
-    {
-        RegisterParameter("outdated_incarnation_scan_period", OutdatedIncarnationScanPeriod)
-            .Default(TDuration::Minutes(10));
-    }
+    using THeartbeatReporterConfigBase::THeartbeatReporterConfigBase;
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorConfig)
@@ -562,6 +554,70 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class THeartbeatReporterDynamicConfigBase
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Period between consequent heartbeats.
+    std::optional<TDuration> HeartbeatPeriod;
+
+    //! Random delay before first heartbeat.
+    std::optional<TDuration> HeartbeatSplay;
+
+    //! Start backoff for sending the next heartbeat after a failure.
+    std::optional<TDuration> FailedHeartbeatBackoffStartTime;
+
+    //! Maximum backoff for sending the next heartbeat after a failure.
+    std::optional<TDuration> FailedHeartbeatBackoffMaxTime;
+
+    //! Backoff mulitplier for sending the next heartbeat after a failure.
+    std::optional<double> FailedHeartbeatBackoffMultiplier;
+
+    THeartbeatReporterDynamicConfigBase()
+    {
+        RegisterParameter("heartbeat_period", HeartbeatPeriod)
+            .Default();
+        RegisterParameter("heartbeat_splay", HeartbeatSplay)
+            .Default();
+        RegisterParameter("failed_heartbeat_backoff_start_time", FailedHeartbeatBackoffStartTime)
+            .GreaterThan(TDuration::Zero())
+            .Default();
+        RegisterParameter("failed_heartbeat_backoff_max_time", FailedHeartbeatBackoffMaxTime)
+            .GreaterThan(TDuration::Zero())
+            .Default();
+        RegisterParameter("failed_heartbeat_backoff_multiplier", FailedHeartbeatBackoffMultiplier)
+            .GreaterThanOrEqual(1.0)
+            .Default();
+    }
+};
+
+void MergeHeartbeatReporterConfigs(
+    THeartbeatReporterConfigBase& configToSet,
+    const THeartbeatReporterConfigBase& staticConfig,
+    const THeartbeatReporterDynamicConfigBase& dynamicConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchedulerConnectorDynamicConfig
+    : public THeartbeatReporterDynamicConfigBase
+{
+    using THeartbeatReporterDynamicConfigBase::THeartbeatReporterDynamicConfigBase;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSchedulerConnectorDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TControllerAgentConnectorDynamicConfig
+    : public THeartbeatReporterDynamicConfigBase
+{
+    using THeartbeatReporterDynamicConfigBase::THeartbeatReporterDynamicConfigBase;
+};
+
+DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSlotManagerDynamicConfig
     : public NYTree::TYsonSerializable
 {
@@ -608,6 +664,9 @@ public:
 
     NJobAgent::TJobControllerDynamicConfigPtr JobController;
 
+    TSchedulerConnectorDynamicConfigPtr SchedulerConnector;
+    TControllerAgentConnectorDynamicConfigPtr ControllerAgentConnector;
+
     TExecNodeDynamicConfig()
     {
         RegisterParameter("master_connector", MasterConnector)
@@ -621,6 +680,12 @@ public:
 
         RegisterParameter("job_controller", JobController)
             .DefaultNew();
+        
+        RegisterParameter("scheduler_connector", SchedulerConnector)
+            .Default();
+        
+        RegisterParameter("controller_agent_connector", ControllerAgentConnector)
+            .Default();
     }
 };
 

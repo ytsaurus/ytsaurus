@@ -304,7 +304,7 @@ private:
     }
 
     void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
+        const TClusterNodeDynamicConfigPtr& oldConfig,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
         for (auto kind : TEnumTraits<EExecNodeThrottlerKind>::GetDomainValues()) {
@@ -315,6 +315,9 @@ private:
             config = ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(config);
             RawThrottlers_[kind]->Reconfigure(std::move(config));
         }
+
+        SchedulerConnector_->OnDynamicConfigChanged(oldConfig->ExecNode, newConfig->ExecNode);
+        GetControllerAgentConnectorPool()->OnDynamicConfigChanged(oldConfig->ExecNode, newConfig->ExecNode);
     }
 
     static EDataNodeThrottlerKind GetDataNodeThrottlerKind(EExecNodeThrottlerKind kind)

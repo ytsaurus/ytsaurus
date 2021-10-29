@@ -41,13 +41,14 @@ static const auto& Logger = ExecNodeLogger;
 TSchedulerConnector::TSchedulerConnector(
     TSchedulerConnectorConfigPtr config,
     IBootstrap* bootstrap)
-    : Config_(config)
+    : StaticConfig_(config)
+    , CurrentConfig_(CloneYsonSerializable(StaticConfig_))
     , Bootstrap_(bootstrap)
     , HeartbeatExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetControlInvoker(),
         BIND(&TSchedulerConnector::SendHeartbeat, MakeWeak(this)),
-        Config_->HeartbeatPeriod,
-        Config_->HeartbeatSplay))
+        StaticConfig_->HeartbeatPeriod,
+        StaticConfig_->HeartbeatSplay))
     , TimeBetweenSentHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_sent_heartbeats"))
     , TimeBetweenAcknowledgedHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_acknowledged_heartbeats"))
     , TimeBetweenFullyProcessedHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_fully_processed_heartbeats"))
@@ -69,6 +70,24 @@ void TSchedulerConnector::Start()
     HeartbeatExecutor_->Start();
 }
 
+void TSchedulerConnector::OnDynamicConfigChanged(
+    const TExecNodeDynamicConfigPtr& oldConfig,
+    const TExecNodeDynamicConfigPtr& newConfig)
+{
+    if (newConfig->SchedulerConnector == nullptr && oldConfig->SchedulerConnector == nullptr) {
+        return;
+    }
+
+    Bootstrap_->GetControlInvoker()->Invoke(BIND([this, this_ = MakeStrong(this), newConfig{std::move(newConfig)}] {
+        if (newConfig->SchedulerConnector == nullptr) {
+            CurrentConfig_ = StaticConfig_;
+        } else {
+            MergeHeartbeatReporterConfigs(*CurrentConfig_, *StaticConfig_, *newConfig->SchedulerConnector);
+        }
+        HeartbeatExecutor_->SetPeriod(CurrentConfig_->HeartbeatPeriod);
+    }));
+}
+
 void TSchedulerConnector::SendHeartbeat() noexcept
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -82,7 +101,10 @@ void TSchedulerConnector::SendHeartbeat() noexcept
         return;
     }
 
-    if (TInstant::Now() < std::max(LastFailedHeartbeatTime_, LastThrottledHeartbeatTime_) + FailedHeartbeatBackoffTime_) {
+    if (TInstant::Now() < std::max(
+        HeartbeatInfo_.LastFailedHeartbeatTime,
+        HeartbeatInfo_.LastThrottledHeartbeatTime) + HeartbeatInfo_.FailedHeartbeatBackoffTime)
+    {
         YT_LOG_INFO("Skipping scheduler heartbeat");
         return;
     }
@@ -108,39 +130,43 @@ void TSchedulerConnector::SendHeartbeat() noexcept
         }
     };
 
-    profileInterval(LastSentHeartbeatTime_, TimeBetweenSentHeartbeatsCounter_);
-    LastSentHeartbeatTime_ = TInstant::Now();
+    profileInterval(HeartbeatInfo_.LastSentHeartbeatTime, TimeBetweenSentHeartbeatsCounter_);
+    HeartbeatInfo_.LastSentHeartbeatTime = TInstant::Now();
 
     YT_LOG_INFO("Scheduler heartbeat sent (ResourceUsage: %v)",
         FormatResourceUsage(req->resource_usage(), req->resource_limits(), req->disk_resources()));
 
     auto rspOrError = WaitFor(req->Invoke());
     if (!rspOrError.IsOK()) {
-        LastFailedHeartbeatTime_ = TInstant::Now();
-        if (FailedHeartbeatBackoffTime_ == TDuration::Zero()) {
-            FailedHeartbeatBackoffTime_ = Config_->FailedHeartbeatBackoffStartTime;
+        HeartbeatInfo_.LastFailedHeartbeatTime = TInstant::Now();
+        if (HeartbeatInfo_.FailedHeartbeatBackoffTime == TDuration::Zero()) {
+            HeartbeatInfo_.FailedHeartbeatBackoffTime = StaticConfig_->FailedHeartbeatBackoffStartTime;
         } else {
-            FailedHeartbeatBackoffTime_ = std::min(
-                FailedHeartbeatBackoffTime_ * Config_->FailedHeartbeatBackoffMultiplier,
-                Config_->FailedHeartbeatBackoffMaxTime);
+            HeartbeatInfo_.FailedHeartbeatBackoffTime = std::min(
+                HeartbeatInfo_.FailedHeartbeatBackoffTime * StaticConfig_->FailedHeartbeatBackoffMultiplier,
+                StaticConfig_->FailedHeartbeatBackoffMaxTime);
         }
         YT_LOG_ERROR(rspOrError, "Error reporting heartbeat to scheduler (BackoffTime: %v)",
-            FailedHeartbeatBackoffTime_);
+            HeartbeatInfo_.FailedHeartbeatBackoffTime);
         return;
     }
 
     YT_LOG_INFO("Successfully reported heartbeat to scheduler");
 
-    FailedHeartbeatBackoffTime_ = TDuration::Zero();
+    HeartbeatInfo_.FailedHeartbeatBackoffTime = TDuration::Zero();
 
-    profileInterval(std::max(LastFullyProcessedHeartbeatTime_, LastThrottledHeartbeatTime_), TimeBetweenAcknowledgedHeartbeatsCounter_);
+    profileInterval(
+        std::max(HeartbeatInfo_.LastFullyProcessedHeartbeatTime, HeartbeatInfo_.LastThrottledHeartbeatTime),
+        TimeBetweenAcknowledgedHeartbeatsCounter_);
 
     const auto& rsp = rspOrError.Value();
     if (rsp->scheduling_skipped()) {
-        LastThrottledHeartbeatTime_ = TInstant::Now();
+        HeartbeatInfo_.LastThrottledHeartbeatTime = TInstant::Now();
     } else {
-        profileInterval(LastFullyProcessedHeartbeatTime_, TimeBetweenFullyProcessedHeartbeatsCounter_);
-        LastFullyProcessedHeartbeatTime_ = TInstant::Now();
+        profileInterval(
+            HeartbeatInfo_.LastFullyProcessedHeartbeatTime,
+            TimeBetweenFullyProcessedHeartbeatsCounter_);
+        HeartbeatInfo_.LastFullyProcessedHeartbeatTime = TInstant::Now();
     }
 
     const auto& reporter = Bootstrap_->GetJobReporter();
