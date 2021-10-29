@@ -163,17 +163,9 @@ public class ApiServiceClientImpl implements ApiServiceClient {
             YtTimestamp startTimestamp = YtTimestamp.valueOf(response.body().getStartTimestamp());
             RpcClient sender = response.sender();
             ApiServiceTransaction result;
-            if (rpcClient != null && rpcClient.equals(sender)) {
-                result = new ApiServiceTransaction(
-                        this,
-                        id,
-                        startTimestamp,
-                        startTransaction.getPing(),
-                        startTransaction.getPingAncestors(),
-                        startTransaction.getSticky(),
-                        startTransaction.getPingPeriod().orElse(null),
-                        sender.executor());
-            } else {
+
+            if (startTransaction.getSticky() && (rpcClient == null || !rpcClient.equals(sender))) {
+                logger.trace("Create sticky transaction with new client to proxy {}", sender.getAddressString());
                 result = new ApiServiceTransaction(
                         sender,
                         rpcOptions,
@@ -185,6 +177,23 @@ public class ApiServiceClientImpl implements ApiServiceClient {
                         startTransaction.getPingPeriod().orElse(null),
                         sender.executor(),
                         heavyExecutor);
+            } else {
+                if (startTransaction.getSticky()) {
+                    logger.trace("Create sticky transaction with client {} to proxy {}", this,
+                            sender.getAddressString());
+                } else {
+                    logger.trace("Create non-sticky transaction with client {}", this);
+                }
+
+                result = new ApiServiceTransaction(
+                        this,
+                        id,
+                        startTimestamp,
+                        startTransaction.getPing(),
+                        startTransaction.getPingAncestors(),
+                        startTransaction.getSticky(),
+                        startTransaction.getPingPeriod().orElse(null),
+                        sender.executor());
             }
 
             sender.ref();

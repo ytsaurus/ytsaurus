@@ -6,7 +6,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -77,12 +76,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
                 yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS);
             }
 
-            var writer = yt.writeTable(
-                    new WriteTable<>(tablePath, YTreeObjectSerializerFactory.forClass(TableRow.class))
-                            .setNeedRetries(true)
-                            .setMaxWritesInFlight(maxWritesInFlight)
-                            .setChunkSize(chunkSize)
-            ).join();
+            var writer = writeTable(yt, tablePath, maxWritesInFlight, chunkSize);
 
             try {
                 int partSize = curData.size() / partsCount;
@@ -114,12 +108,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
 
 
             // Try to add the same data with append=true
-            writer = yt.writeTable(
-                    new WriteTable<>(tablePath.append(true), YTreeObjectSerializerFactory.forClass(TableRow.class))
-                            .setNeedRetries(true)
-                            .setMaxWritesInFlight(maxWritesInFlight)
-                            .setChunkSize(chunkSize)
-            ).join();
+            writer = writeTable(yt, tablePath.append(true), maxWritesInFlight, chunkSize);
 
             try {
                 writer.readyEvent().get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
@@ -153,18 +142,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
     @Test
     public void testRetryErrors() throws Exception {
         var outageController = new OutageController();
-        var rpcRequestsTestingController = new RpcRequestsTestingController();
-        TestingOptions testingOptions = new TestingOptions()
-                .setOutageController(outageController)
-                .setRpcRequestsTestingController(rpcRequestsTestingController);
-
-        RpcOptions rpcOptions = new RpcOptions()
-                .setTestingOptions(testingOptions)
-                .setRetryPolicyFactory(getRetryPolicy())
-                .setMinBackoffTime(Duration.ZERO)
-                .setMaxBackoffTime(Duration.ZERO);
-
-        var ytFixture = createYtFixture(rpcOptions);
+        var ytFixture = createYtFixtureWithOutageController(outageController);
         var yt = ytFixture.yt;
 
         // Create some test data.
@@ -211,12 +189,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
 
             outageController.addFails("WriteTable", failsCount, error);
 
-            var writer = yt.writeTable(
-                    new WriteTable<>(tablePath, YTreeObjectSerializerFactory.forClass(TableRow.class))
-                            .setNeedRetries(true)
-                            .setMaxWritesInFlight(maxWritesInFlight)
-                            .setChunkSize(chunkSize)
-            ).join();
+            var writer = writeTable(yt, tablePath, maxWritesInFlight, chunkSize);
 
             try {
                 int partSize = data.size() / partsCount;
@@ -267,12 +240,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
     @Test
     public void testSchema() throws Exception {
         var outageController = new OutageController();
-        var rpcRequestsTestingController = new RpcRequestsTestingController();
-        TestingOptions testingOptions = new TestingOptions()
-                .setOutageController(outageController)
-                .setRpcRequestsTestingController(rpcRequestsTestingController);
-
-        var ytFixture = createYtFixture(new RpcOptions().setTestingOptions(testingOptions));
+        var ytFixture = createYtFixtureWithOutageController(outageController);
         var yt = ytFixture.yt;
 
         // Table exists, append=true, OK.
@@ -280,10 +248,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
             var tablePath = ytFixture.testDirectory.child("static-table-1");
             yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS);
 
-            var writer = yt.writeTable(
-                    new WriteTable<>(tablePath.append(true), YTreeObjectSerializerFactory.forClass(TableRow.class))
-                            .setNeedRetries(true)
-            ).join();
+            var writer = writeTable(yt, tablePath.append(true));
 
             TableSchema schema = writer.getTableSchema().get(2, TimeUnit.SECONDS);
             assertThat(schema.isUniqueKeys(), is(false));
@@ -297,10 +262,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
             var tablePath = ytFixture.testDirectory.child("static-table-2");
             yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS);
 
-            var writer = yt.writeTable(
-                    new WriteTable<>(tablePath, YTreeObjectSerializerFactory.forClass(TableRow.class))
-                            .setNeedRetries(true)
-            ).join();
+            var writer = writeTable(yt, tablePath);
 
             TableSchema schema = writer.getTableSchema().get(2, TimeUnit.SECONDS);
             assertThat(schema.isUniqueKeys(), is(false));
@@ -313,10 +275,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
         {
             var tablePath = ytFixture.testDirectory.child("static-table-3");
 
-            var writer = yt.writeTable(
-                    new WriteTable<>(tablePath, YTreeObjectSerializerFactory.forClass(TableRow.class))
-                            .setNeedRetries(true)
-            ).join();
+            var writer = writeTable(yt, tablePath);
 
             TableSchema schema = writer.getTableSchema().get(2, TimeUnit.SECONDS);
             assertThat(schema.isUniqueKeys(), is(false));
@@ -330,12 +289,9 @@ public class RetryingTableWriterTest extends YtClientTestBase {
             var tablePath = ytFixture.testDirectory.child("static-table-4");
 
             try {
-                yt.writeTable(
-                        new WriteTable<>(tablePath.append(true), YTreeObjectSerializerFactory.forClass(TableRow.class))
-                                .setNeedRetries(true)
-                ).join();
+                writeTable(yt, tablePath.append(true));
                 assertThat("Shouldn't have got here", false);
-            } catch (CompletionException ex) {
+            } catch (ExecutionException ex) {
             }
         }
     }
@@ -343,18 +299,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
     @Test
     public void testDifferentInitFails() throws Exception {
         var outageController = new OutageController();
-        var rpcRequestsTestingController = new RpcRequestsTestingController();
-        TestingOptions testingOptions = new TestingOptions()
-                .setOutageController(outageController)
-                .setRpcRequestsTestingController(rpcRequestsTestingController);
-
-        RpcOptions rpcOptions = new RpcOptions()
-                .setTestingOptions(testingOptions)
-                .setRetryPolicyFactory(getRetryPolicy())
-                .setMinBackoffTime(Duration.ZERO)
-                .setMaxBackoffTime(Duration.ZERO);
-
-        var ytFixture = createYtFixture(rpcOptions);
+        var ytFixture = createYtFixtureWithOutageController(outageController);
         var yt = ytFixture.yt;
 
         var error = new RpcError(
@@ -374,10 +319,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
             outageController.addFails("StartTransaction", 1, error);
 
             try {
-                yt.writeTable(new WriteTable<>(
-                        tablePath.append(true),
-                        YTreeObjectSerializerFactory.forClass(TableRow.class)).setNeedRetries(true)
-                ).get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
+                writeTable(yt, tablePath.append(true));
                 assertThat("Shouldn't have got here", false);
             } catch (ExecutionException ex) {
                 // StartTransaction fail
@@ -394,10 +336,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
             outageController.addFails("LockNode", 1, error);
 
             try {
-                yt.writeTable(
-                        new WriteTable<>(tablePath.append(true), YTreeObjectSerializerFactory.forClass(TableRow.class))
-                                .setNeedRetries(true)
-                ).get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
+                writeTable(yt, tablePath.append(true));
                 assertThat("Shouldn't have got here", false);
             } catch (ExecutionException ex) {
             }
@@ -410,10 +349,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
             var tablePath = ytFixture.testDirectory.child("static-table-5");
             yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS);
 
-            var writer = yt.writeTable(
-                    new WriteTable<>(tablePath.append(true), YTreeObjectSerializerFactory.forClass(TableRow.class))
-                            .setNeedRetries(true)
-            ).join();
+            var writer = writeTable(yt, tablePath.append(true));
 
             writer.readyEvent().get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
 
@@ -435,11 +371,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
             var tablePath = ytFixture.testDirectory.child("static-table-6");
             yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS);
 
-            var writer = yt.writeTable(
-                    new WriteTable<>(tablePath.append(true), YTreeObjectSerializerFactory.forClass(TableRow.class))
-                            .setNeedRetries(true)
-                            .setChunkSize(10)
-            ).get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
+            var writer = writeTable(yt, tablePath.append(true), 1, 10);
 
             writer.readyEvent().get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
 
@@ -464,10 +396,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
             outageController.addFails("CreateNode", 1, error);
 
             try {
-                yt.writeTable(
-                        new WriteTable<>(tablePath, YTreeObjectSerializerFactory.forClass(TableRow.class))
-                                .setNeedRetries(true)
-                ).get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
+                writeTable(yt, tablePath);
                 assertThat("Shouldn't have got here", false);
             } catch (ExecutionException ex) {
                 // StartTransaction fail
@@ -483,10 +412,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
 
             outageController.addFails("CreateNode", 1, error);
 
-            var writer = yt.writeTable(
-                    new WriteTable<>(tablePath.append(true), YTreeObjectSerializerFactory.forClass(TableRow.class))
-                            .setNeedRetries(true)
-            ).join();
+            var writer = writeTable(yt, tablePath.append(true));
 
             try {
                 writer.readyEvent().get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
@@ -505,20 +431,148 @@ public class RetryingTableWriterTest extends YtClientTestBase {
 
     @Test
     public void testWriteInTransaction() throws Exception {
-        var ytFixture = createYtFixture();
+        var outageController = new OutageController();
+        var ytFixture = createYtFixtureWithOutageController(outageController);
         var yt = ytFixture.yt;
 
-        var tablePath = ytFixture.testDirectory.child("static-table");
-
-        try {
-            yt.startTransaction(new StartTransaction(TransactionType.Master)).thenCompose(
-                    tx -> tx.writeTable(
-                            new WriteTable<>(tablePath, YTreeObjectSerializerFactory.forClass(TableRow.class))
-                                    .setNeedRetries(true))).join();
-            assertThat("Exception was expected", false);
-        } catch (CompletionException ex) {
-            assertThat("Expected IllegalStateException", ex.getCause() instanceof IllegalStateException);
+        // Create some test data.
+        List<TableRow> data = new ArrayList<>();
+        for (int i = 0; i != 1000; ++i) {
+            data.add(new TableRow(Integer.toString(i)));
         }
+
+        int maxWritesInFlight = 1;
+        int chunkSize = 1000;
+
+        var error100 = new RpcError(
+                TError.newBuilder().setCode(100).build()
+        );
+
+        Object[][] testCases = new Object[][] {
+                /* partsCount, failsCount, error, abortParentTransaction, done */
+                { 1, 0, null, false, true },
+                { 1, 0, null, true, false },
+                { 1, 1, error100, false, true },
+                { 1, 1, error100, true, false },
+                { 1, 3, error100, false, false },
+                { 1, 3, error100, true, false },
+
+                { 5, 0, null, false, true },
+                { 5, 0, null, true, false },
+                { 5, 3, error100, false, false },
+                { 5, 3, error100, true, false },
+
+                { 100, 0, null, false, true },
+                { 100, 0, null, true, false },
+
+                { 1000, 0, null, false, true },
+                { 1000, 0, null, true, false }
+        };
+
+
+        int caseId = 0;
+        for (Object[] testCase : testCases) {
+            caseId++;
+            var tablePath = ytFixture.testDirectory.child("static-table-" + caseId);
+
+            int partsCount = (int) testCase[0];
+            int failsCount = (int) testCase[1];
+            Throwable error = (Throwable) testCase[2];
+            boolean abortParentTransaction = (boolean) testCase[3];
+            boolean done = (boolean) testCase[4];
+
+
+            outageController.addFails("WriteTable", failsCount, error);
+
+            var parentTransaction = yt.startTransaction(new StartTransaction(TransactionType.Master)).join();
+
+            var writer = writeTable(parentTransaction, tablePath, maxWritesInFlight, chunkSize);
+
+            try {
+                int partSize = data.size() / partsCount;
+                for (int partId = 0; partId < partsCount; ++partId) {
+                    try {
+                        writer.readyEvent().get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
+                    } catch (Throwable ex) {
+                        if (done) {
+                            throw ex;
+                        }
+                        break;
+                    }
+
+                    int from = (data.size() * partId) / partsCount;
+                    int to = from + partSize;
+
+                    boolean written = writer.write(data.subList(from, to));
+
+                    if (done || abortParentTransaction) {
+                        assertThat(written, is(true));
+                    }
+                }
+            } finally {
+                try {
+                    CompletableFuture<?> f = writer.close();
+                    f.get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
+                    if (!done && !abortParentTransaction) {
+                        assertThat("Shouldn't have got here", false);
+                    }
+                } catch (Throwable ex) {
+                    if (done) {
+                        throw ex;
+                    }
+                }
+            }
+
+            assertThat(yt.existsNode(new ExistsNode(tablePath)).join(), is(false));
+
+            if (abortParentTransaction) {
+                parentTransaction.abort();
+                assertThat(yt.existsNode(new ExistsNode(tablePath)).join(), is(false));
+            }
+
+            if (done) {
+                parentTransaction.commit().join();
+                List<TableRow> result = readTable(tablePath, yt);
+                assertThat(result, is(data));
+            }
+
+            outageController.clear();
+        }
+    }
+
+    private TableWriter<TableRow> writeTable(TransactionalClient yt,
+                                             YPath tablePath,
+                                             int maxWritesInFlight,
+                                             int chunkSize) throws Exception {
+        return yt.writeTable(
+                new WriteTable<>(tablePath, YTreeObjectSerializerFactory.forClass(TableRow.class))
+                        .setNeedRetries(true)
+                        .setMaxWritesInFlight(maxWritesInFlight)
+                        .setChunkSize(chunkSize)
+        ).get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
+    }
+
+    private TableWriter<TableRow> writeTable(YtClient yt, YPath tablePath) throws Exception {
+        return yt.writeTable(
+                new WriteTable<>(tablePath, YTreeObjectSerializerFactory.forClass(TableRow.class))
+                        .setNeedRetries(true)
+        ).get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
+    }
+
+
+    private YtFixture createYtFixtureWithOutageController(OutageController outageController) {
+        var rpcRequestsTestingController = new RpcRequestsTestingController();
+        TestingOptions testingOptions = new TestingOptions()
+                .setOutageController(outageController)
+                .setRpcRequestsTestingController(rpcRequestsTestingController);
+
+        RpcOptions rpcOptions = new RpcOptions()
+                .setTestingOptions(testingOptions)
+                .setRetryPolicyFactory(getRetryPolicy())
+                .setMinBackoffTime(Duration.ZERO)
+                .setMaxBackoffTime(Duration.ZERO);
+
+        return createYtFixture(rpcOptions);
     }
 
     private List<TableRow> readTable(YPath tablePath, YtClient yt) throws Exception {

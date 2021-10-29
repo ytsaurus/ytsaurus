@@ -1,11 +1,13 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
 import java.io.ByteArrayOutputStream;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
 import com.google.protobuf.ByteString;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
@@ -166,6 +168,13 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
     public WriteTable<T> setTransactionalOptions(TransactionalOptions to) {
         this.transactionalOptions = to;
         return this;
+    }
+
+    public Optional<GUID> getTransactionId() {
+        if (this.transactionalOptions == null) {
+            return Optional.empty();
+        }
+        return this.transactionalOptions.getTransactionId();
     }
 
     public String getPath() {
