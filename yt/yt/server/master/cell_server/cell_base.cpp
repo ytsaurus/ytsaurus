@@ -425,6 +425,11 @@ ECellarType TCellBase::GetCellarType() const
     return GetCellarTypeFromCellId(GetId());
 }
 
+bool TCellBase::IsValidPeer(TPeerId peerId) const
+{
+    return 0 <= peerId && peerId < std::ssize(Peers_);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCellServer

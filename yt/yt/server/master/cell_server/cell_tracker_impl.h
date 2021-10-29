@@ -11,6 +11,8 @@
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
+#include <yt/yt/ytlib/cell_balancer/proto/cell_tracker_service.pb.h>
+
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/profiling/profiler.h>
@@ -49,7 +51,7 @@ private:
     void ScheduleLeaderReassignment(TCellBase* cell);
     void SchedulePeerAssignment(TCellBase* cell, ICellBalancer* balancer);
     void SchedulePeerRevocation(TCellBase* cell, ICellBalancer* balancer);
-    bool SchedulePeerCountChange(TCellBase* cell, NTabletServer::NProto::TReqReassignPeers* request);
+    bool SchedulePeerCountChange(TCellBase* cell, NCellBalancerClient::NProto::TReqReassignPeers* request);
 
     TError IsFailed(
         const TCellBase::TPeer& peer,

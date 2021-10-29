@@ -1226,6 +1226,15 @@ void TNode::ResetDestroyedReplicasIterator()
     DestroyedReplicasIterator_ = DestroyedReplicas_.begin();
 }
 
+bool TNode::TCellSlot::IsWarmedUp() const
+{
+    return
+        !IsResponseKeeperWarmingUp &&
+        PreloadPendingStoreCount == 0 &&
+        PreloadFailedStoreCount == 0 &&
+        (PeerState == EPeerState::Leading || PeerState == EPeerState::Following);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TNodePtrAddressFormatter::operator()(TStringBuilderBase* builder, TNode* node) const

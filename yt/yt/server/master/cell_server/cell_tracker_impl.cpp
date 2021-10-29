@@ -35,6 +35,7 @@
 namespace NYT::NCellServer {
 
 using namespace NCellarClient;
+using namespace NCellBalancerClient::NProto;
 using namespace NCellMaster;
 using namespace NConcurrency;
 using namespace NObjectServer;

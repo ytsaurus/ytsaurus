@@ -54,6 +54,8 @@
 
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 
+#include <yt/yt/ytlib/cell_balancer/proto/cell_tracker_service.pb.h>
+
 #include <yt/yt/ytlib/cellar_client/public.h>
 
 #include <yt/yt/ytlib/election/config.h>
@@ -81,6 +83,7 @@
 
 namespace NYT::NCellServer {
 
+using namespace NCellBalancerClient::NProto;
 using namespace NCellMaster;
 using namespace NCellarClient;
 using namespace NCellarAgent;
@@ -166,10 +169,11 @@ public:
             "CellManager.Values",
             BIND(&TTamedCellManager::SaveValues, Unretained(this)));
 
-        RegisterMethod(BIND(&TTamedCellManager::HydraAssignPeers, Unretained(this)));
-        RegisterMethod(BIND(&TTamedCellManager::HydraRevokePeers, Unretained(this)));
-        RegisterMethod(BIND(&TTamedCellManager::HydraReassignPeers, Unretained(this)));
-        RegisterMethod(BIND(&TTamedCellManager::HydraSetLeadingPeer, Unretained(this)));
+        // COMPAT(alexkolodezny)
+        RegisterMethod(BIND(&TTamedCellManager::HydraAssignPeers, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqAssignPeers"});
+        RegisterMethod(BIND(&TTamedCellManager::HydraRevokePeers, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqRevokePeers"});
+        RegisterMethod(BIND(&TTamedCellManager::HydraReassignPeers, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqReassignPeers"});
+        RegisterMethod(BIND(&TTamedCellManager::HydraSetLeadingPeer, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqSetLeadingPeer"});
         RegisterMethod(BIND(&TTamedCellManager::HydraStartPrerequisiteTransaction, Unretained(this)));
         RegisterMethod(BIND(&TTamedCellManager::HydraAbortPrerequisiteTransaction, Unretained(this)));
         RegisterMethod(BIND(&TTamedCellManager::HydraDecommissionCellOnMaster, Unretained(this)));
@@ -178,7 +182,7 @@ public:
         RegisterMethod(BIND(&TTamedCellManager::HydraSetCellConfigVersion, Unretained(this)));
         RegisterMethod(BIND(&TTamedCellManager::HydraSetCellStatus, Unretained(this)));
         RegisterMethod(BIND(&TTamedCellManager::HydraUpdateCellHealth, Unretained(this)));
-        RegisterMethod(BIND(&TTamedCellManager::HydraUpdatePeerCount, Unretained(this)));
+        RegisterMethod(BIND(&TTamedCellManager::HydraUpdatePeerCount, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqUpdatePeerCount"});
     }
 
     void Initialize() override
@@ -630,7 +634,13 @@ public:
 
     void UpdatePeerCount(TCellBase* cell, std::optional<int> peerCount) override
     {
-        YT_VERIFY(!cell->IsIndependent());
+        if (cell->IsIndependent()) {
+            YT_LOG_WARNING_IF(
+                IsMutationLoggingEnabled(),
+                "Attempted to update peer count of independent cell (CellId: %v)",
+                cell->GetId());
+            return;
+        }
 
         cell->PeerCount() = peerCount;
         cell->LastPeerCountUpdateTime() = TInstant::Now();
@@ -668,10 +678,10 @@ public:
                 }
                 std::swap(leaderPeer, firstPeer);
                 if (!leaderPeer.Descriptor.IsNull()) {
-                    AddToAddressToCellMap(leaderPeer.Descriptor, cell, leaderId);
+                    YT_VERIFY(AddToAddressToCellMap(leaderPeer.Descriptor, cell, leaderId));
                 }
                 if (!firstPeer.Descriptor.IsNull()) {
-                    AddToAddressToCellMap(firstPeer.Descriptor, cell, 0);
+                    YT_VERIFY(AddToAddressToCellMap(firstPeer.Descriptor, cell, 0));
                 }
                 cell->SetLeadingPeerId(0);
             }
@@ -814,11 +824,23 @@ public:
         auto cellId = FromProto<TTamedCellId>(request->cell_id());
         auto* cell = FindCell(cellId);
         if (!IsObjectAlive(cell)) {
+            YT_LOG_WARNING_IF(
+                IsMutationLoggingEnabled(),
+                "Attempted to update peer count of inexistent cell (CellId: %v)",
+                cellId);
             return;
         }
 
         if (request->has_peer_count()) {
-            UpdatePeerCount(cell, request->peer_count());
+            if (request->peer_count() >= 1) {
+                UpdatePeerCount(cell, request->peer_count());
+            } else {
+                YT_LOG_WARNING_IF(
+                    IsMutationLoggingEnabled(),
+                    "Attempted to update cell with incorrect peer count (CellId: %v, PeerCount: %v)",
+                    cellId,
+                    request->peer_count());
+            }
         } else {
             UpdatePeerCount(cell, std::nullopt);
         }
@@ -1158,7 +1180,7 @@ private:
                 }
                 const auto& peer = cell->Peers()[peerId];
                 if (!peer.Descriptor.IsNull()) {
-                    AddToAddressToCellMap(peer.Descriptor, cell, peerId);
+                    YT_VERIFY(AddToAddressToCellMap(peer.Descriptor, cell, peerId));
                 }
             }
 
@@ -1720,7 +1742,7 @@ private:
     }
 
 
-    void AddToAddressToCellMap(const TNodeDescriptor& descriptor, TCellBase* cell, TPeerId peerId)
+    bool AddToAddressToCellMap(const TNodeDescriptor& descriptor, TCellBase* cell, TPeerId peerId)
     {
         const auto& address = descriptor.GetDefaultAddress();
         auto cellsIt = AddressToCell_.find(address);
@@ -1731,8 +1753,11 @@ private:
         auto it = std::find_if(set.begin(), set.end(), [&] (const auto& pair) {
             return pair.first == cell;
         });
-        YT_VERIFY(it == set.end());
+        if (it != set.end()) {
+            return false;
+        }
         set.emplace_back(cell, peerId);
+        return true;
     }
 
     void RemoveFromAddressToCellMap(const TNodeDescriptor& descriptor, TCellBase* cell)
@@ -1758,6 +1783,10 @@ private:
         auto cellId = FromProto<TTamedCellId>(request->cell_id());
         auto* cell = FindCell(cellId);
         if (!IsObjectAlive(cell)) {
+            YT_LOG_WARNING_IF(
+                IsMutationLoggingEnabled(),
+                "Attempted to assigning peer on inexistent cell (CellId: %v)",
+                cellId);
             return;
         }
 
@@ -1766,20 +1795,66 @@ private:
         auto mutationTimestamp = mutationContext->GetTimestamp();
 
         std::vector<TPeerId> assignedPeers;
+        THashSet<TPeerId> assignedPeersSet;
         for (const auto& peerInfo : request->peer_infos()) {
             auto peerId = peerInfo.peer_id();
             auto descriptor = FromProto<TNodeDescriptor>(peerInfo.node_descriptor());
 
-            auto& peer = cell->Peers()[peerId];
-            if (!peer.Descriptor.IsNull()) {
+            if (!cell->IsValidPeer(peerId)) {
+                YT_LOG_WARNING_IF(
+                    IsMutationLoggingEnabled(),
+                    "Attempted to assigning invalid peer (CellId: %v, PeerId: %v, PeerCount: %v)",
+                    cellId,
+                    peerId,
+                    std::ssize(cell->Peers()));
                 continue;
             }
+            if (descriptor.IsNull() ||
+                !Bootstrap_->GetNodeTracker()->FindNodeByAddress(descriptor.GetDefaultAddress()))
+            {
+                YT_LOG_WARNING_IF(
+                    IsMutationLoggingEnabled(),
+                    "Attempted to assign peer on inexistent node (CellId: %v, PeerId: %v, Address: %v)",
+                    cellId,
+                    peerId,
+                    descriptor.GetDefaultAddress());
+                continue;
+            }
+            if (assignedPeersSet.contains(peerId)) {
+                YT_LOG_WARNING_IF(
+                    IsMutationLoggingEnabled(),
+                    "Peer is assigned multiple times (CellId: %v, PeerId: %v, PeerCount: %v)",
+                    cellId,
+                    peerId,
+                    std::ssize(cell->Peers()));
+                continue;
+            }
+
+            auto& peer = cell->Peers()[peerId];
+            if (!peer.Descriptor.IsNull()) {
+                YT_LOG_WARNING_IF(IsMutationLoggingEnabled(),
+                    "Peer is already assigned to node (CellId: %v, PeerId: %v, CurrentAddress: %v, AssignedAddress: %v)",
+                    cellId,
+                    peerId,
+                    peer.Descriptor.GetDefaultAddress(),
+                    descriptor.GetDefaultAddress());
+                continue;
+            }
+
+            if (!AddToAddressToCellMap(descriptor, cell, peerId)) {
+                YT_LOG_WARNING_IF(IsMutationLoggingEnabled(),
+                    "Cell already has peer on node (CellId: %v, PeerId: %v, Address: %v)",
+                    cellId,
+                    peerId,
+                    descriptor.GetDefaultAddress());
+                continue;
+            }
+            assignedPeersSet.insert(peerId);
 
             if (!cell->GetPrerequisiteTransaction(peerId)) {
                 assignedPeers.push_back(peerId);
             }
 
-            AddToAddressToCellMap(descriptor, cell, peerId);
             cell->AssignPeer(descriptor, peerId);
             cell->UpdatePeerSeenTime(peerId, mutationTimestamp);
 
@@ -1804,10 +1879,38 @@ private:
         auto cellId = FromProto<TTamedCellId>(request->cell_id());
         auto* cell = FindCell(cellId);
         if (!IsObjectAlive(cell)) {
+            YT_LOG_WARNING_IF(
+                IsMutationLoggingEnabled(),
+                "Attempted to revoking peer of inexistent cell (CellId: %v)",
+                cellId);
             return;
         }
 
-        auto revokedPeers = FromProto<std::vector<int>>(request->peer_ids());
+        THashSet<int> revokedPeersSet;
+        std::vector<int> revokedPeers;
+        for (auto peerId : request->peer_ids()) {
+            if (!cell->IsValidPeer(peerId)) {
+                YT_LOG_WARNING_IF(
+                    IsMutationLoggingEnabled(),
+                    "Attempted to revoking invalid peer (CellId: %v, PeerId: %v, PeerCount: %v)",
+                    cellId,
+                    peerId,
+                    std::ssize(cell->Peers()));
+                continue;
+            }
+            if (revokedPeersSet.contains(peerId)) {
+                YT_LOG_WARNING_IF(
+                    IsMutationLoggingEnabled(),
+                    "Peer is revoked multiple times (CellId: %v, PeerId: %v, PeerCount: %v)",
+                    cellId,
+                    peerId,
+                    std::ssize(cell->Peers()));
+                continue;
+            }
+            revokedPeersSet.insert(peerId);
+            revokedPeers.push_back(peerId);
+        }
+
         for (auto peerId : revokedPeers) {
             DoRevokePeer(cell, peerId, FromProto<TError>(request->reason()));
         }
@@ -1833,8 +1936,12 @@ private:
             HydraAssignPeers(&assignment);
         }
 
-        for (auto& peer_count_update : *request->mutable_peer_count_updates()) {
-            HydraUpdatePeerCount(&peer_count_update);
+        for (auto& peerCountUpdate : *request->mutable_peer_count_updates()) {
+            HydraUpdatePeerCount(&peerCountUpdate);
+        }
+
+        for (auto& leadingPearUpdates : *request->mutable_leading_peer_updates()) {
+            HydraSetLeadingPeer(&leadingPearUpdates);
         }
 
         CellPeersAssigned_.Fire();
@@ -1848,14 +1955,32 @@ private:
 
         auto cellId = FromProto<TTamedCellId>(request->cell_id());
         auto* cell = FindCell(cellId);
-        const auto& oldLeader = cell->Peers()[cell->GetLeadingPeerId()];
         if (!IsObjectAlive(cell)) {
+            YT_LOG_WARNING_IF(
+                IsMutationLoggingEnabled(),
+                "Attempted to set leading peer of inexistent cell (CellId: %v)",
+                cellId);
+            return;
+        }
+        if (cell->IsIndependent()) {
+            YT_LOG_WARNING_IF(
+                IsMutationLoggingEnabled(),
+                "Attempted to set leading peer of independent cell (CellId: %v)",
+                cell->GetId());
+            return;
+        }
+        auto peerId = request->peer_id();
+        if (!cell->IsValidPeer(peerId)) {
+            YT_LOG_WARNING_IF(
+                IsMutationLoggingEnabled(),
+                "Attempted to set invalide peer to lead (CellId: %v, PeerId: %v, PeerCount: %v)",
+                cellId,
+                peerId,
+                std::ssize(cell->Peers()));
             return;
         }
 
-        YT_VERIFY(!cell->IsIndependent());
-
-        auto peerId = request->peer_id();
+        const auto& oldLeader = cell->Peers()[cell->GetLeadingPeerId()];
         const auto& newLeader = cell->Peers()[peerId];
 
         cell->SetLeadingPeerId(peerId);
@@ -2214,6 +2339,11 @@ private:
         const auto& peer = cell->Peers()[peerId];
         const auto& descriptor = peer.Descriptor;
         if (descriptor.IsNull()) {
+            YT_LOG_WARNING_IF(
+                IsMutationLoggingEnabled(),
+                "Peer is not assigned to node (CellId: %v, PeerId: %v)",
+                cell->GetId(),
+                peerId);
             return;
         }
 

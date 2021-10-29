@@ -160,6 +160,8 @@ public:
 
     NCellarClient::ECellarType GetCellarType() const;
 
+    bool IsValidPeer(TPeerId peerId) const;
+
 protected:
     ECellHealth GetCumulativeIndependentPeersHealth() const;
     ECellHealth GetCumulativeDependentPeersHealth() const;
