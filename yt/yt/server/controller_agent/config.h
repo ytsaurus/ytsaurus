@@ -554,8 +554,7 @@ DEFINE_REFCOUNTED_TYPE(TMemoryWatchdogConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TControllerAgentConfig
-    : public NChunkClient::TChunkTeleporterConfig
-    , public TDeprecatedSingletonsDynamicConfig
+    : public TDeprecatedSingletonsDynamicConfig
 {
 public:
     //! Number of chunk lists to be allocated when an operation starts.
@@ -940,6 +939,8 @@ public:
     i64 SecureVaultLengthLimit;
     TDuration FullJobInfoWaitTimeout;
     bool EnableHeartbeatsFromNodes;
+
+    NChunkClient::TChunkTeleporterConfigPtr ChunkTeleporter;
 
     TControllerAgentConfig();
 

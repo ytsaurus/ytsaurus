@@ -850,6 +850,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("enable_heartbeats_from_nodes", EnableHeartbeatsFromNodes)
         .Default(false);
 
+    RegisterParameter("chunk_teleporter", ChunkTeleporter)
+        .DefaultNew();
+
     RegisterPreprocessor([&] {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

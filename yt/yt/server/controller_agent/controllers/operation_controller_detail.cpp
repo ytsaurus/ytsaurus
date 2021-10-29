@@ -2362,7 +2362,7 @@ void TOperationControllerBase::TeleportOutputChunks()
     }
 
     auto teleporter = New<TChunkTeleporter>(
-        Config,
+        Config->ChunkTeleporter,
         OutputClient,
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         OutputCompletionTransaction->GetId(),
@@ -5899,7 +5899,7 @@ void TOperationControllerBase::ProcessJobSummaryFromScheduler(std::unique_ptr<TJ
             jobId,
             nodeSummary->State,
             schedulerSummary->State);
-        
+
         finishedJobInfo->JobSummary = std::move(schedulerSummary);
         return;
     }
@@ -5949,7 +5949,7 @@ void TOperationControllerBase::StartWaitingJobInfoFromNode(std::unique_ptr<TJobS
         BIND(&TOperationControllerBase::AbortJobWithPartiallyReceivedJobInfo, MakeWeak(this), jobId),
         Config->FullJobInfoWaitTimeout,
         GetCancelableInvoker(Config->JobEventsControllerQueue));
-    
+
     YT_VERIFY(FinishedJobs_.emplace(jobId, std::move(finishedJobInfo)).second);
 }
 
@@ -9516,7 +9516,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::MainResourceConsumptionPerTree) {
         Persist(context, MainResourceConsumptionPerTree_);
     }
-    
+
     if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::AccountResourceUsageLeaseMap) {
         Persist(context, EnableMasterResourceUsageAccounting_);
         Persist(context, AccountResourceUsageLeaseMap_);
