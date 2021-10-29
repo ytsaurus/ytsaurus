@@ -285,7 +285,7 @@ public:
     TEventTimer Histogram(const TString& name, TDuration min, TDuration max) const;
 
     //! Histogram is used to measure distribution of event durations.
-    //! Allows to use custom bounds, bounds should be sorted (maximum 65 elements are allowed)
+    //! Allows to use custom bounds, bounds should be sorted (maximum 51 elements are allowed)
     TEventTimer Histogram(const TString& name, std::vector<TDuration> bounds) const;
 
     void AddFuncCounter(
