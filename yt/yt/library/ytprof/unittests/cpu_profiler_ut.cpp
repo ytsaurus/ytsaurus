@@ -1,3 +1,5 @@
+#include "yt/yt/core/concurrency/scheduler_api.h"
+#include "yt/yt/core/tracing/public.h"
 #include <dlfcn.h>
 #include <gtest/gtest.h>
 
@@ -7,6 +9,14 @@
 
 #include <library/cpp/testing/common/env.h>
 
+#include <yt/yt/library/memory/new.h>
+
+#include <yt/yt/core/concurrency/action_queue.h>
+
+#include <yt/yt/core/actions/bind.h>
+
+#include <yt/yt/core/tracing/trace_context.h>
+
 #include <yt/yt/library/ytprof/cpu_profiler.h>
 #include <yt/yt/library/ytprof/symbolize.h>
 #include <yt/yt/library/ytprof/profile.h>
@@ -14,6 +24,9 @@
 
 namespace NYT::NYTProf {
 namespace {
+
+using namespace NConcurrency;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -195,8 +208,8 @@ TEST_F(TCpuProfilerTest, VDSO)
 
 TEST_F(TCpuProfilerTest, ProfilerTags)
 {
-    auto userTag = NewStringTag("user", "prime");
-    auto intTag = NewIntTag("block_size", 1024);
+    auto userTag = New<TProfilerTag>("user", "prime");
+    auto intTag = New<TProfilerTag>("block_size", 1024);
 
     RunUnderProfiler("tags.pb.gz", [&] {
         {
@@ -221,6 +234,39 @@ TEST_F(TCpuProfilerTest, MultipleProfilers)
 
     profiler.Start();
     EXPECT_THROW(secondProfiler.Start(), std::exception);
+}
+
+TEST_F(TCpuProfilerTest, TraceContext)
+{
+    RunUnderProfiler("trace_context.pb.gz", [] {
+        auto actionQueue = New<TActionQueue>("CpuProfileTest");
+
+        BIND([] {
+            auto rootTraceContext = TTraceContext::NewRoot("");
+            rootTraceContext->AddProfilingTag("user", "prime");
+            TCurrentTraceContextGuard guard(rootTraceContext);
+
+            auto asyncSubrequest = BIND([&] {
+                TChildTraceContextGuard guard("");
+                AnnotateTraceContext([] (const auto traceContext) {
+                    traceContext->AddProfilingTag("table", "//foo");
+                });
+
+                BurnCpu<0>();
+            })
+                .AsyncVia(GetCurrentInvoker())
+                .Run();
+
+            BurnCpu<1>();
+            WaitFor(asyncSubrequest)
+                .ThrowOnError();
+        })
+            .AsyncVia(actionQueue->GetInvoker())
+            .Run()
+            .Get();
+
+        actionQueue->Shutdown();
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

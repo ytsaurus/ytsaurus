@@ -175,6 +175,10 @@ public:
 
     TTraceContextPtr CreateChild(TString spanName);
 
+    void AddProfilingTag(const TString& name, const TString& value);
+    void AddProfilingTag(const TString& name, i64 value);
+    std::vector<std::pair<TString, std::variant<TString, i64>>> GetProfilingTags();
+
     friend void ToProto(NProto::TTracingExt* ext, const TTraceContextPtr& context);
 
 private:
@@ -205,6 +209,8 @@ private:
     TLogList Logs_;
     TAsyncChildrenList AsyncChildren_;
     NYson::TYsonString Baggage_;
+
+    std::vector<std::pair<TString, std::variant<TString, i64>>> ProfilingTags_;
 
     TTraceContext(
         TSpanContext parentSpanContext,
