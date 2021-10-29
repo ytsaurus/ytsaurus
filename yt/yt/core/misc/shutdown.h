@@ -40,10 +40,13 @@ void Shutdown();
 bool IsShutdownStarted();
 
 //! Enables logging shutdown messages to stderr.
-void EnableShutdownLogging();
+void EnableShutdownLoggingToStderr();
 
-//! Returns true if shutdown logging has been enabled.
-bool IsShutdownLoggingEnabled();
+//! Enables logging shutdown messages to the given file.
+void EnableShutdownLoggingToFile(const TString& fileName);
+
+//! Returns the pointer to the log file if shutdown logging has been enabled or nullptr otherwise.
+FILE* GetShutdownLogFile();
 
 //! In case the global shutdown has been started, returns
 //! the id of the thread invoking shutdown callbacks.
