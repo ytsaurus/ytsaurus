@@ -2,27 +2,31 @@
 
 #include <mapreduce/yt/interface/client.h>
 
-#include <util/system/thread.h>
-#include <util/system/mutex.h>
-
 namespace NYT {
 
-/// @brief options for @ref NYT::WriteFileParallel
+////////////////////////////////////////////////////////////////////////////////
+
+/// @brief Options for @ref NYT::WriteFileParallel.
 struct TParallelFileWriterOptions
     : TIOOptions<TParallelFileWriterOptions>
 {
-    /// @brief number of threads
-    FLUENT_FIELD_OPTION(size_t, NumThreads);
+    /// @brief Number of threads.
+    FLUENT_FIELD_OPTION(size_t, ThreadCount);
 
-    /// @ref NYT::TWriterOptions
+    /// @brief Options for each single-threaded writer.
     FLUENT_FIELD_OPTION(TWriterOptions, WriterOptions);
 };
 
-/// @brief Write file parallelly.
-/// @param client       client which used for write file on server
-/// @param fileName     source path to file in local storage
-/// @param path         dist path to file on server
-void WriteFileParallel(const IClientBasePtr& client, const TString& fileName, const TRichYPath& path,
-    const TParallelFileWriterOptions& options = TParallelFileWriterOptions());
+/// @brief Write file in parallel.
+/// @param client       Client which used for write file on server.
+/// @param fileName     Source path to file in local storage.
+/// @param path         Dist path to file on server.
+void WriteFileParallel(
+    const IClientBasePtr& client,
+    const TString& fileName,
+    const TRichYPath& path,
+    const TParallelFileWriterOptions& options = {});
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
