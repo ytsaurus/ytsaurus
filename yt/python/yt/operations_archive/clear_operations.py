@@ -161,6 +161,8 @@ class OperationArchiver(object):
             value_columns.append("unrecognized_spec")
         if self.version >= 22:
             value_columns.append("runtime_parameters")
+            # will be merged to runtime_parameters, check YT-14806
+            value_columns.append("heavy_runtime_parameters")
         if self.version >= 27:
             value_columns.append("slot_index_per_pool_tree")
         if self.version >= 35:
@@ -177,6 +179,12 @@ class OperationArchiver(object):
                 by_id_row[key] = data.get(key)
                 # Do not forget to strip top-level attributes like <opaque=%true>.
                 by_id_row[key].attributes.clear()
+
+        if "heavy_runtime_parameters" in by_id_row:
+            if "runtime_parameters" not in by_id_row:
+                by_id_row["runtime_parameters"] = {}
+            by_id_row["runtime_parameters"].update(by_id_row["heavy_runtime_parameters"])
+            by_id_row.pop("heavy_runtime_parameters", None)
 
         id_hi, id_lo = id_to_parts(op_id, self.version)
 

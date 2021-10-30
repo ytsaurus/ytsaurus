@@ -791,6 +791,8 @@ public:
     //! Enables updating last metering log time.
     bool UpdateLastMeteringLogTime;
 
+    bool EnableHeavyRuntimeParameters;
+
     REGISTER_YSON_STRUCT(TSchedulerConfig);
 
     static void Register(TRegistrar registrar);

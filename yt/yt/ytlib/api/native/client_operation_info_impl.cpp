@@ -107,7 +107,7 @@ int TClient::DoGetOperationsArchiveVersion()
 
 // Map operation attribute names as they are requested in 'get_operation' or 'list_operations'
 // commands to Cypress node attribute names.
-static std::vector<TString> CreateCypressOperationAttributes(const THashSet<TString>& attributes)
+static std::vector<TString> CreateCypressOperationAttributes(const THashSet<TString>& attributes, bool needHeavyRuntimeParameters)
 {
     std::vector<TString> result;
     result.reserve(attributes.size());
@@ -127,6 +127,9 @@ static std::vector<TString> CreateCypressOperationAttributes(const THashSet<TStr
         } else {
             result.push_back(attribute);
         }
+    }
+    if (needHeavyRuntimeParameters) {
+        result.push_back("heavy_runtime_parameters");
     }
     return result;
 }
@@ -166,7 +169,9 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
 {
     std::optional<std::vector<TString>> cypressAttributes;
     if (options.Attributes) {
-        cypressAttributes = CreateCypressOperationAttributes(*options.Attributes);
+        cypressAttributes = CreateCypressOperationAttributes(
+            *options.Attributes,
+            /* needHeavyRuntimeParameters */ options.Attributes->contains("runtime_parameters"));
 
         if (!options.Attributes->contains("controller_agent_address")) {
             cypressAttributes->push_back("controller_agent_address");
@@ -237,6 +242,11 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
                 attributeDictionary->Remove(key);
             }
         }
+    }
+
+    if (auto heavyRuntimeParameters = attributeDictionary->FindAndRemove<IMapNodePtr>("heavy_runtime_parameters")) {
+        auto runtimeParameters = attributeDictionary->Get<IMapNodePtr>("runtime_parameters");
+        attributeDictionary->Set("runtime_parameters", PatchNode(runtimeParameters, heavyRuntimeParameters));
     }
 
     auto controllerAgentAddress = attributeDictionary->Find<TString>("controller_agent_address");
@@ -699,7 +709,9 @@ void TClient::DoListOperationsFromCypress(
     auto requestedAttributes = DeduceActualAttributes(options.Attributes, RequiredAttributes, DefaultAttributes, IgnoredAttributes);
 
     auto filteringAttributes = LightAttributes;
-    auto filteringCypressAttributes = CreateCypressOperationAttributes(filteringAttributes);
+    auto filteringCypressAttributes = CreateCypressOperationAttributes(
+        filteringAttributes,
+        /* needHeavyRuntimeParameters */ options.SubstrFilter.has_value());
 
     TObjectServiceProxy proxy(GetOperationArchiveChannel(options.ReadFrom), Connection_->GetStickyGroupSizeCache());
     auto requestOperations = [&] (int hashBegin, int hashEnd) {
@@ -793,17 +805,24 @@ void TClient::DoListOperationsFromCypress(
 
     filter->OnBriefProgressFinished();
 
-    auto areAllRequestedAttributesLight = std::all_of(
+    auto areAllRequestedAttributesReady = std::all_of(
         requestedAttributes.begin(),
         requestedAttributes.end(),
         [&] (const TString& attribute) {
-            return LightAttributes.contains(attribute);
+            return filteringAttributes.contains(attribute);
         });
-    if (!areAllRequestedAttributesLight) {
+    if (requestedAttributes.contains("runtime_parameters") && !options.SubstrFilter) {
+        // heavy_runtime_parameters needed, but have not been fetched from Cypress
+        areAllRequestedAttributesReady = false;
+    }
+
+    if (!areAllRequestedAttributesReady) {
         auto getBatchReq = proxy.ExecuteBatch();
         SetBalancingHeader(getBatchReq, options);
 
-        const auto cypressRequestedAttributes = CreateCypressOperationAttributes(requestedAttributes);
+        const auto cypressRequestedAttributes = CreateCypressOperationAttributes(
+            requestedAttributes,
+            /* needHeavyRuntimeParameters */ requestedAttributes.contains("runtime_parameters"));
         filter->ForEachOperationImmutable([&] (int /*index*/, const TListOperationsFilter::TLightOperation& lightOperation) {
             auto req = TYPathProxy::Get(GetOperationPath(lightOperation.GetId()));
             SetCachingHeader(req, options);

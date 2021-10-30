@@ -62,6 +62,9 @@ class TestRuntimeParameters(YTEnvSetup):
         wait(lambda: op.get_runtime_progress("scheduling_info_per_pool_tree/default/weight", 0.0) == 5.0)
 
         annotations_path = op.get_path() + "/@runtime_parameters/annotations"
+        if self.DELTA_SCHEDULER_CONFIG["scheduler"].get("enable_heavy_runtime_parameters", False):
+            annotations_path = op.get_path() + "/@heavy_runtime_parameters/annotations"
+
         assert get(annotations_path) == {"foo": "abc"}
 
         update_op_parameters(
@@ -458,6 +461,18 @@ class TestRuntimeParametersWithRecentResourceUsage(TestRuntimeParameters):
     def setup_method(self, method):
         super(TestRuntimeParametersWithRecentResourceUsage, self).setup_method(method)
         set("//sys/pool_trees/default/@config/use_recent_resource_usage_for_local_satisfaction", True)
+
+
+class TestRuntimeParametersWithHeavyRuntimeParameters(TestRuntimeParameters):
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+            "operations_update_period": 10,
+            "pool_change_is_allowed": True,
+            "watchers_update_period": 100,  # Update pools configuration period
+            "enable_heavy_runtime_parameters": True,
+        }
+    }
 
 ##################################################################
 

@@ -248,7 +248,8 @@ class TestGetOperation(YTEnvSetup):
         }
 
     @authors("ignat")
-    def test_attributes(self):
+    @pytest.mark.parametrize("annotations", [{}, {"foo": "abc"}])
+    def test_attributes(self, annotations):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
@@ -259,7 +260,7 @@ class TestGetOperation(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint("cat ; BREAKPOINT"),
-            spec={"mapper": {"input_format": "json", "output_format": "json"}},
+            spec={"mapper": {"input_format": "json", "output_format": "json"}, "annotations": annotations},
         )
         wait_breakpoint()
 
@@ -287,6 +288,8 @@ class TestGetOperation(YTEnvSetup):
         with raises_yt_error(yt_error_codes.NoSuchAttribute):
             get_operation(op.id, attributes=["nonexistent-attribute-ZZZ"])
 
+        assert get_operation(op.id, attributes=["runtime_parameters"])["runtime_parameters"]["annotations"] == annotations
+
         release_breakpoint()
         op.track()
 
@@ -307,6 +310,7 @@ class TestGetOperation(YTEnvSetup):
             res_get_operation_archive["runtime_parameters"]["scheduling_options_per_pool_tree"]["default"]["pool"]
             == "root"
         )
+        assert res_get_operation_archive["runtime_parameters"]["annotations"] == annotations
         assert res_get_operation_archive["slot_index_per_pool_tree"]["default"] == 0
 
         with raises_yt_error(yt_error_codes.NoSuchAttribute):
@@ -497,6 +501,25 @@ class TestGetOperationRpcProxy(TestGetOperation):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
+
+
+class TestGetOperationHeavyRuntimeParameters(TestGetOperation):
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period": 10,
+            "operations_cleaner": {
+                "enable": False,
+                "analysis_period": 100,
+                # Cleanup all operations
+                "hard_retained_operation_count": 0,
+                "clean_delay": 0,
+            },
+            "static_orchid_cache_update_period": 100,
+            "alerts_update_period": 100,
+            "enable_heavy_runtime_parameters": True,
+        },
+    }
 
 
 ##################################################################

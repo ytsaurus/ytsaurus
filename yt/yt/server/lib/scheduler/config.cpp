@@ -812,6 +812,9 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("update_last_metering_log_time", &TSchedulerConfig::UpdateLastMeteringLogTime)
         .Default(true);
 
+    registrar.Parameter("enable_heavy_runtime_parameters", &TSchedulerConfig::EnableHeavyRuntimeParameters)
+        .Default(false);
+
     registrar.Preprocessor([&] (TSchedulerConfig* config) {
         config->EventLog->MaxRowWeight = 128_MB;
         if (!config->EventLog->Path) {

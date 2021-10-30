@@ -539,6 +539,7 @@ class _TestListOperationsBase(ListOperationsSetup):
             read_from=read_from,
         )
         assert [op["id"] for op in res["operations"]] == [self.op1.id]
+        assert [op["runtime_parameters"]["annotations"] for op in res["operations"]] == [{"key": ["annotation1", "annotation2"]}]
 
     def _test_pool_filter(self, read_from):
         res = list_operations(
@@ -1132,3 +1133,13 @@ class TestListOperationsArchiveOnlyRpcProxy(TestListOperationsArchiveOnly):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
+
+
+class TestListOperationsCypressArchiveHeavyRuntimeParameters(TestListOperationsCypressArchive):
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "alerts_update_period": 100,
+            "watchers_update_period": 100,
+            "enable_heavy_runtime_parameters": True,
+        }
+    }
