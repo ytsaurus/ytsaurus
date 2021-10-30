@@ -1,25 +1,28 @@
 #include "parallel_file_writer.h"
 
+#include <mapreduce/yt/common/config.h>
+
 #include <util/system/fstat.h>
 #include <util/system/info.h>
-
-#include <util/string/builder.h>
-
-#include <util/datetime/cputimer.h>
-
-#include <mapreduce/yt/common/config.h>
+#include <util/system/mutex.h>
+#include <util/system/thread.h>
 
 namespace NYT {
 namespace NDetail {
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TParallelFileWriter {
 public:
-    /// @brief Write file parallelly.
-    /// @param client       client which used for write file on server
-    /// @param fileName     source path to file in local storage
-    /// @param path         dist path to file on server
-    TParallelFileWriter(const IClientBasePtr& client, const TString& fileName, const TRichYPath& path,
-        const TParallelFileWriterOptions& options = TParallelFileWriterOptions());
+    /// @brief Write file in parallel.
+    /// @param client       Client which used for write file on server.
+    /// @param fileName     Source path to file in local storage.
+    /// @param path         Dist path to file on server.
+    TParallelFileWriter(
+        const IClientBasePtr& client,
+        const TString& fileName,
+        const TRichYPath& path,
+        const TParallelFileWriterOptions& options);
 
     ~TParallelFileWriter();
 
@@ -51,31 +54,47 @@ private:
     TMutex MutexForException_;
 };
 
-TParallelFileWriter::TParallelFileWriter(const IClientBasePtr &client, const TString& fileName, const TRichYPath& path, const TParallelFileWriterOptions& options)
+////////////////////////////////////////////////////////////////////////////////
+
+TParallelFileWriter::TParallelFileWriter(
+    const IClientBasePtr &client,
+    const TString& fileName,
+    const TRichYPath& path,
+    const TParallelFileWriterOptions& options)
     : Transaction_(client->StartTransaction())
     , FileName_(fileName)
     , Path_(path)
     , Options_(options)
 {
-    int nthreads;
+    int threadCount;
     auto length = GetFileLength(fileName);
-    if (options.NumThreads_) {
-        nthreads = *options.NumThreads_;
+    if (options.ThreadCount_) {
+        threadCount = *options.ThreadCount_;
     } else {
-        const i64 GB = (1u << 30u);
-        nthreads = Min(static_cast<size_t>(length / GB + 1), NSystemInfo::NumberOfCpus());
+        static constexpr i64 SingleThreadWriteSize = (1u << 30u);
+        threadCount = Min<int>(
+            length / SingleThreadWriteSize + 1,
+            NSystemInfo::NumberOfCpus());
     }
-    Params_.reserve(nthreads);
-    Threads_.reserve(nthreads);
-    TempPaths_.reserve(nthreads);
-    for (int i = 0; i < nthreads; ++i) {
-        i64 begin = length * i / nthreads;
-        i64 end = length * (i + 1) / nthreads;
-        Params_.push_back({this, i, begin, end - begin});
+    Params_.reserve(threadCount);
+    Threads_.reserve(threadCount);
+    TempPaths_.reserve(threadCount);
+    for (int i = 0; i < threadCount; ++i) {
+        i64 begin = length * i / threadCount;
+        i64 end = length * (i + 1) / threadCount;
+        Params_.push_back(TParam{
+            .Writer = this,
+            .Index = i,
+            .Start = begin,
+            .Length = end - begin,
+        });
         TempPaths_.emplace_back(Path_.Path_ + "__ParallelFileWriter__" + ::ToString(i));
         Threads_.push_back(::MakeHolder<TThread>(
-            TThread::TParams(ThreadWrite, &Params_[i]).SetName("ParallelFW " + ::ToString(i))));
-        Threads_.back()->Start();
+            TThread::TParams(ThreadWrite, &Params_.back())
+                .SetName("ParallelFW " + ::ToString(i))));
+    }
+    for (auto& thread : Threads_) {
+        thread->Start();
     }
 }
 
@@ -86,36 +105,37 @@ TParallelFileWriter::~TParallelFileWriter()
 
 void TParallelFileWriter::Finish()
 {
-    if (!Finished_) {
-        Finished_ = true;
-        for (auto& thread : Threads_) {
-            thread->Join();
-        }
-        if (Exception_) {
-            Transaction_->Abort();
-            std::rethrow_exception(Exception_);
-        }
-        auto createOptions = TCreateOptions();
-        auto concatenateOptions = TConcatenateOptions();
-        if (Path_.Append_.GetOrElse(false)) {
-            createOptions.IgnoreExisting(true);
-            concatenateOptions.Append(true);
-        } else {
-            createOptions.Force(true);
-            concatenateOptions.Append(false);
-        }
-        Transaction_->Create(Path_.Path_, NT_FILE, createOptions);
-        Transaction_->Concatenate(TempPaths_, Path_.Path_, concatenateOptions);
-        for (const auto& path : TempPaths_) {
-            Transaction_->Remove(path);
-        }
-        Transaction_->Commit();
+    if (Finished_) {
+        return;
     }
+    Finished_ = true;
+    for (auto& thread : Threads_) {
+        thread->Join();
+    }
+    if (Exception_) {
+        Transaction_->Abort();
+        std::rethrow_exception(Exception_);
+    }
+    auto createOptions = TCreateOptions();
+    auto concatenateOptions = TConcatenateOptions();
+    if (Path_.Append_.GetOrElse(false)) {
+        createOptions.IgnoreExisting(true);
+        concatenateOptions.Append(true);
+    } else {
+        createOptions.Force(true);
+        concatenateOptions.Append(false);
+    }
+    Transaction_->Create(Path_.Path_, NT_FILE, createOptions);
+    Transaction_->Concatenate(TempPaths_, Path_.Path_, concatenateOptions);
+    for (const auto& path : TempPaths_) {
+        Transaction_->Remove(path);
+    }
+    Transaction_->Commit();
 }
 
 void* TParallelFileWriter::ThreadWrite(void* opaque)
 {
-    auto param = static_cast<TParam*>(opaque);
+    auto* param = static_cast<TParam*>(opaque);
     param->Writer->ThreadWrite(param->Index, param->Start, param->Length);
     return nullptr;
 }
@@ -129,7 +149,9 @@ void TParallelFileWriter::ThreadWrite(int index, i64 start, i64 length)
         file.Seek(start, SeekDir::sSet);
         IFileWriterPtr writer;
         if (Options_.WriterOptions_) {
-            writer = Transaction_->CreateFileWriter(thisPath, TFileWriterOptions().WriterOptions(*Options_.WriterOptions_));
+            writer = Transaction_->CreateFileWriter(
+                thisPath,
+                TFileWriterOptions().WriterOptions(*Options_.WriterOptions_));
         } else {
             writer = Transaction_->CreateFileWriter(thisPath);
         }
@@ -149,11 +171,22 @@ void TParallelFileWriter::ThreadWrite(int index, i64 start, i64 length)
         Exception_ = std::current_exception();
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDetail
 
-void WriteFileParallel(const IClientBasePtr &client, const TString& fileName, const TRichYPath& path, const TParallelFileWriterOptions& options)
+////////////////////////////////////////////////////////////////////////////////
+
+void WriteFileParallel(
+    const IClientBasePtr &client,
+    const TString& fileName,
+    const TRichYPath& path,
+    const TParallelFileWriterOptions& options)
 {
     NDetail::TParallelFileWriter(client, fileName, path, options).Finish();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

@@ -50,7 +50,7 @@ Y_UNIT_TEST_SUITE(ParallelFileWriter) {
         auto client = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
         TRichYPath path = workingDir + "/file";
-        WriteFileParallel(client, fileName, path, TParallelFileWriterOptions().NumThreads(5));
+        WriteFileParallel(client, fileName, path, TParallelFileWriterOptions().ThreadCount(5));
         auto reader = client->CreateFileReader(path);
         auto read = reader->ReadAll();
         UNIT_ASSERT_EQUAL(data, read);
@@ -66,13 +66,13 @@ Y_UNIT_TEST_SUITE(ParallelFileWriter) {
         auto client = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
         TRichYPath path = workingDir + "/file";
-        WriteFileParallel(client, fileName, path, TParallelFileWriterOptions().NumThreads(5));
+        WriteFileParallel(client, fileName, path, TParallelFileWriterOptions().ThreadCount(5));
         {
             auto reader = client->CreateFileReader(path);
             auto read = reader->ReadAll();
             UNIT_ASSERT_EQUAL(data, read);
         }
-        WriteFileParallel(client, fileName, path.Append(false), TParallelFileWriterOptions().NumThreads(5));
+        WriteFileParallel(client, fileName, path.Append(false), TParallelFileWriterOptions().ThreadCount(5));
         {
             auto reader = client->CreateFileReader(path);
             auto read = reader->ReadAll();
@@ -90,13 +90,13 @@ Y_UNIT_TEST_SUITE(ParallelFileWriter) {
         auto client = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
         TRichYPath path = workingDir + "/file";
-        WriteFileParallel(client, fileName, path, TParallelFileWriterOptions().NumThreads(5));
+        WriteFileParallel(client, fileName, path, TParallelFileWriterOptions().ThreadCount(5));
         {
             auto reader = client->CreateFileReader(path);
             auto read = reader->ReadAll();
             UNIT_ASSERT_EQUAL(data, read);
         }
-        WriteFileParallel(client, fileName, path.Append(true), TParallelFileWriterOptions().NumThreads(5));
+        WriteFileParallel(client, fileName, path.Append(true), TParallelFileWriterOptions().ThreadCount(5));
         {
             auto reader = client->CreateFileReader(path);
             auto read = reader->ReadAll();
@@ -114,13 +114,13 @@ Y_UNIT_TEST_SUITE(ParallelFileWriter) {
         auto client = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
         TRichYPath path = workingDir + "/file";
-        WriteFileParallel(client, fileName, path, TParallelFileWriterOptions().NumThreads(10));
+        WriteFileParallel(client, fileName, path, TParallelFileWriterOptions().ThreadCount(10));
         {
             auto reader = client->CreateFileReader(path);
             auto read = reader->ReadAll();
             UNIT_ASSERT_EQUAL(data, read);
         }
-        WriteFileParallel(client, fileName, path.Append(true), TParallelFileWriterOptions().NumThreads(10));
+        WriteFileParallel(client, fileName, path.Append(true), TParallelFileWriterOptions().ThreadCount(10));
         {
             auto reader = client->CreateFileReader(path);
             auto read = reader->ReadAll();

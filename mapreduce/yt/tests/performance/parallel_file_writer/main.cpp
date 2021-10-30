@@ -35,7 +35,7 @@ int main() {
     Cout << "FileWriter: " << timer.Get().SecondsFloat() << Endl;
 
     timer.Reset();
-    WriteFileParallel(client, fileName, path, TParallelFileWriterOptions().NumThreads(10));
+    WriteFileParallel(client, fileName, path, TParallelFileWriterOptions().ThreadCount(10));
     Cout << "WriteFileParallel: " << timer.Get().SecondsFloat() << Endl;
 }
 
