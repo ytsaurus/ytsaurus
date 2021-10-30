@@ -114,6 +114,7 @@ const std::vector<TString>& TArchiveOperationRequest::GetAttributeKeys()
         "full_spec",
         "unrecognized_spec",
         "runtime_parameters",
+        "heavy_runtime_parameters",
         "alias",
         "slot_index_per_pool_tree",
         "task_names",
@@ -166,7 +167,17 @@ void TArchiveOperationRequest::InitializeFromAttributes(const IAttributeDictiona
     Alerts = attributes.GetYson("alerts");
     FullSpec = attributes.FindYson("full_spec");
     UnrecognizedSpec = attributes.FindYson("unrecognized_spec");
-    RuntimeParameters = attributes.FindYson("runtime_parameters");
+
+    if (auto heavyRuntimeParameters = attributes.Find<IMapNodePtr>("heavy_runtime_parameters")) {
+        auto runtimeParameters = attributes.Find<IMapNodePtr>("runtime_parameters");
+        if (!runtimeParameters) {
+            RuntimeParameters = ConvertToYsonString(heavyRuntimeParameters);
+        } else {
+            RuntimeParameters = ConvertToYsonString(PatchNode(runtimeParameters, heavyRuntimeParameters));
+        }
+    } else {
+        RuntimeParameters = attributes.FindYson("runtime_parameters");
+    }
     Alias = ConvertTo<TOperationSpecBasePtr>(Spec)->Alias;
     SlotIndexPerPoolTree = attributes.FindYson("slot_index_per_pool_tree");
     TaskNames = attributes.FindYson("task_names");

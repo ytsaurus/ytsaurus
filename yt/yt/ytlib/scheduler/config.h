@@ -1620,9 +1620,12 @@ public:
 DEFINE_REFCOUNTED_TYPE(TOperationFairShareTreeRuntimeParameters)
 
 class TOperationRuntimeParameters
-    : public NYTree::TYsonStruct
+    : public TRefCounted
 {
 public:
+    // Keep the stuff below synchronized with Serialize/Deserialize functions.
+    // Heavy parameters may be serialized separately, check SerializeHeavyRuntimeParameters function.
+
     // COMPAT(levysotsky): We need to support both |Owners| and |Acl|
     // to be able to revive old operations.
     std::vector<TString> Owners;
@@ -1632,11 +1635,11 @@ public:
 
     // Erased trees of operation, should be used only for information purposes.
     std::vector<TString> ErasedTrees;
-
-    REGISTER_YSON_STRUCT(TOperationRuntimeParameters);
-
-    static void Register(TRegistrar registrar);
 };
+void SerializeHeavyRuntimeParameters(NYTree::TFluentMap fluent, const TOperationRuntimeParameters& parameters);
+void Serialize(const TOperationRuntimeParameters& parameters, NYson::IYsonConsumer* consumer, bool serializeHeavy = true);
+void Serialize(const TOperationRuntimeParametersPtr& parameters, NYson::IYsonConsumer* consumer, bool serializeHeavy = true);
+void Deserialize(TOperationRuntimeParameters& parameters, NYTree::INodePtr node);
 
 DEFINE_REFCOUNTED_TYPE(TOperationRuntimeParameters)
 

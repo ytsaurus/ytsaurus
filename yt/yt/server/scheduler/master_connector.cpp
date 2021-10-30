@@ -177,12 +177,19 @@ public:
 
             {
                 auto batchReq = StartObjectBatchRequest();
+                bool enableHeavyRuntimeParameters = Config_->EnableHeavyRuntimeParameters;
 
                 auto operationYson = BuildYsonStringFluently()
                     .BeginAttributes()
                         .Do(BIND(&BuildMinimalOperationAttributes, operation))
                         .Item("opaque").Value(true)
-                        .Item("runtime_parameters").Value(operation->GetRuntimeParameters())
+                        .Item("runtime_parameters").Value(operation->GetRuntimeParameters(), /* serializeHeavy */ !enableHeavyRuntimeParameters)
+                        .DoIf(enableHeavyRuntimeParameters, [&] (auto fluent) {
+                            fluent.Item("heavy_runtime_parameters")
+                                .DoMap([&] (auto fluent) {
+                                    SerializeHeavyRuntimeParameters(fluent, *operation->GetRuntimeParameters());
+                                });
+                        })
                         .Item("acl").Value(MakeOperationArtifactAcl(operation->GetRuntimeParameters()->Acl))
                     .EndAttributes()
                     .BeginMap()
@@ -1013,6 +1020,7 @@ private:
                 "events",
                 "slot_index_per_pool_tree",
                 "runtime_parameters",
+                "heavy_runtime_parameters",
                 "output_completion_transaction_id",
                 "suspended",
                 "erased_trees",
@@ -1172,7 +1180,15 @@ private:
             auto user = attributes.Get<TString>("authenticated_user");
 
             YT_VERIFY(attributes.Contains("runtime_parameters"));
-            auto runtimeParameters = attributes.Get<TOperationRuntimeParametersPtr>("runtime_parameters");
+            
+            TOperationRuntimeParametersPtr runtimeParameters;
+            if (auto heavyRuntimeParameters = attributes.Find<IMapNodePtr>("heavy_runtime_parameters")) {
+                auto runtimeParametersNode = attributes.Get<IMapNodePtr>("runtime_parameters");
+                runtimeParameters = ConvertTo<TOperationRuntimeParametersPtr>(
+                    PatchNode(runtimeParametersNode, heavyRuntimeParameters));
+            } else {
+                runtimeParameters = attributes.Get<TOperationRuntimeParametersPtr>("runtime_parameters");
+            }
             if (spec->AddAuthenticatedUserToAcl) {
                 TSerializableAccessControlEntry ace(
                     ESecurityAction::Allow,
@@ -1182,12 +1198,6 @@ private:
                 if (it == runtimeParameters->Acl.Entries.end()) {
                     runtimeParameters->Acl.Entries.push_back(std::move(ace));
                 }
-            }
-
-            // COMPAT(gritukan)
-            auto annotations = attributes.Find<IMapNodePtr>("annotations");
-            if (annotations) {
-                runtimeParameters->Annotations = annotations;
             }
 
             auto scheduler = Owner_->Bootstrap_->GetScheduler();
@@ -1760,9 +1770,24 @@ private:
 
             // Set runtime parameters.
             {
+                bool enableHeavyRuntimeParameters = Config_->EnableHeavyRuntimeParameters;
                 auto req = multisetReq->add_subrequests();
                 req->set_key("runtime_parameters");
-                req->set_value(ConvertToYsonString(operation->GetRuntimeParameters()).ToString());
+                req->set_value(
+                    BuildYsonStringFluently()
+                        .Value(operation->GetRuntimeParameters(), /* serializeHeavy */ !enableHeavyRuntimeParameters)
+                        .ToString());
+                
+                if (enableHeavyRuntimeParameters) {
+                    auto reqHeavy = multisetReq->add_subrequests();
+                    reqHeavy->set_key("heavy_runtime_parameters");
+                    reqHeavy->set_value(
+                        BuildYsonStringFluently()
+                            .DoMap([&] (auto fluent) {
+                                SerializeHeavyRuntimeParameters(fluent, *operation->GetRuntimeParameters());
+                            })
+                            .ToString());
+                }
             }
 
             // Set initial aggregated min needed resources.

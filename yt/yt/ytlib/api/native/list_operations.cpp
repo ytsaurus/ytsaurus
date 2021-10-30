@@ -107,7 +107,21 @@ public:
     { }
 
     void OnEndOperation()
-    { }
+    {
+        if (!HeavyRuntimeParameters_) {
+            return;
+        }
+        if (!Operation_.RuntimeParameters) {
+            Operation_.RuntimeParameters = HeavyRuntimeParameters_;
+            return;
+        }
+
+        auto heavyRuntimeParametersNode = ConvertTo<IMapNodePtr>(HeavyRuntimeParameters_);
+        auto runtimeParametersNode =  ConvertTo<IMapNodePtr>(Operation_.RuntimeParameters);
+        Operation_.RuntimeParameters = ConvertToYsonString(PatchNode(
+            runtimeParametersNode,
+            heavyRuntimeParametersNode));
+    }
 
     void OnId(TOperationId id)
     {
@@ -186,6 +200,12 @@ public:
         TransferAndGetYson("runtime_parameters", Operation_.RuntimeParameters, cursor);
     }
 
+    void OnHeavyRuntimeParameters(TYsonPullParserCursor* cursor)
+    {
+        // We don't use heavy_runtime_parameters here intentionally as it can't be contained in Attributes_
+        TransferAndGetYson("runtime_parameters", HeavyRuntimeParameters_, cursor);
+    }
+
     void OnSuspended(bool suspended)
     {
         if (Attributes_.contains("suspended")) {
@@ -238,6 +258,7 @@ private:
     const THashSet<TString>& Attributes_;
 
     TYsonString Annotations_;
+    TYsonString HeavyRuntimeParameters_;
 
 private:
     void TransferAndGetYson(TStringBuf attribute, TYsonString& result, TYsonPullParserCursor* cursor)
@@ -312,6 +333,9 @@ void ParseOperationToConsumer(TYsonPullParserCursor* cursor, TConsumer* consumer
         } else if (key == TStringBuf("runtime_parameters")) {
             cursor->Next();
             consumer->OnRuntimeParameters(cursor);
+        } else if (key == TStringBuf("heavy_runtime_parameters")) {
+            cursor->Next();
+            consumer->OnHeavyRuntimeParameters(cursor);
         } else if (key == TStringBuf("suspended")) {
             cursor->Next();
             consumer->OnSuspended(ExtractTo<bool>(cursor));
@@ -550,20 +574,25 @@ public:
                         }
                     });
                 });
-            // TODO(ignat): move annotations to some 'runtime_parameters_heavy'?
+            // COMPAT(egor-gutrov)
             } else if (key == TStringBuf("annotations")) {
                 cursor->Next();
-                if (!Options_.SubstrFilter || SubstringFound_) {
-                    cursor->SkipComplexValue();
-                } else {
-                    {
-                        Annotations_.clear();
-                        TStringOutput output(Annotations_);
-                        TYsonWriter writer(&output, EYsonFormat::Text);
-                        cursor->TransferComplexValue(&writer);
-                    }
-                    SearchSubstring(Annotations_);
-                }
+                OnAnnotations(cursor);
+            } else {
+                cursor->Next();
+                cursor->SkipComplexValue();
+            }
+        });
+    }
+
+    void OnHeavyRuntimeParameters(TYsonPullParserCursor* cursor)
+    {
+        cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
+            YT_VERIFY((*cursor)->GetType() == EYsonItemType::StringValue);
+            auto key = (*cursor)->UncheckedAsString();
+            if (key == TStringBuf("annotations")) {
+                cursor->Next();
+                OnAnnotations(cursor);
             } else {
                 cursor->Next();
                 cursor->SkipComplexValue();
@@ -689,6 +718,21 @@ private:
         }
 
         return CountingFilter_->Filter(Pools_, AuthenticatedUser_, state, Type_, /* count = */ 1);
+    }
+
+    void OnAnnotations(TYsonPullParserCursor* cursor)
+    {
+        if (!Options_.SubstrFilter || SubstringFound_) {
+            cursor->SkipComplexValue();
+        } else {
+            {
+                Annotations_.clear();
+                TStringOutput output(Annotations_);
+                TYsonWriter writer(&output, EYsonFormat::Text); // TODO(egor-gutrov): write binary yson here
+                cursor->TransferComplexValue(&writer);
+            }
+            SearchSubstring(Annotations_);
+        }
     }
 };
 

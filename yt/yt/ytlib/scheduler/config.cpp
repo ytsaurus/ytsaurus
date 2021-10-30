@@ -2006,25 +2006,54 @@ void TOperationFairShareTreeRuntimeParameters::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TOperationRuntimeParameters::Register(TRegistrar registrar)
+void SerializeHeavyRuntimeParameters(NYTree::TFluentMap fluent, const TOperationRuntimeParameters& parameters)
 {
-    registrar.Parameter("owners", &TOperationRuntimeParameters::Owners)
-        .Optional();
-    registrar.Parameter("acl", &TOperationRuntimeParameters::Acl)
-        .Optional();
+    fluent
+        .OptionalItem("annotations", parameters.Annotations);
+}
 
-    registrar.Parameter("scheduling_options_per_pool_tree", &TOperationRuntimeParameters::SchedulingOptionsPerPoolTree);
+void Serialize(const TOperationRuntimeParameters& parameters, IYsonConsumer* consumer, bool serializeHeavy)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("owners").Value(parameters.Owners)
+            .Item("acl").Value(parameters.Acl)
+            .Item("scheduling_options_per_pool_tree").Value(parameters.SchedulingOptionsPerPoolTree)
+            .DoIf(serializeHeavy, [&] (auto fluent) {
+                SerializeHeavyRuntimeParameters(fluent, parameters);
+            })
+            .Item("erased_trees").Value(parameters.ErasedTrees)
+        .EndMap();
+}
 
-    registrar.Parameter("annotations", &TOperationRuntimeParameters::Annotations)
-        .Optional();
+void Serialize(const TOperationRuntimeParametersPtr& parameters, IYsonConsumer* consumer, bool serializeHeavy)
+{
+    if (!parameters) {
+        consumer->OnEntity();
+    } else {
+        Serialize(*parameters, consumer, serializeHeavy);
+    }
+}
 
-    registrar.Parameter("erased_trees", &TOperationRuntimeParameters::ErasedTrees)
-        .Optional();
-
-    registrar.Postprocessor([] (TOperationRuntimeParameters* parameters) {
-        ValidateOperationAcl(parameters->Acl);
-        ProcessAclAndOwnersParameters(&parameters->Acl, &parameters->Owners);
-    });
+void Deserialize(TOperationRuntimeParameters& parameters, INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    if (auto owners = mapNode->FindChild("owners")) {
+        Deserialize(parameters.Owners, owners);
+    }
+    if (auto acl = mapNode->FindChild("acl")) {
+        Deserialize(parameters.Acl, acl);
+    }
+    parameters.SchedulingOptionsPerPoolTree = ConvertTo<THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr>>(
+        mapNode->GetChildOrThrow("scheduling_options_per_pool_tree"));
+    if (auto annotations = mapNode->FindChild("annotations")) {
+        Deserialize(parameters.Annotations, annotations);
+    }
+    if (auto erasedTrees = mapNode->FindChild("erased_trees")) {
+        Deserialize(parameters.ErasedTrees, erasedTrees);
+    }
+    ValidateOperationAcl(parameters.Acl);
+    ProcessAclAndOwnersParameters(&parameters.Acl, &parameters.Owners);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
