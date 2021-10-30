@@ -2,6 +2,8 @@
 
 #include "monitoring_manager.h"
 
+#include <yt/yt/build/build.h>
+
 #include <yt/yt/core/json/config.h>
 #include <yt/yt/core/json/json_writer.h>
 
@@ -30,6 +32,7 @@
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
 #include <yt/yt/library/ytprof/http/handler.h>
+#include <yt/yt/library/ytprof/buildinfo.h>
 
 #include <library/cpp/cgiparam/cgiparam.h>
 
@@ -84,7 +87,9 @@ void Initialize(
             "/sensors",
             CreateVirtualNode(exporter->GetSensorService()));
 
-        NYTProf::Register(monitoringServer, "/ytprof");
+        auto buildInfo = NYTProf::TBuildInfo::GetDefault();
+        buildInfo.BinaryVersion = GetVersion();
+        NYTProf::Register(monitoringServer, "/ytprof", buildInfo);
 
         monitoringServer->AddHandler(
             "/orchid/",

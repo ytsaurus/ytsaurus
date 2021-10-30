@@ -15,6 +15,21 @@ std::pair<void*, void*> GetVdsoRange()
     return {nullptr, nullptr};
 }
 
+TString GetVersion()
+{
+    return "0.2";
+}
+
+void AddBuildInfo(NProto::Profile* profile, const TBuildInfo& buildInfo)
+{
+    Y_UNUSED(profile, buildInfo);
+}
+
+std::optional<TString> GetBuildId()
+{
+    return {};
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTProf

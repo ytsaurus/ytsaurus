@@ -81,6 +81,7 @@ void RunUnderProfiler(const TString& name, std::function<void()> work, bool chec
     }
 
     Symbolize(&profile, true);
+    AddBuildInfo(&profile, TBuildInfo::GetDefault());
 
     TFileOutput output(GetOutputPath() / name);
     WriteProfile(&output, profile);
