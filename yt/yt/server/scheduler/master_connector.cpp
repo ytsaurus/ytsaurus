@@ -77,6 +77,17 @@ static const NLogging::TLogger Logger("MasterConnector");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+bool IsMasterDisconnectionError(const TError& error)
+{
+    return error.FindMatching(NObjectClient::EErrorCode::PrerequisiteCheckFailed).has_value();
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMasterConnector::TImpl
     : public TRefCounted
 {
@@ -217,8 +228,12 @@ public:
                     .ThrowOnError();
             }
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error creating operation node %v", operationId)
+            auto error = TError("Error creating operation node %v", operationId)
                 << ex;
+            if (IsMasterDisconnectionError(error)) {
+                error.SetCode(EErrorCode::MasterDisconnected);
+            }
+            THROW_ERROR error;
         }
 
         YT_LOG_INFO("Operation node created (OperationId: %v)",
@@ -1766,9 +1781,13 @@ private:
 
             YT_LOG_DEBUG("Operation node updated (OperationId: %v)", operation->GetId());
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error updating operation node %v",
+            auto error = TError("Error updating operation node %v",
                 operation->GetId())
                 << ex;
+            if (IsMasterDisconnectionError(error)) {
+                error.SetCode(EErrorCode::MasterDisconnected);
+            }
+            THROW_ERROR error;
         }
     }
 
