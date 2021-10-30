@@ -255,4 +255,22 @@ Y_UNIT_TEST_SUITE(ParallelUnorderedWriter)
         };
         UNIT_ASSERT_EXCEPTION(writeTable(), TErrorResponse);
     }
+
+    Y_UNIT_TEST(PathWithAppend)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        const TString table = workingDir + "/parallel_writer_test_path_with_append";
+        {
+            auto writer = CreateParallelUnorderedTableWriter<TNode>(client, table);
+            writer->AddRow(TNode()("a", 1));
+            writer->Finish();
+        }
+
+        auto reader = client->CreateTableReader<TNode>(table);
+        UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), TNode()("a", 1));
+        reader->Next();
+        UNIT_ASSERT(!reader->IsValid());
+    }
 }

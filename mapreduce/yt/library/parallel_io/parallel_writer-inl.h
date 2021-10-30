@@ -2,6 +2,7 @@
 
 #ifndef PARALLEL_WRITER_INL_H_
 #error "Direct inclusion of this file is not allowed, use parallel_writer.h"
+#include "parallel_writer.h"
 #endif
 #undef PARALLEL_WRITER_INL_H_
 
@@ -53,9 +54,12 @@ public:
             Path_.Append(true);
         }
 
-        auto sortedBy = Transaction_->Get(Path_.Path_ + "/@sorted");
-        if (sortedBy.AsBool()) {
-            throw TApiUsageError() << "ParallelUnorderedTableWriter cannot be used to write to sorted table " << Path_.Path_;
+        if (Transaction_->Exists(Path_.Path_)) {
+            auto sortedBy = Transaction_->Get(Path_.Path_ + "/@sorted");
+            Y_ENSURE_EX(!sortedBy.AsBool(),
+                TApiUsageError() <<
+                    "ParallelUnorderedTableWriter cannot be used " <<
+                    "to write to sorted table " << Path_.Path_);
         }
 
         Args_.resize(options.ThreadCount_);
