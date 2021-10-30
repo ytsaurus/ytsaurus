@@ -1,6 +1,8 @@
+#include "yt/yt/library/ytprof/backtrace.h"
 #include <gtest/gtest.h>
 
 #include <yt/yt/library/ytprof/symbolize.h>
+#include <yt/yt/library/ytprof/buildinfo.h>
 
 namespace NYT::NYTProf {
 namespace {
@@ -18,6 +20,7 @@ TEST(Symbolize, EmptyProfile)
     profile.add_string_table();
 
     Symbolize(&profile);
+    AddBuildInfo(&profile, TBuildInfo::GetDefault());
 }
 
 TEST(Symbolize, SingleLocation)
@@ -46,6 +49,31 @@ TEST(Symbolize, SingleLocation)
     auto name = profile.string_table(function.name());
     ASSERT_TRUE(name.find("SingleLocation") != TString::npos)
         << "function name is " << name;
+}
+
+TEST(Symbolize, GetBuildId)
+{
+    if (!IsProfileBuild()) {
+        GTEST_SKIP();
+    }
+
+    auto buildId = GetBuildId();
+    ASSERT_TRUE(buildId);
+    ASSERT_NE(*buildId, TString{""});
+}
+
+TEST(BuildInfo, Test)
+{
+    if (!IsProfileBuild()) {
+        GTEST_SKIP();
+    }
+
+    auto info = TBuildInfo::GetDefault();
+    if (IsProfileBuild()) {
+        ASSERT_EQ(info.BuildType, "profile");
+    }
+
+    ASSERT_NE(info.ArcRevision, "");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

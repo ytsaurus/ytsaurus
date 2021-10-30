@@ -1,4 +1,7 @@
 #include "handler.h"
+#include "util/stream/fwd.h"
+
+#include <yt/yt/core/concurrency/async_stream.h>
 
 #include <yt/yt/core/http/http.h>
 #include <yt/yt/core/http/server.h>
@@ -17,10 +20,24 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCpuProfilerHandler
+class TBaseHandler
     : public IHttpHandler
 {
 public:
+    TBaseHandler(const TBuildInfo& buildInfo)
+        : BuildInfo_(buildInfo)
+    { }
+
+protected:
+    TBuildInfo BuildInfo_;
+};
+
+class TCpuProfilerHandler
+    : public TBaseHandler
+{
+public:
+    using TBaseHandler::TBaseHandler;
+
     void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         try {
@@ -38,6 +55,7 @@ public:
 
             auto profile = profiler.ReadProfile();
             Symbolize(&profile, true);
+            AddBuildInfo(&profile, BuildInfo_);
 
             TStringStream profileBlob;
             WriteProfile(&profileBlob, profile);
@@ -60,11 +78,12 @@ public:
 };
 
 class TTCMallocSnapshotProfilerHandler
-    : public IHttpHandler
+    : public TBaseHandler
 {
 public:
-    TTCMallocSnapshotProfilerHandler(tcmalloc::ProfileType profileType)
-        : ProfileType_(profileType)
+    TTCMallocSnapshotProfilerHandler(const TBuildInfo& buildInfo, tcmalloc::ProfileType profileType)
+        : TBaseHandler(buildInfo)
+        , ProfileType_(profileType)
     { }
 
     void HandleRequest(const IRequestPtr& /* req */, const IResponseWriterPtr& rsp) override
@@ -74,6 +93,7 @@ public:
 
             TStringStream profileBlob;
             WriteProfile(&profileBlob, profile);
+            AddBuildInfo(&profile, BuildInfo_);
 
             rsp->SetStatus(EStatusCode::OK);
             WaitFor(rsp->WriteBody(TSharedRef::FromString(profileBlob.Str())))
@@ -96,9 +116,11 @@ private:
 };
 
 class TTCMallocAllocationProfilerHandler
-    : public IHttpHandler
+    : public TBaseHandler
 {
 public:
+    using TBaseHandler::TBaseHandler;
+
     void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         try {
@@ -117,6 +139,7 @@ public:
 
             TStringStream profileBlob;
             WriteProfile(&profileBlob, profile);
+            AddBuildInfo(&profile, BuildInfo_);
 
             rsp->SetStatus(EStatusCode::OK);
             WaitFor(rsp->WriteBody(TSharedRef::FromString(profileBlob.Str())))
@@ -148,14 +171,90 @@ public:
     }
 };
 
-void Register(const IServerPtr& server, const TString& prefix)
+class TBinaryHandler
+    : public IHttpHandler
 {
-    server->AddHandler(prefix + "/cpu", New<TCpuProfilerHandler>());
-    server->AddHandler(prefix + "/heap", New<TTCMallocSnapshotProfilerHandler>(tcmalloc::ProfileType::kHeap));
-    server->AddHandler(prefix + "/peak", New<TTCMallocSnapshotProfilerHandler>(tcmalloc::ProfileType::kPeakHeap));
-    server->AddHandler(prefix + "/fragmentation", New<TTCMallocSnapshotProfilerHandler>(tcmalloc::ProfileType::kFragmentation));
-    server->AddHandler(prefix + "/allocations", New<TTCMallocAllocationProfilerHandler>());
+public:
+    void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    {
+        try {
+            auto buildId = GetBuildId();
+            TCgiParameters params(req->GetUrl().RawQuery);
+
+            if (auto it = params.Find("check_build_id"); it != params.end()) {
+                if (it->second != buildId) {
+                    THROW_ERROR_EXCEPTION("Wrong build id: %q != %q", it->second, buildId);
+                }
+            }
+
+            rsp->SetStatus(EStatusCode::OK);
+
+            TFileInput file{"/proc/self/exe"};
+            auto adapter = CreateBufferedSyncAdapter(rsp);
+            file.ReadAll(*adapter);
+            adapter->Finish();
+
+            WaitFor(rsp->Close())
+                .ThrowOnError();
+        } catch (const std::exception& ex) {
+            if (rsp->IsHeadersFlushed()) {
+                throw;
+            }
+
+            rsp->SetStatus(EStatusCode::InternalServerError);
+            WaitFor(rsp->WriteBody(TSharedRef::FromString(ex.what())))
+                .ThrowOnError();
+
+            throw;
+        }
+    }
+};
+
+class TVersionHandler
+    : public IHttpHandler
+{
+public:
+    void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    {
+        Y_UNUSED(req);
+
+        rsp->SetStatus(EStatusCode::OK);
+        WaitFor(rsp->WriteBody(TSharedRef::FromString(GetVersion())))
+            .ThrowOnError();
+    }
+};
+
+class TBuildIdHandler
+    : public IHttpHandler
+{
+public:
+    void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    {
+        Y_UNUSED(req);
+
+        rsp->SetStatus(EStatusCode::OK);
+        WaitFor(rsp->WriteBody(TSharedRef::FromString(GetVersion())))
+            .ThrowOnError();
+    }
+};
+
+void Register(
+    const IServerPtr& server,
+    const TString& prefix,
+    const TBuildInfo& buildInfo)
+{
+    server->AddHandler(prefix + "/cpu", New<TCpuProfilerHandler>(buildInfo));
+    server->AddHandler(prefix + "/heap", New<TTCMallocSnapshotProfilerHandler>(buildInfo, tcmalloc::ProfileType::kHeap));
+    server->AddHandler(prefix + "/peak", New<TTCMallocSnapshotProfilerHandler>(buildInfo, tcmalloc::ProfileType::kPeakHeap));
+    server->AddHandler(prefix + "/fragmentation", New<TTCMallocSnapshotProfilerHandler>(buildInfo, tcmalloc::ProfileType::kFragmentation));
+    server->AddHandler(prefix + "/allocations", New<TTCMallocAllocationProfilerHandler>(buildInfo));
+
     server->AddHandler(prefix + "/tcmalloc", New<TTCMallocStatHandler>());
+
+    server->AddHandler(prefix + "/binary", New<TBinaryHandler>());
+
+    server->AddHandler(prefix + "/version", New<TVersionHandler>());
+    server->AddHandler(prefix + "/buildid", New<TBuildIdHandler>());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
