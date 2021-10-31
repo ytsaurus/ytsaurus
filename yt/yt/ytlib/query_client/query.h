@@ -395,7 +395,7 @@ struct TGroupClause
     TTableSchemaPtr GetTableSchema(bool isFinal) const
     {
         TSchemaColumns result;
-        
+
         for (const auto& item : GroupItems) {
             result.emplace_back(item.Name, item.Expression->Type);
         }
@@ -438,7 +438,7 @@ struct TProjectClause
     TTableSchemaPtr GetTableSchema() const
     {
         TSchemaColumns result;
-        
+
         for (const auto& item : Projections) {
             result.emplace_back(item.Name, item.Expression->Type);
         }
@@ -535,13 +535,13 @@ struct TQuery
     TTableSchemaPtr GetReadSchema() const override
     {
         TSchemaColumns result;
-        
+
         for (const auto& item : Schema.GetOrderedSchemaMapping()) {
             result.emplace_back(
                 Schema.Original->Columns()[item.Index].Name(),
                 Schema.Original->Columns()[item.Index].LogicalType());
         }
-        
+
         return New<TTableSchema>(std::move(result));
     }
 

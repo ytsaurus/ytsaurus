@@ -42,7 +42,7 @@ struct TPermanentBufferTag
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t InitialGroupOpHashtableCapacity = 1024;
+constexpr const size_t InitialGroupOpHashtableCapacity = 1024;
 
 using THasherFunction = ui64(const TValue*);
 using TComparerFunction = char(const TValue*, const TValue*);
