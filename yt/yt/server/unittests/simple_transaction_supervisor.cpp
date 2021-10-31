@@ -14,6 +14,27 @@ static const TLogger Logger("SimpleTransactionSupervisor");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void RecoverErrorFromMutationResponse(TMutationResponse response)
+{
+    const auto& data = response.Data;
+    NRpc::NProto::TResponseHeader header;
+    NRpc::TryParseResponseHeader(data, &header);
+    if (header.has_error()) {
+        FromProto<TError>(header.error())
+            .ThrowOnError();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSimpleTransactionSupervisor::TSimpleTransactionSupervisor(
     ITransactionManagerPtr transactionManager,
     ISimpleHydraManagerPtr hydraManager,
@@ -29,7 +50,7 @@ TSimpleTransactionSupervisor::TSimpleTransactionSupervisor(
     TCompositeAutomatonPart::RegisterMethod(BIND(&TSimpleTransactionSupervisor::HydraCommitTransaction, Unretained(this)));
 }
 
-void TSimpleTransactionSupervisor::PrepareTransactionCommit(
+TFuture<void> TSimpleTransactionSupervisor::PrepareTransactionCommit(
     TTransactionId transactionId,
     bool persistent,
     TTimestamp prepareTimestamp)
@@ -41,10 +62,10 @@ void TSimpleTransactionSupervisor::PrepareTransactionCommit(
 
     auto mutation = CreateMutation(HydraManager_, request);
     mutation->SetCurrentTraceContext();
-    mutation->CommitAndLog(Logger);
+    return mutation->CommitAndLog(Logger).Apply(BIND(&RecoverErrorFromMutationResponse));
 }
 
-void TSimpleTransactionSupervisor::CommitTransaction(
+TFuture<void> TSimpleTransactionSupervisor::CommitTransaction(
     TTransactionId transactionId,
     TTimestamp commitTimestamp)
 {
@@ -54,7 +75,7 @@ void TSimpleTransactionSupervisor::CommitTransaction(
 
     auto mutation = CreateMutation(HydraManager_, request);
     mutation->SetCurrentTraceContext();
-    mutation->CommitAndLog(Logger);
+    return mutation->CommitAndLog(Logger).Apply(BIND(&RecoverErrorFromMutationResponse));
 }
 
 void TSimpleTransactionSupervisor::HydraPrepareTransactionCommit(TReqPrepareTransactionCommit* request)
