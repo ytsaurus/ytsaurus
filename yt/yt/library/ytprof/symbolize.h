@@ -7,7 +7,7 @@
 
 #include <yt/yt/library/ytprof/profile.pb.h>
 
-#include "buildinfo.h"
+#include "build_info.h"
 
 namespace NYT::NYTProf {
 

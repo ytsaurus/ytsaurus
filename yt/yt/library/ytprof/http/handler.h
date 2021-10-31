@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/http/public.h>
 
-#include <yt/yt/library/ytprof/buildinfo.h>
+#include <yt/yt/library/ytprof/build_info.h>
 
 namespace NYT::NYTProf {
 

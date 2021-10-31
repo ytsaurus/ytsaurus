@@ -1,9 +1,9 @@
 #pragma once
 
-#include "yt/yt/library/memory/ref_counted.h"
-#include <atomic>
-
 #include <yt/yt/library/memory/intrusive_ptr.h>
+#include <yt/yt/library/memory/ref_counted.h>
+
+#include <atomic>
 
 namespace NYT {
 
@@ -14,12 +14,11 @@ template <class T>
 class TAtomicSignalPtr
 {
 public:
-    constexpr TAtomicSignalPtr() noexcept 
-    { }
+    constexpr TAtomicSignalPtr() noexcept = default;
 
     TAtomicSignalPtr(const TAtomicSignalPtr& other) = delete;
 
-    TIntrusivePtr<T> GetFromSignal()
+    TIntrusivePtr<T> GetFromSignal() const
     {
         return TIntrusivePtr<T>(T_);
     }
@@ -41,7 +40,7 @@ public:
         }
     }
 
-    bool IsSetFromThread()
+    bool IsSetFromThread() const
     {
         return T_ != nullptr;
     }

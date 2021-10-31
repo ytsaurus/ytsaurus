@@ -1,4 +1,4 @@
-#include "buildinfo.h"
+#include "build_info.h"
 
 #include <library/cpp/svnversion/svnversion.h>
 
