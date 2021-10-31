@@ -1,5 +1,3 @@
-#include "yt/yt/core/concurrency/scheduler_api.h"
-#include "yt/yt/core/tracing/public.h"
 #include <dlfcn.h>
 #include <gtest/gtest.h>
 
@@ -12,6 +10,7 @@
 #include <yt/yt/library/memory/new.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/actions/bind.h>
 

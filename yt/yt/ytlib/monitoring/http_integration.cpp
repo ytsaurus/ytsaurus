@@ -32,7 +32,7 @@
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
 #include <yt/yt/library/ytprof/http/handler.h>
-#include <yt/yt/library/ytprof/buildinfo.h>
+#include <yt/yt/library/ytprof/build_info.h>
 
 #include <library/cpp/cgiparam/cgiparam.h>
 

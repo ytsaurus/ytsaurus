@@ -2,7 +2,6 @@
 #include "private.h"
 #include "config.h"
 
-#include <atomic>
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/misc/atomic_object.h>
@@ -14,6 +13,8 @@
 #include <yt/yt_proto/yt/core/tracing/proto/tracing_ext.pb.h>
 
 #include <yt/yt/library/tracing/tracer.h>
+
+#include <atomic>
 
 namespace NYT::NTracing {
 
@@ -167,7 +168,7 @@ TTraceContextPtr TTraceContext::CreateChild(
         std::move(spanName),
         /* parentTraceContext */ this);
 
-    auto gaurd = Guard(Lock_);
+    auto guard = Guard(Lock_);
     child->ProfilingTags_ = ProfilingTags_;
     return child;
 }

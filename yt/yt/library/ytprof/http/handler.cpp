@@ -24,12 +24,12 @@ class TBaseHandler
     : public IHttpHandler
 {
 public:
-    TBaseHandler(const TBuildInfo& buildInfo)
+    explicit TBaseHandler(const TBuildInfo& buildInfo)
         : BuildInfo_(buildInfo)
     { }
 
 protected:
-    TBuildInfo BuildInfo_;
+    const TBuildInfo BuildInfo_;
 };
 
 class TCpuProfilerHandler
@@ -183,7 +183,7 @@ public:
 
             if (auto it = params.Find("check_build_id"); it != params.end()) {
                 if (it->second != buildId) {
-                    THROW_ERROR_EXCEPTION("Wrong build id: %q != %q", it->second, buildId);
+                    THROW_ERROR_EXCEPTION("Wrong build id: %v != %v", it->second, buildId);
                 }
             }
 
@@ -214,10 +214,8 @@ class TVersionHandler
     : public IHttpHandler
 {
 public:
-    void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    void HandleRequest(const IRequestPtr& /* req */, const IResponseWriterPtr& rsp) override
     {
-        Y_UNUSED(req);
-
         rsp->SetStatus(EStatusCode::OK);
         WaitFor(rsp->WriteBody(TSharedRef::FromString(GetVersion())))
             .ThrowOnError();
@@ -228,10 +226,8 @@ class TBuildIdHandler
     : public IHttpHandler
 {
 public:
-    void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    void HandleRequest(const IRequestPtr& /* req */, const IResponseWriterPtr& rsp) override
     {
-        Y_UNUSED(req);
-
         rsp->SetStatus(EStatusCode::OK);
         WaitFor(rsp->WriteBody(TSharedRef::FromString(GetVersion())))
             .ThrowOnError();
