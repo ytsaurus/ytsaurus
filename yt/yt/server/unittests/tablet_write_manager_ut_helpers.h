@@ -54,6 +54,9 @@ class TSimpleTabletSlot
     : public ITransactionManagerHost
 {
 public:
+    static constexpr TCellId CellId = {0, 42};
+    static constexpr TCellTag CellTag = 42;
+
     explicit TSimpleTabletSlot(TTabletOptions options)
     {
         AutomatonQueue_ = New<TActionQueue>("Automaton");
@@ -167,8 +170,6 @@ private:
     ITabletWriteManagerPtr TabletWriteManager_;
 
     TTimestamp LatestTimestamp_ = 4242;
-
-    static constexpr TCellId CellId = {0, 42};
 };
 
 DECLARE_REFCOUNTED_CLASS(TSimpleTabletSlot)
@@ -219,6 +220,11 @@ protected:
         return TabletSlot_->TransactionSupervisor();
     }
 
+    TTabletId MakeTabletTransactionId(TTimestamp timestamp, int hash = 0, EAtomicity atomicity = EAtomicity::Full)
+    {
+        return NTransactionClient::MakeTabletTransactionId(atomicity, TSimpleTabletSlot::CellTag, timestamp, hash);
+    }
+
     TUnversionedOwningRow BuildRow(const TString& yson, bool treatMissingAsNull = true)
     {
         return NTableClient::YsonToSchemafulRow(yson, *TabletSlot_->TabletManager()->Tablet()->GetPhysicalSchema(), treatMissingAsNull);
@@ -259,7 +265,15 @@ protected:
                 TSyncReplicaIdList(),
                 &reader,
                 &asyncResult);
-            return asyncResult;
+
+            // NB: we are not going to return asyncResult since it will be set only when
+            // WriteRows mutation (or mutations) are applied; we are applying mutations
+            // manually in these unittests, so this future is meaningless.
+            // Still, it is useful to check that no error is thrown in WriteRows mutation handler.
+            asyncResult
+                .Subscribe(BIND([] (TError error) {
+                    YT_VERIFY(error.IsOK());
+                }));
         })
             .AsyncVia(AutomatonInvoker())
             .Run();
@@ -298,7 +312,15 @@ protected:
                 TSyncReplicaIdList(),
                 &reader,
                 &asyncResult);
-            return asyncResult;
+
+            // NB: we are not going to return asyncResult since it will be set only when
+            // WriteRows mutation (or mutations) are applied; we are applying mutations
+            // manually in these unittests, so this future is meaningless.
+            // Still, it is useful to check that no error is thrown in WriteRows mutation handler.
+            asyncResult
+                .Subscribe(BIND([] (TError error) {
+                    YT_VERIFY(error.IsOK());
+                }));
         })
             .AsyncVia(AutomatonInvoker())
             .Run();
@@ -321,23 +343,26 @@ protected:
         }
     }
 
-    void PrepareTransactionCommit(TTransactionId transactionId, bool persistent, TTimestamp prepareTimestamp)
+    TFuture<void> PrepareTransactionCommit(TTransactionId transactionId, bool persistent, TTimestamp prepareTimestamp)
     {
-        RunInAutomaton([&] {
-            TransactionSupervisor()->PrepareTransactionCommit(
-                transactionId,
-                persistent,
-                prepareTimestamp);
-        });
+        return TransactionSupervisor()->PrepareTransactionCommit(
+            transactionId,
+            persistent,
+            prepareTimestamp);
     }
 
-    void CommitTransaction(TTransactionId transactionId, TTimestamp commitTimestamp)
+    TFuture<void> CommitTransaction(TTransactionId transactionId, TTimestamp commitTimestamp)
     {
-        RunInAutomaton([&] {
-            TransactionSupervisor()->CommitTransaction(
-                transactionId,
-                commitTimestamp);
-        });
+        return TransactionSupervisor()->CommitTransaction(
+            transactionId,
+            commitTimestamp);
+    }
+
+    TFuture<void> PrepareAndCommitTransaction(TTransactionId transactionId, bool persistent, TTimestamp prepareAndCommitTimestamp)
+    {
+        auto asyncPrepare = PrepareTransactionCommit(transactionId, persistent, prepareAndCommitTimestamp);
+        auto asyncCommit = CommitTransaction(transactionId, prepareAndCommitTimestamp);
+        return AllSucceeded<void>({asyncPrepare, asyncCommit});
     }
 };
 

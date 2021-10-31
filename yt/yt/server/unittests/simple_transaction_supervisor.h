@@ -23,12 +23,12 @@ public:
         NHydra::TCompositeAutomatonPtr automaton,
         IInvokerPtr automatonInvoker);
 
-    void PrepareTransactionCommit(
+    TFuture<void> PrepareTransactionCommit(
         TTransactionId transactionId,
         bool persistent,
         TTimestamp prepareTimestamp);
 
-    void CommitTransaction(
+    TFuture<void> CommitTransaction(
         TTransactionId transactionId,
         TTimestamp commitTimestamp);
 

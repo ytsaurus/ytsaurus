@@ -60,7 +60,7 @@ private:
 
 TEST_F(TTestTabletWriteManager, TestSimple)
 {
-    auto versionedTxId = MakeTabletTransactionId(EAtomicity::Full, TCellTag(42), TTimestamp(0x40), /*hash*/ 1);
+    auto versionedTxId = MakeTabletTransactionId(TTimestamp(0x40));
 
     WaitFor(WriteVersionedRows(versionedTxId, {BuildVersionedRow(1, {{0x25, 1}})}))
         .ThrowOnError();
@@ -79,7 +79,7 @@ TEST_F(TTestTabletWriteManager, TestSimple)
         ToString(BuildVersionedRow(1, {{0x25, 1}})),
         ToString(result));
 
-    auto unversionedTxId = MakeTabletTransactionId(EAtomicity::Full, TCellTag(42), TTimestamp(0x70), /*hash*/ 0);
+    auto unversionedTxId = MakeTabletTransactionId(TTimestamp(0x70));
 
     WaitFor(WriteUnversionedRows(unversionedTxId, {BuildRow(1, 2)}))
         .ThrowOnError();
@@ -101,7 +101,7 @@ TEST_F(TTestTabletWriteManager, TestSimple)
 
 TEST_F(TTestTabletWriteManager, TestWriteBarrierUnversionedPrepared)
 {
-    auto unversionedTxId = MakeTabletTransactionId(EAtomicity::Full, TCellTag(42), TTimestamp(0x10), /*hash*/ 0);
+    auto unversionedTxId = MakeTabletTransactionId(TTimestamp(0x10));
 
     WaitFor(WriteUnversionedRows(unversionedTxId, {BuildRow(1, 1)}))
         .ThrowOnError();
@@ -114,7 +114,7 @@ TEST_F(TTestTabletWriteManager, TestWriteBarrierUnversionedPrepared)
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    auto versionedTxId = MakeTabletTransactionId(EAtomicity::Full, TCellTag(42), TTimestamp(0x40), /*hash*/ 1);
+    auto versionedTxId = MakeTabletTransactionId(TTimestamp(0x40));
 
     RunRecoverRun([&] {
         EXPECT_THAT(
@@ -128,7 +128,7 @@ TEST_F(TTestTabletWriteManager, TestWriteBarrierUnversionedPrepared)
 
 TEST_F(TTestTabletWriteManager, TestWriteBarrierUnversionedActive)
 {
-    auto unversionedTxId = MakeTabletTransactionId(EAtomicity::Full, TCellTag(42), TTimestamp(0x10), /*hash*/ 0);
+    auto unversionedTxId = MakeTabletTransactionId(TTimestamp(0x10));
 
     WaitFor(WriteUnversionedRows(unversionedTxId, {BuildRow(1, 1)}))
         .ThrowOnError();
@@ -136,7 +136,7 @@ TEST_F(TTestTabletWriteManager, TestWriteBarrierUnversionedActive)
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    auto versionedTxId = MakeTabletTransactionId(EAtomicity::Full, TCellTag(42), TTimestamp(0x40), /*hash*/ 1);
+    auto versionedTxId = MakeTabletTransactionId(TTimestamp(0x40));
 
     RunRecoverRun([&] {
         EXPECT_THAT(
@@ -150,14 +150,14 @@ TEST_F(TTestTabletWriteManager, TestWriteBarrierUnversionedActive)
 
 TEST_F(TTestTabletWriteManager, TestWriteBarrierUnversionedInFlight)
 {
-    auto unversionedTxId = MakeTabletTransactionId(EAtomicity::Full, TCellTag(42), TTimestamp(0x10), /*hash*/ 0);
+    auto unversionedTxId = MakeTabletTransactionId(TTimestamp(0x10));
 
     WaitFor(WriteUnversionedRows(unversionedTxId, {BuildRow(1, 1)}))
         .ThrowOnError();
 
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
 
-    auto versionedTxId = MakeTabletTransactionId(EAtomicity::Full, TCellTag(42), TTimestamp(0x40), /*hash*/ 1);
+    auto versionedTxId = MakeTabletTransactionId(TTimestamp(0x40));
 
     EXPECT_THAT(
         [&] {
@@ -169,6 +169,63 @@ TEST_F(TTestTabletWriteManager, TestWriteBarrierUnversionedInFlight)
     // NB: in contrast to previous two tests, we cannot expect the same error after recovering from snapshot.
     // Note that WriteRows is not accepted during recovery.
 }
+
+TEST_F(TTestTabletWriteManager, TestSignaturesSuccess)
+{
+    auto txId = MakeTabletTransactionId(TTimestamp(0x10));
+
+    WaitFor(WriteUnversionedRows(txId, {BuildRow(0, 42)}, /*signature*/ 1))
+        .ThrowOnError();
+
+    WaitFor(WriteUnversionedRows(txId, {BuildRow(1, 42)}, /*signatures*/ FinalTransactionSignature - 1))
+        .ThrowOnError();
+
+    EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
+    HydraManager()->ApplyAll();
+
+    auto asyncCommit = PrepareAndCommitTransaction(txId, true, 0x20);
+
+    EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
+
+    HydraManager()->ApplyAll();
+
+    asyncCommit
+        .Get()
+        .ThrowOnError();
+
+    EXPECT_EQ(
+        ToString(BuildVersionedRow(0, {{0x20, 42}})),
+        ToString(VersionedLookupRow(BuildRow(0))));
+    EXPECT_EQ(
+        ToString(BuildVersionedRow(1, {{0x20, 42}})),
+        ToString(VersionedLookupRow(BuildRow(1))));
+}
+
+TEST_F(TTestTabletWriteManager, TestSignaturesFailure)
+{
+    auto txId = MakeTabletTransactionId(TTimestamp(0x10));
+
+    WaitFor(WriteUnversionedRows(txId, {BuildRow(0, 42)}, /*signature*/ 1))
+        .ThrowOnError();
+
+    EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
+    HydraManager()->ApplyAll();
+
+    auto asyncCommit = PrepareAndCommitTransaction(txId, true, 0x20);
+
+    EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
+
+    HydraManager()->ApplyAll();
+
+    EXPECT_THAT(
+        [&] {
+            asyncCommit
+                .Get()
+                .ThrowOnError();
+        },
+        ThrowsMessage<std::exception>(HasSubstr("expected signature")));
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

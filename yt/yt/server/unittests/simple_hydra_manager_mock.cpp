@@ -103,6 +103,8 @@ void TSimpleHydraManagerMock::DoApplyUpTo(int sequenceNumber)
             TMutationContextGuard mutationContextGuard(&mutationContext);
             Automaton_->ApplyMutation(&mutationContext);
         }
+        MutationResponsePromises_[AppliedSequenceNumber_].Set(TMutationResponse{.Data = mutationContext.GetResponseData()});
+
         ++AppliedSequenceNumber_;
     }
 }
@@ -159,7 +161,8 @@ TFuture<TMutationResponse> TSimpleHydraManagerMock::CommitMutation(TMutationRequ
         MutationRequests_.size(),
         request.Type);
     MutationRequests_.emplace_back(std::move(request));
-    return MakeFuture(TMutationResponse{});
+    auto promise = MutationResponsePromises_.emplace_back(NewPromise<TMutationResponse>());
+    return promise;
 }
 
 bool TSimpleHydraManagerMock::IsMutationLoggingEnabled() const

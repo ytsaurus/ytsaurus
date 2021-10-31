@@ -585,36 +585,40 @@ private:
                 auto reign = GetCurrentMutationContext()->Request().Reign;
                 if (reign < ToUnderlying(ETabletReign::ReplicationBarrier_YT_14346)) {
                     if (currentReplicationRowIndex < totalRowCount) {
-                        THROW_ERROR_EXCEPTION("Replica %v of tablet %v is not synchronously writeable since some rows are not replicated yet",
-                                              replicaInfo.GetId(),
-                                              tablet->GetId())
-                                              << TErrorAttribute("current_replication_row_index", currentReplicationRowIndex)
-                                              << TErrorAttribute("total_row_count", totalRowCount);
+                        THROW_ERROR_EXCEPTION(
+                            "Replica %v of tablet %v is not synchronously writeable since some rows are not replicated yet",
+                            replicaInfo.GetId(),
+                            tablet->GetId())
+                            << TErrorAttribute("current_replication_row_index", currentReplicationRowIndex)
+                            << TErrorAttribute("total_row_count", totalRowCount);
                     }
                 } else {
                     if (currentReplicationRowIndex < totalRowCount + delayedLocklessRowCount) {
-                        THROW_ERROR_EXCEPTION("Replica %v of tablet %v is not synchronously writeable since some rows are not replicated yet",
-                                              replicaInfo.GetId(),
-                                              tablet->GetId())
-                                              << TErrorAttribute("current_replication_row_index", currentReplicationRowIndex)
-                                              << TErrorAttribute("total_row_count", totalRowCount)
-                                              << TErrorAttribute("delayed_lockless_row_count", delayedLocklessRowCount);
+                        THROW_ERROR_EXCEPTION(
+                            "Replica %v of tablet %v is not synchronously writeable since some rows are not replicated yet",
+                            replicaInfo.GetId(),
+                            tablet->GetId())
+                            << TErrorAttribute("current_replication_row_index", currentReplicationRowIndex)
+                            << TErrorAttribute("total_row_count", totalRowCount)
+                            << TErrorAttribute("delayed_lockless_row_count", delayedLocklessRowCount);
                     }
                     if (currentReplicationRowIndex > totalRowCount + delayedLocklessRowCount) {
-                        YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
-                                        "Current replication row index is too high (TabletId: %v, ReplicaId: %v, "
-                                        "CurrentReplicationRowIndex: %v, TotalRowCount: %v, DelayedLocklessRowCount: %v)",
-                                        tablet->GetId(),
-                                        replicaInfo.GetId(),
-                                        currentReplicationRowIndex,
-                                        totalRowCount,
-                                        delayedLocklessRowCount);
+                        YT_LOG_ALERT_IF(
+                            IsMutationLoggingEnabled(),
+                            "Current replication row index is too high (TabletId: %v, ReplicaId: %v, "
+                            "CurrentReplicationRowIndex: %v, TotalRowCount: %v, DelayedLocklessRowCount: %v)",
+                            tablet->GetId(),
+                            replicaInfo.GetId(),
+                            currentReplicationRowIndex,
+                            totalRowCount,
+                            delayedLocklessRowCount);
                     }
                 }
                 if (replicaInfo.GetState() != ETableReplicaState::Enabled) {
-                    THROW_ERROR_EXCEPTION("Replica %v is not synchronously writeable since it is in %Qlv state",
-                                          replicaInfo.GetId(),
-                                          replicaInfo.GetState());
+                    THROW_ERROR_EXCEPTION(
+                        "Replica %v is not synchronously writeable since it is in %Qlv state",
+                         replicaInfo.GetId(),
+                         replicaInfo.GetState());
                 }
                 YT_VERIFY(!replicaInfo.GetPreparedReplicationTransactionId());
                 break;
@@ -622,11 +626,12 @@ private:
 
             case ETableReplicaMode::Async:
                 if (currentReplicationRowIndex > totalRowCount) {
-                    THROW_ERROR_EXCEPTION("Replica %v of tablet %v is not asynchronously writeable: some synchronous writes are still in progress",
-                                          replicaInfo.GetId(),
-                                          tablet->GetId())
-                                          << TErrorAttribute("current_replication_row_index", currentReplicationRowIndex)
-                                          << TErrorAttribute("total_row_count", totalRowCount);
+                    THROW_ERROR_EXCEPTION(
+                        "Replica %v of tablet %v is not asynchronously writeable: some synchronous writes are still in progress",
+                        replicaInfo.GetId(),
+                        tablet->GetId())
+                        << TErrorAttribute("current_replication_row_index", currentReplicationRowIndex)
+                        << TErrorAttribute("total_row_count", totalRowCount);
                 }
                 break;
 
@@ -1101,11 +1106,12 @@ private:
             prepareRow(*it);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled() && (lockedRowCount + prelockedRowCount > 0),
-                        "Locked rows prepared (TransactionId: %v, LockedRowCount: %v, PrelockedRowCount: %v)",
-                        transaction->GetId(),
-                        lockedRowCount,
-                        prelockedRowCount);
+        YT_LOG_DEBUG_IF(
+            IsMutationLoggingEnabled() && (lockedRowCount + prelockedRowCount > 0),
+            "Locked rows prepared (TransactionId: %v, LockedRowCount: %v, PrelockedRowCount: %v)",
+            transaction->GetId(),
+            lockedRowCount,
+            prelockedRowCount);
     }
 
     void CheckIfImmediateLockedTabletsFullyUnlocked(TTransaction* transaction)

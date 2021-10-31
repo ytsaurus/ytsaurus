@@ -1,6 +1,7 @@
 #pragma once
 
 #include <yt/yt/server/lib/hydra/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
 namespace NYT::NHydra {
 
@@ -37,7 +38,8 @@ private:
     TReign Reign_;
 
     const TCancelableContextPtr CancelableContext = New<TCancelableContext>();
-    std::vector<TMutationRequest> MutationRequests_;
+    std::deque<TMutationRequest> MutationRequests_;
+    std::deque<TPromise<TMutationResponse>> MutationResponsePromises_;
     int AppliedSequenceNumber_ = 0;
 
     void DoApplyUpTo(int sequenceNumber);
