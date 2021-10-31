@@ -14,8 +14,7 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const ssize_t BufferLimit = 512_KB;
-static const ssize_t MaxTopCollectorLimit = 2_MB;
+constexpr ssize_t BufferLimit = 512_KB;
 
 struct TTopCollectorBufferTag
 { };
@@ -31,12 +30,6 @@ TTopCollector::TTopCollector(
     , RowSize_(rowSize)
     , MemoryChunkProvider_(std::move(memoryChunkProvider))
 {
-    if (limit > MaxTopCollectorLimit) {
-        THROW_ERROR_EXCEPTION("Maximum ORDER BY limit exceeded")
-            << TErrorAttribute("limit", limit)
-            << TErrorAttribute("max_limit", MaxTopCollectorLimit);
-    }
-
     Rows_.reserve(limit);
 }
 

@@ -38,6 +38,8 @@ static const int MinimumStackFreeSpace = 16_KB;
 struct TQueryPreparerBufferTag
 { };
 
+constexpr ssize_t MaxQueryLimit = 10000000;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -2703,6 +2705,12 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     query->JoinClauses.assign(joinClauses.begin(), joinClauses.end());
 
     if (ast.Limit) {
+        if (*ast.Limit > MaxQueryLimit) {
+            THROW_ERROR_EXCEPTION("Maximum LIMIT exceeded")
+                << TErrorAttribute("limit", *ast.Limit)
+                << TErrorAttribute("max_limit", MaxQueryLimit);
+        }
+
         query->Limit = *ast.Limit;
 
         if (!query->OrderClause && query->HavingClause) {
