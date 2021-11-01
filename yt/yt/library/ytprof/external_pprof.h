@@ -1,16 +1,23 @@
 #pragma once
 
-#include <util/stream/fwd.h>
-
 #include <yt/yt/library/ytprof/profile.pb.h>
 
 namespace NYT::NYTProf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void WriteProfile(IOutputStream* out, const NProto::Profile& profile);
+struct TSymbolizationOptions
+{
+    TString TmpDir = "/tmp";
 
-void ReadProfile(IInputStream* in, NProto::Profile* profile);
+    bool KeepTmpDir = false;
+
+    std::function<void(const std::vector<TString>&)> RunTool;
+};
+
+void SymbolizeByExternalPProf(
+    NProto::Profile* profile,
+    const TSymbolizationOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 

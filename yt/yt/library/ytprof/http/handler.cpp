@@ -1,5 +1,4 @@
 #include "handler.h"
-#include "util/stream/fwd.h"
 
 #include <yt/yt/core/concurrency/async_stream.h>
 
@@ -10,6 +9,9 @@
 #include <yt/yt/library/ytprof/heap_profiler.h>
 #include <yt/yt/library/ytprof/profile.h>
 #include <yt/yt/library/ytprof/symbolize.h>
+#include <yt/yt/library/ytprof/external_pprof.h>
+
+#include <yt/yt/library/process/subprocess.h>
 
 #include <library/cpp/cgiparam/cgiparam.h>
 
@@ -20,6 +22,26 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void DoRunTool(const std::vector<TString>& cmd)
+{
+    if (cmd.empty()) {
+        THROW_ERROR_EXCEPTION("Command can't be empty");
+    }
+
+    auto process = TSubprocess(cmd[0]);
+    for (int i = 1; i < std::ssize(cmd); i++) {
+        process.AddArgument(cmd[i]);
+    }
+
+    auto result = process.Execute();
+    if (!result.Status.IsOK()) {
+        THROW_ERROR_EXCEPTION("Failed to run %v", cmd[0])
+            << result.Status
+            << TErrorAttribute("command_line", process.GetCommandLine())
+            << TErrorAttribute("error", TString(result.Error.Begin(), result.Error.End()));
+    }
+}
+
 class TBaseHandler
     : public IHttpHandler
 {
@@ -28,34 +50,21 @@ public:
         : BuildInfo_(buildInfo)
     { }
 
-protected:
-    const TBuildInfo BuildInfo_;
-};
-
-class TCpuProfilerHandler
-    : public TBaseHandler
-{
-public:
-    using TBaseHandler::TBaseHandler;
+    virtual NProto::Profile BuildProfile(const TCgiParameters& params) = 0;
 
     void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         try {
             TCgiParameters params(req->GetUrl().RawQuery);
-
-            auto duration = TDuration::Seconds(15);
-            if (auto it = params.Find("d"); it != params.end()) {
-                duration = TDuration::Parse(it->second);
-            }
-
-            TCpuProfiler profiler;
-            profiler.Start();
-            TDelayedExecutor::WaitForDuration(duration);
-            profiler.Stop();
-
-            auto profile = profiler.ReadProfile();
+            auto profile = BuildProfile(params);
             Symbolize(&profile, true);
             AddBuildInfo(&profile, BuildInfo_);
+
+            if (auto it = params.Find("symbolize"); it == params.end() || it->second != "0") {
+                SymbolizeByExternalPProf(&profile, TSymbolizationOptions{
+                    .RunTool = DoRunTool
+                });
+            }
 
             TStringStream profileBlob;
             WriteProfile(&profileBlob, profile);
@@ -74,6 +83,31 @@ public:
 
             throw;
         }
+    }
+
+protected:
+    const TBuildInfo BuildInfo_;
+};
+
+class TCpuProfilerHandler
+    : public TBaseHandler
+{
+public:
+    using TBaseHandler::TBaseHandler;
+
+    NProto::Profile BuildProfile(const TCgiParameters& params) override
+    {
+        auto duration = TDuration::Seconds(15);
+        if (auto it = params.Find("d"); it != params.end()) {
+            duration = TDuration::Parse(it->second);
+        }
+
+        TCpuProfiler profiler;
+        profiler.Start();
+        TDelayedExecutor::WaitForDuration(duration);
+        profiler.Stop();
+
+        return profiler.ReadProfile();
     }
 };
 
@@ -86,29 +120,9 @@ public:
         , ProfileType_(profileType)
     { }
 
-    void HandleRequest(const IRequestPtr& /* req */, const IResponseWriterPtr& rsp) override
+    NProto::Profile BuildProfile(const TCgiParameters& /*params*/) override
     {
-        try {
-            auto profile = ReadHeapProfile(ProfileType_);
-
-            TStringStream profileBlob;
-            WriteProfile(&profileBlob, profile);
-            AddBuildInfo(&profile, BuildInfo_);
-
-            rsp->SetStatus(EStatusCode::OK);
-            WaitFor(rsp->WriteBody(TSharedRef::FromString(profileBlob.Str())))
-                .ThrowOnError();
-        } catch (const std::exception& ex) {
-            if (rsp->IsHeadersFlushed()) {
-                throw;
-            }
-
-            rsp->SetStatus(EStatusCode::InternalServerError);
-            WaitFor(rsp->WriteBody(TSharedRef::FromString(ex.what())))
-                .ThrowOnError();
-
-            throw;
-        }
+        return ReadHeapProfile(ProfileType_);
     }
 
 private:
@@ -121,40 +135,16 @@ class TTCMallocAllocationProfilerHandler
 public:
     using TBaseHandler::TBaseHandler;
 
-    void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    NProto::Profile BuildProfile(const TCgiParameters& params) override
     {
-        try {
-            TCgiParameters params(req->GetUrl().RawQuery);
-
-            auto duration = TDuration::Seconds(15);
-            if (auto it = params.Find("d"); it != params.end()) {
-                duration = TDuration::Parse(it->second);
-            }
-
-            auto token = tcmalloc::MallocExtension::StartAllocationProfiling();
-
-            TDelayedExecutor::WaitForDuration(duration);
-
-            auto profile = ConvertAllocationProfile(std::move(token).Stop());
-
-            TStringStream profileBlob;
-            WriteProfile(&profileBlob, profile);
-            AddBuildInfo(&profile, BuildInfo_);
-
-            rsp->SetStatus(EStatusCode::OK);
-            WaitFor(rsp->WriteBody(TSharedRef::FromString(profileBlob.Str())))
-                .ThrowOnError();
-        } catch (const std::exception& ex) {
-            if (rsp->IsHeadersFlushed()) {
-                throw;
-            }
-
-            rsp->SetStatus(EStatusCode::InternalServerError);
-            WaitFor(rsp->WriteBody(TSharedRef::FromString(ex.what())))
-                .ThrowOnError();
-
-            throw;
+        auto duration = TDuration::Seconds(15);
+        if (auto it = params.Find("d"); it != params.end()) {
+            duration = TDuration::Parse(it->second);
         }
+
+        auto token = tcmalloc::MallocExtension::StartAllocationProfiling();
+        TDelayedExecutor::WaitForDuration(duration);
+        return ConvertAllocationProfile(std::move(token).Stop());
     }
 };
 
