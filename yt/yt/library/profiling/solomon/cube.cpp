@@ -19,8 +19,7 @@ using namespace NYTree;
 template <class T>
 bool TCube<T>::TProjection::IsZero(int index) const
 {
-    T zero{};
-    return Values[index] == zero;
+    return IsZeroValue(Values[index]);
 }
 
 template <class T>
