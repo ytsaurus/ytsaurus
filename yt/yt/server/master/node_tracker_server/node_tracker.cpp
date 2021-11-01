@@ -1559,6 +1559,7 @@ private:
 
         NodeIdGenerator_.Reset();
         NodeMap_.Clear();
+        HostMap_.Clear();
         RackMap_.Clear();
         DataCenterMap_.Clear();
 
