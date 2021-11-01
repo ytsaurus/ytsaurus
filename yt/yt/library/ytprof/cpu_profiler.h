@@ -53,9 +53,6 @@ void ReleaseFiberTagStorage(void* storage);
 
 const int MaxActiveTags = 4;
 
-// Do not access this field directly. It is exposed here for YT fiber scheduler.
-extern thread_local std::array<TAtomicSignalPtr<TProfilerTag>, MaxActiveTags> CpuProfilerTags;
-
 class TCpuProfilerTagGuard
 {
 public:
@@ -143,7 +140,3 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTProf
-
-#define CPU_PROFILER_INL_H_
-#include "cpu_profiler-inl.h"
-#undef CPU_PROFILER_INL_H_
