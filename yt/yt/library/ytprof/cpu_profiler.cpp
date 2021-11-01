@@ -20,7 +20,65 @@ namespace NYT::NYTProf {
 
 DEFINE_REFCOUNTED_TYPE(TProfilerTag)
 
-thread_local std::array<TAtomicSignalPtr<TProfilerTag>, MaxActiveTags> CpuProfilerTags;
+struct TCpuProfilerTags;
+
+// This variable is referenced from signal handler.
+constinit thread_local std::atomic<TCpuProfilerTags*> CpuProfilerTagsPtr = nullptr;
+
+struct TCpuProfilerTags
+{
+    TCpuProfilerTags()
+    {
+        CpuProfilerTagsPtr = this;
+    }
+
+    ~TCpuProfilerTags()
+    {
+        CpuProfilerTagsPtr = nullptr;
+    }
+
+    std::array<TAtomicSignalPtr<TProfilerTag>, MaxActiveTags> Tags;
+};
+
+// We can't reference CpuProfilerTags from signal handler,
+// since it may trigger lazy initialization.
+thread_local TCpuProfilerTags CpuProfilerTags;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCpuProfilerTagGuard::TCpuProfilerTagGuard(TProfilerTagPtr tag)
+{
+    for (int i = 0; i < MaxActiveTags; i++) {
+        if (!CpuProfilerTags.Tags[i].IsSetFromThread()) {
+            CpuProfilerTags.Tags[i].StoreFromThread(std::move(tag));
+            TagIndex_ = i;
+            return;
+        }
+    }
+}
+
+TCpuProfilerTagGuard::~TCpuProfilerTagGuard()
+{
+    if (TagIndex_ != -1) {
+        CpuProfilerTags.Tags[TagIndex_].StoreFromThread(nullptr);
+    }
+}
+
+TCpuProfilerTagGuard::TCpuProfilerTagGuard(TCpuProfilerTagGuard&& other)
+    : TagIndex_(other.TagIndex_)
+{
+    other.TagIndex_ = -1;
+}
+
+TCpuProfilerTagGuard& TCpuProfilerTagGuard::operator = (TCpuProfilerTagGuard&& other)
+{
+    if (TagIndex_ != -1) {
+        CpuProfilerTags.Tags[TagIndex_].StoreFromThread(nullptr);
+    }
+
+    other.TagIndex_ = -1;
+    return *this;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -207,6 +265,8 @@ void TCpuProfiler::OnSigProf(siginfo_t* info, ucontext_t* ucontext)
     bool pushFiberStorage = false;
     int tagIndex = 0;
 
+    auto tagsPtr = CpuProfilerTagsPtr.load();
+
     auto ok = Queue_.TryPush([&] () -> std::pair<void*, bool> {
         if (!pushTid) {
             pushTid = true;
@@ -219,9 +279,14 @@ void TCpuProfiler::OnSigProf(siginfo_t* info, ucontext_t* ucontext)
         }
 
         if (tagIndex < MaxActiveTags) {
-            auto tag = CpuProfilerTags[tagIndex].GetFromSignal();
-            tagIndex++;
-            return {reinterpret_cast<void*>(tag.Release()), true};
+            if (tagsPtr) {
+                auto tag = tagsPtr->Tags[tagIndex].GetFromSignal();
+                tagIndex++;
+                return {reinterpret_cast<void*>(tag.Release()), true};
+            } else {
+                tagIndex++;
+                return {nullptr, true};
+            }
         }
 
         if (count > Options_.MaxBacktraceSize) {
