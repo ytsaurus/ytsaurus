@@ -1209,7 +1209,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     ValidateBeginUpload();
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
-    const auto& objectManager = Bootstrap_->GetObjectManager();
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
@@ -1235,14 +1234,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
                         snapshotChunkList->RemoveOwningNode(lockedNode);
                         lockedNode->SetChunkList(newChunkList);
-                        objectManager->RefObject(newChunkList);
 
                         chunkManager->AttachToChunkList(newChunkList, snapshotChunkList);
 
                         auto* deltaChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
                         chunkManager->AttachToChunkList(newChunkList, deltaChunkList);
-
-                        objectManager->UnrefObject(snapshotChunkList);
 
                         context->SetIncrementalResponseInfo("NewChunkListId: %v, SnapshotChunkListId: %v, DeltaChunkListId: %v",
                             newChunkList->GetId(),
@@ -1255,7 +1251,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                         auto* newChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicRoot);
                         newChunkList->AddOwningNode(lockedNode);
                         lockedNode->SetChunkList(newChunkList);
-                        objectManager->RefObject(newChunkList);
 
                         for (int index = 0; index < std::ssize(snapshotChunkList->Children()); ++index) {
                             auto* appendChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicSubtablet);
@@ -1263,7 +1258,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                         }
 
                         snapshotChunkList->RemoveOwningNode(lockedNode);
-                        objectManager->UnrefObject(snapshotChunkList);
 
                         context->SetIncrementalResponseInfo("NewChunkListId: %v, SnapshotChunkListId: %v",
                             newChunkList->GetId(),
@@ -1291,7 +1285,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                         auto* newChunkList = chunkManager->CreateChunkList(oldChunkList->GetKind());
                         newChunkList->AddOwningNode(lockedNode);
                         lockedNode->SetChunkList(newChunkList);
-                        objectManager->RefObject(newChunkList);
 
                         if (oldChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
                             for (int index = 0; index < std::ssize(oldChunkList->Children()); ++index) {
@@ -1299,8 +1292,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                                 chunkManager->AttachToChunkList(newChunkList, appendChunkList);
                             }
                         }
-
-                        objectManager->UnrefObject(oldChunkList);
 
                         context->SetIncrementalResponseInfo("NewChunkListId: %v",
                             newChunkList->GetId());

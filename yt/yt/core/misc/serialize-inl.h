@@ -1447,7 +1447,7 @@ struct TMultiSetSerializer
                     TItemSerializer::Load(context, key);
                 }
 
-                set.insert(key);
+                set.emplace(std::move(key));
             }
         }
     }

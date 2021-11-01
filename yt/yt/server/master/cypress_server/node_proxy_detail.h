@@ -390,7 +390,7 @@ private:
 
 #define YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(key) \
     YTREE_NODE_TYPE_OVERRIDES_BASE(key) \
-    virtual void SetSelf(TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override \
+    void SetSelf(TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override \
     { \
         Y_UNUSED(response); \
         context->SetRequestInfo(); \

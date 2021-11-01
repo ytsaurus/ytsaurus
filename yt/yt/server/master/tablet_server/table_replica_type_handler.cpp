@@ -100,6 +100,7 @@ private:
     void DoZombifyObject(TTableReplica* replica) override
     {
         TObjectTypeHandlerWithMapBase::DoZombifyObject(replica);
+
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->DestroyTableReplica(replica);
     }

@@ -618,8 +618,7 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateRemoval()
     auto handler = GetTypeHandler();
     auto flags = handler->GetFlags();
     if (None(flags & ETypeFlags::TwoPhaseRemoval)) {
-        const auto& objectManager = TBase::Bootstrap_->GetObjectManager();
-        auto refCount = objectManager->GetObjectRefCounter(TBase::GetObject());
+        auto refCount = TBase::GetObject()->GetObjectRefCounter(/*flushUnrefs*/ true);
         auto expectedRefCount = GetChildCount() + 1;
         if (refCount != expectedRefCount) {
             THROW_ERROR_EXCEPTION("%v is in use", TBase::GetThisImpl()->GetCapitalizedObjectName());
@@ -979,17 +978,20 @@ void TNonversionedMapObjectFactoryBase<TObject>::DetachChild(const TProxyPtr& pa
 template <class TObject>
 void TNonversionedMapObjectFactoryBase<TObject>::RemoveCreatedObjects()
 {
-    for (auto* object: CreatedObjects_) {
+    FlushObjectUnrefs();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    for (auto* object : CreatedObjects_) {
         YT_VERIFY(object->GetObjectRefCounter() == 1);
-        Bootstrap_->GetObjectManager()->UnrefObject(object);
+        objectManager->UnrefObject(object);
     }
 }
 
 template <class TObject>
 void TNonversionedMapObjectFactoryBase<TObject>::CommitEvent(const TFactoryEvent& event)
 {
+    const auto& objectManager = Bootstrap_->GetObjectManager();
     if (event.Type == EEventType::RefObject) {
-        Bootstrap_->GetObjectManager()->UnrefObject(event.Parent->GetObject());
+        objectManager->UnrefObject(event.Parent->GetObject());
     }
 }
 

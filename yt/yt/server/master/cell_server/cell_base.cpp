@@ -107,13 +107,9 @@ void TCellBase::TPeer::Persist(const NCellMaster::TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellBase::TCellBase(TTamedCellId id)
-    : TNonversionedObjectBase(id)
-{ }
-
 void TCellBase::Save(TSaveContext& context) const
 {
-    TNonversionedObjectBase::Save(context);
+    TObject::Save(context);
 
     using NYT::Save;
     Save(context, LeadingPeerId_);
@@ -130,13 +126,13 @@ void TCellBase::Save(TSaveContext& context) const
 
 void TCellBase::Load(TLoadContext& context)
 {
-    TNonversionedObjectBase::Load(context);
+    TObject::Load(context);
 
     using NYT::Load;
     Load(context, LeadingPeerId_);
     Load(context, Peers_);
     Load(context, ConfigVersion_);
-    // COMPAT(savurs)
+    // COMPAT(savrus)
     if (context.GetVersion() < EMasterReign::RemoveTabletCellConfig) {
         auto tmp = New<TTabletCellConfig>();
         Load(context, *tmp);

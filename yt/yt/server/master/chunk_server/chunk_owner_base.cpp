@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/server/master/object_server/object_manager.h>
+
 #include <yt/yt/server/master/security_server/cluster_resources.h>
 #include <yt/yt/server/master/security_server/security_tags.h>
 
@@ -26,6 +28,7 @@ using namespace NChunkClient::NProto;
 using namespace NCypressClient;
 using namespace NCypressClient::NProto;
 using namespace NCypressServer;
+using namespace NObjectServer;
 using namespace NSecurityServer;
 using namespace NTableClient;
 
@@ -123,18 +126,29 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     }
 }
 
+TChunkList* TChunkOwnerBase::GetChunkList() const
+{
+    return ChunkList_.Get();
+}
+
+void TChunkOwnerBase::SetChunkList(TChunkList* chunkList)
+{
+    ChunkList_.Assign(chunkList);
+}
+
 const TChunkList* TChunkOwnerBase::GetSnapshotChunkList() const
 {
+    const auto* chunkList = GetChunkList();
     switch (UpdateMode_) {
         case EUpdateMode::None:
         case EUpdateMode::Overwrite:
-            return ChunkList_;
+            return chunkList;
 
         case EUpdateMode::Append:
             if (GetType() == EObjectType::Journal) {
-                return ChunkList_;
+                return chunkList;
             } else {
-                const auto& children = ChunkList_->Children();
+                const auto& children = chunkList->Children();
                 YT_VERIFY(children.size() == 2);
                 return children[0]->AsChunkList();
             }
@@ -146,18 +160,19 @@ const TChunkList* TChunkOwnerBase::GetSnapshotChunkList() const
 
 const TChunkList* TChunkOwnerBase::GetDeltaChunkList() const
 {
+    const auto* chunkList = GetChunkList();
     switch (UpdateMode_) {
         case EUpdateMode::Append:
             if (GetType() == EObjectType::Journal) {
-                return ChunkList_;
+                return chunkList;
             } else {
-                const auto& children = ChunkList_->Children();
+                const auto& children = chunkList->Children();
                 YT_VERIFY(children.size() == 2);
                 return children[1]->AsChunkList();
             }
 
         case EUpdateMode::Overwrite:
-            return ChunkList_;
+            return chunkList;
 
         default:
             YT_ABORT();
@@ -254,7 +269,7 @@ bool TChunkOwnerBase::HasDataWeight() const
 
 NSecurityServer::TClusterResources TChunkOwnerBase::GetTotalResourceUsage() const
 {
-    return TBase::GetTotalResourceUsage() + GetDiskUsage(ComputeTotalStatistics());
+    return TCypressNode::GetTotalResourceUsage() + GetDiskUsage(ComputeTotalStatistics());
 }
 
 NSecurityServer::TClusterResources TChunkOwnerBase::GetDeltaResourceUsage() const
@@ -274,7 +289,7 @@ NSecurityServer::TClusterResources TChunkOwnerBase::GetDeltaResourceUsage() cons
                 break; // Leave statistics empty - this is a newly branched node.
         }
     }
-    return TBase::GetDeltaResourceUsage() + GetDiskUsage(statistics);
+    return TCypressNode::GetDeltaResourceUsage() + GetDiskUsage(statistics);
 }
 
 NSecurityServer::TClusterResources TChunkOwnerBase::GetDiskUsage(const TDataStatistics& statistics) const

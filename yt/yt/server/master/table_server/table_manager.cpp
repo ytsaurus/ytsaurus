@@ -564,7 +564,7 @@ public:
 
         // NB: a newly created schema object has zero reference count.
         // Thus the new schema may technically be not alive here.
-        YT_VERIFY(!schema->IsDestroyed());
+        YT_VERIFY(!schema->IsGhost());
 
         if (schema == table->GetSchema()) {
             // Typical when branched nodes are being merged back in.

@@ -68,7 +68,10 @@ private:
 
     void DoZombifyObject(TNode* node) override
     {
-        Bootstrap_->GetNodeTracker()->ZombifyNode(node);
+        TObjectTypeHandlerWithMapBase::DoZombifyObject(node);
+
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        nodeTracker->ZombifyNode(node);
     }
 };
 

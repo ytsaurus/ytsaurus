@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/master/cypress_server/proto/cypress_manager.pb.h>
 
+#include <yt/yt/server/master/object_server/object.h>
+
 #include <yt/yt/server/master/transaction_server/public.h>
 
 #include <yt/yt/ytlib/cypress_client/proto/cypress_service.pb.h>
@@ -43,10 +45,10 @@ private:
         BIND(&TAccessTracker::OnDynamicConfigChanged, MakeWeak(this));
 
     NProto::TReqUpdateAccessStatistics UpdateAccessStatisticsRequest_;
-    std::vector<TCypressNode*> NodesWithAccessStatisticsUpdate_;
+    std::vector<NObjectServer::TEphemeralObjectPtr<TCypressNode>> NodesWithAccessStatisticsUpdate_;
 
     NCypressClient::NProto::TReqTouchNodes TouchNodesRequest_;
-    std::vector<TCypressNode*> TouchedNodes_;
+    std::vector<NObjectServer::TEphemeralObjectPtr<TCypressNode>> TouchedNodes_;
 
     NConcurrency::TPeriodicExecutorPtr FlushExecutor_;
 

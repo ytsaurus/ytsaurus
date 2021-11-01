@@ -82,6 +82,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TReplicatedTableOptionsPtr, ReplicatedTableOptions);
 
 public:
+    using TTableNode::TTableNode;
     explicit TReplicatedTableNode(NCypressServer::TVersionedNodeId id);
 
     void Save(NCellMaster::TSaveContext& context) const override;
@@ -93,7 +94,6 @@ public:
 
 private:
     TReplicaSet Replicas_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

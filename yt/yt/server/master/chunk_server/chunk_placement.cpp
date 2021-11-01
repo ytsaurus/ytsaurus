@@ -633,9 +633,6 @@ std::vector<TChunkPtrWithIndexes> TChunkPlacement::GetBalancingChunks(
     TNode* node,
     int replicaCount)
 {
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    auto epoch = objectManager->GetCurrentEpoch();
-
     std::vector<TChunkPtrWithIndexes> result;
     result.reserve(replicaCount);
 
@@ -660,7 +657,7 @@ std::vector<TChunkPtrWithIndexes> TChunkPlacement::GetBalancingChunks(
         if (!chunk->IsSealed()) {
             continue;
         }
-        if (chunk->GetScanFlag(EChunkScanKind::Refresh, epoch)) {
+        if (chunk->GetScanFlag(EChunkScanKind::Refresh)) {
             continue;
         }
         if (chunk->HasJobs()) {

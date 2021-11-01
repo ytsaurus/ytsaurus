@@ -16,10 +16,6 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicStore::TDynamicStore(TDynamicStoreId id)
-    : TChunkTree(id)
-{ }
-
 TString TDynamicStore::GetLowercaseObjectName() const
 {
     return Format(

@@ -21,7 +21,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TString, Name);
 
 public:
-    explicit TDataCenter(TDataCenterId id);
+    using TObject::TObject;
 
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;

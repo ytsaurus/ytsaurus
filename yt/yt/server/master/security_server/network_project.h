@@ -10,16 +10,15 @@ namespace NYT::NSecurityServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNetworkProject
-    : public NObjectServer::TNonversionedObjectBase
+    : public NObjectServer::TObject
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(TString, Name);
-
     DEFINE_BYVAL_RW_PROPERTY(ui32, ProjectId);
-
     DEFINE_BYREF_RW_PROPERTY(TAccessControlDescriptor, Acd);
 
 public:
+    using TObject::TObject;
     explicit TNetworkProject(TNetworkProjectId id);
 
     TString GetLowercaseObjectName() const override;

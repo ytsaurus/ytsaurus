@@ -22,6 +22,7 @@
 #include <yt/yt/server/lib/hydra/private.h>
 #include <yt/yt/server/lib/hydra/snapshot.h>
 
+#include <yt/yt/server/master/object_server/object.h>
 #include <yt/yt/server/master/object_server/private.h>
 
 #include <yt/yt/server/master/security_server/acl.h>
@@ -77,7 +78,18 @@ public:
         YT_VERIFY(Config_);
         YT_VERIFY(Bootstrap_);
 
-        AutomatonQueue_ = CreateEnumIndexedFairShareActionQueue<EAutomatonThreadQueue>("Automaton", GetAutomatonThreadBuckets());
+        AutomatonQueue_ = CreateEnumIndexedFairShareActionQueue<EAutomatonThreadQueue>(
+            "Automaton",
+            GetAutomatonThreadBuckets());
+
+        BIND([=] {
+            NObjectServer::SetupAutomatonThread(bootstrap);
+        })
+            .AsyncVia(AutomatonQueue_->GetInvoker(EAutomatonThreadQueue::Default))
+            .Run()
+            .Get()
+            .ThrowOnError();
+
         Automaton_ = New<TMasterAutomaton>(Bootstrap_);
 
         TransactionTrackerQueue_ = New<TActionQueue>("TxTracker");
@@ -252,11 +264,15 @@ private:
             auto unguardedInvoker = GetAutomatonInvoker(queue);
             EpochInvokers_[queue] = cancelableContext->CreateInvoker(unguardedInvoker);
         }
+
+        NObjectServer::BeginEpoch();
     }
 
     void OnStopEpoch()
     {
         std::fill(EpochInvokers_.begin(), EpochInvokers_.end(), nullptr);
+
+        NObjectServer::EndEpoch();
     }
 
     static THashMap<EAutomatonThreadBucket, std::vector<EAutomatonThreadQueue>> GetAutomatonThreadBuckets()

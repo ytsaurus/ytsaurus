@@ -528,7 +528,7 @@ void TTableReplicaInfo::Load(NCellMaster::TLoadContext& context)
 ////////////////////////////////////////////////////////////////////////////////
 
 TTablet::TTablet(TTabletId id)
-    : TNonversionedObjectBase(id)
+    : TObject(id)
     , Index_(-1)
     , InMemoryMode_(EInMemoryMode::None)
     , RetainedTimestamp_(MinTimestamp)
@@ -546,7 +546,7 @@ TString TTablet::GetCapitalizedObjectName() const
 
 void TTablet::Save(TSaveContext& context) const
 {
-    TNonversionedObjectBase::Save(context);
+    TObject::Save(context);
 
     using NYT::Save;
     Save(context, Index_);
@@ -573,7 +573,7 @@ void TTablet::Save(TSaveContext& context) const
 
 void TTablet::Load(TLoadContext& context)
 {
-    TNonversionedObjectBase::Load(context);
+    TObject::Load(context);
 
     using NYT::Load;
     Load(context, Index_);

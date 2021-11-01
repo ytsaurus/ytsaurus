@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/server/master/object_server/public.h>
+
 #include <yt/yt/server/lib/hydra/public.h>
 
 #include <yt/yt/ytlib/cypress_client/public.h>
@@ -40,6 +42,8 @@ struct ICypressNodeFactory;
 DECLARE_ENTITY_TYPE(TCypressNode, TVersionedNodeId, NObjectClient::TDirectVersionedObjectIdHash)
 DECLARE_ENTITY_TYPE(TLock, TLockId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TCypressShard, NObjectClient::TObjectId, NObjectClient::TDirectObjectIdHash)
+
+DECLARE_MASTER_OBJECT_TYPE(TCypressNode)
 
 using TCypressNodeList = SmallVector<TCypressNode*, 8>;
 using TCypressNodeExpirationMap = std::multimap<TInstant, TCypressNode*>;

@@ -20,6 +20,7 @@ class TSchedulerPool
     : public NObjectServer::TNonversionedMapObjectBase<TSchedulerPool>
 {
 public:
+    using TNonversionedMapObjectBase<TSchedulerPool>::TNonversionedMapObjectBase;
     explicit TSchedulerPool(NCypressClient::TObjectId id, bool isRoot = false);
 
     TString GetLowercaseObjectName() const override;
@@ -74,9 +75,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerPoolTree
-    : public NObjectServer::TNonversionedObjectBase
+    : public NObjectServer::TObject
 {
 public:
+    using TObject::TObject;
     explicit TSchedulerPoolTree(NCypressClient::TObjectId id);
 
     TString GetLowercaseObjectName() const override;
@@ -96,7 +98,7 @@ public:
     NScheduler::TFairShareStrategyTreeConfigPtr GetDeserializedConfigOrThrow() const;
 
 private:
-    using TBase = NObjectServer::TNonversionedObjectBase;
+    using TBase = NObjectServer::TObject;
 
     mutable NScheduler::TFairShareStrategyTreeConfigPtr MemoizedDeserializedPoolTreeConfig_;
 };

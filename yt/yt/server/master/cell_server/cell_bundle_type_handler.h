@@ -15,7 +15,7 @@ namespace NYT::NCellServer {
 
 template <class TImpl>
 class TCellBundleTypeHandlerBase
-    : public NObjectServer::TObjectTypeHandlerBase<TImpl>
+    : public NObjectServer::TConcreteObjectTypeHandlerBase<TImpl>
 {
 public:
     explicit TCellBundleTypeHandlerBase(
@@ -25,7 +25,7 @@ public:
     NObjectServer::TObject* FindObject(NObjectClient::TObjectId id) override;
 
 protected:
-    using TBase = NObjectServer::TObjectTypeHandlerBase<TImpl>;
+    using TBase = NObjectServer::TConcreteObjectTypeHandlerBase<TImpl>;
 
     NObjectServer::TObject* DoCreateObject(
         std::unique_ptr<TCellBundle> holder,
@@ -35,7 +35,7 @@ protected:
     NObjectClient::TCellTagList DoGetReplicationCellTags(const TImpl* /*cellBundle*/) override;
     NSecurityServer::TAccessControlDescriptor* DoFindAcd(TImpl* cellBundle) override;
     void DoZombifyObject(TImpl* cellBundle) override;
-    void DoDestroyObject(TImpl* cellBundle) override;
+    void DoDestroyObject(TImpl* cellBundle) noexcept override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

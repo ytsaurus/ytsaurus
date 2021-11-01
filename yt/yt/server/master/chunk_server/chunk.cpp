@@ -143,7 +143,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
                 parents.push_back(chunkTree);
             }
         }
-        std::sort(parents.begin(), parents.end(), TObjectRefComparer::Compare);
+        std::sort(parents.begin(), parents.end(), TObjectIdComparer());
         Save(context, parents);
     }
     Save(context, ExpirationTime_);

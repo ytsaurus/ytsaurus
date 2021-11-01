@@ -256,7 +256,7 @@ using TTabletErrors = TEnumIndexedVector<
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTablet
-    : public NObjectServer::TNonversionedObjectBase
+    : public NObjectServer::TObject
     , public TRefTracked<TTablet>
 {
 public:
@@ -293,6 +293,7 @@ public:
     DECLARE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
 
 public:
+    using TObject::TObject;
     explicit TTablet(TTabletId id);
 
     TString GetLowercaseObjectName() const override;

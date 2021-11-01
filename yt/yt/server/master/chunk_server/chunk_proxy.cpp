@@ -198,7 +198,6 @@ private:
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         auto* chunk = GetThisImpl();
@@ -730,7 +729,7 @@ private:
                     .DoMapFor(TEnumTraits<EChunkScanKind>::GetDomainValues(), [&] (TFluentMap fluent, EChunkScanKind kind) {
                         if (kind != EChunkScanKind::None) {
                             fluent
-                                .Item(FormatEnum(kind)).Value(chunk->GetScanFlag(kind, objectManager->GetCurrentEpoch()));
+                                .Item(FormatEnum(kind)).Value(chunk->GetScanFlag(kind));
                         }
                     });
                 return true;
@@ -756,8 +755,7 @@ private:
 
             case EInternedAttributeKey::PartLossTime: {
                 RequireLeader();
-                auto epoch = objectManager->GetCurrentEpoch();
-                if (auto partLossTime = chunk->GetPartLossTime(epoch)) {
+                if (auto partLossTime = chunk->GetPartLossTime()) {
                     BuildYsonFluently(consumer)
                         .Value(CpuInstantToInstant(*partLossTime));
                 } else {

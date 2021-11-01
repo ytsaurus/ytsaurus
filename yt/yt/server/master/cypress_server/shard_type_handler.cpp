@@ -22,7 +22,7 @@ public:
     TCypressShardTypeHandler(
         TBootstrap* bootstrap,
         TEntityMap<TCypressShard>* map)
-        : TObjectTypeHandlerWithMapBase(bootstrap, map)
+        : TObjectTypeHandlerWithMapBase<TCypressShard>(bootstrap, map)
         , Bootstrap_(bootstrap)
     { }
 

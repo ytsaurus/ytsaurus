@@ -63,7 +63,7 @@ TString TTransaction::GetCapitalizedObjectName() const
 
 void TTransaction::Save(NCellMaster::TSaveContext& context) const
 {
-    TNonversionedObjectBase::Save(context);
+    TObject::Save(context);
     TTransactionBase::Save(context);
 
     using NYT::Save;
@@ -97,7 +97,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
 
 void TTransaction::Load(NCellMaster::TLoadContext& context)
 {
-    TNonversionedObjectBase::Load(context);
+    TObject::Load(context);
     TTransactionBase::Load(context);
 
     using NYT::Load;

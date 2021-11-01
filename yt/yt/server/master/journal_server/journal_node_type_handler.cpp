@@ -116,11 +116,7 @@ protected:
         if (!originatingNode->IsExternal()) {
             auto* chunkList = originatingNode->GetChunkList();
             branchedNode->SetChunkList(chunkList);
-
             chunkList->AddOwningNode(branchedNode);
-
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->RefObject(chunkList);
         }
     }
 
@@ -159,9 +155,6 @@ protected:
 
         if (!originatingNode->IsExternal()) {
             chunkList->RemoveOwningNode(branchedNode);
-
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->UnrefObject(chunkList);
         }
 
         HandleTransactionFinished(branchedNode);

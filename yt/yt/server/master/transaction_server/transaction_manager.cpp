@@ -496,7 +496,7 @@ public:
         SmallVector<TTransaction*, 16> nestedTransactions(
             transaction->NestedTransactions().begin(),
             transaction->NestedTransactions().end());
-        std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectRefComparer::Compare);
+        std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectIdComparer());
         for (auto* nestedTransaction : nestedTransactions) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Aborting nested transaction on parent commit (TransactionId: %v, ParentId: %v)",
                 nestedTransaction->GetId(),
@@ -606,7 +606,7 @@ public:
         SmallVector<TTransaction*, 16> nestedTransactions(
             transaction->NestedTransactions().begin(),
             transaction->NestedTransactions().end());
-        std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectRefComparer::Compare);
+        std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectIdComparer());
         for (auto* nestedTransaction : nestedTransactions) {
             AbortTransaction(nestedTransaction, true, false);
         }
@@ -1501,7 +1501,7 @@ public:
         SmallVector<TTransaction*, 16> dependentTransactions(
             transaction->DependentTransactions().begin(),
             transaction->DependentTransactions().end());
-        std::sort(dependentTransactions.begin(), dependentTransactions.end(), TObjectRefComparer::Compare);
+        std::sort(dependentTransactions.begin(), dependentTransactions.end(), TObjectIdComparer());
         for (auto* dependentTransaction : dependentTransactions) {
             if (!IsObjectAlive(dependentTransaction)) {
                 continue;

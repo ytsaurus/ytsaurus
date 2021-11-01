@@ -62,9 +62,6 @@ public:
     //! Returns the strong reference counter.
     int UnrefObject(TObject* object, int count = 1);
 
-    //! Returns the current strong reference counter.
-    int GetObjectRefCounter(TObject* object);
-
     //! Increments the object ephemeral reference counter thus temporarily preventing it from being destroyed.
     //! Returns the ephemeral reference counter.
     int EphemeralRefObject(TObject* object);
@@ -73,9 +70,6 @@ public:
     //! Returns the ephemeral reference counter.
     int EphemeralUnrefObject(TObject* object);
 
-    //! Returns the current ephemeral reference counter.
-    int GetObjectEphemeralRefCounter(TObject* object);
-
     //! Increments the object weak reference counter thus temporarily preventing it from being destroyed.
     //! Returns the weak reference counter.
     int WeakRefObject(TObject* object);
@@ -83,9 +77,6 @@ public:
     //! Decrements the object weak reference counter thus making it eligible for destruction.
     //! Returns the weak reference counter.
     int WeakUnrefObject(TObject* object);
-
-    //! Returns the current weak reference counter.
-    int GetObjectWeakRefCounter(TObject* object);
 
     //! Finds object by id, returns |nullptr| if nothing is found.
     TObject* FindObject(TObjectId id);
@@ -102,7 +93,7 @@ public:
     //! Finds object by id, throws if nothing is found.
     TObject* GetObjectOrThrow(TObjectId id);
 
-    //! Find weak ghost object by id, fails if nothing is found.
+    //! Finds weak ghost object by id, fails if nothing is found.
     TObject* GetWeakGhostObject(TObjectId id);
 
     //! For object types requiring two-phase removal, initiates the removal protocol.
@@ -221,8 +212,6 @@ public:
         TCellTag cellTag);
 
     NProfiling::TTimeCounter* GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method);
-
-    TEpoch GetCurrentEpoch();
 
 private:
     class TImpl;

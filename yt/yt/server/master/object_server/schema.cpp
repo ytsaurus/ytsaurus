@@ -24,13 +24,13 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchemaObject::TSchemaObject(TObjectId id)
-    : TNonversionedObjectBase(id)
+    : TObject(id)
     , Acd_(this)
 { }
 
 void TSchemaObject::Save(NCellMaster::TSaveContext& context) const
 {
-    TNonversionedObjectBase::Save(context);
+    TObject::Save(context);
 
     using NYT::Save;
     Save(context, Acd_);
@@ -38,7 +38,7 @@ void TSchemaObject::Save(NCellMaster::TSaveContext& context) const
 
 void TSchemaObject::Load(NCellMaster::TLoadContext& context)
 {
-    TNonversionedObjectBase::Load(context);
+    TObject::Load(context);
 
     using NYT::Load;
     Load(context, Acd_);
@@ -74,12 +74,22 @@ public:
         return id == object->GetId() ? object : nullptr;
     }
 
+    std::unique_ptr<TObject> InstantiateObject(TObjectId /*id*/) override
+    {
+        YT_ABORT();
+    }
+
 private:
     using TBase = TObjectTypeHandlerBase<TSchemaObject>;
 
     const EObjectType Type_;
 
     void DoDestroyObject(TSchemaObject* /*object*/) noexcept override
+    {
+        YT_ABORT();
+    }
+
+    void DoRecreateObjectAsGhost(TSchemaObject* /*object*/) noexcept override
     {
         YT_ABORT();
     }

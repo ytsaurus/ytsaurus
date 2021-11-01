@@ -40,11 +40,12 @@ private:
         return CreateTabletProxy(Bootstrap_, &Metadata_, tablet);
     }
 
-    void DoDestroyObject(TTablet* tablet) override
+    void DoDestroyObject(TTablet* tablet) noexcept override
     {
-        TObjectTypeHandlerWithMapBase::DoDestroyObject(tablet);
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->DestroyTablet(tablet);
+
+        TObjectTypeHandlerWithMapBase::DoDestroyObject(tablet);
     }
 };
 

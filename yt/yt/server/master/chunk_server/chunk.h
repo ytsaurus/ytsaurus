@@ -176,14 +176,14 @@ public:
 
     bool IsConfirmed() const;
 
-    bool GetScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch) const;
-    void SetScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch);
-    void ClearScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch);
+    bool GetScanFlag(EChunkScanKind kind) const;
+    void SetScanFlag(EChunkScanKind kind);
+    void ClearScanFlag(EChunkScanKind kind);
     TChunk* GetNextScannedChunk() const;
 
-    std::optional<NProfiling::TCpuInstant> GetPartLossTime(NObjectServer::TEpoch epoch) const;
-    void SetPartLossTime(NProfiling::TCpuInstant partLossTime, NObjectServer::TEpoch epoch);
-    void ResetPartLossTime(NObjectServer::TEpoch epoch);
+    std::optional<NProfiling::TCpuInstant> GetPartLossTime() const;
+    void SetPartLossTime(NProfiling::TCpuInstant partLossTime);
+    void ResetPartLossTime();
 
     TChunkRepairQueueIterator GetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue) const;
     void SetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue, TChunkRepairQueueIterator value);
@@ -431,7 +431,7 @@ private:
         TChunkRequisitionRegistry* registry,
         const NObjectServer::TObjectManagerPtr& objectManager);
 
-    void MaybeResetObsoleteEpochData(NObjectServer::TEpoch epoch);
+    void MaybeResetObsoleteEpochData();
 
     void OnMiscExtUpdated(const NChunkClient::NProto::TMiscExt& miscExt);
 
@@ -440,6 +440,8 @@ private:
     using TEmptyChunkReplicasData = TReplicasData<0, 0>;
     static const TEmptyChunkReplicasData EmptyChunkReplicasData;
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TChunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 

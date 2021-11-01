@@ -63,6 +63,8 @@
 
 #include <yt/yt/core/ypath/token.h>
 
+#include <util/generic/algorithm.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NBus;
@@ -110,7 +112,7 @@ public:
         YT_VERIFY(Account_);
     }
 
-    virtual ~TNodeFactory() override
+    ~TNodeFactory() override
     {
         RollbackIfNeeded();
     }
@@ -688,6 +690,11 @@ public:
         return cypressManager->FindNode(TVersionedNodeId(id));
     }
 
+    std::unique_ptr<TObject> InstantiateObject(TObjectId /*id*/) override
+    {
+        YT_ABORT();
+    }
+
     TObject* CreateObject(
         TObjectId /*hintId*/,
         IAttributeDictionary* /*attributes*/) override
@@ -732,7 +739,7 @@ private:
     }
 
     void DoDestroyObject(TCypressNode* node) noexcept override;
-
+    void DoRecreateObjectAsGhost(TCypressNode* node) noexcept override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -986,8 +993,7 @@ public:
 
         node->SetShard(shard);
 
-        auto* account = node->GetAccount();
-        if (account) {
+        if (auto* account = node->GetAccount()) {
             UpdateShardNodeCount(shard, account, +1);
         }
 
@@ -1006,8 +1012,7 @@ public:
 
         node->SetShard(nullptr);
 
-        auto* account = node->GetAccount();
-        if (account) {
+        if (auto* account = node->GetAccount()) {
             UpdateShardNodeCount(shard, account, -1);
         }
 
@@ -1700,6 +1705,8 @@ public:
         TTransaction* transaction,
         TCypressNode* branchedNode)
     {
+        YT_ASSERT(branchedNode->GetTransaction() == transaction);
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
         const auto& handler = GetHandler(branchedNode);
@@ -1717,7 +1724,6 @@ public:
         }
 
         // Remove the node.
-        YT_ASSERT(branchedNode->GetTransaction() == transaction);
         handler->Destroy(branchedNode);
         NodeMap_.Remove(branchedNodeId);
 
@@ -1886,10 +1892,7 @@ public:
             true /* recursive */,
             addNode);
 
-        std::sort(transactions.begin(), transactions.end(), TObjectRefComparer::Compare);
-        transactions.erase(
-            std::unique(transactions.begin(), transactions.end()),
-            transactions.end());
+        SortUnique(transactions, TObjectIdComparer());
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         for (auto* transaction : transactions) {
@@ -2503,11 +2506,19 @@ private:
         ExpirationTracker_->OnNodeDestroyed(trunkNode);
 
         const auto& handler = GetHandler(trunkNode);
-        YT_ASSERT(!trunkNode->GetTransaction());
         handler->Destroy(trunkNode);
 
         // Remove the object from the map but keep it alive.
         NodeMap_.Release(trunkNode->GetVersionedId()).release();
+    }
+
+    void RecreateNodeAsGhost(TCypressNode* trunkNode)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT(trunkNode->IsTrunk());
+
+        const auto& handler = GetHandler(trunkNode);
+        handler->RecreateAsGhost(trunkNode);
     }
 
 
@@ -2544,7 +2555,7 @@ private:
             nodes.push_back(trunkNode);
         }
 
-        std::sort(nodes.begin(), nodes.end(), TCypressNodeRefComparer::Compare);
+        Sort(nodes, TCypressNodeIdComparer());
 
         for (auto* node : nodes) {
             auto* trunkNode = node->GetTrunkNode();
@@ -2570,7 +2581,7 @@ private:
             ListSubtreeNodes(trunkNode, transaction, true, &nodes);
 
             // For determinism.
-            std::sort(nodes.begin(), nodes.end(), TCypressNodeRefComparer::Compare);
+            Sort(nodes, TCypressNodeIdComparer());
 
             for (auto* node : nodes) {
                 processNode(node);
@@ -3068,11 +3079,11 @@ private:
 
         SmallVector<TLock*, 16> locks(transaction->Locks().begin(), transaction->Locks().end());
         transaction->Locks().clear();
-        std::sort(locks.begin(), locks.end(), TObjectRefComparer::Compare);
+        Sort(locks, TObjectIdComparer());
 
         SmallVector<TCypressNode*, 16> lockedNodes(transaction->LockedNodes().begin(), transaction->LockedNodes().end());
         transaction->LockedNodes().clear();
-        std::sort(lockedNodes.begin(), lockedNodes.end(), TCypressNodeRefComparer::Compare);
+        Sort(lockedNodes, TCypressNodeIdComparer());
 
         for (auto* lock : locks) {
             auto* trunkNode = lock->GetTrunkNode();
@@ -3354,6 +3365,8 @@ private:
         TTransaction* transaction,
         TCypressNode* branchedNode)
     {
+        YT_ASSERT(branchedNode->GetTransaction() == transaction);
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
         const auto& handler = GetHandler(branchedNode);
@@ -3362,10 +3375,8 @@ private:
         auto branchedNodeId = branchedNode->GetVersionedId();
 
         if (branchedNode->GetLockMode() != ELockMode::Snapshot) {
-            auto* originatingNode = branchedNode->GetOriginator();
-
             // Merge changes back.
-            YT_ASSERT(branchedNode->GetTransaction() == transaction);
+            auto* originatingNode = branchedNode->GetOriginator();
             handler->Merge(originatingNode, branchedNode);
 
             // The root needs a special handling.
@@ -3378,7 +3389,6 @@ private:
             }
         } else {
             // Destroy the branched copy.
-            YT_ASSERT(branchedNode->GetTransaction() == transaction);
             handler->Destroy(branchedNode);
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node snapshot destroyed (NodeId: %v)", branchedNodeId);
@@ -3839,6 +3849,11 @@ TCypressManager::TNodeTypeHandler::TNodeTypeHandler(
 void TCypressManager::TNodeTypeHandler::DoDestroyObject(TCypressNode* node) noexcept
 {
     Owner_->DestroyNode(node);
+}
+
+void TCypressManager::TNodeTypeHandler::DoRecreateObjectAsGhost(TCypressNode* node) noexcept
+{
+    Owner_->RecreateNodeAsGhost(node);
 }
 
 TString TCypressManager::TNodeTypeHandler::DoGetName(const TCypressNode* node)

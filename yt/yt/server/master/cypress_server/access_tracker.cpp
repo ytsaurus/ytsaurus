@@ -100,13 +100,10 @@ void TAccessTracker::SetAccessed(TCypressNode* trunkNode)
     if (index < 0) {
         index = UpdateAccessStatisticsRequest_.updates_size();
         trunkNode->SetAccessStatisticsUpdateIndex(index);
-        NodesWithAccessStatisticsUpdate_.push_back(trunkNode);
+        NodesWithAccessStatisticsUpdate_.emplace_back(trunkNode);
 
         auto* update = UpdateAccessStatisticsRequest_.add_updates();
         ToProto(update->mutable_node_id(), trunkNode->GetId());
-
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->EphemeralRefObject(trunkNode);
     }
 
     auto now = NProfiling::GetInstant();
@@ -126,31 +123,24 @@ void TAccessTracker::SetTouched(TCypressNode* trunkNode)
     if (index < 0) {
         index = TouchNodesRequest_.node_ids_size();
         trunkNode->SetTouchNodesIndex(index);
-        TouchedNodes_.push_back(trunkNode);
+        TouchedNodes_.emplace_back(trunkNode);
 
         ToProto(TouchNodesRequest_.add_node_ids(), trunkNode->GetId());
-
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->EphemeralRefObject(trunkNode);
     }
 }
 
 void TAccessTracker::Reset()
 {
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    for (auto* node : NodesWithAccessStatisticsUpdate_) {
-        if (node->IsAlive()) {
+    for (const auto& node : NodesWithAccessStatisticsUpdate_) {
+        if (node.IsAlive()) {
             node->SetAccessStatisticsUpdateIndex(-1);
         }
-        objectManager->EphemeralUnrefObject(node);
     }
 
-    for (auto* node : TouchedNodes_) {
-        if (node->IsAlive()) {
+    for (const auto& node : TouchedNodes_) {
+        if (node.IsAlive()) {
             node->SetTouchNodesIndex(-1);
         }
-
-        objectManager->EphemeralUnrefObject(node);
     }
 
     UpdateAccessStatisticsRequest_.Clear();

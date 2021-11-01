@@ -242,7 +242,7 @@ void TBoomerangTracker::ApplyBoomerangMutation(NProto::TReqReturnBoomerang* requ
         const auto& automaton = hydraFacade->GetAutomaton();
         TMutationContextGuard mutationContextGuard(&mutationContext);
         TBoomerangMutationGuard boomerangMutationGuard;
-        automaton->ApplyMutation(&mutationContext);
+        StaticPointerCast<IAutomaton>(automaton)->ApplyMutation(&mutationContext);
     }
 
     const auto& responseKeeper = hydraFacade->GetResponseKeeper();

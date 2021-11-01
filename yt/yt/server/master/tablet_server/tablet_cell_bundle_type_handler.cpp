@@ -48,8 +48,7 @@ public:
         return DoCreateObject(std::move(holder), attributes, std::move(options));
     }
 
-    std::unique_ptr<TObject> InstantiateObject(
-        TObjectId hintId) override
+    std::unique_ptr<TObject> InstantiateObject(TObjectId hintId) override
     {
         return TPoolAllocator::New<TTabletCellBundle>(hintId);
     }

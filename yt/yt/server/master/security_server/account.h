@@ -76,7 +76,8 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NConcurrency::IReconfigurableThroughputThrottlerPtr, MergeJobThrottler);
 
 public:
-    explicit TAccount(TAccountId id, bool isRoot = false);
+    using TNonversionedMapObjectBase<TAccount>::TNonversionedMapObjectBase;
+    TAccount(TAccountId id, bool isRoot = false);
 
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;
@@ -152,14 +153,30 @@ public:
     void SetMergeJobRateLimit(int mergeJobRateLimit);
 
     int GetChunkMergerNodeTraversals() const;
-    void IncrementChunkMergerNodeTraversals(int value);
-    void ResetChunkMergerNodeTraversals();
+    void IncrementChunkMergerNodeTraversals();
+    void DecrementChunkMergerNodeTraversals();
 
 private:
     int MergeJobRateLimit_ = 0;
-    int ChunkMergerNodeTraversals_ = 0;
+
+    //! Indicates the number of nodes currently being processed by the chunk
+    //! merger that belong to this account.
+    NObjectServer::TEpochRefCounter ChunkMergerNodeTraversals_;
 
     TString GetRootName() const override;
+};
+
+DEFINE_MASTER_OBJECT_TYPE(TAccount)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAccountChunkMergerNodeTraversalsPtrContext
+    : public NObjectServer::TEphemeralObjectPtrContext
+{
+    static TAccountChunkMergerNodeTraversalsPtrContext Capture();
+
+    void Ref(NObjectServer::TObject* object);
+    void Unref(NObjectServer::TObject* object);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

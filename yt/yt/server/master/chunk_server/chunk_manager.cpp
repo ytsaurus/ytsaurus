@@ -179,7 +179,7 @@ public:
 
     int GetObjectRefCounter(TObject* object) override
     {
-        return Bootstrap_->GetObjectManager()->GetObjectRefCounter(object);
+        return object->GetObjectRefCounter(/*flushUnrefs*/ true);
     }
 
     TChunkList* CreateChunkList() override
@@ -241,7 +241,7 @@ private:
     const EObjectType Type_;
 
     IObjectProxyPtr DoGetProxy(TChunk* chunk, TTransaction* transaction) override;
-    void DoDestroyObject(TChunk* chunk) override;
+    void DoDestroyObject(TChunk* chunk) noexcept override;
     void DoUnstageObject(TChunk* chunk, bool recursive) override;
     void DoExportObject(TChunk* chunk, TCellTag destinationCellTag) override;
     void DoUnexportObject(TChunk* chunk, TCellTag destinationCellTag, int importRefCounter) override;
@@ -309,7 +309,7 @@ private:
 
     IObjectProxyPtr DoGetProxy(TChunkList* chunkList, TTransaction* transaction) override;
 
-    void DoDestroyObject(TChunkList* chunkList) override;
+    void DoDestroyObject(TChunkList* chunkList) noexcept override;
 
     void DoUnstageObject(TChunkList* chunkList, bool recursive) override;
 };
@@ -332,7 +332,7 @@ private:
 
     IObjectProxyPtr DoGetProxy(TChunkView* chunkView, TTransaction* transaction) override;
 
-    void DoDestroyObject(TChunkView* chunkView) override;
+    void DoDestroyObject(TChunkView* chunkView) noexcept override;
 
     void DoUnstageObject(TChunkView* chunkView, bool recursive) override;
 };
@@ -356,7 +356,7 @@ private:
 
     IObjectProxyPtr DoGetProxy(TDynamicStore* dynamicStore, TTransaction* transaction) override;
 
-    void DoDestroyObject(TDynamicStore* dynamicStore) override;
+    void DoDestroyObject(TDynamicStore* dynamicStore) noexcept override;
 
     void DoUnstageObject(TDynamicStore* dynamicStore, bool recursive) override;
 };
@@ -1687,10 +1687,7 @@ public:
             return;
         }
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RefObject(chunkList);
-
-        ChunkListsAwaitingRequisitionTraverse_.insert(chunkList);
+        ChunkListsAwaitingRequisitionTraverse_.emplace(chunkList);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk list is awaiting requisition traverse (ChunkListId: %v)",
             chunkList->GetId());
@@ -2102,7 +2099,7 @@ private:
     // chunks. Before that conversion happens, however, the chunk list must be
     // kept alive. Each chunk list in this multiset carries additional (strong) references
     // (whose number coincides with the chunk list's multiplicity) to ensure that.
-    THashMultiSet<TChunkList*> ChunkListsAwaitingRequisitionTraverse_;
+    THashMultiSet<TChunkListPtr> ChunkListsAwaitingRequisitionTraverse_;
 
     ICompositeJobControllerPtr JobController_;
 
@@ -2726,7 +2723,6 @@ private:
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Confirming finished chunk lists requisition traverse (ChunkListIds: %v)",
             chunkListIds);
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto chunkListId : chunkListIds) {
             auto* chunkList = FindChunkList(chunkListId);
             if (!chunkList) {
@@ -2743,7 +2739,6 @@ private:
             }
 
             ChunkListsAwaitingRequisitionTraverse_.erase(it);
-            objectManager->UnrefObject(chunkList);
         }
     }
 
@@ -3890,7 +3885,7 @@ private:
         {
             NProto::TReqConfirmChunkListsRequisitionTraverseFinished request;
             std::vector<TChunkListId> chunkListIds;
-            for (auto* chunkList : ChunkListsAwaitingRequisitionTraverse_) {
+            for (const auto& chunkList : ChunkListsAwaitingRequisitionTraverse_) {
                 ToProto(request.add_chunk_list_ids(), chunkList->GetId());
             }
 
@@ -4549,11 +4544,12 @@ IObjectProxyPtr TChunkManager::TChunkTypeHandler::DoGetProxy(
     return CreateChunkProxy(Bootstrap_, &Metadata_, chunk);
 }
 
-void TChunkManager::TChunkTypeHandler::DoDestroyObject(TChunk* chunk)
+void TChunkManager::TChunkTypeHandler::DoDestroyObject(TChunk* chunk) noexcept
 {
     // NB: TObjectTypeHandlerWithMapBase::DoDestroyObject will release
     // the runtime data; postpone its call.
     Owner_->DestroyChunk(chunk);
+
     TObjectTypeHandlerWithMapBase::DoDestroyObject(chunk);
 }
 
@@ -4562,6 +4558,7 @@ void TChunkManager::TChunkTypeHandler::DoUnstageObject(
     bool recursive)
 {
     TObjectTypeHandlerWithMapBase::DoUnstageObject(chunk, recursive);
+
     Owner_->UnstageChunk(chunk);
 }
 
@@ -4594,10 +4591,11 @@ IObjectProxyPtr TChunkManager::TChunkListTypeHandler::DoGetProxy(
     return CreateChunkListProxy(Bootstrap_, &Metadata_, chunkList);
 }
 
-void TChunkManager::TChunkListTypeHandler::DoDestroyObject(TChunkList* chunkList)
+void TChunkManager::TChunkListTypeHandler::DoDestroyObject(TChunkList* chunkList) noexcept
 {
-    TObjectTypeHandlerWithMapBase::DoDestroyObject(chunkList);
     Owner_->DestroyChunkList(chunkList);
+
+    TObjectTypeHandlerWithMapBase::DoDestroyObject(chunkList);
 }
 
 void TChunkManager::TChunkListTypeHandler::DoUnstageObject(
@@ -4605,6 +4603,7 @@ void TChunkManager::TChunkListTypeHandler::DoUnstageObject(
     bool recursive)
 {
     TObjectTypeHandlerWithMapBase::DoUnstageObject(chunkList, recursive);
+
     Owner_->UnstageChunkList(chunkList, recursive);
 }
 
@@ -4622,10 +4621,11 @@ IObjectProxyPtr TChunkManager::TChunkViewTypeHandler::DoGetProxy(
     return CreateChunkViewProxy(Bootstrap_, &Metadata_, chunkView);
 }
 
-void TChunkManager::TChunkViewTypeHandler::DoDestroyObject(TChunkView* chunkView)
+void TChunkManager::TChunkViewTypeHandler::DoDestroyObject(TChunkView* chunkView) noexcept
 {
-    TObjectTypeHandlerWithMapBase::DoDestroyObject(chunkView);
     Owner_->DestroyChunkView(chunkView);
+
+    TObjectTypeHandlerWithMapBase::DoDestroyObject(chunkView);
 }
 
 void TChunkManager::TChunkViewTypeHandler::DoUnstageObject(
@@ -4650,10 +4650,11 @@ IObjectProxyPtr TChunkManager::TDynamicStoreTypeHandler::DoGetProxy(
     return CreateDynamicStoreProxy(Bootstrap_, &Metadata_, dynamicStore);
 }
 
-void TChunkManager::TDynamicStoreTypeHandler::DoDestroyObject(TDynamicStore* dynamicStore)
+void TChunkManager::TDynamicStoreTypeHandler::DoDestroyObject(TDynamicStore* dynamicStore) noexcept
 {
-    TObjectTypeHandlerWithMapBase::DoDestroyObject(dynamicStore);
     Owner_->DestroyDynamicStore(dynamicStore);
+
+    TObjectTypeHandlerWithMapBase::DoDestroyObject(dynamicStore);
 }
 
 void TChunkManager::TDynamicStoreTypeHandler::DoUnstageObject(
@@ -4695,7 +4696,7 @@ TObject* TChunkManager::TMediumTypeHandler::CreateObject(
 
 void TChunkManager::TMediumTypeHandler::DoZombifyObject(TMedium* medium)
 {
-    TObjectTypeHandlerBase::DoZombifyObject(medium);
+    TObjectTypeHandlerWithMapBase::DoZombifyObject(medium);
     // NB: Destroying arbitrary media is not currently supported.
     // This handler, however, is needed to destroy just-created media
     // for which attribute initialization has failed.

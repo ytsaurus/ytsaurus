@@ -14,10 +14,6 @@ using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletAction::TTabletAction(TTabletActionId id)
-    : TNonversionedObjectBase(id)
-{ }
-
 TString TTabletAction::GetLowercaseObjectName() const
 {
     return Format("tablet action %v", GetId());
@@ -59,7 +55,7 @@ std::vector<TTabletId> TTabletAction::GetTabletIds() const
 
 void TTabletAction::Save(NCellMaster::TSaveContext& context) const
 {
-    TNonversionedObjectBase::Save(context);
+    TObject::Save(context);
 
     using NYT::Save;
     Save(context, Kind_);
@@ -79,7 +75,7 @@ void TTabletAction::Save(NCellMaster::TSaveContext& context) const
 
 void TTabletAction::Load(NCellMaster::TLoadContext& context)
 {
-    TNonversionedObjectBase::Load(context);
+    TObject::Load(context);
 
     using NYT::Load;
     Load(context, Kind_);

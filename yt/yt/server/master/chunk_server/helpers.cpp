@@ -64,6 +64,8 @@ static const double ChunkListTombstoneAbsoluteThreshold = 16;
 
 bool CanUnambiguouslyDetachChild(TChunkList* rootChunkList, const TChunkTree* child)
 {
+    // Flush just once, avoid flushing in loop below.
+    FlushObjectUnrefs();
     while (GetParentCount(child) == 1) {
         auto* parent = GetUniqueParent(child);
         if (parent == rootChunkList) {

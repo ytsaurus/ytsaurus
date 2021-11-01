@@ -149,6 +149,7 @@ public:
     DECLARE_BYVAL_RW_PROPERTY(std::optional<int>, DesiredTabletCount);
 
 public:
+    using TChunkOwnerBase::TChunkOwnerBase;
     explicit TTableNode(NCypressServer::TVersionedNodeId id);
 
     TTableNode* GetTrunkNode();

@@ -202,6 +202,7 @@ public:
     //! Always null for non-trunk nodes.
     DEFINE_BYVAL_RW_PROPERTY(TResolveCacheNodePtr, ResolveCacheNode);
 
+    using TObject::TObject;
     explicit TCypressNode(TVersionedNodeId id);
     virtual ~TCypressNode();
 
@@ -280,6 +281,9 @@ public:
     virtual void Save(NCellMaster::TSaveContext& context) const;
     virtual void Load(NCellMaster::TLoadContext& context);
 
+    void SaveEctoplasm(TStreamSaveContext& context) const override;
+    void LoadEctoplasm(TStreamLoadContext& context) override;
+
 private:
     TCypressNode* Parent_ = nullptr;
     TCypressNode* Originator_ = nullptr;
@@ -288,10 +292,14 @@ private:
     NHydra::TRevision NativeContentRevision_ = NHydra::NullRevision;
 };
 
+DEFINE_MASTER_OBJECT_TYPE(TCypressNode)
+
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCypressNodeRefComparer
+struct TCypressNodeIdComparer
 {
+    bool operator()(const TCypressNode* lhs, const TCypressNode* rhs) const;
+
     static bool Compare(const TCypressNode* lhs, const TCypressNode* rhs);
 };
 

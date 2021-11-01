@@ -38,7 +38,7 @@ TCypressShardAccountStatistics operator +(
 //! A shard is effectively a Cypress subtree.
 //! The root of a shard is either the global Cypress root or a portal exit.
 class TCypressShard
-    : public NObjectServer::TNonversionedObjectBase
+    : public NObjectServer::TObject
     , public TRefTracked<TCypressShard>
 {
 public:
@@ -51,7 +51,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TString, Name);
 
 public:
-    using TNonversionedObjectBase::TNonversionedObjectBase;
+    using TObject::TObject;
 
     TCypressShardAccountStatistics ComputeTotalAccountStatistics() const;
 

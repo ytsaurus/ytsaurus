@@ -50,13 +50,14 @@ void TChunkScanner::OnChunkDestroyed(TChunk* chunk)
 
 bool TChunkScanner::EnqueueChunk(TChunk* chunk)
 {
-    auto epoch = ObjectManager_->GetCurrentEpoch();
-    if (chunk->GetScanFlag(Kind_, epoch)) {
+    if (chunk->GetScanFlag(Kind_)) {
         return false;
     }
-    chunk->SetScanFlag(Kind_, epoch);
-    ObjectManager_->EphemeralRefObject(chunk);
-    Queue_.push({chunk, NProfiling::GetCpuInstant()});
+    chunk->SetScanFlag(Kind_);
+    Queue_.push({
+        TEphemeralObjectPtr<TChunk>(chunk),
+        NProfiling::GetCpuInstant()
+    });
     return true;
 }
 
@@ -72,17 +73,13 @@ TChunk* TChunkScanner::DequeueChunk()
         return nullptr;
     }
 
-    auto* chunk = Queue_.front().Chunk;
-    Queue_.pop();
-
-    auto epoch = ObjectManager_->GetCurrentEpoch();
-
+    auto* chunk = Queue_.front().Chunk.Get();
     bool alive = IsObjectAlive(chunk);
     if (alive) {
-        YT_ASSERT(chunk->GetScanFlag(Kind_, epoch));
-        chunk->ClearScanFlag(Kind_, epoch);
+        YT_ASSERT(chunk->GetScanFlag(Kind_));
+        chunk->ClearScanFlag(Kind_);
     }
-    ObjectManager_->EphemeralUnrefObject(chunk);
+    Queue_.pop();
     return alive ? chunk : nullptr;
 }
 
@@ -112,7 +109,7 @@ void TChunkScanner::AdvanceGlobalIterator()
     GlobalIterator_ = GlobalIterator_->GetNextScannedChunk();
     if (!GlobalIterator_) {
         // NB: Some chunks could vanish during the scan so this is not
-        // necessary zero.
+        // necessarily zero.
         YT_VERIFY(GlobalCount_ >= 0);
         YT_LOG_INFO("Global chunk scan finished (VanishedChunkCount: %v)",
             GlobalCount_);

@@ -9,12 +9,6 @@ namespace NYT::NHiveServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TBase>
-TTransactionBase<TBase>::TTransactionBase(TTransactionId id)
-    : TBase(id)
-    , State_(ETransactionState::Active)
-{ }
-
-template <class TBase>
 ETransactionState TTransactionBase<TBase>::GetPersistentState() const
 {
     switch (this->State_) {

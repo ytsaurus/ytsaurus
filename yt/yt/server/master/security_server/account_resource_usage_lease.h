@@ -19,7 +19,7 @@ namespace NYT::NSecurityServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAccountResourceUsageLease
-    : public NObjectServer::TNonversionedObjectBase
+    : public NObjectServer::TObject
     , public TRefTracked<TAccountResourceUsageLease>
 {
 public:
@@ -30,7 +30,7 @@ public:
 
 public:
     // NB: it is necessary for LoadKeys in EntityMap.
-    using TNonversionedObjectBase::TNonversionedObjectBase;
+    using TObject::TObject;
 
     TAccountResourceUsageLease(
         TAccountResourceUsageLeaseId id,

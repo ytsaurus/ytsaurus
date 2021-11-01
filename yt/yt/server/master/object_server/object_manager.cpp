@@ -153,13 +153,10 @@ public:
 
     int RefObject(TObject* object);
     int UnrefObject(TObject* object, int count = 1);
-    int GetObjectRefCounter(TObject* object);
     int EphemeralRefObject(TObject* object);
     int EphemeralUnrefObject(TObject* object);
-    int GetObjectEphemeralRefCounter(TObject* object);
     int WeakRefObject(TObject* object);
     int WeakUnrefObject(TObject* object);
-    int GetObjectWeakRefCounter(TObject* object);
 
     TObject* FindObject(TObjectId id);
     TObject* GetObject(TObjectId id);
@@ -235,16 +232,15 @@ public:
 
     NProfiling::TTimeCounter* GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method);
 
-    TEpoch GetCurrentEpoch();
-
 private:
     friend class TObjectProxyBase;
 
     class TRootService;
     using TRootServicePtr = TIntrusivePtr<TRootService>;
+
     class TRemoteProxy;
 
-    NProfiling::TBufferedProducerPtr BufferedProducer_ = New<NProfiling::TBufferedProducer>();
+    const NProfiling::TBufferedProducerPtr BufferedProducer_ = New<NProfiling::TBufferedProducer>();
 
     struct TTypeEntry
     {
@@ -281,8 +277,6 @@ private:
 
     //! Stores schemas (for serialization mostly).
     TEntityMap<TSchemaObject> SchemaMap_;
-
-    TEpoch CurrentEpoch_ = 0;
 
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -828,15 +822,15 @@ TObjectId TObjectManager::TImpl::GenerateId(EObjectType type, TObjectId hintId)
 int TObjectManager::TImpl::RefObject(TObject* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YT_ASSERT(!object->IsDestroyed());
+    YT_ASSERT(!object->IsGhost());
     YT_ASSERT(object->IsTrunk());
 
     int refCounter = object->RefObject();
     YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Object referenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
         object->GetId(),
         refCounter,
-        GetObjectEphemeralRefCounter(object),
-        GetObjectWeakRefCounter(object));
+        object->GetObjectEphemeralRefCounter(),
+        object->GetObjectWeakRefCounter());
 
     if (object->GetLifeStage() >= EObjectLifeStage::RemovalPreCommitted) {
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Object referenced after its removal has been pre-committed (ObjectId: %v, LifeStage: %v)",
@@ -861,8 +855,8 @@ int TObjectManager::TImpl::UnrefObject(TObject* object, int count)
     YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Object unreferenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
         object->GetId(),
         refCounter,
-        GetObjectEphemeralRefCounter(object),
-        GetObjectWeakRefCounter(object));
+        object->GetObjectEphemeralRefCounter(),
+        object->GetObjectWeakRefCounter());
 
     if (refCounter == 0) {
         const auto& handler = GetHandler(object);
@@ -891,39 +885,24 @@ int TObjectManager::TImpl::UnrefObject(TObject* object, int count)
     return refCounter;
 }
 
-int TObjectManager::TImpl::GetObjectRefCounter(TObject* object)
-{
-    return object->GetObjectRefCounter();
-}
-
 int TObjectManager::TImpl::EphemeralRefObject(TObject* object)
 {
-    return GarbageCollector_->EphemeralRefObject(object, CurrentEpoch_);
+    return GarbageCollector_->EphemeralRefObject(object);
 }
 
 int TObjectManager::TImpl::EphemeralUnrefObject(TObject* object)
 {
-    return GarbageCollector_->EphemeralUnrefObject(object, CurrentEpoch_);
-}
-
-int TObjectManager::TImpl::GetObjectEphemeralRefCounter(TObject* object)
-{
-    return object->GetObjectEphemeralRefCounter(CurrentEpoch_);
+    return GarbageCollector_->EphemeralUnrefObject(object);
 }
 
 int TObjectManager::TImpl::WeakRefObject(TObject* object)
 {
-    return GarbageCollector_->WeakRefObject(object, CurrentEpoch_);
+    return GarbageCollector_->WeakRefObject(object);
 }
 
 int TObjectManager::TImpl::WeakUnrefObject(TObject* object)
 {
-    return GarbageCollector_->WeakUnrefObject(object, CurrentEpoch_);
-}
-
-int TObjectManager::TImpl::GetObjectWeakRefCounter(TObject* object)
-{
-    return object->GetObjectWeakRefCounter();
+    return GarbageCollector_->WeakUnrefObject(object);
 }
 
 void TObjectManager::TImpl::SaveKeys(NCellMaster::TSaveContext& context) const
@@ -1016,7 +995,6 @@ void TObjectManager::TImpl::OnRecoveryStarted()
 
     BufferedProducer_->SetEnabled(false);
 
-    ++CurrentEpoch_;
     GarbageCollector_->Reset();
 }
 
@@ -1107,13 +1085,15 @@ void TObjectManager::TImpl::RemoveObject(TObject* object)
         THROW_ERROR_EXCEPTION("Object is foreign");
     }
 
+    auto objectRefCounter = object->GetObjectRefCounter(/*flushUnrefs*/ true);
+
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     if (multicellManager->IsPrimaryMaster() &&
         Any(handler->GetFlags() & ETypeFlags::TwoPhaseRemoval))
     {
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Two-phase object removal started (ObjectId: %v, RefCounter: %v)",
             object->GetId(),
-            object->GetObjectRefCounter());
+            objectRefCounter);
 
         object->SetLifeStage(EObjectLifeStage::RemovalStarted);
         object->ResetLifeStageVoteCount();
@@ -1124,7 +1104,7 @@ void TObjectManager::TImpl::RemoveObject(TObject* object)
 
         CheckRemovingObjectRefCounter(object);
     } else {
-        if (object->GetObjectRefCounter() != 1) {
+        if (objectRefCounter != 1) {
             THROW_ERROR_EXCEPTION("Object is in use");
         }
 
@@ -1208,7 +1188,7 @@ void TObjectManager::TImpl::FillAttributes(
     }
 
     auto proxy = GetProxy(object, nullptr);
-    std::sort(pairs.begin(), pairs.end(), [] (const auto& lhs, const auto& rhs) {
+    Sort(pairs, [] (const auto& lhs, const auto& rhs) {
         return lhs.first < rhs.first;
     });
     for (const auto& [key, value] : pairs) {
@@ -1336,6 +1316,7 @@ TObject* TObjectManager::TImpl::CreateObject(
     } catch (const std::exception& ex) {
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Failed to fill object attributes (ObjectId: %v)",
             object->GetId());
+        // XXX(babenko): think of better way
         UnrefObject(object);
         throw;
     }
@@ -1740,8 +1721,7 @@ void TObjectManager::TImpl::HydraDestroyObjects(NProto::TReqDestroyObjects* requ
 
         const auto& handler = GetHandler(type);
         auto* object = handler->FindObject(id);
-
-        if (!object || object->GetObjectRefCounter() > 0) {
+        if (!object || object->GetObjectRefCounter(/*flushUnrefs*/ true) > 0) {
             continue;
         }
 
@@ -1966,17 +1946,18 @@ void TObjectManager::TImpl::DoRemoveObject(TObject* object)
 {
     YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Object removed (ObjectId: %v)",
         object->GetId());
-    if (UnrefObject(object) != 0) {
+    FlushObjectUnrefs();
+    if (auto refCounter = UnrefObject(object); refCounter != 0) {
         YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
             "Non-zero reference counter after object removal (ObjectId: %v, RefCounter: %v)",
             object->GetId(),
-            object->GetObjectRefCounter());
+            refCounter);
     }
 }
 
 void TObjectManager::TImpl::CheckRemovingObjectRefCounter(TObject* object)
 {
-    if (object->GetObjectRefCounter() != 1) {
+    if (object->GetObjectRefCounter(/*flushUnrefs*/ true) != 1) {
         return;
     }
 
@@ -2066,11 +2047,6 @@ NProfiling::TTimeCounter* TObjectManager::TImpl::GetMethodCumulativeExecuteTimeC
         it = MethodToEntry_.emplace(key, std::move(entry)).first;
     }
     return &it->second->CumulativeExecuteTimeCounter;
-}
-
-TEpoch TObjectManager::TImpl::GetCurrentEpoch()
-{
-    return CurrentEpoch_;
 }
 
 void TObjectManager::TImpl::OnProfiling()
@@ -2225,11 +2201,6 @@ int TObjectManager::UnrefObject(TObject* object, int count)
     return Impl_->UnrefObject(object, count);
 }
 
-int TObjectManager::GetObjectRefCounter(TObject* object)
-{
-    return Impl_->GetObjectRefCounter(object);
-}
-
 int TObjectManager::EphemeralRefObject(TObject* object)
 {
     return Impl_->EphemeralRefObject(object);
@@ -2240,11 +2211,6 @@ int TObjectManager::EphemeralUnrefObject(TObject* object)
     return Impl_->EphemeralUnrefObject(object);
 }
 
-int TObjectManager::GetObjectEphemeralRefCounter(TObject* object)
-{
-    return Impl_->GetObjectEphemeralRefCounter(object);
-}
-
 int TObjectManager::WeakRefObject(TObject* object)
 {
     return Impl_->WeakRefObject(object);
@@ -2253,11 +2219,6 @@ int TObjectManager::WeakRefObject(TObject* object)
 int TObjectManager::WeakUnrefObject(TObject* object)
 {
     return Impl_->WeakUnrefObject(object);
-}
-
-int TObjectManager::GetObjectWeakRefCounter(TObject* object)
-{
-    return Impl_->GetObjectWeakRefCounter(object);
 }
 
 TObject* TObjectManager::FindObject(TObjectId id)
@@ -2408,11 +2369,6 @@ void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(TObject* object,
 NProfiling::TTimeCounter* TObjectManager::GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method)
 {
     return Impl_->GetMethodCumulativeExecuteTimeCounter(type, method);
-}
-
-TEpoch TObjectManager::GetCurrentEpoch()
-{
-    return Impl_->GetCurrentEpoch();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

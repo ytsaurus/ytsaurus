@@ -353,7 +353,7 @@ std::vector<TTabletMoveDescriptor> ReassignInMemoryTablets(
     }
 
     // Not really necessary but makes the code look safer.
-    std::sort(cells.begin(), cells.end(), TObjectRefComparer::Compare);
+    std::sort(cells.begin(), cells.end(), TObjectIdComparer());
 
     struct TMemoryUsage {
         i64 Memory;

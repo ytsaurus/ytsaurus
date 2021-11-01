@@ -21,16 +21,16 @@ namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TNonversionedObjectRefSerializer
+struct TRawNonversionedObjectPtrSerializer
 {
     static inline const TEntitySerializationKey DestroyedKey = TEntitySerializationKey(-2);
 
     template <class T>
-    static void Save(NCellMaster::TSaveContext& context, T object)
+    static void Save(NCellMaster::TSaveContext& context, T* object)
     {
         if (object) {
             // Zombies are serialized as usual, but ghosts need special treatment.
-            if (object->IsDestroyed()) {
+            if (object->IsGhost()) {
                 // Ephemeral ghosts aren't supposed to be a part of the
                 // persistent state. Weak ghosts are.
                 YT_VERIFY(object->GetObjectWeakRefCounter() > 0);
@@ -47,7 +47,7 @@ struct TNonversionedObjectRefSerializer
     }
 
     template <class T>
-    static void Save(NCypressServer::TBeginCopyContext& context, T object)
+    static void Save(NCypressServer::TBeginCopyContext& context, T* object)
     {
         using NYT::Save;
         if (object && !NObjectServer::IsObjectAlive(object)) {
@@ -58,7 +58,7 @@ struct TNonversionedObjectRefSerializer
     }
 
     template <class T>
-    static void Load(NCellMaster::TLoadContext& context, T& object)
+    static void Load(NCellMaster::TLoadContext& context, T*& object)
     {
         using TObject = typename std::remove_pointer<T>::type;
         auto key = LoadSuspended<TEntitySerializationKey>(context);
@@ -76,7 +76,7 @@ struct TNonversionedObjectRefSerializer
     }
 
     template <class T>
-    static void Load(NCypressServer::TEndCopyContext& context, T& object)
+    static void Load(NCypressServer::TEndCopyContext& context, T*& object)
     {
         using NYT::Load;
         using TObject = typename std::remove_pointer<T>::type;
@@ -89,7 +89,26 @@ struct TNonversionedObjectRefSerializer
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TVersionedObjectRefSerializer
+struct TStrongNonversionedObjectPtrSerializer
+{
+    template <class C, class T>
+    static void Save(C& context, const T& object)
+    {
+        TRawNonversionedObjectPtrSerializer::Save(context, object.Get());
+    }
+
+    template <class C, class T>
+    static void Load(C& context, T& object)
+    {
+        typename NObjectServer::TObjectPtrTraits<T>::TUnderlying* rawObject;
+        TRawNonversionedObjectPtrSerializer::Load(context, rawObject);
+        object.AssignOnLoad(rawObject);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRawVersionedObjectPtrSerializer
 {
     template <class T, class C>
     static void Save(C& context, T object)
@@ -169,13 +188,13 @@ struct TMasterTableSchemaRefSerializer
     template <class T>
     static void Save(NCellMaster::TSaveContext& context, T object)
     {
-        TNonversionedObjectRefSerializer::Save(context, object);
+        TRawNonversionedObjectPtrSerializer::Save(context, object);
     }
 
     template <class T>
     static void Load(NCellMaster::TLoadContext& context, T& object)
     {
-        TNonversionedObjectRefSerializer::Load(context, object);
+        TRawNonversionedObjectPtrSerializer::Load(context, object);
     }
 
     template <class T>
@@ -222,8 +241,26 @@ struct TSerializerTraits<
     >
 >
 {
-    using TSerializer = NCellMaster::TNonversionedObjectRefSerializer;
-    using TComparer = NObjectServer::TObjectRefComparer;
+    using TSerializer = NCellMaster::TRawNonversionedObjectPtrSerializer;
+    using TComparer = NObjectServer::TObjectIdComparer;
+};
+
+template <class T, class C>
+struct TSerializerTraits<
+    T,
+    C,
+    typename std::enable_if_t<
+        std::conjunction_v<
+            std::is_convertible<typename NObjectServer::TObjectPtrTraits<T>::TUnderlying*, NObjectServer::TObject*>,
+            std::negation<
+                std::is_convertible<typename NObjectServer::TObjectPtrTraits<T>::TUnderlying*, NCypressServer::TCypressNode*>
+            >
+        >
+    >
+>
+{
+    using TSerializer = NCellMaster::TStrongNonversionedObjectPtrSerializer;
+    using TComparer = NObjectServer::TObjectIdComparer;
 };
 
 template <class T, class C>
@@ -235,8 +272,8 @@ struct TSerializerTraits<
     >
 >
 {
-    using TSerializer = NCellMaster::TVersionedObjectRefSerializer;
-    using TComparer = NCypressServer::TCypressNodeRefComparer;
+    using TSerializer = NCellMaster::TRawVersionedObjectPtrSerializer;
+    using TComparer = NCypressServer::TCypressNodeIdComparer;
 };
 
 // Unlike most (non-versioned) objects, schemas are cell-local, which necessitates
@@ -251,7 +288,7 @@ struct TSerializerTraits<
 >
 {
     using TSerializer = NCellMaster::TMasterTableSchemaRefSerializer;
-    using TComparer = NObjectServer::TObjectRefComparer;
+    using TComparer = NObjectServer::TObjectIdComparer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

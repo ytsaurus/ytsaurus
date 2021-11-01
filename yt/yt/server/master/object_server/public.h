@@ -65,7 +65,27 @@ DECLARE_REFCOUNTED_CLASS(TDynamicObjectServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TMutationIdempotizerConfig)
 
 class TObject;
-class TNonversionedObjectBase;
+
+DEFINE_ENUM(EObjectPtrKind,
+    (Strong)
+    (Weak)
+    (Ephemeral)
+);
+
+template <class T, class C>
+class TObjectPtr;
+
+struct TStrongObjectPtrContext;
+template <class T>
+using TStrongObjectPtr = TObjectPtr<T, TStrongObjectPtrContext>;
+
+struct TWeakObjectPtrContext;
+template <class T>
+using TWeakObjectPtr = TObjectPtr<T, TWeakObjectPtrContext>;
+
+struct TEphemeralObjectPtrContext;
+template <class T>
+using TEphemeralObjectPtr = TObjectPtr<T, TEphemeralObjectPtrContext>;
 
 class TObjectProxyBase;
 
@@ -86,6 +106,20 @@ static constexpr int MaxAnnotationLength = 1024;
 
 // NB: Changing this value requires promoting master reign.
 static constexpr size_t DefaultYsonStringInternLengthThreshold = 1_KB;
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define DECLARE_MASTER_OBJECT_TYPE(type) \
+    class type; \
+    using type ## Ptr = ::NYT::NObjectServer::TStrongObjectPtr<type>; \
+    \
+    ::NYT::NObjectServer::TObject* ToObject(type* obj) ATTRIBUTE_USED;
+
+#define DEFINE_MASTER_OBJECT_TYPE(type) \
+    Y_FORCE_INLINE ::NYT::NObjectServer::TObject* ToObject(type* obj) \
+    { \
+        return obj; \
+    }
 
 ////////////////////////////////////////////////////////////////////////////////
 

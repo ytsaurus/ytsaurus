@@ -22,7 +22,7 @@ class TTableManager
 {
 public:
     explicit TTableManager(NCellMaster::TBootstrap* bootstrap);
-    virtual ~TTableManager() override;
+    ~TTableManager() override;
 
     DECLARE_ENTITY_MAP_ACCESSORS(MasterTableSchema, TMasterTableSchema);
     DECLARE_ENTITY_MAP_ACCESSORS(TableCollocation, TTableCollocation);

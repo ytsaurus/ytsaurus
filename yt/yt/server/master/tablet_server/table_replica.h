@@ -34,7 +34,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::EAtomicity, Atomicity, NTransactionClient::EAtomicity::Full)
 
 public:
-    explicit TTableReplica(TTableReplicaId id);
+    using TObject::TObject;
 
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;

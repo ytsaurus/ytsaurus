@@ -86,6 +86,9 @@ struct IObjectTypeHandler
     //! Raised when GC finally destroys the object.
     virtual void DestroyObject(TObject* object) noexcept = 0;
 
+    //! Invokes #object's dtor and then immediately recreates the object in-place as ghost.
+    virtual void RecreateObjectAsGhost(TObject* object) noexcept = 0;
+
     //! Resets staging information for #object.
     /*!
      *  If #recursive is |true| then all child objects are also released.

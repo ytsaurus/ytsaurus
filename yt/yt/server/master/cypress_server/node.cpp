@@ -203,7 +203,7 @@ void TCypressNode::Save(TSaveContext& context) const
     } else {
         Save(context, false);
     }
-    TNonversionedObjectRefSerializer::Save(context, Parent_);
+    TRawNonversionedObjectPtrSerializer::Save(context, Parent_);
     Save(context, LockMode_);
     Save(context, ExpirationTime_);
     Save(context, ExpirationTimeout_);
@@ -231,7 +231,7 @@ void TCypressNode::Load(TLoadContext& context)
         LockingState_ = std::make_unique<TCypressNodeLockingState>();
         Load(context, *LockingState_);
     }
-    TNonversionedObjectRefSerializer::Load(context, Parent_);
+    TRawNonversionedObjectPtrSerializer::Load(context, Parent_);
     Load(context, LockMode_);
     Load(context, ExpirationTime_);
     // COMPAT(shakurov)
@@ -264,6 +264,26 @@ void TCypressNode::Load(TLoadContext& context)
         Load(context, Annotation_);
     }
 }
+
+void TCypressNode::SaveEctoplasm(TStreamSaveContext& context) const
+{
+    TObject::SaveEctoplasm(context);
+
+    using NYT::Save;
+    Save(context, reinterpret_cast<uintptr_t>(TrunkNode_));
+    Save(context, TransactionId_);
+}
+
+void TCypressNode::LoadEctoplasm(TStreamLoadContext& context)
+{
+    TObject::LoadEctoplasm(context);
+
+    using NYT::Load;
+    Load(context, reinterpret_cast<uintptr_t&>(TrunkNode_));
+    Load(context, TransactionId_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 TVersionedObjectId GetObjectId(const TCypressNode* object)
 {

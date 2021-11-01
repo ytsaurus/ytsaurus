@@ -152,6 +152,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TStatistics, Statistics);
 
 public:
+    using TSubject::TSubject;
     explicit TUser(TUserId id);
 
     TString GetLowercaseObjectName() const override;

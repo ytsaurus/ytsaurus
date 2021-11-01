@@ -11,10 +11,10 @@ namespace NYT::NObjectServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterObject
-    : public TNonversionedObjectBase
+    : public TObject
 {
 public:
-    explicit TMasterObject(TObjectId id);
+    using TObject::TObject;
 
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;

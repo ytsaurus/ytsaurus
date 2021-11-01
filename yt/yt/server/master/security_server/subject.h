@@ -15,7 +15,7 @@ namespace NYT::NSecurityServer {
 
 //! A named entity representing either a user or a group.
 class TSubject
-    : public NObjectServer::TNonversionedObjectBase
+    : public NObjectServer::TObject
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(TString, Name);
@@ -35,6 +35,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TAccessControlDescriptor, Acd);
 
 public:
+    using TObject::TObject;
     explicit TSubject(TSubjectId id);
 
     void Save(NCellMaster::TSaveContext& context) const;

@@ -55,6 +55,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, FolderId);
 
 public:
+    using NCellServer::TCellBundle::TCellBundle;
     explicit TTabletCellBundle(TTabletCellBundleId id);
 
     void IncreaseActiveTabletActionCount();

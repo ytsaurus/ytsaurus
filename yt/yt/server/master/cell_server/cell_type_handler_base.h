@@ -15,24 +15,25 @@ namespace NYT::NCellServer {
 
 template <class TImpl>
 class TCellTypeHandlerBase
-    : public NObjectServer::TObjectTypeHandlerBase<TImpl>
+    : public NObjectServer::TConcreteObjectTypeHandlerBase<TImpl>
 {
+protected:
+    using TBase = NObjectServer::TConcreteObjectTypeHandlerBase<TImpl>;
+
 public:
-    explicit TCellTypeHandlerBase(
-        NCellMaster::TBootstrap* bootstrap);
+    using TBase::TBase;
 
     NObjectServer::ETypeFlags GetFlags() const override;
     NObjectServer::TObject* FindObject(NObjectClient::TObjectId id) override;
 
 protected:
-    using TBase = NObjectServer::TObjectTypeHandlerBase<TImpl>;
-
     NObjectServer::TObject* DoCreateObject(
         std::unique_ptr<TCellBase> holder,
         NYTree::IAttributeDictionary* attributes);
+
     NObjectClient::TCellTagList DoGetReplicationCellTags(const TImpl* /*cell*/) override;
     void DoZombifyObject(TImpl* cell) override;
-    void DoDestroyObject(TImpl* cell) override;
+    void DoDestroyObject(TImpl* cell) noexcept override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

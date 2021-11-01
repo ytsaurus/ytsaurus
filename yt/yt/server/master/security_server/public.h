@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/server/master/object_server/public.h>
+
 #include <yt/yt/server/lib/hydra/public.h>
 
 #include <yt/yt/ytlib/security_client/public.h>
@@ -48,6 +50,11 @@ DECLARE_ENTITY_TYPE(TUser, TUserId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TGroup, TGroupId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TNetworkProject, TNetworkProjectId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TProxyRole, TProxyRoleId, NObjectClient::TDirectObjectIdHash)
+
+DECLARE_MASTER_OBJECT_TYPE(TAccount)
+struct TAccountChunkMergerNodeTraversalsPtrContext;
+template <class T>
+using TAccountChunkMergerNodeTraversalsPtr = NObjectServer::TObjectPtr<T, TAccountChunkMergerNodeTraversalsPtrContext>;
 
 DECLARE_REFCOUNTED_STRUCT(ISecurityManager)
 DECLARE_REFCOUNTED_CLASS(TUserRequestLimitsOptions)

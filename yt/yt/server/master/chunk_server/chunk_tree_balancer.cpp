@@ -170,7 +170,8 @@ void TChunkTreeBalancer::AppendChild(
         if (child->GetType() == EObjectType::ChunkList) {
             auto* chunkList = child->AsChunkList();
             if (std::ssize(chunkList->Children()) <= Settings_.MaxChunkListSize) {
-                YT_ASSERT(Callbacks_->GetObjectRefCounter(chunkList) > 0);
+                // NB: YT_VERIFY, not YT_ASSERT since GetObjectRefCounter has side effects.
+                YT_VERIFY(Callbacks_->GetObjectRefCounter(chunkList) > 0);
                 children->push_back(child);
                 return;
             }
@@ -192,7 +193,9 @@ void TChunkTreeBalancer::MergeChunkTrees(
     // We are trying to add the child to the last chunk list.
     auto* lastChunkList = children->back()->AsChunkList();
 
-    YT_ASSERT(Callbacks_->GetObjectRefCounter(lastChunkList) == 0);
+    // NB: YT_VERIFY, not YT_ASSERT since GetObjectRefCounter has side effects.
+    YT_VERIFY(Callbacks_->GetObjectRefCounter(lastChunkList) == 0);
+
     YT_ASSERT(lastChunkList->Statistics().Rank <= 1);
     YT_ASSERT(std::ssize(lastChunkList->Children()) < Settings_.MinChunkListSize);
 

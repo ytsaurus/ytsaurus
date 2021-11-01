@@ -256,8 +256,8 @@ void TSchedulerPool::GuardedUpdatePoolAttribute(
     const std::function<void(const TPoolConfigPtr&, const TString&)>& update)
 {
     const auto& uninternedKey = key.Unintern();
-    update(FullConfig_, uninternedKey);    
-    
+    update(FullConfig_, uninternedKey);
+
     try {
         FullValidate();
         GetParent()->ValidateChildrenCompatibility();

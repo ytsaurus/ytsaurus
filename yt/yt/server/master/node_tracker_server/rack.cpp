@@ -7,11 +7,6 @@ namespace NYT::NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRack::TRack(TRackId id)
-    : TObject(id)
-    , Index_(-1)
-{ }
-
 TString TRack::GetLowercaseObjectName() const
 {
     return Format("rack %Qv", GetName());
