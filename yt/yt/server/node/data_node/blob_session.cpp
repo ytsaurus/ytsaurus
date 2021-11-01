@@ -451,6 +451,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
         ->GetMemoryUsageTracker()
         ->WithCategory(EMemoryCategory::BlobSession);
     std::vector<TMemoryUsageTrackerGuard> memoryTrackerGuards;
+    memoryTrackerGuards.reserve(blocks.size());
     for (const auto& block : blocks) {
         auto guardOrError = TMemoryUsageTrackerGuard::TryAcquire(
             memoryTracker,
@@ -464,7 +465,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
     const auto& blockCache = Bootstrap_->GetBlockCache();
 
     std::vector<int> receivedBlockIndexes;
-    for (int localIndex = 0; localIndex < static_cast<int>(blocks.size()); ++localIndex) {
+    for (int localIndex = 0; localIndex < std::ssize(blocks); ++localIndex) {
         int blockIndex = startBlockIndex + localIndex;
         const auto& block = blocks[localIndex];
         TBlockId blockId(GetChunkId(), blockIndex);
@@ -486,7 +487,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
             return MakeFuture(TError(
                 NChunkClient::EErrorCode::BlockContentMismatch,
                 "Block %v with a different content already received",
-                TBlockId(GetChunkId(), blockIndex))
+                blockId)
                 << TErrorAttribute("window_start", WindowStartBlockIndex_));
         }
 
@@ -774,7 +775,7 @@ TBlobSession::TSlot& TBlobSession::GetSlot(int blockIndex)
             BIND(
                 &TBlobSession::OnSlotCanceled,
                 MakeWeak(this),
-                WindowStartBlockIndex_ + static_cast<int>(Window_.size()) - 1)
+                WindowStartBlockIndex_ + std::ssize(Window_) - 1)
             .Via(SessionInvoker_));
     }
 
