@@ -712,6 +712,8 @@ private:
         }
         FinalizeLatch_ = true;
 
+        TDelayedExecutor::CancelAndClear(TimeoutCookie_);
+
         if (IsRegistrable()) {
             Service_->UnregisterRequest(this);
         }
@@ -751,11 +753,9 @@ private:
 
     void DoRun(const TLiteHandler& handler)
     {
-        DoBeforeRun();
-
-        auto finally = Finally([&] {
-            DoAfterRun();
-        });
+        RunInstant_ = NProfiling::GetInstant();
+        LocalWaitTime_ = *RunInstant_ - ArriveInstant_;
+        PerformanceCounters_->LocalWaitTimeCounter.Record(*LocalWaitTime_);
 
         try {
             TCurrentTraceContextGuard guard(TraceContext_);
@@ -763,13 +763,6 @@ private:
         } catch (const std::exception& ex) {
             Reply(ex);
         }
-    }
-
-    void DoBeforeRun()
-    {
-        RunInstant_ = NProfiling::GetInstant();
-        LocalWaitTime_ = *RunInstant_ - ArriveInstant_;
-        PerformanceCounters_->LocalWaitTimeCounter.Record(*LocalWaitTime_);
     }
 
     void DoGuardedRun(const TLiteHandler& handler)
@@ -822,15 +815,6 @@ private:
         }
     }
 
-    void DoAfterRun()
-    {
-        TDelayedExecutor::CancelAndClear(TimeoutCookie_);
-
-        if (auto traceContextTime = GetTraceContextTime()) {
-            PerformanceCounters_->TraceContextTimeCounter.Add(*traceContextTime);
-        }
-    }
-
     std::optional<TDuration> GetTraceContextTime() const override
     {
         if (TraceContext_) {
@@ -852,6 +836,10 @@ private:
             : 2; // RPC header + response body
         busOptions.MemoryZone = ResponseMemoryZone_;
         ReplyBus_->Send(responseMessage, busOptions);
+
+        if (auto traceContextTime = GetTraceContextTime()) {
+            PerformanceCounters_->TraceContextTimeCounter.Add(*traceContextTime);
+        }
 
         ReplyInstant_ = NProfiling::GetInstant();
         ExecutionTime_ = RunInstant_ ? *ReplyInstant_ - *RunInstant_ : TDuration();
