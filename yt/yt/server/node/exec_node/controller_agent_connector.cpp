@@ -40,9 +40,10 @@ public:
     void SendOutOfBandHeartbeatIfNeeded();
     void EnqueueFinishedJob(const TJobPtr& job);
 
-    void UpdateConnectorPeriods(TDuration newPeriod);
+    void UpdateConnectorPeriod(TDuration newPeriod);
 
     ~TControllerAgentConnector() override;
+
 private:
     struct THeartbeatInfo
     {
@@ -111,12 +112,12 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::EnqueueFinishedJo
     ShouldSendOutOfBand_ = true;
 }
 
-void TControllerAgentConnectorPool::TControllerAgentConnector::UpdateConnectorPeriods(const TDuration newPeriod)
+void TControllerAgentConnectorPool::TControllerAgentConnector::UpdateConnectorPeriod(const TDuration newPeriod)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
     HeartbeatExecutor_->SetPeriod(newPeriod);
 }
-
 
 TControllerAgentConnectorPool::TControllerAgentConnector::~TControllerAgentConnector()
 {
@@ -293,15 +294,15 @@ void TControllerAgentConnectorPool::OnDynamicConfigChanged(
     const TExecNodeDynamicConfigPtr& oldConfig,
     const TExecNodeDynamicConfigPtr& newConfig)
 {
-    if (newConfig->ControllerAgentConnector == nullptr && oldConfig->ControllerAgentConnector == nullptr) {
+    if (!newConfig->ControllerAgentConnector && !oldConfig->ControllerAgentConnector) {
         return;
     }
     
-    Bootstrap_->GetJobInvoker()->Invoke(BIND([this, this_ = MakeStrong(this), newConfig{std::move(newConfig)}] {
-        if (newConfig->ControllerAgentConnector == nullptr) {
-            CurrentConfig_ = StaticConfig_;
+    Bootstrap_->GetJobInvoker()->Invoke(BIND([this, this_{MakeStrong(this)}, newConfig{std::move(newConfig)}] {
+        if (newConfig->ControllerAgentConnector) {
+            CurrentConfig_ = StaticConfig_->ApplyDynamic(newConfig->ControllerAgentConnector);
         } else {
-            MergeHeartbeatReporterConfigs(*CurrentConfig_, *StaticConfig_, *newConfig->ControllerAgentConnector);
+            CurrentConfig_ = StaticConfig_;
         }
         UpdateConnectorPeriods(CurrentConfig_->HeartbeatPeriod);
     }));
@@ -346,8 +347,8 @@ void TControllerAgentConnectorPool::UpdateConnectorPeriods(const TDuration newPe
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
-    for (auto& [agentDescriptor, controllerAgentConnector] : ControllerAgentConnectors_) {
-        controllerAgentConnector->UpdateConnectorPeriods(newPeriod);
+    for (const auto& [agentDescriptor, controllerAgentConnector] : ControllerAgentConnectors_) {
+        controllerAgentConnector->UpdateConnectorPeriod(newPeriod);
     }
 }
 

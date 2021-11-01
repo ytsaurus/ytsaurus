@@ -53,19 +53,16 @@ const THashMap<TString, TUserJobSensorPtr>& TUserJobMonitoringConfig::GetDefault
     return DefaultSensors;
 }
 
-void MergeHeartbeatReporterConfigs(
-    THeartbeatReporterConfigBase& configToSet,
-    const THeartbeatReporterConfigBase& staticConfig,
-    const THeartbeatReporterDynamicConfigBase& dynamicConfig)
+void THeartbeatReporterConfigBase::ApplyDynamicInplace(const THeartbeatReporterDynamicConfigBase& dynamicConfig)
 {
-    configToSet.HeartbeatPeriod = dynamicConfig.HeartbeatPeriod.value_or(staticConfig.HeartbeatPeriod);
-    configToSet.HeartbeatSplay = dynamicConfig.HeartbeatSplay.value_or(staticConfig.HeartbeatSplay);
-    configToSet.FailedHeartbeatBackoffStartTime = dynamicConfig.FailedHeartbeatBackoffStartTime.value_or(
-        staticConfig.FailedHeartbeatBackoffStartTime);
-    configToSet.FailedHeartbeatBackoffMaxTime = dynamicConfig.FailedHeartbeatBackoffMaxTime.value_or(
-        staticConfig.FailedHeartbeatBackoffMaxTime);
-    configToSet.FailedHeartbeatBackoffMultiplier = dynamicConfig.FailedHeartbeatBackoffMultiplier.value_or(
-        staticConfig.FailedHeartbeatBackoffMultiplier);
+    HeartbeatPeriod = dynamicConfig.HeartbeatPeriod.value_or(HeartbeatPeriod);
+    HeartbeatSplay = dynamicConfig.HeartbeatSplay.value_or(HeartbeatSplay);
+    FailedHeartbeatBackoffStartTime = dynamicConfig.FailedHeartbeatBackoffStartTime.value_or(
+        FailedHeartbeatBackoffStartTime);
+    FailedHeartbeatBackoffMaxTime = dynamicConfig.FailedHeartbeatBackoffMaxTime.value_or(
+        FailedHeartbeatBackoffMaxTime);
+    FailedHeartbeatBackoffMultiplier = dynamicConfig.FailedHeartbeatBackoffMultiplier.value_or(
+        FailedHeartbeatBackoffMultiplier);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
