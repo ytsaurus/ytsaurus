@@ -13,6 +13,14 @@ void WriteProfile(IOutputStream* out, const NProto::Profile& profile)
     compress.Finish();
 }
 
+void ReadProfile(IInputStream* in, NProto::Profile* profile)
+{
+    profile->Clear();
+
+    TZLibDecompress decompress(in);
+    profile->ParseFromArcadiaStream(&decompress);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTProf

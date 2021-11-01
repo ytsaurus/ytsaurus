@@ -1,10 +1,6 @@
 #include <dlfcn.h>
 #include <gtest/gtest.h>
 
-#include <util/string/cast.h>
-#include <util/stream/file.h>
-#include <util/datetime/base.h>
-
 #include <library/cpp/testing/common/env.h>
 
 #include <yt/yt/library/memory/new.h>
@@ -20,6 +16,13 @@
 #include <yt/yt/library/ytprof/symbolize.h>
 #include <yt/yt/library/ytprof/profile.h>
 #include <yt/yt/library/ytprof/backtrace.h>
+#include <yt/yt/library/ytprof/external_pprof.h>
+
+#include <util/string/cast.h>
+#include <util/stream/file.h>
+#include <util/datetime/base.h>
+#include <util/system/shellcommand.h>
+
 
 namespace NYT::NYTProf {
 namespace {
@@ -81,6 +84,17 @@ void RunUnderProfiler(const TString& name, std::function<void()> work, bool chec
 
     Symbolize(&profile, true);
     AddBuildInfo(&profile, TBuildInfo::GetDefault());
+    SymbolizeByExternalPProf(&profile, TSymbolizationOptions{
+        .TmpDir = GetOutputPath(),
+        .KeepTmpDir = true,
+        .RunTool = [] (const std::vector<TString>& args) {
+            TShellCommand command{args[0], TList<TString>{args.begin()+1, args.end()}};
+            command.Run();
+
+            EXPECT_TRUE(command.GetExitCode() == 0)
+                << command.GetError();
+        },
+    });
 
     TFileOutput output(GetOutputPath() / name);
     WriteProfile(&output, profile);
