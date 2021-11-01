@@ -1,6 +1,7 @@
 #pragma once
 
 #include <yt/yt/server/master/node_tracker_server/public.h>
+
 #include <yt/yt/server/master/object_server/public.h>
 
 #include <yt/yt/server/lib/hydra/public.h>
@@ -74,6 +75,10 @@ DECLARE_ENTITY_TYPE(TDynamicStore, TDynamicStoreId, NObjectClient::TDirectObject
 DECLARE_ENTITY_TYPE(TChunkList, TChunkListId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TMedium, TMediumId, NObjectClient::TDirectObjectIdHash)
 
+DECLARE_MASTER_OBJECT_TYPE(TChunk)
+DECLARE_MASTER_OBJECT_TYPE(TChunkList)
+DECLARE_MASTER_OBJECT_TYPE(TChunkOwnerBase)
+
 class TChunkTree;
 class TChunkOwnerBase;
 
@@ -97,6 +102,10 @@ using TChunkPtrWithIndex = NChunkServer::TPtrWithIndex<TChunk>;
 
 struct TChunkTreeStatistics;
 struct TAggregatedNodeStatistics;
+
+struct TChunkOwnerMergeJobCounterPtrContext;
+template <class T>
+using TChunkOwnerMergeJobCounterPtr = NObjectServer::TObjectPtr<T, TChunkOwnerMergeJobCounterPtrContext>;
 
 DECLARE_REFCOUNTED_CLASS(TJob)
 DECLARE_REFCOUNTED_CLASS(TReplicationJob)
@@ -199,14 +208,9 @@ using TLoadFactorToNodeIterator = TLoadFactorToNodeMap::iterator;
 using TChunkExpirationMap = std::multimap<TInstant, TChunk*>;
 using TChunkExpirationMapIterator = TChunkExpirationMap::iterator;
 
-class TChunkPartLossTimeComparer
+struct TChunkPartLossTimeComparer
 {
-public:
-    explicit TChunkPartLossTimeComparer(NObjectServer::TEpoch epoch);
     bool operator()(const TChunk* lhs, const TChunk* rhs) const;
-
-private:
-    NObjectServer::TEpoch Epoch_;
 };
 
 using TOldestPartMissingChunkSet = std::set<TChunk*, TChunkPartLossTimeComparer>;

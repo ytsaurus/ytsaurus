@@ -524,17 +524,43 @@ void TAccount::SetMergeJobRateLimit(int mergeJobRateLimit)
 
 int TAccount::GetChunkMergerNodeTraversals() const
 {
-    return ChunkMergerNodeTraversals_;
+    return ChunkMergerNodeTraversals_.GetValue();
 }
 
-void TAccount::IncrementChunkMergerNodeTraversals(int value)
+void TAccount::IncrementChunkMergerNodeTraversals()
 {
-    ChunkMergerNodeTraversals_ += value;
+    ChunkMergerNodeTraversals_.UpdateValue(+1);
 }
 
-void TAccount::ResetChunkMergerNodeTraversals()
+void TAccount::DecrementChunkMergerNodeTraversals()
 {
-    ChunkMergerNodeTraversals_ = 0;
+    ChunkMergerNodeTraversals_.UpdateValue(-1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+/*static*/ TAccountChunkMergerNodeTraversalsPtrContext TAccountChunkMergerNodeTraversalsPtrContext::Capture()
+{
+    TAccountChunkMergerNodeTraversalsPtrContext result;
+    static_cast<TEphemeralObjectPtrContext&>(result) = TEphemeralObjectPtrContext::Capture();
+    return result;
+}
+
+void TAccountChunkMergerNodeTraversalsPtrContext::Ref(TObject* object)
+{
+    auto* account = object->As<TAccount>();
+    account->IncrementChunkMergerNodeTraversals();
+
+    TEphemeralObjectPtrContext::Ref(object);
+}
+
+void TAccountChunkMergerNodeTraversalsPtrContext::Unref(TObject* object)
+{
+    SafeUnref([account = object->As<TAccount>()] {
+        account->DecrementChunkMergerNodeTraversals();
+    });
+
+    TEphemeralObjectPtrContext::Unref(object);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

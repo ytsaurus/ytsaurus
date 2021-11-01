@@ -55,6 +55,7 @@ public:
     {
     public:
         void* operator new(size_t size, TPoolAllocator* allocator) noexcept;
+        void* operator new(size_t size, void* where) noexcept;
         void operator delete(void* ptr) noexcept;
 
         [[deprecated("Use TPoolAllocator::New for instantiation")]]

@@ -116,8 +116,7 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
     auto* primaryMedium = chunkManager->GetMediumByNameOrThrow(primaryMediumName);
 
     std::optional<TSecurityTags> securityTags;
-    auto securityTagItems = combinedAttributes->FindAndRemove<TSecurityTagsItems>("security_tags");
-    if (securityTagItems) {
+    if (auto securityTagItems = combinedAttributes->FindAndRemove<TSecurityTagsItems>("security_tags")) {
         securityTags = TSecurityTags{std::move(*securityTagItems)};
         securityTags->Validate();
     }
@@ -148,12 +147,9 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
             auto* chunkList = chunkManager->CreateChunkList(rootChunkListKind);
             node->SetChunkList(chunkList);
             chunkList->AddOwningNode(node);
-
-            const auto& objectManager = this->Bootstrap_->GetObjectManager();
-            objectManager->RefObject(chunkList);
         }
     } catch (const std::exception&) {
-        DoDestroy(node);
+        this->Destroy(node);
         throw;
     }
 
@@ -163,20 +159,16 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
 template <class TChunkOwner>
 void TChunkOwnerTypeHandler<TChunkOwner>::DoDestroy(TChunkOwner* node)
 {
-    TBase::DoDestroy(node);
-
-    auto* chunkList = node->GetChunkList();
-    if (chunkList) {
+    if (auto* chunkList = node->GetChunkList()) {
         if (!node->IsExternal() && node->IsTrunk()) {
             const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
             chunkManager->ScheduleChunkRequisitionUpdate(chunkList);
         }
 
         chunkList->RemoveOwningNode(node);
-
-        const auto& objectManager = TBase::Bootstrap_->GetObjectManager();
-        objectManager->UnrefObject(chunkList);
     }
+
+    TBase::DoDestroy(node);
 }
 
 template <class TChunkOwner>
@@ -190,11 +182,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBranch(
     if (!originatingNode->IsExternal()) {
         auto* chunkList = originatingNode->GetChunkList();
         branchedNode->SetChunkList(chunkList);
-
         branchedNode->GetChunkList()->AddOwningNode(branchedNode);
-
-        const auto& objectManager = TBase::Bootstrap_->GetObjectManager();
-        objectManager->RefObject(chunkList);
     }
 
     branchedNode->SetPrimaryMediumIndex(originatingNode->GetPrimaryMediumIndex());
@@ -248,7 +236,6 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     bool isExternal = originatingNode->IsExternal();
 
     const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
-    const auto& objectManager = TBase::Bootstrap_->GetObjectManager();
     const auto& securityManager = TBase::Bootstrap_->GetSecurityManager();
     const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
 
@@ -264,9 +251,6 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 
     // Check if we have anything to do at all.
     if (branchedMode == NChunkClient::EUpdateMode::None) {
-        if (!isExternal) {
-            objectManager->UnrefObject(branchedChunkList);
-        }
         return;
     }
 
@@ -325,8 +309,6 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             if (requisitionUpdateNeeded) {
                 chunkManager->ScheduleChunkRequisitionUpdate(branchedChunkList);
             }
-
-            objectManager->UnrefObject(originatingChunkList);
         }
 
         originatingNode->SnapshotStatistics() = branchedNode->SnapshotStatistics();
@@ -357,8 +339,6 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                             originatingNode->GetId(),
                             branchedNode->GetTransaction()->GetId());
                     }
-
-                    objectManager->UnrefObject(branchedChunkList);
                 } else {
                     // For non-trunk node just overwrite originating node with branched node contents.
                     // Could be made more consistent with static tables by using hierarchical chunk lists.
@@ -366,7 +346,6 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                     originatingNode->SetChunkList(branchedChunkList);
                     originatingChunkList->RemoveOwningNode(originatingNode);
                     branchedChunkList->AddOwningNode(originatingNode);
-                    objectManager->UnrefObject(originatingChunkList);
                 }
                 isDynamic = true;
             } else {
@@ -377,7 +356,6 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                 originatingChunkList->RemoveOwningNode(originatingNode);
                 newOriginatingChunkList->AddOwningNode(originatingNode);
                 originatingNode->SetChunkList(newOriginatingChunkList);
-                objectManager->RefObject(newOriginatingChunkList);
             }
         }
 
@@ -417,14 +395,9 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             }
         }
 
-        if (!isExternal) {
-            if (isDynamic) {
-                const auto& tableManager = TBase::Bootstrap_->GetTableManager();
-                tableManager->SendStatisticsUpdate(originatingNode);
-            } else {
-                objectManager->UnrefObject(originatingChunkList);
-                objectManager->UnrefObject(branchedChunkList);
-            }
+        if (!isExternal && isDynamic) {
+            const auto& tableManager = TBase::Bootstrap_->GetTableManager();
+            tableManager->SendStatisticsUpdate(originatingNode);
         }
     }
 
@@ -495,11 +468,9 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
     clonedTrunkNode->SetEnableSkynetSharing(sourceNode->GetEnableSkynetSharing());
 
     if (!sourceNode->IsExternal()) {
-        const auto& objectManager = TBase::Bootstrap_->GetObjectManager();
         auto* chunkList = sourceNode->GetChunkList();
         YT_VERIFY(!clonedTrunkNode->GetChunkList());
         clonedTrunkNode->SetChunkList(chunkList);
-        objectManager->RefObject(chunkList);
         chunkList->AddOwningNode(clonedTrunkNode);
         if (clonedTrunkNode->IsTrunk() && sourceNode->GetAccount() != clonedTrunkNode->GetAccount()) {
             const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();

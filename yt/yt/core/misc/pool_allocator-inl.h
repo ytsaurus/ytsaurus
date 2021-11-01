@@ -95,6 +95,11 @@ inline void* TPoolAllocator::TObjectBase::operator new(size_t /*size*/, TPoolAll
     return allocator->Allocate();
 }
 
+inline void* TPoolAllocator::TObjectBase::operator new(size_t /*size*/, void* where) noexcept
+{
+    return where;
+}
+
 inline void TPoolAllocator::TObjectBase::operator delete(void* ptr) noexcept
 {
     TPoolAllocator::Free(ptr);

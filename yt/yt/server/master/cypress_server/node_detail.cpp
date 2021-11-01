@@ -106,7 +106,7 @@ const TDynamicCypressManagerConfigPtr& TNontemplateCypressNodeTypeHandlerBase::G
     return Bootstrap_->GetConfigManager()->GetConfig()->CypressManager;
 }
 
-void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNode* node)
+void TNontemplateCypressNodeTypeHandlerBase::DestroyCorePrologue(TCypressNode* node)
 {
     // Reset parent links from immediate descendants.
     for (auto* descendant : node->ImmediateDescendants()) {
@@ -127,6 +127,9 @@ void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNode* node)
 
     // Clear ACD to unregister the node from linked objects.
     node->Acd().Clear();
+
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    securityManager->ResetAccount(node);
 }
 
 bool TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore(
@@ -373,32 +376,17 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCorePrologue(
     TCypressNode* originatingNode,
     TCypressNode* branchedNode)
 {
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-
-    // Merge user attributes.
-    objectManager->MergeAttributes(originatingNode, branchedNode);
-    originatingNode->MergeAnnotation(branchedNode);
-
     // Perform cleanup by resetting the parent link of the branched node.
     branchedNode->SetParent(nullptr);
 
-    // Merge expiration time.
-    auto oldExpirationTime = originatingNode->TryGetExpirationTime();
-    originatingNode->MergeExpirationTime(branchedNode);
-    auto newExpirationTime = originatingNode->TryGetExpirationTime();
-    if (originatingNode->IsTrunk() && newExpirationTime != oldExpirationTime) {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->SetExpirationTime(originatingNode, newExpirationTime);
-    }
+    // Perform cleanup by resetting the account of the branched node.
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    securityManager->ResetAccount(branchedNode);
 
-    // Merge expiration timeout.
-    auto oldExpirationTimeout = originatingNode->TryGetExpirationTimeout();
-    originatingNode->MergeExpirationTimeout(branchedNode);
-    auto newExpirationTimeout = originatingNode->TryGetExpirationTimeout();
-    if (originatingNode->IsTrunk() && newExpirationTimeout != oldExpirationTimeout) {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->SetExpirationTimeout(originatingNode, newExpirationTimeout);
-    }
+    // Merge user attributes.
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    objectManager->MergeAttributes(originatingNode, branchedNode);
+    originatingNode->MergeAnnotation(branchedNode);
 
     // Merge modification time.
     const auto* mutationContext = NHydra::GetCurrentMutationContext();
@@ -418,12 +406,31 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCorePrologue(
 
         }
     }
+
+    // Merge expiration time.
+    auto oldExpirationTime = originatingNode->TryGetExpirationTime();
+    originatingNode->MergeExpirationTime(branchedNode);
+    auto newExpirationTime = originatingNode->TryGetExpirationTime();
+    if (originatingNode->IsTrunk() && newExpirationTime != oldExpirationTime) {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        cypressManager->SetExpirationTime(originatingNode, newExpirationTime);
+    }
+
+    // Merge expiration timeout.
+    auto oldExpirationTimeout = originatingNode->TryGetExpirationTimeout();
+    originatingNode->MergeExpirationTimeout(branchedNode);
+    auto newExpirationTimeout = originatingNode->TryGetExpirationTimeout();
+    if (originatingNode->IsTrunk() && newExpirationTimeout != oldExpirationTimeout) {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        cypressManager->SetExpirationTimeout(originatingNode, newExpirationTimeout);
+    }
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::MergeCoreEpilogue(
     TCypressNode* originatingNode,
     TCypressNode* branchedNode)
 {
+    // Update only originating node since ResetAccount was called for branched node.
     const auto& securityManager = Bootstrap_->GetSecurityManager();
 
     securityManager->ResetAccount(branchedNode);
@@ -1038,7 +1045,7 @@ void TMapNodeChildren::RefChildren(const NObjectServer::TObjectManagerPtr& objec
     auto sortedIterators = GetSortedIterators(
         ChildToKey_,
         [] (const TChildToKey::value_type& a, const TChildToKey::value_type& b) {
-            return TObjectRefComparer::Compare(a.first, b.first);
+            return TObjectIdComparer::Compare(a.first, b.first);
         });
 
     for (auto it : sortedIterators) {
@@ -1052,7 +1059,7 @@ void TMapNodeChildren::UnrefChildren(const NObjectServer::TObjectManagerPtr& obj
     auto sortedIterators = GetSortedIterators(
         ChildToKey_,
         [] (const TChildToKey::value_type& a, const TChildToKey::value_type& b) {
-            return TObjectRefComparer::Compare(a.first, b.first);
+            return TObjectIdComparer::Compare(a.first, b.first);
         });
 
     for (auto it : sortedIterators) {
@@ -1062,15 +1069,10 @@ void TMapNodeChildren::UnrefChildren(const NObjectServer::TObjectManagerPtr& obj
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMapNode::TMapNode(TVersionedNodeId id)
-    : TCompositeNodeBase(id)
-{ }
-
 TMapNode::~TMapNode()
 {
     // Usually, Children_.Reset() has already been called by now, so Clear is a no-op.
     // This is only relevant when the whole automaton is being cleared.
-    Children_.Clear();
 }
 
 const TMapNode::TKeyToChild& TMapNode::KeyToChild() const
@@ -1149,10 +1151,10 @@ ENodeType TMapNodeTypeHandlerImpl<TImpl>::GetNodeType() const
 template <class TImpl>
 void TMapNodeTypeHandlerImpl<TImpl>::DoDestroy(TImpl* node)
 {
-    TBase::DoDestroy(node);
-
     node->ChildCountDelta_ = 0;
     node->Children_.Reset(this->Bootstrap_->GetObjectManager());
+
+    TBase::DoDestroy(node);
 }
 
 template <class TImpl>
@@ -1370,7 +1372,7 @@ void TListNode::Save(NCellMaster::TSaveContext& context) const
 
     using NYT::Save;
     TVectorSerializer<
-        TNonversionedObjectRefSerializer
+        TRawNonversionedObjectPtrSerializer
     >::Save(context, IndexToChild_);
 }
 
@@ -1380,7 +1382,7 @@ void TListNode::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     TVectorSerializer<
-        TNonversionedObjectRefSerializer
+        TRawNonversionedObjectPtrSerializer
     >::Load(context, IndexToChild_);
 
     // Reconstruct ChildToIndex.
@@ -1419,13 +1421,13 @@ ICypressNodeProxyPtr TListNodeTypeHandler::DoGetProxy(
 
 void TListNodeTypeHandler::DoDestroy(TListNode* node)
 {
-    TBase::DoDestroy(node);
-
     // Drop references to the children.
     const auto& objectManager = Bootstrap_->GetObjectManager();
     for (auto* child : node->IndexToChild()) {
         objectManager->UnrefObject(child);
     }
+
+    TBase::DoDestroy(node);
 }
 
 void TListNodeTypeHandler::DoBranch(

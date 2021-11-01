@@ -112,10 +112,11 @@ private:
     TIndexedVector<TChunkOwnerBase*> BranchedOwningNodes_;
 };
 
+DEFINE_MASTER_OBJECT_TYPE(TChunkList)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
-
 
 #define CHUNK_LIST_INL_H_
 #include "chunk_list-inl.h"

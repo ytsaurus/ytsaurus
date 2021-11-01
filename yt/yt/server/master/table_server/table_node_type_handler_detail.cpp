@@ -222,7 +222,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             node->SetUpstreamReplicaId(upstreamReplicaId);
         }
     } catch (const std::exception&) {
-        DoDestroy(node);
+        this->Destroy(node);
         throw;
     }
 
@@ -232,8 +232,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 template <class TImpl>
 void TTableNodeTypeHandlerBase<TImpl>::DoDestroy(TImpl* table)
 {
-    TBase::DoDestroy(table);
-
     if (table->IsTrunk()) {
         const auto& tabletManager = this->Bootstrap_->GetTabletManager();
         tabletManager->DestroyTable(table);
@@ -241,6 +239,8 @@ void TTableNodeTypeHandlerBase<TImpl>::DoDestroy(TImpl* table)
 
     const auto& tableManager = this->Bootstrap_->GetTableManager();
     tableManager->ResetTableSchema(table);
+
+    TBase::DoDestroy(table);
 }
 
 template <class TImpl>

@@ -55,9 +55,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(Automaton);
 
-        if (Transaction_) {
-            ObjectManager_->EphemeralRefObject(Transaction_);
-        }
         PushEntry(trunkRootNode);
     }
 
@@ -75,7 +72,7 @@ private:
     const TSecurityManagerPtr SecurityManager_;
     const IInvokerPtr Invoker_;
     const ICypressNodeVisitorPtr Visitor_;
-    TTransaction* const Transaction_;
+    const TEphemeralObjectPtr<TTransaction> Transaction_;
     const TString UserName_;
 
     TDuration TotalTime_;
@@ -85,9 +82,9 @@ private:
 
     struct TStackEntry
     {
-        TCypressNode* TrunkNode;
+        TEphemeralObjectPtr<TCypressNode> TrunkNode;
         int ChildIndex = -1; // -1 means the node itself
-        std::vector<TCypressNode*> TrunkChildren;
+        std::vector<TEphemeralObjectPtr<TCypressNode>> TrunkChildren;
 
         explicit TStackEntry(TCypressNode* trunkNode)
             : TrunkNode(trunkNode)
@@ -97,35 +94,35 @@ private:
     std::vector<TStackEntry> Stack_;
 
 
-    void ReleaseEntry(const TStackEntry& entry)
-    {
-        ObjectManager_->EphemeralUnrefObject(entry.TrunkNode);
-        for (auto* child : entry.TrunkChildren) {
-            ObjectManager_->EphemeralUnrefObject(child);
-        }
-    }
-
     void PushEntry(TCypressNode* trunkNode)
     {
-        ObjectManager_->EphemeralRefObject(trunkNode);
-        Stack_.push_back(TStackEntry(trunkNode));
-
-        auto addChildren = [&] (std::vector<TCypressNode*> children) {
-            auto& entry = Stack_.back();
-            entry.TrunkChildren = std::move(children);
-            for (auto* child : entry.TrunkChildren) {
-                ObjectManager_->EphemeralRefObject(child);
-            }
-        };
-
+        auto& entry = Stack_.emplace_back(trunkNode);
         switch (trunkNode->GetNodeType()) {
-            case ENodeType::Map:
-                addChildren(GetMapNodeChildList(CypressManager_, trunkNode->As<TMapNode>(), Transaction_));
+            case ENodeType::Map: {
+                THashMap<TString, TCypressNode*> childMapStorage;
+                const auto& childMap = GetMapNodeChildMap(
+                    CypressManager_,
+                    trunkNode->As<TMapNode>(),
+                    Transaction_.Get(),
+                    &childMapStorage);
+                entry.TrunkChildren.reserve(childMap.size());
+                for (const auto& [key, child] : childMap) {
+                    entry.TrunkChildren.emplace_back(child);
+                }
                 break;
+            }
 
-            case ENodeType::List:
-                addChildren(GetListNodeChildList(CypressManager_, trunkNode->As<TListNode>(), Transaction_));
+            case ENodeType::List: {
+                const auto& children = GetListNodeChildList(
+                    CypressManager_,
+                    trunkNode->As<TListNode>(),
+                    Transaction_.Get());
+                entry.TrunkChildren.reserve(children.size());
+                for (auto* child : children) {
+                    entry.TrunkChildren.emplace_back(child);
+                }
                 break;
+            }
 
             default:
                 // Do nothing.
@@ -138,8 +135,10 @@ private:
         VERIFY_THREAD_AFFINITY(Automaton);
 
         try {
-            if (Transaction_ && !IsObjectAlive(Transaction_)) {
-                THROW_ERROR_EXCEPTION("Transaction %v no longer exists",
+            if (Transaction_ && !Transaction_.IsAlive()) {
+                THROW_ERROR_EXCEPTION(
+                    NTransactionClient::EErrorCode::NoSuchTransaction,
+                    "Transaction %v no longer exists",
                     Transaction_->GetId());
             }
 
@@ -150,18 +149,17 @@ private:
                     auto& entry = Stack_.back();
                     auto childIndex = entry.ChildIndex++;
                     if (childIndex < 0) {
-                        if (IsObjectAlive(entry.TrunkNode)) {
-                            Visitor_->OnNode(entry.TrunkNode, Transaction_);
+                        if (entry.TrunkNode.IsAlive()) {
+                            Visitor_->OnNode(entry.TrunkNode.Get(), Transaction_.Get());
                         }
                         ++currentNodeCount;
                     } else if (childIndex < std::ssize(entry.TrunkChildren)) {
-                        auto* child = entry.TrunkChildren[childIndex];
-                        if (IsObjectAlive(child)) {
-                            PushEntry(child);
+                        const auto& child = entry.TrunkChildren[childIndex];
+                        if (child.IsAlive()) {
+                            PushEntry(child.Get());
                         }
                         ++currentNodeCount;
                     } else {
-                        ReleaseEntry(entry);
                         Stack_.pop_back();
                     }
                 }
@@ -170,10 +168,11 @@ private:
             if (Stack_.empty()) {
                 Finalize();
                 Visitor_->OnCompleted();
-            } else {
-                // Schedule continuation.
-                Invoker_->Invoke(BIND(&TCypressTraverser::DoTraverse, MakeStrong(this)));
+                return;
             }
+
+            // Schedule continuation.
+            Invoker_->Invoke(BIND(&TCypressTraverser::DoTraverse, MakeStrong(this)));
         } catch (const std::exception& ex) {
             Finalize();
             Visitor_->OnError(ex);
@@ -184,17 +183,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(Automaton);
 
-        if (Transaction_) {
-            ObjectManager_->EphemeralUnrefObject(Transaction_);
-        }
-
         auto* user = SecurityManager_->FindUserByName(UserName_, true /*activeLifeStageOnly*/);
         SecurityManager_->ChargeUser(user, {EUserWorkloadType::Read, 0, TotalTime_});
-
-        while (!Stack_.empty()) {
-            ReleaseEntry(Stack_.back());
-            Stack_.pop_back();
-        }
     }
 };
 

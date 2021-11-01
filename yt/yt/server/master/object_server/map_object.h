@@ -16,7 +16,7 @@ namespace NYT::NObjectServer {
 //! Provides a base for non-versioned objects with a tree-like structure.
 template <class TSelf>
 class TNonversionedMapObjectBase
-    : public TNonversionedObjectBase
+    : public TObject
 {
 public:
     using TKeyToChild = THashMap<TString, TSelf*>;
@@ -31,6 +31,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, SubtreeSize, 1);
 
 public:
+    using TObject::TObject;
     explicit TNonversionedMapObjectBase(TObjectId id, bool isRoot = false);
 
     void ResetParent();

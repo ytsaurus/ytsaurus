@@ -57,32 +57,33 @@ inline TChunkDynamicData* TChunk::GetDynamicData() const
     return GetTypedDynamicData<TChunkDynamicData>();
 }
 
-inline void TChunk::MaybeResetObsoleteEpochData(NObjectServer::TEpoch epoch)
+inline void TChunk::MaybeResetObsoleteEpochData()
 {
     auto* data = GetDynamicData();
-    if (epoch != data->Epoch) {
+    auto currentEpoch = NObjectServer::GetCurrentEpoch();
+    if (currentEpoch != data->Epoch) {
         data->EpochPartLossTime = {};
         data->EpochScanFlags = EChunkScanKind::None;
-        data->Epoch = epoch;
+        data->Epoch = currentEpoch;
     }
 }
 
-inline bool TChunk::GetScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch) const
+inline bool TChunk::GetScanFlag(EChunkScanKind kind) const
 {
     auto* data = GetDynamicData();
-    return data->Epoch == epoch ? Any(data->EpochScanFlags & kind) : false;
+    return data->Epoch == NObjectServer::GetCurrentEpoch() ? Any(data->EpochScanFlags & kind) : false;
 }
 
-inline void TChunk::SetScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch)
+inline void TChunk::SetScanFlag(EChunkScanKind kind)
 {
-    MaybeResetObsoleteEpochData(epoch);
+    MaybeResetObsoleteEpochData();
     auto* data = GetDynamicData();
     data->EpochScanFlags |= kind;
 }
 
-inline void TChunk::ClearScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch)
+inline void TChunk::ClearScanFlag(EChunkScanKind kind)
 {
-    MaybeResetObsoleteEpochData(epoch);
+    MaybeResetObsoleteEpochData();
     auto* data = GetDynamicData();
     data->EpochScanFlags &= ~kind;
 }
@@ -94,26 +95,26 @@ inline TChunk* TChunk::GetNextScannedChunk() const
     return node.Next;
 }
 
-inline std::optional<NProfiling::TCpuInstant> TChunk::GetPartLossTime(NObjectServer::TEpoch epoch) const
+inline std::optional<NProfiling::TCpuInstant> TChunk::GetPartLossTime() const
 {
     auto* data = GetDynamicData();
-    if (data->Epoch == epoch && data->EpochPartLossTime != NProfiling::TCpuInstant{}) {
+    if (data->Epoch == NObjectServer::GetCurrentEpoch() && data->EpochPartLossTime != NProfiling::TCpuInstant{}) {
         return data->EpochPartLossTime;
     } else {
         return std::nullopt;
     }
 }
 
-inline void TChunk::SetPartLossTime(NProfiling::TCpuInstant partLossTime, NObjectServer::TEpoch epoch)
+inline void TChunk::SetPartLossTime(NProfiling::TCpuInstant partLossTime)
 {
-    MaybeResetObsoleteEpochData(epoch);
+    MaybeResetObsoleteEpochData();
     auto* data = GetDynamicData();
     data->EpochPartLossTime = partLossTime;
 }
 
-inline void TChunk::ResetPartLossTime(NObjectServer::TEpoch epoch)
+inline void TChunk::ResetPartLossTime()
 {
-    MaybeResetObsoleteEpochData(epoch);
+    MaybeResetObsoleteEpochData();
     auto* data = GetDynamicData();
     data->EpochPartLossTime = NProfiling::TCpuInstant{};
 }

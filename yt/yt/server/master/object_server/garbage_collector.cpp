@@ -121,11 +121,9 @@ void TGarbageCollector::LoadKeys(NCellMaster::TLoadContext& context)
             SERIALIZATION_DUMP_INDENT(context) {
                 Load(context, *objectHolder);
             }
-            objectHolder->SetDestroyed();
+            objectHolder->SetGhost();
 
-            YT_VERIFY(WeakGhosts_.emplace(objectId, objectHolder.get()).second);
-
-            objectHolder.release();
+            YT_VERIFY(WeakGhosts_.emplace(objectId, objectHolder.release()).second);
         }
     }
 }
@@ -164,31 +162,31 @@ TFuture<void> TGarbageCollector::Collect()
     return CollectPromise_;
 }
 
-int TGarbageCollector::EphemeralRefObject(TObject* object, TEpoch epoch)
+int TGarbageCollector::EphemeralRefObject(TObject* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(!IsRecovery());
     YT_ASSERT(object->IsAlive());
     YT_ASSERT(object->IsTrunk());
 
-    int ephemeralRefCounter = object->EphemeralRefObject(epoch);
+    int ephemeralRefCounter = object->EphemeralRefObject();
     if (ephemeralRefCounter == 1 && object->GetObjectWeakRefCounter() == 0) {
         ++LockedObjectCount_;
     }
     return ephemeralRefCounter;
 }
 
-int TGarbageCollector::EphemeralUnrefObject(TObject* object, TEpoch epoch)
+int TGarbageCollector::EphemeralUnrefObject(TObject* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(!IsRecovery());
     YT_ASSERT(object->IsTrunk());
 
-    int ephemeralRefCounter = object->EphemeralUnrefObject(epoch);
+    int ephemeralRefCounter = object->EphemeralUnrefObject();
     if (ephemeralRefCounter == 0 && object->GetObjectWeakRefCounter() == 0) {
         --LockedObjectCount_;
 
-        if (object->IsDestroyed()) {
+        if (object->IsGhost()) {
             YT_VERIFY(!object->IsAlive());
 
             YT_LOG_TRACE("Ephemeral ghost disposed (ObjectId: %v)",
@@ -200,33 +198,32 @@ int TGarbageCollector::EphemeralUnrefObject(TObject* object, TEpoch epoch)
     return ephemeralRefCounter;
 }
 
-int TGarbageCollector::WeakRefObject(TObject* object, TEpoch epoch)
+int TGarbageCollector::WeakRefObject(TObject* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(object->IsAlive());
     YT_ASSERT(object->IsTrunk());
 
     int weakRefCounter = object->WeakRefObject();
-    if (weakRefCounter == 1 && object->GetObjectEphemeralRefCounter(epoch) == 0) {
+    if (weakRefCounter == 1 && object->GetObjectEphemeralRefCounter() == 0) {
         ++LockedObjectCount_;
     }
     return weakRefCounter;
 }
 
-int TGarbageCollector::WeakUnrefObject(TObject* object, TEpoch epoch)
+int TGarbageCollector::WeakUnrefObject(TObject* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(object->IsTrunk());
 
     int weakRefCounter = object->WeakUnrefObject();
     if (weakRefCounter == 0) {
-        auto ephemeralRefCounter = object->GetObjectEphemeralRefCounter(epoch);
-
+        auto ephemeralRefCounter = object->GetObjectEphemeralRefCounter();
         if (ephemeralRefCounter == 0) {
             --LockedObjectCount_;
         }
 
-        if (object->IsDestroyed()) {
+        if (object->IsGhost()) {
             YT_VERIFY(!object->IsAlive());
 
             if (ephemeralRefCounter == 0) {
@@ -278,12 +275,16 @@ void TGarbageCollector::DestroyZombie(TObject* object)
 
     YT_VERIFY(Zombies_.erase(object) == 1);
 
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    auto ephemeralRefCounter = objectManager->GetObjectEphemeralRefCounter(object);
-    auto weakRefCounter = objectManager->GetObjectWeakRefCounter(object);
+    auto ephemeralRefCounter = object->GetObjectEphemeralRefCounter();
+    auto weakRefCounter = object->GetObjectWeakRefCounter();
 
-    const auto& handler = objectManager->GetHandler(object->GetType());
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    const auto& handler = objectManager->GetHandler(object);
     handler->DestroyObject(object);
+
+    if (ephemeralRefCounter > 0 || weakRefCounter > 0) {
+        handler->RecreateObjectAsGhost(object);
+    }
 
     if (weakRefCounter > 0) {
         YT_LOG_TRACE_IF(IsMutationLoggingEnabled(), "Zombie has become weak ghost (ObjectId: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
@@ -291,7 +292,6 @@ void TGarbageCollector::DestroyZombie(TObject* object)
             ephemeralRefCounter,
             weakRefCounter);
         YT_VERIFY(WeakGhosts_.emplace(object->GetId(), object).second);
-        object->SetDestroyed();
     } else if (ephemeralRefCounter > 0) {
         YT_ASSERT(weakRefCounter == 0);
         YT_LOG_TRACE_IF(IsMutationLoggingEnabled(), "Zombie has become ephemeral ghost (ObjectId: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
@@ -299,7 +299,6 @@ void TGarbageCollector::DestroyZombie(TObject* object)
             ephemeralRefCounter,
             weakRefCounter);
         YT_VERIFY(EphemeralGhosts_.insert(object).second);
-        object->SetDestroyed();
     } else {
         YT_LOG_TRACE_IF(IsMutationLoggingEnabled(), "Zombie disposed (ObjectId: %v)",
             object->GetId());
@@ -350,7 +349,7 @@ void TGarbageCollector::ClearEphemeralGhosts()
         EphemeralGhosts_.size());
 
     for (auto* object : EphemeralGhosts_) {
-        YT_ASSERT(object->IsDestroyed());
+        YT_ASSERT(object->IsGhost());
         delete object;
     }
 
@@ -366,7 +365,7 @@ void TGarbageCollector::ClearWeakGhosts()
         WeakGhosts_.size());
 
     for (auto [objectId, object] : WeakGhosts_) {
-        YT_VERIFY(object->IsDestroyed());
+        YT_VERIFY(object->IsGhost());
         delete object;
     }
 

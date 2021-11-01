@@ -11,7 +11,7 @@ namespace NYT::NObjectServer {
 
 template <class TSelf>
 TNonversionedMapObjectBase<TSelf>::TNonversionedMapObjectBase(TObjectId id, bool isRoot)
-    : TNonversionedObjectBase(id)
+    : TObject(id)
     , Acd_(this)
     , IsRoot_(isRoot)
 { }
@@ -138,7 +138,7 @@ bool TNonversionedMapObjectBase<TSelf>::IsRoot() const
 template <class TSelf>
 void TNonversionedMapObjectBase<TSelf>::Save(NCellMaster::TSaveContext& context) const
 {
-    TNonversionedObjectBase::Save(context);
+    TObject::Save(context);
 
     using NYT::Save;
     Save(context, Acd_);
@@ -151,7 +151,7 @@ void TNonversionedMapObjectBase<TSelf>::Save(NCellMaster::TSaveContext& context)
 template <class TSelf>
 void TNonversionedMapObjectBase<TSelf>::Load(NCellMaster::TLoadContext& context)
 {
-    TNonversionedObjectBase::Load(context);
+    TObject::Load(context);
 
     using NYT::Load;
     Load(context, Acd_);

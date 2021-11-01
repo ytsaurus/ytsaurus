@@ -112,10 +112,6 @@ const TCypressNodeLockingState TCypressNodeLockingState::Empty = TCypressNodeLoc
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLock::TLock(TLockId id)
-    : TNonversionedObjectBase(id)
-{ }
-
 TString TLock::GetLowercaseObjectName() const
 {
     return Format("lock %v", GetId());
@@ -128,7 +124,7 @@ TString TLock::GetCapitalizedObjectName() const
 
 void TLock::Save(TSaveContext& context) const
 {
-    TNonversionedObjectBase::Save(context);
+    TObject::Save(context);
 
     using NYT::Save;
     Save(context, Implicit_);
@@ -136,13 +132,13 @@ void TLock::Save(TSaveContext& context) const
     Save(context, CreationTime_);
     Save(context, AcquisitionTime_);
     Save(context, Request_);
-    TNonversionedObjectRefSerializer::Save(context, TrunkNode_);
+    TRawNonversionedObjectPtrSerializer::Save(context, TrunkNode_);
     Save(context, Transaction_);
 }
 
 void TLock::Load(NCellMaster::TLoadContext& context)
 {
-    TNonversionedObjectBase::Load(context);
+    TObject::Load(context);
 
     using NYT::Load;
     Load(context, Implicit_);
@@ -153,7 +149,7 @@ void TLock::Load(NCellMaster::TLoadContext& context)
         Load(context, AcquisitionTime_);
     }
     Load(context, Request_);
-    TNonversionedObjectRefSerializer::Load(context, TrunkNode_);
+    TRawNonversionedObjectPtrSerializer::Load(context, TrunkNode_);
     Load(context, Transaction_);
 }
 

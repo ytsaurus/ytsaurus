@@ -17,21 +17,20 @@ namespace NYT::NObjectServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStagedObject
-    : public NObjectServer::TNonversionedObjectBase
+    : public NObjectServer::TObject
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, StagingTransaction);
     DEFINE_BYVAL_RW_PROPERTY(NSecurityServer::TAccount*, StagingAccount);
 
 public:
-    explicit TStagedObject(TObjectId id);
+    using TObject::TObject;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
     //! Returns True if the object is the staging area of some transaction.
     bool IsStaged() const;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

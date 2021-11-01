@@ -13,9 +13,7 @@ class TMasterTypeHandler
     : public TObjectTypeHandlerBase<TMasterObject>
 {
 public:
-    explicit TMasterTypeHandler(TBootstrap* bootstrap)
-        : TObjectTypeHandlerBase(bootstrap)
-    { }
+    using TObjectTypeHandlerBase<TMasterObject>::TObjectTypeHandlerBase;
 
     EObjectType GetType() const override
     {
@@ -29,8 +27,18 @@ public:
         return id == object->GetId() ? object : nullptr;
     }
 
+    std::unique_ptr<TObject> InstantiateObject(TObjectId /*id*/) override
+    {
+        YT_ABORT();
+    }
+
 private:
     void DoDestroyObject(TMasterObject* /*object*/) noexcept override
+    {
+        YT_ABORT();
+    }
+
+    void DoRecreateObjectAsGhost(TMasterObject* /*object*/) noexcept override
     {
         YT_ABORT();
     }

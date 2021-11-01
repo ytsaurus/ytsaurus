@@ -44,7 +44,7 @@ public:
     DECLARE_BYVAL_RO_PROPERTY(TTabletCellBundle*, TabletCellBundle);
 
 public:
-    explicit TTabletCell(TTabletCellId id);
+    using TCellBase::TCellBase;
 
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;

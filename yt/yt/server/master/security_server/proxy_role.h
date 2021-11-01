@@ -10,16 +10,15 @@ namespace NYT::NSecurityServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProxyRole
-    : public NObjectServer::TNonversionedObjectBase
+    : public NObjectServer::TObject
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(TString, Name);
-
     DEFINE_BYVAL_RW_PROPERTY(NSecurityClient::EProxyKind, ProxyKind);
-
     DEFINE_BYREF_RW_PROPERTY(TAccessControlDescriptor, Acd);
 
 public:
+    using TObject::TObject;
     explicit TProxyRole(TProxyRoleId id);
 
     TString GetLowercaseObjectName() const override;

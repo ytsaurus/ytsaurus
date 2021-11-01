@@ -61,7 +61,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, LostVitalChunks);
     DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, DataMissingChunks);
     DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, ParityMissingChunks);
-    DEFINE_BYREF_RO_PROPERTY(TOldestPartMissingChunkSet, OldestPartMissingChunks, TChunkPartLossTimeComparer(0));
+    DEFINE_BYREF_RO_PROPERTY(TOldestPartMissingChunkSet, OldestPartMissingChunks);
     // Medium-wise unsafely placed chunks: all replicas are on transient media
     // (and requisitions of these chunks demand otherwise).
     DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, PrecariousChunks);

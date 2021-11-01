@@ -26,6 +26,8 @@ struct IChunkTreeBalancerCallbacks
 {
     virtual void RefObject(NObjectServer::TObject* object) = 0;
     virtual void UnrefObject(NObjectServer::TObject* object) = 0;
+
+    // NB: This call flushes unrefs and is thus mutating.
     virtual int GetObjectRefCounter(NObjectServer::TObject* object) = 0;
 
     virtual TChunkList* CreateChunkList() = 0;

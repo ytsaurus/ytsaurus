@@ -28,9 +28,6 @@ class TChunkOwnerBase
     : public NCypressServer::TCypressNode
 {
 public:
-    using TBase = NCypressServer::TCypressNode;
-
-    DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkList*, ChunkList);
     DEFINE_BYVAL_RW_PROPERTY(NChunkClient::EUpdateMode, UpdateMode, NChunkClient::EUpdateMode::None);
     DEFINE_BYREF_RW_PROPERTY(TChunkReplication, Replication);
     DEFINE_BYVAL_RW_PROPERTY(int, PrimaryMediumIndex, NChunkClient::DefaultStoreMediumIndex);
@@ -47,7 +44,11 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NChunkClient::EChunkMergerMode, ChunkMergerMode, NChunkClient::EChunkMergerMode::None);
 
 public:
+    using TCypressNode::TCypressNode;
     explicit TChunkOwnerBase(NCypressServer::TVersionedNodeId id);
+
+    TChunkList* GetChunkList() const;
+    void SetChunkList(TChunkList* chunkList);
 
     const TChunkList* GetSnapshotChunkList() const;
     const TChunkList* GetDeltaChunkList() const;
@@ -94,10 +95,14 @@ public:
     void Load(NCellMaster::TLoadContext& context) override;
 
 private:
+    NChunkServer::TChunkListPtr ChunkList_;
+
     NChunkClient::NProto::TDataStatistics ComputeUpdateStatistics() const;
 
     NSecurityServer::TClusterResources GetDiskUsage(const NChunkClient::NProto::TDataStatistics& statistics) const;
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TChunkOwnerBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 

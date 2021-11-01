@@ -20,7 +20,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<TSubject*>, Members);
 
 public:
-    explicit TGroup(TGroupId id);
+    using TSubject::TSubject;
 
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;

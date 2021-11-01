@@ -43,6 +43,21 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EObjectLifeStage, ui8,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TEpochRefCounter
+{
+public:
+    int GetValue() const;
+    int UpdateValue(int delta);
+
+    void Persist(const TStreamPersistenceContext& context);
+
+private:
+    int RefCounter_ = 0;
+    TEpoch RefCounterEpoch_ = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Provides a base for all objects in YT master server.
 class TObject
     : public NHydra::TEntityBase
@@ -52,10 +67,12 @@ public:
     explicit TObject(TObjectId id);
     virtual ~TObject();
 
+
     TObjectDynamicData* GetDynamicData() const;
 
-    //! Marks the object as destroyed.
-    void SetDestroyed();
+
+    //! Marks the object as ghost.
+    void SetGhost();
 
     //! Marks the object as foreign.
     void SetForeign();
@@ -97,13 +114,13 @@ public:
      *  Ephemeral reference counter is just like the weak reference counter
      *  except that it automatically resets (to zero) on epoch change.
      */
-    int EphemeralRefObject(TEpoch epoch);
+    int EphemeralRefObject();
 
     //! Decrements the object's ephemeral reference counter by one.
     /*!
      *  \returns the decremented counter.
      */
-    int EphemeralUnrefObject(TEpoch epoch);
+    int EphemeralUnrefObject();
 
 
     //! Increments the object's weak reference counter by one.
@@ -132,14 +149,21 @@ public:
     int ImportUnrefObject();
 
 
-    //! Returns the current reference counter.
-    int GetObjectRefCounter() const;
+    //! Returns the current strong reference counter.
+    /*!
+     *  \param flushUnrefs If |false| then the returned value may be inaccurate due to scheduled unrefs;
+     *  |true| makes it exact but induces side effects and can only be used in mutation.
+     */
+    int GetObjectRefCounter(bool flushUnrefs = false) const;
 
     //! Returns the current ephemeral reference counter.
-    int GetObjectEphemeralRefCounter(TEpoch epoch) const;
+    int GetObjectEphemeralRefCounter() const;
 
     //! Returns the current weak reference counter.
-    int GetObjectWeakRefCounter() const;
+    /*!
+     *  \param flushUnrefs See #GetObjectRefCounter.
+     */
+    int GetObjectWeakRefCounter(bool flushUnrefs = false) const;
 
     //! Returns the current import reference counter.
     int GetImportRefCounter() const;
@@ -168,8 +192,12 @@ public:
     //! Returns |true| iff object's removal has started.
     bool IsBeingRemoved() const;
 
-    //! Returns |true| iff the type handler has destroyed the object and called #SetDestroyed.
-    bool IsDestroyed() const;
+    //! Returns |true| iff the type handler has destroyed the object and the object has been recreated as ghost.
+    bool IsGhost() const;
+
+    //! Returns |true| iff the object destructor has already been executed.
+    //! For debugging only; accessing such instances is UB.
+    bool IsDisposed() const;
 
     //! Returns |true| iff the object is either non-versioned or versioned but does not belong to a transaction.
     bool IsTrunk() const;
@@ -210,42 +238,50 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
+    template <class TImpl>
+    static void RecreateAsGhost(TImpl* object);
+    virtual void SaveEctoplasm(TStreamSaveContext& context) const;
+    virtual void LoadEctoplasm(TStreamLoadContext& context);
+
 protected:
     const TObjectId Id_;
 
     int RefCounter_ = 0;
-    int EphemeralRefCounter_ = 0;
-    TEpoch EphemeralLockEpoch_ = 0;
+    TEpochRefCounter EphemeralRefCounter_;
     int WeakRefCounter_ = 0;
     int ImportRefCounter_ = 0;
-    ui16 LifeStageVoteCount_ = 0; // how many secondary cells have confirmed the life stage
+    i16 LifeStageVoteCount_ = 0; // how many secondary cells have confirmed the life stage
     EObjectLifeStage LifeStage_ = EObjectLifeStage::CreationCommitted;
 
-    struct {
+    struct TFlags
+    {
         bool Foreign : 1;
-        bool Destroyed : 1;
+        bool Ghost : 1;
         bool Disposed : 1;
         bool Trunk : 1;
-    } Flags_ = {};
+    };
+    TFlags Flags_ = {};
 
     std::unique_ptr<TAttributeSet> Attributes_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TObjectRefComparer
+struct TObjectIdComparer
 {
-    bool operator()(const TObject* lhs, const TObject* rhs) const;
-    static bool Compare(const TObject* lhs, const TObject* rhs);
+    template <class TObjectPtr>
+    bool operator()(const TObjectPtr& lhs, const TObjectPtr& rhs) const;
+
+    template <class TObjectPtr>
+    static bool Compare(const TObjectPtr& lhs, const TObjectPtr& rhs);
 };
 
 TObjectId GetObjectId(const TObject* object);
 bool IsObjectAlive(const TObject* object);
 
-template <class T>
+template <class TObjectPtrs>
 std::vector<TObjectId> ToObjectIds(
-    const T& objects,
+    const TObjectPtrs& objects,
     size_t sizeLimit = std::numeric_limits<size_t>::max());
 
 template <class TValue>
@@ -262,18 +298,80 @@ std::vector<typename THashMap<TObject*, TValue>::iterator> GetIteratorsSortedByK
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNonversionedObjectBase
-    : public TObject
+struct TObjectIdFormatter
 {
-public:
-    explicit TNonversionedObjectBase(TObjectId id);
+    void operator()(TStringBuilderBase* builder, const TObject* object) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TObjectIdFormatter
+void SetupAutomatonThread(NCellMaster::TBootstrap* bootstrap);
+
+void BeginEpoch();
+void EndEpoch();
+TEpoch GetCurrentEpoch();
+
+void BeginMutation();
+void EndMutation();
+
+void BeginTeardown();
+void EndTeardown();
+
+void FlushObjectUnrefs();
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T, class C>
+class TObjectPtr
 {
-    void operator()(TStringBuilderBase* builder, const TObject* object) const;
+public:
+    TObjectPtr() noexcept = default;
+    TObjectPtr(const TObjectPtr& other) noexcept;
+    TObjectPtr(TObjectPtr&& other) noexcept;
+    explicit TObjectPtr(T* ptr) noexcept;
+
+    ~TObjectPtr() noexcept;
+
+    TObjectPtr& operator=(const TObjectPtr& other) noexcept;
+    TObjectPtr& operator=(TObjectPtr&& other) noexcept;
+
+    void Assign(T* ptr) noexcept;
+    void AssignOnLoad(T* ptr) noexcept;
+    void Reset() noexcept;
+
+    T* operator->() const noexcept;
+
+    explicit operator bool() const noexcept;
+    bool IsAlive() const noexcept;
+
+    T* Get() const noexcept;
+
+    template <class U>
+    bool operator==(const TObjectPtr<U, C>& other) const noexcept;
+    template <class U>
+    bool operator!=(const TObjectPtr<U, C>& other) const noexcept;
+
+    template <class U>
+    bool operator==(U* other) const noexcept;
+    template <class U>
+    bool operator!=(U* other) const noexcept;
+
+private:
+    T* Ptr_ = nullptr;
+    [[no_unique_address]]
+    C Context_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class>
+struct TObjectPtrTraits
+{ };
+
+template <class T, class C>
+struct TObjectPtrTraits<TObjectPtr<T, C>>
+{
+    using TUnderlying = T;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

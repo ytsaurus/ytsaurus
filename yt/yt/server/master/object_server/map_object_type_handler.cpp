@@ -28,7 +28,7 @@ template <class TObject>
 NObjectServer::TObject* TNonversionedMapObjectTypeHandlerBase<TObject>::DoGetParent(TObject* object)
 {
     auto* parent = object->GetParent();
-    return parent ? parent : TObjectTypeHandlerBase<TObject>::DoGetParent(object);
+    return parent ? parent : TObjectTypeHandlerWithMapBase<TObject>::DoGetParent(object);
 }
 
 template <class TObject>

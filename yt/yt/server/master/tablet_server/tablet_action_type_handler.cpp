@@ -111,11 +111,12 @@ private:
         return CreateTabletActionProxy(Bootstrap_, &Metadata_, action);
     }
 
-    void DoDestroyObject(TTabletAction* action) override
+    void DoDestroyObject(TTabletAction* action) noexcept override
     {
-        TObjectTypeHandlerWithMapBase::DoDestroyObject(action);
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->DestroyTabletAction(action);
+
+        TObjectTypeHandlerWithMapBase::DoDestroyObject(action);
     }
 };
 

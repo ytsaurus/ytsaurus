@@ -559,9 +559,7 @@ class TVirtualNode
     : public TCypressNode
 {
 public:
-    explicit TVirtualNode(TVersionedNodeId id)
-        : TCypressNode(id)
-    { }
+    using TCypressNode::TCypressNode;
 
     ENodeType GetNodeType() const override
     {

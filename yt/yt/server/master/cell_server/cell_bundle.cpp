@@ -31,7 +31,7 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCellBundle::TCellBundle(TCellBundleId id)
-    : TNonversionedObjectBase(id)
+    : TObject(id)
     , Acd_(this)
     , Options_(New<TTabletCellOptions>())
     , CellBalancerConfig_(New<TCellBalancerConfig>())
@@ -51,7 +51,7 @@ TString TCellBundle::GetCapitalizedObjectName() const
 
 void TCellBundle::Save(TSaveContext& context) const
 {
-    TNonversionedObjectBase::Save(context);
+    TObject::Save(context);
 
     using NYT::Save;
     Save(context, Name_);
@@ -65,7 +65,7 @@ void TCellBundle::Save(TSaveContext& context) const
 
 void TCellBundle::Load(TLoadContext& context)
 {
-    TNonversionedObjectBase::Load(context);
+    TObject::Load(context);
 
     using NYT::Load;
     Load(context, Name_);

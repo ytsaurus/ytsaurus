@@ -6,10 +6,6 @@ namespace NYT::NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDataCenter::TDataCenter(TDataCenterId id)
-    : TObject(id)
-{ }
-
 TString TDataCenter::GetLowercaseObjectName() const
 {
     return Format("data center %Qv", GetName());

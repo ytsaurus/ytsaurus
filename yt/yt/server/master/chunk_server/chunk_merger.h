@@ -39,9 +39,10 @@ struct TMergeJobInfo
 {
     TJobId JobId;
     int JobIndex;
-
+    // TODO(shakurov): ephemeral ptr?
     NCypressClient::TObjectId NodeId;
     TChunkListId ParentChunkListId;
+    TChunkListId RootChunkListId;
 
     std::vector<TChunkId> InputChunkIds;
     TChunkId OutputChunkId;
@@ -83,8 +84,10 @@ public:
 
     void Initialize();
 
+    // TODO(shakurov): rename to "chunkOwnerId"
     void ScheduleMerge(NCypressClient::TObjectId nodeId);
-    void ScheduleMerge(TChunkOwnerBase* trunkNode);
+    // TODO(shakurov): rename to "trunkChunkOwner"
+    void ScheduleMerge(TChunkOwnerBase* chunkOwner);
 
     bool IsNodeBeingMerged(NCypressClient::TObjectId nodeId) const;
 
@@ -125,10 +128,11 @@ private:
 
     THashMap<NCypressClient::TObjectId, TChunkMergerSession> RunningSessions_;
 
-    // Per-account queue. All touched tables start here.
-    // Keys (accounts) are locked ephemerally.
+
+    // TODO(shakurov): ephemeral ptrs?
     using TNodeQueue = std::queue<NCypressClient::TObjectId>;
-    THashMap<NSecurityServer::TAccount*, TNodeQueue> AccountToNodeQueue_;
+    // Per-account queue. All touched tables start here.
+    THashMap<NObjectServer::TEphemeralObjectPtr<NSecurityServer::TAccount>, TNodeQueue> AccountToNodeQueue_;
 
     // After traversal, before creating chunks. We want to batch chunk creation,
     // so we do not create them right away.
@@ -184,6 +188,7 @@ private:
 
     bool IsMergeTransactionAlive() const;
 
+    void RescheduleMerge(TChunkOwnerMergeJobCounterPtr<TChunkOwnerBase>&& chunkOwner);
     bool CanScheduleMerge(TChunkOwnerBase* chunkOwner) const;
 
     void StartMergeTransaction();

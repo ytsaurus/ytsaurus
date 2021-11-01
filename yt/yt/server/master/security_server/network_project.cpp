@@ -7,7 +7,7 @@ namespace NYT::NSecurityServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 TNetworkProject::TNetworkProject(TNetworkProjectId id)
-    : TNonversionedObjectBase(id)
+    : TObject(id)
     , Acd_(this)
 { }
 
@@ -23,7 +23,7 @@ TString TNetworkProject::GetCapitalizedObjectName() const
 
 void TNetworkProject::Save(NCellMaster::TSaveContext& context) const
 {
-    TNonversionedObjectBase::Save(context);
+    TObject::Save(context);
 
     using NYT::Save;
     Save(context, Name_);
@@ -33,7 +33,7 @@ void TNetworkProject::Save(NCellMaster::TSaveContext& context) const
 
 void TNetworkProject::Load(NCellMaster::TLoadContext& context)
 {
-    TNonversionedObjectBase::Load(context);
+    TObject::Load(context);
 
     using NYT::Load;
     Load(context, Name_);

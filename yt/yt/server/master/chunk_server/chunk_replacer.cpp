@@ -16,10 +16,10 @@ TChunkReplacer::TChunkReplacer(
     NLogging::TLogger logger)
     : ChunkReplacerCallbacks_(std::move(chunkReplacerCallbacks))
     , Logger(std::move(logger))
+    , NewRootChunkList_(ChunkReplacerCallbacks_->CreateChunkList(EChunkListKind::Static))
 {
-    // TODO(aleksandra-zh): optimize.
-    NewRootChunkList_ = ChunkReplacerCallbacks_->CreateChunkList(EChunkListKind::Static);
     ChunkReplacerCallbacks_->RefObject(NewRootChunkList_);
+    // TODO(aleksandra-zh): optimize.
 }
 
 TChunkReplacer::~TChunkReplacer()

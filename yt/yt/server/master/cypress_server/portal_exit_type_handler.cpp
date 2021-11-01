@@ -46,12 +46,12 @@ private:
 
     void DoDestroy(TPortalExitNode* node) override
     {
-        TMapNodeTypeHandlerImpl::DoDestroy(node);
-
         if (node->IsTrunk()) {
             const auto& portalManager = Bootstrap_->GetPortalManager();
             portalManager->DestroyExitNode(node);
         }
+
+        TMapNodeTypeHandlerImpl::DoDestroy(node);
     }
 
     void DoBeginCopy(

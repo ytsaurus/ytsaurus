@@ -8,10 +8,6 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGroup::TGroup(TGroupId id)
-    : TSubject(id)
-{ }
-
 TString TGroup::GetLowercaseObjectName() const
 {
     return Format("group %Qv", Name_);

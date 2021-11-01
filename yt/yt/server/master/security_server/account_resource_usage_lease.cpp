@@ -19,7 +19,7 @@ TAccountResourceUsageLease::TAccountResourceUsageLease(
     TAccountResourceUsageLeaseId id,
     TTransaction* transaction,
     TAccount* account)
-    : TNonversionedObjectBase(id)
+    : TObject(id)
     , Transaction_(transaction)
     , Account_(account)
 { }
@@ -36,7 +36,7 @@ TString TAccountResourceUsageLease::GetCapitalizedObjectName() const
 
 void TAccountResourceUsageLease::Save(TSaveContext& context) const
 {
-    TNonversionedObjectBase::Save(context);
+    TObject::Save(context);
 
     using NYT::Save;
     Save(context, CreationTime_);
@@ -47,7 +47,7 @@ void TAccountResourceUsageLease::Save(TSaveContext& context) const
 
 void TAccountResourceUsageLease::Load(NCellMaster::TLoadContext& context)
 {
-    TNonversionedObjectBase::Load(context);
+    TObject::Load(context);
 
     using NYT::Load;
     Load(context, CreationTime_);

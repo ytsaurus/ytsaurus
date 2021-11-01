@@ -84,12 +84,12 @@ private:
 
     void DoDestroy(TPortalEntranceNode* node) override
     {
-        TBase::DoDestroy(node);
-
         if (node->IsTrunk()) {
             const auto& portalManager = Bootstrap_->GetPortalManager();
             portalManager->DestroyEntranceNode(node);
         }
+
+        TBase::DoDestroy(node);
     }
 
     void DoBranch(

@@ -19,7 +19,7 @@ namespace NYT::NTabletServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletAction
-    : public NObjectServer::TNonversionedObjectBase
+    : public NObjectServer::TObject
     , public TRefTracked<TTabletAction>
 {
 public:
@@ -60,7 +60,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellBundle*, TabletCellBundle);
 
 public:
-    explicit TTabletAction(TTabletActionId id);
+    using TObject::TObject;
 
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;

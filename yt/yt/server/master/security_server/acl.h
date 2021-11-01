@@ -72,6 +72,7 @@ class TAccessControlDescriptor
 
 public:
     explicit TAccessControlDescriptor(NObjectServer::TObject* object = nullptr);
+    // XXX(babenko): maybe write a dtor?
 
     void Clear();
 

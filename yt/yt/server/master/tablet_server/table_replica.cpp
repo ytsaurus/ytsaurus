@@ -14,10 +14,6 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableReplica::TTableReplica(TTableReplicaId id)
-    : TObject(id)
-{ }
-
 TString TTableReplica::GetLowercaseObjectName() const
 {
     return Format("table replica %v", GetId());

@@ -26,10 +26,10 @@ inline TObjectDynamicData* TObject::GetDynamicData() const
     return GetTypedDynamicData<TObjectDynamicData>();
 }
 
-inline void TObject::SetDestroyed()
+inline void TObject::SetGhost()
 {
     YT_ASSERT(RefCounter_ == 0);
-    Flags_.Destroyed = true;
+    Flags_.Ghost = true;
 }
 
 inline void TObject::SetForeign()
@@ -54,23 +54,15 @@ inline int TObject::UnrefObject(int count)
     return RefCounter_ -= count;
 }
 
-inline int TObject::EphemeralRefObject(TEpoch epoch)
+inline int TObject::EphemeralRefObject()
 {
     YT_VERIFY(IsAlive());
-    YT_ASSERT(EphemeralRefCounter_ >= 0);
-
-    if (epoch != EphemeralLockEpoch_) {
-        EphemeralRefCounter_ = 0;
-        EphemeralLockEpoch_ = epoch;
-    }
-    return ++EphemeralRefCounter_;
+    return EphemeralRefCounter_.UpdateValue(+1);
 }
 
-inline int TObject::EphemeralUnrefObject(TEpoch epoch)
+inline int TObject::EphemeralUnrefObject()
 {
-    YT_ASSERT(EphemeralRefCounter_ > 0);
-    YT_ASSERT(EphemeralLockEpoch_ == epoch);
-    return --EphemeralRefCounter_;
+    return EphemeralRefCounter_.UpdateValue(-1);
 }
 
 inline int TObject::WeakRefObject()
@@ -98,18 +90,19 @@ inline int TObject::ImportUnrefObject()
     return --ImportRefCounter_;
 }
 
-inline int TObject::GetObjectRefCounter() const
+inline int TObject::GetObjectRefCounter(bool flushUnrefs) const
 {
+    if (flushUnrefs) {
+        FlushObjectUnrefs();
+    }
     return RefCounter_;
 }
 
-inline int TObject::GetObjectEphemeralRefCounter(TEpoch epoch) const
+inline int TObject::GetObjectWeakRefCounter(bool flushUnrefs) const
 {
-    return EphemeralLockEpoch_== epoch ? EphemeralRefCounter_ : 0;
-}
-
-inline int TObject::GetObjectWeakRefCounter() const
-{
+    if (flushUnrefs) {
+        FlushObjectUnrefs();
+    }
     return WeakRefCounter_;
 }
 
@@ -130,7 +123,8 @@ inline void TObject::SetLifeStage(EObjectLifeStage lifeStage)
 
 inline bool TObject::IsBeingCreated() const
 {
-    return LifeStage_ == EObjectLifeStage::CreationStarted ||
+    return
+        LifeStage_ == EObjectLifeStage::CreationStarted ||
         LifeStage_ == EObjectLifeStage::CreationPreCommitted;
 }
 
@@ -141,14 +135,20 @@ inline bool TObject::IsAlive() const
 
 inline bool TObject::IsBeingRemoved() const
 {
-    return LifeStage_ == EObjectLifeStage::RemovalStarted ||
+    return
+        LifeStage_ == EObjectLifeStage::RemovalStarted ||
         LifeStage_ == EObjectLifeStage::RemovalPreCommitted ||
         LifeStage_ == EObjectLifeStage::RemovalCommitted;
 }
 
-inline bool TObject::IsDestroyed() const
+inline bool TObject::IsGhost() const
 {
-    return Flags_.Destroyed;
+    return Flags_.Ghost;
+}
+
+inline bool TObject::IsDisposed() const
+{
+    return Flags_.Disposed;
 }
 
 inline bool TObject::IsTrunk() const
@@ -180,18 +180,42 @@ const TDerived* TObject::As() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TNonversionedObjectBase::TNonversionedObjectBase(TObjectId id)
-    : TObject(id)
-{ }
+template <class TImpl>
+void TObject::RecreateAsGhost(TImpl* object)
+{
+    // "1 KB should be enough for any ghost".
+    static constexpr auto SerializedGhostBufferSize = 1_KB;
+    std::array<char, SerializedGhostBufferSize> buffer;
+    TMemoryOutput output(buffer.data(), buffer.size());
+
+    {
+        TStreamSaveContext context(&output);
+        object->SaveEctoplasm(context);
+    }
+
+    auto id = object->TObject::GetId();
+    object->~TObject();
+    new (object) TImpl(id);
+
+    {
+        TMemoryInput input(buffer.data(), output.End() - buffer.data());
+        TStreamLoadContext context(&input);
+        object->LoadEctoplasm(context);
+    }
+
+    object->SetGhost();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline bool TObjectRefComparer::operator()(const TObject* lhs, const TObject* rhs) const
+template <class TObjectPtr>
+inline bool TObjectIdComparer::operator()(const TObjectPtr& lhs, const TObjectPtr& rhs) const
 {
     return Compare(lhs, rhs);
 }
 
-inline bool TObjectRefComparer::Compare(const TObject* lhs, const TObject* rhs)
+template <class TObjectPtr>
+inline bool TObjectIdComparer::Compare(const TObjectPtr& lhs, const TObjectPtr& rhs)
 {
     return lhs->GetId() < rhs->GetId();
 }
@@ -208,8 +232,8 @@ inline bool IsObjectAlive(const TObject* object)
     return object && object->IsAlive();
 }
 
-template <class T>
-std::vector<TObjectId> ToObjectIds(const T& objects, size_t sizeLimit)
+template <class TObjectPtrs>
+std::vector<TObjectId> ToObjectIds(const TObjectPtrs& objects, size_t sizeLimit)
 {
     std::vector<TObjectId> result;
     result.reserve(std::min(objects.size(), sizeLimit));
@@ -232,7 +256,7 @@ std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TValu
             values.push_back(entity);
         }
     }
-    std::sort(values.begin(), values.end(), TObjectRefComparer::Compare);
+    std::sort(values.begin(), values.end(), TObjectIdComparer());
     return values;
 }
 
@@ -247,7 +271,7 @@ std::vector<TValue*> GetValuesSortedByKey(const THashSet<TValue*>& entities)
             values.push_back(object);
         }
     }
-    std::sort(values.begin(), values.end(), TObjectRefComparer::Compare);
+    std::sort(values.begin(), values.end(), TObjectIdComparer());
     return values;
 }
 
@@ -262,7 +286,7 @@ std::vector<TValue*> GetValuesSortedById(const THashMap<TKey, TValue*>& entities
             values.push_back(object);
         }
     }
-    std::sort(values.begin(), values.end(), TObjectRefComparer::Compare);
+    std::sort(values.begin(), values.end(), TObjectIdComparer());
     return values;
 }
 
@@ -278,11 +302,279 @@ std::vector<typename THashMap<TObject*, TValue>::iterator> GetIteratorsSortedByK
         }
     }
     std::sort(iterators.begin(), iterators.end(), [] (auto lhs, auto rhs) {
-        return TObjectRefComparer::Compare(lhs->first, rhs->first);
+        return TObjectIdComparer::Compare(lhs->first, rhs->first);
     });
     return iterators;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TStrongObjectPtrContext
+{
+    static constexpr bool Persistent = true;
+
+    static TStrongObjectPtrContext Capture()
+    {
+        return {};
+    }
+
+    void Ref(TObject* object);
+    void Unref(TObject* object);
+};
+
+struct TWeakObjectPtrContext
+{
+    static constexpr bool Persistent = true;
+
+    static TWeakObjectPtrContext Capture()
+    {
+        return {};
+    }
+
+    void Ref(TObject* object);
+    void Unref(TObject* object);
+};
+
+struct TEphemeralObjectPtrContext
+{
+    TObjectManagerPtr ObjectManager;
+    TEpoch Epoch;
+    IInvokerPtr EphemeralPtrUnrefInvoker;
+
+    static TEphemeralObjectPtrContext Capture();
+
+    bool IsCurrent() const;
+
+    void Ref(TObject* object);
+    void Unref(TObject* object);
+
+    template <class F>
+    void SafeUnref(F&& func) const
+    {
+        if (IsCurrent()) {
+            func();
+        } else {
+            EphemeralPtrUnrefInvoker->Invoke(BIND(std::move(func)));
+        }
+    }
+};
+
+namespace NDetail {
+
+void VerifyAutomatonThreadAffinity();
+
+inline void AssertAutomatonThreadAffinity()
+{
+#ifndef NDEBUG
+    VerifyAutomatonThreadAffinity();
+#endif
+}
+
+inline void AssertObjectValidOrNull(TObject* object)
+{
+    YT_ASSERT(!object || !object->IsDisposed());
+}
+
+} // namespace NDetail
+
+template <class T, class C>
+TObjectPtr<T, C>::TObjectPtr(const TObjectPtr& other) noexcept
+    : Ptr_(other.Ptr_)
+    , Context_(other.Context_)
+{
+    NDetail::AssertAutomatonThreadAffinity();
+    if (Ptr_) {
+        Context_.Ref(ToObject(Ptr_));
+    }
+}
+
+template <class T, class C>
+TObjectPtr<T, C>::TObjectPtr(TObjectPtr&& other) noexcept
+    : Ptr_(other.Ptr_)
+    , Context_(std::move(other.Context_))
+{
+    NDetail::AssertAutomatonThreadAffinity();
+    NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
+    other.Ptr_ = nullptr;
+}
+
+template <class T, class C>
+TObjectPtr<T, C>::TObjectPtr(T* ptr) noexcept
+    : Ptr_(ptr)
+    , Context_(C::Capture())
+{
+    NDetail::AssertAutomatonThreadAffinity();
+    NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
+    if (Ptr_) {
+        Context_.Ref(ToObject(Ptr_));
+    }
+}
+
+template <class T, class C>
+TObjectPtr<T, C>::~TObjectPtr() noexcept
+{
+    NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
+    if (Ptr_) {
+        Context_.Unref(ToObject(Ptr_));
+    }
+}
+
+template <class T, class C>
+TObjectPtr<T, C>& TObjectPtr<T, C>::operator=(const TObjectPtr& other) noexcept
+{
+    if (this != &other) {
+        Assign(other.Ptr_);
+    }
+    return *this;
+}
+
+template <class T, class C>
+TObjectPtr<T, C>& TObjectPtr<T, C>::operator=(TObjectPtr&& other) noexcept
+{
+    NDetail::AssertAutomatonThreadAffinity();
+    if (this != &other) {
+        NDetail::AssertObjectValidOrNull(ToObject(other.Ptr_));
+        Ptr_ = other.Ptr_;
+        other.Ptr_ = nullptr;
+        Context_ = std::move(other.Context_);
+    }
+    return *this;
+}
+
+template <class T, class C>
+void TObjectPtr<T, C>::Assign(T* ptr) noexcept
+{
+    NDetail::AssertAutomatonThreadAffinity();
+    NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
+    if (Ptr_) {
+        Context_.Unref(ToObject(Ptr_));
+    }
+    Ptr_ = ptr;
+    Context_ = C::Capture();
+    NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
+    if (Ptr_) {
+        Context_.Ref(ToObject(Ptr_));
+    }
+}
+
+template <class T, class C>
+void TObjectPtr<T, C>::AssignOnLoad(T* ptr) noexcept
+{
+    static_assert(C::Persistent);
+    NDetail::AssertAutomatonThreadAffinity();
+    YT_ASSERT(!Ptr_);
+    Ptr_ = ptr;
+    NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
+}
+
+template <class T, class C>
+void TObjectPtr<T, C>::Reset() noexcept
+{
+    NDetail::AssertAutomatonThreadAffinity();
+    NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
+    if (Ptr_) {
+        Context_.Unref(ToObject(Ptr_));
+        Ptr_ = nullptr;
+        Context_ = {};
+    }
+}
+
+template <class T, class C>
+T* TObjectPtr<T, C>::operator->() const noexcept
+{
+    YT_ASSERT(IsAlive());
+    return Get();
+}
+
+template <class T, class C>
+TObjectPtr<T, C>::operator bool() const noexcept
+{
+    NDetail::AssertAutomatonThreadAffinity();
+    NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
+    return Ptr_ != nullptr;
+}
+
+template <class T, class C>
+bool TObjectPtr<T, C>::IsAlive() const noexcept
+{
+    NDetail::AssertAutomatonThreadAffinity();
+    NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
+    return IsObjectAlive(ToObject(Ptr_));
+}
+
+template <class T, class C>
+T* TObjectPtr<T, C>::Get() const noexcept
+{
+    NDetail::AssertAutomatonThreadAffinity();
+    NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
+    return Ptr_;
+}
+
+template <class T, class C>
+template <class U>
+bool TObjectPtr<T, C>::operator==(const TObjectPtr<U, C>& other) const noexcept
+{
+    return *this == other.Get();
+}
+
+template <class T, class C>
+template <class U>
+bool TObjectPtr<T, C>::operator!=(const TObjectPtr<U, C>& other) const noexcept
+{
+    return !(*this == other);
+}
+
+template <class T, class C>
+template <class U>
+bool TObjectPtr<T, C>::operator==(U* other) const noexcept
+{
+    NDetail::AssertAutomatonThreadAffinity();
+    NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
+    NDetail::AssertObjectValidOrNull(ToObject(other));
+    return Ptr_ == other;
+}
+
+template <class T, class C>
+template <class U>
+bool TObjectPtr<T, C>::operator!=(U* other) const noexcept
+{
+    return !(*this == other);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NObjectServer
+
+//! Hasher for TObjectPtr.
+template <class T, class C>
+struct THash<NYT::NObjectServer::TObjectPtr<T, C>>
+{
+    Y_FORCE_INLINE size_t operator () (const NYT::NObjectServer::TObjectPtr<T, C>& ptr) const
+    {
+        return THash<T*>()(ptr.Get());
+    }
+
+    Y_FORCE_INLINE size_t operator () (T* ptr) const
+    {
+        return THash<T*>()(ptr);
+    }
+};
+
+//! Equality for TObjectPtr.
+template <class T, class C>
+struct TEqualTo<NYT::NObjectServer::TObjectPtr<T, C>>
+{
+    Y_FORCE_INLINE bool operator () (
+        const NYT::NObjectServer::TObjectPtr<T, C>& lhs,
+        const NYT::NObjectServer::TObjectPtr<T, C>& rhs) const
+    {
+        return lhs == rhs;
+    }
+
+    Y_FORCE_INLINE bool operator () (
+        const NYT::NObjectServer::TObjectPtr<T, C>& lhs,
+        T* rhs) const
+    {
+        return lhs == rhs;
+    }
+};

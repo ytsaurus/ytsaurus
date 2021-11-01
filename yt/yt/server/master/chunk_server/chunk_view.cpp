@@ -12,10 +12,6 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkView::TChunkView(TChunkViewId id)
-    : TChunkTree(id)
-{ }
-
 void TChunkView::SetUnderlyingTree(TChunkTree* underlyingTree)
 {
     YT_VERIFY(underlyingTree);

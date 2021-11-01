@@ -36,11 +36,11 @@ public:
 
     TFuture<void> Collect();
 
-    int EphemeralRefObject(TObject* object, TEpoch epoch);
-    int EphemeralUnrefObject(TObject* object, TEpoch epoch);
+    int EphemeralRefObject(TObject* object);
+    int EphemeralUnrefObject(TObject* object);
 
-    int WeakRefObject(TObject* object, TEpoch epoch);
-    int WeakUnrefObject(TObject* object, TEpoch epoch);
+    int WeakRefObject(TObject* object);
+    int WeakUnrefObject(TObject* object);
 
     void RegisterZombie(TObject* object);
     void UnregisterZombie(TObject* object);

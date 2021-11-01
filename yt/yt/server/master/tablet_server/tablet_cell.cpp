@@ -23,10 +23,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletCell::TTabletCell(TTabletCellId id)
-    : TCellBase(id)
-{ }
-
 TString TTabletCell::GetLowercaseObjectName() const
 {
     return Format("tablet cell %v", GetId());

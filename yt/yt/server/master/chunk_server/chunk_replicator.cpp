@@ -161,10 +161,6 @@ void TChunkReplicator::Start(
     TChunk* journalFrontChunk,
     int journalChunkCount)
 {
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    auto epoch = objectManager->GetCurrentEpoch();
-    OldestPartMissingChunks_ = TOldestPartMissingChunkSet(TChunkPartLossTimeComparer(epoch));
-
     BlobRefreshScanner_->Start(blobFrontChunk, blobChunkCount);
     JournalRefreshScanner_->Start(journalFrontChunk, journalChunkCount);
     BlobRequisitionUpdateScanner_->Start(blobFrontChunk, blobChunkCount);
@@ -850,8 +846,7 @@ bool TChunkReplicator::TryScheduleReplicationJob(
         return true;
     }
 
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    if (chunk->GetScanFlag(EChunkScanKind::Refresh, objectManager->GetCurrentEpoch())) {
+    if (chunk->GetScanFlag(EChunkScanKind::Refresh)) {
         return true;
     }
 
@@ -928,8 +923,7 @@ bool TChunkReplicator::TryScheduleBalancingJob(
     auto* sourceNode = context->GetNode();
     auto* chunk = chunkWithIndexes.GetPtr();
 
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    if (chunk->GetScanFlag(EChunkScanKind::Refresh, objectManager->GetCurrentEpoch())) {
+    if (chunk->GetScanFlag(EChunkScanKind::Refresh)) {
         return true;
     }
 
@@ -976,12 +970,11 @@ bool TChunkReplicator::TryScheduleRemovalJob(
     const TChunkIdWithIndexes& chunkIdWithIndexes)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
-    const auto& objectManager = Bootstrap_->GetObjectManager();
 
     auto* chunk = chunkManager->FindChunk(chunkIdWithIndexes.Id);
     // NB: Allow more than one job for dead chunks.
     if (IsObjectAlive(chunk)) {
-        if (chunk->GetScanFlag(EChunkScanKind::Refresh, objectManager->GetCurrentEpoch())) {
+        if (chunk->GetScanFlag(EChunkScanKind::Refresh)) {
             return true;
         }
         if (chunk->HasJobs()) {
@@ -1023,8 +1016,7 @@ bool TChunkReplicator::TryScheduleRepairJob(
         return true;
     }
 
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    if (chunk->GetScanFlag(EChunkScanKind::Refresh, objectManager->GetCurrentEpoch())) {
+    if (chunk->GetScanFlag(EChunkScanKind::Refresh)) {
         return true;
     }
 
@@ -1503,15 +1495,13 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         }
     }
 
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    auto epoch = objectManager->GetCurrentEpoch();
     if (Any(allMediaStatistics.Status & (ECrossMediumChunkStatus::DataMissing | ECrossMediumChunkStatus::ParityMissing))) {
-        if (!chunk->GetPartLossTime(epoch)) {
-            chunk->SetPartLossTime(GetCpuInstant(), epoch);
+        if (!chunk->GetPartLossTime()) {
+            chunk->SetPartLossTime(GetCpuInstant());
         }
         MaybeRememberPartMissingChunk(chunk);
-    } else if (chunk->GetPartLossTime(epoch)) {
-        chunk->ResetPartLossTime(epoch);
+    } else if (chunk->GetPartLossTime()) {
+        chunk->ResetPartLossTime();
     }
 
     if (chunk->IsBlob() && chunk->GetEndorsementRequired()) {
@@ -1543,13 +1533,10 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
 
 void TChunkReplicator::MaybeRememberPartMissingChunk(TChunk* chunk)
 {
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    auto epoch = objectManager->GetCurrentEpoch();
-
-    YT_ASSERT(chunk->GetPartLossTime(epoch));
+    YT_ASSERT(chunk->GetPartLossTime());
 
     // A chunk from an earlier epoch couldn't have made it to OldestPartMissingChunks_.
-    YT_VERIFY(OldestPartMissingChunks_.empty() || (*OldestPartMissingChunks_.begin())->GetPartLossTime(epoch));
+    YT_VERIFY(OldestPartMissingChunks_.empty() || (*OldestPartMissingChunks_.begin())->GetPartLossTime());
 
     if (std::ssize(OldestPartMissingChunks_) >= GetDynamicConfig()->MaxOldestPartMissingChunks) {
         return;
@@ -1561,9 +1548,9 @@ void TChunkReplicator::MaybeRememberPartMissingChunk(TChunk* chunk)
     }
 
     auto* mostRecentPartMissingChunk = *OldestPartMissingChunks_.rbegin();
-    auto mostRecentPartLossTime = mostRecentPartMissingChunk->GetPartLossTime(epoch);
+    auto mostRecentPartLossTime = mostRecentPartMissingChunk->GetPartLossTime();
 
-    if (chunk->GetPartLossTime(epoch) >= mostRecentPartLossTime) {
+    if (chunk->GetPartLossTime() >= mostRecentPartLossTime) {
         return;
     }
 

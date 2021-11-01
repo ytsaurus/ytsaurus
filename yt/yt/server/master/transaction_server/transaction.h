@@ -29,7 +29,7 @@ namespace NYT::NTransactionServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransaction
-    : public NHiveServer::TTransactionBase<NObjectServer::TNonversionedObjectBase>
+    : public NHiveServer::TTransactionBase<NObjectServer::TObject>
     , public TRefTracked<TTransaction>
 {
 public:
@@ -81,6 +81,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TAccountResourceUsageLeaseSet, AccountResourceUsageLeases);
 
 public:
+    using TTransactionBase::TTransactionBase;
     explicit TTransaction(TTransactionId id, bool upload = false);
 
     bool IsUpload() const;
@@ -115,6 +116,8 @@ public:
 private:
     bool Upload_ = false;
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 

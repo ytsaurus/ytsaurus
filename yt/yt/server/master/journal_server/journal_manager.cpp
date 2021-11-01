@@ -142,12 +142,10 @@ private:
             return;
         }
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         auto* newChunkList = chunkManager->CreateChunkList(chunkList->GetKind());
         newChunkList->AddOwningNode(trunkNode);
-        objectManager->RefObject(newChunkList);
 
         i64 appendedRowCount = 0;
         for (auto* child : chunkList->Children()) {
@@ -202,7 +200,6 @@ private:
         }
 
         chunkList->RemoveOwningNode(trunkNode);
-        objectManager->UnrefObject(chunkList);
 
         trunkNode->SetChunkList(newChunkList);
 

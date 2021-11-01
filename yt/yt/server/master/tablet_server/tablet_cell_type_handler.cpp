@@ -45,8 +45,7 @@ public:
         return DoCreateObject(std::move(holder), attributes);
     }
 
-    std::unique_ptr<TObject> InstantiateObject(
-        TObjectId hintId) override
+    std::unique_ptr<TObject> InstantiateObject(TObjectId hintId) override
     {
         return TPoolAllocator::New<TTabletCell>(hintId);
     }
@@ -70,8 +69,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IObjectTypeHandlerPtr CreateTabletCellTypeHandler(
-    TBootstrap* bootstrap)
+IObjectTypeHandlerPtr CreateTabletCellTypeHandler(TBootstrap* bootstrap)
 {
     return New<TTabletCellTypeHandler>(bootstrap);
 }

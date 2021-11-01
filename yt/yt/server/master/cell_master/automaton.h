@@ -31,6 +31,9 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
+    void ApplyMutation(NHydra::TMutationContext* context) override;
+    void Clear() override;
+    void SetZeroState() override;
 
     std::unique_ptr<NHydra::TSaveContext> CreateSaveContext(
         ICheckpointableOutputStream* output) override;

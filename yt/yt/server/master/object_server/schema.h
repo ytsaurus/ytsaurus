@@ -12,12 +12,14 @@ namespace NYT::NObjectServer {
 
 //! A schema (i.e. metaclass) object.
 class TSchemaObject
-    : public TNonversionedObjectBase
+    : public TObject
 {
 public:
-    explicit TSchemaObject(TObjectId id);
-
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
+
+public:
+    using TObject::TObject;
+    explicit TSchemaObject(TObjectId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

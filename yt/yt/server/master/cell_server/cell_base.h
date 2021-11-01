@@ -53,7 +53,7 @@ bool operator != (const TCellStatus& lhs, const TCellStatus& rhs);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellBase
-    : public NObjectServer::TNonversionedObjectBase
+    : public NObjectServer::TObject
     , public TRefTracked<TCellBase>
 {
 public:
@@ -99,7 +99,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TInstant, LastLeaderChangeTime);
 
 public:
-    explicit TCellBase(TTamedCellId id);
+    using TObject::TObject;
 
     virtual void Save(NCellMaster::TSaveContext& context) const;
     virtual void Load(NCellMaster::TLoadContext& context);

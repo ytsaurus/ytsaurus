@@ -141,13 +141,13 @@ void DoExportSnapshot(
 
     std::vector<TCypressNode*> sortedNodes;
     sortedNodes.reserve(cypressManager->Nodes().size());
-    for (const auto& [nodeId, node] : cypressManager->Nodes()) {
+    for (auto [nodeId, node] : cypressManager->Nodes()) {
         // Nodes under transaction have zero RefCounter and are not considered alive.
         if (IsObjectAlive(node) || node->GetTrunkNode() != node) {
             sortedNodes.emplace_back(node);
         }
     }
-    std::sort(sortedNodes.begin(), sortedNodes.end(), TObjectRefComparer::Compare);
+    std::sort(sortedNodes.begin(), sortedNodes.end(), TObjectIdComparer());
 
     if (!lowerIndex.has_value()) {
         lowerIndex = 0;

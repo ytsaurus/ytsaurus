@@ -57,7 +57,12 @@ inline void TCypressNode::SetExpirationTimeoutIterator(std::optional<TCypressNod
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline bool TCypressNodeRefComparer::Compare(const TCypressNode* lhs, const TCypressNode* rhs)
+inline bool TCypressNodeIdComparer::operator()(const TCypressNode* lhs, const TCypressNode* rhs) const
+{
+    return Compare(lhs, rhs);
+}
+
+inline bool TCypressNodeIdComparer::Compare(const TCypressNode* lhs, const TCypressNode* rhs)
 {
     return lhs->GetVersionedId() < rhs->GetVersionedId();
 }

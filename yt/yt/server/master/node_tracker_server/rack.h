@@ -19,11 +19,11 @@ class TRack
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(TString, Name);
-    DEFINE_BYVAL_RW_PROPERTY(int, Index);
+    DEFINE_BYVAL_RW_PROPERTY(int, Index, -1);
     DEFINE_BYVAL_RW_PROPERTY(TDataCenter*, DataCenter);
 
 public:
-    explicit TRack(TRackId id);
+    using TObject::TObject;
 
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;

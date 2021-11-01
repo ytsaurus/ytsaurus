@@ -1926,8 +1926,6 @@ public:
         // Undo the harm done in TChunkOwnerTypeHandler::DoClone.
         auto* fakeClonedRootChunkList = trunkClonedTable->GetChunkList();
         fakeClonedRootChunkList->RemoveOwningNode(trunkClonedTable);
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->UnrefObject(fakeClonedRootChunkList);
 
         const auto& sourceTablets = trunkSourceTable->Tablets();
         YT_VERIFY(!sourceTablets.empty());
@@ -1937,7 +1935,6 @@ public:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto* clonedRootChunkList = chunkManager->CreateChunkList(fakeClonedRootChunkList->GetKind());
         trunkClonedTable->SetChunkList(clonedRootChunkList);
-        objectManager->RefObject(clonedRootChunkList);
         clonedRootChunkList->AddOwningNode(trunkClonedTable);
 
         const auto& backupManager = Bootstrap_->GetBackupManager();
@@ -2053,8 +2050,6 @@ public:
         auto* newRootChunkList = chunkManager->CreateChunkList(table->IsPhysicallySorted()
             ? EChunkListKind::SortedDynamicRoot
             : EChunkListKind::OrderedDynamicRoot);
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RefObject(newRootChunkList);
 
         table->SetChunkList(newRootChunkList);
         newRootChunkList->AddOwningNode(table);
@@ -2079,7 +2074,6 @@ public:
         chunkManager->AttachToChunkList(tabletChunkList, chunkTrees);
 
         oldRootChunkList->RemoveOwningNode(table);
-        objectManager->UnrefObject(oldRootChunkList);
 
         const auto& securityManager = this->Bootstrap_->GetSecurityManager();
         securityManager->UpdateMasterMemoryUsage(table);
@@ -2152,7 +2146,6 @@ public:
         auto newRootChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RefObject(newRootChunkList);
 
         table->SetChunkList(newRootChunkList);
         newRootChunkList->AddOwningNode(table);
@@ -2161,7 +2154,6 @@ public:
         chunkManager->AttachToChunkList(newRootChunkList, std::vector<TChunkTree*>{chunks.begin(), chunks.end()});
 
         oldRootChunkList->RemoveOwningNode(table);
-        objectManager->UnrefObject(oldRootChunkList);
 
         for (auto* tablet : table->Tablets()) {
             tablet->SetTable(nullptr);
@@ -3737,7 +3729,7 @@ private:
 
         for (auto tableIt : GetSortedIterators(
             transaction->LockedDynamicTables(),
-            TObjectRefComparer::Compare))
+            TObjectIdComparer()))
         {
             auto* table = *tableIt;
             if (!IsObjectAlive(table)) {
@@ -4050,7 +4042,7 @@ private:
                 }
             }
 
-            SortUnique(chunksOrViews, TObjectRefComparer::Compare);
+            SortUnique(chunksOrViews, TObjectIdComparer());
 
             auto keyColumnCount = table->GetSchema()->AsTableSchema()->GetKeyColumnCount();
 
@@ -4169,7 +4161,7 @@ private:
                 SetTabletEdenStoreIds(newTablets[relativeIndex], newEdenStoreIds[relativeIndex]);
 
                 if (!newTabletHunkChunks[relativeIndex].empty()) {
-                    SortUnique(newTabletHunkChunks[relativeIndex], TObjectRefComparer());
+                    SortUnique(newTabletHunkChunks[relativeIndex], TObjectIdComparer());
                     auto* tabletChunkList = newTabletChunkLists[relativeIndex]->AsChunkList();
                     auto* hunkChunkList = chunkManager->GetOrCreateHunkChunkList(tabletChunkList);
                     chunkManager->AttachToChunkList(hunkChunkList, newTabletHunkChunks[relativeIndex]);
@@ -4224,9 +4216,7 @@ private:
         // Replace root chunk list.
         table->SetChunkList(newRootChunkList);
         newRootChunkList->AddOwningNode(table);
-        objectManager->RefObject(newRootChunkList);
         oldRootChunkList->RemoveOwningNode(table);
-        objectManager->UnrefObject(oldRootChunkList);
 
         // Account new tablet statistics.
         for (auto* newTablet : newTablets) {
@@ -5462,7 +5452,7 @@ private:
     {
         TWallTimer timer;
         auto counters = GetCounters({}, table);
-        auto reportTime = Finally([&] {
+        auto reportTimeGuard = Finally([&] {
             counters->CopyChunkListTime.Add(timer.GetElapsedTime());
         });
 
@@ -5471,7 +5461,6 @@ private:
         auto* oldRootChunkList = table->GetChunkList();
         auto& chunkLists = oldRootChunkList->Children();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        const auto& objectManager = Bootstrap_->GetObjectManager();
 
         auto checkStatisticsMatch = [] (const TChunkTreeStatistics& lhs, TChunkTreeStatistics rhs) {
             rhs.ChunkListCount = lhs.ChunkListCount;
@@ -5479,7 +5468,7 @@ private:
             return lhs == rhs;
         };
 
-        if (objectManager->GetObjectRefCounter(oldRootChunkList) > 1) {
+        if (oldRootChunkList->GetObjectRefCounter(/*flushUnrefs*/ true) > 1) {
             auto statistics = oldRootChunkList->Statistics();
             auto* newRootChunkList = chunkManager->CreateChunkList(oldRootChunkList->GetKind());
             chunkManager->AttachToChunkList(
@@ -5504,9 +5493,7 @@ private:
             // Replace root chunk list.
             table->SetChunkList(newRootChunkList);
             newRootChunkList->AddOwningNode(table);
-            objectManager->RefObject(newRootChunkList);
             oldRootChunkList->RemoveOwningNode(table);
-            objectManager->UnrefObject(oldRootChunkList);
             if (!checkStatisticsMatch(newRootChunkList->Statistics(), statistics)) {
                 YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
                     "Invalid new root chunk list statistics "
@@ -5520,7 +5507,7 @@ private:
 
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 auto* oldTabletChunkList = chunkLists[index]->AsChunkList();
-                if (force || objectManager->GetObjectRefCounter(oldTabletChunkList) > 1) {
+                if (force || oldTabletChunkList->GetObjectRefCounter(/*flushUnrefs*/ true) > 1) {
                     auto* newTabletChunkList = chunkManager->CloneTabletChunkList(oldTabletChunkList);
                     chunkManager->ReplaceChunkListChild(oldRootChunkList, index, newTabletChunkList);
 
@@ -5747,7 +5734,7 @@ private:
     void DetachChunksFromTablet(TTablet* tablet, const std::vector<TChunkTree*>& chunkTrees)
     {
         // Ensure deteministic ordering of keys.
-        std::map<TChunkList*, std::vector<TChunkTree*>, TObjectRefComparer> childrenByParent;
+        std::map<TChunkList*, std::vector<TChunkTree*>, TObjectIdComparer> childrenByParent;
         for (auto* child : chunkTrees) {
             auto* parent = GetTabletChildParent(tablet, child);
             YT_VERIFY(HasParent(child, parent));

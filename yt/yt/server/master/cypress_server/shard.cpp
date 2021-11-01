@@ -76,7 +76,7 @@ TString TCypressShard::GetCapitalizedObjectName() const
 
 void TCypressShard::Save(NCellMaster::TSaveContext& context) const
 {
-    TNonversionedObjectBase::Save(context);
+    TObject::Save(context);
 
     using NYT::Save;
     Save(context, AccountStatistics_);
@@ -86,7 +86,7 @@ void TCypressShard::Save(NCellMaster::TSaveContext& context) const
 
 void TCypressShard::Load(NCellMaster::TLoadContext& context)
 {
-    TNonversionedObjectBase::Load(context);
+    TObject::Load(context);
 
     using NYT::Load;
     Load(context, AccountStatistics_);

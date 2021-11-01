@@ -111,6 +111,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (ChaosService)
     (AlienCellSynchronizer)
     (CellTrackerService)
+    (EphemeralPtrUnref)
 );
 
 DEFINE_ENUM(EAutomatonThreadBucket,

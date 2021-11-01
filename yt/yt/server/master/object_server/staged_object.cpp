@@ -10,15 +10,9 @@ namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStagedObject::TStagedObject(TObjectId id)
-    : TNonversionedObjectBase(id)
-    , StagingTransaction_(nullptr)
-    , StagingAccount_(nullptr)
-{ }
-
 void TStagedObject::Save(NCellMaster::TSaveContext& context) const
 {
-    TNonversionedObjectBase::Save(context);
+    TObject::Save(context);
 
     using NYT::Save;
     Save(context, StagingTransaction_);
@@ -27,7 +21,7 @@ void TStagedObject::Save(NCellMaster::TSaveContext& context) const
 
 void TStagedObject::Load(NCellMaster::TLoadContext& context)
 {
-    TNonversionedObjectBase::Load(context);
+    TObject::Load(context);
 
     using NYT::Load;
     Load(context, StagingTransaction_);

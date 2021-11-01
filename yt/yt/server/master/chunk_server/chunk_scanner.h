@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/master/object_server/public.h>
+#include <yt/yt/server/master/object_server/object.h>
 
 #include <yt/yt/core/profiling/public.h>
 
@@ -93,22 +93,20 @@ private:
     const NObjectServer::TObjectManagerPtr ObjectManager_;
     const EChunkScanKind Kind_;
     const bool Journal_;
+    const NLogging::TLogger Logger;
 
     TChunk* GlobalIterator_ = nullptr;
     int GlobalCount_ = -1;
 
     struct TQueueEntry
     {
-        TChunk* Chunk;
+        NObjectServer::TEphemeralObjectPtr<TChunk> Chunk;
         NProfiling::TCpuInstant Instant;
     };
 
     std::queue<TQueueEntry> Queue_;
 
-    NLogging::TLogger Logger;
-
     void AdvanceGlobalIterator();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

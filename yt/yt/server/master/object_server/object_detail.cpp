@@ -495,7 +495,6 @@ const THashSet<TInternedAttributeKey>& TObjectProxyBase::GetBuiltinAttributeKeys
 bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
 {
     const auto& securityManager = Bootstrap_->GetSecurityManager();
-    const auto& objectManager = Bootstrap_->GetObjectManager();
 
     bool isForeign = Object_->IsForeign();
     auto* acd = FindThisAcd();
@@ -518,17 +517,17 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
 
         case EInternedAttributeKey::RefCounter:
             BuildYsonFluently(consumer)
-                .Value(objectManager->GetObjectRefCounter(Object_));
+                .Value(Object_->GetObjectRefCounter());
             return true;
 
         case EInternedAttributeKey::EphemeralRefCounter:
             BuildYsonFluently(consumer)
-                .Value(objectManager->GetObjectEphemeralRefCounter(Object_));
+                .Value(Object_->GetObjectEphemeralRefCounter());
             return true;
 
         case EInternedAttributeKey::WeakRefCounter:
             BuildYsonFluently(consumer)
-                .Value(objectManager->GetObjectWeakRefCounter(Object_));
+                .Value(Object_->GetObjectWeakRefCounter());
             return true;
 
         case EInternedAttributeKey::ImportRefCounter:

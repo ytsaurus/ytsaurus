@@ -3,6 +3,8 @@
 #include "hydra_facade.h"
 #include "serialize.h"
 
+#include <yt/yt/server/master/object_server/object.h>
+
 namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -13,6 +15,27 @@ TMasterAutomaton::TMasterAutomaton(TBootstrap* bootstrap)
         bootstrap->GetCellId())
     , Bootstrap_(bootstrap)
 { }
+
+void TMasterAutomaton::ApplyMutation(NHydra::TMutationContext* context)
+{
+    NObjectServer::BeginMutation();
+    TCompositeAutomaton::ApplyMutation(context);
+    NObjectServer::EndMutation();
+}
+
+void TMasterAutomaton::Clear()
+{
+    NObjectServer::BeginTeardown();
+    TCompositeAutomaton::Clear();
+    NObjectServer::EndTeardown();
+}
+
+void TMasterAutomaton::SetZeroState()
+{
+    NObjectServer::BeginMutation();
+    TCompositeAutomaton::SetZeroState();
+    NObjectServer::EndMutation();
+}
 
 std::unique_ptr<NHydra::TSaveContext> TMasterAutomaton::CreateSaveContext(
     ICheckpointableOutputStream* output)

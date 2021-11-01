@@ -16,10 +16,6 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkTree::TChunkTree(TChunkTreeId id)
-    : TStagedObject(id)
-{ }
-
 TChunk* TChunkTree::AsChunk()
 {
     YT_ASSERT(IsPhysicalChunkType(GetType()));

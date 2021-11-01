@@ -29,12 +29,6 @@ using namespace NCellarAgent;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TImpl>
-TCellTypeHandlerBase<TImpl>::TCellTypeHandlerBase(
-    NCellMaster::TBootstrap* bootstrap)
-    : TBase(bootstrap)
-{ }
-
-template <class TImpl>
 NObjectServer::ETypeFlags TCellTypeHandlerBase<TImpl>::GetFlags() const
 {
     return
@@ -91,11 +85,12 @@ void TCellTypeHandlerBase<TImpl>::DoZombifyObject(TImpl* cell)
 }
 
 template <class TImpl>
-void TCellTypeHandlerBase<TImpl>::DoDestroyObject(TImpl* cell)
+void TCellTypeHandlerBase<TImpl>::DoDestroyObject(TImpl* cell) noexcept
 {
-    TBase::DoDestroyObject(cell);
     const auto& cellManager = TBase::Bootstrap_->GetTamedCellManager();
     cellManager->DestroyCell(cell);
+
+    TBase::DoDestroyObject(cell);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

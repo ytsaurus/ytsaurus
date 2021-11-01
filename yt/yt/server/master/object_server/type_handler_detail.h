@@ -66,14 +66,14 @@ public:
         YT_ABORT();
     }
 
-    std::unique_ptr<TObject> InstantiateObject(TObjectId /*id*/) override
-    {
-        YT_ABORT();
-    }
-
     void DestroyObject(TObject* object) noexcept override
     {
         DoDestroyObject(object->As<TImpl>());
+    }
+
+    void RecreateObjectAsGhost(TObject* object) noexcept override
+    {
+        DoRecreateObjectAsGhost(object->As<TImpl>());
     }
 
     void ZombifyObject(TObject* object) noexcept override
@@ -141,14 +141,16 @@ protected:
         TImpl* object,
         NTransactionServer::TTransaction* transaction) = 0;
 
-    virtual void DoDestroyObject(TImpl* object)
+    virtual void DoDestroyObject(TImpl* object) noexcept
     {
         // Clear ACD, if any.
-        auto* acd = FindAcd(object);
-        if (acd) {
+        // XXX(babenko): is this needed?
+        if (auto* acd = FindAcd(object)) {
             acd->Clear();
         }
     }
+
+    virtual void DoRecreateObjectAsGhost(TImpl* object) noexcept = 0;
 
     virtual void DoZombifyObject(TImpl* /*object*/)
     { }
@@ -201,16 +203,37 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TImpl>
+class TConcreteObjectTypeHandlerBase
+    : public TObjectTypeHandlerBase<TImpl>
+{
+public:
+    using TObjectTypeHandlerBase<TImpl>::TObjectTypeHandlerBase;
+
+    std::unique_ptr<TObject> InstantiateObject(TObjectId id) override
+    {
+        return TPoolAllocator::New<TObject>(id);
+    }
+
+protected:
+    void DoRecreateObjectAsGhost(TImpl* object) noexcept override
+    {
+        TObject::RecreateAsGhost(object);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TObject>
 class TObjectTypeHandlerWithMapBase
-    : public TObjectTypeHandlerBase<TObject>
+    : public TConcreteObjectTypeHandlerBase<TObject>
 {
 public:
     using TMapType = NHydra::TEntityMap<TObject>;
     using TBase = TObjectTypeHandlerBase<TObject>;
 
     TObjectTypeHandlerWithMapBase(NCellMaster::TBootstrap* bootstrap, TMapType* map)
-        : TObjectTypeHandlerBase<TObject>(bootstrap)
+        : TConcreteObjectTypeHandlerBase<TObject>(bootstrap)
         , Map_(map)
     { }
 
@@ -224,11 +247,12 @@ protected:
     TMapType* const Map_;
 
 
-    void DoDestroyObject(TObject* object) override
+    void DoDestroyObject(TObject* object) noexcept override
     {
-        TBase::DoDestroyObject(object);
         // Remove the object from the map but keep it alive.
         Map_->Release(object->NObjectServer::TObject::GetId()).release();
+
+        TBase::DoDestroyObject(object);
     }
 };
 

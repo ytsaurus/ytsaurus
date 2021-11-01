@@ -5,6 +5,8 @@
 
 #include <stack>
 
+#include <yt/yt/server/master/object_server/object.h>
+
 #include <yt/yt/core/logging/log.h>
 
 namespace NYT::NChunkServer {
@@ -26,6 +28,9 @@ struct IChunkReplacerCallbacks
         TChunkTree* const* childrenEnd) = 0;
     virtual TChunkList* CreateChunkList(
         EChunkListKind kind) = 0;
+    // TODO(shakurov): remove these, make TChunkReplacer own its new root chunk
+    // list, but be sure to keep unittest happy (master smart pointers aren't
+    // allowed there).
     virtual void RefObject(NObjectServer::TObject* object) = 0;
     virtual void UnrefObject(NObjectServer::TObject* object) = 0;
 };
@@ -66,7 +71,7 @@ private:
 
     bool Initialized_ = false;
 
-    TChunkList* NewRootChunkList_ = nullptr;
+    TChunkList* NewRootChunkList_;
 
     TChunkList* PrevParentChunkList_ = nullptr;
     TChunkList* NewParentChunkList_ = nullptr;

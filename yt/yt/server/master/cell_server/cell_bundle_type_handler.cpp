@@ -78,16 +78,18 @@ template <class TImpl>
 void TCellBundleTypeHandlerBase<TImpl>::DoZombifyObject(TImpl* cellBundle)
 {
     TBase::DoZombifyObject(cellBundle);
+
     const auto& cellManager = TBase::Bootstrap_->GetTamedCellManager();
     cellManager->ZombifyCellBundle(cellBundle);
 }
 
 template <class TImpl>
-void TCellBundleTypeHandlerBase<TImpl>::DoDestroyObject(TImpl* cellBundle)
+void TCellBundleTypeHandlerBase<TImpl>::DoDestroyObject(TImpl* cellBundle) noexcept
 {
-    TBase::DoDestroyObject(cellBundle);
     const auto& cellManager = TBase::Bootstrap_->GetTamedCellManager();
     cellManager->DestroyCellBundle(cellBundle);
+
+    TBase::DoDestroyObject(cellBundle);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

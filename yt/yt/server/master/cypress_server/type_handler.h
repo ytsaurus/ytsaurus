@@ -91,11 +91,14 @@ struct INodeTypeHandler
 
     //! Performs cleanup on node destruction.
     /*!
-     *  This is called prior to the actual removal of the node from the meta-map.
+     *  This is called prior to the actual removal of the node from the node map.
      *  A typical implementation will release the resources held by the node,
      *  decrement the ref-counters of its children etc.
      */
     virtual void Destroy(TCypressNode* node) = 0;
+
+    //! See IObjectTypeHandler::RecreateObjectAsGhost.
+    virtual void RecreateAsGhost(TCypressNode* node) = 0;
 
     //! Branches a node into a given transaction.
     virtual std::unique_ptr<TCypressNode> Branch(

@@ -116,7 +116,7 @@ public:
     TSecurityManager(
         const TSecurityManagerConfigPtr& config,
         NCellMaster::TBootstrap* bootstrap);
-    virtual ~TSecurityManager() override;
+    ~TSecurityManager() override;
 
     void Initialize();
 

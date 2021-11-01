@@ -49,7 +49,7 @@ struct TCellBundleProfilingCounters
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellBundle
-    : public NObjectServer::TNonversionedObjectBase
+    : public NObjectServer::TObject
     , public TRefTracked<TCellBundle>
 {
 public:

@@ -15,7 +15,7 @@ namespace NYT::NTableServer {
 ///////////////////////////////////////////////////////////////////////////////
 
 class TMasterTableSchema
-    : public NObjectServer::TNonversionedObjectBase
+    : public NObjectServer::TObject
 {
 public:
     using TTableSchemaToObjectMap = THashMap<
@@ -33,7 +33,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TAccountToMasterMemoryUsage, ChargedMasterMemoryUsage);
     DEFINE_BYREF_RO_PROPERTY(TAccountToRefCounterMap, ReferencingAccounts);
 
-    using TNonversionedObjectBase::TNonversionedObjectBase;
+    using TObject::TObject;
     TMasterTableSchema(TMasterTableSchemaId id, TTableSchemaToObjectMapIterator it);
 
     void Save(NCellMaster::TSaveContext& context) const;
@@ -60,7 +60,7 @@ public:
 private:
     friend class TTableManager;
 
-    using TBase = NObjectServer::TNonversionedObjectBase;
+    using TBase = NObjectServer::TObject;
 
     TTableSchemaToObjectMapIterator TableSchemaToObjectMapIterator_;
     NTableClient::TTableSchemaPtr TableSchema_;

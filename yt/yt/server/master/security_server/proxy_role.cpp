@@ -7,7 +7,7 @@ namespace NYT::NSecurityServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 TProxyRole::TProxyRole(TProxyRoleId id)
-    : TNonversionedObjectBase(id)
+    : TObject(id)
     , Acd_(this)
 { }
 
@@ -23,7 +23,7 @@ TString TProxyRole::GetCapitalizedObjectName() const
 
 void TProxyRole::Save(NCellMaster::TSaveContext& context) const
 {
-    TNonversionedObjectBase::Save(context);
+    TObject::Save(context);
 
     using NYT::Save;
     Save(context, Name_);
@@ -33,7 +33,7 @@ void TProxyRole::Save(NCellMaster::TSaveContext& context) const
 
 void TProxyRole::Load(NCellMaster::TLoadContext& context)
 {
-    TNonversionedObjectBase::Load(context);
+    TObject::Load(context);
 
     using NYT::Load;
     Load(context, Name_);

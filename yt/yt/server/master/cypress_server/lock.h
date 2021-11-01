@@ -80,7 +80,7 @@ struct TCypressNodeLockingState
 
 //! Describes a lock (either held or waiting).
 class TLock
-    : public NObjectServer::TNonversionedObjectBase
+    : public NObjectServer::TObject
     , public TRefTracked<TLock>
 {
 public:
@@ -109,7 +109,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTransactionToSnapshotLocksIterator, TransactionToSnapshotLocksIterator);
 
 public:
-    explicit TLock(TLockId id);
+    using TObject::TObject;
 
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;

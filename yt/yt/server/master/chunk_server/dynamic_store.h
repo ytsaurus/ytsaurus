@@ -29,7 +29,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(i64, TableRowIndex);
 
 public:
-    explicit TDynamicStore(TDynamicStoreId id);
+    using TChunkTree::TChunkTree;
 
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;

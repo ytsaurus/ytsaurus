@@ -64,7 +64,7 @@ protected:
     bool IsMutationLoggingEnabled() const;
     const TDynamicCypressManagerConfigPtr& GetDynamicCypressManagerConfig() const;
 
-    void DestroyCore(TCypressNode* node);
+    void DestroyCorePrologue(TCypressNode* node);
 
     bool BeginCopyCore(
         TCypressNode* node,
@@ -162,10 +162,17 @@ public:
     void Destroy(TCypressNode* node) override
     {
         // Run core stuff.
-        DestroyCore(node);
+        DestroyCorePrologue(node);
 
         // Run custom stuff.
-        DoDestroy(node->As<TImpl>());
+        auto* typedNode = node->As<TImpl>();
+        DoDestroy(typedNode);
+    }
+
+    void RecreateAsGhost(TCypressNode* node) override
+    {
+        auto* typedNode = node->As<TImpl>();
+        NObjectServer::TObject::RecreateAsGhost(typedNode);
     }
 
     void BeginCopy(
@@ -221,7 +228,9 @@ public:
         DoBranch(typedOriginatingNode, typedBranchedNode, lockRequest);
         DoLogBranch(typedOriginatingNode, typedBranchedNode, lockRequest);
 
+        // Run core stuff.
         BranchCoreEpilogue(typedBranchedNode);
+
         return std::move(branchedNodeHolder);
     }
 
@@ -243,13 +252,13 @@ public:
         // Run core stuff.
         auto* typedOriginatingNode = originatingNode->As<TImpl>();
         auto* typedBranchedNode = branchedNode->As<TImpl>();
-
         MergeCorePrologue(typedOriginatingNode, typedBranchedNode);
 
         // Run custom stuff.
         DoMerge(typedOriginatingNode, typedBranchedNode);
         DoLogMerge(typedOriginatingNode, typedBranchedNode);
 
+        // Run core stuff.
         MergeCoreEpilogue(typedOriginatingNode, typedBranchedNode);
     }
 
@@ -327,11 +336,8 @@ protected:
         return nodeHolder;
     }
 
-    virtual void DoDestroy(TImpl* node)
-    {
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ResetAccount(node);
-    }
+    virtual void DoDestroy(TImpl* /*node*/)
+    { }
 
     virtual void DoBeginCopy(
         TImpl* /*node*/,
@@ -475,7 +481,9 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TValue, Value)
 
 public:
-    explicit TScalarNode(TVersionedNodeId id)
+    using TCypressNode::TCypressNode;
+
+    explicit TScalarNode(const TVersionedNodeId& id)
         : TCypressNode(id)
         , Value_()
     { }
@@ -801,8 +809,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(int, ChildCountDelta);
 
 public:
-    explicit TMapNode(TVersionedNodeId id);
-
+    using TCompositeNodeBase::TCompositeNodeBase;
     ~TMapNode();
 
     explicit TMapNode(const TMapNode&) = delete;

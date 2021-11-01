@@ -1,16 +1,114 @@
 #include "object.h"
+#include "object_manager.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
 
 #include <yt/yt/server/master/cypress_server/node.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <util/generic/algorithm.h>
+
 namespace NYT::NObjectServer {
 
 using namespace NObjectClient;
 using namespace NCypressServer;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+thread_local NCellMaster::TBootstrap* Bootstrap;
+thread_local TEpoch CurrentEpoch;
+thread_local TEpoch CurrentEpochCounter;
+thread_local IInvokerPtr EphemeralPtrUnrefInvoker;
+
+thread_local bool InTeardownFlag;
+thread_local int InMutationCounter;
+
+thread_local std::vector<TObject*> ObjectsWithScheduledUnref;
+thread_local std::vector<TObject*> ObjectsWithScheduledWeakUnref;
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsInAutomatonThread()
+{
+    return Bootstrap != nullptr;
+}
+
+bool IsInMutation()
+{
+    return InMutationCounter > 0;
+}
+
+bool IsInTeardown()
+{
+    return InTeardownFlag;
+}
+
+void VerifyAutomatonThreadAffinity()
+{
+    YT_VERIFY(IsInAutomatonThread());
+}
+
+void DoFlushObjectUnrefs()
+{
+    const auto& objectManager = Bootstrap->GetObjectManager();
+    while (
+        !ObjectsWithScheduledUnref.empty() ||
+        !ObjectsWithScheduledWeakUnref.empty())
+    {
+        auto objectsWithScheduledUnref = std::move(ObjectsWithScheduledUnref);
+        Sort(objectsWithScheduledUnref, TObjectIdComparer());
+        for (auto* object : objectsWithScheduledUnref) {
+            objectManager->UnrefObject(object);
+        }
+
+        auto objectsWithScheduledWeakUnref = std::move(ObjectsWithScheduledWeakUnref);
+        Sort(objectsWithScheduledWeakUnref, TObjectIdComparer());
+        for (auto* object : objectsWithScheduledWeakUnref) {
+            objectManager->WeakUnrefObject(object);
+        }
+    }
+}
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+int TEpochRefCounter::GetValue() const
+{
+    NDetail::AssertAutomatonThreadAffinity();
+    return RefCounterEpoch_ == NDetail::CurrentEpoch
+        ? RefCounter_
+        : 0;
+}
+
+int TEpochRefCounter::UpdateValue(int delta)
+{
+    YT_ASSERT(RefCounter_ >= 0);
+
+    auto currentEpoch = GetCurrentEpoch();
+    YT_ASSERT(currentEpoch != TEpoch());
+
+    if (currentEpoch != RefCounterEpoch_) {
+        RefCounter_ = 0;
+        RefCounterEpoch_ = currentEpoch;
+    }
+
+    auto result = (RefCounter_ += delta);
+    YT_ASSERT(result >= 0);
+    return result;
+}
+
+void TEpochRefCounter::Persist(const TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, RefCounter_);
+    Persist(context, RefCounterEpoch_);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,6 +140,11 @@ void TObject::ResetLifeStageVoteCount()
 int TObject::IncrementLifeStageVoteCount()
 {
     return ++LifeStageVoteCount_;
+}
+
+int TObject::GetObjectEphemeralRefCounter() const
+{
+    return EphemeralRefCounter_.GetValue();
 }
 
 TString TObject::GetLowercaseObjectName() const
@@ -125,11 +228,178 @@ void TObject::Load(NCellMaster::TLoadContext& context)
     }
 }
 
+void TObject::SaveEctoplasm(TStreamSaveContext& context) const
+{
+    YT_VERIFY(RefCounter_ == 0);
+    YT_VERIFY(!Flags_.Ghost);
+
+    using NYT::Save;
+    Save(context, Flags_.Foreign);
+    Save(context, Flags_.Trunk);
+    Save(context, WeakRefCounter_);
+    Save(context, EphemeralRefCounter_);
+}
+
+void TObject::LoadEctoplasm(TStreamLoadContext& context)
+{
+    using NYT::Load;
+    Flags_.Foreign = Load<bool>(context);
+    Flags_.Trunk = Load<bool>(context);
+    Load(context, WeakRefCounter_);
+    Load(context, EphemeralRefCounter_);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TObjectIdFormatter::operator()(TStringBuilderBase* builder, const TObject* object) const
 {
     FormatValue(builder, object->GetId(), TStringBuf());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TStrongObjectPtrContext::Ref(TObject* object)
+{
+    YT_ASSERT(NDetail::IsInMutation());
+    NDetail::Bootstrap->GetObjectManager()->RefObject(object);
+}
+
+void TStrongObjectPtrContext::Unref(TObject* object)
+{
+    YT_ASSERT(NDetail::IsInMutation() || NDetail::IsInTeardown());
+    if (NDetail::IsInMutation()) {
+        NDetail::ObjectsWithScheduledUnref.push_back(object);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TWeakObjectPtrContext::Ref(TObject* object)
+{
+    YT_ASSERT(NDetail::IsInMutation());
+    NDetail::Bootstrap->GetObjectManager()->WeakRefObject(object);
+}
+
+void TWeakObjectPtrContext::Unref(TObject* object)
+{
+    YT_ASSERT(NDetail::IsInMutation() || NDetail::IsInTeardown());
+    if (NDetail::IsInMutation()) {
+        NDetail::ObjectsWithScheduledWeakUnref.push_back(object);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEphemeralObjectPtrContext TEphemeralObjectPtrContext::Capture()
+{
+    YT_ASSERT(NDetail::EphemeralPtrUnrefInvoker);
+    return {
+        NDetail::Bootstrap->GetObjectManager(),
+        NDetail::CurrentEpoch,
+        NDetail::EphemeralPtrUnrefInvoker
+    };
+};
+
+bool TEphemeralObjectPtrContext::IsCurrent() const
+{
+    return
+        NDetail::IsInAutomatonThread() &&
+        ObjectManager == NDetail::Bootstrap->GetObjectManager() &&
+        Epoch == NDetail::CurrentEpoch;
+}
+
+void TEphemeralObjectPtrContext::Ref(TObject* object)
+{
+    NDetail::AssertAutomatonThreadAffinity();
+    ObjectManager->EphemeralRefObject(object);
+}
+
+void TEphemeralObjectPtrContext::Unref(TObject* object)
+{
+    SafeUnref([=, objectManager = ObjectManager] {
+        objectManager->EphemeralUnrefObject(object);
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void BeginEpoch()
+{
+    NDetail::VerifyAutomatonThreadAffinity();
+    YT_VERIFY(NDetail::CurrentEpoch == TEpoch());
+
+    NDetail::EphemeralPtrUnrefInvoker = NDetail::Bootstrap
+        ->GetHydraFacade()
+        ->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::EphemeralPtrUnref);
+    NDetail::CurrentEpoch = ++NDetail::CurrentEpochCounter;
+}
+
+void EndEpoch()
+{
+    NDetail::VerifyAutomatonThreadAffinity();
+
+    NDetail::EphemeralPtrUnrefInvoker.Reset();
+    NDetail::CurrentEpoch = TEpoch();
+}
+
+TEpoch GetCurrentEpoch()
+{
+    return NDetail::CurrentEpoch;
+}
+
+void SetupAutomatonThread(NCellMaster::TBootstrap* bootstrap)
+{
+    YT_VERIFY(!NDetail::Bootstrap);
+
+    NDetail::Bootstrap = bootstrap;
+}
+
+void BeginMutation()
+{
+    NDetail::AssertAutomatonThreadAffinity();
+    YT_ASSERT(!NDetail::IsInTeardown());
+
+    if (++NDetail::InMutationCounter == 1) {
+        YT_VERIFY(NDetail::ObjectsWithScheduledUnref.empty());
+        YT_VERIFY(NDetail::ObjectsWithScheduledWeakUnref.empty());
+    }
+}
+
+void EndMutation()
+{
+    NDetail::AssertAutomatonThreadAffinity();
+    YT_ASSERT(NDetail::IsInMutation());
+    YT_ASSERT(!NDetail::IsInTeardown());
+
+    --NDetail::InMutationCounter;
+    NDetail::DoFlushObjectUnrefs();
+}
+
+void BeginTeardown()
+{
+    NDetail::VerifyAutomatonThreadAffinity();
+    YT_VERIFY(!NDetail::IsInMutation());
+    YT_VERIFY(!NDetail::IsInTeardown());
+
+    NDetail::InTeardownFlag = true;
+}
+
+void EndTeardown()
+{
+    NDetail::VerifyAutomatonThreadAffinity();
+    YT_VERIFY(!NDetail::IsInMutation());
+    YT_VERIFY(NDetail::IsInTeardown());
+
+    NDetail::InTeardownFlag = false;
+}
+
+void FlushObjectUnrefs()
+{
+    NDetail::AssertAutomatonThreadAffinity();
+    YT_ASSERT(NDetail::IsInMutation());
+    YT_ASSERT(!NDetail::IsInTeardown());
+
+    NDetail::DoFlushObjectUnrefs();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

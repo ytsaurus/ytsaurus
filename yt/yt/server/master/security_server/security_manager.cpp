@@ -185,8 +185,6 @@ public:
         TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
-    std::unique_ptr<TObject> InstantiateObject(TObjectId id) override;
-
     std::optional<TObject*> FindObjectByAttributes(
         const NYTree::IAttributeDictionary* attributes) override;
 
@@ -198,7 +196,7 @@ public:
 protected:
     TCellTagList DoGetReplicationCellTags(const TAccount* /*account*/) override
     {
-        return TObjectTypeHandlerBase<TAccount>::AllSecondaryCellTags();
+        return TNonversionedMapObjectTypeHandlerBase<TAccount>::AllSecondaryCellTags();
     }
 
 private:
@@ -2921,7 +2919,7 @@ private:
         //   - master memory usage as it's always recomputed after loading.
         for (auto [nodeId, node] : cypressManager->Nodes()) {
             // NB: zombie nodes are still accounted.
-            if (node->IsDestroyed()) {
+            if (node->IsGhost()) {
                 continue;
             }
 
@@ -2967,7 +2965,7 @@ private:
 
         for (auto [chunkId, chunk] : chunkManager->Chunks()) {
             // NB: zombie chunks are still accounted.
-            if (chunk->IsDestroyed()) {
+            if (chunk->IsGhost()) {
                 continue;
             }
 
@@ -3052,7 +3050,7 @@ private:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         for (auto [nodeId, node] : cypressManager->Nodes()) {
-            if (node->IsDestroyed()) {
+            if (node->IsGhost()) {
                 continue;
             }
 
@@ -3072,7 +3070,7 @@ private:
 
         for (auto [chunkId, chunk] : chunkManager->Chunks()) {
             // NB: zombie chunks are still accounted.
-            if (chunk->IsDestroyed()) {
+            if (chunk->IsGhost()) {
                 continue;
             }
 
@@ -4140,11 +4138,6 @@ TObject* TSecurityManager::TAccountTypeHandler::CreateObject(
 
     auto* account = CreateObjectImpl(name, parent, attributes);
     return account;
-}
-
-std::unique_ptr<TObject> TSecurityManager::TAccountTypeHandler::InstantiateObject(TObjectId id)
-{
-    return TPoolAllocator::New<TAccount>(id, id == Owner_->RootAccountId_);
 }
 
 std::optional<TObject*> TSecurityManager::TAccountTypeHandler::FindObjectByAttributes(

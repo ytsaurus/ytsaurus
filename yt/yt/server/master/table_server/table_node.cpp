@@ -459,8 +459,9 @@ bool TTableNode::IsEmpty() const
 
 bool TTableNode::IsLogicallyEmpty() const
 {
-    YT_VERIFY(ChunkList_);
-    return ChunkList_->Statistics().LogicalRowCount == 0;
+    const auto* chunkList = GetChunkList();
+    YT_VERIFY(chunkList);
+    return chunkList->Statistics().LogicalRowCount == 0;
 }
 
 TTimestamp TTableNode::GetCurrentUnflushedTimestamp(
