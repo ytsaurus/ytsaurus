@@ -152,7 +152,7 @@ public:
     i64 MaxUncompressedDataSize;
     i64 MaxInputChunkDataWeight;
 
-    int MaxBlockCount;
+    i64 MaxBlockCount;
     i64 MaxJobsPerChunkList;
 
     TDuration SchedulePeriod;
