@@ -57,6 +57,13 @@ struct TReadOptions
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
+bool IsZeroValue(const T& value)
+{
+    T zeroValue{};
+    return value == zeroValue;
+}
+
+template <class T>
 class TCube
 {
 public:

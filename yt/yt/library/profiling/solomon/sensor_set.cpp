@@ -117,6 +117,10 @@ int TSensorSet::Collect()
                 continue;
             }
 
+            if (Options_.Sparse && IsZeroValue(value)) {
+                continue;
+            }
+
             counter->Projections.Range(counter->TagIds, [&, value=value] (auto tags) {
                 cube.Update(std::move(tags), value);
             });
