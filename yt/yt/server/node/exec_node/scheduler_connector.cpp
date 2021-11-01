@@ -74,15 +74,15 @@ void TSchedulerConnector::OnDynamicConfigChanged(
     const TExecNodeDynamicConfigPtr& oldConfig,
     const TExecNodeDynamicConfigPtr& newConfig)
 {
-    if (newConfig->SchedulerConnector == nullptr && oldConfig->SchedulerConnector == nullptr) {
+    if (!newConfig->SchedulerConnector && !oldConfig->SchedulerConnector) {
         return;
     }
 
-    Bootstrap_->GetControlInvoker()->Invoke(BIND([this, this_ = MakeStrong(this), newConfig{std::move(newConfig)}] {
-        if (newConfig->SchedulerConnector == nullptr) {
-            CurrentConfig_ = StaticConfig_;
+    Bootstrap_->GetControlInvoker()->Invoke(BIND([this, this_{MakeStrong(this)}, newConfig{std::move(newConfig)}] {
+        if (newConfig->SchedulerConnector) {
+            CurrentConfig_ = StaticConfig_->ApplyDynamic(newConfig->SchedulerConnector);
         } else {
-            MergeHeartbeatReporterConfigs(*CurrentConfig_, *StaticConfig_, *newConfig->SchedulerConnector);
+            CurrentConfig_ = StaticConfig_;
         }
         HeartbeatExecutor_->SetPeriod(CurrentConfig_->HeartbeatPeriod);
     }));
