@@ -382,6 +382,9 @@ private:
                     }));
                     return result.AsVoid();
                 }));
+        } else {
+            // Remains to wait on throttlers, hence mark as complete.
+            context->SetComplete();
         }
 
         result.Subscribe(BIND([=] (const TError& error) {
@@ -1451,7 +1454,6 @@ private:
                         response->set_net_throttling(netThrottling);
                         response->set_net_queue_size(netQueueSize);
 
-                        context->SetComplete();
                         return VoidFuture;
                     }
                 }
