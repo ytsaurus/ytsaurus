@@ -581,9 +581,6 @@ protected:
         //! Time between the request arrival and the moment when it is fully processed.
         NProfiling::TEventTimer TotalTimeCounter;
 
-        //! CPU time spent in the handler's fiber.
-        NProfiling::TTimeCounter HandlerFiberTimeCounter;
-
         //! CPU time spent in the trace context associated with the request (locally).
         NProfiling::TTimeCounter TraceContextTimeCounter;
 

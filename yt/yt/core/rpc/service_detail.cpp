@@ -185,7 +185,6 @@ TServiceBase::TMethodPerformanceCounters::TMethodPerformanceCounters(
     , CanceledRequestCounter(profiler.Counter("/canceled_request_count"))
     , FailedRequestCounter(profiler.Counter("/failed_request_count"))
     , TimedOutRequestCounter(profiler.Counter("/timed_out_request_count"))
-    , HandlerFiberTimeCounter(profiler.TimeCounter("/request_time/handler_fiber"))
     , TraceContextTimeCounter(profiler.TimeCounter("/request_time/trace_context"))
     , RequestMessageBodySizeCounter(profiler.Counter("/request_message_body_bytes"))
     , RequestMessageAttachmentSizeCounter(profiler.Counter("/request_message_attachment_bytes"))
@@ -754,10 +753,8 @@ private:
     {
         DoBeforeRun();
 
-        NProfiling::TFiberWallTimer timer;
-
         auto finally = Finally([&] {
-            DoAfterRun(timer.GetElapsedTime());
+            DoAfterRun();
         });
 
         try {
@@ -825,11 +822,9 @@ private:
         }
     }
 
-    void DoAfterRun(TDuration handlerElapsedValue)
+    void DoAfterRun()
     {
         TDelayedExecutor::CancelAndClear(TimeoutCookie_);
-
-        PerformanceCounters_->HandlerFiberTimeCounter.Add(handlerElapsedValue);
 
         if (auto traceContextTime = GetTraceContextTime()) {
             PerformanceCounters_->TraceContextTimeCounter.Add(*traceContextTime);
