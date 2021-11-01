@@ -30,6 +30,11 @@ int main(int argc, char* argv[])
         Register(server, "");
         server->Start();
 
+        THashMap<TString, std::vector<int>> data;
+        for (int i = 0; i < 1024 * 16; i++) {
+            data[ToString(i)].resize(1024);
+        }
+
         ui64 value = 0;
         while (true) {
             THash<TString> hasher;
