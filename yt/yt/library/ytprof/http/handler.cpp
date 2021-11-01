@@ -229,7 +229,8 @@ void Register(
     const TString& prefix,
     const TBuildInfo& buildInfo)
 {
-    server->AddHandler(prefix + "/cpu", New<TCpuProfilerHandler>(buildInfo));
+    server->AddHandler(prefix + "/profile", New<TCpuProfilerHandler>(buildInfo));
+
     server->AddHandler(prefix + "/heap", New<TTCMallocSnapshotProfilerHandler>(buildInfo, tcmalloc::ProfileType::kHeap));
     server->AddHandler(prefix + "/peak", New<TTCMallocSnapshotProfilerHandler>(buildInfo, tcmalloc::ProfileType::kPeakHeap));
     server->AddHandler(prefix + "/fragmentation", New<TTCMallocSnapshotProfilerHandler>(buildInfo, tcmalloc::ProfileType::kFragmentation));

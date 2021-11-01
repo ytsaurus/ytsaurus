@@ -53,7 +53,7 @@ def test_cpu_profile(running_example):
     if yatest.common.context.build_type != "profile":
         pytest.skip()
 
-    fetch_data(running_example, "cpu?d=1")
+    fetch_data(running_example, "profile?d=1")
 
 
 def test_binary_handler(running_example):
