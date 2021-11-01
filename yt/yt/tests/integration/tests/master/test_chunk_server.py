@@ -258,7 +258,7 @@ class TestChunkServer(YTEnvSetup):
 
         wait(check_replica_count, sleep_backoff=1.0)
 
-    @authors("babenko")
+    @authors("babenko", "aleksandra-zh")
     def test_max_replication_factor(self):
         old_max_rf = get("//sys/media/default/@config/max_replication_factor")
         try:
@@ -273,10 +273,11 @@ class TestChunkServer(YTEnvSetup):
             write_table("//tmp/t", {"a": "b"})
             chunk_id = get_singular_chunk_id("//tmp/t")
 
-            wait(lambda: len(get("#{0}/@stored_replicas".format(chunk_id))) >= MAX_RF)
+            def ok_replication_status():
+                status = get("#{}/@replication_status/default".format(chunk_id))
+                return not status["underreplicated"] and not status["overreplicated"]
+            wait(ok_replication_status)
 
-            # Make sure RF doesn't go higher.
-            sleep(1.0)
             assert len(get("#{0}/@stored_replicas".format(chunk_id))) == MAX_RF
         finally:
             set("//sys/media/default/@config/max_replication_factor", old_max_rf)
