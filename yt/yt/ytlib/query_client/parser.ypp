@@ -17,6 +17,8 @@
 %parse-param {const TString& source}
 
 %code requires {
+    #pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
+
     #include <yt/yt/ytlib/query_client/ast.h>
 
     namespace NYT { namespace NQueryClient { namespace NAst {

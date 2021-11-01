@@ -263,6 +263,7 @@ std::unique_ptr<IGenerator> CreateQuotientEnumerationGenerator(
                 [] (ui64 value) { return MakeUnversionedUint64Value(value); },
                 [] (const TUnversionedValue& value) { return value.Data.Uint64; },
                 lower, upper, divisors);
+            break;
         default:
             break;
     }
