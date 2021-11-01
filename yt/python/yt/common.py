@@ -498,6 +498,9 @@ def _pretty_format(error, attribute_length_limit=None):
         _pretty_format_messages(error),
         _pretty_format_full_errors(error, attribute_length_limit=attribute_length_limit))
 
+def _pretty_format_fake(error, attribute_length_limit=None):
+    return _pretty_format(error, attribute_length_limit)
+
 def _pretty_format_for_logging(error, attribute_length_limit=None):
     return _pretty_format_full_errors(error, attribute_length_limit=attribute_length_limit).replace("\n", "\\n")
 
