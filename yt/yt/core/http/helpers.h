@@ -41,7 +41,7 @@ NTracing::TSpanId GetSpanId(const IRequestPtr& req);
 NTracing::TTraceContextPtr GetOrCreateTraceContext(const IRequestPtr& req);
 
 std::optional<std::pair<int64_t, int64_t>> GetRange(const THeadersPtr& headers);
-void SetRange(const THeadersPtr& headers, std::pair<int64_t, int64_t> range, int64_t total);
+void SetRange(const THeadersPtr& headers, std::pair<int64_t, int64_t> range);
 
 ////////////////////////////////////////////////////////////////////////////////
 

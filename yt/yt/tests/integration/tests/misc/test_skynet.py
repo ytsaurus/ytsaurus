@@ -12,6 +12,7 @@ import yt.packages.requests as requests
 
 import hashlib
 import pytest
+import os
 
 ##################################################################
 
@@ -171,7 +172,25 @@ class TestSkynetIntegration(YTEnvSetup):
         else:
             raise KeyError(node_id)
 
+        if "http_range" in kwargs:
+            http_start, http_end = kwargs.pop("http_range")
+
+            rsp = requests.get("http://{}/read_skynet_part".format(http_address), headers={
+                "Range": "bytes={}-{}".format(http_start, http_end)
+            }, params=kwargs)
+
+            if rsp.status_code == 500:
+                raise Exception(rsp.text)
+
+            assert rsp.status_code == 206
+            assert rsp.headers["Content-Range"] == "bytes {}-{}/*".format(http_start, http_end)
+
+            rsp.raise_for_status()
+            return rsp.content
+
         rsp = requests.get("http://{}/read_skynet_part".format(http_address), params=kwargs)
+        if rsp.status_code == 500:
+            raise Exception(rsp.text)
         rsp.raise_for_status()
         return rsp.content
 
@@ -192,7 +211,7 @@ class TestSkynetIntegration(YTEnvSetup):
         else:
             assert False, "Node not found: {}, {}".format(chunk["replicas"], str(info["nodes"]))
 
-        with pytest.raises(requests.HTTPError):
+        with pytest.raises(Exception):
             self.get_skynet_part(
                 node_id,
                 info["nodes"],
@@ -468,3 +487,82 @@ class TestSkynetIntegration(YTEnvSetup):
 
         chunk_ids = get("//tmp/table/@chunk_ids")
         assert get("#{0}/@shared_to_skynet".format(chunk_ids[0]))
+
+    @authors("prime")
+    def test_http_range(self):
+        create(
+            "table",
+            "//tmp/table",
+            attributes={
+                "enable_skynet_sharing": True,
+                "schema": SKYNET_TABLE_SCHEMA,
+            },
+        )
+
+        file = os.urandom(12 * 1024 * 1024 + 42)
+
+        write_table(
+            "//tmp/table",
+            [
+                {"filename": "a", "part_index": 0, "data": file[:4*1024*1024]},
+                {"filename": "a", "part_index": 1, "data": file[4*1024*1024:8*1024*1024]},
+                {"filename": "a", "part_index": 2, "data": file[8*1024*1024:12*1024*1024]},
+                {"filename": "a", "part_index": 3, "data": file[12*1024*1024:]},
+            ],
+        )
+
+        chunk = get_singular_chunk_id("//tmp/table")
+        info = locate_skynet_share("//tmp/table")
+        node = info["chunk_specs"][0]["replicas"][0]
+
+        for http_range in [
+            (0, 1),
+            (0, len(file)),
+            (0, len(file)-1),
+            (1, len(file)-1),
+            (1, len(file)),
+            (0, len(file)-4*1024*1024),
+            (1, len(file)-4*1024*1024),
+            (0, len(file)-41),
+            (1, len(file)-41),
+            (0, len(file)-42),
+            (1, len(file)-42),
+            (0, len(file)-43),
+            (1, len(file)-43),
+
+            (8*1024*1024, 12*1024*1024),
+            (8*1024*1024, len(file)),
+            (8*1024*1024, len(file)-41),
+            (8*1024*1024, len(file)-42),
+            (8*1024*1024, len(file)-43),
+        ]:
+            assert file[http_range[0]:http_range[1]] == self.get_skynet_part(
+                node,
+                info["nodes"],
+                chunk_id=chunk,
+                lower_row_index=0,
+                upper_row_index=4,
+                start_part_index=0,
+                http_range=http_range
+            )
+
+        for http_range in [
+            (0, 0),
+            (4*1024*1024 - 1, 4*1024*1024 - 1),
+            (0, len(file) + 1),
+            (-1, 0),
+            (100000000, 100000000),
+            (42, 41),
+        ]:
+            try:
+                self.get_skynet_part(
+                    node,
+                    info["nodes"],
+                    chunk_id=chunk,
+                    lower_row_index=0,
+                    upper_row_index=4,
+                    start_part_index=0,
+                    http_range=http_range
+                )
+            except:
+                pass
