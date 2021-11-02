@@ -417,9 +417,9 @@ std::optional<std::pair<int64_t, int64_t>> GetRange(const THeadersPtr& headers)
     return rangeValue;
 }
 
-void SetRange(const THeadersPtr& headers, std::pair<int64_t, int64_t> range, int64_t total)
+void SetRange(const THeadersPtr& headers, std::pair<int64_t, int64_t> range)
 {
-    headers->Set(ContentRangeHeaderName, Format("bytes %v-%v/%v", range.first, range.second, total));
+    headers->Set(ContentRangeHeaderName, Format("bytes %v-%v/*", range.first, range.second));
 }
 
 

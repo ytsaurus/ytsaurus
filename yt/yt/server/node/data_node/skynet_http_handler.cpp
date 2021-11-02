@@ -12,8 +12,8 @@
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
-#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/columnar_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
@@ -25,6 +25,7 @@
 #include <yt/yt/core/concurrency/async_stream.h>
 
 #include <yt/yt/core/http/http.h>
+#include <yt/yt/core/http/helpers.h>
 
 #include <library/cpp/cgiparam/cgiparam.h>
 
@@ -79,6 +80,40 @@ void ParseRequest(TStringBuf rawQuery, TChunkId* chunkId, TReadRange* readRange,
     }
 }
 
+void AdjustReadRange(
+    std::pair<i64, i64> httpRange,
+    TReadRange* readRange,
+    i64* startPartIndex,
+    i64* skipPrefix,
+    std::optional<i64>* byteLimit)
+{
+    constexpr i64 SkynetPartSize = 4_MB;
+
+    if (httpRange.first >= httpRange.second) {
+        THROW_ERROR_EXCEPTION("Invalid http range")
+            << TErrorAttribute("http_range", httpRange);
+    }
+
+    auto skipRows = httpRange.first / SkynetPartSize;
+    auto newLowerRowIndex = *readRange->LowerLimit().GetRowIndex() + skipRows;
+    if (newLowerRowIndex >= *readRange->UpperLimit().GetRowIndex()) {
+        THROW_ERROR_EXCEPTION("HTTP range start is invalid");
+    }
+
+    *startPartIndex += skipRows;
+    readRange->LowerLimit().SetRowIndex(newLowerRowIndex);
+
+    *skipPrefix = httpRange.first - skipRows * SkynetPartSize;
+    *byteLimit = httpRange.second - httpRange.first;
+
+    auto fullRows = (byteLimit->value() + *skipPrefix + SkynetPartSize - 1) / SkynetPartSize;
+    auto lastRow = newLowerRowIndex + fullRows;
+    if (lastRow > *readRange->UpperLimit().GetRowIndex()) {
+        THROW_ERROR_EXCEPTION("HTTP range end is invalid");
+    }
+    readRange->UpperLimit().SetRowIndex(lastRow);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSkynetHttpHandler
@@ -91,10 +126,51 @@ public:
 
     void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
+        try {
+            DoHandleRequest(req, rsp);
+        } catch (const std::exception& ex) {
+            if (rsp->IsHeadersFlushed()) {
+                throw;
+            }
+
+            rsp->SetStatus(EStatusCode::InternalServerError);
+            WaitFor(rsp->WriteBody(TSharedRef::FromString(ex.what())))
+                .ThrowOnError();
+
+            throw;
+        }
+    }
+
+private:
+    void DoHandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp)
+    {
         TChunkId chunkId;
         TReadRange readRange;
         i64 startPartIndex;
+
         ParseRequest(req->GetUrl().RawQuery, &chunkId, &readRange, &startPartIndex);
+
+        std::optional<i64> byteLimit;
+        i64 skipPrefix = 0;
+        auto httpRange = NHttp::GetRange(req->GetHeaders());
+
+        YT_LOG_DEBUG("Received Skynet read request (ChunkId: %v, ReadRange: %v, StartPartIndex: %v, HttpRange: %v)",
+            chunkId,
+            readRange,
+            startPartIndex,
+            httpRange);
+
+        if (httpRange) {
+            AdjustReadRange(*httpRange, &readRange, &startPartIndex, &skipPrefix, &byteLimit);
+
+            YT_LOG_DEBUG("Adjusted read range (ChunkId: %v, ReadRange: %v, StartPartIndex: %v, HttpRange: %v, SkipPrefix: %v, ByteLimit: %v)",
+                chunkId,
+                readRange,
+                startPartIndex,
+                httpRange,
+                skipPrefix,
+                byteLimit);
+        }
 
         auto chunk = Bootstrap_->GetChunkStore()->GetChunkOrThrow(chunkId, AllMediaIndex);
 
@@ -151,29 +227,61 @@ public:
             readRange);
 
         auto apiReader = CreateApiFromSchemalessChunkReaderAdapter(std::move(schemalessReader));
-
         auto blobReader = NTableClient::CreateBlobTableReader(
             apiReader,
             TString("part_index"),
             TString("data"),
             startPartIndex);
 
-        rsp->SetStatus(EStatusCode::OK);
+        if (httpRange) {
+            rsp->SetStatus(EStatusCode::PartialContent);
+            NHttp::SetRange(rsp->GetHeaders(), *httpRange);
+        } else {
+            rsp->SetStatus(EStatusCode::OK);
+        }
 
         const auto& throttler = Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::SkynetOut);
+
+        i64 byteWritten = 0;
         while (true) {
             auto blob = WaitFor(blobReader->Read())
                 .ValueOrThrow();
 
             if (blob.Empty()) {
+                if (byteLimit && byteWritten != *byteLimit) {
+                    THROW_ERROR_EXCEPTION("Truncated file part")
+                        << TErrorAttribute("byte_limit", byteLimit)
+                        << TErrorAttribute("byte_written", byteWritten);
+                }
+
                 break;
+            }
+
+            if (skipPrefix > 0) {
+                auto skipLen = Min<i64>(skipPrefix, blob.Size());
+                blob = blob.Slice(skipLen, blob.Size());
+                skipPrefix -= skipLen;
+            }
+
+            if (blob.Empty()) {
+                continue;
             }
 
             WaitFor(throttler->Throttle(blob.Size()))
                 .ThrowOnError();
 
+            if (byteLimit) {
+                auto blobSize = Min<i64>(blob.Size(), *byteLimit - byteWritten);
+                blob = blob.Slice(0, blobSize);
+            }
+
+            byteWritten += blob.Size();
             WaitFor(rsp->Write(blob))
                 .ThrowOnError();
+            
+            if (byteLimit && byteWritten == *byteLimit) {
+                break;
+            }
         }
 
         WaitFor(rsp->Close())
