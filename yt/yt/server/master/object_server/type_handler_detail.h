@@ -212,7 +212,7 @@ public:
 
     std::unique_ptr<TObject> InstantiateObject(TObjectId id) override
     {
-        return TPoolAllocator::New<TObject>(id);
+        return TPoolAllocator::New<TImpl>(id);
     }
 
 protected:

@@ -42,12 +42,6 @@ public:
         return DoCreateObject(std::move(holder), attributes);
     }
 
-    std::unique_ptr<TObject> InstantiateObject(
-        TObjectId hintId) override
-    {
-        return TPoolAllocator::New<TChaosCell>(hintId);
-    }
-
 private:
     using TBase = TCellTypeHandlerBase<TChaosCell>;
 
