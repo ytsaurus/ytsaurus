@@ -443,6 +443,15 @@ default_config = {
     "detached": True,
 
     # Prefix for all relative paths.
+    #
+    # If prefix is set to "//prefix/path" then request like
+    #   yt.read_table("relative/path")
+    # translates to
+    #   yt.read_table("//prefix/path/relative/path")
+    # 
+    # WARNING: select_rows command ignores this configuration parameter for tables inside query.
+    # If there is such need a workaround can be used:
+    #   yt.select_rows("... from [{}] ...".format(client.TablePath("relative/path/to/table")))
     "prefix": None,
 
     # Default timeout of transactions that started manually.
