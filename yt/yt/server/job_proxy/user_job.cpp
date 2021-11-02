@@ -593,11 +593,13 @@ private:
     TFuture<void> ProcessFinished_;
     std::vector<TString> Environment_;
 
+    std::optional<TExecutorInfo> ExecutorInfo_;
+
     TPeriodicExecutorPtr MemoryWatchdogExecutor_;
     TPeriodicExecutorPtr BlockIOWatchdogExecutor_;
     TPeriodicExecutorPtr InputPipeBlinker_;
 
-    TPromise<void> ExecutorPreparedPromise_ = NewPromise<void>();
+    TPromise<TExecutorInfo> ExecutorPreparedPromise_ = NewPromise<TExecutorInfo>();
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, StatisticsLock_);
     TStatistics CustomStatistics_;
@@ -889,24 +891,63 @@ private:
         }
         return response;
     }
+                
+    std::vector<pid_t> GetPidsForInerrupt() const
+    {
+        std::vector<pid_t> pids;
+        if (UserJobSpec_.signal_root_process_only()) {
+            if (ExecutorInfo_) {
+                auto processPid = ExecutorInfo_->ProcessPid;
+                if (UserJobEnvironment_->PidNamespaceIsolationEnabled()) {
+                    if (auto pid = GetPidByChildNamespacePid(processPid)) {
+                        pids.push_back(*pid);
+                    }
+                } else {
+                    pids.push_back(processPid);
+                }
+            }
+            if (pids.empty()) {
+                if (auto pid = UserJobEnvironment_->GetJobRootPid()) {
+                    pids.push_back(*pid);
+                }
+            }
+        } else {
+            pids = UserJobEnvironment_->GetJobPids();
+        }
+        return pids;
+    }
 
     void Interrupt() override
     {
         ValidatePrepared();
 
         if (!InterruptionSignalSent_.exchange(true) && UserJobSpec_.has_interruption_signal()) {
+            auto signal = UserJobSpec_.interruption_signal();
             try {
-                auto pids = UserJobEnvironment_->GetJobPids();
-                auto signal = UserJobSpec_.interruption_signal();
+                if (UserJobEnvironment_->PidNamespaceIsolationEnabled() && UserJobSpec_.signal_root_process_only() && Config_->UsePortoKillForSignalling) {
+#ifdef _linux_
+                    if (auto signalNumber = FindSignalIdBySignalName(signal)) {
+                        UserJobEnvironment_->GetUserJobInstance()->Kill(*signalNumber);
+                    } else {
+                        THROW_ERROR_EXCEPTION("Unknown signal name")
+                            << TErrorAttribute("signal_name", signal);
+                    }
+#else
+                    THROW_ERROR_EXCEPTION("Signalling by porto is not supported at non-linux environment");
+#endif
+                } else {
+                    auto pids = GetPidsForInerrupt();
 
-                YT_LOG_DEBUG("Sending interruption signal to user job (SignalName: %v, UserJobPids: %v)",
-                    signal,
-                    pids);
+                    YT_LOG_DEBUG("Sending interruption signal to user job (SignalName: %v, UserJobPids: %v)",
+                        signal,
+                        pids);
 
-                auto signalerConfig = New<TSignalerConfig>();
-                signalerConfig->Pids = pids;
-                signalerConfig->SignalName = signal;
-                RunTool<TSignalerTool>(signalerConfig);
+                    auto signalerConfig = New<TSignalerConfig>();
+                    signalerConfig->Pids = pids;
+                    signalerConfig->SignalName = signal;
+                    RunTool<TSignalerTool>(signalerConfig);
+                    YT_LOG_DEBUG("Interruption signal successfully sent");
+                }
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Failed to send interruption signal to user job");
             }
@@ -992,7 +1033,8 @@ private:
         std::vector<TCallback<void()>>* actions,
         const TError& wrappingError)
     {
-        auto pipe = TNamedPipe::Create(CreateNamedPipePath(), 0666);
+        auto path = CreateNamedPipePath();
+        auto pipe = TNamedPipe::Create(path, 0666);
 
         for (auto jobDescriptor : jobDescriptors) {
             // Since inside job container we see another rootfs, we must adjust pipe path.
@@ -1006,6 +1048,7 @@ private:
             try {
                 auto input = CreateSyncAdapter(asyncInput);
                 PipeInputToOutput(input.get(), output, BufferSize);
+                YT_LOG_DEBUG("Data successfully read from pipe (Pipe: %v)", path);
             } catch (const std::exception& ex) {
                 auto error = wrappingError
                     << ex;
@@ -1409,7 +1452,7 @@ private:
             // If process has crashed before sending notification we stuck
             // on waiting executor promise, so set it here.
             // Do this after JobProxyError is set (if necessary).
-            ExecutorPreparedPromise_.TrySet(TError());
+            ExecutorPreparedPromise_.TrySet(TExecutorInfo{});
         });
 
         auto runActions = [&] (
@@ -1431,8 +1474,8 @@ private:
 
         // Wait until executor opens and dup named pipes.
         YT_LOG_DEBUG("Wait for signal from executor");
-        WaitFor(ExecutorPreparedPromise_.ToFuture())
-            .ThrowOnError();
+        ExecutorInfo_ = WaitFor(ExecutorPreparedPromise_.ToFuture())
+            .ValueOrThrow();
 
         MemoryWatchdogExecutor_->Start();
 

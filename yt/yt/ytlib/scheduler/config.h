@@ -987,6 +987,7 @@ public:
     bool ForceCoreDump;
 
     std::optional<TString> InterruptionSignal;
+    bool SignalRootProcessOnly;
     std::optional<int> RestartExitCode;
 
     bool EnableSetupCommands;

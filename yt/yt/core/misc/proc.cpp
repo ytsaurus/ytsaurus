@@ -1,5 +1,4 @@
 #include "proc.h"
-//#include "process.h"
 #include "string.h"
 
 #include <yt/yt/core/logging/log.h>
@@ -94,6 +93,25 @@ std::optional<int> GetParentPid(int pid)
     return {};
 }
 
+std::vector<int> GetNamespacePids(int pid)
+{
+    TFileInput in(Format("/proc/%v/status", pid));
+    TString line;
+    while (in.ReadLine(line)) {
+        const TString nstgidMarker = "NStgid:\t";
+        if (line.StartsWith(nstgidMarker)) {
+            line = line.substr(nstgidMarker.size());
+            auto pidFields = SplitString(line, " ");
+            std::vector<int> pids;
+            for (const auto& field : pidFields) {
+                pids.push_back(FromString<int>(field));
+            }
+            return pids;
+        }
+    }
+    return {};
+}
+
 std::vector<int> ListPids()
 {
 #ifdef _linux_
@@ -118,6 +136,87 @@ std::vector<int> ListPids()
     return pids;
 #else
     return {};
+#endif
+}
+
+std::optional<int> GetPidByChildNamespacePid(int childNamespacePid)
+{
+#ifdef _linux_
+    std::vector<int> result;
+    std::map<int, int> parents;
+
+    DIR* dirStream = ::opendir("/proc");
+    YT_VERIFY(dirStream != nullptr);
+
+    struct dirent* ep;
+    while ((ep = ::readdir(dirStream)) != nullptr) {
+        const char* begin = ep->d_name;
+        char* end = nullptr;
+        int pid = static_cast<int>(strtol(begin, &end, 10));
+        if (begin == end) {
+            // Not a pid.
+            continue;
+        }
+
+        auto path = Format("/proc/%v/status", pid);
+        try {
+            auto namespacePids = GetNamespacePids(pid);
+            if (namespacePids.size() >= 2 && namespacePids[1] == childNamespacePid) {
+                return pid;
+            }
+        } catch(...) {
+            // Assume that the process has already completed.
+            continue;
+        }
+    }
+
+    return std::nullopt;
+#else
+    Y_UNUSED(childNamespacePid);
+    return {};
+#endif
+}
+
+std::vector<int> GetPidsByUid(int uid)
+{
+#ifdef _linux_
+    std::vector<int> result;
+
+    DIR* dirStream = ::opendir("/proc");
+    YT_VERIFY(dirStream != nullptr);
+
+    struct dirent* ep;
+    while ((ep = ::readdir(dirStream)) != nullptr) {
+        const char* begin = ep->d_name;
+        char* end = nullptr;
+        int pid = static_cast<int>(strtol(begin, &end, 10));
+        if (begin == end) {
+            // Not a pid.
+            continue;
+        }
+
+        auto path = Format("/proc/%v", pid);
+        struct stat buf;
+        int res = ::stat(path.data(), &buf);
+
+        if (res == 0) {
+            if (static_cast<int>(buf.st_uid) == uid || uid == -1) {
+                result.push_back(pid);
+            }
+        } else {
+            // Assume that the process has already completed.
+            auto errno_ = errno;
+            YT_LOG_DEBUG(TError::FromSystem(), "Failed to get UID for PID %v: stat failed",
+                pid);
+            YT_VERIFY(errno_ == ENOENT || errno_ == ENOTDIR);
+        }
+    }
+
+    YT_VERIFY(::closedir(dirStream) == 0);
+    return result;
+#else
+    Y_UNUSED(uid);
+    return std::vector<int>();
 #endif
 }
 
@@ -173,49 +272,6 @@ std::vector<int> GetPidsUnderParent(int targetPid)
 #else
     Y_UNUSED(targetPid);
     return {};
-#endif
-}
-
-std::vector<int> GetPidsByUid(int uid)
-{
-#ifdef _linux_
-    std::vector<int> result;
-
-    DIR* dirStream = ::opendir("/proc");
-    YT_VERIFY(dirStream != nullptr);
-
-    struct dirent* ep;
-    while ((ep = ::readdir(dirStream)) != nullptr) {
-        const char* begin = ep->d_name;
-        char* end = nullptr;
-        int pid = static_cast<int>(strtol(begin, &end, 10));
-        if (begin == end) {
-            // Not a pid.
-            continue;
-        }
-
-        auto path = Format("/proc/%v", pid);
-        struct stat buf;
-        int res = ::stat(path.data(), &buf);
-
-        if (res == 0) {
-            if (static_cast<int>(buf.st_uid) == uid || uid == -1) {
-                result.push_back(pid);
-            }
-        } else {
-            // Assume that the process has already completed.
-            auto errno_ = errno;
-            YT_LOG_DEBUG(TError::FromSystem(), "Failed to get UID for PID %v: stat failed",
-                pid);
-            YT_VERIFY(errno_ == ENOENT || errno_ == ENOTDIR);
-        }
-    }
-
-    YT_VERIFY(::closedir(dirStream) == 0);
-    return result;
-#else
-    Y_UNUSED(uid);
-    return std::vector<int>();
 #endif
 }
 

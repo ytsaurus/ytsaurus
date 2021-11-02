@@ -3,7 +3,9 @@ package NYT.NUserJobSynchronizerClient.NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqExecutorPrepared
-{ }
+{
+    optional int64 pid = 1;
+}
 
 message TRspExecutorPrepared
 { }

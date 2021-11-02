@@ -774,6 +774,8 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("interruption_signal", &TThis::InterruptionSignal)
         .Default();
+    registrar.Parameter("signal_root_process_only", &TThis::SignalRootProcessOnly)
+        .Default(false);
     registrar.Parameter("restart_exit_code", &TThis::RestartExitCode)
         .Default();
     registrar.Parameter("enable_gpu_layers", &TThis::EnableGpuLayers)
