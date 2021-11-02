@@ -393,7 +393,6 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     @authors("ignat")
     def test_waiting_job_timeout(self):
-        # Pool tree misconfiguration
         set("//sys/pool_trees/default/@config/waiting_job_timeout", 10000)
         set("//sys/pool_trees/default/@config/job_interrupt_timeout", 5000)
 

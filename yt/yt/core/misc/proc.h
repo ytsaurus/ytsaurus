@@ -33,6 +33,7 @@ bool IsSystemError(const TError& error);
 std::vector<int> ListPids();
 std::vector<int> GetPidsByUid(int uid = -1);
 std::vector<int> GetPidsUnderParent(int targetPid);
+std::optional<int> GetPidByChildNamespacePid(int childNamespacePid);
 
 //! Gets the resident set size of a process.
 /*!

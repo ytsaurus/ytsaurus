@@ -37,6 +37,7 @@ public:
     void NotifyExecutorPrepared() override
     {
         auto req = ControlServiceProxy_->ExecutorPrepared();
+        req->set_pid(::getpid());
         WaitFor(req->Invoke())
             .ThrowOnError();
     }

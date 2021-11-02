@@ -293,71 +293,6 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-    @authors("max42")
-    def test_non_interruptible(self):
-        op = vanilla(
-            track=False,
-            spec={
-                "tasks": {
-                    "tasks_a": {
-                        "job_count": 1,
-                        "command": with_breakpoint("BREAKPOINT ; exit 0"),
-                    }
-                },
-                "fail_on_job_restart": True,
-            },
-        )
-        wait_breakpoint()
-        jobs = list(op.get_running_jobs())
-        assert len(jobs) == 1
-        job_id = jobs[0]
-        with pytest.raises(YtError):
-            interrupt_job(job_id)
-
-    @authors("ignat")
-    def test_interrupts(self):
-        def interrupt():
-            jobs = list(op.get_running_jobs())
-            assert len(jobs) == 1
-            job_id = jobs[0]
-            try:
-                interrupt_job(job_id)
-            except YtError as e:
-                # Sometimes job proxy may finish before it manages to send Interrupt reply.
-                # This is not an error.
-                socket_was_closed_error_code = 100
-                assert e.contains_code(socket_was_closed_error_code)
-
-        exit_code = 17
-        command = """(trap "exit {}" SIGINT; BREAKPOINT; trap "exit 0" SIGINT; sleep 100)""".format(exit_code)
-
-        op = vanilla(
-            track=False,
-            spec={
-                "tasks": {
-                    "tasks_a": {
-                        "job_count": 1,
-                        "command": with_breakpoint(command),
-                        "interruption_signal": "SIGINT",
-                        "restart_exit_code": exit_code,
-                    }
-                },
-            },
-        )
-        wait_breakpoint()
-
-        interrupt()
-
-        wait(lambda: op.get_job_count("lost") == 1)
-        wait(lambda: op.get_job_count("running") == 1)
-
-        release_breakpoint()
-        time.sleep(5)
-        interrupt()
-
-        wait(lambda: op.get_job_count("completed") == 1 and op.get_job_count("lost") == 1)
-        op.track()
-
     # TODO(max42): add lambda job: signal_job(job, "SIGKILL") when YT-8243 is fixed.
     @authors("max42")
     @pytest.mark.parametrize("action", [abort_job])
@@ -587,8 +522,125 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             )
             op.track()
 
-##################################################################
-
 
 class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+
+##################################################################
+
+class TestSchedulerVanillaInterrupts(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    def _interrupt(self, op):
+        jobs = list(op.get_running_jobs())
+        assert len(jobs) == 1
+        job_id = jobs[0]
+        try:
+            interrupt_job(job_id, interrupt_timeout=600000)
+        except YtError as e:
+            # Sometimes job proxy may finish before it manages to send Interrupt reply.
+            # This is not an error.
+            socket_was_closed_error_code = 100
+            assert e.contains_code(socket_was_closed_error_code)
+        return job_id
+
+    @authors("ignat")
+    @pytest.mark.parametrize("signal_name", ["SIGINT", "SIGUSR1"])
+    def test_interrupt_root_process_only(self, signal_name):
+        exit_code = 17
+        command = """
+bash -c 'trap "echo 'YYY'>&2; exit 0" {signal_name}; sleep 1000' &
+child_pid="$!"
+
+trap 'echo "XXX">&2; sleep 1; pkill -P $child_pid; kill $child_pid; exit {exit_code}' {signal_name};
+
+BREAKPOINT
+
+wait $child_pid
+""".format(exit_code=exit_code, signal_name=signal_name)
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "tasks_a": {
+                        "job_count": 1,
+                        "command": with_breakpoint(command),
+                        "interruption_signal": signal_name,
+                        "signal_root_process_only": True,
+                        "restart_exit_code": exit_code,
+                    }
+                },
+                "max_failed_job_count": 1,
+            },
+        )
+        wait_breakpoint()
+        release_breakpoint()
+
+        interrupted_job_id = self._interrupt(op)
+
+        wait(lambda: op.get_job_count("lost") == 1)
+        wait(lambda: op.get_job_count("running") == 1)
+
+        assert "XXX" in op.read_stderr(interrupted_job_id)
+
+    @authors("max42")
+    def test_non_interruptible(self):
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "tasks_a": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT ; exit 0"),
+                    }
+                },
+                "fail_on_job_restart": True,
+            },
+        )
+        wait_breakpoint()
+        jobs = list(op.get_running_jobs())
+        assert len(jobs) == 1
+        job_id = jobs[0]
+        with pytest.raises(YtError):
+            interrupt_job(job_id)
+
+    @authors("ignat")
+    def test_successful_interrupts(self):
+
+        exit_code = 17
+        command = """(trap "exit {}" SIGINT; BREAKPOINT; trap "exit 0" SIGINT; sleep 100)""".format(exit_code)
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "tasks_a": {
+                        "job_count": 1,
+                        "command": with_breakpoint(command),
+                        "interruption_signal": "SIGINT",
+                        "restart_exit_code": exit_code,
+                    }
+                },
+            },
+        )
+        wait_breakpoint()
+
+        self._interrupt(op)
+
+        wait(lambda: op.get_job_count("lost") == 1)
+        wait(lambda: op.get_job_count("running") == 1)
+
+        release_breakpoint()
+        time.sleep(5)
+        self._interrupt(op)
+
+        wait(lambda: op.get_job_count("completed") == 1 and op.get_job_count("lost") == 1)
+        op.track()
+
+
+class TestSchedulerVanillaInterruptsPorto(TestSchedulerVanillaInterrupts):
+    USE_PORTO = True

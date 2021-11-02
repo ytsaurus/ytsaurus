@@ -1,4 +1,5 @@
 #include "job_proxy.h"
+#include "user_job_synchronizer_service.h"
 
 #include <yt/yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
 #include <yt/yt/server/lib/user_job_synchronizer_client/user_job_synchronizer_proxy.h>
@@ -27,7 +28,7 @@ class TUserJobSynchronizerService
 public:
     TUserJobSynchronizerService(
         const NLogging::TLogger& logger,
-        TPromise<void> executorPreparedPromise,
+        TPromise<TExecutorInfo> executorPreparedPromise,
         IInvokerPtr controlInvoker)
         : TServiceBase(
             controlInvoker,
@@ -40,11 +41,10 @@ public:
 
 private:
     const IUserJobSynchronizerClientPtr JobControl_;
-    TPromise<void> ExecutorPreparedPromise_;
+    TPromise<TExecutorInfo> ExecutorPreparedPromise_;
 
     DECLARE_RPC_SERVICE_METHOD(NUserJobSynchronizerClient::NProto, ExecutorPrepared)
     {
-        Y_UNUSED(request);
         Y_UNUSED(response);
 
         // YT-10547: This is a workaround for Porto container resurrection on core command.
@@ -53,7 +53,7 @@ private:
             return;
         }
 
-        ExecutorPreparedPromise_.TrySet(TError());
+        ExecutorPreparedPromise_.TrySet(TExecutorInfo{.ProcessPid = static_cast<pid_t>(request->pid())});
         context->Reply();
     }
 };
@@ -62,7 +62,7 @@ private:
 
 NRpc::IServicePtr CreateUserJobSynchronizerService(
     const NLogging::TLogger& logger,
-    TPromise<void> executorPreparedPromise,
+    TPromise<TExecutorInfo> executorPreparedPromise,
     IInvokerPtr controlInvoker)
 {
     return New<TUserJobSynchronizerService>(logger, std::move(executorPreparedPromise), controlInvoker);

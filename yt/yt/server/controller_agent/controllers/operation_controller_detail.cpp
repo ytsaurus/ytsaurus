@@ -8969,6 +8969,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
     if (jobSpecConfig->InterruptionSignal) {
         jobSpec->set_interruption_signal(*jobSpecConfig->InterruptionSignal);
+        jobSpec->set_signal_root_process_only(jobSpecConfig->SignalRootProcessOnly);
     }
     if (jobSpecConfig->RestartExitCode) {
         jobSpec->set_restart_exit_code(*jobSpecConfig->RestartExitCode);

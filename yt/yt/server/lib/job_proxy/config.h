@@ -228,6 +228,9 @@ public:
     //! Compat option for urgent disable of job shell audit.
     bool EnableJobShellSeccopm;
 
+    //! Enabled using porto kill for signalling instead of manual discovery of process pid.
+    bool UsePortoKillForSignalling;
+
     TJobProxyConfig()
     {
         RegisterParameter("slot_index", SlotIndex);
@@ -313,6 +316,9 @@ public:
         RegisterParameter("enable_job_shell_seccomp", EnableJobShellSeccopm)
             .Default(true);
 
+        RegisterParameter("use_porto_kill_for_signalling", UsePortoKillForSignalling)
+            .Default(false);
+
         RegisterPreprocessor([&] {
             SolomonExporter->EnableSelfProfiling = false;
             SolomonExporter->WindowSize = 1;
@@ -352,6 +358,8 @@ public:
 
     bool EnableJobShellSeccopm;
 
+    bool UsePortoKillForSignalling;
+
     TJobProxyDynamicConfig()
     {
         RegisterParameter("jaeger", Jaeger)
@@ -359,6 +367,9 @@ public:
 
         RegisterParameter("enable_job_shell_seccomp", EnableJobShellSeccopm)
             .Default(true);
+
+        RegisterParameter("use_porto_kill_for_signalling", UsePortoKillForSignalling)
+            .Default(false);
     }
 };
 

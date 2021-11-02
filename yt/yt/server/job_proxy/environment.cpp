@@ -439,6 +439,20 @@ public:
         }
     }
 
+    std::optional<pid_t> GetJobRootPid() const override
+    {
+        if (auto instance = GetUserJobInstance()) {
+            return instance->GetPid();
+        } else {
+            return std::nullopt;
+        }
+    }
+
+    bool PidNamespaceIsolationEnabled() const override
+    {
+        return true;
+    }
+
 private:
     const TGuid JobId_;
     const TPortoJobEnvironmentConfigPtr Config_;
@@ -584,6 +598,15 @@ public:
         return nullptr;
     }
 
+    std::optional<pid_t> GetJobRootPid() const override
+    {
+        if (auto process = Process_.Load()) {
+            return process->GetProcessId();
+        } else {
+            return std::nullopt;
+        }
+    }
+
     std::vector<pid_t> GetJobPids() const override
     {
         if (auto process = Process_.Load()) {
@@ -592,6 +615,11 @@ public:
         }
         
         return {};
+    }
+
+    bool PidNamespaceIsolationEnabled() const override
+    {
+        return false;
     }
 
     //! Returns the list of environment-specific environment variables in key=value format.

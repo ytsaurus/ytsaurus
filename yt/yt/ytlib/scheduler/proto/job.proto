@@ -168,6 +168,8 @@ message TUserJobSpec
     optional int64 prepare_time_limit = 42;
 
     optional string interruption_signal = 43;
+    
+    optional bool signal_root_process_only = 44 [default = false];
 
     optional bool enable_gpu_layers = 45 [default = true];
 
