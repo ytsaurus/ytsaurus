@@ -78,7 +78,7 @@ class TRowBuilder
 public:
     explicit TRowBuilder(TRowQueue* queue);
 
-    void OnStringScalar(const TStringBuf& value) override;
+    void OnStringScalar(TStringBuf value) override;
     void OnInt64Scalar(i64 value) override;
     void OnUint64Scalar(ui64 value) override;
     void OnDoubleScalar(double value) override;
@@ -88,7 +88,7 @@ public:
     void OnListItem() override;
     void OnEndList() override;
     void OnBeginMap() override;
-    void OnKeyedItem(const TStringBuf& key) override;
+    void OnKeyedItem(TStringBuf key) override;
     void OnEndMap() override;
     void OnBeginAttributes() override;
     void OnEndAttributes() override;
@@ -112,7 +112,7 @@ TRowBuilder::TRowBuilder(TRowQueue* queue)
     : RowQueue_(queue)
 { }
 
-void TRowBuilder::OnStringScalar(const TStringBuf& value)
+void TRowBuilder::OnStringScalar(TStringBuf value)
 {
     Row_.Size += sizeof(TNode) + sizeof(TString) + value.size();
     Builder_->OnStringScalar(value);
@@ -175,7 +175,7 @@ void TRowBuilder::OnBeginMap()
     Builder_->OnBeginMap();
 }
 
-void TRowBuilder::OnKeyedItem(const TStringBuf& key)
+void TRowBuilder::OnKeyedItem(TStringBuf key)
 {
     Row_.Size += sizeof(TString) + key.size();
     Builder_->OnKeyedItem(key);
