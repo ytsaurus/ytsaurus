@@ -296,11 +296,15 @@ protected:
 
         TStringOutput output(buffer);
         TSaveContext saveContext;
+
+        auto currentReign = GetCurrentReign();
+        saveContext.SetVersion(currentReign);
         saveContext.SetOutput(&output);
         snapshot.second.Run(saveContext);
 
         TStringInput input(buffer);
         TLoadContext loadContext;
+        loadContext.SetVersion(currentReign);
         loadContext.SetInput(&input);
 
         CreateDynamicStore();

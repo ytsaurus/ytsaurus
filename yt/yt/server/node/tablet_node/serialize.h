@@ -42,6 +42,7 @@ DEFINE_ENUM(ETabletReign,
     ((PersistChunkTimestamp)              (100203)) // ifsmirnov
     ((SchemaIdUponMount)                  (100204)) // akozhikhov
     ((VersionedWriteToOrderedTablet)      (100205)) // gritukan
+    ((SaveReadLockTimestamps)             (100206)) // lukyan
 );
 
 ////////////////////////////////////////////////////////////////////////////////
