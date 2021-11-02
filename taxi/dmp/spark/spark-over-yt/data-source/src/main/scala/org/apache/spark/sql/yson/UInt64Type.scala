@@ -5,9 +5,7 @@ import org.apache.spark.sql.functions.udf
 import org.apache.spark.sql.types._
 import org.json4s.JsonAST.JValue
 import org.json4s.JsonDSL._
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.{IndexedDataType, YsonDecoder}
 
-import java.math.BigInteger
 
 class UInt64Type extends UserDefinedType[UInt64Long] with ValidatedCastType {
   override def pyUDT: String = "spyt.types.UInt64Type"
