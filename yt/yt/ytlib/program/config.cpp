@@ -78,21 +78,21 @@ TDeprecatedSingletonsDynamicConfig::TDeprecatedSingletonsDynamicConfig()
 
 void TSingletonsDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("spinlock_hiccup_threshold", &TSingletonsDynamicConfig::SpinlockHiccupThreshold)
+    registrar.Parameter("spinlock_hiccup_threshold", &TThis::SpinlockHiccupThreshold)
         .Optional();
-    registrar.Parameter("yt_alloc", &TSingletonsDynamicConfig::YTAlloc)
+    registrar.Parameter("yt_alloc", &TThis::YTAlloc)
         .Optional();
-    registrar.Parameter("tcp_dispatcher", &TSingletonsDynamicConfig::TcpDispatcher)
+    registrar.Parameter("tcp_dispatcher", &TThis::TcpDispatcher)
         .DefaultNew();
-    registrar.Parameter("rpc_dispatcher", &TSingletonsDynamicConfig::RpcDispatcher)
+    registrar.Parameter("rpc_dispatcher", &TThis::RpcDispatcher)
         .DefaultNew();
-    registrar.Parameter("chunk_client_dispatcher", &TSingletonsDynamicConfig::ChunkClientDispatcher)
+    registrar.Parameter("chunk_client_dispatcher", &TThis::ChunkClientDispatcher)
         .DefaultNew();
-    registrar.Parameter("logging", &TSingletonsDynamicConfig::Logging)
+    registrar.Parameter("logging", &TThis::Logging)
         .DefaultNew();
-    registrar.Parameter("jaeger", &TSingletonsDynamicConfig::Jaeger)
+    registrar.Parameter("jaeger", &TThis::Jaeger)
         .DefaultNew();
-    registrar.Parameter("rpc", &TSingletonsDynamicConfig::Rpc)
+    registrar.Parameter("rpc", &TThis::Rpc)
         .DefaultNew();
 }
 

@@ -468,7 +468,7 @@ public:
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("cpu_limit", &TRemoteCopyOperationOptions::CpuLimit)
+        registrar.Parameter("cpu_limit", &TThis::CpuLimit)
             .Default(NScheduler::TCpuResource(0.1));
     }
 
@@ -494,9 +494,9 @@ public:
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("max_task_count", &TVanillaOperationOptions::MaxTaskCount)
+        registrar.Parameter("max_task_count", &TThis::MaxTaskCount)
             .Default(100);
-        registrar.Parameter("max_total_job_count", &TVanillaOperationOptions::MaxTotalJobCount)
+        registrar.Parameter("max_total_job_count", &TThis::MaxTotalJobCount)
             .Default(100 * 1000);
     }
 
@@ -525,14 +525,14 @@ public:
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("limit", &TZombieOperationOrchidsConfig::Limit)
+        registrar.Parameter("limit", &TThis::Limit)
             .Default(10000)
             .GreaterThanOrEqual(0);
 
-        registrar.Parameter("clean_period", &TZombieOperationOrchidsConfig::CleanPeriod)
+        registrar.Parameter("clean_period", &TThis::CleanPeriod)
             .Default(TDuration::Minutes(1));
 
-        registrar.Parameter("enable", &TZombieOperationOrchidsConfig::Enable)
+        registrar.Parameter("enable", &TThis::Enable)
             .Default(true);
     }
 
