@@ -3,6 +3,7 @@ import os
 import sys
 from contextlib import contextmanager
 
+from py4j.protocol import Py4JError
 from yt.wrapper import YtClient, get
 from yt.wrapper.http_helpers import get_token
 
@@ -308,6 +309,7 @@ def connect(num_executors=5,
 
     return spark
 
+
 def _shs_url(discovery_path, spark):
     discovery_path = discovery_path or \
                      spark.conf.get("spark.yt.master.discoveryPath", default=None) or \
@@ -333,7 +335,9 @@ def cache_exception(exc):
     if exc is None:
         return None
     else:
-        return CachedPy4JError(exc)
+        cached = CachedPy4JError(exc)
+        cached.with_traceback(exc.__traceback__)
+        return cached
 
 
 def stop(spark, exception=None):
@@ -342,28 +346,30 @@ def stop(spark, exception=None):
         logger.error("Shutdown SparkSession after exception: {}".format(exception))
     exception_c = cache_exception(exception)
 
-    def stop_fault_handler(e):
-        e1 = cache_exception(e)
-        _try_with_safe_finally(
+    def stop_fault_handler(e1):
+        return _try_with_safe_finally(
             lambda: _shutdown_jvm(spark) if is_client_mode else None,
             lambda e2: shutdown_jfv_fault_handler(e1, e2)
         )
 
-    def shutdown_jfv_fault_handler(e1, e):
-        e2 = cache_exception(e)
-        _try_with_safe_finally(
+    def shutdown_jfv_fault_handler(e1, e2):
+        return _try_with_safe_finally(
             lambda: Environment.unset_python_path(),
-            lambda e3: unset_python_path_fault_handler(e1, e2, e3)
+            lambda e3: get_first_exception(exception_c, e1, e2, e3)
         )
 
-    def unset_python_path_fault_handler(e1, e2, e):
-        e3 = cache_exception(e)
-        _raise_first(exception_c, e1, e2, e3)
+    def get_first_exception(*exceptions):
+        for e in exceptions:
+            if e:
+                return e
+        return None
 
-    _try_with_safe_finally(
+    main_exception = _try_with_safe_finally(
         lambda: spark.stop(),
-        stop_fault_handler
+        lambda e1: stop_fault_handler(e1)
     )
+    if main_exception:
+        raise main_exception
 
 
 def is_stopped(spark):
@@ -393,7 +399,7 @@ def _try_with_safe_finally(try_func, finally_func):
         logger.error("Unexpected error {}".format(e.message))
         exception = e
     finally:
-        finally_func(exception)
+        return finally_func(cache_exception(exception))
 
 
 def _raise_first(*exceptions):
