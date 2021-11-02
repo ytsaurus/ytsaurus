@@ -233,7 +233,6 @@
     XX(MaxSnapshotId, max_snapshot_id) \
     XX(MaxTabletSize, max_tablet_size) \
     XX(MaxTimestamp, max_timestamp) \
-    XX(MaxEventLogOperationBatchSize, max_event_log_operation_batch_size) \
     XX(MD5, md5) \
     XX(Media, media) \
     XX(MemberCount, member_count) \
