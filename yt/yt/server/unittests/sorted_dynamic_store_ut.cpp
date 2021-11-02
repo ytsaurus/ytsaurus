@@ -276,7 +276,6 @@ protected:
                     list = list.GetSuccessor();
                 }
                 builder.AppendString(" ]");
-
             };
 
             for (int i = 0; i < columnLockCount; ++i) {
@@ -1077,6 +1076,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ReadWriteConflict2)
     EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction1.get(), BuildRow("key=1;c=test2"), true));
 
     auto transaction3 = StartTransaction();
+    auto transaction4 = StartTransaction();
 
     PrepareTransaction(transaction2.get());
     PrepareRow(transaction2.get(), lockedRow);
@@ -1084,6 +1084,10 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ReadWriteConflict2)
     CommitRow(transaction2.get(), lockedRow);
 
     EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction3.get(), BuildRow("key=1;c=test3"), true));
+
+    ReserializeStore();
+
+    EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction4.get(), BuildRow("key=1;c=test4"), true));
 }
 
 TEST_F(TSingleLockSortedDynamicStoreTest, ReadNotBlocked)
@@ -1343,7 +1347,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, SerializeSnapshot1)
 
     EndReserializeStore(snapshot);
 
-    EXPECT_EQ(0, Store_->GetRowCount());
+    EXPECT_EQ(1, Store_->GetRowCount());
     EXPECT_EQ(0, Store_->GetValueCount());
     EXPECT_EQ(MaxTimestamp, Store_->GetMinTimestamp());
     EXPECT_EQ(MinTimestamp, Store_->GetMaxTimestamp());
@@ -1356,7 +1360,12 @@ TEST_F(TSingleLockSortedDynamicStoreTest, SerializeSnapshot2)
     EXPECT_EQ(1, Store_->GetRowCount());
 
     auto snapshot = BeginReserializeStore();
-    auto dump = DumpStore();
+
+    TString expectedDump =
+        Format("RowCount=1 ValueCount=1 MinTimestamp=%v MaxTimestamp=%v\n", ts1, ts1) +
+        Format("[ 0#1 ] -> [ 1#1#1@%x] wts#0: [ %v ] dts: [ ]\n", ts1, ts1);
+
+    EXPECT_EQ(expectedDump, DumpStore());
 
     WriteRow(BuildRow("key=2;a=2", false));
 
@@ -1364,9 +1373,16 @@ TEST_F(TSingleLockSortedDynamicStoreTest, SerializeSnapshot2)
     EXPECT_EQ(2, Store_->GetValueCount());
 
     EndReserializeStore(snapshot);
-    EXPECT_EQ(dump, DumpStore());
 
-    EXPECT_EQ(1, Store_->GetRowCount());
+    // Values written after serialization are not saved and restored.
+    TString expectedDump2 =
+        Format("RowCount=2 ValueCount=1 MinTimestamp=%v MaxTimestamp=%v\n", ts1, ts1) +
+        Format("[ 0#1 ] -> [ 1#1#1@%x] wts#0: [ %v ] dts: [ ]\n", ts1, ts1) +
+        "[ 0#2 ] -> [] wts#0: [ ] dts: [ ]\n";
+
+    EXPECT_EQ(expectedDump2, DumpStore());
+
+    EXPECT_EQ(2, Store_->GetRowCount());
     EXPECT_EQ(1, Store_->GetValueCount());
     EXPECT_EQ(ts1, Store_->GetMinTimestamp());
     EXPECT_EQ(ts1, Store_->GetMaxTimestamp());
