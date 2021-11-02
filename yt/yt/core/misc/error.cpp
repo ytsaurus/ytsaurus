@@ -1130,7 +1130,7 @@ TError operator << (TError error, TError&& innerError)
 TError operator << (TError error, const std::vector<TError>& innerErrors)
 {
     error.MutableInnerErrors()->insert(
-        error.InnerErrors().end(),
+        error.MutableInnerErrors()->end(),
         innerErrors.begin(),
         innerErrors.end());
     return error;
