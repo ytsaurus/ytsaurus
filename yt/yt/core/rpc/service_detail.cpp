@@ -627,13 +627,6 @@ private:
         Service_->IncrementActiveRequestCount();
         ActiveRequestCountIncremented_ = true;
 
-        if (Service_->IsStopped()) {
-            Reply(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Service is stopped"));
-            return;
-        }
-
         BuildGlobalRequestInfo();
 
         if (IsRegistrable()) {
@@ -768,6 +761,10 @@ private:
     void DoGuardedRun(const TLiteHandler& handler)
     {
         const auto& descriptor = RuntimeInfo_->Descriptor;
+
+        if (Service_->IsStopped()) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Service is stopped");
+        }
 
         if (!descriptor.System) {
             Service_->BeforeInvoke(this);
@@ -1369,7 +1366,7 @@ TServiceBase::TServiceBase(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Discover)
         .SetInvoker(TDispatcher::Get()->GetHeavyInvoker())
         .SetSystem(true));
-    
+
     Profiler_.AddFuncGauge("/authentication_queue_size", MakeStrong(this), [=] {
         return AuthenticationQueueSize_.load(std::memory_order_relaxed);
     });
@@ -1918,7 +1915,7 @@ TServiceBase::TMethodPerformanceCounters* TServiceBase::GetMethodPerformanceCoun
     const TRuntimeMethodInfo::TNonowningPerformanceCountersKey& key)
 {
     auto [userTag, requestQueue] = key;
-    
+
     // Fast path.
     if (userTag == RootUserName && requestQueue == &runtimeInfo->DefaultRequestQueue) {
         return runtimeInfo->RootPerformanceCounters.Get();
