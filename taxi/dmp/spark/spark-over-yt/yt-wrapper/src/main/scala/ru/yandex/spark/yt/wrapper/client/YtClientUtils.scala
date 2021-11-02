@@ -1,7 +1,6 @@
 package ru.yandex.spark.yt.wrapper.client
 
 
-import java.util.{ArrayList => JArrayList}
 import com.google.common.net.HostAndPort
 import io.netty.channel.nio.NioEventLoopGroup
 import org.slf4j.LoggerFactory
@@ -13,6 +12,7 @@ import ru.yandex.yt.ytclient.proxy.{CompoundClient, YtClient, YtCluster}
 import ru.yandex.yt.ytclient.rpc.RpcOptions
 
 import java.util.concurrent.ThreadFactory
+import java.util.{ArrayList => JArrayList}
 import scala.concurrent.duration.Duration
 import scala.util.{Failure, Success}
 
@@ -43,7 +43,6 @@ trait YtClientUtils {
     try {
       val rpcOptions = new RpcOptions()
       rpcOptions.setTimeouts(timeout)
-      rpcOptions.setNewDiscoveryServiceEnabled(true)
       rpcOptions.setDiscoveryThreadFactory(daemonThreadFactory)
 
       val yt = client(connector, rpcOptions)
