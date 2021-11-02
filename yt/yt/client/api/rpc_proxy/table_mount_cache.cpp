@@ -36,10 +36,8 @@ public:
     { }
 
 private:
-    TFuture<TTableMountInfoPtr> DoGet(const TTableMountCacheKey& key, bool /*isPeriodicUpdate*/) noexcept override
+    TFuture<TTableMountInfoPtr> DoGet(const NYPath::TYPath& path, bool /*isPeriodicUpdate*/) noexcept override
     {
-        const auto& path = key.Path;
-
         YT_LOG_DEBUG("Requesting table mount info (Path: %v)",
             path);
 
