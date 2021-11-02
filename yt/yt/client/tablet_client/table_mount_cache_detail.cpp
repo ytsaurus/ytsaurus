@@ -135,42 +135,6 @@ void TTabletInfoCache::ProcessNextGCQueueEntry()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableMountCacheKey::TTableMountCacheKey(
-    const NYPath::TYPath& path,
-    NHydra::TRevision refreshPrimaryRevision,
-    NHydra::TRevision refreshSecondaryRevision)
-    : Path(path)
-    , RefreshPrimaryRevision(refreshPrimaryRevision)
-    , RefreshSecondaryRevision(refreshSecondaryRevision)
-{ }
-
-TTableMountCacheKey::operator size_t() const
-{
-    size_t result = 0;
-    HashCombine(result, Path);
-    return result;
-}
-
-bool TTableMountCacheKey::operator == (const TTableMountCacheKey& other) const
-{
-    return Path == other.Path;
-}
-
-void FormatValue(TStringBuilderBase* builder, const TTableMountCacheKey& key, TStringBuf /*spec*/)
-{
-    builder->AppendFormat("{%v %v %v}",
-        key.Path,
-        key.RefreshPrimaryRevision,
-        key.RefreshSecondaryRevision);
-}
-
-TString ToString(const TTableMountCacheKey& key)
-{
-    return ToStringViaBuilder(key);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TTableMountCacheBase::TTableMountCacheBase(
     TTableMountCacheConfigPtr config,
     NLogging::TLogger logger,

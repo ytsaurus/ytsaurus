@@ -83,10 +83,36 @@ public:
 
 private:
     TFuture<TTableMountInfoPtr> DoGet(
-        const TTableMountCacheKey& key,
-        bool isPeriodicUpdate) noexcept override
+        const TYPath& /*key*/,
+        bool /*isPeriodicUpdate*/) noexcept override
     {
-        auto session = New<TGetSession>(this, Connection_, key, isPeriodicUpdate, Logger);
+        YT_UNIMPLEMENTED();
+    }
+
+    TFuture<TTableMountInfoPtr> DoGet(
+        const TYPath& key,
+        const TErrorOr<TTableMountInfoPtr>* oldValue,
+        EUpdateReason reason) noexcept override
+    {
+        NHydra::TRevision updatePrimaryRevision = NHydra::NullRevision;
+        NHydra::TRevision updateSecondaryRevision = NHydra::NullRevision;
+
+        if (reason == EUpdateReason::ForcedUpdate && oldValue && oldValue->IsOK()) {
+            const auto& oldMountInfo = oldValue->Value();
+
+            updatePrimaryRevision = oldMountInfo->PrimaryRevision;
+            updateSecondaryRevision = oldMountInfo->SecondaryRevision;
+        }
+
+        auto session = New<TGetSession>(
+            this,
+            Connection_,
+            key,
+            updatePrimaryRevision,
+            updateSecondaryRevision,
+            reason == EUpdateReason::PeriodicUpdate,
+            Logger);
+
         return BIND(&TGetSession::Run, std::move(session))
             .AsyncVia(Invoker_)
             .Run();
@@ -105,25 +131,29 @@ private:
         TGetSession(
             TTableMountCachePtr owner,
             TWeakPtr<IConnection> connection,
-            const TTableMountCacheKey& key,
+            const NYPath::TYPath& key,
+            NHydra::TRevision refreshPrimaryRevision,
+            NHydra::TRevision refreshSecondaryRevision,
             bool isPeriodicUpdate,
             const NLogging::TLogger& logger)
             : Owner_(std::move(owner))
             , Connection_(std::move(connection))
-            , Key_(key)
+            , Path_(key)
+            , RefreshPrimaryRevision_(refreshPrimaryRevision)
+            , RefreshSecondaryRevision_(refreshSecondaryRevision)
             , IsPeriodicUpdate_(isPeriodicUpdate)
             , Logger(logger.WithTag("Path: %v, CacheSessionId: %v",
-                Key_.Path,
+                Path_,
                 TGuid::Create()))
         { }
 
         TTableMountInfoPtr Run()
         {
             try {
-                WaitFor(RequestTableAttributes(Key_.RefreshPrimaryRevision))
+                WaitFor(RequestTableAttributes(RefreshPrimaryRevision_))
                     .ThrowOnError();
 
-                auto mountInfoOrError = WaitFor(RequestMountInfo(Key_.RefreshSecondaryRevision));
+                auto mountInfoOrError = WaitFor(RequestMountInfo(RefreshSecondaryRevision_));
                 if (!mountInfoOrError.IsOK() && PrimaryRevision_) {
                     WaitFor(RequestTableAttributes(PrimaryRevision_))
                         .ThrowOnError();
@@ -138,7 +168,7 @@ private:
             } catch (const std::exception& ex) {
                 YT_LOG_DEBUG(ex, "Error getting table mount info");
                 THROW_ERROR_EXCEPTION("Error getting mount info for %v",
-                    Key_.Path)
+                    Path_)
                     << ex;
             }
         }
@@ -146,7 +176,9 @@ private:
     private:
         const TTableMountCachePtr Owner_;
         const TWeakPtr<IConnection> Connection_;
-        const TTableMountCacheKey Key_;
+        const NYPath::TYPath Path_;
+        const NHydra::TRevision RefreshPrimaryRevision_;
+        const NHydra::TRevision RefreshSecondaryRevision_;
         const bool IsPeriodicUpdate_;
         const NLogging::TLogger Logger;
 
@@ -187,7 +219,7 @@ private:
             SetBalancingHeader(batchReq, connection->GetConfig(), options);
 
             {
-                auto req = TTableYPathProxy::Get(Key_.Path + "/@");
+                auto req = TTableYPathProxy::Get(Path_ + "/@");
                 ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
                     "id",
                     "dynamic",
@@ -197,7 +229,7 @@ private:
                 SetCachingHeader(req, connection->GetConfig(), options, refreshPrimaryRevision);
 
                 size_t hash = 0;
-                HashCombine(hash, FarmHash(Key_.Path.begin(), Key_.Path.size()));
+                HashCombine(hash, FarmHash(Path_.begin(), Path_.size()));
                 batchReq->AddRequest(req, "get_attributes", hash);
             }
 
@@ -208,7 +240,7 @@ private:
         void OnTableAttributesReceived(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
         {
             THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of table %v",
-                Key_.Path);
+                Path_);
 
             const auto& batchRsp = batchRspOrError.Value();
             auto getAttributesRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
@@ -222,8 +254,7 @@ private:
             auto dynamic = attributes->Get<bool>("dynamic", false);
 
             if (!dynamic) {
-                THROW_ERROR_EXCEPTION("Table %v is not dynamic",
-                    Key_.Path);
+                THROW_ERROR_EXCEPTION("Table %v is not dynamic", Path_);
             }
         }
 
@@ -273,7 +304,7 @@ private:
         TTableMountInfoPtr OnTableMountInfoReceived(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
         {
             THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting mount info for table %v",
-                Key_.Path);
+                Path_);
 
             const auto& batchRsp = batchRspOrError.Value();
             const auto& rspOrError = batchRsp->GetResponse<TTableYPathProxy::TRspGetMountInfo>(0);
@@ -282,7 +313,7 @@ private:
             SecondaryRevision_ = batchRsp->GetRevision(0);
 
             auto tableInfo = New<TTableMountInfo>();
-            tableInfo->Path = Key_.Path;
+            tableInfo->Path = Path_;
             tableInfo->TableId = FromProto<TObjectId>(rsp->table_id());
             tableInfo->SecondaryRevision = SecondaryRevision_;
             tableInfo->PrimaryRevision = PrimaryRevision_;
@@ -370,28 +401,17 @@ private:
 
     void InvalidateTable(const TTableMountInfoPtr& tableInfo) override
     {
-        InvalidateValue(tableInfo->Path, tableInfo);
-
-        TAsyncExpiringCache::Get(TTableMountCacheKey{
-            tableInfo->Path,
-            tableInfo->PrimaryRevision,
-            tableInfo->SecondaryRevision});
+        ForceRefresh(tableInfo->Path, tableInfo);
     }
 
-    void OnAdded(const TTableMountCacheKey& key) noexcept override
+    void OnAdded(const TYPath& key) noexcept override
     {
-        YT_LOG_DEBUG("Table mount info added to cache (Path: %v, PrimaryRevision: %llx, SecondaryRevision: %llx)",
-            key.Path,
-            key.RefreshPrimaryRevision,
-            key.RefreshSecondaryRevision);
+        YT_LOG_DEBUG("Table mount info added to cache (Path: %v)", key);
     }
 
-    void OnRemoved(const TTableMountCacheKey& key) noexcept override
+    void OnRemoved(const TYPath& key) noexcept override
     {
-        YT_LOG_DEBUG("Table mount info removed from cache (Path: %v, PrimaryRevision: %llx, SecondaryRevision: %llx)",
-            key.Path,
-            key.RefreshPrimaryRevision,
-            key.RefreshSecondaryRevision);
+        YT_LOG_DEBUG("Table mount info removed from cache (Path: %v)", key);
     }
 };
 

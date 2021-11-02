@@ -41,29 +41,9 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TTableMountCacheKey
-{
-    NYPath::TYPath Path;
-    NHydra::TRevision RefreshPrimaryRevision;
-    NHydra::TRevision RefreshSecondaryRevision;
-
-    TTableMountCacheKey(
-        const NYPath::TYPath& path,
-        NHydra::TRevision refreshPrimaryRevision = NHydra::NullRevision,
-        NHydra::TRevision refreshSecondaryRevision = NHydra::NullRevision);
-
-    operator size_t() const;
-    bool operator == (const TTableMountCacheKey& other) const;
-};
-
-void FormatValue(TStringBuilderBase* builder, const TTableMountCacheKey& key, TStringBuf /*spec*/);
-TString ToString(const TTableMountCacheKey& key);
-
-///////////////////////////////////////////////////////////////////////////////
-
 class TTableMountCacheBase
     : public ITableMountCache
-    , public TAsyncExpiringCache<TTableMountCacheKey, TTableMountInfoPtr>
+    , public TAsyncExpiringCache<NYPath::TYPath, TTableMountInfoPtr>
 {
 public:
     TTableMountCacheBase(
