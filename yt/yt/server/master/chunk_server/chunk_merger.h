@@ -188,7 +188,6 @@ private:
 
     bool IsMergeTransactionAlive() const;
 
-    void RescheduleMerge(TChunkOwnerMergeJobCounterPtr<TChunkOwnerBase>&& chunkOwner);
     bool CanScheduleMerge(TChunkOwnerBase* chunkOwner) const;
 
     void StartMergeTransaction();
