@@ -40,6 +40,7 @@ public:
         , ChunkBlockManager_(std::move(chunkBlockManager))
         , BlockCache_(std::move(blockCache))
         , BlockMetaCache_(std::move(blockMetaCache))
+        , ReadGuard_(TChunkReadGuard::Acquire(Chunk_))
     { }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
@@ -133,6 +134,7 @@ private:
     const IChunkBlockManagerPtr ChunkBlockManager_;
     const IBlockCachePtr BlockCache_;
     const TBlockMetaCachePtr BlockMetaCache_;
+    const TChunkReadGuard ReadGuard_;
 
     struct TReadBlockSetSession
         : public TRefCounted
