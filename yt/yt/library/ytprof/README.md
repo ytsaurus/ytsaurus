@@ -12,6 +12,8 @@
 
 Работа с профайлером, на примере [example/main.cpp](https://a.yandex-team.ru/arc/trunk/arcadia/yt/yt/library/ytprof/example/main.cpp)
 
+(*) Если `ya` запускается через враппер `/usr/local/bin/ya`, то в `ya tool pprof` не работает интерактивный режим. Лучше удалить `/usr/local/bin/ya` со своей машины и использовать другой способ запуска.
+
 ```
 # Все команды выполняются из корня аркадии
 
