@@ -1,1 +1,1 @@
-#include <yt/yt/library/misc/assert.h>
+#include <yt/yt/library/assert/assert.h>
