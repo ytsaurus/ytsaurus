@@ -14,84 +14,84 @@ TIntermediateChunkScraperConfig::TIntermediateChunkScraperConfig()
         .Default(TDuration::Seconds(10));
 }
 
-TTestingOptions::TTestingOptions()
+void TTestingOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_snapshot_cycle_after_materialization", EnableSnapshotCycleAfterMaterialization)
+    registrar.Parameter("enable_snapshot_cycle_after_materialization", &TTestingOptions::EnableSnapshotCycleAfterMaterialization)
         .Default(false);
 
-    RegisterParameter("rootfs_test_layers", RootfsTestLayers)
+    registrar.Parameter("rootfs_test_layers", &TTestingOptions::RootfsTestLayers)
         .Default();
 
-    RegisterParameter("delay_in_unregistration", DelayInUnregistration)
+    registrar.Parameter("delay_in_unregistration", &TTestingOptions::DelayInUnregistration)
         .Default();
 }
 
-TOperationAlertsConfig::TOperationAlertsConfig()
+void TOperationAlertsConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("tmpfs_alert_max_unused_space_ratio", TmpfsAlertMaxUnusedSpaceRatio)
+    registrar.Parameter("tmpfs_alert_max_unused_space_ratio", &TOperationAlertsConfig::TmpfsAlertMaxUnusedSpaceRatio)
         .InRange(0.0, 1.0)
         .Default(0.2);
 
-    RegisterParameter("tmpfs_alert_min_unused_space_threshold", TmpfsAlertMinUnusedSpaceThreshold)
+    registrar.Parameter("tmpfs_alert_min_unused_space_threshold", &TOperationAlertsConfig::TmpfsAlertMinUnusedSpaceThreshold)
         .Default(512_MB)
         .GreaterThan(0);
 
-    RegisterParameter("tmpfs_alert_memory_usage_mute_ratio", TmpfsAlertMemoryUsageMuteRatio)
+    registrar.Parameter("tmpfs_alert_memory_usage_mute_ratio", &TOperationAlertsConfig::TmpfsAlertMemoryUsageMuteRatio)
         .InRange(0.0, 1.0)
         .Default(0.8);
 
-    RegisterParameter("memory_usage_alert_max_unused_size", MemoryUsageAlertMaxUnusedSize)
+    registrar.Parameter("memory_usage_alert_max_unused_size", &TOperationAlertsConfig::MemoryUsageAlertMaxUnusedSize)
         .Default(8_GB)
         .GreaterThan(0);
 
-    RegisterParameter("memory_usage_alert_max_unused_ratio", MemoryUsageAlertMaxUnusedRatio)
+    registrar.Parameter("memory_usage_alert_max_unused_ratio", &TOperationAlertsConfig::MemoryUsageAlertMaxUnusedRatio)
         .InRange(0.0, 1.0)
         .Default(0.2);
 
-    RegisterParameter("memory_usage_alert_max_job_count", MemoryUsageAlertMaxJobCount)
+    registrar.Parameter("memory_usage_alert_max_job_count", &TOperationAlertsConfig::MemoryUsageAlertMaxJobCount)
         .Default()
         .GreaterThan(0);
 
-    RegisterParameter("aborted_jobs_alert_max_aborted_time", AbortedJobsAlertMaxAbortedTime)
+    registrar.Parameter("aborted_jobs_alert_max_aborted_time", &TOperationAlertsConfig::AbortedJobsAlertMaxAbortedTime)
         .Default((i64) 10 * 60 * 1000)
         .GreaterThan(0);
 
-    RegisterParameter("aborted_jobs_alert_max_aborted_time_ratio", AbortedJobsAlertMaxAbortedTimeRatio)
+    registrar.Parameter("aborted_jobs_alert_max_aborted_time_ratio", &TOperationAlertsConfig::AbortedJobsAlertMaxAbortedTimeRatio)
         .InRange(0.0, 1.0)
         .Default(0.25);
 
-    RegisterParameter("short_jobs_alert_min_job_duration", ShortJobsAlertMinJobDuration)
+    registrar.Parameter("short_jobs_alert_min_job_duration", &TOperationAlertsConfig::ShortJobsAlertMinJobDuration)
         .Default(TDuration::Minutes(1));
 
-    RegisterParameter("short_jobs_alert_min_job_count", ShortJobsAlertMinJobCount)
+    registrar.Parameter("short_jobs_alert_min_job_count", &TOperationAlertsConfig::ShortJobsAlertMinJobCount)
         .Default(1000);
 
-    RegisterParameter("short_jobs_alert_min_allowed_operation_duration_to_max_job_duration_ratio", ShortJobsAlertMinAllowedOperationDurationToMaxJobDurationRatio)
+    registrar.Parameter("short_jobs_alert_min_allowed_operation_duration_to_max_job_duration_ratio", &TOperationAlertsConfig::ShortJobsAlertMinAllowedOperationDurationToMaxJobDurationRatio)
         .Default(2.0);
 
-    RegisterParameter("intermediate_data_skew_alert_min_partition_size", IntermediateDataSkewAlertMinPartitionSize)
+    registrar.Parameter("intermediate_data_skew_alert_min_partition_size", &TOperationAlertsConfig::IntermediateDataSkewAlertMinPartitionSize)
         .Default(10_GB)
         .GreaterThan(0);
 
-    RegisterParameter("intermediate_data_skew_alert_min_interquartile_range", IntermediateDataSkewAlertMinInterquartileRange)
+    registrar.Parameter("intermediate_data_skew_alert_min_interquartile_range", &TOperationAlertsConfig::IntermediateDataSkewAlertMinInterquartileRange)
         .Default(1_GB)
         .GreaterThan(0);
 
-    RegisterParameter("job_spec_throttling_alert_activation_count_threshold", JobSpecThrottlingAlertActivationCountThreshold)
+    registrar.Parameter("job_spec_throttling_alert_activation_count_threshold", &TOperationAlertsConfig::JobSpecThrottlingAlertActivationCountThreshold)
         .Default(1000)
         .GreaterThan(0);
 
-    RegisterParameter("low_cpu_usage_alert_min_execution_time", LowCpuUsageAlertMinExecTime)
+    registrar.Parameter("low_cpu_usage_alert_min_execution_time", &TOperationAlertsConfig::LowCpuUsageAlertMinExecTime)
         .Default(TDuration::Minutes(10));
 
-    RegisterParameter("low_cpu_usage_alert_min_average_job_time", LowCpuUsageAlertMinAverageJobTime)
+    registrar.Parameter("low_cpu_usage_alert_min_average_job_time", &TOperationAlertsConfig::LowCpuUsageAlertMinAverageJobTime)
         .Default(TDuration::Minutes(1));
 
-    RegisterParameter("low_cpu_usage_alert_cpu_usage_threshold", LowCpuUsageAlertCpuUsageThreshold)
+    registrar.Parameter("low_cpu_usage_alert_cpu_usage_threshold", &TOperationAlertsConfig::LowCpuUsageAlertCpuUsageThreshold)
         .Default(0.5)
         .GreaterThan(0);
 
-    RegisterParameter("low_cpu_usage_alert_statistics", LowCpuUsageAlertStatistics)
+    registrar.Parameter("low_cpu_usage_alert_statistics", &TOperationAlertsConfig::LowCpuUsageAlertStatistics)
         .Default({
             "/job_proxy/cpu/system",
             "/job_proxy/cpu/user",
@@ -99,796 +99,796 @@ TOperationAlertsConfig::TOperationAlertsConfig()
             "/user_job/cpu/user"
         });
 
-    RegisterParameter("low_cpu_usage_alert_job_states", LowCpuUsageAlertJobStates)
+    registrar.Parameter("low_cpu_usage_alert_job_states", &TOperationAlertsConfig::LowCpuUsageAlertJobStates)
         .Default({
             "completed"
         });
 
-    RegisterParameter("operation_too_long_alert_min_wall_time", OperationTooLongAlertMinWallTime)
+    registrar.Parameter("operation_too_long_alert_min_wall_time", &TOperationAlertsConfig::OperationTooLongAlertMinWallTime)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("operation_too_long_alert_estimate_duration_threshold", OperationTooLongAlertEstimateDurationThreshold)
+    registrar.Parameter("operation_too_long_alert_estimate_duration_threshold", &TOperationAlertsConfig::OperationTooLongAlertEstimateDurationThreshold)
         .Default(TDuration::Days(7));
 
-    RegisterParameter("low_gpu_usage_alert_min_duration", LowGpuUsageAlertMinDuration)
+    registrar.Parameter("low_gpu_usage_alert_min_duration", &TOperationAlertsConfig::LowGpuUsageAlertMinDuration)
         .Default(TDuration::Minutes(30));
 
-    RegisterParameter("low_gpu_usage_alert_gpu_usage_threshold", LowGpuUsageAlertGpuUsageThreshold)
+    registrar.Parameter("low_gpu_usage_alert_gpu_usage_threshold", &TOperationAlertsConfig::LowGpuUsageAlertGpuUsageThreshold)
         .Default(0.5);
 
-    RegisterParameter("low_gpu_usage_alert_statistics", LowGpuUsageAlertStatistics)
+    registrar.Parameter("low_gpu_usage_alert_statistics", &TOperationAlertsConfig::LowGpuUsageAlertStatistics)
         .Default({
             "/user_job/gpu/utilization_gpu",
         });
 
-    RegisterParameter("low_gpu_usage_alert_job_states", LowGpuUsageAlertJobStates)
+    registrar.Parameter("low_gpu_usage_alert_job_states", &TOperationAlertsConfig::LowGpuUsageAlertJobStates)
         .Default({
             "completed",
             "running"
         });
 
-    RegisterParameter("queue_average_wait_time_threshold", QueueAverageWaitTimeThreshold)
+    registrar.Parameter("queue_average_wait_time_threshold", &TOperationAlertsConfig::QueueAverageWaitTimeThreshold)
         .Default(TDuration::Minutes(1));
 }
 
-TJobSplitterConfig::TJobSplitterConfig()
+void TJobSplitterConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("min_job_time", MinJobTime)
+    registrar.Parameter("min_job_time", &TJobSplitterConfig::MinJobTime)
         .Default(TDuration::Seconds(60));
 
-    RegisterParameter("exec_to_prepare_time_ratio", ExecToPrepareTimeRatio)
+    registrar.Parameter("exec_to_prepare_time_ratio", &TJobSplitterConfig::ExecToPrepareTimeRatio)
         .Default(20.0);
 
-    RegisterParameter("no_progress_job_time_to_average_prepare_time_ratio", NoProgressJobTimeToAveragePrepareTimeRatio)
+    registrar.Parameter("no_progress_job_time_to_average_prepare_time_ratio", &TJobSplitterConfig::NoProgressJobTimeToAveragePrepareTimeRatio)
         .Default(20.0);
 
-    RegisterParameter("min_total_data_weight", MinTotalDataWeight)
+    registrar.Parameter("min_total_data_weight", &TJobSplitterConfig::MinTotalDataWeight)
         .Alias("min_total_data_size")
         .Default(1_GB);
 
-    RegisterParameter("update_period", UpdatePeriod)
+    registrar.Parameter("update_period", &TJobSplitterConfig::UpdatePeriod)
         .Default(TDuration::Seconds(60));
 
-    RegisterParameter("candidate_percentile", CandidatePercentile)
+    registrar.Parameter("candidate_percentile", &TJobSplitterConfig::CandidatePercentile)
         .GreaterThanOrEqual(0.5)
         .LessThanOrEqual(1.0)
         .Default(0.8);
 
-    RegisterParameter("late_jobs_percentile", LateJobsPercentile)
+    registrar.Parameter("late_jobs_percentile", &TJobSplitterConfig::LateJobsPercentile)
         .GreaterThanOrEqual(0.5)
         .LessThanOrEqual(1.0)
         .Default(0.95);
 
-    RegisterParameter("residual_job_factor", ResidualJobFactor)
+    registrar.Parameter("residual_job_factor", &TJobSplitterConfig::ResidualJobFactor)
         .GreaterThan(0)
         .LessThanOrEqual(1.0)
         .Default(0.8);
 
-    RegisterParameter("residual_job_count_min_threshold", ResidualJobCountMinThreshold)
+    registrar.Parameter("residual_job_count_min_threshold", &TJobSplitterConfig::ResidualJobCountMinThreshold)
         .GreaterThan(0)
         .Default(10);
 
-    RegisterParameter("max_jobs_per_split", MaxJobsPerSplit)
+    registrar.Parameter("max_jobs_per_split", &TJobSplitterConfig::MaxJobsPerSplit)
         .GreaterThan(0)
         .Default(5);
 
-    RegisterParameter("max_input_table_count", MaxInputTableCount)
+    registrar.Parameter("max_input_table_count", &TJobSplitterConfig::MaxInputTableCount)
         .GreaterThan(0)
         .Default(100);
 
-    RegisterParameter("split_timeout_before_speculate", SplitTimeoutBeforeSpeculate)
+    registrar.Parameter("split_timeout_before_speculate", &TJobSplitterConfig::SplitTimeoutBeforeSpeculate)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("job_logging_period", JobLoggingPeriod)
+    registrar.Parameter("job_logging_period", &TJobSplitterConfig::JobLoggingPeriod)
         .Default(TDuration::Minutes(3));
 
-    RegisterParameter("enable_job_splitting", EnableJobSplitting)
+    registrar.Parameter("enable_job_splitting", &TJobSplitterConfig::EnableJobSplitting)
         .Default(true);
 
-    RegisterParameter("enable_job_speculation", EnableJobSpeculation)
+    registrar.Parameter("enable_job_speculation", &TJobSplitterConfig::EnableJobSpeculation)
         .Default(true);
 
-    RegisterParameter("show_running_jobs_in_progress", ShowRunningJobsInProgress)
+    registrar.Parameter("show_running_jobs_in_progress", &TJobSplitterConfig::ShowRunningJobsInProgress)
         .Default(false);
 }
 
-TSuspiciousJobsOptions::TSuspiciousJobsOptions()
+void TSuspiciousJobsOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("inactivity_timeout", InactivityTimeout)
+    registrar.Parameter("inactivity_timeout", &TSuspiciousJobsOptions::InactivityTimeout)
         .Default(TDuration::Minutes(1));
-    RegisterParameter("cpu_usage_threshold", CpuUsageThreshold)
+    registrar.Parameter("cpu_usage_threshold", &TSuspiciousJobsOptions::CpuUsageThreshold)
         .Default(300);
-    RegisterParameter("input_pipe_time_idle_fraction", InputPipeIdleTimeFraction)
+    registrar.Parameter("input_pipe_time_idle_fraction", &TSuspiciousJobsOptions::InputPipeIdleTimeFraction)
         .Default(0.95);
-    RegisterParameter("output_pipe_time_idle_fraction", OutputPipeIdleTimeFraction)
+    registrar.Parameter("output_pipe_time_idle_fraction", &TSuspiciousJobsOptions::OutputPipeIdleTimeFraction)
         .Default(0.95);
-    RegisterParameter("update_period", UpdatePeriod)
+    registrar.Parameter("update_period", &TSuspiciousJobsOptions::UpdatePeriod)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("max_orchid_entry_count_per_type", MaxOrchidEntryCountPerType)
+    registrar.Parameter("max_orchid_entry_count_per_type", &TSuspiciousJobsOptions::MaxOrchidEntryCountPerType)
         .Default(100);
 }
 
-TDataBalancerOptions::TDataBalancerOptions()
+void TDataBalancerOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("logging_min_consecutive_violation_count", LoggingMinConsecutiveViolationCount)
+    registrar.Parameter("logging_min_consecutive_violation_count", &TDataBalancerOptions::LoggingMinConsecutiveViolationCount)
         .Default(1000);
-    RegisterParameter("logging_period", LoggingPeriod)
+    registrar.Parameter("logging_period", &TDataBalancerOptions::LoggingPeriod)
         .Default(TDuration::Minutes(1));
-    RegisterParameter("tolerance", Tolerance)
+    registrar.Parameter("tolerance", &TDataBalancerOptions::Tolerance)
         .Default(2.0);
 }
 
-TUserJobOptions::TUserJobOptions()
+void TUserJobOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("thread_limit_multiplier", ThreadLimitMultiplier)
+    registrar.Parameter("thread_limit_multiplier", &TUserJobOptions::ThreadLimitMultiplier)
         .Default(10'000);
-    RegisterParameter("initial_thread_limit", InitialThreadLimit)
+    registrar.Parameter("initial_thread_limit", &TUserJobOptions::InitialThreadLimit)
         .Default(10'000);
 }
 
-TOperationOptions::TOperationOptions()
+void TOperationOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("spec_template", SpecTemplate)
+    registrar.Parameter("spec_template", &TOperationOptions::SpecTemplate)
         .Default()
         .MergeBy(NYTree::EMergeStrategy::Combine);
 
-    RegisterParameter("slice_data_weight_multiplier", SliceDataWeightMultiplier)
+    registrar.Parameter("slice_data_weight_multiplier", &TOperationOptions::SliceDataWeightMultiplier)
         .Alias("slice_data_size_multiplier")
         .Default(0.51)
         .GreaterThan(0.0);
 
-    RegisterParameter("max_data_slices_per_job", MaxDataSlicesPerJob)
+    registrar.Parameter("max_data_slices_per_job", &TOperationOptions::MaxDataSlicesPerJob)
         // This is a reasonable default for jobs with user code.
         // Defaults for system jobs are in Initializer.
         .Default(1000)
         .GreaterThan(0);
 
-    RegisterParameter("max_slice_data_weight", MaxSliceDataWeight)
+    registrar.Parameter("max_slice_data_weight", &TOperationOptions::MaxSliceDataWeight)
         .Alias("max_slice_data_size")
         .Default(1_GB)
         .GreaterThan(0);
 
-    RegisterParameter("min_slice_data_weight", MinSliceDataWeight)
+    registrar.Parameter("min_slice_data_weight", &TOperationOptions::MinSliceDataWeight)
         .Alias("min_slice_data_size")
         .Default(1_MB)
         .GreaterThan(0);
 
-    RegisterParameter("max_input_table_count", MaxInputTableCount)
+    registrar.Parameter("max_input_table_count", &TOperationOptions::MaxInputTableCount)
         .Default(3000)
         .GreaterThan(0);
 
-    RegisterParameter("max_output_tables_times_jobs_count", MaxOutputTablesTimesJobsCount)
+    registrar.Parameter("max_output_tables_times_jobs_count", &TOperationOptions::MaxOutputTablesTimesJobsCount)
         .Default(20 * 100000)
         .GreaterThanOrEqual(100000);
 
-    RegisterParameter("job_splitter", JobSplitter)
+    registrar.Parameter("job_splitter", &TOperationOptions::JobSplitter)
         .DefaultNew();
 
-    RegisterParameter("max_build_retry_count", MaxBuildRetryCount)
+    registrar.Parameter("max_build_retry_count", &TOperationOptions::MaxBuildRetryCount)
         .Default(5)
         .GreaterThanOrEqual(0);
 
-    RegisterParameter("data_weight_per_job_retry_factor", DataWeightPerJobRetryFactor)
+    registrar.Parameter("data_weight_per_job_retry_factor", &TOperationOptions::DataWeightPerJobRetryFactor)
         .Default(2.0)
         .GreaterThan(1.0);
 
-    RegisterParameter("initial_cpu_limit_overcommit", InitialCpuLimitOvercommit)
+    registrar.Parameter("initial_cpu_limit_overcommit", &TOperationOptions::InitialCpuLimitOvercommit)
         .Default(2.0)
         .GreaterThanOrEqual(0);
 
-    RegisterParameter("cpu_limit_overcommit_multiplier", CpuLimitOvercommitMultiplier)
+    registrar.Parameter("cpu_limit_overcommit_multiplier", &TOperationOptions::CpuLimitOvercommitMultiplier)
         .Default(1.0)
         .GreaterThanOrEqual(1.0);
 
-    RegisterParameter("set_container_cpu_limit", SetContainerCpuLimit)
+    registrar.Parameter("set_container_cpu_limit", &TOperationOptions::SetContainerCpuLimit)
         .Default(false);
 
     // NB: defaults for these values are actually in preprocessor of TControllerAgentConfig::OperationOptions.
-    RegisterParameter("controller_building_job_spec_count_limit", ControllerBuildingJobSpecCountLimit)
+    registrar.Parameter("controller_building_job_spec_count_limit", &TOperationOptions::ControllerBuildingJobSpecCountLimit)
         .Default();
-    RegisterParameter("controller_total_building_job_spec_slice_count_limit", ControllerTotalBuildingJobSpecSliceCountLimit)
+    registrar.Parameter("controller_total_building_job_spec_slice_count_limit", &TOperationOptions::ControllerTotalBuildingJobSpecSliceCountLimit)
         .Default();
 
-    RegisterParameter("user_job_options", UserJobOptions)
+    registrar.Parameter("user_job_options", &TOperationOptions::UserJobOptions)
         .DefaultNew();
 
-    RegisterPostprocessor([&] {
-        if (MaxSliceDataWeight < MinSliceDataWeight) {
+    registrar.Postprocessor([&] (TOperationOptions* options) {
+        if (options->MaxSliceDataWeight < options->MinSliceDataWeight) {
             THROW_ERROR_EXCEPTION("Minimum slice data weight must be less than or equal to maximum slice data size")
-                << TErrorAttribute("min_slice_data_weight", MinSliceDataWeight)
-                << TErrorAttribute("max_slice_data_weight", MaxSliceDataWeight);
+                << TErrorAttribute("min_slice_data_weight", options->MinSliceDataWeight)
+                << TErrorAttribute("max_slice_data_weight", options->MaxSliceDataWeight);
         }
     });
 }
 
-TSimpleOperationOptions::TSimpleOperationOptions()
+void TSimpleOperationOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_job_count", MaxJobCount)
+    registrar.Parameter("max_job_count", &TSimpleOperationOptions::MaxJobCount)
         .Default(100000);
 
-    RegisterParameter("data_weight_per_job", DataWeightPerJob)
+    registrar.Parameter("data_weight_per_job", &TSimpleOperationOptions::DataWeightPerJob)
         .Alias("data_size_per_job")
         .Default(256_MB)
         .GreaterThan(0);
 }
 
-TMapOperationOptions::TMapOperationOptions()
+void TMapOperationOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("job_size_adjuster", JobSizeAdjuster)
+    registrar.Parameter("job_size_adjuster", &TMapOperationOptions::JobSizeAdjuster)
         .DefaultNew();
 
-    RegisterPreprocessor([&] () {
-        DataWeightPerJob = 128_MB;
+    registrar.Preprocessor([&] (TMapOperationOptions* options) {
+        options->DataWeightPerJob = 128_MB;
     });
 }
 
-TReduceOperationOptions::TReduceOperationOptions()
+void TReduceOperationOptions::Register(TRegistrar registrar)
 {
-    RegisterPreprocessor([&] () {
-        DataWeightPerJob = 128_MB;
+    registrar.Preprocessor([&] (TReduceOperationOptions* options) {
+        options->DataWeightPerJob = 128_MB;
     });
 }
 
-TSortOperationOptionsBase::TSortOperationOptionsBase()
+void TSortOperationOptionsBase::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_partition_job_count", MaxPartitionJobCount)
+    registrar.Parameter("max_partition_job_count", &TSortOperationOptionsBase::MaxPartitionJobCount)
         .Default(500000)
         .GreaterThan(0);
 
-    RegisterParameter("max_partition_count", MaxPartitionCount)
+    registrar.Parameter("max_partition_count", &TSortOperationOptionsBase::MaxPartitionCount)
         .Default(200000)
         .GreaterThan(0);
 
-    RegisterParameter("max_new_partition_count", MaxNewPartitionCount)
+    registrar.Parameter("max_new_partition_count", &TSortOperationOptionsBase::MaxNewPartitionCount)
         .Default(2'000'000)
         .GreaterThan(0);
 
-    RegisterParameter("max_partition_factor", MaxPartitionFactor)
+    registrar.Parameter("max_partition_factor", &TSortOperationOptionsBase::MaxPartitionFactor)
         .Default(500)
         .GreaterThan(1);
 
-    RegisterParameter("max_sample_size", MaxSampleSize)
+    registrar.Parameter("max_sample_size", &TSortOperationOptionsBase::MaxSampleSize)
         .Default(10_KB)
         .GreaterThanOrEqual(1_KB)
             // NB(psushin): removing this validator may lead to weird errors in sorting.
         .LessThanOrEqual(NTableClient::MaxSampleSize);
 
-    RegisterParameter("compressed_block_size", CompressedBlockSize)
+    registrar.Parameter("compressed_block_size", &TSortOperationOptionsBase::CompressedBlockSize)
         .Default(1_MB)
         .GreaterThanOrEqual(1_KB);
 
-    RegisterParameter("min_partition_weight", MinPartitionWeight)
+    registrar.Parameter("min_partition_weight", &TSortOperationOptionsBase::MinPartitionWeight)
         .Alias("min_partition_size")
         .Default(256_MB)
         .GreaterThanOrEqual(1);
 
     // Minimum is 1 for tests.
-    RegisterParameter("min_uncompressed_block_size", MinUncompressedBlockSize)
+    registrar.Parameter("min_uncompressed_block_size", &TSortOperationOptionsBase::MinUncompressedBlockSize)
         .Default(100_KB)
         .GreaterThanOrEqual(1);
 
-    RegisterParameter("max_value_count_per_simple_sort_job", MaxValueCountPerSimpleSortJob)
+    registrar.Parameter("max_value_count_per_simple_sort_job", &TSortOperationOptionsBase::MaxValueCountPerSimpleSortJob)
         .Default(10 * 1000 * 1000)
         .GreaterThanOrEqual(1);
 
-    RegisterParameter("partition_job_size_adjuster", PartitionJobSizeAdjuster)
+    registrar.Parameter("partition_job_size_adjuster", &TSortOperationOptionsBase::PartitionJobSizeAdjuster)
         .DefaultNew();
 
-    RegisterParameter("data_balancer", DataBalancer)
+    registrar.Parameter("data_balancer", &TSortOperationOptionsBase::DataBalancer)
         .DefaultNew();
 }
 
-TUserJobMonitoringConfig::TUserJobMonitoringConfig()
+void TUserJobMonitoringConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_monitored_user_jobs_per_operation", MaxMonitoredUserJobsPerOperation)
+    registrar.Parameter("max_monitored_user_jobs_per_operation", &TUserJobMonitoringConfig::MaxMonitoredUserJobsPerOperation)
         .Default(20)
         .GreaterThanOrEqual(0);
 
-    RegisterParameter("max_monitored_user_jobs_per_agent", MaxMonitoredUserJobsPerAgent)
+    registrar.Parameter("max_monitored_user_jobs_per_agent", &TUserJobMonitoringConfig::MaxMonitoredUserJobsPerAgent)
         .Default(1000)
         .GreaterThanOrEqual(0);
 }
 
-TMemoryWatchdogConfig::TMemoryWatchdogConfig()
+void TMemoryWatchdogConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("total_controller_memory_limit", TotalControllerMemoryLimit)
+    registrar.Parameter("total_controller_memory_limit", &TMemoryWatchdogConfig::TotalControllerMemoryLimit)
         .Default();
 
-    RegisterParameter("operation_controller_memory_limit", OperationControllerMemoryLimit)
+    registrar.Parameter("operation_controller_memory_limit", &TMemoryWatchdogConfig::OperationControllerMemoryLimit)
         .Default(50_GB);
-    RegisterParameter("operation_controller_memory_overconsumption_threshold", OperationControllerMemoryOverconsumptionThreshold)
+    registrar.Parameter("operation_controller_memory_overconsumption_threshold", &TMemoryWatchdogConfig::OperationControllerMemoryOverconsumptionThreshold)
         .Default(30_GB);
 
-    RegisterParameter("memory_usage_check_period", MemoryUsageCheckPeriod)
+    registrar.Parameter("memory_usage_check_period", &TMemoryWatchdogConfig::MemoryUsageCheckPeriod)
         .Default(TDuration::Seconds(5));
 }
 
-TControllerAgentConfig::TControllerAgentConfig()
+void TControllerAgentConfig::Register(TRegistrar registrar)
 {
-    SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
+    registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
 
-    RegisterParameter("chunk_list_preallocation_count", ChunkListPreallocationCount)
+    registrar.Parameter("chunk_list_preallocation_count", &TControllerAgentConfig::ChunkListPreallocationCount)
         .Default(128)
         .GreaterThanOrEqual(0);
-    RegisterParameter("max_chunk_list_allocation_count", MaxChunkListAllocationCount)
+    registrar.Parameter("max_chunk_list_allocation_count", &TControllerAgentConfig::MaxChunkListAllocationCount)
         .Default(16384)
         .GreaterThanOrEqual(0);
-    RegisterParameter("chunk_list_watermark_count", ChunkListWatermarkCount)
+    registrar.Parameter("chunk_list_watermark_count", &TControllerAgentConfig::ChunkListWatermarkCount)
         .Default(50)
         .GreaterThanOrEqual(0);
-    RegisterParameter("chunk_list_allocation_multiplier", ChunkListAllocationMultiplier)
+    registrar.Parameter("chunk_list_allocation_multiplier", &TControllerAgentConfig::ChunkListAllocationMultiplier)
         .Default(2.0)
         .GreaterThan(1.0);
-    RegisterParameter("desired_chunk_lists_per_release", DesiredChunkListsPerRelease)
+    registrar.Parameter("desired_chunk_lists_per_release", &TControllerAgentConfig::DesiredChunkListsPerRelease)
         .Default(10 * 1000);
-    RegisterParameter("intermediate_output_master_cell_count", IntermediateOutputMasterCellCount)
+    registrar.Parameter("intermediate_output_master_cell_count", &TControllerAgentConfig::IntermediateOutputMasterCellCount)
         .GreaterThanOrEqual(1)
         .Default(4);
 
-    RegisterParameter("enable_snapshot_building", EnableSnapshotBuilding)
+    registrar.Parameter("enable_snapshot_building", &TControllerAgentConfig::EnableSnapshotBuilding)
         .Default(true);
-    RegisterParameter("enable_snapshot_building_disabled_alert", EnableSnapshotBuildingDisabledAlert)
+    registrar.Parameter("enable_snapshot_building_disabled_alert", &TControllerAgentConfig::EnableSnapshotBuildingDisabledAlert)
         .Default(true);
-    RegisterParameter("snapshot_period", SnapshotPeriod)
+    registrar.Parameter("snapshot_period", &TControllerAgentConfig::SnapshotPeriod)
         .Default(TDuration::Seconds(300));
-    RegisterParameter("snapshot_timeout", SnapshotTimeout)
+    registrar.Parameter("snapshot_timeout", &TControllerAgentConfig::SnapshotTimeout)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("snapshot_fork_timeout", SnapshotForkTimeout)
+    registrar.Parameter("snapshot_fork_timeout", &TControllerAgentConfig::SnapshotForkTimeout)
         .Default(TDuration::Minutes(2));
-    RegisterParameter("operation_controller_suspend_timeout", OperationControllerSuspendTimeout)
+    registrar.Parameter("operation_controller_suspend_timeout", &TControllerAgentConfig::OperationControllerSuspendTimeout)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("parallel_snapshot_builder_count", ParallelSnapshotBuilderCount)
+    registrar.Parameter("parallel_snapshot_builder_count", &TControllerAgentConfig::ParallelSnapshotBuilderCount)
         .Default(4)
         .GreaterThan(0);
-    RegisterParameter("snapshot_writer", SnapshotWriter)
+    registrar.Parameter("snapshot_writer", &TControllerAgentConfig::SnapshotWriter)
         .DefaultNew();
 
-    RegisterParameter("enable_snapshot_loading", EnableSnapshotLoading)
+    registrar.Parameter("enable_snapshot_loading", &TControllerAgentConfig::EnableSnapshotLoading)
         .Default(false);
-    RegisterParameter("enable_snapshot_loading_disabled_alert", EnableSnapshotLoadingDisabledAlert)
+    registrar.Parameter("enable_snapshot_loading_disabled_alert", &TControllerAgentConfig::EnableSnapshotLoadingDisabledAlert)
         .Default(true);
-    RegisterParameter("snapshot_reader", SnapshotReader)
+    registrar.Parameter("snapshot_reader", &TControllerAgentConfig::SnapshotReader)
         .DefaultNew();
 
-    RegisterParameter("transactions_refresh_period", TransactionsRefreshPeriod)
+    registrar.Parameter("transactions_refresh_period", &TControllerAgentConfig::TransactionsRefreshPeriod)
         .Default(TDuration::Seconds(3));
-    RegisterParameter("operations_update_period", OperationsUpdatePeriod)
+    registrar.Parameter("operations_update_period", &TControllerAgentConfig::OperationsUpdatePeriod)
         .Default(TDuration::Seconds(3));
-    RegisterParameter("chunk_unstage_period", ChunkUnstagePeriod)
+    registrar.Parameter("chunk_unstage_period", &TControllerAgentConfig::ChunkUnstagePeriod)
         .Default(TDuration::MilliSeconds(100));
 
-    RegisterParameter("enable_unrecognized_alert", EnableUnrecognizedAlert)
+    registrar.Parameter("enable_unrecognized_alert", &TControllerAgentConfig::EnableUnrecognizedAlert)
         .Default(true);
 
-    RegisterParameter("max_children_per_attach_request", MaxChildrenPerAttachRequest)
+    registrar.Parameter("max_children_per_attach_request", &TControllerAgentConfig::MaxChildrenPerAttachRequest)
         .Default(10000)
         .GreaterThan(0);
 
-    RegisterParameter("chunk_location_throttler", ChunkLocationThrottler)
+    registrar.Parameter("chunk_location_throttler", &TControllerAgentConfig::ChunkLocationThrottler)
         .DefaultNew();
 
-    RegisterParameter("event_log", EventLog)
+    registrar.Parameter("event_log", &TControllerAgentConfig::EventLog)
         .DefaultNew();
 
-    RegisterParameter("scheduler_handshake_rpc_timeout", SchedulerHandshakeRpcTimeout)
+    registrar.Parameter("scheduler_handshake_rpc_timeout", &TControllerAgentConfig::SchedulerHandshakeRpcTimeout)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("scheduler_handshake_failure_backoff", SchedulerHandshakeFailureBackoff)
+    registrar.Parameter("scheduler_handshake_failure_backoff", &TControllerAgentConfig::SchedulerHandshakeFailureBackoff)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("scheduler_heartbeat_rpc_timeout", SchedulerHeartbeatRpcTimeout)
+    registrar.Parameter("scheduler_heartbeat_rpc_timeout", &TControllerAgentConfig::SchedulerHeartbeatRpcTimeout)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("scheduler_heartbeat_failure_backoff", SchedulerHeartbeatFailureBackoff)
+    registrar.Parameter("scheduler_heartbeat_failure_backoff", &TControllerAgentConfig::SchedulerHeartbeatFailureBackoff)
         .Default(TDuration::MilliSeconds(100));
-    RegisterParameter("scheduler_heartbeat_period", SchedulerHeartbeatPeriod)
+    registrar.Parameter("scheduler_heartbeat_period", &TControllerAgentConfig::SchedulerHeartbeatPeriod)
         .Default(TDuration::MilliSeconds(100));
 
-    RegisterParameter("config_update_period", ConfigUpdatePeriod)
+    registrar.Parameter("config_update_period", &TControllerAgentConfig::ConfigUpdatePeriod)
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("exec_nodes_update_period", ExecNodesUpdatePeriod)
+    registrar.Parameter("exec_nodes_update_period", &TControllerAgentConfig::ExecNodesUpdatePeriod)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("operations_push_period", OperationsPushPeriod)
+    registrar.Parameter("operations_push_period", &TControllerAgentConfig::OperationsPushPeriod)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("operation_job_metrics_push_period", OperationJobMetricsPushPeriod)
+    registrar.Parameter("operation_job_metrics_push_period", &TControllerAgentConfig::OperationJobMetricsPushPeriod)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("operation_alerts_push_period", OperationAlertsPushPeriod)
+    registrar.Parameter("operation_alerts_push_period", &TControllerAgentConfig::OperationAlertsPushPeriod)
         .Default(TDuration::Seconds(3));
-    RegisterParameter("suspicious_jobs_push_period", SuspiciousJobsPushPeriod)
+    registrar.Parameter("suspicious_jobs_push_period", &TControllerAgentConfig::SuspiciousJobsPushPeriod)
         .Default(TDuration::Seconds(3));
 
-    RegisterParameter("controller_thread_count", ControllerThreadCount)
+    registrar.Parameter("controller_thread_count", &TControllerAgentConfig::ControllerThreadCount)
         .Default(16)
         .GreaterThan(0);
 
-    RegisterParameter("job_spec_build_thread_count", JobSpecBuildThreadCount)
+    registrar.Parameter("job_spec_build_thread_count", &TControllerAgentConfig::JobSpecBuildThreadCount)
         .Default(16)
         .GreaterThan(0);
 
-    RegisterParameter("controller_static_orchid_update_period", ControllerStaticOrchidUpdatePeriod)
+    registrar.Parameter("controller_static_orchid_update_period", &TControllerAgentConfig::ControllerStaticOrchidUpdatePeriod)
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("controller_orchid_keys_update_period", ControllerOrchidKeysUpdatePeriod)
+    registrar.Parameter("controller_orchid_keys_update_period", &TControllerAgentConfig::ControllerOrchidKeysUpdatePeriod)
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("max_concurrent_safe_core_dumps", MaxConcurrentSafeCoreDumps)
+    registrar.Parameter("max_concurrent_safe_core_dumps", &TControllerAgentConfig::MaxConcurrentSafeCoreDumps)
         .Default(1)
         .GreaterThanOrEqual(0);
 
-    RegisterParameter("scheduling_tag_filter_expire_timeout", SchedulingTagFilterExpireTimeout)
+    registrar.Parameter("scheduling_tag_filter_expire_timeout", &TControllerAgentConfig::SchedulingTagFilterExpireTimeout)
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("operation_time_limit", OperationTimeLimit)
+    registrar.Parameter("operation_time_limit", &TControllerAgentConfig::OperationTimeLimit)
         .Default();
-    RegisterParameter("operation_time_limit_check_period", OperationTimeLimitCheckPeriod)
+    registrar.Parameter("operation_time_limit_check_period", &TControllerAgentConfig::OperationTimeLimitCheckPeriod)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("resource_demand_sanity_check_period", ResourceDemandSanityCheckPeriod)
+    registrar.Parameter("resource_demand_sanity_check_period", &TControllerAgentConfig::ResourceDemandSanityCheckPeriod)
         .Default(TDuration::Seconds(15));
 
-    RegisterParameter("operation_initialization_timeout", OperationInitializationTimeout)
+    registrar.Parameter("operation_initialization_timeout", &TControllerAgentConfig::OperationInitializationTimeout)
         .Default(TDuration::Minutes(10));
-    RegisterParameter("operation_transaction_timeout", OperationTransactionTimeout)
+    registrar.Parameter("operation_transaction_timeout", &TControllerAgentConfig::OperationTransactionTimeout)
         .Default(TDuration::Minutes(300));
-    RegisterParameter("operation_transaction_ping_period", OperationTransactionPingPeriod)
+    registrar.Parameter("operation_transaction_ping_period", &TControllerAgentConfig::OperationTransactionPingPeriod)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("operation_progress_log_backoff", OperationLogProgressBackoff)
+    registrar.Parameter("operation_progress_log_backoff", &TControllerAgentConfig::OperationLogProgressBackoff)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("task_update_period", TaskUpdatePeriod)
+    registrar.Parameter("task_update_period", &TControllerAgentConfig::TaskUpdatePeriod)
         .Default(TDuration::Seconds(3));
 
-    RegisterParameter("available_exec_nodes_check_period", AvailableExecNodesCheckPeriod)
+    registrar.Parameter("available_exec_nodes_check_period", &TControllerAgentConfig::AvailableExecNodesCheckPeriod)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("banned_exec_nodes_check_period", BannedExecNodesCheckPeriod)
+    registrar.Parameter("banned_exec_nodes_check_period", &TControllerAgentConfig::BannedExecNodesCheckPeriod)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("operation_progress_analysis_period", OperationProgressAnalysisPeriod)
+    registrar.Parameter("operation_progress_analysis_period", &TControllerAgentConfig::OperationProgressAnalysisPeriod)
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("operation_build_progress_period", OperationBuildProgressPeriod)
+    registrar.Parameter("operation_build_progress_period", &TControllerAgentConfig::OperationBuildProgressPeriod)
         .Default(TDuration::Seconds(3));
 
-    RegisterParameter("check_tentative_tree_eligibility_period", CheckTentativeTreeEligibilityPeriod)
+    registrar.Parameter("check_tentative_tree_eligibility_period", &TControllerAgentConfig::CheckTentativeTreeEligibilityPeriod)
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("zombie_operation_orchids", ZombieOperationOrchids)
+    registrar.Parameter("zombie_operation_orchids", &TControllerAgentConfig::ZombieOperationOrchids)
         .DefaultNew();
 
-    RegisterParameter("max_retained_jobs_per_operation", MaxRetainedJobsPerOperation)
+    registrar.Parameter("max_retained_jobs_per_operation", &TControllerAgentConfig::MaxRetainedJobsPerOperation)
         .Alias("max_job_nodes_per_operation")
         .Default(200)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(1000);
 
-    RegisterParameter("max_archived_job_spec_count_per_operation", MaxArchivedJobSpecCountPerOperation)
+    registrar.Parameter("max_archived_job_spec_count_per_operation", &TControllerAgentConfig::MaxArchivedJobSpecCountPerOperation)
         .Default(500)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(5000);
 
-    RegisterParameter("guaranteed_archived_job_spec_count_per_operation", GuaranteedArchivedJobSpecCountPerOperation)
+    registrar.Parameter("guaranteed_archived_job_spec_count_per_operation", &TControllerAgentConfig::GuaranteedArchivedJobSpecCountPerOperation)
         .Default(10)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(100);
 
-    RegisterParameter("min_job_duration_to_archive_job_spec", MinJobDurationToArchiveJobSpec)
+    registrar.Parameter("min_job_duration_to_archive_job_spec", &TControllerAgentConfig::MinJobDurationToArchiveJobSpec)
         .Default(TDuration::Minutes(30))
         .GreaterThanOrEqual(TDuration::Minutes(5));
 
-    RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
+    registrar.Parameter("max_chunks_per_fetch", &TControllerAgentConfig::MaxChunksPerFetch)
         .Default(100000)
         .GreaterThan(0);
 
-    RegisterParameter("max_user_file_count", MaxUserFileCount)
+    registrar.Parameter("max_user_file_count", &TControllerAgentConfig::MaxUserFileCount)
         .Default(1000)
         .GreaterThan(0);
-    RegisterParameter("max_user_file_size", MaxUserFileSize)
+    registrar.Parameter("max_user_file_size", &TControllerAgentConfig::MaxUserFileSize)
         .Alias("max_file_size")
         .Default(10_GB);
-    RegisterParameter("max_user_file_table_data_weight", MaxUserFileTableDataWeight)
+    registrar.Parameter("max_user_file_table_data_weight", &TControllerAgentConfig::MaxUserFileTableDataWeight)
         .Default(10_GB);
-    RegisterParameter("max_user_file_chunk_count", MaxUserFileChunkCount)
+    registrar.Parameter("max_user_file_chunk_count", &TControllerAgentConfig::MaxUserFileChunkCount)
         .Default(1000);
 
-    RegisterParameter("max_input_table_count", MaxInputTableCount)
+    registrar.Parameter("max_input_table_count", &TControllerAgentConfig::MaxInputTableCount)
         .Default(1000)
         .GreaterThan(0);
 
-    RegisterParameter("max_output_table_count", MaxOutputTableCount)
+    registrar.Parameter("max_output_table_count", &TControllerAgentConfig::MaxOutputTableCount)
         .Default(1000)
         .GreaterThan(0);
 
-    RegisterParameter("max_ranges_on_table", MaxRangesOnTable)
+    registrar.Parameter("max_ranges_on_table", &TControllerAgentConfig::MaxRangesOnTable)
         .Default(1000)
         .GreaterThan(0);
 
-    RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
+    registrar.Parameter("safe_online_node_count", &TControllerAgentConfig::SafeOnlineNodeCount)
         .GreaterThanOrEqual(0)
         .Default(1);
 
-    RegisterParameter("safe_scheduler_online_time", SafeSchedulerOnlineTime)
+    registrar.Parameter("safe_scheduler_online_time", &TControllerAgentConfig::SafeSchedulerOnlineTime)
         .Default(TDuration::Minutes(10));
 
-    RegisterParameter("controller_exec_node_info_update_period", ControllerExecNodeInfoUpdatePeriod)
+    registrar.Parameter("controller_exec_node_info_update_period", &TControllerAgentConfig::ControllerExecNodeInfoUpdatePeriod)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
+    registrar.Parameter("max_chunks_per_locate_request", &TControllerAgentConfig::MaxChunksPerLocateRequest)
         .GreaterThan(0)
         .Default(10000);
 
-    RegisterParameter("operation_options", OperationOptions)
+    registrar.Parameter("operation_options", &TControllerAgentConfig::OperationOptions)
         .Default(NYTree::GetEphemeralNodeFactory()->CreateMap())
         .MergeBy(NYTree::EMergeStrategy::Combine);
 
-    RegisterParameter("map_operation_options", MapOperationOptions)
+    registrar.Parameter("map_operation_options", &TControllerAgentConfig::MapOperationOptions)
         .DefaultNew();
-    RegisterParameter("reduce_operation_options", ReduceOperationOptions)
+    registrar.Parameter("reduce_operation_options", &TControllerAgentConfig::ReduceOperationOptions)
         .DefaultNew();
-    RegisterParameter("join_reduce_operation_options", JoinReduceOperationOptions)
+    registrar.Parameter("join_reduce_operation_options", &TControllerAgentConfig::JoinReduceOperationOptions)
         .DefaultNew();
-    RegisterParameter("erase_operation_options", EraseOperationOptions)
+    registrar.Parameter("erase_operation_options", &TControllerAgentConfig::EraseOperationOptions)
         .DefaultNew();
-    RegisterParameter("ordered_merge_operation_options", OrderedMergeOperationOptions)
+    registrar.Parameter("ordered_merge_operation_options", &TControllerAgentConfig::OrderedMergeOperationOptions)
         .DefaultNew();
-    RegisterParameter("unordered_merge_operation_options", UnorderedMergeOperationOptions)
+    registrar.Parameter("unordered_merge_operation_options", &TControllerAgentConfig::UnorderedMergeOperationOptions)
         .DefaultNew();
-    RegisterParameter("sorted_merge_operation_options", SortedMergeOperationOptions)
+    registrar.Parameter("sorted_merge_operation_options", &TControllerAgentConfig::SortedMergeOperationOptions)
         .DefaultNew();
-    RegisterParameter("map_reduce_operation_options", MapReduceOperationOptions)
+    registrar.Parameter("map_reduce_operation_options", &TControllerAgentConfig::MapReduceOperationOptions)
         .DefaultNew();
-    RegisterParameter("sort_operation_options", SortOperationOptions)
+    registrar.Parameter("sort_operation_options", &TControllerAgentConfig::SortOperationOptions)
         .DefaultNew();
-    RegisterParameter("remote_copy_operation_options", RemoteCopyOperationOptions)
+    registrar.Parameter("remote_copy_operation_options", &TControllerAgentConfig::RemoteCopyOperationOptions)
         .DefaultNew();
-    RegisterParameter("vanilla_operation_options", VanillaOperationOptions)
+    registrar.Parameter("vanilla_operation_options", &TControllerAgentConfig::VanillaOperationOptions)
         .DefaultNew();
 
-    RegisterParameter("environment", Environment)
+    registrar.Parameter("environment", &TControllerAgentConfig::Environment)
         .Default(THashMap<TString, TString>())
         .MergeBy(NYTree::EMergeStrategy::Combine);
 
-    RegisterParameter("enable_controller_failure_spec_option", EnableControllerFailureSpecOption)
+    registrar.Parameter("enable_controller_failure_spec_option", &TControllerAgentConfig::EnableControllerFailureSpecOption)
         .Default(false);
 
-    RegisterParameter("enable_job_revival", EnableJobRevival)
+    registrar.Parameter("enable_job_revival", &TControllerAgentConfig::EnableJobRevival)
         .Default(true);
 
-    RegisterParameter("enable_locality", EnableLocality)
+    registrar.Parameter("enable_locality", &TControllerAgentConfig::EnableLocality)
         .Default(true);
 
-    RegisterParameter("fetcher", Fetcher)
+    registrar.Parameter("fetcher", &TControllerAgentConfig::Fetcher)
         .DefaultNew();
 
-    RegisterParameter("chunk_slice_fetcher", ChunkSliceFetcher)
+    registrar.Parameter("chunk_slice_fetcher", &TControllerAgentConfig::ChunkSliceFetcher)
         .DefaultNew();
 
-    RegisterParameter("udf_registry_path", UdfRegistryPath)
+    registrar.Parameter("udf_registry_path", &TControllerAgentConfig::UdfRegistryPath)
         .Default();
 
-    RegisterParameter("enable_tmpfs", EnableTmpfs)
+    registrar.Parameter("enable_tmpfs", &TControllerAgentConfig::EnableTmpfs)
         .Default(true);
-    RegisterParameter("enable_map_job_size_adjustment", EnableMapJobSizeAdjustment)
+    registrar.Parameter("enable_map_job_size_adjustment", &TControllerAgentConfig::EnableMapJobSizeAdjustment)
         .Default(true);
-    RegisterParameter("enable_job_splitting", EnableJobSplitting)
+    registrar.Parameter("enable_job_splitting", &TControllerAgentConfig::EnableJobSplitting)
         .Default(true);
-    RegisterParameter("enable_job_interrupts", EnableJobInterrupts)
+    registrar.Parameter("enable_job_interrupts", &TControllerAgentConfig::EnableJobInterrupts)
         .Default(true);
 
-    RegisterParameter("heavy_job_spec_slice_count_threshold", HeavyJobSpecSliceCountThreshold)
+    registrar.Parameter("heavy_job_spec_slice_count_threshold", &TControllerAgentConfig::HeavyJobSpecSliceCountThreshold)
         .Default(1000)
         .GreaterThan(0);
 
     //! By default we disable job size adjustment for partition maps,
     //! since it may lead to partition data skew between nodes.
-    RegisterParameter("enable_partition_map_job_size_adjustment", EnablePartitionMapJobSizeAdjustment)
+    registrar.Parameter("enable_partition_map_job_size_adjustment", &TControllerAgentConfig::EnablePartitionMapJobSizeAdjustment)
         .Default(false);
 
-    RegisterParameter("user_job_memory_digest_precision", UserJobMemoryDigestPrecision)
+    registrar.Parameter("user_job_memory_digest_precision", &TControllerAgentConfig::UserJobMemoryDigestPrecision)
         .Default(0.01)
         .GreaterThan(0);
-    RegisterParameter("user_job_memory_reserve_quantile", UserJobMemoryReserveQuantile)
+    registrar.Parameter("user_job_memory_reserve_quantile", &TControllerAgentConfig::UserJobMemoryReserveQuantile)
         .InRange(0.0, 1.0)
         .Default(0.95);
-    RegisterParameter("job_proxy_memory_reserve_quantile", JobProxyMemoryReserveQuantile)
+    registrar.Parameter("job_proxy_memory_reserve_quantile", &TControllerAgentConfig::JobProxyMemoryReserveQuantile)
         .InRange(0.0, 1.0)
         .Default(0.95);
-    RegisterParameter("resource_overdraft_factor", ResourceOverdraftFactor)
+    registrar.Parameter("resource_overdraft_factor", &TControllerAgentConfig::ResourceOverdraftFactor)
         .InRange(1.0, 10.0)
         .Default(1.1);
 
-    RegisterParameter("iops_threshold", IopsThreshold)
+    registrar.Parameter("iops_threshold", &TControllerAgentConfig::IopsThreshold)
         .Default();
-    RegisterParameter("iops_throttler_limit", IopsThrottlerLimit)
+    registrar.Parameter("iops_throttler_limit", &TControllerAgentConfig::IopsThrottlerLimit)
         .Default();
 
-    RegisterParameter("chunk_scraper", ChunkScraper)
+    registrar.Parameter("chunk_scraper", &TControllerAgentConfig::ChunkScraper)
         .DefaultNew();
 
-    RegisterParameter("max_total_slice_count", MaxTotalSliceCount)
+    registrar.Parameter("max_total_slice_count", &TControllerAgentConfig::MaxTotalSliceCount)
         .Default((i64) 10 * 1000 * 1000)
         .GreaterThan(0);
 
-    RegisterParameter("operation_alerts", OperationAlerts)
+    registrar.Parameter("operation_alerts", &TControllerAgentConfig::OperationAlerts)
         .DefaultNew();
 
-    RegisterParameter("controller_row_buffer_chunk_size", ControllerRowBufferChunkSize)
+    registrar.Parameter("controller_row_buffer_chunk_size", &TControllerAgentConfig::ControllerRowBufferChunkSize)
         .Default(64_KB)
         .GreaterThan(0);
 
-    RegisterParameter("testing_options", TestingOptions)
+    registrar.Parameter("testing_options", &TControllerAgentConfig::TestingOptions)
         .DefaultNew();
 
-    RegisterParameter("suspicious_jobs", SuspiciousJobs)
+    registrar.Parameter("suspicious_jobs", &TControllerAgentConfig::SuspiciousJobs)
         .DefaultNew();
 
-    RegisterParameter("job_spec_codec", JobSpecCodec)
+    registrar.Parameter("job_spec_codec", &TControllerAgentConfig::JobSpecCodec)
         .Default(NCompression::ECodec::Lz4);
 
-    RegisterParameter("job_metrics_report_period", JobMetricsReportPeriod)
+    registrar.Parameter("job_metrics_report_period", &TControllerAgentConfig::JobMetricsReportPeriod)
         .Default(TDuration::Seconds(15));
 
-    RegisterParameter("system_layer_path", SystemLayerPath)
+    registrar.Parameter("system_layer_path", &TControllerAgentConfig::SystemLayerPath)
         .Default();
 
-    RegisterParameter("default_layer_path", DefaultLayerPath)
+    registrar.Parameter("default_layer_path", &TControllerAgentConfig::DefaultLayerPath)
         .Default();
 
-    RegisterParameter("cuda_toolkit_layer_directory_path", CudaToolkitLayerDirectoryPath)
+    registrar.Parameter("cuda_toolkit_layer_directory_path", &TControllerAgentConfig::CudaToolkitLayerDirectoryPath)
         .Default();
 
-    RegisterParameter("gpu_check_layer_directory_path", GpuCheckLayerDirectoryPath)
+    registrar.Parameter("gpu_check_layer_directory_path", &TControllerAgentConfig::GpuCheckLayerDirectoryPath)
         .Default();
 
-    RegisterParameter("schedule_job_statistics_log_backoff", ScheduleJobStatisticsLogBackoff)
+    registrar.Parameter("schedule_job_statistics_log_backoff", &TControllerAgentConfig::ScheduleJobStatisticsLogBackoff)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("controller_throttling_log_backoff", ControllerThrottlingLogBackoff)
+    registrar.Parameter("controller_throttling_log_backoff", &TControllerAgentConfig::ControllerThrottlingLogBackoff)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("job_spec_slice_throttler", JobSpecSliceThrottler)
+    registrar.Parameter("job_spec_slice_throttler", &TControllerAgentConfig::JobSpecSliceThrottler)
         .Default(New<NConcurrency::TThroughputThrottlerConfig>(500000));
 
-    RegisterParameter("static_orchid_cache_update_period", StaticOrchidCacheUpdatePeriod)
+    registrar.Parameter("static_orchid_cache_update_period", &TControllerAgentConfig::StaticOrchidCacheUpdatePeriod)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("cached_running_jobs_update_period", CachedRunningJobsUpdatePeriod)
+    registrar.Parameter("cached_running_jobs_update_period", &TControllerAgentConfig::CachedRunningJobsUpdatePeriod)
         .Default();
 
-    RegisterParameter("cached_unavailable_chunks_update_period", CachedUnavailableChunksUpdatePeriod)
+    registrar.Parameter("cached_unavailable_chunks_update_period", &TControllerAgentConfig::CachedUnavailableChunksUpdatePeriod)
         .Default();
 
-    RegisterParameter("tagged_memory_statistics_update_period", TaggedMemoryStatisticsUpdatePeriod)
+    registrar.Parameter("tagged_memory_statistics_update_period", &TControllerAgentConfig::TaggedMemoryStatisticsUpdatePeriod)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("alerts_update_period", AlertsUpdatePeriod)
+    registrar.Parameter("alerts_update_period", &TControllerAgentConfig::AlertsUpdatePeriod)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("total_controller_memory_limit", TotalControllerMemoryLimit)
+    registrar.Parameter("total_controller_memory_limit", &TControllerAgentConfig::TotalControllerMemoryLimit)
         .Default();
 
-    RegisterParameter("schedule_job_controller_queue", ScheduleJobControllerQueue)
+    registrar.Parameter("schedule_job_controller_queue", &TControllerAgentConfig::ScheduleJobControllerQueue)
         .Default(EOperationControllerQueue::Default);
 
-    RegisterParameter("job_events_controller_queue", JobEventsControllerQueue)
+    registrar.Parameter("job_events_controller_queue", &TControllerAgentConfig::JobEventsControllerQueue)
         .Default(EOperationControllerQueue::Default);
 
-    RegisterParameter("schedule_job_wait_time_threshold", ScheduleJobWaitTimeThreshold)
+    registrar.Parameter("schedule_job_wait_time_threshold", &TControllerAgentConfig::ScheduleJobWaitTimeThreshold)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("allow_users_group_read_intermediate_data", AllowUsersGroupReadIntermediateData)
+    registrar.Parameter("allow_users_group_read_intermediate_data", &TControllerAgentConfig::AllowUsersGroupReadIntermediateData)
         .Default(false);
 
-    RegisterParameter("custom_job_metrics", CustomJobMetrics)
+    registrar.Parameter("custom_job_metrics", &TControllerAgentConfig::CustomJobMetrics)
         .Default();
 
-    RegisterParameter("dynamic_table_lock_checking_attempt_count_limit", DynamicTableLockCheckingAttemptCountLimit)
+    registrar.Parameter("dynamic_table_lock_checking_attempt_count_limit", &TControllerAgentConfig::DynamicTableLockCheckingAttemptCountLimit)
         .Default(10);
-    RegisterParameter("dynamic_table_lock_checking_interval_scale", DynamicTableLockCheckingIntervalScale)
+    registrar.Parameter("dynamic_table_lock_checking_interval_scale", &TControllerAgentConfig::DynamicTableLockCheckingIntervalScale)
         .Default(1.5);
-    RegisterParameter("dynamic_table_lock_checking_interval_duration_min", DynamicTableLockCheckingIntervalDurationMin)
+    registrar.Parameter("dynamic_table_lock_checking_interval_duration_min", &TControllerAgentConfig::DynamicTableLockCheckingIntervalDurationMin)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("dynamic_table_lock_checking_interval_duration_max", DynamicTableLockCheckingIntervalDurationMax)
+    registrar.Parameter("dynamic_table_lock_checking_interval_duration_max", &TControllerAgentConfig::DynamicTableLockCheckingIntervalDurationMax)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("enable_operation_progress_archivation", EnableOperationProgressArchivation)
+    registrar.Parameter("enable_operation_progress_archivation", &TControllerAgentConfig::EnableOperationProgressArchivation)
         .Default(true);
-    RegisterParameter("operation_progress_archivation_timeout", OperationProgressArchivationTimeout)
+    registrar.Parameter("operation_progress_archivation_timeout", &TControllerAgentConfig::OperationProgressArchivationTimeout)
         .Default(TDuration::Seconds(3));
 
-    RegisterParameter("legacy_live_preview_user_blacklist", LegacyLivePreviewUserBlacklist)
+    registrar.Parameter("legacy_live_preview_user_blacklist", &TControllerAgentConfig::LegacyLivePreviewUserBlacklist)
         .DefaultNew("robot-.*");
 
-    RegisterParameter("enable_bulk_insert_for_everyone", EnableBulkInsertForEveryone)
+    registrar.Parameter("enable_bulk_insert_for_everyone", &TControllerAgentConfig::EnableBulkInsertForEveryone)
         .Default(false);
-    RegisterParameter("enable_versioned_remote_copy", EnableVersionedRemoteCopy)
+    registrar.Parameter("enable_versioned_remote_copy", &TControllerAgentConfig::EnableVersionedRemoteCopy)
         .Default(false);
 
-    RegisterParameter("default_enable_porto", DefaultEnablePorto)
+    registrar.Parameter("default_enable_porto", &TControllerAgentConfig::DefaultEnablePorto)
         .Default(NScheduler::EEnablePorto::None);
 
-    RegisterParameter("job_reporter", JobReporter)
+    registrar.Parameter("job_reporter", &TControllerAgentConfig::JobReporter)
         .DefaultNew();
 
-    RegisterParameter("heavy_request_immediate_response_timeout", HeavyRequestImmediateResponseTimeout)
+    registrar.Parameter("heavy_request_immediate_response_timeout", &TControllerAgentConfig::HeavyRequestImmediateResponseTimeout)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("memory_usage_profiling_period", MemoryUsageProfilingPeriod)
+    registrar.Parameter("memory_usage_profiling_period", &TControllerAgentConfig::MemoryUsageProfilingPeriod)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("enable_bypass_artifact_cache", EnableBypassArtifactCache)
+    registrar.Parameter("enable_bypass_artifact_cache", &TControllerAgentConfig::EnableBypassArtifactCache)
         .Default(true);
 
-    RegisterParameter("enable_prerequisites_for_starting_completion_transactions", EnablePrerequisitesForStartingCompletionTransactions)
+    registrar.Parameter("enable_prerequisites_for_starting_completion_transactions", &TControllerAgentConfig::EnablePrerequisitesForStartingCompletionTransactions)
         .Default(true);
 
-    RegisterParameter("enable_eager_transaction_replication", EnableEagerTransactionReplication)
+    registrar.Parameter("enable_eager_transaction_replication", &TControllerAgentConfig::EnableEagerTransactionReplication)
         .Default(true);
 
     // COMPAT(gritukan): This default is quite dangerous, change it when all controller agents will have fresh configs.
-    RegisterParameter("tags", Tags)
+    registrar.Parameter("tags", &TControllerAgentConfig::Tags)
         .Default(std::vector<TString>({"default"}));
 
-    RegisterParameter("user_job_monitoring", UserJobMonitoring)
+    registrar.Parameter("user_job_monitoring", &TControllerAgentConfig::UserJobMonitoring)
         .DefaultNew();
 
-    RegisterParameter("obligatory_account_mediums", ObligatoryAccountMediums)
+    registrar.Parameter("obligatory_account_mediums", &TControllerAgentConfig::ObligatoryAccountMediums)
         .Default();
 
-    RegisterParameter("enable_master_resource_usage_accounting", EnableMasterResourceUsageAccounting)
+    registrar.Parameter("enable_master_resource_usage_accounting", &TControllerAgentConfig::EnableMasterResourceUsageAccounting)
         .Default(true);
 
-    RegisterParameter("memory_watchdog", MemoryWatchdog)
+    registrar.Parameter("memory_watchdog", &TControllerAgentConfig::MemoryWatchdog)
         .DefaultNew();
 
-    RegisterParameter("secure_vault_length_limit", SecureVaultLengthLimit)
+    registrar.Parameter("secure_vault_length_limit", &TControllerAgentConfig::SecureVaultLengthLimit)
         .Default(64_MB);
 
-    RegisterParameter("full_job_info_wait_timeout", FullJobInfoWaitTimeout)
+    registrar.Parameter("full_job_info_wait_timeout", &TControllerAgentConfig::FullJobInfoWaitTimeout)
         .Default(TDuration::Seconds(15));
 
-    RegisterParameter("enable_heartbeats_from_nodes", EnableHeartbeatsFromNodes)
+    registrar.Parameter("enable_heartbeats_from_nodes", &TControllerAgentConfig::EnableHeartbeatsFromNodes)
         .Default(false);
 
-    RegisterParameter("chunk_teleporter", ChunkTeleporter)
+    registrar.Parameter("chunk_teleporter", &TControllerAgentConfig::ChunkTeleporter)
         .DefaultNew();
 
-    RegisterPreprocessor([&] {
-        EventLog->MaxRowWeight = 128_MB;
-        if (!EventLog->Path) {
-            EventLog->Path = "//sys/scheduler/event_log";
+    registrar.Preprocessor([&] (TControllerAgentConfig* config) {
+        config->EventLog->MaxRowWeight = 128_MB;
+        if (!config->EventLog->Path) {
+            config->EventLog->Path = "//sys/scheduler/event_log";
         }
 
-        ChunkLocationThrottler->Limit = 10000;
+        config->ChunkLocationThrottler->Limit = 10000;
 
         // Value in options is an upper bound hint on uncompressed data size for merge jobs.
-        OrderedMergeOperationOptions->DataWeightPerJob = 20_GB;
-        OrderedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
+        config->OrderedMergeOperationOptions->DataWeightPerJob = 20_GB;
+        config->OrderedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
 
-        SortedMergeOperationOptions->DataWeightPerJob = 20_GB;
-        SortedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
+        config->SortedMergeOperationOptions->DataWeightPerJob = 20_GB;
+        config->SortedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
 
-        UnorderedMergeOperationOptions->DataWeightPerJob = 20_GB;
-        UnorderedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
+        config->UnorderedMergeOperationOptions->DataWeightPerJob = 20_GB;
+        config->UnorderedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
 
-        OperationOptions->AsMap()->AddChild("controller_building_job_spec_count_limit", NYTree::ConvertToNode(100));
-        OperationOptions->AsMap()->AddChild("controller_total_building_job_spec_slice_count_limit", NYTree::ConvertToNode(50'000));
+        config->OperationOptions->AsMap()->AddChild("controller_building_job_spec_count_limit", NYTree::ConvertToNode(100));
+        config->OperationOptions->AsMap()->AddChild("controller_total_building_job_spec_slice_count_limit", NYTree::ConvertToNode(50'000));
     });
 
-    RegisterPostprocessor([&] {
-        UpdateOptions(&MapOperationOptions, OperationOptions);
-        UpdateOptions(&ReduceOperationOptions, OperationOptions);
-        UpdateOptions(&JoinReduceOperationOptions, OperationOptions);
-        UpdateOptions(&EraseOperationOptions, OperationOptions);
-        UpdateOptions(&OrderedMergeOperationOptions, OperationOptions);
-        UpdateOptions(&UnorderedMergeOperationOptions, OperationOptions);
-        UpdateOptions(&SortedMergeOperationOptions, OperationOptions);
-        UpdateOptions(&MapReduceOperationOptions, OperationOptions);
-        UpdateOptions(&SortOperationOptions, OperationOptions);
-        UpdateOptions(&RemoteCopyOperationOptions, OperationOptions);
-        UpdateOptions(&VanillaOperationOptions, OperationOptions);
+    registrar.Postprocessor([&] (TControllerAgentConfig* config) {
+        UpdateOptions(&config->MapOperationOptions, config->OperationOptions);
+        UpdateOptions(&config->ReduceOperationOptions, config->OperationOptions);
+        UpdateOptions(&config->JoinReduceOperationOptions, config->OperationOptions);
+        UpdateOptions(&config->EraseOperationOptions, config->OperationOptions);
+        UpdateOptions(&config->OrderedMergeOperationOptions, config->OperationOptions);
+        UpdateOptions(&config->UnorderedMergeOperationOptions, config->OperationOptions);
+        UpdateOptions(&config->SortedMergeOperationOptions, config->OperationOptions);
+        UpdateOptions(&config->MapReduceOperationOptions, config->OperationOptions);
+        UpdateOptions(&config->SortOperationOptions, config->OperationOptions);
+        UpdateOptions(&config->RemoteCopyOperationOptions, config->OperationOptions);
+        UpdateOptions(&config->VanillaOperationOptions, config->OperationOptions);
 
-        for (const auto& customJobMetricDescription : CustomJobMetrics) {
+        for (const auto& customJobMetricDescription : config->CustomJobMetrics) {
             for (auto metricName : TEnumTraits<NScheduler::EJobMetricName>::GetDomainValues()) {
                 if (FormatEnum(metricName) == customJobMetricDescription.ProfilingName) {
                     THROW_ERROR_EXCEPTION("Metric with profiling name $Qv is already presented",
@@ -897,8 +897,8 @@ TControllerAgentConfig::TControllerAgentConfig()
             }
         }
 
-        if (TotalControllerMemoryLimit) {
-            MemoryWatchdog->TotalControllerMemoryLimit = TotalControllerMemoryLimit;
+        if (config->TotalControllerMemoryLimit) {
+            config->MemoryWatchdog->TotalControllerMemoryLimit = config->TotalControllerMemoryLimit;
         }
     });
 }

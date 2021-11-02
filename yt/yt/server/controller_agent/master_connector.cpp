@@ -1236,7 +1236,7 @@ private:
         SetControllerAgentAlert(EControllerAgentAlertType::SnapshotLoadingDisabled, TError());
 
         if (Config_->EnableUnrecognizedAlert) {
-            auto unrecognized = Config_->GetUnrecognizedRecursively();
+            auto unrecognized = Config_->GetRecursiveUnrecognized();
             if (unrecognized && unrecognized->GetChildCount() > 0) {
                 YT_LOG_WARNING("Controller agent config contains unrecognized options (Unrecognized: %v)",
                     ConvertToYsonString(unrecognized, EYsonFormat::Text));

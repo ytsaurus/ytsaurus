@@ -28,7 +28,7 @@
 
 #include <yt/yt/core/concurrency/config.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/library/re2/public.h>
@@ -53,7 +53,7 @@ DEFINE_REFCOUNTED_TYPE(TIntermediateChunkScraperConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTestingOptions
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Testing option that enables snapshot build/load cycle after operation materialization.
@@ -66,7 +66,9 @@ public:
     //! If this option is set, controller agent sleeps for this duration before performing actual unregistration.
     std::optional<TDuration> DelayInUnregistration;
 
-    TTestingOptions();
+    REGISTER_YSON_STRUCT(TTestingOptions)
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTestingOptions)
@@ -74,7 +76,7 @@ DEFINE_REFCOUNTED_TYPE(TTestingOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperationAlertsConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     // Maximum allowed ratio of unused tmpfs size.
@@ -148,7 +150,9 @@ public:
     // if queues with average wait time above this threshold are found.
     TDuration QueueAverageWaitTimeThreshold;
 
-    TOperationAlertsConfig();
+    REGISTER_YSON_STRUCT(TOperationAlertsConfig)
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationAlertsConfig)
@@ -156,7 +160,7 @@ DEFINE_REFCOUNTED_TYPE(TOperationAlertsConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobSplitterConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration MinJobTime;
@@ -179,7 +183,9 @@ public:
 
     bool ShowRunningJobsInProgress;
 
-    TJobSplitterConfig();
+    REGISTER_YSON_STRUCT(TJobSplitterConfig)
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobSplitterConfig)
@@ -187,7 +193,7 @@ DEFINE_REFCOUNTED_TYPE(TJobSplitterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSuspiciousJobsOptions
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Duration of no activity by job to be considered as suspicious.
@@ -208,7 +214,9 @@ public:
     //! Maximum number of suspicious jobs that are reported in Orchid for each job type.
     i64 MaxOrchidEntryCountPerType;
 
-    TSuspiciousJobsOptions();
+    REGISTER_YSON_STRUCT(TSuspiciousJobsOptions)
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSuspiciousJobsOptions)
@@ -216,14 +224,16 @@ DEFINE_REFCOUNTED_TYPE(TSuspiciousJobsOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDataBalancerOptions
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     i64 LoggingMinConsecutiveViolationCount;
     TDuration LoggingPeriod;
     double Tolerance;
 
-    TDataBalancerOptions();
+    REGISTER_YSON_STRUCT(TDataBalancerOptions)
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDataBalancerOptions)
@@ -231,14 +241,16 @@ DEFINE_REFCOUNTED_TYPE(TDataBalancerOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserJobOptions
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Thread limit for the user job is ceil(#InitialThreadLimit + #ThreadLimitMultiplier * JobCpuLimit);
     i64 ThreadLimitMultiplier;
     i64 InitialThreadLimit;
 
-    TUserJobOptions();
+    REGISTER_YSON_STRUCT(TUserJobOptions)
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TUserJobOptions)
@@ -246,7 +258,7 @@ DEFINE_REFCOUNTED_TYPE(TUserJobOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperationOptions
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
     , public virtual NPhoenix::TDynamicTag
 {
 private:
@@ -290,7 +302,9 @@ public:
 
     TUserJobOptionsPtr UserJobOptions;
 
-    TOperationOptions();
+    REGISTER_YSON_STRUCT(TOperationOptions)
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationOptions)
@@ -307,7 +321,9 @@ public:
     int MaxJobCount;
     i64 DataWeightPerJob;
 
-    TSimpleOperationOptions();
+    REGISTER_YSON_STRUCT(TSimpleOperationOptions)
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSimpleOperationOptions)
@@ -323,7 +339,9 @@ private:
 public:
     NChunkPools::TJobSizeAdjusterConfigPtr JobSizeAdjuster;
 
-    TMapOperationOptions();
+    REGISTER_YSON_STRUCT(TMapOperationOptions)
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMapOperationOptions)
@@ -370,7 +388,9 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceOperationOptions, 0x91371bf5);
 
 public:
-    TReduceOperationOptions();
+    REGISTER_YSON_STRUCT(TReduceOperationOptions)
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TReduceOperationOptions)
@@ -407,7 +427,9 @@ public:
     NChunkPools::TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
     TDataBalancerOptionsPtr DataBalancer;
 
-    TSortOperationOptionsBase();
+    REGISTER_YSON_STRUCT(TSortOperationOptionsBase)
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSortOperationOptionsBase)
@@ -442,9 +464,11 @@ class TRemoteCopyOperationOptions
 public:
     NScheduler::TCpuResource CpuLimit;
 
-    TRemoteCopyOperationOptions()
+    REGISTER_YSON_STRUCT(TRemoteCopyOperationOptions)
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("cpu_limit", CpuLimit)
+        registrar.Parameter("cpu_limit", &TRemoteCopyOperationOptions::CpuLimit)
             .Default(NScheduler::TCpuResource(0.1));
     }
 
@@ -466,11 +490,13 @@ public:
     //! Maximum total number of jobs.
     int MaxTotalJobCount;
 
-    TVanillaOperationOptions()
+    REGISTER_YSON_STRUCT(TVanillaOperationOptions)
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("max_task_count", MaxTaskCount)
+        registrar.Parameter("max_task_count", &TVanillaOperationOptions::MaxTaskCount)
             .Default(100);
-        RegisterParameter("max_total_job_count", MaxTotalJobCount)
+        registrar.Parameter("max_total_job_count", &TVanillaOperationOptions::MaxTotalJobCount)
             .Default(100 * 1000);
     }
 
@@ -483,7 +509,7 @@ DEFINE_REFCOUNTED_TYPE(TVanillaOperationOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TZombieOperationOrchidsConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Maximum number of retained orchids.
@@ -495,16 +521,18 @@ public:
     //! Is orchid saving and cleaning enabled?
     bool Enable;
 
-    TZombieOperationOrchidsConfig()
+    REGISTER_YSON_STRUCT(TZombieOperationOrchidsConfig)
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("limit", Limit)
+        registrar.Parameter("limit", &TZombieOperationOrchidsConfig::Limit)
             .Default(10000)
             .GreaterThanOrEqual(0);
 
-        RegisterParameter("clean_period", CleanPeriod)
+        registrar.Parameter("clean_period", &TZombieOperationOrchidsConfig::CleanPeriod)
             .Default(TDuration::Minutes(1));
 
-        RegisterParameter("enable", Enable)
+        registrar.Parameter("enable", &TZombieOperationOrchidsConfig::Enable)
             .Default(true);
     }
 
@@ -517,13 +545,15 @@ DEFINE_REFCOUNTED_TYPE(TZombieOperationOrchidsConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserJobMonitoringConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     int MaxMonitoredUserJobsPerOperation;
     int MaxMonitoredUserJobsPerAgent;
 
-    TUserJobMonitoringConfig();
+    REGISTER_YSON_STRUCT(TUserJobMonitoringConfig)
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringConfig)
@@ -531,7 +561,7 @@ DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMemoryWatchdogConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<i64> TotalControllerMemoryLimit;
@@ -546,7 +576,9 @@ public:
 
     TDuration MemoryUsageCheckPeriod;
 
-    TMemoryWatchdogConfig();
+    REGISTER_YSON_STRUCT(TMemoryWatchdogConfig)
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMemoryWatchdogConfig)
@@ -554,7 +586,7 @@ DEFINE_REFCOUNTED_TYPE(TMemoryWatchdogConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TControllerAgentConfig
-    : public TDeprecatedSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     //! Number of chunk lists to be allocated when an operation starts.
@@ -942,11 +974,13 @@ public:
 
     NChunkClient::TChunkTeleporterConfigPtr ChunkTeleporter;
 
-    TControllerAgentConfig();
+    REGISTER_YSON_STRUCT(TControllerAgentConfig)
+
+    static void Register(TRegistrar registrar);
 
 private:
     template <class TOptions>
-    void UpdateOptions(TOptions* options, NYT::NYTree::INodePtr patch);
+    static void UpdateOptions(TOptions* options, NYT::NYTree::INodePtr patch);
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentConfig)
