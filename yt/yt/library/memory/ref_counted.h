@@ -1,7 +1,8 @@
 #pragma once
 
-#include <yt/yt/library/misc/assert.h>
 #include <yt/yt/library/misc/port.h>
+
+#include <yt/yt/library/assert/assert.h>
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
 

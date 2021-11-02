@@ -1,6 +1,9 @@
 #pragma once
 
 #include <util/system/compiler.h>
+#include <util/system/src_root.h>
+
+#include <util/generic/strbuf.h>
 
 namespace NYT {
 
@@ -10,10 +13,11 @@ namespace NDetail {
 
 [[noreturn]]
 void AssertTrapImpl(
-    const char* trapType,
-    const char* expr,
-    const char* file,
-    int line);
+    TStringBuf trapType,
+    TStringBuf expr,
+    TStringBuf file,
+    int line,
+    TStringBuf function);
 
 } // namespace NDetail
 
@@ -24,7 +28,7 @@ void AssertTrapImpl(
 #endif
 
 #define YT_ASSERT_TRAP(trapType, expr) \
-    ::NYT::NDetail::AssertTrapImpl(trapType, expr, __FILE__, __LINE__); \
+    ::NYT::NDetail::AssertTrapImpl(TStringBuf(trapType), TStringBuf(expr), __SOURCE_FILE_IMPL__.As<TStringBuf>(), __LINE__, TStringBuf(__FUNCTION__)); \
     Y_UNREACHABLE() \
 
 #ifdef NDEBUG

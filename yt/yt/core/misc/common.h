@@ -27,7 +27,6 @@
 
 #include "port.h"
 #include "enum.h"
-#include "assert.h"
 #include "ref_counted.h"
 #include "intrusive_ptr.h"
 #include "weak_ptr.h"

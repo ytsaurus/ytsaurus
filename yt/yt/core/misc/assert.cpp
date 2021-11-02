@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/logging/log_manager.h>
 
+#include <yt/yt/library/assert/assert.h>
+
 #ifdef _win_
     #include <io.h>
 #else
@@ -27,10 +29,11 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 void AssertTrapImpl(
-    const char* trapType,
-    const char* expr,
-    const char* file,
-    int line)
+    TStringBuf trapType,
+    TStringBuf expr,
+    TStringBuf file,
+    int line,
+    TStringBuf function)
 {
     TRawFormatter<1024> formatter;
     formatter.AppendString(trapType);
@@ -40,7 +43,11 @@ void AssertTrapImpl(
     formatter.AppendString(file);
     formatter.AppendString(":");
     formatter.AppendNumber(line);
-    formatter.AppendString("\n");
+    if (function) {
+        formatter.AppendString(" in ");
+        formatter.AppendString(function);
+        formatter.AppendString("\n");
+    }
 
     if (SafeAssertionsModeEnabled()) {
         auto semaphore = GetSafeAssertionsCoreSemaphore();
