@@ -1,5 +1,6 @@
-from pyspark.sql.types import UserDefinedType, BinaryType, LongType, StringType
-from pyspark.sql.functions import udf
+from pyspark.sql.types import UserDefinedType, BinaryType, LongType
+from pyspark import SparkContext
+from pyspark.sql.column import _to_java_column, Column
 
 
 class YsonType(UserDefinedType):
@@ -77,8 +78,21 @@ def string_to_uint64(number):
         return int(number)
 
 
-uint64_to_string_udf = udf(uint64_to_string, StringType())
-string_to_uint64_udf = udf(string_to_uint64, UInt64Type())
+def uint64_to_string_udf(s_col):
+    sc = SparkContext._active_spark_context
+    cols = sc._gateway.new_array(sc._jvm.Column, 1)
+    cols[0] = _to_java_column(s_col)
+    jc = sc._jvm.org.apache.spark.sql.yson.UInt64Long.toStringUdf().apply(cols)
+    return Column(jc)
+
+
+def string_to_uint64_udf(s_col):
+    sc = SparkContext._active_spark_context
+    cols = sc._gateway.new_array(sc._jvm.Column, 1)
+    cols[0] = _to_java_column(s_col)
+    jc = sc._jvm.org.apache.spark.sql.yson.UInt64Long.fromStringUdf().apply(cols)
+    return Column(jc)
+
 
 def tuple_type(element_types):
     """
