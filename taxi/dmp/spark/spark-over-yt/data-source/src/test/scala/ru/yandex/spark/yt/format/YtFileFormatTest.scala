@@ -27,6 +27,7 @@ import ru.yandex.spark.yt.wrapper.client.YtClientProvider
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
 import ru.yandex.type_info.TiType
 import ru.yandex.yt.ytclient.proxy.CompoundClient
+import ru.yandex.yt.ytclient.proxy.request.GetNode
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 
 import java.nio.charset.StandardCharsets
@@ -716,7 +717,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
 
     // getNode invoked in YtWrapper.attribute(path, "schema"), that might be invoked for every chunk in inferSchema
     // schema should be asked exactly 1 time for every file
-    verify(mockYt, times(tables.length)).getNode(any)
+    verify(mockYt, times(tables.length)).getNode(any[GetNode])
     Mockito.reset(mockYt)
   }
 
