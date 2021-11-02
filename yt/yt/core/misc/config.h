@@ -38,17 +38,17 @@ public:
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("relative_precision", &TLogDigestConfig::RelativePrecision)
+        registrar.Parameter("relative_precision", &TThis::RelativePrecision)
             .Default(0.01)
             .GreaterThan(0);
 
-        registrar.Parameter("lower_bound", &TLogDigestConfig::LowerBound)
+        registrar.Parameter("lower_bound", &TThis::LowerBound)
             .GreaterThan(0);
 
-        registrar.Parameter("upper_bound", &TLogDigestConfig::UpperBound)
+        registrar.Parameter("upper_bound", &TThis::UpperBound)
             .GreaterThan(0);
 
-        registrar.Parameter("default_value", &TLogDigestConfig::DefaultValue);
+        registrar.Parameter("default_value", &TThis::DefaultValue);
 
         registrar.Postprocessor([] (TLogDigestConfig* config) {
             // If there are more than 1000 buckets, the implementation of TLogDigest
@@ -95,10 +95,10 @@ public:
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("aggregation_mode", &THistoricUsageConfig::AggregationMode)
+        registrar.Parameter("aggregation_mode", &TThis::AggregationMode)
             .Default(EHistoricUsageAggregationMode::None);
 
-        registrar.Parameter("ema_alpha", &THistoricUsageConfig::EmaAlpha)
+        registrar.Parameter("ema_alpha", &TThis::EmaAlpha)
             // TODO(eshcherbin): Adjust.
             .Default(1.0 / (24.0 * 60.0 * 60.0))
             .GreaterThanOrEqual(0.0);

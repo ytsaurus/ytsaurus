@@ -243,9 +243,9 @@ struct TSerializableColumnSchema
     {
         registrar.BaseClassParameter("name", &TSerializableColumnSchema::Name_)
             .NonEmpty();
-        registrar.Parameter("type", &TSerializableColumnSchema::LogicalTypeV1_)
+        registrar.Parameter("type", &TThis::LogicalTypeV1_)
             .Default(std::nullopt);
-        registrar.Parameter("required", &TSerializableColumnSchema::RequiredV1_)
+        registrar.Parameter("required", &TThis::RequiredV1_)
             .Default(std::nullopt);
         registrar.Parameter("type_v3", &TSerializableColumnSchema::LogicalTypeV3_)
             .Default();

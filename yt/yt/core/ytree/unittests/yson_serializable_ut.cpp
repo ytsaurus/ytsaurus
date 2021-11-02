@@ -835,14 +835,14 @@ TEST(TYsonSerializableTest, DontSerializeDefault)
 class TYsonStructClass
     : public TYsonStruct
 {
-public:    
+public:
     int IntValue;
 
     REGISTER_YSON_STRUCT(TYsonStructClass);
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("int_value", &TYsonStructClass::IntValue)
+        registrar.Parameter("int_value", &TThis::IntValue)
             .Default(1);
     }
 };
@@ -852,7 +852,7 @@ class TYsonSerializableClass
 {
 public:
     THashMap<TString, TIntrusivePtr<TYsonStructClass>> YsonStructHashMap;
-    
+
     TIntrusivePtr<TYsonStructClass> YsonStructValue;
 
     TYsonSerializableClass()
@@ -913,7 +913,7 @@ public:
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("int_value", &TNestedYsonStructClass::IntValue)
+        registrar.Parameter("int_value", &TThis::IntValue)
             .Default(1);
         registrar.Postprocessor([&] (TNestedYsonStructClass* klass) {
             klass->IntValue = 10;
@@ -926,7 +926,7 @@ class TYsonSerializableClass2
 {
 public:
     THashMap<TString, TIntrusivePtr<TNestedYsonStructClass>> YsonStructHashMap;
-    
+
     TYsonSerializableClass2()
     {
         RegisterParameter("yson_struct_hash_map", YsonStructHashMap)

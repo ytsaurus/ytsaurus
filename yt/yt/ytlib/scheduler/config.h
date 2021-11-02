@@ -437,7 +437,7 @@ public:
 
         static void Register(TRegistrar registrar)
         {
-            registrar.Parameter("pipe_delay", &TTestingOptions::PipeDelay)
+            registrar.Parameter("pipe_delay", &TThis::PipeDelay)
                 .Default();
         }
     };

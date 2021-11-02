@@ -226,27 +226,28 @@ bool ReconfigureYsonStruct(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define REGISTER_YSON_STRUCT_IMPL(TThis) \
-    TThis() \
+#define REGISTER_YSON_STRUCT_IMPL(TStruct) \
+    TStruct() \
     { \
         TForbidCachedDynamicCastGuard guard(this); \
         ::NYT::NYTree::TYsonStructRegistry::Get()->Initialize(this); \
     } \
  \
 private: \
-    using TRegistrar = ::NYT::NYTree::TYsonStructRegistrar<TThis>; \
+    using TRegistrar = ::NYT::NYTree::TYsonStructRegistrar<TStruct>; \
+    using TThis = TStruct; \
     friend class ::NYT::NYTree::TYsonStructRegistry;
 
-#define REGISTER_YSON_STRUCT(TThis) \
+#define REGISTER_YSON_STRUCT(TStruct) \
 public: \
-REGISTER_YSON_STRUCT_IMPL(TThis)
+REGISTER_YSON_STRUCT_IMPL(TStruct)
 
-#define REGISTER_YSON_STRUCT_LITE(TThis) \
+#define REGISTER_YSON_STRUCT_LITE(TStruct) \
 public: \
  \
-    static TThis Create() { \
-        static_assert(std::is_base_of_v<::NYT::NYTree::TYsonStructLite, TThis>, "Class must inherit from TYsonStructLite"); \
-        TThis result; \
+    static TStruct Create() { \
+        static_assert(std::is_base_of_v<::NYT::NYTree::TYsonStructLite, TStruct>, "Class must inherit from TYsonStructLite"); \
+        TStruct result; \
         result.SetDefaults(); \
         return result; \
   } \
@@ -255,7 +256,7 @@ template <class T> \
 friend void ::NYT::NYTree::CallCtor(); \
  \
 protected: \
-REGISTER_YSON_STRUCT_IMPL(TThis)
+REGISTER_YSON_STRUCT_IMPL(TStruct)
 
 ////////////////////////////////////////////////////////////////////////////////
 

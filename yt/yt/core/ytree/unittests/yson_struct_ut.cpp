@@ -40,17 +40,17 @@ struct TTestSubconfig
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("my_int", &TTestSubconfig::MyInt)
+        registrar.Parameter("my_int", &TThis::MyInt)
             .Default(100)
             .InRange(95, 205);
-        registrar.Parameter("my_uint", &TTestSubconfig::MyUint)
+        registrar.Parameter("my_uint", &TThis::MyUint)
             .Default(50)
             .InRange(31, 117);
-        registrar.Parameter("my_bool", &TTestSubconfig::MyBool)
+        registrar.Parameter("my_bool", &TThis::MyBool)
             .Default(false);
-        registrar.Parameter("my_string_list", &TTestSubconfig::MyStringList)
+        registrar.Parameter("my_string_list", &TThis::MyStringList)
             .Default();
-        registrar.Parameter("my_enum", &TTestSubconfig::MyEnum)
+        registrar.Parameter("my_enum", &TThis::MyEnum)
             .Default(ETestEnum::Value1);
     }
 };
@@ -75,15 +75,15 @@ public:
     {
         registrar.UnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
 
-        registrar.Parameter("my_string", &TTestConfig::MyString)
+        registrar.Parameter("my_string", &TThis::MyString)
             .NonEmpty();
-        registrar.Parameter("sub", &TTestConfig::Subconfig)
+        registrar.Parameter("sub", &TThis::Subconfig)
             .DefaultNew();
-        registrar.Parameter("sub_list", &TTestConfig::SubconfigList)
+        registrar.Parameter("sub_list", &TThis::SubconfigList)
             .Default();
-        registrar.Parameter("sub_map", &TTestConfig::SubconfigMap)
+        registrar.Parameter("sub_map", &TThis::SubconfigMap)
             .Default();
-        registrar.Parameter("nullable_int", &TTestConfig::NullableInt)
+        registrar.Parameter("nullable_int", &TThis::NullableInt)
             .Default();
 
         registrar.Preprocessor([] (TTestConfig* config) {
@@ -300,7 +300,7 @@ public:
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("sub", &TConfigWithOneLevelNesting::Subconfig)
+        registrar.Parameter("sub", &TThis::Subconfig)
             .DefaultNew();
     }
 };
@@ -317,7 +317,7 @@ public:
     {
         registrar.UnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
 
-        registrar.Parameter("subconfig", &TConfigWithTwoLevelNesting::Subconfig)
+        registrar.Parameter("subconfig", &TThis::Subconfig)
             .DefaultNew();
     }
 };
@@ -633,8 +633,8 @@ public:
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("my_string", &TTestConfigLite::MyString).NonEmpty();
-        registrar.Parameter("nullable_int", &TTestConfigLite::NullableInt).Default();
+        registrar.Parameter("my_string", &TThis::MyString).NonEmpty();
+        registrar.Parameter("nullable_int", &TThis::NullableInt).Default();
     }
 };
 
@@ -676,9 +676,9 @@ public:
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("my_string", &TTestLiteWithDefaults::MyString)
+        registrar.Parameter("my_string", &TThis::MyString)
             .Default("y");
-        registrar.Parameter("subconfig", &TTestLiteWithDefaults::Subconfig)
+        registrar.Parameter("subconfig", &TThis::Subconfig)
             .DefaultNew();
         registrar.Preprocessor([] (TTestLiteWithDefaults* conf) {
             conf->MyInt = 10;
@@ -707,7 +707,7 @@ public:
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("key", &TTestConfigWithAliases::Value)
+        registrar.Parameter("key", &TThis::Value)
             .Alias("alias1")
             .Alias("alias2");
     }
@@ -810,23 +810,23 @@ public:
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("vector", &TTestConfigWithContainers::Vector)
+        registrar.Parameter("vector", &TThis::Vector)
             .Default();
-        registrar.Parameter("array", &TTestConfigWithContainers::Array)
+        registrar.Parameter("array", &TThis::Array)
             .Default();
-        registrar.Parameter("pair", &TTestConfigWithContainers::Pair)
+        registrar.Parameter("pair", &TThis::Pair)
             .Default();
-        registrar.Parameter("set", &TTestConfigWithContainers::Set)
+        registrar.Parameter("set", &TThis::Set)
             .Default();
-        registrar.Parameter("map", &TTestConfigWithContainers::Map)
+        registrar.Parameter("map", &TThis::Map)
             .Default();
-        registrar.Parameter("multiset", &TTestConfigWithContainers::MultiSet)
+        registrar.Parameter("multiset", &TThis::MultiSet)
             .Default();
-        registrar.Parameter("unordered_set", &TTestConfigWithContainers::UnorderedSet)
+        registrar.Parameter("unordered_set", &TThis::UnorderedSet)
             .Default();
-        registrar.Parameter("unordered_map", &TTestConfigWithContainers::UnorderedMap)
+        registrar.Parameter("unordered_map", &TThis::UnorderedMap)
             .Default();
-        registrar.Parameter("unordered_multiset", &TTestConfigWithContainers::UnorderedMultiSet)
+        registrar.Parameter("unordered_multiset", &TThis::UnorderedMultiSet)
             .Default();
     }
 };
@@ -887,7 +887,7 @@ public:
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("value", &TConfigWithOptional::Value)
+        registrar.Parameter("value", &TThis::Value)
             .Default(123);
     }
 };
@@ -920,9 +920,9 @@ public:
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("value", &TConfigWithDontSerializeDefault::Value)
+        registrar.Parameter("value", &TThis::Value)
             .Default(123);
-        registrar.Parameter("other_value", &TConfigWithDontSerializeDefault::OtherValue)
+        registrar.Parameter("other_value", &TThis::OtherValue)
             .Default(456)
             .DontSerializeDefault();
     }
@@ -962,7 +962,7 @@ public:
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("value", &TVirtualInheritanceConfig::Value)
+        registrar.Parameter("value", &TThis::Value)
             .Default(123);
     }
 };
@@ -1039,17 +1039,17 @@ class TYsonStructClass
 {
 public:
     THashMap<TString, TIntrusivePtr<TYsonSerializableClass>> YsonSerializableHashMap;
-    
+
     TIntrusivePtr<TYsonSerializableClass> YsonSerializableValue;
 
     REGISTER_YSON_STRUCT(TYsonStructClass);
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("yson_serializable_hash_map", &TYsonStructClass::YsonSerializableHashMap)
+        registrar.Parameter("yson_serializable_hash_map", &TThis::YsonSerializableHashMap)
             .Default();
 
-        registrar.Parameter("yson_serializable_value", &TYsonStructClass::YsonSerializableValue)
+        registrar.Parameter("yson_serializable_value", &TThis::YsonSerializableValue)
             .DefaultNew();
 
         registrar.Preprocessor([] (TYsonStructClass* klass) {
@@ -1101,7 +1101,7 @@ public:
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("value", &TClassLevelPostprocessConfig::Value)
+        registrar.Parameter("value", &TThis::Value)
             .Default();
         registrar.Postprocessor([] (TClassLevelPostprocessConfig* config) {
             config->Value = 10;
@@ -1141,9 +1141,9 @@ public:
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("subconfig", &TRecursiveConfig::Subconfig)
+        registrar.Parameter("subconfig", &TThis::Subconfig)
             .Default();
-        registrar.Parameter("value", &TRecursiveConfig::Value)
+        registrar.Parameter("value", &TThis::Value)
             .Default();
     }
 };
@@ -1191,7 +1191,7 @@ class TYsonStructClass2
 {
 public:
     THashMap<TString, TIntrusivePtr<TNestedYsonSerializableClass>> YsonSerializableHashMap;
-    
+
     REGISTER_YSON_STRUCT(TYsonStructClass2);
 
     static void Register(TRegistrar registrar)
