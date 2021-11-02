@@ -68,7 +68,8 @@ private:
 void ProfileResources(
     NProfiling::ISensorWriter* writer,
     const TJobResources& resources,
-    const TString& prefix);
+    const TString& prefix,
+    NProfiling::EMetricType metricType = NProfiling::EMetricType::Gauge);
 
 ////////////////////////////////////////////////////////////////////////////////
 
