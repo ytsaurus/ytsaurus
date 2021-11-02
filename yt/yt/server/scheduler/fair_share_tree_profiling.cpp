@@ -296,7 +296,7 @@ void TFairShareTreeProfileManager::ProfileElement(
         const auto& scheduledResourcesMap = ScheduledResourcesByStageMap_[schedulingStage];
         auto scheduledResourcesIt = scheduledResourcesMap.find(element->GetId());
         if (scheduledResourcesIt != scheduledResourcesMap.end()) {
-            ProfileResources(writer, scheduledResourcesIt->second, "/scheduled_job_resources/" + FormatEnum(schedulingStage));
+            ProfileResources(writer, scheduledResourcesIt->second, "/scheduled_job_resources/" + FormatEnum(schedulingStage), EMetricType::Counter);
         }
     }
 
@@ -304,7 +304,7 @@ void TFairShareTreeProfileManager::ProfileElement(
         const auto& preemptedResourcesMap = PreemptedResourcesByReasonMap_[preemptionReason];
         auto preemptedResourcesIt = preemptedResourcesMap.find(element->GetId());
         if (preemptedResourcesIt != preemptedResourcesMap.end()) {
-            ProfileResources(writer, preemptedResourcesIt->second, "/preempted_job_resources/" + FormatEnum(preemptionReason));
+            ProfileResources(writer, preemptedResourcesIt->second, "/preempted_job_resources/" + FormatEnum(preemptionReason), EMetricType::Counter);
         }
     }
 
