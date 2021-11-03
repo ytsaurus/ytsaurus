@@ -249,7 +249,9 @@ struct TGetInSyncReplicasOptions
 
 struct TGetTabletInfosOptions
     : public TTimeoutOptions
-{ };
+{
+    bool RequestErrors;
+};
 
 struct TTabletInfo
 {
@@ -259,6 +261,7 @@ struct TTabletInfo
         NTransactionClient::TTimestamp LastReplicationTimestamp;
         NTabletClient::ETableReplicaMode Mode;
         i64 CurrentReplicationRowIndex;
+        TError ReplicationError;
     };
 
     //! Currently only provided for ordered tablets.
@@ -281,6 +284,9 @@ struct TTabletInfo
 
     //! Only makes sense for replicated tablets.
     std::optional<std::vector<TTableReplicaInfo>> TableReplicaInfos;
+
+    //! Set if `RequestErrors` is present in command parameters.
+    std::vector<TError> TabletErrors;
 };
 
 struct TBalanceTabletCellsOptions

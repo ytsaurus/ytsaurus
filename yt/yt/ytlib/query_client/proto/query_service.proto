@@ -112,6 +112,7 @@ message TReqGetTabletInfo
     repeated NYT.NProto.TGuid tablet_ids = 1;
     // COMPAT(babenko): legacy clients may omit this field.
     repeated NYT.NProto.TGuid cell_ids = 2;
+    optional bool request_errors = 3;
 }
 
 message TReplicaInfo
@@ -120,6 +121,7 @@ message TReplicaInfo
     required uint64 last_replication_timestamp = 2;
     required int32 mode = 3; // ETableReplicaMode
     required int64 current_replication_row_index = 4;
+    optional NYT.NProto.TError replication_error = 5;
 }
 
 message TTabletInfo
@@ -130,6 +132,7 @@ message TTabletInfo
     required int64 trimmed_row_count = 4;
     optional uint64 barrier_timestamp = 5;
     optional uint64 last_write_timestamp = 6;
+    repeated NYT.NProto.TError tablet_errors = 7;
 }
 
 message TRspGetTabletInfo

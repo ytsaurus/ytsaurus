@@ -571,6 +571,7 @@ message TReqGetTabletInfos
 {
     required string path = 1;
     repeated int32 tablet_indexes = 2;
+    optional bool request_errors = 3 [default = false];
 }
 
 message TRspGetTabletInfos
@@ -583,6 +584,7 @@ message TRspGetTabletInfos
             required uint64 last_replication_timestamp = 2;
             required int32 mode = 3; // ETableReplicaMode
             required int64 current_replication_row_index = 4;
+            optional NYT.NProto.TError replication_error = 5;
         }
 
         required int64 total_row_count = 1;
@@ -591,6 +593,8 @@ message TRspGetTabletInfos
         optional uint64 last_write_timestamp = 4;
 
         repeated TReplicaInfo replicas = 5;
+
+        repeated NYT.NProto.TError tablet_errors = 6;
     }
 
     repeated TTabletInfo tablets = 1;

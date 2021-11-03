@@ -1656,7 +1656,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         assert get("#" + tablet_id + "/@table_path") == "//tmp/t"
 
-    @authors("iskhakovt")
+    @authors("ifsmirnov")
     def test_tablet_error_attributes(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
@@ -1680,7 +1680,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
         unmount_table("//tmp/t")
 
-        def check():
+        def check_orchid():
             if get("//tmp/t/@tablet_error_count") == 0:
                 return False
 
@@ -1697,7 +1697,18 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 and get("//tmp/t/@tablet_error_count") == 1
             )
 
-        wait(check)
+        def check_get_tablet_infos():
+            tablet = get("//tmp/t/@tablets/0/tablet_id")
+            tablet_infos = get_tablet_infos("//tmp/t", [0], request_errors=True)
+            errors = tablet_infos["tablets"][0]["tablet_errors"]
+            return (
+                len(errors) == 1
+                and errors[0]["attributes"]["background_activity"] == "flush"
+                and errors[0]["attributes"]["tablet_id"] == tablet
+            )
+
+        wait(check_orchid)
+        wait(check_get_tablet_infos)
 
     @authors("ifsmirnov")
     def test_tablet_error_count(self):

@@ -3318,6 +3318,7 @@ private:
 
         TGetTabletInfosOptions options;
         SetTimeoutOptions(&options, context.Get());
+        options.RequestErrors = request->request_errors();
 
         ExecuteCall(
             context,
@@ -3335,6 +3336,7 @@ private:
                     protoTabletInfo->set_trimmed_row_count(tabletInfo.TrimmedRowCount);
                     protoTabletInfo->set_barrier_timestamp(tabletInfo.BarrierTimestamp);
                     protoTabletInfo->set_last_write_timestamp(tabletInfo.LastWriteTimestamp);
+                    ToProto(protoTabletInfo->mutable_tablet_errors(), tabletInfo.TabletErrors);
 
                     if (tabletInfo.TableReplicaInfos) {
                         for (const auto& replicaInfo : *tabletInfo.TableReplicaInfos) {
@@ -3343,6 +3345,7 @@ private:
                             protoReplicaInfo->set_last_replication_timestamp(replicaInfo.LastReplicationTimestamp);
                             protoReplicaInfo->set_mode(static_cast<NApi::NRpcProxy::NProto::ETableReplicaMode>(replicaInfo.Mode));
                             protoReplicaInfo->set_current_replication_row_index(replicaInfo.CurrentReplicationRowIndex);
+                            ToProto(protoReplicaInfo->mutable_replication_error(), replicaInfo.ReplicationError);
                         }
                     }
                 }
