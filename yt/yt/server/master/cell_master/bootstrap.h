@@ -76,6 +76,8 @@ public:
 
     bool UseNewReplicator() const;
 
+    void VerifyPersistentStateRead() const;
+
     NObjectClient::TCellId GetCellId() const;
     NObjectClient::TCellTag GetCellTag() const;
 

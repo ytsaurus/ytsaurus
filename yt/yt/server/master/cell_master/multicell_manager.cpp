@@ -295,14 +295,14 @@ public:
 
     const TCellTagList& GetRegisteredMasterCellTags()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Bootstrap_->VerifyPersistentStateRead();
 
         return RegisteredMasterCellTags_;
     }
 
     int GetRegisteredMasterCellIndex(TCellTag cellTag)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Bootstrap_->VerifyPersistentStateRead();
 
         return GetMasterEntry(cellTag)->Index;
     }

@@ -97,8 +97,6 @@ TReadOnlyEntityMap<TValue>::TIterator::TIterator(typename TMapType::const_iterat
 template <class TValue>
 TValue* TReadOnlyEntityMap<TValue>::Find(const TKey& key) const
 {
-    VERIFY_THREAD_AFFINITY(UserThread);
-
     auto it = Map_.find(key);
     return it == Map_.end() ? nullptr : it->second;
 }
@@ -106,8 +104,6 @@ TValue* TReadOnlyEntityMap<TValue>::Find(const TKey& key) const
 template <class TValue>
 TValue* TReadOnlyEntityMap<TValue>::Get(const TKey& key) const
 {
-    VERIFY_THREAD_AFFINITY(UserThread);
-
     auto* value = Find(key);
     YT_VERIFY(value);
     return value;
@@ -116,8 +112,6 @@ TValue* TReadOnlyEntityMap<TValue>::Get(const TKey& key) const
 template <class TValue>
 bool TReadOnlyEntityMap<TValue>::Contains(const TKey& key) const
 {
-    VERIFY_THREAD_AFFINITY(UserThread);
-
     return Find(key);
 }
 
@@ -125,8 +119,6 @@ template <class TValue>
 typename TReadOnlyEntityMap<TValue>::TIterator
 TReadOnlyEntityMap<TValue>::Begin() const
 {
-    VERIFY_THREAD_AFFINITY(UserThread);
-
     return TIterator(Map_.begin());
 }
 
@@ -134,16 +126,12 @@ template <class TValue>
 typename TReadOnlyEntityMap<TValue>::TIterator
 TReadOnlyEntityMap<TValue>::End() const
 {
-    VERIFY_THREAD_AFFINITY(UserThread);
-
     return TIterator(Map_.end());
 }
 
 template <class TValue>
 int TReadOnlyEntityMap<TValue>::GetSize() const
 {
-    VERIFY_THREAD_AFFINITY(UserThread);
-
     return static_cast<int>(Map_.size());
 }
 

@@ -7,6 +7,8 @@
 
 #include <yt/yt/core/ypath/public.h>
 
+#include <util/generic/bitops.h>
+
 #include <optional>
 #include <variant>
 
@@ -55,7 +57,7 @@ DEFINE_REFCOUNTED_TYPE(TResolveCacheNode)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TResolveCache
-    :  public TRefCounted
+    : public TRefCounted
 {
 public:
     TResolveCache(
@@ -70,7 +72,7 @@ public:
     std::optional<TResolveResult> TryResolve(const NYPath::TYPath& path);
 
     TResolveCacheNodePtr FindNode(TNodeId nodeId);
-    TResolveCacheNodePtr InsertNode(
+    TResolveCacheNodePtr TryInsertNode(
         TCypressNode* trunkNode,
         const NYPath::TYPath& path);
     void AddNodeChild(
@@ -84,13 +86,27 @@ private:
     const TNodeId RootNodeId_;
     const bool PrimaryMaster_;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, IdToNodeLock_);
-    THashMap<TNodeId, TResolveCacheNodePtr> IdToNode_;
+    struct TShard
+    {
+        THashMap<TNodeId, TResolveCacheNodePtr> IdToNode;
+
+        //! Protects #IdToNode_ and #ResolveCacheNode_ for nodes.
+        YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock);
+    };
+
+    constexpr static int ShardCount = 256;
+    static_assert(IsPowerOf2(ShardCount), "Number of shards must be a power of two");
+
+    std::array<TShard, ShardCount> Shards_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+    TShard* GetShard(TNodeId nodeId);
+    TShard* GetShard(TCypressNode* trunkNode);
+
     static TResolveCacheNode::TPayload MakePayload(TCypressNode* trunkNode);
-    static void ResetNode(TCypressNode* trunkNode);
+
+    void ResetNode(TCypressNode* trunkNode);
 };
 
 DEFINE_REFCOUNTED_TYPE(TResolveCache)

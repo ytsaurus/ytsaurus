@@ -43,9 +43,12 @@ public:
     //! Checks if the slot matches the current thread id.
     void Check();
 
+    //! Returns thread id used for affinity check
+    //! or #InvalidThreadId if bound thread is still undefined.
+    TThreadId GetBoundThreadId() const;
+
 private:
     std::atomic<TThreadId> BoundId_ = {InvalidThreadId};
-
 };
 
 #define DECLARE_THREAD_AFFINITY_SLOT(slot) \

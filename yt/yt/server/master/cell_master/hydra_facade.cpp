@@ -51,6 +51,8 @@
 #include <yt/yt/core/ytree/ypath_client.h>
 #include <yt/yt/core/ytree/ypath_proxy.h>
 
+#include <util/system/thread.h>
+
 namespace NYT::NCellMaster {
 
 using namespace NConcurrency;
@@ -82,8 +84,11 @@ public:
             "Automaton",
             GetAutomatonThreadBuckets());
 
+        NObjectServer::SetupMasterBootstrap(bootstrap);
+
         BIND([=] {
-            NObjectServer::SetupAutomatonThread(bootstrap);
+            NObjectServer::SetupAutomatonThread();
+            NObjectServer::SetupEpochContext(EpochContext_);
         })
             .AsyncVia(AutomatonQueue_->GetInvoker(EAutomatonThreadQueue::Default))
             .Run()
@@ -217,6 +222,51 @@ public:
         return TransactionTrackerQueue_->GetInvoker();
     }
 
+    const NObjectServer::TEpochContextPtr& GetEpochContext() const
+    {
+        return EpochContext_;
+    }
+
+    void BlockAutomaton()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        YT_ASSERT(!AutomatonBlocked_);
+        AutomatonBlocked_ = true;
+
+        YT_LOG_TRACE("Automaton thread blocked");
+    }
+
+    void UnblockAutomaton()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        YT_ASSERT(AutomatonBlocked_);
+        AutomatonBlocked_ = false;
+
+        YT_LOG_TRACE("Automaton thread unblocked");
+    }
+
+    bool IsAutomatonLocked() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return AutomatonBlocked_;
+    }
+
+    void VerifyPersistentStateRead()
+    {
+#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
+        if (IsAutomatonLocked()) {
+            auto automatonThreadId = AutomatonThread_Slot.GetBoundThreadId();
+            YT_VERIFY(automatonThreadId != InvalidThreadId);
+            YT_VERIFY(::TThread::CurrentThreadId() != automatonThreadId);
+        } else {
+            VERIFY_THREAD_AFFINITY(AutomatonThread);
+        }
+#endif
+    }
+
 
     void RequireLeader() const
     {
@@ -238,6 +288,8 @@ public:
     }
 
 private:
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
     const TCellMasterConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
@@ -256,6 +308,9 @@ private:
     TEnumIndexedVector<EAutomatonThreadQueue, IInvokerPtr> GuardedInvokers_;
     TEnumIndexedVector<EAutomatonThreadQueue, IInvokerPtr> EpochInvokers_;
 
+    NObjectServer::TEpochContextPtr EpochContext_ = New<NObjectServer::TEpochContext>();
+
+    std::atomic<bool> AutomatonBlocked_ = false;
 
     void OnStartEpoch()
     {
@@ -353,6 +408,26 @@ IInvokerPtr THydraFacade::GetTransactionTrackerInvoker() const
     return Impl_->GetTransactionTrackerInvoker();
 }
 
+void THydraFacade::BlockAutomaton()
+{
+    Impl_->BlockAutomaton();
+}
+
+void THydraFacade::UnblockAutomaton()
+{
+    Impl_->UnblockAutomaton();
+}
+
+bool THydraFacade::IsAutomatonLocked() const
+{
+    return Impl_->IsAutomatonLocked();
+}
+
+void THydraFacade::VerifyPersistentStateRead()
+{
+    Impl_->VerifyPersistentStateRead();
+}
+
 void THydraFacade::RequireLeader() const
 {
     Impl_->RequireLeader();
@@ -361,6 +436,24 @@ void THydraFacade::RequireLeader() const
 void THydraFacade::Reconfigure(const TDynamicCellMasterConfigPtr& newConfig)
 {
     Impl_->Reconfigure(newConfig);
+}
+
+const NObjectServer::TEpochContextPtr& THydraFacade::GetEpochContext() const
+{
+    return Impl_->GetEpochContext();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAutomatonBlockGuard::TAutomatonBlockGuard(THydraFacadePtr hydraFacade)
+    : HydraFacade_(std::move(hydraFacade))
+{
+    HydraFacade_->BlockAutomaton();
+}
+
+TAutomatonBlockGuard::~TAutomatonBlockGuard()
+{
+    HydraFacade_->UnblockAutomaton();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

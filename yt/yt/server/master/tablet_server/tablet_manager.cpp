@@ -2228,7 +2228,8 @@ public:
         TTransaction* transaction,
         NTableClient::NProto::TRspCheckDynamicTableLock* response)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Bootstrap_->VerifyPersistentStateRead();
+
         YT_VERIFY(table->IsTrunk());
 
         auto it = table->DynamicTableLocks().find(transaction->GetId());

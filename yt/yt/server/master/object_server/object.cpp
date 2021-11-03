@@ -20,10 +20,22 @@ using namespace NCypressServer;
 
 namespace NDetail {
 
-thread_local NCellMaster::TBootstrap* Bootstrap;
-thread_local TEpoch CurrentEpoch;
-thread_local TEpoch CurrentEpochCounter;
-thread_local IInvokerPtr EphemeralPtrUnrefInvoker;
+NCellMaster::TBootstrap* Bootstrap;
+
+thread_local bool InAutomatonThread;
+
+// This context is shared between automaton thread and local read threads.
+thread_local TEpochContextPtr EpochContext;
+
+struct TEpochRefCounterShard
+{
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock);
+};
+
+constexpr int EpochRefCounterShardCount = 256;
+static_assert(IsPowerOf2(EpochRefCounterShardCount), "EpochRefCounterShardCount must be a power of 2");
+
+std::array<TEpochRefCounterShard, EpochRefCounterShardCount> EpochRefCounterShards_;
 
 thread_local bool InTeardownFlag;
 thread_local int InMutationCounter;
@@ -35,7 +47,7 @@ thread_local std::vector<TObject*> ObjectsWithScheduledWeakUnref;
 
 bool IsInAutomatonThread()
 {
-    return Bootstrap != nullptr;
+    return InAutomatonThread;
 }
 
 bool IsInMutation()
@@ -51,6 +63,14 @@ bool IsInTeardown()
 void VerifyAutomatonThreadAffinity()
 {
     YT_VERIFY(IsInAutomatonThread());
+}
+
+void VerifyPersistentStateRead()
+{
+    // NB: IsInAutomatonThread is fork-aware while VerifyPersistentStateRead is not.
+    if (!IsInAutomatonThread()) {
+        Bootstrap->VerifyPersistentStateRead();
+    }
 }
 
 void DoFlushObjectUnrefs()
@@ -78,16 +98,29 @@ void DoFlushObjectUnrefs()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEpochRefCounter::TEpochRefCounter(TObjectId id)
+    : ShardIndex_(GetShardIndex<NDetail::EpochRefCounterShardCount>(id))
+{ }
+
 int TEpochRefCounter::GetValue() const
 {
-    NDetail::AssertAutomatonThreadAffinity();
-    return RefCounterEpoch_ == NDetail::CurrentEpoch
+    NDetail::AssertPersistentStateRead();
+
+    auto* shard = &NDetail::EpochRefCounterShards_[ShardIndex_];
+    auto guard = Guard(shard->Lock);
+
+    return RefCounterEpoch_ == NDetail::EpochContext->CurrentEpoch
         ? RefCounter_
         : 0;
 }
 
 int TEpochRefCounter::UpdateValue(int delta)
 {
+    NDetail::AssertPersistentStateRead();
+
+    auto* shard = &NDetail::EpochRefCounterShards_[ShardIndex_];
+    auto guard = Guard(shard->Lock);
+
     YT_ASSERT(RefCounter_ >= 0);
 
     auto currentEpoch = GetCurrentEpoch();
@@ -106,6 +139,7 @@ int TEpochRefCounter::UpdateValue(int delta)
 void TEpochRefCounter::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
+    Persist(context, ShardIndex_);
     Persist(context, RefCounter_);
     Persist(context, RefCounterEpoch_);
 }
@@ -292,25 +326,27 @@ void TWeakObjectPtrContext::Unref(TObject* object)
 
 TEphemeralObjectPtrContext TEphemeralObjectPtrContext::Capture()
 {
-    YT_ASSERT(NDetail::EphemeralPtrUnrefInvoker);
+    YT_ASSERT(NDetail::EpochContext->EphemeralPtrUnrefInvoker);
     return {
         NDetail::Bootstrap->GetObjectManager(),
-        NDetail::CurrentEpoch,
-        NDetail::EphemeralPtrUnrefInvoker
+        NDetail::EpochContext->CurrentEpoch,
+        NDetail::EpochContext->EphemeralPtrUnrefInvoker
     };
 };
 
 bool TEphemeralObjectPtrContext::IsCurrent() const
 {
+    NDetail::AssertPersistentStateRead();
+
     return
         NDetail::IsInAutomatonThread() &&
         ObjectManager == NDetail::Bootstrap->GetObjectManager() &&
-        Epoch == NDetail::CurrentEpoch;
+        Epoch == NDetail::EpochContext->CurrentEpoch;
 }
 
 void TEphemeralObjectPtrContext::Ref(TObject* object)
 {
-    NDetail::AssertAutomatonThreadAffinity();
+    NDetail::AssertPersistentStateRead();
     ObjectManager->EphemeralRefObject(object);
 }
 
@@ -326,32 +362,49 @@ void TEphemeralObjectPtrContext::Unref(TObject* object)
 void BeginEpoch()
 {
     NDetail::VerifyAutomatonThreadAffinity();
-    YT_VERIFY(NDetail::CurrentEpoch == TEpoch());
 
-    NDetail::EphemeralPtrUnrefInvoker = NDetail::Bootstrap
+    YT_VERIFY(NDetail::EpochContext->CurrentEpoch == TEpoch());
+
+    NDetail::EpochContext->EphemeralPtrUnrefInvoker = NDetail::Bootstrap
         ->GetHydraFacade()
         ->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::EphemeralPtrUnref);
-    NDetail::CurrentEpoch = ++NDetail::CurrentEpochCounter;
+    NDetail::EpochContext->CurrentEpoch = ++NDetail::EpochContext->CurrentEpochCounter;
 }
 
 void EndEpoch()
 {
     NDetail::VerifyAutomatonThreadAffinity();
 
-    NDetail::EphemeralPtrUnrefInvoker.Reset();
-    NDetail::CurrentEpoch = TEpoch();
+    NDetail::EpochContext->EphemeralPtrUnrefInvoker.Reset();
+    NDetail::EpochContext->CurrentEpoch = TEpoch();
 }
 
 TEpoch GetCurrentEpoch()
 {
-    return NDetail::CurrentEpoch;
+    NDetail::AssertPersistentStateRead();
+
+    return NDetail::EpochContext->CurrentEpoch;
 }
 
-void SetupAutomatonThread(NCellMaster::TBootstrap* bootstrap)
+void SetupMasterBootstrap(NCellMaster::TBootstrap* bootstrap)
 {
     YT_VERIFY(!NDetail::Bootstrap);
 
     NDetail::Bootstrap = bootstrap;
+}
+
+void SetupAutomatonThread()
+{
+    YT_VERIFY(!NDetail::InAutomatonThread);
+
+    NDetail::InAutomatonThread = true;
+}
+
+void SetupEpochContext(TEpochContextPtr epochContext)
+{
+    YT_VERIFY(!NDetail::EpochContext);
+
+    NDetail::EpochContext = std::move(epochContext);
 }
 
 void BeginMutation()

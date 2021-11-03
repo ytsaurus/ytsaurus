@@ -39,12 +39,23 @@ private:
 
     NConcurrency::TPeriodicExecutorPtr CheckExecutor_;
 
-    // NB: nodes that have both expiration time and expiration timeout may appear twice here.
-    TCypressNodeExpirationMap ExpirationMap_;
-    THashSet<TCypressNode*> ExpiredNodes_;
+    struct TShard
+    {
+        // NB: nodes that have both expiration time and expiration timeout may appear twice here.
+        TCypressNodeExpirationMap ExpirationMap;
+        THashSet<TCypressNode*> ExpiredNodes;
+
+        YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock);
+    };
+
+    constexpr static int ShardCount = 256;
+    static_assert(IsPowerOf2(ShardCount), "Number of shards must be a power of two");
+
+    std::array<TShard, ShardCount> Shards_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+    TShard* GetShard(TCypressNode* node);
 
     void RegisterNodeExpirationTime(TCypressNode* trunkNode, TInstant expirationTime);
     void RegisterNodeExpirationTimeout(TCypressNode* trunkNode, TInstant expirationTime);

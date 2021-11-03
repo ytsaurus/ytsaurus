@@ -294,6 +294,8 @@ void TUser::UpdateCounters(const TUserWorkload& workload)
 
 const NConcurrency::IReconfigurableThroughputThrottlerPtr& TUser::GetRequestRateThrottler(EUserWorkloadType workloadType)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     switch (workloadType) {
         case EUserWorkloadType::Read:
             return ReadRequestRateThrottler_;

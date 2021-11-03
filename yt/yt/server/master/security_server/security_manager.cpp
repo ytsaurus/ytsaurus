@@ -2268,6 +2268,8 @@ public:
 
     void ChargeUser(TUser* user, const TUserWorkload& workload)
     {
+        Bootstrap_->VerifyPersistentStateRead();
+
         if (!IsObjectAlive(user)) {
             return;
         }

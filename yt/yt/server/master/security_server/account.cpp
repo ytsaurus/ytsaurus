@@ -139,6 +139,7 @@ TAccountMulticellStatistics SubtractAccountMulticellStatistics(
 TAccount::TAccount(TAccountId id, bool isRoot)
     : TNonversionedMapObjectBase<TAccount>(id, isRoot)
     , MergeJobThrottler_(CreateReconfigurableThroughputThrottler(New<TThroughputThrottlerConfig>(0)))
+    , ChunkMergerNodeTraversals_(id)
 { }
 
 TString TAccount::GetLowercaseObjectName() const

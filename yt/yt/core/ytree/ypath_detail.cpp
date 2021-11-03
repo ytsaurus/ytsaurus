@@ -1179,6 +1179,11 @@ const THashSet<TInternedAttributeKey>& TSystemBuiltinAttributeKeysCache::GetBuil
     ISystemAttributeProvider* provider)
 {
     if (!Initialized_) {
+        auto guard = Guard(InitializationLock_);
+        if (Initialized_) {
+            return BuiltinKeys_;
+        }
+
         std::vector<ISystemAttributeProvider::TAttributeDescriptor> descriptors;
         provider->ListSystemAttributes(&descriptors);
         BuiltinKeys_.reserve(descriptors.size());
@@ -1198,6 +1203,11 @@ const THashSet<TString>& TSystemCustomAttributeKeysCache::GetCustomAttributeKeys
     ISystemAttributeProvider* provider)
 {
     if (!Initialized_) {
+        auto guard = Guard(InitializationLock_);
+        if (Initialized_) {
+            return CustomKeys_;
+        }
+
         std::vector<ISystemAttributeProvider::TAttributeDescriptor> descriptors;
         provider->ListSystemAttributes(&descriptors);
         CustomKeys_.reserve(descriptors.size());
@@ -1217,6 +1227,11 @@ const THashSet<TString>& TOpaqueAttributeKeysCache::GetOpaqueAttributeKeys(
     ISystemAttributeProvider* provider)
 {
     if (!Initialized_) {
+        auto guard = Guard(InitializationLock_);
+        if (Initialized_) {
+            return OpaqueKeys_;
+        }
+
         std::vector<ISystemAttributeProvider::TAttributeDescriptor> descriptors;
         provider->ListSystemAttributes(&descriptors);
         OpaqueKeys_.reserve(descriptors.size());

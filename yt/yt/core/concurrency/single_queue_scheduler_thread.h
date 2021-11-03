@@ -34,4 +34,41 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TQueueImpl>
+class TSuspendableSingleQueueSchedulerThread
+    : public TSchedulerThread
+{
+public:
+    TSuspendableSingleQueueSchedulerThread(
+        TInvokerQueuePtr<TQueueImpl> queue,
+        TIntrusivePtr<TEventCount> callbackEventCount,
+        const TString& threadGroupName,
+        const TString& threadName);
+
+    TFuture<void> Suspend(bool immediately);
+
+    void Resume();
+
+protected:
+    const TInvokerQueuePtr<TQueueImpl> Queue_;
+    typename TQueueImpl::TConsumerToken Token_;
+
+    TEnqueuedAction CurrentAction_;
+
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
+
+    std::atomic<bool> Suspending_ = false;
+
+    std::atomic<bool> SuspendImmediately_ = false;
+    TPromise<void> SuspendedPromise_ = NewPromise<void>();
+    TIntrusivePtr<TEvent> ResumeEvent_;
+
+    virtual TClosure BeginExecute() override;
+    virtual void EndExecute() override;
+
+    virtual void OnStart() override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NConcurrency

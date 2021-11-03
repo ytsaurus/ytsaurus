@@ -93,7 +93,6 @@ public:
         explicit TIterator(typename TMapType::const_iterator iterator);
 
         typename TMapType::const_iterator Iterator_;
-
     };
 
     TValue* Find(const TKey& key) const;
@@ -116,10 +115,7 @@ public:
     bool empty() const;
 
 protected:
-    DECLARE_THREAD_AFFINITY_SLOT(UserThread);
-
     TMapType Map_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -159,6 +155,8 @@ public:
 private:
     typedef typename TReadOnlyEntityMap<TValue>::TMapType TMapType;
 
+    DECLARE_THREAD_AFFINITY_SLOT(UserThread);
+
     TTraits Traits_;
 
     TChunkedMemoryPool DynamicDataPool_;
@@ -173,7 +171,6 @@ private:
     void FreeDynamicData(TDynamicData* data);
 
     void DoClear();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -52,12 +52,13 @@
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/misc/crash_handler.h>
+#include <yt/yt/core/misc/fair_scheduler.h>
 #include <yt/yt/core/misc/heap.h>
 #include <yt/yt/core/misc/mpsc_stack.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/quantized_executor.h>
 #include <yt/yt/core/concurrency/spinlock.h>
 
 #include <util/generic/algorithm.h>
@@ -158,6 +159,13 @@ public:
             GetNullMemoryUsageTracker(),
             ObjectServerLogger,
             ObjectServerProfiler.WithPrefix("/master_cache")))
+        , LocalReadSessionScheduler_(CreateFairScheduler<TExecuteSessionPtr>())
+        , AutomatonSessionScheduler_(CreateFairScheduler<TExecuteSessionPtr>())
+        , LocalReadCallbackProvider_(New<TLocalReadCallbackProvider>(LocalReadSessionScheduler_))
+        , LocalReadExecutor_(CreateQuantizedExecutor(
+            "LocalRead",
+            LocalReadCallbackProvider_,
+            /*workerCount*/ 4))
         , StickyUserErrorCache_(Config_->StickyUserErrorExpireTime)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
@@ -179,6 +187,9 @@ public:
 
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
+
+        const auto& epochContext = Bootstrap_->GetHydraFacade()->GetEpochContext();
+        LocalReadExecutor_->Initialize(BIND([epochContext = epochContext] { NObjectServer::SetupEpochContext(epochContext); }));
     }
 
 private:
@@ -189,6 +200,8 @@ private:
     class TExecuteSession;
     using TExecuteSessionPtr = TIntrusivePtr<TExecuteSession>;
 
+    class TSessionScheduler;
+
     struct TExecuteSessionInfo
     {
         TCancelableContextPtr EpochCancelableContext;
@@ -196,36 +209,29 @@ private:
         bool RequestQueueSizeIncreased;
     };
 
-    struct TUserBucket
-    {
-        explicit TUserBucket(TString userName)
-            : UserName(std::move(userName))
-        { }
+    using TSessionSchedulerPtr = IFairSchedulerPtr<TExecuteSessionPtr>;
 
-        TString UserName;
-        TDuration ExcessTime;
-        //! Typically equals ExcessTime; however when a user is charged we just update ExcessTime
-        //! and leave HeapKey intact. Upon extracting heap's top we check if its ExcessTime matches its HeapKey
-        //! and if not then readjust the heap.
-        TDuration HeapKey;
-        std::queue<TExecuteSessionPtr> Sessions;
-        bool InHeap = false;
+    //! Scheduler of sessions to process in local read executor.
+    TSessionSchedulerPtr LocalReadSessionScheduler_;
+
+    //! Scheduler of sessions to process in automaton.
+    TSessionSchedulerPtr AutomatonSessionScheduler_;
+
+    class TLocalReadCallbackProvider
+        : public ICallbackProvider
+    {
+    public:
+        explicit TLocalReadCallbackProvider(TSessionSchedulerPtr sessionScheduler);
+
+        virtual TCallback<void()> ExtractCallback() override;
+
+    private:
+        TSessionSchedulerPtr SessionScheduler_;
     };
 
-    struct TUserBucketComparer
-    {
-        bool operator ()(TUserBucket* lhs, TUserBucket* rhs) const
-        {
-            return lhs->HeapKey < rhs->HeapKey;
-        }
-    };
+    TIntrusivePtr<TLocalReadCallbackProvider> LocalReadCallbackProvider_;
 
-    THashMap<TString, TUserBucket> NameToUserBucket_;
-    TDuration ExcessBaseline_;
-
-    //! Min-heap ordered by TUserBucket::ExcessTime.
-    //! A bucket is only present here iff it has at least one session.
-    std::vector<TUserBucket*> BucketHeap_;
+    IQuantizedExecutorPtr LocalReadExecutor_;
 
     TMpscStack<TExecuteSessionPtr> ReadySessions_;
     TMpscStack<TExecuteSessionInfo> FinishedSessionInfos_;
@@ -235,22 +241,25 @@ private:
     TStickyUserErrorCache StickyUserErrorCache_;
     std::atomic<bool> EnableTwoLevelCache_ = false;
     std::atomic<bool> EnableMutationBoomerangs_ = true;
+    std::atomic<bool> EnableLocalReadExecutor_ = true;
     std::atomic<TDuration> ScheduleReplyRetryBackoff_ = TDuration::MilliSeconds(100);
+    std::atomic<TDuration> LocalReadExecutorQuantumDuration_ = TDuration::MilliSeconds(10);
 
     static IInvokerPtr GetRpcInvoker()
     {
         return NRpc::TDispatcher::Get()->GetHeavyInvoker();
     }
 
+    const TDynamicObjectServiceConfigPtr& GetDynamicConfig();
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig = nullptr);
+
     void EnqueueReadySession(TExecuteSessionPtr session);
     void EnqueueFinishedSession(TExecuteSessionInfo sessionInfo);
-
+;
     void EnqueueProcessSessionsCallback();
     void ProcessSessions();
     void FinishSession(const TExecuteSessionInfo& sessionInfo);
 
-    TUserBucket* GetOrCreateBucket(const TString& userName);
     void OnUserCharged(TUser* user, const TUserWorkload& workload);
 
     void SetStickyUserError(const TString& userName, const TError& error);
@@ -312,6 +321,7 @@ public:
             RequestId_))
           // Copy so it doesn't change mid-execution of this particular session.
         , EnableMutationBoomerangs_(Owner_->EnableMutationBoomerangs_)
+        , EnableLocalReadExecutor_(Owner_->EnableLocalReadExecutor_)
     { }
 
     ~TExecuteSession()
@@ -345,6 +355,11 @@ public:
         }
     }
 
+    void OnDequeued()
+    {
+        Enqueued_.store(false);
+    }
+
     bool RunAutomatonFast()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -357,6 +372,11 @@ public:
         }
     }
 
+    TRequestId GetRequestId() const
+    {
+        return RequestId_;
+    }
+
     void RunAutomatonSlow()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -364,6 +384,18 @@ public:
         auto codicilGuard = MakeCodicilGuard();
         try {
             GuardedRunAutomatonSlow();
+        } catch (const std::exception& ex) {
+            Reply(ex);
+        }
+    }
+
+    void RunRead()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto codicilGuard = MakeCodicilGuard();
+        try {
+            GuardedRunRead();
         } catch (const std::exception& ex) {
             Reply(ex);
         }
@@ -382,6 +414,7 @@ private:
     const EPeerState TentativePeerState_;
     const TMultiPhaseCellSyncSessionPtr CellSyncSession_;
     const bool EnableMutationBoomerangs_;
+    const bool EnableLocalReadExecutor_;
 
     TDelayedExecutorCookie BackoffAlarmCookie_;
 
@@ -430,8 +463,11 @@ private:
     THashMap<TTransactionId, SmallVector<TSubrequest*, 1>> RemoteTransactionIdToSubrequests_;
 
     std::unique_ptr<TSubrequest[]> Subrequests_;
-    int CurrentSubrequestIndex_ = 0;
-    int ThrottledSubrequestIndex_ = -1;
+    int CurrentAutomatonSubrequestIndex_ = 0;
+    int CurrentLocalReadSubrequestIndex_ = 0;
+
+    int ThrottledAutomatonSubrequestIndex_ = -1;
+    int ThrottledLocalReadSubrequestIndex_ = -1;
 
     IInvokerPtr EpochAutomatonInvoker_;
     TCancelableContextPtr EpochCancelableContext_;
@@ -460,6 +496,8 @@ private:
 
     // Set to true if we're ready to reply with at least one subresponse.
     std::atomic<bool> SomeSubrequestCompleted_ = false;
+
+    std::atomic<bool> Enqueued_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -1206,7 +1244,7 @@ private:
             auto peerKind = subrequest.YPathExt->mutating() ? EPeerKind::Leader : EPeerKind::Follower;
 
             auto* batch = getOrCreateBatch(subrequest.ForwardedCellTag, peerKind);
-            batch->BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage);
+                batch->BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage);
             batch->Indexes.push_back(subrequestIndex);
 
             AcquireReplyLock();
@@ -1295,7 +1333,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        Owner_->EnqueueReadySession(this);
+        if (!Enqueued_.exchange(true)) {
+            Owner_->EnqueueReadySession(this);
+        }
     }
 
     template <class T>
@@ -1324,6 +1364,18 @@ private:
                 BIND(&TExecuteSession::CheckAndReschedule<void>, MakeStrong(this)));
             return false;
         }
+    }
+
+    bool AllSubrequestsProcessed() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        YT_ASSERT(CurrentAutomatonSubrequestIndex_ <= TotalSubrequestCount_);
+        YT_ASSERT(CurrentLocalReadSubrequestIndex_ <= TotalSubrequestCount_);
+
+        return
+            CurrentAutomatonSubrequestIndex_ == TotalSubrequestCount_ &&
+            CurrentLocalReadSubrequestIndex_ == TotalSubrequestCount_;
     }
 
     bool GuardedRunAutomatonFast()
@@ -1395,30 +1447,51 @@ private:
 
     bool ThrottleRequests()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        while (CurrentSubrequestIndex_ < TotalSubrequestCount_ &&
-               CurrentSubrequestIndex_ > ThrottledSubrequestIndex_)
+        auto doThrottle = [&] (
+            int* currentSubrequestIndex,
+            int* throttledSubrequestIndex,
+            EExecutionSessionSubrequestType subrequestType,
+            EUserWorkloadType workloadType)
         {
-            ++ThrottledSubrequestIndex_;
-
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
-            auto subrequestType = Subrequests_[CurrentSubrequestIndex_].Type;
-            if (subrequestType != EExecutionSessionSubrequestType::LocalRead &&
-                subrequestType != EExecutionSessionSubrequestType::LocalWrite)
+            while (*currentSubrequestIndex < TotalSubrequestCount_ &&
+                *currentSubrequestIndex > *throttledSubrequestIndex)
             {
-                continue;
+                ++(*throttledSubrequestIndex);
+
+                auto currentSubrequestType = Subrequests_[*currentSubrequestIndex].Type;
+                if (currentSubrequestType != subrequestType) {
+                    continue;
+                }
+
+                const auto& securityManager = Bootstrap_->GetSecurityManager();
+                auto result = securityManager->ThrottleUser(User_, 1, workloadType);
+
+                if (!WaitForAndContinue(result)) {
+                    return false;
+                }
             }
 
-            auto workloadType = subrequestType == EExecutionSessionSubrequestType::LocalWrite
-                ? EUserWorkloadType::Write
-                : EUserWorkloadType::Read;
-            auto result = securityManager->ThrottleUser(User_, 1, workloadType);
+            return true;
+        };
 
-            if (!WaitForAndContinue(result)) {
-                return false;
-            }
+        if (!doThrottle(
+            &CurrentAutomatonSubrequestIndex_,
+            &ThrottledAutomatonSubrequestIndex_,
+            EExecutionSessionSubrequestType::LocalWrite,
+            EUserWorkloadType::Write))
+        {
+            return false;
         }
+
+        if (!doThrottle(
+            &CurrentLocalReadSubrequestIndex_,
+            &ThrottledLocalReadSubrequestIndex_,
+            EExecutionSessionSubrequestType::LocalRead,
+            EUserWorkloadType::Read))
+        {
+            return false;
+        }
+
         return true;
     }
 
@@ -1426,12 +1499,34 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        auto subrequestFilter = [this] (TSubrequest* subrequest) {
+            return !EnableLocalReadExecutor_ || subrequest->Type != EExecutionSessionSubrequestType::LocalRead;
+        };
+
+        GuardedProcessSessions(&CurrentAutomatonSubrequestIndex_, subrequestFilter);
+    }
+
+    void GuardedRunRead()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto subrequestFilter = [this] (TSubrequest* subrequest) {
+            return EnableLocalReadExecutor_ && subrequest->Type == EExecutionSessionSubrequestType::LocalRead;
+        };
+
+        GuardedProcessSessions(&CurrentLocalReadSubrequestIndex_, subrequestFilter);
+    }
+
+    void GuardedProcessSessions(
+        int* currentSubrequestIndex,
+        std::function<bool(TSubrequest*)> filter)
+    {
         auto batchStartTime = GetCpuInstant();
         auto batchDeadlineTime = batchStartTime + DurationToCpuDuration(Owner_->Config_->YieldTimeout);
 
         Owner_->ValidateClusterInitialized();
 
-        while (CurrentSubrequestIndex_ < TotalSubrequestCount_) {
+        while (*currentSubrequestIndex < TotalSubrequestCount_) {
             if (InterruptIfCanceled()) {
                 break;
             }
@@ -1445,7 +1540,7 @@ private:
             }
 
             if (GetCpuInstant() > batchDeadlineTime) {
-                YT_LOG_DEBUG("Yielding automaton thread");
+                YT_LOG_DEBUG("Yielding thread");
                 Reschedule();
                 break;
             }
@@ -1461,37 +1556,35 @@ private:
                     break;
                 }
 
-                ExecuteCurrentSubrequest();
+                auto* subrequest = &Subrequests_[*currentSubrequestIndex];
+                if (filter(subrequest) && !ExecuteSubrequest(subrequest)) {
+                    break;
+                }
 
-                ++CurrentSubrequestIndex_;
+                ++(*currentSubrequestIndex);
             }
         }
 
-        if (CurrentSubrequestIndex_ >= TotalSubrequestCount_) {
+        if (AllSubrequestsProcessed()) {
             ReleaseUltimateReplyLock();
         }
     }
 
-    void ExecuteCurrentSubrequest()
+    bool ExecuteSubrequest(TSubrequest* subrequest)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto& subrequest = Subrequests_[CurrentSubrequestIndex_];
+        VERIFY_THREAD_AFFINITY_ANY();
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        subrequest.Revision = hydraManager->GetAutomatonVersion().ToRevision();
+        subrequest->Revision = hydraManager->GetAutomatonVersion().ToRevision();
 
-        switch (subrequest.Type) {
+        switch (subrequest->Type) {
             case EExecutionSessionSubrequestType::LocalRead:
             case EExecutionSessionSubrequestType::LocalWrite:
-                ExecuteLocalSubrequest(&subrequest);
-                break;
+                return ExecuteLocalSubrequest(subrequest);
 
             case EExecutionSessionSubrequestType::Remote:
-                break;
-
             case EExecutionSessionSubrequestType::Cache:
-                break;
+                return true;
 
             default:
                 YT_ABORT();
@@ -1546,16 +1639,21 @@ private:
         SubscribeToSubresponse(subrequest, std::move(asyncSubresponse));
     }
 
-    void ExecuteLocalSubrequest(TSubrequest* subrequest)
+    bool ExecuteLocalSubrequest(TSubrequest* subrequest)
     {
-        YT_ASSERT(
-            subrequest->Type == EExecutionSessionSubrequestType::LocalRead ||
-            subrequest->Type == EExecutionSessionSubrequestType::LocalWrite);
+        if (subrequest->Type == EExecutionSessionSubrequestType::LocalWrite) {
+            VERIFY_THREAD_AFFINITY(AutomatonThread);
+        } else if (subrequest->Type == EExecutionSessionSubrequestType::LocalRead) {
+            VERIFY_THREAD_AFFINITY_ANY();
+        } else {
+            YT_ABORT();
+        }
 
         YT_VERIFY(!subrequest->RemoteTransactionReplicationFuture || !subrequest->MutationResponseFuture);
 
-        AcquireReplyLock();
-        subrequest->LocallyStarted.store(true);
+        if (!subrequest->LocallyStarted.exchange(true)) {
+            AcquireReplyLock();
+        }
 
         auto timeLeft = GetTimeLeft(subrequest);
 
@@ -1589,18 +1687,30 @@ private:
 
         if (!subrequest->RemoteTransactionReplicationFuture && !subrequest->MutationResponseFuture) {
             doExecuteSubrequest(TError());
-            return;
+            return true;
         }
 
         if (subrequest->RemoteTransactionReplicationFuture) {
             if (subrequest->RemoteTransactionReplicationFuture.IsSet()) {
                 doExecuteSubrequest(subrequest->RemoteTransactionReplicationFuture.Get());
+                return true;
             } else {
+                auto doReschedule = [=, this_ = MakeStrong(this)] (const TError& error) {
+                    if (!error.IsOK()) {
+                        subrequest->RpcContext->Reply(error);
+                        return;
+                    }
+
+                    Reschedule();
+                };
+
                 // NB: non-owning capture of this session object. Should be fine,
                 // since reply lock will prevent this session from being destroyed.
                 subrequest->RemoteTransactionReplicationFuture
                     .WithTimeout(timeLeft)
-                    .Subscribe(BIND(doExecuteSubrequest));
+                    .Subscribe(BIND(doReschedule));
+
+                return false;
             }
         } else {
             YT_VERIFY(subrequest->MutationResponseFuture);
@@ -1612,7 +1722,11 @@ private:
                 subrequest->MutationResponseFuture
                     .Subscribe(BIND(&TExecuteSession::OnMutationCommitted, MakeStrong(this), subrequest));
             }
+
+            return true;
         }
+
+        YT_ABORT();
     }
 
     TDuration GetTimeLeft(TSubrequest* subrequest)
@@ -1626,7 +1740,7 @@ private:
 
     void ExecuteReadSubrequest(TSubrequest* subrequest)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         TWallTimer timer;
 
@@ -1995,7 +2109,6 @@ private:
         return false;
     }
 
-
     TCodicilGuard MakeCodicilGuard()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -2006,14 +2119,41 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TObjectService::TLocalReadCallbackProvider::TLocalReadCallbackProvider(TSessionSchedulerPtr sessionScheduler)
+    : SessionScheduler_(std::move(sessionScheduler))
+{ }
+
+TCallback<void()> TObjectService::TLocalReadCallbackProvider::ExtractCallback()
+{
+    if (SessionScheduler_->Empty()) {
+        return {};
+    }
+
+    auto session = SessionScheduler_->Dequeue();
+
+    return BIND(&TObjectService::TExecuteSession::RunRead, session);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TDynamicObjectServiceConfigPtr& TObjectService::GetDynamicConfig()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    return Bootstrap_->GetConfigManager()->GetConfig()->ObjectService;
+}
+
 void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->ObjectService;
+    const auto& config = GetDynamicConfig();
     EnableTwoLevelCache_ = config->EnableTwoLevelCache;
     EnableMutationBoomerangs_ = config->EnableMutationBoomerangs;
+    EnableLocalReadExecutor_ = config->EnableLocalReadExecutor;
     ScheduleReplyRetryBackoff_ = config->ScheduleReplyRetryBackoff;
+
+    LocalReadExecutor_->Reconfigure(config->LocalReadWorkerCount);
 }
 
 void TObjectService::EnqueueReadySession(TExecuteSessionPtr session)
@@ -2057,54 +2197,32 @@ void TObjectService::ProcessSessions()
     });
 
     ReadySessions_.DequeueAll(false, [&] (TExecuteSessionPtr& session) {
+        session->OnDequeued();
+
         if (!session->RunAutomatonFast()) {
             return;
         }
 
-        auto* bucket = GetOrCreateBucket(session->GetUserName());
-        // Insert the bucket into the heap if this is its first session.
-        if (!bucket->InHeap) {
-            BucketHeap_.push_back(bucket);
-            AdjustHeapBack(BucketHeap_.begin(), BucketHeap_.end(), TUserBucketComparer());
-            bucket->InHeap = true;
-        }
-        bucket->Sessions.push(std::move(session));
+        const auto& userName = session->GetUserName();
+        AutomatonSessionScheduler_->Enqueue(session, userName);
+        LocalReadSessionScheduler_->Enqueue(session, userName);
     });
 
-    while (!BucketHeap_.empty() && GetCpuInstant() < deadlineTime) {
-        auto* bucket = BucketHeap_.front();
-        YT_ASSERT(bucket->InHeap);
-
-        auto actualExcessTime = std::max(bucket->ExcessTime, ExcessBaseline_);
-
-        // Account for charged time possibly reordering the heap.
-        if (bucket->HeapKey != actualExcessTime) {
-            YT_ASSERT(bucket->HeapKey < actualExcessTime);
-            bucket->HeapKey = actualExcessTime;
-            AdjustHeapFront(BucketHeap_.begin(), BucketHeap_.end(), TUserBucketComparer());
-            continue;
-        }
-
-        // Remove the bucket from the heap if no sessions are pending.
-        if (bucket->Sessions.empty()) {
-            ExtractHeap(BucketHeap_.begin(), BucketHeap_.end(), TUserBucketComparer());
-            BucketHeap_.pop_back();
-            bucket->InHeap = false;
-            continue;
-        }
-
-        // Promote the baseline.
-        ExcessBaseline_ = actualExcessTime;
-
-        // Extract and run the session.
-        auto session = std::move(bucket->Sessions.front());
-        bucket->Sessions.pop();
+    while (!AutomatonSessionScheduler_->Empty() && GetCpuInstant() < deadlineTime) {
+        auto session = AutomatonSessionScheduler_->Dequeue();
         session->RunAutomatonSlow();
     }
 
-    if (!BucketHeap_.empty()) {
-        EnqueueProcessSessionsCallback();
+    {
+        TAutomatonBlockGuard guard(Bootstrap_->GetHydraFacade());
+
+        auto readFuture = LocalReadExecutor_->Run(LocalReadExecutorQuantumDuration_);
+        readFuture
+            .Get()
+            .ThrowOnError();
     }
+
+    EnqueueProcessSessionsCallback();
 }
 
 void TObjectService::FinishSession(const TExecuteSessionInfo& sessionInfo)
@@ -2126,22 +2244,15 @@ void TObjectService::FinishSession(const TExecuteSessionInfo& sessionInfo)
     }
 }
 
-TObjectService::TUserBucket* TObjectService::GetOrCreateBucket(const TString& userName)
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    auto [it, inserted] = NameToUserBucket_.emplace(userName, TUserBucket(userName));
-    return &it->second;
-}
-
 void TObjectService::OnUserCharged(TUser* user, const TUserWorkload& workload)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    auto* bucket = GetOrCreateBucket(user->GetName());
-    // Just charge the bucket, do not reorder it in the heap.
-    auto actualExcessTime = std::max(bucket->ExcessTime, ExcessBaseline_);
-    bucket->ExcessTime = actualExcessTime + workload.RequestTime;
+    const auto& scheduler = workload.Type == EUserWorkloadType::Read && EnableLocalReadExecutor_
+        ? LocalReadSessionScheduler_
+        : AutomatonSessionScheduler_;
+
+    scheduler->ChargeUser(user->GetName(), workload.RequestTime);
 }
 
 void TObjectService::SetStickyUserError(const TString& userName, const TError& error)

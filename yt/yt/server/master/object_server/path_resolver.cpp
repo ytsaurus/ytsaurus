@@ -145,7 +145,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
             if (!currentCacheNode) {
                 auto* currentTrunkNode = currentNode->GetTrunkNode();
                 auto currentNodePath = cypressManager->GetNodePath(currentTrunkNode, nullptr);
-                currentCacheNode = resolveCache->InsertNode(currentTrunkNode, currentNodePath);
+                currentCacheNode = resolveCache->TryInsertNode(currentTrunkNode, currentNodePath);
             }
             if (parentCacheNode) {
                 resolveCache->AddNodeChild(parentCacheNode, currentCacheNode, parentChildKey);

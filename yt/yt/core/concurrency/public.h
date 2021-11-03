@@ -9,6 +9,8 @@ namespace NYT::NConcurrency {
 DECLARE_REFCOUNTED_CLASS(TActionQueue)
 DECLARE_REFCOUNTED_CLASS(TThreadPool)
 
+DECLARE_REFCOUNTED_STRUCT(ISuspendableActionQueue)
+
 DECLARE_REFCOUNTED_CLASS(TPeriodicExecutor)
 DECLARE_REFCOUNTED_CLASS(TInvokerAlarm)
 
@@ -16,6 +18,8 @@ DECLARE_REFCOUNTED_CLASS(TAsyncSemaphore)
 DECLARE_REFCOUNTED_CLASS(TProfiledAsyncSemaphore)
 
 DECLARE_REFCOUNTED_STRUCT(IFairShareActionQueue)
+
+DECLARE_REFCOUNTED_STRUCT(IQuantizedExecutor)
 
 namespace NDetail {
 

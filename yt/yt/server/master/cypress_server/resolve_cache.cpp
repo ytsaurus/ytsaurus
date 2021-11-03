@@ -178,31 +178,39 @@ TResolveCacheNodePtr TResolveCache::FindNode(TNodeId nodeId)
     VERIFY_THREAD_AFFINITY_ANY();
 
     // TODO(babenko): fastpath for root
-    auto guard = ReaderGuard(IdToNodeLock_);
-    auto it = IdToNode_.find(nodeId);
-    return it == IdToNode_.end() ? nullptr : it->second;
+    auto* shard = GetShard(nodeId);
+    auto guard = ReaderGuard(shard->Lock);
+    auto it = shard->IdToNode.find(nodeId);
+    return it == shard->IdToNode.end() ? nullptr : it->second;
 }
 
-TResolveCacheNodePtr TResolveCache::InsertNode(
+TResolveCacheNodePtr TResolveCache::TryInsertNode(
     TCypressNode* trunkNode,
     const TYPath& path)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto* shard = GetShard(trunkNode);
+    auto guard = WriterGuard(shard->Lock);
+
+    auto& idToNode = shard->IdToNode;
 
     auto nodeId = trunkNode->GetId();
-    auto payload = MakePayload(trunkNode);
-    auto node = New<TResolveCacheNode>(trunkNode, path, std::move(payload));
-    trunkNode->SetResolveCacheNode(node.Get());
+    auto nodeIt = idToNode.find(nodeId);
+    if (nodeIt == idToNode.end()) {
+        auto payload = MakePayload(trunkNode);
+        auto node = New<TResolveCacheNode>(trunkNode, path, std::move(payload));
+        trunkNode->SetResolveCacheNode(node.Get());
+        YT_VERIFY(idToNode.emplace(nodeId, node).second);
 
-    {
-        auto guard = WriterGuard(IdToNodeLock_);
-        YT_VERIFY(IdToNode_.emplace(nodeId, node).second);
+        YT_LOG_DEBUG("Resolve cache node added (NodeId: %v, Path: %v)",
+            nodeId,
+            path);
+
+        return node;
+    } else {
+        return nodeIt->second;
     }
-
-    YT_LOG_DEBUG("Resolve cache node added (NodeId: %v, Path: %v)",
-        nodeId,
-        path);
-    return node;
 }
 
 void TResolveCache::AddNodeChild(
@@ -210,7 +218,7 @@ void TResolveCache::AddNodeChild(
     const TResolveCacheNodePtr& childNode,
     const TString& key)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
     auto guard = WriterGuard(parentNode->Lock);
     YT_ASSERT(std::holds_alternative<TResolveCacheNode::TMapPayload>(parentNode->Payload));
@@ -274,20 +282,34 @@ void TResolveCache::InvalidateNode(TCypressNode* node)
     }
 
     {
-        auto guard = WriterGuard(IdToNodeLock_);
         for (auto* trunkNode : invalidatedNodes) {
+            auto* shard = GetShard(trunkNode);
+            auto guard = WriterGuard(shard->Lock);
             ResetNode(trunkNode);
-            YT_VERIFY(IdToNode_.erase(trunkNode->GetId()) == 1);
+            YT_VERIFY(shard->IdToNode.erase(trunkNode->GetId()) == 1);
+        }
+
+        for (auto* trunkNode : invalidatedNodes) {
+            trunkNode->SetResolveCacheNode(nullptr);
         }
     }
+}
 
-    for (auto* trunkNode : invalidatedNodes) {
-        trunkNode->SetResolveCacheNode(nullptr);
-    }
+TResolveCache::TShard* TResolveCache::GetShard(TNodeId nodeId)
+{
+    auto shardIndex = GetShardIndex<ShardCount>(nodeId);
+    return &Shards_[shardIndex];
+}
+
+TResolveCache::TShard* TResolveCache::GetShard(TCypressNode* trunkNode)
+{
+    return GetShard(trunkNode->GetId());
 }
 
 void TResolveCache::ResetNode(TCypressNode* trunkNode)
 {
+    VERIFY_WRITER_SPINLOCK_AFFINITY(GetShard(trunkNode)->Lock);
+
     trunkNode->GetResolveCacheNode()->TrunkNode = nullptr;
     trunkNode->GetResolveCacheNode()->Parent = nullptr;
     trunkNode->SetResolveCacheNode(nullptr);
@@ -297,12 +319,12 @@ void TResolveCache::Clear()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    {
-        auto guard = WriterGuard(IdToNodeLock_);
-        for (auto [nodeId, cacheNode] : IdToNode_) {
+    for (auto& shard : Shards_) {
+        auto guard = WriterGuard(shard.Lock);
+        for (auto [nodeId, cacheNode] : shard.IdToNode) {
             ResetNode(cacheNode->TrunkNode);
         }
-        IdToNode_.clear();
+        shard.IdToNode.clear();
     }
 
     YT_LOG_INFO("Resolve cache cleared");

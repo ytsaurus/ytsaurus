@@ -399,8 +399,14 @@ private:
             ToProto(currentReq.mutable_transaction_id(), transaction->GetId());
 
             const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-            auto asyncResult = CreateMutation(hydraManager, currentReq)
-                ->CommitAndLog(Logger);
+            // TODO(aleksandra-zh, gritukan): Mutation commit from non-automaton thread
+            // should not be a problem for new Hydra.
+            auto asyncResult = BIND([=, mutation = std::move(currentReq)] {
+                return CreateMutation(hydraManager, mutation)
+                    ->CommitAndLog(Logger);
+            })
+                .AsyncVia(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService))
+                .Run();
             asyncCommitResults.push_back(std::move(asyncResult));
 
             storeCount = 0;

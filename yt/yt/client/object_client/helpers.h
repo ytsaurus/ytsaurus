@@ -106,6 +106,11 @@ TObjectId ReplaceCellTagInId(
     TObjectId id,
     TCellTag cellTag);
 
+//! Useful for uniform partition of objects between shards.
+// NB: #shardCount must be a power of 2.
+template <int ShardCount>
+int GetShardIndex(TObjectId id);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Relies on first 32 bits of object id to be pseudo-random,

@@ -42,7 +42,7 @@ def _set_sys_config(path, value):
 
 
 class TestCypress(YTEnvSetup):
-    NUM_TEST_PARTITIONS = 3
+    NUM_TEST_PARTITIONS = 7
 
     NUM_MASTERS = 3
     NUM_NODES = 0
@@ -3538,6 +3538,12 @@ class TestCypressShardedTxNoBoomerangs(TestCypressShardedTx):
         super(TestCypressShardedTxNoBoomerangs, self).setup_method(method)
         set("//sys/@config/object_service/enable_mutation_boomerangs", False)
         set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
+
+
+class TestCypressNoLocalReadExecutor(TestCypress):
+    def setup_method(self, method):
+        super(TestCypressNoLocalReadExecutor, self).setup_method(method)
+        set("//sys/@config/object_service/enable_local_read_executor", False)
 
 
 ##################################################################

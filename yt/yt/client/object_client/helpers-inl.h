@@ -123,6 +123,13 @@ inline TObjectId ReplaceCellTagInId(
     return result;
 }
 
+template <int ShardCount>
+inline int GetShardIndex(TObjectId id)
+{
+    static_assert(IsPowerOf2(ShardCount), "Number of shards must be a power of 2");
+    return TDirectObjectIdHash()(id) & (ShardCount - 1);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Y_FORCE_INLINE size_t TDirectObjectIdHash::operator()(TObjectId id) const

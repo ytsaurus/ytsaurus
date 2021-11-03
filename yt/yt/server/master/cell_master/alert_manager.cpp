@@ -67,7 +67,7 @@ public:
 
     std::vector<TError> GetAlerts() const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Bootstrap_->VerifyPersistentStateRead();
 
         std::vector<TError> alerts;
         for (const auto& [cellTag, cellAlerts] : CellTagToAlerts_) {

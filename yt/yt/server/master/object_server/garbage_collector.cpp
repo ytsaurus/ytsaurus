@@ -164,7 +164,8 @@ TFuture<void> TGarbageCollector::Collect()
 
 int TGarbageCollector::EphemeralRefObject(TObject* object)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    Bootstrap_->VerifyPersistentStateRead();
+
     YT_ASSERT(!IsRecovery());
     YT_ASSERT(object->IsAlive());
     YT_ASSERT(object->IsTrunk());
@@ -179,6 +180,7 @@ int TGarbageCollector::EphemeralRefObject(TObject* object)
 int TGarbageCollector::EphemeralUnrefObject(TObject* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+
     YT_ASSERT(!IsRecovery());
     YT_ASSERT(object->IsTrunk());
 

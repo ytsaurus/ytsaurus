@@ -247,6 +247,11 @@ bool TBootstrap::UseNewReplicator() const
     return Config_->UseNewReplicator;
 }
 
+void TBootstrap::VerifyPersistentStateRead() const
+{
+    HydraFacade_->VerifyPersistentStateRead();
+}
+
 TCellId TBootstrap::GetCellId() const
 {
     return CellId_;
