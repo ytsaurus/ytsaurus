@@ -347,8 +347,9 @@ public:
 
     NYson::TYsonString BuildAlertsString() const;
     bool HasAlert(EOperationAlertType alertType) const;
-    void SetAlert(EOperationAlertType alertType, const TError& error, std::optional<TDuration> timeout = std::nullopt);
+    bool SetAlert(EOperationAlertType alertType, const TError& error);
     void ResetAlert(EOperationAlertType alertType);
+    void SetAlertResetCookie(EOperationAlertType alertType, NConcurrency::TDelayedExecutorCookie cookie);
 
     //! Returns a control invoker corresponding to this operation.
     const IInvokerPtr& GetControlInvoker();

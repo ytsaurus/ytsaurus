@@ -43,6 +43,7 @@ DEFINE_ENUM(ESchedulerAlertType,
     ((InvalidPoolTreeTemplateConfigSet)             (11))
     ((TooFewControllerAgentsAlive)                  (12))
     ((UpdateUserToDefaultPoolMap)                   (13))
+    ((OperationAlertArchivation)                    (14))
 );
 
 DEFINE_ENUM(EOperationAlertType,

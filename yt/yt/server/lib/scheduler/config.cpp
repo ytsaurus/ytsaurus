@@ -493,6 +493,16 @@ void TOperationsCleanerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("parse_operation_attributes_batch_size", &TThis::ParseOperationAttributesBatchSize)
         .Default(100);
+    registrar.Parameter("max_enqueued_operation_alert_event_count", &TOperationsCleanerConfig::MaxEnqueuedOperationAlertEventCount)
+        .Default(1000)
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("max_alert_event_count_per_operation", &TOperationsCleanerConfig::MaxAlertEventCountPerOperation)
+        .Default(1000)
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("operation_alert_event_send_period", &TOperationsCleanerConfig::OperationAlertEventSendPeriod)
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("operation_alert_sender_alert_threshold", &TOperationsCleanerConfig::OperationAlertSenderAlertThreshold)
+        .Default(TDuration::Minutes(5));
 
     registrar.Postprocessor([&] (TOperationsCleanerConfig* config) {
         if (config->MaxArchivationRetrySleepDelay <= config->MinArchivationRetrySleepDelay) {

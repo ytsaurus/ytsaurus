@@ -70,14 +70,20 @@ def make_dynamic_table_attributes(schema, key_columns, optimize_for):
 
 class TableInfo(object):
     def __init__(self, key_columns, value_columns, in_memory=False, get_pivot_keys=None, attributes={}):
-        def make_column(name, type_name):
-            return {
+        def make_column(name, type_name, key=False):
+            result = {
                 "name": name,
-                "type": type_name
+                "type": type_name,
             }
+            if name in ["progress", "brief_progress"]:
+                result["lock"] = "controller_agent"
+            elif not key:
+                result["lock"] = "operations_cleaner"
+            return result
+            
 
         def make_key_column(name, type_name, expression=None):
-            result = make_column(name, type_name)
+            result = make_column(name, type_name, key=True)
             result["sort_order"] = "ascending"
             if expression:
                 result["expression"] = expression
@@ -1042,6 +1048,43 @@ TRANSFORMS[42] = [
             ],
             in_memory=True)),
 ]
+
+TRANSFORMS[43] = [
+    Conversion(
+        "ordered_by_id",
+        table_info=TableInfo([
+                ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
+                ("id_hi", "uint64"),
+                ("id_lo", "uint64"),
+            ], [
+                ("state", "string"),
+                ("authenticated_user", "string"),
+                ("operation_type", "string"),
+                ("progress", "any"),
+                ("spec", "any"),
+                ("experiment_assignments", "any"),
+                ("experiment_assignment_names", "any"),
+                ("brief_progress", "any"),
+                ("brief_spec", "any"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("filter_factors", "string"),
+                ("result", "any"),
+                ("events", "any"),
+                ("alerts", "any"),
+                ("slot_index", "int64"),
+                ("unrecognized_spec", "any"),
+                ("full_spec", "any"),
+                ("runtime_parameters", "any"),
+                ("slot_index_per_pool_tree", "any"),
+                ("annotations", "any"),
+                ("task_names", "any"),
+                ("controller_features", "any"),
+                ("alert_events", "any"),  # TODO(egor-gutrov): strict type
+            ],
+            in_memory=True)),
+]
+
 
 def swap_table(client, target, source, version):
     backup_path = target + ".bak.{0}".format(version)

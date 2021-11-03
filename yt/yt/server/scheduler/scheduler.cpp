@@ -322,7 +322,7 @@ public:
             BIND(&TImpl::ManageSchedulingSegments, MakeWeak(this)),
             Config_->SchedulingSegmentsManagePeriod);
         SchedulingSegmentsManagerExecutor_->Start();
-        
+
         MeteringRecordCountCounter_ = SchedulerProfiler
             .Counter("/metering/record_count");
         MeteringUsageQuantityCounter_ = SchedulerProfiler
@@ -2001,7 +2001,6 @@ private:
         MasterConnector_->AttachJobContext(path, chunkId, operationId, jobId, user);
     }
 
-
     void DoSetOperationAlert(
         TOperationId operationId,
         EOperationAlertType alertType,
@@ -2018,12 +2017,22 @@ private:
         if (alert.IsOK()) {
             if (operation->HasAlert(alertType)) {
                 operation->ResetAlert(alertType);
+                OperationsCleaner_->EnqueueOperationAlertEvent(operationId, alertType, alert);
+
                 YT_LOG_DEBUG("Operation alert reset (OperationId: %v, Type: %v)",
                     operationId,
                     alertType);
             }
-        } else {
-            operation->SetAlert(alertType, alert, timeout);
+        } else if (operation->SetAlert(alertType, alert)) {
+            OperationsCleaner_->EnqueueOperationAlertEvent(operationId, alertType, alert);
+
+            if (timeout) {
+                auto resetCallback = BIND(&TImpl::DoSetOperationAlert, MakeStrong(this), operationId, alertType, TError(), std::nullopt)
+                    .Via(operation->GetCancelableControlInvoker());
+                auto resetCookie = TDelayedExecutor::Submit(resetCallback, *timeout);
+                operation->SetAlertResetCookie(alertType, resetCookie);
+            }
+
             YT_LOG_DEBUG(alert, "Operation alert set (OperationId: %v, Type: %v)",
                 operationId,
                 alertType);
@@ -2656,6 +2665,7 @@ private:
             StrategyHungOperationsChecker_->SetPeriod(Config_->OperationHangupCheckPeriod);
             OperationsDestroyerExecutor_->SetPeriod(Config_->OperationsDestroyPeriod);
             SchedulingSegmentsManagerExecutor_->SetPeriod(Config_->SchedulingSegmentsManagePeriod);
+
             if (TransientOperationQueueScanPeriodExecutor_) {
                 TransientOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
             }
@@ -4830,6 +4840,15 @@ TString TScheduler::FormatResourceUsage(
         usage,
         limits,
         diskResources);
+}
+
+TFuture<void> TScheduler::SetOperationAlert(
+        TOperationId operationId,
+        EOperationAlertType alertType,
+        const TError& alert,
+        std::optional<TDuration> timeout)
+{
+    return Impl_->SetOperationAlert(operationId, alertType, alert, timeout);
 }
 
 TFuture<void> TScheduler::ValidateOperationAccess(

@@ -668,6 +668,9 @@ void ToProto(NProto::TOperation* protoOperation, const NApi::TOperation& operati
     if (operation.Alerts) {
         protoOperation->set_alerts(operation.Alerts.ToString());
     }
+    if (operation.AlertEvents) {
+        protoOperation->set_alert_events(operation.AlertEvents.ToString());
+    }
 
     if (operation.ControllerFeatures) {
         protoOperation->set_controller_features(operation.ControllerFeatures.ToString());
@@ -795,6 +798,11 @@ void FromProto(NApi::TOperation* operation, const NProto::TOperation& protoOpera
         operation->Alerts = TYsonString(protoOperation.alerts());
     } else {
         operation->Alerts = TYsonString();
+    }
+    if (protoOperation.has_alert_events()) {
+        operation->AlertEvents = TYsonString(protoOperation.alert_events());
+    } else {
+        operation->AlertEvents = TYsonString();
     }
 
     if (protoOperation.has_controller_features()) {
