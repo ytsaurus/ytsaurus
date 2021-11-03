@@ -41,8 +41,8 @@ public:
 
     // ITabletWriteManagerHost
 
-    i64 LockTablet(TTablet* tablet) override;
-    i64 UnlockTablet(TTablet* tablet) override;
+    void OnTabletUnlocked(TTablet* tablet) override;
+    void OnTabletRowUnlocked(TTablet* tablet) override;
     TTablet* GetTabletOrThrow(TTabletId id) override;
     TTablet* FindTablet(const TTabletId& id) const override;
     TTransactionManagerPtr GetTransactionManager() const override;
@@ -51,8 +51,6 @@ public:
     void ValidateMemoryLimit(const std::optional<TString>& /*poolTag*/) override;
     TTimestamp GetLatestTimestamp() const override;
     bool ValidateAndDiscardRowRef(const TSortedDynamicRowRef& /*rowRef*/) override;
-    void CheckIfTabletFullyUnlocked(TTablet* /*tablet*/) override;
-    void UnlockLockedTablets(TTransaction* /*transaction*/) override;
     void AdvanceReplicatedTrimmedRowCount(TTablet* /*tablet*/, TTransaction* /*transaction*/) override;
     TCellId GetCellId() const override;
 

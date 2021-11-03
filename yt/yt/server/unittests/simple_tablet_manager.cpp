@@ -86,22 +86,18 @@ void TSimpleTabletManager::InitializeStoreManager()
     Tablet_->SetStoreManager(StoreManager_);
 }
 
-i64 TSimpleTabletManager::LockTablet(TTablet* tablet)
-{
-    return tablet->Lock();
-}
-
-i64 TSimpleTabletManager::UnlockTablet(TTablet* tablet)
-{
-    return tablet->Unlock();
-}
-
 TTablet* TSimpleTabletManager::GetTabletOrThrow(TTabletId id)
 {
     YT_VERIFY(id == NullTabletId);
 
     return Tablet_.get();
 }
+
+void TSimpleTabletManager::OnTabletUnlocked(TTablet* /*tablet*/)
+{ }
+
+void TSimpleTabletManager::OnTabletRowUnlocked(TTablet* /*tablet*/)
+{ }
 
 TTablet* TSimpleTabletManager::FindTablet(const TTabletId& id) const
 {
@@ -138,12 +134,6 @@ bool TSimpleTabletManager::ValidateAndDiscardRowRef(const TSortedDynamicRowRef& 
 {
     return true;
 }
-
-void TSimpleTabletManager::CheckIfTabletFullyUnlocked(TTablet* /*tablet*/)
-{ }
-
-void TSimpleTabletManager::UnlockLockedTablets(TTransaction* /*transaction*/)
-{ }
 
 void TSimpleTabletManager::AdvanceReplicatedTrimmedRowCount(TTablet* /*tablet*/, TTransaction* /*transaction*/)
 { }

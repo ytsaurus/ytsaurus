@@ -2246,35 +2246,23 @@ private:
         YT_VERIFY(OrphanedTablets_.emplace(id, std::move(tabletHolder)).second);
     }
 
-    i64 LockTablet(TTablet* tablet) override
+    void OnTabletUnlocked(TTablet* tablet) override
     {
-        return tablet->Lock();
-    }
-
-    i64 UnlockTablet(TTablet* tablet) override
-    {
-        auto lockCount = tablet->Unlock();
         CheckIfTabletFullyUnlocked(tablet);
-        if (tablet->GetState() == ETabletState::Orphaned && lockCount == 0) {
+        if (tablet->GetState() == ETabletState::Orphaned && tablet->GetTabletLockCount() == 0) {
             auto id = tablet->GetId();
             YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet unlocked and will be dropped (TabletId: %v)",
                 id);
             YT_VERIFY(OrphanedTablets_.erase(id) == 1);
         }
-        return lockCount;
     }
 
-    void UnlockLockedTablets(TTransaction* transaction) override
+    void OnTabletRowUnlocked(TTablet* tablet) override
     {
-        auto& tablets = transaction->LockedTablets();
-        while (!tablets.empty()) {
-            auto* tablet = tablets.back();
-            tablets.pop_back();
-            UnlockTablet(tablet);
-        }
+        CheckIfTabletFullyUnlocked(tablet);
     }
 
-    void CheckIfTabletFullyUnlocked(TTablet* tablet) override
+    void CheckIfTabletFullyUnlocked(TTablet* tablet)
     {
         if (!IsLeader()) {
             return;

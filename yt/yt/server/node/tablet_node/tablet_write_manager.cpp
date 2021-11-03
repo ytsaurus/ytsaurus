@@ -189,7 +189,7 @@ public:
                 TTransactionWriteRecord writeRecord(tabletId, recordData, context.RowCount, context.DataWeight, syncReplicaIds);
 
                 PrelockedTablets_.push(tablet);
-                Host_->LockTablet(tablet);
+                LockTablet(tablet);
 
                 IncrementTabletInFlightMutationCount(tablet, replicatorWrite, +1);
 
@@ -253,7 +253,7 @@ public:
         while (!PrelockedTablets_.empty()) {
             auto* tablet = PrelockedTablets_.front();
             PrelockedTablets_.pop();
-            Host_->UnlockTablet(tablet);
+            UnlockTablet(tablet);
         }
     }
 
@@ -306,7 +306,7 @@ public:
                 WriteLogsMemoryTrackerGuard_.IncrementSize(record.GetByteSize());
                 IncrementTabletPendingWriteRecordCount(tablet, replicatorWrite, +1);
 
-                Host_->LockTablet(tablet);
+                LockTablet(tablet);
                 transaction->LockedTablets().push_back(tablet);
             }
 
@@ -320,7 +320,7 @@ public:
                 WriteLogsMemoryTrackerGuard_.IncrementSize(record.GetByteSize());
                 IncrementTabletPendingWriteRecordCount(tablet, replicatorWrite, +1);
 
-                Host_->LockTablet(tablet);
+                LockTablet(tablet);
                 transaction->LockedTablets().push_back(tablet);
 
                 if (tablet->IsReplicated() && transaction->GetRowsPrepared()) {
@@ -364,7 +364,7 @@ private:
         PrelockedTablets_.pop();
         YT_VERIFY(tablet->GetId() == writeRecord.TabletId);
         auto finallyGuard = Finally([&]() {
-            Host_->UnlockTablet(tablet);
+            UnlockTablet(tablet);
         });
 
         IncrementTabletInFlightMutationCount(tablet, replicatorWrite, -1);
@@ -387,7 +387,7 @@ private:
 
                 if (lockless) {
                     transaction->LockedTablets().push_back(tablet);
-                    Host_->LockTablet(tablet);
+                    LockTablet(tablet);
 
                     YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Prelocked tablet confirmed (TabletId: %v, TransactionId: %v, "
                         "RowCount: %v, LockCount: %v)",
@@ -540,7 +540,7 @@ private:
                         signature);
 
                     transaction->LockedTablets().push_back(tablet);
-                    auto lockCount = Host_->LockTablet(tablet);
+                    auto lockCount = LockTablet(tablet);
 
                     YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet locked (TabletId: %v, TransactionId: %v, LockCount: %v)",
                         writeRecord.TabletId,
@@ -762,7 +762,7 @@ private:
         lockedRows.clear();
 
         // Check if above CommitRow calls caused store locks to be released.
-        CheckIfImmediateLockedTabletsFullyUnlocked(transaction);
+        OnTransactionLockedRowsUnlocked(transaction);
 
         int locklessRowCount = 0;
         SmallVector<TTablet*, 16> locklessTablets;
@@ -845,7 +845,7 @@ private:
         }
 
         if (transaction->DelayedLocklessWriteLog().Empty()) {
-            Host_->UnlockLockedTablets(transaction);
+            UnlockLockedTablets(transaction);
         }
 
         auto updateProfileCounters = [&] (const TTransactionWriteLog& log) {
@@ -920,7 +920,7 @@ private:
                 newDelayedLocklessRowCount);
         }
 
-        Host_->UnlockLockedTablets(transaction);
+        UnlockLockedTablets(transaction);
 
         DropTransactionWriteLog(transaction, &transaction->DelayedLocklessWriteLog());
     }
@@ -943,10 +943,10 @@ private:
             lockedRowCount);
 
         // Check if above AbortRow calls caused store locks to be released.
-        CheckIfImmediateLockedTabletsFullyUnlocked(transaction);
+        OnTransactionLockedRowsUnlocked(transaction);
 
         auto lockedTabletCount = transaction->LockedTablets().size();
-        Host_->UnlockLockedTablets(transaction);
+        UnlockLockedTablets(transaction);
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled() && lockedTabletCount > 0,
             "Locked tablets unlocked (TransactionId: %v, TabletCount: %v)",
             transaction->GetId(),
@@ -1114,7 +1114,7 @@ private:
             prelockedRowCount);
     }
 
-    void CheckIfImmediateLockedTabletsFullyUnlocked(TTransaction* transaction)
+    void OnTransactionLockedRowsUnlocked(TTransaction* transaction)
     {
         for (const auto& record : transaction->ImmediateLockedWriteLog()) {
             auto* tablet = Host_->FindTablet(record.TabletId);
@@ -1122,7 +1122,7 @@ private:
                 continue;
             }
 
-            Host_->CheckIfTabletFullyUnlocked(tablet);
+            Host_->OnTabletRowUnlocked(tablet);
         }
     }
 
@@ -1263,6 +1263,28 @@ private:
     {
         if (transaction->GetState() != ETransactionState::Active) {
             transaction->ThrowInvalidState();
+        }
+    }
+
+    i64 LockTablet(TTablet* tablet)
+    {
+        return tablet->Lock();
+    }
+
+    i64 UnlockTablet(TTablet* tablet)
+    {
+        auto lockCount = tablet->Unlock();
+        Host_->OnTabletUnlocked(tablet);
+        return lockCount;
+    }
+
+    void UnlockLockedTablets(TTransaction* transaction)
+    {
+        auto& tablets = transaction->LockedTablets();
+        while (!tablets.empty()) {
+            auto* tablet = tablets.back();
+            tablets.pop_back();
+            UnlockTablet(tablet);
         }
     }
 };
