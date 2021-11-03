@@ -102,7 +102,12 @@ public:
             duration = TDuration::Parse(it->second);
         }
 
-        TCpuProfiler profiler;
+        TCpuProfilerOptions options;
+        if (auto it = params.Find("freq"); it != params.end()) {
+            options.SamplingFrequency = FromString<int>(it->second);
+        }
+
+        TCpuProfiler profiler{options};
         profiler.Start();
         TDelayedExecutor::WaitForDuration(duration);
         profiler.Stop();

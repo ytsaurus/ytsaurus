@@ -54,6 +54,7 @@ def test_cpu_profile(running_example):
         pytest.skip()
 
     fetch_data(running_example, "profile?d=1")
+    fetch_data(running_example, "profile?d=1&freq=1000")
 
 
 def test_binary_handler(running_example):

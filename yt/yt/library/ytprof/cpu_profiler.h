@@ -89,7 +89,7 @@ public:
     int SamplingFrequency = 100;
     TDuration DequeuePeriod = TDuration::MilliSeconds(100);
     int MaxBacktraceSize = 256;
-    int RingBufferLogSize = 16; // 32KiB
+    int RingBufferLogSize = 20; // 1 MiB
 };
 
 ////////////////////////////////////////////////////////////////////////////////
