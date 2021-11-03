@@ -449,6 +449,8 @@ private:
             : &InMemoryMultireadRequestQueue_;
     }
 
+    NProfiling::TCounter TabletErrorCountCounter = QueryAgentProfiler.Counter("/get_tablet_infos/errors/count");
+    NProfiling::TCounter TabletErrorSizeCounter = QueryAgentProfiler.Counter("/get_tablet_infos/errors/byte_size");
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
     {
@@ -742,10 +744,11 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, GetTabletInfo)
     {
-        context->SetRequestInfo("TabletIds: %v",
+        context->SetRequestInfo("TabletIds: %v, RequestErrors: %v",
             MakeFormattableView(request->tablet_ids(), [] (auto* builder, const auto& protoTabletId) {
                 FormatValue(builder, FromProto<TTabletId>(protoTabletId), TStringBuf());
-            }));
+            }),
+            request->request_errors());
 
         // COMPAT(babenko)
         if (request->cell_ids_size() == 0 && request->tablet_ids_size() > 0) {
@@ -771,6 +774,17 @@ private:
             protoTabletInfo->set_trimmed_row_count(tabletSnapshot->TabletRuntimeData->TrimmedRowCount.load());
             protoTabletInfo->set_last_write_timestamp(tabletSnapshot->TabletRuntimeData->LastWriteTimestamp.load());
 
+            if (request->request_errors()) {
+                for (auto activity : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
+                    if (auto error = tabletSnapshot->TabletRuntimeData->Errors[activity].Load(); !error.IsOK()) {
+                        auto* protoError = protoTabletInfo->add_tablet_errors();
+                        ToProto(protoError, error);
+                        TabletErrorCountCounter.Increment(1);
+                        TabletErrorSizeCounter.Increment(protoError->ByteSize());
+                    }
+                }
+            }
+
             for (const auto& [replicaId, replicaSnapshot] : tabletSnapshot->Replicas) {
                 auto lastReplicationTimestamp = replicaSnapshot->RuntimeData->LastReplicationTimestamp.load();
                 if (lastReplicationTimestamp == NullTimestamp) {
@@ -782,6 +796,15 @@ private:
                 protoReplicaInfo->set_last_replication_timestamp(lastReplicationTimestamp);
                 protoReplicaInfo->set_mode(static_cast<int>(replicaSnapshot->RuntimeData->Mode.load()));
                 protoReplicaInfo->set_current_replication_row_index(replicaSnapshot->RuntimeData->CurrentReplicationRowIndex.load());
+
+                if (request->request_errors()) {
+                    if (auto error = replicaSnapshot->RuntimeData->Error.Load(); !error.IsOK()) {
+                        auto* protoError = protoReplicaInfo->mutable_replication_error();
+                        ToProto(protoError, error);
+                        TabletErrorCountCounter.Increment(1);
+                        TabletErrorSizeCounter.Increment(protoError->ByteSize());
+                    }
+                }
             }
         }
         context->Reply();

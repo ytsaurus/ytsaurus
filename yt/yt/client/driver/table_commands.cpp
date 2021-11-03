@@ -1155,6 +1155,8 @@ TGetTabletInfosCommand::TGetTabletInfosCommand()
 {
     RegisterParameter("path", Path);
     RegisterParameter("tablet_indexes", TabletIndexes);
+    RegisterParameter("request_errors", Options.RequestErrors)
+        .Default(false);
 }
 
 void TGetTabletInfosCommand::DoExecute(ICommandContextPtr context)
@@ -1163,6 +1165,14 @@ void TGetTabletInfosCommand::DoExecute(ICommandContextPtr context)
     auto asyncTablets = client->GetTabletInfos(Path, TabletIndexes, Options);
     auto tablets = WaitFor(asyncTablets)
         .ValueOrThrow();
+
+    auto addErrors = [] (const std::vector<TError>& errors, TFluentMap fluent) {
+        fluent
+            .Item("tablet_errors").DoListFor(errors, [] (TFluentList fluent, const auto& error) {
+                fluent
+                    .Item().Value(error);
+                });
+    };
 
     ProduceOutput(context, [&] (IYsonConsumer* consumer) {
         BuildYsonFluently(consumer)
@@ -1174,6 +1184,7 @@ void TGetTabletInfosCommand::DoExecute(ICommandContextPtr context)
                             .Item("trimmed_row_count").Value(tablet.TrimmedRowCount)
                             .Item("barrier_timestamp").Value(tablet.BarrierTimestamp)
                             .Item("last_write_timestamp").Value(tablet.LastWriteTimestamp)
+                            .DoIf(Options.RequestErrors, BIND(addErrors, tablet.TabletErrors))
                             .DoIf(tablet.TableReplicaInfos.has_value(), [&] (TFluentMap fluent) {
                                 fluent
                                     .Item("replica_infos").DoListFor(
@@ -1186,6 +1197,10 @@ void TGetTabletInfosCommand::DoExecute(ICommandContextPtr context)
                                                     .Item("last_replication_timestamp").Value(replicaInfo.LastReplicationTimestamp)
                                                     .Item("mode").Value(replicaInfo.Mode)
                                                     .Item("current_replication_row_index").Value(replicaInfo.CurrentReplicationRowIndex)
+                                                    .DoIf(Options.RequestErrors, [&] (TFluentMap fluent) {
+                                                        fluent
+                                                            .Item("replication_error").Value(replicaInfo.ReplicationError);
+                                                    })
                                                 .EndMap();
                                         });
                             })

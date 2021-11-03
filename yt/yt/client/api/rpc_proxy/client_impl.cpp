@@ -530,6 +530,7 @@ TFuture<std::vector<TTabletInfo>> TClient::GetTabletInfos(
 
     req->set_path(path);
     ToProto(req->mutable_tablet_indexes(), tabletIndexes);
+    req->set_request_errors(options.RequestErrors);
 
     return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspGetTabletInfosPtr>& rspOrError) {
         const auto& rsp = rspOrError.ValueOrThrow();
@@ -544,6 +545,7 @@ TFuture<std::vector<TTabletInfo>> TClient::GetTabletInfos(
             tabletInfo.TableReplicaInfos = protoTabletInfo.replicas().empty()
                 ? std::nullopt
                 : std::make_optional(std::vector<TTabletInfo::TTableReplicaInfo>());
+            FromProto(&tabletInfo.TabletErrors, protoTabletInfo.tablet_errors());
 
             for (const auto& protoReplicaInfo : protoTabletInfo.replicas()) {
                 auto& currentReplica = tabletInfo.TableReplicaInfos->emplace_back();
@@ -551,6 +553,7 @@ TFuture<std::vector<TTabletInfo>> TClient::GetTabletInfos(
                 currentReplica.LastReplicationTimestamp = protoReplicaInfo.last_replication_timestamp();
                 currentReplica.Mode = CheckedEnumCast<ETableReplicaMode>(protoReplicaInfo.mode());
                 currentReplica.CurrentReplicationRowIndex = protoReplicaInfo.current_replication_row_index();
+                currentReplica.ReplicationError = FromProto<TError>(protoReplicaInfo.replication_error());
             }
         }
         return tabletInfos;

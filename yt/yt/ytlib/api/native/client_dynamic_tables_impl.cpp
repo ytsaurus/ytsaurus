@@ -311,6 +311,7 @@ std::vector<TTabletInfo> TClient::DoGetTabletInfos(
         }
         ToProto(subrequest.Request->add_tablet_ids(), tabletInfo->TabletId);
         ToProto(subrequest.Request->add_cell_ids(), tabletInfo->CellId);
+        subrequest.Request->set_request_errors(options.RequestErrors);
         subrequest.ResultIndexes.push_back(resultIndex);
     }
 
@@ -339,6 +340,9 @@ std::vector<TTabletInfo> TClient::DoGetTabletInfos(
             result.TableReplicaInfos = tabletInfo.replicas().empty()
                 ? std::nullopt
                 : std::make_optional(std::vector<TTabletInfo::TTableReplicaInfo>());
+            if (options.RequestErrors) {
+                FromProto(&result.TabletErrors, tabletInfo.tablet_errors());
+            }
 
             for (const auto& protoReplicaInfo : tabletInfo.replicas()) {
                 auto& currentReplica = result.TableReplicaInfos->emplace_back();
@@ -346,6 +350,9 @@ std::vector<TTabletInfo> TClient::DoGetTabletInfos(
                 currentReplica.LastReplicationTimestamp = protoReplicaInfo.last_replication_timestamp();
                 currentReplica.Mode = CheckedEnumCast<ETableReplicaMode>(protoReplicaInfo.mode());
                 currentReplica.CurrentReplicationRowIndex = protoReplicaInfo.current_replication_row_index();
+                if (options.RequestErrors && protoReplicaInfo.has_replication_error()) {
+                    FromProto(&currentReplica.ReplicationError, protoReplicaInfo.replication_error());
+                }
             }
         }
     }
@@ -537,7 +544,7 @@ TRowset TClient::DoLookupRowsOnce(
     }
 
     if (options.RetentionTimestamp > options.Timestamp) {
-        THROW_ERROR_EXCEPTION("Retention timestamp cannot be greater than read timestmap")
+        THROW_ERROR_EXCEPTION("Retention timestamp cannot be greater than read timestamp")
             << TErrorAttribute("retention_timestamp", options.RetentionTimestamp)
             << TErrorAttribute("timestamp", options.Timestamp);
     }
