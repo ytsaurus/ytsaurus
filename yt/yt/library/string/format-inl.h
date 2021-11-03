@@ -5,11 +5,15 @@
 #endif
 
 #include "string.h"
-#include "optional.h"
-#include "enum.h"
-#include "assert.h"
+
+#include <yt/yt/library/assert/assert.h>
+
+#include <yt/yt/library/small_containers/small_vector.h>
+
+#include <library/cpp/ytalloc/core/misc/enum.h>
 
 #include <cctype>
+#include <optional>
 
 namespace NYT {
 
