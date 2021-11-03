@@ -43,6 +43,7 @@ TOrderedByIdTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
     , ExperimentAssignments(nameTable->RegisterName("experiment_assignments"))
     , ExperimentAssignmentNames(nameTable->RegisterName("experiment_assignment_names"))
     , ControllerFeatures(nameTable->RegisterName("controller_features"))
+    , AlertEvents(nameTable->RegisterName("alert_events"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

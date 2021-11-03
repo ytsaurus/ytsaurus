@@ -224,6 +224,7 @@ void Serialize(
             .OptionalItem("events", operation.Events)
             .OptionalItem("slot_index_per_pool_tree", operation.SlotIndexPerPoolTree)
             .OptionalItem("alerts", operation.Alerts)
+            .OptionalItem("alert_events", operation.AlertEvents)
             .OptionalItem("task_names", operation.TaskNames)
             .OptionalItem("controller_features", operation.ControllerFeatures)
             .DoIf(operation.OtherAttributes.operator bool(), [&] (TFluentMap fluent) {
@@ -297,6 +298,7 @@ void Deserialize(TOperation& operation, NYTree::IAttributeDictionaryPtr attribut
     setField(operation.Result, "result");
     setField(operation.SlotIndexPerPoolTree, "slot_index_per_pool_tree");
     setField(operation.Alerts, "alerts");
+    setField(operation.AlertEvents, "alert_events");
     setField(operation.TaskNames, "task_names");
     setField(operation.ControllerFeatures, "controller_features");
 

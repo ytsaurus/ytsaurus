@@ -2086,6 +2086,8 @@ message TOperation
 
     optional bytes controller_features = 25; // YSON
 
+    optional bytes alert_events = 26; // YSON
+
     optional bytes other_attributes = 50; // YSON
 }
 

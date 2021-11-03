@@ -394,25 +394,19 @@ bool TOperation::HasAlert(EOperationAlertType alertType) const
     return Alerts_.find(alertType) != Alerts_.end();
 }
 
-void TOperation::SetAlert(EOperationAlertType alertType, const TError& error, std::optional<TDuration> timeout)
+bool TOperation::SetAlert(EOperationAlertType alertType, const TError& error)
 {
     auto& alert = Alerts_[alertType];
 
     if (alert.Error.Sanitize() == error.Sanitize()) {
-        return;
+        return false;
     }
 
     alert.Error = error;
     NConcurrency::TDelayedExecutor::CancelAndClear(alert.ResetCookie);
-
-    if (timeout) {
-        auto resetCallback = BIND(&TOperation::ResetAlert, MakeStrong(this), alertType)
-            .Via(CancelableInvoker_);
-
-        alert.ResetCookie = NConcurrency::TDelayedExecutor::Submit(resetCallback, *timeout);
-    }
-
     ShouldFlush_ = true;
+    
+    return true;
 }
 
 void TOperation::ResetAlert(EOperationAlertType alertType)
@@ -424,6 +418,14 @@ void TOperation::ResetAlert(EOperationAlertType alertType)
     NConcurrency::TDelayedExecutor::CancelAndClear(it->second.ResetCookie);
     Alerts_.erase(it);
     ShouldFlush_ = true;
+}
+
+void TOperation::SetAlertResetCookie(EOperationAlertType alertType, NConcurrency::TDelayedExecutorCookie cookie)
+{
+    auto it = Alerts_.find(alertType);
+    YT_VERIFY(it != Alerts_.end());
+    YT_VERIFY(!it->second.ResetCookie);
+    it->second.ResetCookie = cookie;
 }
 
 const IInvokerPtr& TOperation::GetCancelableControlInvoker()

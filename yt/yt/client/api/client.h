@@ -1186,6 +1186,7 @@ struct TOperation
 
     NYson::TYsonString SlotIndexPerPoolTree;
     NYson::TYsonString Alerts;
+    NYson::TYsonString AlertEvents;
 
     NYson::TYsonString TaskNames;
 

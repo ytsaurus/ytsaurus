@@ -154,6 +154,12 @@ public:
 
     void SetMediumDirectory(const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
+    TFuture<void> SetOperationAlert(
+        TOperationId operationId,
+        EOperationAlertType alertType,
+        const TError& alert,
+        std::optional<TDuration> timeout = {});
+
     TFuture<void> ValidateOperationAccess(const TString& user, TOperationId operationId, NYTree::EPermissionSet permissions);
 
     TFuture<void> ValidateJobShellAccess(const TString& user, const TJobShellPtr& jobShell);

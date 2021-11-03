@@ -500,6 +500,19 @@ public:
     //! The number of operations in batch to parse.
     int ParseOperationAttributesBatchSize;
 
+    //! Max enqueued alert event count stored on cleaner.
+    int MaxEnqueuedOperationAlertEventCount;
+
+    //! Max alert events stored in archive per operation.
+    int MaxAlertEventCountPerOperation;
+    
+    //! How often to send enqueued operation alert events.
+    TDuration OperationAlertEventSendPeriod;
+
+    //! If alert events are not successfully sent
+    //! within this period, alert is raised.
+    TDuration OperationAlertSenderAlertThreshold;
+
     REGISTER_YSON_STRUCT(TOperationsCleanerConfig);
 
     static void Register(TRegistrar registrar);
