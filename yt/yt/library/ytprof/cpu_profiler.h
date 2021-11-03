@@ -74,6 +74,7 @@ private:
 struct TCpuSample
 {
     size_t Tid = 0;
+    TString ThreadName;
     std::vector<std::pair<TString, std::variant<TString, i64>>> Tags;
     std::vector<ui64> Backtrace;
 
