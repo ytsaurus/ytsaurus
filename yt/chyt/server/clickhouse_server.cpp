@@ -200,7 +200,7 @@ private:
         ServerContext_->setPath(Config_->DataPath);
 
         // This object will periodically calculate asynchronous metrics.
-        AsynchronousMetrics_ = std::make_unique<DB::AsynchronousMetrics>(ServerContext_, 60);
+        AsynchronousMetrics_ = std::make_unique<DB::AsynchronousMetrics>(ServerContext_, 60, nullptr, nullptr);
 
         YT_LOG_DEBUG("Asynchronous metrics set up");
 
