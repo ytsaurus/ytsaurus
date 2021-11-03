@@ -5,6 +5,7 @@
 #if defined(_linux_)
 #include <link.h>
 #include <sys/syscall.h>
+#include <sys/prctl.h>
 
 #include <util/system/yield.h>
 
@@ -85,6 +86,8 @@ TCpuProfilerTagGuard& TCpuProfilerTagGuard::operator = (TCpuProfilerTagGuard&& o
 TCpuSample::operator size_t() const
 {
     size_t hash = Tid;
+    hash = CombineHashes(hash, std::hash<TString>()(ThreadName));
+
     for (auto ip : Backtrace) {
         hash = CombineHashes(hash, ip);
     }
@@ -267,10 +270,18 @@ void TCpuProfiler::OnSigProf(siginfo_t* info, ucontext_t* ucontext)
 
     auto tagsPtr = CpuProfilerTagsPtr.load();
 
+    uintptr_t threadName[2] = {};
+    prctl(PR_GET_NAME, (unsigned long)threadName, 0UL, 0UL, 0UL);
+    int namePushed = 0;
+
     auto ok = Queue_.TryPush([&] () -> std::pair<void*, bool> {
         if (!pushTid) {
             pushTid = true;
             return {reinterpret_cast<void*>(GetTid()), true};
+        }
+
+        if (namePushed < 2) {
+            return {reinterpret_cast<void*>(threadName[namePushed++]), true};
         }
 
         if (!pushFiberStorage) {
@@ -326,12 +337,19 @@ void TCpuProfiler::DequeueSamples()
             sample.Tags.clear();
 
             std::optional<size_t> tid;
+            uintptr_t threadName[2] = {};
+            int namePopped = 0;
             std::optional<void*> fiberStorage;
 
             int tagIndex = 0;
             bool ok = Queue_.TryPop([&] (void* ip) {
                 if (!tid) {
                     tid = reinterpret_cast<size_t>(ip);
+                    return;
+                }
+
+                if (namePopped < 2) {
+                    threadName[namePopped++] = reinterpret_cast<uintptr_t>(ip);
                     return;
                 }
 
@@ -360,6 +378,7 @@ void TCpuProfiler::DequeueSamples()
                 break;
             }
 
+            sample.ThreadName = TString{reinterpret_cast<char*>(threadName)};
             sample.Tid = *tid;
             for (auto& tag : ReadFiberTags(*fiberStorage)) {
                 sample.Tags.push_back(std::move(tag));
@@ -376,28 +395,31 @@ NProto::Profile TCpuProfiler::ReadProfile()
     NProto::Profile profile;
     profile.add_string_table();
 
-    profile.add_string_table("cpu");
-    profile.add_string_table("microseconds");
-    profile.add_string_table("sample");
-    profile.add_string_table("count");
-    profile.add_string_table("tid");
+    THashMap<TString, ui64> stringTable;
+    auto stringify = [&] (const TString& str) -> i64 {
+        if (auto it = stringTable.find(str); it != stringTable.end()) {
+            return it->second;
+        } else {
+            auto nameId = profile.string_table_size();
+            profile.add_string_table(str);
+            stringTable[str] = nameId;
+            return nameId;
+        }
+    };
 
     auto sampleType = profile.add_sample_type();
-    sampleType->set_type(3);
-    sampleType->set_unit(4);
+    sampleType->set_type(stringify("sample"));
+    sampleType->set_unit(stringify("count"));
 
     sampleType = profile.add_sample_type();
-    sampleType->set_type(1);
-    sampleType->set_unit(2);
+    sampleType->set_type(stringify("cpu"));
+    sampleType->set_unit(stringify("microseconds"));
 
     auto periodType = profile.mutable_period_type();
-    periodType->set_type(1);
-    periodType->set_unit(2);
+    periodType->set_type(stringify("cpu"));
+    periodType->set_unit(stringify("microseconds"));
 
     profile.set_period(1000000 / Options_.SamplingFrequency);
-
-    THashMap<TString, ui64> tagNames;
-    THashMap<TString, ui64> tagValues;
 
     THashMap<uintptr_t, ui64> locations;
 
@@ -407,32 +429,21 @@ NProto::Profile TCpuProfiler::ReadProfile()
         sample->add_value(count * profile.period());
 
         auto label = sample->add_label();
-        label->set_key(5); // tid
+        label->set_key(stringify("tid"));
         label->set_num(backtrace.Tid);
+
+        label = sample->add_label();
+        label->set_key(stringify("thread"));
+        label->set_str(stringify(backtrace.ThreadName));
 
         for (auto tag : backtrace.Tags) {
             auto label = sample->add_label();
-
-            if (auto it = tagNames.find(tag.first); it != tagNames.end()) {
-                label->set_key(it->second);
-            } else {
-                auto nameId = profile.string_table_size();
-                profile.add_string_table(tag.first);
-                tagNames[tag.first] = nameId;
-                label->set_key(nameId);
-            }
+            label->set_key(stringify(tag.first));
 
             if (auto intValue = std::get_if<i64>(&tag.second)) {
                 label->set_num(*intValue);
             } else if (auto strValue = std::get_if<TString>(&tag.second)) {
-                if (auto it = tagValues.find(*strValue); it != tagValues.end()) {
-                    label->set_str(it->second);
-                } else {
-                    auto valueId = profile.string_table_size();
-                    profile.add_string_table(*strValue);
-                    tagValues[*strValue] = valueId;
-                    label->set_key(valueId);
-                }
+                label->set_str(stringify(*strValue));
             }
         }
 
