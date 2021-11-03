@@ -298,9 +298,10 @@ public:
     const THashSet<TInternedAttributeKey>& GetBuiltinAttributeKeys(ISystemAttributeProvider* provider);
 
 private:
-    bool Initialized_ = false;
-    THashSet<TInternedAttributeKey> BuiltinKeys_;
+    std::atomic<bool> Initialized_ = false;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, InitializationLock_);
 
+    THashSet<TInternedAttributeKey> BuiltinKeys_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -311,9 +312,10 @@ public:
     const THashSet<TString>& GetCustomAttributeKeys(ISystemAttributeProvider* provider);
 
 private:
-    bool Initialized_ = false;
-    THashSet<TString> CustomKeys_;
+    std::atomic<bool> Initialized_ = false;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, InitializationLock_);
 
+    THashSet<TString> CustomKeys_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -324,9 +326,10 @@ public:
     const THashSet<TString>& GetOpaqueAttributeKeys(ISystemAttributeProvider* provider);
 
 private:
-    bool Initialized_ = false;
-    THashSet<TString> OpaqueKeys_;
+    std::atomic<bool> Initialized_ = false;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, InitializationLock_);
 
+    THashSet<TString> OpaqueKeys_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

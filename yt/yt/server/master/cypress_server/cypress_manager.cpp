@@ -1174,14 +1174,14 @@ public:
 
     TMapNode* GetRootNode() const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Bootstrap_->VerifyPersistentStateRead();
 
         return RootNode_;
     }
 
     TCypressNode* GetNodeOrThrow(TVersionedNodeId id)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Bootstrap_->VerifyPersistentStateRead();
 
         auto* node = FindNode(id);
         if (!IsObjectAlive(node)) {
@@ -1291,7 +1291,8 @@ public:
         TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Bootstrap_->VerifyPersistentStateRead();
+
         YT_ASSERT(trunkNode->IsTrunk());
 
         // Fast path -- no transaction.
@@ -1307,7 +1308,8 @@ public:
         TCypressNode* trunkNode,
         TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Bootstrap_->VerifyPersistentStateRead();
+
         YT_ASSERT(trunkNode->IsTrunk());
 
         auto* currentTransaction = transaction;
@@ -1324,7 +1326,8 @@ public:
         TCypressNode* trunkNode,
         TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Bootstrap_->VerifyPersistentStateRead();
+
         YT_ASSERT(trunkNode->IsTrunk());
 
         const auto& handler = GetHandler(trunkNode);
@@ -1784,7 +1787,8 @@ public:
 
     void SetAccessed(TCypressNode* trunkNode)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Bootstrap_->VerifyPersistentStateRead();
+
         YT_ASSERT(trunkNode->IsTrunk());
 
         if (HydraManager_->IsLeader() || HydraManager_->IsFollower() && !HasMutationContext()) {
@@ -1794,7 +1798,8 @@ public:
 
     void SetTouched(TCypressNode* trunkNode)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Bootstrap_->VerifyPersistentStateRead();
+
         YT_ASSERT(trunkNode->IsTrunk());
 
         if (!trunkNode->TryGetExpirationTimeout()) {
@@ -1931,7 +1936,8 @@ public:
         TTransaction* transaction,
         TCypressNode* trunkNode)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Bootstrap_->VerifyPersistentStateRead();
+
         YT_ASSERT(trunkNode->IsTrunk());
 
         // Fast path.
@@ -1954,7 +1960,8 @@ public:
         TTransaction* transaction,
         TCypressNode* trunkNode)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Bootstrap_->VerifyPersistentStateRead();
+
         YT_ASSERT(trunkNode->IsTrunk());
 
         auto result = GetNodeOriginators(transaction, trunkNode);

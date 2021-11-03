@@ -828,7 +828,7 @@ public:
 
     TTransaction* GetTransactionOrThrow(TTransactionId transactionId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Bootstrap_->VerifyPersistentStateRead();
 
         auto* transaction = FindTransaction(transactionId);
         if (!IsObjectAlive(transaction)) {
@@ -839,7 +839,7 @@ public:
 
     TFuture<TInstant> GetLastPingTime(const TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Bootstrap_->VerifyPersistentStateRead();
 
         return LeaseTracker_->GetLastPingTime(transaction->GetId());
     }

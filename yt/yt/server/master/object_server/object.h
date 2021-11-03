@@ -43,15 +43,31 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EObjectLifeStage, ui8,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TEpochContext
+    : public TRefCounted
+{
+    TEpoch CurrentEpoch = 0;
+    TEpoch CurrentEpochCounter = 0;
+    IInvokerPtr EphemeralPtrUnrefInvoker;
+};
+
+DEFINE_REFCOUNTED_TYPE(TEpochContext)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TEpochRefCounter
 {
 public:
+    explicit TEpochRefCounter(TObjectId id);
+
     int GetValue() const;
     int UpdateValue(int delta);
 
     void Persist(const TStreamPersistenceContext& context);
 
 private:
+    int ShardIndex_;
+
     int RefCounter_ = 0;
     TEpoch RefCounterEpoch_ = 0;
 };
@@ -305,7 +321,10 @@ struct TObjectIdFormatter
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetupAutomatonThread(NCellMaster::TBootstrap* bootstrap);
+void SetupMasterBootstrap(NCellMaster::TBootstrap* bootstrap);
+void SetupAutomatonThread();
+
+void SetupEpochContext(TEpochContextPtr epochContext);
 
 void BeginEpoch();
 void EndEpoch();

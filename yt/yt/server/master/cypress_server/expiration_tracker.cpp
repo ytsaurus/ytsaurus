@@ -19,6 +19,7 @@ namespace NYT::NCypressServer {
 using namespace NConcurrency;
 using namespace NHydra;
 using namespace NCellMaster;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,10 +35,17 @@ void TExpirationTracker::Start()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    YT_LOG_INFO("Started registering node expiration (Count: %v)",
-        ExpiredNodes_.size());
     THashSet<TCypressNode*> expiredNodes;
-    expiredNodes.swap(ExpiredNodes_);
+    for (auto& shard : Shards_) {
+        for (auto* expiredNode : shard.ExpiredNodes) {
+            expiredNodes.insert(expiredNode);
+        }
+        shard.ExpiredNodes = THashSet<TCypressNode*>();
+    }
+
+    YT_LOG_INFO("Started registering node expiration (Count: %v)",
+        expiredNodes.size());
+
     auto now = TInstant::Now();
     for (auto* trunkNode : expiredNodes) {
         YT_ASSERT(!trunkNode->GetExpirationTimeIterator() && !trunkNode->GetExpirationTimeoutIterator());
@@ -77,8 +85,10 @@ void TExpirationTracker::Clear()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    ExpirationMap_.clear();
-    ExpiredNodes_.clear();
+    for (auto& shard : Shards_) {
+        shard.ExpirationMap.clear();
+        shard.ExpiredNodes.clear();
+    }
 }
 
 void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNode* trunkNode)
@@ -133,13 +143,17 @@ void TExpirationTracker::OnNodeExpirationTimeoutUpdated(TCypressNode* trunkNode)
 
 void TExpirationTracker::OnNodeTouched(TCypressNode* trunkNode)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    Bootstrap_->VerifyPersistentStateRead();
+
     YT_ASSERT(trunkNode->IsTrunk());
     YT_VERIFY(trunkNode->TryGetExpirationTimeout());
 
     if (trunkNode->IsForeign()) {
         return;
     }
+
+    auto* shard = GetShard(trunkNode);
+    auto guard = Guard(shard->Lock);
 
     if (trunkNode->GetExpirationTimeoutIterator()) {
         UnregisterNodeExpirationTimeout(trunkNode);
@@ -174,7 +188,8 @@ void TExpirationTracker::OnNodeDestroyed(TCypressNode* trunkNode)
     }
 
     // NB: Typically missing.
-    ExpiredNodes_.erase(trunkNode);
+    auto* shard = GetShard(trunkNode);
+    shard->ExpiredNodes.erase(trunkNode);
 }
 
 void TExpirationTracker::OnNodeRemovalFailed(TCypressNode* trunkNode)
@@ -186,9 +201,10 @@ void TExpirationTracker::OnNodeRemovalFailed(TCypressNode* trunkNode)
         return;
     }
 
+    auto* shard = GetShard(trunkNode);
     if (trunkNode->TryGetExpirationTime() && !trunkNode->GetExpirationTimeIterator()) {
         // NB: Typically missing at followers.
-        ExpiredNodes_.erase(trunkNode);
+        shard->ExpiredNodes.erase(trunkNode);
 
         auto* mutationContext = GetCurrentMutationContext();
         RegisterNodeExpirationTime(trunkNode, mutationContext->GetTimestamp() + GetDynamicConfig()->ExpirationBackoffTime);
@@ -196,7 +212,7 @@ void TExpirationTracker::OnNodeRemovalFailed(TCypressNode* trunkNode)
 
     if (trunkNode->TryGetExpirationTimeout() && !trunkNode->GetExpirationTimeoutIterator()) {
         // NB: Typically missing at followers.
-        ExpiredNodes_.erase(trunkNode);
+        shard->ExpiredNodes.erase(trunkNode);
 
         if (!IsNodeLocked(trunkNode)) {
             auto* mutationContext = GetCurrentMutationContext();
@@ -205,12 +221,23 @@ void TExpirationTracker::OnNodeRemovalFailed(TCypressNode* trunkNode)
     }
 }
 
+TExpirationTracker::TShard* TExpirationTracker::GetShard(TCypressNode* node)
+{
+    Bootstrap_->VerifyPersistentStateRead();
+
+    auto nodeId = node->GetId();
+    auto shardIndex = GetShardIndex<ShardCount>(nodeId);
+    return &Shards_[shardIndex];
+}
+
 void TExpirationTracker::RegisterNodeExpirationTime(TCypressNode* trunkNode, TInstant expirationTime)
 {
     YT_ASSERT(!trunkNode->GetExpirationTimeIterator());
 
-    if (ExpiredNodes_.find(trunkNode) == ExpiredNodes_.end()) {
-        auto it = ExpirationMap_.emplace(expirationTime, trunkNode);
+    auto* shard = GetShard(trunkNode);
+    auto& expiredNodes = shard->ExpiredNodes;
+    if (expiredNodes.find(trunkNode) == expiredNodes.end()) {
+        auto it = shard->ExpirationMap.emplace(expirationTime, trunkNode);
         trunkNode->SetExpirationTimeIterator(it);
     }
 }
@@ -219,21 +246,25 @@ void TExpirationTracker::RegisterNodeExpirationTimeout(TCypressNode* trunkNode, 
 {
     YT_ASSERT(!trunkNode->GetExpirationTimeoutIterator());
 
-    if (ExpiredNodes_.find(trunkNode) == ExpiredNodes_.end()) {
-        auto it = ExpirationMap_.emplace(expirationTime, trunkNode);
+    auto* shard = GetShard(trunkNode);
+    auto& expiredNodes = shard->ExpiredNodes;
+    if (expiredNodes.find(trunkNode) == expiredNodes.end()) {
+        auto it = shard->ExpirationMap.emplace(expirationTime, trunkNode);
         trunkNode->SetExpirationTimeoutIterator(it);
     }
 }
 
 void TExpirationTracker::UnregisterNodeExpirationTime(TCypressNode* trunkNode)
 {
-    ExpirationMap_.erase(*trunkNode->GetExpirationTimeIterator());
+    auto* shard = GetShard(trunkNode);
+    shard->ExpirationMap.erase(*trunkNode->GetExpirationTimeIterator());
     trunkNode->SetExpirationTimeIterator(std::nullopt);
 }
 
 void TExpirationTracker::UnregisterNodeExpirationTimeout(TCypressNode* trunkNode)
 {
-    ExpirationMap_.erase(*trunkNode->GetExpirationTimeoutIterator());
+    auto* shard = GetShard(trunkNode);
+    shard->ExpirationMap.erase(*trunkNode->GetExpirationTimeoutIterator());
     trunkNode->SetExpirationTimeoutIterator(std::nullopt);
 }
 
@@ -253,24 +284,35 @@ void TExpirationTracker::OnCheck()
 
     NProto::TReqRemoveExpiredNodes request;
 
-    auto now = TInstant::Now();
-    while (!ExpirationMap_.empty() && request.node_ids_size() < GetDynamicConfig()->MaxExpiredNodesRemovalsPerCommit) {
-        auto it = ExpirationMap_.begin();
-        auto [expirationTime, trunkNode] = *it;
+    auto canRemoveMoreExpiredNodes = [&] {
+        return request.node_ids_size() < GetDynamicConfig()->MaxExpiredNodesRemovalsPerCommit;
+    };
 
-        if (expirationTime > now) {
+    auto now = TInstant::Now();
+    for (auto& shard : Shards_) {
+        auto& expirationMap = shard.ExpirationMap;
+        while (!expirationMap.empty() && canRemoveMoreExpiredNodes()) {
+            auto it = expirationMap.begin();
+            auto [expirationTime, trunkNode] = *it;
+
+            if (expirationTime > now) {
+                break;
+            }
+
+            ToProto(request.add_node_ids(), trunkNode->GetId());
+            if (trunkNode->GetExpirationTimeIterator() && *trunkNode->GetExpirationTimeIterator() == it) {
+                UnregisterNodeExpirationTime(trunkNode);
+            } else if (trunkNode->GetExpirationTimeoutIterator() && *trunkNode->GetExpirationTimeoutIterator() == it) {
+                UnregisterNodeExpirationTimeout(trunkNode);
+            } else {
+                YT_ABORT();
+            }
+            YT_VERIFY(shard.ExpiredNodes.insert(trunkNode).second);
+        }
+
+        if (!canRemoveMoreExpiredNodes()) {
             break;
         }
-
-        ToProto(request.add_node_ids(), trunkNode->GetId());
-        if (trunkNode->GetExpirationTimeIterator() && *trunkNode->GetExpirationTimeIterator() == it) {
-            UnregisterNodeExpirationTime(trunkNode);
-        } else if (trunkNode->GetExpirationTimeoutIterator() && *trunkNode->GetExpirationTimeoutIterator() == it) {
-            UnregisterNodeExpirationTimeout(trunkNode);
-        } else {
-            YT_ABORT();
-        }
-        YT_VERIFY(ExpiredNodes_.insert(trunkNode).second);
     }
 
     if (request.node_ids_size() == 0) {

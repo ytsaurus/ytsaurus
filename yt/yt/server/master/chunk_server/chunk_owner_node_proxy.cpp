@@ -378,7 +378,7 @@ private:
         const TReadLimit& upperLimit,
         TTransactionId timestampTransactionId) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Bootstrap_->VerifyPersistentStateRead();
 
         const auto& configManager = Bootstrap_->GetConfigManager();
         const auto& dynamicConfig = configManager->GetConfig()->ChunkManager;
@@ -488,7 +488,7 @@ private:
 
     void OnFinish(const TError& error) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Bootstrap_->VerifyPersistentStateRead();
 
         if (!error.IsOK()) {
             ReplyError(error);

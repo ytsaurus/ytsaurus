@@ -25,6 +25,11 @@ void TThreadAffinitySlot::Check()
     Check(GetCurrentThreadId());
 }
 
+TThreadId TThreadAffinitySlot::GetBoundThreadId() const
+{
+    return BoundId_;
+}
+
 bool VerifyInvokerAffinity(const IInvokerPtr& invoker)
 {
     auto currentInvoker = GetCurrentInvoker();

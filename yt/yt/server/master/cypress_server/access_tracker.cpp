@@ -27,6 +27,7 @@ using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NHydra;
 using namespace NTransactionServer;
+using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NCellMaster;
 
@@ -91,62 +92,77 @@ void TAccessTracker::SetModified(
 
 void TAccessTracker::SetAccessed(TCypressNode* trunkNode)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    Bootstrap_->VerifyPersistentStateRead();
+
     YT_VERIFY(FlushExecutor_);
     YT_VERIFY(trunkNode->IsTrunk());
     YT_VERIFY(trunkNode->IsAlive());
 
+    auto* shard = GetShard(trunkNode);
+    auto guard = Guard(shard->Lock);
+
     int index = trunkNode->GetAccessStatisticsUpdateIndex();
     if (index < 0) {
-        index = UpdateAccessStatisticsRequest_.updates_size();
+        index = shard->UpdateAccessStatisticsRequest.updates_size();
         trunkNode->SetAccessStatisticsUpdateIndex(index);
-        NodesWithAccessStatisticsUpdate_.emplace_back(trunkNode);
+        shard->NodesWithAccessStatisticsUpdate.push_back(trunkNode->GetId());
 
-        auto* update = UpdateAccessStatisticsRequest_.add_updates();
+        auto* update = shard->UpdateAccessStatisticsRequest.add_updates();
         ToProto(update->mutable_node_id(), trunkNode->GetId());
     }
 
     auto now = NProfiling::GetInstant();
-    auto* update = UpdateAccessStatisticsRequest_.mutable_updates(index);
+    auto* update = shard->UpdateAccessStatisticsRequest.mutable_updates(index);
     update->set_access_time(ToProto<i64>(now));
     update->set_access_counter_delta(update->access_counter_delta() + 1);
 }
 
 void TAccessTracker::SetTouched(TCypressNode* trunkNode)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    Bootstrap_->VerifyPersistentStateRead();
+
     YT_VERIFY(FlushExecutor_);
     YT_VERIFY(trunkNode->IsTrunk());
     YT_VERIFY(trunkNode->IsAlive());
 
+    auto* shard = GetShard(trunkNode);
+    auto guard = Guard(shard->Lock);
+
     auto index = trunkNode->GetTouchNodesIndex();
     if (index < 0) {
-        index = TouchNodesRequest_.node_ids_size();
+        index = shard->TouchNodesRequest.node_ids_size();
         trunkNode->SetTouchNodesIndex(index);
-        TouchedNodes_.emplace_back(trunkNode);
 
-        ToProto(TouchNodesRequest_.add_node_ids(), trunkNode->GetId());
+        shard->TouchedNodes.push_back(trunkNode->GetId());
+
+        ToProto(shard->TouchNodesRequest.add_node_ids(), trunkNode->GetId());
     }
 }
 
 void TAccessTracker::Reset()
 {
-    for (const auto& node : NodesWithAccessStatisticsUpdate_) {
-        if (node.IsAlive()) {
-            node->SetAccessStatisticsUpdateIndex(-1);
-        }
-    }
+    const auto& objectManager = Bootstrap_->GetObjectManager();
 
-    for (const auto& node : TouchedNodes_) {
-        if (node.IsAlive()) {
-            node->SetTouchNodesIndex(-1);
+    for (auto& shard : Shards_) {
+        for (auto nodeId : shard.NodesWithAccessStatisticsUpdate) {
+            auto* node = objectManager->FindObject(nodeId)->As<TCypressNode>();
+            if (IsObjectAlive(node)) {
+                node->SetAccessStatisticsUpdateIndex(-1);
+            }
         }
-    }
 
-    UpdateAccessStatisticsRequest_.Clear();
-    TouchNodesRequest_.Clear();
-    NodesWithAccessStatisticsUpdate_.clear();
-    TouchedNodes_.clear();
+        for (auto nodeId: shard.TouchedNodes) {
+            auto* node = objectManager->FindObject(nodeId)->As<TCypressNode>();
+            if (IsObjectAlive(node)) {
+                node->SetTouchNodesIndex(-1);
+            }
+        }
+
+        shard.UpdateAccessStatisticsRequest.Clear();
+        shard.TouchNodesRequest.Clear();
+        shard.NodesWithAccessStatisticsUpdate.clear();
+        shard.TouchedNodes.clear();
+    }
 }
 
 void TAccessTracker::OnFlush()
@@ -160,19 +176,33 @@ void TAccessTracker::OnFlush()
 
     std::vector<TFuture<void>> asyncResults;
 
-    if (!NodesWithAccessStatisticsUpdate_.empty()) {
-        YT_LOG_DEBUG("Starting access statistics commit (NodeCount: %v)",
-            UpdateAccessStatisticsRequest_.updates_size());
+    int accessStatisticsUpdateCount = 0;
+    int touchedNodeCount = 0;
+    for (const auto& shard : Shards_) {
+        accessStatisticsUpdateCount += shard.NodesWithAccessStatisticsUpdate.size();
+        touchedNodeCount += shard.TouchedNodes.size();
+    }
 
-        auto mutation = CreateMutation(hydraManager, UpdateAccessStatisticsRequest_);
+    if (accessStatisticsUpdateCount > 0) {
+        YT_LOG_DEBUG("Starting access statistics commit (NodeCount: %v)",
+            accessStatisticsUpdateCount);
+
+        NProto::TReqUpdateAccessStatistics request;
+        for (const auto& shard : Shards_) {
+            for (const auto& update : shard.UpdateAccessStatisticsRequest.updates()) {
+                *request.add_updates() = update;
+            }
+        }
+
+        auto mutation = CreateMutation(hydraManager, request);
         mutation->SetAllowLeaderForwarding(true);
         auto asyncResult = mutation->CommitAndLog(Logger).AsVoid();
         asyncResults.push_back(std::move(asyncResult));
     }
 
-    if (!TouchedNodes_.empty()) {
+    if (touchedNodeCount > 0) {
         YT_LOG_DEBUG("Sending node touch request to leader (NodeCount: %v)",
-            TouchedNodes_.size());
+            touchedNodeCount);
 
         const auto& cellDirectory = Bootstrap_->GetCellDirectory();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -181,7 +211,11 @@ void TAccessTracker::OnFlush()
         TCypressServiceProxy leaderProxy(std::move(leaderChannel));
         auto leaderRequest = leaderProxy.TouchNodes();
 
-        TouchNodesRequest_.Swap(leaderRequest.Get());
+        for (const auto& shard : Shards_) {
+            for (auto touchedNodeId : shard.TouchNodesRequest.node_ids()) {
+                *leaderRequest->add_node_ids() = touchedNodeId;
+            }
+        }
 
         auto asyncResult = leaderRequest->Invoke().AsVoid();
         // TODO(shakurov): fire & forget?
@@ -193,6 +227,15 @@ void TAccessTracker::OnFlush()
     if (!asyncResults.empty()) {
         Y_UNUSED(WaitFor(AllSet(std::move(asyncResults))));
     }
+}
+
+TAccessTracker::TShard* TAccessTracker::GetShard(TCypressNode* node)
+{
+    Bootstrap_->VerifyPersistentStateRead();
+
+    auto nodeId = node->GetId();
+    auto shardIndex = GetShardIndex<ShardCount>(nodeId);
+    return &Shards_[shardIndex];
 }
 
 const TDynamicCypressManagerConfigPtr& TAccessTracker::GetDynamicConfig()

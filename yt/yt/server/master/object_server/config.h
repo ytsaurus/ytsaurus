@@ -155,7 +155,11 @@ class TDynamicObjectServiceConfig
 public:
     bool EnableTwoLevelCache;
     bool EnableMutationBoomerangs;
+    bool EnableLocalReadExecutor;
+    int LocalReadWorkerCount;
     TDuration ScheduleReplyRetryBackoff;
+
+    TDuration LocalReadExecutorQuantumDuration;
 
     TDynamicObjectServiceConfig()
     {
@@ -163,8 +167,16 @@ public:
             .Default(true);
         RegisterParameter("enable_mutation_boomerangs", EnableMutationBoomerangs)
             .Default(true);
+        RegisterParameter("enable_local_read_executor", EnableLocalReadExecutor)
+            .Default(true);
+        RegisterParameter("local_read_worker_count", LocalReadWorkerCount)
+            .GreaterThan(0)
+            .Default(4);
         RegisterParameter("schedule_reply_retry_backoff", ScheduleReplyRetryBackoff)
             .Default(TDuration::MilliSeconds(100));
+
+        RegisterParameter("local_read_executor_quantum_duration", LocalReadExecutorQuantumDuration)
+            .Default(TDuration::MilliSeconds(10));
     }
 };
 

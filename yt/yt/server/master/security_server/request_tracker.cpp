@@ -90,6 +90,8 @@ void TRequestTracker::ChargeUser(
     TUser* user,
     const TUserWorkload& workload)
 {
+    Bootstrap_->VerifyPersistentStateRead();
+
     switch (workload.Type) {
         case EUserWorkloadType::Read:
             DoChargeUser(user, workload);
@@ -115,9 +117,11 @@ void TRequestTracker::DoChargeUser(
     TUser* user,
     const TUserWorkload& workload)
 {
+    Bootstrap_->VerifyPersistentStateRead();
+
     auto& statistics = user->Statistics()[workload.Type];
     statistics.RequestCount += workload.RequestCount;
-    statistics.RequestTime += workload.RequestTime;
+    statistics.RequestTime += workload.RequestTime.MilliSeconds();
     user->UpdateCounters(workload);
 }
 

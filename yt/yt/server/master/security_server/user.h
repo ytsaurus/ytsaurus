@@ -19,8 +19,10 @@ namespace NYT::NSecurityServer {
 
 struct TUserWorkloadStatistics
 {
-    i64 RequestCount = 0;
-    TDuration RequestTime;
+    std::atomic<i64> RequestCount = 0;
+
+    //! Total request time in milliseconds.
+    std::atomic<i64> RequestTime = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

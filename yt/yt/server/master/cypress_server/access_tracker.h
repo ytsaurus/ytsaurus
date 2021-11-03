@@ -44,11 +44,21 @@ private:
     const TCallback<void(NCellMaster::TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_ =
         BIND(&TAccessTracker::OnDynamicConfigChanged, MakeWeak(this));
 
-    NProto::TReqUpdateAccessStatistics UpdateAccessStatisticsRequest_;
-    std::vector<NObjectServer::TEphemeralObjectPtr<TCypressNode>> NodesWithAccessStatisticsUpdate_;
+    struct TShard
+    {
+        NProto::TReqUpdateAccessStatistics UpdateAccessStatisticsRequest;
+        std::vector<NObjectClient::TObjectId> NodesWithAccessStatisticsUpdate;
 
-    NCypressClient::NProto::TReqTouchNodes TouchNodesRequest_;
-    std::vector<NObjectServer::TEphemeralObjectPtr<TCypressNode>> TouchedNodes_;
+        NCypressClient::NProto::TReqTouchNodes TouchNodesRequest;
+        std::vector<NObjectClient::TObjectId> TouchedNodes;
+
+        YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock);
+    };
+
+    constexpr static int ShardCount = 256;
+    static_assert(IsPowerOf2(ShardCount), "Number of shards must be a power of two");
+
+    std::array<TShard, ShardCount> Shards_;
 
     NConcurrency::TPeriodicExecutorPtr FlushExecutor_;
 
@@ -57,6 +67,8 @@ private:
 
     void Reset();
     void OnFlush();
+
+    TShard* GetShard(TCypressNode* node);
 
     const TDynamicCypressManagerConfigPtr& GetDynamicConfig();
     void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig = nullptr);

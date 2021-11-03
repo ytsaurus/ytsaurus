@@ -4,12 +4,15 @@
 #include "object.h"
 #endif
 
+#include <yt/yt/client/object_client/helpers.h>
+
 namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 inline TObject::TObject(TObjectId id)
     : Id_(id)
+    , EphemeralRefCounter_(Id_)
 {
     // This is reset to false in TCypressNode ctor for non-trunk nodes.
     Flags_.Trunk = true;
@@ -362,11 +365,19 @@ struct TEphemeralObjectPtrContext
 namespace NDetail {
 
 void VerifyAutomatonThreadAffinity();
+void VerifyPersistentStateRead();
 
 inline void AssertAutomatonThreadAffinity()
 {
 #ifndef NDEBUG
     VerifyAutomatonThreadAffinity();
+#endif
+}
+
+inline void AssertPersistentStateRead()
+{
+#ifndef NDEBUG
+    VerifyPersistentStateRead();
 #endif
 }
 
@@ -382,7 +393,7 @@ TObjectPtr<T, C>::TObjectPtr(const TObjectPtr& other) noexcept
     : Ptr_(other.Ptr_)
     , Context_(other.Context_)
 {
-    NDetail::AssertAutomatonThreadAffinity();
+    NDetail::AssertPersistentStateRead();
     if (Ptr_) {
         Context_.Ref(ToObject(Ptr_));
     }
@@ -393,7 +404,7 @@ TObjectPtr<T, C>::TObjectPtr(TObjectPtr&& other) noexcept
     : Ptr_(other.Ptr_)
     , Context_(std::move(other.Context_))
 {
-    NDetail::AssertAutomatonThreadAffinity();
+    NDetail::AssertPersistentStateRead();
     NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
     other.Ptr_ = nullptr;
 }
@@ -403,7 +414,7 @@ TObjectPtr<T, C>::TObjectPtr(T* ptr) noexcept
     : Ptr_(ptr)
     , Context_(C::Capture())
 {
-    NDetail::AssertAutomatonThreadAffinity();
+    NDetail::AssertPersistentStateRead();
     NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
     if (Ptr_) {
         Context_.Ref(ToObject(Ptr_));
@@ -431,7 +442,7 @@ TObjectPtr<T, C>& TObjectPtr<T, C>::operator=(const TObjectPtr& other) noexcept
 template <class T, class C>
 TObjectPtr<T, C>& TObjectPtr<T, C>::operator=(TObjectPtr&& other) noexcept
 {
-    NDetail::AssertAutomatonThreadAffinity();
+    NDetail::AssertPersistentStateRead();
     if (this != &other) {
         NDetail::AssertObjectValidOrNull(ToObject(other.Ptr_));
         Ptr_ = other.Ptr_;
@@ -444,7 +455,7 @@ TObjectPtr<T, C>& TObjectPtr<T, C>::operator=(TObjectPtr&& other) noexcept
 template <class T, class C>
 void TObjectPtr<T, C>::Assign(T* ptr) noexcept
 {
-    NDetail::AssertAutomatonThreadAffinity();
+    NDetail::AssertPersistentStateRead();
     NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
     if (Ptr_) {
         Context_.Unref(ToObject(Ptr_));
@@ -470,7 +481,7 @@ void TObjectPtr<T, C>::AssignOnLoad(T* ptr) noexcept
 template <class T, class C>
 void TObjectPtr<T, C>::Reset() noexcept
 {
-    NDetail::AssertAutomatonThreadAffinity();
+    NDetail::AssertPersistentStateRead();
     NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
     if (Ptr_) {
         Context_.Unref(ToObject(Ptr_));
@@ -489,7 +500,7 @@ T* TObjectPtr<T, C>::operator->() const noexcept
 template <class T, class C>
 TObjectPtr<T, C>::operator bool() const noexcept
 {
-    NDetail::AssertAutomatonThreadAffinity();
+    NDetail::AssertPersistentStateRead();
     NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
     return Ptr_ != nullptr;
 }
@@ -497,7 +508,7 @@ TObjectPtr<T, C>::operator bool() const noexcept
 template <class T, class C>
 bool TObjectPtr<T, C>::IsAlive() const noexcept
 {
-    NDetail::AssertAutomatonThreadAffinity();
+    NDetail::AssertPersistentStateRead();
     NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
     return IsObjectAlive(ToObject(Ptr_));
 }
@@ -505,7 +516,7 @@ bool TObjectPtr<T, C>::IsAlive() const noexcept
 template <class T, class C>
 T* TObjectPtr<T, C>::Get() const noexcept
 {
-    NDetail::AssertAutomatonThreadAffinity();
+    NDetail::AssertPersistentStateRead();
     NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
     return Ptr_;
 }
@@ -528,7 +539,7 @@ template <class T, class C>
 template <class U>
 bool TObjectPtr<T, C>::operator==(U* other) const noexcept
 {
-    NDetail::AssertAutomatonThreadAffinity();
+    NDetail::AssertPersistentStateRead();
     NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
     NDetail::AssertObjectValidOrNull(ToObject(other));
     return Ptr_ == other;

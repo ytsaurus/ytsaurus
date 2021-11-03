@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/hydra/mutation.h>
 
+#include <yt/yt/server/master/object_server/public.h>
+
 #include <yt/yt/ytlib/election/public.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -45,18 +47,39 @@ public:
 
     IInvokerPtr GetTransactionTrackerInvoker() const;
 
+    void BlockAutomaton();
+    void UnblockAutomaton();
+
+    bool IsAutomatonLocked() const;
+
+    void VerifyPersistentStateRead();
+
     //! Throws TLeaderFallbackException at followers.
     void RequireLeader() const;
 
     void Reconfigure(const TDynamicCellMasterConfigPtr& newConfig);
 
+    const NObjectServer::TEpochContextPtr& GetEpochContext() const;
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(THydraFacade)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAutomatonBlockGuard
+{
+public:
+    TAutomatonBlockGuard(THydraFacadePtr hydraFacade);
+
+    ~TAutomatonBlockGuard();
+
+private:
+    const THydraFacadePtr HydraFacade_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

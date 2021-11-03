@@ -66,7 +66,7 @@ public:
 
     const TDynamicClusterConfigPtr& GetConfig() const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Bootstrap_->VerifyPersistentStateRead();
 
         return Config_;
     }

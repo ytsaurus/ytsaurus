@@ -53,7 +53,7 @@ public:
         , Transaction_(transaction)
         , UserName_(SecurityManager_->GetAuthenticatedUser()->GetName())
     {
-        VERIFY_THREAD_AFFINITY(Automaton);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         PushEntry(trunkRootNode);
     }

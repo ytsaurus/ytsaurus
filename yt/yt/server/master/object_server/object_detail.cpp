@@ -454,7 +454,7 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
     descriptors->push_back(EInternedAttributeKey::Type);
     descriptors->push_back(EInternedAttributeKey::Builtin);
     descriptors->push_back(EInternedAttributeKey::RefCounter);
-    descriptors->push_back(EInternedAttributeKey::EphemeralRefCounter);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EphemeralRefCounter));
     descriptors->push_back(EInternedAttributeKey::WeakRefCounter);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ImportRefCounter)
         .SetPresent(isForeign));

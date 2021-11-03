@@ -18,12 +18,12 @@ TChunkVisitorBase::TChunkVisitorBase(
     : Bootstrap_(bootstrap)
     , ChunkList_(chunkList)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    Bootstrap_->VerifyPersistentStateRead();
 }
 
 TFuture<TYsonString> TChunkVisitorBase::Run()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    Bootstrap_->VerifyPersistentStateRead();
 
     auto context = CreateAsyncChunkTraverserContext(
         Bootstrap_,
@@ -38,7 +38,7 @@ TFuture<TYsonString> TChunkVisitorBase::Run()
 
 void TChunkVisitorBase::OnFinish(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    Bootstrap_->VerifyPersistentStateRead();
 
     if (error.IsOK()) {
         OnSuccess();
@@ -67,7 +67,7 @@ bool TChunkIdsAttributeVisitor::OnChunk(
     const TReadLimit& /*endLimit*/,
     TTransactionId /*timestampTransactionId*/)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    Bootstrap_->VerifyPersistentStateRead();
 
     Writer_.OnListItem();
     Writer_.OnStringScalar(ToString(chunk->GetId()));
@@ -91,7 +91,7 @@ bool TChunkIdsAttributeVisitor::OnDynamicStore(
 
 void TChunkIdsAttributeVisitor::OnSuccess()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    Bootstrap_->VerifyPersistentStateRead();
 
     Writer_.OnEndList();
     Writer_.Flush();

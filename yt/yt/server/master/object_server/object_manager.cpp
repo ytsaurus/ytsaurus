@@ -257,7 +257,7 @@ private:
         NProfiling::TTimeCounter CumulativeExecuteTimeCounter;
     };
 
-    THashMap<std::pair<EObjectType, TString>, std::unique_ptr<TMethodEntry>> MethodToEntry_;
+    TSyncMap<std::pair<EObjectType, TString>, std::unique_ptr<TMethodEntry>> MethodToEntry_;
 
     TRootServicePtr RootService_;
 
@@ -1027,7 +1027,7 @@ void TObjectManager::TImpl::OnStopLeading()
 
 TObject* TObjectManager::TImpl::FindObject(TObjectId id)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    Bootstrap_->VerifyPersistentStateRead();
 
     const auto& handler = FindHandler(TypeFromId(id));
     if (!handler) {
@@ -1039,7 +1039,7 @@ TObject* TObjectManager::TImpl::FindObject(TObjectId id)
 
 TObject* TObjectManager::TImpl::GetObject(TObjectId id)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    Bootstrap_->VerifyPersistentStateRead();
 
     auto* object = FindObject(id);
     YT_VERIFY(object);
@@ -1048,7 +1048,7 @@ TObject* TObjectManager::TImpl::GetObject(TObjectId id)
 
 TObject* TObjectManager::TImpl::GetObjectOrThrow(TObjectId id)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    Bootstrap_->VerifyPersistentStateRead();
 
     auto* object = FindObject(id);
     if (!IsObjectAlive(object)) {
@@ -1127,7 +1127,8 @@ IObjectProxyPtr TObjectManager::TImpl::GetProxy(
     TObject* object,
     TTransaction* transaction)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    Bootstrap_->VerifyPersistentStateRead();
+
     YT_VERIFY(IsObjectAlive(object));
 
     // Fast path.
@@ -2036,17 +2037,21 @@ NProfiling::TTimeCounter* TObjectManager::TImpl::GetMethodCumulativeExecuteTimeC
     EObjectType type,
     const TString& method)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto key = std::make_pair(type, method);
-    auto it = MethodToEntry_.find(key);
-    if (it == MethodToEntry_.end()) {
-        auto entry = std::make_unique<TMethodEntry>();
-        entry->CumulativeExecuteTimeCounter = ObjectServerProfiler
-            .WithTag("type", FormatEnum(type))
-            .WithTag("method", method)
-            .TimeCounter("/cumulative_execute_time");
-        it = MethodToEntry_.emplace(key, std::move(entry)).first;
-    }
-    return &it->second->CumulativeExecuteTimeCounter;
+    auto [entryPtr, inserted] = MethodToEntry_
+        .FindOrInsert(
+            key,
+            [&] {
+                auto entry = std::make_unique<TMethodEntry>();
+                entry->CumulativeExecuteTimeCounter = ObjectServerProfiler
+                    .WithTag("type", FormatEnum(type))
+                    .WithTag("method", method)
+                    .TimeCounter("/cumulative_execute_time");
+                return entry;
+            });
+    return &(*entryPtr)->CumulativeExecuteTimeCounter;
 }
 
 void TObjectManager::TImpl::OnProfiling()

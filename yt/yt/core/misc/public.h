@@ -165,6 +165,12 @@ DECLARE_REFCOUNTED_STRUCT(IMemoryUsageTracker)
 class TStatistics;
 class TSummary;
 
+template <class TTask>
+struct IFairScheduler;
+
+template <class TTask>
+using IFairSchedulerPtr = TIntrusivePtr<IFairScheduler<TTask>>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,
