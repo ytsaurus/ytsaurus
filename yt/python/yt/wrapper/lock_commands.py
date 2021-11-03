@@ -1,6 +1,7 @@
 from .common import get_value, YtError, set_param
 from .ypath import YPath
 from .cypress_commands import get
+from .batch_response import apply_function_to_result
 from .transaction_commands import _make_transactional_request, _make_formatted_transactional_request
 from .driver import get_api_version
 
@@ -42,7 +43,9 @@ def lock(path, mode=None, waitable=False, wait_for=None, child_key=None, attribu
     set_param(params, "attribute_key", attribute_key)
 
     lock_response = _make_formatted_transactional_request("lock", params, format=None, client=client)
-    lock_id = lock_response["lock_id"] if get_api_version(client) == "v4" else lock_response
+    lock_id = apply_function_to_result(
+        lambda rsp: rsp["lock_id"] if get_api_version(client) == "v4" else rsp,
+        lock_response)
     if not lock_id:
         return None
 
