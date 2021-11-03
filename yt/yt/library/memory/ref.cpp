@@ -1,7 +1,5 @@
 #include "ref.h"
 #include "blob.h"
-#include "serialize.h"
-#include "small_vector.h"
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
@@ -324,30 +322,6 @@ i64 TSharedRefArray::ByteSize() const
         }
     }
     return result;
-}
-
-TSharedRef TSharedRefArray::Pack() const
-{
-    if (!Impl_) {
-        return {};
-    }
-
-    return PackRefs(MakeRange(Begin(), End()));
-}
-
-TSharedRefArray TSharedRefArray::Unpack(const TSharedRef& packedRef)
-{
-    if (!packedRef) {
-        return {};
-    }
-
-    auto parts = UnpackRefs(packedRef);
-    return TSharedRefArray(NewImpl(
-        static_cast<int>(parts.size()),
-        0,
-        GetRefCountedTypeCookie<TSharedRefArrayTag>(),
-        std::move(parts),
-        TMoveParts{}));
 }
 
 std::vector<TSharedRef> TSharedRefArray::ToVector() const

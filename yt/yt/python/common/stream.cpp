@@ -8,7 +8,6 @@
 #include <util/stream/file.h>
 #include <util/stream/zerocopy.h>
 
-#include <Objects.hxx> // pycxx
 #include <string>
 
 namespace NYT::NPython {
