@@ -4,7 +4,7 @@
 #include "string_builder.h"
 #endif
 
-#include "assert.h"
+#include <yt/yt/library/assert/assert.h>
 
 namespace NYT {
 
