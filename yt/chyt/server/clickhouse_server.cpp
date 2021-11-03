@@ -215,7 +215,13 @@ private:
         SystemDatabase_->attachTable("processes", DB::StorageSystemProcesses::create("processes"));
         SystemDatabase_->attachTable("metrics", DB::StorageSystemMetrics::create("metrics"));
         SystemDatabase_->attachTable("dictionaries", DB::StorageSystemDictionaries::create("dictionaries"));
-        SystemDatabase_->attachTable("asynchronous_metrics", DB::StorageSystemAsynchronousMetrics::create("asynchronous_metrics", *AsynchronousMetrics_));
+        SystemDatabase_->attachTable(
+            "asynchronous_metrics",
+            DB::StorageSystemAsynchronousMetrics::create(
+                DB::StorageID{"system", "asynchronous_metrics"},
+                *AsynchronousMetrics_
+            )
+        );
 
         DB::attachSystemTablesLocal(*SystemDatabase_);
         Host_->PopulateSystemDatabase(SystemDatabase_.get());
