@@ -214,6 +214,7 @@ DEFINE_ENUM(EMasterReign,
     ((BackupsInitial)                                               (1810))  // ifsmirnov
     ((ReassignPeersSetLeading)                                      (1811))  // alexkolodezny
     ((MasterSmartPtrs)                                              (1812))  // shakurov
+    ((FixClusterNodeMapMigration)                                   (1813))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2063,7 +2063,7 @@ private:
         // COMPAT(gritukan)
         TestVirtualMutations_ = context.GetVersion() <= EMasterReign::VirtualMutations;
         // COMPAT(gritukan)
-        NeedToRecreateClusterNodeMap_ = context.GetVersion() <= EMasterReign::PerFlavorNodeMaps;
+        NeedToRecreateClusterNodeMap_ = context.GetVersion() <= EMasterReign::FixClusterNodeMapMigration;
     }
 
     void Clear() override
@@ -2346,18 +2346,62 @@ private:
 
         if (NeedToRecreateClusterNodeMap_) {
             const auto& rootService = Bootstrap_->GetObjectManager()->GetRootService();
+            std::optional<TYsonString> config;
+            try {
+                auto req = NCypressClient::TCypressYPathProxy::Get("//sys/cluster_nodes/@config");
+                auto rsp = SyncExecuteVerb(rootService, req);
+                config = TYsonString{rsp->value()};
+            } catch (const std::exception& ex) {
+                auto error = TError(ex);
+                if (error.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    YT_LOG_WARNING("Cluster node config is not set, skipping config migration");
+                } else {
+                    YT_LOG_FATAL(error, "Failed to get //sys/cluster_nodes/@config");
+                }
+            }
             try {
                 auto req = NCypressClient::TCypressYPathProxy::Remove("//sys/cluster_nodes");
                 SyncExecuteVerb(rootService, req);
             } catch (const std::exception& ex) {
-                YT_LOG_FATAL(ex, "Failed to remove old cluster node map");
+                YT_LOG_FATAL(ex, "Failed to remove //sys/cluster_nodes");
+            }
+            try {
+                auto req = NCypressClient::TCypressYPathProxy::Remove("//sys/nodes");
+                req->set_recursive(true);
+                SyncExecuteVerb(rootService, req);
+            } catch (const std::exception& ex) {
+                auto error = TError(ex);
+                if (error.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    YT_LOG_WARNING("Node //sys/nodes already does not exist");
+                } else {
+                    YT_LOG_FATAL(error, "Failed to remove //sys/nodes");
+                }
             }
             try {
                 auto req = NCypressClient::TCypressYPathProxy::Create("//sys/cluster_nodes");
                 req->set_type(static_cast<int>(EObjectType::ClusterNodeMap));
+                if (config) {
+                    auto attributes = BuildYsonStringFluently()
+                        .BeginMap()
+                            .Item("config").Value(*config)
+                        .EndMap();
+                    ToProto(req->mutable_node_attributes(), *ConvertToAttributes(attributes));
+                }
                 SyncExecuteVerb(rootService, req);
             } catch (const std::exception& ex) {
-                YT_LOG_FATAL(ex, "Failed to create new cluster node map");
+                YT_LOG_FATAL(ex, "Failed to create //sys/cluster_nodes");
+            }
+            try {
+                auto req = NCypressClient::TCypressYPathProxy::Create("//sys/nodes");
+                req->set_type(static_cast<int>(EObjectType::Link));
+                auto attributes = BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("target_path").Value("//sys/cluster_nodes")
+                    .EndMap();
+                ToProto(req->mutable_node_attributes(), *ConvertToAttributes(attributes));
+                SyncExecuteVerb(rootService, req);
+            } catch (const std::exception& ex) {
+                YT_LOG_FATAL(ex, "Failed to create //sys/nodes");
             }
         }
     }
