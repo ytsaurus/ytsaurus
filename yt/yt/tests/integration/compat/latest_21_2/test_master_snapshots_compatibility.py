@@ -49,6 +49,7 @@ def check_hosts_migration(env):
 
 def check_per_flavor_maps():
     nodes = ls("//sys/cluster_nodes")
+    config = get("//sys/cluster_nodes/@config")
 
     cluster_node_map_id = get("//sys/cluster_nodes/@id")
     assert get("//sys/cluster_nodes/@type") == "cluster_node_map"
@@ -66,6 +67,11 @@ def check_per_flavor_maps():
     # Cluster node map should be recreated
     assert get("//sys/cluster_nodes/@id") != cluster_node_map_id
     assert get("//sys/cluster_nodes/@type") == "cluster_node_map"
+
+    assert get("//sys/cluster_nodes/@config") == config
+
+    assert get("//sys/nodes&/@type") == "link"
+    assert get("//sys/nodes/@id") == get("//sys/cluster_nodes/@id")
 
     # Nodes should not reregister
     assert get_lease_txs() == lease_txs
