@@ -255,7 +255,10 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
                 Logger,
                 &result[resultIndex].Chunks);
 
-            YT_VERIFY(!result[resultIndex].Chunks.empty());
+            if (result[resultIndex].Chunks.empty()) {
+                THROW_ERROR_EXCEPTION("UDF file is empty")
+                    << TErrorAttribute("udf", functionNames[resultIndex]);
+            }
 
             nodeDirectory->DumpTo(&result[resultIndex].NodeDirectory);
         }
@@ -575,7 +578,10 @@ public:
         }
 
         i64 size = GetByteSize(blocks);
-        YT_VERIFY(size);
+        if (size == 0) {
+            THROW_ERROR_EXCEPTION("UDF file is empty");
+        }
+
         auto file = TSharedMutableRef::Allocate(size);
         auto memoryOutput = TMemoryOutput(file.Begin(), size);
 
