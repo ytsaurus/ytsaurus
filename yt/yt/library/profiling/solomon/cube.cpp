@@ -5,8 +5,9 @@
 #include <yt/yt/library/profiling/summary.h>
 #include <yt/yt/library/profiling/tag.h>
 
-#include <yt/yt/core/misc/assert.h>
 #include <yt/yt/core/misc/error.h>
+
+#include <yt/yt/library/assert/assert.h>
 
 #include <type_traits>
 

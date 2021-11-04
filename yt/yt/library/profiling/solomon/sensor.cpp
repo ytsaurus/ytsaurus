@@ -1,5 +1,7 @@
 #include "sensor.h"
-#include "yt/yt/core/misc/assert.h"
+
+#include <yt/yt/library/assert/assert.h>
+
 #include <atomic>
 
 namespace NYT::NProfiling {

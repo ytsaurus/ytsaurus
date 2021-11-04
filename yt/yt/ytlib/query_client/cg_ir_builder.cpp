@@ -3,7 +3,7 @@
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/Module.h>
 
-#include <yt/yt/core/misc/assert.h>
+#include <yt/yt/library/assert/assert.h>
 
 #include <yt/yt/library/codegen/llvm_migrate_helpers.h>
 #include <yt/yt/library/codegen/type_builder.h>

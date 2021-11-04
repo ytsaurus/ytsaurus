@@ -8,7 +8,7 @@
 
 #include <cstdlib>
 
-#include <yt/yt/core/misc/assert.h>
+#include <yt/yt/library/assert/assert.h>
 
 namespace NYT::NYTAlloc {
 

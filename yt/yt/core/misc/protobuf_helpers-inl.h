@@ -4,8 +4,9 @@
 #include "protobuf_helpers.h"
 #endif
 
-#include "assert.h"
 #include "error.h"
+
+#include <yt/yt/library/assert/assert.h>
 
 namespace NYT {
 

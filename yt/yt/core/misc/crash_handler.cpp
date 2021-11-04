@@ -1,6 +1,6 @@
 #include "crash_handler.h"
-#include "assert.h"
 #include "stack_trace.h"
+#include "signal_registry.h"
 
 #include <yt/yt/core/logging/log_manager.h>
 
@@ -10,10 +10,13 @@
 #include <yt/yt/core/concurrency/fls.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
+#include <yt/yt/library/assert/assert.h>
+
 #include <util/system/defaults.h>
 
 #include <signal.h>
 #include <time.h>
+
 #include <yt/yt/build/config.h>
 
 #ifdef HAVE_SYS_TYPES_H
@@ -42,8 +45,6 @@
 
 #include <cstdlib>
 #include <cstring>
-
-#include "signal_registry.h"
 
 namespace NYT {
 

@@ -7,9 +7,9 @@
 
 #include <yt/yt/core/actions/bind.h>
 
-#include <yt/yt/core/misc/assert.h>
-
 #include <yt/yt/core/yson/forwarding_consumer.h>
+
+#include <yt/yt/library/assert/assert.h>
 
 #include <stack>
 

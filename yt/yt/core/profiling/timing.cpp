@@ -1,8 +1,9 @@
 #include "timing.h"
 
-#include <yt/yt/core/misc/assert.h>
 #include <yt/yt/core/misc/public.h>
 #include <yt/yt/core/misc/serialize.h>
+
+#include <yt/yt/library/assert/assert.h>
 
 #include <util/system/hp_timer.h>
 

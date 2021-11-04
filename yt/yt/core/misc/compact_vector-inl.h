@@ -5,7 +5,7 @@
 #endif
 #undef COMPACT_VECTOR_INL_H_
 
-#include "assert.h"
+#include <yt/yt/library/assert/assert.h>
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
 

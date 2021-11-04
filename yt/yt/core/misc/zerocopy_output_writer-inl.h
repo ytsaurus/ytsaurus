@@ -4,8 +4,9 @@
 #include "zerocopy_output_writer.h"
 #endif
 
-#include "assert.h"
 #include "varint.h"
+
+#include <yt/yt/library/assert/assert.h>
 
 namespace NYT {
 

@@ -8,7 +8,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/assert.h>
 #include <yt/yt/core/misc/cast.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
@@ -20,6 +19,8 @@
 
 #include <yt/yt/core/ytree/node.h>
 #include <yt/yt_proto/yt/core/ytree/proto/ypath.pb.h>
+
+#include <yt/yt/library/assert/assert.h>
 
 namespace NYT::NYTree {
 
