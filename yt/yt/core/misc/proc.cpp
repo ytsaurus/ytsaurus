@@ -117,12 +117,11 @@ std::vector<int> ListPids()
 #ifdef _linux_
     std::vector<int> pids;
 
-    DIR* dirStream = ::opendir("/proc");
-    YT_VERIFY(dirStream != nullptr);
-
-    struct dirent* ep;
-    while ((ep = ::readdir(dirStream)) != nullptr) {
-        const char* begin = ep->d_name;
+    for (const auto& entry : TDirIterator("/proc", TDirIterator::TOptions().SetMaxLevel(1))) {
+        if (entry.fts_info != FTS_D) {
+            continue;
+        }
+        const char* begin = entry.fts_name;
         char* end = nullptr;
         int pid = static_cast<int>(strtol(begin, &end, 10));
         if (begin == end) {
@@ -132,7 +131,6 @@ std::vector<int> ListPids()
         pids.push_back(pid);
     }
 
-    YT_VERIFY(::closedir(dirStream) == 0);
     return pids;
 #else
     return {};
@@ -142,15 +140,11 @@ std::vector<int> ListPids()
 std::optional<int> GetPidByChildNamespacePid(int childNamespacePid)
 {
 #ifdef _linux_
-    std::vector<int> result;
-    std::map<int, int> parents;
-
-    DIR* dirStream = ::opendir("/proc");
-    YT_VERIFY(dirStream != nullptr);
-
-    struct dirent* ep;
-    while ((ep = ::readdir(dirStream)) != nullptr) {
-        const char* begin = ep->d_name;
+    for (const auto& entry : TDirIterator("/proc", TDirIterator::TOptions().SetMaxLevel(1))) {
+        if (entry.fts_info != FTS_D) {
+            continue;
+        }
+        const char* begin = entry.fts_name;
         char* end = nullptr;
         int pid = static_cast<int>(strtol(begin, &end, 10));
         if (begin == end) {
@@ -158,7 +152,6 @@ std::optional<int> GetPidByChildNamespacePid(int childNamespacePid)
             continue;
         }
 
-        auto path = Format("/proc/%v/status", pid);
         try {
             auto namespacePids = GetNamespacePids(pid);
             if (namespacePids.size() >= 2 && namespacePids[1] == childNamespacePid) {
@@ -169,8 +162,7 @@ std::optional<int> GetPidByChildNamespacePid(int childNamespacePid)
             continue;
         }
     }
-
-    return std::nullopt;
+    return {};
 #else
     Y_UNUSED(childNamespacePid);
     return {};
@@ -182,12 +174,11 @@ std::vector<int> GetPidsByUid(int uid)
 #ifdef _linux_
     std::vector<int> result;
 
-    DIR* dirStream = ::opendir("/proc");
-    YT_VERIFY(dirStream != nullptr);
-
-    struct dirent* ep;
-    while ((ep = ::readdir(dirStream)) != nullptr) {
-        const char* begin = ep->d_name;
+    for (const auto& entry : TDirIterator("/proc", TDirIterator::TOptions().SetMaxLevel(1))) {
+        if (entry.fts_info != FTS_D) {
+            continue;
+        }
+        const char* begin = entry.fts_name;
         char* end = nullptr;
         int pid = static_cast<int>(strtol(begin, &end, 10));
         if (begin == end) {
@@ -195,24 +186,12 @@ std::vector<int> GetPidsByUid(int uid)
             continue;
         }
 
-        auto path = Format("/proc/%v", pid);
-        struct stat buf;
-        int res = ::stat(path.data(), &buf);
-
-        if (res == 0) {
-            if (static_cast<int>(buf.st_uid) == uid || uid == -1) {
-                result.push_back(pid);
-            }
-        } else {
-            // Assume that the process has already completed.
-            auto errno_ = errno;
-            YT_LOG_DEBUG(TError::FromSystem(), "Failed to get UID for PID %v: stat failed",
-                pid);
-            YT_VERIFY(errno_ == ENOENT || errno_ == ENOTDIR);
+        YT_VERIFY(entry.fts_statp);
+        if (static_cast<int>(entry.fts_statp->st_uid) == uid || uid == -1) {
+            result.push_back(pid);
         }
     }
 
-    YT_VERIFY(::closedir(dirStream) == 0);
     return result;
 #else
     Y_UNUSED(uid);
@@ -226,12 +205,11 @@ std::vector<int> GetPidsUnderParent(int targetPid)
     std::vector<int> result;
     std::map<int, int> parents;
 
-    DIR* dirStream = ::opendir("/proc");
-    YT_VERIFY(dirStream != nullptr);
-
-    struct dirent* ep;
-    while ((ep = ::readdir(dirStream)) != nullptr) {
-        const char* begin = ep->d_name;
+    for (const auto& entry : TDirIterator("/proc", TDirIterator::TOptions().SetMaxLevel(1))) {
+        if (entry.fts_info != FTS_D) {
+            continue;
+        }
+        const char* begin = entry.fts_name;
         char* end = nullptr;
         int pid = static_cast<int>(strtol(begin, &end, 10));
         if (begin == end) {
@@ -239,7 +217,6 @@ std::vector<int> GetPidsUnderParent(int targetPid)
             continue;
         }
 
-        auto path = Format("/proc/%v/status", pid);
         try {
             auto ppid = GetParentPid(pid);
             if (ppid) {
@@ -266,9 +243,7 @@ std::vector<int> GetPidsUnderParent(int targetPid)
         }
     }
 
-    YT_VERIFY(::closedir(dirStream) == 0);
     return result;
-
 #else
     Y_UNUSED(targetPid);
     return {};
@@ -967,28 +942,22 @@ TString SafeGetUsernameByUid(int /* uid */)
 void CloseAllDescriptors(const std::vector<int>& exceptFor)
 {
 #ifdef _linux_
-    auto* dirStream = ::opendir("/proc/self/fd");
-    YT_VERIFY(dirStream != nullptr);
-
-    int dirFD = ::dirfd(dirStream);
-    YT_VERIFY(dirFD >= 0);
-
     std::vector<int> fds;
-    dirent* ep;
-    while ((ep = ::readdir(dirStream)) != nullptr) {
-        char* begin = ep->d_name;
+    for (const auto& entry : TDirIterator("/proc/self/fd", TDirIterator::TOptions().SetMaxLevel(1))) {
+        if (entry.fts_type != FTS_SL) {
+            continue;
+        }
+        const char* begin = entry.fts_name;
         char* end = nullptr;
         int fd = static_cast<int>(strtol(begin, &end, 10));
         if (begin == end ||
-            fd == dirFD ||
             (std::find(exceptFor.begin(), exceptFor.end(), fd) != exceptFor.end()))
         {
             continue;
         }
+        // We can add descriptor from TDirIterator here but it will be ignored with ignoreBadFD flag.
         fds.push_back(fd);
     }
-
-    YT_VERIFY(::closedir(dirStream) == 0);
 
     bool ignoreBadFD = true;
     for (int fd : fds) {
