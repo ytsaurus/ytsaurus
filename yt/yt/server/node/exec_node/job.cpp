@@ -786,18 +786,24 @@ std::optional<TString> TJob::GetStderr()
         return *Stderr_;
     }
 
-    if (JobPhase_ != EJobPhase::Running) {
-        // When job proxy finished with completed or failed state, Stderr_ must not be unset.
-        YT_VERIFY(JobState_ == EJobState::Aborted);
+    if (JobPhase_ == EJobPhase::Running) {
+        try {
+            return GetJobProbeOrThrow()->GetStderr();
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error requesting stderr from job proxy")
+                << ex;
+        }
+    }
+
+    if (JobPhase_ < EJobPhase::Running || JobState_ == EJobState::Aborted || JobState_ == EJobState::Aborting) {
         return std::nullopt;
     }
 
-    try {
-        return GetJobProbeOrThrow()->GetStderr();
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error requesting stderr from job proxy")
-            << ex;
-    }
+    // When job proxy finished with completed or failed state, Stderr_ must not be unset.
+    YT_LOG_FATAL(
+        "Stderr is unset for job that has been started and has not been aborted (JobState: %v, JobPhase: %v)",
+        JobState_,
+        JobPhase_);
 }
 
 std::optional<TString> TJob::GetFailContext()
