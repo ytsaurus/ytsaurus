@@ -136,6 +136,7 @@ public:
         TStatistics result;
         result.AddSample("/data/input", InputDataStatistics_);
         result.AddSample("/data/output/" + NYPath::ToYPathLiteral(0), OutputDataStatistics_);
+        DumpChunkReaderStatistics(&result, "/chunk_reader_statistics", ChunkReadOptions_.ChunkReaderStatistics);
         return result;
     }
 
