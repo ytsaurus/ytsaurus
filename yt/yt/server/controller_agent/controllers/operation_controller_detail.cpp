@@ -10004,18 +10004,25 @@ std::vector<TTaskPtr> TOperationControllerBase::GetTopologicallyOrderedTasks() c
         YT_VERIFY(vertexDescriptorToIndex.emplace(topologicalOrdering[index], index).second);
     }
 
-    std::vector<TTaskPtr> tasks;
-    tasks.reserve(Tasks.size());
+    std::vector<std::pair<int, TTaskPtr>> tasksWithIndices;
+    tasksWithIndices.reserve(Tasks.size());
     for (const auto& task : Tasks) {
-        if (vertexDescriptorToIndex.contains(task->GetVertexDescriptor())) {
-            tasks.push_back(task);
+        for (const auto& vertex : task->GetAllVertexDescriptors()) {
+            auto iterator = vertexDescriptorToIndex.find(vertex);
+            if (iterator != vertexDescriptorToIndex.end()) {
+                tasksWithIndices.emplace_back(iterator->second, task);
+                break;
+            }
         }
     }
+    std::sort(tasksWithIndices.begin(), tasksWithIndices.end());
 
-    std::sort(tasks.begin(), tasks.end(), [&] (const TTaskPtr& lhs, const TTaskPtr& rhs) {
-        return GetOrCrash(vertexDescriptorToIndex, lhs->GetVertexDescriptor()) < GetOrCrash(vertexDescriptorToIndex, rhs->GetVertexDescriptor());
-    });
-
+    std::vector<TTaskPtr> tasks;
+    tasks.reserve(tasksWithIndices.size());
+    for (auto& [index, task] : tasksWithIndices) {
+        Y_UNUSED(index);
+        tasks.push_back(std::move(task));
+    }
     return tasks;
 }
 

@@ -80,6 +80,7 @@ public:
     virtual TString GetTitle() const override;
     virtual TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const override;
     virtual TDataFlowGraph::TVertexDescriptor GetVertexDescriptorForJoblet(const TJobletPtr& joblet) const override;
+    virtual TVertexDescriptorList GetAllVertexDescriptors() const override;
 
     virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override;
 
