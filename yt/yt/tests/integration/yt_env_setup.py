@@ -948,7 +948,15 @@ class YTEnvSetup(object):
                 yt_commands.make_batch_request(
                     "create",
                     type="scheduler_pool_tree",
-                    attributes={"name": "default", "config": {"main_resource": "cpu"}},
+                    attributes={
+                        "name": "default",
+                        "config": {
+                            "main_resource": "cpu",
+                            # Make default settings suitable for starvation and preemption.
+                            "max_unpreemptable_running_job_count": 0,
+                            "fair_share_starvation_timeout": 1000,
+                        }
+                    },
                 )
             )
         for pool_tree in yt_commands.ls(scheduler_pool_trees_root, driver=driver):
