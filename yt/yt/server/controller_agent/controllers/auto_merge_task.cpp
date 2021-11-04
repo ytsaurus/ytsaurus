@@ -259,6 +259,11 @@ TDataFlowGraph::TVertexDescriptor TAutoMergeTask::GetVertexDescriptorForJoblet(c
     return GetVertexDescriptorForMergeType(mergeType);
 }
 
+TVertexDescriptorList TAutoMergeTask::GetAllVertexDescriptors() const
+{
+    return {"auto_merge", "shallow_auto_merge"};
+}
+
 TExtendedJobResources TAutoMergeTask::GetNeededResources(const TJobletPtr& joblet) const
 {
     auto result = TaskHost_->GetAutoMergeResources(joblet->InputStripeList->GetStatistics());

@@ -35,6 +35,10 @@ namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TVertexDescriptorList = SmallVector<TDataFlowGraph::TVertexDescriptor, 4>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTask
     : public TRefCounted
     , public IPersistent
@@ -61,10 +65,20 @@ public:
     //! It may be used when calling virtual method is needed, but not allowed.
     virtual void Prepare();
 
-    //! Title of a data flow graph vertex that appears in a web interface and coincides with the job type
-    //! for builtin tasks. For example, "SortedReduce" or "PartitionMap".
+    // NB. Vertex descriptor is the title of a data flow graph vertex that appears in a web interface
+    // and coincides with the job type for builtin tasks. For example, "SortedReduce" or "PartitionMap".
+    // Usually each task has exactly one vertex descriptor, but it's not always true (for example, auto
+    // merge task has different vertex descriptors for shallow merge and deep merge).
+
+    //! Returns the default vertex descriptor for the task.
     virtual TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const;
+
+    //! Returns the vertex descriptor associated with a particular joblet of the task.
     virtual TDataFlowGraph::TVertexDescriptor GetVertexDescriptorForJoblet(const TJobletPtr& joblet) const;
+
+    //! Returns the list of all possible vertex desciptors for the task.
+    virtual TVertexDescriptorList GetAllVertexDescriptors() const;
+
     //! Human-readable title of a particular task that appears in logging. For builtin tasks it coincides
     //! with the vertex descriptor and a task level in brackets (if applicable).
     virtual TString GetTitle() const;

@@ -771,7 +771,7 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
 
     @authors("gepardo")
     @pytest.mark.parametrize("op_type", ["map", "reduce"])
-    def test_data_flow_graph(self, op_type):
+    def test_progress_yson(self, op_type):
         create("table", "//tmp/t_in",
                attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
         create("table", "//tmp/t_out")
@@ -803,6 +803,11 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
         data_weight = data_flow_graph["edges"][op_name][merge_name]["statistics"]["data_weight"]
         assert data_weight > 0
         assert data_flow_graph["edges"][merge_name]["sink"]["statistics"]["data_weight"] == data_weight
+
+        tasks = get(op.get_path() + "/@progress/tasks")
+        assert len(tasks) == 2
+        assert tasks[0]["task_name"] == ("map" if op_type == "map" else "sorted_reduce")
+        assert tasks[1]["task_name"] == "auto_merge"
 
     @authors("gepardo")
     def test_aggregated_statistics(self):

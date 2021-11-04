@@ -129,6 +129,11 @@ TDataFlowGraph::TVertexDescriptor TTask::GetVertexDescriptorForJoblet(const TJob
     return GetVertexDescriptor();
 }
 
+TVertexDescriptorList TTask::GetAllVertexDescriptors() const
+{
+    return {GetVertexDescriptor()};
+}
+
 int TTask::GetPendingJobCount() const
 {
     if (!IsActive()) {
