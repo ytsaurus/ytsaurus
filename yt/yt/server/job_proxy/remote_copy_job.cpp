@@ -229,6 +229,7 @@ public:
         result.AddSample(
             "/data/output/" + NYPath::ToYPathLiteral(0),
             DataStatistics_);
+        DumpChunkReaderStatistics(&result, "/chunk_reader_statistics", ChunkReadOptions_.ChunkReaderStatistics);
         return result;
     }
 
