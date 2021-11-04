@@ -269,6 +269,8 @@ void TJob::Abort(const TError& error)
     switch (JobPhase_) {
         case EJobPhase::Created:
         case EJobPhase::DownloadingArtifacts:
+        case EJobPhase::RunningGpuCheckCommand:
+        case EJobPhase::RunningExtraGpuCheckCommand:
         case EJobPhase::Running:
             startAbortion();
             ArtifactsFuture_.Cancel(TError("Job aborted"));
