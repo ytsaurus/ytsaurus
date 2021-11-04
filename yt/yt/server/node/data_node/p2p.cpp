@@ -131,7 +131,7 @@ TFuture<void> TP2PBlockCache::WaitSessionIteration(TGuid sessionId, i64 iteratio
 
     auto it = session.Waiters.find(iteration);
     if (it != session.Waiters.end()) {
-        if (it->second->WaiterCount++ != 0) {
+        if (it->second->WaiterCount++ > 0) {
             ActiveWaiters_++;
         }
 
@@ -144,7 +144,7 @@ TFuture<void> TP2PBlockCache::WaitSessionIteration(TGuid sessionId, i64 iteratio
     ActiveWaiters_++;
 
     waiter->Promise.ToFuture().Subscribe(BIND([this, this_=MakeStrong(this), waiter] (const TError& /*error*/) {
-        ActiveWaiters_ -= waiter->WaiterCount.exchange(0);
+        ActiveWaiters_ -= waiter->WaiterCount.exchange(Min<int>());
     }));
 
     TDelayedExecutor::Submit(
