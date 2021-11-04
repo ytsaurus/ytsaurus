@@ -1,11 +1,11 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
 from yt_commands import (
-    authors, wait, create, ls, get, set,
+    authors, wait, create, ls, get, set, exists,
     start_transaction, commit_transaction,
     write_file, read_table, write_table,
     map, vanilla, update_nodes_dynamic_config,
-    sync_create_cells, get_job)
+    sync_create_cells, get_job, create_pool)
 
 import yt.environment.init_operation_archive as init_operation_archive
 
@@ -1011,6 +1011,88 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         time.sleep(2.0)
 
         assert op.get_state() == "running"
+
+    def test_gpu_check_abort(self):
+        self.setup_gpu_layer_and_reset_nodes()
+
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+
+        def gpu_check_is_running(job_id):
+            node_orchid_job_path = "//sys/cluster_nodes/{}/orchid/job_controller/active_jobs/scheduler/{}"\
+                                   .format(node, job_id)
+            if not exists(node_orchid_job_path):
+                return False
+            events = get(node_orchid_job_path + "/events")
+            phases = [event["phase"] for event in events if "phase" in event]
+            return phases[-1] == "running_gpu_check_command"
+
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={"replication_factor": 1},
+        )
+        for i in (1, 2):
+            create(
+                "table",
+                "//tmp/t_out" + str(i),
+                attributes={"replication_factor": 1},
+            )
+        write_table("//tmp/t_in", [{"k": 0}])
+
+        set("//sys/pool_trees/default/@config/main_resource", "gpu")
+        set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 0)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 1000)
+        create_pool("pool_without_guarantee")
+        create_pool("pool_with_guarantee", attributes={"strong_guarantee_resources": {"gpu": 1}})
+
+        op1 = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out1",
+            command="echo AAA >&2",
+            spec={
+                "max_failed_job_count": 1,
+                "pool": "pool_without_guarantee",
+                "mapper": {
+                    "job_count": 1,
+                    "layer_paths": ["//tmp/base_layer"],
+                    "enable_gpu_layers": True,
+                    "gpu_check_layer_name": "0",
+                    "gpu_check_binary_path": "/gpu_check/gpu_check_sleep",
+                },
+            },
+        )
+
+        wait(lambda: op1.list_jobs())
+        job_id1 = op1.list_jobs()[0]
+
+        wait(lambda: gpu_check_is_running(job_id1))
+
+        op2 = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out2",
+            command="echo AAA >&2",
+            spec={
+                "max_failed_job_count": 1,
+                "pool": "pool_with_guarantee",
+                "mapper": {
+                    "job_count": 1,
+                    "layer_paths": ["//tmp/base_layer"],
+                    "enable_gpu_layers": True,
+                    "gpu_check_layer_name": "0",
+                    "gpu_check_binary_path": "/gpu_check/gpu_check_sleep",
+                },
+            },
+        )
+
+        wait(lambda: op2.list_jobs())
+        job_id2 = op2.list_jobs()[0]
+
+        wait(lambda: len(op1.list_jobs()) == 0)
+        wait(lambda: get_job(op2.id, job_id2)["state"] == "running")
 
 
 @authors("ignat")
