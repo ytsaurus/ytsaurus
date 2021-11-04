@@ -4,6 +4,9 @@
 #include <yt/yt/core/misc/small_vector.h>
 #include <yt/yt/core/misc/enum.h>
 
+#include <yt/yt/library/profiling/tag.h>
+#include <yt/yt/library/cpuclock/clock.h>
+
 namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,14 +27,8 @@ struct TQueuedSample;
 //! Generic value for samples.
 using TValue = i64;
 
-using TCpuInstant = i64;
-using TCpuDuration = i64;
-
-using TTagId = int;
-constexpr TTagId InvalidTagId = -1;
-
-constexpr int TypicalTagCount = 8;
-using TTagIdList = SmallVector<TTagId, TypicalTagCount>;
+using TCpuInstant = NYT::TCpuInstant;
+using TCpuDuration = NYT::TCpuDuration;
 
 //! Enumeration of metric types.
 /*

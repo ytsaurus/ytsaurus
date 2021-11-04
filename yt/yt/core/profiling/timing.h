@@ -6,27 +6,18 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
+#include <yt/yt/library/cpuclock/clock.h>
+
 namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Returns the current processor clock (rdtsc).
-TCpuInstant GetCpuInstant();
-
-//! Returns the current time (obtained via #GetCpuInstant).
-TInstant GetInstant();
-
-//! Converts a number of processor ticks into a regular duration.
-TDuration CpuDurationToDuration(TCpuDuration cpuDuration);
-
-//! Converts a regular duration into the number of processor ticks.
-TCpuDuration DurationToCpuDuration(TDuration duration);
-
-//! Converts a processor clock into the regular time instant.
-TInstant CpuInstantToInstant(TCpuInstant cpuInstant);
-
-//! Converts a regular time instant into the processor clock.
-TCpuInstant InstantToCpuInstant(TInstant instant);
+using NYT::GetCpuInstant;
+using NYT::GetInstant;
+using NYT::CpuDurationToDuration;
+using NYT::DurationToCpuDuration;
+using NYT::CpuInstantToInstant;
+using NYT::InstantToCpuInstant;
 
 //! Converts a duration to TValue suitable for profiling.
 /*!

@@ -1,9 +1,21 @@
 #include "tag.h"
-#include "yt/yt/core/misc/hash.h"
-
-#include <yt/yt/core/misc/farm_hash.h>
 
 namespace NYT::NProfiling {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTagIdList operator + (const TTagIdList& a, const TTagIdList& b)
+{
+    auto result = a;
+    result += b;
+    return result;
+}
+
+TTagIdList& operator += (TTagIdList& a, const TTagIdList& b)
+{
+    a.append(b.begin(), b.end());
+    return a;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,7 +131,7 @@ size_t THash<NYT::NProfiling::TTagIndexList>::operator()(const NYT::NProfiling::
 {
     size_t result = 0;
     for (auto index : list) {
-        NYT::HashCombine(result, index);
+        result = CombineHashes(result, std::hash<NYT::NProfiling::TTagIndex>()(index));
     }
     return result;
 }
@@ -128,7 +140,16 @@ size_t THash<NYT::NProfiling::TTagList>::operator()(const NYT::NProfiling::TTagL
 {
     size_t result = 0;
     for (const auto& tag : list) {
-        NYT::HashCombine(result, THash<NYT::NProfiling::TTag>()(tag));
+        result = CombineHashes(result, THash<NYT::NProfiling::TTag>()(tag));
+    }
+    return result;
+}
+
+size_t THash<NYT::NProfiling::TTagIdList>::operator()(const NYT::NProfiling::TTagIdList& list) const
+{
+    size_t result = 1;
+    for (auto tag : list) {
+        result = CombineHashes(result, std::hash<NYT::NProfiling::TTagId>()(tag));
     }
     return result;
 }

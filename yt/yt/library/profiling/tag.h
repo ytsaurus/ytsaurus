@@ -4,24 +4,25 @@
 
 #include <util/generic/string.h>
 
-#include <yt/yt/core/profiling/public.h>
-
-#include <yt/yt/core/misc/small_vector.h>
-
-// TODO(prime@): remove this
-#include <yt/yt/core/profiling/profiler.h>
+#include <yt/yt/library/small_containers/small_vector.h>
 
 namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TTagId = int;
+
+constexpr int TypicalTagCount = 6;
+
+using TTagIdList = SmallVector<TTagId, TypicalTagCount>;
+
 using TTag = std::pair<TString, TString>;
 
-using TTagList = SmallVector<TTag, 6>;
+using TTagList = SmallVector<TTag, TypicalTagCount>;
 
 using TTagIndex = ui8;
 
-using TTagIndexList = SmallVector<TTagIndex, 8>;
+using TTagIndexList = SmallVector<TTagIndex, TypicalTagCount>;
 
 constexpr ui8 NoTagSentinel = 0xff;
 
@@ -87,6 +88,9 @@ void RangeSubsets(
     const TTagIndexList& alternative,
     TFn fn);
 
+TTagIdList  operator +  (const TTagIdList& a, const TTagIdList& b);
+TTagIdList& operator += (TTagIdList& a, const TTagIdList& b);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NProfiling
@@ -101,6 +105,12 @@ template <>
 struct THash<NYT::NProfiling::TTagList>
 {
     size_t operator()(const NYT::NProfiling::TTagList& ids) const;
+};
+
+template <>
+struct THash<NYT::NProfiling::TTagIdList>
+{
+    size_t operator()(const NYT::NProfiling::TTagIdList& ids) const;
 };
 
 #define TAG_INL_H_

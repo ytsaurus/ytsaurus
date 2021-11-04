@@ -3,9 +3,10 @@
 #include "sensor.h"
 
 #include <util/generic/string.h>
+#include <util/system/spinlock.h>
 
-#include <yt/yt/core/misc/ref_counted.h>
-#include <yt/yt/core/misc/intrusive_ptr.h>
+#include <yt/yt/library/memory/ref_counted.h>
+#include <yt/yt/library/memory/intrusive_ptr.h>
 
 namespace NYT::NProfiling {
 

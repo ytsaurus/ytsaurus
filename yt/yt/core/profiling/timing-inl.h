@@ -11,17 +11,6 @@ namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE TCpuInstant GetCpuInstant()
-{
-    // See datetime.h
-    unsigned hi, lo;
-    __asm__ __volatile__("rdtsc"
-    : "=a"(lo), "=d"(hi));
-    return static_cast<unsigned long long>(lo) | (static_cast<unsigned long long>(hi) << 32);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class TTimer>
 TValueIncrementingTimingGuard<TTimer>::TValueIncrementingTimingGuard(TDuration* value)
     : Value_(value)
