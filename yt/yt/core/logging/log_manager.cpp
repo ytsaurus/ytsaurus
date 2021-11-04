@@ -1334,10 +1334,10 @@ private:
     // Version forces this very module's Logger object to update to our own
     // default configuration (default level etc.).
     std::atomic<int> Version_ = 0;
-    std::atomic<bool> AbortOnAlert_ = 0;
+    std::atomic<bool> AbortOnAlert_ = false;
     TLogManagerConfigPtr Config_;
     std::atomic<bool> ConfiguredFromEnv_ = false;
-    THashMap<TStringBuf, std::unique_ptr<TLoggingCategory>> NameToCategory_;
+    THashMap<TString, std::unique_ptr<TLoggingCategory>> NameToCategory_;
     const TLoggingCategory* SystemCategory_;
 
     // These are just copies from _Config.

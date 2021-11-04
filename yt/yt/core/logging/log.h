@@ -23,7 +23,7 @@ namespace NYT::NLogging {
 
 struct TLoggingCategory
 {
-    TStringBuf Name;
+    TString Name;
     //! This value is used for early dropping of plaintext events in order
     //! to reduce load on logging thread for events which are definitely going
     //! to be dropped due to rule setup.
