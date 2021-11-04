@@ -3,6 +3,8 @@
 #include <yt/yt/library/profiling/impl.h>
 #include <yt/yt/library/profiling/summary.h>
 
+#include <yt/yt/core/profiling/tscp.h>
+
 namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////

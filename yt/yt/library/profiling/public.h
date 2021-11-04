@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/core/misc/ref_counted.h>
+#include <yt/yt/library/memory/ref_counted.h>
 
 namespace NYT::NProfiling {
 

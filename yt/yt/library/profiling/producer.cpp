@@ -2,6 +2,8 @@
 
 #include <util/system/compiler.h>
 
+#include <yt/yt/library/memory/new.h>
+
 namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////

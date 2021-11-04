@@ -1,10 +1,8 @@
 #include "sensor.h"
 #include "impl.h"
 
-#include <yt/yt/core/misc/assert.h>
-#include <yt/yt/core/misc/format.h>
-
-#include <yt/yt/core/profiling/timing.h>
+#include <yt/yt/library/assert/assert.h>
+#include <yt/yt/library/string/format.h>
 
 #include <util/system/compiler.h>
 

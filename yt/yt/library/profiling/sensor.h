@@ -3,11 +3,10 @@
 #include "public.h"
 #include "tag.h"
 
-#include <yt/yt/core/profiling/public.h>
-
-#include <yt/yt/core/misc/intrusive_ptr.h>
-#include <yt/yt/core/misc/weak_ptr.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/library/memory/intrusive_ptr.h>
+#include <yt/yt/library/memory/weak_ptr.h>
+#include <yt/yt/library/small_containers/small_vector.h>
+#include <yt/yt/library/cpuclock/clock.h>
 
 #include <vector>
 
