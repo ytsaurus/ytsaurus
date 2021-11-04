@@ -355,6 +355,30 @@ public:
             NConcurrency::GetThreadTags("Profiling")))
         , LoggingThread_(New<TThread>(this))
         , SystemWriters_({New<TStderrLogWriter>()})
+        , DiskProfilingExecutor_(New<TPeriodicExecutor>(
+            EventQueue_,
+            BIND(&TImpl::OnDiskProfiling, MakeWeak(this)),
+            DiskProfilingPeriod))
+        , AnchorProfilingExecutor_(New<TPeriodicExecutor>(
+            EventQueue_,
+            BIND(&TImpl::OnAnchorProfiling, MakeWeak(this)),
+            AnchorProfilingPeriod))
+        , DequeueExecutor_(New<TPeriodicExecutor>(
+            EventQueue_,
+            BIND(&TImpl::OnDequeue, MakeStrong(this)),
+            DequeuePeriod))
+        , FlushExecutor_(New<TPeriodicExecutor>(
+            EventQueue_,
+            BIND(&TImpl::FlushWriters, MakeStrong(this)),
+            std::nullopt))
+        , WatchExecutor_(New<TPeriodicExecutor>(
+            EventQueue_,
+            BIND(&TImpl::WatchWriters, MakeStrong(this)),
+            std::nullopt))
+        , CheckSpaceExecutor_(New<TPeriodicExecutor>(
+            EventQueue_,
+            BIND(&TImpl::CheckSpace, MakeStrong(this)),
+            std::nullopt))
     {
         try {
             if (auto config = TLogManagerConfig::TryCreateFromEnv()) {
@@ -397,7 +421,7 @@ public:
             return;
         }
 
-        EnsureStarting();
+        EnsureStarted();
 
         TConfigEvent event{
             .Instant = GetCpuInstant(),
@@ -409,9 +433,7 @@ public:
 
         PushEvent(std::move(event));
 
-        if (ExecutorsInitialized_) {
-            DequeueExecutor_->ScheduleOutOfBand();
-        }
+        DequeueExecutor_->ScheduleOutOfBand();
 
         if (sync) {
             future.Get();
@@ -565,7 +587,7 @@ public:
             return;
         }
 
-        EnsureStarting();
+        EnsureStarted();
 
         // Order matters here; inherent race may lead to negative backlog and integer overflow.
         ui64 writtenEvents = WrittenEvents_.load();
@@ -573,21 +595,23 @@ public:
         ui64 backlogEvents = enqueuedEvents - writtenEvents;
 
         // NB: This is somewhat racy but should work fine as long as more messages keep coming.
+        auto lowBacklogWatermark = LowBacklogWatermark_.load(std::memory_order_relaxed);
+        auto highBacklogWatermark = HighBacklogWatermark_.load(std::memory_order_relaxed);
         if (Suspended_.load(std::memory_order_relaxed)) {
             if (backlogEvents < LowBacklogWatermark_) {
                 Suspended_.store(false, std::memory_order_relaxed);
-                YT_LOG_INFO("Backlog size has dropped below low watermark %v, logging resumed",
-                    LowBacklogWatermark_);
+                YT_LOG_INFO("Backlog size has dropped below low watermark, logging resumed (LowBacklogWatermark: %v)",
+                    lowBacklogWatermark);
             }
         } else {
-            if (backlogEvents >= LowBacklogWatermark_ && !ScheduledOutOfBand_.test_and_set() && ExecutorsInitialized_) {
+            if (backlogEvents >= lowBacklogWatermark && !ScheduledOutOfBand_.exchange(true)) {
                 DequeueExecutor_->ScheduleOutOfBand();
             }
 
-            if (backlogEvents >= HighBacklogWatermark_) {
+            if (backlogEvents >= highBacklogWatermark) {
                 Suspended_.store(true, std::memory_order_relaxed);
-                YT_LOG_WARNING("Backlog size has exceeded high watermark %v, logging suspended",
-                    HighBacklogWatermark_);
+                YT_LOG_WARNING("Backlog size has exceeded high watermark, logging suspended (HighBacklogWatermark: %v)",
+                    highBacklogWatermark);
             }
         }
 
@@ -672,47 +696,28 @@ private:
         EventQueue_->EndExecute(&CurrentAction_);
     }
 
-    void EnsureStarting()
+    void EnsureStarted()
     {
-        if (Starting_.load(std::memory_order_relaxed)) {
+        if (Started_.load(std::memory_order_relaxed)) {
             return;
         }
 
-        if (!Starting_.exchange(true)) {
-            EnsureStarted();
+        if (Started_.exchange(true)) {
+            return;
         }
-    }
 
-    void EnsureStarted()
-    {
-        std::call_once(Started_, [&] {
-            if (LoggingThread_->IsStopping()) {
-                return;
-            }
+        if (LoggingThread_->IsStopping()) {
+            return;
+        }
 
-            LoggingThread_->Start();
-            EventQueue_->SetThreadId(LoggingThread_->GetThreadId());
-
-            DiskProfilingExecutor_ = New<TPeriodicExecutor>(
-                EventQueue_,
-                BIND(&TImpl::OnDiskProfiling, MakeStrong(this)),
-                DiskProfilingPeriod);
-            DiskProfilingExecutor_->Start();
-
-            AnchorProfilingExecutor_ = New<TPeriodicExecutor>(
-                EventQueue_,
-                BIND(&TImpl::OnAnchorProfiling, MakeStrong(this)),
-                AnchorProfilingPeriod);
-            AnchorProfilingExecutor_->Start();
-
-            DequeueExecutor_ = New<TPeriodicExecutor>(
-                EventQueue_,
-                BIND(&TImpl::OnDequeue, MakeStrong(this)),
-                DequeuePeriod);
-            DequeueExecutor_->Start();
-
-            ExecutorsInitialized_.store(true);
-        });
+        LoggingThread_->Start();
+        EventQueue_->SetThreadId(LoggingThread_->GetThreadId());
+        DiskProfilingExecutor_->Start();
+        AnchorProfilingExecutor_->Start();
+        DequeueExecutor_->Start();
+        FlushExecutor_->Start();
+        WatchExecutor_->Start();
+        CheckSpaceExecutor_->Start();
     }
 
     const std::vector<ILogWriterPtr>& GetWriters(const TLogEvent& event)
@@ -780,45 +785,11 @@ private:
 
         AbortOnAlert_.store(event.Config->AbortOnAlert);
 
-        EnsureStarting();
+        EnsureStarted();
 
         FlushWriters();
 
         DoUpdateConfig(event.Config, event.FromEnv);
-
-        if (FlushExecutor_) {
-            FlushExecutor_->Stop();
-            FlushExecutor_.Reset();
-        }
-
-        if (WatchExecutor_) {
-            WatchExecutor_->Stop();
-            WatchExecutor_.Reset();
-        }
-
-        if (auto flushPeriod = Config_->FlushPeriod) {
-            FlushExecutor_ = New<TPeriodicExecutor>(
-                EventQueue_,
-                BIND(&TImpl::FlushWriters, MakeStrong(this)),
-                *flushPeriod);
-            FlushExecutor_->Start();
-        }
-
-        if (auto watchPeriod = Config_->WatchPeriod) {
-            WatchExecutor_ = New<TPeriodicExecutor>(
-                EventQueue_,
-                BIND(&TImpl::WatchWriters, MakeStrong(this)),
-                *watchPeriod);
-            WatchExecutor_->Start();
-        }
-
-        if (auto checkSpacePeriod = Config_->CheckSpacePeriod) {
-            CheckSpaceExecutor_ = New<TPeriodicExecutor>(
-                EventQueue_,
-                BIND(&TImpl::CheckSpace, MakeStrong(this)),
-                *checkSpacePeriod);
-            CheckSpaceExecutor_->Start();
-        }
 
         event.Promise.Set();
     }
@@ -841,8 +812,8 @@ private:
             NotificationWatchesIndex_.swap(notificationWatchesIndex);
             NotificationWatches_.swap(notificationWatches);
             Config_ = config;
-            HighBacklogWatermark_ = Config_->HighBacklogWatermark;
-            LowBacklogWatermark_ = Config_->LowBacklogWatermark;
+            HighBacklogWatermark_.store(Config_->HighBacklogWatermark);
+            LowBacklogWatermark_.store(Config_->LowBacklogWatermark);
             RequestSuppressionEnabled_ = Config_->RequestSuppressionTimeout != TDuration::Zero();
 
             guard.Release();
@@ -917,6 +888,10 @@ private:
             }
         }
 
+        FlushExecutor_->SetPeriod(Config_->FlushPeriod);
+        WatchExecutor_->SetPeriod(Config_->WatchPeriod);
+        CheckSpaceExecutor_->SetPeriod(Config_->CheckSpacePeriod);
+
         Version_++;
         ConfiguredFromEnv_.store(fromEnv);
     }
@@ -940,6 +915,7 @@ private:
         for (const auto& [name, writer] : Writers_) {
             writer->Flush();
         }
+        FlushedEvents_ = WrittenEvents_.load();
     }
 
     void ReloadWriters()
@@ -1136,7 +1112,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
-        ScheduledOutOfBand_.clear();
+        ScheduledOutOfBand_.store(false);
 
         auto instant = GetCpuInstant();
 
@@ -1148,7 +1124,7 @@ private:
         {
             TThreadLocalQueue* Queue;
 
-            THeapItem(TThreadLocalQueue* queue)
+            explicit THeapItem(TThreadLocalQueue* queue)
                 : Queue(queue)
             { }
 
@@ -1164,7 +1140,7 @@ private:
 
             TCpuInstant GetInstant() const
             {
-                auto front = Front();
+                auto* front = Front();
                 if (Y_LIKELY(front)) {
                     return GetEventInstant(*front);
                 } else {
@@ -1178,29 +1154,29 @@ private:
             }
         };
 
-        // TODO(lukyan): Reuse heap.
         std::vector<THeapItem> heap;
-        for (auto localQueue : LocalQueues_) {
+        for (auto* localQueue : LocalQueues_) {
             if (localQueue->Front()) {
-                heap.push_back(localQueue);
+                heap.emplace_back(localQueue);
             }
         }
 
-        MakeHeap(heap.begin(), heap.end());
+        if (!heap.empty()) {
+            MakeHeap(heap.begin(), heap.end());
 
-        // TODO(lukyan): Get next minimum instant and pop from top queue in loop.
-        // NB: Messages are not totally ordered beacause of race around high/low watermark check
-        while (!heap.empty()) {
-            auto& queue = heap.front();
-            TLoggerQueueItem* event = queue.Front();
+            // TODO(lukyan): Get next minimum instant and pop from top queue in loop.
+            // NB: Messages are not totally ordered beacause of race around high/low watermark check.
+            while (true) {
+                auto& queue = heap.front();
+                auto* event = queue.Front();
+                if (!event || GetEventInstant(*event) >= instant) {
+                    break;
+                }
 
-            if (!event || GetEventInstant(*event) >= instant) {
-                break;
+                TimeOrderedBuffer_.emplace_back(std::move(*event));
+                queue.Pop();
+                AdjustHeapFront(heap.begin(), heap.end());
             }
-
-            TimeOrderedBuffer_.emplace_back(std::move(*event));
-            queue.Pop();
-            AdjustHeapFront(heap.begin(), heap.end());
         }
 
         UnregisteredLocalQueues_.DequeueAll(true, [&] (TThreadLocalQueue* item) {
@@ -1240,7 +1216,6 @@ private:
 
         if (!Config_->FlushPeriod || ShutdownRequested_) {
             FlushWriters();
-            FlushedEvents_ = WrittenEvents_.load();
         }
     }
 
@@ -1339,17 +1314,14 @@ private:
     std::atomic<bool> ConfiguredFromEnv_ = false;
     THashMap<TString, std::unique_ptr<TLoggingCategory>> NameToCategory_;
     const TLoggingCategory* SystemCategory_;
-
-    // These are just copies from _Config.
+    // These are just copies from Config_.
     // The values are being read from arbitrary threads but stale values are fine.
-    ui64 HighBacklogWatermark_ = Max<ui64>();
-    ui64 LowBacklogWatermark_ = Max<ui64>();
+    std::atomic<ui64> HighBacklogWatermark_ = Max<ui64>();
+    std::atomic<ui64> LowBacklogWatermark_ = Max<ui64>();
 
     std::atomic<bool> Suspended_ = false;
-    std::atomic<bool> Starting_ = false;
-    std::once_flag Started_;
-    std::atomic<bool> ExecutorsInitialized_ = false;
-    std::atomic_flag ScheduledOutOfBand_ = false;
+    std::atomic<bool> Started_ = false;
+    std::atomic<bool> ScheduledOutOfBand_ = false;
 
     THashSet<TThreadLocalQueue*> LocalQueues_;
     TMpscStack<TThreadLocalQueue*> RegisteredLocalQueues_;
@@ -1364,7 +1336,7 @@ private:
     using TEventProfilingKey = std::pair<TStringBuf, ELogLevel>;
     THashMap<TEventProfilingKey, TCounter> WrittenEventsCounters_;
 
-    TProfiler Profiler{"/logging"};
+    const TProfiler Profiler{"/logging"};
 
     TGauge MinLogStorageAvailableSpace_ = Profiler.Gauge("/min_log_storage_available_space");
     TGauge MinLogStorageFreeSpace_ = Profiler.Gauge("/min_log_storage_free_space");
@@ -1380,18 +1352,18 @@ private:
 
     THashMap<TString, ILogWriterPtr> Writers_;
     THashMap<TLogWriterCacheKey, std::vector<ILogWriterPtr>> CachedWriters_;
-    std::vector<ILogWriterPtr> SystemWriters_;
+    const std::vector<ILogWriterPtr> SystemWriters_;
 
     std::atomic<bool> ReopenRequested_ = false;
     std::atomic<bool> ShutdownRequested_ = false;
     std::atomic<bool> RequestSuppressionEnabled_ = false;
 
-    TPeriodicExecutorPtr FlushExecutor_;
-    TPeriodicExecutorPtr WatchExecutor_;
-    TPeriodicExecutorPtr CheckSpaceExecutor_;
-    TPeriodicExecutorPtr DiskProfilingExecutor_;
-    TPeriodicExecutorPtr AnchorProfilingExecutor_;
-    TPeriodicExecutorPtr DequeueExecutor_;
+    const TPeriodicExecutorPtr DiskProfilingExecutor_;
+    const TPeriodicExecutorPtr AnchorProfilingExecutor_;
+    const TPeriodicExecutorPtr DequeueExecutor_;
+    const TPeriodicExecutorPtr FlushExecutor_;
+    const TPeriodicExecutorPtr WatchExecutor_;
+    const TPeriodicExecutorPtr CheckSpaceExecutor_;
 
     std::unique_ptr<TNotificationHandle> NotificationHandle_;
     std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches_;
