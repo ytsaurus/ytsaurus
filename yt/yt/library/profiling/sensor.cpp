@@ -2,6 +2,7 @@
 #include "impl.h"
 
 #include <yt/yt/library/assert/assert.h>
+
 #include <yt/yt/library/string/format.h>
 
 #include <util/system/compiler.h>

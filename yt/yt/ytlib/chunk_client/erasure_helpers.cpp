@@ -11,9 +11,10 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/yt/core/misc/assert.h>
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/numeric_helpers.h>
+
+#include <yt/yt/library/assert/assert.h>
 
 #include <util/random/random.h>
 

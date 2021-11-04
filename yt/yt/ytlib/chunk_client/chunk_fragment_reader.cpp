@@ -24,7 +24,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/assert.h>
 #include <yt/yt/core/misc/async_expiring_cache.h>
 #include <yt/yt/core/misc/intrusive_ptr.h>
 #include <yt/yt/core/misc/ref_counted.h>
@@ -33,6 +32,8 @@
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/rpc/helpers.h>
+
+#include <yt/yt/library/assert/assert.h>
 
 namespace NYT::NChunkClient {
 

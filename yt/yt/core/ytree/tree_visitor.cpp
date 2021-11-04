@@ -5,10 +5,11 @@
 #include "convert.h"
 
 #include <yt/yt/core/misc/serialize.h>
-#include <yt/yt/core/misc/assert.h>
 
 #include <yt/yt/core/yson/producer.h>
 #include <yt/yt/core/yson/async_consumer.h>
+
+#include <yt/yt/library/assert/assert.h>
 
 namespace NYT::NYTree {
 

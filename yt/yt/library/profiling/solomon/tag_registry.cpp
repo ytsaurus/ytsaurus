@@ -1,8 +1,8 @@
 #include "tag_registry.h"
 
-#include <yt/yt/core/misc/assert.h>
-
 #include <yt/yt/core/profiling/profile_manager.h>
+
+#include <yt/yt/library/assert/assert.h>
 
 namespace NYT::NProfiling {
 
@@ -83,7 +83,7 @@ THashMap<TString, int> TTagRegistry::TopByKey() const
 TTagIdList TTagRegistry::EncodeLegacy(const TTagIdList& tagIds)
 {
     TTagIdList legacy;
-    
+
     for (auto tag : tagIds) {
         if (auto it = LegacyTags_.find(tag); it != LegacyTags_.end()) {
             legacy.push_back(it->second);

@@ -1,6 +1,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/core/misc/assert.h>
+#include <yt/yt/library/assert/assert.h>
 
 #include <util/generic/yexception.h>
 
@@ -18,7 +18,7 @@ using ::testing::Throw;
 class TCallee
 {
 public:
-    virtual ~TCallee() { }
+    virtual ~TCallee() = default;
     virtual bool F(bool passThrough, const char* comment) = 0;
 };
 

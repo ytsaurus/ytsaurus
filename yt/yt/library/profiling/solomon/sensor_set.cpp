@@ -1,11 +1,11 @@
 #include "sensor_set.h"
 #include "private.h"
 
-#include <library/cpp/monlib/metrics/summary_snapshot.h>
-
 #include <yt/yt/core/profiling/profile_manager.h>
 
-#include <yt/yt/core/misc/assert.h>
+#include <yt/yt/library/assert/assert.h>
+
+#include <library/cpp/monlib/metrics/summary_snapshot.h>
 
 namespace NYT::NProfiling {
 

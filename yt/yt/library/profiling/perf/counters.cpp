@@ -8,10 +8,11 @@
 #include <sys/syscall.h>
 #endif
 
-#include <yt/yt/core/misc/assert.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/singleton.h>
+
+#include <yt/yt/library/assert/assert.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
@@ -25,17 +26,17 @@ struct TPerfEventDescription final
     int EventConfig;
 };
 
-constexpr TPerfEventDescription SoftwareEvent(const int perfName) noexcept 
+constexpr TPerfEventDescription SoftwareEvent(const int perfName) noexcept
 {
     return {PERF_TYPE_SOFTWARE, perfName};
 }
 
-constexpr TPerfEventDescription HardwareEvent(const int perfName) noexcept 
+constexpr TPerfEventDescription HardwareEvent(const int perfName) noexcept
 {
     return {PERF_TYPE_HARDWARE, perfName};
 }
 
-enum class ECacheEventType 
+enum class ECacheEventType
 {
     Access,
     Miss,
@@ -50,7 +51,7 @@ enum class ECacheActionType
 TPerfEventDescription CacheEvent(
     const int perfName,
     const ECacheActionType eventType,
-    const ECacheEventType eventResultType) noexcept 
+    const ECacheEventType eventResultType) noexcept
 {
     constexpr auto kEventNameShift = 0;
     constexpr auto kCacheActionTypeShift = 8;
@@ -66,7 +67,7 @@ TPerfEventDescription CacheEvent(
             YT_ABORT();
         }
     }();
-    
+
     const int eventTypeForConfig = [&] {
         switch (eventResultType) {
         case ECacheEventType::Access:
@@ -78,8 +79,8 @@ TPerfEventDescription CacheEvent(
         }
     }();
 
-    const int eventConfig = (perfName << kEventNameShift) | 
-        (cacheActionTypeForConfig << kCacheActionTypeShift) | 
+    const int eventConfig = (perfName << kEventNameShift) |
+        (cacheActionTypeForConfig << kCacheActionTypeShift) |
         (eventTypeForConfig << kEventTypeShift);
 
     return {PERF_TYPE_HW_CACHE, eventConfig};
@@ -155,7 +156,7 @@ TPerfEventDescription GetDescription(EPerfEventType type)
     }
 }
 
-int OpenPerfEvent(int tid, int eventType, int eventConfig) 
+int OpenPerfEvent(int tid, int eventType, int eventConfig)
 {
     perf_event_attr attr{};
 
@@ -184,7 +185,7 @@ ui64 FetchPerfCounter(const int fd)
     return num;
 }
 
-void SetPerfEventEnableMode(const bool enable, const int fd) 
+void SetPerfEventEnableMode(const bool enable, const int fd)
 {
     const auto ioctlArg = enable ? PERF_EVENT_IOC_ENABLE : PERF_EVENT_IOC_DISABLE;
     if (ioctl(fd, ioctlArg, 0) == -1) {

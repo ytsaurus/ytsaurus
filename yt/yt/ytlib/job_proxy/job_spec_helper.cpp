@@ -14,11 +14,11 @@
 
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/yt/core/misc/assert.h>
-
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/yson/string.h>
+
+#include <yt/yt/library/assert/assert.h>
 
 namespace NYT::NJobProxy {
 
