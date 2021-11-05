@@ -216,7 +216,7 @@ private:
         std::vector<std::vector<ui32>> WriteRevisions;
     };
 
-    void LoadRow(TVersionedRow row, TLoadScratchData* scratchData, const TTimestamp* lastReadLockTimestamps);
+    void LoadRow(TVersionedRow row, TLoadScratchData* scratchData);
     ui32 CaptureTimestamp(TTimestamp timestamp, TTimestampToRevisionMap* scratchData);
     ui32 CaptureVersionedValue(TDynamicValue* dst, const TVersionedValue& src, TTimestampToRevisionMap* scratchData);
 
