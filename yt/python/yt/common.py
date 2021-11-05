@@ -190,45 +190,6 @@ class YtError(Exception):
             YtError._cached_fqdn = socket.getfqdn()
         return YtError._cached_fqdn
 
-class YtResponseError(YtError):
-    """Represents an error in YT response."""
-    def __init__(self, underlying_error):
-        super(YtResponseError, self).__init__()
-        self.message = "Received response with error"
-        self._underlying_error = underlying_error
-        self.inner_errors = [self._underlying_error]
-
-    # Common response error properties.
-    @property
-    def params(self):
-        return self.attributes.get("params")
-
-    # HTTP response interface.
-    @property
-    def url(self):
-        """ Returns url for HTTP response error"""
-        return self.attributes.get("url")
-
-    @property
-    def headers(self):
-        """ COMPAT: Returns request headers for HTTP response error"""
-        return self.attributes.get("request_headers")
-    
-    @property
-    def error(self):
-        """ COMPAT: Returns underlying error"""
-        return self._underlying_error
-
-    @property
-    def request_headers(self):
-        """ Returns request headers for HTTP response error"""
-        return self.attributes.get("request_headers")
-
-    @property
-    def response_headers(self):
-        """ Returns response headers for HTTP response error"""
-        return self.attributes.get("response_headers")
-
     # Error differentiation methods.
     def is_operation_progress_outdated(self):
         """ Operation progress in Cypress is outdated while archive request failed """
@@ -353,6 +314,46 @@ class YtResponseError(YtError):
     def is_blocked_row_wait_timeout(self):
         """Timed out waiting on blocked row"""
         return self.contains_code(1713)
+
+
+class YtResponseError(YtError):
+    """Represents an error in YT response."""
+    def __init__(self, underlying_error):
+        super(YtResponseError, self).__init__()
+        self.message = "Received response with error"
+        self._underlying_error = underlying_error
+        self.inner_errors = [self._underlying_error]
+
+    # Common response error properties.
+    @property
+    def params(self):
+        return self.attributes.get("params")
+
+    # HTTP response interface.
+    @property
+    def url(self):
+        """ Returns url for HTTP response error"""
+        return self.attributes.get("url")
+
+    @property
+    def headers(self):
+        """ COMPAT: Returns request headers for HTTP response error"""
+        return self.attributes.get("request_headers")
+
+    @property
+    def error(self):
+        """ COMPAT: Returns underlying error"""
+        return self._underlying_error
+
+    @property
+    def request_headers(self):
+        """ Returns request headers for HTTP response error"""
+        return self.attributes.get("request_headers")
+
+    @property
+    def response_headers(self):
+        """ Returns response headers for HTTP response error"""
+        return self.attributes.get("response_headers")
 
     def __reduce__(self):
         return (_reconstruct_yt_response_error, (type(self), self.message, self.attributes, self._underlying_error, self.inner_errors))
