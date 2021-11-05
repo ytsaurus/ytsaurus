@@ -598,7 +598,7 @@ public:
         auto lowBacklogWatermark = LowBacklogWatermark_.load(std::memory_order_relaxed);
         auto highBacklogWatermark = HighBacklogWatermark_.load(std::memory_order_relaxed);
         if (Suspended_.load(std::memory_order_relaxed)) {
-            if (backlogEvents < LowBacklogWatermark_) {
+            if (backlogEvents < lowBacklogWatermark) {
                 Suspended_.store(false, std::memory_order_relaxed);
                 YT_LOG_INFO("Backlog size has dropped below low watermark, logging resumed (LowBacklogWatermark: %v)",
                     lowBacklogWatermark);
