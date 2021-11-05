@@ -161,6 +161,9 @@ public:
 
     TDuration LocalReadExecutorQuantumDuration;
 
+    //! Sessions processing callback will not be executed more than once in #ProcessSessionsPeriod.
+    TDuration ProcessSessionsPeriod;
+
     TDynamicObjectServiceConfig()
     {
         RegisterParameter("enable_two_level_cache", EnableTwoLevelCache)
@@ -177,6 +180,10 @@ public:
 
         RegisterParameter("local_read_executor_quantum_duration", LocalReadExecutorQuantumDuration)
             .Default(TDuration::MilliSeconds(10));
+
+        RegisterParameter("process_sessions_period", ProcessSessionsPeriod)
+            .Default(TDuration::MilliSeconds(10))
+            .DontSerializeDefault();
     }
 };
 

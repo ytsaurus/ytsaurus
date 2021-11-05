@@ -237,6 +237,7 @@ private:
     TMpscStack<TExecuteSessionInfo> FinishedSessionInfos_;
 
     std::atomic<bool> ProcessSessionsCallbackEnqueued_ = false;
+    TInstant LastProcessSessionsStart_;
 
     TStickyUserErrorCache StickyUserErrorCache_;
     std::atomic<bool> EnableTwoLevelCache_ = false;
@@ -2187,10 +2188,18 @@ void TObjectService::ProcessSessions()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    auto now = TInstant::Now();
+    auto processSessionsPeriod = GetDynamicConfig()->ProcessSessionsPeriod;
+    if (processSessionsPeriod && now < LastProcessSessionsStart_ + processSessionsPeriod) {
+        auto delay = LastProcessSessionsStart_ + processSessionsPeriod - now;
+        TDelayedExecutor::WaitForDuration(delay);
+    }
+
     auto startTime = GetCpuInstant();
     auto deadlineTime = startTime + DurationToCpuDuration(Config_->YieldTimeout);
 
     ProcessSessionsCallbackEnqueued_.store(false);
+    LastProcessSessionsStart_ = now;
 
     FinishedSessionInfos_.DequeueAll(false, [&] (const TExecuteSessionInfo& sessionInfo) {
         FinishSession(sessionInfo);
