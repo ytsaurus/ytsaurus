@@ -64,6 +64,10 @@ b"""
         gc_sweep_period = 10;
     };
 
+    object_service = {
+        process_sessions_period = 1;
+    };
+
     security_manager = {
         account_statistics_gossip_period = 200;
         request_rate_smoothing_period = 60000;
