@@ -49,6 +49,8 @@ constexpr size_t TransactionWriteLogChunkSize = 256;
 using TTransactionWriteLog = TPersistentQueue<TTransactionWriteRecord, TransactionWriteLogChunkSize>;
 using TTransactionWriteLogSnapshot = TPersistentQueueSnapshot<TTransactionWriteRecord, TransactionWriteLogChunkSize>;
 
+i64 GetWriteLogRowCount(const TTransactionWriteLog& writeLog);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransaction
@@ -76,6 +78,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TTransactionSignature, PersistentSignature, InitialTransactionSignature);
     DEFINE_BYVAL_RW_PROPERTY(TTransactionSignature, TransientSignature, InitialTransactionSignature);
+    DEFINE_BYVAL_RW_PROPERTY(TTransactionGeneration, PersistentGeneration, InitialTransactionGeneration);
+    DEFINE_BYVAL_RW_PROPERTY(TTransactionGeneration, TransientGeneration, InitialTransactionGeneration);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, RowsPrepared, false);
     DEFINE_BYREF_RW_PROPERTY(NRpc::TAuthenticationIdentity, AuthenticationIdentity);

@@ -173,6 +173,7 @@ message TReqWriteRows
     required int32 codec = 7;
     required bytes compressed_data = 8;
     optional uint32 signature = 9;
+    optional uint32 generation = 16;
     required bool lockless = 10;
     required int32 row_count = 11;
     repeated NYT.NProto.TGuid sync_replica_ids = 12;

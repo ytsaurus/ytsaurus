@@ -16,8 +16,8 @@ public:
         IInvokerPtr automatonInvoker,
         TReign reign);
 
-    void ApplyUpTo(int sequenceNumber);
-    void ApplyAll();
+    void ApplyUpTo(int sequenceNumber, bool recovery = false);
+    void ApplyAll(bool recovery = false);
     int GetPendingMutationCount() const;
     int GetAppliedSequenceNumber() const;
     int GetCommittedSequenceNumber() const;
@@ -32,20 +32,6 @@ public:
     void LoadSnapshot(const TSnapshot& snapshot);
     void SaveLoad();
 
-private:
-    const TCompositeAutomatonPtr Automaton_;
-    const IInvokerPtr AutomatonInvoker_;
-    TReign Reign_;
-
-    const TCancelableContextPtr CancelableContext = New<TCancelableContext>();
-    std::deque<TMutationRequest> MutationRequests_;
-    std::deque<TPromise<TMutationResponse>> MutationResponsePromises_;
-    int AppliedSequenceNumber_ = 0;
-
-    void DoApplyUpTo(int sequenceNumber);
-    TSnapshot DoSaveSnapshot();
-    void DoLoadSnapshot(const TSnapshot& snapshot);
-
     // ISimpleHydraManager overrides.
 
     TFuture<TMutationResponse> CommitMutation(TMutationRequest&& request) override;
@@ -55,6 +41,9 @@ private:
     bool IsActiveLeader() const override;
     bool IsActiveFollower() const override;
     TCancelableContextPtr GetAutomatonCancelableContext() const override;
+
+    // NB: semantics for these signals is not properly reproduced. Only the
+    // parts necessary for tablet write manager are introduced.
 
     DEFINE_SIGNAL_OVERRIDE(void(), StartLeading);
     DEFINE_SIGNAL_OVERRIDE(void(), AutomatonLeaderRecoveryComplete);
@@ -66,6 +55,22 @@ private:
     DEFINE_SIGNAL_OVERRIDE(void(), AutomatonFollowerRecoveryComplete);
     DEFINE_SIGNAL_OVERRIDE(void(), ControlFollowerRecoveryComplete);
     DEFINE_SIGNAL_OVERRIDE(void(), StopFollowing);
+
+private:
+    const TCompositeAutomatonPtr Automaton_;
+    const IInvokerPtr AutomatonInvoker_;
+    TReign Reign_;
+
+    const TCancelableContextPtr CancelableContext = New<TCancelableContext>();
+    std::deque<TMutationRequest> MutationRequests_;
+    std::deque<TPromise<TMutationResponse>> MutationResponsePromises_;
+    int AppliedSequenceNumber_ = 0;
+
+    std::optional<int> InRecoveryUntilSequenceNumber_;
+
+    void DoApplyUpTo(int sequenceNumber);
+    TSnapshot DoSaveSnapshot();
+    void DoLoadSnapshot(const TSnapshot& snapshot);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSimpleHydraManagerMock)

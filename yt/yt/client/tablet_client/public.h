@@ -68,6 +68,7 @@ DEFINE_ENUM(EErrorCode,
     ((UserWriteBlockedByReplicator)           (1728))
     ((CannotCheckConflictsAgainstChunkStore)  (1729))
     ((InvalidBackupState)                     (1730))
+    ((WriteRetryIsImpossible)                 (1731))
 );
 
 DEFINE_ENUM(EInMemoryMode,
@@ -162,6 +163,10 @@ DEFINE_ENUM(ETabletActionState,
     ((Failing)                  (8))
     ((Failed)                   (9))
 );
+
+DEFINE_ENUM(ETabletServiceFeatures,
+    ((WriteGenerations)         (0))
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 

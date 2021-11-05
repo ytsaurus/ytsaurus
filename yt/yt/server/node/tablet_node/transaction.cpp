@@ -65,6 +65,15 @@ i64 TTransactionWriteRecord::GetByteSize() const
     return Data.Size();
 }
 
+i64 GetWriteLogRowCount(const TTransactionWriteLog& writeLog)
+{
+    i64 result = 0;
+    for (const auto& entry : writeLog) {
+        result += entry.RowCount;
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransaction::TTransaction(TTransactionId id)
@@ -85,6 +94,7 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, GetPersistentPrepareTimestamp());
     Save(context, CommitTimestamp_);
     Save(context, PersistentSignature_);
+    Save(context, PersistentGeneration_);
     Save(context, RowsPrepared_);
     Save(context, AuthenticationIdentity_.User);
     Save(context, AuthenticationIdentity_.UserTag);
@@ -105,6 +115,11 @@ void TTransaction::Load(TLoadContext& context)
     Load(context, CommitTimestamp_);
     Load(context, PersistentSignature_);
     TransientSignature_ = PersistentSignature_;
+    // COMPAT(max42)
+    if (context.GetVersion() >= ETabletReign::WriteGenerations) {
+        Load(context, PersistentGeneration_);
+        TransientGeneration_ = PersistentGeneration_;
+    }
     Load(context, RowsPrepared_);
     Load(context, AuthenticationIdentity_.User);
     // COMPAT(babenko)

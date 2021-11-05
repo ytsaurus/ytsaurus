@@ -739,6 +739,7 @@ private:
             }
             transaction->SetState(transaction->GetPersistentState());
             transaction->SetTransientSignature(transaction->GetPersistentSignature());
+            transaction->SetTransientGeneration(transaction->GetPersistentGeneration());
             transaction->ResetFinished();
             TransactionTransientReset_.Fire(transaction);
             CloseLease(transaction);
