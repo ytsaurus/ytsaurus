@@ -79,6 +79,7 @@ public:
         TTimestamp transactionStartTimestamp,
         TDuration transactionTimeout,
         TTransactionSignature signature,
+        TTransactionGeneration generation,
         int rowCount,
         size_t dataWeight,
         bool versioned,
@@ -97,6 +98,24 @@ public:
         auto atomicity = AtomicityFromTransactionId(transactionId);
         if (atomicity == EAtomicity::None) {
             ValidateClientTimestamp(transactionId);
+        }
+
+        if (generation > InitialTransactionGeneration) {
+            if (versioned) {
+                THROW_ERROR_EXCEPTION(
+                    NTabletClient::EErrorCode::WriteRetryIsImpossible,
+                    "Retrying versioned writes is not supported");
+            }
+            if (replicatorWrite) {
+                THROW_ERROR_EXCEPTION(
+                    NTabletClient::EErrorCode::WriteRetryIsImpossible,
+                    "Retrying replicator writes is not supported");
+            }
+            if (atomicity == EAtomicity::None) {
+                THROW_ERROR_EXCEPTION(
+                    NTabletClient::EErrorCode::WriteRetryIsImpossible,
+                    "Retrying non-atomic writes is not supported");
+            }
         }
 
         tabletSnapshot->TabletRuntimeData->ModificationTime = NProfiling::GetInstant();
@@ -148,6 +167,29 @@ public:
                     true,
                     &transactionIsFresh);
                 ValidateTransactionActive(transaction);
+
+                if (generation > transaction->GetTransientGeneration()) {
+                    // Promote transaction transient generation and clear the transaction transient state.
+                    // In particular, we abort all rows that were prelocked or locked by the previous batches of our generation,
+                    // but that is perfectly fine.
+                    PromoteTransientGeneration(transaction, generation);
+                } else if (generation < transaction->GetTransientGeneration()) {
+                    // We may get here in two sitations. The first one is when Write RPC call was late to arrive,
+                    // while the second one is trickier. It happens in the case when next generation arrived while our
+                    // fiber was waiting on the blocked row. In both cases we are not going to enqueue any more mutations
+                    // in order to ensure monotonicity of mutation generations which is an important invariant.
+                    YT_LOG_DEBUG(
+                        "Stopping obsolete generation write (TabletId: %v, TransactionId: %v, Generation: %x, TransientGeneration: %x)",
+                        tabletId,
+                        transactionId,
+                        generation,
+                        transaction->GetTransientGeneration());
+                    // Client already decided to go on with the next generation of rows, so we are ok to even ignore
+                    // possible commit errors. Note that the result of this particular write does not affect the outcome of the
+                    // transaction any more, so we are safe to lose some of freshly enqueued mutations.
+                    *commitResult = VoidFuture;
+                    return;
+                }
             }
 
             TWriteContext context;
@@ -171,10 +213,11 @@ public:
                 if (!reader->IsFinished()) {
                     adjustedSignature = 0;
                 }
-                YT_LOG_DEBUG_IF(context.RowCount > 0, "Rows prelocked (TransactionId: %v, TabletId: %v, RowCount: %v, Signature: %x)",
+                YT_LOG_DEBUG_IF(context.RowCount > 0, "Rows prelocked (TransactionId: %v, TabletId: %v, RowCount: %v, Generation: %x, Signature: %x)",
                     transactionId,
                     tabletId,
                     context.RowCount,
+                    generation,
                     adjustedSignature);
             }
             auto readerAfter = reader->GetCurrent();
@@ -202,6 +245,7 @@ public:
                 hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
                 hydraRequest.set_compressed_data(ToString(compressedRecordData));
                 hydraRequest.set_signature(adjustedSignature);
+                hydraRequest.set_generation(generation);
                 hydraRequest.set_lockless(lockless);
                 hydraRequest.set_row_count(writeRecord.RowCount);
                 hydraRequest.set_data_weight(writeRecord.DataWeight);
@@ -215,6 +259,7 @@ public:
                     transactionId,
                     tablet->GetMountRevision(),
                     adjustedSignature,
+                    generation,
                     lockless,
                     writeRecord,
                     identity));
@@ -350,6 +395,7 @@ private:
         TTransactionId transactionId,
         NHydra::TRevision mountRevision,
         TTransactionSignature signature,
+        TTransactionGeneration generation,
         bool lockless,
         const TTransactionWriteRecord& writeRecord,
         const NRpc::TAuthenticationIdentity& identity,
@@ -363,7 +409,7 @@ private:
         auto* tablet = PrelockedTablets_.front();
         PrelockedTablets_.pop();
         YT_VERIFY(tablet->GetId() == writeRecord.TabletId);
-        auto finallyGuard = Finally([&]() {
+        auto finallyGuard = Finally([&] {
             UnlockTablet(tablet);
         });
 
@@ -385,50 +431,83 @@ private:
                 const auto& transactionManager = Host_->GetTransactionManager();
                 transaction = transactionManager->MakeTransactionPersistent(transactionId);
 
-                if (lockless) {
-                    transaction->LockedTablets().push_back(tablet);
-                    LockTablet(tablet);
-
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Prelocked tablet confirmed (TabletId: %v, TransactionId: %v, "
-                        "RowCount: %v, LockCount: %v)",
-                        writeRecord.TabletId,
-                        transactionId,
-                        writeRecord.RowCount,
-                        tablet->GetTabletLockCount());
-                } else {
-                    auto& prelockedRows = transaction->PrelockedRows();
-                    for (int index = 0; index < writeRecord.RowCount; ++index) {
-                        YT_ASSERT(!prelockedRows.empty());
-                        auto rowRef = prelockedRows.front();
-                        prelockedRows.pop();
-                        if (Host_->ValidateAndDiscardRowRef(rowRef)) {
-                            rowRef.StoreManager->ConfirmRow(transaction, rowRef);
-                        }
-                    }
-
-                    YT_LOG_DEBUG("Prelocked rows confirmed (TabletId: %v, TransactionId: %v, RowCount: %v)",
-                        writeRecord.TabletId,
-                        transactionId,
-                        writeRecord.RowCount);
-                }
-
-                bool immediate = tablet->GetCommitOrdering() == ECommitOrdering::Weak;
-                auto* writeLog = immediate
-                    ? (lockless ? &transaction->ImmediateLocklessWriteLog() : &transaction->ImmediateLockedWriteLog())
-                    : &transaction->DelayedLocklessWriteLog();
-                EnqueueTransactionWriteRecord(transaction, tablet, writeLog, writeRecord, signature);
-
-                YT_LOG_DEBUG_UNLESS(writeLog == &transaction->ImmediateLockedWriteLog(),
-                    "Rows batched (TabletId: %v, TransactionId: %v, WriteRecordSize: %v, Immediate: %v, Lockless: %v)",
+                YT_LOG_DEBUG_IF(
+                    IsMutationLoggingEnabled(),
+                    "Performing atomic write as leader (TabletId: %v, TransactionId: %v, BatchGeneration: %x, "
+                    "TransientGeneration: %x, PersistentGeneration: %x)",
                     writeRecord.TabletId,
                     transactionId,
-                    writeRecord.GetByteSize(),
-                    immediate,
-                    lockless);
+                    generation,
+                    transaction->GetTransientGeneration(),
+                    transaction->GetPersistentGeneration());
+
+                // Monotonicity of persistent generations is ensured by the early finish in #Write whenever the
+                // current batch is obsolete.
+                YT_VERIFY(generation >= transaction->GetPersistentGeneration());
+                YT_VERIFY(generation <= transaction->GetTransientGeneration());
+                if (generation > transaction->GetPersistentGeneration()) {
+                    // Promote persistent generation and also clear current persistent transaction state (i.e. write logs).
+                    PromotePersistentGeneration(transaction, generation);
+                }
+
+                // Note that the scope below affects only the transient state.
+                // As a consequence, if the transient generation was promoted ahead of us, we should not do
+                // anything here.
+                if (generation == transaction->GetTransientGeneration()) {
+                    if (lockless) {
+                        transaction->LockedTablets().push_back(tablet);
+                        LockTablet(tablet);
+
+                        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Prelocked tablet confirmed (TabletId: %v, TransactionId: %v, "
+                            "RowCount: %v, LockCount: %v)",
+                            writeRecord.TabletId,
+                            transactionId,
+                            writeRecord.RowCount,
+                            tablet->GetTabletLockCount());
+                    } else {
+                        auto& prelockedRows = transaction->PrelockedRows();
+                        for (int index = 0; index < writeRecord.RowCount; ++index) {
+                            YT_ASSERT(!prelockedRows.empty());
+                            auto rowRef = prelockedRows.front();
+                            prelockedRows.pop();
+                            if (Host_->ValidateAndDiscardRowRef(rowRef)) {
+                                rowRef.StoreManager->ConfirmRow(transaction, rowRef);
+                            }
+                        }
+
+                        YT_LOG_DEBUG("Prelocked rows confirmed (TabletId: %v, TransactionId: %v, RowCount: %v)",
+                            writeRecord.TabletId,
+                            transactionId,
+                            writeRecord.RowCount);
+                    }
+                }
+
+                // Scope below actually affects the persistent state, so it should be executed in any case,
+                // even if the generation of a batch is behind the current transient generation.
+                {
+                    bool immediate = tablet->GetCommitOrdering() == ECommitOrdering::Weak;
+                    auto* writeLog = immediate
+                        ? (lockless ? &transaction->ImmediateLocklessWriteLog() : &transaction->ImmediateLockedWriteLog())
+                        : &transaction->DelayedLocklessWriteLog();
+                    EnqueueTransactionWriteRecord(transaction, tablet, writeLog, writeRecord, signature);
+
+                    YT_LOG_DEBUG_UNLESS(writeLog == &transaction->ImmediateLockedWriteLog(),
+                        "Rows batched (TabletId: %v, TransactionId: %v, WriteRecordSize: %v, RowCount: %v, Generation: %x, Immediate: %v, Lockless: %v)",
+                        writeRecord.TabletId,
+                        transactionId,
+                        writeRecord.GetByteSize(),
+                        writeRecord.RowCount,
+                        generation,
+                        immediate,
+                        lockless);
+                }
                 break;
             }
 
             case EAtomicity::None: {
+                // This is ensured by a corresponding check in #Write.
+                YT_VERIFY(generation == InitialTransactionGeneration);
+
                 if (tablet->GetState() == ETabletState::Orphaned) {
                     YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet is orphaned; non-atomic write ignored "
                         "(%v, TransactionId: %v)",
@@ -473,6 +552,7 @@ private:
         auto transactionStartTimestamp = request->transaction_start_timestamp();
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
         auto signature = request->signature();
+        auto generation = request->generation();
         auto lockless = request->lockless();
         auto rowCount = request->row_count();
         auto dataWeight = request->data_weight();
@@ -512,6 +592,27 @@ private:
                     transactionTimeout,
                     false);
 
+                YT_LOG_DEBUG_IF(
+                    IsMutationLoggingEnabled(),
+                    "Performing atomic write as follower (TabletId: %v, TransactionId: %v, BatchGeneration: %x, PersistentGeneration: %x)",
+                    tabletId,
+                    transactionId,
+                    generation,
+                    transaction->GetPersistentGeneration());
+
+                // This invariant holds during recovery.
+                YT_VERIFY(transaction->GetPersistentGeneration() == transaction->GetTransientGeneration());
+                // Monotonicity of persistent generations is ensured by the early finish in #Write whenever the
+                // current batch is obsolete.
+                YT_VERIFY(transaction->GetPersistentGeneration() <= generation);
+                if (generation > transaction->GetPersistentGeneration()) {
+                    // While in recovery, we are responsible for keeping both transient and persistent state up-to-date.
+                    // Hence, generation promotion must be handles as a combination of transient and persistent generation promotions
+                    // from the regular leader case.
+                    PromoteTransientGeneration(transaction, generation);
+                    PromotePersistentGeneration(transaction, generation);
+                }
+
                 bool immediate = tablet->GetCommitOrdering() == ECommitOrdering::Weak;
                 auto* writeLog = immediate
                     ? (lockless ? &transaction->ImmediateLocklessWriteLog() : &transaction->ImmediateLockedWriteLog())
@@ -550,7 +651,11 @@ private:
                 break;
             }
 
+
             case EAtomicity::None: {
+                // This is ensured by a corresponding check in #Write.
+                YT_VERIFY(generation == InitialTransactionGeneration);
+
                 TWriteContext context;
                 context.Phase = EWritePhase::Commit;
                 context.CommitTimestamp = TimestampFromTransactionId(transactionId);
@@ -757,12 +862,11 @@ private:
 
             ++lockedRowCount;
             FinishTabletCommit(rowRef.Store->GetTablet(), transaction, commitTimestamp);
+            auto* tablet = rowRef.StoreManager->GetTablet();
             rowRef.StoreManager->CommitRow(transaction, rowRef);
+            Host_->OnTabletRowUnlocked(tablet);
         }
         lockedRows.clear();
-
-        // Check if above CommitRow calls caused store locks to be released.
-        OnTransactionLockedRowsUnlocked(transaction);
 
         int locklessRowCount = 0;
         SmallVector<TTablet*, 16> locklessTablets;
@@ -927,23 +1031,14 @@ private:
 
     void OnTransactionAborted(TTransaction* transaction)
     {
-        YT_VERIFY(transaction->PrelockedRows().empty());
-        auto lockedRowCount = transaction->LockedRows().size();
-        auto& lockedRows = transaction->LockedRows();
-        while (!lockedRows.empty()) {
-            auto rowRef = lockedRows.back();
-            lockedRows.pop_back();
-            if (Host_->ValidateAndDiscardRowRef(rowRef)) {
-                rowRef.StoreManager->AbortRow(transaction, rowRef);
-            }
-        }
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled() && lockedRowCount > 0,
-            "Locked rows aborted (TransactionId: %v, RowCount: %v)",
-            transaction->GetId(),
-            lockedRowCount);
+        YT_VERIFY(HasMutationContext());
 
-        // Check if above AbortRow calls caused store locks to be released.
-        OnTransactionLockedRowsUnlocked(transaction);
+        // OnTransactionAborted is always invoked by the transaction supervisor after
+        // preparing the transaction abort during which new write mutations are prevented from scheduling.
+        // Thus, by this moment there should be no mutations in flight.
+        YT_VERIFY(transaction->PrelockedRows().empty());
+
+        AbortLockedRows(transaction);
 
         auto lockedTabletCount = transaction->LockedTablets().size();
         UnlockLockedTablets(transaction);
@@ -1001,21 +1096,128 @@ private:
             }
         }
 
+        DropTransactionWriteLogs(transaction);
+    }
+
+    //! This method erases write logs properly, also discounting them from the memory tracker
+    //! and the versioned/unversioned barrier counters.
+    void DropTransactionWriteLogs(TTransaction* transaction)
+    {
+        YT_VERIFY(HasMutationContext());
+
+        auto immediateLockedRowCount = GetWriteLogRowCount(transaction->ImmediateLockedWriteLog());
+        auto immediateLocklessRowCount = GetWriteLogRowCount(transaction->ImmediateLocklessWriteLog());
+        auto delayedLocklessRowCount = GetWriteLogRowCount(transaction->DelayedLocklessWriteLog());
+
+        YT_LOG_DEBUG_IF(
+            IsMutationLoggingEnabled() && (immediateLockedRowCount > 0 || immediateLocklessRowCount > 0 || delayedLocklessRowCount > 0),
+            "Dropping transaction write logs (ImmediateLockedRowCount: %v, ImmediateLocklessRowCount: %v, DelayedLocklessRowCount: %v)",
+            immediateLockedRowCount,
+            immediateLocklessRowCount,
+            delayedLocklessRowCount);
+
         DropTransactionWriteLog(transaction, &transaction->ImmediateLockedWriteLog());
         DropTransactionWriteLog(transaction, &transaction->ImmediateLocklessWriteLog());
         DropTransactionWriteLog(transaction, &transaction->DelayedLocklessWriteLog());
     }
 
-    void OnTransactionTransientReset(TTransaction* transaction)
+    //! This method aborts all rows that are prelocked by the transaction and erases
+    //! the (transient) list of prelocked row refs.
+    void AbortPrelockedRows(TTransaction* transaction)
     {
-        auto& prelockedRows = transaction->PrelockedRows();
-        while (!prelockedRows.empty()) {
-            auto rowRef = prelockedRows.front();
-            prelockedRows.pop();
+        // This method may be called either with or without a mutation context.
+
+        auto prelockedRowCount = transaction->PrelockedRows().size();
+        for (const auto& rowRef : TRingQueueIterableWrapper(transaction->PrelockedRows())) {
             if (Host_->ValidateAndDiscardRowRef(rowRef)) {
+                auto* tablet = rowRef.StoreManager->GetTablet();
                 rowRef.StoreManager->AbortRow(transaction, rowRef);
+                Host_->OnTabletRowUnlocked(tablet);
             }
         }
+
+        transaction->PrelockedRows().clear();
+
+        YT_LOG_DEBUG_IF(
+            prelockedRowCount != 0,
+            "Prelocked rows aborted (TransactionId: %v, RowCount: %v)",
+            transaction->GetId(),
+            prelockedRowCount);
+    }
+
+    //! This method aborts all rows that are locked by the transaction and erases
+    //! the (transient) list of locked row refs.
+    //! NB: it does not erase ImmediateLockedWriteLog as it is a part of the persistent state.
+    void AbortLockedRows(TTransaction* transaction)
+    {
+        // This method may be called either with or without a mutation context.
+
+        auto lockedRowCount = transaction->LockedRows().size();
+        for (const auto& rowRef : transaction->LockedRows()) {
+            if (Host_->ValidateAndDiscardRowRef(rowRef)) {
+                auto* tablet = rowRef.StoreManager->GetTablet();
+                rowRef.StoreManager->AbortRow(transaction, rowRef);
+                Host_->OnTabletRowUnlocked(tablet);
+            }
+        }
+
+        transaction->LockedRows().clear();
+
+        YT_LOG_DEBUG_IF(lockedRowCount > 0,
+            "Locked rows aborted (TransactionId: %v, RowCount: %v)",
+            transaction->GetId(),
+            lockedRowCount);
+    }
+
+    //! This method promotes transaction transient generation and also resets its transient state.
+    //! In particular, it aborts all row locks in sorted dynamic stores induced by the transaction,
+    //! and resets (transient) lists of prelocked and locked row refs.
+    void PromoteTransientGeneration(TTransaction* transaction, TTransactionGeneration generation)
+    {
+        // This method may be called either with or without a mutation context.
+
+        YT_LOG_DEBUG(
+            "Promoting transaction transient generation (TransactionId: %v, TransientGeneration: %x -> %x)",
+            transaction->GetId(),
+            transaction->GetTransientGeneration(),
+            generation);
+
+        transaction->SetTransientGeneration(generation);
+        transaction->SetTransientSignature(InitialTransactionSignature);
+
+        // We must abort both prelocked and locked rows to prevent new generation of rows from
+        // conflicts with earlier generations. Note that locks in the dynamic store are essentially transient.
+        AbortPrelockedRows(transaction);
+        AbortLockedRows(transaction);
+
+        // NB: it is ok not to unlock prelocked tablets since tablet locking is a lifetime ensurance mechanism
+        // in contrast to row prelocking/locking which is a conflict prevention mechanism. Moreover, we do not
+        // want the tablet to become fully unlocked while we still have in flight mutations, so it is better not
+        // to touch tablet locks here at all.
+    }
+
+    //! This method promotes transaction persistent generation and also resets its persistent state by
+    //! clearing all associated write logs.
+    void PromotePersistentGeneration(TTransaction* transaction, TTransactionGeneration generation)
+    {
+        YT_VERIFY(HasMutationContext());
+
+        YT_LOG_DEBUG_IF(
+            IsMutationLoggingEnabled(),
+            "Promoting transaction persistent generation (TransactionId: %v, PersistentGeneration: %x -> %x)",
+            transaction->GetId(),
+            transaction->GetPersistentGeneration(),
+            generation);
+
+        transaction->SetPersistentGeneration(generation);
+        transaction->SetPersistentSignature(InitialTransactionSignature);
+
+        DropTransactionWriteLogs(transaction);
+    }
+
+    void OnTransactionTransientReset(TTransaction* transaction)
+    {
+        AbortPrelockedRows(transaction);
     }
 
     void FinishTabletCommit(
@@ -1112,18 +1314,6 @@ private:
             transaction->GetId(),
             lockedRowCount,
             prelockedRowCount);
-    }
-
-    void OnTransactionLockedRowsUnlocked(TTransaction* transaction)
-    {
-        for (const auto& record : transaction->ImmediateLockedWriteLog()) {
-            auto* tablet = Host_->FindTablet(record.TabletId);
-            if (!tablet) {
-                continue;
-            }
-
-            Host_->OnTabletRowUnlocked(tablet);
-        }
     }
 
     void ValidateClientTimestamp(TTransactionId transactionId)

@@ -55,6 +55,7 @@ struct ITabletWriteManager
         TTimestamp transactionStartTimestamp,
         TDuration transactionTimeout,
         TTransactionSignature signature,
+        TTransactionGeneration generation,
         int rowCount,
         size_t dataWeight,
         bool versioned,

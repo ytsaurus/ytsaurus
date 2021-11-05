@@ -14,6 +14,7 @@ message TReqWrite
     required uint64 mount_revision = 5;
     required int32 durability = 6; // EDurability
     optional uint32 signature = 7;
+    optional uint32 generation = 14;
     required int32 request_codec = 8; // ECodec
     required int32 row_count = 9;
     required bool versioned = 10;

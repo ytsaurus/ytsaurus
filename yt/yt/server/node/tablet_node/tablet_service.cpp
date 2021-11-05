@@ -69,6 +69,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Write));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterTransactionActions));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Trim));
+
+        DeclareServerFeature(ETabletServiceFeatures::WriteGenerations);
     }
 
 private:
@@ -86,6 +88,7 @@ private:
         auto transactionStartTimestamp = request->transaction_start_timestamp();
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
         auto signature = request->signature();
+        auto generation = request->generation();
         auto rowCount = request->row_count();
         auto dataWeight = request->data_weight();
         auto requestCodecId = CheckedEnumCast<NCompression::ECodec>(request->request_codec());
@@ -99,7 +102,7 @@ private:
         auto durability = CheckedEnumCast<EDurability>(request->durability());
 
         context->SetRequestInfo("TabletId: %v, TransactionId: %v, TransactionStartTimestamp: %llx, "
-            "TransactionTimeout: %v, Atomicity: %v, Durability: %v, Signature: %x, RowCount: %v, DataWeight: %v, "
+            "TransactionTimeout: %v, Atomicity: %v, Durability: %v, Signature: %x, Generation: %x, RowCount: %v, DataWeight: %v, "
             "RequestCodec: %v, Versioned: %v, SyncReplicaIds: %v, UpstreamReplicaId: %v",
             tabletId,
             transactionId,
@@ -108,6 +111,7 @@ private:
             atomicity,
             durability,
             signature,
+            generation,
             rowCount,
             dataWeight,
             requestCodecId,
@@ -209,6 +213,7 @@ private:
                     transactionStartTimestamp,
                     transactionTimeout,
                     signature,
+                    generation,
                     rowCount,
                     dataWeight,
                     versioned,

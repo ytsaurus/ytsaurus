@@ -42,6 +42,8 @@ DEFINE_ENUM(ETabletReign,
     ((PersistChunkTimestamp)              (100203)) // ifsmirnov
     ((SchemaIdUponMount)                  (100204)) // akozhikhov
     ((VersionedWriteToOrderedTablet)      (100205)) // gritukan
+    // 21.3 starts here.
+    ((WriteGenerations)                   (100301)) // max42
 );
 
 ////////////////////////////////////////////////////////////////////////////////

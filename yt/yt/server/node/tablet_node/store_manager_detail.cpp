@@ -40,8 +40,8 @@ TStoreManagerBase::TStoreManagerBase(
     NHydra::IHydraManagerPtr hydraManager,
     IInMemoryManagerPtr inMemoryManager,
     NNative::IClientPtr client)
-    : Config_(config)
-    , Tablet_(tablet)
+    : Tablet_(tablet)
+    , Config_(config)
     , TabletContext_(tabletContext)
     , HydraManager_(std::move(hydraManager))
     , InMemoryManager_(std::move(inMemoryManager))

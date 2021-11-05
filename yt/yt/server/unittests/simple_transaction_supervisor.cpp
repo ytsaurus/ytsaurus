@@ -10,10 +10,6 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TLogger Logger("SimpleTransactionSupervisor");
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,7 +58,7 @@ TFuture<void> TSimpleTransactionSupervisor::PrepareTransactionCommit(
 
     auto mutation = CreateMutation(HydraManager_, request);
     mutation->SetCurrentTraceContext();
-    return mutation->CommitAndLog(Logger).Apply(BIND(&RecoverErrorFromMutationResponse));
+    return mutation->Commit().Apply(BIND(&RecoverErrorFromMutationResponse));
 }
 
 TFuture<void> TSimpleTransactionSupervisor::CommitTransaction(
@@ -75,7 +71,7 @@ TFuture<void> TSimpleTransactionSupervisor::CommitTransaction(
 
     auto mutation = CreateMutation(HydraManager_, request);
     mutation->SetCurrentTraceContext();
-    return mutation->CommitAndLog(Logger).Apply(BIND(&RecoverErrorFromMutationResponse));
+    return mutation->Commit().Apply(BIND(&RecoverErrorFromMutationResponse));
 }
 
 void TSimpleTransactionSupervisor::HydraPrepareTransactionCommit(TReqPrepareTransactionCommit* request)

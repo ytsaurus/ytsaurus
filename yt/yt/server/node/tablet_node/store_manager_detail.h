@@ -18,6 +18,9 @@ class TStoreManagerBase
     : public virtual IStoreManager
 {
 public:
+    DEFINE_BYVAL_RO_PROPERTY(TTablet*, Tablet)
+
+public:
     TStoreManagerBase(
         TTabletManagerConfigPtr config,
         TTablet* tablet,
@@ -91,7 +94,6 @@ public:
 
 protected:
     const TTabletManagerConfigPtr Config_;
-    TTablet* Tablet_;
     ITabletContext* const TabletContext_;
     const NHydra::IHydraManagerPtr HydraManager_;
     const IInMemoryManagerPtr InMemoryManager_;

@@ -237,11 +237,11 @@ protected:
 
     // Recall that  may wait on blocked row.
 
-    TFuture<void> WriteUnversionedRows(TTransactionId transactionId, std::vector<TUnversionedOwningRow> rows, TTransactionSignature signature = -1)
+    TFuture<void> WriteUnversionedRows(TTransactionId transactionId, std::vector<TUnversionedOwningRow> rows, TTransactionSignature signature = -1, TTransactionGeneration generation = 0)
     {
         auto* tablet = TabletSlot_->TabletManager()->Tablet();
         auto tabletSnapshot = tablet->BuildSnapshot(nullptr);
-        auto asyncResult = BIND([transactionId, rows = std::move(rows), signature, tabletWriteManager = TabletWriteManager(), tabletSnapshot] {
+        auto asyncResult = BIND([transactionId, rows = std::move(rows), signature, generation, tabletWriteManager = TabletWriteManager(), tabletSnapshot] {
             TWireProtocolWriter writer;
             i64 dataWeight = 0;
             for (const auto& row : rows) {
@@ -259,6 +259,7 @@ protected:
                 TimestampFromTransactionId(transactionId),
                 TDuration::Max(),
                 signature,
+                generation,
                 rows.size(),
                 dataWeight,
                 /*versioned*/ false,
@@ -306,6 +307,7 @@ protected:
                 TimestampFromTransactionId(transactionId),
                 TDuration::Max(),
                 signature,
+                /*generation*/ 0,
                 rows.size(),
                 dataWeight,
                 /*versioned*/ true,
@@ -363,6 +365,27 @@ protected:
         auto asyncPrepare = PrepareTransactionCommit(transactionId, persistent, prepareAndCommitTimestamp);
         auto asyncCommit = CommitTransaction(transactionId, prepareAndCommitTimestamp);
         return AllSucceeded<void>({asyncPrepare, asyncCommit});
+    }
+
+    void ExpectFullyUnlocked()
+    {
+        auto* tablet = TabletSlot_->TabletManager()->Tablet();
+
+        auto [lockCount, hasActiveLocks] = RunInAutomaton([&] {
+            return std::make_pair(tablet->GetTabletLockCount(), tablet->GetStoreManager()->HasActiveLocks());
+        });
+
+        EXPECT_EQ(0, lockCount);
+        EXPECT_FALSE(hasActiveLocks);
+    }
+
+    bool HasActiveStoreLocks()
+    {
+        auto* tablet = TabletSlot_->TabletManager()->Tablet();
+
+        return RunInAutomaton([&] {
+            return tablet->GetStoreManager()->HasActiveLocks();
+        });
     }
 };
 

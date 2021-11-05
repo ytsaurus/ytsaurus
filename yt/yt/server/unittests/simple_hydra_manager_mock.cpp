@@ -31,17 +31,21 @@ TSimpleHydraManagerMock::TSimpleHydraManagerMock(
     , Reign_(reign)
 { }
 
-void TSimpleHydraManagerMock::ApplyUpTo(int sequenceNumber)
+void TSimpleHydraManagerMock::ApplyUpTo(int sequenceNumber, bool recovery)
 {
+    if (recovery) {
+        SaveLoad();
+    }
+
     WaitFor(BIND(&TSimpleHydraManagerMock::DoApplyUpTo, MakeStrong(this), sequenceNumber)
         .AsyncVia(AutomatonInvoker_)
         .Run())
         .ThrowOnError();
 }
 
-void TSimpleHydraManagerMock::ApplyAll()
+void TSimpleHydraManagerMock::ApplyAll(bool recovery)
 {
-    ApplyUpTo(GetCommittedSequenceNumber());
+    ApplyUpTo(GetCommittedSequenceNumber(), recovery);
 }
 
 int TSimpleHydraManagerMock::GetPendingMutationCount() const
@@ -107,6 +111,10 @@ void TSimpleHydraManagerMock::DoApplyUpTo(int sequenceNumber)
 
         ++AppliedSequenceNumber_;
     }
+
+    if (InRecoveryUntilSequenceNumber_ >= AppliedSequenceNumber_) {
+        InRecoveryUntilSequenceNumber_ = std::nullopt;
+    }
 }
 
 TSimpleHydraManagerMock::TSnapshot TSimpleHydraManagerMock::DoSaveSnapshot()
@@ -135,6 +143,8 @@ void TSimpleHydraManagerMock::DoLoadSnapshot(const TSnapshot& snapshot)
 {
     VERIFY_INVOKER_AFFINITY(AutomatonInvoker_);
 
+    StopLeading_.Fire();
+
     Automaton_->Clear();
 
     TMemoryInput input(snapshot.Data.begin(), snapshot.Data.size());
@@ -144,6 +154,10 @@ void TSimpleHydraManagerMock::DoLoadSnapshot(const TSnapshot& snapshot)
     Automaton_->LoadSnapshot(reader);
 
     AppliedSequenceNumber_ = snapshot.SequenceNumber;
+
+    if (AppliedSequenceNumber_ != std::ssize(MutationRequests_)) {
+        InRecoveryUntilSequenceNumber_ = std::ssize(MutationRequests_);
+    }
 
     // Do not forget to clear custom mutation handlers.
     for (int sequenceNumber = AppliedSequenceNumber_; sequenceNumber < std::ssize(MutationRequests_); ++sequenceNumber)
@@ -157,6 +171,8 @@ void TSimpleHydraManagerMock::DoLoadSnapshot(const TSnapshot& snapshot)
 
 TFuture<TMutationResponse> TSimpleHydraManagerMock::CommitMutation(TMutationRequest&& request)
 {
+    YT_VERIFY(IsActiveLeader());
+
     YT_LOG_DEBUG("Committing mutation (SequenceNumber: %v, Type: %v)",
         MutationRequests_.size(),
         request.Type);
@@ -182,12 +198,12 @@ EPeerState TSimpleHydraManagerMock::GetAutomatonState() const
 
 bool TSimpleHydraManagerMock::IsActiveLeader() const
 {
-    return true;
+    return !InRecoveryUntilSequenceNumber_.has_value();
 }
 
 bool TSimpleHydraManagerMock::IsActiveFollower() const
 {
-    return false;
+    return InRecoveryUntilSequenceNumber_.has_value();
 }
 
 TCancelableContextPtr TSimpleHydraManagerMock::GetAutomatonCancelableContext() const
@@ -197,4 +213,4 @@ TCancelableContextPtr TSimpleHydraManagerMock::GetAutomatonCancelableContext() c
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NHydra
