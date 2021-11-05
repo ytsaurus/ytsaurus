@@ -341,7 +341,7 @@ protected:
         return versionedRow;
     }
 
-    TVersionedRow ProduceAllRowVersions(TSortedDynamicRow dynamicRow, bool snapshotMode = false)
+    TVersionedRow ProduceAllRowVersions(TSortedDynamicRow dynamicRow)
     {
         Store_->WaitOnBlockedRow(dynamicRow, LockMask_, Timestamp_);
 
@@ -391,10 +391,8 @@ protected:
             }
         }
 
-        if (!snapshotMode) {
-            if (WriteTimestamps_.empty() && DeleteTimestamps_.empty()) {
-                return TVersionedRow();
-            }
+        if (WriteTimestamps_.empty() && DeleteTimestamps_.empty()) {
+            return TVersionedRow();
         }
 
         auto versionedRow = TMutableVersionedRow::Allocate(
@@ -463,6 +461,7 @@ protected:
         ProduceUnversionedValue(dstValue, index, srcValue.Data, srcValue.Null, srcValue.Flags);
         dstValue->Timestamp = Store_->TimestampFromRevision(srcValue.Revision);
     }
+
 
     template <class T>
     T* SearchByTimestamp(TEditList<T> list, TTimestamp maxTimestamp)
@@ -578,7 +577,6 @@ public:
         TSharedRange<TRowRange> ranges,
         TTimestamp timestamp,
         bool produceAllVersions,
-        bool snapshotMode,
         ui32 revision,
         const TColumnFilter& columnFilter)
         : TReaderBase(
@@ -589,10 +587,7 @@ public:
             revision,
             columnFilter)
         , Ranges_(std::move(ranges))
-        , SnapshotMode_(snapshotMode)
-    {
-        YT_VERIFY(!SnapshotMode_ || produceAllVersions);
-    }
+    { }
 
     TFuture<void> Open() override
     {
@@ -670,10 +665,9 @@ public:
     }
 
 private:
-    const TSharedRange<TRowRange> Ranges_;
-    const bool SnapshotMode_;
     TLegacyKey LowerBound_;
     TLegacyKey UpperBound_;
+    TSharedRange<TRowRange> Ranges_;
     size_t RangeIndex_ = 0;
     i64 RowCount_  = 0;
     i64 DataWeight_ = 0;
@@ -713,7 +707,7 @@ private:
     TVersionedRow ProduceRow(const TSortedDynamicRow& dynamicRow)
     {
         return ProduceAllVersions_
-            ? ProduceAllRowVersions(dynamicRow, SnapshotMode_)
+            ? ProduceAllRowVersions(dynamicRow)
             : ProduceSingleRowVersion(dynamicRow);
     }
 };
@@ -877,8 +871,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateFlushReader()
         nullptr,
         MakeSingletonRowRange(MinKey(), MaxKey()),
         AllCommittedTimestamp,
-        /*produceAllVersions*/ true,
-        /*snapshotMode*/ false,
+        true,
         FlushRevision_,
         TColumnFilter());
 }
@@ -890,8 +883,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateSnapshotReader()
         nullptr,
         MakeSingletonRowRange(MinKey(), MaxKey()),
         AllCommittedTimestamp,
-        /*produceAllVersions*/ true,
-        /*snapshotMode*/ true,
+        true,
         GetLatestRevision(),
         TColumnFilter());
 }
@@ -1685,8 +1677,7 @@ void TSortedDynamicStore::CommitValue(TSortedDynamicRow row, TValueList list, in
 
 void TSortedDynamicStore::LoadRow(
     TVersionedRow row,
-    TLoadScratchData* scratchData,
-    const TTimestamp* lastReadLockTimestamps)
+    TLoadScratchData* scratchData)
 {
     YT_ASSERT(row.GetKeyCount() == KeyColumnCount_);
 
@@ -1737,10 +1728,6 @@ void TSortedDynamicStore::LoadRow(
             for (ui32 revision : revisions) {
                 AddWriteRevision(lock, revision);
             }
-        }
-
-        if (lastReadLockTimestamps) {
-            lock.LastReadLockTimestamp = lastReadLockTimestamps[lockIndex];
         }
     }
 
@@ -1888,7 +1875,6 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
         std::move(ranges),
         timestamp,
         produceAllVersions,
-        /*snapshotMode*/ false,
         MaxRevision,
         columnFilter);
 }
@@ -2002,25 +1988,7 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
                 WaitFor(tableWriter->GetReadyEvent())
                     .ThrowOnError();
             }
-
         }
-
-        std::vector<TTimestamp> lastReadLockTimestamps;
-
-        for (
-            auto it = Rows_->FindGreaterThanOrEqualTo(TKeyWrapper{GetMinKey()});
-            it.IsValid();
-            it.MoveNext())
-        {
-            auto dynamicRow = it.GetCurrent();
-            auto* locks = dynamicRow.BeginLocks(KeyColumnCount_);
-
-            for (int lockIndex = 0; lockIndex < ColumnLockCount_; ++lockIndex) {
-                lastReadLockTimestamps.push_back(locks[lockIndex].LastReadLockTimestamp);
-            }
-        }
-
-        YT_VERIFY(rowCount * ColumnLockCount_ == std::ssize(lastReadLockTimestamps));
 
         // pushsin@ forbids empty chunks.
         if (rowCount == 0) {
@@ -2029,8 +1997,6 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
         }
 
         Save(context, true);
-
-        Save(context, lastReadLockTimestamps);
 
         // NB: This also closes chunkWriter.
         YT_LOG_DEBUG("Closing table writer");
@@ -2055,13 +2021,6 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
     using NYT::Load;
 
     if (Load<bool>(context)) {
-        std::vector<TTimestamp> lastReadLockTimestamps;
-
-        // COMPAT(lukyan)
-        if (context.GetVersion() >= ETabletReign::SaveReadLockTimestamps) {
-            Load(context, lastReadLockTimestamps);
-        }
-
         auto chunkMeta = New<TRefCountedChunkMeta>(Load<TChunkMeta>(context));
         auto blocks = Load<std::vector<TSharedRef>>(context);
 
@@ -2108,7 +2067,6 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
         TLoadScratchData scratchData;
         scratchData.WriteRevisions.resize(ColumnLockCount_);
 
-        auto lastReadLockTimestampPtr = lastReadLockTimestamps.data();
         while (auto batch = tableReader->Read(options)) {
             if (batch->IsEmpty()) {
                 WaitFor(tableReader->GetReadyEvent())
@@ -2117,8 +2075,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
             }
 
             for (auto row : batch->MaterializeRows()) {
-                LoadRow(row, &scratchData, lastReadLockTimestampPtr);
-                lastReadLockTimestampPtr += ColumnLockCount_;
+                LoadRow(row, &scratchData);
             }
         }
     }
