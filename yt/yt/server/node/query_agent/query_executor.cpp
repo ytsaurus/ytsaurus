@@ -4,12 +4,6 @@
 
 #include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/yt/server/node/data_node/chunk_block_manager.h>
-#include <yt/yt/server/node/data_node/chunk.h>
-#include <yt/yt/server/node/data_node/chunk_registry.h>
-#include <yt/yt/server/node/data_node/local_chunk_reader.h>
-#include <yt/yt/server/node/data_node/legacy_master_connector.h>
-
 #include <yt/yt/server/lib/hydra/hydra_manager.h>
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
