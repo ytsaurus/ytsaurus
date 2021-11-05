@@ -8,17 +8,12 @@
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 #include <yt/yt/server/node/cluster_node/node_resource_manager.h>
 
-#include <yt/yt/server/node/data_node/bootstrap.h>
-#include <yt/yt/server/node/data_node/legacy_master_connector.h>
-
 #include <yt/yt/server/node/exec_node/bootstrap.h>
 #include <yt/yt/server/node/exec_node/chunk_cache.h>
 #include <yt/yt/server/node/exec_node/gpu_manager.h>
 #include <yt/yt/server/node/exec_node/slot_manager.h>
 #include <yt/yt/server/node/exec_node/controller_agent_connector.h>
 #include <yt/yt/server/node/exec_node/job.h>
-
-#include <yt/yt/server/node/tablet_node/slot_manager.h>
 
 #include <yt/yt/server/lib/job_proxy/public.h>
 
@@ -253,7 +248,7 @@ private:
         TOperationId operationId,
         const TNodeResources& resourceLimits,
         TJobSpec&& jobSpec);
-    
+
     void RegisterAndStartJob(
         TJobId jobId,
         const IJobPtr& jobPtr,
@@ -985,7 +980,7 @@ IJobPtr TJobController::TImpl::CreateMasterJob(
         jobId,
         operationId,
         type);
-    
+
     TDuration waitingJobTimeout = Config_->WaitingJobsTimeout;
 
     RegisterAndStartJob(jobId, job, waitingJobTimeout);
@@ -1434,7 +1429,7 @@ TFuture<void> TJobController::TImpl::RequestJobSpecsAndStartJobs(std::vector<TJo
             YT_VERIFY(startInfo.has_spec_service_addresses());
             auto controllerAgentAddressWithNetworkOrError = TryParseControllerAgentAddress(
                 startInfo.spec_service_addresses());
-            
+
             if (!controllerAgentAddressWithNetworkOrError.IsOK()) {
                 agentDescriptorOrError = TError{std::move(controllerAgentAddressWithNetworkOrError)};
             }
