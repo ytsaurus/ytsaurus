@@ -8,7 +8,6 @@ from yt.wrapper.operation_commands import format_operation_stderrs
 from yt.wrapper.common import get_binary_std_stream
 
 from yt.packages.six import binary_type
-from yt.packages.six.moves import map as imap
 
 import os
 import sys
