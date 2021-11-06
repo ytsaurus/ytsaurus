@@ -309,7 +309,7 @@ private:
 
         entranceNode->SetRemovalStarted(true);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Portal entrance removal started (EntranceNodeId: %)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Portal entrance removal started (EntranceNodeId: %v)",
             entranceNodeId);
 
         // XXX(babenko)
