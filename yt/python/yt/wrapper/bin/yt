@@ -25,7 +25,7 @@ import yt.wrapper.idm_cli_helpers as idm
 import yt.json_wrapper as json
 
 from yt.packages.six import PY3, iteritems
-from yt.packages.six.moves import builtins, map as imap
+from yt.packages.six.moves import builtins, map as imap, zip_longest as izip_longest
 
 import yt.wrapper as yt
 import yt.clickhouse as chyt
@@ -33,6 +33,7 @@ import yt.clickhouse as chyt
 import os
 import sys
 import inspect
+import itertools
 import fnmatch
 import shlex
 from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter
@@ -431,14 +432,35 @@ def add_find_parser(add_parser):
     add_read_from_arguments(parser)
     parser.set_defaults(func=find)
 
+
 @copy_docstring_from(yt.read_table)
 def read_table(**kwargs):
+    def add_commas(iterator):
+        current_iter, next_iter = itertools.tee(iterator)
+        next(next_iter, None)
+        for current_chunk, next_chunk in izip_longest(current_iter, next_iter):
+            if next_chunk is not None:
+                yield current_chunk.replace(b"\n", b",\n")
+            else:
+                yield current_chunk[:-1].replace(b"\n", b",\n")
+                yield b"\n"
+
+    as_json_list = kwargs.get("as_json_list", False)
+    if "as_json_list" in kwargs:
+        kwargs.pop("as_json_list")
+
     stream = yt.read_table(**kwargs)
     if hasattr(stream, "_read_rows"):
         iterator = chunk_iter_rows(stream, yt.config["read_buffer_size"])
     else:
         iterator = chunk_iter_stream(stream, yt.config["read_buffer_size"])
-    write_silently(iterator)
+
+    if isinstance(kwargs["format"], yt.JsonFormat) and as_json_list:
+        get_binary_std_stream(sys.stdout).write(b"[\n")
+        write_silently(add_commas(iterator))
+        get_binary_std_stream(sys.stdout).write(b"]\n")
+    else:
+        write_silently(iterator)
 
 def add_read_table_parser(add_parser):
     for name, func in [("read", read_table), ("read-table", read_table)]:
@@ -448,6 +470,10 @@ def add_read_table_parser(add_parser):
         add_structured_argument(parser, "--table-reader")
         add_structured_argument(parser, "--control-attributes")
         parser.add_argument("--unordered", action="store_true")
+        parser.add_argument(
+            "--as-json-list",
+            action="store_true",
+            help="In case of JSON format output stream as JSON list instead of JSON lines format")
 
 @copy_docstring_from(yt.read_file)
 def read_file(**kwargs):
