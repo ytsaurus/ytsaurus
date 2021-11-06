@@ -43,6 +43,8 @@ public:
     void OnDynamicConfigChanged(
         const TExecNodeDynamicConfigPtr& oldConfig,
         const TExecNodeDynamicConfigPtr& newConfig);
+    
+    bool AreHeartbeatsEnabled() const noexcept;
 
 private:
     class TControllerAgentConnector;
@@ -55,6 +57,9 @@ private:
     TControllerAgentConnectorConfigPtr CurrentConfig_;
 
     IBootstrap* const Bootstrap_;
+
+    bool HeartbeatsEnabled_ = false;
+    TDuration TestHeartbeatDelay_{};
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
