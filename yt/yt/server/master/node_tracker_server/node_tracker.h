@@ -236,10 +236,10 @@ public:
 
 
     //! Returns the total cluster statistics, aggregated over all nodes.
-    virtual const NNodeTrackerClient::TAggregatedNodeStatistics& GetAggregatedNodeStatistics() = 0;
+    virtual NNodeTrackerClient::TAggregatedNodeStatistics GetAggregatedNodeStatistics() = 0;
 
     //! Returns cluster node statistics, aggregated over all nodes with a given flavor.
-    virtual const NNodeTrackerClient::TAggregatedNodeStatistics& GetFlavoredNodeStatistics(ENodeFlavor flavor) = 0;
+    virtual NNodeTrackerClient::TAggregatedNodeStatistics GetFlavoredNodeStatistics(ENodeFlavor flavor) = 0;
 
     //! Returns the number of nodes with ENodeState::Online aggregated state.
     virtual int GetOnlineNodeCount() = 0;
