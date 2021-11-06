@@ -101,7 +101,11 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
         }
 
         auto schedulerJob = StaticPointerCast<TJob>(std::move(job));
-        const bool shouldSendStatisticsToScheduler = !schedulerJob->ShouldSendJobInfoToAgent();
+        const bool shouldSendStatisticsToScheduler = !schedulerJob->ShouldSendJobInfoToAgent() ||
+            !Bootstrap_
+                ->GetExecNodeBootstrap()
+                ->GetControllerAgentConnectorPool()
+                ->AreHeartbeatsEnabled();
 
         auto confirmIt = JobIdsToConfirm_.find(jobId);
         if (schedulerJob->GetStored() && !totalConfirmation && confirmIt == std::cend(JobIdsToConfirm_)) {

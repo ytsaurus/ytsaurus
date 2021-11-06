@@ -285,7 +285,20 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerConnectorDynamicConfig)
 
 class TControllerAgentConnectorDynamicConfig
     : public THeartbeatReporterDynamicConfigBase
-{ };
+{
+public:
+    bool EnableHeartbeats;
+    TDuration TestHeartbeatDelay;
+
+    TControllerAgentConnectorDynamicConfig()
+        : THeartbeatReporterDynamicConfigBase()
+    {
+        RegisterParameter("enable_heartbeats", EnableHeartbeats)
+            .Default(true);
+        RegisterParameter("test_heartbeat_delay", TestHeartbeatDelay)
+            .Default();
+    }
+};
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorDynamicConfig)
 

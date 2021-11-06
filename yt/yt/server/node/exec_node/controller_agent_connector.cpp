@@ -136,7 +136,15 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
 {
     VERIFY_INVOKER_THREAD_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(), JobThread);
 
-    if (!ControllerAgentConnectorPool_->Bootstrap_->IsConnected()) {
+    if (!ControllerAgentConnectorPool_->Bootstrap_->IsConnected())
+    {
+        return;
+    }
+
+    // We consider disabled heartbeats as a signal to stop sending heartbeats and we intentionally do not report jobs that remained in EnqueuedFinishedJobs_. 
+    // All these jobs are supposed to be aborted by controller within timeout.
+    if (!ControllerAgentConnectorPool_->AreHeartbeatsEnabled()) {
+        EnqueuedFinishedJobs_.clear();
         return;
     }
 
@@ -213,6 +221,10 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
         "Heartbeat sent to agent (AgentAddress: %v, IncarnationId: %v)",
         ControllerAgentDescriptor_.Address,
         ControllerAgentDescriptor_.IncarnationId);
+
+    if (ControllerAgentConnectorPool_->TestHeartbeatDelay_ != TDuration{}) {
+        TDelayedExecutor::WaitForDuration(ControllerAgentConnectorPool_->TestHeartbeatDelay_);
+    }    
 
     auto responseOrError = WaitFor(request->Invoke());
     if (!responseOrError.IsOK()) {
@@ -300,12 +312,21 @@ void TControllerAgentConnectorPool::OnDynamicConfigChanged(
     
     Bootstrap_->GetJobInvoker()->Invoke(BIND([this, this_{MakeStrong(this)}, newConfig{std::move(newConfig)}] {
         if (newConfig->ControllerAgentConnector) {
+            HeartbeatsEnabled_ = newConfig->ControllerAgentConnector->EnableHeartbeats;
+            TestHeartbeatDelay_ = newConfig->ControllerAgentConnector->TestHeartbeatDelay;
             CurrentConfig_ = StaticConfig_->ApplyDynamic(newConfig->ControllerAgentConnector);
         } else {
+            HeartbeatsEnabled_ = true;
+            TestHeartbeatDelay_ = TDuration{};
             CurrentConfig_ = StaticConfig_;
         }
         UpdateConnectorPeriods(CurrentConfig_->HeartbeatPeriod);
     }));
+}
+
+bool TControllerAgentConnectorPool::AreHeartbeatsEnabled() const noexcept
+{
+    return HeartbeatsEnabled_;
 }
 
 void TControllerAgentConnectorPool::OnControllerAgentConnectorDestroyed(
