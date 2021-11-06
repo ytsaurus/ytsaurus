@@ -404,7 +404,6 @@ TObjectPtr<T, C>::TObjectPtr(TObjectPtr&& other) noexcept
     : Ptr_(other.Ptr_)
     , Context_(std::move(other.Context_))
 {
-    NDetail::AssertPersistentStateRead();
     NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
     other.Ptr_ = nullptr;
 }
