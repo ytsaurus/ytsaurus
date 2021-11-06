@@ -198,7 +198,7 @@ TEST_F(TDistributedThrottlerTest, TestLimitUniform)
     }
 }
 
-TEST_F(TDistributedThrottlerTest, TestLimitAdaptive)
+TEST_F(TDistributedThrottlerTest, DISABLED_TestLimitAdaptive)
 {
     int throttlersCount = 4;
     auto leaderThrottlerConfig = New<TThroughputThrottlerConfig>(100);

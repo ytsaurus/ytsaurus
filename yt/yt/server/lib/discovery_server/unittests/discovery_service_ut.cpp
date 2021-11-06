@@ -396,7 +396,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestWrongParameters)
     ASSERT_THROW(WaitFor(memberClient->Start()).ThrowOnError(), std::exception);
 }
 
-TEST_F(TDiscoveryServiceTestSuite, TestNestedGroups)
+TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestNestedGroups)
 {
     const std::vector<std::pair<TString, TString>> testMembers = {
         {"/sample_group", "sample_member_1"},
@@ -464,7 +464,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestNestedGroups)
     }
 }
 
-TEST_F(TDiscoveryServiceTestSuite, TestYPath)
+TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestYPath)
 {
     const TString groupId1 = "/sample_group1";
     const TString groupId2 = "/test/sample_group2";
@@ -709,7 +709,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestYPath)
     }
 }
 
-TEST_F(TDiscoveryServiceTestSuite, TestGroupRemoval)
+TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestGroupRemoval)
 {
     const TString groupId1 = "/sample_group1";
     const TString memberId1 = "sample_member1";

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/server/unittests/proto/simple_transaction_supervisor.pb.h>
+#include <yt/yt/server/node/tablet_node/unittests/proto/simple_transaction_supervisor.pb.h>
 
 #include <yt/yt/server/lib/hive/public.h>
 

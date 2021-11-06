@@ -3,7 +3,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include "sorted_store_manager_ut_helpers.h"
-#include "simple_hydra_manager_mock.h"
 #include "simple_transaction_supervisor.h"
 #include "simple_tablet_manager.h"
 
@@ -18,6 +17,8 @@
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/server/lib/hive/transaction_lease_tracker.h>
+
+#include <yt/yt/server/lib/hydra/mock/simple_hydra_manager_mock.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 
