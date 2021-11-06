@@ -831,17 +831,19 @@ public:
     }
 
 
-    const TAggregatedNodeStatistics& GetAggregatedNodeStatistics() override
+    TAggregatedNodeStatistics GetAggregatedNodeStatistics() override
     {
         MaybeRebuildAggregatedNodeStatistics();
 
+        auto guard = ReaderGuard(NodeStatisticsLock_);
         return AggregatedNodeStatistics_;
     }
 
-    const TAggregatedNodeStatistics& GetFlavoredNodeStatistics(ENodeFlavor flavor) override
+    TAggregatedNodeStatistics GetFlavoredNodeStatistics(ENodeFlavor flavor) override
     {
         MaybeRebuildAggregatedNodeStatistics();
 
+        auto guard = ReaderGuard(NodeStatisticsLock_);
         return FlavoredNodeStatistics_[flavor];
     }
 
@@ -906,6 +908,7 @@ private:
 
     int AggregatedOnlineNodeCount_ = 0;
 
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, NodeStatisticsLock_);
     TCpuInstant NodeStatisticsUpdateDeadline_ = 0;
     TAggregatedNodeStatistics AggregatedNodeStatistics_;
     TEnumIndexedVector<ENodeFlavor, TAggregatedNodeStatistics> FlavoredNodeStatistics_;
@@ -2438,14 +2441,19 @@ private:
 
     void MaybeRebuildAggregatedNodeStatistics()
     {
+        auto guard = ReaderGuard(NodeStatisticsLock_);
+
         auto now = GetCpuInstant();
         if (now > NodeStatisticsUpdateDeadline_) {
+            guard.Release();
             RebuildAggregatedNodeStatistics();
         }
     }
 
     void RebuildAggregatedNodeStatistics()
     {
+        auto guard = WriterGuard(NodeStatisticsLock_);
+
         AggregatedNodeStatistics_ = TAggregatedNodeStatistics();
         for (auto flavor : TEnumTraits<ENodeFlavor>::GetDomainValues()) {
             FlavoredNodeStatistics_[flavor] = TAggregatedNodeStatistics();
