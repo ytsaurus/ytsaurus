@@ -1,6 +1,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/tablet_node/sorted_chunk_store.h>
+#include <yt/yt/server/node/tablet_node/sorted_chunk_store.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 
@@ -102,7 +102,7 @@ class TSortedChunkStoreTestRangesFiltering
         std::vector<std::pair<TString, TString>>>>
 { };
 
-TEST_P(TSortedChunkStoreTestRangesFiltering, Test)
+TEST_P(TSortedChunkStoreTestRangesFiltering, DISABLED_Test)
 {
     const auto& args = GetParam();
     TString lowerString = std::get<0>(args);
