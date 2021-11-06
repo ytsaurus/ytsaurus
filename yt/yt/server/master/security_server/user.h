@@ -123,7 +123,7 @@ class TSerializableUserRequestLimitsConfig
 public:
     TSerializableUserRequestLimitsConfig();
     TSerializableUserRequestLimitsConfig(
-        const TUserRequestLimitsConfigPtr& config, 
+        const TUserRequestLimitsConfigPtr& config,
         const NCellMaster::TMulticellManagerPtr& multicellManager);
 
     TUserRequestLimitsConfigPtr ToConfigOrThrow(const NCellMaster::TMulticellManagerPtr& multicellManager) const;
@@ -189,6 +189,8 @@ private:
     NProfiling::TCounter WriteRequestCounter_;
     NProfiling::TSummary RequestQueueSizeSummary_;
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TUser)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -52,6 +52,8 @@ DECLARE_ENTITY_TYPE(TNetworkProject, TNetworkProjectId, NObjectClient::TDirectOb
 DECLARE_ENTITY_TYPE(TProxyRole, TProxyRoleId, NObjectClient::TDirectObjectIdHash)
 
 DECLARE_MASTER_OBJECT_TYPE(TAccount)
+DECLARE_MASTER_OBJECT_TYPE(TUser)
+
 struct TAccountChunkMergerNodeTraversalsPtrContext;
 template <class T>
 using TAccountChunkMergerNodeTraversalsPtr = NObjectServer::TObjectPtr<T, TAccountChunkMergerNodeTraversalsPtrContext>;

@@ -205,7 +205,7 @@ private:
     struct TExecuteSessionInfo
     {
         TCancelableContextPtr EpochCancelableContext;
-        TUser* User;
+        TEphemeralObjectPtr<TUser> User;
         bool RequestQueueSizeIncreased;
     };
 
@@ -333,7 +333,7 @@ public:
 
         Owner_->EnqueueFinishedSession(TExecuteSessionInfo{
             std::move(EpochCancelableContext_),
-            User_,
+            std::move(User_),
             RequestQueueSizeIncreased_
         });
     }
@@ -472,7 +472,7 @@ private:
 
     IInvokerPtr EpochAutomatonInvoker_;
     TCancelableContextPtr EpochCancelableContext_;
-    TUser* User_ = nullptr;
+    TEphemeralObjectPtr<TUser> User_;
     bool NeedsUserAccessValidation_ = true;
     bool RequestQueueSizeIncreased_ = false;
 
@@ -1406,18 +1406,16 @@ private:
             return false;
         }
 
-        // NB: Acquisitions are only possible if the current epoch is not canceled.
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        const auto& objectManager = Bootstrap_->GetObjectManager();
 
         if (!User_) {
-            User_ = securityManager->GetUserByNameOrThrow(UserName_, true /*activeLifeStageOnly*/);
-            objectManager->EphemeralRefObject(User_);
+            auto* user = securityManager->GetUserByNameOrThrow(UserName_, true /*activeLifeStageOnly*/);
+            User_ = TEphemeralObjectPtr<TUser>(user);
         }
 
         if (NeedsUserAccessValidation_) {
             NeedsUserAccessValidation_ = false;
-            auto error = securityManager->CheckUserAccess(User_);
+            auto error = securityManager->CheckUserAccess(User_.Get());
             if (!error.IsOK()) {
                 Owner_->SetStickyUserError(UserName_, error);
                 THROW_ERROR error;
@@ -1425,7 +1423,7 @@ private:
         }
 
         if (!RequestQueueSizeIncreased_) {
-            if (!securityManager->TryIncreaseRequestQueueSize(User_)) {
+            if (!securityManager->TryIncreaseRequestQueueSize(User_.Get())) {
                 auto cellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
                 auto error = TError(
                     NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded,
@@ -1465,7 +1463,7 @@ private:
                 }
 
                 const auto& securityManager = Bootstrap_->GetSecurityManager();
-                auto result = securityManager->ThrottleUser(User_, 1, workloadType);
+                auto result = securityManager->ThrottleUser(User_.Get(), 1, workloadType);
 
                 if (!WaitForAndContinue(result)) {
                     return false;
@@ -1746,7 +1744,7 @@ private:
         TWallTimer timer;
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        TAuthenticatedUserGuard userGuard(securityManager, User_);
+        TAuthenticatedUserGuard userGuard(securityManager, User_.Get());
 
         const auto& rpcContext = subrequest->RpcContext;
 
@@ -1768,7 +1766,7 @@ private:
 
         // NB: Even if the user was just removed the instance is still valid but not alive.
         if (!EpochCancelableContext_->IsCanceled()) {
-            securityManager->ChargeUser(User_, {EUserWorkloadType::Read, 1, timer.GetElapsedTime()});
+            securityManager->ChargeUser(User_.Get(), {EUserWorkloadType::Read, 1, timer.GetElapsedTime()});
         }
     }
 
@@ -2242,14 +2240,9 @@ void TObjectService::FinishSession(const TExecuteSessionInfo& sessionInfo)
         return;
     }
 
-    if (sessionInfo.RequestQueueSizeIncreased && IsObjectAlive(sessionInfo.User)) {
+    if (sessionInfo.RequestQueueSizeIncreased && sessionInfo.User.IsAlive()) {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->DecreaseRequestQueueSize(sessionInfo.User);
-    }
-
-    if (sessionInfo.User) {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->EphemeralUnrefObject(sessionInfo.User);
+        securityManager->DecreaseRequestQueueSize(sessionInfo.User.Get());
     }
 }
 
