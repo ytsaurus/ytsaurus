@@ -167,6 +167,8 @@ message TStreamingFeedbackHeader
 
 message TReqDiscover
 {
+    optional int64 reply_delay = 1;
+
     extensions 100 to max;
 }
 

@@ -51,6 +51,8 @@ using NYT::ToProto;
 static const auto DefaultRequestBytesThrottlerConfig = New<TThroughputThrottlerConfig>();
 static const auto DefaultLoggingSuppressionFailedRequestThrottlerConfig = New<TThroughputThrottlerConfig>(1'000);
 
+constexpr TDuration ServiceLivenessCheckPeriod = TDuration::MilliSeconds(100);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 THandlerInvocationOptions THandlerInvocationOptions::SetHeavy(bool value) const
@@ -1360,16 +1362,23 @@ TServiceBase::TServiceBase(
     , ServiceId_(descriptor.GetFullServiceName(), realmId)
     , Profiler_(RpcServerProfiler.WithHot().WithTag("yt_service", ServiceId_.ServiceName))
     , AuthenticationTimer_(Profiler_.Timer("/authentication_time"))
+    , ServiceLivenessChecker_(New<TPeriodicExecutor>(
+        DefaultInvoker_,
+        BIND(&TServiceBase::OnServiceLivenessCheck, MakeWeak(this)),
+        ServiceLivenessCheckPeriod))
 {
     YT_VERIFY(DefaultInvoker_);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Discover)
         .SetInvoker(TDispatcher::Get()->GetHeavyInvoker())
+        .SetConcurrencyLimit(1'000'000)
         .SetSystem(true));
 
     Profiler_.AddFuncGauge("/authentication_queue_size", MakeStrong(this), [=] {
         return AuthenticationQueueSize_.load(std::memory_order_relaxed);
     });
+
+    ServiceLivenessChecker_->Start();
 }
 
 const TServiceId& TServiceBase::GetServiceId() const
@@ -1969,6 +1978,115 @@ void TServiceBase::DecrementActiveRequestCount()
 void TServiceBase::InitContext(IServiceContextPtr /*context*/)
 { }
 
+void TServiceBase::RegisterDiscoverRequest(const TCtxDiscoverPtr& context)
+{
+    auto payload = GetDiscoverRequestPayload(context);
+    auto replyDelay = FromProto<TDuration>(context->Request().reply_delay());
+
+    auto readerGuard = ReaderGuard(DiscoverRequestsByPayloadLock_);
+    auto it = DiscoverRequestsByPayload_.find(payload);
+    if (it == DiscoverRequestsByPayload_.end()) {
+        readerGuard.Release();
+        auto writerGuard = WriterGuard(DiscoverRequestsByPayloadLock_);
+        DiscoverRequestsByPayload_[payload].Insert(context, 0);
+    } else {
+        auto& requestSet = it->second;
+        requestSet.Insert(context, 0);
+    }
+
+    TDelayedExecutor::Submit(
+        BIND(&TServiceBase::OnDiscoverRequestReplyDelayReached, MakeStrong(this), context),
+        replyDelay,
+        DefaultInvoker_);
+}
+
+void TServiceBase::ReplyDiscoverRequest(const TCtxDiscoverPtr& context, bool isUp)
+{
+    auto& response = context->Response();
+    response.set_up(isUp);
+    ToProto(response.mutable_suggested_addresses(), SuggestAddresses());
+
+    context->SetResponseInfo("Up: %v, SuggestedAddresses: %v",
+        response.up(),
+        response.suggested_addresses());
+
+    context->Reply();
+}
+
+void TServiceBase::OnDiscoverRequestReplyDelayReached(TCtxDiscoverPtr context)
+{
+    auto readerGuard = ReaderGuard(DiscoverRequestsByPayloadLock_);
+
+    if (context->IsReplied()) {
+        return;
+    }
+
+    auto payload = GetDiscoverRequestPayload(context);
+    auto it = DiscoverRequestsByPayload_.find(payload);
+    if (it != DiscoverRequestsByPayload_.end()) {
+         auto& requestSet = it->second;
+         if (requestSet.Has(context)) {
+             requestSet.Remove(context);
+             ReplyDiscoverRequest(context, IsUp(context));
+         }
+    }
+}
+
+TString TServiceBase::GetDiscoverRequestPayload(const TCtxDiscoverPtr& context)
+{
+    auto request = context->Request();
+    request.set_reply_delay(0);
+    return SerializeProtoToString(request);
+}
+
+void TServiceBase::OnServiceLivenessCheck()
+{
+    std::vector<TDiscoverRequestSet> requestsToReply;
+
+    {
+        auto writerGuard = WriterGuard(DiscoverRequestsByPayloadLock_);
+
+        YT_LOG_DEBUG("Checking service liveness (DiscoverRequestSetCount: %v)",
+            DiscoverRequestsByPayload_.size());
+
+        std::vector<TString> payloadsToReply;
+        for (const auto& [payload, requests] : DiscoverRequestsByPayload_) {
+            auto empty = true;
+            auto isUp = false;
+            for (const auto& bucket : requests.Buckets) {
+                const auto& map = bucket.GetMap();
+                if (!map.empty()) {
+                    empty = false;
+                    const auto& request = map.begin()->first;
+                    isUp = IsUp(request);
+                    break;
+                }
+            }
+            if (empty || isUp) {
+                payloadsToReply.push_back(payload);
+            }
+        }
+
+        for (const auto& payload : payloadsToReply) {
+            auto& requests = DiscoverRequestsByPayload_[payload];
+            requestsToReply.push_back(std::move(requests));
+            YT_VERIFY(DiscoverRequestsByPayload_.erase(payload) > 0);
+        }
+    }
+
+    TDispatcher::Get()->GetHeavyInvoker()->Invoke(
+        BIND([this, this_ = MakeStrong(this), requestsToReply = std::move(requestsToReply)] {
+            for (const auto& requests : requestsToReply) {
+                for (const auto& bucket : requests.Buckets) {
+                    for (const auto& [request, _] : bucket.GetMap()) {
+                        ReplyDiscoverRequest(request, /*isUp*/ true);
+                    }
+                    NConcurrency::Yield();
+                }
+            }
+        }));
+}
+
 TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
 {
     ValidateInactive();
@@ -2110,6 +2228,9 @@ TFuture<void> TServiceBase::Stop()
             StopResult_.TrySet();
         }
     }
+
+    ServiceLivenessChecker_->Stop();
+
     return StopResult_.ToFuture();
 }
 
@@ -2157,14 +2278,16 @@ DEFINE_RPC_SERVICE_METHOD(TServiceBase, Discover)
 {
     context->SetRequestInfo();
 
-    response->set_up(IsUp(context));
-    ToProto(response->mutable_suggested_addresses(), SuggestAddresses());
+    auto replyDelay = FromProto<TDuration>(request->reply_delay());
+    auto isUp = IsUp(context);
 
-    context->SetResponseInfo("Up: %v, SuggestedAddresses: %v",
-        response->up(),
-        response->suggested_addresses());
+    // Fast path.
+    if (replyDelay == TDuration::Zero() || isUp) {
+        ReplyDiscoverRequest(context, isUp);
+        return;
+    }
 
-    context->Reply();
+    RegisterDiscoverRequest(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

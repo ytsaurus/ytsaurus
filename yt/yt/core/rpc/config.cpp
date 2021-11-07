@@ -136,6 +136,15 @@ TDynamicChannelPoolConfig::TDynamicChannelPoolConfig()
         .Default(100);
     RegisterParameter("random_peer_eviction_period", RandomPeerEvictionPeriod)
         .Default(TDuration::Minutes(1));
+
+    RegisterParameter("enable_peer_polling", EnablePeerPolling)
+        .Default(false);
+    RegisterParameter("peer_polling_period", PeerPollingPeriod)
+        .Default(TDuration::Seconds(60));
+    RegisterParameter("peer_polling_period_splay", PeerPollingPeriodSplay)
+        .Default(TDuration::Seconds(10));
+    RegisterParameter("peer_polling_request_timeout", PeerPollingRequestTimeout)
+        .Default(TDuration::Seconds(15));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1165,7 +1165,11 @@ def _get_hydra_manager_config():
 def _get_balancing_channel_config():
     return {
         "soft_backoff_time": 100,
-        "hard_backoff_time": 100
+        "hard_backoff_time": 100,
+        "enable_peer_polling": True,
+        "peer_polling_period": 500,
+        "peer_polling_period_splay": 100,
+        "peer_polling_request_timeout": 100,
     }
 
 
