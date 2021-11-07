@@ -679,13 +679,13 @@ class TestJournalsPortal(TestJournalsMulticell):
 
     @authors("gritukan")
     def test_journal_cross_shard_copy_forbidden(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 2})
 
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed("//tmp/j", DATA)
 
         with pytest.raises(YtError, match="Cross-cell copying of journal is not supported"):
-            copy("//tmp/j", "//tmp/p/j")
+            copy("//tmp/j", "//portals/p/j")
 
 
 class TestJournalsRpcProxy(TestJournals):

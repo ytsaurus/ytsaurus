@@ -61,6 +61,11 @@ private:
         auto exitCellTag = context.ExplicitAttributes->GetAndRemove<TCellTag>("exit_cell_tag");
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        if (multicellManager->IsSecondaryMaster()) {
+            THROW_ERROR_EXCEPTION("Portal entrance cannot be placed on the secondary cell");
+        }
+
         if (exitCellTag == multicellManager->GetPrimaryCellTag()) {
             THROW_ERROR_EXCEPTION("Portal exit cannot be placed on the primary cell");
         }

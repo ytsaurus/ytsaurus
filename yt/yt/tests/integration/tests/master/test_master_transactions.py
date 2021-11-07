@@ -239,6 +239,9 @@ class TestMasterTransactions(YTEnvSetup):
 
     @authors("babenko")
     def test_tx_multicell_attrs(self):
+        if not self.ENABLE_TMP_PORTAL:
+            create("map_node", "//portals")
+
         tx = start_transaction(timeout=60000)
         tx_cell_tag = str(get("#" + tx + "/@native_cell_tag"))
         cell_tags = [tx_cell_tag]
@@ -246,13 +249,13 @@ class TestMasterTransactions(YTEnvSetup):
         sharded_tx = self.NUM_SECONDARY_MASTER_CELLS > 2
 
         if sharded_tx:
-            create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 3})
+            create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 3})
 
             # Populate resolve cache so that passing through the portal doesn't affect tx replication.
-            set("//tmp/p/@some_attr", "some_value")
+            set("//portals/p/@some_attr", "some_value")
 
-            portal_exit_id = get("//tmp/p/@id")
-            table_id = create("table", "//tmp/p/t", tx=tx)  # replicate tx to cell 3
+            portal_exit_id = get("//portals/p/@id")
+            table_id = create("table", "//portals/p/t", tx=tx)  # replicate tx to cell 3
             if "3" not in cell_tags:
                 cell_tags.append("3")
 
@@ -284,6 +287,9 @@ class TestMasterTransactions(YTEnvSetup):
             assert staged_node_ids[tx_cell_tag] == []
 
             assert len(get("#" + tx + "/@lock_ids/3")) == 2
+
+        if not self.ENABLE_TMP_PORTAL:
+            remove("//portals", recursive=True)
 
     @authors("babenko")
     def test_transaction_maps(self):
@@ -570,28 +576,34 @@ class TestMasterTransactionsMulticell(TestMasterTransactions):
 
     @authors("shakurov")
     def test_native_content_revision_copy(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 3})
+        if not self.ENABLE_TMP_PORTAL:
+            create("map_node", "//portals")
+
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 3})
 
         create("table", "//tmp/t", attributes={"external_cell_tag": 2})
         self._assert_native_content_revision_matches("//tmp/t")
 
         copy("//tmp/t", "//tmp/t_copy")
         self._assert_native_content_revision_matches("//tmp/t_copy")
-        copy("//tmp/t", "//tmp/p/t_copy")
-        self._assert_native_content_revision_matches("//tmp/p/t_copy")
+        copy("//tmp/t", "//portals/p/t_copy")
+        self._assert_native_content_revision_matches("//portals/p/t_copy")
 
         tx = start_transaction()
         write_table("<append=%true>//tmp/t", {"a": "b"}, tx=tx)
 
         copy("//tmp/t", "//tmp/t_copy_tx", tx=tx)
         self._assert_native_content_revision_matches("//tmp/t_copy_tx", tx=tx)
-        copy("//tmp/t", "//tmp/p/t_copy_tx", tx=tx)
-        self._assert_native_content_revision_matches("//tmp/p/t_copy_tx", tx=tx)
+        copy("//tmp/t", "//portals/p/t_copy_tx", tx=tx)
+        self._assert_native_content_revision_matches("//portals/p/t_copy_tx", tx=tx)
 
         commit_transaction(tx)
 
         self._assert_native_content_revision_matches("//tmp/t_copy_tx")
-        self._assert_native_content_revision_matches("//tmp/p/t_copy_tx")
+        self._assert_native_content_revision_matches("//portals/p/t_copy_tx")
+
+        if not self.ENABLE_TMP_PORTAL:
+            remove("//portals", recursive=True)
 
 
 class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
@@ -617,7 +629,7 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
         commit_transaction(tx_a, prerequisite_transaction_ids=[tx_b])
 
     def _create_portal_to_cell(self, cell_tag):
-        portal_path = "//tmp/p{}".format(cell_tag)
+        portal_path = "//portals/p{}".format(cell_tag)
         create("portal_entrance", portal_path, attributes={"exit_cell_tag": cell_tag})
         # Force the newly created portal to go into the resolve caches
         # (on the entrance side). This way, the following requests
@@ -740,13 +752,13 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
 
     @authors("shakurov")
     def test_boomerang_mutation_portal_forwarding(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 3})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 3})
 
-        assert not get("//tmp/p/@resolve_cached")
+        assert not get("//portals/p/@resolve_cached")
 
         tx = start_transaction()
         # Must succeed.
-        create("map_node", "//tmp/p/d", tx=tx)
+        create("map_node", "//portals/p/d", tx=tx)
 
 
 class TestMasterTransactionsShardedTxNoBoomerangs(TestMasterTransactionsShardedTx):

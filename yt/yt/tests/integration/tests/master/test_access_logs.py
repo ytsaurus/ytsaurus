@@ -461,8 +461,8 @@ class TestAccessLogPortal(TestAccessLog):
         create("map_node", "//tmp/access_log")
         doc_id = create("document", "//tmp/access_log/doc")
 
-        create("portal_entrance", "//tmp/access_log/p1", attributes={"exit_cell_tag": 2})
-        moved_doc_id = move("//tmp/access_log/doc", "//tmp/access_log/p1/doc")
+        create("portal_entrance", "//portals/p1", attributes={"exit_cell_tag": 2})
+        moved_doc_id = move("//tmp/access_log/doc", "//portals/p1/doc")
         log_list.append(
             {
                 "method": "BeginCopy",
@@ -475,10 +475,10 @@ class TestAccessLogPortal(TestAccessLog):
                 "method": "EndCopy",
                 "type": "document",
                 "id": moved_doc_id,
-                "path": "//tmp/access_log/p1/doc",
+                "path": "//portals/p1/doc",
             }
         )
 
         self._validate_entries_against_log(log_list, cell_tag_to_directory={
             1: "//tmp/access_log",
-            2: "//tmp/access_log/p1"})
+            2: "//portals/p1"})

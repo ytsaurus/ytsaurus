@@ -216,6 +216,8 @@ DEFINE_ENUM(EMasterReign,
     ((MasterSmartPtrs)                                              (1812))  // shakurov
     ((FixClusterNodeMapMigration)                                   (1813))  // gritukan
     ((ChunkAutotomizer)                                             (1814))  // gritukan
+    ((ForbidNestedPortals)                                          (1815))  // gritukan
+    // 22.1 starts here.
 );
 
 ////////////////////////////////////////////////////////////////////////////////

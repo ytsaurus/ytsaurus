@@ -637,18 +637,6 @@ class TestPortals(YTEnvSetup):
         remove("//tmp/p2")
 
     @authors("babenko")
-    def test_portal_inside_portal(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
-        create("portal_entrance", "//tmp/p/q", attributes={"exit_cell_tag": 2})
-
-        TABLE_PAYLOAD = [{"key": "value"}]
-        create("table", "//tmp/t", attributes={"external_cell_tag": 3})
-        write_table("//tmp/t", TABLE_PAYLOAD)
-
-        move("//tmp/t", "//tmp/p/q/t")
-        assert read_table("//tmp/p/q/t") == TABLE_PAYLOAD
-
-    @authors("babenko")
     def test_create_portal_in_tx_commit(self):
         tx = start_transaction()
 
@@ -1407,3 +1395,9 @@ class TestResolveCache(YTEnvSetup):
         assert get("//tmp/d/@type") == "map_node"
         assert get("//tmp/d1/@type") == "map_node"  # Must not throw.
         assert get("//tmp/d1&/@type") == "link"
+
+    @authors("gritukan")
+    def test_nested_portals_are_forbidden(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        with pytest.raises(YtError):
+            create("portal_entrance", "//tmp/p/q", attributes={"exit_cell_tag": 2})

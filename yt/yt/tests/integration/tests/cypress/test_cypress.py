@@ -3408,7 +3408,7 @@ class TestCypressPortal(TestCypressMulticell):
 
     @authors("shakurov")
     def test_cross_shard_copy_inhertible_attributes(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 2})
 
         create_tablet_cell_bundle("b")
         create("map_node", "//tmp/d", attributes={
@@ -3416,24 +3416,24 @@ class TestCypressPortal(TestCypressMulticell):
             "tablet_cell_bundle": "b"
         })
 
-        copy("//tmp/d", "//tmp/p/d1")
-        assert get("//tmp/p/d1/@compression_codec") == "snappy"
-        assert get("//tmp/p/d1/@tablet_cell_bundle") == "b"
+        copy("//tmp/d", "//portals/p/d1")
+        assert get("//portals/p/d1/@compression_codec") == "snappy"
+        assert get("//portals/p/d1/@tablet_cell_bundle") == "b"
 
         tx = start_transaction()
 
-        copy("//tmp/d", "//tmp/p/d2", tx=tx)
-        assert get("//tmp/p/d2/@compression_codec", tx=tx) == "snappy"
-        assert get("//tmp/p/d2/@tablet_cell_bundle", tx=tx) == "b"
+        copy("//tmp/d", "//portals/p/d2", tx=tx)
+        assert get("//portals/p/d2/@compression_codec", tx=tx) == "snappy"
+        assert get("//portals/p/d2/@tablet_cell_bundle", tx=tx) == "b"
 
         commit_transaction(tx)
 
-        assert get("//tmp/p/d2/@compression_codec") == "snappy"
-        assert get("//tmp/p/d2/@tablet_cell_bundle") == "b"
+        assert get("//portals/p/d2/@compression_codec") == "snappy"
+        assert get("//portals/p/d2/@tablet_cell_bundle") == "b"
 
     @authors("aleksandra-zh")
     def test_cross_shard_copy_builtin_attributes(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 2})
 
         create(
             "table",
@@ -3447,14 +3447,14 @@ class TestCypressPortal(TestCypressMulticell):
             },
         )
 
-        copy("//tmp/t1", "//tmp/p/t1")
+        copy("//tmp/t1", "//portals/p/t1")
 
-        assert get("//tmp/p/t1/@optimize_for") == "lookup"
-        assert get("//tmp/p/t1/@compression_codec") == "zlib_6"
-        assert get("//tmp/p/t1/@erasure_codec") == "reed_solomon_6_3"
-        assert get("//tmp/p/t1/@enable_skynet_sharing")
+        assert get("//portals/p/t1/@optimize_for") == "lookup"
+        assert get("//portals/p/t1/@compression_codec") == "zlib_6"
+        assert get("//portals/p/t1/@erasure_codec") == "reed_solomon_6_3"
+        assert get("//portals/p/t1/@enable_skynet_sharing")
 
-        copy("//tmp/p/t1", "//tmp/t2")
+        copy("//portals/p/t1", "//tmp/t2")
 
         assert get("//tmp/t2/@optimize_for") == "lookup"
         assert get("//tmp/t2/@compression_codec") == "zlib_6"
@@ -3463,31 +3463,31 @@ class TestCypressPortal(TestCypressMulticell):
 
     @authors("shakurov")
     def test_cross_shard_copy_w_tx(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 2})
 
         tx = start_transaction()
-        create("table", "//tmp/p/t1", tx=tx, attributes={"external_cell_tag": 3})
+        create("table", "//portals/p/t1", tx=tx, attributes={"external_cell_tag": 3})
         # Must not crash.
-        move("//tmp/p/t1", "//tmp/t1_copy", tx=tx)
+        move("//portals/p/t1", "//tmp/t1_copy", tx=tx)
 
         create("table", "//tmp/t2", tx=tx, attributes={"external_cell_tag": 3})
         # Must not crash.
-        move("//tmp/t2", "//tmp/p/t2_copy", tx=tx)
+        move("//tmp/t2", "//portals/p/t2_copy", tx=tx)
 
     @authors("avmatrosov")
     def test_annotation_portal(self):
-        set("//tmp/@annotation", "test")
+        set("//portals/@annotation", "test")
 
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
-        create("map_node", "//tmp/p/test")
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 2})
+        create("map_node", "//portals/p/test")
 
-        assert get("//tmp/p/test/@annotation") == "test"
+        assert get("//portals/p/test/@annotation") == "test"
 
-        set("//tmp/@annotation", "")
-        assert get("//tmp/p/test/@annotation") == "test"
+        set("//portals/@annotation", "")
+        assert get("//portals/p/test/@annotation") == "test"
 
         with pytest.raises(YtError):
-            remove("//tmp/@annotation")
+            remove("//portals/p/@annotation")
 
     @authors("avmatrosov")
     def test_annotation_attribute(self):
@@ -3501,24 +3501,24 @@ class TestCypressPortal(TestCypressMulticell):
     def test_preserve_owner(self):
         create_user("u1")
         create("document", "//tmp/doc", authenticated_user="u1")
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 2})
 
         # test cross-cell copy
-        copy("//tmp/doc", "//tmp/p/doc", preserve_owner=True)
-        assert get("//tmp/doc/@owner") == get("//tmp/p/doc/@owner") == "u1"
+        copy("//tmp/doc", "//portals/p/doc", preserve_owner=True)
+        assert get("//tmp/doc/@owner") == get("//portals/p/doc/@owner") == "u1"
 
     @authors("avmatrosov")
     def test_preserve_acl(self):
         create("document", "//tmp/t1")
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 2})
 
         set("//tmp/t1/@inherit_acl", False)
         acl = [make_ace("deny", "guest", "write")]
         set("//tmp/t1/@acl", acl)
-        copy("//tmp/t1", "//tmp/p/t2", preserve_acl=True)
+        copy("//tmp/t1", "//portals/p/t2", preserve_acl=True)
 
-        assert not get("//tmp/p/t2/@inherit_acl")
-        assert_items_equal(get("//tmp/p/t2/@acl"), acl)
+        assert not get("//portals/p/t2/@inherit_acl")
+        assert_items_equal(get("//portals/p/t2/@acl"), acl)
 
 
 ################################################################################
