@@ -5,7 +5,8 @@
 #include <yt/yt/core/misc/enum.h>
 
 #include <yt/yt/library/profiling/tag.h>
-#include <yt/yt/library/cpuclock/clock.h>
+
+#include <library/cpp/yt/cpu_clock/clock.h>
 
 namespace NYT::NProfiling {
 
