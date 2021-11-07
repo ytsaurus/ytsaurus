@@ -122,6 +122,8 @@ public:
 
     NObjectClient::TObjectServiceCacheConfigPtr MasterCache;
 
+    bool EnableLocalReadExecutor;
+
     TObjectServiceConfig()
     {
         RegisterParameter("yield_timeout", YieldTimeout)
@@ -142,6 +144,9 @@ public:
 
         RegisterParameter("master_cache", MasterCache)
             .DefaultNew();
+
+        RegisterParameter("enable_local_read_executor", EnableLocalReadExecutor)
+            .Default(true);
     }
 };
 
@@ -171,7 +176,7 @@ public:
         RegisterParameter("enable_mutation_boomerangs", EnableMutationBoomerangs)
             .Default(true);
         RegisterParameter("enable_local_read_executor", EnableLocalReadExecutor)
-            .Default(true);
+            .Default(false);
         RegisterParameter("local_read_worker_count", LocalReadWorkerCount)
             .GreaterThan(0)
             .Default(4);

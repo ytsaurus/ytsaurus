@@ -2149,7 +2149,7 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
     const auto& config = GetDynamicConfig();
     EnableTwoLevelCache_ = config->EnableTwoLevelCache;
     EnableMutationBoomerangs_ = config->EnableMutationBoomerangs;
-    EnableLocalReadExecutor_ = config->EnableLocalReadExecutor;
+    EnableLocalReadExecutor_ = config->EnableLocalReadExecutor && Config_->EnableLocalReadExecutor;
     ScheduleReplyRetryBackoff_ = config->ScheduleReplyRetryBackoff;
 
     LocalReadExecutor_->Reconfigure(config->LocalReadWorkerCount);
@@ -2220,7 +2220,8 @@ void TObjectService::ProcessSessions()
         session->RunAutomatonSlow();
     }
 
-    {
+    // NB: Local read executor cannot be turned off in runtime since some requests can be already in it.
+    if (Config_->EnableLocalReadExecutor) {
         TAutomatonBlockGuard guard(Bootstrap_->GetHydraFacade());
 
         auto readFuture = LocalReadExecutor_->Run(LocalReadExecutorQuantumDuration_);
