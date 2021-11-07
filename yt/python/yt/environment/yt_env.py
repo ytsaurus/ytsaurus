@@ -926,7 +926,7 @@ class YTInstance(object):
                 self.config_paths[master_name].append(config_path)
                 self._service_processes[master_name].append(None)
 
-    def start_master_cell(self, cell_index=0, sync=True):
+    def start_master_cell(self, cell_index=0, sync=True, set_config=True):
         master_name = self._get_master_name("master", cell_index)
         secondary = cell_index > 0
 
@@ -948,7 +948,10 @@ class YTInstance(object):
                 else:
                     client = self.create_native_client(master_name.replace("master", "driver"))
                 client.config["proxy"]["retries"]["enable"] = False
-                client.set("//sys/@config", get_dynamic_master_config())
+                if set_config:
+                    client.set("//sys/@config", get_dynamic_master_config())
+                else:
+                    client.get("//sys/@config")
                 return True
             except (requests.RequestException, YtError) as err:
                 return False, err
@@ -973,15 +976,15 @@ class YTInstance(object):
 
         self._wait_or_skip(lambda: self._wait_for(cell_ready, master_name, max_wait_time=30), sync)
 
-    def start_all_masters(self, start_secondary_master_cells, sync=True):
-        self.start_master_cell(sync=sync)
+    def start_all_masters(self, start_secondary_master_cells, sync=True, set_config=True):
+        self.start_master_cell(sync=sync, set_config=set_config)
 
         if start_secondary_master_cells:
-            self.start_secondary_master_cells(sync=sync)
+            self.start_secondary_master_cells(sync=sync, set_config=set_config)
 
-    def start_secondary_master_cells(self, sync=True):
+    def start_secondary_master_cells(self, sync=True, set_config=True):
         for i in xrange(self.yt_config.secondary_cell_count):
-            self.start_master_cell(i + 1, sync=sync)
+            self.start_master_cell(i + 1, sync=sync, set_config=set_config)
 
     def _prepare_clocks(self, clock_configs):
         for clock_index in xrange(self.yt_config.clock_count):

@@ -50,6 +50,28 @@ DEFINE_REFCOUNTED_TYPE(IJobController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename TJobType>
+struct ITypedJobController
+    : public virtual IJobController
+{
+    virtual void OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks* callbacks) override;
+    virtual void OnJobWaiting(const TIntrusivePtr<TJobType>& job, IJobControllerCallbacks* callbacks) = 0;
+
+    virtual void OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* callbacks) override;
+    virtual void OnJobRunning(const TIntrusivePtr<TJobType>& job, IJobControllerCallbacks* callbacks) = 0;
+
+    virtual void OnJobCompleted(const TJobPtr& job) override;
+    virtual void OnJobCompleted(const TIntrusivePtr<TJobType>& job) = 0;
+
+    virtual void OnJobAborted(const TJobPtr& job) override;
+    virtual void OnJobAborted(const TIntrusivePtr<TJobType>& job) = 0;
+
+    virtual void OnJobFailed(const TJobPtr& job) override;
+    virtual void OnJobFailed(const TIntrusivePtr<TJobType>& job) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ICompositeJobController
     : public IJobController
 {
@@ -65,3 +87,7 @@ ICompositeJobControllerPtr CreateCompositeJobController();
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
+
+#define JOB_CONTROLLER_INL_H_
+#include "job_controller-inl.h"
+#undef JOB_CONTROLLER_INL_H_

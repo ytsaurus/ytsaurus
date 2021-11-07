@@ -636,6 +636,20 @@ void RecomputeChunkListStatistics(TChunkList* chunkList)
     chunkList->Statistics() = statistics;
 }
 
+void RecomputeChildToIndexMapping(TChunkList* chunkList)
+{
+    YT_VERIFY(chunkList->HasChildToIndexMapping());
+
+    auto& mapping = chunkList->ChildToIndex();
+    mapping.clear();
+
+    const auto& children = chunkList->Children();
+    for (int index = 0; index < std::ssize(children); ++index) {
+        auto* child = children[index];
+        YT_VERIFY(mapping.emplace(child, index).second);
+    }
+}
+
 std::vector<TChunkOwnerBase*> GetOwningNodes(TChunkTree* chunkTree)
 {
     THashSet<TChunkOwnerBase*> owningNodes;

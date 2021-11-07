@@ -54,6 +54,8 @@ static const THashSet<EDataNodeThrottlerKind> DataNodeNetworkThrottlers = {
     EDataNodeThrottlerKind::RepairOut,
     EDataNodeThrottlerKind::MergeIn,
     EDataNodeThrottlerKind::MergeOut,
+    EDataNodeThrottlerKind::AutotomyIn,
+    EDataNodeThrottlerKind::AutotomyOut,
     EDataNodeThrottlerKind::ArtifactCacheIn,
     EDataNodeThrottlerKind::ArtifactCacheOut,
     EDataNodeThrottlerKind::ReadRpsOut,
@@ -129,6 +131,7 @@ public:
             EDataNodeThrottlerKind::ReplicationIn,
             EDataNodeThrottlerKind::RepairIn,
             EDataNodeThrottlerKind::MergeIn,
+            EDataNodeThrottlerKind::AutotomyIn,
             EDataNodeThrottlerKind::ArtifactCacheIn,
             EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn,
             EDataNodeThrottlerKind::TabletLoggingIn,
@@ -140,6 +143,7 @@ public:
             EDataNodeThrottlerKind::ReplicationOut,
             EDataNodeThrottlerKind::RepairOut,
             EDataNodeThrottlerKind::MergeOut,
+            EDataNodeThrottlerKind::AutotomyOut,
             EDataNodeThrottlerKind::ArtifactCacheOut,
             EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut,
             EDataNodeThrottlerKind::SkynetOut,
@@ -209,6 +213,7 @@ public:
         GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::RepairChunk, createMasterJob);
         GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::SealChunk, createMasterJob);
         GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::MergeChunks, createMasterJob);
+        GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::AutotomizeChunk, createMasterJob);
 
         GetJobController()->AddHeartbeatProcessor<TMasterJobHeartbeatProcessor>(EObjectType::MasterJob, this);
     }

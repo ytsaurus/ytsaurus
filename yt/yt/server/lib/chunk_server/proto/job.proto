@@ -1,10 +1,13 @@
 package NYT.NChunkClient.NProto;
 
+import "yt/ytlib/chunk_client/proto/chunk_service.proto";
+
 import "yt/ytlib/job_tracker_client/proto/job.proto";
-import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
-import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
+
+import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
+import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -153,6 +156,45 @@ message TMergeChunksJobSpecExt
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 5;
     required TChunkMergerWriterOptions chunk_merger_writer_options = 6;
     repeated fixed64 target_replicas = 7;
+}
+
+message TAutotomizeChunkJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TAutotomizeChunkJobSpecExt autotomize_chunk_job_spec_ext = 209;
+    }
+
+    // Body chunk.
+    required NYT.NProto.TGuid body_chunk_id = 1;
+    required int64 body_chunk_first_overlayed_row_index = 2;
+    repeated fixed64 body_chunk_replicas = 3;
+    required int64 body_chunk_replica_lag_limit = 4;
+
+    // Tail chunk.
+    required NYT.NProto.TGuid tail_chunk_id = 5;
+
+    // Journal parameters.
+    required int32 read_quorum = 6;
+    required int32 write_quorum = 7;
+    required int32 medium_index = 8;
+    required int32 erasure_codec = 9; // NErasure::ECodec
+    required int32 replication_factor = 10;
+    required bool overlayed = 11;
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 12;
+}
+
+message TAutotomizeChunkJobResultExt
+{
+    extend NJobTrackerClient.NProto.TJobResult
+    {
+        optional TAutotomizeChunkJobResultExt autotomize_chunk_job_result_ext = 201;
+    }
+
+    required NYT.NProto.TGuid body_chunk_id = 1;
+    required NYT.NChunkClient.NProto.TChunkSealInfo body_chunk_seal_info = 2;
+    required NYT.NProto.TGuid tail_chunk_id = 3;
+    required NYT.NChunkClient.NProto.TChunkSealInfo tail_chunk_seal_info = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

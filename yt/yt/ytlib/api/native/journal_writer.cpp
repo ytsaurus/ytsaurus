@@ -668,7 +668,7 @@ private:
                 auto batchReq = proxy.ExecuteBatch();
                 GenerateMutationId(batchReq);
                 batchReq->set_suppress_upstream_sync(true);
-                if (Options_.EnableChunkPreallocation) {
+                if (UseOverlayedChunks()) {
                     batchReq->RequireServerFeature(EMasterFeature::OverlayedJournals);
                 }
 
@@ -683,7 +683,7 @@ private:
                 req->set_write_quorum(WriteQuorum_);
                 req->set_movable(true);
                 req->set_vital(true);
-                req->set_overlayed(Options_.EnableChunkPreallocation);
+                req->set_overlayed(UseOverlayedChunks());
                 req->set_replica_lag_limit(Options_.ReplicaLagLimit);
 
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -932,7 +932,7 @@ private:
                 auto session = WaitFor(future)
                     .ValueOrThrow();
 
-                if (Options_.EnableChunkPreallocation) {
+                if (EnableChunkPreallocation()) {
                     ScheduleChunkSessionAllocation();
                 }
 
@@ -1124,7 +1124,7 @@ private:
                 }
             }
 
-            if (Options_.EnableChunkPreallocation) {
+            if (EnableChunkPreallocation()) {
                 ScheduleChunkSessionSeal(session);
             } else {
                 TEventTimerGuard timingGuard(Counters_.SealChunkTimer);
@@ -1145,7 +1145,7 @@ private:
                 req->mutable_info()->set_uncompressed_data_size(session->QuorumFlushedDataSize);
                 req->mutable_info()->set_compressed_data_size(session->QuorumFlushedDataSize);
                 // COMPAT(aleksandra-zh): YT-15138
-                req->mutable_info()->set_physical_row_count(GetPhysicalChunkRowCount(session->QuorumFlushedRowCount, Options_.EnableChunkPreallocation));
+                req->mutable_info()->set_physical_row_count(GetPhysicalChunkRowCount(session->QuorumFlushedRowCount, UseOverlayedChunks()));
                 // COMPAT(babenko): YT-14089
                 req->mutable_misc()->set_sealed(true);
                 req->mutable_misc()->set_row_count(session->QuorumFlushedRowCount);
@@ -1419,7 +1419,7 @@ private:
             ToProto(req->mutable_session_id(), GetSessionIdForNode(CurrentChunkSession_, node));
             req->set_flush_blocks(true);
 
-            if (Options_.EnableChunkPreallocation) {
+            if (UseOverlayedChunks()) {
                 if (node->FirstPendingBlockIndex == 0) {
                     req->set_first_block_index(0);
                     req->Attachments().push_back(CurrentChunkSession_->HeaderRow);
@@ -1655,7 +1655,7 @@ private:
 
         bool IsSafeToSwitchSessionOnDemand()
         {
-            if (!Options_.EnableChunkPreallocation) {
+            if (EnableChunkPreallocation()) {
                 return true;
             }
 
@@ -1705,7 +1705,7 @@ private:
 
         void ScheduleChunkSessionSwitch(const TChunkSessionPtr& session)
         {
-            if (!Options_.EnableChunkPreallocation && session->State != EChunkSessionState::Current) {
+            if (!EnableChunkPreallocation() && session->State != EChunkSessionState::Current) {
                 YT_LOG_DEBUG("Non-current chunk session cannot be switched (SessionId: %v)",
                     session->Id);
                 return;
@@ -1734,7 +1734,7 @@ private:
                         YT_LOG_DEBUG("Resetting chunk session promise");
                         AllocatedChunkSessionIndex_ = -1;
                         AllocatedChunkSessionPromise_.Reset();
-                        if (Options_.EnableChunkPreallocation) {
+                        if (EnableChunkPreallocation()) {
                             ScheduleChunkSessionAllocation();
                         }
                     }
@@ -1836,7 +1836,7 @@ private:
                 req->mutable_info()->set_uncompressed_data_size(session->QuorumFlushedDataSize);
                 req->mutable_info()->set_compressed_data_size(session->QuorumFlushedDataSize);
                 // COMPAT(aleksandra-zh): YT-15138
-                req->mutable_info()->set_physical_row_count(GetPhysicalChunkRowCount(session->QuorumFlushedRowCount, Options_.EnableChunkPreallocation));
+                req->mutable_info()->set_physical_row_count(GetPhysicalChunkRowCount(session->QuorumFlushedRowCount, UseOverlayedChunks()));
             }
 
             SealInProgress_ = true;
@@ -1869,6 +1869,16 @@ private:
         bool IsCompleted() const
         {
             return Closing_ && QuorumUnflushedBatchCount_ == 0;
+        }
+
+        bool UseOverlayedChunks() const
+        {
+            return Options_.EnableChunkPreallocation;
+        }
+
+        bool EnableChunkPreallocation() const
+        {
+            return Options_.EnableChunkPreallocation && !Config_->DontPreallocate;
         }
     };
 

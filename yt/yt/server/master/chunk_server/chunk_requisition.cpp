@@ -150,7 +150,7 @@ bool TChunkReplication::IsValid() const
     return false;
 }
 
-int TChunkRequisition::GetSize() const
+int TChunkReplication::GetSize() const
 {
     return std::ssize(Entries_);
 }

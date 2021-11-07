@@ -1,6 +1,9 @@
 #pragma once
 
 #include "public.h"
+#include "yt/ytlib/chunk_client/proto/chunk_service.pb.h"
+#include "yt/ytlib/job_tracker_client/proto/job.pb.h"
+#include "yt_proto/yt/client/node_tracker_client/proto/node.pb.h"
 
 #include <yt/yt/server/master/chunk_server/chunk_replica.h>
 
@@ -37,6 +40,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
     //! Failure reason (as reported by node).
     DEFINE_BYREF_RW_PROPERTY(TError, Error);
+
+    DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::NProto::TJobResult, Result);
 
 public:
     TJob(
@@ -173,6 +178,39 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TMergeJob)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAutotomyJob
+    : public TJob
+{
+public:
+    DEFINE_BYVAL_RO_PROPERTY(TChunkId, BodyChunkId);
+    DEFINE_BYVAL_RO_PROPERTY(TChunkId, TailChunkId);
+
+    DEFINE_BYVAL_RO_PROPERTY(bool, Speculative);
+    DEFINE_BYVAL_RO_PROPERTY(bool, Urgent);
+
+public:
+    TAutotomyJob(
+        TJobId jobId,
+        TChunkId bodyChunkId,
+        const NChunkClient::NProto::TChunkSealInfo& bodySealInfo,
+        TChunkId tailChunkId,
+        bool speculative,
+        bool urgent);
+
+    virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
+
+    void SetNode(NNodeTrackerServer::TNode* node);
+
+private:
+    const NChunkClient::NProto::TChunkSealInfo BodySealInfo_;
+
+    static NNodeTrackerClient::NProto::TNodeResources GetResourceUsage();
+};
+
+DEFINE_REFCOUNTED_TYPE(TAutotomyJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 

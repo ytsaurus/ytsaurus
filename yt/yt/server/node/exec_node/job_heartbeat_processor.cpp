@@ -218,6 +218,11 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
     }
 }
 
+void TSchedulerJobHeartbeatProcessor::ScheduleHeartbeat(TJobId /*jobId*/)
+{
+    YT_UNIMPLEMENTED();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode

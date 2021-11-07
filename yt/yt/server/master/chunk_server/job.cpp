@@ -1,5 +1,6 @@
 #include "job.h"
 #include "chunk.h"
+#include "chunk_manager.h"
 #include "helpers.h"
 #include "public.h"
 
@@ -281,6 +282,77 @@ TNodeResources TMergeJob::GetResourceUsage(const TChunkVector& inputChunks)
     TNodeResources resourceUsage;
     resourceUsage.set_merge_slots(1);
     resourceUsage.set_merge_data_size(dataSize);
+
+    return resourceUsage;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAutotomyJob::TAutotomyJob(
+    TJobId jobId,
+    TChunkId bodyChunkId,
+    const NChunkClient::NProto::TChunkSealInfo& bodySealInfo,
+    TChunkId tailChunkId,
+    bool speculative,
+    bool urgent)
+    : TJob(
+        jobId,
+        EJobType::AutotomizeChunk,
+        /*node*/ nullptr,
+        TAutotomyJob::GetResourceUsage(),
+        TChunkIdWithIndexes(bodyChunkId, GenericChunkReplicaIndex, GenericMediumIndex))
+    , BodyChunkId_(bodyChunkId)
+    , TailChunkId_(tailChunkId)
+    , Speculative_(speculative)
+    , Urgent_(urgent)
+    , BodySealInfo_(bodySealInfo)
+{ }
+
+void TAutotomyJob::FillJobSpec(NCellMaster::TBootstrap* bootstrap, TJobSpec* jobSpec) const
+{
+    const auto& chunkManager = bootstrap->GetChunkManager();
+
+    jobSpec->set_urgent(Urgent_);
+
+    auto* jobSpecExt = jobSpec->MutableExtension(TAutotomizeChunkJobSpecExt::autotomize_chunk_job_spec_ext);
+
+    NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
+
+    auto* bodyChunk = chunkManager->FindChunk(BodyChunkId_);
+    YT_VERIFY(IsObjectAlive(bodyChunk));
+    const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
+    const auto& aggregatedReplication = bodyChunk->GetAggregatedReplication(requisitionRegistry);
+    YT_VERIFY(aggregatedReplication.GetSize() == 1);
+    const auto& replication = *aggregatedReplication.begin();
+
+    ToProto(jobSpecExt->mutable_body_chunk_id(), BodyChunkId_);
+    YT_VERIFY(bodyChunk->GetOverlayed());
+    jobSpecExt->set_body_chunk_first_overlayed_row_index(BodySealInfo_.first_overlayed_row_index());
+    jobSpecExt->set_body_chunk_replica_lag_limit(bodyChunk->GetReplicaLagLimit());
+
+    const auto& bodyChunkReplicas = bodyChunk->StoredReplicas();
+    ToProto(jobSpecExt->mutable_body_chunk_replicas(), bodyChunkReplicas);
+    builder.Add(bodyChunkReplicas);
+
+    ToProto(jobSpecExt->mutable_tail_chunk_id(), TailChunkId_);
+
+    jobSpecExt->set_read_quorum(bodyChunk->GetReadQuorum());
+    jobSpecExt->set_write_quorum(bodyChunk->GetWriteQuorum());
+    jobSpecExt->set_medium_index(replication.GetMediumIndex());
+    jobSpecExt->set_erasure_codec(ToUnderlying(bodyChunk->GetErasureCodec()));
+    jobSpecExt->set_replication_factor(replication.Policy().GetReplicationFactor());
+    jobSpecExt->set_overlayed(bodyChunk->GetOverlayed());
+}
+
+void TAutotomyJob::SetNode(TNode* node)
+{
+    Node_ = node;
+}
+
+TNodeResources TAutotomyJob::GetResourceUsage()
+{
+    TNodeResources resourceUsage;
+    resourceUsage.set_autotomy_slots(1);
 
     return resourceUsage;
 }

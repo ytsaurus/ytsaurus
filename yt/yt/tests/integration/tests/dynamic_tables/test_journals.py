@@ -1,11 +1,14 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE, is_asan_build
 
 from yt_commands import (
-    authors, wait, create, get, set, copy, move, remove,
+    authors, wait, create, get, set, ls, copy, move, remove,
     exists, create_medium,
+    abort_transaction, commit_transaction, build_master_snapshots, update_nodes_dynamic_config,
     read_journal, write_journal, truncate_journal, wait_until_sealed, get_singular_chunk_id,
-    set_node_banned, set_banned_flag, start_transaction, commit_transaction,
+    set_node_banned, set_banned_flag, start_transaction,
     get_account_disk_space, get_account_committed_disk_space, get_chunk_owner_disk_space)
+
+from yt_helpers import profiler_factory
 
 import yt.yson as yson
 from yt.common import YtError
@@ -17,6 +20,47 @@ import string
 import sys
 from io import TextIOBase
 from time import sleep
+
+##################################################################
+
+DATA = [
+    {
+        "data": "payload-"
+        + str(i)
+        + "-"
+        + "".join(
+            random.choice(string.ascii_uppercase + string.digits) for _ in range(i * i + random.randrange(10))
+        )
+    }
+    for i in xrange(0, 10)
+]
+
+ERASURE_JOURNAL_ATTRIBUTES = {
+    "none": {
+        "erasure_codec": "none",
+        "replication_factor": 3,
+        "read_quorum": 2,
+        "write_quorum": 2,
+    },
+    "isa_lrc_12_2_2": {
+        "erasure_codec": "isa_lrc_12_2_2",
+        "replication_factor": 1,
+        "read_quorum": 14,
+        "write_quorum": 15,
+    },
+    "isa_reed_solomon_3_3": {
+        "erasure_codec": "isa_reed_solomon_3_3",
+        "replication_factor": 1,
+        "read_quorum": 4,
+        "write_quorum": 5,
+    },
+    "isa_reed_solomon_6_3": {
+        "erasure_codec": "isa_reed_solomon_6_3",
+        "replication_factor": 1,
+        "read_quorum": 7,
+        "write_quorum": 8,
+    }
+}
 
 ##################################################################
 
@@ -101,6 +145,14 @@ class TestJournals(YTEnvSetup):
             result.append(orchid["flushed_row_count"])
         return result
 
+    def _find_replicas_with_length(self, chunk_id, length):
+        result = []
+        for replica in get("#{}/@last_seen_replicas".format(chunk_id)):
+            orchid = get("//sys/cluster_nodes/{}/orchid/stored_chunks/{}".format(replica, chunk_id))
+            if orchid["flushed_row_count"] == length:
+                result.append(replica)
+        return result
+
     @authors("babenko")
     def test_explicit_compression_codec_forbidden(self):
         with pytest.raises(YtError):
@@ -175,7 +227,7 @@ class TestJournals(YTEnvSetup):
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed(
             "//tmp/j",
-            self.DATA,
+            DATA,
             enable_chunk_preallocation=enable_chunk_preallocation,
             journal_writer={
                 "max_batch_row_count": 4,
@@ -186,7 +238,8 @@ class TestJournals(YTEnvSetup):
         assert get("//tmp/j/@quorum_row_count") == 10
 
         write_journal(
-            "//tmp/j", self.DATA,
+            "//tmp/j",
+            DATA,
             enable_chunk_preallocation=enable_chunk_preallocation,
             journal_writer={"dont_close": True},
         )
@@ -199,7 +252,7 @@ class TestJournals(YTEnvSetup):
         for i in xrange(0, 10):
             self._write_and_wait_until_sealed(
                 "//tmp/j",
-                self.DATA,
+                DATA,
                 enable_chunk_preallocation=enable_chunk_preallocation,
                 journal_writer={
                     "max_batch_row_count": 4,
@@ -216,10 +269,10 @@ class TestJournals(YTEnvSetup):
         assert chunk_count <= 10 * (3 + (1 if enable_chunk_preallocation else 0))
 
         for i in xrange(0, 10):
-            assert read_journal("//tmp/j[#" + str(i * 10) + ":]") == self.DATA * (10 - i)
+            assert read_journal("//tmp/j[#" + str(i * 10) + ":]") == DATA * (10 - i)
 
         for i in xrange(0, 9):
-            assert read_journal("//tmp/j[#" + str(i * 10 + 5) + ":]") == (self.DATA * (10 - i))[5:]
+            assert read_journal("//tmp/j[#" + str(i * 10 + 5) + ":]") == (DATA * (10 - i))[5:]
 
         assert read_journal("//tmp/j[#200:]") == []
 
@@ -229,7 +282,7 @@ class TestJournals(YTEnvSetup):
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed(
             "//tmp/j",
-            self.DATA,
+            DATA,
             enable_chunk_preallocation=enable_chunk_preallocation,
         )
 
@@ -249,7 +302,7 @@ class TestJournals(YTEnvSetup):
         for i in xrange(0, 10):
             self._write_and_wait_until_sealed(
                 "//tmp/j",
-                self.DATA,
+                DATA,
                 enable_chunk_preallocation=enable_chunk_preallocation,
             )
 
@@ -263,7 +316,7 @@ class TestJournals(YTEnvSetup):
         for i in xrange(0, 10):
             self._write_and_wait_until_sealed(
                 "//tmp/j",
-                self.DATA,
+                DATA,
                 enable_chunk_preallocation=enable_chunk_preallocation,
             )
             self._truncate_and_check("//tmp/j", (i + 1) * 3)
@@ -277,7 +330,7 @@ class TestJournals(YTEnvSetup):
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed(
             "//tmp/j",
-            self.DATA,
+            DATA,
             enable_chunk_preallocation=enable_chunk_preallocation,
         )
 
@@ -298,7 +351,7 @@ class TestJournals(YTEnvSetup):
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed(
             "//tmp/j",
-            self.DATA,
+            DATA,
             enable_chunk_preallocation=enable_chunk_preallocation,
         )
 
@@ -322,7 +375,7 @@ class TestJournals(YTEnvSetup):
 
         create("journal", "//tmp/j")
 
-        rows = self.DATA * 100
+        rows = DATA * 100
 
         self._write_slowly(
             "//tmp/j",
@@ -353,7 +406,7 @@ class TestJournals(YTEnvSetup):
 
         create("journal", "//tmp/j")
         write_journal(
-            "//tmp/j", self.DATA,
+            "//tmp/j", DATA,
             enable_chunk_preallocation=enable_chunk_preallocation,
             journal_writer={"dont_close": True}
         )
@@ -366,7 +419,7 @@ class TestJournals(YTEnvSetup):
         wait(lambda: get_account_committed_disk_space("tmp") == 0)
 
         create("journal", "//tmp/j")
-        self._write_and_wait_until_sealed("//tmp/j", self.DATA)
+        self._write_and_wait_until_sealed("//tmp/j", DATA)
 
         chunk_id = get_singular_chunk_id("//tmp/j")
 
@@ -390,10 +443,10 @@ class TestJournals(YTEnvSetup):
     @authors("babenko")
     def test_move(self):
         create("journal", "//tmp/j1")
-        self._write_and_wait_until_sealed("//tmp/j1", self.DATA)
+        self._write_and_wait_until_sealed("//tmp/j1", DATA)
 
         move("//tmp/j1", "//tmp/j2")
-        assert read_journal("//tmp/j2") == self.DATA
+        assert read_journal("//tmp/j2") == DATA
 
     @authors("babenko")
     def test_no_storage_change_after_creation(self):
@@ -417,7 +470,7 @@ class TestJournals(YTEnvSetup):
         create("journal", "//tmp/j")
         write_journal(
             "//tmp/j",
-            self.DATA,
+            DATA,
             enable_chunk_preallocation=enable_chunk_preallocation,
             journal_writer={
                 "dont_close": True,
@@ -427,7 +480,7 @@ class TestJournals(YTEnvSetup):
             },
         )
 
-        assert read_journal("//tmp/j") == self.DATA
+        assert read_journal("//tmp/j") == DATA
 
     @authors("babenko")
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
@@ -438,7 +491,7 @@ class TestJournals(YTEnvSetup):
 
         create("journal", "//tmp/j")
 
-        rows = self.DATA * 100
+        rows = DATA * 100
 
         self._write_slowly(
             "//tmp/j",
@@ -466,7 +519,7 @@ class TestJournals(YTEnvSetup):
     @authors("ifsmirnov")
     def test_data_node_orchid(self):
         create("journal", "//tmp/j")
-        self._write_and_wait_until_sealed("//tmp/j", self.DATA)
+        self._write_and_wait_until_sealed("//tmp/j", DATA)
         chunk_id = get("//tmp/j/@chunk_ids/0")
         replica = get("#{}/@last_seen_replicas/0".format(chunk_id))
         orchid = get("//sys/cluster_nodes/{}/orchid/stored_chunks/{}".format(replica, chunk_id))
@@ -502,7 +555,7 @@ class TestJournals(YTEnvSetup):
 
             rows = []
             for i in range(row_count):
-                rows.append(self.DATA[i % len(self.DATA)])
+                rows.append(DATA[i % len(DATA)])
 
             self._write_slowly(
                 "//tmp/j",
@@ -581,7 +634,7 @@ class TestJournals(YTEnvSetup):
         create("journal", "//tmp/j")
         self._write_slowly(
             "//tmp/j",
-            self.DATA,
+            DATA,
             replica_lag_limit=123456,
         )
 
@@ -593,9 +646,9 @@ class TestJournals(YTEnvSetup):
     @authors("gritukan")
     def test_copy_journal(self):
         create("journal", "//tmp/j")
-        self._write_and_wait_until_sealed("//tmp/j", self.DATA)
+        self._write_and_wait_until_sealed("//tmp/j", DATA)
         copy("//tmp/j", "//tmp/j2")
-        assert read_journal("//tmp/j2") == self.DATA
+        assert read_journal("//tmp/j2") == DATA
 
     @authors("gritukan")
     def test_unsealed_journal_copy_forbidden(self):
@@ -604,7 +657,7 @@ class TestJournals(YTEnvSetup):
         create("journal", "//tmp/j")
         self._write_slowly(
             "//tmp/j",
-            self.DATA,
+            DATA,
             enable_chunk_preallocation=True,
             journal_writer={
                 "dont_close": False,
@@ -629,7 +682,7 @@ class TestJournalsPortal(TestJournalsMulticell):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
 
         create("journal", "//tmp/j")
-        self._write_and_wait_until_sealed("//tmp/j", self.DATA)
+        self._write_and_wait_until_sealed("//tmp/j", DATA)
 
         with pytest.raises(YtError, match="Cross-cell copying of journal is not supported"):
             copy("//tmp/j", "//tmp/p/j")
@@ -655,7 +708,7 @@ class TestJournalsChangeMedia(YTEnvSetup):
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
 
         create("journal", "//tmp/j1")
-        write_journal("//tmp/j1", self.DATA, journal_writer={"dont_close": True})
+        write_journal("//tmp/j1", DATA, journal_writer={"dont_close": True})
 
         assert not get("//tmp/j1/@sealed")
         chunk_id = get_singular_chunk_id("//tmp/j1")
@@ -776,29 +829,29 @@ class TestErasureJournals(TestJournals):
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
         N = 3
         for i in xrange(N):
-            self._write_and_wait_until_sealed("//tmp/j", self.DATA, journal_writer={"dont_close": True})
+            self._write_and_wait_until_sealed("//tmp/j", DATA, journal_writer={"dont_close": True})
             self._wait_until_last_chunk_sealed("//tmp/j")
 
         assert get("//tmp/j/@sealed")
-        assert get("//tmp/j/@quorum_row_count") == len(self.DATA) * N
+        assert get("//tmp/j/@quorum_row_count") == len(DATA) * N
         assert get("//tmp/j/@chunk_count") == N
-        assert read_journal("//tmp/j") == self.DATA * N
+        assert read_journal("//tmp/j") == DATA * N
 
     @pytest.mark.parametrize("erasure_codec", ["isa_lrc_12_2_2", "isa_reed_solomon_3_3", "isa_reed_solomon_6_3"])
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     @authors("babenko")
     def test_repair_jobs(self, erasure_codec, enable_chunk_preallocation):
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
-        write_journal("//tmp/j", self.DATA, enable_chunk_preallocation=enable_chunk_preallocation)
+        write_journal("//tmp/j", DATA, enable_chunk_preallocation=enable_chunk_preallocation)
 
-        self._check_repair_jobs("//tmp/j", self.DATA)
+        self._check_repair_jobs("//tmp/j", DATA)
 
     def _test_critical_erasure_state(self, state, n):
         set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
 
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES["isa_lrc_12_2_2"])
-        write_journal("//tmp/j", self.DATA, journal_writer={"dont_close": True})
+        write_journal("//tmp/j", DATA, journal_writer={"dont_close": True})
 
         chunk_ids = get("//tmp/j/@chunk_ids")
         chunk_id = chunk_ids[-1]
@@ -829,20 +882,20 @@ class TestErasureJournals(TestJournals):
             pytest.skip()
 
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
-        self._write_and_wait_until_sealed("//tmp/j", self.DATA, enable_chunk_preallocation=enable_chunk_preallocation)
+        self._write_and_wait_until_sealed("//tmp/j", DATA, enable_chunk_preallocation=enable_chunk_preallocation)
 
         assert get("//tmp/j/@sealed")
-        assert get("//tmp/j/@quorum_row_count") == len(self.DATA)
+        assert get("//tmp/j/@quorum_row_count") == len(DATA)
         if not enable_chunk_preallocation:
             assert get("//tmp/j/@chunk_count") == 1
 
         def check():
-            for i in xrange(0, len(self.DATA)):
-                assert read_journal("//tmp/j[#" + str(i) + ":#" + str(i + 1) + "]") == [self.DATA[i]]
-            for i in xrange(0, len(self.DATA)):
-                assert read_journal("//tmp/j[#" + str(i) + ":]") == self.DATA[i:]
-            for i in xrange(0, len(self.DATA)):
-                assert read_journal("//tmp/j[:#" + str(i) + "]") == self.DATA[:i]
+            for i in xrange(0, len(DATA)):
+                assert read_journal("//tmp/j[#" + str(i) + ":#" + str(i + 1) + "]") == [DATA[i]]
+            for i in xrange(0, len(DATA)):
+                assert read_journal("//tmp/j[#" + str(i) + ":]") == DATA[i:]
+            for i in xrange(0, len(DATA)):
+                assert read_journal("//tmp/j[:#" + str(i) + "]") == DATA[:i]
 
         check()
 
@@ -860,7 +913,7 @@ class TestErasureJournals(TestJournals):
 
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES["isa_reed_solomon_3_3"])
 
-        rows = self.DATA * 20
+        rows = DATA * 20
 
         self._write_slowly(
             "//tmp/j",
@@ -884,3 +937,327 @@ class TestErasureJournalsRpcProxy(TestErasureJournals):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
+
+##################################################################
+
+
+class TestChunkAutotomizer(YTEnvSetup):
+    NUM_TEST_PARTITIONS = 3
+    NUM_MASTERS = 1
+    NUM_NODES = 20
+
+    def _get_chunk_replica_length(self, chunk_id):
+        result = []
+        for replica in get("#{}/@last_seen_replicas".format(chunk_id)):
+            orchid = get("//sys/cluster_nodes/{}/orchid/stored_chunks/{}".format(replica, chunk_id))
+            result.append(orchid["flushed_row_count"])
+        return result
+
+    def _find_replicas_with_length(self, chunk_id, length):
+        result = []
+        for replica in get("#{}/@last_seen_replicas".format(chunk_id)):
+            orchid = get("//sys/cluster_nodes/{}/orchid/stored_chunks/{}".format(replica, chunk_id))
+            if orchid["flushed_row_count"] == length:
+                result.append(replica)
+        return result
+
+    def _wait_until_last_chunk_sealed(self, path):
+        def check():
+            try:
+                chunk_ids = get(path + "/@chunk_ids")
+                chunk_id = chunk_ids[-1]
+                return all(r.attributes["state"] == "sealed" for r in get("#{}/@stored_replicas".format(chunk_id)))
+            except YtError:
+                return False
+        wait(check)
+
+    def _create_simple_journal(self):
+        create("journal", "//tmp/j")
+        write_journal(
+            "//tmp/j",
+            DATA,
+            enable_chunk_preallocation=True,
+            replica_lag_limit=4,
+            journal_writer={
+                "dont_close": True,
+                "dont_seal": True,
+                "dont_preallocate": True,
+                "max_batch_row_count": 4,
+            },
+        )
+
+    def _check_simple_journal(self):
+        chunk_ids = get("//tmp/j/@chunk_ids")
+        if len(chunk_ids) == 1:
+            return False
+
+        for chunk_id in get("//tmp/j/@chunk_ids"):
+            if not get("#{}/@sealed".format(chunk_id)):
+                return False
+
+        assert len(chunk_ids) == 2
+        assert get("#{}/@row_count".format(chunk_ids[0])) == 6
+        assert get("#{}/@row_count".format(chunk_ids[1])) == 4
+
+        assert read_journal("//tmp/j") == DATA
+        return True
+
+    def _set_fail_jobs(self, fail_jobs):
+        update_nodes_dynamic_config({
+            "data_node": {
+                "chunk_autotomizer": {
+                    "fail_jobs": fail_jobs,
+                },
+            }
+        })
+
+    def _set_sleep_in_jobs(self, sleep_in_jobs):
+        update_nodes_dynamic_config({
+            "data_node": {
+                "chunk_autotomizer": {
+                    "sleep_in_jobs": sleep_in_jobs,
+                },
+            }
+        })
+
+    def _get_all_master_profilers(self):
+        profilers = []
+        for i in range(len(ls("//sys/primary_masters"))):
+            profilers.append(profiler_factory().at_primary_master(master_index=i))
+        for cell_tag in ls("//sys/secondary_masters"):
+            for i in range(len(ls("//sys/secondary_masters/{0}".format(cell_tag)))):
+                profilers.append(profiler_factory().at_secondary_master(cell_tag=cell_tag, master_index=i))
+        return profilers
+
+    def _get_all_master_counters(self, path, *args, **kwargs):
+        return [profiler.counter(path, *args, **kwargs) for profiler in self._get_all_master_profilers()]
+
+    def _get_all_master_gauges(self, path, *args, **kwargs):
+        return [profiler.gauge(path, *args, **kwargs) for profiler in self._get_all_master_profilers()]
+
+    @authors("gritukan")
+    def test_simple(self):
+        if self.Env.get_component_version("ytserver-master").abi <= (21, 2):
+            pytest.skip("Chunk autotomy is available in 21.3+ versions")
+
+        success_counters = self._get_all_master_counters("chunk_server/chunk_autotomizer/successful_autotomies")
+
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
+        set("//sys/@config/chunk_manager/chunk_refresh_period", 50)
+
+        create("journal", "//tmp/j", attributes={
+            "erasure_codec": "none",
+            "replication_factor": 5,
+            "read_quorum": 3,
+            "write_quorum": 3,
+        })
+
+        rows = DATA
+
+        write_journal(
+            "//tmp/j",
+            rows,
+            enable_chunk_preallocation=True,
+            replica_lag_limit=8,
+            journal_writer={
+                "dont_close": False,
+                "dont_seal": True,
+                "node_ban_timeout": 0,
+                "max_batch_row_count": 1,
+                "max_flush_row_count": 1,
+                "replica_row_limits": [6, 7, 8, 9, 10],
+                "replica_fake_timeout_delay": 500,
+            },
+        )
+
+        body_chunk_id = get("//tmp/j/@chunk_ids/0")
+        replica = self._find_replicas_with_length(body_chunk_id, 7)[0]
+
+        set("//sys/cluster_nodes/{}/@banned".format(replica), True)
+
+        set("//sys/@config/chunk_manager/enable_chunk_autotomizer", True)
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", True)
+
+        def check():
+            for chunk_id in get("//tmp/j/@chunk_ids"):
+                if not get("#{}/@sealed".format(chunk_id)):
+                    return False
+            return True
+
+        wait(lambda: check())
+        wait(lambda: sum(counter.get_delta() for counter in success_counters) == 1)
+        assert 3 <= len(get("//tmp/j/@chunk_ids")) <= 4
+        self._wait_until_last_chunk_sealed("//tmp/j")
+        assert read_journal("//tmp/j") == rows
+
+    @pytest.mark.parametrize("erasure_codec", ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3", "isa_reed_solomon_6_3"])
+    @authors("gritukan")
+    def test_erasure(self, erasure_codec):
+        if self.Env.get_component_version("ytserver-master").abi <= (21, 2):
+            pytest.skip("Chunk autotomy is available in 21.3+ versions")
+
+        set("//sys/@config/chunk_manager/enable_chunk_autotomizer", True)
+        set("//sys/@config/chunk_manager/testing/force_unreliable_seal", True)
+
+        create("journal", "//tmp/j", attributes=ERASURE_JOURNAL_ATTRIBUTES[erasure_codec])
+
+        rows = DATA
+        write_journal(
+            "//tmp/j",
+            rows,
+            enable_chunk_preallocation=True,
+            replica_lag_limit=4,
+            journal_writer={
+                "dont_close": True,
+                "dont_seal": True,
+                "dont_preallocate": True,
+                "max_batch_row_count": 4,
+            },
+        )
+
+        wait(lambda: self._check_simple_journal())
+
+    @authors("gritukan")
+    def test_job_failure(self):
+        if self.Env.get_component_version("ytserver-master").abi <= (21, 2):
+            pytest.skip("Chunk autotomy is available in 21.3+ versions")
+
+        set("//sys/@config/chunk_manager/enable_chunk_autotomizer", True)
+        set("//sys/@config/chunk_manager/testing/force_unreliable_seal", True)
+
+        fail_counters = self._get_all_master_counters("chunk_server/jobs_failed", tags={"job_type": "autotomize_chunk"})
+        self._set_fail_jobs(True)
+        self._create_simple_journal()
+
+        wait(lambda: sum(counter.get_delta() for counter in fail_counters) > 5)
+        registered_gauges = self._get_all_master_gauges("chunk_server/chunk_autotomizer/registered_chunks")
+        assert sum(gauge.get() for gauge in registered_gauges) == 1
+
+        assert len(get("//tmp/j/@chunk_ids")) == 1
+
+        self._set_fail_jobs(False)
+        wait(lambda: self._check_simple_journal())
+
+    @authors("gritukan")
+    @pytest.mark.skipif("True", reason="Flaky")
+    def test_job_speculation(self):
+        if self.Env.get_component_version("ytserver-master").abi <= (21, 2):
+            pytest.skip("Chunk autotomy is available in 21.3+ versions")
+
+        set("//sys/@config/chunk_manager/enable_chunk_autotomizer", True)
+        set("//sys/@config/chunk_manager/testing/force_unreliable_seal", True)
+        set("//sys/@config/chunk_manager/chunk_autotomizer/job_timeout", 5000)
+
+        win_counters = self._get_all_master_counters("chunk_server/chunk_autotomizer/speculative_job_wins")
+        loss_counters = self._get_all_master_counters("chunk_server/chunk_autotomizer/speculative_job_wins")
+        speculative_counters = win_counters + loss_counters
+
+        self._set_sleep_in_jobs(True)
+        self._create_simple_journal()
+
+        sleep(5)
+        assert len(get("//tmp/j/@chunk_ids")) == 1
+        self._set_sleep_in_jobs(False)
+
+        wait(lambda: self._check_simple_journal())
+        assert sum(counter.get_delta() for counter in speculative_counters) > 0
+
+    @authors("gritukan")
+    @pytest.mark.parametrize("build_snapshot", [False, True])
+    def test_master_restart(self, build_snapshot):
+        if self.Env.get_component_version("ytserver-master").abi <= (21, 2):
+            pytest.skip("Chunk autotomy is available in 21.3+ versions")
+
+        set("//sys/@config/chunk_manager/enable_chunk_autotomizer", True)
+        set("//sys/@config/chunk_manager/testing/force_unreliable_seal", True)
+
+        self._set_fail_jobs(True)
+        self._create_simple_journal()
+
+        if build_snapshot:
+            build_master_snapshots(set_read_only=True)
+
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass
+
+        self._set_fail_jobs(False)
+        wait(lambda: self._check_simple_journal())
+
+    @authors("gritukan")
+    def test_abandon_autotomy(self):
+        if self.Env.get_component_version("ytserver-master").abi <= (21, 2):
+            pytest.skip("Chunk autotomy is available in 21.3+ versions")
+
+        set("//sys/@config/chunk_manager/enable_chunk_autotomizer", True)
+        set("//sys/@config/chunk_manager/testing/force_unreliable_seal", True)
+
+        unsuccess_counters = self._get_all_master_counters("chunk_server/chunk_autotomizer/unsuccessful_autotomies")
+
+        self._set_fail_jobs(True)
+        self._create_simple_journal()
+
+        sleep(10)
+        assert len(get("//tmp/j/@chunk_ids")) == 1
+        set("//sys/@config/chunk_manager/testing/force_unreliable_seal", False)
+
+        chunk_id = get("//tmp/j/@chunk_ids")[0]
+        wait(lambda: get("#{}/@sealed".format(chunk_id)))
+        assert read_journal("//tmp/j") == DATA
+        wait(lambda: sum(counter.get_delta() for counter in unsuccess_counters) == 1)
+
+    @authors("gritukan")
+    def test_remove_autotomizable_chunk(self):
+        if self.Env.get_component_version("ytserver-master").abi <= (21, 2):
+            pytest.skip("Chunk autotomy is available in 21.3+ versions")
+
+        set("//sys/@config/chunk_manager/enable_chunk_autotomizer", True)
+        set("//sys/@config/chunk_manager/testing/force_unreliable_seal", True)
+
+        self._set_fail_jobs(True)
+        self._create_simple_journal()
+
+        sleep(5)
+        assert len(get("//tmp/j/@chunk_ids")) == 1
+
+        remove("//tmp/j")
+        registered_gauges = self._get_all_master_gauges("chunk_server/chunk_autotomizer/registered_chunks")
+        wait(lambda: sum(gauge.get() for gauge in registered_gauges) == 0)
+
+    @authors("gritukan")
+    @pytest.mark.parametrize("action", ["abort", "commit"])
+    def test_finish_autotomizer_transactions(self, action):
+        if self.Env.get_component_version("ytserver-master").abi <= (21, 2):
+            pytest.skip("Chunk autotomy is available in 21.3+ versions")
+
+        def finish_txs():
+            for tx in ls("//sys/transactions", attributes=["title"]):
+                title = tx.attributes.get("title", "")
+                if title == "Chunk autotomizer transaction":
+                    if action == "abort":
+                        abort_transaction(tx)
+                    else:
+                        commit_transaction(tx)
+
+        set("//sys/@config/chunk_manager/enable_chunk_autotomizer", True)
+        set("//sys/@config/chunk_manager/testing/force_unreliable_seal", True)
+
+        self._set_fail_jobs(True)
+        self._create_simple_journal()
+
+        for _ in range(10):
+            finish_txs()
+
+        self._set_fail_jobs(False)
+
+        for _ in range(10):
+            finish_txs()
+
+        wait(lambda: self._check_simple_journal())
+
+
+class TestChunkAutotomizerMulticell(TestChunkAutotomizer):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+
+class TestChunkAutotomizerPortal(TestChunkAutotomizerMulticell):
+    ENABLE_TMP_PORTAL = True

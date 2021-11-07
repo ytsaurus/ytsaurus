@@ -131,6 +131,10 @@ public:
             const TReqHeartbeatPtr& request) = 0;
         virtual void ProcessResponse(
             const TRspHeartbeatPtr& response) = 0;
+
+        //! Schedules an out-of-order heartbeat for a specific job.
+        virtual void ScheduleHeartbeat(TJobId jobId) = 0;
+
     protected:
         bool TryAcquireStatisticsThrottler(int size);
 

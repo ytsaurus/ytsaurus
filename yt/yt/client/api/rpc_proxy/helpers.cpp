@@ -1301,6 +1301,8 @@ NProto::EJobType ConvertJobTypeToProto(
             return NProto::EJobType::JT_SEAL_CHUNK;
         case NJobTrackerClient::EJobType::MergeChunks:
             return NProto::EJobType::JT_MERGE_CHUNKS;
+        case NJobTrackerClient::EJobType::AutotomizeChunk:
+            return NProto::EJobType::JT_AUTOTOMIZE_CHUNK;
         default:
             YT_ABORT();
     }
@@ -1354,6 +1356,8 @@ NJobTrackerClient::EJobType ConvertJobTypeFromProto(
             return NJobTrackerClient::EJobType::SealChunk;
         case NProto::EJobType::JT_MERGE_CHUNKS:
             return NJobTrackerClient::EJobType::MergeChunks;
+        case NProto::EJobType::JT_AUTOTOMIZE_CHUNK:
+            return NJobTrackerClient::EJobType::AutotomizeChunk;
         default:
             YT_ABORT();
     }

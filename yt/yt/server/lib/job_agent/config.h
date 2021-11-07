@@ -34,6 +34,7 @@ public:
     i64 RepairDataSize;
     int SealSlots;
     int MergeSlots;
+    int AutotomySlots;
 
     TResourceLimitsConfig()
     {
@@ -80,6 +81,9 @@ public:
             .GreaterThanOrEqual(0)
             .Default(16);
         RegisterParameter("merge_slots", MergeSlots)
+            .GreaterThanOrEqual(0)
+            .Default(4);
+        RegisterParameter("autotomy_slots", AutotomySlots)
             .GreaterThanOrEqual(0)
             .Default(4);
     }

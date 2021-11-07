@@ -799,6 +799,32 @@ DEFINE_REFCOUNTED_TYPE(TAllyReplicaManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkAutotomizerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration RpcTimeout;
+
+    // Testing options.
+    bool FailJobs;
+    bool SleepInJobs;
+
+    TChunkAutotomizerConfig()
+    {
+        RegisterParameter("rpc_timeout", RpcTimeout)
+            .Default(TDuration::Seconds(5));
+
+        RegisterParameter("fail_jobs", FailJobs)
+            .Default(false);
+        RegisterParameter("sleep_in_jobs", SleepInJobs)
+            .Default(false);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkAutotomizerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDataNodeConfig
     : public NYTree::TYsonSerializable
 {
@@ -927,6 +953,12 @@ public:
 
     //! Writer configuration used to merge chunks.
     NChunkClient::TMultiChunkWriterConfigPtr MergeWriter;
+
+    //! Reader configuration used to autotomize chunks.
+    NJournalClient::TChunkReaderConfigPtr AutotomyReader;
+
+    //! Writer configuration used to autotomize chunks.
+    NChunkClient::TReplicationWriterConfigPtr AutotomyWriter;
 
     //! Configuration for various Data Node throttlers.
     TEnumIndexedVector<EDataNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
@@ -1090,6 +1122,11 @@ public:
         RegisterParameter("merge_reader", MergeReader)
             .DefaultNew();
         RegisterParameter("merge_writer", MergeWriter)
+            .DefaultNew();
+
+        RegisterParameter("autotomy_reader", AutotomyReader)
+            .DefaultNew();
+        RegisterParameter("autotomy_writer", AutotomyWriter)
             .DefaultNew();
 
         RegisterParameter("throttlers", Throttlers)
@@ -1319,6 +1356,8 @@ public:
 
     TP2PConfigPtr P2P;
 
+    TChunkAutotomizerConfigPtr ChunkAutotomizer;
+
     TDataNodeDynamicConfig()
     {
         RegisterParameter("storage_heavy_thread_count", StorageHeavyThreadCount)
@@ -1373,6 +1412,9 @@ public:
 
         RegisterParameter("p2p", P2P)
             .Optional();
+
+        RegisterParameter("chunk_autotomizer", ChunkAutotomizer)
+            .DefaultNew();
     }
 };
 

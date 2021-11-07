@@ -76,7 +76,7 @@ struct IMergeChunkVisitorHost
 
 class TChunkMerger
     : public NCellMaster::TMasterAutomatonPart
-    , public virtual IJobController
+    , public virtual ITypedJobController<TMergeJob>
     , public virtual IMergeChunkVisitorHost
 {
 public:
@@ -96,12 +96,12 @@ public:
     // IJobController implementation.
     void ScheduleJobs(IJobSchedulingContext* context) override;
 
-    void OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks* callbacks) override;
-    void OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* callbacks) override;
+    void OnJobWaiting(const TMergeJobPtr& job, IJobControllerCallbacks* callbacks) override;
+    void OnJobRunning(const TMergeJobPtr& job, IJobControllerCallbacks* callbacks) override;
 
-    void OnJobCompleted(const TJobPtr& job) override;
-    void OnJobAborted(const TJobPtr& job) override;
-    void OnJobFailed(const TJobPtr& job) override;
+    void OnJobCompleted(const TMergeJobPtr& job) override;
+    void OnJobAborted(const TMergeJobPtr& job) override;
+    void OnJobFailed(const TMergeJobPtr& job) override;
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -207,7 +207,7 @@ private:
         TChunkListId parentChunkListId,
         std::vector<TMergeJobInfo>* jobInfos);
 
-    void OnJobFinished(const TJobPtr& job);
+    void OnJobFinished(const TMergeJobPtr& job);
 
     const TDynamicChunkMergerConfigPtr& GetDynamicConfig() const;
     void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/ = nullptr);

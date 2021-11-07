@@ -9,6 +9,7 @@ namespace NYT::NExecNode {
 class TSchedulerJobHeartbeatProcessor
     : public NJobAgent::TJobController::TJobHeartbeatProcessorBase
 {
+public:
     using TJobHeartbeatProcessorBase::TJobHeartbeatProcessorBase;
 
     void PrepareRequest(
@@ -17,6 +18,9 @@ class TSchedulerJobHeartbeatProcessor
     void ProcessResponse(
         const NJobAgent::TJobController::TRspHeartbeatPtr& response) final;
 
+    virtual void ScheduleHeartbeat(NJobTrackerClient::TJobId jobId) final;
+
+private:
     THashSet<NObjectClient::TJobId> JobIdsToConfirm_;
 };
 

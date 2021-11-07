@@ -380,22 +380,19 @@ class Restarter(object):
         self.kill_args = args
         self.kill_kwargs = kwargs
 
-        def start_all_masters(*args, **kwargs):
-            self.yt_instance.start_all_masters(True, *args, **kwargs)
-
         self.start_dict = {
             SCHEDULERS_SERVICE: self.yt_instance.start_schedulers,
             CONTROLLER_AGENTS_SERVICE: self.yt_instance.start_controller_agents,
             NODES_SERVICE: self.yt_instance.start_nodes,
-            MASTERS_SERVICE: start_all_masters,
-            MASTER_CACHES_SERVICE: self.yt_instance.start_master_caches
+            MASTERS_SERVICE: lambda sync: self.yt_instance.start_all_masters(start_secondary_master_cells=True, set_config=False, sync=sync),
+            MASTER_CACHES_SERVICE: self.yt_instance.start_master_caches,
         }
         self.kill_dict = {
             SCHEDULERS_SERVICE: lambda: self.yt_instance.kill_schedulers(*self.kill_args, **self.kill_kwargs),
             CONTROLLER_AGENTS_SERVICE: lambda: self.yt_instance.kill_controller_agents(*self.kill_args, **self.kill_kwargs),
             NODES_SERVICE: lambda: self.yt_instance.kill_nodes(*self.kill_args, **self.kill_kwargs),
             MASTERS_SERVICE: lambda: self.yt_instance.kill_all_masters(*self.kill_args, **self.kill_kwargs),
-            MASTER_CACHES_SERVICE: lambda: self.yt_instance.kill_master_caches(*self.kill_args, **self.kill_kwargs)
+            MASTER_CACHES_SERVICE: lambda: self.yt_instance.kill_master_caches(*self.kill_args, **self.kill_kwargs),
         }
 
     def __enter__(self):

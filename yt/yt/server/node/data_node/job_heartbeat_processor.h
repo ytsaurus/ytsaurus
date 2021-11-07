@@ -10,12 +10,14 @@ class TMasterJobHeartbeatProcessor
     : public NJobAgent::TJobController::TJobHeartbeatProcessorBase
 {
     using TJobHeartbeatProcessorBase::TJobHeartbeatProcessorBase;
-    
+
     void PrepareRequest(
         NObjectClient::TCellTag cellTag,
         const NJobAgent::TJobController::TReqHeartbeatPtr& request) final;
     void ProcessResponse(
         const NJobAgent::TJobController::TRspHeartbeatPtr& response) final;
+
+    virtual void ScheduleHeartbeat(NJobTrackerClient::TJobId jobId) final;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

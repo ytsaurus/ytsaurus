@@ -12,6 +12,9 @@ message TJobSpec
     required int32 type = 1;
     optional int32 version = 2;
 
+    //! If true, job result is reported via out-of-order heartbeat.
+    optional bool urgent = 3 [default = false];
+
     extensions 100 to max;
 }
 

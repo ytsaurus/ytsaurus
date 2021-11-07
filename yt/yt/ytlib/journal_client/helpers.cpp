@@ -773,16 +773,21 @@ private:
         result.RowCount = GetLogicalChunkRowCount(miscExt.row_count(), Overlayed_);
         result.UncompressedDataSize = miscExt.uncompressed_data_size();
         result.CompressedDataSize = miscExt.compressed_data_size();
-        result.ResponseCount = ChunkMetaResults_.size();
+
+        for (const auto& replicaResult : ChunkMetaResults_) {
+            if (GetLogicalChunkRowCount(replicaResult.MiscExt.row_count(), Overlayed_) >= result.RowCount) {
+                ++result.RowCountConfirmedReplicaCount;
+            }
+        }
 
         YT_LOG_DEBUG("Quorum info for journal chunk computed successfully (PhysicalRowCount: %v, LogicalRowCount: %v, "
-            "FirstOverlayedRowIndex: %v, UncompressedDataSize: %v, CompressedDataSize: %v, ResponseCount: %v)",
+            "FirstOverlayedRowIndex: %v, UncompressedDataSize: %v, CompressedDataSize: %v, RowCountConfirmedReplicaCount: %v)",
             miscExt.row_count(),
             result.RowCount,
             result.FirstOverlayedRowIndex,
             result.UncompressedDataSize,
             result.CompressedDataSize,
-            result.ResponseCount);
+            result.RowCountConfirmedReplicaCount);
 
         Promise_.Set(result);
     }
