@@ -197,6 +197,11 @@ public:
     //! random peer could be evicted after #RandomPeerEvictionPeriod.
     TDuration RandomPeerEvictionPeriod;
 
+    bool EnablePeerPolling;
+    TDuration PeerPollingPeriod;
+    TDuration PeerPollingPeriodSplay;
+    TDuration PeerPollingRequestTimeout;
+
     TDynamicChannelPoolConfig();
 };
 

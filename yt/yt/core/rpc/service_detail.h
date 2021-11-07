@@ -36,6 +36,8 @@
 
 #include <yt/yt/library/syncmap/map.h>
 
+#include <library/cpp/containers/concurrent_hash/concurrent_hash.h>
+
 #include <atomic>
 
 namespace NYT::NRpc {
@@ -840,6 +842,12 @@ private:
 
     std::atomic<bool> EnableErrorCodeCounting = false;
 
+    const NConcurrency::TPeriodicExecutorPtr ServiceLivenessChecker_;
+
+    using TDiscoverRequestSet = TConcurrentHashMap<TCtxDiscoverPtr, int>;
+    THashMap<TString, TDiscoverRequestSet> DiscoverRequestsByPayload_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, DiscoverRequestsByPayloadLock_);
+
     struct TAcceptedRequest
     {
         TRequestId RequestId;
@@ -903,6 +911,15 @@ private:
     bool IsStopped();
     void IncrementActiveRequestCount();
     void DecrementActiveRequestCount();
+
+    void RegisterDiscoverRequest(const TCtxDiscoverPtr& context);
+    void ReplyDiscoverRequest(const TCtxDiscoverPtr& context, bool isUp);
+
+    void OnDiscoverRequestReplyDelayReached(TCtxDiscoverPtr context);
+
+    static TString GetDiscoverRequestPayload(const TCtxDiscoverPtr& context);
+
+    void OnServiceLivenessCheck();
 };
 
 DEFINE_REFCOUNTED_TYPE(TServiceBase)
