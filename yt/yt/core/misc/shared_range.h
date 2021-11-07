@@ -1,1 +1,1 @@
-#include <yt/yt/library/memory/shared_range.h>
+#include <library/cpp/yt/memory/shared_range.h>

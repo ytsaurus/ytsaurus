@@ -33,7 +33,7 @@
 
 #include <yt/yt/core/rpc/helpers.h>
 
-#include <yt/yt/library/assert/assert.h>
+#include <library/cpp/yt/assert/assert.h>
 
 namespace NYT::NChunkClient {
 

@@ -12,7 +12,7 @@
 
 #include <yt/yt/core/logging/log_manager.h>
 
-#include <yt/yt/library/assert/assert.h>
+#include <library/cpp/yt/assert/assert.h>
 
 #ifdef _win_
     #include <io.h>

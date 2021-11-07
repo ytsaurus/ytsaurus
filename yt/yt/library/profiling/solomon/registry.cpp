@@ -6,7 +6,7 @@
 #include <type_traits>
 #include <yt/yt/core/misc/singleton.h>
 
-#include <yt/yt/library/assert/assert.h>
+#include <library/cpp/yt/assert/assert.h>
 
 #include <yt/yt/library/profiling/impl.h>
 #include <yt/yt/library/profiling/sensor.h>

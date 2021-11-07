@@ -1,1 +1,1 @@
-#include <yt/yt/library/memory/ref_counted.h>
+#include <library/cpp/yt/memory/ref_counted.h>

@@ -28,9 +28,9 @@
 
 #include <yt/yt/core/misc/property.h>
 
-#include <yt/yt/library/phdr_cache/phdr_cache.h>
-
 #include <yt/yt/core/ytalloc/bindings.h>
+
+#include <library/cpp/yt/phdr_cache/phdr_cache.h>
 
 namespace NYT {
 

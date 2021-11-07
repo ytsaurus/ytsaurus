@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <yt/yt/library/small_containers/small_set.h>
+#include <library/cpp/yt/small_containers/small_set.h>
 
 #include <library/cpp/testing/gtest/gtest.h>
 

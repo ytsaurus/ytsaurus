@@ -5,8 +5,8 @@
 #include <util/generic/string.h>
 #include <util/system/spinlock.h>
 
-#include <yt/yt/library/memory/ref_counted.h>
-#include <yt/yt/library/memory/intrusive_ptr.h>
+#include <library/cpp/yt/memory/ref_counted.h>
+#include <library/cpp/yt/memory/intrusive_ptr.h>
 
 namespace NYT::NProfiling {
 
@@ -79,7 +79,7 @@ struct ISensorProducer
     /*!
      *  Registry keeps track of all (name, tags) pair that were ever returned from
      *  this producer.
-     * 
+     *
      *  Do not use this interface, if set of tags might grow unbound. There is
      *  no way to cleanup removed tags.
      */

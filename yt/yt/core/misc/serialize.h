@@ -7,7 +7,7 @@
 #include "ref.h"
 #include "serialize_dump.h"
 
-#include <yt/yt/library/assert/assert.h>
+#include <library/cpp/yt/assert/assert.h>
 
 #include <util/stream/file.h>
 #include <util/stream/input.h>

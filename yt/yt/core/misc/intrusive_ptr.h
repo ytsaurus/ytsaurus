@@ -1,1 +1,1 @@
-#include <yt/yt/library/memory/intrusive_ptr.h>
+#include <library/cpp/yt/memory/intrusive_ptr.h>

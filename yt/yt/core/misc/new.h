@@ -1,1 +1,1 @@
-#include <yt/yt/library/memory/new.h>
+#include <library/cpp/yt/memory/new.h>

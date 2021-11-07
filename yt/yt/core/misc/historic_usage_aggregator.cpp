@@ -1,6 +1,6 @@
 #include "historic_usage_aggregator.h"
 
-#include <yt/yt/library/assert/assert.h>
+#include <library/cpp/yt/assert/assert.h>
 
 #include <util/generic/ymath.h>
 

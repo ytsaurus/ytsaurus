@@ -3,7 +3,7 @@
 
 #include <yt/yt/core/profiling/profile_manager.h>
 
-#include <yt/yt/library/assert/assert.h>
+#include <library/cpp/yt/assert/assert.h>
 
 #include <library/cpp/monlib/metrics/summary_snapshot.h>
 

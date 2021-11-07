@@ -1,9 +1,9 @@
 #include "sensor.h"
 #include "impl.h"
 
-#include <yt/yt/library/assert/assert.h>
+#include <library/cpp/yt/assert/assert.h>
 
-#include <yt/yt/library/string/format.h>
+#include <library/cpp/yt/string/format.h>
 
 #include <util/system/compiler.h>
 

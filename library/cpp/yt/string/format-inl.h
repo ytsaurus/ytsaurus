@@ -6,9 +6,9 @@
 
 #include "string.h"
 
-#include <yt/yt/library/assert/assert.h>
+#include <library/cpp/yt/assert/assert.h>
 
-#include <yt/yt/library/small_containers/small_vector.h>
+#include <library/cpp/yt/small_containers/small_vector.h>
 
 #include <library/cpp/ytalloc/core/misc/enum.h>
 

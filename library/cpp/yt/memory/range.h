@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/yt/library/assert/assert.h>
+#include <library/cpp/yt/assert/assert.h>
 
-#include <yt/yt/library/misc/hash.h>
+#include <library/cpp/yt/misc/hash.h>
 
 #include <vector>
 #include <array>

@@ -3,7 +3,7 @@
 #include "intrusive_ptr.h"
 #include "ref_tracked.h"
 
-#include <yt/yt/library/misc/source_location.h>
+#include <library/cpp/yt/misc/source_location.h>
 
 #include <util/system/defaults.h>
 

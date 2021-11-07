@@ -9,7 +9,7 @@
 #include <yt/yt/core/yson/producer.h>
 #include <yt/yt/core/yson/async_consumer.h>
 
-#include <yt/yt/library/assert/assert.h>
+#include <library/cpp/yt/assert/assert.h>
 
 namespace NYT::NYTree {
 

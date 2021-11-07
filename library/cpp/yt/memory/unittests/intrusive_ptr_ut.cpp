@@ -1,7 +1,7 @@
 #include <library/cpp/testing/gtest/gtest.h>
 
-#include <yt/yt/library/memory/new.h>
-#include <yt/yt/library/memory/ref_counted.h>
+#include <library/cpp/yt/memory/new.h>
+#include <library/cpp/yt/memory/ref_counted.h>
 
 namespace NYT {
 namespace {
