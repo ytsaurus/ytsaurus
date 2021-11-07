@@ -706,6 +706,24 @@ class YTEnvSetup(object):
                     force=True,
                     driver=driver,
                 )
+
+                yt_commands.create(
+                    "map_node",
+                    "//portals",
+                    attributes={
+                        "account": "tmp",
+                        "acl": [
+                            {
+                                "action": "allow",
+                                "permissions": ["read", "write", "remove"],
+                                "subjects": ["users"],
+                            }
+                        ],
+                        "opaque": True,
+                    },
+                    force=True,
+                    driver=driver,
+                )
             else:
                 yt_commands.create(
                     "map_node",
@@ -750,6 +768,7 @@ class YTEnvSetup(object):
 
             yt_commands.remove("//tmp", driver=driver)
             if self.ENABLE_TMP_PORTAL:
+                yt_commands.remove("//portals", driver=driver)
                 # XXX(babenko): portals
                 wait(lambda: not yt_commands.exists("//tmp&", driver=driver))
 

@@ -777,6 +777,11 @@ class TestConcatenateMulticell(TestConcatenate):
         abort_transaction(tx1)
         assert read_table("//tmp/t3") == [{"a": "b"}]
 
+
+class TestConcatenatePortal(TestConcatenateMulticell):
+    ENABLE_TMP_PORTAL = True
+    NUM_SECONDARY_MASTER_CELLS = 3
+
     @authors("shakurov")
     def test_concatenate_between_primary_and_secondary_shards(self):
         create("table", "//tmp/src1", attributes={"external": False})
@@ -784,19 +789,14 @@ class TestConcatenateMulticell(TestConcatenate):
         create("table", "//tmp/src2", attributes={"external_cell_tag": 1})
         write_table("//tmp/src2", [{"c": "d"}])
 
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
-        create("table", "//tmp/p/dst", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 2})
+        create("table", "//portals/p/dst", attributes={"exit_cell_tag": 1})
 
         tx = start_transaction()
-        concatenate(["//tmp/src1", "//tmp/src2"], "//tmp/p/dst", tx=tx)
+        concatenate(["//tmp/src1", "//tmp/src2"], "//portals/p/dst", tx=tx)
         commit_transaction(tx)
 
-        assert read_table("//tmp/p/dst") == [{"a": "b"}, {"c": "d"}]
-
-
-class TestConcatenatePortal(TestConcatenateMulticell):
-    ENABLE_TMP_PORTAL = True
-    NUM_SECONDARY_MASTER_CELLS = 3
+        assert read_table("//portals/p/dst") == [{"a": "b"}, {"c": "d"}]
 
     @authors("shakurov")
     def test_concatenate_between_secondary_shards(self):
@@ -805,14 +805,14 @@ class TestConcatenatePortal(TestConcatenateMulticell):
         create("table", "//tmp/src2", attributes={"external_cell_tag": 3})
         write_table("//tmp/src2", [{"c": "d"}])
 
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
-        create("table", "//tmp/p/dst", attributes={"external_cell_tag": 1})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 2})
+        create("table", "//portals/p/dst", attributes={"external_cell_tag": 1})
 
         tx = start_transaction()
-        concatenate(["//tmp/src1", "//tmp/src2"], "//tmp/p/dst", tx=tx)
+        concatenate(["//tmp/src1", "//tmp/src2"], "//portals/p/dst", tx=tx)
         commit_transaction(tx)
 
-        assert read_table("//tmp/p/dst") == [{"a": "b"}, {"c": "d"}]
+        assert read_table("//portals/p/dst") == [{"a": "b"}, {"c": "d"}]
 
 
 class TestConcatenateShardedTx(TestConcatenatePortal):

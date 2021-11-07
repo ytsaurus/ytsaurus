@@ -1512,6 +1512,6 @@ class TestCypressAclsPortal(TestCypressAclsMulticell):
 
         super(TestCypressAclsPortal, self).test_columnar_acl_copy_yt_12749()
 
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
-        self._test_columnar_acl_copy_yt_12749("//tmp", "//tmp/p")
-        self._test_columnar_acl_copy_yt_12749("//tmp/p", "//tmp")
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 2})
+        self._test_columnar_acl_copy_yt_12749("//tmp", "//portals/p")
+        self._test_columnar_acl_copy_yt_12749("//portals/p", "//tmp")
