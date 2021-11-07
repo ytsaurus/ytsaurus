@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/yt/library/cpuclock/clock.h>
+#include <library/cpp/yt/cpu_clock/clock.h>
 
 namespace NYT::NProfiling {
 

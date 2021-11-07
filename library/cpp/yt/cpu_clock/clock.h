@@ -7,7 +7,6 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 using TCpuInstant = i64;
-
 using TCpuDuration = i64;
 
 //! Returns the current processor clock (rdtsc).

@@ -5,8 +5,10 @@
 
 #include <library/cpp/yt/memory/intrusive_ptr.h>
 #include <library/cpp/yt/memory/weak_ptr.h>
+
 #include <library/cpp/yt/small_containers/small_vector.h>
-#include <yt/yt/library/cpuclock/clock.h>
+
+#include <library/cpp/yt/cpu_clock/clock.h>
 
 #include <vector>
 

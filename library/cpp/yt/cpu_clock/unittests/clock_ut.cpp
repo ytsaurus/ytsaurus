@@ -1,16 +1,18 @@
 #include <gtest/gtest.h>
 
-#include <yt/yt/library/cpuclock/clock.h>
+#include <library/cpp/yt/cpu_clock/clock.h>
 
 namespace NYT {
 namespace {
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 i64 DiffMS(T a, T b)
 {
     return a >= b
         ? static_cast<i64>(a.MilliSeconds()) - static_cast<i64>(b.MilliSeconds())
-        : DiffMS(b ,a);
+        : DiffMS(b, a);
 }
 
 TEST(TTimingTest, GetInstant)
@@ -37,6 +39,8 @@ TEST(TTimingTest, DurationVSCpuDuration)
     auto duration2 = CpuDurationToDuration(cpuInstant2 - cpuInstant1);
     EXPECT_LE(DiffMS(duration1, duration2), 10);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NYT
