@@ -77,6 +77,8 @@ void AccumulateUniqueAncestorsStatistics(
 void ResetChunkListStatistics(TChunkList* chunkList);
 void RecomputeChunkListStatistics(TChunkList* chunkList);
 
+void RecomputeChildToIndexMapping(TChunkList* chunkList);
+
 std::vector<TChunkOwnerBase*> GetOwningNodes(
     TChunkTree* chunkTree);
 TFuture<NYson::TYsonString> GetMulticellOwningNodes(

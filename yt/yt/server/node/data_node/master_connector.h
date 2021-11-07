@@ -61,12 +61,19 @@ struct IMasterConnector
     //! successfully sent to a given cell.
     virtual TFuture<void> GetHeartbeatBarrier(NObjectClient::TCellTag cellTag) = 0;
 
-    //! Schedules next data node heartbeat to all the master cells.
+    //! Schedules out-of-order data node heartbeat to all the master cells.
     /*!
-    *  \note
-    *  Thread affinity: any
-    */
+     *  \note
+     *  Thread affinity: any
+     */
     virtual void ScheduleHeartbeat(bool immediately) = 0;
+
+    //! Schedules out-of-order job heartbeate to a given master cell.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
+    virtual void ScheduleJobHeartbeat(NObjectClient::TCellTag cellTag) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMasterConnector)

@@ -130,8 +130,6 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TMediumConfig)
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicChunkMergerConfig
@@ -303,6 +301,90 @@ DEFINE_REFCOUNTED_TYPE(TDynamicAllyReplicaManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicChunkAutotomizerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration TransactionUpdatePeriod;
+
+    TDuration RefreshPeriod;
+
+    TDuration ChunkUnstagePeriod;
+
+    int TailChunksPerAllocation;
+
+    int MaxChunksPerUnstage;
+
+    int MaxChunksPerRefresh;
+
+    int MaxConcurrentJobsPerChunk;
+
+    int MaxChangedChunksPerRefresh;
+
+    TDuration JobSpeculationTimeout;
+
+    TDuration JobTimeout;
+
+    bool ScheduleUrgentJobs;
+
+    TDynamicChunkAutotomizerConfig()
+    {
+        RegisterParameter("transaction_update_period", TransactionUpdatePeriod)
+            .Default(TDuration::Minutes(10));
+
+        RegisterParameter("refresh_period", RefreshPeriod)
+            .Default(TDuration::MilliSeconds(500));
+
+        RegisterParameter("chunk_unstage_period", ChunkUnstagePeriod)
+            .Default(TDuration::Seconds(5));
+
+        RegisterParameter("tail_chunks_per_allocation", TailChunksPerAllocation)
+            .Default(2);
+
+        RegisterParameter("max_chunks_per_unstage", MaxChunksPerUnstage)
+            .Default(1000);
+
+        RegisterParameter("max_chunks_per_refresh", MaxChunksPerRefresh)
+            .Default(5000);
+        RegisterParameter("max_changed_chunks_per_refresh", MaxChangedChunksPerRefresh)
+            .Default(1000);
+
+        RegisterParameter("max_concurrent_jobs_per_chunk", MaxConcurrentJobsPerChunk)
+            .Default(3);
+
+        RegisterParameter("job_speculaltion_timeout", JobSpeculationTimeout)
+            .Default(TDuration::Seconds(3));
+
+        RegisterParameter("job_timeout", JobTimeout)
+            .Default(TDuration::Seconds(30));
+
+        RegisterParameter("schedule_urgent_jobs", ScheduleUrgentJobs)
+            .Default(true);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicChunkAutotomizerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicChunkManagerTestingConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! If true, seal will always be unreliable.
+    bool ForceUnreliableSeal;
+
+    TDynamicChunkManagerTestingConfig()
+    {
+        RegisterParameter("force_unreliable_seal", ForceUnreliableSeal)
+            .Default(false);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicChunkManagerTestingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDynamicChunkManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -312,6 +394,9 @@ public:
 
     //! If set to false, disables scheduling new chunk seal jobs.
     bool EnableChunkSealer;
+
+    //! If set to false, chunks seal unreliably instead of autotomy.
+    bool EnableChunkAutotomizer;
 
     TDuration ReplicaApproveTimeout;
 
@@ -443,6 +528,10 @@ public:
 
     TDuration DestroyedReplicasProfilingPeriod;
 
+    TDynamicChunkAutotomizerConfigPtr ChunkAutotomizer;
+
+    TDynamicChunkManagerTestingConfigPtr Testing;
+
     TDynamicChunkManagerConfig()
     {
         RegisterParameter("enable_chunk_replicator", EnableChunkReplicator)
@@ -450,6 +539,9 @@ public:
 
         RegisterParameter("enable_chunk_sealer", EnableChunkSealer)
             .Default(true);
+
+        RegisterParameter("enable_chunk_autotomizer", EnableChunkAutotomizer)
+            .Default(false);
 
         RegisterParameter("replica_approve_timeout", ReplicaApproveTimeout)
             .Default(TDuration::Seconds(60));
@@ -594,7 +686,13 @@ public:
             .Default(TDuration::Minutes(5))
             .DontSerializeDefault();
 
-        RegisterPreprocessor([&] () {
+        RegisterParameter("chunk_autotomizer", ChunkAutotomizer)
+            .DefaultNew();
+
+        RegisterParameter("testing", Testing)
+            .DefaultNew();
+
+        RegisterPreprocessor([&] {
             JobThrottler->Limit = 10000;
         });
     }

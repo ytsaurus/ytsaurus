@@ -62,8 +62,8 @@ struct TChunkQuorumInfo
     //! Some approximation for the compressed data size of the journal chunk.
     i64 CompressedDataSize = 0;
 
-    //! Number of replicas replied during quorum session.
-    int ResponseCount = 0;
+    //! Number of replicas with at least #RowCount rows.
+    int RowCountConfirmedReplicaCount = 0;
 };
 
 TFuture<TChunkQuorumInfo> ComputeQuorumInfo(

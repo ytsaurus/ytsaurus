@@ -1,6 +1,7 @@
 #include "chunk_sealer.h"
 #include "private.h"
 #include "chunk.h"
+#include "chunk_autotomizer.h"
 #include "chunk_list.h"
 #include "chunk_tree.h"
 #include "chunk_manager.h"
@@ -10,6 +11,8 @@
 #include "chunk_scanner.h"
 #include "job.h"
 #include "job_registry.h"
+
+#include <yt/yt/server/master/chunk_server/proto/chunk_autotomizer.pb.h>
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -369,23 +372,10 @@ private:
         auto codecId = chunk->GetErasureCodec();
         auto startRowIndex = GetJournalChunkStartRowIndex(chunk);
         auto readQuorum = chunk->GetReadQuorum();
+        auto writeQuorum = chunk->GetWriteQuorum();
         auto replicaLagLimit = chunk->GetReplicaLagLimit();
         auto replicas = GetChunkReplicaDescriptors(chunk);
         auto dynamicConfig = GetDynamicConfig();
-
-        int physicalReplicationFactor = 0;
-        if (chunk->IsErasure()) {
-            auto* codec = NErasure::GetCodec(codecId);
-            physicalReplicationFactor = codec->GetTotalPartCount();
-        } else {
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
-            const auto& replication = chunk->GetAggregatedReplication(requisitionRegistry);
-
-            for (const auto& replicationEntry : replication) {
-                physicalReplicationFactor += replicationEntry.Policy().GetReplicationFactor();
-            }
-        }
 
         if (replicas.empty()) {
             THROW_ERROR_EXCEPTION("No replicas of chunk %v are known",
@@ -434,20 +424,73 @@ private:
         }
 
         i64 sealedRowCount = quorumInfo.RowCount;
-        if (quorumInfo.ResponseCount == physicalReplicationFactor) {
+
+        TChunkSealInfo chunkSealInfo;
+        if (firstOverlayedRowIndex) {
+            chunkSealInfo.set_first_overlayed_row_index(*firstOverlayedRowIndex);
+        }
+        chunkSealInfo.set_row_count(sealedRowCount);
+        chunkSealInfo.set_uncompressed_data_size(quorumInfo.UncompressedDataSize);
+        chunkSealInfo.set_compressed_data_size(quorumInfo.CompressedDataSize);
+        chunkSealInfo.set_physical_row_count(GetPhysicalChunkRowCount(sealedRowCount, overlayed));
+
+        if (quorumInfo.RowCountConfirmedReplicaCount >= writeQuorum &&
+            !GetDynamicConfig()->Testing->ForceUnreliableSeal)
+        {
             // Fast path: sealed row count can be reliably evaluated.
             YT_LOG_DEBUG("Sealed row count evaluated (ChunkId: %v, SealedRowCount: %v)",
                 chunkId,
                 sealedRowCount);
         } else {
-            // TODO(gritukan, shakurov): YT-14556, sealed row count cannot be reliably evaluated
-            // but we will hope for the best.
-            YT_LOG_DEBUG("Sealed row count computed unreliably (ChunkId: %v, SealedRowCount: %v, ResponseCount: %v, PhysicalReplicationFactor: %v)",
+            // Sealed row count cannot be reliably evaluted. We try to autotomize chunk, if possble,
+            // otherwise just seal chunk unreliably and hope for the best.
+            YT_LOG_DEBUG("Sealed row count computed unreliably (ChunkId: %v, SealedRowCount: %v, RowCountConfirmedReplicaCount: %v, WriteQuorum: %v)",
                 chunkId,
                 sealedRowCount,
-                quorumInfo.ResponseCount,
-                physicalReplicationFactor);
+                quorumInfo.RowCountConfirmedReplicaCount,
+                writeQuorum);
+
+            if (!dynamicConfig->EnableChunkAutotomizer) {
+                YT_LOG_DEBUG("Chunk automotizer is disabled; sealing chunk unreliably (ChunkId: %v)",
+                    chunkId);
+            } else if (!overlayed) {
+                YT_LOG_DEBUG("Cannot automotize chunk since it is not overlayed; sealing chunk unreliably (ChunkId: %v)",
+                    chunkId);
+            } else {
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+                const auto& chunkAutotomizer = chunkManager->GetChunkAutotomizer();
+                if (chunkAutotomizer->IsChunkRegistered(chunkId)) {
+                    // Fast path: if chunk is already registered in autotomizer, do not create useless mutation.
+                    YT_LOG_DEBUG("Chunk is already registered in autotomizer, skipping (ChunkId: %v)",
+                        chunkId);
+                } else {
+                    auto guaranteedQuorumRowCount = std::max<i64>(sealedRowCount - replicaLagLimit, 0);
+                    chunkSealInfo.set_row_count(guaranteedQuorumRowCount);
+
+                    YT_LOG_DEBUG("Autotomizing chunk (ChunkId: %v, GuaranteedQuorumRowCount: %v)",
+                        chunkId,
+                        guaranteedQuorumRowCount);
+
+                    NProto::TReqAutotomizeChunk request;
+                    ToProto(request.mutable_chunk_id(), chunkId);
+                    request.mutable_chunk_seal_info()->Swap(&chunkSealInfo);
+
+                    const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+                    CreateMutation(hydraManager, request)
+                        ->CommitAndLog(Logger);
+                }
+
+                // Probably next seal attempt will succeed and will happen before autotomy end.
+                if (IsSealNeeded(chunk)) {
+                    EnqueueChunk(chunk);
+                }
+
+                return;
+            }
         }
+
+        YT_LOG_DEBUG("Requesting chunk seal (ChunkId: %v)",
+            chunkId);
 
         {
             TChunkServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
@@ -458,12 +501,7 @@ private:
 
             auto* req = batchReq->add_seal_chunk_subrequests();
             ToProto(req->mutable_chunk_id(), chunkId);
-            if (firstOverlayedRowIndex) {
-                req->mutable_info()->set_first_overlayed_row_index(*firstOverlayedRowIndex);
-            }
-            req->mutable_info()->set_row_count(sealedRowCount);
-            req->mutable_info()->set_uncompressed_data_size(quorumInfo.UncompressedDataSize);
-            req->mutable_info()->set_compressed_data_size(quorumInfo.CompressedDataSize);
+            req->mutable_info()->Swap(&chunkSealInfo);
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(

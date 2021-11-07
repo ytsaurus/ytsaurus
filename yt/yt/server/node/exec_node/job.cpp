@@ -476,6 +476,13 @@ EJobType TJob::GetType() const
     return static_cast<EJobType>(JobSpec_.type());
 }
 
+bool TJob::IsUrgent() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return false;
+}
+
 const TJobSpec& TJob::GetSpec() const
 {
     VERIFY_THREAD_AFFINITY_ANY();

@@ -5,6 +5,8 @@
 #include "chunk_replica.h"
 #include "chunk_requisition.h"
 
+#include <yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h> // XXX: forward declaration
+
 #include <yt/yt/server/master/cell_master/public.h>
 
 #include <yt/yt/server/master/chunk_server/new_replicator/public.h>
@@ -204,6 +206,10 @@ public:
     void ProcessJobHeartbeat(TNode* node, const TCtxJobHeartbeatPtr& context);
 
     TJobId GenerateJobId() const;
+
+    void SealChunk(TChunk* chunk, const NChunkClient::NProto::TChunkSealInfo& info);
+
+    const IChunkAutotomizerPtr& GetChunkAutotomizer() const;
 
     bool IsChunkReplicatorEnabled();
     bool IsChunkRefreshEnabled();

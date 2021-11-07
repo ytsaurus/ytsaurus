@@ -281,6 +281,8 @@ private:
     TSchedulerJobFactory GetSchedulerJobFactory(EJobType type) const;
     TMasterJobFactory GetMasterJobFactory(EJobType type) const;
 
+    const TJobHeartbeatProcessorBasePtr& GetJobHeartbeatProcessor(EObjectType jobType) const;
+
     void ScheduleStart();
 
     void OnWaitingJobTimeout(const TWeakPtr<IJob>& weakJob, TDuration waitingJobTimeout);
@@ -441,6 +443,13 @@ TMasterJobFactory TJobController::TImpl::GetMasterJobFactory(EJobType type) cons
     VERIFY_THREAD_AFFINITY_ANY();
 
     return GetOrCrash(MasterJobFactoryMap_, type);
+}
+
+const TJobController::TJobHeartbeatProcessorBasePtr& TJobController::TImpl::GetJobHeartbeatProcessor(EObjectType jobType) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return GetOrCrash(JobHeartbeatProcessors_, jobType);
 }
 
 IJobPtr TJobController::TImpl::FindJob(TJobId jobId) const
@@ -1190,7 +1199,8 @@ void TJobController::TImpl::OnJobFinished(const TWeakPtr<IJob>& weakJob)
     }
 
     EJobOrigin origin;
-    switch (TypeFromId(job->GetId())) {
+    auto jobObjectType = TypeFromId(job->GetId());
+    switch (jobObjectType) {
         case EObjectType::SchedulerJob:
             origin = EJobOrigin::Scheduler;
             break;
@@ -1201,6 +1211,14 @@ void TJobController::TImpl::OnJobFinished(const TWeakPtr<IJob>& weakJob)
 
         default:
             YT_ABORT();
+    }
+
+    if (job->IsUrgent()) {
+        YT_LOG_DEBUG("Urgent job has finished, scheduling out-of-order job heartbeat (JobId: %v, JobType: %v, Origin: %v)",
+            job->GetId(),
+            job->GetType(),
+            origin);
+        GetJobHeartbeatProcessor(jobObjectType)->ScheduleHeartbeat(job->GetId());
     }
 
     auto* jobFinalStateCounter = GetJobFinalStateCounter(job->GetState(), origin);
@@ -1265,7 +1283,7 @@ void TJobController::TImpl::DoPrepareHeartbeatRequest(
     EObjectType jobObjectType,
     const TReqHeartbeatPtr& request)
 {
-    GetOrCrash(JobHeartbeatProcessors_, jobObjectType)->PrepareRequest(cellTag, request);
+    GetJobHeartbeatProcessor(jobObjectType)->PrepareRequest(cellTag, request);
 }
 
 void TJobController::TImpl::PrepareHeartbeatCommonRequestPart(const TReqHeartbeatPtr& request)
@@ -1305,7 +1323,7 @@ void TJobController::TImpl::DoProcessHeartbeatResponse(
     const TRspHeartbeatPtr& response,
     EObjectType jobObjectType)
 {
-    GetOrCrash(JobHeartbeatProcessors_, jobObjectType)->ProcessResponse(response);
+    GetJobHeartbeatProcessor(jobObjectType)->ProcessResponse(response);
 }
 
 void TJobController::TImpl::ProcessHeartbeatCommonResponsePart(const TRspHeartbeatPtr& response)

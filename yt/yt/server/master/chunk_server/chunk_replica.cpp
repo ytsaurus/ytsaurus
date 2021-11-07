@@ -59,7 +59,6 @@ TString ToString(TChunkPtrWithIndexes value)
 
 void ToProto(ui64* protoValue, TNodePtrWithIndexes value)
 {
-    YT_ASSERT(value.GetState() == EChunkReplicaState::Generic);
     NChunkClient::TChunkReplicaWithMedium clientReplica(
         value.GetPtr()->GetId(),
         value.GetReplicaIndex(),

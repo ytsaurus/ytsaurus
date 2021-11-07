@@ -215,11 +215,20 @@ class ProfilerFactory(object):
             fixed_tags=fixed_tags
         )
 
-    def at_master(self, master_index=0, **kwargs):
-        primary_masters = [key for key in self.yt_client.get("//sys/primary_masters")]
+    def at_primary_master(self, master_index=0, **kwargs):
+        cell = [key for key in self.yt_client.get("//sys/primary_masters")]
         return Profiler(
             self.yt_client,
-            "//sys/primary_masters/{0}/orchid/sensors".format(primary_masters[master_index]),
+            "//sys/primary_masters/{0}/orchid/sensors".format(cell[master_index]),
+            **kwargs
+        )
+
+    def at_secondary_master(self, cell_tag, master_index=0, **kwargs):
+        masters_path = "//sys/secondary_masters/{0}".format(cell_tag)
+        cell = [key for key in self.yt_client.get(masters_path)]
+        return Profiler(
+            self.yt_client,
+            "{0}/{1}/orchid/sensors".format(masters_path, cell[master_index]),
             **kwargs
         )
 

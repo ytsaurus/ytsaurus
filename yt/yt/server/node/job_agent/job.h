@@ -56,6 +56,8 @@ struct IJob
 
     virtual const NJobTrackerClient::NProto::TJobSpec& GetSpec() const = 0;
 
+    virtual bool IsUrgent() const = 0;
+
     virtual int GetPortCount() const = 0;
 
     virtual EJobState GetState() const = 0;

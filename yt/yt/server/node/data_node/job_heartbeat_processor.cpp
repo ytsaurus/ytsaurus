@@ -1,5 +1,10 @@
 #include "job_heartbeat_processor.h"
+
+#include "bootstrap.h"
+#include "master_connector.h"
 #include "private.h"
+
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 namespace NYT::NDataNode {
 
@@ -79,6 +84,16 @@ void TMasterJobHeartbeatProcessor::PrepareRequest(
     }
 
     request->set_confirmed_job_count(0);
+}
+
+void TMasterJobHeartbeatProcessor::ScheduleHeartbeat(TJobId jobId)
+{
+    auto cellTag = CellTagFromId(jobId);
+
+    YT_VERIFY(Bootstrap_->IsDataNode());
+    auto* bootstrap = Bootstrap_->GetDataNodeBootstrap();
+    const auto& masterConnector = bootstrap->GetMasterConnector();
+    masterConnector->ScheduleJobHeartbeat(cellTag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

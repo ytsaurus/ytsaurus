@@ -533,13 +533,13 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer) const
     buffer->AddCounter("/chunk_merger_sessions_awaiting_finalization", SessionsAwaitingFinalizaton_.size());
 }
 
-void TChunkMerger::OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks* callbacks)
+void TChunkMerger::OnJobWaiting(const TMergeJobPtr& job, IJobControllerCallbacks* callbacks)
 {
     // In Chunk Merger we don't distinguish between waiting and running jobs.
     OnJobRunning(job, callbacks);
 }
 
-void TChunkMerger::OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* callbacks)
+void TChunkMerger::OnJobRunning(const TMergeJobPtr& job, IJobControllerCallbacks* callbacks)
 {
     const auto& configManager = Bootstrap_->GetConfigManager();
     auto jobTimeout = configManager->GetConfig()->ChunkManager->JobTimeout;
@@ -555,17 +555,17 @@ void TChunkMerger::OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* cal
     }
 }
 
-void TChunkMerger::OnJobCompleted(const TJobPtr& job)
+void TChunkMerger::OnJobCompleted(const TMergeJobPtr& job)
 {
     OnJobFinished(job);
 }
 
-void TChunkMerger::OnJobAborted(const TJobPtr& job)
+void TChunkMerger::OnJobAborted(const TMergeJobPtr& job)
 {
     OnJobFinished(job);
 }
 
-void TChunkMerger::OnJobFailed(const TJobPtr& job)
+void TChunkMerger::OnJobFailed(const TMergeJobPtr& job)
 {
     OnJobFinished(job);
 }
@@ -1152,7 +1152,7 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
     return true;
 }
 
-void TChunkMerger::OnJobFinished(const TJobPtr& job)
+void TChunkMerger::OnJobFinished(const TMergeJobPtr& job)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 

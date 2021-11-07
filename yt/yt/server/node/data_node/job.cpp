@@ -17,11 +17,13 @@
 #include <yt/yt/server/lib/hydra/changelog.h>
 
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/job_agent/job.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -31,8 +33,10 @@
 #include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/yt/ytlib/chunk_client/confirming_writer.h>
 #include <yt/yt/ytlib/chunk_client/meta_aggregating_writer.h>
+#include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/yt/ytlib/chunk_client/erasure_repair.h>
+#include <yt/yt/ytlib/chunk_client/erasure_part_writer.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/yt/ytlib/chunk_client/replication_writer.h>
@@ -42,8 +46,12 @@
 
 #include <yt/yt/ytlib/journal_client/erasure_repair.h>
 #include <yt/yt/ytlib/journal_client/chunk_reader.h>
+#include <yt/yt/ytlib/journal_client/helpers.h>
+
+#include <yt/yt/ytlib/journal_client/proto/format.pb.h>
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/columnar_chunk_meta.h>
@@ -98,6 +106,8 @@ using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NIO;
 using namespace NTracing;
+using namespace NJournalClient;
+using namespace NYTree;
 
 using NNodeTrackerClient::TNodeDescriptor;
 using NChunkClient::TChunkReaderStatistics;
@@ -189,6 +199,13 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return CheckedEnumCast<EJobType>(JobSpec_.type());
+    }
+
+    bool IsUrgent() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return GetSpec().urgent();
     }
 
     const TJobSpec& GetSpec() const override
@@ -1167,6 +1184,8 @@ private:
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
         chunkStore->UpdateExistingChunk(chunk);
+
+        //auto* jobResultExt = Result_.MutableExtension()
     }
 };
 
@@ -1383,7 +1402,7 @@ private:
             auto reader = CreateSchemalessRangeChunkReader(
                 std::move(chunkState),
                 New<TColumnarChunkMeta>(*chunkInfo.Meta),
-                TChunkReaderConfig::GetDefault(),
+                NTableClient::TChunkReaderConfig::GetDefault(),
                 TChunkReaderOptions::GetDefault(),
                 chunkInfo.Reader,
                 New<TNameTable>(),
@@ -1500,6 +1519,593 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkAutotomyJob
+    : public TMasterJobBase
+{
+public:
+    TChunkAutotomyJob(
+        TJobId jobId,
+        const TJobSpec& jobSpec,
+        const TNodeResources& resourceLimits,
+        TDataNodeConfigPtr config,
+        IBootstrap* bootstrap)
+        : TMasterJobBase(
+            jobId,
+            std::move(jobSpec),
+            resourceLimits,
+            std::move(config),
+            bootstrap)
+        , JobSpecExt_(JobSpec_.GetExtension(TAutotomizeChunkJobSpecExt::autotomize_chunk_job_spec_ext))
+        , BodyChunkId_(FromProto<TChunkId>(JobSpecExt_.body_chunk_id()))
+        , TailChunkId_(FromProto<TChunkId>(JobSpecExt_.tail_chunk_id()))
+        , Overlayed_(JobSpecExt_.overlayed())
+        , ReplicationFactor_(JobSpecExt_.replication_factor())
+        , ReadQuorum_(JobSpecExt_.read_quorum())
+        , WriteQuorum_(JobSpecExt_.write_quorum())
+        , MediumIndex_(JobSpecExt_.medium_index())
+        , ErasureCodecId_(CheckedEnumCast<NErasure::ECodec>(JobSpecExt_.erasure_codec()))
+    {
+        NodeDirectory_->MergeFrom(JobSpecExt_.node_directory());
+    }
+
+private:
+    const TAutotomizeChunkJobSpecExt JobSpecExt_;
+
+    // Some commonly used fields from the job spec.
+    const TChunkId BodyChunkId_;
+    const TChunkId TailChunkId_;
+
+    const bool Overlayed_;
+
+    const int ReplicationFactor_;
+
+    const int ReadQuorum_;
+    const int WriteQuorum_;
+
+    const int MediumIndex_;
+
+    const NErasure::ECodec ErasureCodecId_;
+
+    TNodeDirectoryPtr NodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
+
+    struct TChunkWriterWithIndex
+    {
+        const IChunkWriterPtr ChunkWriter;
+        const int Index;
+    };
+
+    virtual void DoRun() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (GetDynamicConfig()->FailJobs) {
+            THROW_ERROR_EXCEPTION("Testing failure");
+        }
+
+        if (GetDynamicConfig()->SleepInJobs) {
+            YT_LOG_WARNING("Sleeping forever");
+            TDelayedExecutor::WaitForDuration(TDuration::Max());
+        }
+
+        auto abortedBodyChunkReplicas = AbortBodyChunkSessions();
+
+        i64 totalRowCount;
+        auto bodyChunkSealInfo = ComputeBodyChunkSealInfo(
+            abortedBodyChunkReplicas,
+            &totalRowCount);
+
+        i64 tailChunkFirstRowIndex = bodyChunkSealInfo.row_count();
+        i64 tailChunkLastRowIndex = totalRowCount;
+        if (Overlayed_) {
+            // Account header row.
+            ++tailChunkFirstRowIndex;
+            ++tailChunkLastRowIndex;
+        }
+
+        auto tailChunkRows = ReadBodyChunkRows(
+            /*firstRowIndex*/ tailChunkFirstRowIndex,
+            /*lastRowIndex*/ tailChunkLastRowIndex);
+        i64 tailLogicalRowCount = std::ssize(tailChunkRows);
+
+        if (Overlayed_) {
+            // Add header row.
+            auto headerRow = CreateTailChunkHeaderRow(bodyChunkSealInfo);
+            tailChunkRows.insert(tailChunkRows.begin(), headerRow);
+        }
+
+        auto tailChunkParts = PrepareParts(tailChunkRows);
+        auto tailChunkWriters = CreateWriters();
+        auto succeededWriters = WriteTailChunk(tailChunkParts, tailChunkWriters);
+        ConfirmTailChunk(succeededWriters);
+
+        SetJobResult(bodyChunkSealInfo, tailLogicalRowCount);
+    }
+
+    std::vector<TChunkReplicaDescriptor> AbortBodyChunkSessions()
+    {
+        YT_LOG_DEBUG("Aborting body chunk sessions (BodyChunkId: %v)",
+            BodyChunkId_);
+
+        auto bodyChunkReplicas = FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.body_chunk_replicas());
+
+        std::vector<TChunkReplicaDescriptor> bodyChunkReplicaDescriptors;
+        bodyChunkReplicaDescriptors.reserve(bodyChunkReplicas.size());
+        for (const auto& bodyChunkReplica : bodyChunkReplicas) {
+            const auto& nodeDescriptor = NodeDirectory_->GetDescriptor(bodyChunkReplica.GetNodeId());
+            TChunkReplicaDescriptor bodyChunkReplicaDescriptor{
+                nodeDescriptor,
+                bodyChunkReplica.GetReplicaIndex(),
+                bodyChunkReplica.GetMediumIndex()
+            };
+            bodyChunkReplicaDescriptors.push_back(bodyChunkReplicaDescriptor);
+        }
+
+        auto future = AbortSessionsQuorum(
+            BodyChunkId_,
+            bodyChunkReplicaDescriptors,
+            GetDynamicConfig()->RpcTimeout,
+            /*quorumSessionDelay*/ TDuration::Zero(),
+            ReadQuorum_,
+            GetNodeChannelFactory());
+        auto abortedBodyChunkReplicas = WaitFor(future)
+            .ValueOrThrow();
+
+        YT_LOG_DEBUG("Body chunk replicas aborted (BodyChunkId: %v, AbortedReplicas: %v)",
+            BodyChunkId_,
+            abortedBodyChunkReplicas);
+
+        return abortedBodyChunkReplicas;
+    }
+
+    TChunkSealInfo ComputeBodyChunkSealInfo(
+        const std::vector<TChunkReplicaDescriptor>& abortedBodyChunkReplicas,
+        i64* totalRowCount)
+    {
+        YT_LOG_DEBUG("Computing body chunk row count (BodyChunkId: %v)",
+            BodyChunkId_);
+
+        auto nodeChannelFactory = GetNodeChannelFactory();
+
+        std::vector<TFuture<TDataNodeServiceProxy::TRspGetChunkMetaPtr>> metaFutures;
+        metaFutures.reserve(abortedBodyChunkReplicas.size());
+        for (const auto& bodyChunkReplica : abortedBodyChunkReplicas) {
+            auto channel = nodeChannelFactory->CreateChannel(bodyChunkReplica.NodeDescriptor);
+            TDataNodeServiceProxy proxy(channel);
+
+            auto chunkIdWithIndex = TChunkIdWithIndex(BodyChunkId_, bodyChunkReplica.ReplicaIndex);
+            auto partChunkId = EncodeChunkId(chunkIdWithIndex);
+
+            auto req = proxy.GetChunkMeta();
+            req->SetTimeout(GetDynamicConfig()->RpcTimeout);
+            ToProto(req->mutable_chunk_id(), partChunkId);
+            req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
+            ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
+            req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
+
+            metaFutures.push_back(req->Invoke());
+        }
+
+        THashMap<TLocationUuid, TString> locationUuidToAddress;
+
+        auto rspOrErrors = WaitFor(AllSet(metaFutures))
+            .ValueOrThrow();
+        YT_VERIFY(rspOrErrors.size() == abortedBodyChunkReplicas.size());
+
+        std::vector<TChunkSealInfo> replicaInfos;
+        replicaInfos.reserve(rspOrErrors.size());
+        for (int index = 0; index < std::ssize(rspOrErrors); ++index) {
+            const auto& replica = abortedBodyChunkReplicas[index];
+            const auto& rspOrError = rspOrErrors[index];
+            const auto& address = replica.NodeDescriptor.GetDefaultAddress();
+            if (rspOrError.IsOK()) {
+                const auto& rsp = rspOrError.Value();
+                auto locationUuid = FromProto<TLocationUuid>(rsp->location_uuid());
+                const auto& miscExt = GetProtoExtension<TMiscExt>(rsp->chunk_meta().extensions());
+
+                TChunkSealInfo chunkSealInfo;
+                chunkSealInfo.set_row_count(GetLogicalChunkRowCount(miscExt.row_count(), Overlayed_));
+                chunkSealInfo.set_compressed_data_size(miscExt.compressed_data_size());
+                chunkSealInfo.set_uncompressed_data_size(miscExt.uncompressed_data_size());
+                chunkSealInfo.set_physical_row_count(miscExt.row_count());
+                replicaInfos.push_back(chunkSealInfo);
+
+                YT_LOG_DEBUG("Body chunk replica info recieved "
+                    "(BodyChunkId: %v, Address: %v, LogicalRowCount: %v, PhysicalRowCount: %v, LocationUuid: %v)",
+                    BodyChunkId_,
+                    address,
+                    chunkSealInfo.row_count(),
+                    chunkSealInfo.physical_row_count(),
+                    locationUuid);
+
+                if (locationUuidToAddress.contains(locationUuid)) {
+                    THROW_ERROR_EXCEPTION("Coinciding location uuid %v reported by nodes %v and %v",
+                        locationUuid,
+                        address,
+                        locationUuidToAddress[locationUuid]);
+                } else {
+                    YT_VERIFY(locationUuidToAddress.emplace(locationUuid, address).second);
+                }
+            } else {
+                YT_LOG_DEBUG(rspOrError, "Failed to get body chunk replica info (BodyChunkId: %v, Address: %v)",
+                    BodyChunkId_,
+                    address);
+            }
+        }
+
+        if (std::ssize(replicaInfos) < ReadQuorum_) {
+            THROW_ERROR_EXCEPTION("Unable to compute quorum info for body chunk %v: too few replicas known, %v given, %v needed",
+                BodyChunkId_,
+                std::ssize(replicaInfos),
+                ReadQuorum_);
+        }
+
+        SortBy(replicaInfos, [&] (const auto& info) {
+            return info.row_count();
+        });
+
+        auto bodyChunkSealInfo = replicaInfos.back();
+        auto bodyChunkReplicaLagLimit = JobSpecExt_.body_chunk_replica_lag_limit();
+        auto bodyChunkLogicalRowCount = std::max<i64>(bodyChunkSealInfo.row_count() - bodyChunkReplicaLagLimit, 0);
+        bodyChunkSealInfo.set_first_overlayed_row_index(JobSpecExt_.body_chunk_first_overlayed_row_index());
+        bodyChunkSealInfo.set_row_count(bodyChunkLogicalRowCount);
+        bodyChunkSealInfo.set_physical_row_count(GetPhysicalChunkRowCount(bodyChunkLogicalRowCount, Overlayed_));
+
+        auto readQuorumInfoIndex = IsErasure()
+            ? ReadQuorum_ - NErasure::GetCodec(ErasureCodecId_)->GetGuaranteedRepairablePartCount()
+            : ReadQuorum_ - 1;
+        *totalRowCount = replicaInfos[readQuorumInfoIndex].row_count();
+
+        YT_LOG_DEBUG("Body chunk seal info computed "
+            "(BodyChunkId: %v, ReadQuorum: %v, BodyChunkLogicalRowCount: %v, BodyChunkPhysicalRowCount: %v, TotalRowCount: %v)",
+            BodyChunkId_,
+            ReadQuorum_,
+            bodyChunkSealInfo.row_count(),
+            bodyChunkSealInfo.physical_row_count(),
+            *totalRowCount);
+
+        return bodyChunkSealInfo;
+    }
+
+    std::vector<TSharedRef> ReadBodyChunkRows(i64 firstRowIndex, i64 lastRowIndex)
+    {
+        YT_LOG_DEBUG("Reading body chunk rows (BodyChunkId: %v, Rows: %v-%v)",
+            BodyChunkId_,
+            firstRowIndex,
+            lastRowIndex - 1);
+
+        if (firstRowIndex >= lastRowIndex) {
+            return {};
+        }
+
+        auto bodyChunkReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.body_chunk_replicas());
+        auto reader = NJournalClient::CreateChunkReader(
+            Config_->AutotomyReader,
+            Bootstrap_->GetMasterClient(),
+            NodeDirectory_,
+            BodyChunkId_,
+            ErasureCodecId_,
+            bodyChunkReplicas,
+            Bootstrap_->GetBlockCache(),
+            /*chunkMetaCache*/ nullptr,
+            /*trafficMeter*/ nullptr,
+            Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::AutotomyIn));
+
+        TClientChunkReadOptions chunkReadOptions;
+        auto& workloadDescriptor = chunkReadOptions.WorkloadDescriptor;
+        workloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
+        workloadDescriptor.Annotations = {Format("Autotomy of chunk %v", BodyChunkId_)};
+
+        std::vector<TSharedRef> rows;
+        rows.reserve(lastRowIndex - firstRowIndex);
+        while (firstRowIndex < lastRowIndex) {
+            YT_LOG_DEBUG("Reading rows (Rows: %v-%v)",
+                firstRowIndex,
+                lastRowIndex - 1);
+
+            auto asyncBlocks = reader->ReadBlocks(
+                chunkReadOptions,
+                firstRowIndex,
+                lastRowIndex - firstRowIndex);
+            auto blocks = WaitFor(asyncBlocks)
+                .ValueOrThrow();
+
+            int blockCount = blocks.size();
+            if (blockCount == 0) {
+                THROW_ERROR_EXCEPTION("Rows %v-%v are missing but needed to autotomize body chunk %v",
+                    firstRowIndex,
+                    lastRowIndex - 1,
+                    BodyChunkId_);
+            }
+
+            YT_LOG_DEBUG("Rows received (Rows: %v-%v)",
+                firstRowIndex,
+                firstRowIndex + blockCount - 1);
+
+            for (const auto& block : blocks) {
+                const auto& row = block.Data;
+                rows.push_back(row);
+            }
+
+            firstRowIndex += blockCount;
+        }
+
+        YT_LOG_DEBUG("Body chunk reading completed");
+
+        return rows;
+    }
+
+    TSharedRef CreateTailChunkHeaderRow(const TChunkSealInfo& bodyChunkSealInfo)
+    {
+        i64 tailFirstRowIndex = bodyChunkSealInfo.first_overlayed_row_index() + bodyChunkSealInfo.row_count();
+        NJournalClient::NProto::TOverlayedJournalChunkHeader header;
+        header.set_first_row_index(tailFirstRowIndex);
+
+        YT_LOG_DEBUG("Created tail chunk header row (TailFirstRowIndex: %v)",
+            tailFirstRowIndex);
+
+        return SerializeProtoToRef(header);
+    }
+
+    std::vector<std::vector<TSharedRef>> PrepareParts(const std::vector<TSharedRef>& rows)
+    {
+        if (IsErasure()) {
+            auto* codec = NErasure::GetCodec(ErasureCodecId_);
+            return EncodeErasureJournalRows(codec, rows);
+        } else {
+            return std::vector<std::vector<TSharedRef>>(ReplicationFactor_, rows);
+        }
+    }
+
+    std::vector<TChunkWriterWithIndex> CreateWriters()
+    {
+        auto writeSessionId = TSessionId(TailChunkId_, MediumIndex_);
+
+        YT_LOG_DEBUG("Creating tail chunk writers (TailChunkId: %v, SessionId: %v)",
+            TailChunkId_,
+            writeSessionId);
+
+        if (IsErasure()) {
+            auto* erasureCodec = NErasure::GetCodec(ErasureCodecId_);
+            auto erasurePartWriters = CreateAllErasurePartWriters(
+                Config_->AutotomyWriter,
+                New<TRemoteWriterOptions>(),
+                writeSessionId,
+                erasureCodec,
+                NodeDirectory_,
+                Bootstrap_->GetMasterClient(),
+                /*trafficMeter*/ nullptr,
+                Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::AutotomyOut),
+                GetNullBlockCache());
+
+            std::vector<TChunkWriterWithIndex> writers;
+            writers.reserve(erasurePartWriters.size());
+            for (int index = 0; index < std::ssize(erasurePartWriters); ++index) {
+                writers.push_back(TChunkWriterWithIndex{
+                    .ChunkWriter = std::move(erasurePartWriters[index]),
+                    .Index = index
+                });
+            }
+
+            return writers;
+        } else {
+            // Journals do not support SendBlocks, so we create
+            // #ReplicationFactor replication writers instead of one.
+
+            auto writeTargets = AllocateWriteTargets(
+                Bootstrap_->GetMasterClient(),
+                writeSessionId,
+                /*desiredTargetCount*/ ReplicationFactor_,
+                /*minTargetCount*/ ReplicationFactor_,
+                /*maxReplicasPerRack*/ ReplicationFactor_ - ReadQuorum_,
+                /*replicationFactorOverride*/ std::nullopt,
+                /*localHostName*/ Bootstrap_->GetLocalHostName(),
+                /*forbiddenAddresses*/ {},
+                NodeDirectory_,
+                Logger);
+            YT_VERIFY(std::ssize(writeTargets) == ReplicationFactor_);
+
+            // Each writer uploads exactly one replica.
+            auto writerConfig = CloneYsonSerializable(Config_->AutotomyWriter);
+            writerConfig->UploadReplicationFactor = 1;
+            writerConfig->MinUploadReplicationFactor = 1;
+
+            std::vector<TChunkWriterWithIndex> writers;
+            writers.reserve(ReplicationFactor_);
+            for (int index = 0; index < ReplicationFactor_; ++index) {
+                auto writer = CreateReplicationWriter(
+                    writerConfig,
+                    New<TRemoteWriterOptions>(),
+                    writeSessionId,
+                    {writeTargets[index]},
+                    NodeDirectory_,
+                    Bootstrap_->GetMasterClient(),
+                    Bootstrap_->GetLocalHostName(),
+                    GetNullBlockCache(),
+                    /*trafficMeter*/ nullptr,
+                    Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::AutotomyOut));
+                writers.push_back(TChunkWriterWithIndex{
+                    .ChunkWriter = std::move(writer),
+                    .Index = index
+                });
+            }
+
+            return writers;
+        }
+    }
+
+    //! Returns the list of the writers that wrote replica successfully.
+    std::vector<TChunkWriterWithIndex> WriteTailChunk(
+        const std::vector<std::vector<TSharedRef>>& parts,
+        const std::vector<TChunkWriterWithIndex>& writers)
+    {
+        YT_LOG_DEBUG("Started tail chunk write (TailChunkId: %v, RowCount: %v)",
+            TailChunkId_,
+            parts[0].size());
+
+        YT_VERIFY(parts.size() == writers.size());
+
+        std::vector<TFuture<void>> replicaFutures;
+        replicaFutures.reserve(writers.size());
+
+        for (int index = 0; index < std::ssize(parts); ++index) {
+            const auto& part = parts[index];
+            const auto& writer = writers[index];
+
+            auto future = BIND([&, index, jobLogger = Logger] {
+                auto Logger = jobLogger
+                    .WithTag("TailChunkId: %v, WriterIndex: %v",
+                        TailChunkId_,
+                        index);
+
+                auto& chunkWriter = writer.ChunkWriter;
+
+                YT_LOG_DEBUG("Opening writer");
+
+                WaitFor(chunkWriter->Open())
+                    .ThrowOnError();
+
+                YT_LOG_DEBUG("Writing rows");
+
+                std::vector<TBlock> blocks;
+                blocks.reserve(part.size());
+                for (const auto& row : part) {
+                    blocks.push_back(TBlock(row));
+                }
+                chunkWriter->WriteBlocks(blocks);
+
+                YT_LOG_DEBUG("Closing writer");
+
+                WaitFor(chunkWriter->Close())
+                    .ThrowOnError();
+
+                YT_LOG_DEBUG("Writer closed");
+            })
+                .AsyncVia(GetCurrentInvoker())
+                .Run();
+            replicaFutures.push_back(std::move(future));
+        }
+
+        auto replicaOrErrors = WaitFor(AllSet(std::move(replicaFutures)))
+            .ValueOrThrow();
+        YT_VERIFY(replicaOrErrors.size() == writers.size());
+
+        std::vector<TChunkWriterWithIndex> succeededWriters;
+        succeededWriters.reserve(writers.size());
+
+        std::vector<TError> writerErrors;
+        for (int index = 0; index < std::ssize(replicaOrErrors); ++index) {
+            const auto& replicaOrError = replicaOrErrors[index];
+            if (replicaOrError.IsOK()) {
+                succeededWriters.push_back(writers[index]);
+            } else {
+                auto error = TError("Tail replica writer failed (TailChunkId: %v, WriterIndex: %v)",
+                    TailChunkId_,
+                    index)
+                    << replicaOrError;
+                YT_LOG_WARNING(error);
+                writerErrors.push_back(std::move(error));
+            }
+        }
+
+        if (std::ssize(succeededWriters) < WriteQuorum_) {
+            THROW_ERROR_EXCEPTION("Too few tail chunk writers finished successfully: %v completed, %v needed",
+                succeededWriters.size(),
+                WriteQuorum_)
+                << writerErrors;
+        }
+
+        return succeededWriters;
+    }
+
+    void ConfirmTailChunk(const std::vector<TChunkWriterWithIndex>& succeededWriters)
+    {
+        YT_LOG_DEBUG("Confirming tail chunk (ChunkId: %v)",
+            TailChunkId_);
+
+        TChunkReplicaWithMediumList writtenReplicas;
+        for (const auto& writer : succeededWriters) {
+            auto replicas = writer.ChunkWriter->GetWrittenChunkReplicas();
+            YT_VERIFY(replicas.size() == 1);
+            const auto& replica = replicas[0];
+            int replicaIndex = IsErasure()
+                ? writer.Index
+                : GenericChunkReplicaIndex;
+            writtenReplicas.push_back(TChunkReplicaWithMedium{
+                replica.GetNodeId(),
+                replicaIndex,
+                replica.GetMediumIndex()
+            });
+        }
+
+        const auto& client = Bootstrap_->GetMasterClient();
+        auto cellTag = CellTagFromId(TailChunkId_);
+        auto channel = client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader, cellTag);
+
+        TChunkServiceProxy proxy(channel);
+        auto batchReq = proxy.ExecuteBatch();
+        GenerateMutationId(batchReq);
+        batchReq->set_suppress_upstream_sync(true);
+
+        auto* req = batchReq->add_confirm_chunk_subrequests();
+        ToProto(req->mutable_chunk_id(), TailChunkId_);
+        req->mutable_chunk_info();
+        ToProto(req->mutable_replicas(), writtenReplicas);
+        auto* meta = req->mutable_chunk_meta();
+        meta->set_type(ToProto<int>(EChunkType::Journal));
+        meta->set_format(ToProto<int>(EChunkFormat::JournalDefault));
+        TMiscExt miscExt;
+        SetProtoExtension(meta->mutable_extensions(), miscExt);
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            GetCumulativeError(batchRspOrError),
+            "Error confirming tail chunk %v",
+            TailChunkId_);
+
+        YT_LOG_DEBUG("Tail chunk confirmed (ChunkId: %v)",
+            TailChunkId_);
+    }
+
+    void SetJobResult(
+        const TChunkSealInfo& bodyChunkSealInfo,
+        i64 tailRowCount)
+    {
+        auto* jobResultExt = Result_.MutableExtension(TAutotomizeChunkJobResultExt::autotomize_chunk_job_result_ext);
+        ToProto(jobResultExt->mutable_body_chunk_id(), BodyChunkId_);
+        *jobResultExt->mutable_body_chunk_seal_info() = bodyChunkSealInfo;
+        ToProto(jobResultExt->mutable_tail_chunk_id(), TailChunkId_);
+
+        i64 tailFirstRowIndex = bodyChunkSealInfo.first_overlayed_row_index() + bodyChunkSealInfo.row_count();
+        jobResultExt->mutable_tail_chunk_seal_info()->set_first_overlayed_row_index(tailFirstRowIndex);
+        jobResultExt->mutable_tail_chunk_seal_info()->set_row_count(tailRowCount);
+        jobResultExt->mutable_tail_chunk_seal_info()->set_physical_row_count(GetPhysicalChunkRowCount(tailRowCount, Overlayed_));
+        jobResultExt->mutable_tail_chunk_seal_info()->set_uncompressed_data_size(1);
+        jobResultExt->mutable_tail_chunk_seal_info()->set_compressed_data_size(1);
+    }
+
+    bool IsErasure() const
+    {
+        return ErasureCodecId_ != NErasure::ECodec::None;
+    }
+
+    INodeChannelFactoryPtr GetNodeChannelFactory() const
+    {
+        auto nativeClient = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->CreateNativeClient({.User = NSecurityClient::RootUserName});
+        return nativeClient->GetChannelFactory();
+    }
+
+    const TChunkAutotomizerConfigPtr& GetDynamicConfig() const
+    {
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        return dynamicConfigManager->GetConfig()->DataNode->ChunkAutotomizer;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 IJobPtr CreateMasterJob(
     TJobId jobId,
     TJobSpec&& jobSpec,
@@ -1514,7 +2120,7 @@ IJobPtr CreateMasterJob(
                 jobId,
                 std::move(jobSpec),
                 resourceLimits,
-                config,
+                std::move(config),
                 bootstrap);
 
         case EJobType::RemoveChunk:
@@ -1522,7 +2128,7 @@ IJobPtr CreateMasterJob(
                 jobId,
                 std::move(jobSpec),
                 resourceLimits,
-                config,
+                std::move(config),
                 bootstrap);
 
         case EJobType::RepairChunk:
@@ -1530,7 +2136,7 @@ IJobPtr CreateMasterJob(
                 jobId,
                 std::move(jobSpec),
                 resourceLimits,
-                config,
+                std::move(config),
                 bootstrap);
 
         case EJobType::SealChunk:
@@ -1538,7 +2144,7 @@ IJobPtr CreateMasterJob(
                 jobId,
                 std::move(jobSpec),
                 resourceLimits,
-                config,
+                std::move(config),
                 bootstrap);
 
         case EJobType::MergeChunks:
@@ -1546,7 +2152,15 @@ IJobPtr CreateMasterJob(
                 jobId,
                 std::move(jobSpec),
                 resourceLimits,
-                config,
+                std::move(config),
+                bootstrap);
+
+        case EJobType::AutotomizeChunk:
+            return New<TChunkAutotomyJob>(
+                jobId,
+                std::move(jobSpec),
+                resourceLimits,
+                std::move(config),
                 bootstrap);
 
         default:

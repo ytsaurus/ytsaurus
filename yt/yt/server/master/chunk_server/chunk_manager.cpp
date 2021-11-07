@@ -1,6 +1,7 @@
 #include "chunk_manager.h"
 #include "private.h"
 #include "chunk.h"
+#include "chunk_autotomizer.h"
 #include "chunk_list.h"
 #include "chunk_list_proxy.h"
 #include "chunk_merger.h"
@@ -464,7 +465,8 @@ public:
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ChunkManager)
         , Config_(config)
         , ChunkTreeBalancer_(New<TChunkTreeBalancerCallbacks>(Bootstrap_))
-        , ExpirationTracker_(New<TExpirationTracker>(bootstrap))
+        , ExpirationTracker_(New<TExpirationTracker>(Bootstrap_))
+        , ChunkAutotomizer_(CreateChunkAutotomizer(Bootstrap_))
         , ChunkMerger_(New<TChunkMerger>(Bootstrap_))
     {
         ChunkQueue_ = CreateEnumIndexedFairShareActionQueue<EChunkThreadQueue>("Chunk");
@@ -561,6 +563,7 @@ public:
         ProfilingExecutor_->Start();
 
         ChunkMerger_->Initialize();
+        ChunkAutotomizer_->Initialize();
     }
 
     const IInvokerPtr& GetChunkInvoker(EChunkThreadQueue queue) const
@@ -879,6 +882,19 @@ public:
             auto* rightSibling = children[index + 1]->AsChunk();
             ScheduleChunkSeal(rightSibling);
         }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk sealed "
+            "(ChunkId: %v, FirstOverlayedRowIndex: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
+            chunk->GetId(),
+            info.has_first_overlayed_row_index() ? std::make_optional(info.first_overlayed_row_index()) : std::nullopt,
+            info.row_count(),
+            info.uncompressed_data_size(),
+            info.compressed_data_size());
+    }
+
+    const IChunkAutotomizerPtr& GetChunkAutotomizer() const
+    {
+        return ChunkAutotomizer_;
     }
 
     TChunk* CreateChunk(
@@ -1424,6 +1440,9 @@ public:
 
                 auto jobType = job->GetType();
                 job->SetState(state);
+                if (state == EJobState::Completed) {
+                    job->Result() = jobStatus.result();
+                }
                 if (state == EJobState::Completed || state == EJobState::Failed || state == EJobState::Aborted) {
                     job->Error() = jobError;
                 }
@@ -2069,6 +2088,8 @@ private:
     TJobRegistryPtr JobRegistry_;
 
     const TExpirationTrackerPtr ExpirationTracker_;
+
+    const IChunkAutotomizerPtr ChunkAutotomizer_;
 
     const TChunkMergerPtr ChunkMerger_;
 
@@ -3199,14 +3220,6 @@ private:
 
         const auto& info = subrequest->info();
         SealChunk(chunk, info);
-
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk sealed "
-            "(ChunkId: %v, FirstOverlayedRowIndex: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
-            chunk->GetId(),
-            info.has_first_overlayed_row_index() ? std::make_optional(info.first_overlayed_row_index()) : std::nullopt,
-            info.row_count(),
-            info.uncompressed_data_size(),
-            info.compressed_data_size());
     }
 
     void ExecuteCreateChunkListsSubrequest(
@@ -3866,6 +3879,7 @@ private:
         JobController_->RegisterJobController(EJobType::RepairChunk, ChunkReplicator_);
         JobController_->RegisterJobController(EJobType::SealChunk, ChunkSealer_);
         JobController_->RegisterJobController(EJobType::MergeChunks, ChunkMerger_);
+        JobController_->RegisterJobController(EJobType::AutotomizeChunk, ChunkAutotomizer_);
 
         ExpirationTracker_->Start();
     }
@@ -4327,6 +4341,7 @@ private:
         ChunkSealer_->OnProfiling(&buffer);
         JobRegistry_->OnProfiling(&buffer);
         ChunkMerger_->OnProfiling(&buffer);
+        ChunkAutotomizer_->OnProfiling(&buffer);
 
         buffer.AddGauge("/chunk_count", ChunkMap_.GetSize());
         buffer.AddCounter("/chunks_created", ChunksCreated_);
@@ -5006,6 +5021,16 @@ void TChunkManager::ProcessJobHeartbeat(
 TJobId TChunkManager::GenerateJobId() const
 {
     return Impl_->GenerateJobId();
+}
+
+void TChunkManager::SealChunk(TChunk* chunk, const TChunkSealInfo& info)
+{
+    Impl_->SealChunk(chunk, info);
+}
+
+const IChunkAutotomizerPtr& TChunkManager::GetChunkAutotomizer() const
+{
+    return Impl_->GetChunkAutotomizer();
 }
 
 bool TChunkManager::IsChunkReplicatorEnabled()

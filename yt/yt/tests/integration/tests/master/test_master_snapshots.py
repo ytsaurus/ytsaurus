@@ -445,7 +445,7 @@ class TestMasterSnapshots(YTEnvSetup):
     @authors("gritukan")
     def test_master_snapshots_free_space_profiling(self):
         def check_sensor(path):
-            sensors = profiler_factory().at_master(master_index=0).list()
+            sensors = profiler_factory().at_primary_master(master_index=0).list()
             return path in sensors
         wait(lambda: check_sensor("yt/snapshots/free_space"))
         wait(lambda: check_sensor("yt/snapshots/available_space"))

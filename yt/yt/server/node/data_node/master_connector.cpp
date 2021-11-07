@@ -384,6 +384,18 @@ public:
         }
     }
 
+    virtual void ScheduleJobHeartbeat(TCellTag cellTag) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        YT_LOG_DEBUG("Scheduling out-of-order job heartbeat (CellTag: %v)",
+            cellTag);
+
+        const auto& controlInvoker = Bootstrap_->GetControlInvoker();
+        controlInvoker->Invoke(
+            BIND(&TMasterConnector::ReportJobHeartbeat, MakeWeak(this), cellTag, /*outOfOrder*/ true));
+    }
+
 private:
     struct TChunksDelta
     {
@@ -421,6 +433,8 @@ private:
 
         TAsyncReaderWriterLock DataNodeHeartbeatLock;
         int ScheduledDataNodeHeartbeatCount = 0;
+
+        TAsyncReaderWriterLock JobHeartbeatLock;
     };
     THashMap<TCellTag, std::unique_ptr<TPerCellTagData>> PerCellTagData_;
 
@@ -479,7 +493,7 @@ private:
         }
         // Job heartbeats are sent using data node master connector in both old and new protocols.
         // TODO(gritukan): Move it to StartHeartbeats.
-        ScheduleJobHeartbeat(/* immediately */ true);
+        DoScheduleJobHeartbeat(/* immediately */ true);
     }
 
     void OnDynamicConfigChanged(
@@ -522,25 +536,33 @@ private:
             HeartbeatInvoker_);
     }
 
-    void ScheduleJobHeartbeat(bool immediately)
+    void DoScheduleJobHeartbeat(bool immediately)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto delay = immediately ? TDuration::Zero() : JobHeartbeatPeriod_ + RandomDuration(JobHeartbeatPeriodSplay_);
         delay /= (Bootstrap_->GetMasterClient()->GetNativeConnection()->GetSecondaryMasterCellTags().size() + 1);
+
+        const auto& masterCellTags = Bootstrap_->GetMasterCellTags();
+        auto cellTag = masterCellTags[JobHeartbeatCellIndex_];
+
         TDelayedExecutor::Submit(
-            BIND(&TMasterConnector::ReportJobHeartbeat, MakeWeak(this)),
+            BIND(&TMasterConnector::ReportJobHeartbeat, MakeWeak(this), cellTag, /*outOfOrder*/ false),
             delay,
             HeartbeatInvoker_);
     }
 
-    void ReportJobHeartbeat()
+    void ReportJobHeartbeat(TCellTag cellTag, bool outOfOrder)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        const auto& masterCellTags = Bootstrap_->GetMasterCellTags();
-        auto cellTag = masterCellTags[JobHeartbeatCellIndex_];
-        JobHeartbeatCellIndex_ = (JobHeartbeatCellIndex_ + 1) % masterCellTags.size();
+        YT_LOG_DEBUG("Reporting job heartbeat to master (CellTag: %v, OutOfOrder: %v)",
+            cellTag,
+            outOfOrder);
+
+        auto* cellTagData = GetCellTagData(cellTag);
+        auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&cellTagData->JobHeartbeatLock))
+            .ValueOrThrow();
 
         auto state = GetMasterConnectorState(cellTag);
         if (state == EMasterConnectorState::Online) {
@@ -571,15 +593,26 @@ private:
                 YT_LOG_WARNING(rspOrError, "Error reporting job heartbeat to master (CellTag: %v)",
                     cellTag);
                 if (NRpc::IsRetriableError(rspOrError)) {
-                    ScheduleJobHeartbeat(/* immediately */ false);
+                    DoScheduleJobHeartbeat(/*immediately*/ false);
                 } else {
                     Bootstrap_->ResetAndRegisterAtMaster();
                 }
+
+                if (!outOfOrder) {
+                    const auto& masterCellTags = Bootstrap_->GetMasterCellTags();
+                    JobHeartbeatCellIndex_ = (JobHeartbeatCellIndex_ + 1) % masterCellTags.size();
+                }
+
                 return;
             }
         }
 
-        ScheduleJobHeartbeat(/* immediately */ false);
+        if (!outOfOrder) {
+            const auto& masterCellTags = Bootstrap_->GetMasterCellTags();
+            JobHeartbeatCellIndex_ = (JobHeartbeatCellIndex_ + 1) % masterCellTags.size();
+
+            DoScheduleJobHeartbeat(/*immediately*/ false);
+        }
     }
 
     void ReportHeartbeat(TCellTag cellTag)

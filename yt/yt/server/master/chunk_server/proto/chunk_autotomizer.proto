@@ -1,0 +1,54 @@
+package NYT.NChunkServer.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+import "yt/ytlib/chunk_client/proto/chunk_service.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAutotomizeChunk
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+    required NYT.NChunkClient.NProto.TChunkSealInfo chunk_seal_info = 2;
+}
+
+message TRspAutotomizeChunk
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUpdateAutotomizerState
+{
+    repeated NYT.NProto.TGuid chunks_to_unregister = 1;
+    repeated NYT.NProto.TGuid chunks_to_allocate_tail = 2;
+}
+
+message TRspUpdateAutotomizerState
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUpdateChunkAutotomizerTransactions
+{ }
+
+message TRspUpdateChunkAutotomizerTransactions
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqOnChunkAutotomyCompleted
+{
+    required NYT.NProto.TGuid body_chunk_id = 1;
+    required NYT.NChunkClient.NProto.TChunkSealInfo body_chunk_seal_info = 2;
+    required NYT.NProto.TGuid tail_chunk_id = 3;
+    required NYT.NChunkClient.NProto.TChunkSealInfo tail_chunk_seal_info = 4;
+
+    // For profiling only.
+    required bool speculative_job_won = 5;
+}
+
+message TRspOnChunkAutotomyCompleted
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+

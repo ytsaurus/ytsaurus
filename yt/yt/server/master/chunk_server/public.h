@@ -107,12 +107,17 @@ struct TChunkOwnerMergeJobCounterPtrContext;
 template <class T>
 using TChunkOwnerMergeJobCounterPtr = NObjectServer::TObjectPtr<T, TChunkOwnerMergeJobCounterPtrContext>;
 
+DECLARE_REFCOUNTED_CLASS(TJobTracker)
+
 DECLARE_REFCOUNTED_CLASS(TJob)
 DECLARE_REFCOUNTED_CLASS(TReplicationJob)
 DECLARE_REFCOUNTED_CLASS(TRemovalJob)
 DECLARE_REFCOUNTED_CLASS(TRepairJob)
 DECLARE_REFCOUNTED_CLASS(TSealJob)
 DECLARE_REFCOUNTED_CLASS(TMergeJob)
+DECLARE_REFCOUNTED_CLASS(TAutotomyJob)
+
+DECLARE_REFCOUNTED_STRUCT(IChunkAutotomizer)
 
 DECLARE_REFCOUNTED_CLASS(TChunkManager)
 DECLARE_REFCOUNTED_CLASS(TChunkMerger)
@@ -121,7 +126,9 @@ DECLARE_REFCOUNTED_CLASS(TChunkPlacement)
 
 DECLARE_REFCOUNTED_CLASS(TChunkManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicDataNodeTrackerConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicChunkAutotomizerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkMergerConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicChunkManagerTestingConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicAllyReplicaManagerConfig)

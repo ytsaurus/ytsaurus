@@ -18,6 +18,8 @@ def abort_transactions(list_action, abort_action):
             continue
         if "Chunk merger" in title:
             continue
+        if "Chunk autotomizer" in title:
+            continue
         try:
             abort_action(tx)
         except YtError:

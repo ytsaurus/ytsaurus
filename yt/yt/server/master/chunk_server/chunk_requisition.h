@@ -215,6 +215,9 @@ public:
     //! 'data parts only' flag is set to |false|).
     bool IsValid() const;
 
+    //! Returns the number of entries in replication.
+    int GetSize() const;
+
 private:
     static constexpr const auto EmptyReplicationPolicy = TReplicationPolicy(0, true);
 

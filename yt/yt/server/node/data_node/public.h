@@ -91,6 +91,7 @@ DECLARE_REFCOUNTED_CLASS(TVolumeManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTableSchemaCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TTableSchemaCacheDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TRepairReaderConfig)
+DECLARE_REFCOUNTED_CLASS(TChunkAutotomizerConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TCachedTableSchema)
 DECLARE_REFCOUNTED_CLASS(TTableSchemaCache)
@@ -137,6 +138,10 @@ DEFINE_ENUM(EDataNodeThrottlerKind,
     (MergeIn)
     //! Controls outcoming bandwidth used by merge jobs.
     (MergeOut)
+    //! Controls incoming bandwidth used by autotomy jobs.
+    (AutotomyIn)
+    //! Controls outcoming bandwidth used by autotomy jobs.
+    (AutotomyOut)
     //! Controls incoming bandwidth used by Artifact Cache downloads.
     (ArtifactCacheIn)
     //! Controls outcoming bandwidth used by Artifact Cache downloads.

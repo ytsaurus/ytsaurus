@@ -89,6 +89,8 @@ public:
 
     const NJobTrackerClient::NProto::TJobSpec& GetSpec() const override;
 
+    bool IsUrgent() const override;
+
     int GetPortCount() const override;
 
     void SetPorts(const std::vector<int>& ports) override;
