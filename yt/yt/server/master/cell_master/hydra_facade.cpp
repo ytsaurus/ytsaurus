@@ -83,6 +83,7 @@ public:
         AutomatonQueue_ = CreateEnumIndexedFairShareActionQueue<EAutomatonThreadQueue>(
             "Automaton",
             GetAutomatonThreadBuckets());
+        VERIFY_INVOKER_THREAD_AFFINITY(AutomatonQueue_->GetInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
 
         NObjectServer::SetupMasterBootstrap(bootstrap);
 
