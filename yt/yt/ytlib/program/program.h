@@ -17,16 +17,19 @@ DEFINE_ENUM(EProgramExitCode,
 class TProgram
 {
 public:
-    explicit TProgram();
+    TProgram();
     ~TProgram();
 
     TProgram(const TProgram&) = delete;
     TProgram(TProgram&&) = delete;
 
+    // This call actually never returns;
+    // |int| return type is just for the symmetry with |main|.
+    [[noreturn]]
     int Run(int argc, const char** argv);
 
-    //! Handle --version/--yt-version/--build [--yson] if they are present.
-    void HandleVersionAndBuild() const;
+    //! Handles --version/--yt-version/--build [--yson] if they are present.
+    void HandleVersionAndBuild();
 
 protected:
     NLastGetopt::TOpts Opts_;
@@ -36,24 +39,31 @@ protected:
     bool PrintBuild_ = false;
     bool UseYson_ = false;
 
-    [[noreturn]] int Exit(EProgramExitCode code) const noexcept;
-    [[noreturn]] int Exit(int code) const noexcept;
+    [[noreturn]]
+    void Exit(EProgramExitCode code) noexcept;
+
+    [[noreturn]]
+    void Exit(int code) noexcept;
 
     virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) = 0;
 
-    virtual void OnError(const TString& message) const noexcept;
+    virtual void OnError(const TString& message) noexcept;
 
     void SetCrashOnError();
 
     //! Handler for --yt-version command argument.
-    void PrintYTVersionAndExit() const;
+    [[noreturn]]
+    void PrintYTVersionAndExit();
+
     //! Handler for --build command argument.
-    void PrintBuildAndExit() const;
+    [[noreturn]]
+    void PrintBuildAndExit();
 
     //! Handler for --version command argument.
     //! By default, --version and --yt-version work the same way,
-    //! but some yt components (e.g. chyt) can override it to provide its own version. 
-    virtual void PrintVersionAndExit() const;
+    //! but some YT components (e.g. CHYT) can override it to provide its own version.
+    [[noreturn]]
+    virtual void PrintVersionAndExit();
 
 private:
     bool CrashOnError_ = false;
@@ -61,6 +71,8 @@ private:
     // Custom handler for option parsing errors.
     class TOptsParseResult;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! The simplest exception possible.
 //! Here we refrain from using TErrorException, as it relies on proper configuration of singleton subsystems,

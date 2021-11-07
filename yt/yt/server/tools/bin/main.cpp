@@ -2,5 +2,5 @@
 
 int main(int argc, const char** argv)
 {
-    return NYT::TToolsProgram().Run(argc, argv);
+    return NYT::NTools::TToolsProgram().Run(argc, argv);
 }

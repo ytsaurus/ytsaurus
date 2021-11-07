@@ -160,19 +160,19 @@ private:
     }
 
     //! Override to print CHYT version.
-    virtual void PrintVersionAndExit() const override
+    virtual void PrintVersionAndExit() override
     {
         Cout << GetCHYTVersion() << Endl;
         _exit(0);
     }
 
-    void PrintClickHouseVersionAndExit() const
+    void PrintClickHouseVersionAndExit()
     {
         Cout << VERSION_STRING << Endl;
         _exit(0);
     }
 
-    void HandleClickHouseVersion() const
+    void HandleClickHouseVersion()
     {
         if (PrintClickHouseVersion_) {
             PrintClickHouseVersionAndExit();
@@ -180,7 +180,7 @@ private:
         }
     }
 
-    void ValidateRequiredArguments(const NLastGetopt::TOptsParseResult& parseResult) const
+    void ValidateRequiredArguments(const NLastGetopt::TOptsParseResult& parseResult)
     {
         std::vector<TString> requiredArguments = {
             "instance-id",
