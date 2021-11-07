@@ -1,7 +1,7 @@
 #pragma once
 
 // TODO(ignat): migrate to enum class
-#include <library/cpp/ytalloc/core/misc/enum.h>
+#include <library/cpp/yt/misc/enum.h>
 
 namespace NYT::NVectorHdrf {
 
@@ -17,7 +17,7 @@ DEFINE_ENUM(EIntegralGuaranteeType,
     (Burst)
     (Relaxed)
 );
-    
+
 DEFINE_ENUM(EErrorCode,
     ((PoolTreeGuaranteesOvercommit) (29000))
 );

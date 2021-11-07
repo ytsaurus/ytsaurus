@@ -57,7 +57,7 @@
 
 #include <yt/yt/core/misc/statistics.h>
 
-#include <library/cpp/ytalloc/core/misc/enum.h>
+#include <library/cpp/yt/misc/enum.h>
 
 #include <util/generic/cast.h>
 
