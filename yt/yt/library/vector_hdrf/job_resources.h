@@ -2,10 +2,10 @@
 
 #include "property.h"
 
-// TODO(ignat): migrate to enum class
-#include <library/cpp/ytalloc/core/misc/enum.h>
-
 #include <yt/yt/library/numeric/fixed_point_number.h>
+
+// TODO(ignat): migrate to enum class
+#include <library/cpp/yt/misc/enum.h>
 
 #include <optional>
 
@@ -31,13 +31,13 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, Gpu);
     DEFINE_BYVAL_RW_PROPERTY(i64, Memory);
     DEFINE_BYVAL_RW_PROPERTY(i64, Network);
-    
+
 public:
     inline void SetCpu(double cpu)
     {
         Cpu_ = TCpuResource(cpu);
     }
-    
+
     TJobResources() = default;
 
     static TJobResources Infinite();

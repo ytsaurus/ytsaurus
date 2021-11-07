@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/actions/public.h>
 
-#include <library/cpp/ytalloc/core/misc/preprocessor.h>
+#include <library/cpp/yt/misc/preprocessor.h>
 
 // Include Google Test and Google Mock headers.
 #define GTEST_DONT_DEFINE_FAIL 1

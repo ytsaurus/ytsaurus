@@ -19,7 +19,7 @@
 
 #include <yt/yt/library/syncmap/map.h>
 
-#include <library/cpp/ytalloc/core/misc/enum.h>
+#include <library/cpp/yt/misc/enum.h>
 
 namespace NYT::NTabletNode {
 

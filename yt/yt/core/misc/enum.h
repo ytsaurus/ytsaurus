@@ -1,2 +1,2 @@
 // Just a thunk.
-#include <library/cpp/ytalloc/core/misc/enum.h>
+#include <library/cpp/yt/misc/enum.h>

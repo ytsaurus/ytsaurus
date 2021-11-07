@@ -10,7 +10,7 @@
 
 #include <library/cpp/yt/small_containers/small_vector.h>
 
-#include <library/cpp/ytalloc/core/misc/enum.h>
+#include <library/cpp/yt/misc/enum.h>
 
 #include <cctype>
 #include <optional>
