@@ -10,10 +10,11 @@
 #include <yt/yt/ytlib/program/program_setsid_mixin.h>
 #include <yt/yt/ytlib/program/helpers.h>
 
-#include <yt/yt/library/phdr_cache/phdr_cache.h>
-#include <yt/yt/library/mlock/mlock.h>
-
 #include <library/cpp/ytalloc/api/ytalloc.h>
+
+#include <library/cpp/yt/phdr_cache/phdr_cache.h>
+
+#include <library/cpp/yt/mlock/mlock.h>
 
 #include <yt/yt/core/ytalloc/bindings.h>
 

@@ -4,7 +4,7 @@
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/misc/finally.h>
 
-#include <yt/yt/library/assert/assert.h>
+#include <library/cpp/yt/assert/assert.h>
 
 #include <contrib/libs/zlib/zlib.h>
 

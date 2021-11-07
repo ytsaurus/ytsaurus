@@ -1,6 +1,6 @@
 #include <library/cpp/testing/gtest/gtest.h>
 
-#include <yt/yt/library/string/string.h>
+#include <library/cpp/yt/string/string.h>
 
 namespace NYT {
 namespace {

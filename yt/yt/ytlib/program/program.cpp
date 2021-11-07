@@ -15,11 +15,11 @@
 
 #include <yt/yt/library/ytprof/heap_profiler.h>
 
-#include <yt/yt/library/mlock/mlock.h>
-
 #include <yt/yt/library/profiling/tcmalloc/profiler.h>
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
+
+#include <library/cpp/yt/mlock/mlock.h>
 
 #include <tcmalloc/malloc_extension.h>
 

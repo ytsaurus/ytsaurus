@@ -1,7 +1,7 @@
 #include <library/cpp/testing/gtest/gtest.h>
 
-#include <yt/yt/library/memory/new.h>
-#include <yt/yt/library/memory/weak_ptr.h>
+#include <library/cpp/yt/memory/new.h>
+#include <library/cpp/yt/memory/weak_ptr.h>
 
 #include <array>
 

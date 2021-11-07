@@ -1,1 +1,1 @@
-#include <yt/yt/library/string/string_builder.h>
+#include <library/cpp/yt/string/string_builder.h>

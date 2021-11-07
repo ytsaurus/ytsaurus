@@ -1,1 +1,1 @@
-#include <yt/yt/library/memory/blob.h>
+#include <library/cpp/yt/memory/blob.h>

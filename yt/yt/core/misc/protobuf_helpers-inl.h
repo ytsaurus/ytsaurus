@@ -6,7 +6,7 @@
 
 #include "error.h"
 
-#include <yt/yt/library/assert/assert.h>
+#include <library/cpp/yt/assert/assert.h>
 
 namespace NYT {
 

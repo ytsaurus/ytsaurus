@@ -11,10 +11,11 @@
 #include <yt/yt/core/logging/log_manager.h>
 #include <yt/yt/core/logging/config.h>
 
-#include <yt/yt/library/phdr_cache/phdr_cache.h>
-#include <yt/yt/library/mlock/mlock.h>
-
 #include <library/cpp/ytalloc/api/ytalloc.h>
+
+#include <library/cpp/yt/phdr_cache/phdr_cache.h>
+
+#include <library/cpp/yt/mlock/mlock.h>
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 

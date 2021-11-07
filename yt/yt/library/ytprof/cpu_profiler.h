@@ -10,7 +10,7 @@
 
 #include <yt/yt/library/ytprof/profile.pb.h>
 
-#include <yt/yt/library/memory/intrusive_ptr.h>
+#include <library/cpp/yt/memory/intrusive_ptr.h>
 
 #include <util/generic/hash.h>
 #include <util/datetime/base.h>

@@ -4,8 +4,8 @@
 #include "sensor.h"
 #include "summary.h"
 
-#include <yt/yt/library/memory/weak_ptr.h>
-#include <yt/yt/library/memory/ref_counted.h>
+#include <library/cpp/yt/memory/weak_ptr.h>
+#include <library/cpp/yt/memory/ref_counted.h>
 
 namespace NYT::NProfiling {
 

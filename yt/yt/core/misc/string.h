@@ -2,7 +2,7 @@
 
 #include "enum.h"
 
-#include <yt/yt/library/string/string.h>
+#include <library/cpp/yt/string/string.h>
 
 #include <optional>
 

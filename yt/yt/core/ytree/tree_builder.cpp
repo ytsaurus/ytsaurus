@@ -9,7 +9,7 @@
 
 #include <yt/yt/core/yson/forwarding_consumer.h>
 
-#include <yt/yt/library/assert/assert.h>
+#include <library/cpp/yt/assert/assert.h>
 
 #include <stack>
 

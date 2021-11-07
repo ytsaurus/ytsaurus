@@ -1,1 +1,1 @@
-#include <yt/yt/library/memory/range.h>
+#include <library/cpp/yt/memory/range.h>

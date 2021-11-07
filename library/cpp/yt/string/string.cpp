@@ -1,7 +1,7 @@
 #include "string.h"
 #include "format.h"
 
-#include <yt/yt/library/assert/assert.h>
+#include <library/cpp/yt/assert/assert.h>
 
 #include <util/generic/hash.h>
 

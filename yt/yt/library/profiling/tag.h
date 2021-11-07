@@ -4,7 +4,7 @@
 
 #include <util/generic/string.h>
 
-#include <yt/yt/library/small_containers/small_vector.h>
+#include <library/cpp/yt/small_containers/small_vector.h>
 
 namespace NYT::NProfiling {
 

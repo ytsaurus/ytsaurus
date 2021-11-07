@@ -23,7 +23,7 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/yt/library/assert/assert.h>
+#include <library/cpp/yt/assert/assert.h>
 
 namespace NYT::NDataNode {
 

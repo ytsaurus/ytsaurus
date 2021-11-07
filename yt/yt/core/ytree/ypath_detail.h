@@ -20,7 +20,7 @@
 #include <yt/yt/core/ytree/node.h>
 #include <yt/yt_proto/yt/core/ytree/proto/ypath.pb.h>
 
-#include <yt/yt/library/assert/assert.h>
+#include <library/cpp/yt/assert/assert.h>
 
 namespace NYT::NYTree {
 

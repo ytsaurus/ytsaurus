@@ -1,8 +1,8 @@
 #include <library/cpp/testing/gtest/gtest.h>
 
-#include <yt/yt/library/string/format.h>
+#include <library/cpp/yt/string/format.h>
 
-#include <yt/yt/library/small_containers/small_vector.h>
+#include <library/cpp/yt/small_containers/small_vector.h>
 
 #include <limits>
 

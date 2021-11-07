@@ -14,7 +14,7 @@
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/numeric_helpers.h>
 
-#include <yt/yt/library/assert/assert.h>
+#include <library/cpp/yt/assert/assert.h>
 
 #include <util/random/random.h>
 

@@ -10,7 +10,7 @@
 #include <yt/yt/core/concurrency/fls.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
-#include <yt/yt/library/assert/assert.h>
+#include <library/cpp/yt/assert/assert.h>
 
 #include <util/system/defaults.h>
 
