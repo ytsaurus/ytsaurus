@@ -32,14 +32,6 @@ struct TCodecTraits
     using TBufferType = TBlob;
     using ECodecType = ECodec;
 
-    static void Check(bool expr, const char* strExpr, const char* file, int line)
-    {
-        if (Y_UNLIKELY(!expr)) {
-            ::NYT::NDetail::AssertTrapImpl("YT_VERIFY", strExpr, file, line, /*function*/ {});
-            Y_UNREACHABLE();
-        }
-    }
-
     static TMutableBlobType AllocateBlob(size_t size)
     {
         return TMutableBlobType::Allocate<TJerasureBlobTag>(size, false);
