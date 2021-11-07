@@ -2,5 +2,5 @@
 
 int main(int argc, const char** argv)
 {
-    return NYT::TCellMasterProgram().Run(argc, argv);
+    return NYT::NCellMaster::TCellMasterProgram().Run(argc, argv);
 }

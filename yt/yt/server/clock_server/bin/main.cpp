@@ -2,5 +2,5 @@
 
 int main(int argc, const char** argv)
 {
-    return NYT::TClusterClockProgram().Run(argc, argv);
+    return NYT::NClusterClock::TClusterClockProgram().Run(argc, argv);
 }

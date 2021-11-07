@@ -18,65 +18,50 @@
 
 #include <library/cpp/getopt/small/last_getopt_parse_result.h>
 
-namespace NYT {
+using namespace NYT;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAllProgram
     : public TProgram
 {
-public:
-    int Run(int argc, const char** argv)
-    {
-        NLastGetopt::TOptsParseResult result(&Opts_, argc, argv);
-
-        HandleVersionAndBuild();
-
-        return 0;
-    }
-
 private:
-    void DoRun(const NLastGetopt::TOptsParseResult& /* result */) override
+    void DoRun(const NLastGetopt::TOptsParseResult& /*result*/) override
     {
-        YT_ABORT();
+        Cerr << "Program " << Argv0_ << " is not known" << Endl;
+        Exit(EProgramExitCode::OptionsError);
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT
+template <class T>
+void TryProgram(int argc, const char** argv, const TString& nameSuffix)
+{
+    if (TStringBuf(argv[0]).EndsWith("ytserver-" + nameSuffix)) {
+        T().Run(argc, argv);
+    }
+}
 
 int main(int argc, const char** argv)
 {
-    std::vector<std::pair<TString, std::function<int()>>> programs = {
-        {"ytserver-master", [&] { return NYT::TCellMasterProgram().Run(argc, argv); }},
-        {"ytserver-clock", [&] { return NYT::TClusterClockProgram().Run(argc, argv); }},
-        {"ytserver-http-proxy", [&] { return NYT::THttpProxyProgram().Run(argc, argv); }},
-        {"ytserver-proxy", [&] { return NYT::NRpcProxy::TRpcProxyProgram().Run(argc, argv); }},
-        {"ytserver-node", [&] { return NYT::NClusterNode::TClusterNodeProgram().Run(argc, argv); }},
-        {"ytserver-job-proxy", [&] { return NYT::NJobProxy::TJobProxyProgram().Run(argc, argv); }},
-        {"ytserver-exec", [&] { return NYT::NExec::TExecProgram().Run(argc, argv); }},
-        {"ytserver-tools", [&] { return NYT::TToolsProgram().Run(argc, argv); }},
-        {"ytserver-scheduler", [&] { return NYT::NScheduler::TSchedulerProgram().Run(argc, argv); }},
-        {"ytserver-controller-agent", [&] { return NYT::NControllerAgent::TControllerAgentProgram().Run(argc, argv); }},
-        {"ytserver-log-tailer", [&] { return NYT::NLogTailer::TLogTailerProgram().Run(argc, argv); }},
-        {"ytserver-discovery", [&] { return NYT::NClusterDiscoveryServer::TClusterDiscoveryServerProgram().Run(argc, argv); }},
-        {"ytserver-timestamp-provider", [&] { return NYT::NTimestampProvider::TTimestampProviderProgram().Run(argc, argv); }},
-        {"ytserver-master-cache", [&] { return NYT::NMasterCache::TMasterCacheProgram().Run(argc, argv); }},
-        {"ytserver-cell-balancer", [&] { return NYT::NCellBalancer::TCellBalancerProgram().Run(argc, argv); }},
-    };
-
-    for (const auto program : programs) {
-        if (TStringBuf(argv[0]).EndsWith(program.first)) {
-            return program.second();
-        }
-    }
+    TryProgram<NCellMaster::TCellMasterProgram>(argc, argv, "master");
+    TryProgram<NClusterClock::TClusterClockProgram>(argc, argv, "clock");
+    TryProgram<NHttpProxy::THttpProxyProgram>(argc, argv, "http-proxy");
+    // TODO(babenko): rename to rpc-proxy
+    TryProgram<NRpcProxy::TRpcProxyProgram>(argc, argv, "proxy");
+    TryProgram<NClusterNode::TClusterNodeProgram>(argc, argv, "node");
+    TryProgram<NJobProxy::TJobProxyProgram>(argc, argv, "job-proxy");
+    TryProgram<NExec::TExecProgram>(argc, argv, "exec");
+    TryProgram<NTools::TToolsProgram>(argc, argv, "tools");
+    TryProgram<NScheduler::TSchedulerProgram>(argc, argv, "scheduler");
+    TryProgram<NControllerAgent::TControllerAgentProgram>(argc, argv, "controller-agent");
+    TryProgram<NLogTailer::TLogTailerProgram>(argc, argv, "log-tailer");
+    TryProgram<NClusterDiscoveryServer::TClusterDiscoveryServerProgram>(argc, argv, "discovery");
+    TryProgram<NTimestampProvider::TTimestampProviderProgram>(argc, argv, "timestamp-provider");
+    TryProgram<NMasterCache::TMasterCacheProgram>(argc, argv, "master-cache");
+    TryProgram<NCellBalancer::TCellBalancerProgram>(argc, argv, "cell-balancer");
 
     // Handles auxiliary flags like --version and --build.
-    NYT::TAllProgram().Run(argc, argv);
-
-    Cerr << "Program " << argv[0] << " is not known" << Endl;
-    return 1;
+    TAllProgram().Run(argc, argv);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

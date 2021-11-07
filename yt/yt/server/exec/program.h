@@ -166,13 +166,13 @@ protected:
         Exit(6);
     }
 
-    void OnError(const TString& message) const noexcept override
+    void OnError(const TString& message) noexcept override
     {
         LogToStderr(message);
     }
 
 private:
-    void LogToStderr(const TString& message) const
+    void LogToStderr(const TString& message)
     {
         auto logRecord = Format("%v (JobId: %v)", message, JobId_);
 

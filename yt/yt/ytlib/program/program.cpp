@@ -74,7 +74,7 @@ public:
     }
 
 private:
-    TProgram* Owner_;
+    TProgram* const Owner_;
 };
 
 TProgram::TProgram()
@@ -104,19 +104,16 @@ void TProgram::SetCrashOnError()
 
 TProgram::~TProgram() = default;
 
-void TProgram::HandleVersionAndBuild() const
+void TProgram::HandleVersionAndBuild()
 {
     if (PrintVersion_) {
         PrintVersionAndExit();
-        Y_UNREACHABLE();
     }
     if (PrintYTVersion_) {
         PrintYTVersionAndExit();
-        Y_UNREACHABLE();
     }
     if (PrintBuild_) {
         PrintBuildAndExit();
-        Y_UNREACHABLE();
     }
 }
 
@@ -124,7 +121,7 @@ int TProgram::Run(int argc, const char** argv)
 {
     ::TThread::SetCurrentThreadName("ProgramMain");
 
-    srand(time(nullptr));
+    ::srand(time(nullptr));
 
     auto run = [&] {
         Argv0_ = TString(argv[0]);
@@ -138,33 +135,39 @@ int TProgram::Run(int argc, const char** argv)
     if (!CrashOnError_) {
         try {
             run();
-            return Exit(EProgramExitCode::OK);
+            Exit(EProgramExitCode::OK);
         } catch (...) {
             OnError(CurrentExceptionMessage());
-            return Exit(EProgramExitCode::ProgramError);
+            Exit(EProgramExitCode::ProgramError);
         }
     } else {
         run();
-        return Exit(EProgramExitCode::OK);
+        Exit(EProgramExitCode::OK);
     }
+
+    // Cannot reach this due to #Exit calls above.
+    YT_ABORT();
 }
 
-int TProgram::Exit(EProgramExitCode code) const noexcept
+void TProgram::Exit(EProgramExitCode code) noexcept
 {
     Exit(static_cast<int>(code));
 }
 
-int TProgram::Exit(int code) const noexcept
+void TProgram::Exit(int code) noexcept
 {
 #if defined(_linux_) && defined(CLANG_COVERAGE)
     __llvm_profile_write_file();
 #endif
 
-    exit(code);
-    YT_ABORT();
+    // This explicit call may become obsolete some day;
+    // cf. the comment section for NYT::Shutdown.
+    Shutdown();
+
+    ::exit(code);
 }
 
-void TProgram::OnError(const TString& message) const noexcept
+void TProgram::OnError(const TString& message) noexcept
 {
     try {
         Cerr << message << Endl;
@@ -174,16 +177,16 @@ void TProgram::OnError(const TString& message) const noexcept
     }
 }
 
-void TProgram::PrintYTVersionAndExit() const
+void TProgram::PrintYTVersionAndExit()
 {
     if (UseYson_) {
         THROW_ERROR_EXCEPTION("--yson is not supported when printing version");
     }
     Cout << GetVersion() << Endl;
-    exit(0);
+    Exit(0);
 }
 
-void TProgram::PrintBuildAndExit() const
+void TProgram::PrintBuildAndExit()
 {
     if (UseYson_) {
         TYsonWriter writer(&Cout, EYsonFormat::Pretty);
@@ -193,13 +196,15 @@ void TProgram::PrintBuildAndExit() const
         Cout << "Build Time: " << GetBuildTime() << Endl;
         Cout << "Build Host: " << GetBuildHost() << Endl;
     }
-    exit(0);
+    Exit(0);
 }
 
-void TProgram::PrintVersionAndExit() const
+void TProgram::PrintVersionAndExit()
 {
     PrintYTVersionAndExit();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TProgramException::TProgramException(TString what)
     : What_(std::move(what))

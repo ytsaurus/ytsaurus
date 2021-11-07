@@ -2,5 +2,5 @@
 
 int main(int argc, const char** argv)
 {
-    return NYT::THttpProxyProgram().Run(argc, argv);
+    return NYT::NHttpProxy::THttpProxyProgram().Run(argc, argv);
 }
