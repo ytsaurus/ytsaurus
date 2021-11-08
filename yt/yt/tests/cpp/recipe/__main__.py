@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from yt.environment import arcadia_interop
 
 import yt.local
@@ -71,7 +69,7 @@ def start(args):
         "path": path,
         "enable_debug_logging": True,
     }
-    for k, v in options.iteritems():
+    for k, v in options.items():
         yt_local_args[OPTION_NAME_MAPPING[k]] = v
     yt_instance = yt.local.start(**yt_local_args)
 
@@ -80,7 +78,7 @@ def start(args):
         "yt_local_path": path,
     }
 
-    with open(RECIPE_INFO_FILE, "w") as fout:
+    with open(RECIPE_INFO_FILE, "wb") as fout:
         yson.dump(recipe_info, fout)
 
     if driver_backend == "native":
@@ -105,7 +103,7 @@ def clear_runtime_data(path):
 def stop(args):
     if not os.path.exists(RECIPE_INFO_FILE):
         return
-    with open(RECIPE_INFO_FILE) as fin:
+    with open(RECIPE_INFO_FILE, "rb") as fin:
         recipe_info = yson.load(fin)
     yt.local.stop(recipe_info["yt_local_id"], path=recipe_info["yt_local_path"])
     clear_runtime_data(os.path.join(recipe_info["yt_local_path"], recipe_info["yt_local_id"]))
