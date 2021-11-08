@@ -9,6 +9,7 @@ import org.apache.spark.sql.vectorized.{ColumnVector, ColumnarBatch}
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType
 import ru.yandex.spark.yt.serializers.SchemaConverter
+import ru.yandex.spark.yt.serializers.SchemaConverter.MetadataFields
 import ru.yandex.spark.yt.wrapper.LogLazy
 import ru.yandex.spark.yt.wrapper.table.YtArrowInputStream
 
@@ -26,20 +27,33 @@ class ArrowBatchReader(stream: YtArrowInputStream,
   private var _root: VectorSchemaRoot = _
   private var _dictionaries: java.util.Map[java.lang.Long, Dictionary] = _
   private var _columnVectors: Array[ColumnVector] = _
+  private var emptySchema = false
 
-  updateReader()
-  updateBatch()
+  initialize()
+
+  private def initialize(): Unit = {
+    if (stream.isEmptyPage) {
+      emptySchema = true
+    } else {
+      updateReader()
+      updateBatch()
+    }
+  }
 
   override protected def nextBatchInternal: Boolean = {
-    if (stream.isNextPage) updateReader()
-    val batchLoaded = _reader.loadNextBatch()
-    if (batchLoaded) {
-      updateBatch()
-      setNumRows(_root.getRowCount)
-      true
-    } else {
-      closeReader()
+    if (emptySchema) {
       false
+    } else {
+      if (stream.isNextPage) updateReader()
+      val batchLoaded = _reader.loadNextBatch()
+      if (batchLoaded) {
+        updateBatch()
+        setNumRows(_root.getRowCount)
+        true
+      } else {
+        closeReader()
+        false
+      }
     }
   }
 
@@ -96,7 +110,7 @@ class ArrowBatchReader(stream: YtArrowInputStream,
     val arrowVectors = arrowSchema.zip(_root.getFieldVectors.asScala).toMap
     schema.fields.zipWithIndex.foreach { case (fieldName, index) =>
       val dataType = indexedSchema(index)
-      val arrowVector = arrowVectors.get(fieldName.metadata.getString("original_name"))
+      val arrowVector = arrowVectors.get(fieldName.metadata.getString(MetadataFields.ORIGINAL_NAME))
         .map(createArrowColumnVector(_, dataType))
         .getOrElse(ArrowColumnVector.nullVector(dataType))
       _columnVectors(index) = arrowVector

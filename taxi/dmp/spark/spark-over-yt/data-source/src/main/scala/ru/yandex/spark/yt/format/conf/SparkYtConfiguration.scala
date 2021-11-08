@@ -25,6 +25,15 @@ object SparkYtConfiguration {
 
     case object ArrowEnabled extends BooleanConfigEntry(s"$prefix.arrow.enabled", Some(true))
 
+    object KeyColumnsFilterPushdown {
+      private val prefix: String = s"${Read.prefix}.keyColumnsFilterPushdown"
+
+      case object Enabled extends BooleanConfigEntry(s"$prefix.enabled", Some(false))
+
+      case object UnionEnabled extends BooleanConfigEntry(s"$prefix.union.enabled", Some(false))
+
+      case object YtPathCountLimit extends IntConfigEntry(s"$prefix.ytPathCount.limit", Some(100))
+    }
   }
 
   object Transaction {

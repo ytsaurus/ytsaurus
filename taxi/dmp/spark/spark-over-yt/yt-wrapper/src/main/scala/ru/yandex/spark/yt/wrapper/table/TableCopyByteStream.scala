@@ -13,6 +13,7 @@ class TableCopyByteStream(reader: TableReader[ByteBuffer], timeout: Duration,
   private var _batch: ByteBuffer = _
   private var _batchBytesLeft = 0
   private val nextPageToken: Array[(Byte, Int)] = Array(-1, -1, -1, -1, 0, 0, 0, 0).map(_.toByte).zipWithIndex
+  private val emptySchemaToken: Array[(Byte, Int)] = Array(0, 0, 0, 0, 0, 0, 0, 0).map(_.toByte).zipWithIndex
 
   override def read(): Int = ???
 
@@ -24,16 +25,23 @@ class TableCopyByteStream(reader: TableReader[ByteBuffer], timeout: Duration,
     read(b, off, len, 0)
   }
 
-
-  override def isNextPage: Boolean = {
+  private def recognizeToken(token: Array[(Byte, Int)]): Boolean = {
     if (hasNext && _batchBytesLeft >= 8) {
-      val res = nextPageToken.forall { case (b, i) => _batch.array()(_batch.arrayOffset() + _batch.position() + i) == b }
+      val res = token.forall { case (b, i) => _batch.array()(_batch.arrayOffset() + _batch.position() + i) == b }
       if (res) {
         _batch.position(_batch.position() + 8)
         _batchBytesLeft -= 8
       }
       res
     } else false
+  }
+
+  override def isNextPage: Boolean = {
+    recognizeToken(nextPageToken)
+  }
+
+  override def isEmptyPage: Boolean = {
+    recognizeToken(emptySchemaToken)
   }
 
   @tailrec

@@ -17,10 +17,11 @@ object YtLogicalType {
   case object Uint64 extends YtLogicalType("uint64", 0x04, ColumnValueType.UINT64, UInt64Type)
   case object Float extends YtLogicalType("float", 0x05, ColumnValueType.DOUBLE, FloatType)
   case object Double extends YtLogicalType("double", 0x05, ColumnValueType.DOUBLE, DoubleType)
-  case object Boolean extends YtLogicalType("boolean", 0x06, ColumnValueType.BOOLEAN, BooleanType)
+  case object Boolean extends YtLogicalType("bool", 0x06, ColumnValueType.BOOLEAN, BooleanType)
 
   case object String extends YtLogicalType("string", 0x10, ColumnValueType.STRING, StringType)
   case object Any extends YtLogicalType("any", 0x11, ColumnValueType.ANY, YsonType)
+//  case object Any extends YtLogicalType("yson", 0x11, ColumnValueType.ANY, YsonType)
 
   case object Int8 extends YtLogicalType("int8", 0x1000, ColumnValueType.INT64, ByteType)
   case object Uint8 extends YtLogicalType("uint8", 0x1001, ColumnValueType.INT64, ShortType)

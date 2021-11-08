@@ -2,7 +2,6 @@ import logging
 
 from yt.wrapper import get, YPath, list as yt_list, exists
 from yt.wrapper.common import update_inplace
-
 from .version import __version__
 
 SPARK_BASE_PATH = YPath("//home/spark")

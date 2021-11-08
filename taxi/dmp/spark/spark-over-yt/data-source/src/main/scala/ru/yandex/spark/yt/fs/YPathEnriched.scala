@@ -153,7 +153,7 @@ object YPathEnriched {
         YtTimestampPath(ypath(parentPath), timestamp)
       case _ =>
         val tr = GlobalTableSettings.getTransaction(path.toString)
-        if (path.getParent.toString.contains("@")) {
+        if (path.getParent.toString.contains("@")) { // TODO NPE when file in root directory
           YtSimplePath(ypath(path.getParent), path.getName).withTransaction(tr)
         } else {
           YtRootPath(path).withTransaction(tr)

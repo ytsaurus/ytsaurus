@@ -67,7 +67,14 @@ trait YtTableUtils {
     new TableIterator(reader, timeout, reportBytesRead)
   }
 
-  def readTableArrowStream(path: YPath, timeout: Duration, transaction: Option[String] = None,
+  def readTableArrowStream(path: YPath, timeout: Duration = 1 minute,
+                           transaction: Option[String] = None,
+                           reportBytesRead: Long => Unit = _ => {})
+                          (implicit yt: CompoundClient): YtArrowInputStream = {
+    readTableArrowStream(path.toString, timeout, transaction, reportBytesRead)
+  }
+
+  def readTableArrowStream(path: String, timeout: Duration, transaction: Option[String],
                            reportBytesRead: Long => Unit)
                           (implicit yt: CompoundClient): YtArrowInputStream = {
     val request = new ReadTable[ByteBuffer](path, null.asInstanceOf[WireRowDeserializer[ByteBuffer]])
