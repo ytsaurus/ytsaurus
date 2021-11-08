@@ -179,6 +179,7 @@ class YTInstance(object):
             self.custom_paths = None
 
         with push_front_env_path(self.bin_path):
+            # TODO(ignat): rename binaries -> binary_to_version
             self._binaries = _get_yt_versions(custom_paths=self.custom_paths)
         abi_versions = set(imap(lambda v: v.abi, self._binaries.values()))
         self.abi_version = abi_versions.pop()
@@ -267,24 +268,30 @@ class YTInstance(object):
                 "rpc_proxy": self._make_service_dirs("rpc_proxy", self.yt_config.rpc_proxy_count)}
 
     def _prepare_environment(self, ports_generator, modify_configs_func):
+        # TODO(ignat): refactor this logging
         logger.info("Preparing cluster instance as follows:")
-        logger.info("  clocks                %d", self.yt_config.clock_count)
-        logger.info("  discovery servers     %d", self.yt_config.discovery_server_count)
-        logger.info("  masters               %d (%d nonvoting)",
-                    self.yt_config.master_count, self.yt_config.nonvoting_master_count)
-        logger.info("  timestamp providers   %d", self.yt_config.timestamp_provider_count)
-        logger.info("  nodes                 %d", self.yt_config.node_count)
-        logger.info("  chaos nodes           %d", self.yt_config.chaos_node_count)
-        logger.info("  master caches         %d", self.yt_config.master_cache_count)
-        logger.info("  schedulers            %d", self.yt_config.scheduler_count)
-        logger.info("  controller agents     %d", self.yt_config.controller_agent_count)
-        logger.info("  cell balancers        %d", self.yt_config.cell_balancer_count)
+        if "ytserver-clock" in self._binaries:
+            logger.info("  clocks                %d                 (version: %s)", self.yt_config.clock_count, self._binaries["ytserver-clock"].literal)
+        if "ytserver-discovery" in self._binaries:
+            logger.info("  discovery servers     %d                 (version: %s)", self.yt_config.discovery_server_count, self._binaries["ytserver-discovery"].literal)
+        logger.info("  masters               %d (%d nonvoting)   (version: %s)",
+                    self.yt_config.master_count, self.yt_config.nonvoting_master_count, self._binaries["ytserver-master"].literal)
+        if "ytserver-timestamp-provider" in self._binaries:
+            logger.info("  timestamp providers   %d                 (version: %s)", self.yt_config.timestamp_provider_count, self._binaries["ytserver-timestamp-provider"].literal)
+        logger.info("  nodes                 %d                 (version: %s)", self.yt_config.node_count, self._binaries["ytserver-node"].literal)
+        logger.info("  chaos nodes           %d",                               self.yt_config.chaos_node_count)
+        if "ytserver-master-cache" in self._binaries:
+            logger.info("  master caches         %d                 (version: %s)", self.yt_config.master_cache_count, self._binaries["ytserver-master-cache"].literal)
+        logger.info("  schedulers            %d                 (version: %s)", self.yt_config.scheduler_count, self._binaries["ytserver-scheduler"].literal)
+        logger.info("  controller agents     %d                 (version: %s)", self.yt_config.controller_agent_count, self._binaries["ytserver-controller-agent"].literal)
+        if "ytserver-cell-balancer" in self._binaries:
+            logger.info("  cell balancers        %d                 (version: %s)", self.yt_config.cell_balancer_count, self._binaries["ytserver-cell-balancer"].literal)
 
         if self.yt_config.secondary_cell_count > 0:
             logger.info("  secondary cells       %d", self.yt_config.secondary_cell_count)
 
-        logger.info("  HTTP proxies          %d", self.yt_config.http_proxy_count)
-        logger.info("  RPC proxies           %d", self.yt_config.rpc_proxy_count)
+        logger.info("  HTTP proxies          %d                 (version: %s)", self.yt_config.http_proxy_count, self._binaries["ytserver-http-proxy"].literal)
+        logger.info("  RPC proxies           %d                 (version: %s)", self.yt_config.rpc_proxy_count, self._binaries["ytserver-proxy"].literal)
         logger.info("  working dir           %s", self.yt_config.path)
 
         if self.yt_config.master_count == 0:
@@ -445,6 +452,7 @@ class YTInstance(object):
                             client)
 
             self._write_environment_info_to_file()
+            logger.info("Environment started")
         except (YtError, KeyboardInterrupt) as err:
             logger.exception("Failed to start environment")
             self.stop(force=True)
