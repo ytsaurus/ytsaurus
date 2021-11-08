@@ -14,6 +14,7 @@ import yt.environment.init_operation_archive as init_operation_archive
 import time
 import threading
 import pytest
+import signal
 
 
 class TestClickHouseHttpProxy(ClickHouseTestBase):
@@ -149,7 +150,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             assert len(instances) == 2
 
             update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=1))
-            self._signal_instance(instances[0].attributes["pid"], "INT")
+            self._signal_instance(instances[0].attributes["pid"], signal.SIGINT)
 
             with raises_yt_error(QueryFailedError):
                 clique.make_direct_query(instances[0], "select 1")
@@ -206,7 +207,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
             update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=1))
 
-            self._signal_instance(instances[0].attributes["pid"], "INT")
+            self._signal_instance(instances[0].attributes["pid"], signal.SIGINT)
 
             wait(lambda: clique.get_active_instance_count() == 1, iter=10)
             clique.resize(2)

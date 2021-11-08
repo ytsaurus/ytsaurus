@@ -506,14 +506,9 @@ class ClickHouseTestBase(YTEnvSetup):
         return "http://" + self.Env.get_http_proxy_address()
 
     @staticmethod
-    def _signal_instance(pid, signal):
-        kill_cmd = "kill -s {0} {1}".format(signal, pid)
-        # Try to execute `kill_cmd` both with sudo and without sudo.
-        # To prevent freeze on sudo password reading we pass fake empty
-        # password through stdin.
-        cmd = "echo | sudo -S {0} || {0}".format(kill_cmd)
-        print_debug("Killing instance with {0}".format(cmd))
-        os.system(cmd)
+    def _signal_instance(pid, signal_number):
+        print_debug("Killing instance with with os.kill({}, {})", pid, signal_number)
+        os.kill(pid, signal_number)
 
     def _setup(self):
         Clique.path_to_run = self.path_to_run
