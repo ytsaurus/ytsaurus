@@ -3,14 +3,21 @@ from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 from yt_env_setup import skip_if_rpc_driver_backend
 
 from yt_commands import (
-    authors, print_debug, remove, insert_rows, select_rows, lookup_rows, alter_table,
+    authors, print_debug, wait, sync_mount_table, sync_unmount_table,
+    ls, remove, insert_rows, select_rows, lookup_rows, alter_table,
     wait_for_tablet_state, sync_create_cells,
     clear_metadata_caches, execute_command)
+
+from yt_helpers import profiler_factory
 
 from yt.common import YtError
 from yt.environment.helpers import assert_items_equal
 
+from yt_driver_bindings import Driver
+
 import pytest
+
+from copy import deepcopy
 
 ##################################################################
 
@@ -175,3 +182,48 @@ class TestSortedDynamicTablesMetadataCachingRpcProxy(TestSortedDynamicTablesMeta
 class TestSortedDynamicTablesMetadataCachingRpcProxy2(TestSortedDynamicTablesMetadataCaching2):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+
+
+###################################################################
+
+
+class TestSortedDynamicTablesMetadataCachingOnRpcProxy(TestSortedDynamicTablesBase):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "table_mount_cache": {
+                "expire_after_successful_update_time": 5000,
+                "expire_after_access_time": 5000,
+            },
+        }
+    }
+
+    @authors("akozhikhov")
+    def test_profile_mount_cache_retries(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", enable_detailed_profiling=True)
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "one"}]
+        insert_rows("//tmp/t", rows)
+
+        rpc_proxy = ls("//sys/rpc_proxies")[0]
+
+        rpc_driver_config = deepcopy(self.Env.configs["rpc_driver"])
+        rpc_driver_config["addresses"] = [rpc_proxy]
+        rpc_driver_config["api_version"] = 3
+        rpc_driver = Driver(config=rpc_driver_config)
+
+        proxy_lookup_retry_count = profiler_factory().at_rpc_proxy(rpc_proxy).counter(
+            name="rpc_proxy/detailed_table_statistics/retry_count",
+            tags={"table_path": "//tmp/t"})
+
+        assert lookup_rows("//tmp/t", [{"key": 1}], driver=rpc_driver) == rows
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        assert lookup_rows("//tmp/t", [{"key": 1}], driver=rpc_driver) == rows
+        wait(lambda: proxy_lookup_retry_count.get_delta() > 0)

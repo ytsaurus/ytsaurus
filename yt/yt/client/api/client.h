@@ -86,9 +86,11 @@ struct TTimeoutOptions
 struct TDetailedProfilingInfo
     : public TRefCounted
 {
-    bool EnableDetailedProfiling = false;
+    bool EnableDetailedTableProfiling = false;
     NYPath::TYPath TablePath;
     TDuration MountCacheWaitTime;
+
+    std::vector<TErrorCode> RetryReasons;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDetailedProfilingInfo)

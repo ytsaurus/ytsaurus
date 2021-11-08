@@ -571,7 +571,9 @@ private:
         TCallback<T()> callback);
 
     template <class T>
-    auto CallAndRetryIfMetadataCacheIsInconsistent(T&& callback) -> decltype(callback());
+    auto CallAndRetryIfMetadataCacheIsInconsistent(
+        const TDetailedProfilingInfoPtr& profilingInfo,
+        T&& callback) -> decltype(callback());
 
     static void SetMutationId(
         const NRpc::IClientRequestPtr& request,

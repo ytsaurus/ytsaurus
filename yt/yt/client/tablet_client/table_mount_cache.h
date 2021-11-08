@@ -134,7 +134,14 @@ struct ITableMountCache
     virtual TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path) = 0;
     virtual TTabletInfoPtr FindTabletInfo(TTabletId tabletId) = 0;
     virtual void InvalidateTablet(TTabletInfoPtr tabletInfo) = 0;
-    virtual std::pair<bool, TTabletInfoPtr> InvalidateOnError(const TError& error, bool forceRetry) = 0;
+
+    //! If #error is unretryable, returns null.
+    //! Otherwise invalidates cached tablet info (if it can be inferred from #error)
+    //! and returns actual retryable error code as first element and
+    //! tablet info as second element.
+    virtual std::pair<std::optional<TErrorCode>, TTabletInfoPtr> InvalidateOnError(
+        const TError& error,
+        bool forceRetry) = 0;
 
     virtual void Clear() = 0;
 };
@@ -144,4 +151,3 @@ DEFINE_REFCOUNTED_TYPE(ITableMountCache)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletClient
-
