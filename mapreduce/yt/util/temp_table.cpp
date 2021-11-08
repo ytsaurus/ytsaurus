@@ -16,7 +16,7 @@ TTempTable::TTempTable(
     : Client_(client)
 {
     if (path) {
-        if (!Client_->Exists(path)) {
+        if (!options.Recursive_ && !Client_->Exists(path)) {
             ythrow yexception() << "Path " << path << " does not exist";
         }
         Name_ = path;
