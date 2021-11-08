@@ -1,15 +1,16 @@
 package ru.yandex.spark.yt.format.types
 
 import org.apache.spark.sql.Row
+import org.apache.spark.sql.functions.collect_list
 import org.apache.spark.sql.types.LongType
 import org.apache.spark.sql.yson.UInt64Long.{fromStringUdf, toStringUdf}
 import org.apache.spark.sql.yson.{UInt64Long, UInt64Type}
 import org.scalatest.{FlatSpec, Matchers}
+import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
-import ru.yandex.spark.yt._
 
-class Uint64Test extends FlatSpec with Matchers with LocalSpark with TmpDir with TestUtils {
+class UInt64Test extends FlatSpec with Matchers with LocalSpark with TmpDir with TestUtils {
   behavior of "YtDataSource"
 
   import spark.implicits._
@@ -81,16 +82,43 @@ class Uint64Test extends FlatSpec with Matchers with LocalSpark with TmpDir with
     )
   }
 
-  it should "fail when need unchecked cast UInt64Long" in {
+  it should "group by uint64 column" in {
     Seq(UInt64Long(1L), UInt64Long(2L), UInt64Long(2L), UInt64Long(2L), UInt64Long(3L), UInt64Long(1L))
       .toDF("a").write.yt(tmpPath)
 
-    val res = spark.read.yt(tmpPath)
+    val df = spark.read.yt(tmpPath)
 
-    //    res.agg(countDistinct("a")).collect() returns correct value: Array(Row(3))
-    a[IllegalStateException] shouldBe thrownBy {
-      res.groupBy("a").count().collect()
-    }
+    val res = df.groupBy("a").count().collect()
+    res should contain theSameElementsAs Seq(
+      Row(UInt64Long(1L), 2L),
+      Row(UInt64Long(2L), 3L),
+      Row(UInt64Long(3L), 1L)
+    )
+  }
+
+  it should "support ObjectHashAggregation" in {
+    val dataset = Seq(
+      (UInt64Long(0), Seq.empty[UInt64Long]),
+      (UInt64Long(1), Seq(UInt64Long(1), UInt64Long(1))),
+      (UInt64Long(0), Seq(UInt64Long(2), UInt64Long(2)))).toDF("id", "nums")
+    val q = dataset.groupBy("id").agg(collect_list("nums"))
+
+    q.collect() should contain theSameElementsAs Seq(
+      Row(UInt64Long(0), Seq(Seq.empty[UInt64Long], Seq(UInt64Long(2), UInt64Long(2)))),
+      Row(UInt64Long(1), Seq(Seq(UInt64Long(1), UInt64Long(1))))
+    )
+  }
+
+  it should "sort by uint64 column" in {
+    val data = Seq(UInt64Long("9223372036854775813"),
+      UInt64Long(0L), UInt64Long(1L), UInt64Long("9223372036854775816"))
+    val sortedData = Seq(UInt64Long(0L), UInt64Long(1L), UInt64Long("9223372036854775813"),
+      UInt64Long("9223372036854775816"))
+    data.toDF("a").write.yt(tmpPath)
+
+    val df = spark.read.yt(tmpPath)
+    val res = df.sort("a").collect()
+    res shouldBe sortedData.map(Row(_))
   }
 
   it should "write and read big uint64" in {

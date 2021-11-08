@@ -9,6 +9,6 @@ class YtSparkExtensions extends (SparkSessionExtensions => Unit) {
   override def apply(extensions: SparkSessionExtensions): Unit = {
     log.info("Apply YtSparkExtensions")
     extensions.injectPlannerStrategy(_ => new YtSourceStrategy())
-    extensions.injectPlannerStrategy(spark => new YtUInt64StrategyChecker(spark))
+//    extensions.injectPlannerStrategy(spark => new YtUInt64StrategyChecker(spark))
   }
 }
