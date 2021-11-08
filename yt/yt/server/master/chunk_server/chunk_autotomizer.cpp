@@ -251,6 +251,8 @@ public:
 
         request.set_speculative_job_won(job->GetSpeculative());
 
+        UnregisterJob(job->GetJobId());
+
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         CreateMutation(hydraManager, request)
             ->CommitAndLog(Logger);
@@ -509,8 +511,20 @@ private:
         auto* bodyChunk = chunkManager->FindChunk(bodyChunkId);
         auto* tailChunk = chunkManager->FindChunk(tailChunkId);
 
+        // Body chunk is still autotomizable, so it must be alive.
         YT_VERIFY(IsObjectAlive(bodyChunk));
-        YT_VERIFY(IsObjectAlive(tailChunk));
+
+        // NB: Tail might be dead.
+        if (!IsObjectAlive(tailChunk)) {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Tail chunk is dead, restarting autotomy (BodyChunkId: %v, TailChunkId: %v)",
+                bodyChunkId,
+                tailChunkId);
+            if (IsLeader()) {
+                TouchChunk(bodyChunkId);
+            }
+            return;
+        }
 
         // Body chunk should be attached to journal chunk list,
         // tail chunk should have no parents.
@@ -1082,7 +1096,6 @@ private:
 
         auto canCreateJob = false;
         auto speculative = false;
-
 
         if (autotomyState->Jobs.empty()) {
             // There are no jobs running for this chunk, job can be scheduled
