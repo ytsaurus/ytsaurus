@@ -24,6 +24,8 @@
 #include <util/system/env.h>
 #include <util/system/hostname.h>
 
+#include <clickhouse/src/Common/config_version.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////

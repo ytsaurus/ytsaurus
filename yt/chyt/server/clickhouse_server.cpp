@@ -212,9 +212,24 @@ private:
 
         DB::DatabaseCatalog::instance().attachDatabase(DB::DatabaseCatalog::SYSTEM_DATABASE, SystemDatabase_);
 
-        SystemDatabase_->attachTable("processes", DB::StorageSystemProcesses::create("processes"));
-        SystemDatabase_->attachTable("metrics", DB::StorageSystemMetrics::create("metrics"));
-        SystemDatabase_->attachTable("dictionaries", DB::StorageSystemDictionaries::create("dictionaries"));
+        SystemDatabase_->attachTable(
+            "processes",
+            DB::StorageSystemProcesses::create(
+                DB::StorageID{"system", "processes"}
+            )
+        );
+        SystemDatabase_->attachTable(
+            "metrics",
+            DB::StorageSystemMetrics::create(
+                DB::StorageID{"system", "metrics"}
+            )
+        );
+        SystemDatabase_->attachTable(
+            "dictionaries",
+            DB::StorageSystemDictionaries::create(
+                DB::StorageID{"system", "dictionaries"}
+            )
+        );
         SystemDatabase_->attachTable(
             "asynchronous_metrics",
             DB::StorageSystemAsynchronousMetrics::create(
