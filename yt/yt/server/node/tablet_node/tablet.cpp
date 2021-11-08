@@ -1823,5 +1823,44 @@ const TRowCachePtr& TTablet::GetRowCache() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletNode
+void BuildTableSettingsOrchidYson(const TTableSettings& options, NYTree::TFluentMap fluent)
+{
+    fluent
+        .Item("config")
+            .BeginAttributes()
+                .Item("opaque").Value(true)
+            .EndAttributes()
+            .Value(options.MountConfig)
+        .Item("store_writer_config")
+            .BeginAttributes()
+                .Item("opaque").Value(true)
+            .EndAttributes()
+            .Value(options.StoreWriterConfig)
+        .Item("store_writer_options")
+            .BeginAttributes()
+                .Item("opaque").Value(true)
+            .EndAttributes()
+            .Value(options.StoreWriterOptions)
+        .Item("hunk_writer_config")
+            .BeginAttributes()
+                .Item("opaque").Value(true)
+            .EndAttributes()
+            .Value(options.HunkWriterConfig)
+        .Item("hunk_writer_options")
+            .BeginAttributes()
+                .Item("opaque").Value(true)
+            .EndAttributes()
+            .Value(options.HunkWriterOptions)
+        .Item("store_reader_config")
+            .BeginAttributes()
+                .Item("opaque").Value(true)
+            .EndAttributes()
+            .Value(options.StoreReaderConfig)
+        .Item("hunk_reader_config")
+            .BeginAttributes()
+                .Item("opaque").Value(true)
+            .EndAttributes()
+            .Value(options.HunkReaderConfig);
+}
 
+} // namespace NYT::NTabletNode

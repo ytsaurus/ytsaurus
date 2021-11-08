@@ -30,6 +30,8 @@
 #include <yt/yt/core/misc/ref_tracked.h>
 #include <yt/yt/core/misc/atomic_object.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 #include <atomic>
 
 namespace NYT::NTabletNode {
@@ -600,5 +602,7 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void BuildTableSettingsOrchidYson(const TTableSettings& options, NYTree::TFluentMap fluent);
 
 } // namespace NYT::NTabletNode
