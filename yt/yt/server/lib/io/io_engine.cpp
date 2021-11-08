@@ -235,6 +235,100 @@ i64 GetPaddedSize(i64 offset, i64 size, i64 alignment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TInflightCounter
+{
+public:
+
+    void Increment()
+    {
+        if (!State_) {
+            return;
+        }
+        State_->Counter.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    void Decrement()
+    {
+        if (!State_) {
+            return;
+        }
+        State_->Counter.fetch_sub(1, std::memory_order_relaxed);
+    }
+
+    static TInflightCounter Create(TProfiler& profiler, const TString& name)
+    {
+        TInflightCounter obj;
+        obj.State_ = New<TState>();
+        profiler.AddFuncGauge(name, obj.State_, [state = obj.State_.Get()](){
+            return state->Counter.load(std::memory_order_relaxed);
+        });
+        return obj;
+    }
+    
+
+private:
+    struct TState : public TRefCounted
+    {
+        std::atomic<i32> Counter;
+    };
+
+private:
+    NYT::TIntrusivePtr<TState> State_;
+};
+
+
+struct TIOEngineSensors
+{
+    struct TRequestSensors
+    {
+        // Single request time.
+        NProfiling::TEventTimer Timer;
+        
+        // Cumulative execution time of all requests.
+        NProfiling::TTimeCounter TotalTimeCounter;
+        
+        // Total requests count.
+        NProfiling::TCounter Counter;
+        
+        // Currently executing requests count.
+        TInflightCounter InflightCounter;
+    };
+
+    NProfiling::TCounter WrittenBytesCounter;
+    NProfiling::TCounter ReadBytesCounter;
+    
+    TRequestSensors ReadSensors;
+    TRequestSensors WriteSensors;
+    TRequestSensors SyncSensors;
+    TRequestSensors DataSyncSensors;
+    TRequestSensors IoSubmitSensors;
+};
+
+class TRequestStatsGuard
+{
+public:
+    TRequestStatsGuard(TIOEngineSensors::TRequestSensors sensors)
+        : Sensors_(std::move(sensors))
+    {
+        Sensors_.Counter.Increment();
+        Sensors_.InflightCounter.Increment();
+    }
+
+    TRequestStatsGuard(TRequestStatsGuard&& other) = default;
+    
+    ~TRequestStatsGuard()
+    {
+        auto duration = Timer_.GetElapsedTime();
+        Sensors_.Timer.Record(duration);
+        Sensors_.TotalTimeCounter.Add(duration);
+        Sensors_.InflightCounter.Decrement();
+    }
+
+private:
+    TIOEngineSensors::TRequestSensors Sensors_;
+    NProfiling::TWallTimer Timer_;
+};
+
 class TIOEngineBase
     : public IIOEngine
 {
@@ -293,6 +387,7 @@ protected:
     const TString LocationId_;
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler;
+    TIOEngineSensors Sensors;
 
     TIOEngineBase(
         TConfigPtr config,
@@ -308,13 +403,7 @@ protected:
         , AuxInvoker_(CreatePrioritizedInvoker(AuxThreadPool_->GetInvoker()))
         , FsyncInvoker_(CreatePrioritizedInvoker(FsyncThreadPool_->GetInvoker()))
     {
-        Profiler.AddFuncGauge("/sick", MakeStrong(this), [this] {
-            return Sick_.load();
-        });
-
-        Profiler.AddFuncGauge("/sick_events", MakeStrong(this), [this] {
-            return SicknessCounter_.load();
-        });
+        InitProfilerSensors();
     }
 
     TIOEngineHandlePtr DoOpen(const TOpenRequest& request)
@@ -442,6 +531,35 @@ private:
     std::atomic<bool> EnableFallocateConvertUnwritten_ = true;
 
 
+    void InitProfilerSensors()
+    {
+        Profiler.AddFuncGauge("/sick", MakeStrong(this), [this] {
+            return Sick_.load();
+        });
+
+        Profiler.AddFuncGauge("/sick_events", MakeStrong(this), [this] {
+            return SicknessCounter_.load();
+        });
+
+        Sensors.WrittenBytesCounter = Profiler.Counter("/written_bytes");
+        Sensors.ReadBytesCounter = Profiler.Counter("/read_bytes");
+
+        auto makeRequestSensors = [] (TProfiler profiler) {
+            TIOEngineSensors::TRequestSensors sensors; 
+            sensors.Timer = profiler.Timer("/time");
+            sensors.TotalTimeCounter = profiler.TimeCounter("/total_time");
+            sensors.Counter = profiler.Counter("/request_count");
+            sensors.InflightCounter = TInflightCounter::Create(profiler, "/inflight_count");
+            return sensors;
+        };
+
+        Sensors.ReadSensors = makeRequestSensors(Profiler.WithPrefix("/read"));
+        Sensors.WriteSensors = makeRequestSensors(Profiler.WithPrefix("/write"));
+        Sensors.SyncSensors = makeRequestSensors(Profiler.WithPrefix("/sync"));
+        Sensors.DataSyncSensors = makeRequestSensors(Profiler.WithPrefix("/datasync"));
+        Sensors.IoSubmitSensors = makeRequestSensors(Profiler.WithPrefix("/uring_io_submit"));
+    }
+
     void SetSickFlag(const TError& error)
     {
         bool expected = false;
@@ -497,10 +615,6 @@ public:
         , WriteThreadPool_(New<TThreadPool>(Config_->WriteThreadCount, Format("IOW:%v", LocationId_)))
         , ReadInvoker_(CreatePrioritizedInvoker(ReadThreadPool_->GetInvoker()))
         , WriteInvoker_(CreatePrioritizedInvoker(WriteThreadPool_->GetInvoker()))
-        , PreadTimer_(Profiler.Timer("/pread_time"))
-        , PwriteTimer_(Profiler.Timer("/pwrite_time"))
-        , FdatasyncTimer_(Profiler.Timer("/fdatasync_time"))
-        , FsyncTimer_(Profiler.Timer("/fsync_time"))
     { }
 
     TFuture<TReadResponse> Read(
@@ -579,11 +693,6 @@ private:
     const IPrioritizedInvokerPtr ReadInvoker_;
     const IPrioritizedInvokerPtr WriteInvoker_;
 
-    NProfiling::TEventTimer PreadTimer_;
-    NProfiling::TEventTimer PwriteTimer_;
-    NProfiling::TEventTimer FdatasyncTimer_;
-    NProfiling::TEventTimer FsyncTimer_;
-
 
     void DoRead(
         const TReadRequest& request,
@@ -604,7 +713,7 @@ private:
 
                 i64 reallyRead;
                 {
-                    TEventTimerGuard eventTimer(PreadTimer_);
+                    TRequestStatsGuard statsGuard(Sensors.ReadSensors);
                     NTracing::TNullTraceContextGuard nullTraceContextGuard;
                     reallyRead = HandleEintr(::pread, *request.Handle, buffer.Begin() + bufferOffset, toRead, fileOffset);
                 }
@@ -621,6 +730,7 @@ private:
                     break;
                 }
 
+                Sensors.ReadBytesCounter.Increment(reallyRead);
                 if (Config_->SimulatedMaxBytesPerRead) {
                     reallyRead = Min(reallyRead, *Config_->SimulatedMaxBytesPerRead);
                 }
@@ -688,7 +798,7 @@ private:
 
                     i64 reallyWritten;
                     {
-                        TEventTimer eventTimer(PwriteTimer_);
+                        TRequestStatsGuard statsGuard(Sensors.WriteSensors);
                         NTracing::TNullTraceContextGuard nullTraceContextGuard;
                         reallyWritten = HandleEintr(::pwritev, *request.Handle, iov.data(), iovCount, fileOffset);
                     }
@@ -697,6 +807,7 @@ private:
                         ythrow TFileError();
                     }
 
+                    Sensors.WrittenBytesCounter.Increment(reallyWritten);
                     if (Config_->SimulatedMaxBytesPerWrite) {
                         reallyWritten = Min(reallyWritten, *Config_->SimulatedMaxBytesPerWrite);
                     }
@@ -724,7 +835,7 @@ private:
 
                     i32 reallyWritten;
                     {
-                        TEventTimer timer(PwriteTimer_);
+                        TRequestStatsGuard statsGuard(Sensors.WriteSensors);
                         NTracing::TNullTraceContextGuard nullTraceContextGuard;
                         reallyWritten = HandleEintr(::pwrite, *request.Handle, const_cast<char*>(buffer.Begin()) + bufferOffset, toWrite, fileOffset);
                     }
@@ -733,6 +844,7 @@ private:
                         ythrow TFileError();
                     }
 
+                    Sensors.WrittenBytesCounter.Increment(reallyWritten);
                     fileOffset += reallyWritten;
                     bufferOffset += reallyWritten;
                     toWriteRemaining -= reallyWritten;
@@ -758,13 +870,13 @@ private:
         }
 
         auto doFsync = [&] {
-            TEventTimerGuard timer(FsyncTimer_);
+            TRequestStatsGuard statsGuard(Sensors.SyncSensors);
             return HandleEintr(::fsync, *request.Handle);
         };
 
 #ifdef _linux_
         auto doFdatasync = [&] {
-            TEventTimerGuard timer(FdatasyncTimer_);
+            TRequestStatsGuard statsGuard(Sensors.DataSyncSensors);
             return HandleEintr(::fdatasync, *request.Handle);
         };
 #else
@@ -922,6 +1034,18 @@ struct TUringRequest
     };
 
     EUringRequestType Type;
+    TIOEngineSensors::TRequestSensors Sensors;
+
+    void StartTimeTracker() {
+        RequestTimeGuard_.emplace(Sensors);
+    }
+
+    void StopTimeTracker() {
+        RequestTimeGuard_.reset();
+    }
+
+private:
+    std::optional<TRequestStatsGuard> RequestTimeGuard_;
 };
 
 TUringRequest::~TUringRequest() { }
@@ -1029,9 +1153,11 @@ class TUringThreadPool
 public:
     TUringThreadPool(
         TString threadNamePrefix,
-        TUringIOEngineConfigPtr config)
+        TUringIOEngineConfigPtr config,
+        const TIOEngineSensors& sensors)
         : Config_(std::move(config))
         , ThreadNamePrefix_(std::move(threadNamePrefix))
+        , Sensors(sensors)
         , Threads_(Config_->UringThreadCount)
     {
         StartThreads();
@@ -1058,6 +1184,7 @@ public:
 private:
     const TUringIOEngineConfigPtr Config_;
     const TString ThreadNamePrefix_;
+    const TIOEngineSensors Sensors;
 
     // NB: -1 is reserved for LIBURING_UDATA_TIMEOUT.
     static constexpr intptr_t StopNotificationUserData = -2;
@@ -1072,6 +1199,7 @@ private:
             , ThreadPool_(threadPool)
             , Config_(ThreadPool_->Config_)
             , Uring_(Config_->MaxConcurrentRequestsPerThread + UringEngineNotificationCount)
+            , Sensors(ThreadPool_->Sensors)
         {
             InitIovBuffers();
             Start();
@@ -1100,6 +1228,8 @@ private:
 
         std::array<ui64, UringEngineNotificationCount> NotificationReadBuffer_;
         std::array<iovec, UringEngineNotificationCount> NotificationIov_;
+
+        TIOEngineSensors Sensors;
 
 
         void InitIovBuffers()
@@ -1411,6 +1541,7 @@ private:
         void HandleCompletion(const io_uring_cqe* cqe)
         {
             auto [request, _] = GetRequestUserData<TUringRequest>(cqe);
+            request->StopTimeTracker();
             switch (request->Type) {
                 case EUringRequestType::Read:
                     HandleReadCompletion(cqe);
@@ -1464,7 +1595,7 @@ private:
                 if (Config_->SimulatedMaxBytesPerRead) {
                     readSize = Min(readSize, *Config_->SimulatedMaxBytesPerRead);
                 }
-
+                Sensors.ReadBytesCounter.Increment(readSize);
                 auto bufferSize = static_cast<i64>(subrequestState.Buffer.Size());
                 subrequest.Offset += readSize;
                 if (bufferSize == readSize) {
@@ -1504,7 +1635,7 @@ private:
             if (Config_->SimulatedMaxBytesPerWrite) {
                 writtenSize = Min(writtenSize, *Config_->SimulatedMaxBytesPerWrite);
             }
-
+            Sensors.WrittenBytesCounter.Increment(writtenSize);
             request->WriteRequest.Offset += writtenSize;
 
             while (writtenSize > 0) {
@@ -1644,7 +1775,11 @@ private:
 
         void SubmitSqes()
         {
-            int count = Uring_.Submit();
+            int count = 0;
+            {
+                TRequestStatsGuard statsGuard(Sensors.IoSubmitSensors);
+                Uring_.Submit();
+            }
             if (count > 0) {
                 YT_LOG_TRACE("SQEs submitted (SqeCount: %v, PendingRequestCount: %v)",
                     count,
@@ -1654,6 +1789,7 @@ private:
 
         static void SetRequestUserData(io_uring_sqe* sqe, TUringRequest* request, int subrequestIndex = 0)
         {
+            request->StartTimeTracker();
             auto userData = reinterpret_cast<void*>(
                 reinterpret_cast<uintptr_t>(request) |
                 (static_cast<uintptr_t>(subrequestIndex) << 48));
@@ -1725,7 +1861,8 @@ public:
         , Config_(std::move(config))
         , ThreadPool_(std::make_unique<TUringThreadPool>(
             Format("IOU:%v", LocationId_),
-            Config_))
+            Config_,
+            Sensors))
     { }
 
     ~TUringIOEngine()
@@ -1757,6 +1894,7 @@ public:
         YT_VERIFY(handles.size() == ioRequests.size());
 
         uringRequest->Type = EUringRequestType::Read;
+        uringRequest->Sensors = Sensors.ReadSensors;
         uringRequest->ReadSubrequests.reserve(ioRequests.size());
         uringRequest->ReadSubrequestStates.reserve(ioRequests.size());
         uringRequest->PendingReadSubrequestIndexes.reserve(ioRequests.size());
@@ -1787,6 +1925,7 @@ public:
     {
         auto uringRequest = std::make_unique<TWriteUringRequest>();
         uringRequest->Type = EUringRequestType::Write;
+        uringRequest->Sensors = Sensors.WriteSensors;
         uringRequest->WriteRequest = std::move(request);
         return SubmitRequest<void>(std::move(uringRequest));
     }
@@ -1797,6 +1936,7 @@ public:
     {
         auto uringRequest = std::make_unique<TFlushFileUringRequest>();
         uringRequest->Type = EUringRequestType::FlushFile;
+        uringRequest->Sensors = Sensors.SyncSensors;
         uringRequest->FlushFileRequest = std::move(request);
         return SubmitRequest<void>(std::move(uringRequest));
     }
