@@ -405,7 +405,7 @@ void Serialize(const QueryStatusInfo& query, NYT::NYson::IYsonConsumer* consumer
 {
     NYT::NYTree::BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("query").Value(NYT::NClickHouseServer::MaybeTruncateSubquery(TString(query.query)))
+            .Item("query").Value(TString(query.query))
             .Item("elapsed_seconds").Value(query.elapsed_seconds)
             .Item("read_rows").Value(query.read_rows)
             .Item("read_bytes").Value(query.read_bytes)

@@ -122,9 +122,9 @@ DB::ThrottlerPtr CreateNetThrottler(const DB::Settings& settings)
 DB::BlockInputStreamPtr CreateLocalStream(
     const DB::ASTPtr& queryAst,
     DB::ContextPtr context,
-    DB::QueryProcessingStage::Enum processedStage)
+    DB::QueryProcessingStage::Enum processingStage)
 {
-    DB::InterpreterSelectQuery interpreter(queryAst, context, DB::SelectQueryOptions(processedStage));
+    DB::InterpreterSelectQuery interpreter(queryAst, context, DB::SelectQueryOptions(processingStage));
     DB::BlockInputStreamPtr stream = interpreter.execute().in;
 
     // Materialization is needed, since from remote servers the constants come materialized.
@@ -135,33 +135,43 @@ DB::BlockInputStreamPtr CreateLocalStream(
 
 DB::Pipe CreateRemoteSource(
     const IClusterNodePtr& remoteNode,
-    const DB::ASTPtr& queryAst,
+    const TSecondaryQuery& secondaryQuery,
     TQueryId remoteQueryId,
     DB::ContextPtr context,
     const DB::ThrottlerPtr& throttler,
     const DB::Tables& externalTables,
-    DB::QueryProcessingStage::Enum processedStage,
+    DB::QueryProcessingStage::Enum processingStage,
+    const DB::Block& blockHeader,
     int storageIndex,
     TLogger logger)
 {
+    const auto& queryAst = secondaryQuery.Query;
     const auto& Logger = logger;
 
     const auto* queryContext = GetQueryContext(context);
 
     std::string query = queryToString(queryAst);
 
-    // TODO(max42): can be done only once?
-    DB::Block blockHeader;
+    auto scalars = context->getQueryContext()->getScalars();
+
+    // If the current query is already secondary, then it can contain 'yt_table_*' scalars in it.
+    // These scalars have already been used in ytSubquery() and we do not need them any more.
+    // Erase them and then add proper ones.
+    std::vector<std::string> scalarNamesToErase;
+    for (const auto& [scalarName, _] : scalars) {
+        if (scalarName.starts_with("yt_table_")) {
+            scalarNamesToErase.push_back(scalarName);
+        }
+    }
+    for (const auto& scalarName : scalarNamesToErase) {
+        scalars.erase(scalarName);
+    }
+
+    for (const auto& [key, value] : secondaryQuery.Scalars) {
+        scalars.emplace(key, value);
+    }
 
     bool isInsert = queryAst->as<DB::ASTInsertQuery>();
-
-    if (!isInsert) {
-        blockHeader = DB::InterpreterSelectQuery(
-            queryAst,
-            context,
-            DB::SelectQueryOptions(processedStage).analyze())
-            .getSampleBlock();
-    }
 
     auto remoteQueryExecutor = std::make_shared<DB::RemoteQueryExecutor>(
         remoteNode->GetConnection(),
@@ -169,9 +179,9 @@ DB::Pipe CreateRemoteSource(
         blockHeader,
         context,
         throttler,
-        context->getQueryContext()->getScalars(),
+        scalars,
         externalTables,
-        processedStage);
+        processingStage);
     remoteQueryExecutor->setPoolMode(DB::PoolMode::GET_MANY);
 
     auto* traceContext = GetCurrentTraceContext();
@@ -198,11 +208,11 @@ DB::Pipe CreateRemoteSource(
     // if (!table_func_ptr)
     //     remote_query_executor->setMainTable(main_table); */
 
-    bool addAggregationInfo = processedStage == DB::QueryProcessingStage::WithMergeableState;
+    bool addAggregationInfo = processingStage == DB::QueryProcessingStage::WithMergeableState;
     bool addTotals = false;
     bool addExtremes = false;
     bool asyncRead = false;
-    if (!isInsert && processedStage == DB::QueryProcessingStage::Complete) {
+    if (!isInsert && processingStage == DB::QueryProcessingStage::Complete) {
         addTotals = queryAst->as<DB::ASTSelectQuery &>().group_by_with_totals;
         addExtremes = context->getSettingsRef().extremes;
     }
@@ -307,7 +317,7 @@ public:
         DB::ContextPtr context,
         TQueryContext* queryContext,
         TStorageContext* storageContext,
-        DB::QueryProcessingStage::Enum processedStage,
+        DB::QueryProcessingStage::Enum processingStage,
         size_t distributionSeed)
         : RealColumnNames_(realColumnNames)
         , VirtualColumnNames_(virtualColumnNames)
@@ -315,7 +325,7 @@ public:
         , Context_(DB::Context::createCopy(context))
         , QueryContext_(queryContext)
         , StorageContext_(storageContext)
-        , ProcessedStage_(processedStage)
+        , ProcessingStage_(processingStage)
         , DistributionSeed_(distributionSeed)
         , Logger(StorageContext_->Logger)
     { }
@@ -340,7 +350,7 @@ public:
                 << TErrorAttribute("storage_index", StorageContext_->Index);
         }
 
-        if (ProcessedStage_ == DB::QueryProcessingStage::FetchColumns) {
+        if (ProcessingStage_ == DB::QueryProcessingStage::FetchColumns) {
             // See getQueryProcessingStage for more details about FetchColumns stage.
             RemoveJoinFromQuery();
         }
@@ -361,13 +371,13 @@ public:
 
     void ModifySecondaryQueries(std::function<void(DB::ASTPtr& secondaryQueryAst)> callback)
     {
-        for (size_t index = 0; index < SecondaryQueryAsts_.size(); ++index) {
-            auto& secondaryQueryAst = SecondaryQueryAsts_[index];
-            callback(secondaryQueryAst);
+        for (size_t index = 0; index < SecondaryQueries_.size(); ++index) {
+            auto& secondaryQuery = SecondaryQueries_[index];
+            callback(secondaryQuery.Query);
             YT_LOG_TRACE(
                 "Modified subquery AST (SecondaryQueryIndex: %v, AST: %v)",
                 index,
-                secondaryQueryAst);
+                secondaryQuery.Query);
         }
     }
 
@@ -389,9 +399,22 @@ public:
         // TODO(max42): do we need them?
         auto throttler = CreateNetThrottler(settings);
 
-        for (size_t index = 0; index < SecondaryQueryAsts_.size(); ++index) {
+        DB::Block blockHeader;
+
+        YT_VERIFY(!SecondaryQueries_.empty());
+        bool isInsert = SecondaryQueries_[0].Query->as<DB::ASTInsertQuery>();
+
+        if (!isInsert) {
+            blockHeader = DB::InterpreterSelectQuery(
+                QueryInfo_.query,
+                Context_,
+                DB::SelectQueryOptions(ProcessingStage_).analyze())
+                    .getSampleBlock();
+        }
+
+        for (size_t index = 0; index < SecondaryQueries_.size(); ++index) {
             const auto& cliqueNode = CliqueNodes_[index];
-            const auto& subqueryAst = SecondaryQueryAsts_[index];
+            const auto& secondaryQuery = SecondaryQueries_[index];
 
             YT_LOG_DEBUG(
                 "Firing subquery (SubqueryIndex: %v, Node: %v)",
@@ -402,12 +425,13 @@ public:
 
             auto pipe = CreateRemoteSource(
                 cliqueNode,
-                subqueryAst,
+                secondaryQuery,
                 remoteQueryId,
                 newContext,
                 throttler,
                 Context_->getExternalTables(),
-                ProcessedStage_,
+                ProcessingStage_,
+                blockHeader,
                 SelectQueryIndex_,
                 Logger);
 
@@ -481,7 +505,7 @@ private:
     DB::ContextPtr Context_;
     TQueryContext* const QueryContext_;
     TStorageContext* const StorageContext_;
-    const DB::QueryProcessingStage::Enum ProcessedStage_;
+    const DB::QueryProcessingStage::Enum ProcessingStage_;
     size_t DistributionSeed_;
     const TLogger Logger;
 
@@ -498,7 +522,7 @@ private:
 
     int SelectQueryIndex_ = -1;
     TClusterNodes CliqueNodes_;
-    std::vector<DB::ASTPtr> SecondaryQueryAsts_;
+    std::vector<TSecondaryQuery> SecondaryQueries_;
     DB::Pipes Pipes_;
 
     void RemoveJoinFromQuery()
@@ -519,7 +543,7 @@ private:
     void PrepareInput()
     {
         SpecTemplate_ = TSubquerySpec();
-        SpecTemplate_.InitialQuery = SerializeAndMaybeTruncateSubquery(*QueryInfo_.query);
+        SpecTemplate_.InitialQuery = DB::serializeAST(*QueryInfo_.query);
         SpecTemplate_.QuerySettings = StorageContext_->Settings;
 
         QueryAnalyzer_.emplace(Context_, StorageContext_, QueryInfo_, Logger);
@@ -710,7 +734,7 @@ private:
 
             YT_VERIFY(!threadSubqueries.Empty() || ThreadSubqueries_.empty());
 
-            auto secondaryQueryAst = QueryAnalyzer_->RewriteQuery(
+            auto secondaryQuery = QueryAnalyzer_->CreateSecondaryQuery(
                 threadSubqueries,
                 SpecTemplate_,
                 MiscExtMap_,
@@ -726,9 +750,9 @@ private:
             YT_LOG_TRACE(
                 "Secondary query AST (SubqueryIndex: %v, AST: %v)",
                 index,
-                secondaryQueryAst);
+                secondaryQuery.Query);
 
-            SecondaryQueryAsts_.emplace_back(std::move(secondaryQueryAst));
+            SecondaryQueries_.emplace_back(std::move(secondaryQuery));
         }
     }
 };
@@ -926,7 +950,7 @@ public:
         const DB::StorageMetadataPtr& metadataSnapshot,
         DB::SelectQueryInfo& queryInfo,
         DB::ContextPtr context,
-        DB::QueryProcessingStage::Enum processedStage,
+        DB::QueryProcessingStage::Enum processingStage,
         size_t /*maxBlockSize*/,
         unsigned /*numStreams*/) override
     {
@@ -937,7 +961,8 @@ public:
             metadataSnapshot,
             queryInfo,
             context,
-            processedStage);
+            processingStage);
+
         preparer.Fire();
         auto pipes = preparer.ExtractPipes();
         return DB::Pipe::unitePipes(std::move(pipes));
@@ -1055,8 +1080,8 @@ public:
         // Then, prepare distributed query; we need to interpret SELECT part in order to obtain some additional information
         // for preparer (like required columns or select query info).
 
-        DB::InterpreterSelectQuery selectInterpreter(select->clone(), DB::Context::createCopy(context), DB::SelectQueryOptions());
-        selectInterpreter.execute();
+        DB::InterpreterSelectQuery selectInterpreter(select->clone(), context, DB::SelectQueryOptions().analyze());
+
         auto selectQueryInfo = selectInterpreter.getQueryInfo();
 
         auto queryProcessingStage = getQueryProcessingStage(
@@ -1197,7 +1222,7 @@ private:
         DB::StorageMetadataPtr metadataSnapshot,
         DB::SelectQueryInfo& queryInfo,
         DB::ContextPtr context,
-        DB::QueryProcessingStage::Enum processedStage)
+        DB::QueryProcessingStage::Enum processingStage)
     {
         if (!metadataSnapshot) {
             metadataSnapshot = getInMemoryMetadataPtr();
@@ -1217,7 +1242,7 @@ private:
             context,
             queryContext,
             storageContext,
-            processedStage,
+            processingStage,
             DistributionSeed_);
 
         preparer.PrepareSecondaryQueries();

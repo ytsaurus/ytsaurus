@@ -66,13 +66,12 @@ public:
             throw Exception(err, ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH);
         }
 
-        args[0] = evaluateConstantExpressionAsLiteral(args[0], context);
+        auto [argValue, _] = evaluateConstantExpression(args[0], context->getQueryContext());
 
-        auto base64EncodedSpec = static_cast<const ASTLiteral &>(*args[0]).value.safeGet<std::string>();
+        auto protoSpecString = TString(argValue.safeGet<std::string>());
 
-        YT_LOG_INFO("Deserializing subquery spec (SpecLength: %v)", base64EncodedSpec.size());
+        YT_LOG_INFO("Deserializing subquery spec (SpecLength: %v)", protoSpecString.size());
 
-        auto protoSpecString = Base64Decode(base64EncodedSpec);
         NProto::TSubquerySpec protoSpec;
         Y_PROTOBUF_SUPPRESS_NODISCARD protoSpec.ParseFromString(protoSpecString);
         subquerySpec = NYT::FromProto<TSubquerySpec>(protoSpec);
@@ -85,10 +84,10 @@ public:
     }
 
     StoragePtr executeImpl(
-        const ASTPtr& /* functionAst */,
+        const ASTPtr& /*functionAst*/,
         ContextPtr context,
-        const std::string& /* tableName */,
-        ColumnsDescription /* cached_columns */) const override
+        const std::string& /*tableName*/,
+        ColumnsDescription /*cached_columns*/) const override
     {
         return Execute(context, std::move(subquerySpec));
     }
