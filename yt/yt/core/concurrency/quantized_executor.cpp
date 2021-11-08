@@ -3,7 +3,6 @@
 #include "private.h"
 #include "action_queue.h"
 #include "delayed_executor.h"
-#include "nonblocking_queue.h"
 #include "scheduler_api.h"
 #include "suspendable_action_queue.h"
 
@@ -15,120 +14,6 @@
 namespace NYT::NConcurrency {
 
 using namespace NLogging;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSuspendableWorker
-    : public TRefCounted
-{
-public:
-    TSuspendableWorker(
-        TString threadName,
-        TCallback<void()> initializer)
-        : Queue_(CreateSuspendableActionQueue(std::move(threadName)))
-        , Invoker_(Queue_->GetInvoker())
-    {
-        if (initializer) {
-            BIND(initializer)
-                .AsyncVia(Queue_->GetInvoker())
-                .Run()
-                .Get();
-        }
-
-        Queue_->Suspend(/*immediately*/ true)
-            .Get()
-            .ThrowOnError();
-    }
-
-    void Start()
-    {
-        Terminated_ = BIND(&TSuspendableWorker::DoRun, MakeStrong(this))
-            .AsyncVia(Invoker_)
-            .Run();
-    }
-
-    TFuture<void> Execute(TCallback<void()> callback)
-    {
-        YT_VERIFY(callback);
-
-        TExecuteCommand command{
-            .Callback = std::move(callback)
-        };
-
-        auto future = command.Executed.ToFuture();
-
-        CommandQueue_.Enqueue(std::move(command));
-
-        return future;
-    }
-
-    TFuture<void> Suspend(bool immediately)
-    {
-        return Queue_->Suspend(immediately);
-    }
-
-    void Resume()
-    {
-        Queue_->Resume();
-    }
-
-    TFuture<void> Terminate()
-    {
-        CommandQueue_.Enqueue(TTerminateCommand{});
-
-        return Terminated_;
-    }
-
-private:
-    const ISuspendableActionQueuePtr Queue_;
-    const IInvokerPtr Invoker_;
-
-    struct TExecuteCommand
-    {
-        TCallback<void()> Callback;
-
-        TPromise<void> Executed = NewPromise<void>();
-    };
-
-    struct TTerminateCommand
-    { };
-
-    using TWorkerCommand = std::variant<
-        TExecuteCommand,
-        TTerminateCommand
-    >;
-
-    TNonblockingQueue<TWorkerCommand> CommandQueue_;
-
-    TFuture<void> Terminated_;
-
-    void DoRun()
-    {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
-
-        while (true) {
-            auto command = WaitFor(CommandQueue_.Dequeue())
-                .ValueOrThrow();
-
-            bool terminate = false;
-            Visit(command,
-                [&] (const TExecuteCommand& executeCommand) {
-                    Invoker_->Invoke(BIND([executeCommand] {
-                        const auto& callback = executeCommand.Callback;
-                        callback.Run();
-                        executeCommand.Executed.Set();
-                    }));
-                },
-                [&] (TTerminateCommand) {
-                    terminate = true;
-                });
-
-            if (terminate) {
-                return;
-            }
-        }
-    }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -196,17 +81,19 @@ private:
     const TActionQueuePtr ControlQueue_;
     const IInvokerPtr ControlInvoker_;
 
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, CallbackProviderLock_);
     ICallbackProviderPtr CallbackProvider_;
 
     TCallback<void()> WorkerInitializer_;
 
-    std::vector<TIntrusivePtr<TSuspendableWorker>> Workers_;
-    int ActiveWorkerCount_ = 0;
+    std::vector<ISuspendableActionQueuePtr> Workers_;
+    std::vector<IInvokerPtr> Invokers_;
+    std::atomic<int> ActiveWorkerCount_ = 0;
     std::atomic<int> DesiredWorkerCount_ = 0;
 
     int QuantumIndex_ = 0;
 
-    bool FinishingQuantum_ = false;
+    std::atomic<bool> FinishingQuantum_ = false;
 
     bool Running_ = false;
     TPromise<void> QuantumFinished_;
@@ -219,10 +106,6 @@ private:
             for (const auto& worker : Workers_) {
                 worker->Resume();
             }
-        }
-
-        for (const auto& worker : Workers_) {
-            worker->Terminate();
         }
     }
 
@@ -244,9 +127,23 @@ private:
 
         if (desiredWorkerCount > currentWorkerCount) {
             Workers_.reserve(desiredWorkerCount);
+            Invokers_.reserve(desiredWorkerCount);
             for (int index = currentWorkerCount; index < desiredWorkerCount; ++index) {
-                Workers_.push_back(New<TSuspendableWorker>(Format("%v:%v", Name_, index), WorkerInitializer_));
-                Workers_.back()->Start();
+                auto worker = CreateSuspendableActionQueue(Format("%v:%v", Name_, index));
+
+                // NB: #GetInvoker initializes queue.
+                Invokers_.push_back(worker->GetInvoker());
+
+                if (WorkerInitializer_) {
+                    BIND(WorkerInitializer_)
+                        .AsyncVia(Invokers_.back())
+                        .Run()
+                        .Get();
+                }
+                worker->Suspend(/*immediately*/ true)
+                    .Get()
+                    .ThrowOnError();
+                Workers_.emplace_back(std::move(worker));
             }
         }
 
@@ -318,19 +215,6 @@ private:
         return AllSucceeded(std::move(futures));
     }
 
-    TFuture<void> TerminateWorkers()
-    {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
-
-        std::vector<TFuture<void>> futures;
-        futures.reserve(Workers_.size());
-        for (const auto& worker : Workers_) {
-            futures.push_back(worker->Terminate());
-        }
-
-        return AllSucceeded(std::move(futures));
-    }
-
     void ResumeWorkers()
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
@@ -340,32 +224,37 @@ private:
         }
     }
 
-    void OnExecutionCompleted(int workerIndex, const TError& /*error*/)
-    {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
-
-        OnWorkerReady(workerIndex);
-    }
-
     void OnWorkerReady(int workerIndex)
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         // Worker is disabled, do not schedule new callbacks to it.
         if (workerIndex >= ActiveWorkerCount_) {
             return;
         }
 
-        auto callback = CallbackProvider_->ExtractCallback();
-        if (!callback) {
-            FinishQuantum(/*immediate*/ false);
+        if (FinishingQuantum_) {
             return;
         }
 
-        const auto& worker = Workers_[workerIndex];
-        worker->Execute(std::move(callback))
-            .Subscribe(BIND(&TQuantizedExecutor::OnExecutionCompleted, MakeWeak(this), workerIndex)
-                .Via(ControlInvoker_));
+        TCallback<void()> callback;
+        {
+            auto guard = Guard(CallbackProviderLock_);
+            callback = CallbackProvider_->ExtractCallback();
+        }
+
+        if (!callback) {
+            ControlInvoker_->Invoke(
+                BIND(&TQuantizedExecutor::FinishQuantum, MakeStrong(this), /*immediate*/ false));
+            return;
+        }
+
+        const auto& invoker = Invokers_[workerIndex];
+        invoker->Invoke(BIND([=, this_ = MakeStrong(this)] {
+            callback.Run();
+
+            OnWorkerReady(workerIndex);
+        }));
     }
 
     void OnTimeoutReached(int quantumIndex)
