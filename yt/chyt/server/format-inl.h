@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/yson/consumer.h>
 
+#include <Parsers/formatAST.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,7 +19,7 @@ struct TValueFormatter<TAST, std::enable_if_t<std::is_convertible<TAST*, DB::IAS
 {
     static void Do(TStringBuilderBase* builder, const TAST& ast, TStringBuf /* format */)
     {
-        builder->AppendString(NClickHouseServer::SerializeAndMaybeTruncateSubquery(ast));
+        builder->AppendString(DB::serializeAST(ast));
     }
 };
 
@@ -27,7 +29,7 @@ struct TValueFormatter<TAST*, typename std::enable_if_t<std::is_convertible<TAST
     static void Do(TStringBuilderBase* builder, const TAST* ast, TStringBuf /* format */)
     {
         if (ast) {
-            builder->AppendString(NClickHouseServer::SerializeAndMaybeTruncateSubquery(*ast));
+            builder->AppendString(DB::serializeAST(*ast));
         } else {
             builder->AppendChar('#');
         }
@@ -40,7 +42,7 @@ struct TValueFormatter<std::shared_ptr<TAST>, std::enable_if_t<std::is_convertib
     static void Do(TStringBuilderBase* builder, const std::shared_ptr<TAST>& ast, TStringBuf /* format */)
     {
         if (ast) {
-            builder->AppendString(NClickHouseServer::SerializeAndMaybeTruncateSubquery(*ast));
+            builder->AppendString(DB::serializeAST(*ast));
         } else {
             builder->AppendChar('#');
         }
@@ -56,14 +58,14 @@ namespace NYson {
 template <class TAST>
 void Serialize(const TAST& ast, NYson::IYsonConsumer* consumer, std::enable_if_t<std::is_convertible<TAST*, DB::IAST*>::value>*)
 {
-    consumer->OnStringScalar(NYT::NClickHouseServer::SerializeAndMaybeTruncateSubquery(ast));
+    consumer->OnStringScalar(DB::serializeAST(ast));
 }
 
 template <class TAST>
 void Serialize(const TAST* ast, NYson::IYsonConsumer* consumer, std::enable_if_t<std::is_convertible<TAST*, DB::IAST*>::value>*)
 {
     if (ast) {
-        consumer->OnStringScalar(NYT::NClickHouseServer::SerializeAndMaybeTruncateSubquery(*ast));
+        consumer->OnStringScalar(DB::serializeAST(*ast));
     } else {
         consumer->OnEntity();
     }
@@ -73,7 +75,7 @@ template <class TAST>
 void Serialize(const std::shared_ptr<TAST>& ast, NYson::IYsonConsumer* consumer, std::enable_if_t<std::is_convertible<TAST*, DB::IAST*>::value>*)
 {
     if (ast) {
-        consumer->OnStringScalar(NYT::NClickHouseServer::SerializeAndMaybeTruncateSubquery(*ast));
+        consumer->OnStringScalar(DB::serializeAST(*ast));
     } else {
         consumer->OnEntity();
     }

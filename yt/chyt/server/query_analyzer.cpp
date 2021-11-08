@@ -18,6 +18,7 @@
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
+#include <DataTypes/DataTypeString.h>
 #include <Interpreters/DatabaseAndTableWithAlias.h>
 #include <Interpreters/DatabaseCatalog.h>
 #include <Interpreters/ExpressionActions.h>
@@ -791,7 +792,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
     return result;
 }
 
-DB::ASTPtr TQueryAnalyzer::RewriteQuery(
+TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
     const TRange<TSubquery> threadSubqueries,
     TSubquerySpec specTemplate,
     const THashMap<TChunkId, TRefCountedMiscExtPtr>& miscExtMap,
@@ -822,6 +823,8 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(
 
     std::vector<DB::ASTPtr> newTableExpressions;
 
+    DB::Scalars scalars;
+
     for (int index = 0; index < YtTableCount_; ++index) {
         auto tableExpression = TableExpressions_[index];
 
@@ -837,11 +840,15 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(
         FillDataSliceDescriptors(spec, miscExtMap, MakeRange(stripes));
 
         auto protoSpec = NYT::ToProto<NProto::TSubquerySpec>(spec);
-        auto encodedSpec = Base64Encode(protoSpec.SerializeAsString());
+        auto encodedSpec = protoSpec.SerializeAsString();
 
         YT_LOG_DEBUG("Serializing subquery spec (TableIndex: %v, SpecLength: %v)", index, encodedSpec.size());
 
-        auto tableFunction = makeASTFunction("ytSubquery", std::make_shared<DB::ASTLiteral>(std::string(encodedSpec.data())));
+        std::string scalarName = "yt_table_" + std::to_string(index);
+        auto scalar = DB::makeASTFunction("__getScalar", std::make_shared<DB::ASTLiteral>(scalarName));
+        auto tableFunction = DB::makeASTFunction("ytSubquery", std::move(scalar));
+
+        scalars[scalarName] = DB::Block{{DB::DataTypeString().createColumnConst(1, std::string(encodedSpec)), std::make_shared<DB::DataTypeString>(), "scalarName"}};
 
         if (tableExpression->database_and_table_name) {
             DB::DatabaseAndTableWithAlias databaseAndTable(tableExpression->database_and_table_name);
@@ -902,18 +909,18 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(
         AddBoundConditionToJoinedSubquery(lowerBound, upperBound);
     }
 
-    auto result = QueryInfo_.query->clone();
+    auto secondaryQueryAst = QueryInfo_.query->clone();
 
     RollbackModifications();
 
-    YT_LOG_TRACE("Restoring qualified names (QueryBefore: %v)", *result);
+    YT_LOG_TRACE("Restoring qualified names (QueryBefore: %v)", *secondaryQueryAst);
 
     DB::RestoreQualifiedNamesVisitor::Data data;
-    DB::RestoreQualifiedNamesVisitor(data).visit(result);
+    DB::RestoreQualifiedNamesVisitor(data).visit(secondaryQueryAst);
 
-    YT_LOG_DEBUG("Query rewritten (NewQuery: %v)", *result);
+    YT_LOG_DEBUG("Query rewritten (NewQuery: %v)", *secondaryQueryAst);
 
-    return result;
+    return {std::move(secondaryQueryAst), std::move(scalars)};
 }
 
 IStorageDistributorPtr TQueryAnalyzer::GetStorage(const DB::ASTTableExpression* tableExpression) const

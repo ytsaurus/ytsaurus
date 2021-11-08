@@ -31,7 +31,7 @@ public:
         event.Message = TSharedRef::FromString(Format(
             "[%v] %v",
             GetOriginalLevelLetter(message.getPriority()),
-            MaybeTruncateSubquery(TString(message.getText()))));
+            TString(message.getText())));
         event.Instant = GetCpuInstant();
         event.ThreadId = TThread::CurrentThreadId();
 

@@ -26,6 +26,12 @@ struct TQueryAnalysisResult
     EPoolKind PoolKind;
 };
 
+struct TSecondaryQuery
+{
+    DB::ASTPtr Query;
+    DB::Scalars Scalars;
+};
+
 class TQueryAnalyzer
     : public DB::WithContext
 {
@@ -36,7 +42,7 @@ public:
         const DB::SelectQueryInfo& queryInfo,
         const NLogging::TLogger& logger);
 
-    DB::ASTPtr RewriteQuery(
+    TSecondaryQuery CreateSecondaryQuery(
         const TRange<TSubquery> subqueries,
         TSubquerySpec specTemplate,
         const THashMap<NChunkClient::TChunkId, NChunkClient::TRefCountedMiscExtPtr>& miscExtMap,
