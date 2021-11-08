@@ -3116,7 +3116,9 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
     if (!OnJobStarted(startDescriptor.Id, startDescriptor.ResourceLimits.ToJobResources(), precommittedResources)) {
         Controller_->AbortJob(startDescriptor.Id, EAbortReason::SchedulingOperationDisabled);
         deactivateOperationElement(EDeactivationReason::OperationDisabled);
-        TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
+        if (OperationElementSharedState_->Enabled()) {
+            TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
+        }
         FinishScheduleJob(context->SchedulingContext());
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
     }
