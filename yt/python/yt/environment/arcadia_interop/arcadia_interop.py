@@ -25,22 +25,22 @@ def is_inside_arcadia(inside_arcadia):
         inside_arcadia = int(yatest_common.get_param("inside_arcadia", True))
     return inside_arcadia
 
-def search_binary_path(binary_name, build_path_suffix=None, cwd_suffix=None):
+def search_binary_path(binary_name, build_path_dir=None, cwd_suffix=None):
     """
     Search for binary with given name somewhere in file system depending on keyword arguments.
-    build_path_suffix and cwd_suffix should not be specified simultaneously. If none
+    build_path_dir and cwd_suffix should not be specified simultaneously. If none
     of them specified, search is performed in yatest_common.build_path().
     :param binary_name: name of the binary, e.g. ytserver-all or logrotate
-    :param build_path_suffix: if present, subtree is yatest.common.build_path() + build_path_suffix
+    :param build_path_dir: if present, subtree is yatest.common.build_path() + build_path_dir
     :param cwd_suffix: if present, subtree is <cwd> + cwd_suffix
     :return:
     """
-    assert build_path_suffix is None or cwd_suffix is None
+    assert build_path_dir is None or cwd_suffix is None
     binary_root = yatest_common.build_path()
     if cwd_suffix is not None:
         binary_root = cwd_suffix
-    if build_path_suffix is not None:
-        binary_root = os.path.join(yatest_common.build_path(), build_path_suffix)
+    if build_path_dir is not None:
+        binary_root = os.path.join(yatest_common.build_path(), build_path_dir)
     binary_root = os.path.abspath(binary_root)
 
     for dirpath, _, filenames in os.walk(binary_root):
@@ -95,16 +95,19 @@ PROGRAMS = [("master", "master/bin"),
 
 def prepare_yt_binaries(destination,
                         source_prefix="", arcadia_root=None, inside_arcadia=None, use_ytserver_all=True,
-                        use_from_package=False, package_suffix=None, copy_ytserver_all=False, ytserver_all_suffix=None,
+                        use_from_package=False, package_dir=None, binary_cwd_suffix=None, copy_ytserver_all=False, ytserver_all_suffix=None,
                         need_suid=False, component_whitelist=None):
     if use_ytserver_all:
         if use_from_package:
-            if package_suffix is not None:
-                ytserver_all = search_binary_path("ytserver-all", cwd_suffix=package_suffix)
+            if binary_cwd_suffix is not None:
+                assert package_dir is None
+                ytserver_all = search_binary_path("ytserver-all", cwd_suffix=binary_cwd_suffix)
             else:
-                ytserver_all = search_binary_path("ytserver-all", build_path_suffix="yt")
+                if package_dir is None:
+                    package_dir = "yt/yt"
+                ytserver_all = search_binary_path("ytserver-all", build_path_dir=package_dir)
         else:
-            ytserver_all = get_binary_path("ytserver-all", arcadia_root, build_path_suffix="yt")
+            ytserver_all = get_binary_path("ytserver-all", arcadia_root, build_path_dir="yt")
         if copy_ytserver_all:
             ytserver_all_destination = os.path.join(destination, "ytserver-all")
             if ytserver_all_suffix is not None:
@@ -176,9 +179,12 @@ def prepare_yt_environment(destination, artifact_components=None, **kwargs):
             prepare_yt_binaries(bin_dir, component_whitelist=trunk_components, ytserver_all_suffix="trunk", **kwargs)
 
         for artifact_name, components in artifact_components.items():
-            prepare_yt_binaries(bin_dir, component_whitelist=components, use_from_package=True,
-                                package_suffix=os.path.join("artifact_bin", artifact_name, "result"),
-                                ytserver_all_suffix=artifact_name, **kwargs)
+            prepare_yt_binaries(bin_dir,
+                                component_whitelist=components,
+                                use_from_package=True,
+                                binary_cwd_suffix=os.path.join("artifact_bin", artifact_name, "result"),
+                                ytserver_all_suffix=artifact_name,
+                                **kwargs)
 
     copy_misc_binaries(bin_dir, arcadia_root=kwargs.get("arcadia_root"))
 

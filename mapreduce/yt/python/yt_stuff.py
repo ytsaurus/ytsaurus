@@ -215,7 +215,7 @@ class YtStuff(object):
         os.makedirs(self.binaries_yt_path)
 
         source_prefix = ""
-        prepare_yt_binaries(self.binaries_yt_path, source_prefix, use_from_package=True)
+        prepare_yt_binaries(self.binaries_yt_path, source_prefix, use_from_package=True, package_dir="yt/packages/19_4")
         copy_misc_binaries(self.binaries_yt_path)
 
         self.yt_local_exec = [search_binary_path("yt_local")]
