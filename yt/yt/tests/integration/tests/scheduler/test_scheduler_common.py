@@ -222,7 +222,7 @@ class TestSchedulerCommon(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t2",
             command='python -c "import os; os.read(0, 1);"',
-            spec={"mapper": {"input_format": "dsv", "check_input_fully_consumed": True}},
+            spec={"mapper": {"input_format": "dsv", "check_input_fully_consumed": True}, "max_failed_job_count": 2},
         )
 
         # If all jobs failed then operation is also failed
