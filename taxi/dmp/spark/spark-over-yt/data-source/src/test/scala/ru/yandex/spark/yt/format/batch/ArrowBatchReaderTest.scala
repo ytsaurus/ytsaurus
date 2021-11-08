@@ -1,24 +1,25 @@
 package ru.yandex.spark.yt.format.batch
 
-import java.io.InputStream
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.types.{DataType, DoubleType, MetadataBuilder, StructField, StructType}
+import org.apache.spark.sql.types.{DoubleType, IntegerType, StructType}
 import org.scalatest.{FlatSpec, Matchers}
-import ru.yandex.spark.yt.test.LocalSpark
-import ru.yandex.spark.yt.wrapper.table.YtArrowInputStream
+import ru.yandex.inside.yt.kosher.cypress.YPath
+import ru.yandex.spark.yt.test.{LocalSpark, TmpDir}
+import ru.yandex.spark.yt.wrapper.YtWrapper
+import ru.yandex.spark.yt.wrapper.table.{OptimizeMode, YtArrowInputStream}
+import ru.yandex.spark.yt.{SchemaTestUtils, YtWriter}
 
-class ArrowBatchReaderTest extends FlatSpec with Matchers with LocalSpark with ReadBatchRows {
+import java.io.InputStream
+
+class ArrowBatchReaderTest extends FlatSpec with TmpDir with SchemaTestUtils
+  with Matchers with LocalSpark with ReadBatchRows {
 
   behavior of "ArrowBatchReader"
 
-  private def sf(name: String, dt: DataType): StructField = {
-    StructField(name, dt, metadata = new MetadataBuilder().putString("original_name", name).build())
-  }
-
   private val schema = StructType(Seq(
-    sf("_0", DoubleType),
-    sf("_1", DoubleType),
-    sf("_2", DoubleType)
+    structField("_0", DoubleType),
+    structField("_1", DoubleType),
+    structField("_2", DoubleType)
   ))
 
   it should "read old arrow format (< 0.15.0)" in {
@@ -39,6 +40,20 @@ class ArrowBatchReaderTest extends FlatSpec with Matchers with LocalSpark with R
     rows should contain theSameElementsAs expected
   }
 
+  it should "read empty stream" in {
+    import spark.implicits._
+    val schema = StructType(Seq(structField("a", IntegerType)))
+    val data = Seq[Int]()
+    val df = data.toDF("a")
+    df.write.optimizeFor(OptimizeMode.Scan).yt(tmpPath)
+
+    val stream = YtWrapper.readTableArrowStream(YPath.simple(tmpPath))
+    val reader = new ArrowBatchReader(stream, data.length, schema)
+
+    val rows = readFully(reader, schema, Int.MaxValue)
+    rows should contain theSameElementsAs data.map(Row(_))
+  }
+
   private def readExpected(filename: String, schema: StructType): Seq[Row] = {
     val path = getClass.getResource(filename).getPath
     spark.read.schema(schema).csv(s"file://$path").collect()
@@ -46,6 +61,8 @@ class ArrowBatchReaderTest extends FlatSpec with Matchers with LocalSpark with R
 
   private class TestInputStream(is: InputStream) extends YtArrowInputStream {
     override def isNextPage: Boolean = false
+
+    override def isEmptyPage: Boolean = false
 
     override def read(): Int = is.read()
 

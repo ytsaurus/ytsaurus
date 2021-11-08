@@ -8,11 +8,13 @@ import org.apache.spark.sql.catalyst.expressions.codegen.GenerateUnsafeProjectio
 import org.apache.spark.sql.connector.read.PartitionReaderFactory
 import org.apache.spark.sql.execution.datasources.v2.FileScan
 import org.apache.spark.sql.execution.datasources.{FilePartition, PartitioningAwareFileIndex}
+import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.util.SerializableConfiguration
-import ru.yandex.spark.yt.format.YtPartitionedFile
+import ru.yandex.spark.yt.common.utils.SegmentSet
+import ru.yandex.spark.yt.format.conf.FilterPushdownConfig
 import ru.yandex.spark.yt.fs.YtDynamicPath
 
 import java.util.Locale
@@ -26,7 +28,11 @@ case class YtScan(sparkSession: SparkSession,
                   readPartitionSchema: StructType,
                   options: CaseInsensitiveStringMap,
                   partitionFilters: Seq[Expression] = Seq.empty,
-                  dataFilters: Seq[Expression] = Seq.empty) extends FileScan {
+                  dataFilters: Seq[Expression] = Seq.empty,
+                  pushedFilterSegments: SegmentSet = SegmentSet(),
+                  pushedFilters: Seq[Filter] = Nil) extends FileScan {
+  private val filterPushdownConf = FilterPushdownConfig(sparkSession)
+
   override def isSplitable(path: Path): Boolean = {
     path match {
       case _: YtDynamicPath => false
@@ -38,7 +44,8 @@ case class YtScan(sparkSession: SparkSession,
     val broadcastedConf = sparkSession.sparkContext.broadcast(
       new SerializableConfiguration(hadoopConf))
     YtPartitionReaderFactory(sparkSession.sessionState.conf, broadcastedConf,
-      dataSchema, readDataSchema, readPartitionSchema, options.asScala.toMap)
+      dataSchema, readDataSchema, readPartitionSchema, options.asScala.toMap, pushedFilterSegments, filterPushdownConf
+    )
   }
 
   override def equals(obj: Any): Boolean = obj match {
@@ -50,7 +57,9 @@ case class YtScan(sparkSession: SparkSession,
   override def hashCode(): Int = getClass.hashCode()
 
   override def description(): String = {
-    super.description()
+    super.description() +
+      ", PushedFilters: " + seqToString(pushedFilters) +
+      ", filter pushdown enabled: " + filterPushdownConf.enabled
   }
 
   override def withFilters(partitionFilters: Seq[Expression], dataFilters: Seq[Expression]): FileScan =

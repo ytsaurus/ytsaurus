@@ -1,9 +1,15 @@
 package ru.yandex.spark.yt.test
 
 import org.apache.spark.SparkConf
+import org.apache.spark.sql.catalyst.expressions.{AttributeReference, SubqueryExpression}
+import org.apache.spark.sql.catalyst.planning.ScanOperation
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanExec
+import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Implicits.TableHelper
+import org.apache.spark.sql.execution.datasources.v2.{DataSourceV2Relation, PushDownUtils}
 import org.apache.spark.sql.internal.SQLConf.FILE_COMMIT_PROTOCOL_CLASS
+import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.yt.test.Utils
 import org.apache.spark.yt.test.Utils.{SparkConfigEntry, defaultConfValue}
@@ -32,6 +38,25 @@ trait LocalSpark extends LocalYtClient {
         .getOrCreate()
       LocalSpark.spark
     }
+  }
+
+  def getPushedFilters(plan: LogicalPlan): Seq[Filter] = {
+    (plan collectFirst {
+      case ScanOperation(_, filters, relation: DataSourceV2Relation) =>
+        val scanBuilder = relation.table.asReadable.newScanBuilder(relation.options)
+
+        val normalizedFilters = filters.map { e =>
+          e transform {
+            case a: AttributeReference =>
+              a.withName( relation.output.find(_.semanticEquals(a)).getOrElse(a).name)
+          }
+        }
+        val (_, normalizedFiltersWithoutSubquery) = normalizedFilters.partition(SubqueryExpression.hasSubquery)
+
+        val (pushedFilters, _) = PushDownUtils.pushFilters(scanBuilder, normalizedFiltersWithoutSubquery)
+
+        pushedFilters
+    }).getOrElse(Nil)
   }
 
   override protected def ytRpcClient: YtRpcClient = {

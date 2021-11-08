@@ -15,7 +15,7 @@ import org.apache.spark.sql.v2.YtUtils
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.format._
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read._
-import ru.yandex.spark.yt.format.conf.{SparkYtWriteConfiguration, YtTableSparkSettings}
+import ru.yandex.spark.yt.format.conf.{FilterPushdownConfig, SparkYtWriteConfiguration, YtTableSparkSettings}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
 import ru.yandex.spark.yt.fs.{YtDynamicPath, YtFileSystemBase}
 import ru.yandex.spark.yt.serializers.{InternalRowDeserializer, SchemaConverter}
@@ -50,6 +50,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
     val arrowEnabledValue = arrowEnabled(options, hadoopConf)
     val readBatch = canReadBatch(requiredSchema, options, hadoopConf)
     val returnBatch = supportBatch(sparkSession, requiredSchema, options)
+    val filterPushdownConfig = FilterPushdownConfig(sparkSession)
 
     val batchMaxSize = hadoopConf.ytConf(VectorizedCapacity)
 
@@ -64,8 +65,8 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
       case ypf: YtPartitionedFile =>
         val log = LoggerFactory.getLogger(getClass)
         implicit val yt: CompoundClient = YtClientProvider.ytClient(ytClientConf)
-        val split = YtInputSplit(ypf, requiredSchema)
-        log.info(s"Reading ${split.ytPath}")
+        val split = YtInputSplit(ypf, requiredSchema, filterPushdownConfig = filterPushdownConfig)
+        log.info(s"Reading ${split.ytPathWithFilters}")
         log.info(s"Batch read enabled: $readBatch")
         log.info(s"Batch return enabled: $returnBatch")
         log.info(s"Arrow enabled: $arrowEnabledValue")
@@ -92,7 +93,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
           }
         } else {
           val tableIterator = YtWrapper.readTable(
-            split.ytPath,
+            split.ytPathWithFilters,
             InternalRowDeserializer.getOrCreate(requiredSchema),
             ytClientConf.timeout,
             None,

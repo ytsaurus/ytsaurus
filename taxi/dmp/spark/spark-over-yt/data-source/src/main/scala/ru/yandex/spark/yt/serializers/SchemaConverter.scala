@@ -5,25 +5,37 @@ import io.circe.syntax._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.v2.YtTable
 import org.apache.spark.sql.yson.{UInt64Type, YsonType}
+import ru.yandex.inside.yt.kosher.impl.ytree.YTreeMapNodeImpl
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType.StructFieldMeta
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
+import ru.yandex.inside.yt.kosher.ytree.{YTreeMapNode, YTreeNode, YTreeStringNode}
 import ru.yandex.spark.yt.common.utils.TypeUtils.isTuple
 import ru.yandex.yt.ytclient.tables.{ColumnSchema, ColumnSortOrder, ColumnValueType, TableSchema}
 
 object SchemaConverter {
+  object MetadataFields {
+    val ORIGINAL_NAME = "original_name"
+    val KEY_ID = "key_id"
+  }
+
   def sparkSchema(schemaTree: YTreeNode, schemaHint: Option[StructType] = None): StructType = {
     import ru.yandex.spark.yt.wrapper.YtJavaConverters._
     import scala.collection.JavaConverters._
-
-    StructType(schemaTree.asList().asScala.map { fieldSchema =>
+    StructType(schemaTree.asList().asScala.zipWithIndex.map { case (fieldSchema, index) =>
       val fieldMap = fieldSchema.asMap()
       val originalName = fieldMap.getOrThrow("name").stringValue()
       val fieldName = originalName.replace(".", "_")
-      val stringDataType = fieldMap.getOrThrow("type").stringValue()
+      val stringDataType = fieldMap.getOrThrow("type_v3") match {
+        case m: YTreeMapNode =>
+          m.getOrThrow("item").stringValue()
+        case s: YTreeStringNode =>
+          s.stringValue()
+      }
       val metadata = new MetadataBuilder()
-      metadata.putString("original_name", originalName)
+      metadata.putString(MetadataFields.ORIGINAL_NAME, originalName)
+      metadata.putLong(MetadataFields.KEY_ID, if (fieldMap.containsKey("sort_order")) index else -1)
+
       structField(fieldName, stringDataType, schemaHint, metadata.build())
     })
   }
@@ -181,6 +193,7 @@ object SchemaConverter {
         }
         MapType(sparkType(keyType), sparkType(valueType))
       case "binary" => BinaryType
+      case "yson" => YsonType
       case _ => YtLogicalType.fromName(sType).sparkType
     }
   }

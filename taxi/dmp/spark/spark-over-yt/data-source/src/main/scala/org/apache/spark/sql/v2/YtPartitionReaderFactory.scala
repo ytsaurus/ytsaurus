@@ -14,6 +14,8 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.vectorized.{ColumnarBatch, YtVectorizedReader}
 import org.apache.spark.util.SerializableConfiguration
 import org.slf4j.LoggerFactory
+import ru.yandex.spark.yt.common.utils.SegmentSet
+import ru.yandex.spark.yt.format.conf.FilterPushdownConfig
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read.VectorizedCapacity
 import ru.yandex.spark.yt.format.{YtInputSplit, YtPartitionedFile}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
@@ -29,7 +31,9 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
                                     dataSchema: StructType,
                                     readDataSchema: StructType,
                                     partitionSchema: StructType,
-                                    options: Map[String, String]) extends FilePartitionReaderFactory with Logging {
+                                    options: Map[String, String],
+                                    pushedFilterSegments: SegmentSet,
+                                    filterPushdownConf: FilterPushdownConfig) extends FilePartitionReaderFactory with Logging {
   private val unsupportedTypes: Set[DataType] = Set(DateType, TimestampType, FloatType)
 
   private val resultSchema = StructType(partitionSchema.fields ++ readDataSchema.fields)
@@ -118,7 +122,7 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
 
   private def createSplit(file: YtPartitionedFile): YtInputSplit = {
     val log = LoggerFactory.getLogger(getClass)
-    val split = YtInputSplit(file, resultSchema)
+    val split = YtInputSplit(file, resultSchema, pushedFilterSegments, filterPushdownConf)
 
     log.info(s"Reading ${split.ytPath}, " +
       s"read batch: $readBatch, return batch: $returnBatch, arrowEnabled: $arrowEnabled")
@@ -130,7 +134,7 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
                                  (implicit yt: CompoundClient): RecordReader[Void, InternalRow] = {
     val fs = FileSystem.get(broadcastedConf.value.value).asInstanceOf[YtFileSystemBase]
     val iter = YtWrapper.readTable(
-      split.ytPath,
+      split.ytPathWithFiltersDetailed,
       InternalRowDeserializer.getOrCreate(resultSchema),
       ytClientConf.timeout, None,
       bytesRead => fs.internalStatistics.incrementBytesRead(bytesRead)

@@ -7,6 +7,8 @@ import org.apache.spark.sql.execution.datasources.v2.FileScanBuilder
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
+import ru.yandex.spark.yt.common.utils.ExpressionTransformer.filtersToSegmentSet
+import ru.yandex.spark.yt.common.utils.SegmentSet
 import ru.yandex.spark.yt.format.conf.YtTableSparkSettings
 import ru.yandex.spark.yt.fs.{YtDynamicPath, YtPath, YtStaticPath}
 
@@ -46,19 +48,24 @@ case class YtScanBuilder(sparkSession: SparkSession,
     )
   }
 
+  private var pushedFilterSegments: SegmentSet = SegmentSet()
   private var filters: Array[Filter] = Array.empty
 
   override def pushFilters(filters: Array[Filter]): Array[Filter] = {
     this.filters = filters
+    this.pushedFilterSegments = filtersToSegmentSet(filters)
     this.filters
   }
 
-  override def pushedFilters(): Array[Filter] = Array.empty
+  override def pushedFilters(): Array[Filter] = {
+    pushedFilterSegments.toFilters
+  }
 
   override def build(): Scan = {
     var opts = options.asScala
     opts = opts + (YtTableSparkSettings.OptimizedForScan.name -> optimizedForScan.toString)
     YtScan(sparkSession, hadoopConf, fileIndex, dataSchema, readDataSchema(), readPartitionSchema(),
-      new CaseInsensitiveStringMap(opts.asJava))
+      new CaseInsensitiveStringMap(opts.asJava), pushedFilterSegments = pushedFilterSegments,
+      pushedFilters = pushedFilters())
   }
 }
