@@ -632,11 +632,15 @@ def _build_node_configs(node_dirs,
             "io_config": {
                 "enable_sync": False,
             },
+            "enable_direct_io" : yt_config.node_enable_direct_io,
             "multiplexed_changelog": changelog_config,
             "high_latency_split_changelog": changelog_config,
             "low_latency_split_changelog": changelog_config,
         }
 
+        if yt_config.node_io_engine_type:
+            store_location_config["io_engine_type"] = yt_config.node_io_engine_type 
+        
         layer_location_config = {
             "low_watermark": 1,
             "location_is_absolute": False,

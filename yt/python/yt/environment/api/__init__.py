@@ -36,6 +36,8 @@ class LocalYtConfig(object):
     node_memory_limit_addition = attr.ib(0)
     node_chunk_store_quota = attr.ib(None)
     allow_chunk_storage_in_tmpfs = attr.ib(False)
+    node_io_engine_type = attr.ib(None)
+    node_enable_direct_io = attr.ib(False)
 
     """Feature flags"""
     enable_master_cache = attr.ib(False)
