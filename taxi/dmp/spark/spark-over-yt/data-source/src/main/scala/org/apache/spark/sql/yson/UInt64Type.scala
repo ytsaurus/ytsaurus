@@ -6,8 +6,9 @@ import org.apache.spark.sql.types._
 import org.json4s.JsonAST.JValue
 import org.json4s.JsonDSL._
 
+class UInt64Type extends UserDefinedType[UInt64Long]
+  with AggregatingUserDefinedType[UInt64Long] with ValidatedCastType {
 
-class UInt64Type extends UserDefinedType[UInt64Long] with ValidatedCastType {
   override def pyUDT: String = "spyt.types.UInt64Type"
 
   override def sqlType: DataType = LongType
@@ -30,6 +31,19 @@ class UInt64Type extends UserDefinedType[UInt64Long] with ValidatedCastType {
       ("serializedClass" -> serializedPyClass) ~
       ("sqlType" -> sqlType.jsonValue)
   }
+
+  private def castToLongGen(name: String): String = s"org.apache.spark.sql.yson.UInt64Long($name)"
+
+  override def hashGen(name: String): String = s"${castToLongGen(name)}.hashCode()"
+
+  override def compareGen(first: String, second: String): String =
+    s"${castToLongGen(first)}.compareTo(${castToLongGen(second)})"
+
+  override val ordering: Ordering[Any] = {
+    (a: Any, b: Any) =>
+      UInt64Long(a.asInstanceOf[Long])
+        .compareTo(UInt64Long(b.asInstanceOf[Long]))
+  }
 }
 
 case object UInt64Type extends UInt64Type
@@ -39,6 +53,10 @@ case class UInt64Long(value: Long) {
   def toLong: Long = value
 
   override def toString: String = java.lang.Long.toUnsignedString(value)
+
+  def compareTo(other: UInt64Long): Int = java.lang.Long.compareUnsigned(value, other.value)
+
+  override def hashCode(): Int = value.toInt
 }
 
 object UInt64Long {
