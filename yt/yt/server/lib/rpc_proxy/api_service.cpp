@@ -321,28 +321,74 @@ bool IsColumnarRowsetFormat(NApi::NRpcProxy::NProto::ERowsetFormat format)
     return format == NApi::NRpcProxy::NProto::RF_ARROW;
 }
 
-struct TDetailedTableProfilingCounters
+DECLARE_REFCOUNTED_CLASS(TDetailedProfilingCounters)
+
+class TDetailedProfilingCounters
+    : public TRefCounted
 {
-    explicit TDetailedTableProfilingCounters(const NProfiling::TProfiler& profiler)
-        : LookupDuration(profiler.Histogram(
+public:
+    explicit TDetailedProfilingCounters(TProfiler profiler)
+        : Profiler_(std::move(profiler))
+        , LookupDuration_(Profiler_.Histogram(
             "/lookup_duration",
             TDuration::MicroSeconds(1),
             TDuration::Seconds(10)))
-        , SelectDuration(profiler.Histogram(
+        , SelectDuration_(Profiler_.Histogram(
             "/select_duration",
             TDuration::MicroSeconds(1),
             TDuration::Seconds(10)))
-        , LookupMountCacheWaitTime(profiler.Timer("/lookup_mount_cache_wait_time"))
-        , SelectMountCacheWaitTime(profiler.Timer("/select_mount_cache_wait_time"))
+        , LookupMountCacheWaitTime_(Profiler_.Timer("/lookup_mount_cache_wait_time"))
+        , SelectMountCacheWaitTime_(Profiler_.Timer("/select_mount_cache_wait_time"))
     { }
 
-    //! Histograms.
-    NProfiling::TEventTimer LookupDuration;
-    NProfiling::TEventTimer SelectDuration;
+    const TEventTimer& LookupDurationTimer() const
+    {
+        return LookupDuration_;
+    }
 
-    NProfiling::TEventTimer LookupMountCacheWaitTime;
-    NProfiling::TEventTimer SelectMountCacheWaitTime;
+    const TEventTimer& SelectDurationTimer() const
+    {
+        return SelectDuration_;
+    }
+
+    const TEventTimer& LookupMountCacheWaitTimer() const
+    {
+        return LookupMountCacheWaitTime_;
+    }
+
+    const TEventTimer& SelectMountCacheWaitTimer() const
+    {
+        return SelectMountCacheWaitTime_;
+    }
+
+    TCounter* GetRetryCounterByReason(TErrorCode reason)
+    {
+        return RetryCounters_.FindOrInsert(
+            reason,
+            [&] {
+                return Profiler_
+                    .WithTag("reason", ToString(reason))
+                    .Counter("/retry_count");
+            })
+            .first;
+    }
+
+private:
+    const TProfiler Profiler_;
+
+    //! Histograms.
+    TEventTimer LookupDuration_;
+    TEventTimer SelectDuration_;
+
+    //! Timers.
+    TEventTimer LookupMountCacheWaitTime_;
+    TEventTimer SelectMountCacheWaitTime_;
+
+    //! Retryable error code to counter map.
+    NConcurrency::TSyncMap<TErrorCode, TCounter> RetryCounters_;
 };
+
+DEFINE_REFCOUNTED_TYPE(TDetailedProfilingCounters)
 
 //! This context extends standard typed service context. By this moment it is used for structured
 //! logging reasons.
@@ -502,7 +548,7 @@ public:
     TApiService(
         IBootstrap* bootstrap,
         NLogging::TLogger logger,
-        NProfiling::TProfiler profiler,
+        TProfiler profiler,
         IStickyTransactionPoolPtr stickyTransactionPool)
         : TServiceBase(
             bootstrap->GetWorkerInvoker(),
@@ -645,7 +691,7 @@ public:
 
 private:
     IBootstrap* const Bootstrap_;
-    const NProfiling::TProfiler Profiler_;
+    const TProfiler Profiler_;
     const TApiServiceConfigPtr Config_;
     const IProxyCoordinatorPtr Coordinator_;
     const IAccessCheckerPtr AccessChecker_;
@@ -654,7 +700,7 @@ private:
     const IStickyTransactionPoolPtr StickyTransactionPool_;
     const NNative::TClientCachePtr AuthenticatedClientCache_;
 
-    NConcurrency::TSyncMap<TYPath, TDetailedTableProfilingCounters> DetailedTableProfilingCountersMap_;
+    NConcurrency::TSyncMap<std::optional<TYPath>, TDetailedProfilingCountersPtr> DetailedProfilingCountersMap_;
 
 
     NNative::IClientPtr GetOrCreateClient(const TString& user)
@@ -908,15 +954,19 @@ private:
     }
 
 
-    TDetailedTableProfilingCounters* GetOrCreateDetailedTableProfilingCounters(const TYPath& path)
+    TDetailedProfilingCountersPtr GetOrCreateDetailedProfilingCounters(const std::optional<TYPath>& path)
     {
-        return DetailedTableProfilingCountersMap_.FindOrInsert(
+        return *DetailedProfilingCountersMap_.FindOrInsert(
             path,
             [&] {
-                return TDetailedTableProfilingCounters(Profiler_
+                auto profiler = Profiler_
                     .WithPrefix("/detailed_table_statistics")
-                    .WithTag("table_path", path)
-                    .WithSparse());
+                    .WithSparse();
+                if (path) {
+                    profiler = profiler
+                        .WithTag("table_path", *path);
+                }
+                return New<TDetailedProfilingCounters>(std::move(profiler));
             })
             .first;
     }
@@ -2885,10 +2935,17 @@ private:
         TWallTimer timer,
         const TDetailedProfilingInfoPtr& detailedProfilingInfo)
     {
-        if (detailedProfilingInfo->EnableDetailedProfiling) {
-            auto* counters = GetOrCreateDetailedTableProfilingCounters(detailedProfilingInfo->TablePath);
-            counters->LookupDuration.Record(timer.GetElapsedTime());
-            counters->LookupMountCacheWaitTime.Record(detailedProfilingInfo->MountCacheWaitTime);
+        TDetailedProfilingCountersPtr counters;
+        if (detailedProfilingInfo->EnableDetailedTableProfiling) {
+            counters = GetOrCreateDetailedProfilingCounters(detailedProfilingInfo->TablePath);
+            counters->LookupDurationTimer().Record(timer.GetElapsedTime());
+            counters->LookupMountCacheWaitTimer().Record(detailedProfilingInfo->MountCacheWaitTime);
+        } else if (!detailedProfilingInfo->RetryReasons.empty()) {
+            counters = GetOrCreateDetailedProfilingCounters(std::nullopt);
+        }
+
+        for (const auto& reason : detailedProfilingInfo->RetryReasons) {
+            counters->GetRetryCounterByReason(reason)->Increment();
         }
     }
 
@@ -2896,10 +2953,17 @@ private:
         TWallTimer timer,
         const TDetailedProfilingInfoPtr& detailedProfilingInfo)
     {
-        if (detailedProfilingInfo->EnableDetailedProfiling) {
-            auto* counters = GetOrCreateDetailedTableProfilingCounters(detailedProfilingInfo->TablePath);
-            counters->SelectDuration.Record(timer.GetElapsedTime());
-            counters->SelectMountCacheWaitTime.Record(detailedProfilingInfo->MountCacheWaitTime);
+        TDetailedProfilingCountersPtr counters;
+        if (detailedProfilingInfo->EnableDetailedTableProfiling) {
+            counters = GetOrCreateDetailedProfilingCounters(detailedProfilingInfo->TablePath);
+            counters->SelectDurationTimer().Record(timer.GetElapsedTime());
+            counters->SelectMountCacheWaitTimer().Record(detailedProfilingInfo->MountCacheWaitTime);
+        } else if (!detailedProfilingInfo->RetryReasons.empty()) {
+            counters = GetOrCreateDetailedProfilingCounters(std::nullopt);
+        }
+
+        for (const auto& reason : detailedProfilingInfo->RetryReasons) {
+            counters->GetRetryCounterByReason(reason)->Increment();
         }
     }
 
@@ -2965,9 +3029,9 @@ private:
 
                 ProcessLookupRowsDetailedProfilingInfo(timer, detailedProfilingInfo);
 
-                context->SetResponseInfo("RowCount: %v, EnableDetailedProfiling: %v",
+                context->SetResponseInfo("RowCount: %v, DetailedTableProfilingEnabled: %v",
                     rowset->GetRows().Size(),
-                    detailedProfilingInfo->EnableDetailedProfiling);
+                    detailedProfilingInfo->EnableDetailedTableProfiling);
             });
     }
 
@@ -3027,9 +3091,9 @@ private:
 
                 ProcessLookupRowsDetailedProfilingInfo(timer, detailedProfilingInfo);
 
-                context->SetResponseInfo("RowCount: %v, EnableDetailedProfiling: %v",
+                context->SetResponseInfo("RowCount: %v, EnableDetailedTableProfiling: %v",
                     rowset->GetRows().Size(),
-                    detailedProfilingInfo->EnableDetailedProfiling);
+                    detailedProfilingInfo->EnableDetailedTableProfiling);
             });
     }
 
@@ -4221,7 +4285,7 @@ DEFINE_REFCOUNTED_TYPE(TApiService)
 IServicePtr CreateApiService(
     IBootstrap* bootstrap,
     NLogging::TLogger logger,
-    NProfiling::TProfiler profiler,
+    TProfiler profiler,
     IStickyTransactionPoolPtr stickyTransactionPool)
 {
     return New<TApiService>(

@@ -262,7 +262,7 @@ private:
         auto mountCacheWaitTime = timer.GetElapsedTime();
 
         if (DetailedProfilingInfo_ && tableInfo->EnableDetailedProfiling) {
-            DetailedProfilingInfo_->EnableDetailedProfiling = true;
+            DetailedProfilingInfo_->EnableDetailedTableProfiling = true;
             DetailedProfilingInfo_->MountCacheWaitTime += mountCacheWaitTime;
         }
 
@@ -405,17 +405,19 @@ IUnversionedRowsetPtr TClient::DoLookupRows(
             options);
     };
 
-    return CallAndRetryIfMetadataCacheIsInconsistent([&] () {
-        return DoLookupRowsOnce<IUnversionedRowsetPtr, TUnversionedRow>(
-            path,
-            nameTable,
-            keys,
-            options,
-            std::nullopt,
-            GetLookupRowsEncoder(),
-            GetLookupRowsDecoder(),
-            fallbackHandler);
-    });
+    return CallAndRetryIfMetadataCacheIsInconsistent(
+        options.DetailedProfilingInfo,
+        [&] {
+            return DoLookupRowsOnce<IUnversionedRowsetPtr, TUnversionedRow>(
+                path,
+                nameTable,
+                keys,
+                options,
+                std::nullopt,
+                GetLookupRowsEncoder(),
+                GetLookupRowsDecoder(),
+                fallbackHandler);
+        });
 }
 
 IVersionedRowsetPtr TClient::DoVersionedLookupRows(
@@ -467,17 +469,19 @@ IVersionedRowsetPtr TClient::DoVersionedLookupRows(
         THROW_ERROR_EXCEPTION("Versioned lookup does not support retention timestamp");
     }
 
-    return CallAndRetryIfMetadataCacheIsInconsistent([&] () {
-        return DoLookupRowsOnce<IVersionedRowsetPtr, TVersionedRow>(
-            path,
-            nameTable,
-            keys,
-            options,
-            retentionConfig,
-            encoder,
-            decoder,
-            fallbackHandler);
-    });
+    return CallAndRetryIfMetadataCacheIsInconsistent(
+        options.DetailedProfilingInfo,
+        [&] {
+            return DoLookupRowsOnce<IVersionedRowsetPtr, TVersionedRow>(
+                path,
+                nameTable,
+                keys,
+                options,
+                retentionConfig,
+                encoder,
+                decoder,
+                fallbackHandler);
+        });
 }
 
 std::vector<IUnversionedRowsetPtr> TClient::DoMultiLookup(
@@ -508,17 +512,19 @@ std::vector<IUnversionedRowsetPtr> TClient::DoMultiLookup(
                         lookupRowsOptions);
                 };
 
-                return CallAndRetryIfMetadataCacheIsInconsistent([&] {
-                    return DoLookupRowsOnce<IUnversionedRowsetPtr, TUnversionedRow>(
-                        subrequest.Path,
-                        subrequest.NameTable,
-                        subrequest.Keys,
-                        lookupRowsOptions,
-                        /* retentionConfig */ std::nullopt,
-                        GetLookupRowsEncoder(),
-                        GetLookupRowsDecoder(),
-                        fallbackHandler);
-                });
+                return CallAndRetryIfMetadataCacheIsInconsistent(
+                    lookupRowsOptions.DetailedProfilingInfo,
+                    [&] {
+                        return DoLookupRowsOnce<IUnversionedRowsetPtr, TUnversionedRow>(
+                            subrequest.Path,
+                            subrequest.NameTable,
+                            subrequest.Keys,
+                            lookupRowsOptions,
+                            /* retentionConfig */ std::nullopt,
+                            GetLookupRowsEncoder(),
+                            GetLookupRowsDecoder(),
+                            fallbackHandler);
+                    });
             })
             .AsyncVia(GetCurrentInvoker())
             .Run());
@@ -559,7 +565,7 @@ TRowset TClient::DoLookupRowsOnce(
     tableInfo->ValidateSorted();
 
     if (options.DetailedProfilingInfo && tableInfo->EnableDetailedProfiling) {
-        options.DetailedProfilingInfo->EnableDetailedProfiling = true;
+        options.DetailedProfilingInfo->EnableDetailedTableProfiling = true;
         options.DetailedProfilingInfo->TablePath = path;
         options.DetailedProfilingInfo->MountCacheWaitTime = mountCacheWaitTime;
     }
@@ -861,9 +867,11 @@ TSelectRowsResult TClient::DoSelectRows(
     const TString& queryString,
     const TSelectRowsOptions& options)
 {
-    return CallAndRetryIfMetadataCacheIsInconsistent([&] () {
-        return DoSelectRowsOnce(queryString, options);
-    });
+    return CallAndRetryIfMetadataCacheIsInconsistent(
+        options.DetailedProfilingInfo,
+        [&] {
+            return DoSelectRowsOnce(queryString, options);
+        });
 }
 
 TSelectRowsResult TClient::DoSelectRowsOnce(
@@ -985,7 +993,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
             .ValueOrThrow();
         auto mountCacheWaitTime = timer.GetElapsedTime();
         if (tableInfo->EnableDetailedProfiling) {
-            options.DetailedProfilingInfo->EnableDetailedProfiling = true;
+            options.DetailedProfilingInfo->EnableDetailedTableProfiling = true;
             options.DetailedProfilingInfo->TablePath = path;
             options.DetailedProfilingInfo->MountCacheWaitTime += mountCacheWaitTime;
         }
@@ -1124,7 +1132,9 @@ IAttributeDictionaryPtr TClient::ResolveExternalTable(
 }
 
 template <class T>
-auto TClient::CallAndRetryIfMetadataCacheIsInconsistent(T&& callback) -> decltype(callback())
+auto TClient::CallAndRetryIfMetadataCacheIsInconsistent(
+    const TDetailedProfilingInfoPtr& profilingInfo,
+    T&& callback) -> decltype(callback())
 {
     int retryCount = 0;
     while (true) {
@@ -1138,11 +1148,14 @@ auto TClient::CallAndRetryIfMetadataCacheIsInconsistent(T&& callback) -> decltyp
 
         const auto& config = Connection_->GetConfig();
         const auto& tableMountCache = Connection_->GetTableMountCache();
-        bool retry;
-        TTabletInfoPtr tabletInfo;
-        std::tie(retry, tabletInfo) = tableMountCache->InvalidateOnError(error, false /*forceRetry*/);
 
-        if (retry && ++retryCount <= config->TableMountCache->OnErrorRetryCount) {
+        std::optional<TErrorCode> retryableErrorCode;
+        TTabletInfoPtr tabletInfo;
+        std::tie(retryableErrorCode, tabletInfo) = tableMountCache->InvalidateOnError(
+            error,
+            /* forceRetry */ false);
+
+        if (retryableErrorCode && ++retryCount <= config->TableMountCache->OnErrorRetryCount) {
             YT_LOG_DEBUG(error, "Got error, will retry (attempt %v of %v)",
                 retryCount,
                 config->TableMountCache->OnErrorRetryCount);
@@ -1151,6 +1164,9 @@ auto TClient::CallAndRetryIfMetadataCacheIsInconsistent(T&& callback) -> decltyp
                 config->TableMountCache->OnErrorSlackPeriod;
             if (retryTime > now) {
                 TDelayedExecutor::WaitForDuration(retryTime - now);
+            }
+            if (profilingInfo) {
+                profilingInfo->RetryReasons.push_back(*retryableErrorCode);
             }
             continue;
         }

@@ -178,9 +178,11 @@ void TTableMountCacheBase::InvalidateTablet(TTabletInfoPtr tabletInfo)
     }
 }
 
-std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TError& error, bool forceRetry)
+std::pair<std::optional<TErrorCode>, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(
+    const TError& error,
+    bool forceRetry)
 {
-    static std::vector<TErrorCode> retriableCodes = {
+    static const std::vector<TErrorCode> retriableCodes = {
         NTabletClient::EErrorCode::NoSuchTablet,
         NTabletClient::EErrorCode::NoSuchCell,
         NTabletClient::EErrorCode::TabletNotMounted,
@@ -217,17 +219,20 @@ std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TE
                     InvalidateTablet(tabletInfo);
                 }
 
-                bool dontRetry =
-                    code == NTabletClient::EErrorCode::TabletNotMounted &&
+                std::optional<TErrorCode> retryableErrorCode = code;
+                if (code == NTabletClient::EErrorCode::TabletNotMounted &&
                     isTabletUnmounted &&
-                    !forceRetry;
+                    !forceRetry)
+                {
+                    retryableErrorCode = std::nullopt;
+                }
 
-                return std::make_pair(!dontRetry, tabletInfo);
+                return std::make_pair(retryableErrorCode, tabletInfo);
             }
         }
     }
 
-    return std::make_pair(false, nullptr);
+    return std::make_pair(std::nullopt, nullptr);
 }
 
 void TTableMountCacheBase::Clear()

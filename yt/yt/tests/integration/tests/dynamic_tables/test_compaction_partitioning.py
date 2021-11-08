@@ -241,7 +241,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
     def test_partitioning_with_chunk_views(self):
         # Creating two chunks [{0}, {1}, {2}] and [{2}, {3}] and check whether they become partitioned.
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t", attributes={"enable_lsm_verbose_logging": True})
+        self._create_simple_table("//tmp/t", enable_lsm_verbose_logging=True)
 
         self._create_partitions(partition_count=2, do_overlap=True)
 
