@@ -2928,3 +2928,30 @@ class TestDynamicTablesMulticellWithLegacyHeartbeats(DynamicTablesSingleCellBase
     }
 
     NUM_SECONDARY_MASTER_CELLS = 2
+
+
+##################################################################
+
+
+class TestTabletSnapshotsOrchid(DynamicTablesBase):
+    def _get_tablet(self, table_path):
+        return get("//tmp/t/@tablets/0")
+
+    def _get_tablet_node_address(self, tablet):
+        return get("#{0}/@peers/0/address".format(tablet["cell_id"]))
+
+    @authors("capone212")
+    def test_at_tablet_snapshot(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 0, "value": "test"}])
+        tablet_info = self._get_tablet("//tmp/t")
+        node_address = self._get_tablet_node_address(tablet_info)
+        tablet_id = tablet_info["tablet_id"]
+        snapshot_tablet_ids = ls("//sys/cluster_nodes/" + node_address + "/orchid/tablet_snapshot_store")
+        assert tablet_id in snapshot_tablet_ids
+        tablet_snapshots = get("//sys/cluster_nodes/" + node_address + "/orchid/tablet_snapshot_store/" + tablet_id)
+        assert len(tablet_snapshots) != 0
+        # ensure orchid returns something sane for tablet snapshot
+        assert tablet_snapshots[0]["table_path"] == "//tmp/t"

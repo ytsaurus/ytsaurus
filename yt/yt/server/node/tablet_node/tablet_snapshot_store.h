@@ -70,6 +70,9 @@ struct ITabletSnapshotStore
 
     //! Informs the manager that #slot no longer serves any tablet.
     virtual void UnregisterTabletSnapshots(const ITabletSlotPtr& slot) = 0;
+
+    //! Returns orchid service with tablet snapshots.
+    virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletSnapshotStore)

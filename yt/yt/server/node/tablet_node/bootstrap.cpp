@@ -162,6 +162,10 @@ public:
             GetOrchidRoot(),
             "/tablet_slot_manager",
             CreateVirtualNode(SlotManager_->GetOrchidService()));
+        SetNodeByYPath(
+            GetOrchidRoot(),
+            "/tablet_snapshot_store",
+            CreateVirtualNode(TabletSnapshotStore_->GetOrchidService()));
 
         MasterConnector_->Initialize();
         StoreCompactor_->Start();

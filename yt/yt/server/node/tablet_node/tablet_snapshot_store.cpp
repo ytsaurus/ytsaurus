@@ -16,12 +16,18 @@
 #include <yt/yt/core/concurrency/spinlock.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/virtual.h>
+
+#include <yt/yt/core/yson/consumer.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,6 +44,7 @@ public:
         IBootstrap* bootstrap)
         : Config_(std::move(config))
         , Bootstrap_(bootstrap)
+        , OrchidService_(TOrchidService::Create(MakeWeak(this)))
     { }
 
     std::vector<TTabletSnapshotPtr> GetTabletSnapshots() override
@@ -196,6 +203,61 @@ public:
         }
     }
 
+    NYTree::IYPathServicePtr GetOrchidService() const override
+    {
+        return OrchidService_;
+    }
+
+private:
+    class TOrchidService
+        : public TVirtualMapBase
+    {
+    public:
+        static IYPathServicePtr Create(TWeakPtr<TTabletSnapshotStore> store)
+        {
+            return New<TOrchidService>(std::move(store));
+        }
+
+        std::vector<TString> GetKeys(i64 limit) const override
+        {
+            if (auto owner = Owner_.Lock()) {
+                auto keys = owner->GetTabletIds();
+                keys.resize(std::min(limit, std::ssize(keys)));
+                return keys;
+            }
+            return {};
+        }
+
+        i64 GetSize() const override
+        {
+            if (auto owner = Owner_.Lock()) {
+                return owner->GetTabletIds().size();
+            }
+            return 0;
+        }
+
+        IYPathServicePtr FindItemService(TStringBuf key) const override
+        {
+            if (auto owner = Owner_.Lock()) {
+                auto snapshots = owner->GetTabletSnapshots(TTabletId::FromString(key));
+                if (!snapshots.empty()) {
+                    auto producer = BIND(&TTabletSnapshotStore::BuildSnapshotsListOrchidYson, owner, snapshots);
+                    return ConvertToNode(producer);
+                }
+            }
+            return nullptr;
+        }
+
+    private:
+        const TWeakPtr<TTabletSnapshotStore> Owner_;
+
+        explicit TOrchidService(TWeakPtr<TTabletSnapshotStore> store)
+            : Owner_(std::move(store))
+        { }
+
+        DECLARE_NEW_FRIEND();
+    };
+
 private:
     const TTabletNodeConfigPtr Config_;
     IBootstrap* const Bootstrap_;
@@ -204,8 +266,9 @@ private:
     THashMultiMap<TTabletId, TTabletSnapshotPtr> TabletIdToSnapshot_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+    const IYPathServicePtr OrchidService_;
 
-
+private:
     void EvictTabletSnapshot(TTabletId tabletId, const TTabletSnapshotPtr& snapshot)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -305,6 +368,154 @@ private:
                 << TErrorAttribute("tablet_id", tabletId)
                 << TErrorAttribute("cell_id", cellId);
         }
+    }
+
+    std::vector<TString> GetTabletIds() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        auto guard = ReaderGuard(TabletSnapshotsSpinLock_);
+
+        std::vector<TString> result;
+        TTabletId last;
+        result.reserve(TabletIdToSnapshot_.size());
+        for (const auto& [key, _] : TabletIdToSnapshot_) {
+            if (last != key) {
+                result.push_back(ToString(key));
+                last = key;
+            }
+        }
+        return result;
+    }
+
+    std::vector<TTabletSnapshotPtr> GetTabletSnapshots(TTabletId tabletId) const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        auto guard = ReaderGuard(TabletSnapshotsSpinLock_);
+        auto range = TabletIdToSnapshot_.equal_range(tabletId);
+        std::vector<TTabletSnapshotPtr> result;
+        for (auto it = range.first; it != range.second; ++it) {
+            result.push_back(it->second);
+        }
+        return result;
+    }
+
+    void BuildSnapshotsListOrchidYson(const std::vector<TTabletSnapshotPtr>& snaphots, IYsonConsumer* consumer) const
+    {
+        BuildYsonFluently(consumer)
+            .DoListFor(snaphots, [&] (TFluentList fluent, const TTabletSnapshotPtr& snapshot) {
+                 fluent
+                    .Item().BeginMap()
+                        .Do(BIND(&TTabletSnapshotStore::BuildSnapshotOrchidYson, Unretained(this), snapshot))
+                    .EndMap();
+            });
+    }
+
+    bool IsPhysicallySorted(const TTabletSnapshotPtr& snapshot) const
+    {
+        return snapshot->PhysicalSchema->GetKeyColumnCount() > 0;
+    }
+
+    bool IsPhysicallyOrdered(const TTabletSnapshotPtr& snapshot) const
+    {
+        return snapshot->PhysicalSchema->GetKeyColumnCount() == 0;
+    }
+
+    void BuildSnapshotOrchidYson(const TTabletSnapshotPtr& snapshot, TFluentMap fluent) const
+    {
+        fluent
+            .Item("table_id").Value(snapshot->TableId)
+            .Item("mount_revision").Value(snapshot->MountRevision)
+            .Item("tablet_id").Value(snapshot->TabletId)
+            .Item("cell_id").Value(snapshot->CellId)
+            .Item("table_path").Value(snapshot->TablePath)
+            .Do([snapshot] (auto fluent) {
+                BuildTableSettingsOrchidYson(snapshot->Settings, fluent);
+            })
+            .DoIf(IsPhysicallySorted(snapshot), [&] (auto fluent) {
+                fluent
+                    .Item("pivot_key").Value(snapshot->PivotKey)
+                    .Item("next_pivot_key").Value(snapshot->NextPivotKey)
+                    .Item("eden").DoMap(BIND(&TTabletSnapshotStore::BuildPartitionOrchidYson, Unretained(this), snapshot->Eden))
+                    .Item("partitions").DoListFor(
+                        snapshot->PartitionList, [&] (auto fluent, const TPartitionSnapshotPtr& partition) {
+                            fluent
+                                .Item()
+                                .DoMap(BIND(&TTabletSnapshotStore::BuildPartitionOrchidYson, Unretained(this), partition));
+                        });
+            })
+            .DoIf(IsPhysicallyOrdered(snapshot), [&] (auto fluent) {
+                fluent
+                    .Item("stores").DoMapFor(snapshot->OrderedStores, [&] (auto fluent, const IStorePtr& store) {
+                        fluent
+                            .Item(ToString(store->GetId()))
+                            .Do(BIND(&TTabletSnapshotStore::BuildStoreOrchidYson, Unretained(this), store));
+                    });
+            })
+            .DoIf(!snapshot->Replicas.empty(), [&] (auto fluent) {
+                fluent
+                    .Item("replicas").DoMapFor(
+                        snapshot->Replicas,
+                        [&] (auto fluent, const auto& pair) {
+                            const auto& [replicaId, replica] = pair;
+                            fluent
+                                .Item(ToString(replicaId))
+                                .Do(BIND(&TTabletSnapshotStore::BuildReplicaOrchidYson, Unretained(this), replica));
+                        });
+            })
+            .Item("atomicity").Value(snapshot->Atomicity)
+            .Item("upstream_replica_id").Value(snapshot->UpstreamReplicaId)
+            .Item("hash_table_size").Value(snapshot->HashTableSize)
+            .Item("overlapping_store_count").Value(snapshot->OverlappingStoreCount)
+            .Item("eden_overlapping_store_count").Value(snapshot->EdenOverlappingStoreCount)
+            .Item("critical_partition_count").Value(snapshot->CriticalPartitionCount)
+            .Item("retained_timestamp").Value(snapshot->RetainedTimestamp)
+            .Item("store_count").Value(snapshot->StoreCount)
+            .Item("preload_pending_store_count").Value(snapshot->PreloadPendingStoreCount)
+            .Item("preload_completed_store_count").Value(snapshot->PreloadCompletedStoreCount)
+            .Item("preload_failed_store_count").Value(snapshot->PreloadFailedStoreCount);
+    }
+
+    void BuildPartitionOrchidYson(const TPartitionSnapshotPtr& partition, TFluentMap fluent) const
+    {
+        fluent
+            .Item("id").Value(partition->Id)
+            .Item("pivot_key").Value(partition->PivotKey)
+            .Item("next_pivot_key").Value(partition->NextPivotKey)
+            .Item("sample_key_count").Value(partition->SampleKeys ? partition->SampleKeys->Keys.Size() : 0)
+            .Item("stores").DoMapFor(partition->Stores, [&] (auto fluent, const IStorePtr& store) {
+                fluent
+                    .Item(ToString(store->GetId()))
+                    .Do(BIND(&TTabletSnapshotStore::BuildStoreOrchidYson, Unretained(this), store));
+            });
+    }
+
+    void BuildStoreOrchidYson(const IStorePtr& store, TFluentAny fluent) const
+    {
+        fluent
+            .BeginAttributes()
+                .Item("opaque").Value(true)
+            .EndAttributes()
+            .BeginMap()
+                .Do(BIND(&IStore::BuildOrchidYson, store))
+            .EndMap();
+    }
+
+    void BuildReplicaOrchidYson(const TTableReplicaSnapshotPtr& replica, TFluentAny fluent) const
+    {
+        if (!replica || !replica->RuntimeData) {
+            return;
+        }
+        fluent
+            .BeginMap()
+                .Item("mode").Value(replica->RuntimeData->Mode.load(std::memory_order_relaxed))
+                .Item("atomicity").Value(replica->RuntimeData->Atomicity.load(std::memory_order_relaxed))
+                .Item("preserve_timestamps").Value(replica->RuntimeData->PreserveTimestamps)
+                .Item("start_replication_timestamp").Value(replica->StartReplicationTimestamp)
+                .Item("last_replication_timestamp").Value(replica->RuntimeData->LastReplicationTimestamp)
+                .Item("current_replication_row_index").Value(replica->RuntimeData->CurrentReplicationRowIndex)
+                .Item("current_replication_timestamp").Value(replica->RuntimeData->CurrentReplicationTimestamp)
+                .Item("prepared_replication_row_index").Value(replica->RuntimeData->PreparedReplicationRowIndex)
+            .EndMap();
     }
 };
 
