@@ -25,6 +25,8 @@ struct IBootstrap
     virtual const NCellarAgent::ICellarManagerPtr& GetCellarManager() const = 0;
 
     virtual const NCellarNode::IMasterConnectorPtr& GetMasterConnector() const = 0;
+
+    virtual void ScheduleCellarHeartbeat(bool immediately) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -418,6 +418,10 @@ public:
                         .AsyncVia(Bootstrap_->GetControlInvoker()));
             }
 
+            auto onRecoveryComplete = BIND(&TCellarOccupant::OnRecoveryComplete, MakeWeak(this));
+            hydraManager->SubscribeControlFollowerRecoveryComplete(onRecoveryComplete);
+            hydraManager->SubscribeControlLeaderRecoveryComplete(onRecoveryComplete);
+
             ElectionManager_ = CreateDistributedElectionManager(
                 Config_->ElectionManager,
                 CellManager_,
@@ -729,6 +733,14 @@ private:
         GetOccupier()->Finalize();
 
         Occupier_.Store(nullptr);
+    }
+
+    void OnRecoveryComplete()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // Notify master about recovery completion as soon as possible via out-of-order heartbeat.
+        Bootstrap_->ScheduleCellarHeartbeat(/*immediately*/ true);
     }
 
     NLogging::TLogger GetLogger() const
