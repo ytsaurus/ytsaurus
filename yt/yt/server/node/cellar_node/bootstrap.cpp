@@ -6,6 +6,8 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
+#include <yt/yt/server/node/data_node/legacy_master_connector.h>
+
 #include <yt/yt/server/node/tablet_node/security_manager.h>
 
 #include <yt/yt/server/lib/cellar_agent/bootstrap_proxy.h>
@@ -20,6 +22,7 @@ using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NElection;
 using namespace NNodeTrackerClient;
+using namespace NObjectClient;
 using namespace NRpc;
 using namespace NSecurityServer;
 
@@ -67,6 +70,11 @@ public:
     IResourceLimitsManagerPtr GetResourceLimitsManager() const override
     {
         return Bootstrap_->GetResourceLimitsManager();
+    }
+
+    void ScheduleCellarHeartbeat(bool immediately) const override
+    {
+        Bootstrap_->ScheduleCellarHeartbeat(immediately);
     }
 
 private:
@@ -158,6 +166,23 @@ public:
         return MasterConnector_;
     }
 
+    void ScheduleCellarHeartbeat(bool immediately) const override
+    {
+        if (!IsConnected()) {
+            return;
+        }
+
+        if (UseNewHeartbeats()) {
+            for (auto masterCellTag : GetMasterCellTags()) {
+                MasterConnector_->ScheduleHeartbeat(masterCellTag, immediately);
+            }
+        } else {
+            // Old heartbeats are heavy, so we send out-of-order heartbeat to primary master cell only.
+            auto primaryCellTag = CellTagFromId(GetCellId());
+            GetLegacyMasterConnector()->ScheduleNodeHeartbeat(primaryCellTag, immediately);
+        }
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -194,7 +219,7 @@ private:
         };
 
         CellarManager_->Reconfigure(getCellarManagerConfig());
-        
+
         ResourceLimitsManager_->Reconfigure(newConfig->TabletNode->SecurityManager);
     }
 };

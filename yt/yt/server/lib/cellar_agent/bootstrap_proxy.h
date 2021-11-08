@@ -33,6 +33,8 @@ struct ICellarBootstrapProxy
     virtual NRpc::IServerPtr GetRpcServer() const = 0;
 
     virtual NSecurityServer::IResourceLimitsManagerPtr GetResourceLimitsManager() const = 0;
+
+    virtual void ScheduleCellarHeartbeat(bool immediately) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICellarBootstrapProxy)

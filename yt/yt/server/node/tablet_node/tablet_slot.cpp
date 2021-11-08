@@ -460,28 +460,6 @@ private:
         ResetEpochInvokers();
     }
 
-    void OnRecoveryComplete()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (!Bootstrap_->IsConnected()) {
-            return;
-        }
-
-        // Notify master about recovery completion as soon as possible via out-of-order heartbeat.
-        if (Bootstrap_->UseNewHeartbeats()) {
-            const auto& cellarNodeMasterConnector = Bootstrap_->GetCellarNodeMasterConnector();
-            for (auto masterCellTag : Bootstrap_->GetMasterCellTags()) {
-                cellarNodeMasterConnector->ScheduleHeartbeat(masterCellTag, /* immediately */ true);
-            }
-        } else {
-            // Old heartbeats are heavy, so we send out-of-order heartbeat to primary master cell only.
-            auto primaryCellTag = CellTagFromId(Bootstrap_->GetCellId());
-            Bootstrap_->GetLegacyMasterConnector()->ScheduleNodeHeartbeat(primaryCellTag, /* immediately */ true);
-        }
-    }
-
-
     NLogging::TLogger GetLogger() const
     {
         return TabletNodeLogger.WithTag("CellId: %v, PeerId: %v",
