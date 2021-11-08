@@ -17,6 +17,7 @@ import pytest
 import time
 import threading
 import random
+import signal
 
 
 class TestClickHouseCommon(ClickHouseTestBase):
@@ -792,7 +793,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=0))
             instances = clique.get_active_instances()
             assert len(instances) == 1
-            self._signal_instance(instances[0].attributes["pid"], "INT")
+            self._signal_instance(instances[0].attributes["pid"], signal.SIGINT)
             time.sleep(0.5)
             assert len(clique.get_active_instances()) == 0
             assert clique.make_direct_query(instances[0], "select 1", full_response=True).status_code == 301
@@ -816,11 +817,11 @@ class TestClickHouseCommon(ClickHouseTestBase):
             instances = clique.get_active_instances()
             assert len(instances) == 1
             pid = instances[0].attributes["pid"]
-            self._signal_instance(pid, "INT")
+            self._signal_instance(pid, signal.SIGINT)
             time.sleep(0.2)
             assert len(clique.get_active_instances()) == 0
             assert clique.make_direct_query(instances[0], "select 1", full_response=True).status_code == 301
-            self._signal_instance(pid, "INT")
+            self._signal_instance(pid, signal.SIGINT)
             time.sleep(0.2)
             with raises_yt_error(InstanceUnavailableCode):
                 clique.make_direct_query(instances[0], "select 1")
@@ -842,8 +843,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert len(instances) == 1
 
             def signal_job_later():
-                time.sleep(0.3)
-                self._signal_instance(instances[0].attributes["pid"], "INT")
+                time.sleep(1)
+                self._signal_instance(instances[0].attributes["pid"], signal.SIGINT)
                 print_debug("SIGINT sent to the job")
 
             signal_thread = threading.Thread(target=signal_job_later)
@@ -851,9 +852,14 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             assert clique.make_direct_query(instances[0], "select sleep(3)") == [{"sleep(3)": 0}]
 
-            time.sleep(0.3)
-            with raises_yt_error(InstanceUnavailableCode):
-                clique.make_direct_query(instances[0], "select 1")
+            def check_instance_stopped():
+                try:
+                    clique.make_direct_query(instances[0], "select 1")
+                    raise YtError("Query completed without exception")
+                except YtError as e:
+                    return e.contains_code(InstanceUnavailableCode)
+
+            wait(check_instance_stopped, iter=10, sleep_backoff=0.2)
 
             clique.resize(1)
 
@@ -973,7 +979,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             print_debug(result.content)
             assert result.status_code == 200
 
-            self._signal_instance(instance.attributes["pid"], "INT")
+            self._signal_instance(instance.attributes["pid"], signal.SIGINT)
 
             result = requests.post(
                 "http://{}:{}/query?query_id={}".format(host, port, query_id),

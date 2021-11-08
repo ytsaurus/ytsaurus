@@ -5,7 +5,7 @@ from yt_commands import (authors, print_debug)
 from yt.common import wait
 
 import time
-from flaky import flaky
+import pytest
 
 
 class TestQueryLog(ClickHouseTestBase):
@@ -30,7 +30,7 @@ class TestQueryLog(ClickHouseTestBase):
             assert len(clique.make_query("select * from system.query_log")) == 0
 
     @authors("max42")
-    @flaky(max_runs=5)
+    @pytest.skip('Temporary broken because of CH bug: https://st.yandex-team.ru/CHYT-633')
     def test_query_log_eviction(self):
         period = 3
 
