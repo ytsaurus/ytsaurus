@@ -1,6 +1,6 @@
 DEPENDS(
     mapreduce/yt/python/recipe_multi_cluster
-    yt/packages/19_4
+    yt/packages/latest
 )
 
 DEFAULT(YT_REPLICAS primary)

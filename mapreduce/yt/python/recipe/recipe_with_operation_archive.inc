@@ -1,6 +1,6 @@
 DEPENDS(
     mapreduce/yt/python/recipe
-    yt/packages/19_4
+    yt/packages/latest
     contrib/tools/python
 )
 

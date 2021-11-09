@@ -1,6 +1,6 @@
 DEPENDS(
     mapreduce/yt/tests/native/remote_copy/recipe
-    yt/packages/19_4
+    yt/packages/latest
     contrib/tools/python
 )
 

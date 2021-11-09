@@ -3,7 +3,7 @@ PEERDIR(
 )
 
 DEPENDS(
-    yt/packages/19_4
+    yt/packages/latest
 )
 
 REQUIREMENTS(
