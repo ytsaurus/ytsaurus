@@ -3,6 +3,7 @@
 #include "public.h"
 #include "chunk_replica.h"
 #include "medium.h"
+#include "consistent_chunk_placement.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -89,10 +90,12 @@ class TChunkPlacement
 public:
     TChunkPlacement(
         TChunkManagerConfigPtr config,
+        const TConsistentChunkPlacement* consistentPlacement,
         NCellMaster::TBootstrap* bootstrap);
 
-    void OnNodeUnregistered(TNode* node);
+    void OnNodeRegistered(TNode* node);
     void OnNodeUpdated(TNode* node);
+    void OnNodeUnregistered(TNode* node);
     void OnNodeDisposed(TNode* node);
 
     TNodeList AllocateWriteTargets(
@@ -108,10 +111,13 @@ public:
     TNodeList AllocateWriteTargets(
         TMedium* medium,
         TChunk* chunk,
+        int replicaIndex,
         int desiredCount,
         int minCount,
         std::optional<int> replicationFactorOverride,
         NChunkClient::ESessionType sessionType);
+
+    TNodeList GetConsistentPlacementWriteTargets(const TChunk* chunk, int mediumIndex);
 
     TNode* GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes);
 
@@ -140,6 +146,7 @@ private:
     class TTargetCollector;
 
     const TChunkManagerConfigPtr Config_;
+    const TConsistentChunkPlacement* const ConsistentPlacement_;
     NCellMaster::TBootstrap* const Bootstrap_;
 
     TReusableMergeIterator<TFillFactorToNodeIterator, TFillFactorToNodeMapItemComparator> FillFactorToNodeIterator_;
@@ -153,7 +160,8 @@ private:
     //! Nodes listed here must pass #IsValidWriteTargetToInsert test.
     TLoadFactorToNodeMaps MediumToLoadFactorToNode_;
 
-    void OnNodeRegistered(TNode* node);
+    void RegisterNode(TNode* node);
+    void UnregisterNode(TNode* node);
 
     void InsertToFillFactorMaps(TNode* node);
     void RemoveFromFillFactorMaps(TNode* node);
@@ -164,6 +172,7 @@ private:
     TNodeList GetWriteTargets(
         TMedium* medium,
         TChunk* chunk,
+        int replicaIndex,
         int desiredCount,
         int minCount,
         bool forceRackAwareness,
@@ -171,10 +180,23 @@ private:
         const TNodeList* forbiddenNodes = nullptr,
         const std::optional<TString>& preferredHostName = std::nullopt);
 
+    std::optional<TNodeList> FindConsistentPlacementWriteTargets(
+        TMedium* medium,
+        TChunk* chunk,
+        int replicaIndex,
+        int desiredCount,
+        int minCount,
+        const TNodeList* forbiddenNodes,
+        TNode* preferredNode);
+
     TNode* GetBalancingTarget(
         TMedium* medium,
         TChunk* chunk,
         double maxFillFactor);
+
+    TNode* FindPreferredNode(
+        const std::optional<TString>& preferredHostName,
+        TMedium* medium);
 
     bool IsValidWriteTargetToInsert(TMedium* medium, TNode* node);
     bool IsValidWriteTargetToAllocate(TNode* node, TTargetCollector* collector, bool enableRackAwareness);
@@ -198,7 +220,8 @@ private:
     void PrepareFillFactorIterator(const TMedium* medium);
     void PrepareLoadFactorIterator(const TMedium* medium);
 
-    const TDynamicChunkManagerConfigPtr& GetDynamicConfig();
+    const TDynamicChunkManagerConfigPtr& GetDynamicConfig() const;
+    bool IsConsistentChunkPlacementEnabled() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkPlacement)

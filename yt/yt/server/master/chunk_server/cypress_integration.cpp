@@ -62,6 +62,8 @@ private:
                 return ToObjectIds(chunkManager->QuorumMissingChunks(), sizeLimit);
             case EObjectType::UnsafelyPlacedChunkMap:
                 return ToObjectIds(chunkManager->UnsafelyPlacedChunks(), sizeLimit);
+            case EObjectType::InconsistentlyPlacedChunkMap:
+                return ToObjectIds(chunkManager->InconsistentlyPlacedChunks(), sizeLimit);
             case EObjectType::ForeignChunkMap:
                 return ToObjectIds(chunkManager->ForeignChunks(), sizeLimit);
             case EObjectType::OldestPartMissingChunkMap:
@@ -96,6 +98,8 @@ private:
                 return chunkManager->QuorumMissingChunks().contains(chunk);
             case EObjectType::UnsafelyPlacedChunkMap:
                 return chunkManager->UnsafelyPlacedChunks().contains(chunk);
+            case EObjectType::InconsistentlyPlacedChunkMap:
+                return chunkManager->InconsistentlyPlacedChunks().contains(chunk);
             case EObjectType::ForeignChunkMap:
                 return chunkManager->ForeignChunks().contains(chunk);
             case EObjectType::OldestPartMissingChunkMap:
@@ -131,6 +135,8 @@ private:
                 return chunkManager->QuorumMissingChunks().size();
             case EObjectType::UnsafelyPlacedChunkMap:
                 return chunkManager->UnsafelyPlacedChunks().size();
+            case EObjectType::InconsistentlyPlacedChunkMap:
+                return chunkManager->InconsistentlyPlacedChunks().size();
             case EObjectType::ForeignChunkMap:
                 return chunkManager->ForeignChunks().size();
             case EObjectType::OldestPartMissingChunkMap:
@@ -206,6 +212,8 @@ private:
                 return "//sys/quorum_missing_chunks";
             case EObjectType::UnsafelyPlacedChunkMap:
                 return "//sys/unsafely_placed_chunks";
+            case EObjectType::InconsistentlyPlacedChunkMap:
+                return "//sys/inconsistently_placed_chunks";
             case EObjectType::ForeignChunkMap:
                 return "//sys/foreign_chunks";
             default:

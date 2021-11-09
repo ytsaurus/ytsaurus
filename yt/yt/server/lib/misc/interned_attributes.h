@@ -4,6 +4,9 @@
 
 #include <yt/yt/core/ytree/interned_attributes.h>
 
+// NB: interned attributes are serialized and saved as strings.
+// Do not change those snake-case identifiers lightly!
+
 #define FOR_EACH_INTERNED_ATTRIBUTE(XX) \
     XX(Abc, abc) \
     XX(AccessCounter, access_counter) \
@@ -87,6 +90,8 @@
     XX(ConfigPreset, config_preset) \
     XX(ConfigVersion, config_version) \
     XX(Confirmed, confirmed) \
+    XX(ConsistentReplicaPlacementHash, consistent_replica_placement_hash) \
+    XX(ConsistentReplicaPlacementTokenCount, consistent_replica_placement_token_count) \
     XX(ContentRevision, content_revision) \
     XX(CountByHealth, count_by_health) \
     XX(CreateEphemeralSubpools, create_ephemeral_subpools) \

@@ -2508,3 +2508,31 @@ def get_tablet_nodes():
 
 def get_chaos_nodes():
     return get_nodes_with_flavor("chaos")
+
+
+def is_active_primary_master_leader(rpc_address):
+    try:
+        return get("//sys/primary_masters/{}/orchid/monitoring/hydra/active_leader".format(rpc_address))
+    except YtError:
+        return False
+
+
+def is_active_primary_master_follower(rpc_address):
+    try:
+        return get("//sys/primary_masters/{}/orchid/monitoring/hydra/active_follower".format(rpc_address))
+    except YtError:
+        return False
+
+
+def get_active_primary_master_leader_address(env_setup):
+    while True:
+        for rpc_address in env_setup.Env.configs["master"][0]["primary_master"]["addresses"]:
+            if is_active_primary_master_leader(rpc_address):
+                return rpc_address
+
+
+def get_active_primary_master_follower_address(env_setup):
+    while True:
+        for rpc_address in env_setup.Env.configs["master"][0]["primary_master"]["addresses"]:
+            if is_active_primary_master_follower(rpc_address):
+                return rpc_address

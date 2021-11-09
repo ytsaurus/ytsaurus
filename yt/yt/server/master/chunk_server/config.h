@@ -385,6 +385,48 @@ DEFINE_REFCOUNTED_TYPE(TDynamicChunkManagerTestingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicConsistentReplicaPlacementConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool Enable;
+
+    int TokenDistributionBucketCount;
+
+    // NB: nullability is for testing purposes.
+    std::optional<TDuration> TokenRedistributionPeriod;
+
+    int TokensPerNode;
+
+    // Keep this larger than TokensPerNode * TokenDistributionBucketCount * maximum replication factor.
+    int ReplicasPerChunk;
+
+    TDynamicConsistentReplicaPlacementConfig()
+    {
+        RegisterParameter("enable", Enable)
+            .Default(false);
+
+        RegisterParameter("token_distribution_bucket_count", TokenDistributionBucketCount)
+            .Default(5)
+            .GreaterThanOrEqual(1);
+
+        RegisterParameter("token_redistribution_period", TokenRedistributionPeriod)
+            .Default(TDuration::Seconds(30));
+
+        RegisterParameter("tokens_per_node", TokensPerNode)
+            .Default(1)
+            .GreaterThanOrEqual(1);
+
+        RegisterParameter("replicas_per_chunk", ReplicasPerChunk)
+            .Default(DefaultConsistentReplicaPlacementReplicasPerChunk)
+            .GreaterThanOrEqual(1);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicConsistentReplicaPlacementConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDynamicChunkManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -523,6 +565,8 @@ public:
     TDynamicChunkMergerConfigPtr ChunkMerger;
 
     TDynamicAllyReplicaManagerConfigPtr AllyReplicaManager;
+
+    TDynamicConsistentReplicaPlacementConfigPtr ConsistentReplicaPlacement;
 
     std::optional<int> LocateChunksCachedReplicaCountLimit;
 
@@ -676,6 +720,9 @@ public:
             .DefaultNew();
 
         RegisterParameter("ally_replica_manager", AllyReplicaManager)
+            .DefaultNew();
+
+        RegisterParameter("consistent_replica_placement", ConsistentReplicaPlacement)
             .DefaultNew();
 
         RegisterParameter("locate_chunks_cached_replica_count_limit", LocateChunksCachedReplicaCountLimit)

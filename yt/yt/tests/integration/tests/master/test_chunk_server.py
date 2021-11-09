@@ -2,10 +2,11 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE
 
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, exists,
-    start_transaction, insert_rows,
-    select_rows, read_table, write_table, write_journal, merge, sync_create_cells, sync_mount_table, sync_unmount_table, sync_control_chunk_replicator, get_singular_chunk_id,
-    multicell_sleep, update_nodes_dynamic_config,
-    set_node_decommissioned, execute_command)
+    start_transaction, insert_rows, build_snapshot, gc_collect,
+    read_table, write_table, write_journal, merge, sync_create_cells, sync_mount_table, sync_unmount_table, sync_control_chunk_replicator, get_singular_chunk_id,
+    multicell_sleep, update_nodes_dynamic_config, switch_leader,
+    set_node_decommissioned, execute_command, is_active_primary_master_leader, is_active_primary_master_follower,
+    get_active_primary_master_leader_address, get_active_primary_master_follower_address)
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -399,44 +400,290 @@ class TestMultipleErasurePartsPerNode(YTEnvSetup):
 ##################################################################
 
 
-class TestConsistentChunkReplicaPlacement(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 5
+class TestConsistentChunkReplicaPlacementBase(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 20
     USE_DYNAMIC_TABLES = True
 
-    @authors("babenko")
-    def test_simple(self):
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "consistent_replica_placement": {
+                "enable": True,
+            },
+        },
+    }
+
+    def _mount_insert_unmount(self, table_path, row):
+        sync_mount_table(table_path)
+        insert_rows(table_path, [row])
+        sync_unmount_table(table_path)
+
+    def _create_table_with_two_consistently_placed_chunks(self, table_path, attributes={}):
         schema = [
             {"name": "key", "type": "string", "sort_order": "ascending"},
             {"name": "value", "type": "string"}
         ]
 
+        attributes["dynamic"] = True
+        attributes["enable_consistent_chunk_replica_placement"] = True
+        attributes["schema"] = schema
+
         sync_create_cells(1)
-        create(
-            "table",
-            "//tmp/t",
-            attributes={
-                "dynamic": True,
-                "enable_consistent_chunk_replica_placement": True,
-                "schema": schema,
-            }
-        )
+        create("table", table_path, attributes=attributes)
 
-        sync_mount_table("//tmp/t")
         row1 = {"key": "k1", "value": "v1"}
-        insert_rows("//tmp/t", [row1])
-        assert select_rows("* from [//tmp/t]") == [row1]
-        sync_unmount_table("//tmp/t")
+        self._mount_insert_unmount(table_path, row1)
 
-        sync_mount_table("//tmp/t")
         row2 = {"key": "k2", "value": "v2"}
-        insert_rows("//tmp/t", [row2])
-        assert select_rows("* from [//tmp/t]") == [row1, row2]
-        sync_unmount_table("//tmp/t")
+        self._mount_insert_unmount(table_path, row2)
 
-        chunk_ids = get("//tmp/t/@chunk_ids")
+        chunk_ids = get("{}/@chunk_ids".format(table_path))
         assert len(chunk_ids) == 2
 
-        # TODO(shakurov): check some placement constraints
-        get("#{}/@stored_replicas".format(chunk_ids[0]))
-        get("#{}/@stored_replicas".format(chunk_ids[1]))
+        assert get("#{}/@consistent_replica_placement_hash".format(chunk_ids[0])) == \
+            get("#{}/@consistent_replica_placement_hash".format(chunk_ids[1]))
+
+    def _disable_token_redistribution(self):
+        remove("//sys/@config/chunk_manager/consistent_replica_placement/token_redistribution_period")
+
+    def _are_chunk_replicas_collocated(self, *stored_replicas):
+        def by_index_then_node_address(replica):
+            # NB: -1 is for regular chunks.
+            # NB: media are ignored.
+            return (replica.attributes.get("index", -1), str(replica))
+
+        stored_replicas = [sorted(replicas, key=by_index_then_node_address) for replicas in stored_replicas]
+
+        for replicas in stored_replicas[1:]:
+            if replicas != stored_replicas[0]:
+                return False
+
+        return True
+
+    def _are_chunks_collocated(self, chunk_ids):
+        stored_replicas = [get("#{}/@stored_replicas".format(chunk_id)) for chunk_id in chunk_ids]
+        return self._are_chunk_replicas_collocated(stored_replicas)
+
+
+##################################################################
+
+
+class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBase):
+    @authors("shakurov")
+    def test_token_count_attribute(self):
+        set("//sys/@config/chunk_manager/consistent_replica_placement", {
+            "token_distribution_bucket_count": 10,
+            "tokens_per_node": 7,
+            "token_redistribution_period": 500
+        })
+        sleep(1.5)
+
+        for node in ls("//sys/cluster_nodes", attributes=["consistent_replica_placement_token_count"]):
+            token_count = node.attributes["consistent_replica_placement_token_count"]["default"]
+            assert token_count >= 7
+            assert token_count <= 70
+
+    @authors("shakurov")
+    def test_regular(self):
+        self._create_table_with_two_consistently_placed_chunks("//tmp/t1")
+        chunk_ids = get("//tmp/t1/@chunk_ids")
+        wait(lambda: len(get("#{}/@stored_replicas".format(chunk_ids[0]))) == 3)
+        wait(lambda: self._are_chunks_collocated(chunk_ids))
+
+    @authors("shakurov")
+    def test_erasure(self):
+        self._create_table_with_two_consistently_placed_chunks("//tmp/t2", {"erasure_codec": "reed_solomon_3_3"})
+        chunk_ids = get("//tmp/t2/@chunk_ids")
+        wait(lambda: len(get("#{}/@stored_replicas".format(chunk_ids[0]))) == 6)
+        wait(lambda: self._are_chunks_collocated(chunk_ids))
+
+    @authors("shakurov")
+    def test_change_regular_to_erasure(self):
+        self._create_table_with_two_consistently_placed_chunks("//tmp/t3")
+        chunk_ids = get("//tmp/t3/@chunk_ids")
+        wait(lambda: self._are_chunks_collocated(chunk_ids))
+
+        set("//tmp/t3/@erasure_codec", "reed_solomon_3_3")
+
+        row3 = {"key": "k1", "value": "v1"}
+        self._mount_insert_unmount("//tmp/t3", row3)
+        row4 = {"key": "k2", "value": "v2"}
+        self._mount_insert_unmount("//tmp/t3", row4)
+
+        def are_chunks_erasure():
+            chunk_ids = get("//tmp/t3/@chunk_ids")
+            for chunk_id in chunk_ids:
+                if get("#{}/@type".format(chunk_id)) != "erasure_chunk":
+                    return False
+            return True
+
+        wait(are_chunks_erasure)
+        chunk_ids = get("//tmp/t3/@chunk_ids")
+        assert self._are_chunks_collocated(chunk_ids)
+
+    @authors("shakurov")
+    def test_chunk_destruction(self):
+        self._create_table_with_two_consistently_placed_chunks("//tmp/t4")
+        chunk_ids = get("//tmp/t4/@chunk_ids")
+        wait(lambda: self._are_chunks_collocated(chunk_ids))
+
+        remove("//tmp/t4")
+
+        # Must not crash here.
+        gc_collect()
+
+        self._create_table_with_two_consistently_placed_chunks("//tmp/t4")
+        chunk_ids = get("//tmp/t4/@chunk_ids")
+        wait(lambda: self._are_chunks_collocated(chunk_ids))
+
+    @authors("shakurov")
+    @pytest.mark.parametrize("trouble_mode", ["banned", "decommissioned", "disable_write_sessions"])
+    @pytest.mark.parametrize("erasure_codec", ["none", "reed_solomon_3_3"])
+    def test_node_trouble(self, trouble_mode, erasure_codec):
+        self._create_table_with_two_consistently_placed_chunks("//tmp/t5", {"erasure_codec": erasure_codec})
+        chunk_ids = get("//tmp/t5/@chunk_ids")
+
+        troubled_node = get("#{}/@stored_replicas".format(chunk_ids[0]))[1]
+        set("//sys/cluster_nodes/" + troubled_node + "/@" + trouble_mode, True)
+
+        def are_chunks_collocated():
+            chunk0_replicas = get("#{}/@stored_replicas".format(chunk_ids[0]))
+            if troubled_node in chunk0_replicas:
+                return False  # Wait for banning/decommissioning to take effect.
+            chunk1_replicas = get("#{}/@stored_replicas".format(chunk_ids[1]))
+            if troubled_node in chunk1_replicas:
+                return False  # Wait for banning/decommissioning to take effect.
+
+            return self._are_chunk_replicas_collocated(chunk0_replicas, chunk1_replicas)
+
+        # Decommissioning may take some time.
+        wait(are_chunks_collocated, iter=120, sleep_backoff=1.0)
+
+    @authors("shakurov")
+    def test_rf_change(self):
+        self._create_table_with_two_consistently_placed_chunks("//tmp/t6")
+        chunk_ids = get("//tmp/t6/@chunk_ids")
+        wait(lambda: self._are_chunks_collocated(chunk_ids))
+        wait(lambda: self._are_chunks_collocated(chunk_ids))
+
+        set("//tmp/t6/@replication_factor", 7)
+        wait(lambda: len(get("#{}/@stored_replicas".format(chunk_ids[0]))) == 7)
+        wait(lambda: self._are_chunks_collocated(chunk_ids))
+
+        set("//tmp/t6/@replication_factor", 2)
+        wait(lambda: len(get("#{}/@stored_replicas".format(chunk_ids[0]))) == 2)
+        wait(lambda: self._are_chunks_collocated(chunk_ids))
+
+    @authors("shakurov")
+    def test_rf_change_consistency(self):
+        self._disable_token_redistribution()
+
+        self._create_table_with_two_consistently_placed_chunks("//tmp/t7")
+        chunk_ids = get("//tmp/t7/@chunk_ids")
+        wait(lambda: self._are_chunks_collocated(chunk_ids))
+
+        replicas_before = get("#{}/@stored_replicas".format(chunk_ids[0]))
+
+        set("//tmp/t7/@replication_factor", 7)
+        wait(lambda: len(get("#{}/@stored_replicas".format(chunk_ids[0]))) == 7)
+        wait(lambda: self._are_chunks_collocated(chunk_ids))
+
+        set("//tmp/t7/@replication_factor", 3)
+        wait(lambda: len(get("#{}/@stored_replicas".format(chunk_ids[0]))) == 3)
+        wait(lambda: self._are_chunks_collocated(chunk_ids))
+
+        replicas_after = get("#{}/@stored_replicas".format(chunk_ids[0]))
+
+        assert self._are_chunk_replicas_collocated(replicas_before, replicas_after)
+
+    @authors("shakurov")
+    def test_disable_enable(self):
+        set("//sys/@config/chunk_manager/consistent_replica_placement/enable", False)
+        assert len(ls("//sys/inconsistently_placed_chunks")) == 0
+
+        self._create_table_with_two_consistently_placed_chunks("//tmp/t8")
+        chunk_ids = get("//tmp/t8/@chunk_ids")
+
+        set("//sys/@config/chunk_manager/consistent_replica_placement/enable", True)
+
+        wait(lambda: self._are_chunks_collocated(chunk_ids))
+
+    @authors("shakurov")
+    def test_enable_disable(self):
+        set("//sys/@config/chunk_manager/consistent_replica_placement/enable", True)
+
+        self._create_table_with_two_consistently_placed_chunks("//tmp/t9")
+        chunk_ids = get("//tmp/t9/@chunk_ids")
+        wait(lambda: self._are_chunks_collocated(chunk_ids))
+
+        set("//sys/@config/chunk_manager/consistent_replica_placement/enable", False)
+        assert len(ls("//sys/inconsistently_placed_chunks")) == 0
+
+    @authors("shakurov")
+    def test_replica_count_change(self):
+
+        self._create_table_with_two_consistently_placed_chunks("//tmp/t10")
+        regular_chunk_ids = get("//tmp/t10/@chunk_ids")
+        wait(lambda: len(get("#{}/@stored_replicas".format(regular_chunk_ids[0]))) == 3)
+        wait(lambda: self._are_chunks_collocated(regular_chunk_ids))
+
+        self._create_table_with_two_consistently_placed_chunks("//tmp/t11", {"erasure_codec": "reed_solomon_3_3"})
+        erasure_chunk_ids = get("//tmp/t11/@chunk_ids")
+        wait(lambda: len(get("#{}/@stored_replicas".format(erasure_chunk_ids[0]))) == 6)
+        wait(lambda: self._are_chunks_collocated(erasure_chunk_ids))
+
+        set("//sys/@config/chunk_manager/consistent_replica_placement/replicas_per_chunk", 50)
+        wait(lambda: self._are_chunks_collocated(regular_chunk_ids))
+        wait(lambda: self._are_chunks_collocated(erasure_chunk_ids))
+
+
+##################################################################
+
+
+class TestConsistentChunkReplicaPlacementSnapshotLoading(TestConsistentChunkReplicaPlacementBase):
+    @authors("shakurov")
+    def test_after_snapshot_loading_consistency(self):
+        self._disable_token_redistribution()
+
+        self._create_table_with_two_consistently_placed_chunks("//tmp/t1")
+        chunk_ids = get("//tmp/t1/@chunk_ids")
+        wait(lambda: self._are_chunks_collocated(chunk_ids))
+
+        replicas_before = get("#{}/@stored_replicas".format(chunk_ids[0]))
+
+        build_snapshot(cell_id=None)
+
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass
+
+        wait(lambda: self._are_chunks_collocated(chunk_ids))
+        replicas_after = get("#{}/@stored_replicas".format(chunk_ids[0]))
+
+        assert self._are_chunk_replicas_collocated(replicas_before, replicas_after)
+
+
+##################################################################
+
+
+class TestConsistentChunkReplicaPlacementLeaderSwitch(TestConsistentChunkReplicaPlacementBase):
+    @authors("shakurov")
+    def test_leader_switch_consistency(self):
+        self._disable_token_redistribution()
+
+        self._create_table_with_two_consistently_placed_chunks("//tmp/t1")
+        chunk_ids = get("//tmp/t1/@chunk_ids")
+        wait(lambda: self._are_chunks_collocated(chunk_ids))
+
+        replicas_before = get("#{}/@stored_replicas".format(chunk_ids[0]))
+
+        old_leader_rpc_address = get_active_primary_master_leader_address(self)
+        new_leader_rpc_address = get_active_primary_master_follower_address(self)
+        cell_id = get("//sys/@cell_id")
+        switch_leader(cell_id, new_leader_rpc_address)
+        wait(lambda: is_active_primary_master_leader(new_leader_rpc_address))
+        wait(lambda: is_active_primary_master_follower(old_leader_rpc_address))
+
+        wait(lambda: self._are_chunks_collocated(chunk_ids))
+        replicas_after = get("#{}/@stored_replicas".format(chunk_ids[0]))
+
+        assert self._are_chunk_replicas_collocated(replicas_before, replicas_after)

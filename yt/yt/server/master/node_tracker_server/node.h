@@ -68,7 +68,9 @@ public:
     using TMediumMap = NChunkClient::TMediumMap<T>;
     using TMediumIndexSet = std::bitset<NChunkClient::MaxMediumCount>;
 
-    DEFINE_BYREF_RW_PROPERTY(TMediumMap<double>, IOWeights);
+    DEFINE_BYREF_RO_PROPERTY(TMediumMap<double>, IOWeights);
+    DEFINE_BYREF_RO_PROPERTY(TMediumMap<i64>, TotalSpace);
+    DEFINE_BYREF_RW_PROPERTY(TMediumMap<int>, ConsistentReplicaPlacementTokenCount);
 
     // Transient property.
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, LastGossipState, ENodeState::Unknown);
@@ -172,6 +174,8 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(bool, DisableWriteSessionsReportedByNode);
     void SetDisableWriteSessionsReportedByNode(bool value);
+
+    bool IsValidWriteTarget() const;
 
     // NB: Randomize replica hashing to avoid collisions during balancing.
     using TMediumReplicaSet = THashSet<TChunkPtrWithIndexes>;
@@ -414,7 +418,7 @@ private:
 
     void ComputeAggregatedState();
     void ComputeDefaultAddress();
-    void ComputeFillFactors();
+    void ComputeFillFactorsAndTotalSpace();
     void ComputeSessionCount();
 
     bool DoAddReplica(TChunkPtrWithIndexes replica);

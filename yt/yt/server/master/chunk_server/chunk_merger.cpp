@@ -1115,6 +1115,7 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
     auto targetNodes = chunkManager->AllocateWriteTargets(
         chunkManager->GetMediumByIndexOrThrow(chunkIdWithIndexes.MediumIndex),
         outputChunk,
+        GenericChunkReplicaIndex,
         targetCount,
         targetCount,
         /*replicationFactorOverride*/ std::nullopt);

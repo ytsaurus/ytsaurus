@@ -49,6 +49,8 @@ using NChunkClient::MaxMediumPriority;
 using NChunkClient::TDataCenterName;
 using NChunkClient::TMediumMap;
 using NChunkClient::TMediumIntMap;
+using NChunkClient::TConsistentReplicaPlacementHash;
+using NChunkClient::NullConsistentReplicaPlacementHash;
 
 using NJobTrackerClient::TJobId;
 using NJobTrackerClient::EJobType;
@@ -123,6 +125,7 @@ DECLARE_REFCOUNTED_CLASS(TChunkManager)
 DECLARE_REFCOUNTED_CLASS(TChunkMerger)
 DECLARE_REFCOUNTED_CLASS(TChunkReplicator)
 DECLARE_REFCOUNTED_CLASS(TChunkPlacement)
+DECLARE_REFCOUNTED_CLASS(TConsistentChunkPlacement)
 
 DECLARE_REFCOUNTED_CLASS(TChunkManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicDataNodeTrackerConfig)
@@ -132,6 +135,7 @@ DECLARE_REFCOUNTED_CLASS(TDynamicChunkManagerTestingConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicAllyReplicaManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicConsistentReplicaPlacementConfig)
 DECLARE_REFCOUNTED_CLASS(TMediumConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IChunkSealer)
@@ -152,6 +156,8 @@ constexpr int TypicalChunkParentCount = 2;
  */
 constexpr int ReplicationPriorityCount = 3;
 
+constexpr int DefaultConsistentReplicaPlacementReplicasPerChunk = 100;
+
 DEFINE_BIT_ENUM(EChunkStatus,
     ((None)                    (0x0000))
     ((Underreplicated)         (0x0001))
@@ -164,6 +170,7 @@ DEFINE_BIT_ENUM(EChunkStatus,
     ((DataDecommissioned)      (0x0200))
     ((ParityDecommissioned)    (0x0400))
     ((SealedMissing)           (0x0800)) // Sealed chunk without sealed replicas (on certain medium).
+    ((InconsistentlyPlaced)    (0x1000)) // For chunks with non-null consistent placement hash.
 );
 
 DEFINE_BIT_ENUM(ECrossMediumChunkStatus,

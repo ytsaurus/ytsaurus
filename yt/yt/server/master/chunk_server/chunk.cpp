@@ -159,6 +159,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
         TPodSerializer::Save(context, *ExportDataList_);
     }
     Save(context, EndorsementRequired_);
+    Save(context, ConsistentReplicaPlacementHash_);
 }
 
 void TChunk::Load(NCellMaster::TLoadContext& context)
@@ -222,6 +223,10 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::AllyReplicas) {
         Load(context, EndorsementRequired_);
+    }
+    // COMPAT(shakurov)
+    if (context.GetVersion() >= EMasterReign::CRP) {
+        Load(context, ConsistentReplicaPlacementHash_);
     }
 
     if (IsConfirmed()) {
@@ -534,6 +539,23 @@ void TChunk::Seal(const TChunkSealInfo& info)
     SetDiskSpace(info.uncompressed_data_size()); // an approximation
 }
 
+int TChunk::GetPhysicalReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry* registry) const
+{
+    auto mediumReplicationPolicy = GetAggregatedReplication(registry).Get(mediumIndex);
+    if (!mediumReplicationPolicy) {
+        return 0;
+    }
+
+    if (IsErasure()) {
+        auto* codec = NErasure::GetCodec(GetErasureCodec());
+        return mediumReplicationPolicy.GetDataPartsOnly()
+            ? codec->GetDataPartCount()
+            : codec->GetTotalPartCount();
+    } else {
+        return mediumReplicationPolicy.GetReplicationFactor();
+    }
+}
+
 int TChunk::GetMaxReplicasPerRack(
     int mediumIndex,
     std::optional<int> replicationFactorOverride,
@@ -650,6 +672,11 @@ EChunkType TChunk::GetChunkType() const
 EChunkFormat TChunk::GetChunkFormat() const
 {
     return ChunkMeta_->GetFormat();
+}
+
+bool TChunk::HasConsistentReplicaPlacementHash() const
+{
+    return ConsistentReplicaPlacementHash_ != NullConsistentReplicaPlacementHash;
 }
 
 void TChunk::OnMiscExtUpdated(const TMiscExt& miscExt)

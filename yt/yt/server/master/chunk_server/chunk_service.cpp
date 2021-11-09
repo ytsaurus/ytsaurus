@@ -365,9 +365,16 @@ private:
                     }
 
                     YT_LOG_DEBUG("Write targets allocated "
-                        "(SessionId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
+                        "(SessionId: %v%v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
                         "PreferredHostName: %v, ForbiddenAddresses: %v, Targets: %v)",
                         sessionId,
+                        MakeFormatterWrapper([&] (auto* builder) {
+                            if (chunk->HasConsistentReplicaPlacementHash()) {
+                                builder->AppendFormat(
+                                    ", ConsistentReplicaPlacementHash: %llx",
+                                    chunk->GetConsistentReplicaPlacementHash());
+                            }
+                        }),
                         desiredTargetCount,
                         minTargetCount,
                         replicationFactorOverride,

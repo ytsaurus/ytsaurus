@@ -74,6 +74,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, QuorumMissingChunks);
     // Rack-wise unsafely placed chunks.
     DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, UnsafelyPlacedChunks);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, InconsistentlyPlacedChunks);
 
     void OnChunkDestroyed(TChunk* chunk);
     void OnReplicaRemoved(
@@ -148,12 +149,6 @@ private:
     struct TChunkStatistics
     {
         TMediumMap<TPerMediumChunkStatistics> PerMediumStatistics;
-        // Aggregate status across all media. The only applicable statuses are:
-        //   Lost - the chunk is lost on all media;
-        //   DataMissing - the chunk is missing data parts on all media;
-        //   ParityMissing - the chunk is missing parity parts on all media;
-        //   Precarious - the chunk has no replicas on a non-transient media;
-        //   MediumWiseLost - the chunk is lost on some media, but not on others.
         ECrossMediumChunkStatus Status = ECrossMediumChunkStatus::None;
     };
 
@@ -247,7 +242,8 @@ private:
         const TNodePtrWithIndexesList& decommissionedReplicas,
         bool hasSealedReplica,
         bool totallySealed,
-        bool hasUnsafelyPlacedReplica);
+        bool hasUnsafelyPlacedReplica,
+        bool hasInconsistentlyPlacedReplica);
     void ComputeRegularChunkStatisticsCrossMedia(
         TChunkStatistics& result,
         const TChunk* chunk,
@@ -268,6 +264,7 @@ private:
         TReplicationPolicy replicationPolicy,
         std::array<TNodePtrWithIndexesList, NChunkClient::ChunkReplicaIndexBound>& decommissionedReplicas,
         int unsafelyPlacedSealedReplicaIndex,
+        int inconsistentlyPlacedSealedReplicaIndex,
         NErasure::TPartIndexSet& erasedIndexes,
         bool totallySealed);
     void ComputeErasureChunkStatisticsCrossMedia(
@@ -330,8 +327,11 @@ private:
     std::array<TChunkRepairQueue, MaxMediumCount>& ChunkRepairQueues(EChunkRepairQueue queue);
     TDecayingMaxMinBalancer<int, double>& ChunkRepairQueueBalancer(EChunkRepairQueue queue);
 
-    const TDynamicChunkManagerConfigPtr& GetDynamicConfig();
-    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/ = nullptr);
+    TMediumMap<TNodeList> GetChunkConsistentPlacementNodes(const TChunk* chunk);
+
+    const TDynamicChunkManagerConfigPtr& GetDynamicConfig() const;
+    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/);
+    bool IsConsistentChunkPlacementEnabled() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReplicator)
