@@ -105,7 +105,8 @@ THashMap<TString, TString> MakeWriteIOTags(TString method, const ISessionPtr& se
         {"location_id@", ToString(location->GetId())},
         {"medium@", location->GetMediumName()},
         {"disk_family@", location->GetDiskFamily()},
-        {"user@", context->GetAuthenticationIdentity().User}
+        {"user@", context->GetAuthenticationIdentity().User},
+        {"direction@", "write"}
     };
 }
 
@@ -120,7 +121,8 @@ THashMap<TString, TString> MakeReadIOTags(
         {"location_id@", ToString(location->GetId())},
         {"medium@", location->GetMediumName()},
         {"disk_family@", location->GetDiskFamily()},
-        {"user@", context->GetAuthenticationIdentity().User}
+        {"user@", context->GetAuthenticationIdentity().User},
+        {"direction@", "read"}
     };
     if (readSessionId) {
         result["read_session_id"] = ToString(readSessionId);
