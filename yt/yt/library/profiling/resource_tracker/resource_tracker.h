@@ -10,6 +10,19 @@ namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TCgroupTracker)
+
+class TCgroupTracker
+    : public NProfiling::ISensorProducer
+{
+public:
+    void CollectSensors(ISensorWriter* writer) override;
+
+private:
+    std::optional<TCgroupCpuStat> FirstCgroupStat_;
+    bool CgroupErrorLogged_ = false;
+};
+
 DECLARE_REFCOUNTED_CLASS(TResourceTracker)
 
 class TResourceTracker
@@ -32,9 +45,6 @@ private:
     std::atomic<double> LastUserCpu_{0.0};
     std::atomic<double> LastSystemCpu_{0.0};
     std::atomic<double> LastCpuWait_{0.0};
-
-    std::optional<TCgroupCpuStat> FirstCgroupStat_;
-    bool CgroupErrorLogged_ = false;
 
     struct TTimings
     {
@@ -62,6 +72,8 @@ private:
 
     TThreadMap TidToInfo_;
 
+    TCgroupTrackerPtr CgroupTracker_;
+
     void EnqueueUsage();
 
     void EnqueueThreadStats();
@@ -78,8 +90,6 @@ private:
     void CollectSensorsThreadCounts(
         ISensorWriter* writer,
         const TThreadMap& tidToInfo) const;
-
-    void CollectSensorsCgroup(ISensorWriter* writer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
