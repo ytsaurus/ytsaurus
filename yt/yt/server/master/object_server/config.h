@@ -146,7 +146,7 @@ public:
             .DefaultNew();
 
         RegisterParameter("enable_local_read_executor", EnableLocalReadExecutor)
-            .Default(true);
+            .Default(false);
     }
 };
 

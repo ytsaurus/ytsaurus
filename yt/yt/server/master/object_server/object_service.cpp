@@ -190,6 +190,8 @@ public:
 
         const auto& epochContext = Bootstrap_->GetHydraFacade()->GetEpochContext();
         LocalReadExecutor_->Initialize(BIND([epochContext = epochContext] { NObjectServer::SetupEpochContext(epochContext); }));
+
+        EnableLocalReadExecutor_ = Config_->EnableLocalReadExecutor;
     }
 
 private:
@@ -1374,9 +1376,15 @@ private:
         YT_ASSERT(CurrentAutomatonSubrequestIndex_ <= TotalSubrequestCount_);
         YT_ASSERT(CurrentLocalReadSubrequestIndex_ <= TotalSubrequestCount_);
 
-        return
-            CurrentAutomatonSubrequestIndex_ == TotalSubrequestCount_ &&
-            CurrentLocalReadSubrequestIndex_ == TotalSubrequestCount_;
+        if (CurrentAutomatonSubrequestIndex_ < TotalSubrequestCount_) {
+            return false;
+        }
+
+        if (Owner_->Config_->EnableLocalReadExecutor && CurrentLocalReadSubrequestIndex_ < TotalSubrequestCount_) {
+            return false;
+        }
+
+        return true;
     }
 
     bool GuardedRunAutomatonFast()
@@ -2212,7 +2220,9 @@ void TObjectService::ProcessSessions()
 
         const auto& userName = session->GetUserName();
         AutomatonSessionScheduler_->Enqueue(session, userName);
-        LocalReadSessionScheduler_->Enqueue(session, userName);
+        if (Config_->EnableLocalReadExecutor) {
+            LocalReadSessionScheduler_->Enqueue(session, userName);
+        }
     });
 
     while (!AutomatonSessionScheduler_->Empty() && GetCpuInstant() < deadlineTime) {
