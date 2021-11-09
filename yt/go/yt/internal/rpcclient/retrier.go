@@ -82,7 +82,7 @@ func (r *Retrier) shouldRetry(isRead bool, err error) bool {
 		return true
 	}
 
-	if yterrors.ContainsErrorCode(err, yterrors.CodeOperationProgressOutdated) {
+	if yterrors.ContainsErrorCode(err, yterrors.CodeRetriableArchiveError) {
 		return true
 	}
 
