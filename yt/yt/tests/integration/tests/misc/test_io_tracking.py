@@ -104,6 +104,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
         raw_events, aggregate_events = self.wait_for_events(raw_count=1, aggregate_count=1, from_barrier=from_barrier)
 
         assert raw_events[0]["data_node_method@"] == "FinishChunk"
+        assert raw_events[0]["direction@"] == "write"
         for counter in ["byte_count", "io_count"]:
             assert raw_events[0][counter] > 0 and raw_events[0][counter] == aggregate_events[0][counter]
 
@@ -116,7 +117,9 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
         raw_events, aggregate_events = self.wait_for_events(raw_count=2, aggregate_count=1, from_barrier=from_barrier)
 
         assert raw_events[0]["data_node_method@"] == "FinishChunk"
+        assert raw_events[0]["direction@"] == "write"
         assert raw_events[1]["data_node_method@"] == "FinishChunk"
+        assert raw_events[1]["direction@"] == "write"
         for counter in ["byte_count", "io_count"]:
             assert raw_events[0][counter] > 0
             assert raw_events[1][counter] > 0
@@ -131,7 +134,9 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
         raw_events, _ = self.wait_for_events(raw_count=2, from_barrier=from_barrier)
 
         assert raw_events[0]["data_node_method@"] == "FinishChunk"
+        assert raw_events[0]["direction@"] == "write"
         assert raw_events[1]["data_node_method@"] == "GetBlockSet"
+        assert raw_events[1]["direction@"] == "read"
         for counter in ["byte_count", "io_count"]:
             assert raw_events[0][counter] > 0
             assert raw_events[1][counter] > 0
@@ -153,6 +158,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
             max_data_bound = 1.05 * (new_disk_space - old_disk_space)
 
             assert aggregate_events[0]["data_node_method@"] == "FinishChunk"
+            assert aggregate_events[0]["direction@"] == "write"
             assert min_data_bound <= aggregate_events[0]["byte_count"] <= max_data_bound
             assert aggregate_events[0]["io_count"] > 0
 
@@ -161,6 +167,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
             _, aggregate_events = self.wait_for_events(aggregate_count=1, from_barrier=from_barrier, filter=lambda x: x["user@"] == "root")
 
             assert aggregate_events[0]["data_node_method@"] == "GetBlockSet"
+            assert aggregate_events[0]["direction@"] == "read"
             assert min_data_bound <= aggregate_events[0]["byte_count"] <= max_data_bound
             assert aggregate_events[0]["io_count"] > 0
 
@@ -174,6 +181,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
         raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier)
 
         assert raw_events[0]["data_node_method@"] == "FlushBlocks"
+        assert raw_events[0]["direction@"] == "write"
         assert raw_events[0]["byte_count"] > 0
         assert raw_events[0]["io_count"] > 0
 
@@ -182,6 +190,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
         raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier)
 
         assert raw_events[0]["data_node_method@"] == "GetBlockRange"
+        assert raw_events[0]["direction@"] == "read"
         assert raw_events[0]["byte_count"] > 0
         assert raw_events[0]["io_count"] > 0
 
@@ -199,6 +208,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
             raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier, filter=lambda x: x["user@"] == "root")
 
             assert raw_events[0]["data_node_method@"] == "FlushBlocks"
+            assert raw_events[0]["direction@"] == "write"
             assert min_data_bound <= raw_events[0]["byte_count"] <= max_data_bound
             assert raw_events[0]["io_count"] > 0
 
@@ -208,6 +218,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
             raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier, filter=lambda x: x["user@"] == "root")
 
             assert raw_events[0]["data_node_method@"] == "GetBlockRange"
+            assert raw_events[0]["direction@"] == "read"
             assert min_data_bound <= raw_events[0]["byte_count"] <= max_data_bound
             assert raw_events[0]["io_count"] > 0
 
