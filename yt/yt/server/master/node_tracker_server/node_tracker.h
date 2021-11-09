@@ -82,6 +82,9 @@ public:
     //! Fired when node "decommissioned" flag changes.
     DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeDecommissionChanged);
 
+    //! Fired when node "disable_write_sessions" flag changes.
+    DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeDisableWriteSessionsChanged);
+
     //! Fired when node "disable_tablet_cells" flag changes.
     DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeDisableTabletCellsChanged);
 

@@ -208,7 +208,7 @@ void TNode::SetExecNodeStatistics(NNodeTrackerClient::NProto::TExecNodeStatistic
     ExecNodeStatistics_.Swap(&statistics);
 }
 
-void TNode::ComputeFillFactors()
+void TNode::ComputeFillFactorsAndTotalSpace()
 {
     TMediumMap<std::pair<i64, i64>> freeAndUsedSpace;
 
@@ -229,6 +229,7 @@ void TNode::ComputeFillFactors()
         FillFactors_[mediumIndex] = (totalSpace == 0)
             ? std::nullopt
             : std::make_optional(usedSpace / std::max<double>(1.0, totalSpace));
+        TotalSpace_[mediumIndex] = totalSpace;
     }
 }
 
@@ -438,6 +439,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, Flavors_);
     Save(context, ReportedHeartbeats_);
     Save(context, ReplicaEndorsements_);
+    Save(context, ConsistentReplicaPlacementTokenCount_);
 }
 
 void TNode::Load(NCellMaster::TLoadContext& context)
@@ -548,6 +550,10 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::AllyReplicas) {
         Load(context, ReplicaEndorsements_);
+    }
+
+    if (context.GetVersion() >= EMasterReign::CRP) {
+        Load(context, ConsistentReplicaPlacementTokenCount_);
     }
 
     ComputeDefaultAddress();
@@ -894,7 +900,7 @@ void TNode::SetDataNodeStatistics(
     const TChunkManagerPtr& chunkManager)
 {
     DataNodeStatistics_.Swap(&statistics);
-    ComputeFillFactors();
+    ComputeFillFactorsAndTotalSpace();
     ComputeSessionCount();
     RecomputeIOWeights(chunkManager);
 }
@@ -1046,6 +1052,15 @@ void TNode::SetDisableWriteSessionsSentToNode(bool value)
 void TNode::SetDisableWriteSessionsReportedByNode(bool value)
 {
     DisableWriteSessionsReportedByNode_ = value;
+}
+
+bool TNode::IsValidWriteTarget() const
+{
+    // NB: this may be called in mutations so be sure to only rely on persistent state.
+    return
+        ReportedDataNodeHeartbeat() &&
+        !GetDecommissioned() &&
+        !GetDisableWriteSessions();
 }
 
 void TNode::SetNodeTags(const std::vector<TString>& tags)

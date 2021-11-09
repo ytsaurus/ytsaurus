@@ -509,6 +509,11 @@ private:
                 EObjectType::UnsafelyPlacedChunkMap);
 
             ScheduleCreateNode(
+                "//sys/inconsistently_placed_chunks",
+                transactionId,
+                EObjectType::InconsistentlyPlacedChunkMap);
+
+            ScheduleCreateNode(
                 "//sys/foreign_chunks",
                 transactionId,
                 EObjectType::ForeignChunkMap);

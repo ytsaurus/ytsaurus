@@ -465,6 +465,9 @@ public:
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ChunkManager)
         , Config_(config)
         , ChunkTreeBalancer_(New<TChunkTreeBalancerCallbacks>(Bootstrap_))
+        , ConsistentChunkPlacement_(New<TConsistentChunkPlacement>(
+            Bootstrap_,
+            DefaultConsistentReplicaPlacementReplicasPerChunk))
         , ExpirationTracker_(New<TExpirationTracker>(Bootstrap_))
         , ChunkAutotomizer_(CreateChunkAutotomizer(Bootstrap_))
         , ChunkMerger_(New<TChunkMerger>(Bootstrap_))
@@ -531,7 +534,8 @@ public:
         nodeTracker->SubscribeNodeDisposed(BIND(&TImpl::OnNodeDisposed, MakeWeak(this)));
         nodeTracker->SubscribeNodeRackChanged(BIND(&TImpl::OnNodeRackChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeDataCenterChanged(BIND(&TImpl::OnNodeDataCenterChanged, MakeWeak(this)));
-        nodeTracker->SubscribeNodeDecommissionChanged(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeDecommissionChanged(BIND(&TImpl::OnNodeDecommissionChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeDisableWriteSessionsChanged(BIND(&TImpl::OnNodeDisableWriteSessionsChanged, MakeWeak(this)));
         nodeTracker->SubscribeDataCenterCreated(BIND(&TImpl::OnDataCenterCreated, MakeWeak(this)));
         nodeTracker->SubscribeDataCenterRenamed(BIND(&TImpl::OnDataCenterRenamed, MakeWeak(this)));
         nodeTracker->SubscribeDataCenterDestroyed(BIND(&TImpl::OnDataCenterDestroyed, MakeWeak(this)));
@@ -543,6 +547,7 @@ public:
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
         dataNodeTracker->SubscribeFullHeartbeat(BIND(&TImpl::OnFullDataNodeHeartbeat, MakeWeak(this)));
         dataNodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalDataNodeHeartbeat, MakeWeak(this)));
+        dataNodeTracker->SubscribeNodeConsistentReplicaPlacementTokensRedistributed(BIND(&TImpl::OnNodeConsistentReplicaPlacementTokensRedistributed, MakeWeak(this)));
 
         const auto& alertManager = Bootstrap_->GetAlertManager();
         alertManager->RegisterAlertSource(BIND(&TImpl::GetAlerts, MakeStrong(this)));
@@ -684,6 +689,7 @@ public:
     TNodeList AllocateWriteTargets(
         TMedium* medium,
         TChunk* chunk,
+        int replicaIndex,
         int desiredCount,
         int minCount,
         std::optional<int> replicationFactorOverride)
@@ -691,6 +697,7 @@ public:
         return ChunkPlacement_->AllocateWriteTargets(
             medium,
             chunk,
+            replicaIndex,
             desiredCount,
             minCount,
             replicationFactorOverride,
@@ -925,7 +932,7 @@ public:
         chunk->SetErasureCodec(erasureCodecId);
         chunk->SetMovable(movable);
         chunk->SetOverlayed(overlayed);
-        // TODO(shakurov): handle consistentReplicaPlacementHash
+        chunk->SetConsistentReplicaPlacementHash(consistentReplicaPlacementHash);
 
         YT_ASSERT(chunk->GetLocalRequisitionIndex() == (isErasure ? MigrationErasureChunkRequisitionIndex : MigrationChunkRequisitionIndex));
 
@@ -1358,19 +1365,23 @@ public:
             unexportChunk();
         } else {
             const auto isChunkDiskSizeFinal = chunk->IsDiskSizeFinal();
+
+            const auto& requisitionBefore = chunk->GetAggregatedRequisition(requisitionRegistry);
+            auto replicationBefore = requisitionBefore.ToReplication();
+
             if (isChunkDiskSizeFinal) {
-                const auto& requisitionBefore = chunk->GetAggregatedRequisition(requisitionRegistry);
                 UpdateResourceUsage(chunk, -1, &requisitionBefore);
-                // Don't use the old requisition after unexporting the chunk.
             }
 
             unexportChunk();
+
+            // NB: don't use requisitionBefore after unexporting (but replicationBefore is ok).
 
             if (isChunkDiskSizeFinal) {
                 UpdateResourceUsage(chunk, +1, nullptr);
             }
 
-            ScheduleChunkRefresh(chunk);
+            OnChunkUpdated(chunk, replicationBefore);
         }
     }
 
@@ -1627,6 +1638,7 @@ public:
     DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, PrecariousVitalChunks);
     DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, QuorumMissingChunks);
     DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, UnsafelyPlacedChunks);
+    DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, InconsistentlyPlacedChunks);
     DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, ForeignChunks);
 
 
@@ -1661,6 +1673,15 @@ public:
     {
         if (ChunkReplicator_) {
             ChunkReplicator_->ScheduleChunkRefresh(chunk);
+        }
+    }
+
+    void ScheduleConsistentlyPlacedChunkRefresh(std::vector<TChunk*> chunks)
+    {
+        if (IsChunkRequisitionUpdateEnabled()) {
+            for (auto* chunk : chunks) {
+                ScheduleChunkRefresh(chunk);
+            }
         }
     }
 
@@ -1871,16 +1892,23 @@ public:
         auto oldMaxReplicationFactor = medium->Config()->MaxReplicationFactor;
 
         medium->Config() = std::move(newConfig);
-        if (ChunkReplicator_ && medium->Config()->MaxReplicationFactor != oldMaxReplicationFactor) {
+        if (medium->Config()->MaxReplicationFactor != oldMaxReplicationFactor) {
+            ScheduleGlobalChunkRefresh();
+        }
+
+        if (ReplicatorState_) {
+            ReplicatorState_->UpdateMediumConfig(medium->GetId(), medium->Config());
+        }
+    }
+
+    void ScheduleGlobalChunkRefresh()
+    {
+        if (ChunkReplicator_) {
             ChunkReplicator_->ScheduleGlobalChunkRefresh(
                 BlobChunks_.GetFront(),
                 BlobChunks_.GetSize(),
                 JournalChunks_.GetFront(),
                 JournalChunks_.GetSize());
-        }
-
-        if (ReplicatorState_) {
-            ReplicatorState_->UpdateMediumConfig(medium->GetId(), medium->Config());
         }
     }
 
@@ -2085,6 +2113,10 @@ private:
     TAtomicObject<NReplicator::IJobTrackerPtr> JobTracker_;
     TAtomicObject<NReplicator::IChunkReplicaAllocatorPtr> ChunkReplicaAllocator_;
 
+    // Unlike chunk replicator, placement and sealer, this is maintained on all
+    // peers and is not cleared on epoch change.
+    const TConsistentChunkPlacementPtr ConsistentChunkPlacement_;
+
     TJobRegistryPtr JobRegistry_;
 
     const TExpirationTrackerPtr ExpirationTracker_;
@@ -2130,6 +2162,10 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
     }
 
+    bool IsConsistentChunkPlacementEnabled() const
+    {
+        return GetDynamicConfig()->ConsistentReplicaPlacement->Enable;
+    }
 
     TChunk* DoCreateChunk(EObjectType chunkType)
     {
@@ -2183,6 +2219,10 @@ private:
         }
         if (ChunkSealer_) {
             ChunkSealer_->OnChunkDestroyed(chunk);
+        }
+
+        if (chunk->HasConsistentReplicaPlacementHash()) {
+            ConsistentChunkPlacement_->RemoveChunk(chunk);
         }
 
         if (chunk->IsNative() && chunk->IsDiskSizeFinal()) {
@@ -2347,6 +2387,9 @@ private:
             ChunkPlacement_->OnNodeUnregistered(node);
         }
 
+        auto affectedChunks = ConsistentChunkPlacement_->RemoveNode(node);
+        ScheduleConsistentlyPlacedChunkRefresh(affectedChunks);
+
         auto jobs = node->IdToJob();
         for (const auto& [jobId, job] : jobs) {
             AbortAndRemoveJob(job);
@@ -2354,6 +2397,32 @@ private:
 
         // XXX(gritukan): Do we really need to do it here?
         node->Reset();
+    }
+
+    void OnNodeDecommissionChanged(TNode* node)
+    {
+        std::vector<TChunk*> affectedChunks;
+        if (node->GetDecommissioned()) {
+            affectedChunks = ConsistentChunkPlacement_->RemoveNode(node);
+        } else if (node->IsValidWriteTarget()) {
+            affectedChunks = ConsistentChunkPlacement_->AddNode(node);
+        }
+
+        ScheduleConsistentlyPlacedChunkRefresh(affectedChunks);
+
+        OnNodeChanged(node);
+    }
+
+    void OnNodeDisableWriteSessionsChanged(TNode* node)
+    {
+        std::vector<TChunk*> affectedChunks;
+        if (node->GetDisableWriteSessions()) {
+            affectedChunks = ConsistentChunkPlacement_->RemoveNode(node);
+        } else if (node->IsValidWriteTarget()) {
+            affectedChunks = ConsistentChunkPlacement_->AddNode(node);
+        }
+
+        ScheduleConsistentlyPlacedChunkRefresh(affectedChunks);
     }
 
     void OnNodeDisposed(TNode* node)
@@ -2548,7 +2617,13 @@ private:
         SetAnnounceReplicaRequests(response, node, announceReplicaRequests);
 
         if (ChunkPlacement_) {
+            ChunkPlacement_->OnNodeRegistered(node);
             ChunkPlacement_->OnNodeUpdated(node);
+        }
+
+        if (node->IsValidWriteTarget()) {
+            auto affectedChunks = ConsistentChunkPlacement_->AddNode(node);
+            ScheduleConsistentlyPlacedChunkRefresh(affectedChunks);
         }
     }
 
@@ -2682,6 +2757,12 @@ private:
         if (ChunkPlacement_) {
             ChunkPlacement_->OnNodeUpdated(node);
         }
+    }
+
+    void OnNodeConsistentReplicaPlacementTokensRedistributed(TNode* node, int mediumIndex, i64 oldTokenCount, i64 newTokenCount)
+    {
+        auto affectedChunks = ConsistentChunkPlacement_->UpdateNodeTokenCount(node, mediumIndex, oldTokenCount, newTokenCount);
+        ScheduleConsistentlyPlacedChunkRefresh(affectedChunks);
     }
 
     void OnDataCenterCreated(TDataCenter* dataCenter)
@@ -2827,22 +2908,27 @@ private:
                 crossCellUpdate->set_chunk_requisition_index(newRequisitionIndex);
             } else {
                 const auto isChunkDiskSizeFinal = chunk->IsDiskSizeFinal();
+
+                // NB: changing chunk's requisition may unreference and destroy the old requisition.
+                // Worse yet, this may, in turn, weak-unreference some accounts, thus triggering
+                // destruction of their control blocks (that hold strong and weak counters).
+                // So be sure to use the old requisition *before* setting the new one.
+                const auto& requisitionBefore = chunk->GetAggregatedRequisition(requisitionRegistry);
+                auto replicationBefore = requisitionBefore.ToReplication();
+
                 if (isChunkDiskSizeFinal) {
-                    // NB: changing chunk's requisition may unreference and destroy the old requisition.
-                    // Worse yet, this may, in turn, weak-unreference some accounts, thus triggering
-                    // destruction of their control blocks (that hold strong and weak counters).
-                    // So be sure to use the old requisition *before* setting the new one.
-                    const auto& requisitionBefore = chunk->GetAggregatedRequisition(requisitionRegistry);
                     UpdateResourceUsage(chunk, -1, &requisitionBefore);
                 }
 
-                setChunkRequisitionIndex(chunk, newRequisitionIndex); // potentially destroys the old requisition
+                setChunkRequisitionIndex(chunk, newRequisitionIndex);
+
+                // NB: don't use requisitionBefore after the change.
 
                 if (isChunkDiskSizeFinal) {
                     UpdateResourceUsage(chunk, +1, nullptr);
                 }
 
-                ScheduleChunkRefresh(chunk);
+                OnChunkUpdated(chunk, replicationBefore);
             }
         }
 
@@ -2857,6 +2943,16 @@ private:
         for (const auto& update : updates) {
             requisitionRegistry->Unref(update.TranslatedRequisitionIndex, objectManager);
         }
+    }
+
+    void OnChunkUpdated(TChunk* chunk, const TChunkReplication& oldReplication)
+    {
+        if (chunk->HasConsistentReplicaPlacementHash()) {
+            ConsistentChunkPlacement_->RemoveChunk(chunk, oldReplication, /*missingOk*/ true);
+            ConsistentChunkPlacement_->AddChunk(chunk);
+        }
+
+        ScheduleChunkRefresh(chunk);
     }
 
     void HydraRegisterChunkEndorsements(NProto::TReqRegisterChunkEndorsements* request)
@@ -3185,6 +3281,10 @@ private:
             consistentReplicaPlacementHash,
             replicaLagLimit);
 
+        if (chunk->HasConsistentReplicaPlacementHash()) {
+            ConsistentChunkPlacement_->AddChunk(chunk);
+        }
+
         if (subresponse) {
             auto sessionId = TSessionId(chunk->GetId(), mediumIndex);
             ToProto(subresponse->mutable_session_id(), sessionId);
@@ -3450,6 +3550,18 @@ private:
 
         InitBuiltins();
 
+        for (auto [_, node] : nodeTracker->Nodes()) {
+            if (node->IsValidWriteTarget()) {
+                ConsistentChunkPlacement_->AddNode(node);
+            }
+        }
+        // NB: chunks are added after nodes!
+        for (auto [_, chunk] : ChunkMap_) {
+            if (chunk->HasConsistentReplicaPlacementHash()) {
+                ConsistentChunkPlacement_->AddChunk(chunk);
+            }
+        }
+
         if (NeedFixTrunkNodeInvalidDeltaStatistics_) {
             auto fixedTableCount = 0;
 
@@ -3542,6 +3654,8 @@ private:
 
         ChunkRequisitionRegistry_.Clear();
 
+        ConsistentChunkPlacement_->Clear();
+
         ChunkListsAwaitingRequisitionTraverse_.clear();
 
         MediumMap_.Clear();
@@ -3578,6 +3692,7 @@ private:
         TMasterAutomatonPart::SetZeroState();
 
         InitBuiltins();
+        ConsistentChunkPlacement_->Clear();
     }
 
 
@@ -3869,7 +3984,7 @@ private:
 
         // TODO(gritukan): Do not create legacy replicator stuff if new replicator is used.
         JobRegistry_ = New<TJobRegistry>(Config_, Bootstrap_);
-        ChunkPlacement_ = New<TChunkPlacement>(Config_, Bootstrap_);
+        ChunkPlacement_ = New<TChunkPlacement>(Config_, ConsistentChunkPlacement_.Get(), Bootstrap_);
         ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_, JobRegistry_);
         ChunkSealer_ = CreateChunkSealer(Bootstrap_);
 
@@ -4388,6 +4503,7 @@ private:
         buffer.AddGauge("/precarious_vital_chunk_count", PrecariousVitalChunks().size());
         buffer.AddGauge("/quorum_missing_chunk_count", QuorumMissingChunks().size());
         buffer.AddGauge("/unsafely_placed_chunk_count", UnsafelyPlacedChunks().size());
+        buffer.AddGauge("/inconsistently_placed_chunk_count", InconsistentlyPlacedChunks().size());
 
         BufferedProducer_->Update(std::move(buffer));
     }
@@ -4502,11 +4618,27 @@ private:
         return alerts;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig)
     {
         if (ReplicatorState_) {
             const auto& configManager = Bootstrap_->GetConfigManager();
             ReplicatorState_->UpdateDynamicConfig(configManager->GetConfig());
+        }
+
+        if (oldConfig) { // Otherwise we're at startup.
+            const auto& oldCrpConfig = oldConfig->ChunkManager->ConsistentReplicaPlacement;
+            const auto& newCrpConfig = GetDynamicConfig()->ConsistentReplicaPlacement;
+
+            if (newCrpConfig->ReplicasPerChunk != oldCrpConfig->ReplicasPerChunk) {
+                ConsistentChunkPlacement_->SetChunkReplicaCount(newCrpConfig->ReplicasPerChunk);
+            }
+
+            if (newCrpConfig->Enable && !oldCrpConfig->Enable) {
+                // Storing a set of CRP-enabled chunks separately would've enabled
+                // us refreshing only what's actually necessary here. But it still
+                // seems not enough of a reason to.
+                ScheduleGlobalChunkRefresh();
+            }
         }
     }
 
@@ -4543,6 +4675,7 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, PrecariousCh
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, PrecariousVitalChunks, *ChunkReplicator_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, QuorumMissingChunks, *ChunkReplicator_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, UnsafelyPlacedChunks, *ChunkReplicator_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, InconsistentlyPlacedChunks, *ChunkReplicator_);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4795,6 +4928,7 @@ TNodeList TChunkManager::AllocateWriteTargets(
 TNodeList TChunkManager::AllocateWriteTargets(
     TMedium* medium,
     TChunk* chunk,
+    int replicaIndex,
     int desiredCount,
     int minCount,
     std::optional<int> replicationFactorOverride)
@@ -4802,6 +4936,7 @@ TNodeList TChunkManager::AllocateWriteTargets(
     return Impl_->AllocateWriteTargets(
         medium,
         chunk,
+        replicaIndex,
         desiredCount,
         minCount,
         replicationFactorOverride);
@@ -5058,11 +5193,6 @@ void TChunkManager::ScheduleChunkRefresh(TChunk* chunk)
     Impl_->ScheduleChunkRefresh(chunk);
 }
 
-void TChunkManager::ScheduleNodeRefresh(TNode* node)
-{
-    Impl_->ScheduleNodeRefresh(node);
-}
-
 void TChunkManager::ScheduleChunkRequisitionUpdate(TChunkTree* chunkTree)
 {
     Impl_->ScheduleChunkRequisitionUpdate(chunkTree);
@@ -5183,6 +5313,7 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, PrecariousChunks, *
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, PrecariousVitalChunks, *Impl_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, QuorumMissingChunks, *Impl_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, UnsafelyPlacedChunks, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, InconsistentlyPlacedChunks, *Impl_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, ForeignChunks, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -31,6 +31,10 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = ChunkServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkPlacement::TTargetCollector
 {
 public:
@@ -113,8 +117,10 @@ private:
 
 TChunkPlacement::TChunkPlacement(
     TChunkManagerConfigPtr config,
+    const TConsistentChunkPlacement* consistentPlacement,
     TBootstrap* bootstrap)
     : Config_(config)
+    , ConsistentPlacement_(consistentPlacement)
     , Bootstrap_(bootstrap)
 {
     YT_VERIFY(Config_);
@@ -127,6 +133,11 @@ TChunkPlacement::TChunkPlacement(
 
 void TChunkPlacement::OnNodeRegistered(TNode* node)
 {
+    RegisterNode(node);
+}
+
+void TChunkPlacement::RegisterNode(TNode* node)
+{
     if (!node->ReportedDataNodeHeartbeat()) {
         return;
     }
@@ -135,18 +146,23 @@ void TChunkPlacement::OnNodeRegistered(TNode* node)
     InsertToFillFactorMaps(node);
 }
 
-void TChunkPlacement::OnNodeUnregistered(TNode* node)
-{
-    RemoveFromLoadFactorMaps(node);
-    RemoveFromFillFactorMaps(node);
-}
-
 void TChunkPlacement::OnNodeUpdated(TNode* node)
 {
     node->ClearSessionHints();
 
-    OnNodeUnregistered(node);
-    OnNodeRegistered(node);
+    UnregisterNode(node);
+    RegisterNode(node);
+}
+
+void TChunkPlacement::OnNodeUnregistered(TNode* node)
+{
+    UnregisterNode(node);
+}
+
+void TChunkPlacement::UnregisterNode(TNode* node)
+{
+    RemoveFromLoadFactorMaps(node);
+    RemoveFromFillFactorMaps(node);
 }
 
 void TChunkPlacement::OnNodeDisposed(TNode* node)
@@ -172,6 +188,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     auto targetNodes = GetWriteTargets(
         medium,
         chunk,
+        GenericChunkReplicaIndex,
         desiredCount,
         minCount,
         sessionType == ESessionType::Replication,
@@ -184,6 +201,13 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     }
 
     return targetNodes;
+}
+
+TNodeList TChunkPlacement::GetConsistentPlacementWriteTargets(const TChunk* chunk, int mediumIndex)
+{
+    YT_ASSERT(IsConsistentChunkPlacementEnabled());
+    YT_VERIFY(chunk->HasConsistentReplicaPlacementHash());
+    return ConsistentPlacement_->GetWriteTargets(chunk, mediumIndex);
 }
 
 void TChunkPlacement::InsertToFillFactorMaps(TNode* node)
@@ -281,6 +305,7 @@ void TChunkPlacement::RemoveFromLoadFactorMaps(TNode* node)
 TNodeList TChunkPlacement::GetWriteTargets(
     TMedium* medium,
     TChunk* chunk,
+    int replicaIndex,
     int desiredCount,
     int minCount,
     bool forceRackAwareness,
@@ -288,6 +313,29 @@ TNodeList TChunkPlacement::GetWriteTargets(
     const TNodeList* forbiddenNodes,
     const std::optional<TString>& preferredHostName)
 {
+    auto* preferredNode = FindPreferredNode(preferredHostName, medium);
+
+    auto consistentPlacementWriteTargets = FindConsistentPlacementWriteTargets(
+        medium,
+        chunk,
+        replicaIndex,
+        desiredCount,
+        minCount,
+        forbiddenNodes,
+        preferredNode);
+
+    // We may have trouble placing replicas consistently. In that case, ignore
+    // CRP for the time being.
+    // This may happen when:
+    //   - #forbiddenNodes are specified (which means a writer already has trouble);
+    //   - a target node dictated by CRP is unavailable (and more time is required
+    //     by CRP to react to that);
+    //   - etc.
+    // In any such case we rely on the replicator to do its job later.
+    if (consistentPlacementWriteTargets) {
+        return *consistentPlacementWriteTargets;
+    }
+
     PrepareLoadFactorIterator(medium);
     if (!LoadFactorToNodeIterator_.IsValid()) {
         return TNodeList();
@@ -327,23 +375,8 @@ TNodeList TChunkPlacement::GetWriteTargets(
         return hasProgress;
     };
 
-    if (preferredHostName) {
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        auto* preferredHost = nodeTracker->FindHostByName(*preferredHostName);
-        // COMPAT(gritukan)
-        if (!preferredHost) {
-            if (auto* preferredNode = nodeTracker->FindNodeByHostName(*preferredHostName)) {
-                preferredHost = preferredNode->GetHost();
-            }
-        }
-
-        if (preferredHost) {
-            for (auto* node : preferredHost->GetNodesWithFlavor(ENodeFlavor::Data)) {
-                if (IsValidPreferredWriteTargetToAllocate(node, medium)) {
-                    tryAdd(node, /*enableRackAwareness*/ true);
-                }
-            }
-        }
+    if (preferredNode) {
+        tryAdd(preferredNode, true);
     }
 
     if (!hasEnoughTargets()) {
@@ -365,9 +398,170 @@ TNodeList TChunkPlacement::GetWriteTargets(
     return std::ssize(nodes) < minCount ? TNodeList() : nodes;
 }
 
+TNode* TChunkPlacement::FindPreferredNode(
+    const std::optional<TString>& preferredHostName,
+    TMedium* medium)
+{
+    if (!preferredHostName) {
+        return nullptr;
+    }
+
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+
+    auto* preferredHost = nodeTracker->FindHostByName(*preferredHostName);
+    // COMPAT(gritukan)
+    if (!preferredHost) {
+        if (auto* preferredNode = nodeTracker->FindNodeByHostName(*preferredHostName)) {
+            preferredHost = preferredNode->GetHost();
+        }
+    }
+
+    if (!preferredHost) {
+        return nullptr;
+    }
+
+    for (auto* node : preferredHost->GetNodesWithFlavor(ENodeFlavor::Data)) {
+        if (IsValidPreferredWriteTargetToAllocate(node, medium)) {
+            // NB: assuming a single data node per host here.
+            return node;
+        }
+    }
+
+    return nullptr;
+}
+
+std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
+    TMedium* medium,
+    TChunk* chunk,
+    int replicaIndex,
+    int desiredCount,
+    int minCount,
+    const TNodeList* forbiddenNodes,
+    TNode* preferredNode)
+{
+    if (!chunk->HasConsistentReplicaPlacementHash()) {
+        return std::nullopt;
+    }
+
+    if (!IsConsistentChunkPlacementEnabled()) {
+        return std::nullopt;
+    }
+
+    auto mediumIndex = medium->GetIndex();
+    auto result = GetConsistentPlacementWriteTargets(chunk, mediumIndex);
+
+    if (desiredCount > std::ssize(result)) {
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& dataNodeStatistics = nodeTracker->GetFlavoredNodeStatistics(ENodeFlavor::Data);
+        if (desiredCount > dataNodeStatistics.OnlineNodeCount) {
+            YT_LOG_WARNING("Requested to allocate too many consistently placed chunk replica targets "
+                "(ChunkId: %v, ReplicaIndex: %v, MediumIndex: %v, DesiredReplicaCount: %v, ConsistentPlacementReplicaCount: %v, OnlineDataNodeCount: %v)",
+                chunk->GetId(),
+                replicaIndex,
+                mediumIndex,
+                desiredCount,
+                std::ssize(result),
+                dataNodeStatistics.OnlineNodeCount);
+        }
+        return std::nullopt;
+    }
+
+    if (replicaIndex != GenericChunkReplicaIndex) {
+        YT_ASSERT(chunk->IsErasure());
+        if (replicaIndex >= std::ssize(result)) {
+            YT_LOG_ALERT("Target nodes dictated by consistent chunk placement are fewer than the specified replica index (ChunkId: %v, MediumIndex: %v, ConsistentPlacementTargetNodeCount: %v, ReplicaIndex: %v)",
+                chunk->GetId(),
+                mediumIndex,
+                std::ssize(result),
+                replicaIndex);
+            return std::nullopt;
+        }
+        result = TNodeList(1, result[replicaIndex]);
+    }
+
+    TNodeList replicaNodes;
+    for (auto replica : chunk->StoredReplicas()) {
+        if (replicaIndex != GenericChunkReplicaIndex &&
+            replica.GetReplicaIndex() != replicaIndex)
+        {
+            continue;
+        }
+
+        if (replica.GetMediumIndex() != mediumIndex) {
+            continue;
+        }
+
+        auto* node = replica.GetPtr();
+        replicaNodes.push_back(node);
+    }
+
+    // Remove
+    //   - already consistently placed replicas;
+    //   - invalid nodes.
+    result.erase(
+        std::remove_if(
+            result.begin(),
+            result.end(),
+            [&] (TNode* node) {
+                if (std::find(replicaNodes.begin(), replicaNodes.end(), node) != replicaNodes.end()) {
+                    return true;
+                }
+
+                if (forbiddenNodes &&
+                    std::find(forbiddenNodes->begin(), forbiddenNodes->end(), node) != forbiddenNodes->end())
+                {
+                    return true;
+                }
+
+                if (!IsValidWriteTargetCore(node)) {
+                    YT_LOG_WARNING("Target node dictated by consistent placement is not a valid write target "
+                        "(NodeId: %v, ChunkId: %v, ReportedDataNodeHeartbeat: %v, Decommissioned: %v, "
+                        "DisableWriteSessions: %v, EffectiveDisableWriteSessions: %v)",
+                        node->GetId(),
+                        chunk->GetId(),
+                        node->ReportedDataNodeHeartbeat(),
+                        node->GetDecommissioned(),
+                        node->GetDisableWriteSessions(),
+                        node->GetEffectiveDisableWriteSessions());
+                    return true;
+                }
+                return false;
+            }),
+        result.end());
+
+    // NB: this doesn't mean erasure chunk replicas are always allocated one by one.
+    YT_VERIFY(replicaIndex == GenericChunkReplicaIndex || std::ssize(result) <= 1);
+
+    if (std::ssize(result) < minCount) {
+        return std::nullopt;
+    }
+
+    YT_VERIFY(!result.empty());
+
+    if (desiredCount < std::ssize(result)) {
+        // Make sure the preferred node makes it to the result after trimming.
+        if (preferredNode) {
+            auto it = std::find(result.begin(), result.end(), preferredNode);
+            if (it != result.end()) {
+                // NB: reordering replicas should be avoided when allocating
+                // targets for an erasure chunk. However, replicationFactorOverride
+                // in never specified in that case, so this is safe.
+                std::swap(result.front(), *it);
+            }
+        }
+        // Trim the result.
+        auto tailIt = result.begin();
+        std::advance(tailIt, desiredCount);
+        result.erase(tailIt, result.end());
+    }
+
+    return result;
+}
+
 TNodeList TChunkPlacement::AllocateWriteTargets(
     TMedium* medium,
     TChunk* chunk,
+    int replicaIndex,
     int desiredCount,
     int minCount,
     std::optional<int> replicationFactorOverride,
@@ -376,6 +570,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     auto targetNodes = GetWriteTargets(
         medium,
         chunk,
+        replicaIndex,
         desiredCount,
         minCount,
         sessionType == ESessionType::Replication,
@@ -409,10 +604,31 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
         ++perRackCounters[rack->GetIndex()];
     }
 
+    // An arbitrary node that violates consistent placement requirements.
+    TNode* consistentPlacementWinner = nullptr;
     // An arbitrary node from a rack with too many replicas.
     TNode* rackWinner = nullptr;
     // A node with the largest fill factor.
     TNode* fillFactorWinner = nullptr;
+
+    TNodeList consistentPlacementNodes;
+    if (chunk->HasConsistentReplicaPlacementHash() && IsConsistentChunkPlacementEnabled()) {
+        consistentPlacementNodes = GetConsistentPlacementWriteTargets(chunk, mediumIndex);
+    }
+
+    auto isInconsistentlyPlaced = [&] (TNode* node) {
+        if (!chunk->HasConsistentReplicaPlacementHash()) {
+            return false;
+        }
+
+        if (!IsConsistentChunkPlacementEnabled()) {
+            return false;
+        }
+
+        return replicaIndex == GenericChunkReplicaIndex
+            ? std::find(consistentPlacementNodes.begin(), consistentPlacementNodes.end(), node) == consistentPlacementNodes.end()
+            : consistentPlacementNodes[replicaIndex] != node;
+    };
 
     for (auto replica : chunk->StoredReplicas()) {
         if (chunk->IsJournal() && replica.GetState() != EChunkReplicaState::Sealed) {
@@ -432,6 +648,10 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
             continue;
         }
 
+        if (isInconsistentlyPlaced(node)) {
+            consistentPlacementWinner = node;
+        }
+
         const auto* rack = node->GetRack();
         if (rack && perRackCounters[rack->GetIndex()] > maxReplicasPerRack) {
             rackWinner = node;
@@ -447,7 +667,13 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
         }
     }
 
-    return rackWinner ? rackWinner : fillFactorWinner;
+    if (consistentPlacementWinner) {
+        return consistentPlacementWinner;
+    } else if (rackWinner) {
+        return rackWinner;
+    } else {
+        return fillFactorWinner;
+    }
 }
 
 bool TChunkPlacement::HasBalancingTargets(TMedium* medium, double maxFillFactor)
@@ -559,18 +785,12 @@ bool TChunkPlacement::IsValidWriteTargetToAllocate(
 
 bool TChunkPlacement::IsValidWriteTargetCore(TNode* node)
 {
-    if (!node->ReportedDataNodeHeartbeat()) {
-        // Do not write anything to a node before its first heartbeat or after it is unregistered.
+    if (!node->IsValidWriteTarget()) {
         return false;
     }
 
-    if (node->GetDecommissioned()) {
-        // Do not write anything to decommissioned nodes.
-        return false;
-    }
-
+    // The above only checks DisableWriteSessions, not Effective*.
     if (node->GetEffectiveDisableWriteSessions()) {
-        // Do not start new sessions if they are explicitly disabled.
         return false;
     }
 
@@ -648,7 +868,7 @@ std::vector<TChunkPtrWithIndexes> TChunkPlacement::GetBalancingChunks(
         if (!IsObjectAlive(chunk)) {
             break;
         }
-        if (static_cast<int>(result.size()) >= replicaCount) {
+        if (std::ssize(result) >= replicaCount) {
             break;
         }
         if (!chunk->GetMovable()) {
@@ -734,10 +954,15 @@ void TChunkPlacement::PrepareLoadFactorIterator(const TMedium* medium)
     }
 }
 
-const TDynamicChunkManagerConfigPtr& TChunkPlacement::GetDynamicConfig()
+const TDynamicChunkManagerConfigPtr& TChunkPlacement::GetDynamicConfig() const
 {
     const auto& configManager = Bootstrap_->GetConfigManager();
     return configManager->GetConfig()->ChunkManager;
+}
+
+bool TChunkPlacement::IsConsistentChunkPlacementEnabled() const
+{
+    return GetDynamicConfig()->ConsistentReplicaPlacement->Enable;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

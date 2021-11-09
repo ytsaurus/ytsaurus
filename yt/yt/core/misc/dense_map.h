@@ -1191,7 +1191,10 @@ class SmallDenseMap
   AlignedCharArrayUnion<BucketT[InlineBuckets], LargeRep> storage;
 
 public:
-  explicit SmallDenseMap(unsigned NumInitBuckets = 0) {
+  SmallDenseMap() : SmallDenseMap(0) {
+  }
+
+  explicit SmallDenseMap(unsigned NumInitBuckets) {
     init(NumInitBuckets);
   }
 

@@ -125,6 +125,7 @@ public:
     TNodeList AllocateWriteTargets(
         TMedium* medium,
         TChunk* chunk,
+        int replicaIndex,
         int desiredCount,
         int minCount,
         std::optional<int> replicationFactorOverride);
@@ -217,7 +218,6 @@ public:
     bool IsChunkSealerEnabled();
 
     void ScheduleChunkRefresh(TChunk* chunk);
-    void ScheduleNodeRefresh(TNode* node);
     void ScheduleChunkRequisitionUpdate(TChunkTree* chunkTree);
     void ScheduleChunkSeal(TChunk* chunk);
     void ScheduleChunkMerge(TChunkOwnerBase* node);
@@ -235,6 +235,7 @@ public:
     const THashSet<TChunk*>& PrecariousVitalChunks() const;
     const THashSet<TChunk*>& QuorumMissingChunks() const;
     const THashSet<TChunk*>& UnsafelyPlacedChunks() const;
+    const THashSet<TChunk*>& InconsistentlyPlacedChunks() const;
     const THashSet<TChunk*>& ForeignChunks() const;
 
     //! Returns the total number of all chunk replicas.

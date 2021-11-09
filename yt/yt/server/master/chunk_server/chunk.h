@@ -94,6 +94,7 @@ public:
     // Limits the lifetime of staged chunks. Useful for cleaning up abandoned staged chunks.
     DEFINE_BYVAL_RW_PROPERTY(TInstant, ExpirationTime);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TChunkExpirationMapIterator>, ExpirationIterator);
+    DEFINE_BYVAL_RW_PROPERTY(TConsistentReplicaPlacementHash, ConsistentReplicaPlacementHash, NullConsistentReplicaPlacementHash);
 
     DEFINE_BYVAL_RW_PROPERTY(NNodeTrackerServer::TNode*, NodeWithEndorsement);
 
@@ -243,6 +244,11 @@ public:
     //! Unlike similar methods, non-committed owners always contribute to this value.
     int GetAggregatedPhysicalReplicationFactor(const TChunkRequisitionRegistry* registry) const;
 
+    //! Returns the number of physical replicas on particular medium. This equals to:
+    //!   - RF for regular chunks,
+    //!   - total part count for erasure chunks (or data part if dataPartsOnly is set).
+    int GetPhysicalReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry* registry) const;
+
     i64 GetReplicaLagLimit() const;
     void SetReplicaLagLimit(i64 value);
 
@@ -324,6 +330,8 @@ public:
 
     //! Extracts chunk format from meta.
     NChunkClient::EChunkFormat GetChunkFormat() const;
+
+    bool HasConsistentReplicaPlacementHash() const;
 
 private:
     //! -1 stands for std::nullopt for non-overlayed chunks.

@@ -281,6 +281,7 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeDisposed);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeBanChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeDecommissionChanged);
+    DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeDisableWriteSessionsChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeDisableTabletCellsChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeTagsChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node, TRack*), NodeRackChanged);
@@ -520,6 +521,7 @@ public:
                     node->GetId(),
                     node->GetDefaultAddress());
             }
+            NodeDisableWriteSessionsChanged_.Fire(node);
         }
     }
 
@@ -866,10 +868,20 @@ public:
     {
         if (node->ReportedHeartbeats().emplace(heartbeatType).second) {
             YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node reported heartbeat for the first time "
-                "(NodeId: %v, Address: %v, HeartbeatType: %v)",
+                "(NodeId: %v, Address: %v, HeartbeatType: %v%v)",
                 node->GetId(),
                 node->GetDefaultAddress(),
-                heartbeatType);
+                heartbeatType,
+                MakeFormatterWrapper([&] (auto* builder) {
+                    if (heartbeatType == ENodeHeartbeatType::Data) {
+                        builder->AppendFormat(", CRPTokenCount: %v",
+                            MakeFormattableView(
+                                node->ConsistentReplicaPlacementTokenCount(),
+                                [&] (TStringBuilderBase* builder, auto pair) {
+                                    builder->AppendFormat("%v: %v", pair.first, pair.second);
+                                }));
+                    }
+                }));
 
             CheckNodeOnline(node);
         }

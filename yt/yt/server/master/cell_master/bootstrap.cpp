@@ -906,6 +906,7 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::OldestPartMissingChunkMap));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::QuorumMissingChunkMap));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::UnsafelyPlacedChunkMap));
+    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::InconsistentlyPlacedChunkMap));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ForeignChunkMap));
     CypressManager_->RegisterHandler(CreateChunkViewMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateChunkListMapTypeHandler(this));

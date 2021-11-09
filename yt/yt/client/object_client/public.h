@@ -126,6 +126,7 @@ DEFINE_ENUM(EObjectType,
     ((OldestPartMissingChunkMap)     (428))
     ((QuorumMissingChunkMap)         (424))
     ((UnsafelyPlacedChunkMap)        (120))
+    ((InconsistentlyPlacedChunkMap)  (160))
     ((ForeignChunkMap)               (122))
     ((ChunkList)                     (101))
     ((ChunkListMap)                  (406))

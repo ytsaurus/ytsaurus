@@ -130,6 +130,7 @@ private:
             .SetPresent(isGood && Bootstrap_->GetMulticellManager()->IsPrimaryMaster()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DestroyedChunkReplicaCount)
             .SetPresent(isGood && Bootstrap_->GetMulticellManager()->IsPrimaryMaster()));
+        descriptors->push_back(EInternedAttributeKey::ConsistentReplicaPlacementTokenCount);
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -508,6 +509,29 @@ private:
 
                 BuildYsonFluently(consumer)
                     .Value(node->ComputeClusterStatistics().DestroyedChunkReplicaCount);
+                return true;
+            }
+
+            case EInternedAttributeKey::ConsistentReplicaPlacementTokenCount: {
+                if (node->GetLocalState() != ENodeState::Online) {
+                    break;
+                }
+
+                if (node->GetDecommissioned()) {
+                    break;
+                }
+
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+                BuildYsonFluently(consumer)
+                    .DoMapFor(
+                        node->ConsistentReplicaPlacementTokenCount(),
+                        [&] (TFluentMap fluent, const auto& pair) {
+
+                        auto* medium = chunkManager->FindMediumByIndex(pair.first);
+                        if (IsObjectAlive(medium)) {
+                            fluent.Item(medium->GetName()).Value(pair.second);
+                        }
+                    });
                 return true;
             }
 

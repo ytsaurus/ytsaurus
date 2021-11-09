@@ -193,6 +193,8 @@ private:
         descriptors->push_back(EInternedAttributeKey::ApprovedReplicaCount);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EndorsementRequired)
             .SetPresent(chunk->IsBlob()));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ConsistentReplicaPlacementHash)
+            .SetPresent(chunk->HasConsistentReplicaPlacementHash()));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -814,6 +816,15 @@ private:
                 }
                 BuildYsonFluently(consumer)
                     .Value(chunk->GetEndorsementRequired());
+                return true;
+
+            case EInternedAttributeKey::ConsistentReplicaPlacementHash:
+                if (!chunk->HasConsistentReplicaPlacementHash()) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(chunk->GetConsistentReplicaPlacementHash());
                 return true;
 
             default:
