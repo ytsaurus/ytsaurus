@@ -26,6 +26,7 @@ using namespace NYTree;
 using namespace NProfiling;
 using namespace NConcurrency;
 
+DEFINE_REFCOUNTED_TYPE(TCgroupTracker)
 DEFINE_REFCOUNTED_TYPE(TResourceTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,6 +34,8 @@ DEFINE_REFCOUNTED_TYPE(TResourceTracker)
 static NLogging::TLogger Logger("Profiling");
 static TProfiler Profiler("/resource_tracker");
 
+// Please, refer to /proc documentation to know more about available information.
+// http://www.kernel.org/doc/Documentation/filesystems/proc.txt
 static constexpr auto procPath = "/proc/self/task";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,8 +58,46 @@ i64 GetTicksPerSecond()
 
 } // namespace
 
-// Please, refer to /proc documentation to know more about available information.
-// http://www.kernel.org/doc/Documentation/filesystems/proc.txt
+void TCgroupTracker::CollectSensors(ISensorWriter* writer)
+{
+    try {
+        auto cgroups = GetProcessCgroups();
+        for (const auto& group : cgroups) {
+            for (const auto& controller : group.Controllers) {
+                if (controller == "cpu") {
+                    auto stat = GetCgroupCpuStat(group.ControllersName, group.Path);
+
+                    if (!FirstCgroupStat_) {
+                        FirstCgroupStat_ = stat;
+                    }
+
+                    writer->AddCounter(
+                        "/cgroup/periods",
+                        stat.NrPeriods - FirstCgroupStat_->NrPeriods);
+
+                    writer->AddCounter(
+                        "/cgroup/throttled_periods",
+                        stat.NrThrottled - FirstCgroupStat_->NrThrottled);
+
+                    writer->AddCounter(
+                        "/cgroup/throttled_cpu_percent",
+                        (stat.ThrottledTime - FirstCgroupStat_->ThrottledTime) / 10'000'000);
+
+                    writer->AddCounter(
+                        "/cgroup/wait_cpu_percent",
+                        (stat.WaitTime - FirstCgroupStat_->WaitTime) / 10'000'000);
+
+                    return;
+                }
+            }
+        }
+    } catch (const std::exception& ex) {
+        if (!CgroupErrorLogged_) {
+            YT_LOG_ERROR(ex, "Failed to collect cgroup cpu statistics");
+            CgroupErrorLogged_ = true;
+        }
+    }
+}
 
 TResourceTracker::TTimings TResourceTracker::TTimings::operator-(const TResourceTracker::TTimings& other) const
 {
@@ -76,11 +117,13 @@ TResourceTracker::TResourceTracker()
     // to milliseconds and percentages.
     : TicksPerSecond_(GetTicksPerSecond())
     , LastUpdateTime_(TInstant::Now())
+    , CgroupTracker_(New<TCgroupTracker>())
 {
     Profiler.AddFuncGauge("/memory_usage/rss", MakeStrong(this), [] {
         return GetProcessMemoryUsage().Rss;
     });
 
+    Profiler.AddProducer("", CgroupTracker_);
     Profiler.WithSparse().AddProducer("", MakeStrong(this));
 }
 
@@ -95,8 +138,6 @@ void TResourceTracker::CollectSensors(ISensorWriter* writer)
     CollectSensorsAggregatedTimings(writer, TidToInfo_, tidToInfo, timeDeltaUsec);
     CollectSensorsThreadCounts(writer, tidToInfo);
     TidToInfo_ = tidToInfo;
-
-    CollectSensorsCgroup(writer);
 
     LastUpdateTime_ = TInstant::Now();
 }
@@ -303,47 +344,6 @@ void TResourceTracker::CollectSensorsThreadCounts(ISensorWriter* writer, const T
 
     YT_LOG_DEBUG("Total thread count (ThreadCount: %v)",
         tidToInfo.size());
-}
-
-void TResourceTracker::CollectSensorsCgroup(ISensorWriter* writer)
-{
-    try {
-        auto cgroups = GetProcessCgroups();
-        for (const auto& group : cgroups) {
-            for (const auto& controller : group.Controllers) {
-                if (controller == "cpu") {
-                    auto stat = GetCgroupCpuStat(group.ControllersName, group.Path);
-
-                    if (!FirstCgroupStat_) {
-                        FirstCgroupStat_ = stat;
-                    }
-
-                    writer->AddCounter(
-                        "/cgroup/periods",
-                        stat.NrPeriods - FirstCgroupStat_->NrPeriods);
-
-                    writer->AddCounter(
-                        "/cgroup/throttled_periods",
-                        stat.NrThrottled - FirstCgroupStat_->NrThrottled);
-
-                    writer->AddCounter(
-                        "/cgroup/throttled_cpu_percent",
-                        (stat.ThrottledTime - FirstCgroupStat_->ThrottledTime) / 10'000'000);
-
-                    writer->AddCounter(
-                        "/cgroup/wait_cpu_percent",
-                        (stat.WaitTime - FirstCgroupStat_->WaitTime) / 10'000'000);
-
-                    return;
-                }
-            }
-        }
-    } catch (const std::exception& ex) {
-        if (!CgroupErrorLogged_) {
-            YT_LOG_ERROR(ex, "Failed to collect cgroup cpu statistics");
-            CgroupErrorLogged_ = true;
-        }
-    }
 }
 
 double TResourceTracker::GetUserCpu()
