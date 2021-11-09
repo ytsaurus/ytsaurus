@@ -95,6 +95,7 @@ public:
 
     int GetSize() const;
     i64 GetCapacity() const;
+
     std::vector<TValuePtr> GetAll();
 
     TValuePtr Find(const TKey& key);
@@ -103,7 +104,7 @@ public:
 
     TInsertCookie BeginInsert(const TKey& key);
     void TryRemove(const TKey& key, bool forbidResurrection = false);
-    void TryRemove(const TValuePtr& value, bool forbidResurrection = false);
+    void TryRemoveValue(const TValuePtr& value, bool forbidResurrection = false);
     void Clear();
 
     void UpdateWeight(const TKey& key);

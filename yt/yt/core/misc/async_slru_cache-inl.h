@@ -511,7 +511,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TKey& key, bool f
 }
 
 template <class TKey, class TValue, class THash>
-void TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TValuePtr& value, bool forbidResurrection)
+void TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemoveValue(const TValuePtr& value, bool forbidResurrection)
 {
     DoTryRemove(value->GetKey(), value, forbidResurrection);
 }

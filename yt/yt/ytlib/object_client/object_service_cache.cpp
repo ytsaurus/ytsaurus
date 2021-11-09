@@ -185,7 +185,7 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
             ExpiredEntries_.emplace(key, entry);
         }
 
-        TryRemove(entry);
+        TryRemoveValue(entry);
     };
 
     bool cacheHit = false;
