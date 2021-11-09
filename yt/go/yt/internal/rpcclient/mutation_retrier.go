@@ -11,6 +11,7 @@ import (
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/log/ctxlog"
+	"a.yandex-team.ru/yt/go/bus"
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/yt"
 )
@@ -23,21 +24,21 @@ type MutatingRequest interface {
 	SetMutatingOptions(opts *yt.MutatingOptions)
 }
 
-func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message) (err error) {
+func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message, opts ...bus.SendOption) (err error) {
 	req, ok := call.Req.(MutatingRequest)
 	if !ok || call.DisableRetries {
-		return invoke(ctx, call, rsp)
+		return invoke(ctx, call, rsp, opts...)
 	}
 
-	opts := &yt.MutatingOptions{
+	mutOpts := &yt.MutatingOptions{
 		MutationID: yt.MutationID(guid.New()),
 		Retry:      false,
 	}
 
 	for i := 0; ; i++ {
-		req.SetMutatingOptions(opts)
+		req.SetMutatingOptions(mutOpts)
 
-		err = invoke(ctx, call, rsp)
+		err = invoke(ctx, call, rsp, opts...)
 		if err == nil || !isNetError(err) {
 			return
 		}
@@ -48,7 +49,7 @@ func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke Call
 		default:
 		}
 
-		opts.Retry = true
+		mutOpts.Retry = true
 
 		b := call.Backoff.NextBackOff()
 		if b == backoff.Stop {

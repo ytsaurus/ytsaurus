@@ -11,6 +11,7 @@ import (
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/log/ctxlog"
+	"a.yandex-team.ru/yt/go/bus"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yterrors"
 )
@@ -25,7 +26,7 @@ type ReadRetryRequest interface {
 	ReadRetryOptions()
 }
 
-func (r *Retrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message) (err error) {
+func (r *Retrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message, opts ...bus.SendOption) (err error) {
 	var cancel func()
 	if timeout := r.Config.GetLightRequestTimeout(); timeout != 0 {
 		ctx, cancel = context.WithTimeout(ctx, timeout)
@@ -33,7 +34,7 @@ func (r *Retrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker,
 	}
 
 	for {
-		err = invoke(ctx, call, rsp)
+		err = invoke(ctx, call, rsp, opts...)
 		if err == nil || call.DisableRetries {
 			return
 		}
