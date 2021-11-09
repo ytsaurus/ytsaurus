@@ -195,7 +195,7 @@ public:
     TFuture<void> Close() override
     {
         return UnderlyingChangelog_->Close().Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
-            Owner_->TryRemove(this, /* forbidResurrection */ true);
+            Owner_->TryRemoveValue(this, /* forbidResurrection */ true);
             return error;
         })).ToUncancelable();
     }

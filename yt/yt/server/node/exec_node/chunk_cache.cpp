@@ -1376,7 +1376,7 @@ private:
             auto chunks = GetAll();
             for (const auto& chunk : chunks) {
                 if (chunk->GetLocation() == location) {
-                    TryRemove(chunk, /*forbidResurrection*/ true);
+                    TryRemove(chunk->GetKey(), /*forbidResurrection*/ true);
                 }
             }
 

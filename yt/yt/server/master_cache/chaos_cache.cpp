@@ -115,7 +115,7 @@ TChaosCache::TCookie TChaosCache::BeginLookup(
                 key,
                 entry->GetSuccess());
 
-            TryRemove(entry);
+            TryRemoveValue(entry);
 
         } else {
             cacheHit = true;
