@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"a.yandex-team.ru/library/go/ptr"
+	"a.yandex-team.ru/yt/go/bus"
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/proto/client/api/rpc_proxy"
 	"a.yandex-team.ru/yt/go/proto/core/misc"
@@ -49,7 +50,7 @@ func TestMutationRetrier_notMutating(t *testing.T) {
 	var called bool
 	var rsp rpc_proxy.TRspGetNode
 	err := r.Intercept(context.Background(), call,
-		func(ctx context.Context, call *Call, rsp proto.Message) error {
+		func(ctx context.Context, call *Call, rsp proto.Message, opts ...bus.SendOption) error {
 			if called {
 				t.Fatalf("get request retried")
 			}
@@ -74,25 +75,25 @@ func TestMutationRetries_mutating(t *testing.T) {
 
 	var rsp rpc_proxy.TRspSetNode
 	err := r.Intercept(context.Background(), call,
-		func(ctx context.Context, call *Call, rsp proto.Message) error {
-			opts := call.Req.(*SetNodeRequest).GetMutatingOptions()
+		func(ctx context.Context, call *Call, rsp proto.Message, opts ...bus.SendOption) error {
+			mutOpts := call.Req.(*SetNodeRequest).GetMutatingOptions()
 
 			switch i {
 			case 0:
 				i++
-				assert.NotNil(t, opts)
-				assert.False(t, opts.GetRetry())
+				assert.NotNil(t, mutOpts)
+				assert.False(t, mutOpts.GetRetry())
 				zero := convertGUID(guid.GUID(yt.MutationID{}))
-				assert.NotEqual(t, zero, opts.GetMutationId())
+				assert.NotEqual(t, zero, mutOpts.GetMutationId())
 
-				id = opts.GetMutationId()
+				id = mutOpts.GetMutationId()
 				return &netError{timeout: true}
 
 			case 1:
 				i++
-				assert.NotNil(t, opts)
-				assert.True(t, opts.GetRetry())
-				assert.Equal(t, id, opts.GetMutationId())
+				assert.NotNil(t, mutOpts)
+				assert.True(t, mutOpts.GetRetry())
+				assert.Equal(t, id, mutOpts.GetMutationId())
 
 				return &netError{timeout: true}
 

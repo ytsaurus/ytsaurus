@@ -7,6 +7,7 @@ import (
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/log/ctxlog"
+	"a.yandex-team.ru/yt/go/bus"
 )
 
 type LoggingInterceptor struct {
@@ -36,9 +37,9 @@ func (l *LoggingInterceptor) logFinish(ctx context.Context, err error, fields ..
 	}
 }
 
-func (l *LoggingInterceptor) Intercept(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message) (err error) {
+func (l *LoggingInterceptor) Intercept(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message, opts ...bus.SendOption) (err error) {
 	ctx = l.logStart(ctx, call)
-	err = invoke(ctx, call, rsp)
+	err = invoke(ctx, call, rsp, opts...)
 	l.logFinish(ctx, err)
 	return
 }

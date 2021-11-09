@@ -84,7 +84,7 @@ func NewClient(conf *yt.Config) (*client, error) {
 	}, c.log)
 
 	c.Encoder.StartCall = c.startCall
-	c.Encoder.Invoke = c.do
+	c.Encoder.Invoke = c.invoke
 	c.Encoder.InvokeReadRow = c.doReadRow
 
 	proxyBouncer := &ProxyBouncer{Log: c.log, ProxySet: c.proxySet, ConnPool: c.connPool}
@@ -111,14 +111,6 @@ func (c *client) schema() string {
 	return schema
 }
 
-func (c *client) do(
-	ctx context.Context,
-	call *Call,
-	rsp proto.Message,
-) error {
-	return c.invoke(ctx, call, rsp)
-}
-
 func (c *client) doReadRow(
 	ctx context.Context,
 	call *Call,
@@ -126,7 +118,7 @@ func (c *client) doReadRow(
 ) (yt.TableReader, error) {
 	var rspAttachments [][]byte
 
-	err := c.invoke(ctx, call, rsp, bus.WithResponseAttachments(&rspAttachments))
+	err := c.Invoke(ctx, call, rsp, bus.WithResponseAttachments(&rspAttachments))
 	if err != nil {
 		return nil, err
 	}

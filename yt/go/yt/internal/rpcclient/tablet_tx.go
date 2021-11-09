@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"a.yandex-team.ru/library/go/core/xerrors"
+	"a.yandex-team.ru/yt/go/bus"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yt/internal"
@@ -71,22 +72,22 @@ func (c *client) BeginTabletTx(
 	return &tx, err
 }
 
-func (tx *tabletTx) do(ctx context.Context, call *Call, rsp proto.Message) (err error) {
+func (tx *tabletTx) do(ctx context.Context, call *Call, rsp proto.Message, opts ...bus.SendOption) (err error) {
 	call.RequestedProxy = tx.coordinator
 
 	switch call.Method {
 	case MethodStartTransaction:
-		return tx.c.Invoke(ctx, call, rsp)
+		return tx.c.Invoke(ctx, call, rsp, opts...)
 
 	case MethodCommitTransaction:
 		err = tx.pinger.TryCommit(func() error {
-			return tx.c.Invoke(ctx, call, rsp)
+			return tx.c.Invoke(ctx, call, rsp, opts...)
 		})
 		return
 
 	case MethodAbortTransaction:
 		err = tx.pinger.TryAbort(func() error {
-			return tx.c.Invoke(ctx, call, rsp)
+			return tx.c.Invoke(ctx, call, rsp, opts...)
 		})
 		return
 
@@ -94,13 +95,13 @@ func (tx *tabletTx) do(ctx context.Context, call *Call, rsp proto.Message) (err 
 		if err = tx.pinger.CheckAlive(); err != nil {
 			return
 		}
-		return tx.doWriteRows(ctx, call, rsp)
+		return tx.doWriteRows(ctx, call, rsp, opts...)
 
 	default:
 		if err = tx.pinger.CheckAlive(); err != nil {
 			return
 		}
-		return tx.c.Invoke(ctx, call, rsp)
+		return tx.c.Invoke(ctx, call, rsp, opts...)
 	}
 }
 
@@ -133,7 +134,7 @@ func (tx *tabletTx) doReadRow(ctx context.Context, call *Call, rsp ProtoRowset) 
 	return tx.c.InvokeReadRow(ctx, call, rsp)
 }
 
-func (tx *tabletTx) doWriteRows(ctx context.Context, call *Call, rsp proto.Message) (err error) {
+func (tx *tabletTx) doWriteRows(ctx context.Context, call *Call, rsp proto.Message, opts ...bus.SendOption) (err error) {
 	if err = tx.pinger.CheckAlive(); err != nil {
 		return
 	}
@@ -144,7 +145,7 @@ func (tx *tabletTx) doWriteRows(ctx context.Context, call *Call, rsp proto.Messa
 		return err
 	}
 
-	return tx.c.Invoke(ctx, call, rsp)
+	return tx.c.Invoke(ctx, call, rsp, opts...)
 }
 
 func (tx *tabletTx) ID() yt.TxID {

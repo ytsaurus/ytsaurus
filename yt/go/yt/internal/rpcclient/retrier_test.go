@@ -10,6 +10,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"a.yandex-team.ru/library/go/ptr"
+	"a.yandex-team.ru/yt/go/bus"
 	"a.yandex-team.ru/yt/go/proto/client/api/rpc_proxy"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
@@ -26,7 +27,7 @@ func TestReadRetrier_readRequest(t *testing.T) {
 	var failed bool
 
 	var rsp rpc_proxy.TRspGetNode
-	err := r.Intercept(context.Background(), call, func(context.Context, *Call, proto.Message) error {
+	err := r.Intercept(context.Background(), call, func(context.Context, *Call, proto.Message, ...bus.SendOption) error {
 		if !failed {
 			failed = true
 			return xerrors.Errorf("request failed: %w", &netError{timeout: true})
@@ -48,7 +49,7 @@ func TestReadRetrier_mutating(t *testing.T) {
 	}
 
 	var rsp rpc_proxy.TRspSetNode
-	err := r.Intercept(context.Background(), call, func(context.Context, *Call, proto.Message) error {
+	err := r.Intercept(context.Background(), call, func(context.Context, *Call, proto.Message, ...bus.SendOption) error {
 		return xerrors.New("request failed")
 	}, &rsp)
 
