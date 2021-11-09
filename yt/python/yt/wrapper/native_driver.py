@@ -1,5 +1,5 @@
 from .config import get_config, get_option, set_option
-from .common import require, generate_int64, update
+from .common import require, generate_int64, update, get_value
 from .errors import create_response_error, YtError
 from .string_iter_io import StringIterIO
 from .response_stream import ResponseStream
@@ -150,7 +150,9 @@ def get_driver_instance(client):
         configure_logging(logging_config, client)
         configure_address_resolver(address_resolver_config, client)
 
-        specified_api_version = get_config(client)["api_version"]
+        specified_api_version = get_value(
+            get_config(client)["api_version"],
+            get_config(client)["default_api_version_for_rpc"])
         if "api_version" in driver_config:
             if specified_api_version is not None and "v" + str(driver_config["api_version"]) != specified_api_version:
                 raise YtError(

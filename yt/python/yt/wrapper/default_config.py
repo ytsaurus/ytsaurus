@@ -183,6 +183,7 @@ default_config = {
     # Version of api for requests through http, None for use latest.
     # For native driver version "v3" by default.
     "default_api_version_for_http": "v4",
+    "default_api_version_for_rpc": "v4",
 
     # Enables generating request id and passing it to native driver.
     "enable_passing_request_id_to_driver": False,
